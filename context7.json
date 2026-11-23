@@ -1,0 +1,14 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Grid (ongrid)",
+  "description": "Reads, measures, checks, draws and changes floor plans kept in one plan file. An MCP tool server and command for AI agents.",
+  "folders": ["docs"],
+  "excludeFolders": ["docs/samples"],
+  "excludeFiles": [],
+  "rules": [
+    "Write a plan rooms first: name the rooms with inside sizes and neighbours, and let grid_write_rooms work out the walls.",
+    "Read docs/agent-guide.md before writing a first plan.",
+    "Run grid_check after every change and retell its label, General guidance, not your local rules.",
+    "Never say a plan complies, is allowed or is approved; say what the checks found and what they did not check."
+  ]
+}

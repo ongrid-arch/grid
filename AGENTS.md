@@ -197,6 +197,12 @@ Notes for agents and people changing this repository.
   `src/mcp/protocol.ts` answers both eras of the protocol: `initialize` for older clients, and
   for 2026-07-28 clients the version in each request's `_meta` and `server/discover`; a version
   it does not speak is refused with the ones it does. It keeps no state between lines.
+- Hosted mode (AIV-19): `grid mcp --http` (`src/mcp/http.ts`, Node's own `http`) serves the same
+  tools over MCP Streamable HTTP, stateless. `src/mcp/hostedTools.ts` swaps each tool's path
+  arguments for `plan_json` and runs the tool on a `MemoryProject` (`src/fs/memoryProject.ts`, no
+  `fs`), so no tool has a hosted form of its own and nothing touches the host's disk. Its words
+  are the `hosted.*` keys of the message files. `packages/viewer/src/page/hostedPage.ts` is its
+  MCP App page, `ui://grid/plan`. See `docs/tool-server.md`, "Hosted mode".
 - `grid sheet` (VEW-7, `src/sheet/`) writes an A3 PDF of the plan: `pages.ts` decides what
   is on each page from existing code (`planAreas`, `floorElevations`, `planFacts`, `checkPlan`),
   `pdf.ts` lays it out, and the pictures come from `drawPlan` and `drawStill`. The sheet never

@@ -1,0 +1,26 @@
+# Grid (ongrid)
+
+> Reads, measures, checks, draws and changes floor plans kept in one plan file. Grid is an open-source (Apache-2.0) toolkit for AI agents: one plan file, written rooms first, with 33 MCP tools named grid_…. Every report carries the label "General guidance, not your local rules"; no message says a plan complies or is approved. Not published to npm yet (as of 23 November 2026).
+
+## Start here
+
+- [Home](https://ongrid.example/index.html): what Grid is and a first plan
+- [llms-full.txt](https://ongrid.example/llms-full.txt): the README and the guide for agents in one file
+- [The guide for agents](https://github.com/ongrid-arch/grid/blob/main/docs/agent-guide.md): write a first plan rooms first
+- [The tool server](https://github.com/ongrid-arch/grid/blob/main/docs/tool-server.md): every grid_ tool
+
+## Use Grid in an assistant
+
+- [All assistants](https://ongrid.example/use/index.html)
+- [Claude Code](https://ongrid.example/use/claude-code.html), [Codex](https://ongrid.example/use/codex.html), [Cursor](https://ongrid.example/use/cursor.html), [VS Code and Copilot CLI](https://ongrid.example/use/vscode-copilot-cli.html), [Gemini CLI](https://ongrid.example/use/gemini-cli.html), [Claude Desktop and Cowork](https://ongrid.example/use/claude-desktop-cowork.html)
+- Custom connectors, available once the hosted server is live: [Grok](https://ongrid.example/use/grok.html), [Perplexity](https://ongrid.example/use/perplexity.html), [Le Chat](https://ongrid.example/use/le-chat.html)
+
+## Compare
+
+- [ArchLang](https://ongrid.example/compare/archlang.html), [Maket](https://ongrid.example/compare/maket.html), [UpCodes](https://ongrid.example/compare/upcodes.html)
+
+## Optional
+
+- [Español](https://ongrid.example/es/index.html) and [inicio rápido](https://ongrid.example/es/inicio-rapido.html)
+- [Privacy (draft)](https://ongrid.example/privacy.html), [Support (draft)](https://ongrid.example/support.html)
+- [Source code](https://github.com/ongrid-arch/grid)

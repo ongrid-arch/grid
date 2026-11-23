@@ -1,0 +1,18 @@
+# Grid (ongrid)
+
+> Reads, measures, checks, draws and changes floor plans kept in one plan file. Grid is an open-source (Apache-2.0) toolkit for AI agents: a `grid` command and an MCP tool server (`grid_…` tools). Every report carries the label "General guidance, not your local rules"; no message says a plan complies or is approved. Not published to npm yet.
+
+## Start here
+
+- [README](README.md): what Grid is, a quick start and the ways to install it in an agent
+- [The guide for agents](docs/agent-guide.md): write a valid first plan rooms first, and the answers to what agents ask
+- [The plan file](docs/plan-file.md): what a plan file may hold and what each drawing check's code means
+- [The tool server](docs/tool-server.md): every `grid_…` tool, asking across parts by their facts, protocol versions
+- [Sample plans](docs/samples): a flat, a two-storey house and an open-plan home, as rooms text and as plan files
+
+## Optional
+
+- [Commands](docs/commands.md): every `grid` command with its options
+- [Rooms first](docs/rooms-first.md): the whole rooms language
+- [Result contract](docs/result-contract.md): what `grid check` returns and every message code
+- [Working on Grid](AGENTS.md): notes for changing this repository

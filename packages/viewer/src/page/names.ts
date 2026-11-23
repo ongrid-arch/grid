@@ -9,3 +9,8 @@ export const PREVIEW_SYNC_TOOL = 'grid_preview_sync'
 export const PREVIEW_RESOURCE_URI = 'ui://grid/preview'
 /** The MCP Apps standard's type for an HTML page. */
 export const PREVIEW_RESOURCE_MIME = 'text/html;profile=mcp-app'
+
+/** AIV-19: the hosted server's page, an MCP App that draws the plan a tool call carried. */
+export const HOSTED_RESOURCE_URI = 'ui://grid/plan'
+/** The key of a hosted result's `_meta` that holds the drawings, one per floor, for that page alone. */
+export const HOSTED_DRAWINGS_KEY = 'grid/drawings'

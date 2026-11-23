@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid privacy policy (draft)</title>
+<meta name="description" content="What Grid keeps and what it does not: the hosted design is stateless, with no accounts, and the plan is sent with each call and not stored.">
+<link rel="canonical" href="https://ongrid.example/privacy.html">
+
+<link rel="stylesheet" href="style.css">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Grid (ongrid)">
+<meta property="og:title" content="Grid privacy policy (draft)">
+<meta property="og:description" content="What Grid keeps and what it does not: the hosted design is stateless, with no accounts, and the plan is sent with each call and not stored.">
+<meta property="og:url" content="https://ongrid.example/privacy.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="es_ES">
+<meta name="twitter:card" content="summary">
+
+</head>
+<body>
+<header><nav><a href="index.html">Home</a> <a href="use/index.html">Use Grid in…</a> <a href="compare/archlang.html">Compare</a> <a href="privacy.html">Privacy</a> <a href="support.html">Support</a> <a href="es/index.html" hreflang="es" lang="es">Español</a> <a href="https://github.com/ongrid-arch/grid">GitHub</a></nav></header>
+<main>
+<p class="draft"><strong>Draft — not legal advice, needs owner review.</strong></p>
+
+<h1>Privacy policy (draft)</h1>
+<p>Last drafted 23 November 2026. This page describes how Grid is designed to work; it is a draft, not legal advice, and the owner must review it before it is published. Where the hosted server does not exist yet, the hosted sections describe the intended design (the report's “Option B”).</p>
+<h2>Grid on your computer</h2>
+<p>The <code>grid</code> command and the local tool server (<code>npx -y ongrid mcp</code>) run on your computer. They read and write only files inside the project folder you choose. They send nothing anywhere: the problem-report tool (<code>grid_report_problem</code>) drafts an issue and shows it to you, and you decide whether to file it. Grid does not collect usage data.</p>
+<h2>The hosted server (when it is live)</h2>
+<ul>
+<li><strong>Stateless.</strong> The hosted server keeps no state between calls.</li>
+<li><strong>No accounts.</strong> There is no sign-in, no profile and no payment.</li>
+<li><strong>Your plan is sent with each call and is not stored.</strong> The plan travels in the request, is read to answer it and is not written to disk or kept after the answer is sent.</li>
+<li><strong>No analytics</strong> are planned for this site or the server. If that changes, this page will say what is measured before it is.</li>
+<li><strong>Operational logs.</strong> A host normally records technical request data (time, address, status, size) to keep the service running. This draft does not yet say how long such logs are kept: <em>the owner must fill in the retention period and the host's name.</em></li>
+</ul>
+<h2>Your AI assistant</h2>
+<p>When you use Grid through an assistant (Claude, ChatGPT, Cursor and others), the assistant's own provider receives what you write and what Grid returns, under that provider's own policy. Grid does not control that.</p>
+<h2>Names inside plans</h2>
+<p>Room names and ids go into every export and sheet and travel with the plan file. Do not put a person's name in a room's name or id; who sits where belongs in a separate occupancy file that no export carries.</p>
+<h2>This website</h2>
+<p>This site is static pages with no scripts, no cookies set by us and no third-party fonts or trackers.</p>
+<h2>Contact</h2>
+<p>Questions about this policy: open an issue at <a href="https://github.com/ongrid-arch/grid/issues">https://github.com/ongrid-arch/grid/issues</a>. See also <a href="support.html">support</a>.</p>
+</main>
+<footer><p>Grid (ongrid) is open source under the Apache-2.0 licence. Every report carries the label “General guidance, not your local rules”. <a href="privacy.html">Privacy</a> · <a href="support.html">Support</a> · <a href="https://github.com/ongrid-arch/grid">Source</a></p></footer>
+</body>
+</html>

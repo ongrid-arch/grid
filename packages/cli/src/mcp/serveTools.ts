@@ -56,7 +56,7 @@ export const GRID_TOOLS: readonly GridTool[] = [
 async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promise<ToolAnswer> {
   try {
     const result = labelled(await tool.run(readArgs(tool, raw), context))
-    return { text: result.text, data: result.data, ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
+    return { text: result.text, data: result.data, ...(result.meta ? { meta: result.meta } : {}), ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
   } catch (error) {
     if (error instanceof ToolRefusal || error instanceof CanvasMissing || error instanceof FontsMissing) return { text: error.message, isError: true }
     throw error

@@ -567,6 +567,44 @@ from the code when they are read, so they say what this Grid reads. The server's
 which carry the guide's first paragraphs word for word and point to both resources, are sent on
 `initialize` as well as on `server/discover`.
 
+## Hosted mode
+
+Read this when Grid is to be reached by address from a chat app (Claude, ChatGPT) instead of
+started by a host on one computer (AIV-19).
+
+`grid mcp --http [--port <n>] [--host <address>]` (and `grid serve --http`) serves the same tools
+over MCP Streamable HTTP: one endpoint, `POST /mcp`, answered with one JSON message each. It is
+stateless: no session, no account, nothing stored, and it reads and writes no file of its own.
+It listens on 127.0.0.1 and port 8787 unless told otherwise (`--host 0.0.0.0` to be reached from
+other computers); `GET /healthz` answers `ok`. `--project` does not go with it.
+
+- **The plan travels with the call.** Every tool that takes `plan` takes `plan_json` instead: the
+  whole plan, as the JSON object a plan file holds (a JSON text of it is read too). The server
+  puts it in a project that lives in memory for that one request, runs the tool exactly as it
+  runs on a file, and drops it. The tools that change the plan answer with the changed plan as
+  `plan_json`, in the data and, compact, at the end of the text; pass it to the next call. There
+  is no `out`.
+- **Which tools.** The reading tools and the tools that change the plan, as `grid_` names. Not
+  offered: the export, the sheet, the start marker, the seen mark, the brief, the preview and its
+  page call, `grid_compare` (it takes two files), `grid_diff` (it reads git) and
+  `grid_report_problem`. `grid_write_rooms` takes rooms text only, with no `plan_json` for a first
+  plan and no scan or layout. The one added tool is `grid_show_plan`.
+- **The plan's page.** `ui://grid/plan` (`text/html;profile=mcp-app`) is an MCP App that draws the
+  plan floor by floor from the viewer's own SVG. `grid_show_plan` and every tool that changes the
+  plan link it with `_meta.ui.resourceUri`, and send the drawings in the result's `_meta`
+  (`grid/drawings`), which the page reads and the agent is not shown. It loads nothing and calls
+  nothing; a host that shows no MCP App shows the text only (`grid_view` gives a picture).
+- **Limits.** A request is JSON (`Content-Type: application/json`) of at most 1 MiB, else 415 or
+  413. `GET` and `DELETE` are 405: there is no stream and no session. A browser call is let
+  through only from `https://claude.ai`, `https://chatgpt.com` and `https://chat.openai.com`, with
+  that origin echoed, never a wildcard; any other `Origin` is 403, and a call with none (a
+  server's) needs none. On a loopback address, a request addressed to another name is 421.
+- **The label stays.** Every result still leads with "General guidance, not your local rules" and
+  carries it as `label`; no result says a plan complies or is approved.
+
+Grid does not host this itself: running it for others (its address, its uptime, its cost) is the
+person's decision.
+
 ## Protocol versions
 
 The tool server answers clients of both eras of the protocol: an older client that opens with

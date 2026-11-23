@@ -88,6 +88,8 @@ export interface ToolAnswer {
   readonly text: string
   readonly isError?: boolean
   readonly data?: Record<string, unknown>
+  /** AIV-19: what only an MCP App's page reads, such as a drawing: sent as the result's `_meta`, kept out of the agent's view. */
+  readonly meta?: Record<string, unknown>
   readonly image?: { readonly data: Uint8Array; readonly mimeType: string }
   readonly images?: readonly { readonly data: Uint8Array; readonly mimeType: string }[]
 }
@@ -161,7 +163,8 @@ function toolResult(answer: ToolAnswer): Record<string, unknown> {
   if (answer.image) content.push({ type: 'image', data: base64(answer.image.data), mimeType: answer.image.mimeType })
   for (const image of answer.images ?? []) content.push({ type: 'image', data: base64(image.data), mimeType: image.mimeType })
   if (answer.isError === true) return { content, isError: true }
-  return answer.data === undefined ? { content } : { content, structuredContent: answer.data }
+  const meta = answer.meta === undefined ? {} : { _meta: answer.meta }
+  return answer.data === undefined ? { content, ...meta } : { content, structuredContent: answer.data, ...meta }
 }
 
 function oneLine(text: string): string {
@@ -188,7 +191,7 @@ function complete(result: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** One request of a 2026-07-28 client, which names its version in its own `_meta`. */
-function perRequest(id: Id, method: unknown, params: Record<string, unknown>, tools: readonly ServerTool[], resources: readonly ServerResource[]): string | Promise<string> {
+function perRequest(id: Id, method: unknown, params: Record<string, unknown>, tools: readonly ServerTool[], resources: readonly ServerResource[], instructions: string): string | Promise<string> {
   const meta = isObject(params['_meta']) ? params['_meta'] : {}
   const asked = meta[META_VERSION]
   if (typeof asked !== 'string') {
@@ -213,7 +216,7 @@ function perRequest(id: Id, method: unknown, params: Record<string, unknown>, to
       return reply(id, complete({
         supportedVersions: [...PER_REQUEST_VERSIONS],
         capabilities: capabilitiesOf(resources),
-        instructions: INSTRUCTIONS,
+        instructions,
         ttlMs: CACHE_MS,
         cacheScope: 'public',
       }))
@@ -245,9 +248,10 @@ function byteLength(line: string): number {
 
 /**
  * One JSON-RPC line in, one line out, or null when nothing should be sent. A tool call that
- * draws a picture answers later, so a call may give a promise of its line.
+ * draws a picture answers later, so a call may give a promise of its line. `instructions` is what
+ * the server tells the host first: the hosted server's own (AIV-19), Grid's by default.
  */
-export function handleLine(line: string, tools: readonly ServerTool[] = [], resources: readonly ServerResource[] = []): string | null | Promise<string> {
+export function handleLine(line: string, tools: readonly ServerTool[] = [], resources: readonly ServerResource[] = [], instructions: string = INSTRUCTIONS): string | null | Promise<string> {
   if (byteLength(line) > LINE_MAX_BYTES) {
     return fail(null, -32600, `Request refused unread: the line is longer than ${LINE_MAX_BYTES} bytes (1 MiB), the most Grid's tool server reads.`)
   }
@@ -277,7 +281,7 @@ export function handleLine(line: string, tools: readonly ServerTool[] = [], reso
 
   // A request that names its version, or asks what the server speaks, is of the 2026-07-28 era.
   if (message['method'] === 'server/discover' || (isObject(params['_meta']) && params['_meta'][META_VERSION] !== undefined)) {
-    return perRequest(id, message['method'], params, tools, resources)
+    return perRequest(id, message['method'], params, tools, resources, instructions)
   }
 
   switch (message['method']) {
@@ -288,7 +292,7 @@ export function handleLine(line: string, tools: readonly ServerTool[] = [], reso
         protocolVersion: known ? asked : LATEST_PROTOCOL_VERSION,
         capabilities: capabilitiesOf(resources),
         serverInfo: SERVER_INFO,
-        instructions: INSTRUCTIONS,
+        instructions,
       })
     }
     case 'ping':

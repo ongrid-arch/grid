@@ -29,6 +29,8 @@ import { checkDrawingRequest, drawingIntoProject, drawingLine, drawingOutFiles, 
 import { askedLanguage, languageFor } from './language'
 import { inLanguage } from './words'
 import { startToolServer } from '../mcp/serve'
+import { say } from '@ongrid/floorplan/messages'
+import { HTTP_PORT, MCP_PATH, startHostedServer } from '../mcp/http'
 import { PREVIEW_PORT, startLocalPreview } from '../preview/localServer'
 import { projectResources, projectTools } from '../mcp/serveTools'
 import { CHECK_OPTIONS, checkJson, checkPlan, checkText, markNote, withSeen, type MarkAsk, type MarkDone } from './check'
@@ -76,6 +78,14 @@ const HELP_FLAG: OptionSpecs = { '--help': { takesValue: false, help: 'Show this
 const PREVIEW_OPTIONS: OptionSpecs = {
   '--port': { takesValue: true, help: `The port on 127.0.0.1 to serve the page on, from 1 to 65535. ${PREVIEW_PORT} when left out, or another one free when that is in use.` },
   ...PROJECT_OPTION,
+}
+
+/** AIV-19: the tool server's options: the project folder for a host that starts it, or --http to serve it by address. */
+const SERVE_OPTIONS: OptionSpecs = {
+  ...PROJECT_OPTION,
+  '--http': { takesValue: false, help: say('en', 'hosted.cli.http', { path: MCP_PATH }) },
+  '--port': { takesValue: true, help: say('en', 'hosted.cli.port', { port: HTTP_PORT }) },
+  '--host': { takesValue: true, help: say('en', 'hosted.cli.host') },
 }
 
 const COMMANDS = {
@@ -146,14 +156,14 @@ const COMMANDS = {
     options: PREVIEW_OPTIONS,
   },
   serve: {
-    usage: 'grid serve [--project <folder>]',
-    summary: "Starts Grid's tool server on standard input and output, for an agent's host to talk to.",
-    options: PROJECT_OPTION,
+    usage: 'grid serve [--project <folder> | --http [--port <n>] [--host <address>]]',
+    summary: "Starts Grid's tool server on standard input and output, for an agent's host to talk to; with --http, over HTTP for chat apps.",
+    options: SERVE_OPTIONS,
   },
   mcp: {
-    usage: 'grid mcp [--project <folder>]',
+    usage: 'grid mcp [--project <folder> | --http [--port <n>] [--host <address>]]',
     summary: 'The same as serve, under the name agents start it by: npx -y ongrid mcp.',
-    options: PROJECT_OPTION,
+    options: SERVE_OPTIONS,
   },
 } as const satisfies Record<string, { usage: string; summary: string; options: OptionSpecs }>
 
@@ -304,6 +314,16 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
 
   if (name === 'serve' || name === 'mcp') {
     if (parsed.positionals.length > 0) throw new UsageError(`${name} takes no arguments: got ${parsed.positionals.join(', ')}.`)
+    if (parsed.values.has('--http')) {
+      // AIV-19: hosted, stateless, no project folder: the plan travels with each call.
+      if (projectOption !== undefined) throw new UsageError(say('en', 'hosted.cli.noProject'))
+      const portText = textOf(parsed, '--port')
+      if (portText !== undefined && (!/^\d{1,5}$/.test(portText) || Number(portText) > 65535)) throw new UsageError(say('en', 'hosted.cli.portBad'))
+      const hosted = await startHostedServer({ ...(portText === undefined ? {} : { port: Number(portText) }), ...(textOf(parsed, '--host') === undefined ? {} : { host: textOf(parsed, '--host')! }) })
+      io.stdout(`${say('en', 'hosted.cli.started', { url: hosted.url })}\n`)
+      return EXIT_OK
+    }
+    for (const option of ['--port', '--host']) if (parsed.values.has(option)) throw new UsageError(say('en', 'hosted.cli.goesWith', { option }))
     let project: Project | PathRefused
     try {
       project = openProject(projectOption, io.cwd, 'project')

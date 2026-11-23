@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://ongrid.example/index.html</loc>
+    <lastmod>2026-11-23</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://ongrid.example/index.html"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://ongrid.example/es/index.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ongrid.example/index.html"/>
+  </url>
+  <url>
+    <loc>https://ongrid.example/es/index.html</loc>
+    <lastmod>2026-11-23</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://ongrid.example/index.html"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://ongrid.example/es/index.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ongrid.example/index.html"/>
+  </url>
+  <url>
+    <loc>https://ongrid.example/es/inicio-rapido.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/index.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/claude-code.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/codex.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/cursor.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/vscode-copilot-cli.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/gemini-cli.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/claude-desktop-cowork.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/grok.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/perplexity.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/use/le-chat.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/compare/archlang.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/compare/maket.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/compare/upcodes.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/privacy.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+  <url>
+    <loc>https://ongrid.example/support.html</loc>
+    <lastmod>2026-11-23</lastmod>
+  </url>
+</urlset>

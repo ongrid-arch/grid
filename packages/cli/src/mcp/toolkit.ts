@@ -109,6 +109,8 @@ export interface Answer {
   readonly image?: AnswerImage
   /** VEW-9: more pictures, after `image`, in order: the walk-through's, one per doorway. */
   readonly images?: readonly AnswerImage[]
+  /** AIV-19: for an MCP App's page alone (a drawing), sent as the result's `_meta`. */
+  readonly meta?: Record<string, unknown>
 }
 
 export type Hint = 'read' | 'write-file' | 'change-plan'

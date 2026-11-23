@@ -26,7 +26,10 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'src/sheet/fonts.ts':
     "registers Grid's own bundled fonts from its install folder (VEW-7), never a path from a plan, "
     + 'an agent or a command line',
-  'bin/grid.mjs': 'the launcher checks that its own built file, next to it, exists',
+  'src/fs/memoryProject.ts':
+    "the hosted server's project in memory (AIV-19): it overrides the resolver's methods, so it has their names, "
+    + 'and imports no file module: the plan a call carries is all it holds',
+  'bin/grid.mjs':'the launcher checks that its own built file, next to it, exists',
   'build.mjs': 'the build script, run by developers and CI, writes dist/',
   'pack.mjs': 'packs the built command and its install files into dist/release/ (CMD-9), run by developers and CI',
 }

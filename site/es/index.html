@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid (ongrid): planos de planta para agentes de IA</title>
+<meta name="description" content="Lee, mide, revisa, dibuja y modifica planos de planta guardados en un solo archivo de plano. Código abierto, Apache-2.0.">
+<link rel="canonical" href="https://ongrid.example/es/index.html">
+<link rel="alternate" hreflang="en" href="https://ongrid.example/index.html">
+<link rel="alternate" hreflang="es" href="https://ongrid.example/es/index.html">
+<link rel="alternate" hreflang="x-default" href="https://ongrid.example/index.html">
+<link rel="stylesheet" href="../style.css">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Grid (ongrid)">
+<meta property="og:title" content="Grid (ongrid): planos de planta para agentes de IA">
+<meta property="og:description" content="Lee, mide, revisa, dibuja y modifica planos de planta guardados en un solo archivo de plano. Código abierto, Apache-2.0.">
+<meta property="og:url" content="https://ongrid.example/es/index.html">
+<meta property="og:locale" content="es_ES">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Grid (ongrid)",
+  "url": "https://ongrid.example",
+  "sameAs": [
+    "https://github.com/ongrid-arch/grid"
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Grid (ongrid)",
+  "alternateName": "ongrid",
+  "description": "Lee, mide, revisa, dibuja y modifica planos de planta guardados en un solo archivo de plano.",
+  "inLanguage": "es",
+  "applicationCategory": "DesignApplication",
+  "applicationSubCategory": "Floor plan tool server (MCP)",
+  "operatingSystem": "Any system that runs Node.js 22 or later",
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "isAccessibleForFree": true,
+  "url": "https://ongrid.example",
+  "codeRepository": "https://github.com/ongrid-arch/grid",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "sameAs": [
+    "https://github.com/ongrid-arch/grid"
+  ]
+}
+</script>
+</head>
+<body>
+<header><nav><a href="../es/index.html">Inicio</a> <a href="../es/inicio-rapido.html">Inicio rápido</a> <a href="../index.html" hreflang="en" lang="en">English</a> <a href="https://github.com/ongrid-arch/grid">GitHub</a></nav></header>
+<main>
+
+
+<h1>Grid (ongrid): planos de planta para agentes de IA</h1>
+<p>Lee, mide, revisa, dibuja y modifica planos de planta guardados en un solo archivo de plano. Describa su vivienda o edificio a su agente y este dibuja, mide, revisa y modifica el plano con Grid. Sirve a propietarios, arquitectos, constructores y estudiantes.</p>
+<p class="note"><strong>Estado, 23 de noviembre de 2026.</strong> Grid todavía no está publicado: el paquete de npm, el servidor alojado y los listados en directorios esperan la decisión del propietario. Mientras tanto, compílelo desde <a href="https://github.com/ongrid-arch/grid">una copia del repositorio</a>. Los informes de Grid se escriben en inglés o en español; la traducción al español es un borrador sin revisar.</p>
+<h2>Qué hace Grid</h2>
+<ul>
+<li>Guarda un único archivo de plano estructurado (muros, habitaciones y vanos) como fuente de verdad, en metros, y lo muestra en las unidades de cada persona: metros, centímetros, milímetros, o pies y pulgadas.</li>
+<li>Escribe el plano <em>empezando por las habitaciones</em>: usted nombra cada habitación (dormitorio o recámara, cocina, baño, sala) con su tamaño interior y sus vecinas, y las puertas y ventanas por las habitaciones que unen; Grid calcula los muros.</li>
+<li>Lee, mide, dibuja (en 2D y 3D), revisa y modifica el plano del piso o <strong>planta</strong> con 33 herramientas llamadas <code>grid_…</code>, servidas por MCP (Model Context Protocol).</li>
+<li>Exporta a DXF, IFC, OBJ y GLB, y genera una lámina PDF en A3.</li>
+</ul>
+<p class="label">General guidance, not your local rules</p>
+<p>Esa etiqueta (orientación general, no las normas de su localidad) acompaña a cada informe de Grid. Ningún mensaje dice que un plano «cumple» o está «aprobado»: una revisión sin avisos solo significa que las revisiones de Grid no encontraron nada. Hoy Grid aplica únicamente cifras de los códigos modelo de Estados Unidos; no aplica el CTE español ni normas locales.</p>
+<h2>Un primer plano</h2>
+<p>Un <strong>plano</strong> (una planta de vivienda) se escribe con habitaciones: aquí una sala y una cocina. Una <strong>recámara</strong> o <strong>dormitorio</strong> se escribe con el uso <code>bedroom</code>.</p>
+<pre><code>room living  "Living room" living  4.0 x 3.5 at 0,0
+room kitchen "Kitchen"     kitchen 2.5 x 3.5 east of living
+room bed1    "Dormitorio"  bedroom 3.4 x 3.0 north of living
+door front in living south, centred, 0.9 wide, opens in
+opening pass between living and kitchen, centred, 0.9 wide
+window w-kitchen in kitchen east, centred, 1.2 wide</code></pre>
+<p>El nombre de la habitación conserva la palabra de la persona («Dormitorio», «Recámara»); el uso es una de las palabras fijas de Grid. Paso a paso: <a href="inicio-rapido.html">inicio rápido</a>.</p>
+<h2>Úselo en su asistente</h2>
+<p>Una línea inicia el servidor de herramientas de Grid en cualquier agente que ejecute herramientas en su computadora: <code>npx -y ongrid mcp</code>. Las páginas «Use Grid in…» (en inglés) explican cada asistente: <a href="../use/index.html">lista</a>.</p>
+<p>La documentación técnica está en inglés: <a href="https://github.com/ongrid-arch/grid/blob/main/docs/agent-guide.md">guía para agentes</a>.</p>
+<p><a href="../index.html" hreflang="en" lang="en">English version</a></p>
+</main>
+<footer><p>Grid (ongrid) es de código abierto bajo la licencia Apache-2.0. Cada informe lleva la etiqueta «General guidance, not your local rules» (orientación general, no las normas de su localidad). <a href="../privacy.html">Privacy</a> · <a href="../support.html">Support</a></p></footer>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid (ongrid): floor plans for AI agents</title>
+<meta name="description" content="Reads, measures, checks, draws and changes floor plans kept in one plan file. Open source, Apache-2.0.">
+<link rel="canonical" href="https://ongrid.example/index.html">
+<link rel="alternate" hreflang="en" href="https://ongrid.example/index.html">
+<link rel="alternate" hreflang="es" href="https://ongrid.example/es/index.html">
+<link rel="alternate" hreflang="x-default" href="https://ongrid.example/index.html">
+<link rel="stylesheet" href="style.css">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Grid (ongrid)">
+<meta property="og:title" content="Grid (ongrid): floor plans for AI agents">
+<meta property="og:description" content="Reads, measures, checks, draws and changes floor plans kept in one plan file. Open source, Apache-2.0.">
+<meta property="og:url" content="https://ongrid.example/index.html">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="es_ES">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Grid (ongrid)",
+  "url": "https://ongrid.example",
+  "sameAs": [
+    "https://github.com/ongrid-arch/grid"
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Grid (ongrid)",
+  "alternateName": "ongrid",
+  "description": "Reads, measures, checks, draws and changes floor plans kept in one plan file.",
+  "inLanguage": "en",
+  "applicationCategory": "DesignApplication",
+  "applicationSubCategory": "Floor plan tool server (MCP)",
+  "operatingSystem": "Any system that runs Node.js 22 or later",
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "isAccessibleForFree": true,
+  "url": "https://ongrid.example",
+  "codeRepository": "https://github.com/ongrid-arch/grid",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "sameAs": [
+    "https://github.com/ongrid-arch/grid"
+  ]
+}
+</script>
+</head>
+<body>
+<header><nav><a href="index.html">Home</a> <a href="use/index.html">Use Grid in…</a> <a href="compare/archlang.html">Compare</a> <a href="privacy.html">Privacy</a> <a href="support.html">Support</a> <a href="es/index.html" hreflang="es" lang="es">Español</a> <a href="https://github.com/ongrid-arch/grid">GitHub</a></nav></header>
+<main>
+
+
+<h1>Grid (ongrid): floor plans for AI agents</h1>
+<p>Reads, measures, checks, draws and changes floor plans kept in one plan file. Describe a home or a building to your agent and it draws, measures, checks and changes the plan with Grid. Homeowners, architects, builders and students can use it.</p>
+<p class="note"><strong>Status, 23 November 2026.</strong> Grid is not published yet: the npm package, the hosted server and the directory listings wait on the owner. Lines marked “available once published” will work only then. Until then, build Grid from <a href="https://github.com/ongrid-arch/grid">a copy of the repository</a>.</p>
+<h2>What Grid does</h2>
+<ul>
+<li>Keeps one structured plan file (walls, rooms and openings) as the source of truth, stored in metres and shown in each person's own units: metres, centimetres, millimetres, or feet and inches.</li>
+<li>Writes a plan <em>rooms first</em>: you name the rooms with their inside sizes and neighbours, and the doors and windows by the rooms they join; Grid works out the walls.</li>
+<li>Reads, measures, draws (2D and 3D), checks and changes the plan through 33 tools named <code>grid_…</code>, served over MCP (the Model Context Protocol).</li>
+<li>Exports DXF, IFC, OBJ and GLB, and writes an A3 PDF sheet.</li>
+</ul>
+<p class="label">General guidance, not your local rules</p>
+<p>Every report Grid writes carries that label, and no message says a plan complies or is approved. A clean check only means Grid's checks found nothing. Figures from building codes carry their source and a status; a figure an AI found stays marked as such until a named person has checked it.</p>
+<h2>Try it</h2>
+<ol>
+<li><code>npm ci &amp;&amp; npm run build</code> in a copy of <a href="https://github.com/ongrid-arch/grid">the repository</a>, then <code>alias grid="node $PWD/packages/cli/dist/grid.mjs"</code>.</li>
+<li><code>grid init my-home &amp;&amp; cd my-home</code> makes a project folder with an empty <code>plan.json</code>.</li>
+<li>Write the rooms below in <code>plan.rooms</code>, run <code>grid write plan.rooms</code>, then <code>grid check</code> and <code>grid draw --out plan.svg</code>.</li>
+</ol>
+<pre><code>room living  "Living room" living  4.0 x 3.5 at 0,0
+room kitchen "Kitchen"     kitchen 2.5 x 3.5 east of living
+door front in living south, centred, 0.9 wide, opens in
+opening pass between living and kitchen, centred, 0.9 wide
+window w-kitchen in kitchen east, centred, 1.2 wide</code></pre>
+<h2>Use Grid in your assistant</h2>
+<p>One line starts Grid's tool server for any agent that runs tools on your computer: <code>npx -y ongrid mcp</code>. <a href="use/index.html">Step-by-step pages</a> cover Claude Code, Codex, Cursor, VS Code and Copilot CLI, Gemini CLI, Claude Desktop and Cowork, and (once a hosted server is live) Grok, Perplexity and Le Chat.</p>
+<h2>How Grid differs from other tools</h2>
+<p>Factual pages, dated and sourced: <a href="compare/archlang.html">ArchLang</a>, <a href="compare/maket.html">Maket</a>, <a href="compare/upcodes.html">UpCodes</a>.</p>
+<h2>Read more</h2>
+<ul>
+<li><a href="https://github.com/ongrid-arch/grid/blob/main/docs/agent-guide.md">The guide for agents</a></li>
+<li><a href="https://github.com/ongrid-arch/grid/blob/main/docs/tool-server.md">The tool server</a></li>
+<li><a href="llms.txt">llms.txt</a> and <a href="llms-full.txt">llms-full.txt</a></li>
+<li><a href="es/index.html" hreflang="es" lang="es">Versión en español</a></li>
+</ul>
+</main>
+<footer><p>Grid (ongrid) is open source under the Apache-2.0 licence. Every report carries the label “General guidance, not your local rules”. <a href="privacy.html">Privacy</a> · <a href="support.html">Support</a> · <a href="https://github.com/ongrid-arch/grid">Source</a></p></footer>
+</body>
+</html>

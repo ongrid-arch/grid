@@ -1,0 +1,59 @@
+# DRAFT. The origin https://ongrid.example is a placeholder; replace it (see README.md in this folder).
+# Answer and search bots: allowed, so Grid's pages can be found and cited.
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: meta-webindexer
+Allow: /
+
+# Grok: xAI publishes no crawler name. GrokBot, xAI-Grok and xAI-SearchBot are reported by third-party
+# bot directories only, and one source reports xAI fetching with generic headers that these rules cannot target.
+User-agent: GrokBot
+Allow: /
+
+User-agent: xAI-Grok
+Allow: /
+
+User-agent: xAI-SearchBot
+Allow: /
+
+# OWNER DECISION 5 (training crawlers). Recommendation from the 16 November 2026 report: allow them, because
+# an open-source project wants to be known and blocking them does not remove Grid from answers.
+# To block instead, change "Allow: /" to "Disallow: /" in these five groups.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://ongrid.example/sitemap.xml
