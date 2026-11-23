@@ -1,0 +1,8 @@
+{
+  "checks": [
+    {"id": "typecheck", "name": "Type check", "cmd": "npm run typecheck"},
+    {"id": "lint", "name": "Lint", "cmd": "npm run lint"},
+    {"id": "test", "name": "Tests (builds first)", "cmd": "npm test"},
+    {"id": "build", "name": "Build", "cmd": "npm run build"}
+  ]
+}
