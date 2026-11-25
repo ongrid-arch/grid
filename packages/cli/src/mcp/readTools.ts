@@ -1609,6 +1609,10 @@ const measureTool: GridTool = {
       const lines = [
         ...said,
         `From ${name(route.from)} to ${name(route.to)}: ${steps}.`,
+        // ARE-21: to outside, the nearest way out by walked length, and the ones passed over.
+        ...(route.exit === undefined
+          ? []
+          : [`Nearest way out: ${route.steps.at(-1)!.type} ${q(route.exit)}, the shortest walked of ${(route.otherExits?.length ?? 0) + 1}.${route.otherExits && route.otherExits.length > 0 ? ` Others: ${route.otherExits.map((e) => `${e.type} ${q(e.via)} ${e.length === null ? 'not measured' : L(e.length)}`).join(', ')}.` : ''}`]),
         route.narrowestPassage ? `Narrowest door or opening on the way: ${q(route.narrowestPassage.via)}, ${L(route.narrowestPassage.width)}.` : 'No door or opening on the way, only open sides.',
         `Widest circle in each room on the way: ${widths}.`,
         // VEW-9: the length, and each room's share of it.
