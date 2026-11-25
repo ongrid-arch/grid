@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
-import { bench, type Bench, type Reply } from './replay/harness'
+import { bench, type Bench } from './replay/harness'
 
 /** A hall (west) and a bedroom (east), the wall between them drawn south to north, a door in it with no swing stated. */
 function twoRooms(): FloorPlan {
