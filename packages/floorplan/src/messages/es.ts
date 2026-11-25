@@ -1838,6 +1838,15 @@ export const es: Messages = {
   'rooms.floor.building': "'{word}' no es un tipo de edificio que Grid conozca. Use uno de: {kinds}.",
   'rooms.floor.duplicate': "La planta '{id}' ya está escrita.",
   'rooms.floor.roomsFirst': 'Se escribieron estancias antes de la primera línea de planta. Ponga primero la línea de planta.',
+  // WRT-17
+  'rooms.openingsOverlap':
+    "Línea {line}: {opening} comparte {by} m del muro {wall} con {other} (línea {otherLine}). La comprobación deja fuera una abertura que comparte un tramo de su muro con otra, aunque una quede sobre la otra: mueva una, haga una más estrecha o escriba las dos como una sola abertura.",
+  'rooms.hole':
+    "Las estancias de la planta '{floor}' encierran {area} m² de suelo que ninguna estancia reclama, hacia {at}, entre {rooms}. Escríbalo como estancia: un núcleo, un patinillo o un patio interior ('-' si no tiene uso), u 'outdoor courtyard' para terreno abierto. Se escribe tal cual, y la comprobación lo señala como suelo que ninguna estancia reclama.",
+  'rooms.wallFromGap':
+    "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) tiene {thickness} m de grueso, el hueco que dejan las estancias, y ninguna línea del texto lo indica (muros interiores {inside} m, exteriores {outside} m). Si es lo que se quiere, dígalo con 'walls {thickness}' en una línea de estancia o de muro; si no, mueva una estancia.",
+  'rooms.checkError': "La comprobación encuentra esto en el plano tal como se escribe, y dejaría fuera una parte ({code}): {message}",
+  'rooms.checkNote': "La comprobación señala esto en el plano tal como se escribe ({code}): {message}",
   'describe.close': 'Esto describe el plano y no comprueba nada: grid check hace las comprobaciones.',
   'describe.fixtures': 'Aparatos: {list}.',
   'describe.fixture.toilet.one': '{count} inodoro',

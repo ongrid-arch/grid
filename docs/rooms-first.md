@@ -77,6 +77,16 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   door d-patio in living south, centred, 2.4 wide, sliding
   door d-bed   between hall and bedroom, 0.1 from west, 0.8 wide, opens into bedroom, hinged left
   ```
+- What Grid writes passes its own check (WRT-17). It reads the plan back as `grid check` will
+  before writing it, so the walls it works out close every corner and join only where walls meet.
+  Two doors or windows that share a stretch of one wall, a window over a door too, are refused
+  (`rooms/openings-overlap`), as is a door or window that would run off its wall
+  (`rooms/opening-fit`) or anything else the check would leave out (`rooms/check`, in the check's
+  own words). What the check would still note is said in the answer: floor the rooms close round
+  that no room claims (`rooms/hole`, with where it is: write it as a room, `-` for no use, or
+  `outdoor courtyard`), a wall only as thick as the gap two rooms leave when no line states that
+  thickness (`rooms/wall-from-gap`), and any other note (`rooms/check`). A part written `raw` is
+  the person's own and is kept as written: what the check finds on it is said, never refused.
 - A door between two rooms that share no wall (`rooms/no-shared-wall`) is refused with the line
   that would make them share one, when changing how one of them lines up does (BRF-6, lab
   AB-11): `With line 3 written 'room bed2 "Bedroom 2" bedroom 2.0 x 3.5 north of bed1 align

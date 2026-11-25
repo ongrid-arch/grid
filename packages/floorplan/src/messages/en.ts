@@ -1824,6 +1824,15 @@ export const en = {
   'rooms.floor.building': "'{word}' is not a kind of building Grid knows. Use one of: {kinds}.",
   'rooms.floor.duplicate': "Floor '{id}' is already written.",
   'rooms.floor.roomsFirst': "Rooms were written before the first floor line. Put the floor line first.",
+  // WRT-17: what the writer says so that what it writes passes the drawing's own check.
+  'rooms.openingsOverlap':
+    "Line {line}: {opening} shares {by} m of wall {wall} with {other} (line {otherLine}). The check leaves out an opening that shares a stretch of its wall with another, even one above the other: move one, make one narrower, or write the two as one opening.",
+  'rooms.hole':
+    "The rooms on floor '{floor}' close round {area} m² of floor that no room claims, around {at}, between {rooms}. Write it as a room: a core, a shaft or a light well inside ('-' for no use), or 'outdoor courtyard' for open ground. It is written as it is, and the check notes it as floor no room claims.",
+  'rooms.wallFromGap':
+    "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) is {thickness} m thick, the gap the rooms leave, which no line of the text states (inside walls {inside} m, outside walls {outside} m). If that is meant, say it with 'walls {thickness}' on a room line or a wall line; if not, move a room.",
+  'rooms.checkError': "The check finds this in the plan as written, and would leave a part out ({code}): {message}",
+  'rooms.checkNote': "The check notes this in the plan as written ({code}): {message}",
   'describe.close': 'This describes the plan and checks nothing: grid check runs the checks.',
   'describe.fixtures': 'Fixtures: {list}.',
   'describe.fixture.toilet.one': '{count} toilet',

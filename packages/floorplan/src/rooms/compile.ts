@@ -83,6 +83,7 @@ import { tolerance } from '../geometry/tolerances'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
 import { english, name as sayName, said, type MessageKey, type Values } from '../messages/say'
 import { f2, isNumberWord, numberOf, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord } from './words'
+import { checkWritten } from './selfCheck'
 
 type P = readonly [number, number]
 /** A wall as the text writes it into the file: no height when the text states none (WRT-6). */
@@ -473,6 +474,14 @@ class Compiler {
   readonly roomFacts: RoomFacts[] = []
   readonly wallFacts: DerivedWallFacts[] = []
   readonly openingFacts: string[] = []
+  /** WRT-17: the parts written raw, in Grid's own JSON: the person's, not worked out here. */
+  readonly rawIds = new Set<string>()
+  /** WRT-17: every wall thickness a line of the text states, besides the walls line. */
+  private readonly statedT = new Set<number>()
+  /** WRT-17: the pairs of rooms whose wall's thickness, from their gap, has been said. */
+  private readonly fromGap = new Set<string>()
+  /** WRT-17: the line each opening was written on, for a refusal that names it. */
+  private readonly openingLines = new Map<string, number>()
   /** The wall thickness each side of a sized room was taken to have, keyed floor|room|side. */
   readonly assumed: Map<string, number>
   /** What each side of a sized room turned out to have. */
@@ -602,6 +611,7 @@ class Compiler {
     const fl = this.floor()
     const list = kind === 'wall' ? fl.raw.walls : kind === 'room' ? fl.raw.rooms : fl.raw.openings
     list.push(value)
+    this.rawIds.add((value as { id: string }).id)
   }
 
   private statement(t: string[], at: number): void {
@@ -955,6 +965,7 @@ class Compiler {
         i += 2
       } else if ((w === 'walls' || w === 'wall') && i + 1 < t.length) {
         const T = numberOf(t[i + 1]!, at)
+        this.statedT.add(T)
         let kind: WallKind | null = null
         i += 2
         if (i < t.length && KINDS.includes(t[i] as WallKind)) {
@@ -1176,6 +1187,7 @@ class Compiler {
         i++
       } else if (isNumberWord(w)) {
         say.t = numberOf(w, at)
+        this.statedT.add(say.t)
         i++
       } else {
         this.stop('rooms/syntax', at, `line ${at}: '${w}' is not understood on a wall line. Known: a thickness, ${KINDS.join(', ')}${allowVirtual ? ', virtual' : ''}, height <m>, id <id>, reversed.`)
@@ -1319,6 +1331,7 @@ class Compiler {
         i += 2
       } else if ((w === 'shift' || w === 'gap') && i + 1 < t.length) {
         place[w] = numberOf(t[i + 1]!, at)
+        if (w === 'gap') this.statedT.add(place[w]!)
         i += 2
       } else if (w === 'mirror' && i + 1 < t.length) {
         const how = t[i + 1]!
@@ -1493,6 +1506,8 @@ class Compiler {
       }
     }
     let junc = this.rule.outside
+    const thicknessStated = (t: number): boolean =>
+      [this.rule.inside, this.rule.outside, ...this.statedT, ...[...this.tkinds.keys()].map((k) => k / 1000)].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
     const reported = new Set<string>()
     for (const e of edges) {
       const taken: Array<[number, number]> = []
@@ -1531,7 +1546,9 @@ class Compiler {
           if (y - x <= eps()) continue
           if (c.d <= maxT + eps()) {
             e.cover.push({ s0: x, s1: y, d: c.d, f: c.f })
-            junc = Math.max(junc, c.d)
+            // WRT-17: a wall the text states may be seen end on across an outside face; a wall
+            // only as thick as an odd gap between two rooms does not make every such stretch one.
+            if (thicknessStated(c.d)) junc = Math.max(junc, c.d)
           } else if (c.d < 2 * this.rule.outside + maxT && !walled(x, y, c.d)) {
             const key = pairKey(e.room.id, c.f.room.id)
             if (!reported.has(key)) {
@@ -1601,6 +1618,17 @@ class Compiler {
             spec.line,
             `Line ${spec.line} says the wall between '${A.id}' and '${B.id}' is ${f2(spec.t)} m, but the rooms as placed leave ${f2(d)} m. The plan uses ${f2(d)}. Write the wall line before the rooms it separates, or move a room.`
           )
+        }
+        // WRT-17: the wall takes the gap the rooms leave; a gap no line states is said, once a pair.
+        if (!virtual && !(spec && spec.t !== null) && !this.fromGap.has(key)) {
+          if (!thicknessStated(d)) {
+            this.fromGap.add(key)
+            this.warn(
+              'rooms/wall-from-gap',
+              B.line,
+              english(said('rooms.wallFromGap', { a: A.id, aLine: String(A.line), b: B.id, bLine: String(B.line), thickness: f2(d), inside: f2(this.rule.inside), outside: f2(this.rule.outside) }))
+            )
+          }
         }
         const off = c.d / 2
         const f = c.f
@@ -1762,6 +1790,32 @@ class Compiler {
       if (list) list.push(r)
       else groups.set(key, [r])
     }
+    // WRT-17: a gap between two stretches on one line is the end of a wall seen end on only where
+    // the bodies of walls crossing the line cover it. Open floor between them (two lifts in the
+    // corners of one lobby) keeps them two walls, so neither closes the floor off.
+    const covered = (d: P, off: number, from: number, to: number): boolean => {
+      const spans: Array<[number, number]> = []
+      for (const o of raws) {
+        if (o.virtual || Math.abs(cross(o.d!, d)) < tolerance('nearlyParallel')) continue
+        const base: P = mul([-d[1], d[0]], off)
+        const x = intersectLines(base, d, o.a, o.d!)
+        if (x === null) continue
+        const so = dot(sub(x, o.a), o.d!)
+        const len = dot(sub(o.b, o.a), o.d!)
+        if (so < Math.min(0, len) - maxT - eps() || so > Math.max(0, len) + maxT + eps()) continue
+        const at = dot(x, d)
+        const half = o.t / 2 / Math.abs(cross(o.d!, d))
+        spans.push([at - half, at + half])
+      }
+      spans.sort((p, q) => p[0] - q[0])
+      let reached = from
+      for (const [p, q] of spans) {
+        if (p > reached + eps()) break
+        reached = Math.max(reached, q)
+        if (reached >= to - eps()) return true
+      }
+      return reached >= to - eps()
+    }
     const walls: DerivedWall[] = []
     for (const rs of groups.values()) {
       const d = rs[0]!.d!
@@ -1780,7 +1834,8 @@ class Compiler {
         const sameName = curId === null || r.wantId === null || r.wantId === curId
         // Stretches given one id are one wall, however far apart along the line they lie.
         const named = cur !== null && r.wantId !== null && r.wantId === curId
-        if (cur !== null && ((r.lo! - cur.hi <= maxT + eps() && sameName && !this.split) || named)) {
+        const joins = cur !== null && r.lo! - cur.hi <= maxT + eps() && (r.lo! - cur.hi <= eps() || covered(d, cross(d, r.a), cur.hi, r.lo!))
+        if (cur !== null && ((joins && sameName && !this.split) || named)) {
           cur.hi = Math.max(cur.hi, r.hi!)
           cur.raws.push(r)
           curId = curId ?? r.wantId
@@ -1798,11 +1853,14 @@ class Compiler {
       for (const r of w.raws) r.wall = w
     }
     // Each end reaches the centre line of the wall it meets.
+    const roomsOf = (w: DerivedWall): Set<string> => new Set(w.raws.flatMap((r) => r.rooms.map((room) => room.id)))
     for (const w of walls) {
       const ends: P[] = []
+      const mine = roomsOf(w)
       for (const [end, sign] of [[w.a, -1], [w.b, 1]] as const) {
         const ray = mul(w.d, sign)
-        let best: [number, P] | null = null
+        let best: { tau: number; x: P; o: DerivedWall; half: number } | null = null
+        const met: Array<{ tau: number; x: P; o: DerivedWall; half: number }> = []
         for (const o of walls) {
           if (o === w || Math.abs(cross(o.d, w.d)) < eps()) continue
           const x = intersectLines(end, ray, o.a, o.d)
@@ -1810,13 +1868,41 @@ class Compiler {
           const tau = dot(sub(x, end), ray)
           const so = dot(x, o.d)
           if (tau < -maxT - eps() || tau > maxT + eps() || so < o.lo - maxT - eps() || so > o.hi + maxT + eps()) continue
-          if (best === null || Math.abs(tau) < Math.abs(best[0]) - tolerance('noLength')) best = [tau, x]
+          const hit = { tau, x, o, half: (o.virtual ? 0 : o.t / 2) / Math.abs(cross(o.d, w.d)) }
+          met.push(hit)
         }
-        ends.push(best ? best[1] : end)
+        // WRT-17: a wall whose body the end already stands in is the wall it meets, before a
+        // nearer centre line past the end: an outside wall ends in the room's corner wall, not
+        // across the corner of the room beside it.
+        const holds = (h: { tau: number; half: number }): boolean => Math.abs(h.tau) <= h.half + eps()
+        for (const hit of met) {
+          const better =
+            best === null ||
+            (holds(hit) && !holds(best)) ||
+            (holds(hit) === holds(best) && Math.abs(hit.tau) < Math.abs(best.tau) - tolerance('noLength'))
+          if (better) best = hit
+        }
+        // WRT-17: past the wall it meets, through bodies that touch, to the wall that makes the
+        // corner of one of its own rooms: the wall between two rooms of different widths reaches
+        // the wider room's corner, so that room's outline closes.
+        if (best !== null) {
+          const near = roomsOf(best.o)
+          let reached = best.tau + best.half
+          let far = best
+          for (const hit of met.filter((h) => h.tau > best!.tau + eps()).sort((p, q) => p.tau - q.tau)) {
+            if (hit.tau - hit.half > reached + eps()) break
+            reached = Math.max(reached, hit.tau + hit.half)
+            if ([...roomsOf(hit.o)].some((room) => mine.has(room) && !near.has(room))) far = hit
+          }
+          // Only as far as the check reads a corner as reached: half the thicker wall and `gap`.
+          if (far.tau - best.tau > Math.max(w.t, far.o.t) / 2 + tolerance('gap')) best = far
+        }
+        ends.push(best ? best.x : end)
       }
       w.a2 = ends[0]!
       w.b2 = ends[1]!
     }
+    this.closeSides(walls, edges)
     // Outside walls run with their room on the left; inside walls run east or north.
     for (const w of walls) {
       w.ext = w.raws.every((r) => r.rooms.length === 1)
@@ -1846,6 +1932,36 @@ class Compiler {
       w.json = json
     }
     return walls
+  }
+
+  /**
+   * WRT-17: two walls that make one straight side of a room, one after the other, end at one
+   * place along it. Each end reaches the centre line of the wall it meets, and where that wall is
+   * at an angle (a 45 degree side) two walls of different thicknesses reach it at different
+   * places: the thinner one is carried on to the other's end, inside the angled wall's body.
+   */
+  private closeSides(walls: DerivedWall[], edges: Edge[]): void {
+    const maxT = tolerance('roomsWallWidest')
+    for (const e of edges) {
+      const on: Array<{ w: DerivedWall; s0: number; s1: number }> = []
+      for (const w of walls) {
+        for (const r of w.raws) for (const [idx, s0, s1] of r.sides) if (idx === e.idx) on.push({ w, s0, s1 })
+      }
+      if (on.length < 2) continue
+      on.sort((p, q) => p.s0 - q.s0)
+      const station = (p: P): number => dot(sub(p, e.p), e.u)
+      for (let k = 0; k + 1 < on.length; k++) {
+        const [A, B] = [on[k]!, on[k + 1]!]
+        if (A.w === B.w || B.s0 - A.s1 > maxT + eps()) continue
+        const aEnd = station(A.w.a2) >= station(A.w.b2) ? 'a2' : 'b2'
+        const bEnd = station(B.w.a2) <= station(B.w.b2) ? 'a2' : 'b2'
+        const [sa, sb] = [station(A.w[aEnd]), station(B.w[bEnd])]
+        const apart = sb - sa
+        if (apart <= eps() || apart > maxT) continue
+        if (A.w.t <= B.w.t) A.w[aEnd] = add(A.w[aEnd], mul(e.u, apart))
+        else B.w[bEnd] = add(B.w[bEnd], mul(e.u, -apart))
+      }
+    }
   }
 
   private nameWalls(walls: DerivedWall[], edges: Edge[], prefix: string): void {
@@ -2311,7 +2427,10 @@ class Compiler {
           seen.add(local)
           try {
             const item = this.resolveOpening(fl, edges, raws, o.words, o.line, idOf(fl, local), height)
-            if (item) plan.openings.push(item)
+            if (item) {
+              plan.openings.push(item)
+              this.openingLines.set(item.id, o.line)
+            }
           } catch (error) {
             if (!(error instanceof RoomsStop)) throw error
             this.problem(error.code, error.line, error.message.charAt(0).toUpperCase() + error.message.slice(1))
@@ -2374,6 +2493,11 @@ class Compiler {
     plan.flats = flats
   }
 
+  /**
+   * Openings that share a stretch of one wall, by the check's own rule (`validateOverlaps`): any
+   * stretch shared is a clash, a window over a door too, and the check leaves the later one out.
+   * So the writing is refused (WRT-17), naming both lines.
+   */
   private checkOpeningClash(openings: readonly Opening[]): void {
     const byWall = new Map<string, Opening[]>()
     for (const o of openings) {
@@ -2381,14 +2505,27 @@ class Compiler {
       if (list) list.push(o)
       else byWall.set(o.wall, [o])
     }
+    const lineOf = (o: Opening): string => String(this.openingLines.get(o.id) ?? '-')
     for (const [wid, ops] of byWall) {
       const sorted = [...ops].sort((a, b) => a.offset - b.offset)
-      for (let k = 0; k + 1 < sorted.length; k++) {
-        const a = sorted[k]!
-        const b = sorted[k + 1]!
-        if (a.offset + a.width > b.offset + tolerance('openingOverrun')) {
-          this.warn('rooms/openings-overlap', null, `Openings '${a.id}' and '${b.id}' overlap on wall ${wid} by ${f2(a.offset + a.width - b.offset)} m.`)
-        }
+      let kept = sorted[0]!
+      for (const b of sorted.slice(1)) {
+        if (b.offset < kept.offset + kept.width - tolerance('openingOverrun')) {
+          this.problem(
+            'rooms/openings-overlap',
+            this.openingLines.get(b.id) ?? null,
+            english(
+              said('rooms.openingsOverlap', {
+                line: lineOf(b),
+                opening: `${b.type} '${b.id}'`,
+                by: f2(Math.min(kept.offset + kept.width, b.offset + b.width) - b.offset),
+                wall: wid,
+                other: `${kept.type} '${kept.id}'`,
+                otherLine: lineOf(kept),
+              })
+            )
+          )
+        } else if (b.offset + b.width > kept.offset + kept.width) kept = b
       }
     }
   }
@@ -2533,13 +2670,21 @@ export function compileRoomsText(text: string, options: CompileOptions = {}): Ro
     assumed = new Map([...assumed, ...compiler.found])
   }
   const c = compiler!
-  const problems = stopped === null ? c.problems : [stopped]
+  let problems: RoomsProblem[] = stopped === null ? c.problems : [stopped]
+  let warnings: RoomsProblem[] = c.warnings
+  // WRT-17: what is written passes the drawing's own check, or is not written.
+  if (stopped === null && plan !== null && problems.length === 0) {
+    const checked = checkWritten(plan, warnings, c.rawIds)
+    problems = checked.problems
+    warnings = [...warnings, ...checked.warnings]
+    if (problems.length > 0) plan = null
+  }
   return {
     plan: stopped === null ? plan : null,
     name: c.name,
     basedOn: c.basedOn,
     problems: offerFixes ? problems.map((p) => withAlignmentFix(text, p, problems)) : problems,
-    warnings: c.warnings,
+    warnings,
     guesses: c.guesses,
     rooms: c.roomFacts,
     walls: c.wallFacts,
