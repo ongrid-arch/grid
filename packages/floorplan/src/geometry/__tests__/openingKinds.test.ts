@@ -230,7 +230,7 @@ describe('the plan symbol of each kind (done when 1)', () => {
     const pair = openingSymbol(drawn(door('d', 'w0', 1, { width: 1.6, kind: 'double', swing: 'right' })))!
     expect(pair.pieces.filter((p) => p.shape === 'arc').map((p) => p.shape === 'arc' && Number(p.radius.toFixed(3)))).toEqual([0.8, 0.8])
     const sliding = openingSymbol(drawn(door('d', 'w0', 1, { width: 2.4, kind: 'sliding' })))!
-    expect(sliding.pieces.map((p) => (p.shape === 'arc' ? 'arc' : p.part))).toEqual(['jamb', 'jamb', 'leaf', 'leaf'])
+    expect(sliding.pieces.map((p) => (p.shape === 'arc' ? 'arc' : p.part))).toEqual(['jamb', 'jamb', ...Array(2).fill(['leaf', 'leaf', 'leaf', 'leaf', 'glass']).flat(), ...Array(6).fill('arrow')])
     expect(openingSymbol(drawn(door('d', 'w0', 1)))).toBeNull()
     expect(openingSymbol(drawn(door('d', 'w0', 1, { kind: 'double' })))).toBeNull()
   })

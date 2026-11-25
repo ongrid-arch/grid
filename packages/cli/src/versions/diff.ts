@@ -11,6 +11,7 @@
  */
 import path from 'path'
 import { compareBuildings, planHasPhases, planInState, type BuildingComparison } from '@ongrid/floorplan/geometry'
+import { english } from '@ongrid/floorplan/messages'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { loadPlan, loadPlanText, type LoadedPlan } from '../command/plan'
@@ -161,6 +162,8 @@ export function diffData(run: PlanDiffRun, show: DiffShow): Record<string, unkno
     renamed: { count: c.renamed.count, walls: c.renamed.walls, openings: c.renamed.openings, rooms: c.renamed.rooms },
     // WRT-25: the floors that moved up or down or changed their figures, old and new.
     floors: c.floors.map((f) => ({ floor: f.floor, name: f.name, renamedFrom: f.renamedFrom, level: f.level, elevation: f.elevation, height: f.height, slab: f.slab, stands: f.stands })),
+    // MSG-27: the massing and the site, line by line, and the figures side by side.
+    massing: { lines: c.massing.lines.map((l) => english(l.said)), figures: c.massing.figures, sideBySide: c.massing.sideBySide === null ? null : english(c.massing.sideBySide) },
     issues: c.issues.map((i) => ({ code: i.code, message: i.message, entities: i.entities })),
     rooms: show === 'issues' ? [] : c.rooms.map((r) => ({ room: r.room, name: r.name, status: r.status, before: r.before, after: r.after, moved: r.moved, by: r.by === null ? null : [...r.by], idBefore: r.idBefore, mergedWith: [...r.mergedWith], wallsTakenOut: [...r.wallsTakenOut], mergedInto: r.mergedInto, walls: [...r.walls], text: r.text })),
     changes: show === 'issues' || show === 'summary' ? [] : c.changes.map((l) => ({ text: l.text, entities: l.entities, rooms: l.rooms })),

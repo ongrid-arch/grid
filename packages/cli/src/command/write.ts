@@ -293,7 +293,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const first = before === null || nothingToLose(before)
   const written = project.relative(project.writeFile(planFile, `${JSON.stringify(next, null, 2)}\n`))
   const brief = briefAnswer(project, planFile, plan)
-  const reminder = first ? briefReminder(project, planFile) : null
+  const reminder = first ? briefReminder(project, planFile, plan) : null
   // HND-11 (lab WR-14): the taped lengths the file keeps, against the plan as written.
   const taped = tapedRows(safeParseFloorPlan(next) ?? plan)
 

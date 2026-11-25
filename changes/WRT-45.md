@@ -1,0 +1,9 @@
+# 2026-11-25: door and window lines that name a raw room are placed or refused by name (WRT-45)
+
+## For people
+
+- In rooms text, a door, window or opening line may name a room written raw: `door d1 between west and east` goes in the one wall the two rooms share, and `door d2 in round south` in the one wall of the room that looks south, curved walls too, measured `centred` or from the wall's own ends. When the line does not say which wall, it is refused with the room's name, why, the room's walls and the raw opening line to write instead. Doors and windows on a floor whose rooms are all written raw used to be dropped without a word, and a line naming a raw room beside rooms Grid worked out was refused as naming no room (WRT-45).
+
+## For agents
+
+- `grid_write_rooms` and `grid write`: a `door|window|opening` line naming a `raw room` on its floor is placed on the room's walls, from the plan's own boundaries and outlines: `between <a> and <b>` in the one wall both rooms' boundaries name, `in <room> <side>` in the one wall whose outside face looks that way (within 45 degrees); `centred` or `<m> from <side>`, measured along the wall (its arc when curved) from the end that lies that way. Swing and hinge are worked out as for any door line, and the answer lists the opening (`d1: door 0.90 m in m, joins west and east; …`). A line that does not say which wall is refused with its line by the codes rooms text already uses: `rooms/no-shared-wall` (no wall in common), `rooms/two-shared-walls` (more than one), `rooms/no-side` (no wall, or several, facing the side; a place measured `of` another room), `rooms/raw` (a room Grid cannot draw), each with the `raw opening {…}` line to write, the wall and offset filled in when known. A floor whose rooms are all raw reads its opening lines, so a line naming no room on it is refused (`rooms/unknown-room`, listing the raw rooms) where it was dropped. No new code in the record.

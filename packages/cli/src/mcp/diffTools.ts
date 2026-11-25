@@ -55,6 +55,7 @@ export const diffTool: GridTool = {
     changes: { type: 'array' },
     stayed: { type: 'array' },
     movedWith: { type: 'array' },
+    massing: objectSchema({ lines: listSchema(STRING), figures: { type: 'object' }, sideBySide: NULLABLE_STRING }),
     scope: objectSchema({ checked: BOOLEAN, rooms: listSchema(STRING), outside: listSchema(STRING) }),
     picture: { type: ['object', 'null'] },
   }),

@@ -35,7 +35,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid check [<plan>] [--floor <id>] [--country <place>] [--full] [--json] [--seen <n> --reason <text> --by <name> \| --unseen <n>]` | Prints the report, short and about this plan unless `--full`. Every report is labelled "General guidance, not your local rules". `--country` names the place for this check, in place of the plan's `site.country`. `--seen` sets a note aside as seen (see below). With `firm-standards.json` beside the plan, the firm's own standards are set against it too, under their own heading ([a firm's own standards](firm-standards.md)) |
 | `grid describe [<plan>] [--length line\|rooms\|walls\|walk] [--for person\|agent] [--as rooms] [--floor <id>] [--pictures <folder>]` | Describes the plan in a few lines: its rooms, which rooms each opening joins, with `--length walls` its walls, and with `--length walk` the plan walked room by room, with `--pictures` a picture from each doorway (see below). `--as rooms` reads it back as rooms text |
 | `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor; to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section and schedule marks to a plan (see below) |
-| `grid export [<plan>] --format dxf\|ifc\|glb\|obj [--floor <id>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file |
+| `grid export [<plan>] --format dxf\|ifc\|glb\|obj [--floor <id>] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
 | `grid sheet [<plan>] --layout client\|check [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
 | `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--room-sizes on\|off] [--out <file.pdf>]` | Writes one floor at a true scale as a vector PDF, an SVG and a PNG, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
 | `grid edit <verb> [<plan>] [options]` | Changes the plan, one sentence of request a command: `opening`, `wall` (one wall's thickness), `type` (one named wall, door or window type, which every part of it takes; a list option such as `--parts` takes its items split at commas), `move-side`, `merge`, `split`, `add-room`, `stretch`, `rename`, `mirror` (`--how left-right`, or `--turn 90` to turn the plan a quarter, counter-clockwise as Grid draws it), `square` (squares a scanned plan and says how far each wall moved), `place` (a fixture, furniture or a typical room from the library by name, [library.md](library.md)), each the tool of that name in [the tool server](tool-server.md) with the same options (`grid edit <verb> --help`), and the same lines of [the brief](brief.md) |
@@ -507,7 +507,11 @@ plan is laid on the later one, moved to its origin when that lines up more walls
 paired with the wall standing in its place, either way round, its ends within `diffPlace`
 (5 cm) of each other ([tolerances](tolerances.md)), each opening with the opening at its place (or, its wall moved, with the opening of its
 kind at its place along the paired wall) and
-each room with the room on the same walls or the same floor; what is left is paired by id, and
+each room with the room on the same walls or the same floor. A wall keeps its id only while it
+still stands along its line (MSG-27): the walls left are paired along the line they share, so a
+party wall made longer under a new id, or drawn in other pieces and made longer, is the wall it
+was with a new stretch, and the stretch of an earlier wall that no later wall stands on is
+removed (a wall knocked through to two nibs). What is left is paired by id, and
 then two rooms on one floor that share at least three quarters of the larger one's floor
 (`diffRoomOverlapShare`) are one room reshaped, whatever their ids. A plan written rooms first in
 both versions is paired the same way, with the room's name last (MSG-23); there an id or a name is
@@ -571,6 +575,14 @@ The answer, in this order:
   are outside the rooms named. The same building under new ids reads `Same building, 28 ids
   renamed (9 walls, 13 openings, 6 rooms): every room, wall and opening stands where it stood.`
 - **Rooms** that changed, moved, came or went, with their old and new net area.
+- **The massing and the site** (MSG-27): each floor's outline that came, went, moved or changed
+  size, the homes and parking spaces a floor states, the buildings, the plot's boundary and the
+  site's things (`Site tree "t2" removed`), each a change line after the floors'. Two options
+  with other blocks are never the same building. The verdict ends with the figures that differ,
+  side by side: `Side by side: gross external area 1260.00 → 1176.00 m²; plot coverage 17.5 →
+  16.3 %; gross external area to the plot (FAR) 0.53 → 0.49; homes 12 → 18` and each boundary
+  edge's least distance to the building. The data holds them under `massing`. `grid_compare`
+  says the same lines.
 - **Changes**, one line each; walls changed the same way are one line
   (`9 walls height 2.60 → 2.70 m: …`). Then the openings that moved with their wall or room,
   and the openings that stayed where they were though their wall moved or was replaced.
@@ -578,8 +590,15 @@ The answer, in this order:
 `--show summary` stops after the rooms, `--show issues` gives the issues alone, and `--json` the
 same as data. `--picture d.png` writes the comparison as a picture of one floor (the first with
 a change, or `--floor`): what was removed in red, what was added in green, what changed in
-amber (a wall that moved or an opening that changed at its new place, with its old place outlined;
-a room with its old and new area), and the rest pale. A wall that moved is never drawn as added. When nothing changed it draws
+amber (a wall nudged within its own thickness or made thicker, or an opening that changed or
+moved, at its new place with its old place outlined; a room with its old and new area), and the
+rest pale. MSG-27: a wall is drawn by what happened to it where it stands. One made longer or
+shorter along its line is drawn pale, with only the stretch it gained in green or lost in red; one
+that left the ground it stood on (moved across or turned) is red where it stood and green where it
+stands, whatever its id; a door or window that stands where it stood is not marked. A room that
+took another in is drawn as one changed room labelled with its sum (`Living room: 18.48 + 13.20 +
+0.44 = 32.12 m²`, the last term the floor the walls taken out stood on), and the room it took in is
+not drawn as removed. When nothing changed it draws
 nothing and says so.
 
 ## Walls that do not meet: `grid tidy`

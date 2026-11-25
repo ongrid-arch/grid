@@ -540,8 +540,9 @@ describe('STEP strings', () => {
     expect(ifcString('Ba\u00f1o')).toBe("'Ba\\X2\\00F1\\X0\\o'")
     // Consecutive characters share one block.
     expect(ifcString('\u00f1\u00fc')).toBe("'\\X2\\00F100FC\\X0\\'")
-    // A character outside the BMP is its surrogate pair.
-    expect(ifcString('\u{1F600}')).toBe("'\\X2\\D83DDE00\\X0\\'")
+    // A character outside the BMP is one code point of eight digits (CMD-26).
+    expect(ifcString('\u{1F600}')).toBe("'\\X4\\0001F600\\X0\\'")
+    expect(ifcString('a\u00f1\u{1F600}\u00fc')).toBe("'a\\X2\\00F1\\X0\\\\X4\\0001F600\\X0\\\\X2\\00FC\\X0\\'")
   })
 
   it('drops control characters', () => {

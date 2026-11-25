@@ -30,6 +30,7 @@ import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 export const EXPORT_OPTIONS: OptionSpecs = {
   '--format': { takesValue: true, help: `The file format: ${EXPORT_FORMATS.join(', ')}.` },
   '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export (a floor id from the plan). The lowest floor when left out.' },
+  '--date': { takesValue: true, help: 'IFC: the time stamp to write, a date (2026-01-31) or a time (2026-01-31T09:00:00Z). SOURCE_DATE_EPOCH when left out, else now. The same date gives the same file.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in the format\'s extension. exports/ beside the plan when left out.' },
   ...PROJECT_OPTION,
 }
@@ -38,6 +39,26 @@ export interface ExportRequest {
   readonly format?: string
   readonly floor?: string
   readonly out?: string
+  /** CMD-26: the time stamp to write, as given. */
+  readonly date?: string
+}
+
+/**
+ * CMD-26: the time an export is stamped with: `--date`, else `SOURCE_DATE_EPOCH` (seconds), else
+ * the clock. A value that is neither a date nor a time is refused by name.
+ */
+export function exportTime(date: string | undefined, env: NodeJS.ProcessEnv = process.env): Date {
+  if (date !== undefined) {
+    const when = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : /^\d{4}-\d{2}-\d{2}T/.test(date) ? new Date(date) : new Date(Number.NaN)
+    if (!Number.isFinite(when.getTime())) throw new UsageError(`--date ${JSON.stringify(date)} is not a date or a time: write 2026-01-31 or 2026-01-31T09:00:00Z.`)
+    return when
+  }
+  const epoch = env['SOURCE_DATE_EPOCH']
+  if (epoch !== undefined && epoch !== '') {
+    if (!/^\d{1,15}$/.test(epoch)) throw new UsageError(`SOURCE_DATE_EPOCH ${JSON.stringify(epoch)} is not a whole number of seconds: unset it or give seconds since 1970.`)
+    return new Date(Number(epoch) * 1000)
+  }
+  return new Date()
 }
 
 /** Checks the options against each other, before the plan is read. */
@@ -48,6 +69,7 @@ export function checkExportRequest(request: ExportRequest): ExportFormat {
     throw new UsageError(`--format ${JSON.stringify(request.format)} is not one Grid writes: use one of ${formats}.`)
   }
   const format = request.format
+  exportTime(request.date)
   if (format === 'ifc' && request.floor !== undefined) {
     throw new UsageError('--floor does not apply to IFC, which holds every floor: leave --floor out.')
   }
@@ -217,7 +239,7 @@ export function exportFile(project: Project, loaded: LoadedPlan, planFile: strin
   const floorId = floorOption(loaded.plan, request.floor)
   const name = projectNameOf(planFile)
   const dxf = format === 'dxf' ? projectDxfProfile(project) : null
-  const options = { projectId: name, projectName: name, floorId, now: new Date(), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
+  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
   const made = exportPlan(loaded.plan, format, loaded.faults === undefined ? options : { ...options, faults: loaded.faults })
   if (made.empty) throw new PlanRefused(nothingToExport(loaded, planFile, format, made, floorId))
   return { ...made, name: exportNameOf(planFile, format, floorNumberOf(loaded, format, floorId)), dxfProfile: dxf?.file ?? null }

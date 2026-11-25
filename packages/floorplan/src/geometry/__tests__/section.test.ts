@@ -379,3 +379,23 @@ describe('a glazed wall type in section (VEW-23)', () => {
     expect(area(planSection(plan(), line))).toBeLessThan(area(all))
   })
 })
+
+describe('where a section line stands against the building (VEW-38)', () => {
+  const plan = townhouse()
+  it('misses the building when it runs over open ground', () => {
+    const section = planSection(plan, { from: { x: 40, y: -2 }, to: { x: 40, y: 13 }, toward: 'left' })
+    expect(section.reach).toEqual({ missesBuilding: true, startInside: false, endInside: false })
+  })
+  it('is neither missing nor ending inside when it runs past the building at both ends', () => {
+    expect(planSection(plan, THROUGH_STAIR).reach).toEqual({ missesBuilding: false, startInside: false, endInside: false })
+  })
+  it('ends inside the building when its last point stands in a room', () => {
+    const section = planSection(plan, { from: { x: 4.9, y: -2 }, to: { x: 4.9, y: 5 }, toward: 'left' })
+    expect(section.reach).toEqual({ missesBuilding: false, startInside: false, endInside: true })
+  })
+  it('starts inside the building when its first point stands in a room', () => {
+    const section = planSection(plan, { from: { x: 4.9, y: 5 }, to: { x: 4.9, y: 13 }, toward: 'left' })
+    expect(section.reach.startInside).toBe(true)
+    expect(section.reach.endInside).toBe(false)
+  })
+})

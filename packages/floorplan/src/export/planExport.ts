@@ -121,7 +121,7 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   if (format === 'ifc') {
     const contents = exportContents(ordered, planFloors(ordered).map((floor) => floor.id), options.faults)
     const approximations = approximationsOf(ordered, format, contents)
-    const data = toIfc(plan, { projectId: options.projectId, projectName: plan.name ?? options.projectName, timestamp: options.now, leftOut: contents.leftOut, approximations })
+    const data = toIfc(plan, { projectId: options.projectId, projectName: plan.name ?? plan.title ?? options.projectName, timestamp: options.now, leftOut: contents.leftOut, approximations })
     return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts }
   }
 

@@ -174,6 +174,12 @@ export interface SectionAssumption {
   readonly pieces: readonly SectionPiece[]
 }
 
+export interface SectionReach {
+  readonly missesBuilding: boolean
+  readonly startInside: boolean
+  readonly endInside: boolean
+}
+
 export interface PlanSection {
   readonly line: SectionLine
   /** The line's length, in metres: the cut runs from x = 0 to x = length. */
@@ -201,6 +207,13 @@ export interface PlanSection {
   readonly roofs: readonly { readonly floor: string; readonly level: number }[]
   /** The rooms the line crosses, floor by floor. */
   readonly rooms: readonly SectionRoom[]
+  /**
+   * VEW-38: where the line stands against the building: `missesBuilding` when it cuts no part of
+   * it, `startInside` and `endInside` when its first or last point stands inside a floor's outline,
+   * so the cut stops there instead of running past the building. The picture breaks the cut at
+   * such an end and says so.
+   */
+  readonly reach: SectionReach
   /** What the section takes that the plan does not state, in the order it is listed. */
   readonly assumed: readonly SectionAssumption[]
   /** The box round the cut, what lies beyond it and the ground line, in section coordinates. */
@@ -866,6 +879,9 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     taken({ kind: 'waist', ids: waisted, hatched: false, pieces: [] }, said('drawing.section.taken.waist', { ids: ids(waisted), waist: num(metresText(stairWaist())) }))
   }
 
+  const outlines = envelope.floors.flatMap((f) => (f.outline == null ? [] : [f.outline]))
+  const endIn = (x: number): boolean => outlines.some((o) => inPieces(o, pointAt(x)))
+  const reach: SectionReach = { missesBuilding: parts.length === 0, startInside: lineLength > none && endIn(0), endInside: lineLength > none && endIn(lineLength) }
   const glass = parts.filter((p) => p.glazed === true)
   const cut = joined(parts.filter((p) => p.glazed !== true).flatMap((p) => p.rings))
   beyondOrder(faces)
@@ -891,6 +907,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     levels: levels.sort((a, b) => a.level - b.level),
     roofs,
     rooms: shownRooms,
+    reach,
     assumed: notes,
     bounds: boundsOf(points)
   }

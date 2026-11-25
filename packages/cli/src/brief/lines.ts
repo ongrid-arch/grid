@@ -20,7 +20,7 @@ import { smallMetres } from '../quantities/units'
 import { planAreas, type RoomArea } from '../quantities/areas'
 import { measureRoom, roomHeight } from '../quantities/measure'
 import { corridorNarrowestOf, entranceOf } from '../quantities/access'
-import { entryWays, wayGraph } from '../quantities/measure'
+import { entryWays, OUTSIDE, wayGraph } from '../quantities/measure'
 import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, DOOR_MEASURE_RULES } from '../quantities/doorWidth'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { METRES } from '@ongrid/floorplan/types/units'
@@ -259,8 +259,89 @@ function touchLines(c: Context, brief: Brief): BriefLine[] {
       return line('missed', wish, 'touch', `${pair} ${asked}, but ${missing} is not drawn.`, { parts })
     }
     const touches = a.some((x) => b.some((y) => x.id !== y.id && (c.survey.facts.rooms.get(x.id)?.neighbours ?? []).includes(y.id)))
-    return line(stateOf(touches, wish.level), wish, 'touch', `${pair} ${asked}, drawn ${touches ? 'sharing a wall' : 'apart'}.`, { parts })
+    if (wish.level !== 'avoid') return line(stateOf(touches, wish.level), wish, 'touch', `${pair} ${asked}, drawn ${touches ? 'sharing a wall' : 'apart'}.`, { parts })
+    // ARE-48: rooms kept apart are judged by the ways between them too, not only a shared wall.
+    const way = wayBetween(c, a, b)
+    const direct = way !== null && way.through.length === 0
+    const joined = touches || direct || (way !== null && way.open)
+    const drawn = touches ? 'sharing a wall' : 'apart'
+    // A shared wall already misses the wish: only a way straight through it is worth saying then.
+    const shown = way === null || (touches && !direct) ? null : way
+    const extra: BriefPart[] = shown === null ? [] : [...shown.through.map((id): BriefPart => ({ kind: 'room', id })), ...shown.vias.filter((v) => v.opening).map((v): BriefPart => ({ kind: 'opening', id: v.id }))]
+    const said = shown === null ? '' : direct ? `, joined by ${viaWord(shown.vias[0]!)}` : shown.open ? `, but joined through ${shown.through.map((id) => q(roomName(c, id))).join(' and ')} by ${gapCount(shown.vias.length)}` : ', a door on every way between them'
+    return line(stateOf(joined, wish.level), wish, 'touch', `${pair} ${asked}, drawn ${drawn}${said}.`, { parts: [...parts, ...extra] })
   })
+}
+
+interface Via {
+  readonly id: string
+  /** A door or opening of the plan; false for an open edge (a virtual wall). */
+  readonly opening: boolean
+  readonly door: boolean
+}
+
+interface WayBetween {
+  /** The rooms between, in order, neither end included. */
+  readonly through: readonly string[]
+  readonly vias: readonly Via[]
+  /** Every step an open gap: no door to close on the way. */
+  readonly open: boolean
+}
+
+const roomName = (c: Context, id: string): string => {
+  const name = c.plan.rooms.find((r) => r.id === id)?.name.trim() ?? ''
+  return name === '' ? id : name
+}
+
+const viaWord = (via: Via): string => (via.door ? `door ${q(via.id)}` : via.opening ? `the open gap ${q(via.id)}` : 'an open edge')
+
+const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+const gapCount = (n: number): string => `${COUNT_WORDS[n] ?? String(n)} open ${n === 1 ? 'gap' : 'gaps'}`
+
+/**
+ * ARE-48: the way between any room of `a` and any of `b` on their floor, by the door graph
+ * (`wayGraph`, ARE-46's blocked doorways left out): first one through open gaps only, the fewest
+ * rooms between; else any way, which then has a door on it. Null when no way joins them.
+ */
+function wayBetween(c: Context, a: FloorPlan['rooms'], b: FloorPlan['rooms']): WayBetween | null {
+  const ends = new Set(b.map((r) => r.id))
+  const floors = new Set(a.map((r) => floorOf(r)))
+  let any: WayBetween | null = null
+  for (const floor of [...floors].sort()) {
+    const graph = wayGraph(c.survey, floor)
+    const viaOf = (id: string): Via => {
+      const opening = graph.openings.get(id)
+      return { id, opening: opening !== undefined, door: opening !== undefined && opening.type === 'door' }
+    }
+    const search = (openOnly: boolean): WayBetween | null => {
+      const starts = a.filter((r) => floorOf(r) === floor && !ends.has(r.id)).map((r) => r.id)
+      const back = new Map<string, { from: string; via: string } | null>(starts.map((id) => [id, null]))
+      const queue = [...starts]
+      while (queue.length > 0) {
+        const at = queue.shift()!
+        if (ends.has(at)) {
+          const rooms: string[] = []
+          const vias: Via[] = []
+          for (let here = at, step = back.get(here); step !== null && step !== undefined; here = step.from, step = back.get(here)) {
+            vias.unshift(viaOf(step.via))
+            rooms.unshift(step.from)
+          }
+          return { through: rooms.slice(1), vias, open: vias.every((v) => !v.door) }
+        }
+        for (const next of graph.next.get(at) ?? []) {
+          // The outside is no room between: two rooms that each open onto the street are not joined by it.
+          if (next.room === OUTSIDE || back.has(next.room) || (openOnly && viaOf(next.via).door)) continue
+          back.set(next.room, { from: at, via: next.via })
+          queue.push(next.room)
+        }
+      }
+      return null
+    }
+    const open = search(true)
+    if (open !== null) return open
+    any ??= search(false)
+  }
+  return any
 }
 
 // ---------------------------------------------------------------------------------------------

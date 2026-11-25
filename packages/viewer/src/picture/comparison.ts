@@ -106,6 +106,32 @@ function markNodes(drawing: PlanDrawing, ids: { walls: readonly string[]; openin
   return nodes
 }
 
+/**
+ * MSG-27: the stretches a wall gained or lost along its line, each a band of its thickness in one
+ * colour, drawn only on the floor whose drawing holds the wall.
+ */
+function stretchNodes(drawing: PlanDrawing, stretches: ComparisonMarks['stretches'], kind: 'added' | 'removed', colour: string, mpp: number): SvgNode[] {
+  const here = new Set(drawing.walls.map((w) => w.id))
+  const nodes: SvgNode[] = []
+  for (const stretch of stretches) {
+    if (stretch.kind !== kind || !here.has(stretch.wall)) continue
+    const dx = stretch.to[0] - stretch.from[0]
+    const dy = stretch.to[1] - stretch.from[1]
+    const length = Math.hypot(dx, dy)
+    if (length === 0) continue
+    const half = stretch.thickness / 2
+    const side = { x: (-dy / length) * half, y: (dx / length) * half }
+    const corners = [
+      { x: stretch.from[0] + side.x, y: stretch.from[1] + side.y },
+      { x: stretch.to[0] + side.x, y: stretch.to[1] + side.y },
+      { x: stretch.to[0] - side.x, y: stretch.to[1] - side.y },
+      { x: stretch.from[0] - side.x, y: stretch.from[1] - side.y }
+    ]
+    nodes.push(el('path', { 'data-part': `${kind}-stretch`, 'data-id': stretch.wall, d: pathOf(corners), fill: colour, 'fill-opacity': 0.8, stroke: colour, 'stroke-width': lengthText(mpp) }))
+  }
+  return nodes
+}
+
 /** Words on a paper strip, in pixels, at a point of the plan. */
 function labelAt(at: Vec2, text: string, colour: string, mpp: number, dy: number, part: string): SvgNode {
   const width = text.length * LABEL_PX * 0.56 + 10
@@ -161,7 +187,10 @@ export function comparisonPicture(earlier: FloorPlan, later: FloorPlan, marks: C
     ...markNodes(before, { ...marks.changed, rooms: [] }, COMPARISON_COLORS.changed, COMPARISON_COLORS.changedFill, mpp, 'changed-was', true),
     ...markNodes(after, { ...marks.changed, rooms: [] }, COMPARISON_COLORS.changed, COMPARISON_COLORS.changedFill, mpp, 'changed'),
     ...markNodes(before, marks.removed, COMPARISON_COLORS.removed, COMPARISON_COLORS.removedFill, mpp, 'removed'),
-    ...markNodes(after, marks.added, COMPARISON_COLORS.added, COMPARISON_COLORS.addedFill, mpp, 'added')
+    ...markNodes(after, marks.added, COMPARISON_COLORS.added, COMPARISON_COLORS.addedFill, mpp, 'added'),
+    // MSG-27: a wall made longer or shorter: only the stretch it gained or lost.
+    ...stretchNodes(before, marks.stretches, 'removed', COMPARISON_COLORS.removed, mpp),
+    ...stretchNodes(after, marks.stretches, 'added', COMPARISON_COLORS.added, mpp)
   ]
   for (const room of after.rooms) {
     const label = changed.get(room.id)

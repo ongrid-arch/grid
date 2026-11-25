@@ -42,7 +42,7 @@ import type { WalkStop } from '../describe/walk'
 import { DIFF_OPTIONS, MARK_OPTIONS, runDiff, runMark } from './diff'
 import { MARKERS_MAX, MarkerRefused } from '../versions/markers'
 import { GitUnread } from '../versions/git'
-import { checkDrawRequest, DRAW_OPTIONS, drawFile, undecidedNote } from './draw'
+import { checkDrawRequest, DRAW_OPTIONS, drawFile, drawsPng, PNG_TO_TERMINAL, undecidedNote } from './draw'
 import { approximatedText, checkExportRequest, dxfProfileLine, EXPORT_OPTIONS, exportFile, exportIntoProject, ExportWriteFailed, leftOutText } from './export'
 import { DxfProfileRefused } from '../export/dxfProfile'
 import type { LeftOutPart } from '@ongrid/floorplan/export'
@@ -468,8 +468,8 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       marks: textOf(parsed, '--marks'),
     }
     const { scale, look } = checkDrawRequest(request)
-    if ((request.png || request.threeD) && request.out === undefined && io.stdoutIsTerminal) {
-      throw new UsageError('A PNG is not shown in a terminal: name a file with --out, or send the output to a file or another program.')
+    if (drawsPng(request) && request.out === undefined && io.stdoutIsTerminal) {
+      throw new UsageError(PNG_TO_TERMINAL)
     }
     const project = openProject(projectOption, io.cwd)
     const loaded = loadPlan(project, planFile)
@@ -565,7 +565,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     return EXIT_OK
   }
 
-  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out') }
+  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date') }
   const format = checkExportRequest(request)
   const project = openProject(projectOption, io.cwd)
   if (request.out === undefined) {

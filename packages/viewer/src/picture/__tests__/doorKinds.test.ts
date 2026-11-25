@@ -82,3 +82,26 @@ describe('kinds of door and window in the 2D picture', () => {
     expect(parts(window('sliding'), 'window-glass')).toHaveLength(2)
   })
 })
+
+describe('a sliding door and the frames of a detailed drawing (VEW-39)', () => {
+  it('draws a sliding door as panels with glass and an arrow', () => {
+    const svg = planToSvg(shed({ kind: 'sliding', swing: 'right', width: 2 }), { look: 'technical' })
+    expect(parts(svg, 'door-leaf').length).toBeGreaterThanOrEqual(8)
+    expect(parts(svg, 'door-arrow')).toHaveLength(6)
+    const symbol = svg.match(/<g data-part="door-symbol"[^>]*data-kind="sliding".*?<\/g>/)![0]
+    expect(symbol.match(/data-part="window-glass"/g)).toHaveLength(2)
+  })
+
+  it('draws each frame square, its pen included, inside the wall\'s faces', () => {
+    const svg = planToSvg(shed({ kind: 'single', hinge: 'start', swing: 'right', width: 0.9 }), { look: 'technical', paperScale: 50 })
+    const frames = parts(svg, 'frame')
+    expect(frames).toHaveLength(2)
+    for (const tag of frames) {
+      const pen = Number(tag.match(/stroke-width="([\d.]+)"/)![1])
+      const ys = [...tag.match(/d="([^"]+)"/)![1]!.matchAll(/,(-?[\d.]+)/g)].map((m) => Math.abs(Number(m[1])))
+      // The wall's north face is at y = 8.15 (drawn flipped): its pen's half-width past it is out of the wall.
+      for (const y of ys) expect(y + pen / 2).toBeLessThanOrEqual(8.15 + 1e-3)
+      for (const y of ys) expect(y - pen / 2).toBeGreaterThanOrEqual(7.85 - 1e-3)
+    }
+  })
+})

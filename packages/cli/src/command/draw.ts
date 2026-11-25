@@ -107,6 +107,14 @@ export interface DrawnFile {
   readonly traceNote?: string | null
 }
 
+/** CMD-25: the picture asked for is a PNG, whichever kind: a floor plan, the model, a saved view, a facade or a section. */
+export function drawsPng(request: DrawRequest): boolean {
+  return request.png || request.threeD === true
+}
+
+/** CMD-25: said when a PNG would go to a terminal. */
+export const PNG_TO_TERMINAL = 'A PNG is not shown in a terminal: name a file with --out, or send the output to a file or another program.'
+
 /** The look `grid draw` uses when none is named: a file to hand on. */
 export const DRAW_LOOK: LookName = 'technical'
 

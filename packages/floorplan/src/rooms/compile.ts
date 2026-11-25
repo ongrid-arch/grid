@@ -53,6 +53,8 @@
  *                unless named (CNT-14); a kind: single, double, sliding, pocket, folding, roller,
  *                garage (doors), single, double, sliding, fixed, high-level (windows); and
  *                part <w> [x <h>], the part that opens
+ *       a raw room may be named too (WRT-45): the wall both rooms' boundaries name, or the one
+ *       of its walls whose outside face looks to <side>, measured from that wall's own ends
  *   unit <name> [setting=default ...] ... end      rooms and openings written once
  *   unit <name> flat "<type name>" ["<flat name>"] [setting=default ...] ... end
  *       a flat type (CNT-4): every placement of it is a flat of that type in the plan's flats,
@@ -89,19 +91,22 @@ import { BUILDING_TYPES, DEFAULT_FLOOR_ID, DOOR_KINDS, OPENING_KINDS, OUTDOOR_KI
 import { doorKindOf, kindFits, sweepsFloor } from '../geometry/openingKinds'
 import { hingeSeenFrom } from '../geometry/handing'
 import { indexPlan } from '../geometry/plan'
+import { pointInPolygon } from '../geometry/innerPoint'
+import type { Vec2 } from '../geometry/vec2'
 import { phaseReading, planHasPhases, standsIn } from '../geometry/phases'
 import { roomFloorArea, tryRoomPolygon } from '../geometry/room'
 import { floorOf } from '../geometry/floors'
 import { isOutdoor } from '../geometry/outdoor'
-import { wallLength } from '../geometry/wall'
+import { wallFrameAt, wallLength } from '../geometry/wall'
 import { limit, tolerance } from '../geometry/tolerances'
 import { buildingKind } from '../geometry/plausible'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
-import { english, joined, name as sayName, said, type MessageKey, type Said, type Values } from '../messages/say'
+import { english, joined, name as sayName, num, said, type MessageKey, type Said, type Values } from '../messages/say'
 import { idsOfText } from './ids'
 import { f2, hasUnit, isNumberWord, metres, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
 import { likelyMeant } from '../types/nearest'
+import { readingNotes } from '../types/reading'
 
 type P = readonly [number, number]
 /** A wall as the text writes it into the file: no height when the text states none (WRT-6). */
@@ -109,6 +114,37 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 
 /** The floor's fields a `raw floor` line may hold: LVL-6's roof and parapet, BRF-4's outline, homes and parking. */
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
+
+/**
+ * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
+ * an opening's type, a floor's own field, or one of the plan file's lists.
+ */
+const RAW_ELSEWHERE: Readonly<Record<string, Said>> = {
+  door: said('rooms.raw.kind.opening', { type: 'door' }),
+  doorway: said('rooms.raw.kind.opening', { type: 'door' }),
+  gate: said('rooms.raw.kind.opening', { type: 'door' }),
+  window: said('rooms.raw.kind.opening', { type: 'window' }),
+  skylight: said('rooms.raw.kind.opening', { type: 'window' }),
+  roof: said('rooms.raw.kind.floor', { list: 'roof' }),
+  parapet: said('rooms.raw.kind.floor', { list: 'parapet' }),
+  outline: said('rooms.raw.kind.floor', { list: 'outline' }),
+  stair: said('rooms.raw.kind.list', { list: 'stairs' }),
+  staircase: said('rooms.raw.kind.list', { list: 'stairs' }),
+  column: said('rooms.raw.kind.list', { list: 'columns' }),
+  pillar: said('rooms.raw.kind.list', { list: 'columns' }),
+  fixture: said('rooms.raw.kind.list', { list: 'items' }),
+  item: said('rooms.raw.kind.list', { list: 'items' }),
+  furniture: said('rooms.raw.kind.list', { list: 'items' }),
+  site: said('rooms.raw.kind.list', { list: 'site' }),
+  bay: said('rooms.raw.kind.list', { list: 'bays' }),
+  ramp: said('rooms.raw.kind.list', { list: 'ramps' }),
+  grid: said('rooms.raw.kind.list', { list: 'grids' }),
+}
+
+/** WRT-48: words agents write on a raw wall for a curve, which Grid states as `arc`. */
+const CURVE_WORDS = new Set(['bulge', 'spline', 'ellipse', 'curve', 'curved', 'radius', 'sagitta', 'bend', 'controlpoints', 'centre', 'center', 'sweep'])
+/** WRT-48: words agents write on a raw part for facts of their own, which Grid holds in `properties`. */
+const FACT_WORDS = new Set(['facts', 'fact', 'attributes', 'attrs', 'props', 'metadata', 'meta', 'custom', 'data', 'tags'])
 
 /** WRT-14: the words a floor line knows after its id, `name` among them. */
 const FLOOR_KEYS: readonly string[] = ['name', 'level', 'elevation', 'height', 'slab', 'building', 'copy']
@@ -510,6 +546,19 @@ interface Edge {
   idx: number
 }
 
+/** WRT-45: what a door, window or opening line says after the wall it names. */
+interface OpeningWords {
+  readonly pos: { centred: true } | { centred: false; dist: number; comp: string; ref: string | null }
+  readonly width: number
+  readonly sill: number | null
+  readonly height: number | null
+  readonly opens: string | null
+  readonly hinged: string | null
+  readonly openingKind: OpeningKind | null
+  readonly seenFrom: string | null
+  readonly part: { width: number; height?: number } | null
+}
+
 interface RawWall {
   a: P
   b: P
@@ -588,6 +637,8 @@ class Compiler {
   readonly rawIds = new Set<string>()
   /** WRT-27: each raw part with its line and the floor whose line it is written under. */
   private readonly rawParts: Array<{ kind: 'wall' | 'room' | 'opening'; part: Record<string, unknown>; line: number; under: string }> = []
+  /** WRT-48: the names a wall line gives that were no room of its floor when it was read. */
+  private readonly wallNames: Array<{ fl: FloorDraft; room: string; line: number }> = []
   /** WRT-17: every wall thickness a line of the text states, besides the walls line. */
   private readonly statedT = new Set<number>()
   /** WRT-17: the pairs of rooms whose wall's thickness, from their gap, has been said. */
@@ -646,15 +697,14 @@ class Compiler {
       const at = i + 1
       const text = this.lines[i]!
       i++
-      const rawFloor = /^\s*raw\s+floor\s+(.*)$/.exec(text)
-      if (rawFloor) {
-        this.rawFloor(rawFloor[1]!, at)
-        continue
-      }
-      if (/^\s*raw\s+pattern\b/.test(text)) this.stop('rooms/syntax', at, patternLine(at, false))
-      const raw = /^\s*raw\s+(wall|room|opening)\s+(.*)$/.exec(text)
+      // WRT-48: every line starting `raw` is read here, so a kind raw does not take is named as such.
+      const raw = /^\s*raw\b\s*([^\s{]*)\s*(.*)$/.exec(text)
       if (raw) {
-        this.rawPart(raw[1] as 'wall' | 'room' | 'opening', raw[2]!, at)
+        const [, kind, rest] = raw as unknown as [string, string, string]
+        if (kind === 'floor') this.rawFloor(rest, at)
+        else if (kind === 'pattern') this.stop('rooms/syntax', at, patternLine(at, false))
+        else if (kind === 'wall' || kind === 'room' || kind === 'opening') this.rawPart(kind, rest, at)
+        else this.rawKind(kind, at)
         continue
       }
       const t = wordsOf(text, at)
@@ -699,6 +749,7 @@ class Compiler {
       )
     }
     this.rawFloors()
+    this.wallRooms()
     return this.emit()
   }
 
@@ -711,11 +762,73 @@ class Compiler {
       this.stop('rooms/raw', at, `line ${at}: a raw floor is one JSON object on the rest of the line, with the floor's roof, parapet, outline, homes, parking or level as Grid's plan file holds them; this one could not be read.`)
     }
     const keys = typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.keys(value) : null
-    // WRT-14: a level that is no storey number (neither whole nor a half) is the plan file's own too.
-    if (keys === null || keys.some((k) => !RAW_FLOOR_KEYS.includes(k) && k !== 'level')) {
+    if (keys === null) {
       this.stop('rooms/raw', at, `line ${at}: a raw floor is a JSON object holding only the floor's "roof", "parapet", "outline", "homes", "parking" and "level", as Grid's plan file holds them.`)
     }
-    Object.assign(this.floor().extra, value)
+    // WRT-14: a level that is no storey number (neither whole nor a half) is the plan file's own too.
+    const known = [...RAW_FLOOR_KEYS, 'level']
+    // WRT-48: each field it does not take is named, with where it goes when that is the floor line.
+    for (const key of keys.filter((k) => !known.includes(k))) {
+      const nearest = likelyMeant(key, known)
+      const fix = FLOOR_KEYS.includes(key)
+        ? said('rooms.raw.floorField.line', { field: key })
+        : nearest !== null
+          ? said('rooms.raw.unknownField.nearest', { nearest })
+          : said('rooms.raw.unknownField.none')
+      const field = said('rooms.raw.unknownField.named', { field: key })
+      this.problem('rooms/raw', at, english(said('rooms.raw.floorField', { line: at, field, known: joined(known.map((k) => `"${k}"`), 'join.comma', 'join.and'), fix })))
+    }
+    // WRT-48: with no floor line above it, it is the one floor the text has, the ground floor (`emit` writes it).
+    Object.assign(this.floor().extra, Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([k]) => known.includes(k))))
+  }
+
+  /** WRT-48: a `raw` line of a kind raw does not take, named, with where that part goes. */
+  private rawKind(kind: string, at: number): void {
+    if (kind === '') {
+      this.problem('rooms/raw', at, english(said('rooms.raw.kind.nothing', { line: at })))
+      return
+    }
+    const word = kind.toLowerCase().replace(/s$/, '')
+    const where = Object.hasOwn(RAW_ELSEWHERE, word) ? RAW_ELSEWHERE[word]! : said('rooms.raw.kind.none')
+    this.problem('rooms/raw', at, english(said('rooms.raw.kind', { line: at, kind, where })))
+  }
+
+  /**
+   * WRT-48: each field of a raw part that Grid's plan file does not have, named with its line, the
+   * nearest field Grid knows and the fields that place has, read from the schema (`readingNotes`).
+   */
+  private rawFields(kind: 'wall' | 'room' | 'opening', part: Record<string, unknown>, at: number): void {
+    const list = kind === 'wall' ? 'walls' : kind === 'room' ? 'rooms' : 'openings'
+    for (const note of readingNotes({ [list]: [part] })) {
+      if (note.kind !== 'unknown-field') continue
+      const place = note.at.replace(/^[a-z]+\[0\]\.?/, '')
+      const word = (note.field ?? '').toLowerCase()
+      const fix =
+        place === '' && kind === 'wall' && CURVE_WORDS.has(word)
+          ? said('rooms.raw.unknownField.arc')
+          : place === '' && FACT_WORDS.has(word)
+            ? said('rooms.raw.unknownField.properties')
+            : note.nearest !== null && note.field !== null
+              ? note.nearestWritten
+                ? said('rooms.raw.unknownField.written', { field: note.field, nearest: note.nearest })
+                : said('rooms.raw.unknownField.nearest', { nearest: note.nearest })
+              : said('rooms.raw.unknownField.none')
+      this.problem(
+        'rooms/raw',
+        at,
+        english(
+          said('rooms.raw.unknownField', {
+            line: at,
+            kind,
+            id: String(part['id']),
+            field: note.field === null ? said('rooms.raw.unknownField.unnamed') : said('rooms.raw.unknownField.named', { field: note.field }),
+            place: place === '' ? '' : said('rooms.raw.unknownField.in', { place }),
+            fix,
+            known: joined(note.known.map((k) => `"${k}"`), 'join.comma', 'join.and'),
+          })
+        )
+      )
+    }
   }
 
   private rawPart(kind: 'wall' | 'room' | 'opening', json: string, at: number): void {
@@ -739,6 +852,7 @@ class Compiler {
       const at0 = part['start'] as [number, number]
       this.problem('rooms/raw', at, english(said('rooms.raw.zeroLength', { line: at, id: String(part['id']), x: metres(at0[0]), y: metres(at0[1]) })))
     }
+    this.rawFields(kind, part, at)
     const list = kind === 'wall' ? fl.raw.walls : kind === 'room' ? fl.raw.rooms : fl.raw.openings
     list.push(part)
     this.rawIds.add(part['id'] as string)
@@ -776,6 +890,7 @@ class Compiler {
     switch (kw) {
       case 'plan':
         this.name = t[1] ?? null
+        if (t.length > 2) this.planWords(t, at)
         return
       case 'building':
         if (t.length !== 2 || !BUILDINGS.includes(t[1]!)) this.stop('rooms/syntax', at, `line ${at}: write 'building <kind>': one of ${BUILDINGS.join(', ')}.`)
@@ -849,6 +964,29 @@ class Compiler {
           at,
           `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw.`
         )
+    }
+  }
+
+  /**
+   * WRT-48: a plan line with words after its one name: the name in quotes is kept and the rest
+   * named; a name not in quotes is offered in quotes with the words after it.
+   */
+  private planWords(t: string[], at: number): void {
+    const quoted = quotedWordsOf(this.lines[at - 1] ?? t.join(' '), at)[1]?.quoted === true
+    const extra = `'${t.slice(2).join(' ')}'`
+    const offered = `plan ${quoteWords(quoted ? t[1]! : t.slice(1).join(' '))}`
+    this.problem('rooms/syntax', at, english(said('rooms.plan.oneName', { line: at, extra, offered })))
+  }
+
+  /** WRT-48: each room a wall line names that is no room of its floor, there or written after it. */
+  private wallRooms(): void {
+    for (const { fl, room, line } of this.wallNames) {
+      if (fl.rooms.has(room)) continue
+      const ids = [...fl.rooms.keys()]
+      const meant = likelyMeant(room, ids)
+      const rooms = ids.length === 0 ? said('rooms.wall.unknownRoom.none') : joined(ids, 'join.comma')
+      const nearest = meant === null ? '' : said('rooms.wall.unknownRoom.nearest', { nearest: meant })
+      this.problem('rooms/unknown-room', line, english(said('rooms.wall.unknownRoom', { line, room, floor: fl.id, nearest, rooms })))
     }
   }
 
@@ -1465,6 +1603,9 @@ class Compiler {
 
   private stWall(t: string[], at: number): void {
     const fl = this.floor()
+    // WRT-48: a name that is no room yet is checked once every line is read (`wallRooms`).
+    const named = t[1] === 'between' ? [t[2], t[4]] : [t[1]]
+    for (const room of named) if (room !== undefined && !fl.rooms.has(room)) this.wallNames.push({ fl, room, line: at })
     if (t.length >= 4 && t[1] === 'between' && t[3] === 'and') {
       // 'wall between a and b east': the wall on a's east side, where a and b share more than one.
       const side = t[5] !== undefined && Object.hasOwn(COMPASS, t[5]) ? t[5] : null
@@ -2439,42 +2580,12 @@ class Compiler {
     return hits[0]!
   }
 
-  private resolveOpening(fl: FloorDraft, edges: Edge[], raws: RawWall[], t: string[], at: number, oid: string, wallHeight: number): Opening | null {
-    const kind = t[0] as Opening['type']
-    let i = 2
-    let between: { A: string; B: string; r: RawWall } | null = null
-    let e: Edge
-    let stretch: [number, number]
-    if (i + 3 < t.length && t[i] === 'between' && t[i + 2] === 'and') {
-      const A = t[i + 1]!
-      const B = t[i + 3]!
-      for (const x of [A, B]) if (!fl.rooms.has(x)) this.stop('rooms/unknown-room', at, `line ${at}: there is no room '${x}' on floor '${fl.id}'. Rooms: ${[...fl.rooms.keys()].join(', ')}.`)
-      const shared = raws.filter((r) => r.rooms.length === 2 && new Set(r.rooms.map((x) => x.id)).has(A) && new Set(r.rooms.map((x) => x.id)).has(B))
-      if (shared.length === 0) {
-        const nb = [...new Set(raws.filter((r) => r.rooms.length === 2 && r.rooms.some((x) => x.id === A)).flatMap((r) => r.rooms.map((x) => x.id)))].filter((x) => x !== A).sort()
-        this.stop('rooms/no-shared-wall', at, `line ${at}: '${A}' and '${B}' do not share a wall, so nothing can be put between them. '${A}' shares walls with: ${nb.join(', ') || 'no room'}.`)
-      }
-      if (shared.length > 1) {
-        const desc = shared.map((r) => {
-          const k = r.rooms[0]!.id === A ? 0 : 1
-          const side = r.sides[k]!
-          return `${A}'s ${compassOf(edges[side[0]]!.n)} side (${f2(side[2] - side[1])} m)`
-        })
-        this.stop('rooms/two-shared-walls', at, `line ${at}: '${A}' and '${B}' share ${shared.length} walls: ${desc.join('; ')}. Say which with 'in ${A} <side>' in place of 'between ${A} and ${B}'.`)
-      }
-      const r = shared[0]!
-      const k = r.rooms[0]!.id === A ? 0 : 1
-      e = edges[r.sides[k]![0]]!
-      stretch = [r.sides[k]![1], r.sides[k]![2]]
-      between = { A, B, r }
-      i += 4
-    } else if (i + 2 < t.length && t[i] === 'in') {
-      e = this.pickEdge(fl, edges, t[i + 1]!, t[i + 2]!, at)
-      stretch = [0, e.L]
-      i += 3
-    } else {
-      this.stop('rooms/syntax', at, `line ${at}: after the id write 'between <room> and <room>' or 'in <room> <side>'.`)
-    }
+  /**
+   * WRT-45: the words of a door, window or opening line after the wall it names: where along the
+   * wall, how wide and the rest, read the same for a line placed by Grid's rooms and by a raw room.
+   */
+  private openingWords(t: string[], from: number, at: number, kind: Opening['type'], oid: string): OpeningWords {
+    let i = from
     let pos: { centred: true } | { centred: false; dist: number; comp: string; ref: string | null } | null = null
     let width: number | null = null
     let sill: number | null = null
@@ -2555,17 +2666,62 @@ class Compiler {
     }
     if (width === null) this.stop('rooms/syntax', at, `line ${at}: ${kind} '${oid}' has no width. Write for example '0.9 wide'.`)
     if (pos === null) this.stop('rooms/syntax', at, `line ${at}: ${kind} '${oid}' does not say where along the wall. Write 'centred' or '<m> from <side>'.`)
+    return { pos, width, sill, height, opens, hinged, openingKind, seenFrom, part }
+  }
+
+  /** A distance along a wall running `u` is measured from one of the two ways it runs, or the line is refused. */
+  private measuredFrom(u: P, comp: string, at: number): void {
+    if (!Object.hasOwn(COMPASS, comp)) this.stop('rooms/syntax', at, `line ${at}: measure from north, south, east or west, not '${comp}'.`)
+    if (Math.abs(dot(u, COMPASS[comp]!)) < 0.3) {
+      const runs = Math.abs(u[0]) > Math.abs(u[1]) ? 'east-west' : 'north-south'
+      this.stop('rooms/syntax', at, `line ${at}: this wall runs ${runs}, so a distance along it is measured from ${runs === 'east-west' ? 'east or west' : 'north or south'}, not from ${comp}.`)
+    }
+  }
+
+  private resolveOpening(fl: FloorDraft, edges: Edge[], raws: RawWall[], t: string[], at: number, oid: string, wallHeight: number): Opening | null {
+    const kind = t[0] as Opening['type']
+    let i = 2
+    let between: { A: string; B: string; r: RawWall } | null = null
+    let e: Edge
+    let stretch: [number, number]
+    if (i + 3 < t.length && t[i] === 'between' && t[i + 2] === 'and') {
+      const A = t[i + 1]!
+      const B = t[i + 3]!
+      for (const x of [A, B]) if (!fl.rooms.has(x)) this.stop('rooms/unknown-room', at, `line ${at}: there is no room '${x}' on floor '${fl.id}'. Rooms: ${[...fl.rooms.keys()].join(', ')}.`)
+      const shared = raws.filter((r) => r.rooms.length === 2 && new Set(r.rooms.map((x) => x.id)).has(A) && new Set(r.rooms.map((x) => x.id)).has(B))
+      if (shared.length === 0) {
+        const nb = [...new Set(raws.filter((r) => r.rooms.length === 2 && r.rooms.some((x) => x.id === A)).flatMap((r) => r.rooms.map((x) => x.id)))].filter((x) => x !== A).sort()
+        this.stop('rooms/no-shared-wall', at, `line ${at}: '${A}' and '${B}' do not share a wall, so nothing can be put between them. '${A}' shares walls with: ${nb.join(', ') || 'no room'}.`)
+      }
+      if (shared.length > 1) {
+        const desc = shared.map((r) => {
+          const k = r.rooms[0]!.id === A ? 0 : 1
+          const side = r.sides[k]!
+          return `${A}'s ${compassOf(edges[side[0]]!.n)} side (${f2(side[2] - side[1])} m)`
+        })
+        this.stop('rooms/two-shared-walls', at, `line ${at}: '${A}' and '${B}' share ${shared.length} walls: ${desc.join('; ')}. Say which with 'in ${A} <side>' in place of 'between ${A} and ${B}'.`)
+      }
+      const r = shared[0]!
+      const k = r.rooms[0]!.id === A ? 0 : 1
+      e = edges[r.sides[k]![0]]!
+      stretch = [r.sides[k]![1], r.sides[k]![2]]
+      between = { A, B, r }
+      i += 4
+    } else if (i + 2 < t.length && t[i] === 'in') {
+      e = this.pickEdge(fl, edges, t[i + 1]!, t[i + 2]!, at)
+      stretch = [0, e.L]
+      i += 3
+    } else {
+      this.stop('rooms/syntax', at, `line ${at}: after the id write 'between <room> and <room>' or 'in <room> <side>'.`)
+    }
+    const { pos, width, sill, height, opens, hinged, openingKind, seenFrom, part } = this.openingWords(t, i, at, kind, oid)
     const u = e.u
     let s: number
     let fromEnd: 'lo' | 'hi' | null = null
     if (pos.centred) s = (stretch[0] + stretch[1]) / 2 - width / 2
     else {
       const { dist, comp, ref } = pos
-      if (!Object.hasOwn(COMPASS, comp)) this.stop('rooms/syntax', at, `line ${at}: measure from north, south, east or west, not '${comp}'.`)
-      if (Math.abs(dot(u, COMPASS[comp]!)) < 0.3) {
-        const runs = Math.abs(u[0]) > Math.abs(u[1]) ? 'east-west' : 'north-south'
-        this.stop('rooms/syntax', at, `line ${at}: this wall runs ${runs}, so a distance along it is measured from ${runs === 'east-west' ? 'east or west' : 'north or south'}, not from ${comp}.`)
-      }
+      this.measuredFrom(u, comp, at)
       let lo = 0
       let hi = e.L
       if (ref !== null && ref !== e.room.id) {
@@ -2700,12 +2856,179 @@ class Compiler {
     return item
   }
 
+  /** WRT-45: the raw rooms on a floor: the ones written under its line, or that state it as their floor. */
+  private rawRoomsOn(fl: FloorDraft): Set<string> {
+    const ids = new Set<string>()
+    for (const { kind, part } of this.rawParts) if (kind === 'room' && (!this.explicitFloors || part['floor'] === fl.id)) ids.add(String(part['id']))
+    return ids
+  }
+
+  /** WRT-45: the rooms an opening line names: two after 'between', one after 'in'. */
+  private static roomsNamed(t: readonly string[]): string[] {
+    if (t[2] === 'between' && t[4] === 'and' && t.length > 5) return [t[3]!, t[5]!]
+    if (t[2] === 'in' && t.length > 4) return [t[3]!]
+    return []
+  }
+
+  /**
+   * WRT-45: a door, window or opening line that names a raw room, placed once every wall of the
+   * plan is known (`plan` is the plan as written so far, read; null when it cannot be read). The
+   * wall is the one the two rooms share, or the one of the room whose outside face looks to the
+   * side named; the place along it is measured from the wall's own ends. When the line does not
+   * say which wall, it is refused by name with the raw opening line to write instead.
+   */
+  private resolveRawRoomOpening(plan: FloorPlan | null, fl: FloorDraft, t: string[], at: number, oid: string, planId: (local: string) => string): Opening | null {
+    const kind = t[0] as Opening['type']
+    const named = Compiler.roomsNamed(t)
+    const rawIds = this.rawRoomsOn(fl)
+    const between = t[2] === 'between'
+    for (const x of named) {
+      if (!rawIds.has(x) && !fl.rooms.has(x)) this.stop('rooms/unknown-room', at, english(said('rooms.rawRoom.unknown', { line: at, room: x, floor: fl.id, rooms: [...fl.rooms.keys(), ...rawIds].join(', ') })))
+    }
+    const { pos, width, sill, height, opens, hinged, openingKind, seenFrom, part } = this.openingWords(t, between ? 6 : 5, at, kind, oid)
+    const openingSill = kind === 'window' ? r4(sill ?? this.dflt.winSill) : r4(sill ?? 0)
+    const openingHeight = r4(height ?? (kind === 'window' ? this.dflt.winH : this.dflt.doorH))
+    const rawName = named.find((x) => rawIds.has(x))!
+    const pid = (x: string): string => (rawIds.has(x) ? x : planId(x))
+    const roomOf = (x: string): Room | undefined => plan?.rooms.find((r) => r.id === pid(x) && (!this.explicitFloors || r.floor === fl.id))
+    const wallsOf = (r: Room | undefined): string[] => (r === undefined ? [] : [...new Set([...r.boundary, ...(r.holes ?? []).flat()])])
+    const rawLine = (wall: string | null, offset: number | null): string => {
+      const fields = [`"id": ${JSON.stringify(oid)}`, `"wall": ${wall === null ? '"<wall>"' : JSON.stringify(wall)}`, `"type": "${kind}"`, `"offset": ${offset === null ? '<offset>' : metres(offset)}`, `"width": ${metres(width)}`, `"height": ${metres(openingHeight)}`]
+      if (kind === 'window') fields.push(`"sill": ${metres(openingSill)}`)
+      return `raw opening {${fields.join(', ')}}`
+    }
+    const refuse = (code: string, why: Said, wall: string | null = null, offset: number | null = null): never =>
+      this.stop(code, at, english(said('rooms.rawRoom.refused', { line: at, room: rawName, why, kind, raw: rawLine(wall, offset), walls: wallsOf(roomOf(rawName)).join(', ') })))
+    if (plan === null) return refuse('rooms/raw', said('rooms.rawRoom.notRead'))
+    const index = indexPlan(plan)
+    const lengthOf = (w: Wall): number | null => {
+      try {
+        return wallLength(w)
+      } catch {
+        return null
+      }
+    }
+    const polyOf = (r: Room): Vec2[] | null => tryRoomPolygon(r, index)
+    // Whether a point just past one face of the wall, at `s` along it, lies in the room: 1 the left face, -1 the right.
+    const past = (w: Wall, s: number, side: 1 | -1, poly: readonly Vec2[]): boolean => {
+      const f = wallFrameAt(w, s)
+      const off = side * (w.thickness / 2 + tolerance('stepPastFace'))
+      return pointInPolygon({ x: f.point.x + f.normal.x * off, y: f.point.y + f.normal.y * off }, poly)
+    }
+    let wall: Wall | undefined
+    if (between) {
+      const other = named.find((x) => x !== rawName) ?? named[1]!
+      const theirs = new Set(wallsOf(roomOf(named[1]!)))
+      const shared = wallsOf(roomOf(named[0]!)).filter((w) => theirs.has(w))
+      if (shared.length === 0) return refuse('rooms/no-shared-wall', said('rooms.rawRoom.noShared', { other }))
+      if (shared.length > 1) return refuse('rooms/two-shared-walls', said('rooms.rawRoom.manyShared', { count: shared.length, other, walls: shared.join(', ') }))
+      wall = index.wallsById.get(shared[0]!)
+      if (wall === undefined) return refuse('rooms/raw', said('rooms.rawRoom.notDrawn'))
+    } else {
+      const side = t[4]!
+      if (!Object.hasOwn(COMPASS, side)) this.stop('rooms/syntax', at, english(said('rooms.rawRoom.badSide', { line: at, side })))
+      const room = roomOf(named[0]!)
+      const poly = room === undefined ? null : polyOf(room)
+      if (poly === null) return refuse('rooms/raw', said('rooms.rawRoom.notDrawn'))
+      const facing = wallsOf(room).filter((id) => {
+        const w = index.wallsById.get(id)
+        const L = w === undefined ? null : lengthOf(w)
+        if (w === undefined || L === null) return false
+        const f = wallFrameAt(w, L / 2)
+        const sign = past(w, L / 2, 1, poly) ? -1 : 1
+        return dot([sign * f.normal.x, sign * f.normal.y], COMPASS[side]!) >= S2 - eps()
+      })
+      if (facing.length === 0) return refuse('rooms/no-side', said('rooms.rawRoom.noSide', { side }))
+      if (facing.length > 1) return refuse('rooms/no-side', said('rooms.rawRoom.manySides', { count: facing.length, side, walls: facing.join(', ') }))
+      wall = index.wallsById.get(facing[0]!)!
+    }
+    const L = lengthOf(wall)
+    if (L === null) return refuse('rooms/raw', said('rooms.rawRoom.notDrawn'), wall.id)
+    const chord = unit([wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]])
+    let offset: number
+    let fromEnd: 'start' | 'end' | null = null
+    if (pos.centred) offset = (L - width) / 2
+    else {
+      if (pos.ref !== null && pos.ref !== rawName) return refuse('rooms/no-side', said('rooms.rawRoom.measuredOf', { ref: pos.ref }), wall.id)
+      this.measuredFrom(chord, pos.comp, at)
+      fromEnd = dot(chord, COMPASS[pos.comp]!) > 0 ? 'end' : 'start'
+      offset = fromEnd === 'end' ? L - pos.dist - width : pos.dist
+    }
+    if (offset < -eps() || offset + width > L + eps()) {
+      this.problem('rooms/opening-fit', at, english(said('rooms.rawRoom.fit', { line: at, kind, id: oid, width: num(f2(width)), from: num(f2(offset)), to: num(f2(offset + width)), wall: wall.id, length: num(f2(L)) })))
+      return null
+    }
+    if (openingSill + openingHeight > wall.height + tolerance('openingOverrun')) {
+      this.problem('rooms/opening-too-high', at, english(said('rooms.rawRoom.tooHigh', { line: at, kind, id: oid, top: num(f2(openingSill + openingHeight)), wall: wall.id, height: num(f2(wall.height)) })))
+      return null
+    }
+    const item: { -readonly [K in keyof Opening]: Opening[K] } = { id: oid, wall: wall.id, type: kind, offset: r4(offset), width: r4(width), sill: openingSill, height: openingHeight }
+    if (openingKind !== null) item.kind = openingKind
+    if (part !== null) item.opens = { width: r4(part.width), ...(part.height !== undefined ? { height: r4(part.height) } : {}) }
+    // The rooms on the wall's two faces, by the plan's ids, as the plan's rooms name it.
+    const onWall = plan.rooms.filter((r) => (!this.explicitFloors || r.floor === fl.id) && wallsOf(r).includes(wall.id))
+    const first = pid(named[0]!)
+    const outside = english(said('rooms.rawRoom.outside'))
+    const joins = joined(onWall.length > 1 ? onWall.map((r) => r.id) : [onWall[0]?.id ?? first, outside], 'join.comma', 'join.and')
+    const mid = offset + width / 2
+    const faceOf = (room: string | null): 'left' | 'right' => {
+      const r = onWall.find((x) => x.id === (room ?? first))
+      const poly = r === undefined ? null : polyOf(r)
+      if (poly === null) return refuse('rooms/raw', said('rooms.rawRoom.notDrawn'), wall.id, offset)
+      const face = past(wall, mid, 1, poly) ? 'left' : past(wall, mid, -1, poly) ? 'right' : refuse('rooms/raw', said('rooms.rawRoom.notDrawn'), wall.id, offset)
+      return room === null ? (face === 'left' ? 'right' : 'left') : face
+    }
+    const onIt = (room: string): boolean => onWall.some((r) => r.id === room)
+    let note: Said | null = null
+    const swingless = kind === 'door' && !sweepsFloor(doorKindOf(openingKind))
+    if (kind === 'door' && opens === '<none') note = said('rooms.rawRoom.noSwing')
+    else if (kind === 'door' && swingless && opens === null && hinged === null) note = said('rooms.rawRoom.sweepsNothing', { kind: String(openingKind) })
+    else if (kind === 'door') {
+      const guessed: Said[] = []
+      const others = onWall.filter((r) => r.id !== first).map((r) => r.id)
+      let target: string | null = null
+      if (opens === null && !swingless) {
+        target = pid(between ? named[1]! : named[0]!)
+        guessed.push(said('rooms.rawRoom.guess.opens', { room: target }))
+      } else if (opens === '<out') target = others[0] ?? null
+      else if (opens === '<in') target = first
+      else if (opens !== null) {
+        target = pid(opens)
+        if (!onIt(target)) this.stop('rooms/door-side', at, english(said('rooms.rawRoom.doorSide', { line: at, id: oid, target: opens, wall: wall.id, rooms: joins })))
+      }
+      const stated = !(opens === null && swingless)
+      if (stated) item.swing = faceOf(target)
+      if (hinged === null) {
+        // A pair hangs from both jambs and a door that slides, rolls or lifts from neither: no guess.
+        if (openingKind !== 'double' && !swingless) {
+          item.hinge = fromEnd ?? 'start'
+          guessed.push(said(fromEnd !== null ? 'rooms.rawRoom.guess.hingeMeasured' : 'rooms.rawRoom.guess.hingeStart'))
+        }
+      } else if (hinged === 'left' || hinged === 'right') {
+        let from: string | null = target
+        if (seenFrom !== null) {
+          from = seenFrom === 'outside' ? null : pid(seenFrom)
+          if (from !== null && !onIt(from)) this.stop('rooms/door-side', at, english(said('rooms.rawRoom.seenFrom', { line: at, id: oid, target: seenFrom, wall: wall.id, rooms: joins })))
+        } else if (!stated) this.stop('rooms/syntax', at, english(said('rooms.rawRoom.hingedNeedsRoom', { line: at, hinged })))
+        item.hinge = hingeSeenFrom(faceOf(from), hinged)
+      } else {
+        if (!Object.hasOwn(COMPASS, hinged) || Math.abs(dot(chord, COMPASS[hinged]!)) < 0.3) this.stop('rooms/syntax', at, english(said('rooms.rawRoom.hingedEnd', { line: at, hinged, wall: wall.id })))
+        item.hinge = dot(chord, COMPASS[hinged]!) > 0 ? 'end' : 'start'
+      }
+      if (guessed.length > 0) this.guesses.push(english(said('rooms.rawRoom.guessed', { line: at, id: oid, list: joined(guessed, 'join.semicolon') })))
+      note = stated ? said('rooms.rawRoom.opensInto', { room: target ?? outside }) : said('rooms.rawRoom.sweepsNothing', { kind: String(openingKind) })
+    }
+    this.openingFacts.push(english(said('rooms.rawRoom.fact', { id: oid, kind, width: num(f2(width)), wall: wall.id, joins, from: num(f2(offset)), to: num(f2(L - offset - width)), said: note ?? '' })))
+    return item
+  }
+
   // ------------------------------------------------------------------------------------------
   // The plan
 
   private emit(): WrittenPlan | null {
     const plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] } = { version: '1', units: 'm', walls: [], rooms: [], openings: [] }
-    if (this.explicitFloors) {
+    // WRT-48: a raw floor with no floor line gives its fields to the one floor, which is written then.
+    if (this.explicitFloors || this.floors.some((f) => Object.values(f.extra).some((v) => v !== null))) {
       plan.floors = this.floors.map((f) => ({
         id: f.id,
         name: f.name,
@@ -2752,9 +3075,11 @@ class Compiler {
       this.warn('rooms/id-changed', null, english(said(changed.length === 1 ? 'rooms.idChanged.one' : 'rooms.idChanged.many', { list })))
     }
     const trueAreas = new Map<string, number>()
+    const rawRoomLines: Array<{ fl: FloorDraft; words: string[]; line: number; local: string }> = []
     for (const fl of this.floors) {
       const wallPrefix = multi ? `${fl.id}-` : ''
       const height = fl.height ?? this.rule.height ?? WALL_DEFAULTS.solid.height
+      let worked: { edges: Edge[]; raws: RawWall[]; gone: ReadonlySet<string> } | null = null
       if (fl.rooms.size === 0) {
         if (fl.raw.walls.length + fl.raw.rooms.length === 0) this.warn('rooms/empty-floor', null, `Floor '${fl.id}' has no rooms.`)
       } else {
@@ -2767,6 +3092,7 @@ class Compiler {
         // would leave out; the other walls keep their ids, as a plan written before has them.
         const gone = new Set(built.filter((w) => noLength(w.json.start, w.json.end)).map((w) => w.json.id))
         const walls = built.filter((w) => !gone.has(w.json.id))
+        worked = { edges, raws, gone }
         plan.walls.push(...walls.map((w) => w.json))
         for (const room of fl.rooms.values()) {
           let boundary: string[] = []
@@ -2827,35 +3153,61 @@ class Compiler {
             stretches: w.raws.flatMap((r) => r.handles.map((handle) => ({ handle, start: [r.a[0], r.a[1]] as const, end: [r.b[0], r.b[1]] as const }))),
           })
         }
-        const seen = new Set<string>()
-        for (const o of fl.openings) {
-          const local = o.words[1]
-          if (local === undefined) {
-            this.problem('rooms/syntax', o.line, `Line ${o.line}: an opening needs an id after '${o.words[0]}'.`)
-            continue
+      }
+      // WRT-45: every opening line is read, on a floor of raw rooms too; one naming a raw room is
+      // placed once every wall of the plan is known.
+      const seen = new Set<string>()
+      const rawRooms = this.rawRoomsOn(fl)
+      for (const o of fl.openings) {
+        const local = o.words[1]
+        if (local === undefined) {
+          this.problem('rooms/syntax', o.line, `Line ${o.line}: an opening needs an id after '${o.words[0]}'.`)
+          continue
+        }
+        if (seen.has(local)) {
+          this.problem('rooms/duplicate-id', o.line, `Line ${o.line}: the id '${local}' is used by two openings on floor '${fl.id}'.`)
+          continue
+        }
+        seen.add(local)
+        const named = Compiler.roomsNamed(o.words)
+        if (named.some((x) => rawRooms.has(x))) {
+          rawRoomLines.push({ fl, words: o.words, line: o.line, local })
+          continue
+        }
+        try {
+          if (worked === null && named.length > 0) this.stop('rooms/unknown-room', o.line, english(said('rooms.rawRoom.unknown', { line: o.line, room: named[0]!, floor: fl.id, rooms: [...rawRooms].join(', ') })))
+          const item = this.resolveOpening(fl, worked?.edges ?? [], worked?.raws ?? [], o.words, o.line, idOf(fl, local), height)
+          // WRT-44: an opening that lands in a wall left out for having no length has no wall.
+          if (item && worked?.gone.has(item.wall) === true) this.problem('rooms/opening-fit', o.line, english(said('rooms.opening.noLength', { line: o.line, id: local, wall: item.wall })))
+          else if (item) {
+            plan.openings.push(item)
+            this.openingLines.set(item.id, o.line)
           }
-          if (seen.has(local)) {
-            this.problem('rooms/duplicate-id', o.line, `Line ${o.line}: the id '${local}' is used by two openings on floor '${fl.id}'.`)
-            continue
-          }
-          seen.add(local)
-          try {
-            const item = this.resolveOpening(fl, edges, raws, o.words, o.line, idOf(fl, local), height)
-            // WRT-44: an opening that lands in a wall left out for having no length has no wall.
-            if (item && gone.has(item.wall)) this.problem('rooms/opening-fit', o.line, english(said('rooms.opening.noLength', { line: o.line, id: local, wall: item.wall })))
-            else if (item) {
-              plan.openings.push(item)
-              this.openingLines.set(item.id, o.line)
-            }
-          } catch (error) {
-            if (!(error instanceof RoomsStop)) throw error
-            this.problem(error.code, error.line, error.message.charAt(0).toUpperCase() + error.message.slice(1))
-          }
+        } catch (error) {
+          if (!(error instanceof RoomsStop)) throw error
+          this.problem(error.code, error.line, error.message.charAt(0).toUpperCase() + error.message.slice(1))
         }
       }
       plan.walls.push(...(fl.raw.walls as WrittenWall[]))
       plan.rooms.push(...(fl.raw.rooms as Room[]))
       plan.openings.push(...(fl.raw.openings as Opening[]))
+    }
+    // WRT-45: the lines naming a raw room, on the plan with every wall written. A plan that cannot
+    // be read is already refused for what else is wrong with it, unless nothing else is.
+    const written = rawRoomLines.length > 0 ? safeParseFloorPlan(plan) : null
+    if (written !== null || this.problems.length === 0) {
+      for (const { fl, words, line, local } of rawRoomLines) {
+        try {
+          const item = this.resolveRawRoomOpening(written, fl, words, line, idOf(fl, local), (x) => idOf(fl, x))
+          if (item) {
+            plan.openings.push(item)
+            this.openingLines.set(item.id, line)
+          }
+        } catch (error) {
+          if (!(error instanceof RoomsStop)) throw error
+          this.problem(error.code, error.line, error.message.charAt(0).toUpperCase() + error.message.slice(1))
+        }
+      }
     }
     this.checkOpeningClash(plan.openings, plan.walls as Wall[])
     this.emitFlats(plan, idOf)
