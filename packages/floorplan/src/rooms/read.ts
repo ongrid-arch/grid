@@ -323,7 +323,10 @@ function roomLine(room: Room, poly: P[], local: string): string {
   const rect = poly.length === 4 && Math.abs(Math.abs(area) - w * d) < tolerance('areaEqual')
   // WRT-22: a side past the lowest figure Grid asks at (a home's) is written with its unit, so the reading asks nothing of it.
   const side = (v: number): string => (v > limit('roomsSideAsked', 'home') ? `${placed(v)}m` : placed(v))
-  const where = rect ? `${side(w)} x ${side(d)} at ${placed(x0)},${placed(y0)}` : `polygon ${poly.map((p) => `${placed(p[0])},${placed(p[1])}`).join(' ')}`
+  // WRT-62: so are a long polygon's points, so the reading asks nothing of it either.
+  const long = w > limit('roomsSideAsked', 'home') || d > limit('roomsSideAsked', 'home')
+  const corner = (v: number): string => (long ? `${placed(v)}m` : placed(v))
+  const where = rect ? `${side(w)} x ${side(d)} at ${placed(x0)},${placed(y0)}` : `polygon ${poly.map((p) => `${corner(p[0])},${corner(p[1])}`).join(' ')}`
   const height = room.height !== undefined ? ` height ${metres(room.height)}` : ''
   const step = room.floorOffset !== undefined ? ` floor ${metres(room.floorOffset)}` : ''
   const tenure = room.tenure !== undefined ? ` tenure ${room.tenure}` : ''
