@@ -32,6 +32,7 @@ const ORDER = [
   'grid_write_brief',
   'grid_write_rooms',
   'grid_change_opening',
+  'grid_change_wall',
   'grid_change_type',
   'grid_move_room_side',
   'grid_mirror',
@@ -47,7 +48,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_view', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_tidy', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_tidy', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -108,7 +109,9 @@ describe('tools/list', () => {
     // 34 since CMD-18: what the folder holds, the first call of a session (grid_project).
     // 35 since WRT-36: grid tidy's fixes where walls meet, which agents on the tool server had
     // no way to make (they rebuilt the walls by hand).
-    expect((await listed()).length).toBeLessThanOrEqual(35)
+    // 36 since WRT-38: one wall's thickness, which agents could set only through a named type or
+    // by hand, and a wall placed by its face keeps that face.
+    expect((await listed()).length).toBeLessThanOrEqual(36)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -223,6 +226,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_write_brief: { plan: 'plan.json', brief: { rooms: [{ name: 'Bathroom', area: 4.5, level: 'must', source: 'given', quote: 'a bathroom of 4.5 square metres' }], figures: { door_width: { value: 0.8, level: 'must', source: 'given', quote: 'doors of 80 cm' } } } },
     grid_write_rooms: { plan: 'written.json', rooms: 'walls outside 0.3 inside 0.1 height 2.6\nroom living "Living" living 4 x 4\nroom bed "Bed" bedroom 3 x 4 east of living\ndoor d1 between living and bed, centred, 0.8 wide, opens into bed\ndoor front in living south, centred, 0.9 wide, opens in\n' },
     grid_change_opening: { opening: 'door-bath', width: 0.8, out: 'changed.json' },
+    grid_change_wall: { wall: 'bed1-north', thickness: 0.12, out: 'thinner.json' },
     grid_change_type: { of: 'wall', type: 'stud', name: 'Stud partition', thickness: 0.1, out: 'typed.json' },
     grid_move_room_side: { room: 'bed2', side: 'north', by: 0.5, out: 'moved.json' },
     grid_mirror: { how: 'left-right', out: 'mirrored.json' },

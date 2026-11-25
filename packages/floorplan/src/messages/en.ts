@@ -2179,6 +2179,7 @@ export const en = {
   'edit.curved.doing.splitRoom': 'splitting a room',
   'edit.curved.doing.squareScan': 'squaring the scan',
   'edit.curved.doing.stretch': 'stretching the plan',
+  'edit.curved.doing.thickness': 'changing a wall\'s thickness',
   'edit.curved.along': 'Wall {wall} is curved: a place along it is measured from its start or its end, along the curve, not from {from}.',
   'edit.square.curvedLeft.one': 'Curved wall {walls} is left as it is: squaring turns straight walls only.',
   'edit.square.curvedLeft.many': 'Curved walls {walls} are left as they are: squaring turns straight walls only.',
