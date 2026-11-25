@@ -40,6 +40,7 @@ import { roomFloorArea, tryRoomPolygon } from '../room'
 import { doorsThatChangedRooms, openingFaces } from '../rules/doors'
 import { areaText, metresText } from '../rounding'
 import { quoted } from '../../types/planText'
+import type { Phase } from '../../types/floorplan'
 import { english, joined, name, num, said, sayValue } from '../../messages/say'
 import { planAreaFigures } from '../areas'
 import { floorOf, planFloors } from '../floors'
@@ -50,6 +51,7 @@ import { compareText } from './order'
 import { alignPlans, type Redrawn, type RenamedId } from './place'
 import { findTurn, turnPlan, type PlanTurn } from './turn'
 import { diffPlans } from './diff'
+import { phaseWords } from './summary'
 import { floorChanges, type FloorChange } from './floors'
 import { withPatterns } from '../patterns'
 import { changesOutsideScope } from './scope'
@@ -134,6 +136,11 @@ export interface CompareOptions {
   readonly rooms?: readonly string[]
   /** The notes of the drawing check on each version, to say which came and went. */
   readonly notes?: { readonly before: readonly NoteLike[]; readonly after: readonly NoteLike[] }
+  /**
+   * MSG-25: whether a wall, opening or room whose phase changed is said. Default true; false for
+   * a plan compared with itself by phase, whose pairs are one part before and after its work.
+   */
+  readonly phases?: boolean
 }
 
 export interface OpeningMovedWith {
@@ -378,7 +385,7 @@ function noteIssues(notes: CompareOptions['notes'], rename: (kind: string, id: s
 const ROOM_IDS_NAMED = 3
 
 /** WRT-19: what a wall states of its own, which no room line says: listed whichever way the plan was written. */
-const WALL_FIGURES: ReadonlySet<string> = new Set(['thickness', 'height', 'kind', 'virtual', 'floor', 'arc'])
+const WALL_FIGURES: ReadonlySet<string> = new Set(['thickness', 'height', 'kind', 'virtual', 'floor', 'arc', 'phase'])
 
 const ISSUE_ORDER: Readonly<Record<string, number>> = {
   door_joins_other_rooms: 0,
@@ -417,7 +424,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const turn = findTurn(earlier, later)
   const alignment = alignPlans(turn === null ? earlier : turnPlan(earlier, turn.id), later, { idsFirst: roomsFirst })
   const aligned = alignment.aligned
-  const diff = diffPlans(aligned, later)
+  const diff = diffPlans(aligned, later, options.phases === false ? { phases: false } : {})
 
   const baseIndex = indexPlan(aligned)
   const headIndex = indexPlan(later)
@@ -428,6 +435,9 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const least = tolerance('diffMovement')
   const areaSlack = tolerance('areaReported')
   const wallChanges = new Map(diff.changes.flatMap((c) => (c.entity.type === 'wall' ? [[c.entity.id, c] as const] : [])))
+  // MSG-25: a part's phase change in words, from the id diff, which compares it; '' when it kept its phase.
+  const phaseChanges = new Map(diff.changes.flatMap((c) => c.props.filter((p) => p.key === 'phase').map((p) => [`${c.entity.type}:${c.entity.id}`, phaseWords(p.before as Phase, p.after as Phase)] as const)))
+  const phaseSaid = (type: EntityRef['type'], id: string): string => phaseChanges.get(`${type}:${id}`) ?? ''
 
   // WRT-32: the earlier id of each room whose id changed, by later id.
   const idBefore = new Map(alignment.renamed.filter((r) => r.type === 'room').map((r) => [r.after, r.before] as const))
@@ -495,6 +505,8 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     if ((before.floorOffset ?? 0) !== (room.floorOffset ?? 0)) words.push(`floor offset ${metresText(before.floorOffset ?? 0)} → ${metresText(room.floorOffset ?? 0)} m`)
     // WRT-20: an unstated floor is the ground floor (C5), so a room that now states it stands where it stood.
     if (floorOf(before) !== floorOf(room)) words.push(`moved to floor ${quoted(floorOf(room))}`)
+    // MSG-25: a room now to be demolished, or now new.
+    if (phaseSaid('room', room.id) !== '') words.push(phaseSaid('room', room.id))
     // WRT-32: a room whose id changed says so; the id alone is no change line ("ids aside, the same building").
     const earlierId = idBefore.get(room.id) ?? null
     const subject = earlierId === null ? quoted(before.name || before.id) : english(said('diff.room.id', { room: name(before.name || before.id), before: name(earlierId), after: name(room.id) }))
@@ -596,6 +608,8 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
       }
     }
     if (slid !== null) words.push(`moved ${metresText(Math.abs(slid))} m along its wall`)
+    // MSG-25: a window blocked up, a door kept that was to go.
+    if (phaseSaid('opening', opening.id) !== '') words.push(phaseSaid('opening', opening.id))
     if (words.length > 0) {
       openingLines.push({ text: `${noun} ${quoted(opening.id)} ${words.join('; ')}${where}`, entities: [entity], rooms })
       continue
@@ -749,7 +763,8 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
 
   // What a picture marks.
   const ids = (type: EntityRef['type'], kind: 'added' | 'removed' | 'modified'): string[] => diff.changes.filter((c) => c.entity.type === type && c.kind === kind).map((c) => c.entity.id)
-  const movedWalls = diff.changes.filter((c) => c.entity.type === 'wall' && c.kind === 'modified' && c.props.some((p) => p.key === 'start' || p.key === 'end' || p.key === 'thickness')).map((c) => c.entity.id)
+  // MSG-25: a wall whose phase changed is marked changed too, not drawn as any part to be demolished.
+  const movedWalls = diff.changes.filter((c) => c.entity.type === 'wall' && c.kind === 'modified' && c.props.some((p) => p.key === 'start' || p.key === 'end' || p.key === 'thickness' || p.key === 'phase')).map((c) => c.entity.id)
   const movedOpenings = diff.changes.filter((c) => c.entity.type === 'opening' && c.kind === 'modified').map((c) => c.entity.id)
   const marks: ComparisonMarks = {
     removed: { walls: ids('wall', 'removed'), openings: ids('opening', 'removed'), rooms: ids('room', 'removed') },

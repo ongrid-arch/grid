@@ -536,6 +536,13 @@ its faces where it was) is said to have stayed where it was. Neither is a change
 from the wall or room, and the verdict counts the ones that moved (`2 openings moved with their
 walls`).
 
+In a plan with existing, demolished and new parts, a wall, door, window or room whose phase
+changed between the two versions is a change of its own, with its phase before and after:
+`Window "win-bed1" now to be demolished (was existing), in "Bedroom 1"`, `Wall "bath-north" now
+existing (was to be demolished), by "Bathroom" and "Bedroom 2"` (MSG-25). The picture marks it as
+changed. A door or window that states no phase of its own follows its wall, whose line says it.
+With `--since phase` there is no such line: there each part is compared before and after its work.
+
 A floor in both versions that stands at another height, or has another level, height, slab or
 name, is a change of its own, said first with its old and new figures: `Floor "Mezzanine" moved
 down 9.50 m: elevation 13.75 m → 4.25 m`. Where a floor stands is worked out as the 3D view and

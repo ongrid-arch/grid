@@ -2048,6 +2048,9 @@ export const en = {
   'diff.cause.thickness.many': 'walls {walls} went from {before} to {after} m thick',
   'diff.cause.moved': 'wall {wall} moved {by} m',
 
+  // --- Comparing two versions: a part whose phase changed (MSG-25, `diff/building.ts`, `diff/summary.ts`)
+  'diff.phase.changed': 'now {phase} (was {before})',
+
   // --- Comparing two versions: a floor added or removed, with its rooms (WRT-20, `diff/building.ts`)
   'diff.floor.added': 'Floor added: {floor}, {rooms}',
   'diff.floor.removed': 'Floor removed: {floor}, {rooms}',
