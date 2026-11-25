@@ -30,7 +30,8 @@
  *       ground floor's level to this one's; height to its ceiling; slab the floor under it.
  *       `elevation=0`, `level: 1` and `Height = 2.7` are read as `elevation 0` and so on (WRT-14)
  *   room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where> [...]
- *   room <id> "<name>" <use|-> polygon x,y x,y x,y ...                 inside faces
+ *   room <id> "<name>" <use|-> polygon x,y x,y x,y ...                 inside faces; a point's
+ *       lengths may carry their unit, as a size's do: 10ft,0ft (WRT-62)
  *       <where>: at x,y (the south-west corner the size measures to: inside, unless centre or outside)
  *                <north|south|east|west> of <room or unit> [align <side|centre>] [shift <m>] [until [near] <room>] [open [<room>]]
  *                inside <room> corner <ne|nw|se|sw> [wall <t> [kind]] [open]  cuts that corner out of the room
@@ -120,7 +121,7 @@ import { buildingKind } from '../geometry/plausible'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
 import { english, joined, name as sayName, num, said, type MessageKey, type Said, type Values } from '../messages/say'
 import { idsOfText } from './ids'
-import { f2, hasUnit, isNumberWord, metres, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
+import { f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUnit, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
 import { likelyMeant } from '../types/nearest'
 import { readingNotes } from '../types/reading'
@@ -255,7 +256,7 @@ const ROOM_LINE_MEANS: Readonly<Record<string, string>> = { level: 'floor', elev
 /** Whether `word` is what `form` asks for: a number for `<m>` or `<t>`, a point for `x,y`, the word itself for a word. */
 function takesWord(form: string, word: string): boolean {
   if (form === '<m>' || form === '<t>') return isNumberWord(word)
-  if (form === 'x,y') return /^[0-9.+\-*/()]+,[0-9.+\-*/()]+$/.test(word)
+  if (form === 'x,y') return isPointWord(word)
   if (form.startsWith('<') || form.startsWith('"')) return !Object.hasOwn(ROOM_LINE_WORDS, word)
   return word === form
 }
@@ -1415,6 +1416,8 @@ class Compiler {
     let D: string | null = null
     let basis: SizeBasis | null = null
     let poly: P[] | null = null
+    // WRT-62: a polygon with a unit in its points is taken as meant, as a size with its unit is.
+    let polyMeant = false
     const place: { at?: P; dir?: string; ref?: string; align?: string; shift?: number; until?: string; untilNear?: boolean; inside?: string; corner?: string; open?: boolean; openTo?: string; wallT?: number; wallKind?: WallKind | null } = {}
     // WRT-55: a room goes in one place and has one size: a second is refused by name, never read over the first.
     const placedBy: string[] = []
@@ -1444,11 +1447,13 @@ class Compiler {
         once(sizedBy, 'polygon', 'rooms.room.sizedTwice')
         poly = []
         i++
-        while (i < t.length && /^[0-9.+\-*/()]+,[0-9.+\-*/()]+$/.test(t[i]!)) {
+        // WRT-62: a point's lengths may carry their unit, as a size's do; one Grid cannot read is refused by its word.
+        while (i < t.length && isPointWord(t[i]!)) {
+          if (pointHasUnit(t[i]!)) polyMeant = true
           poly.push(pointOf(t[i]!, at, this.plain))
           i++
         }
-        if (poly.length < 3) this.stop('rooms/syntax', at, `line ${at}: a polygon needs at least three points written x,y.`)
+        if (poly.length < 3) this.stop('rooms/syntax', at, `line ${at}: a polygon needs at least three points written x,y with no space, in metres or with a unit, such as 3.2,0 or 10ft,0ft.`)
       } else if (w === 'at' && i + 1 < t.length) {
         once(placedBy, `at ${t[i + 1]}`, 'rooms.room.placedTwice')
         place.at = pointOf(t[i + 1]!, at, this.plain)
@@ -1547,8 +1552,10 @@ class Compiler {
       if (ctx !== null && place.at) origin = [mx ? -origin[0] : origin[0], my ? -origin[1] : origin[1]]
       room.poly = cleanPoly(pts.map((p) => [p[0] + origin[0], p[1] + origin[1]] as P))
       room.box = boxOf([room.poly])
-      this.side(at, id, 'width', room.box[2] - room.box[0], 'polygon')
-      this.side(at, id, 'depth', room.box[3] - room.box[1], 'polygon')
+      if (!polyMeant) {
+        this.side(at, id, 'width', room.box[2] - room.box[0], 'polygon')
+        this.side(at, id, 'depth', room.box[3] - room.box[1], 'polygon')
+      }
       if (place.open) this.openNamed(room, place.openTo, at, ctx)
       return room
     }

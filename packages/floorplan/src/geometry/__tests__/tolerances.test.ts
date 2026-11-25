@@ -84,7 +84,7 @@ describe('the tolerance table', () => {
     }
   })
 
-  it('holds the size a person passes through as Grid\'s own, saying it is not a code figure (MSG-18), the use indicators (CNT-13), the headroom bands (LVL-6), the hall of a first layout (BRF-6) and the low storey and stair door (LVL-18)', () => {
+  it('holds the size a person passes through as Grid\'s own, saying it is not a code figure (MSG-18), the use indicators (CNT-13), the headroom bands (LVL-6), the hall of a first layout (BRF-6), the narrowest side of a room it draws from an area (WRT-61) and the low storey and stair door (LVL-18)', () => {
     const passable = {
       passableWidth: 0.4,
       passableHeight: 1.2,
@@ -100,6 +100,7 @@ describe('the tolerance table', () => {
       headroomLow: 1.5,
       headroomFull: 2.2,
       layoutHall: 1.1,
+      layoutNarrowest: 1.2,
       storeyLowest: 2,
       stairDoorLowest: 1.8
     } as const

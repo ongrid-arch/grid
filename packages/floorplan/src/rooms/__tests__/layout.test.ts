@@ -66,6 +66,61 @@ describe('a first layout', () => {
     written(layout.text)
   })
 
+  describe('a room given only an area', () => {
+    // A home measured in feet: rooms about 13 ft deep, and a half bath of 30 sq ft.
+    const HOME: LayoutRoom[] = [
+      room('Primary bedroom', [3.96, 4.27], null, 'bedroom'),
+      room('Bedroom', [3.05, 3.35], null, 'bedroom'),
+      room('Kitchen', [3.05, 3.66], null, 'kitchen'),
+      room('Living room', [4.88, 3.96], null, 'living'),
+      room('Half bath', null, 2.79, 'bathroom'),
+    ]
+    const narrowest = 1.2
+    const sides = (r: { width: number; depth: number }): [number, number] => [Math.min(r.width, r.depth), Math.max(r.width, r.depth)]
+
+    it('sizes: keeps its area at a shape a person can use, beside deep rooms', () => {
+      const layout = layOut({ rooms: HOME, touch: [], hall: null, shape: 'sizes' })
+      const bath = layout.rooms.find((r) => r.name === 'Half bath')!
+      const [short, long] = sides(bath)
+      expect(short).toBeGreaterThanOrEqual(narrowest - 1e-9)
+      expect(long / short).toBeLessThanOrEqual(2 + 1e-9)
+      expect(bath.kept).toBe(true)
+      expect(Math.round(bath.width * bath.depth * 100) / 100).toBe(2.79)
+      const result = written(layout.text)
+      const drawn = result.rooms.find((r) => r.id === bath.id)!
+      expect(drawn.width).toBeCloseTo(bath.width, 4)
+      expect(drawn.depth).toBeCloseTo(bath.depth, 4)
+    })
+
+    it('tidy: as deep as its row, never narrower than the narrowest, and named as not kept', () => {
+      const layout = layOut({ rooms: HOME, touch: [], hall: null, shape: 'tidy' })
+      const bath = layout.rooms.find((r) => r.name === 'Half bath')!
+      expect(sides(bath)[0]).toBeGreaterThanOrEqual(narrowest - 1e-9)
+      expect(bath.kept).toBe(false)
+      written(layout.text)
+    })
+
+    it('is a square when it is smaller than the narrowest square', () => {
+      const layout = layOut({ rooms: [...HOME.slice(0, 4), room('Closet', null, 0.81)], touch: [], hall: null, shape: 'sizes' })
+      const closet = layout.rooms.find((r) => r.name === 'Closet')!
+      expect(closet.width).toBeCloseTo(0.9, 4)
+      expect(closet.depth).toBeCloseTo(0.9, 4)
+      expect(closet.kept).toBe(true)
+      written(layout.text)
+    })
+
+    it('makes a row deep enough for its shortest side, not a long strip in a shallow row', () => {
+      // A shallow store and a large room given only an area, in one row: the row is never so
+      // shallow that the large room runs out long and thin.
+      const layout = layOut({ rooms: [room('Store', [1.0, 1.1]), room('Studio', null, 20)], touch: [], hall: null, shape: 'sizes' })
+      const studio = layout.rooms.find((r) => r.name === 'Studio')!
+      const [short, long] = sides(studio)
+      expect(long / short).toBeLessThanOrEqual(2 + 1e-9)
+      expect(studio.kept).toBe(true)
+      written(layout.text)
+    })
+  })
+
   it('stands two rooms in one row with no hall, and the brief\'s corridor as the hall', () => {
     const two = layOut({ rooms: LISTING.slice(0, 2), touch: [], hall: null, shape: 'tidy' })
     expect(two.added).toBeNull()

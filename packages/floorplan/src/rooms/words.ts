@@ -8,7 +8,8 @@
  * space (`readLength` in `types/units.ts` reads it): `381cm`, `3810mm`, `3.81m`, `0.5km`, `12ft`,
  * `150in`, `12ft6in`, `12'6"`, `12'-6"`. A quote mark straight after a digit is a foot or inch mark, not a
  * quote. A number may be a sum written with digits and the signs + - * / and brackets, such as
- * `3.0+0.3`, in metres: nothing else is evaluated.
+ * `3.0+0.3`, in metres: nothing else is evaluated. A point is two lengths with a comma between and
+ * no space, each with or without its unit (`3.2,0`, `10ft,0ft`, WRT-62).
  *
  * WRT-34: a plain number is metres only in a text that reads metres. Under a display line that
  * is not metres (`display ft-in`, `display mm`), the line says what a plain number is
@@ -223,6 +224,20 @@ export function pointOf(word: string, at: number, plain: PlainNumbers = PLAIN_ME
     throw new RoomsStop('rooms/syntax', `line ${at}: expected a point written x,y with no space (for example 3.2,0), found '${word}'.`, at)
   }
   return [numberOf(parts[0]!, at, plain), numberOf(parts[1]!, at, plain)]
+}
+
+/**
+ * WRT-62: whether a word is written as a point, `x,y` with one comma, each side starting as a
+ * length does (a digit, a point, a sign or a bracket), with or without its unit: `3.2,0`,
+ * `10ft,0ft`, `12'6",4m`. It does not read the lengths: `pointOf` does, and refuses one by name.
+ */
+export function isPointWord(word: string): boolean {
+  return /^[-+(.0-9][^,]*,[-+(.0-9][^,]*$/.test(word)
+}
+
+/** WRT-62: whether either length of a point word carries its unit (`10ft,0`). */
+export function pointHasUnit(word: string): boolean {
+  return word.split(',').some((part) => hasUnit(part))
 }
 
 /** Is this word a number as `numberOf` reads it? */
