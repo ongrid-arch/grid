@@ -12,10 +12,10 @@
  * Pure: no DOM, no React. `pictureToSvg` writes it out with the label (MSG-3), as it does a plan.
  */
 import type { Bounds } from '@ongrid/floorplan/geometry'
-import { planFacade, type Facade, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { hatchLines, planFacade, type Facade, type FacadeFace, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { fitTo } from '../canvas2d/viewport'
 import type { LinePart, Look } from './look'
-import { TEXT_PX, lengthText, lineMetres } from './look'
+import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
 import type { Picture, PictureOptions } from './planSvg'
 import { DEFAULT_WIDTH, displayOfPicture, lookOf, pictureToSvg } from './planSvg'
 import type { SvgNode } from './svgNode'
@@ -46,6 +46,15 @@ export interface FacadePicture extends Picture {
 
 /** The line part of a face's edges, by how far back it stands. */
 const TIER_PARTS: readonly LinePart[] = ['elevationNear', 'elevationBack', 'elevationFar']
+
+/**
+ * VEW-12: how far apart a roof's covering is drawn, its courses level along the eaves: in
+ * millimetres on paper in a look whose lines are on paper, in pixels on the screen.
+ */
+const COURSE_MM = 1.5
+const COURSE_PX = 6
+/** VEW-12: how deep a gutter is drawn along the eaves, in metres, at the top of the fascia. */
+const GUTTER_DEPTH = 0.12
 
 /** The share of the facade's width the floor marks and their names take on its right. */
 const LEVEL_ROOM = 0.25
@@ -104,6 +113,49 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
     return nodes
   }
 
+  const courseSpacing = look.lines.unit === 'mm' ? (COURSE_MM * (paperScale ?? paperScaleOf(metresPerPixel))) / 1000 : COURSE_PX * metresPerPixel
+  // VEW-12: a roof's plane with its covering and its lines, a band along its eaves with its gutter.
+  const roofParts = (face: FacadeFace, ink: string): SvgNode[] => {
+    const parts: SvgNode[] = []
+    if (face.kind === 'roof-plane') {
+      const ring = face.outline.map(([u, z]) => ({ x: u, y: z }))
+      for (const [a, b] of hatchLines(ring, courseSpacing, 0)) {
+        parts.push(el('line', { 'data-part': 'facade-roof-course', x1: lengthText(a.x), y1: lengthText(-a.y), x2: lengthText(b.x), y2: lengthText(-b.y), stroke: ink, 'stroke-width': width('elevationOpening') }))
+      }
+      for (const line of face.roofLines) {
+        const main = line.kind === 'ridge' || line.kind === 'hip'
+        parts.push(
+          el('line', {
+            'data-part': `facade-roof-${line.kind}`,
+            x1: lengthText(line.from[0]),
+            y1: lengthText(-line.from[1]),
+            x2: lengthText(line.to[0]),
+            y2: lengthText(-line.to[1]),
+            stroke: ink,
+            'stroke-width': width(main ? 'elevationNear' : TIER_PARTS[face.tier]!),
+            'stroke-linecap': 'round'
+          })
+        )
+      }
+    }
+    if (face.kind === 'roof' && face.edge === 'eaves') {
+      const depth = Math.min(GUTTER_DEPTH, face.top - face.bottom)
+      parts.push(
+        el('rect', {
+          'data-part': 'facade-gutter',
+          x: lengthText(face.u0),
+          y: lengthText(-face.top),
+          width: lengthText(face.u1 - face.u0),
+          height: lengthText(depth),
+          fill: look.colors.paper,
+          stroke: ink,
+          'stroke-width': width(TIER_PARTS[face.tier]!)
+        })
+      )
+    }
+    return parts
+  }
+
   const faces = facade.faces.map((face, i) => {
     const ink = face.tier === 2 ? look.colors.labelSoft : look.ink
     const openings = face.openings.map((opening) =>
@@ -127,6 +179,7 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
         'data-kind': face.kind,
         'data-floor': face.floor,
         ...(face.wall === null ? {} : { 'data-wall': face.wall }),
+        ...(face.edge === null ? {} : { 'data-edge': face.edge }),
         'data-tier': face.tier
       },
       [
@@ -137,6 +190,7 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
           'stroke-width': width(TIER_PARTS[face.tier]!),
           'stroke-linejoin': 'miter'
         }),
+        ...roofParts(face, ink),
         ...openings
       ],
       `face-${i}`

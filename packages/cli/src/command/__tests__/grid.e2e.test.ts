@@ -169,7 +169,6 @@ describe('grid export: what the file leaves out (HND-6)', () => {
 
   it.each([
     ['an empty plan', { version: '1', units: 'm', walls: [], rooms: [], openings: [] }, 'Nothing to export: empty.json has no wall, room or fixture that can be drawn. No file was written.'],
-    ['nothing but {}', {}, 'Nothing to export: empty.json has no wall, room or fixture that can be drawn. No file was written.'],
     [
       'rooms with no walls',
       { version: '1', units: 'm', walls: [], rooms: [{ id: 'hall', name: 'Hall', boundary: ['w1'] }], openings: [] },
@@ -180,6 +179,16 @@ describe('grid export: what the file leaves out (HND-6)', () => {
     for (const format of ['dxf', 'ifc', 'obj', 'glb']) {
       expectRefusal(grid('export', 'empty.json', '--format', format), 1, line)
       expectRefusal(grid('export', 'empty.json', '--format', format, '--out', `empty.${format}`), 1, line)
+    }
+    expect(filesIn(dir)).toEqual(['empty.json', 'two-bed-flat.json'])
+  })
+})
+
+describe('a file that holds nothing a plan holds (WRT-13)', () => {
+  it('is refused by every command that reads a plan, in one line, and nothing is written', () => {
+    writeFileSync(join(dir, 'empty.json'), '{}')
+    for (const args of [['export', 'empty.json', '--format', 'dxf'], ['draw', 'empty.json'], ['check', 'empty.json']]) {
+      expectRefusal(grid(...args), 1, 'empty.json is not a Grid plan: it holds no walls, rooms or openings.')
     }
     expect(filesIn(dir)).toEqual(['empty.json', 'two-bed-flat.json'])
   })
@@ -259,9 +268,10 @@ describe('grid draw --out: writing a picture', () => {
     for (const part of ['section-mark', 'elevation-mark', 'level-mark']) expect(svg).toContain(`data-part="${part}"`)
   })
 
-  it('refuses a folder that does not exist, and writes nothing', () => {
-    expectRefusal(grid('draw', 'two-bed-flat.json', '--out', join('missing', 'plan.svg')), 1, 'does not exist')
-    expect(filesIn(dir)).toEqual(['two-bed-flat.json'])
+  it('makes a folder that does not exist yet, inside the project', () => {
+    const run = grid('draw', 'two-bed-flat.json', '--out', join('missing', 'plan.svg'))
+    expect(run.status).toBe(0)
+    expect(existsSync(join(dir, 'missing', 'plan.svg'))).toBe(true)
   })
 })
 
@@ -472,7 +482,6 @@ describe('options: each command refuses what it does not take, by name', () => {
     [['draw', 'two-bed-flat.json', '--floor', 'upstairs'], '--floor "upstairs" is not a floor of this plan'],
     [['export', 'two-bed-flat.json', '--format', 'obj', '--floor', 'upstairs'], '--floor "upstairs" is not a floor of this plan'],
     [['check', 'two-bed-flat.json', '--country', 'the moon'], '--country names no place Grid knows'],
-    [['check'], 'check needs a plan file'],
     [['check', 'two-bed-flat.json', 'other.json'], 'check takes one plan file'],
     [['serve', 'two-bed-flat.json'], 'serve takes no arguments'],
     [['inspect', 'two-bed-flat.json'], 'There is no command "inspect"'],

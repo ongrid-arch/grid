@@ -155,18 +155,35 @@ export function initText(done: InitDone, given: string | undefined): string {
 }
 
 /**
- * The plan file of the project folder, for a command given none: `plan.json`, when the folder
- * holds `grid.json`. Null when it is not a Grid project.
+ * The plan file of the project folder, for a command given none (CMD-18): `plan.json` in the
+ * folder, whether or not it holds `grid.json`. `defaultPlanOrigin` says which it was.
  */
-export function projectPlanFile(project: Project): string | null {
+export function projectPlanFile(project: Project): string {
+  defaultPlanOrigin(project)
+  return path.join(project.folder, PROJECT_PLAN)
+}
+
+/** `project` when the folder holds `grid.json`, `folder` when the plan is the folder's by default. */
+export function defaultPlanOrigin(project: Project): 'project' | 'folder' {
   const marker = path.join(project.folder, PROJECT_FILE)
   try {
-    if (project.readTextIfThere(marker) === null) return null
+    return project.readTextIfThere(marker) === null ? 'folder' : 'project'
   } catch (error) {
     if (error instanceof PathRefused) throw error
     const code = (error as NodeJS.ErrnoException).code
-    if (code === 'EISDIR') return null
+    if (code === 'EISDIR') return 'folder'
     throw new PlanRefused(`${PROJECT_FILE} can't be read: ${oneLine((error as Error).message)}`)
   }
-  return path.join(project.folder, PROJECT_PLAN)
+}
+
+/**
+ * The refusal for a read with no plan named when the default plan is not there: it says which
+ * folder and file Grid looked in and why, and what to do.
+ */
+export function missingDefaultPlan(project: Project, file: string): string {
+  const shown = quoted(project.shown(project.folder))
+  const why = defaultPlanOrigin(project) === 'project'
+    ? `the project's plan is ${PROJECT_PLAN}`
+    : `it holds no ${PROJECT_FILE}, so the plan is ${PROJECT_PLAN} in it`
+  return `No plan was named, and ${shown} holds no ${path.basename(file)} (${why}). Name a plan file, write one here (grid write, grid_write_rooms), or start a project with grid init.`
 }

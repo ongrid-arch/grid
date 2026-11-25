@@ -112,10 +112,10 @@ describe('grid sheet (VEW-7)', () => {
     writeFileSync(join(dir, 'sheet.json'), ' '.repeat(65 * 1024))
     expectCleanRefusal(grid(['sheet', 'two-floor-house.json', '--layout', 'client']), 1)
   })
-  it('refuses an --out whose folder does not exist, in one line, as grid export does', () => {
+  it('writes an --out whose folder does not exist yet, making it inside the project', () => {
     const run = grid(['sheet', 'two-floor-house.json', '--layout', 'check', '--out', 'nope/x.pdf'])
-    expectCleanRefusal(run, 1)
-    expect(run.err).toBe('grid: Can\'t write nope/x.pdf: its folder does not exist.\n')
+    expect(run.status).toBe(0)
+    expect(existsSync(join(dir, 'nope', 'x.pdf'))).toBe(true)
   })
   it('refuses an --out that is a folder, in one line', () => {
     mkdirSync(join(dir, 'dirout.pdf'))

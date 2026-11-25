@@ -39,7 +39,7 @@ const awkwardNames = (): FloorPlan => {
   return plan
 }
 
-/** A closet too small for its label: the label moves out with a leader. */
+/** A closet too small for its label: the label is the room's number (VEW-13). */
 const closet = (): FloorPlan =>
   edit((plan) => {
     plan.walls.push(
@@ -79,7 +79,8 @@ describe('the app and the picture draw the same SVG', () => {
     const file = planToSvg(make(), { width: WIDTH, height: HEIGHT })
     expect(file).toContain(drawn)
     // MSG-3: the file adds the label after the drawing, and nothing else.
-    expect(file.slice(file.indexOf(drawn) + drawn.length)).toMatch(/^<g data-part="guidance-label"[^]*General guidance, not your local rules<\/text><\/g><\/svg>\n$/)
+    // VEW-13: and the room key under the drawing, when a room is written as its number.
+    expect(file.slice(file.indexOf(drawn) + drawn.length)).toMatch(/^(<\/svg><g data-part="key"[^]*)?<g data-part="guidance-label"[^]*General guidance, not your local rules<\/text><\/g><\/svg>\n$/)
     expect(file).toContain(`viewBox="${svg.getAttribute('viewBox')}"`)
   })
 
@@ -118,10 +119,11 @@ describe('the app and the picture draw the same SVG', () => {
     expect(svg.innerHTML).toBe(toSvg(picture.nodes))
   })
 
-  it('draws the leader of a label moved out of its room', () => {
+  it('writes a room too small for its name as its number, in the room, with no leader (VEW-13)', () => {
     const svg = appSvg(closet())
-    const leader = svg.querySelector("[data-part='label-leader']")
-    expect(leader?.getAttribute('data-room')).toBe('closet')
+    expect(svg.querySelector("[data-part='label-leader']")).toBeNull()
+    const keyed = svg.querySelector('[data-keyed]')
+    expect(keyed?.getAttribute('data-name')).toBe('Linen closet')
   })
 
   it('with room tags in capitals, numbered, and areas rounded', () => {

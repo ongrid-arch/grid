@@ -7,7 +7,7 @@
  * answers with each line met or missed (`brief/lines.ts`).
  */
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
-import { BriefRefused, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBrief, QUOTE_MAX, readBrief, SOURCES, writeBrief, type Brief } from '../brief/brief'
+import { BriefRefused, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBrief, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief } from '../brief/brief'
 import { briefLines, briefText, MAT } from '../brief/lines'
 
 /** What each figure's value is, in the tool's schema. */
@@ -164,10 +164,11 @@ export const writeBriefTool: GridTool = {
   description:
     'Use this when the person says what they want, before you draw the first room: in one call, write the brief from their words, each wish with its level (must, should, avoid), its source (given, with the person\'s words in quote, or assumed, for them to confirm), and what is still open. '
     + 'It holds room areas (m²) and counts, inside sizes and the footprint in metres, rooms that must touch or must not (avoid), and under figures the person\'s own figures, theirs and not from any code or standard: door_width, corridor_width, turning_circle, step and ceiling_height, and the site limits plot_coverage (%), floor_area_ratio (with the gross measure it is set by), building_height (m) and parking_per_home. A figure Grid does not know is refused with the ones it knows. '
-    + `It writes only the brief beside the plan (plan.brief.json beside plan.json), replacing the one there, never the plan. It answers with each line met or missed against the plan as drawn, measured as grid_areas and grid_measure measure, and a size written in a room's name (12 m², 6 tatami, a mat taken as ${MAT.width} × ${MAT.length} m) is read against the room until the brief gives one. Leave brief out to read the brief and its lines and write nothing. `
+    + `It writes only the brief beside the plan (plan.brief.json beside plan.json), never the plan. A brief already there is not replaced unless replace is true: read it first (leave brief out), then write the whole brief with what changed. It answers with each line met or missed against the plan as drawn, measured as grid_areas and grid_measure measure, and a size written in a room's name (12 m², 6 tatami, a mat taken as ${MAT.width} × ${MAT.length} m) is read against the room until the brief gives one. Leave brief out to read the brief and its lines and write nothing. `
     + 'Every change to the plan then answers with the same lines. Do not use to change the plan (grid_write_rooms and the edit tools), for a rule from a code (grid_check), or to say a plan is allowed: a line met says only that the drawing holds what was asked.',
   args: {
     plan: { ...PLAN_ARG, description: 'The plan file the brief is for, as a path inside the project folder; it need not be written yet. The project\'s own plan.json when left out.' },
+    replace: { type: 'boolean', description: 'true to write over a brief that is already beside the plan. false when left out: the brief there is kept and the call is refused.', examples: [true] },
     brief: {
       type: 'object',
       description: 'What the person asked for: rooms, footprint, touch, figures and open, any of them. Left out, the brief already kept is read and nothing is written.',
@@ -211,6 +212,10 @@ export const writeBriefTool: GridTool = {
         if (brief === null && !project.exists(file)) throw new ToolRefusal(`There is no plan ${JSON.stringify(file)} and no brief beside it: pass brief to write one from the person's words.`)
       } else {
         brief = given
+        if (args['replace'] !== true && project.exists(briefFileOf(file))) {
+          const there = readBrief(project, file)
+          throw new ToolRefusal(`There is already a brief beside the plan (${JSON.stringify(there.file)}), and it was not changed. Leave brief out to read it, then pass the whole brief with what changed and replace: true.`)
+        }
         written = writeBrief(project, file, given)
         briefFile = written
       }

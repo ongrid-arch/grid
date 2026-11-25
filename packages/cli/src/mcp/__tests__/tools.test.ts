@@ -9,6 +9,7 @@ import { agentFlat, twoBedFlat } from './replay/plans'
 
 /** The tools in their fixed order. Changing it is a decision: change this list with it. */
 const ORDER = [
+  'grid_project',
   'grid_compare',
   'grid_diff',
   'grid_areas',
@@ -44,7 +45,7 @@ const ORDER = [
   'grid_save_view',
 ]
 
-const READ_ONLY = new Set(['grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_view', 'grid_describe', 'grid_check', 'grid_report_problem'])
+const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_view', 'grid_describe', 'grid_check', 'grid_report_problem'])
 const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_save_view'])
 
 interface Listed {
@@ -103,7 +104,8 @@ describe('tools/list', () => {
     // same call (lab RT-22, CP2-3), no one opening's or room's change.
     // 33 since CNT-20: a fixture, furniture or a typical room placed by its library name, so its
     // size is the library's every time; the library itself is grid_measure what=library.
-    expect((await listed()).length).toBeLessThanOrEqual(33)
+    // 34 since CMD-18: what the folder holds, the first call of a session (grid_project).
+    expect((await listed()).length).toBeLessThanOrEqual(34)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -140,7 +142,7 @@ describe('tools/list', () => {
 
   it('says the units are metres wherever a tool takes or gives a length', async () => {
     for (const tool of await listed()) {
-      if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room'].includes(tool.name)) continue
+      if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room', 'grid_project'].includes(tool.name)) continue
       expect(tool.description, tool.name).toMatch(/metres/)
     }
   })
@@ -194,6 +196,7 @@ describe('the tools on a two-bedroom flat', () => {
   afterAll(() => b.close())
 
   const CALLS: Record<string, Record<string, unknown>> = {
+    grid_project: {},
     grid_compare: { plans: ['plan.json', 'flat.json'] },
     // WRT-8: against the start marker the bench holds beside the plan.
     grid_diff: {},
@@ -342,12 +345,13 @@ describe('the tools on a two-bedroom flat', () => {
     expect(back.text).toContain('mirrored top to bottom')
   })
 
-  it('says why there is no plan when the folder is not a Grid project', async () => {
+  it('says where it looked when the folder is not a Grid project and holds no plan.json (CMD-18)', async () => {
     const bare = bench({ 'flat.json': agentFlat() }, false)
     try {
       const reply = await bare.call('grid_areas', {})
       expect(reply).toMatchObject({ isError: true })
-      expect(reply.text).toMatch(/^Pass plan/)
+      expect(reply.text).toMatch(/^No plan was named/)
+      expect(reply.text).toContain('holds no plan.json')
       expect((await bare.call('grid_areas', { plan: 'flat.json' })).isError).toBe(false)
     } finally {
       bare.close()

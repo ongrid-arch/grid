@@ -6,7 +6,8 @@
  * building reads as dozens of changes (lab WR-8, Y-4, RT-8). So the earlier plan is first laid
  * on the later one: moved to the later plan's origin when that pairs more walls (a shifted
  * origin), then each wall is paired with the wall standing in its place, its two ends within
- * `diffPlace` either way round, each opening with the opening at its place, and each room with
+ * `diffPlace` either way round, each opening with the opening at its place (or, its wall moved,
+ * at its place along the paired wall: WRT-12), and each room with
  * the room that has the same walls or the same floor in the same place. What is left is paired
  * by id. A plan written rooms first names its rooms and openings itself, so there those are
  * paired by id first and by place after (lab RT-8).
@@ -195,6 +196,56 @@ function openingsByPlace(
       // On the wall it was paired with, before one found anywhere else.
       const sameHost = wallPairs.get(opening.wall) === other.opening.wall
       candidates.push({ before: opening.id, after: other.opening.id, cost: gap + (sameHost ? 0 : near), reversed: false })
+    }
+  }
+  return candidates
+}
+
+/**
+ * WRT-12: what is left after the pairing by place, paired on the wall its own wall was paired
+ * with, at the same place along it: measured from the matching end (the wall slid along itself)
+ * or as its old middle seen from the later wall (the wall moved across). A window on a side
+ * moved out is the same window under a new id, not one removed and one added.
+ */
+function openingsAlongWalls(
+  earlier: FloorPlan,
+  later: FloorPlan,
+  shift: Point,
+  wallPairs: ReadonlyMap<string, string>,
+  reversed: ReadonlySet<string>,
+  taken: { before: Set<string>; after: Set<string> }
+): Candidate[] {
+  const near = tolerance('diffPlace')
+  const earlierWalls = new Map(earlier.walls.map((w) => [w.id, w] as const))
+  const laterWalls = new Map(later.walls.map((w) => [w.id, w] as const))
+  const laterOn = new Map<string, Opening[]>()
+  for (const opening of later.openings) {
+    if (taken.after.has(opening.id)) continue
+    const list = laterOn.get(opening.wall)
+    if (list) list.push(opening)
+    else laterOn.set(opening.wall, [opening])
+  }
+  const candidates: Candidate[] = []
+  for (const opening of earlier.openings) {
+    if (taken.before.has(opening.id)) continue
+    const pair = wallPairs.get(opening.wall)
+    const host = earlierWalls.get(opening.wall)
+    const otherHost = pair === undefined ? undefined : laterWalls.get(pair)
+    if (pair === undefined || host === undefined || otherHost === undefined) continue
+    const hostLength = Math.hypot(host.end[0] - host.start[0], host.end[1] - host.start[1])
+    const length = Math.hypot(otherHost.end[0] - otherHost.start[0], otherHost.end[1] - otherHost.start[1])
+    const at = middleOf(opening, earlierWalls, shift)
+    if (at === null || length === 0) continue
+    const dir = { x: (otherHost.end[0] - otherHost.start[0]) / length, y: (otherHost.end[1] - otherHost.start[1]) / length }
+    const middle = opening.offset + opening.width / 2
+    const fromEnd = reversed.has(opening.wall) ? hostLength - middle : middle
+    const seen = (at.x - otherHost.start[0]) * dir.x + (at.y - otherHost.start[1]) * dir.y
+    for (const other of laterOn.get(pair) ?? []) {
+      if (other.type !== opening.type) continue
+      const along = other.offset + other.width / 2
+      const gap = Math.min(Math.abs(fromEnd - along), Math.abs(seen - along))
+      if (gap > near + Math.abs(other.width - opening.width) / 2) continue
+      candidates.push({ before: opening.id, after: other.id, cost: gap, reversed: false })
     }
   }
   return candidates
@@ -412,10 +463,13 @@ export function alignPlans(earlier: FloorPlan, later: FloorPlan, options: AlignO
   const openings = options.idsFirst
     ? [
         ...assign(byId(earlier.openings, later.openings, openingTaken), openingTaken),
-        ...assign(openingsByPlace(earlier, later, shift, wallPairs, openingTaken), openingTaken)
+        ...assign(openingsByPlace(earlier, later, shift, wallPairs, openingTaken), openingTaken),
+        ...assign(openingsAlongWalls(earlier, later, shift, wallPairs, reversed, openingTaken), openingTaken)
       ]
     : [
         ...assign(openingsByPlace(earlier, later, shift, wallPairs, openingTaken), openingTaken),
+        // WRT-12: on its wall that moved, at its place along it, before any id.
+        ...assign(openingsAlongWalls(earlier, later, shift, wallPairs, reversed, openingTaken), openingTaken),
         // A door turned into a window under its id is the same opening changed.
         ...assign(byId(earlier.openings, later.openings, openingTaken, sameType), openingTaken),
         ...assign(byId(earlier.openings, later.openings, openingTaken), openingTaken)
