@@ -35,7 +35,7 @@ const TIDY = 'I/scenarios/s4-listing/attempt-2-tidy-outline.json'
 export const LISTING = {
   rooms: [
     { name: 'Bedroom 1', use: 'bedroom', inside: [4.1, 3.2], level: 'must', source: 'given', quote: 'Bedroom 1, 4.10 x 3.20 m' },
-    { name: 'Kitchen', use: 'kitchen', inside: [2.4, 3.0], level: 'must', source: 'given', quote: 'Kitchen, 2.40 x 3.00 m' },
+    { name: 'Kitchen', quote: 'kitchen 10 x 12 ft', use: 'kitchen', inside: [2.4, 3.0], level: 'must', source: 'given', quote: 'Kitchen, 2.40 x 3.00 m' },
     { name: 'Bathroom', use: 'bathroom', inside: [1.7, 2.0], level: 'must', source: 'given', quote: 'Bathroom, 1.70 x 2.00 m' },
     { name: 'Lounge', use: 'living', inside: [4.5, 3.6], level: 'must', source: 'given', quote: 'Lounge, 4.50 x 3.60 m' },
     { name: 'Bedroom 2', use: 'bedroom', inside: [2.7, 3.1], level: 'must', source: 'given', quote: 'Bedroom 2, 2.70 x 3.10 m' },
@@ -180,6 +180,30 @@ describe('WR-19: the estate agent\'s five rooms', () => {
     const all = await b.call('grid_write_rooms', { plan: 'plan.json', layout: 'tidy', scan: 'scans/flat.json', rooms: 'room a "A" - 3 x 3' })
     expect(all.isError).toBe(true)
     expect(all.text).toContain('Pass one of rooms, layout and scan, not all three')
+  })
+})
+
+describe('a room asked for by its area alone', () => {
+  it('is drawn at a shape a person can use beside deep rooms, and its area met', async () => {
+    b = bench({})
+    const brief = {
+      rooms: [
+        { name: 'Primary bedroom', quote: 'primary bedroom 13 x 14 ft', use: 'bedroom', inside: [3.96, 4.27], level: 'must', source: 'given' },
+        { name: 'Bedroom', quote: 'bedroom 10 x 11 ft', use: 'bedroom', inside: [3.05, 3.35], level: 'must', source: 'given' },
+        { name: 'Kitchen', quote: 'kitchen 10 x 12 ft', use: 'kitchen', inside: [3.05, 3.66], level: 'must', source: 'given' },
+        { name: 'Living room', quote: 'living room 16 x 13 ft', use: 'living', inside: [4.88, 3.96], level: 'must', source: 'given' },
+        { name: 'Half bath', use: 'bathroom', area: 2.79, level: 'must', source: 'given', quote: 'a half bath, about 30 square feet' },
+      ],
+    }
+    expect((await b.call('grid_write_brief', { plan: 'plan.json', brief })).text).not.toContain('left out')
+    const done = await b.call('grid_write_rooms', { plan: 'plan.json', layout: 'sizes' })
+    expect(done.isError, done.text).toBe(false)
+    const layout = done.data?.['layout'] as { rooms: string; notKept: unknown[] }
+    expect(layout.notKept).toEqual([])
+    expect(layout.rooms).toContain('room half-bath "Half bath" bathroom 1.2 x 2.325 ')
+    const drawn = compileRoomsText(layout.rooms).rooms.find((r) => r.id === 'half-bath')!
+    expect(Math.min(drawn.width, drawn.depth)).toBeGreaterThanOrEqual(1.2 - 1e-9)
+    expect(missed(linesOf({ lines: (done.data?.['brief'] as { lines: BriefLine[] }).lines }))).toEqual([])
   })
 })
 

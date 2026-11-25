@@ -563,6 +563,24 @@ export const TOLERANCES = {
       'The most rooms in a row of a first layout whose every order is tried; a longer row keeps the brief\'s order.',
     basis: own
   },
+  layoutNarrowest: {
+    kind: 'limit',
+    value: 1.2,
+    unit: 'm',
+    decides:
+      'Grid\'s own size, not a code figure. No side of a room a first layout draws from its area ' +
+      'alone is narrower than this, or than the room\'s own square when it is smaller (WRT-61).',
+    basis: own
+  },
+  layoutLongest: {
+    kind: 'limit',
+    value: 2,
+    unit: 'ratio',
+    decides:
+      'Grid\'s own proportion, not a code figure. A room a first layout draws from its area alone, ' +
+      'keeping its area, is at most this many times as long as it is wide (WRT-61).',
+    basis: own
+  },
 
   // ── A survey drawn from its own numbers (HND-11) ──────────────────────────────────────────
   tapedAgree: {
