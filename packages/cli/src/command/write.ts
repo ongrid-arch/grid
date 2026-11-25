@@ -223,6 +223,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     next['flatTypes'] = plan.flatTypes ?? []
     next['flats'] = plan.flats
   }
+  // SHT-14: the `plan` line's name stays in the plan; without one, the file's name stays.
+  if (result.name !== null && result.name !== '') next['name'] = result.name
   next['written'] = stampFor(plan)
   // BRF-1: whether this is the plan's first write, before it is written.
   const first = before === null || nothingToLose(before)

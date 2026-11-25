@@ -2355,6 +2355,9 @@ export const FloorPlanFieldsSchema = z.object({
   // model whatever the file is called. `grid init` writes it. Keep it, and the parts' ids,
   // stable: a new id reads as a new element. Optional and never defaulted (version 1).
   projectId: text('id').pipe(z.string().min(1)).optional(),
+  // SHT-14: the plan's name, as the `plan "<name>"` line of rooms text gives it. The sheet's
+  // cover and the IFC project carry it. Optional and never defaulted (version 1).
+  name: text('name').pipe(z.string().min(1)).optional(),
   walls: parts(WallSchema, 'walls').default([]),
   rooms: parts(RoomSchema, 'rooms').default([]),
   openings: parts(OpeningSchema, 'openings').default([]),

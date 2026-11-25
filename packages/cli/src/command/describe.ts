@@ -106,7 +106,7 @@ export function describeRooms(loaded: LoadedPlan, options: DescribeOptions = {})
   const patterns = plan.patterns?.length ?? 0
   const language = options.language ?? DEFAULT_LANGUAGE
   const kept = patterns === 0 ? '' : `# ${say(language, patterns === 1 ? 'describe.rooms.patterns.one' : 'describe.rooms.patterns.many', { count: patterns })}\n`
-  return `# ${say(language, 'label')}\n${kept}${readRoomsText(plan).text}`
+  return `# ${say(language, 'label')}\n${kept}${readRoomsText(plan, plan.name === undefined ? {} : { name: plan.name }).text}`
 }
 
 /** The description, in the language of `options` (MSG-11; English when left out), ending in a new line. */
