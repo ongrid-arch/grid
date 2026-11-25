@@ -18,7 +18,7 @@ import { indexPlan } from '../geometry/plan'
 import { planFloors } from '../geometry/floors'
 import { english, said } from '../messages/say'
 import { tryRoomPolygon } from '../geometry/room'
-import { tolerance } from '../geometry/tolerances'
+import { limit, tolerance } from '../geometry/tolerances'
 import { doorKindOf, kindFits, sweepsFloor, swingNeeds } from '../geometry/openingKinds'
 import { compileRoomsText, RAW_FLOOR_KEYS, type RoomsResult } from './compile'
 import { planRevision } from './stamp'
@@ -280,7 +280,9 @@ function roomLine(room: Room, poly: P[], local: string): string {
   let area = 0
   for (let i = 0; i < poly.length; i++) area += cross(poly[i]!, poly[(i + 1) % poly.length]!) / 2
   const rect = poly.length === 4 && Math.abs(Math.abs(area) - w * d) < tolerance('areaEqual')
-  const where = rect ? `${metres(w)} x ${metres(d)} at ${metres(x0)},${metres(y0)}` : `polygon ${poly.map((p) => `${metres(p[0])},${metres(p[1])}`).join(' ')}`
+  // WRT-22: a side past the lowest figure Grid asks at (a home's) is written with its unit, so the reading asks nothing of it.
+  const side = (v: number): string => (v > limit('roomsSideAsked', 'home') ? `${metres(v)}m` : metres(v))
+  const where = rect ? `${side(w)} x ${side(d)} at ${metres(x0)},${metres(y0)}` : `polygon ${poly.map((p) => `${metres(p[0])},${metres(p[1])}`).join(' ')}`
   const height = room.height !== undefined ? ` height ${metres(room.height)}` : ''
   const step = room.floorOffset !== undefined ? ` floor ${metres(room.floorOffset)}` : ''
   const tenure = room.tenure !== undefined ? ` tenure ${room.tenure}` : ''

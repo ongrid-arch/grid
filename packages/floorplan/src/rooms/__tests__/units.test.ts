@@ -120,4 +120,11 @@ describe('a long room side (WRT-22)', () => {
     expect(polygon).toHaveLength(1)
     expect(polygon[0]).toContain("room 'p' is a polygon 400 m across in width")
   })
+
+  it('reads a long room back with its unit, so writing the reading asks nothing', () => {
+    const plan = written(`${head}room hall "Hall" storage 250m x 160m\n`)
+    const reading = readRoomsText(plan).text
+    expect(reading).toContain('250m x 160m')
+    expect(questions(reading)).toEqual([])
+  })
 })
