@@ -315,6 +315,12 @@ const compassOf = (n: P, table: Readonly<Record<string, P>> = COMPASS): string =
   Object.keys(table).reduce((best, k) => (dot(n, table[k]!) > dot(n, table[best]!) ? k : best))
 
 const pairKey = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`)
+/** WRT-41: the two rooms a `wall between <a> and <b> [<side>] ... virtual` line opens to each other, or null. */
+function openedPair(words: readonly string[]): string | null {
+  if (words[0] !== 'wall' || words[1] !== 'between' || words[3] !== 'and' || words[2] === undefined || words[4] === undefined) return null
+  const opened = words.some((w, i) => i > 4 && w === 'virtual' && words[i - 1] !== 'id')
+  return opened ? pairKey(words[2], words[4]) : null
+}
 /** LVL-12: one of two rooms is outdoor space (CNT-7) and the other is not: the wall between faces outside. */
 const facesOutdoor = (a: Pick<RoomDraft, 'outdoor'>, b: Pick<RoomDraft, 'outdoor'>): boolean => (a.outdoor === null) !== (b.outdoor === null)
 
@@ -384,6 +390,11 @@ interface FloorDraft {
   /** What the text says about one of several walls two rooms share: keyed by the pair, a room and its side. */
   betweenSide: Map<string, WallSay>
   open: Set<string>
+  /**
+   * WRT-41: the pairs of rooms a `wall between ... virtual` line of this floor opens, read when
+   * the floor starts, so a room placed beside the other is placed against it, wherever the line is.
+   */
+  ahead: Set<string>
   extover: Array<{ room: string; side: string; say: WallSay }>
   openings: OpeningLine[]
   raw: { walls: unknown[]; rooms: unknown[]; openings: unknown[] }
@@ -614,6 +625,7 @@ class Compiler {
   private floor(): FloorDraft {
     if (this.cur === null) {
       this.cur = newFloor('ground', 'Ground floor', 0)
+      this.cur.ahead = this.openedAhead(this.lines.map((text, i) => ({ line: i + 1, text })))
       this.floors.push(this.cur)
     }
     return this.cur
@@ -889,6 +901,7 @@ class Compiler {
       refuse(say('rooms.floor.unquoted', { word: words[0].text, line: fixed }))
     }
     const fl = newFloor(id.text, name ?? id.text, this.floors.length === 0 ? 0 : this.floors.length)
+    fl.ahead = this.openedAhead(this.lines.slice(at).map((text, i) => ({ line: at + i + 1, text })))
     let copy: string[] | null = null
     const seen = new Set<string>()
     while (i < words.length) {
@@ -1026,11 +1039,42 @@ class Compiler {
     )
   }
 
+  /**
+   * WRT-41: the pairs of rooms the lines of one floor open by a `wall between ... virtual` line,
+   * up to the next floor line. A unit's own lines and raw parts are passed over (a unit reads its
+   * own when it is placed), and a line that cannot be read is left for its turn to say so.
+   */
+  private openedAhead(lines: ReadonlyArray<{ line: number; text: string }>): Set<string> {
+    const pairs = new Set<string>()
+    let inUnit = false
+    for (const { line, text } of lines) {
+      if (/^\s*raw\b/.test(text)) continue
+      let words: string[]
+      try {
+        words = wordsOf(text, line)
+      } catch (error) {
+        if (error instanceof RoomsStop) continue
+        throw error
+      }
+      if (inUnit) {
+        if (words[0] === 'end') inUnit = false
+        continue
+      }
+      if (words[0] === 'unit') inUnit = true
+      else if (words[0] === 'floor') break
+      else {
+        const pair = openedPair(words)
+        if (pair !== null) pairs.add(pair)
+      }
+    }
+    return pairs
+  }
+
   private gapBetween(room: RoomDraft, others: RoomDraft[]): number {
     const fl = this.floor()
     if (others.length === 1) {
       const key = pairKey(room.id, others[0]!.id)
-      if (fl.open.has(key)) return 0
+      if (fl.open.has(key) || fl.ahead.has(key)) return 0
       const say = fl.between.get(key)
       if (say && say.t !== null) return say.t
     }
@@ -1481,7 +1525,13 @@ class Compiler {
     if (fl.inst.has(label) || fl.rooms.has(label)) this.stop('rooms/duplicate-id', at, `line ${at}: the label '${label}' is already used on this floor.`)
     const ctx: PlaceCtx = { local: new Map(), mx, my }
     const pending: OpeningLine[] = []
-    for (const { line, words } of this.expand(name, label, params, mx, my, at)) {
+    const lines = this.expand(name, label, params, mx, my, at)
+    // WRT-41: the unit's own dividing lines, wherever they are in it, place its rooms against each other.
+    for (const { words } of lines) {
+      const pair = openedPair(words)
+      if (pair !== null) fl.ahead.add(pair)
+    }
+    for (const { line, words } of lines) {
       if (words[0] === 'room') this.addRoom(this.readRoom(words, line, ctx), ctx)
       else if (words[0] === 'door' || words[0] === 'window' || words[0] === 'opening') pending.push({ words, line })
       else if (words[0] === 'wall') this.stWall(words, line)
@@ -1498,6 +1548,7 @@ class Compiler {
     else if (place.dir !== undefined) {
       const { box: rbox, rooms: rrooms } = this.lookup(place.ref!, at, null)
       let gap = place.gap
+      if (gap === undefined && this.unitOpensOnto(rooms, ub, place.dir, rrooms)) gap = 0
       if (gap === undefined) {
         const ts = [...rooms, ...rrooms].map((r) => r.wallsT).filter((t): t is number => t !== null)
         gap = ts.length > 0 ? Math.max(...ts) : this.rule.inside
@@ -1518,6 +1569,19 @@ class Compiler {
     // CNT-4: a placement of a flat type is a flat, mirrored when it is placed mirrored (WRT-4).
     if (this.flatTypes.has(name)) fl.flats.push({ label, unit: name, mirrored: mx !== my, rooms })
     fl.openings.push(...pending)
+  }
+
+  /**
+   * WRT-41: a unit placed beside a room goes against it, as a room line with `open` does, when
+   * every room on the unit's side that faces it is open to one of the rooms it is placed beside.
+   */
+  private unitOpensOnto(rooms: readonly RoomDraft[], ub: Box, dir: string, beside: readonly RoomDraft[]): boolean {
+    const fl = this.floor()
+    const [dx, dy] = DIRS[dir]!
+    // The unit's face toward the rooms it is placed beside: its south face when it goes north of them.
+    const k = dx > 0 ? 0 : dx < 0 ? 2 : dy > 0 ? 1 : 3
+    const facing = rooms.filter((r) => Math.abs(r.box[k] - ub[k]) < eps())
+    return facing.length > 0 && facing.every((r) => beside.some((b) => fl.open.has(pairKey(r.id, b.id)) || fl.ahead.has(pairKey(r.id, b.id))))
   }
 
   private readPlace(t: string[], at: number): { place: UnitPlace; params: Map<string, string>; mx: boolean; my: boolean } {
@@ -2956,6 +3020,7 @@ function newFloor(id: string, name: string, level: number): FloorDraft {
     between: new Map(),
     betweenSide: new Map(),
     open: new Set(),
+    ahead: new Set(),
     extover: [],
     openings: [],
     raw: { walls: [], rooms: [], openings: [] },
