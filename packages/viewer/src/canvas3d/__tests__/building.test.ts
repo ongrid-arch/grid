@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Floor, FloorPlan, Room, Wall } from '@ongrid/floorplan/types/floorplan'
 import { SLAB_THICKNESS, floorElevations, planBounds, planForFloor, type Scene3D } from '@ongrid/floorplan/geometry'
-import { buildingFrame, buildingLayout, createSceneMemo, type StoreyLayout } from '../building'
+import { buildingFrame, buildingLayout, createSceneMemo, stillRoofShown, type StoreyLayout } from '../building'
 
 /**
  * The whole building, decided without Three (design D2/D3): which storeys are
@@ -194,6 +194,43 @@ describe('buildingLayout', () => {
         expect(upper.base, `run ${run}`).toBeGreaterThanOrEqual(lower.base)
       }
     }
+  })
+})
+
+describe('buildingLayout: the roof asked for (VEW-19)', () => {
+  const gabled = building([[{ ...GROUND, roof: { shape: 'gable', eaves: 2.6, pitch: 30 } }, 3]])
+
+  it('gives one storey a roof from base 0 when it is asked for', () => {
+    const lone = building([[FIRST, 2.8]])
+    const layout = buildingLayout(lone, null, floorElevations(lone), true)
+    const { roof, floors } = floorElevations(lone)
+    const level = floors.get('first')!.floorLevel
+    expect(layout.roof).toEqual({ floorIds: ['first'], bottom: roof.bottom - level, top: roof.top - level })
+    expect(layout.roof!.bottom).toBeCloseTo(layout.storeys[0]!.clearHeight, 9)
+  })
+
+  it('reaches the frame to the roof of one storey drawn with it', () => {
+    const open = buildingFrame(gabled, floorElevations(gabled), null)
+    const closed = buildingFrame(gabled, floorElevations(gabled), null, true)
+    expect(closed.box.max[1]).toBeGreaterThan(open.box.max[1])
+    expect(closed.target).toEqual(open.target)
+  })
+
+  it('gives a focused storey its roof when asked, and takes the whole building’s away when not', () => {
+    expect(buildingLayout(threeStoreys, 'first', floorElevations(threeStoreys), true).roof).not.toBeNull()
+    expect(buildingLayout(threeStoreys, null, floorElevations(threeStoreys), false).roof).toBeNull()
+  })
+
+  it('draws the roof in a still from outside, or when a floor states one, and never on a cutaway', () => {
+    const plain = building([[GROUND, 3]])
+    expect(stillRoofShown(plain, { focus: null, inside: false })).toBe(true)
+    expect(stillRoofShown(plain, { focus: null, inside: true })).toBe(false)
+    expect(stillRoofShown(gabled, { focus: null, inside: true })).toBe(true)
+    expect(stillRoofShown(threeStoreys, { focus: null, inside: true })).toBe(true)
+    expect(stillRoofShown(gabled, { focus: 'ground', inside: false })).toBe(false)
+    expect(stillRoofShown(threeStoreys, { focus: 'first', inside: false })).toBe(false)
+    // A floor the plan has not is no cutaway.
+    expect(stillRoofShown(plain, { focus: 'attic', inside: false })).toBe(true)
   })
 })
 

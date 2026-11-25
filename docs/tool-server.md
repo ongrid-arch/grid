@@ -176,6 +176,11 @@ asks to keep one. `grid_view kind=3d` takes the camera (VEW-3):
 | `camera` | A camera record `grid_view` returned, to start from |
 | `view` | A view saved with the plan, by name, to start from |
 | `turn`, `tilt_by` | From `camera`, `view` or Grid's own framing: walk round what the camera is pointed at, degrees to its left (below 0 to its right), and add degrees to its tilt (below 0 lower) |
+| `roof` | `show` or `hide` the roof. Left out, it is shown from a camera outside every room or when a floor states its roof (`Floor.roof`), and hidden with a floor cut away, so a cutaway shows its floor open |
+
+The roof a still draws is the one the GLB and the section have: the roof a floor states (flat,
+mono-pitch, gable or hip), and a flat one over every other part with nothing above. The answer
+says which: the stated roof by its shape and floor, or that the model is drawn open.
 
 Every 3D and eye picture comes back with its camera record in `camera`: the setting (`target`,
 `bearing`, `bearingFrom`, `north`, `tilt`, `distance`, `lens`, `cut`), what follows from it on

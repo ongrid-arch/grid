@@ -15,7 +15,7 @@ import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
 import { sectionPicture } from '@ongrid/viewer/src/picture/section'
 import type { PlanSection, SectionLine } from '@ongrid/floorplan/geometry/section'
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
-import { planStill } from '@ongrid/viewer/src/still'
+import { planStill, stillRoofShown } from '@ongrid/viewer/src/still'
 import { loadCanvas } from './canvas'
 import { registerScriptFonts } from '../sheet/fonts'
 import { drawPlan, pictureToPng } from './drawPlan'
@@ -175,17 +175,21 @@ export interface CameraView {
   readonly png: Uint8Array
   /** VEW-3: the camera the picture was taken with, the one record the app's 3D view opens at too. */
   readonly camera: CameraRecord
+  /** VEW-19: whether the roof is drawn. */
+  readonly roof: boolean
 }
 
 /**
  * VEW-3: the 3D model as one camera record sees it, with its floor cut away (`cut`). The picture
  * is the app's own scene, taken with `recordCamera`, the settings the app's 3D view opens at for
  * the same record. A camera outside every room sees the ground grid; one in a room does not.
+ * VEW-19: the roof is drawn as `roof` says, else as every still decides (`stillRoofShown`).
  */
-export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language): Promise<CameraView> {
+export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language, roof?: boolean): Promise<CameraView> {
+  const drawn = roof ?? stillRoofShown(plan, { focus: camera.cut, inside: camera.standingIn.room !== null })
   // VEW-17: the caption band under the still is part of its size.
-  const image = planStill(plan, { camera, width: STILL_W, height: STILL_H - captionHeight(STILL_W), look: 'light', supersample: 2 })
-  return { png: await png(image, language), camera }
+  const image = planStill(plan, { camera, width: STILL_W, height: STILL_H - captionHeight(STILL_W), look: 'light', supersample: 2, roof: drawn })
+  return { png: await png(image, language), camera, roof: drawn }
 }
 
 /**

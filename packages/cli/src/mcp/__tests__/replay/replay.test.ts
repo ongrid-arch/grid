@@ -144,9 +144,13 @@ const TURNS: Turn[] = [
     },
   },
   {
-    who: 'architect', n: 7, asked: '3D of each from the garden, with a roof.', mark: 'S', why: 'grid_view 3d from the south of each; the model has no roof',
+    who: 'architect', n: 7, asked: '3D of each from the garden, with a roof.', mark: 'F', why: 'grid_view 3d from the south of each, drawn with its roof',
     run: async (b) => {
-      for (const plan of ['a.json', 'b.json', 'c.json']) expect((await ok(b, 'grid_view', { plan, kind: '3d', from: 'south' })).text).toContain('no roof')
+      for (const plan of ['a.json', 'b.json', 'c.json']) {
+        const text = (await ok(b, 'grid_view', { plan, kind: '3d', from: 'south' })).text
+        expect(text).toContain('has a flat roof')
+        expect(text).not.toContain('no roof')
+      }
     },
   },
   {
@@ -376,7 +380,7 @@ describe('the lab\'s five conversations, replayed against the real tools', () =>
   it('answers at least 21 of the 43 turns fully', () => {
     const count = (mark: Mark): number => TURNS.filter((turn) => turn.mark === mark).length
     // With the lab's own command the same turns scored 21 fully, 14 in part, 8 not at all.
-    expect({ F: count('F'), S: count('S'), N: count('N') }).toEqual({ F: 22, S: 14, N: 7 })
+    expect({ F: count('F'), S: count('S'), N: count('N') }).toEqual({ F: 23, S: 13, N: 7 })
     expect(count('F')).toBeGreaterThanOrEqual(21)
   })
 })

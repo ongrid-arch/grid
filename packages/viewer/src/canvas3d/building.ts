@@ -47,8 +47,9 @@ export interface BuildingLayout {
   readonly single: boolean
   /**
    * The roof slab over the top level's floors, absolute heights: the top of the building's box.
-   * Null when a storey is focused (its ceiling is open to view) and for one storey. While it is
-   * not null every storey draws its own roof, over its parts with nothing above (LVL-4).
+   * Null when a storey is focused (its ceiling is open to view) and for one storey, unless the
+   * roof is asked for (VEW-19). While it is not null every storey drawn draws its own roof, over
+   * its parts with nothing above (LVL-4). For one storey its heights are from base 0, as the storey's.
    */
   readonly roof: {
     readonly floorIds: readonly string[]
@@ -83,7 +84,8 @@ function resolveFocus(floorIds: readonly string[], focus: string | null): string
 export function buildingLayout(
   plan: FloorPlan,
   focus: string | null,
-  elevations: BuildingElevations = floorElevations(plan)
+  elevations: BuildingElevations = floorElevations(plan),
+  roofAsked?: boolean
 ): BuildingLayout {
   const floors = floorsOf(plan)
   const single = floors.length <= 1
@@ -112,16 +114,32 @@ export function buildingLayout(
   })
 
   let roof: BuildingLayout['roof'] = null
-  if (!single && resolved === null && floors.length > 0) {
+  const drawn = roofAsked ?? (!single && resolved === null)
+  if (drawn && floors.length > 0) {
     const topLevel = floors[floors.length - 1]!.level
+    // One storey stands at base 0 whatever its level, and so does its roof.
+    const offset = single ? (elevations.floors.get(floors[0]!.id)?.floorLevel ?? 0) : 0
     roof = {
       floorIds: floors.filter((floor) => floor.level === topLevel).map((floor) => floor.id),
-      bottom: elevations.roof.bottom,
-      top: elevations.roof.top
+      bottom: elevations.roof.bottom - offset,
+      top: elevations.roof.top - offset
     }
   }
 
   return { storeys, focus: resolved, single, roof }
+}
+
+/**
+ * VEW-19: whether a still draws the roof when it is not asked to. With a floor cut away
+ * (`focus`), no: a cutaway shows that floor open. Otherwise yes when the camera stands outside
+ * every room, when some floor states its roof (`Floor.roof`), or when the building has several
+ * floors; a camera standing in a room of a one-storey plan that states no roof sees it open, as
+ * it always did. The GLB and the section draw the roof whatever the camera.
+ */
+export function stillRoofShown(plan: FloorPlan, view: { readonly focus: string | null; readonly inside: boolean }): boolean {
+  if (view.focus !== null && planFloors(plan).some((floor) => floor.id === view.focus)) return false
+  if (!view.inside) return true
+  return (plan.floors ?? []).some((floor) => floor.roof !== undefined) || planFloors(plan).length > 1
 }
 
 type Vec3 = [number, number, number]
@@ -165,17 +183,19 @@ const SHADOW_MARGIN = 1
 export function buildingFrame(
   plan: FloorPlan,
   elevations: BuildingElevations,
-  focus: string | null
+  focus: string | null,
+  roofAsked?: boolean
 ): BuildingFrame {
-  const layout = buildingLayout(plan, focus, elevations)
+  const layout = buildingLayout(plan, focus, elevations, roofAsked)
   const { min, max, width, height: depth } = planBounds(plan)
   const cx = (min.x + max.x) / 2
   const cz = -(min.y + max.y) / 2
 
   const lowest = Math.min(...layout.storeys.map((s) => s.base))
   const bottom = lowest - SLAB_THICKNESS
+  // VEW-19: one storey drawn with its roof reaches to the roof's top, for the shadows.
   const top = layout.single
-    ? lowest + (layout.storeys[0]?.clearHeight ?? 0)
+    ? Math.max(lowest + (layout.storeys[0]?.clearHeight ?? 0), layout.roof?.top ?? -Infinity)
     : elevations.roof.top
 
   const span = Math.max(width, depth, layout.single ? 0 : top - bottom, 1)
