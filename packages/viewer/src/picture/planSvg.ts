@@ -49,7 +49,7 @@ import { el, toSvg } from './svgNode'
 import { ENGLISH_WORDS, drawingText, saidText, wordsOf, type DrawingWords } from './words'
 
 export interface PictureOptions {
-  /** Which floor to draw. Unset, or a floor the plan does not have, means its lowest floor. */
+  /** Which floor to draw. Unset, or a floor the plan does not have, means its ground floor. */
   readonly floor?: string | null
   /** Width in pixels. 1200 by default. */
   readonly width?: number
@@ -241,7 +241,7 @@ function undecidedIn(drawing: PlanDrawing, handings: ReadonlyMap<string, DoorHan
 /**
  * The doors on a floor whose hinge or swing the plan does not state, by opening id: the ones a
  * look that marks them (`technical`) draws as undecided. Unset, or a floor the plan does not
- * have, means its lowest floor.
+ * have, means its ground floor.
  */
 export function undecidedDoorsOf(plan: FloorPlan, floor?: string | null): string[] {
   const slice = planForFloor(withPatterns(plan), resolveFloor(plan, floor))
@@ -474,6 +474,7 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
     doorWarnings: warningMessages(doorWarningsOf(slice, drawing, words)),
     dimensions,
     metersPerPixel: mpp,
+    view,
     look,
     ...(options.paperScale === undefined ? {} : { paperScale: paperScaleOption(options.paperScale) }),
     // WRT-7: the labels and dimensions are in the call's display, else the plan's own.

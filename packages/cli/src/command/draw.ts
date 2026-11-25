@@ -33,7 +33,7 @@ export const DRAW_OPTIONS: OptionSpecs = {
   '--facade': { takesValue: true, help: 'Draw one side of the building in elevation instead of a floor plan: north, east, south or west, the sides of the drawing (north is its top). Every floor at its level. Not with --3d, --view or --floor.' },
   '--view': { takesValue: true, help: 'Draw a view saved with the plan (grid_save_view), by name: the 3D model through its camera, as a PNG of 1200 by 800 pixels.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in .svg (or .png with --png or --3d). Standard output when left out.' },
-  '--floor': { takesValue: true, help: 'The floor to draw (a floor id from the plan). The lowest floor when left out. With --3d, that floor as a cutaway; the whole building when left out.' },
+  '--floor': { takesValue: true, help: 'The floor to draw (a floor id from the plan). The ground floor when left out. With --3d, that floor as a cutaway; the whole building when left out.' },
   '--look': { takesValue: true, help: 'How the plan is drawn: technical (the default: black on white, lines in millimetres on paper) or working (as on screen, on light paper). Not with --3d.' },
   '--hide': { takesValue: true, help: 'Parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Not with --3d.' },
   '--colour': { takesValue: true, help: 'use: fill each room by its use, with the uses in the key. Not with --3d.' },

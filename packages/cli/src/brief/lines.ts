@@ -4,7 +4,7 @@
  *
  * The drawing is measured here as everywhere else, so a target and the drawing are measured by
  * the same rule: a room's net area is ARE-9's (`planAreas`, `MEASURES.net`), its inside size the
- * one `grid_areas` gives, a footprint the lowest floor's gross external area and the outside of
+ * one `grid_areas` gives, a footprint the ground floor's gross external area and the outside of
  * its walls, a width or a turning circle `grid_measure`'s widest circle, a door the width its
  * figure is for, clear by default, as the access measure gives it (ARE-27, `doorWidth.ts`), a
  * height `roomHeight`. Until a brief names a size for a room, a size written in the
@@ -15,7 +15,7 @@
  *
  * Pure: a plan and a brief in, lines out. Nothing here reads a file.
  */
-import { floorElevations, floorOf, groundLevel, MEASURES, planFloors, planForFloor, planSteps, roomFloorOffset, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
+import { defaultFloor, floorElevations, floorOf, groundLevel, MEASURES, planFloors, planForFloor, planSteps, roomFloorOffset, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import { smallMetres } from '../quantities/units'
 import { planAreas, type RoomArea } from '../quantities/areas'
 import { measureRoom, roomHeight } from '../quantities/measure'
@@ -55,7 +55,7 @@ export interface BriefLine {
 }
 
 /** The rule each kind of figure is measured by, in a line. */
-export const BRIEF_RULE = 'measured as the drawing is: areas and inside sizes to the faces of the walls, as grid_areas gives them, widths and circles as grid_measure does, and a footprint to the outside face of the lowest floor\'s walls.'
+export const BRIEF_RULE = 'measured as the drawing is: areas and inside sizes to the faces of the walls, as grid_areas gives them, widths and circles as grid_measure does, and a footprint to the outside face of the ground floor\'s walls.'
 
 /** A line met says only that: never that a plan is allowed (MSG-3). */
 export const MET_IS_NOT_ALLOWED = 'A line met says the drawing holds what the person asked for, and nothing about any rule.'
@@ -214,7 +214,9 @@ function footprintLines(c: Context, brief: Brief): BriefLine[] {
   if (c.empty) return [line('open', wish, 'footprint', 'footprint: nothing drawn yet.')]
   const floors = planFloors(c.plan)
   const withWalls = floors.filter((floor) => c.plan.walls.some((w) => floorOf(w) === floor.id && w.virtual !== true))
-  const lowest = [...withWalls].sort((a, b) => a.level - b.level)[0]
+  const ground = defaultFloor(c.plan)
+  // The ground floor's footprint; a plan with no solid wall there falls back to its lowest floor with walls.
+  const lowest = withWalls.find((floor) => floor.id === ground) ?? [...withWalls].sort((a, b) => a.level - b.level)[0]
   if (lowest === undefined) return [line('open', wish, 'footprint', 'footprint: no solid wall drawn yet.')]
   const out: BriefLine[] = []
   const word = askedWord(wish.source)
@@ -236,7 +238,7 @@ function footprintLines(c: Context, brief: Brief): BriefLine[] {
   if (wish.area !== null) {
     const gross = planAreas(c.survey, { floors: [lowest.id] }).floors[0]?.grossExternal ?? null
     const asked = asWritten(wish.area)
-    if (gross === null) out.push(line('open', wish, 'footprint', `footprint area ${word} ${asked} m², but the lowest floor's gross external area can't be worked out: grid_areas says why.`, { asked, unit: 'm²' }))
+    if (gross === null) out.push(line('open', wish, 'footprint', `footprint area ${word} ${asked} m², but the ground floor's gross external area can't be worked out: grid_areas says why.`, { asked, unit: 'm²' }))
     else out.push(line(stateOf(within(gross, wish.area), wish.level), wish, 'footprint', `footprint area ${word} ${asked}, drawn ${n2(gross)} m² (${MEASURES.grossExternal.name.toLowerCase()}).`, { asked, drawn: n2(gross), unit: 'm²' }))
   }
   return out

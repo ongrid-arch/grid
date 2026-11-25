@@ -158,18 +158,18 @@ describe('resolveFloor', () => {
     expect(resolveFloor(twoFloors, 'first')).toBe('first')
   })
 
-  it('falls back to the lowest floor for one the plan does not have', () => {
+  it('falls back to the default floor for one the plan does not have', () => {
     // The assistant deleting the floor being viewed must not blank the view.
     expect(resolveFloor(twoFloors, 'demolished')).toBe('ground')
   })
 
-  it('falls back to the lowest floor when nothing is requested', () => {
+  it('falls back to the default floor when nothing is requested', () => {
     expect(resolveFloor(twoFloors, null)).toBe('ground')
     expect(resolveFloor(twoFloors, undefined)).toBe('ground')
     expect(resolveFloor(twoFloors)).toBe('ground')
   })
 
-  it('counts the lowest floor by level, not by array position', () => {
+  it('opens on the ground floor, not the basement, by level and not by array position', () => {
     const withBasement = plan({
       floors: [
         { id: 'ground', name: 'Ground floor', level: 0 },
@@ -177,7 +177,8 @@ describe('resolveFloor', () => {
       ]
     })
 
-    expect(resolveFloor(withBasement, null)).toBe('basement')
+    expect(resolveFloor(withBasement, null)).toBe('ground')
+    expect(resolveFloor(withBasement, 'basement')).toBe('basement')
   })
 
   it('gives the ground floor for a plan with no floor information', () => {
@@ -276,8 +277,8 @@ describe('viewFloor', () => {
     expect(viewFloor(withBasement, undefined)).toBe('ground')
   })
 
-  it('leaves resolveFloor on the lowest floor, for the export', () => {
-    expect(resolveFloor(withBasement, null)).toBe('basement')
+  it('is what resolveFloor gives, so an export opens on the ground floor too', () => {
+    expect(resolveFloor(withBasement, null)).toBe('ground')
   })
 })
 

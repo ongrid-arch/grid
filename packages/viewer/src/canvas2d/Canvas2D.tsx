@@ -105,7 +105,7 @@ export interface CanvasDiff {
 
 interface Canvas2DProps {
   floorPlan: FloorPlan
-  /** Which floor to draw (C5). Unset means the plan's lowest floor. */
+  /** Which floor to draw (C5). Unset means the plan's ground floor. */
   floor?: string | null
   /** Overall and room dimensions. On by default. */
   showDimensions?: boolean

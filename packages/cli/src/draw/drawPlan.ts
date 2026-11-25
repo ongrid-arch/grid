@@ -43,7 +43,7 @@ export interface DrawOptions extends PictureOptions {
  * - `format: 'svg'` resolves to the SVG file as text.
  * - `format: 'png'` resolves to the PNG file's bytes.
  *
- * Every other option is `planToSvg`'s: `floor` (the lowest by default), `width` (1200 px by
+ * Every other option is `planToSvg`'s: `floor` (the ground floor by default), `width` (1200 px by
  * default), `height` (follows the plan's shape by default), `look` (`working`, the default,
  * or `technical`, or your own colours; SHT-10: a file is always on light paper, so `dark`, or
  * colours of your own on dark paper, draw the working look), `paperScale` (the technical look's 1:N) and

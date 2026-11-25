@@ -24,7 +24,7 @@
  * complies.
  */
 import { decimalFor, DEFAULT_LANGUAGE, joined, name, num, say, sayValue, labelOfUse, type Language, type MessageKey, type SayOptions, type Values } from '@ongrid/floorplan/messages'
-import type { RoomUse } from '@ongrid/floorplan/types/floorplan'
+import { OUTDOOR_KINDS, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { slopeText } from '@ongrid/floorplan/geometry'
 import type { Beyond, CornerGap, FloorFacts, HeightException, OpeningFacts, OpeningSide, PlanFacts, RoomFacts } from './facts'
 
@@ -159,11 +159,16 @@ function waysIn(facts: PlanFacts): Way[] {
 
 function usesText(facts: PlanFacts, w: Words): string {
   const rooms = [...facts.rooms.values()]
-  const unsaid = rooms.filter((room) => room.use === undefined).length
+  // An outdoor space says what it is by its kind, so it is never among the rooms that say nothing.
+  const unsaid = rooms.filter((room) => room.use === undefined && room.outdoor === undefined).length
   const parts: string[] = []
   for (const use of ['bedroom', 'bathroom'] as const satisfies readonly RoomUse[]) {
     const count = rooms.filter((room) => room.use === use).length
     if (count > 0) parts.push(countOf(w, 'describe.uses', count, { use: labelOfUse(w.language, use) }))
+  }
+  for (const kind of OUTDOOR_KINDS) {
+    const count = rooms.filter((room) => room.use === undefined && room.outdoor === kind).length
+    if (count > 0) parts.push(countOf(w, `describe.outdoor.${kind}`, count))
   }
   if (unsaid === rooms.length && rooms.length > 0) parts.push(t(w, rooms.length === 1 ? 'describe.uses.unsaid.one' : 'describe.uses.unsaid.all'))
   else if (unsaid > 0) parts.push(t(w, 'describe.uses.unsaid.some', { count: unsaid }))

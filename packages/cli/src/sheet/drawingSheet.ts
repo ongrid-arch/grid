@@ -58,7 +58,7 @@ export interface DrawingRequest {
   readonly scale?: number
   /** The paper. The smallest that fits when left out. */
   readonly paper?: PaperName
-  /** The floor, by id; the lowest when left out. */
+  /** The floor, by id; the ground floor when left out. */
   readonly floor?: string
   /** Each room's width and depth (its room dimensions). On when left out. */
   readonly roomSizes?: boolean

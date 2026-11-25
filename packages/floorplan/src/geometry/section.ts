@@ -711,8 +711,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
 
   /**
-   * A flight's faces beyond the cut (VEW-11): its two sides, each its profile; each riser, one
-   * riser tall; its upper end, from the soffit to its last tread, which also stands for the soffit
+   * A flight's faces beyond the cut (VEW-11): its two sides, each its profile; the risers seen head-on, one face
+   * at its foot (VEW-41); its upper end, from the soffit to its last tread, which also stands for the soffit
    * seen from above the flight.
    */
   function flightFaces(stair: (typeof laid)[number], flight: (typeof laid)[number]['flights'][number], profile: FlightProfile, along: Vec2): void {
@@ -726,9 +726,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     const [lTop, rTop] = ends(profile.length)
     sideFace(stair, profile, lFoot, lTop, perp(along))
     sideFace(stair, profile, rFoot, rTop, scale(perp(along), -1))
-    flight.riserLines.forEach(([a, b], k) => {
-      face('stair', stair.id, stair.lower.floor, a, b, scale(along, -1), profile.lower + k * stair.riserHeight, profile.lower + (k + 1) * stair.riserHeight)
-    })
+    // VEW-41: the risers seen head-on are one face at the foot, as tall as the flight, not one column each.
+    face('stair', stair.id, stair.lower.floor, lFoot, rFoot, scale(along, -1), profile.lower, profile.topAt(profile.length))
     face('stair', stair.id, stair.lower.floor, lTop, rTop, along, profile.bottomAt(profile.length), profile.topAt(profile.length))
   }
 

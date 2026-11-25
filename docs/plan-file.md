@@ -1702,7 +1702,7 @@ no measure, check, export or sheet.
 | Field | What it states |
 |---|---|
 | `path` | The picture, from the project folder: a relative path that stays inside it and ends in `.png`, `.jpg` or `.jpeg` |
-| `floor` | Optional: the floor it lies under. Unstated, the lowest floor, the one a picture draws when none is asked for |
+| `floor` | Optional: the floor it lies under. Unstated, the ground floor, the one a picture draws when none is asked for |
 | `at` | Optional: the point of the plan, in metres, that the picture's top-left corner lies on. Unstated, `[0, 0]` |
 | `rotation` | Optional: its turn about that corner, in degrees counter-clockwise. Unstated, 0 |
 | `calibration` | Optional: its scale, set from two points on it and the length between them: `from` and `to` in the picture's own pixels, from its top-left corner with y down, and `length`, how far apart they are on the building in metres |
