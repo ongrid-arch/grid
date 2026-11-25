@@ -81,8 +81,11 @@ describe('room edits on a plan with phases (WRT-15)', () => {
     const diff = await b.call('grid_diff', { plan: 'merge.json', since: 'phase', picture: false })
     const changes = (diff.data!['changes'] as { text: string }[]).map((c) => c.text)
     expect(changes.some((c) => c.startsWith('Wall "mid" removed'))).toBe(true)
-    expect(changes).toContain('Room removed: "Kitchen", 17.86 m²')
-    const rooms = diff.data!['rooms'] as { room: string; status: string; before: number | null; after: number | null }[]
+    // WRT-32: the kitchen merged into the living room, one line with the wall taken out, never a room lost.
+    expect(changes.some((c) => c.startsWith('Room removed'))).toBe(false)
+    expect(changes.find((c) => c.includes('merged with "Kitchen"'))).toContain('wall "mid" taken out between them')
+    const rooms = diff.data!['rooms'] as { room: string; status: string; before: number | null; after: number | null; mergedInto: string | null }[]
+    expect(rooms.find((r) => r.room === 'kitchen')).toMatchObject({ status: 'removed', mergedInto: 'living' })
     expect(rooms.find((r) => r.room === 'living')).toMatchObject({ before: 17.86, after: 36.19 })
     expect(rooms.map((r) => r.room).sort()).toEqual(['kitchen', 'living'])
   })

@@ -26,6 +26,11 @@
  * that moved with its wall, or along it with its room, is said to have moved with it, how far
  * and which way; one that did not move though its wall changed stayed where it was.
  *
+ * WRT-32: a room in both versions says every change it went through in one line: renamed and
+ * moved as it was, its id changed (named, though no change line), and a room that took another in,
+ * with the walls taken out between them; the room that went is said to have merged into it, not
+ * to be lost.
+ *
  * Pure: plans in, plain data out. Every word comes from the plans' own names and figures.
  */
 
@@ -35,7 +40,7 @@ import { roomFloorArea, tryRoomPolygon } from '../room'
 import { doorsThatChangedRooms, openingFaces } from '../rules/doors'
 import { areaText, metresText } from '../rounding'
 import { quoted } from '../../types/planText'
-import { english, name, num, said } from '../../messages/say'
+import { english, joined, name, num, said, sayValue } from '../../messages/say'
 import { planAreaFigures } from '../areas'
 import { floorOf, planFloors } from '../floors'
 import { tolerance } from '../tolerances'
@@ -79,8 +84,18 @@ export interface RoomVerdict {
   /** Net m², as Grid measures the room; null when it did not exist or could not close. */
   readonly before: number | null
   readonly after: number | null
-  /** How far a room that kept its size moved, in metres; null otherwise. */
+  /** How far a room that kept its size moved, in metres; null otherwise. WRT-32: a changed room that kept its size too. */
   readonly moved: number | null
+  /** WRT-32: which way it moved, in metres east and north on the drawing, when `moved` is set; null otherwise. */
+  readonly by: readonly [number, number] | null
+  /** WRT-32: its id in the earlier version when that was another, said in its text; null when it kept its id. */
+  readonly idBefore: string | null
+  /** WRT-32: the rooms of the earlier version merged into it, by their ids in `aligned`; empty when none was. */
+  readonly mergedWith: readonly string[]
+  /** WRT-32: the walls taken out between it and the rooms merged into it, by their ids in `aligned`. */
+  readonly wallsTakenOut: readonly string[]
+  /** WRT-32: for a room removed, the later room it was merged into; null otherwise. */
+  readonly mergedInto: string | null
   /** WRT-19: the walls its floor grew or shrank by, by later id, named in its text; empty when none is. */
   readonly walls: readonly string[]
   readonly text: string
@@ -359,6 +374,9 @@ function noteIssues(notes: CompareOptions['notes'], rename: (kind: string, id: s
   return issues
 }
 
+/** WRT-32: at most this many rooms whose id changed are named in the verdict; more are only counted. */
+const ROOM_IDS_NAMED = 3
+
 /** WRT-19: what a wall states of its own, which no room line says: listed whichever way the plan was written. */
 const WALL_FIGURES: ReadonlySet<string> = new Set(['thickness', 'height', 'kind', 'virtual', 'floor', 'arc'])
 
@@ -411,19 +429,58 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const areaSlack = tolerance('areaReported')
   const wallChanges = new Map(diff.changes.flatMap((c) => (c.entity.type === 'wall' ? [[c.entity.id, c] as const] : [])))
 
+  // WRT-32: the earlier id of each room whose id changed, by later id.
+  const idBefore = new Map(alignment.renamed.filter((r) => r.type === 'room').map((r) => [r.after, r.before] as const))
+  // WRT-32: two rooms knocked into one. A room with no pair whose middle lies on the floor of a
+  // room in both versions, on its floor, that grew, went into it; the walls the two shared that
+  // the room no longer lists were taken out between them.
+  const mergedInto = new Map<string, string>()
+  const mergedWith = new Map<string, string[]>()
+  const takenOut = new Map<string, string[]>()
+  for (const room of aligned.rooms) {
+    if (headRooms.has(room.id)) continue
+    const at = pointIn(was.get(room.id)!)
+    if (at === null) continue
+    const into = later.rooms.find((other) => {
+      const now = is.get(other.id)!
+      const then = was.get(other.id)
+      if (!baseRooms.has(other.id) || floorOf(other) !== floorOf(room) || now.polygon === null || now.area === null || then?.area == null) return false
+      return now.area > then.area + areaSlack && inside(at, now.polygon)
+    })
+    if (into === undefined) continue
+    mergedInto.set(room.id, into.id)
+    mergedWith.set(into.id, [...(mergedWith.get(into.id) ?? []), room.id])
+    const walls = (r: Room): Set<string> => new Set([...r.boundary, ...(r.holes ?? []).flat()])
+    const theirs = walls(baseRooms.get(into.id)!)
+    const kept = walls(into)
+    const gone = [...walls(room)].filter((id) => theirs.has(id) && !kept.has(id))
+    takenOut.set(into.id, [...new Set([...(takenOut.get(into.id) ?? []), ...gone])])
+  }
+
   // Room by room.
   const verdicts: RoomVerdict[] = []
   const moves = new Map<string, { dx: number; dy: number }>()
+  // WRT-32: every room that kept its size and moved, changed in other ways or not: what an opening moved with.
+  const carried = new Map<string, { dx: number; dy: number }>()
+  const none = { by: null, idBefore: null, mergedWith: [], wallsTakenOut: [], mergedInto: null } as const
   for (const room of later.rooms) {
     const before = baseRooms.get(room.id)
     const after = is.get(room.id)!
     if (before === undefined) {
-      verdicts.push({ room: room.id, name: room.name, status: 'added', before: null, after: after.area, moved: null, walls: [], text: `Room added: ${nameOf(room)}, ${areaWords(after.area)}` })
+      verdicts.push({ room: room.id, name: room.name, status: 'added', before: null, after: after.area, moved: null, walls: [], ...none, text: `Room added: ${nameOf(room)}, ${areaWords(after.area)}` })
       continue
     }
     const old = was.get(room.id)!
     const words: string[] = []
     if (before.name !== room.name) words.push(`renamed ${quoted(room.name)}`)
+    // WRT-32: the rooms merged into it, and the walls taken out between them.
+    const tookIn = mergedWith.get(room.id) ?? []
+    const wallsGone = takenOut.get(room.id) ?? []
+    if (tookIn.length > 0) {
+      const rooms = joined(tookIn.map((id) => name(baseRooms.get(id)?.name || id)), 'join.comma', 'join.and')
+      const walls = joined(wallsGone.map((id) => name(id)), 'join.comma', 'join.and')
+      words.push(english(said(wallsGone.length === 0 ? 'diff.room.merged' : wallsGone.length === 1 ? 'diff.room.merged.wall' : 'diff.room.merged.walls', { rooms, walls })))
+    }
     if (before.use !== room.use) words.push(`use ${before.use ?? 'not stated'} → ${room.use ?? 'not stated'}`)
     const areaChanged = old.area === null || after.area === null ? old.area !== after.area : Math.abs(after.area - old.area) > areaSlack
     const sizeChanged = old.box !== null && after.box !== null && (Math.abs(after.box.max.x - after.box.min.x - (old.box.max.x - old.box.min.x)) >= least || Math.abs(after.box.max.y - after.box.min.y - (old.box.max.y - old.box.min.y)) >= least)
@@ -438,24 +495,36 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     if ((before.floorOffset ?? 0) !== (room.floorOffset ?? 0)) words.push(`floor offset ${metresText(before.floorOffset ?? 0)} → ${metresText(room.floorOffset ?? 0)} m`)
     // WRT-20: an unstated floor is the ground floor (C5), so a room that now states it stands where it stood.
     if (floorOf(before) !== floorOf(room)) words.push(`moved to floor ${quoted(floorOf(room))}`)
-    const subject = quoted(before.name || before.id)
-    if (words.length > 0) {
-      verdicts.push({ room: room.id, name: room.name, status: 'changed', before: old.area, after: after.area, moved: null, walls: causes, text: `${subject} ${words.join('; ')}` })
-      continue
-    }
+    // WRT-32: a room whose id changed says so; the id alone is no change line ("ids aside, the same building").
+    const earlierId = idBefore.get(room.id) ?? null
+    const subject = earlierId === null ? quoted(before.name || before.id) : english(said('diff.room.id', { room: name(before.name || before.id), before: name(earlierId), after: name(room.id) }))
+    const facts = { idBefore: earlierId, mergedWith: tookIn, wallsTakenOut: wallsGone, mergedInto: null }
+    // WRT-32: how far a room that kept its size moved, said whatever else changed.
     const dx = old.box !== null && after.box !== null ? after.box.min.x - old.box.min.x : 0
     const dy = old.box !== null && after.box !== null ? after.box.min.y - old.box.min.y : 0
-    if (Math.hypot(dx, dy) >= least) {
-      moves.set(room.id, { dx, dy })
-      verdicts.push({ room: room.id, name: room.name, status: 'moved', before: old.area, after: after.area, moved: Math.hypot(dx, dy), walls: [], text: `${subject} moved ${moveWords(dx, dy)}, as it was (${areaWords(after.area)})` })
+    const moved = !areaChanged && !sizeChanged && Math.hypot(dx, dy) >= least
+    const how = moved ? { moved: Math.hypot(dx, dy), by: [dx, dy] as const } : { moved: null, by: null }
+    if (moved) carried.set(room.id, { dx, dy })
+    if (words.length > 0) {
+      if (moved) words.push(english(said('diff.room.moved', { by: moveWords(dx, dy) })))
+      verdicts.push({ room: room.id, name: room.name, status: 'changed', before: old.area, after: after.area, ...how, walls: causes, ...facts, text: `${subject} ${words.join('; ')}` })
       continue
     }
-    verdicts.push({ room: room.id, name: room.name, status: 'unchanged', before: old.area, after: after.area, moved: null, walls: [], text: `${subject} as it was (${areaWords(after.area)})` })
+    if (moved) {
+      moves.set(room.id, { dx, dy })
+      verdicts.push({ room: room.id, name: room.name, status: 'moved', before: old.area, after: after.area, ...how, walls: [], ...facts, text: `${subject} moved ${moveWords(dx, dy)}, as it was (${areaWords(after.area)})` })
+      continue
+    }
+    verdicts.push({ room: room.id, name: room.name, status: 'unchanged', before: old.area, after: after.area, ...how, walls: [], ...facts, text: `${subject} as it was (${areaWords(after.area)})` })
   }
   for (const room of aligned.rooms) {
     if (headRooms.has(room.id)) continue
     const area = was.get(room.id)!.area
-    verdicts.push({ room: room.id, name: room.name, status: 'removed', before: area, after: null, moved: null, walls: [], text: `Room removed: ${nameOf(room)}, ${areaWords(area)}` })
+    const into = mergedInto.get(room.id) ?? null
+    const text = into === null
+      ? `Room removed: ${nameOf(room)}, ${areaWords(area)}`
+      : english(said('diff.room.mergedInto', { room: name(room.name || room.id), into: name(headRooms.get(into)!.name || into), area: areaWords(area) }))
+    verdicts.push({ room: room.id, name: room.name, status: 'removed', before: area, after: null, moved: null, walls: [], ...none, mergedInto: into, text })
   }
 
   const wallsBefore = baseIndex.wallsById
@@ -545,7 +614,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     })()
     // The rooms it is in that moved by as much as it did, as they were.
     const movers = rooms.filter((room) => {
-      const d = moves.get(room)
+      const d = carried.get(room)
       return d !== undefined && Math.abs(d.dx - by[0]) <= tolerance('diffPlace') && Math.abs(d.dy - by[1]) <= tolerance('diffPlace')
     })
     const withRooms = movers.length > 0 ? movers : keepers
@@ -569,10 +638,11 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   // The change lines.
   const roomLines: ChangeLine[] = []
   for (const verdict of verdicts) {
-    if (verdict.status === 'changed') roomLines.push({ text: verdict.text, entities: [{ type: 'room', id: verdict.room }], rooms: [verdict.room] })
+    // WRT-32: a merge is one line, the room that took the other in, about both.
+    if (verdict.status === 'changed') roomLines.push({ text: verdict.text, entities: [{ type: 'room', id: verdict.room }, ...verdict.mergedWith.map((id) => ({ type: 'room' as const, id }))], rooms: [verdict.room] })
     // A room added is about the room it was carved from too, and a room removed about the room it went into.
     if (verdict.status === 'added') roomLines.push({ text: verdict.text, entities: [{ type: 'room', id: verdict.room }], rooms: [verdict.room, ...roomsUnder(is.get(verdict.room)!, was)] })
-    if (verdict.status === 'removed') roomLines.push({ text: verdict.text, entities: [{ type: 'room', id: verdict.room }], rooms: [verdict.room, ...roomsUnder(was.get(verdict.room)!, is)] })
+    if (verdict.status === 'removed' && verdict.mergedInto === null) roomLines.push({ text: verdict.text, entities: [{ type: 'room', id: verdict.room }], rooms: [verdict.room, ...roomsUnder(was.get(verdict.room)!, is)] })
   }
   // Rooms that moved together, as they were, in one line.
   const groups = new Map<string, string[]>()
@@ -660,7 +730,8 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const issues: ComparisonIssue[] = [
     ...doorsThatChangedRooms(aligned, later).map((d): ComparisonIssue => ({ code: 'door_joins_other_rooms', message: `Door ${d.message}`, entities: [{ type: 'opening', id: d.opening }] })),
     ...crossedOpenings(later, changedWalls),
-    ...diff.issues.map((i: DiffIssue): ComparisonIssue => i),
+    // WRT-32: written rooms first, a wall is named after its rooms, so a wall under a new id is a room's new id, not churn.
+    ...diff.issues.filter((i) => !(roomsFirst && i.code === 'suspected_id_churn' && i.entities.every((e) => e.type === 'wall'))).map((i: DiffIssue): ComparisonIssue => i),
     ...(scope?.issues.filter((i) => i.code === 'unknown_target') ?? []),
     ...noteIssues(options.notes, rename)
   ].sort((a, b) => (ISSUE_ORDER[a.code] ?? 99) - (ISSUE_ORDER[b.code] ?? 99) || compareText(a.message, b.message))
@@ -698,9 +769,14 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const sameBuilding = changes.length === 0 && turn === null
   const [sx, sy] = alignment.shift
   const shifted = Math.hypot(sx, sy) > tolerance('diffLength') ? `; the whole drawing sits ${moveWords(sx, sy)} of where it was, which is no change` : ''
+  // WRT-32: a few rooms whose id changed are named, so an agent that knew the old id finds the room.
+  const roomIds = renamed.filter((r) => r.type === 'room')
+  const roomIdWords = roomIds.length === 0 || roomIds.length > ROOM_IDS_NAMED
+    ? ''
+    : `; ${sayValue('en', joined(roomIds.map((r) => said('diff.room.idNow', { room: name(headRooms.get(r.after)?.name || r.after), before: name(r.before), after: name(r.after) })), 'join.comma', 'join.and'))}`
   const renamedWords = renamed.length === 0
     ? ''
-    : `${plural(renamed.length, 'id')} renamed (${[plural(renamedCount.walls, 'wall'), plural(renamedCount.openings, 'opening'), plural(renamedCount.rooms, 'room')].filter((t) => !t.startsWith('0 ')).join(', ')})`
+    : `${plural(renamed.length, 'id')} renamed (${[plural(renamedCount.walls, 'wall'), plural(renamedCount.openings, 'opening'), plural(renamedCount.rooms, 'room')].filter((t) => !t.startsWith('0 ')).join(', ')})${roomIdWords}`
   const redrawn = alignment.redrawn
   const redrawnWords = redrawn.length === 0
     ? ''
@@ -723,7 +799,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     else {
       const parts: string[] = floorLines.map((line) => line.text)
       const folded = verdicts.filter(ofFloorLine).length
-      for (const v of verdicts) if ((v.status === 'changed' || v.status === 'added' || v.status === 'removed') && !ofFloorLine(v)) parts.push(v.text)
+      for (const v of verdicts) if ((v.status === 'changed' || v.status === 'added' || v.status === 'removed') && v.mergedInto === null && !ofFloorLine(v)) parts.push(v.text)
       const others = changes.length - parts.length - folded
       if (others > 0) parts.push(plural(others, roomsFirst ? 'other change' : 'wall or opening change'))
       if (movedWithWords !== '') parts.push(movedWithWords)
@@ -735,7 +811,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     verdict = `Same building${sameWords === '' ? '' : `, ${sameWords}`}: every room, wall and opening stands where it stood${shifted}.`
   } else {
     const parts: string[] = floorLines.map((line) => line.text)
-    for (const v of verdicts) if ((v.status === 'changed' || v.status === 'added' || v.status === 'removed') && !ofFloorLine(v)) parts.push(v.text)
+    for (const v of verdicts) if ((v.status === 'changed' || v.status === 'added' || v.status === 'removed') && v.mergedInto === null && !ofFloorLine(v)) parts.push(v.text)
     for (const line of roomLines) if (line.entities.every((e) => moves.has(e.id))) parts.push(line.text)
     const kept = verdicts.filter((v) => v.status === 'unchanged').length
     if (kept > 0) parts.push(`${plural(kept, 'room')} as ${kept === 1 ? 'it was' : 'they were'}`)

@@ -199,7 +199,9 @@ function comparisonLines(c: Comparison): string[] {
   if (rooms.length > 0) {
     lines.push(`  Rooms by name, net m²: ${some(rooms, (r) => `${q(r.name)} ${r.before === null ? 'none' : r.before.toFixed(2)} → ${r.after === null ? 'none' : r.after.toFixed(2)}`, 10)}.`)
   }
-  const unchanged = c.rooms.length - rooms.length
+  // WRT-32: a room that moved as it was is said so, never counted as keeping its name and size in silence.
+  if (c.roomsMoved.length > 0) lines.push(`  ${some(c.roomsMoved, (r) => r.text)}.`)
+  const unchanged = c.rooms.length - rooms.length - c.rooms.filter((r) => r.moved !== null).length
   if (unchanged > 0) lines.push(`  ${unchanged} room${unchanged === 1 ? '' : 's'} keep their name and size.`)
   for (const [label, walls] of [['Walls out', c.wallsOut], ['Walls new', c.wallsNew]] as const) {
     if (walls.length === 0) continue
