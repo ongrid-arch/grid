@@ -551,11 +551,30 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
     }
   }
 
+  // A dividing line leaves every pair of rooms open that meet along a shared stretch of it, not
+  // only the pair at its middle (VEW-53): a row of bays on one line is open to the corridor.
   const openSides: OpenSide[] = []
+  const notZones = [...outlines.keys()].filter((id) => !roomZones(index).zoneOf.has(id))
   for (const wall of storey.walls) {
     if (wall.virtual !== true) continue
-    const [left, right] = sidesAt(wall, wallLength(wall) / 2, index, outlines)
-    if (left !== null && right !== null && left !== right) openSides.push({ wall: wall.id, rooms: [left, right] })
+    const on = (toward: 1 | -1): Array<{ room: string; lo: number; hi: number }> =>
+      notZones.flatMap((room) => faceStretches(wall, outlines.get(room)!.polygon, toward).map(([lo, hi]) => ({ room, lo, hi })))
+    const left = on(1)
+    const right = on(-1)
+    const pairs = new Map<string, readonly [string, string]>()
+    for (const a of left) {
+      for (const b of right) {
+        if (a.room !== b.room && Math.min(a.hi, b.hi) - Math.max(a.lo, b.lo) > SHARED_M) pairs.set([a.room, b.room].sort(byText).join('\u0000'), [a.room, b.room])
+      }
+    }
+    // The pair at the middle first, as before; the rest in the order along the line.
+    const [mid1, mid2] = sidesAt(wall, wallLength(wall) / 2, index, outlines)
+    const all = [...pairs.values()]
+    const first = all.findIndex(([a, b]) => (a === mid1 && b === mid2) || (a === mid2 && b === mid1))
+    if (first >= 0) all[first] = [mid1!, mid2!]
+    if (first > 0) all.unshift(...all.splice(first, 1))
+    if (all.length === 0 && mid1 !== null && mid2 !== null && mid1 !== mid2) all.push([mid1, mid2])
+    for (const rooms of all) openSides.push({ wall: wall.id, rooms })
   }
 
   const walls: WallFacts[] = storey.walls.map((wall) => ({

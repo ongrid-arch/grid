@@ -11,6 +11,8 @@ import {
   dot,
   indexPlan,
   planInState,
+  phaseClashes,
+  type PhaseClash,
   planForFloor,
   roomWallIds,
   sub,
@@ -55,6 +57,8 @@ export interface Survey {
   /** Rooms in plan order, floor by floor. */
   readonly rooms: readonly SurveyRoom[]
   readonly byId: ReadonlyMap<string, SurveyRoom>
+  /** ARE-54: the parts that stand when their wall does not, worked out from the plan as stated (the survey's own plan is the state after the work). */
+  readonly phaseClashes: readonly PhaseClash[]
 }
 
 function wallOfEdge(from: Vec2, to: Vec2, walls: readonly Wall[]): Wall | null {
@@ -106,7 +110,7 @@ export function surveyPlan(stated: FloorPlan): Survey {
       rooms.push({ facts: room, polygon, holes, edges, openings })
     }
   }
-  return { plan, facts, rooms, byId: new Map(rooms.map((room) => [room.facts.id, room])) }
+  return { plan, facts, rooms, byId: new Map(rooms.map((room) => [room.facts.id, room])), phaseClashes: phaseClashes(stated) }
 }
 
 /**

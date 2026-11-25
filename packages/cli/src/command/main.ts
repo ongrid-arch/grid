@@ -128,7 +128,7 @@ const COMMANDS = {
   },
   sheet: {
     usage: 'grid sheet [<plan.json>] --layout client|check|drawing [--sheet <sheet.json>] [--scale 1:N] [--paper A4|A3|A2|A1|A0] [--floor <id>] [--room-sizes on|off] [--out <file.pdf>] [--lang en|es] [--project <folder>]',
-    summary: 'Writes the plan as an A3 PDF for people (client, with the words of sheet.json, or check, with ids and findings), or one floor at a true scale as a PDF, SVG and PNG (drawing).',
+    summary: 'Writes the plan as an A3 PDF for people (client, with the words of <plan>.sheet.json, or check, with ids and findings), or one floor at a true scale as a PDF, SVG and PNG (drawing).',
     options: SHEET_OPTIONS,
   },
   tidy: {
