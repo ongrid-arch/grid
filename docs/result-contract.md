@@ -325,7 +325,7 @@ display chooses a point. Names from the plan are never translated.
 | `floor/out-of-line` | {thing} does not line up with the floor below it | a floor's outline over the floor below it, or marked overhang "meant" where it overhangs or sits back on purpose |
 | `floor/rooflight-misplaced` | {thing} has a rooflight that does not lie on one slope of its roof | a rooflight wholly inside the roof and on one of its slopes, clear of the ridge and the hips |
 | `floor/dormers-not-drawn` | {thing} lists dormers, which are not supported yet | a roof Grid can draw: dormers are not supported yet |
-| `floor/size-question` | {thing} states a height that may not be meant | the height of a storey in a building |
+| `floor/size-question` | {thing} has a height that may not be meant | the height of a storey in a building |
 | `floor/spaces-unknown` | The spaces the walls enclose on {thing} could not be worked out | walls Grid can join into spaces |
 | `floor/overlaps-unknown` | The rooms on {thing} were not all compared to see whether they overlap | fewer pairs of rooms lying over each other |
 | `floor/no-exit` | "{floor}" has no door to the outside | at least one door to the outside |

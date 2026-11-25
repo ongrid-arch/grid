@@ -259,6 +259,17 @@ function roomWordMeant(t: readonly string[], i: number): string | null {
 }
 /** The wall thicknesses rooms text writes when its `walls` line does not say (BRF-6's first layout packs by them). */
 export const ROOMS_WALLS = { outside: 0.3, inside: 0.1 } as const
+
+/**
+ * LVL-18: an opening reaching above its walls. Raising the walls (or the storey and the floors over
+ * it) is offered before lowering the opening, and walls lower than a storey (`storeyLowest`, Grid's
+ * own size) are named as the likelier fault. `wall` names the one wall of a raw room.
+ */
+function openingTooHigh(values: Values, wallHeight: number, wall: string | null): string {
+  const low = wallHeight < limit('storeyLowest')
+  const key = wall === null ? (low ? 'rooms.openingTooHigh.low' : 'rooms.openingTooHigh') : low ? 'rooms.rawRoom.tooHigh.low' : 'rooms.rawRoom.tooHigh'
+  return english(said(key, { ...values, ...(wall === null ? {} : { wall }), limit: num(f2(limit('storeyLowest'))) }))
+}
 /** How far apart two parallel room faces may be and still be looked at as one wall's two faces. */
 const FACING_REACH = 3
 /** How far out of line two faces may be and still be named as sizes that do not add up. */
@@ -2855,7 +2866,7 @@ class Compiler {
       openingHeight = r4(height ?? this.dflt.doorH)
     }
     if (openingSill + openingHeight > wallHeight + tolerance('openingOverrun')) {
-      this.problem('rooms/opening-too-high', at, `Line ${at}: ${kind} '${oid}' reaches ${f2(openingSill + openingHeight)} m but the walls are ${f2(wallHeight)} m high. Lower it or raise the walls.`)
+      this.problem('rooms/opening-too-high', at, openingTooHigh({ line: at, kind, id: oid, top: num(f2(openingSill + openingHeight)), height: num(f2(wallHeight)) }, wallHeight, null))
       return null
     }
     const item: { -readonly [K in keyof Opening]: Opening[K] } = { id: oid, wall: w.id, type: kind, offset: r4(offset), width: r4(width), sill: openingSill, height: openingHeight }
@@ -3034,7 +3045,7 @@ class Compiler {
       return null
     }
     if (openingSill + openingHeight > wall.height + tolerance('openingOverrun')) {
-      this.problem('rooms/opening-too-high', at, english(said('rooms.rawRoom.tooHigh', { line: at, kind, id: oid, top: num(f2(openingSill + openingHeight)), wall: wall.id, height: num(f2(wall.height)) })))
+      this.problem('rooms/opening-too-high', at, openingTooHigh({ line: at, kind, id: oid, top: num(f2(openingSill + openingHeight)), height: num(f2(wall.height)) }, wall.height, wall.id))
       return null
     }
     const item: { -readonly [K in keyof Opening]: Opening[K] } = { id: oid, wall: wall.id, type: kind, offset: r4(offset), width: r4(width), sill: openingSill, height: openingHeight }

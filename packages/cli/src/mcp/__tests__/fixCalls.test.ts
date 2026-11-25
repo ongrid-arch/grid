@@ -82,7 +82,7 @@ describe('a door taller than its wall', () => {
   it('says the height that fits and is gone once the call is sent', async () => {
     const line = (await lines('too-tall.json')).find((l) => l.code === 'opening/too-tall')!
     expect(line.found).toContain('at its sill of 0.00 m, a height up to 2.70 m fits')
-    expect(line.fix).toBe('Make it 2.70 m high or lower, or lower its sill.')
+    expect(line.fix).toBe("If the storey is taller, raise the wall, or its floor's height and the elevation of any floor over it; if not, make it 2.70 m high or lower, or lower its sill.")
     expect(line.calls).toEqual([{ tool: 'grid_change_opening', arguments: { plan: 'too-tall.json', opening: 'door', height: 2.7 } }])
     await ok(line.calls![0]!.tool, line.calls![0]!.arguments)
     expect((await lines('too-tall.json')).map((l) => l.code)).not.toContain('opening/too-tall')

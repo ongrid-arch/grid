@@ -229,6 +229,8 @@ export const en = {
   'issue.opening/size-question.narrower': '{opening} is {width} m wide: is that meant? Grid asks about openings narrower than {limit} m.{still}',
   'issue.opening/size-question.still': ' It still counts as a way through.',
   'issue.opening/size-question.lower': '{opening} is {height} m high: is that meant? Grid asks about openings lower than {limit} m.',
+  'issue.opening/size-question.stair': '{opening} opens onto stair {room} and is {height} m high: is that meant? Grid asks about a door to a stair or a lift lower than {limit} m.',
+  'issue.opening/size-question.lift': '{opening} opens onto lift {room} and is {height} m high: is that meant? Grid asks about a door to a stair or a lift lower than {limit} m.',
   'issue.room/size-question':
     'Room {room} measures {area} m²: is that meant? Grid asks about rooms larger than {limit} m²{home}. Check its walls\' coordinates and thickness.',
 
@@ -263,6 +265,8 @@ export const en = {
     'Floor {floor} states it is {height} m high: is that meant? Grid asks about a storey {bound}{home}, and its walls with no height of their own take it.',
   'issue.floor/size-question.higher': 'higher than {limit} m',
   'issue.floor/size-question.lower': 'lower than {limit} m',
+  'issue.floor/size-question.walls':
+    'Floor {floor} states no height, so its storey is {height} m high, the height of its tallest wall: is that meant? Grid asks about a storey lower than {limit} m in a plan of more than one floor. If the storey is taller, state its height.',
   'issue.room/offset-question':
     'Room {room} stands {offset} m {way} its storey\'s floor: is that meant? It is drawn and counted at that level, {why}. A level that far off may be a floor of its own: give it its own entry in the floor list with its elevation.',
   'issue.room/offset-question.above': 'above',
@@ -1130,7 +1134,7 @@ export const en = {
   'line.floor/empty-top.says': '{label} is the top floor and has nothing drawn on it',
   'line.floor/empty-top.needed': 'a top floor with something on it',
   'line.floor/empty-top.fix': 'Remove the floor if nothing is on it yet: it still counts as a storey and the roof stands on it.',
-  'line.floor/size-question.says': '{label} states a height that may not be meant',
+  'line.floor/size-question.says': '{label} has a height that may not be meant',
   'line.floor/size-question.needed': 'the height of a storey in a building',
   'line.floor/size-question.fix': 'If the size is meant, leave it. If not, correct it: every size is in metres. Walls with no height of their own take the floor\'s height.',
   'line.floor/spaces-unknown.needed': 'walls Grid can join into spaces',
@@ -1424,8 +1428,8 @@ export const en = {
   'line.opening/out-of-wall.fix': 'Move it along the wall, or make it narrower, as the line found says.',
   'line.opening/too-tall.needed.height': 'a height of at most {height} m at its sill',
   'line.opening/too-tall.needed': 'its sill and height together no higher than the wall',
-  'line.opening/too-tall.fix.height': 'Make it {height} m high or lower, or lower its sill.',
-  'line.opening/too-tall.fix': 'Lower its height or its sill.',
+  'line.opening/too-tall.fix.height': 'If the storey is taller, raise the wall, or its floor\'s height and the elevation of any floor over it; if not, make it {height} m high or lower, or lower its sill.',
+  'line.opening/too-tall.fix': 'If the storey is taller, raise the wall, or its floor\'s height and the elevation of any floor over it; if not, lower its height or its sill.',
   'line.opening/door-blocked.found.one': 'its leaf sweeps into wall {walls}',
   'line.opening/door-blocked.found': 'its leaf sweeps into walls {walls}',
   'line.opening/door-hits-item.says.items': '{label} hits {items} when it opens',
@@ -2020,7 +2024,13 @@ export const en = {
   'rooms.rawRoom.badSide': "Line {line}: '{side}' is not a side. Write north, south, east or west.",
   'rooms.rawRoom.fit':
     "Line {line}: {kind} '{id}' ({width} m wide) would run from {from} to {to} m along wall '{wall}', which is {length} m long. Measure it to fit in the wall.",
-  'rooms.rawRoom.tooHigh': "Line {line}: {kind} '{id}' reaches {top} m but wall '{wall}' is {height} m high. Lower it or raise the wall.",
+  'rooms.rawRoom.tooHigh': "Line {line}: {kind} '{id}' reaches {top} m but wall '{wall}' is {height} m high. If the storey is taller, raise the wall, or its floor's height and the elevation of any floor over it; if not, lower it.",
+  'rooms.rawRoom.tooHigh.low':
+    "Line {line}: {kind} '{id}' reaches {top} m but wall '{wall}' is {height} m high, lower than a storey a person stands in ({limit} m, Grid's own size). Raise the wall first, or its floor's height and the elevation of any floor over it; lower it only if the storey really is that low.",
+  'rooms.openingTooHigh':
+    "Line {line}: {kind} '{id}' reaches {top} m but the walls are {height} m high. If the storey is taller, raise the walls (the floor line's height, or the walls line's, and the elevation of any floor over it); if not, lower it.",
+  'rooms.openingTooHigh.low':
+    "Line {line}: {kind} '{id}' reaches {top} m but the walls are {height} m high, lower than a storey a person stands in ({limit} m, Grid's own size). Raise the walls first (the floor line's height, or the walls line's, and the elevation of any floor over it); lower it only if the storey really is that low.",
   'rooms.rawRoom.doorSide': "Line {line}: door '{id}' cannot open into '{target}': wall '{wall}' joins {rooms}.",
   'rooms.rawRoom.seenFrom': "Line {line}: door '{id}' cannot be seen from '{target}': wall '{wall}' joins {rooms}.",
   'rooms.rawRoom.hingedNeedsRoom': "Line {line}: 'hinged {hinged}' needs a room to see it from: write 'opens into <room>' or 'hinged {hinged} seen from <room>'.",

@@ -238,6 +238,10 @@ export const es: Messages = {
   'issue.opening/size-question.still': ' Sigue contando como paso.',
   'issue.opening/size-question.lower':
     '{opening} tiene {height} m de altura: ¿es intencionado? Grid pregunta por los huecos de menos de {limit} m de altura.',
+  'issue.opening/size-question.stair':
+    '{opening} da a la escalera {room} y tiene {height} m de altura: ¿es intencionado? Grid pregunta por las puertas a una escalera o un ascensor de menos de {limit} m.',
+  'issue.opening/size-question.lift':
+    '{opening} da al ascensor {room} y tiene {height} m de altura: ¿es intencionado? Grid pregunta por las puertas a una escalera o un ascensor de menos de {limit} m.',
   'issue.room/size-question':
     'La estancia {room} mide {area} m²: ¿es intencionado? Grid pregunta por las estancias de más de {limit} m²{home}. Compruebe las coordenadas y el espesor de sus muros.',
 
@@ -273,6 +277,8 @@ export const es: Messages = {
     'La planta {floor} indica que tiene {height} m de altura: ¿es intencionado? Grid pregunta por las plantas {bound}{home}, y sus muros sin altura propia toman la de la planta.',
   'issue.floor/size-question.higher': 'de más de {limit} m',
   'issue.floor/size-question.lower': 'de menos de {limit} m',
+  'issue.floor/size-question.walls':
+    'La planta {floor} no indica su altura, así que tiene {height} m, la altura de su muro más alto: ¿es intencionado? Grid pregunta por las plantas de menos de {limit} m en un plano de más de una planta. Si la planta es más alta, indique su altura.',
   'issue.room/offset-question':
     'La estancia {room} está {offset} m {way} del suelo de su planta: ¿es intencionado? Se dibuja y se cuenta a ese nivel, {why}. Un nivel tan desplazado puede ser una planta aparte: dele su propia entrada en la lista de plantas, con su cota.',
   'issue.room/offset-question.above': 'por encima',
@@ -1142,7 +1148,7 @@ export const es: Messages = {
   'line.floor/empty-top.says': '{label} es la planta superior y no tiene nada dibujado',
   'line.floor/empty-top.needed': 'una planta superior con algo en ella',
   'line.floor/empty-top.fix': 'Quite la planta si aún no tiene nada: sigue contando como planta y la cubierta se apoya en ella.',
-  'line.floor/size-question.says': '{label} indica una altura que puede no ser la que se quería',
+  'line.floor/size-question.says': '{label} tiene una altura que puede no ser la que se quería',
   'line.floor/size-question.needed': 'la altura de una planta en un edificio',
   'line.floor/size-question.fix': 'Si la medida es la que se quería, déjela. Si no, corríjala: todas las medidas van en metros. Los muros sin altura propia toman la altura de la planta.',
   'line.floor/spaces-unknown.needed': 'muros que Grid pueda unir en espacios',
@@ -1436,8 +1442,8 @@ export const es: Messages = {
   'line.opening/out-of-wall.fix': 'Desplácelo a lo largo del muro, o estréchelo, como dice lo encontrado en la línea.',
   'line.opening/too-tall.needed.height': 'una altura de como mucho {height} m en su antepecho',
   'line.opening/too-tall.needed': 'su antepecho y su altura juntos no más altos que el muro',
-  'line.opening/too-tall.fix.height': 'Déjelo en {height} m de alto o menos, o baje su antepecho.',
-  'line.opening/too-tall.fix': 'Baje su altura o su antepecho.',
+  'line.opening/too-tall.fix.height': 'Si la planta es más alta, suba el muro, o la altura de su planta y la cota de las plantas de encima; si no, déjelo en {height} m de alto o menos, o baje su antepecho.',
+  'line.opening/too-tall.fix': 'Si la planta es más alta, suba el muro, o la altura de su planta y la cota de las plantas de encima; si no, baje su altura o su antepecho.',
   'line.opening/door-blocked.found.one': 'su hoja barre contra el muro {walls}',
   'line.opening/door-blocked.found': 'su hoja barre contra los muros {walls}',
   'line.opening/door-hits-item.says.items': '{label} choca con {items} al abrirse',
@@ -2026,7 +2032,13 @@ export const es: Messages = {
   'rooms.rawRoom.badSide': "Línea {line}: '{side}' no es un lado. Escriba north, south, east o west.",
   'rooms.rawRoom.fit':
     "Línea {line}: la {kind} '{id}' ({width} m de ancho) iría de {from} a {to} m a lo largo del muro '{wall}', que mide {length} m. Mídala para que quepa en el muro.",
-  'rooms.rawRoom.tooHigh': "Línea {line}: la {kind} '{id}' llega a {top} m pero el muro '{wall}' tiene {height} m de alto. Bájela o suba el muro.",
+  'rooms.rawRoom.tooHigh': "Línea {line}: la {kind} '{id}' llega a {top} m pero el muro '{wall}' tiene {height} m de alto. Si la planta es más alta, suba el muro, o la altura de su planta y la cota de las plantas de encima; si no, bájela.",
+  'rooms.rawRoom.tooHigh.low':
+    "Línea {line}: la {kind} '{id}' llega a {top} m pero el muro '{wall}' tiene {height} m de alto, menos que una planta en la que se está de pie ({limit} m, medida propia de Grid). Suba primero el muro, o la altura de su planta y la cota de las plantas de encima; bájela solo si la planta de verdad es así de baja.",
+  'rooms.openingTooHigh':
+    "Línea {line}: la {kind} '{id}' llega a {top} m pero los muros tienen {height} m de alto. Si la planta es más alta, suba los muros (la altura de la línea de la planta, o la de la línea de muros, y la cota de las plantas de encima); si no, bájela.",
+  'rooms.openingTooHigh.low':
+    "Línea {line}: la {kind} '{id}' llega a {top} m pero los muros tienen {height} m de alto, menos que una planta en la que se está de pie ({limit} m, medida propia de Grid). Suba primero los muros (la altura de la línea de la planta, o la de la línea de muros, y la cota de las plantas de encima); bájela solo si la planta de verdad es así de baja.",
   'rooms.rawRoom.doorSide': "Línea {line}: la puerta '{id}' no puede abrir hacia '{target}': el muro '{wall}' une {rooms}.",
   'rooms.rawRoom.seenFrom': "Línea {line}: la puerta '{id}' no puede verse desde '{target}': el muro '{wall}' une {rooms}.",
   'rooms.rawRoom.hingedNeedsRoom': "Línea {line}: 'hinged {hinged}' necesita una estancia desde la que verla: escriba 'opens into <room>' o 'hinged {hinged} seen from <room>'.",

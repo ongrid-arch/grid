@@ -299,12 +299,16 @@ function wallsAboveStorey(plan: FloorPlan, floors: readonly Floor[], broken: Rea
   }
 }
 
-/** A floor's stated height far outside a storey's, the same questions a wall's height gets. */
+/**
+ * A floor's stated height far outside a storey's: higher than a wall is asked about, or lower than
+ * a storey a person stands in (LVL-18, `storeyLowest`). A floor under a roof of its own may state a
+ * low eaves height, so it is asked about only below `wallLowest`, as a wall is.
+ */
 function floorHeightQuestions(floors: readonly Floor[], building: BuildingKind, issues: Issue[]): void {
   for (const floor of floors) {
     if (floor.height === undefined || !Number.isFinite(floor.height)) continue
     const highest = limit('wallHighest', building)
-    const lowest = limit('wallLowest', building)
+    const lowest = floor.roof !== undefined ? limit('wallLowest', building) : limit('storeyLowest', building)
     if (floor.height <= highest && floor.height >= lowest) continue
     const bound = floor.height > highest ? said('issue.floor/size-question.higher', { limit: m(highest) }) : said('issue.floor/size-question.lower', { limit: m(lowest) })
     const question = said('issue.floor/size-question', {
