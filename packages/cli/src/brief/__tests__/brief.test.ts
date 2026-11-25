@@ -334,9 +334,10 @@ describe('ARE-33: a count of rooms is its own field, apart from an area', () => 
   })
 
   it('reads six rooms against at least 4 as met in rooms, and two as missed', async () => {
-    b = bench({ 'house.json': labPlan(FD2) })
+    const run = bench({ 'house.json': labPlan(FD2) })
+    b = run
     const ask = async (n: number) => {
-      const reply = await b.call('grid_write_brief', { plan: 'house.json', replace: true, brief: { rooms: [{ use: 'bedroom', count_at_least: n, level: 'must', source: 'given', quote: 'bedrooms' }] } })
+      const reply = await run.call('grid_write_brief', { plan: 'house.json', replace: true, brief: { rooms: [{ use: 'bedroom', count_at_least: n, level: 'must', source: 'given', quote: 'bedrooms' }] } })
       expect(reply.isError, reply.text).toBe(false)
       return (reply.data as { lines: BriefLine[] }).lines.find((l) => l.wish === 'rooms')!
     }
