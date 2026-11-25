@@ -169,7 +169,6 @@ describe('grid export: what the file leaves out (HND-6)', () => {
 
   it.each([
     ['an empty plan', { version: '1', units: 'm', walls: [], rooms: [], openings: [] }, 'Nothing to export: empty.json has no wall, room or fixture that can be drawn. No file was written.'],
-    ['nothing but {}', {}, 'Nothing to export: empty.json has no wall, room or fixture that can be drawn. No file was written.'],
     [
       'rooms with no walls',
       { version: '1', units: 'm', walls: [], rooms: [{ id: 'hall', name: 'Hall', boundary: ['w1'] }], openings: [] },
@@ -180,6 +179,16 @@ describe('grid export: what the file leaves out (HND-6)', () => {
     for (const format of ['dxf', 'ifc', 'obj', 'glb']) {
       expectRefusal(grid('export', 'empty.json', '--format', format), 1, line)
       expectRefusal(grid('export', 'empty.json', '--format', format, '--out', `empty.${format}`), 1, line)
+    }
+    expect(filesIn(dir)).toEqual(['empty.json', 'two-bed-flat.json'])
+  })
+})
+
+describe('a file that holds nothing a plan holds (WRT-13)', () => {
+  it('is refused by every command that reads a plan, in one line, and nothing is written', () => {
+    writeFileSync(join(dir, 'empty.json'), '{}')
+    for (const args of [['export', 'empty.json', '--format', 'dxf'], ['draw', 'empty.json'], ['check', 'empty.json']]) {
+      expectRefusal(grid(...args), 1, 'empty.json is not a Grid plan: it holds no walls, rooms or openings.')
     }
     expect(filesIn(dir)).toEqual(['empty.json', 'two-bed-flat.json'])
   })
