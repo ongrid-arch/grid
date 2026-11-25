@@ -17,6 +17,7 @@ import { packageReadme, pluginFiles } from '../distribution/listing'
 import { openProject } from '../fs/projectFiles'
 import { GRID_TOOLS } from '../mcp/serveTools'
 import { drawPlan } from '../draw/drawPlan'
+import { readLabelMetadata } from '../draw/stamp'
 import { INSTRUCTIONS } from '../mcp/protocol'
 import { RETELLING_RULE } from '../mcp/retelling'
 
@@ -95,13 +96,13 @@ it('grid_check leads with the label', async () => {
 })
 
 describe('every drawing carries the label (MSG-3)', () => {
-  it.each(plans)('grid draw writes it in the SVG of %s, in the top-left corner', (name) => {
+  it.each(plans)('grid draw writes it in the SVG of %s, in a caption band under the drawing', (name) => {
     const svg = spawnSync(process.execPath, [bundle, 'draw', name], { cwd: dir, encoding: 'utf8' })
-    expect(svg.stdout, svg.stderr).toMatch(/<g data-part="guidance-label" transform="translate\([^)]*\) scale\([^)]*\)"><rect [^>]*><\/rect><text [^>]*>General guidance, not your local rules<\/text><\/g><\/svg>\n$/)
+    expect(svg.stdout, svg.stderr).toMatch(/<g data-part="guidance-label" transform="translate\(0 [\d.]+\)"><text [^>]*>General guidance, not your local rules<\/text><\/g><\/svg>\n$/)
     expect(svg.stdout).not.toMatch(APPROVAL)
   })
 
-  it('the PNG is the SVG drawn: it differs from one without the label in the top-left corner only', async () => {
+  it('the PNG is the SVG drawn: it is one without the label with a caption band under it, and carries the label in its metadata (VEW-17)', async () => {
     const plan = FloorPlanSchema.parse(read(plans[0]!))
     const { createCanvas, loadImage } = await import('@napi-rs/canvas')
     const pixels = async (png: Uint8Array): Promise<Uint8ClampedArray> => {
@@ -112,9 +113,11 @@ describe('every drawing carries the label (MSG-3)', () => {
     }
     const labelled = await pixels(await drawPlan(plan, { format: 'png', width: 600 }))
     const plain = await pixels(await drawPlan(plan, { format: 'png', width: 600, label: false }))
-    const row = 600 * 4
-    expect(Buffer.from(labelled.subarray(0, 21 * row)).equals(Buffer.from(plain.subarray(0, 21 * row)))).toBe(false)
-    expect(Buffer.from(labelled.subarray(22 * row)).equals(Buffer.from(plain.subarray(22 * row)))).toBe(true)
+    // The drawing's rows are the same; the band under them is the label's.
+    expect(labelled.length).toBeGreaterThan(plain.length)
+    expect(Buffer.from(labelled.subarray(0, plain.length)).equals(Buffer.from(plain))).toBe(true)
+    expect(readLabelMetadata(await drawPlan(plan, { format: 'png', width: 600 }))).toBe(LABEL)
+    expect(readLabelMetadata(await drawPlan(plan, { format: 'png', width: 600, label: false }))).toBeNull()
   })
 })
 

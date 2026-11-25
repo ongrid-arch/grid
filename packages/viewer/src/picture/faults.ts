@@ -6,8 +6,8 @@
  * prints before it, so a mark on the drawing and a line of the report say the same number.
  * A line about a room, a wall, an opening or a fixture gets a numbered mark on that part with its words
  * beside it (an opening the drawing leaves out, on its wall); a line about the floor or the whole
- * plan, or about a part the drawing does not hold, gets a mark of its own down the drawing's
- * top-left corner. Every line is also in the key under the drawing.
+ * plan, or about a part the drawing does not hold, is only in the key under the drawing (VEW-17),
+ * so nothing of it covers a wall. Every line is also in the key.
  *
  * Where a mark goes comes from what the geometry core and the label placement already worked
  * out: a room's label, an opening's gap, a wall's axis, the box round an undrawn room's walls.
@@ -225,8 +225,6 @@ interface Mark {
   /** Its words, wrapped; null where they are drawn elsewhere (an undrawn room's box). */
   readonly words: readonly string[] | null
   readonly faults: readonly NumberedFault[]
-  /** Its words as placed: laid out with the corner, or after it for a mark on a part. */
-  placedWords?: SvgNode[]
 }
 
 const markHalf = (numbers: string): number => Math.max(FAULT_MARK_PX, estimateTextWidth(numbers, TEXT_PX.faultNumber) + 6) / 2
@@ -234,30 +232,28 @@ const blockWidth = (lines: readonly string[]): number => Math.max(...lines.map((
 
 /**
  * The numbered marks, each with the words of its lines beside it: one per part with lines about
- * it, and one per line about the floor or the plan, or about a part the drawing does not hold,
- * down the drawing's top-left corner.
+ * it. A line about the floor or the plan, or about a part the drawing does not hold, has no mark
+ * on the drawing (VEW-17): it is listed in the key under it.
  *
  * A part's words go to the right of its mark, else the left, below or above, wherever they keep
  * clear of the labels, the marks and the other words; with no clear spot, on the one that covers
- * least, on a backing of paper so they always read. A corner mark's words go to its right only
- * where that is clear: the key, just under the drawing, has them anyway, and a note about the
- * whole floor is not worth hiding a room's name. Also says which openings got a mark, so the
+ * least, on a backing of paper so they always read. Also says which openings got a mark, so the
  * plain warning dot is not drawn under it.
  */
 export function faultMarks(layout: FaultLayout, faults: readonly NumberedFault[]): { nodes: SvgNode[]; openings: Set<string> } {
-  const { metersPerPixel: mpp, look, within } = layout
+  const { metersPerPixel: mpp, look } = layout
   const paint = paints(look)
   const placed: Box[] = [...layout.blocks]
   const openings = new Set<string>()
   const marks: Mark[] = []
   const wrapped = (group: readonly NumberedFault[]): string[] => wrapText(wordsOf(group), TEXT_PX.warning, WORDS_MAX_PX)
 
-  const corner: NumberedFault[][] = []
   for (const [key, group] of byThing(faults)) {
     const { kind, id } = group[0]!.line.thing
     const spot = spotOf(kind, id, layout, group[0]!.wall)
     if (!spot) {
-      corner.push(...group.map((fault) => [fault]))
+      // VEW-17: a line about the floor or the plan, or a part the drawing does not hold, has no
+      // place on the drawing: it is in the key under it, by its number, and nowhere over the walls.
       continue
     }
     if (kind === 'opening') openings.add(id)
@@ -265,36 +261,13 @@ export function faultMarks(layout: FaultLayout, faults: readonly NumberedFault[]
     marks.push({ key, kind, id, at: spot.at, numbers, half: markHalf(numbers), words: spot.words ? wrapped(group) : null, faults: group })
   }
   for (const mark of marks) placed.push(boxAround(mark.at, mark.half, FAULT_MARK_PX / 2, mpp))
-  // Down the corner, each row as tall as its words where they were drawn.
-  let y = within.maxY - (FAULT_MARK_PX / 2 + 6) * mpp
-  for (const group of corner) {
-    const fault = group[0]!
-    const numbers = String(fault.number)
-    const mark: Mark = {
-      key: `${fault.line.thing.kind}:${fault.line.thing.id}:${fault.number}`,
-      kind: fault.line.thing.kind,
-      id: fault.line.thing.id,
-      at: { x: within.minX + (FAULT_MARK_PX / 2 + 6) * mpp, y },
-      numbers,
-      half: markHalf(numbers),
-      words: null,
-      faults: group
-    }
-    placed.push(boxAround(mark.at, mark.half, FAULT_MARK_PX / 2, mpp))
-    const words = wrapped(group)
-    mark.placedWords = wordsBeside(mark, words, placed, layout, paint, false) ?? []
-    marks.push(mark)
-    y -= (Math.max(FAULT_MARK_PX, mark.placedWords.length > 0 ? words.length * WORDS_LINE_PX : 0) + 6) * mpp
-  }
-
   const nodes = marks.map((mark) => {
     const r = FAULT_MARK_PX / 2
     const children: SvgNode[] = [
       el('rect', { 'data-part': 'fault-mark-dot', x: -mark.half, y: -r, width: mark.half * 2, height: FAULT_MARK_PX, rx: r, ...paint.mark }),
       el('text', { 'data-part': 'fault-mark-number', dy: lengthOf(TEXT_PX.faultNumber * 0.35), ...paint.number }, [mark.numbers])
     ]
-    if (mark.placedWords) children.push(...mark.placedWords)
-    else if (mark.words !== null && mark.words.length > 0) children.push(...(wordsBeside(mark, mark.words, placed, layout, paint, true) ?? []))
+    if (mark.words !== null && mark.words.length > 0) children.push(...(wordsBeside(mark, mark.words, placed, layout, paint, true) ?? []))
     return el(
       'g',
       {

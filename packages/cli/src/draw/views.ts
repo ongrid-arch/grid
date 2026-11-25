@@ -9,7 +9,7 @@
 import type { Display } from '@ongrid/floorplan/types/units'
 import type { Language } from '@ongrid/floorplan/messages'
 import { poleOfInaccessibility, type Bounds, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
-import { LOOKS as PICTURE_LOOKS, comparisonPicture, facadePicture, fullHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
+import { LOOKS as PICTURE_LOOKS, comparisonPicture, facadePicture, fileHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
 import { resolveFloor, type BuildingComparison, type Facade, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
 import { sectionPicture } from '@ongrid/viewer/src/picture/section'
@@ -20,7 +20,7 @@ import { loadCanvas } from './canvas'
 import { drawPlan, pictureToPng } from './drawPlan'
 import { partBounds, pixelBoxes, type PartBox } from './partBoxes'
 import { forSkia } from './skiaText'
-import { stampLabel } from './stamp'
+import { captionHeight, captioned, withLabelMetadata } from './stamp'
 
 import { pictureLook, type LookName } from './viewNames'
 
@@ -62,7 +62,7 @@ export async function planView(
   const picture = planPicture(plan, { floor: options.floor ?? null, look: lookOf(options.look), showDimensions: options.dimensions, ...extra })
   const png = await drawPlan(plan, { format: 'png', floor: options.floor, look: lookOf(options.look), showDimensions: options.dimensions, ...extra })
   const boxes = pixelBoxes(partBounds(plan, options.floor), picture)
-  return { png, width: picture.width, height: fullHeight(picture), pxPerMetre: picture.width / picture.view.width, boxes, undecidedDoors: picture.undecidedDoors }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, boxes, undecidedDoors: picture.undecidedDoors }
 }
 
 /**
@@ -74,7 +74,8 @@ export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 't
   const picture = planPicture(plan, { floor, look, showDimensions: true })
   const round = (n: number): number => Math.round(n * 1000) / 1000
   const boxes = partBounds(plan, floor).map((part) => ({ id: part.id, kind: part.kind, x: round(part.bounds.min.x), y: round(-part.bounds.max.y), width: round(part.bounds.width), height: round(part.bounds.height) }))
-  return { svg: pictureToSvg(picture), boxes }
+  // The page draws this in the plan's own frame and carries the label itself: no caption band here.
+  return { svg: pictureToSvg(picture, 1, { label: false }), boxes }
 }
 
 /** LVL-9: a section along a line through every floor, with the section it was drawn from. */
@@ -82,7 +83,7 @@ export async function sectionView(plan: FloorPlan, line: SectionLine, look: Look
   // MSG-11: the drawing's own words in the language asked for, else the plan's own.
   const picture = sectionPicture(plan, line, { look: lookOf(look), ...(language === undefined ? {} : { language }) })
   const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fullHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section }
 }
 
 /**
@@ -92,7 +93,7 @@ export async function sectionView(plan: FloorPlan, line: SectionLine, look: Look
 export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; look: LookName; language?: Language }): Promise<PlanView & { readonly facade: Facade }> {
   const picture = facadePicture(plan, { side: options.side, look: lookOf(options.look), ...(options.language === undefined ? {} : { language: options.language }) })
   const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fullHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade }
 }
 
 /**
@@ -104,7 +105,7 @@ export async function comparisonView(comparison: Pick<BuildingComparison, 'align
   const shown = resolveFloor(later, floor)
   const picture = comparisonPicture(comparison.aligned, later, comparison.marks, { floor: shown })
   const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fullHeight(picture), pxPerMetre: picture.width / picture.view.width, floor: shown }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, floor: shown }
 }
 
 const SHEET_WIDTH = 2400
@@ -149,8 +150,9 @@ export async function sheetView(plans: readonly { plan: FloorPlan; title: string
   context.fillStyle = paper
   context.fillRect(0, 0, width, height)
   context.drawImage(image, 0, 0, width, height)
-  stampLabel(context, width, { paper, ink: PICTURE_LOOKS[lookOf(look)].colors.labelSoft }, language)
-  return { png: await canvas.encode('png'), width, height, pxPerMetre }
+  // VEW-17: one label for the whole sheet, in a caption band under the plans.
+  const captionedSheet = captioned(createCanvas, canvas, { paper, ink: PICTURE_LOOKS[lookOf(look)].colors.labelSoft }, language)
+  return { png: withLabelMetadata(await captionedSheet.encode('png'), language), width, height: captionedSheet.height, pxPerMetre }
 }
 
 const STILL_W = 1200
@@ -162,8 +164,8 @@ async function png(image: { data: Uint8ClampedArray; width: number; height: numb
   const canvas = createCanvas(image.width, image.height)
   const context = canvas.getContext('2d')
   context.putImageData(new ImageData(image.data, image.width, image.height), 0, 0)
-  stampLabel(context, image.width, undefined, language)
-  return canvas.encode('png')
+  // VEW-17: the label in a caption band under the picture, and in the file's own metadata.
+  return withLabelMetadata(await captioned(createCanvas, canvas, undefined, language).encode('png'), language)
 }
 
 export interface CameraView {
@@ -178,7 +180,8 @@ export interface CameraView {
  * the same record. A camera outside every room sees the ground grid; one in a room does not.
  */
 export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language): Promise<CameraView> {
-  const image = planStill(plan, { camera, width: STILL_W, height: STILL_H, look: 'light', supersample: 2 })
+  // VEW-17: the caption band under the still is part of its size.
+  const image = planStill(plan, { camera, width: STILL_W, height: STILL_H - captionHeight(STILL_W), look: 'light', supersample: 2 })
   return { png: await png(image, language), camera }
 }
 

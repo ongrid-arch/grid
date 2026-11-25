@@ -15,9 +15,10 @@
  */
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { FacadePictureOptions, Picture, PictureOptions } from '@ongrid/viewer/src/picture'
-import { facadePicture, fileLookOf, fullHeight, pictureToSvg, planPicture } from '@ongrid/viewer/src/picture'
+import { facadePicture, fileHeight, fileLookOf, pictureToSvg, planPicture } from '@ongrid/viewer/src/picture'
 import { loadCanvas } from './canvas'
 import { forSkia } from './skiaText'
+import { withLabelMetadata } from './stamp'
 
 export type { PictureOptions }
 
@@ -29,7 +30,7 @@ export interface DrawOptions extends PictureOptions {
    * the same drawing.
    */
   readonly scale?: number
-  /** MSG-3: the label in the top-left corner. On by default; off where the page carries it (a sheet). */
+  /** MSG-3, VEW-17: the label in a caption band under the drawing. On by default; off where the page carries it (a sheet). */
   readonly label?: boolean
 }
 
@@ -90,7 +91,7 @@ export async function pictureToPng(picture: Picture, options: { readonly scale?:
   if (!(scale > 0) || !Number.isFinite(scale)) throw new RangeError(`The scale must be a number above 0: got ${scale}`)
 
   const width = Math.round(picture.width * scale)
-  const height = Math.round(fullHeight(picture) * scale)
+  const height = Math.round(fileHeight(picture, label) * scale)
   if (width < 1 || height < 1) throw new RangeError(`A scale of ${scale} leaves no pixels to draw`)
 
   // Loaded only for a PNG: it is a native module, and an SVG needs none of it.
@@ -109,5 +110,7 @@ export async function pictureToPng(picture: Picture, options: { readonly scale?:
   context.fillStyle = picture.look.colors.paper
   context.fillRect(0, 0, width, height)
   context.drawImage(image, 0, 0, width, height)
-  return canvas.encode('png')
+  const file = await canvas.encode('png')
+  // VEW-17: the label is in the file's own metadata as well as in its caption band.
+  return label ? withLabelMetadata(file, picture.language) : file
 }

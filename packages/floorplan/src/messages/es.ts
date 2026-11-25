@@ -1924,6 +1924,7 @@ export const es: Messages = {
   'drawing.picture.titled.keyed': '{title}, y una leyenda de lo que conviene revisar',
   'drawing.picture.empty': 'Plano',
   'drawing.key': 'Leyenda',
+  'drawing.notes': 'Notas',
   'drawing.key.rooms': 'Estancias',
   'drawing.key.outsideWall': 'Muro exterior',
   'drawing.key.insideWall': 'Muro interior',
