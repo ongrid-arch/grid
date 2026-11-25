@@ -305,13 +305,24 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
     const area = { from: room.from, to: room.to, bottom: room.floorLevel, top: room.floorLevel + room.height }
     const soft = { ...roomWords, fill: look.colors.labelSoft }
     const wide = (a: string, b: string): number => Math.max(estimateTextWidth(a, TEXT_PX.roomArea), estimateTextWidth(b, TEXT_PX.roomArea)) + 8
-    const both = tall >= TEXT_PX.roomArea * 3 && fits(name) && fits(height) ? placeLabel(area, { width: wide(name, height) * mpp, height: (2 * TEXT_PX.roomArea + 8) * mpp }, obstacles) : null
+    // VEW-56: an open-air room or a void has no ceiling, so no height is written; a room too thin
+    // for a second line keeps its name.
+    const showHeight = room.open !== true
+    const both = showHeight && tall >= TEXT_PX.roomArea * 3 && fits(name) && fits(height) ? placeLabel(area, { width: wide(name, height) * mpp, height: (2 * TEXT_PX.roomArea + 8) * mpp }, obstacles) : null
     if (both !== null) {
       roomNodes.push(el('g', attrs, [...halo(name, both, -2, roomWords), ...halo(height, both, TEXT_PX.roomArea + 2, soft)]))
       continue
     }
-    const one = tall >= TEXT_PX.roomArea * 1.5 && fits(height) ? placeLabel(area, { width: wide(height, height) * mpp, height: (TEXT_PX.roomArea + 6) * mpp }, obstacles) : null
-    if (one !== null) roomNodes.push(el('g', attrs, halo(height, one, 4, soft)))
+    const alone = (text: string, words: Attrs): SvgNode[] | null => {
+      if (tall < TEXT_PX.roomArea * 1.5 || !fits(text)) return null
+      const at = placeLabel(area, { width: wide(text, text) * mpp, height: (TEXT_PX.roomArea + 6) * mpp }, obstacles)
+      return at === null ? null : halo(text, at, 4, words)
+    }
+    // The name is the room's own word: it goes before the height, which only follows a name that does not fit.
+    const one = alone(name, roomWords) ?? (showHeight && !fits(name) ? alone(height, soft) : null)
+    // Every room keeps its name: one with no clear place for it, a thin one, has it at the middle of its cut.
+    const fallback = (): SvgNode[] => halo(name, { x: (room.from + room.to) / 2, y: room.floorLevel + room.height / 2 }, 4, roomWords)
+    roomNodes.push(el('g', attrs, one ?? fallback()))
   }
   nodes.push(el('g', { 'data-part': 'section-room-halos' }, haloNodes))
   nodes.push(el('g', { 'data-part': 'section-rooms' }, roomNodes))
