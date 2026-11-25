@@ -15,8 +15,9 @@ changed, with its old and new figures, wherever Grid says what a change did:
   → 4.25 m`.
 - A floor that states no elevation and stands elsewhere because the floors under it changed
   (a lower storey made taller, a level changed) says where it stands now, worked out as the 3D
-  view and the IFC stack it: `Floor "First" moved up 3.20 m: level 1 → 2; standing at 3.20 →
-  6.40 m`.
+  view and the IFC stack it: `Floor "Mezzanine" moved up 9.00 m: standing at 4.25 → 13.25 m`,
+  when the ground floor under it was made 13 m high instead of 4 m. A level changed is said as
+  `level 1 → 2`, and where the floor stands only when that moved it (levels are an order).
 - The answers carry the figures as data: `floors` in `grid_diff`'s answer and `floorsChanged`
   in `grid_compare`'s comparisons.
 

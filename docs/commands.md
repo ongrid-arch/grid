@@ -531,6 +531,15 @@ its faces where it was) is said to have stayed where it was. Neither is a change
 from the wall or room, and the verdict counts the ones that moved (`2 openings moved with their
 walls`).
 
+A floor in both versions that stands at another height, or has another level, height, slab or
+name, is a change of its own, said first with its old and new figures: `Floor "Mezzanine" moved
+down 9.50 m: elevation 13.75 m → 4.25 m`. Where a floor stands is worked out as the 3D view and
+the IFC stack it, so a floor that states no elevation and moved because a storey under it was
+made taller says so too (`Floor "Mezzanine" moved up 9.00 m: standing at 4.25 → 13.25 m`). The data
+lists them under `floors`. `grid write` and every change that answers with a verdict say the
+same words: a plan whose walls, openings and rooms all stand where they stood but whose
+mezzanine moved is never called the same building.
+
 Before anything is paired, the later plan is tried as the earlier one mirrored left to right or
 top to bottom, turned a quarter either way or half round, or mirrored across a diagonal. When
 one of these stands more walls in their place than the plain way, and at least half of them, the

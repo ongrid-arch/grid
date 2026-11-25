@@ -1952,6 +1952,23 @@ export const es: Messages = {
   'diff.floor.rooms.one': '{count} estancia, {area} m²',
   'diff.floor.rooms.many': '{count} estancias, {area} m²',
 
+  // --- Comparing two versions: a floor that moved up or down or changed its figures (WRT-25, `diff/floors.ts`)
+  'diff.floor.changed': 'Planta {floor}: {changes}',
+  'diff.floor.changed.inSentence': 'la planta {floor}: {changes}',
+  'diff.floor.up': 'Planta {floor} subida {by} m: {changes}',
+  'diff.floor.up.inSentence': 'la planta {floor} subida {by} m: {changes}',
+  'diff.floor.down': 'Planta {floor} bajada {by} m: {changes}',
+  'diff.floor.down.inSentence': 'la planta {floor} bajada {by} m: {changes}',
+  'diff.floor.renamed': 'renombrada como {name}',
+  'diff.floor.level': 'nivel {before} → {after}',
+  'diff.floor.elevation': 'cota {before} → {after}',
+  'diff.floor.stands': 'situada a {before} → {after} m',
+  'diff.floor.height': 'altura {before} → {after}',
+  'diff.floor.slab': 'forjado {before} → {after}',
+  'diff.floor.metres': '{value} m',
+  'diff.floor.notStated': 'sin indicar',
+  'compare.same.floors': '{after} tiene los muros, huecos y estancias de {before}, cada uno en su sitio, pero {changes}.',
+
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Plano con {count} estancias',
   'drawing.picture.keyed': 'Plano con {count} estancias y una leyenda de lo que conviene revisar',

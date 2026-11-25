@@ -45,6 +45,7 @@ import { compareText } from './order'
 import { alignPlans, type Redrawn, type RenamedId } from './place'
 import { findTurn, turnPlan, type PlanTurn } from './turn'
 import { diffPlans } from './diff'
+import { floorChanges, type FloorChange } from './floors'
 import { withPatterns } from '../patterns'
 import { changesOutsideScope } from './scope'
 import type { DiffIssue, EntityRef, IssueCode, PlanChange, PlanDiff } from './types'
@@ -154,6 +155,11 @@ export interface BuildingComparison {
   readonly turnLine: string | null
   /** Nothing stands anywhere else and nothing changed: ids aside, the same building. False for a plan mirrored or turned. */
   readonly sameBuilding: boolean
+  /**
+   * WRT-25: the floors in both versions that stand elsewhere or changed their level, elevation,
+   * height, slab or name, with the old and new figures; each is a floor line, said first.
+   */
+  readonly floors: readonly FloorChange[]
   readonly verdict: string
   readonly rooms: readonly RoomVerdict[]
   readonly changes: readonly ChangeLine[]
@@ -596,6 +602,10 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const floorLines: ChangeLine[] = []
   const floorsGone = new Set<string>()
   const floorsNew = new Set<string>()
+  // WRT-25: a floor in both versions that changed, or stands elsewhere because the floors under it
+  // changed, is a floor line with its old and new figures, never a "wall or opening change".
+  const floors = floorChanges(aligned, later)
+  const floorSaid = new Set(floors.map((f) => f.floor))
   {
     // Walls changed the same way and nothing else are one line: "9 walls height 2.60 → 2.70 m".
     const alike = new Map<string, PlanChange[]>()
@@ -618,8 +628,9 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
       if (grouped.has(change.entity.id) && change.entity.type === 'wall') continue
       if (!listed(change)) continue
       if (change.entity.type === 'floor') {
-        if (change.kind === 'modified') wallLines.push({ text: change.summary, entities: [change.entity], rooms: [] })
-        else {
+        if (change.kind === 'modified') {
+          if (!floorSaid.has(change.entity.id)) wallLines.push({ text: change.summary, entities: [change.entity], rooms: [] })
+        } else {
           const set = change.kind === 'added' ? floorsNew : floorsGone
           set.add(change.entity.id)
           floorLines.push({ text: floorLine(change.kind === 'added' ? later : aligned, change.entity.id, change.kind), entities: [change.entity], rooms: [] })
@@ -635,6 +646,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
       wallLines.push({ text: `Wall ${quoted(id)} ${what}${change.kind === 'modified' ? '' : length}${by}`, entities: [change.entity], rooms: rooms.filter((r) => headRooms.has(r)) })
     }
   }
+  for (const floor of floors) floorLines.push({ text: english(floor.said), entities: [{ type: 'floor', id: floor.floor }], rooms: [] })
   const changes: ChangeLine[] = [...floorLines, ...roomLines, ...wallLines, ...openingLines]
   // The rooms on a floor added or removed: its floor's line counts them, and the verdict does not say them again.
   const ofFloorLine = (v: RoomVerdict): boolean =>
@@ -748,6 +760,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     turn,
     turnLine: turn === null ? null : turnFirst,
     sameBuilding,
+    floors,
     verdict,
     rooms: verdicts,
     changes,
