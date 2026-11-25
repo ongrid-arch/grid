@@ -35,7 +35,7 @@ const TIDY = 'I/scenarios/s4-listing/attempt-2-tidy-outline.json'
 export const LISTING = {
   rooms: [
     { name: 'Bedroom 1', use: 'bedroom', inside: [4.1, 3.2], level: 'must', source: 'given', quote: 'Bedroom 1, 4.10 x 3.20 m' },
-    { name: 'Kitchen', quote: 'kitchen 10 x 12 ft', use: 'kitchen', inside: [2.4, 3.0], level: 'must', source: 'given', quote: 'Kitchen, 2.40 x 3.00 m' },
+    { name: 'Kitchen', use: 'kitchen', inside: [2.4, 3.0], level: 'must', source: 'given', quote: 'Kitchen, 2.40 x 3.00 m' },
     { name: 'Bathroom', use: 'bathroom', inside: [1.7, 2.0], level: 'must', source: 'given', quote: 'Bathroom, 1.70 x 2.00 m' },
     { name: 'Lounge', use: 'living', inside: [4.5, 3.6], level: 'must', source: 'given', quote: 'Lounge, 4.50 x 3.60 m' },
     { name: 'Bedroom 2', use: 'bedroom', inside: [2.7, 3.1], level: 'must', source: 'given', quote: 'Bedroom 2, 2.70 x 3.10 m' },
