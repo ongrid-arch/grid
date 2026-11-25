@@ -98,24 +98,21 @@ export function floorStatesBuilding(plan: Pick<FloorPlan, 'floors'>, floorId: st
 
 /**
  * A floor id the plan really has: `requested` when present, otherwise the
- * lowest floor.
+ * default floor (`defaultFloor`: the ground floor, not the basement).
  *
  * Resolving on every read instead of syncing state means a stale id — a floor
  * the assistant deleted, or one left over from another project — is harmless
  * and needs no effect to clean up.
  */
 export function resolveFloor(plan: FloorPlan, requested?: string | null): string {
-  const floors = planFloors(plan)
-  if (requested && floors.some((floor) => floor.id === requested)) return requested
-  return floors[0]?.id ?? DEFAULT_FLOOR_ID
+  if (requested && planFloors(plan).some((floor) => floor.id === requested)) return requested
+  return defaultFloor(plan)
 }
 
 /**
  * The floor the views open on when none is picked: the ground floor, that is
  * the first floor at level 0, else the lowest floor above ground, else the
  * lowest. A basement opens first only in a plan that is all basement.
- *
- * `resolveFloor` keeps falling back to the lowest floor: the export reads it.
  */
 export function defaultFloor(plan: FloorPlan): string {
   const floors = planFloors(plan)
@@ -135,8 +132,7 @@ export function defaultFloor(plan: FloorPlan): string {
  * needs no cleanup.
  */
 export function viewFloor(plan: FloorPlan, requested?: string | null): string {
-  if (requested && planFloors(plan).some((floor) => floor.id === requested)) return requested
-  return defaultFloor(plan)
+  return resolveFloor(plan, requested)
 }
 
 /** Wall ids that name more than one wall, so they resolve to no single storey. */

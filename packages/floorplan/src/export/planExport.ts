@@ -45,7 +45,7 @@ export interface PlanExportOptions {
   /** The IFC's project identity when the plan stores none (`FloorPlan.projectId` wins). */
   readonly projectId: string
   readonly projectName: string
-  /** The floor shown in the views; a missing or stale id falls back to the lowest floor. */
+  /** The floor shown in the views; a missing or stale id falls back to the ground floor. */
   readonly floorId?: string | null
   readonly now: Date
   /** What the reader did with the plan file (MSG-6): the parts it left out are named too. */

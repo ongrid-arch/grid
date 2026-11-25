@@ -150,7 +150,7 @@ The brief ("plan.brief.json"), each line measured as the drawing is: …
   measured). It is written in words, asked against drawn, and never as a score.
 - **The target and the drawing are measured by the same rule**: a room's net area and inside
   size as [`grid_areas`](areas.md) gives them, to the faces of its walls; widths and circles as
-  `grid_measure` gives them; the footprint to the outside face of the lowest floor's walls, its
+  `grid_measure` gives them; the footprint to the outside face of the ground floor's walls, its
   area the gross external area.
 - An `area` or an `inside` size is met within 5% of the figure asked (`briefAbout` in
   [tolerances.md](tolerances.md)); `at_least` and `at_most` are met at the figure.
