@@ -19,6 +19,7 @@ import {
   planEnvelope,
   planFloors,
   planForFloor,
+  phaseReading,
   roomCeiling,
   curveFault,
   wallAxis,
@@ -296,6 +297,21 @@ function assumptions(env: FloorEnvelope, thicknessStated: boolean): string[] {
 /** LVL-4: the slabs and roofs of the floors given, from their outlines. */
 export function envelopeTakeoff(survey: Survey, floors?: readonly string[]): EnvelopeTakeoff {
   const names = new Map(survey.facts.floors.map((f) => [f.id, f.name] as const))
+  // ARE-55: a fit-out is fitted in a shell whose slab and roof are the base's, not the work's.
+  if (survey.plan.base !== undefined) {
+    const own = planFloors(survey.plan).filter((f) => floors === undefined || floors.includes(f.id))
+    const lines: EnvelopeLine[] = own.map((f) => ({
+      floor: f.id,
+      floorName: names.get(f.id) ?? f.id,
+      outline: null,
+      slab: null,
+      roof: null,
+      state: 'assumed',
+      assumed: [],
+      why: 'the plan is a fit-out in its base plan: the slab and the roof belong to the base',
+    }))
+    return { floors: lines, slabs: null, roof: null, state: 'assumed' }
+  }
   const stated = new Map(planFloors(survey.plan).map((f) => [f.id, f.slab !== undefined && Number.isFinite(f.slab)] as const))
   const envelope = planEnvelope(survey.plan, floors === undefined ? {} : { floors })
   const lines: EnvelopeLine[] = envelope.floors.map((env) => ({
@@ -339,7 +355,10 @@ function ceilings(survey: Survey): (room: SurveyRoom) => Pick<RoomTakeoff, 'lowe
 export function planTakeoff(survey: Survey, floors?: readonly string[], rooms?: readonly string[]): Takeoff {
   const onFloor = (floor: string): boolean => floors === undefined || floors.includes(floor)
   const wallFloor = new Map(survey.facts.floors.flatMap((f) => f.walls.map((w) => [w.id, f.id] as const)))
-  const walls = survey.plan.walls.filter((wall) => wall.virtual !== true && wallFloor.has(wall.id) && onFloor(wallFloor.get(wall.id)!))
+  // ARE-55: a fit-out takes off its own walls: the base's (read as existing) are the shell, not the work.
+  const reading = survey.plan.base === undefined ? null : phaseReading(survey.plan)
+  const shellWall = (wall: Wall): boolean => reading !== null && reading.wall(wall) === 'existing'
+  const walls = survey.plan.walls.filter((wall) => wall.virtual !== true && !shellWall(wall) && wallFloor.has(wall.id) && onFloor(wallFloor.get(wall.id)!))
   const openingWidth = new Map<string, number>()
   for (const o of survey.plan.openings) openingWidth.set(o.wall, (openingWidth.get(o.wall) ?? 0) + o.width)
   // CNT-26: a garden or boundary wall, standing apart from the building, is taken off on its own run.
