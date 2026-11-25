@@ -1,4 +1,4 @@
-import type { SceneOpening, Vec2, WallElevation } from '@ongrid/floorplan/geometry'
+import { tolerance, type SceneOpening, type Vec2, type WallElevation } from '@ongrid/floorplan/geometry'
 
 /**
  * VEW-58: a wall of a floor shown as a cutaway, lowered to a height above its floor. Pure, with
@@ -6,8 +6,8 @@ import type { SceneOpening, Vec2, WallElevation } from '@ongrid/floorplan/geomet
  * its y up from the floor.
  */
 
-/** Closer than this to the cut is on it, in metres. */
-const ON_CUT = 1e-9
+/** Closer than this to the cut is on it, in metres: a height below `noLength` is none. */
+const ON_CUT = tolerance('noLength')
 
 /** The polygon kept below `height`: Sutherland-Hodgman against the half-plane under the cut. */
 function below(points: readonly Vec2[], height: number): Vec2[] {
