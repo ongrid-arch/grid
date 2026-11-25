@@ -7,6 +7,8 @@
  *
  * - the issues: a door that now joins other rooms (MSG-14), an opening a changed wall now
  *   meets, a room that no longer closes, the notes of the drawing check that came and went;
+ *   compared by phase (`work`, CMD-31), a door whose room the work replaced is no issue and a
+ *   window the work leaves between two rooms is one;
  * - a short verdict, room by room, with how many ids were only renamed;
  * - the changes, one line each;
  * - with rooms named, the changes outside them (the scope check);
@@ -37,7 +39,7 @@
 import type { FloorPlan, Opening, PlanIndex, Room, Wall } from '../plan'
 import { indexPlan } from '../plan'
 import { roomFloorArea, tryRoomPolygon } from '../room'
-import { doorsThatChangedRooms, openingFaces } from '../rules/doors'
+import { doorsThatChangedRooms, openingFaces, type DoorFace, type DoorRoomsChange } from '../rules/doors'
 import { areaText, metresText } from '../rounding'
 import { quoted } from '../../types/planText'
 import type { Phase } from '../../types/floorplan'
@@ -66,6 +68,8 @@ export type ComparisonIssueCode =
   | 'door_joins_other_rooms'
   /** A wall that was added or moved now meets another wall inside an opening of it. */
   | 'opening_crossed'
+  /** CMD-31, by phase only: a window that had a room on one side at most and stands between two rooms after the work. */
+  | 'window_between_rooms'
   /** A note of the drawing check the later version has and the earlier did not. */
   | 'note_added'
   /** A note of the earlier version the later one no longer has. */
@@ -159,6 +163,12 @@ export interface CompareOptions {
    * a plan compared with itself by phase, whose pairs are one part before and after its work.
    */
   readonly phases?: boolean
+  /**
+   * CMD-31: the two plans are one plan before and after its own work (a comparison by phase).
+   * A door whose room the work replaces with a new one is then no issue, and a window the work
+   * leaves between two rooms is one. Default false.
+   */
+  readonly work?: boolean
 }
 
 export interface OpeningMovedWith {
@@ -375,6 +385,61 @@ function crossedOpenings(later: FloorPlan, changed: ReadonlySet<string>): Compar
   return issues
 }
 
+const faceKey = (face: DoorFace): string => ('room' in face ? `room:${face.room}` : 'outside' in face ? 'outside' : 'undrawn')
+
+/** The faces of `from` that `to` has not, each as often as it has it more. */
+function facesGone(from: readonly DoorFace[], to: readonly DoorFace[]): DoorFace[] {
+  const left = to.map(faceKey)
+  return from.filter((face) => {
+    const at = left.indexOf(faceKey(face))
+    if (at === -1) return true
+    left.splice(at, 1)
+    return false
+  })
+}
+
+/**
+ * CMD-31: whether a door's change of rooms is its work's own: every room it no longer joins is one
+ * the work takes out, and each is taken by a room the work builds. A door that comes to join the
+ * outside, floor not drawn, or a room that stood before the work, joins other rooms.
+ */
+function roomReplaced(change: DoorRoomsChange, earlierRooms: ReadonlySet<string>, laterRooms: ReadonlySet<string>): boolean {
+  const lost = facesGone(change.before, change.after)
+  const gained = facesGone(change.after, change.before)
+  return lost.length === gained.length
+    && lost.every((face) => 'room' in face && !laterRooms.has(face.room))
+    && gained.every((face) => 'room' in face && !earlierRooms.has(face.room))
+}
+
+/**
+ * CMD-31: the windows in both states that had a room on one side at most before the work and
+ * stand between two rooms after it: an old window that now looks into a room built against it.
+ * A window the work adds is placed by it and is not compared.
+ */
+function windowsBetweenRooms(later: FloorPlan, faces: { readonly base: ReturnType<typeof openingFaces>; readonly head: ReturnType<typeof openingFaces> }): ComparisonIssue[] {
+  const rooms = new Map(later.rooms.map((r) => [r.id, r] as const))
+  const roomName = (id: string): Value => name(rooms.get(id)?.name || id)
+  const issues: ComparisonIssue[] = []
+  for (const opening of later.openings) {
+    if (opening.type !== 'window') continue
+    const was = faces.base.get(opening.id)
+    const is = faces.head.get(opening.id)
+    if (was === undefined || is === undefined) continue
+    const [first, second] = is.sides
+    if (!('room' in first) || !('room' in second)) continue
+    const before = was.sides.find((face) => !('room' in face))
+    if (before === undefined) continue
+    const message = english(said('diff.issue.windowBetweenRooms', {
+      opening: name(opening.id),
+      first: roomName(first.room),
+      second: roomName(second.room),
+      before: said('outside' in before ? 'diff.opening.side.outside' : 'diff.opening.side.none')
+    }))
+    issues.push({ code: 'window_between_rooms', message, entities: [{ type: 'opening', id: opening.id }, { type: 'room', id: first.room }, { type: 'room', id: second.room }] })
+  }
+  return issues
+}
+
 function noteIssues(notes: CompareOptions['notes'], rename: (kind: string, id: string) => string): ComparisonIssue[] {
   if (notes === undefined) return []
   const key = (line: NoteLike, map: (kind: string, id: string) => string): string =>
@@ -413,15 +478,16 @@ const WALL_FIGURES: ReadonlySet<string> = new Set(['thickness', 'height', 'kind'
 
 const ISSUE_ORDER: Readonly<Record<string, number>> = {
   door_joins_other_rooms: 0,
-  opening_crossed: 1,
-  room_unclosed: 2,
-  dangling_host: 3,
-  invalid_base: 4,
-  invalid_head: 5,
-  unknown_target: 6,
-  note_added: 7,
-  note_gone: 8,
-  suspected_id_churn: 9
+  window_between_rooms: 1,
+  opening_crossed: 2,
+  room_unclosed: 3,
+  dangling_host: 4,
+  invalid_base: 5,
+  invalid_head: 6,
+  unknown_target: 7,
+  note_added: 8,
+  note_gone: 9,
+  suspected_id_churn: 10
 }
 
 /** WRT-20: a floor added to or removed from a plan, with the rooms on it and their net area. */
@@ -793,8 +859,13 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const rename = (kind: string, id: string): string => kinds[kind]?.get(id) ?? alignment.walls.get(id) ?? alignment.openings.get(id) ?? alignment.rooms.get(id) ?? id
   const changedWalls = new Set(diff.changes.filter((c) => c.entity.type === 'wall' && (c.kind === 'added' || c.motion !== undefined)).map((c) => c.entity.id))
   const scope = options.rooms === undefined ? null : changesOutsideScope(diff, aligned, later, { rooms: options.rooms })
+  // CMD-31: by phase, a door whose room the work replaced is the work; a window it leaves between two rooms is not.
+  const earlierRoomIds = new Set(aligned.rooms.map((r) => r.id))
+  const laterRoomIds = new Set(later.rooms.map((r) => r.id))
+  const doorChanges = doorsThatChangedRooms(aligned, later).filter((d) => options.work !== true || !roomReplaced(d, earlierRoomIds, laterRoomIds))
   const issues: ComparisonIssue[] = [
-    ...doorsThatChangedRooms(aligned, later).map((d): ComparisonIssue => ({ code: 'door_joins_other_rooms', message: `Door ${d.message}`, entities: [{ type: 'opening', id: d.opening }] })),
+    ...doorChanges.map((d): ComparisonIssue => ({ code: 'door_joins_other_rooms', message: `Door ${d.message}`, entities: [{ type: 'opening', id: d.opening }] })),
+    ...(options.work === true ? windowsBetweenRooms(later, faces) : []),
     ...crossedOpenings(later, changedWalls),
     // WRT-32: written rooms first, a wall is named after its rooms, so a wall under a new id is a room's new id, not churn.
     ...diff.issues.filter((i) => !(roomsFirst && i.code === 'suspected_id_churn' && i.entities.every((e) => e.type === 'wall'))).map((i: DiffIssue): ComparisonIssue => i),

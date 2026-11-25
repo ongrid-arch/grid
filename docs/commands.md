@@ -585,6 +585,10 @@ The answer, in this order:
 - **Issues**: a door that now joins other rooms, a wall added or moved that now meets another
   wall inside an opening, a room that no longer closes, and the notes of `grid check` that came
   and went.
+  With `--since phase` the issues are judged by what the work does (CMD-31): a door whose room
+  the work takes out and replaces with a new one is the work, not an issue, while a door that
+  comes to join the outside or a room that stood before still is; and an old window the work
+  leaves between two rooms, one built against it, is an issue (`window_between_rooms`).
 - **Verdict**: room by room, how many ids were only renamed, and with `--rooms` how many changes
   are outside the rooms named. The same building under new ids reads `Same building, 28 ids
   renamed (9 walls, 13 openings, 6 rooms): every room, wall and opening stands where it stood.`

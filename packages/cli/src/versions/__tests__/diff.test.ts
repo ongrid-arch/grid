@@ -366,3 +366,28 @@ describe('a part whose phase changed between two versions (MSG-25)', () => {
     expect(byPhase.out).not.toContain('now to be demolished')
   })
 })
+
+describe('the issues of a comparison by phase (CMD-31)', () => {
+  it('says no door whose room the work replaces: the knock-through is the work', async () => {
+    const dir = project({ 'plan.json': readFileSync(join(FIXTURES, 'refurbishment.json'), 'utf8') })
+    const byPhase = await grid(dir, 'diff', '--since', 'phase', '--show', 'issues')
+    expect(byPhase.status, byPhase.err).toBe(0)
+    expect(byPhase.out).toContain('Issues: none.')
+    expect(byPhase.out).not.toContain('Door "d-living"')
+  })
+
+  it('says an old window the work leaves between two rooms', async () => {
+    const plan = JSON.parse(readFileSync(join(FIXTURES, 'refurbishment.json'), 'utf8')) as { walls: unknown[]; rooms: unknown[] }
+    // A new room built against the old north wall, over the bathroom's window.
+    plan.walls.push(
+      { id: 'x1', start: [10, 6], end: [10, 9], thickness: 0.3, height: 2.7, kind: 'exterior', phase: 'new' },
+      { id: 'x2', start: [10, 9], end: [5, 9], thickness: 0.3, height: 2.7, kind: 'exterior', phase: 'new' },
+      { id: 'x3', start: [5, 9], end: [5, 6], thickness: 0.3, height: 2.7, kind: 'exterior', phase: 'new' },
+    )
+    plan.rooms.push({ id: 'utility', name: 'Utility room', use: 'utility', boundary: ['wn', 'x3', 'x2', 'x1'], phase: 'new' })
+    const dir = project({ 'plan.json': JSON.stringify(plan) })
+    const byPhase = await grid(dir, 'diff', '--since', 'phase', '--show', 'issues')
+    expect(byPhase.status, byPhase.err).toBe(0)
+    expect(byPhase.out).toContain('Issues (1):\n  1. Window "win-bath" now stands between "Bathroom" and "Utility room"; before the work one side of it was outside')
+  })
+})
