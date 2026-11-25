@@ -239,6 +239,8 @@ const compassOf = (n: P, table: Readonly<Record<string, P>> = COMPASS): string =
   Object.keys(table).reduce((best, k) => (dot(n, table[k]!) > dot(n, table[best]!) ? k : best))
 
 const pairKey = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`)
+/** LVL-12: one of two rooms is outdoor space (CNT-7) and the other is not: the wall between faces outside. */
+const facesOutdoor = (a: Pick<RoomDraft, 'outdoor'>, b: Pick<RoomDraft, 'outdoor'>): boolean => (a.outdoor === null) !== (b.outdoor === null)
 
 // ---------------------------------------------------------------------------------------------
 // What the text says
@@ -876,7 +878,9 @@ class Compiler {
       if (say && say.t !== null) return say.t
     }
     const ts = [room, ...others].map((r) => r.wallsT).filter((t): t is number => t !== null)
-    return ts.length > 0 ? Math.max(...ts) : this.rule.inside
+    if (ts.length > 0) return Math.max(...ts)
+    // LVL-12: a room beside outdoor space (a courtyard, a terrace) is set off by an outside wall.
+    return others.length === 1 && facesOutdoor(room, others[0]!) ? this.rule.outside : this.rule.inside
   }
 
   private readRoom(t: string[], at: number, ctx: PlaceCtx | null): RoomDraft {
@@ -1624,6 +1628,8 @@ class Compiler {
           fl.between.get(key)
         let kind: WallKind =
           (spec && spec.kind !== null && spec.kind !== 'virtual' ? spec.kind : null) ??
+          // LVL-12: the wall between a room and outdoor space is an outside wall.
+          (facesOutdoor(A, B) ? 'exterior' : null) ??
           this.tkinds.get(Math.round(d * 1000)) ??
           A.wallsKind ??
           B.wallsKind ??

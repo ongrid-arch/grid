@@ -10,6 +10,7 @@ import { checkDoorSweeps, validateDoorSweeps } from '../sweep'
 import { handingFromRooms, handingInRooms, hingeSeenFrom, sideSeenFrom } from '../handing'
 import { buildFloorPlan } from '../floorplan'
 import { openingSymbol } from '../openingSymbol'
+import { guessedDoorKind } from '../openingKinds'
 import { openingParts } from '../openingParts'
 import { buildScene } from '../scene3d'
 import { validatePlan } from '../validate'
@@ -163,10 +164,22 @@ describe('the door-swing check by kind', () => {
   it('asks about a wide door that states no kind, and not once it states one (lab EL-5)', () => {
     const wide = bare([wall('w0', [0, 0], [6, 0], { height: 5 })], [door('d1', 'w0', 1, { width: 3.5, height: 4.5, hinge: 'start', swing: 'left' })])
     const issue = validateDoorSweeps(wide, (o) => o).find((i) => i.code === 'opening/wide-single-leaf')
-    expect(issue).toMatchObject({ id: 'd1', severity: 'warning', message: 'This door states no kind, so it is drawn and checked as one swinging leaf; a leaf this wide is rare.' })
+    expect(issue).toMatchObject({ id: 'd1', severity: 'warning', message: 'This door states no kind, so it is checked as one swinging leaf and drawn as Grid\'s guess, a pair or a sliding door; a leaf this wide is rare.' })
     expect(codes({ ...wide, openings: [{ ...wide.openings[0]!, kind: 'roller' }] })).toEqual([])
     expect(codes({ ...wide, openings: [{ ...wide.openings[0]!, kind: 'single' }] })).toEqual([])
     expect(codes({ ...wide, openings: [{ ...wide.openings[0]!, width: 1.49 }] })).toEqual([])
+  })
+
+  it('guesses a pair or a sliding door for a wide door that states no kind, to draw it by (VEW-22)', () => {
+    expect(guessedDoorKind(0.9, {})).toBeNull()
+    expect(guessedDoorKind(1.49, { swing: 'left' })).toBeNull()
+    expect(guessedDoorKind(1.8, { swing: 'left' })).toBe('double')
+    expect(guessedDoorKind(3, { swing: 'right' })).toBe('double')
+    expect(guessedDoorKind(1.8, {})).toBe('sliding')
+    expect(guessedDoorKind(4, { swing: 'left' })).toBe('sliding')
+    // A door that states its kind, or the part of it that opens, is drawn as it states.
+    expect(guessedDoorKind(4, { kind: 'single' })).toBeNull()
+    expect(guessedDoorKind(4, { opens: { width: 0.9 } })).toBeNull()
   })
 })
 

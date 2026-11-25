@@ -295,6 +295,36 @@ export const TOLERANCES = {
       'point, so no dimension in a chain is shorter than this.',
     basis: own
   },
+  chainSliver: {
+    kind: 'tolerance',
+    value: 0.01,
+    unit: 'm',
+    decides:
+      'Two points between the ends of a chain of dimensions outside the plan closer than this ' +
+      'along it are one point (VEW-22): a wall a degree or two off square leaves no sliver of a ' +
+      'few millimetres in the chain.',
+    basis: own
+  },
+  chainThinWall: {
+    kind: 'tolerance',
+    value: 0.12,
+    unit: 'm',
+    decides:
+      'A solid wall thinner than this that meets a facade is marked in the walls chain at its ' +
+      'centre line, as a dividing line is, so its thickness is not written as a figure of its ' +
+      'own (VEW-22); a thicker wall is marked at both faces.',
+    basis: own
+  },
+  wingShare: {
+    kind: 'tolerance',
+    value: 0.25,
+    unit: 'ratio',
+    decides:
+      'Outside walls that run one way (square to each other) and hold at least this share of ' +
+      'the outside length, in three walls or more, are a wing, dimensioned square to itself ' +
+      '(VEW-22). One way holding half the length or more is the plan\'s main directions.',
+    basis: own
+  },
 
   // ── Writing a plan rooms first (rooms/, WRT-2) ────────────────────────────────────────────
   roomsWallWidest: {
@@ -719,7 +749,8 @@ export const TOLERANCES = {
     unit: 'm',
     decides:
       'Two rooms side by side whose floors stand closer than this in height share a level: no step ' +
-      'is drawn between them.',
+      'is drawn between them. So do two floors that state their elevations (LVL-11): neither is ' +
+      'set against the other as a floor below it.',
     basis: own
   },
   floorOffsetLargest: {
@@ -754,7 +785,9 @@ export const TOLERANCES = {
       'back from it, by more than this and half the thickest wall that stretch runs along is said ' +
       'not to line up (walls of different thickness on one axis have their faces apart by up to ' +
       'that), and so is a stair room or a shaft moved by more than this from the one it lies ' +
-      'over, unless the plan marks it as meant.',
+      'over, unless the plan marks it as meant. A lower floor lies under a floor only where their ' +
+      'outlines share more than this and the whole of the thickest wall along that share (LVL-11): ' +
+      'two halves of a split level overlap by the wall between them, and neither is under the other.',
     basis: own
   },
   stairStepLength: {

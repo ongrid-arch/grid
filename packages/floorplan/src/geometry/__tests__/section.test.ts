@@ -349,3 +349,30 @@ describe('a level written in a display (VEW-20)', () => {
     expect(levelText(-3.2, { length: 'ft-in', area: 'ft2', decimal: 'point' })).toBe('−10\'-6"')
   })
 })
+
+describe('a glazed wall type in section (VEW-23)', () => {
+  const plan = (): FloorPlan =>
+    edit(twoFloorHouse(), (p) => {
+      p.types = { walls: [{ id: 'curtain', name: 'Curtain wall', thickness: 0.15, glazed: true }, { id: 'precast', name: 'Precast', thickness: 0.15 }] }
+      for (const w of p.walls) if (w.id === 's1' || w.id === 's2') w.wallType = 'curtain'
+      for (const w of p.walls) if (w.id === 'n1' || w.id === 'n2') w.wallType = 'precast'
+    })
+  const line: SectionLine = { from: { x: 3, y: -2 }, to: { x: 3, y: 10 }, toward: 'left' }
+
+  it('lists a glazed wall apart from the solid cut and keeps a solid wall solid', () => {
+    const section = planSection(plan(), line)
+    const walls = section.parts.filter((p) => p.kind === 'wall')
+    const glazed = walls.filter((p) => p.glazed === true).map((p) => p.id)
+    expect(glazed.length).toBeGreaterThan(0)
+    expect(glazed.every((id) => id.startsWith('s'))).toBe(true)
+    expect(section.glass.map((p) => p.id)).toEqual(glazed)
+    expect(walls.some((p) => p.glazed !== true && p.id.startsWith('n'))).toBe(true)
+    expect(ringsArea(section.glass.flatMap((p) => p.rings))).toBeGreaterThan(0)
+  })
+
+  it('leaves the glazed wall out of the solid cut', () => {
+    const all = planSection(edit(plan(), (p) => { delete p.types }), line)
+    expect(all.glass).toEqual([])
+    expect(area(planSection(plan(), line))).toBeLessThan(area(all))
+  })
+})
