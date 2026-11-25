@@ -120,6 +120,7 @@ import {
   type ArgSpec,
   type GridTool,
   type ToolContext,
+  nearestList,
 } from './toolkit'
 
 const q = (text: string): string => JSON.stringify(text)
@@ -1750,8 +1751,9 @@ function cropPart(plan: FloorPlan, floor: string, crop: string): PartBounds {
   if (named.length > 1) throw new ToolRefusal(`${named.length} rooms on that floor are named so: crop by id, one of ${named.map((r) => q(r.id)).join(', ')}.`)
   const room = named[0] && parts.find((p) => p.id === named[0]!.id)
   if (room) return room
-  const rooms = plan.rooms.filter((r) => floorOf(r) === floor).slice(0, 30).map((r) => `${q(r.id)} (${q(r.name)})`)
-  throw new ToolRefusal(`crop names no room, door, window or wall drawn on floor ${q(floor)}, nor a room's name. Its rooms: ${rooms.join(', ') || 'none'}.`)
+  const onFloor = plan.rooms.filter((r) => floorOf(r) === floor)
+  const rooms = nearestList(crop, onFloor.map((r) => ({ id: r.id, note: ` (${q(r.name)})` })))
+  throw new ToolRefusal(`crop names no room, door, window or wall drawn on floor ${q(floor)}, nor a room's name. Its nearest rooms: ${onFloor.length === 0 ? 'none' : rooms}.`)
 }
 
 /** The rooms, doors and windows of one floor, by id, as the check view draws them. */

@@ -85,6 +85,19 @@ export interface SurveyFixtures {
   readonly rows: readonly FixtureRow[]
   readonly items: readonly Item[]
   readonly obstacles: (floor: string) => Obstacle[]
+  /** CNT-23: the obstacles on a floor whose footprints reach the box widened by `margin`; the rest cannot touch a measure made inside it. */
+  readonly near: (floor: string, box: Box, margin: number) => Obstacle[]
+  /** An item or its row by id, found without a scan. */
+  readonly itemById: ReadonlyMap<string, Item>
+  readonly rowById: ReadonlyMap<string, FixtureRow>
+}
+
+/** A box on the plan, in metres. */
+export interface Box {
+  readonly minX: number
+  readonly minY: number
+  readonly maxX: number
+  readonly maxY: number
 }
 
 const fixturesCache = new WeakMap<Survey, SurveyFixtures>()
@@ -100,13 +113,63 @@ export function fixturesOf(survey: Survey): SurveyFixtures {
 
 function fixturesOfPlan(survey: Survey): SurveyFixtures {
   const rows = planFixtures(survey.plan).rows
-  const items = (survey.plan.items ?? []).filter((item) => rows.some((row) => row.id === item.id))
-  const byFloor = new Map<string, Obstacle[]>()
+  const rowById = new Map(rows.map((row) => [row.id, row] as const))
+  const items = (survey.plan.items ?? []).filter((item) => rowById.has(item.id))
+  const itemById = new Map(items.map((item) => [item.id, item] as const))
+  const byFloor = new Map<string, { obstacle: Obstacle; box: Box }[]>()
+  const listByFloor = new Map<string, Obstacle[]>()
   for (const row of rows) {
-    const item = items.find((i) => i.id === row.id)!
-    byFloor.set(row.floor, [...(byFloor.get(row.floor) ?? []), { id: row.id, outline: itemFootprint(item) }])
+    const outline = itemFootprint(itemById.get(row.id)!)
+    const list = byFloor.get(row.floor) ?? []
+    list.push({ obstacle: { id: row.id, outline }, box: boxOf(outline) })
+    byFloor.set(row.floor, list)
   }
-  return { rows, items, obstacles: (floor) => byFloor.get(floor) ?? [] }
+  return {
+    rows,
+    items,
+    itemById,
+    rowById,
+    obstacles: (floor) => {
+      // The same list every time, so what is worked out from it once (`fixtureSpace`) is kept.
+      let list = listByFloor.get(floor)
+      if (list === undefined) {
+        list = (byFloor.get(floor) ?? []).map((entry) => entry.obstacle)
+        listByFloor.set(floor, list)
+      }
+      return list
+    },
+    near: (floor, box, margin) =>
+      (byFloor.get(floor) ?? [])
+        .filter((e) => e.box.maxX >= box.minX - margin && e.box.minX <= box.maxX + margin && e.box.maxY >= box.minY - margin && e.box.minY <= box.maxY + margin)
+        .map((entry) => entry.obstacle),
+  }
+}
+
+function boxOf(points: readonly Vec2[]): Box {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const p of points) {
+    minX = Math.min(minX, p.x)
+    minY = Math.min(minY, p.y)
+    maxX = Math.max(maxX, p.x)
+    maxY = Math.max(maxY, p.y)
+  }
+  return { minX, minY, maxX, maxY }
+}
+
+/**
+ * How far past a room's box a fixture can still change what is measured in it (CNT-23). A
+ * doorway's approach depth reaches past its wall's far face; the way through a room lists the
+ * fixtures within two steps of its grid of the narrowest point; and where a doorway or a dividing
+ * line opens the room's outline, a fixture just beyond it can be the nearest thing to a point
+ * inside, as far out as half the length of the opening. Anything farther cannot change a figure.
+ */
+function reachOf(survey: Survey, room: SurveyRoom, box: Box, openings: number): number {
+  const thickest = survey.plan.walls.reduce((most, wall) => Math.max(most, wall.thickness), 0)
+  const step = Math.max(tolerance('useRaster'), Math.sqrt(((box.maxX - box.minX) * (box.maxY - box.minY)) / limit('useRasterCells')))
+  return limit('useApproachDepth') + thickest + 2 * step + openings / 2
 }
 
 /** Where a door, an opening or a dividing line (`via`) meets the room, or null. */
@@ -120,7 +183,8 @@ export function mouthOf(survey: Survey, room: SurveyRoom, via: string): Segment 
 }
 
 function namesOf(items: readonly Item[], ids: readonly string[]): string {
-  return items.filter((item) => ids.includes(item.id)).map(itemName).join(', ')
+  const wanted = new Set(ids)
+  return items.filter((item) => wanted.has(item.id)).map(itemName).join(', ')
 }
 
 export function besideText(passage: { beside: { fixtures: readonly string[]; wall: boolean } }, items: readonly Item[]): string {
@@ -160,8 +224,16 @@ export function waysOf(survey: Survey, room: SurveyRoom): { via: string; opening
 export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?: unknown; diameter?: unknown; clearance?: unknown }, L: Length): IndicatorAnswer {
   const lines: string[] = []
   const indicators: Indicator[] = []
-  const { rows, items, obstacles: onFloor } = fixturesOf(survey)
-  const obstacles = onFloor(room.facts.floor)
+  const { rows, items, near, obstacles: onFloor, itemById, rowById } = fixturesOf(survey)
+  // CNT-23: only what stands in or against this room can change what is measured in it.
+  const box = boxOf(room.polygon)
+  const mouthsLength = waysOf(survey, room).reduce((sum, way) => {
+    const mouth = mouthOf(survey, room, way.via)
+    return sum + (mouth === null ? 0 : Math.hypot(mouth[1].x - mouth[0].x, mouth[1].y - mouth[0].y))
+  }, 0)
+  const obstacles = near(room.facts.floor, box, reachOf(survey, room, box, mouthsLength))
+  // A ray from a fixture's face can pass out through a doorway and meet a fixture in the next room.
+  const everyFixture = onFloor(room.facts.floor)
   const own = rows.filter((row) => row.room === room.facts.id)
   const name = q(room.facts.name)
   const add = (indicator: Indicator, text: string): void => {
@@ -220,8 +292,8 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
   // The floor in front of and beside each fixture.
   const space = figureOf(given.clearance, 'useClearSpace')
   for (const row of own) {
-    const item = items.find((i) => i.id === row.id)!
-    const found = fixtureSpace(item, room.polygon, room.holes, obstacles)
+    const item = itemById.get(row.id)!
+    const found = fixtureSpace(item, room.polygon, room.holes, everyFixture)
     const sides = [['in front', found.front], ['to its left', found.left], ['to its right', found.right]] as const
     const said = sides.map(([where, v]) => `${where} ${v === null ? 'open' : L(v)}`).join(', ')
     const bounded = sides.flatMap(([where, v]) => (v === null ? [] : [{ where, v }]))
@@ -238,7 +310,7 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
     const opening = survey.plan.openings.find((o) => o.id === facts.id)
     const wall = survey.plan.walls.find((w) => w.id === facts.wall)
     if (!opening || !wall) continue
-    const cover = windowCover(wall, opening, obstacles.map((o) => ({ ...o, height: rows.find((r) => r.id === o.id)!.height })))
+    const cover = windowCover(wall, opening, obstacles.map((o) => ({ ...o, height: rowById.get(o.id)!.height })))
     if (cover.by.length === 0) continue
     const depth: Figure = { value: limit('useApproachDepth'), from: 'grid' }
     add(

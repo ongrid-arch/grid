@@ -39,6 +39,7 @@
  */
 
 import { planInState } from './phases'
+import { wallTypeOf } from './partTypes'
 import type { MultiPolygon } from 'polygon-clipping'
 import { heightByDefault } from '../types/floorplan'
 import type { Floor, FloorPlan, RoofShape, Wall } from './plan'
@@ -99,6 +100,8 @@ export interface SectionPart {
    * room on one face only); null where it has rooms on both faces, or none.
    */
   readonly outside?: 'left' | 'right' | null
+  /** VEW-23: for a wall: its type is glazed, so it is cut as glass in a frame, not as solid. */
+  readonly glazed?: true
 }
 
 export type SectionFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'plinth'
@@ -173,6 +176,8 @@ export interface PlanSection {
   readonly cut: readonly SectionPiece[]
   /** Every part cut, one by one, in plan order: walls, then slabs and roofs, then stairs. */
   readonly parts: readonly SectionPart[]
+  /** VEW-23: the walls of a glazed type the line cuts, apart from `cut`: glass in a frame, never solid. */
+  readonly glass: readonly SectionPart[]
   /** What lies beyond the cut, farthest first. */
   readonly beyond: readonly SectionFace[]
   /**
@@ -398,7 +403,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         for (const [x0, x1] of inside(frame, [polygon])) rings.push(rect(snap, x0, x1, base + part.zFrom, base + part.zTo))
       }
       if (rings.length > 0) {
-        parts.push({ kind: 'wall', id: wall.id, floor: floor.id, rings, outside: outsideAt(frame, wall, sides) })
+        const glazed = wallTypeOf(plan, wall)?.glazed === true
+        parts.push({ kind: 'wall', id: wall.id, floor: floor.id, rings, outside: outsideAt(frame, wall, sides), ...(glazed ? { glazed: true as const } : {}) })
         if (heightByDefault(plan, wall)) defaultHeights.set(floor.id, [...(defaultHeights.get(floor.id) ?? []), wall.id])
         if (marks.assumed('wall', wall.id)) markedWalls.push(wall.id)
       }
@@ -738,10 +744,12 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     taken({ kind: 'waist', ids: waisted, hatched: false, pieces: [] }, said('drawing.section.taken.waist', { ids: ids(waisted), waist: num(metresText(stairWaist())) }))
   }
 
-  const cut = joined(parts.flatMap((p) => p.rings))
+  const glass = parts.filter((p) => p.glazed === true)
+  const cut = joined(parts.filter((p) => p.glazed !== true).flatMap((p) => p.rings))
   beyondOrder(faces)
   const points: Vec2[] = [
     ...cut.flatMap((p) => p.outline),
+    ...glass.flatMap((p) => p.rings.flat()),
     ...faces.flatMap((f) => (f.edge === null ? f.pieces.flatMap((p) => p.outline) : [...f.edge])),
     ...segments.flatMap(([a, b]) => [{ x: a, y: ground.level }, { x: b, y: ground.level }]),
     { x: 0, y: ground.level },
@@ -755,6 +763,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     look: frame.look,
     cut,
     parts,
+    glass,
     beyond: faces,
     ground: { level: ground.level, stated: ground.stated, segments },
     levels: levels.sort((a, b) => a.level - b.level),
