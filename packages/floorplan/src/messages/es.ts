@@ -2354,6 +2354,7 @@ export const es: Messages = {
   'read.building.floors': 'Un edificio indica al menos una planta',
   'areas.buildings.heading': 'Edificios, tal como los nombra el plano:',
   'takeoff.assumed.noRoofAbove': 'sin cubierta: el plano indica {above} sobre esta planta',
+  'takeoff.fitOut.noSlabRoof': 'el plano es una reforma interior dentro de su plano base: la losa y la cubierta son del plano base',
   'takeoff.assumed.above.common': 'una zona común del edificio',
   'takeoff.assumed.above.neighbour': 'un vecino',
   'drawing.key.virtual': 'Abierto a la estancia contigua',

@@ -2347,6 +2347,7 @@ export const en = {
   'read.building.floors': 'A building lists at least one floor',
   'areas.buildings.heading': 'Buildings, as the plan names them:',
   'takeoff.assumed.noRoofAbove': 'no roof: the plan states {above} above this floor',
+  'takeoff.fitOut.noSlabRoof': 'the plan is a fit-out in its base plan: the slab and the roof belong to the base',
   'takeoff.assumed.above.common': 'a common part of the building',
   'takeoff.assumed.above.neighbour': 'a neighbour',
   'drawing.key.virtual': 'Open to the next room',

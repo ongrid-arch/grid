@@ -308,7 +308,7 @@ export function envelopeTakeoff(survey: Survey, floors?: readonly string[]): Env
       roof: null,
       state: 'assumed',
       assumed: [],
-      why: 'the plan is a fit-out in its base plan: the slab and the roof belong to the base',
+      why: english(said('takeoff.fitOut.noSlabRoof')),
     }))
     return { floors: lines, slabs: null, roof: null, state: 'assumed' }
   }
