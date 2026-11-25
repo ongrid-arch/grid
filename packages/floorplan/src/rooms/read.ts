@@ -151,6 +151,9 @@ function openingDiffers(a: Opening, b: Opening): string | null {
   return otherKeys(a, b, ['id', 'wall', 'type', 'offset', 'width', 'sill', 'height', 'hinge', 'swing', 'kind', 'opens', ...FACTS_CARRIED])
 }
 
+/** What a part the writing does not give back is said to do. */
+const NOT_THERE = 'is not there'
+
 interface Difference {
   readonly kind: 'wall' | 'room' | 'opening'
   readonly id: string
@@ -162,7 +165,7 @@ function differences<T extends { id: string }>(kind: Difference['kind'], before:
   const byId = new Map(after.map((x) => [x.id, x]))
   for (const a of before) {
     const b = byId.get(a.id)
-    if (!b) out.push({ kind, id: a.id, what: 'is not there' })
+    if (!b) out.push({ kind, id: a.id, what: NOT_THERE })
     else {
       const what = differs(a, b)
       if (what !== null) out.push({ kind, id: a.id, what })
@@ -748,7 +751,7 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
         if (line.startsWith('raw ')) continue
         const a = plan.openings.find((o) => o.id === id)!
         const b = written.plan.openings.find((o) => o.id === id)
-        const what = b === undefined ? 'is not there' : openingDiffers(a, b)
+        const what = b === undefined ? NOT_THERE : openingDiffers(a, b)
         if (what !== null) {
           d.openings.set(id, rawLine('opening', a))
           d.why.set(id, english(said('describe.rooms.rawOpening.changes', { what })))
