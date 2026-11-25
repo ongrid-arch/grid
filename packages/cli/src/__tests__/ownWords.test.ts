@@ -35,7 +35,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/brief/answer.ts': [2, 'notYet'],
   'packages/cli/src/brief/brief.ts': [51, 'agent'],
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
-  'packages/cli/src/brief/lines.ts': [20, 'notYet'],
+  // CNT-27: one more, a shaft counted once in a count of rooms.
+  'packages/cli/src/brief/lines.ts': [21, 'notYet'],
   'packages/cli/src/command/check.ts': [10, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
   'packages/cli/src/command/diff.ts': [13, 'command'],
@@ -107,7 +108,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
   // ARE-18: two more, why a route's walked length is not given.
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
-  'packages/cli/src/mcp/readTools.ts': [349, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [362, 'tools'],
+  // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
   // ARE-27: one more, grid_check's word on the brief's missed figures.
@@ -137,7 +139,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/measure.ts': [3, 'notYet'],
   'packages/cli/src/quantities/query.ts': [26, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
-  'packages/cli/src/quantities/schedule.ts': [15, 'notYet'],
+  // CNT-27: one more, the CSV's column for the rows in no total.
+  'packages/cli/src/quantities/schedule.ts': [16, 'notYet'],
   'packages/cli/src/quantities/site.ts': [21, 'notYet'],
   'packages/cli/src/quantities/state.ts': [3, 'notYet'],
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
@@ -325,7 +328,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and MSG-19 3: the seen file's refusals (seen/marks.ts).
     // and WRT-28 3: the flats lines of a merge (edit/merge.ts) (odd/tasks/WRT-28.md).
     // and WRT-33 3: the merge's stale type and doubled door lines (edit/merge.ts, mcp/editTools.ts).
-    expect(left).toBeLessThanOrEqual(1608)
+    // and CNT-27 2: a shaft counted once in the brief, the schedule CSV's column for rows in no total.
+    expect(left).toBeLessThanOrEqual(1610)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

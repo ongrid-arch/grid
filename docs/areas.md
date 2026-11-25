@@ -88,6 +88,13 @@ are one shaft, its floor is counted once on the floor it rises from, and the lif
 in no net figure, so a tower's net area and its net to gross figure do not hold the shaft on every
 floor. Lift rooms that do not line up are counted on each floor they stand on.
 
+Every tool that counts rooms or adds up their areas counts them by this one rule (CNT-27): a zone
+with its room, a stair or lift shaft once, on the floor it rises from, and no void, outdoor space
+or room named outside. `grid_count` leaves those rooms out of its groups and lists each in
+`notCounted` with why, so an area sum is the net; `stairs: "per floor"` counts each floor's stair
+and lift rooms instead. The room schedule marks them, the brief counts a shaft once when it counts
+rooms, and `grid_compare`'s room count and the verdict of every change count a shaft once.
+
 Which gross area comes first follows the country the plan will be built in: the inside face of
 the outer walls in the UK and most of Europe, the outside face for homes in the US. With no
 country, or one Grid has no usual measure for, both are given; either or both can be asked for.
@@ -204,7 +211,10 @@ another's printed text.
   column for each ([Facts of your own](plan-file.md#facts-of-your-own-and-room-numbers)).
   The height follows the rule in [tool-server.md](tool-server.md) (a height the room states, or
   the lowest solid wall round it). A room Grid could not draw is listed with no area, and the
-  totals say they leave it out.
+  totals say they leave it out. A room the net counts in no total (a stair or lift room over the
+  lowest of its shaft, a void, outdoor space) is still a row, marked `notCounted` with why (CNT-27),
+  and the CSV gains a `not in totals` column; the rows without it add up to each total, and a
+  total's room count counts them only.
 - **The flat schedule** (`grid_schedule` with `of=flats`, CNT-4): one row per flat the plan lists,
   numbered in id order, with its type, whether it is mirrored, its floors, its rooms, its
   bedrooms and its area as above, then all flats and the rooms in no flat, and the unit mix by

@@ -29,7 +29,7 @@ import { DESCRIBE_AUDIENCES, DESCRIBE_LENGTHS } from '../describe/card'
 import { LOOKS, SIDES, pictureLook, type LookName, type Side } from '../draw/viewNames'
 import { MARK_WORDS, marksAsked, readMarks, sectionLineOf, towardOf } from '../command/section'
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
-import { AREA_RULES, planAreas, type AreaSureness } from '../quantities/areas'
+import { AREA_RULES, notCounted, planAreas, type AreaSureness, type NotCounted, type RoomArea, type RoomNotCounted } from '../quantities/areas'
 import { OUTDOOR_RULES_ARG, type OutdoorRules } from './outdoorRulesArg'
 import { stateText } from '../quantities/state'
 import { comparePlans, optionRow, type Comparison, type OptionRow } from '../quantities/compare'
@@ -83,6 +83,7 @@ import {
   valueWords,
   type Asked,
   type Field,
+  type Part,
   type PartKind,
   type Value,
 } from '../quantities/query'
@@ -435,7 +436,7 @@ const areasTool: GridTool = {
       ...(areas.apart === undefined ? {} : { apart: areas.apart }),
     }
     if (args['format'] === 'csv') {
-      const rows = areas.floors.flatMap((f) => f.rooms.map((r) => [f.floor, r.id, r.name, r.use, r.size?.[0] ?? null, r.size?.[1] ?? null, r.net, r.net === null ? null : sqFt(r.net), r.zoneOf !== undefined ? 'zone' : r.outdoor !== undefined ? 'outdoor' : r.outside ? 'outside' : r.countedWith ? 'with the stair below' : 'inside', r.state]))
+      const rows = areas.floors.flatMap((f) => f.rooms.map((r) => [f.floor, r.id, r.name, r.use, r.size?.[0] ?? null, r.size?.[1] ?? null, r.net, r.net === null ? null : sqFt(r.net), countedWord(r), r.state]))
       // CNT-4: each flat, then the rooms in no flat, after the rooms and before the totals.
       for (const flat of areas.flats) rows.push([flat.floors.join(' '), flat.id, flat.name, flat.typeName ?? flat.type ?? '', null, null, flat.net, sqFt(flat.net), 'flat', flat.state.state])
       if (areas.notInFlats !== null) rows.push(['all', '', 'In no flat', '', null, null, areas.notInFlats, sqFt(areas.notInFlats), 'not in a flat', areas.states.net.state])
@@ -456,12 +457,14 @@ const areasTool: GridTool = {
         // CNT-8: a zone's floor is in its room's, so it is not counted again.
         const zone = r.zoneOf === undefined ? '' : `, a zone of ${q(f.rooms.find((room) => room.id === r.zoneOf)?.name ?? r.zoneOf)}: in its area, not counted again`
         // SHT-11: a stair room over the stair below is counted once, with it.
-        const below = r.countedWith ? `, counted once with ${q(r.countedWith.room)} on floor ${q(r.countedWith.floor)}, the stair it rises from` : ''
+        const below = r.countedWith ? `, counted once with ${q(r.countedWith.room)} on floor ${q(r.countedWith.floor)}, the ${r.use === 'lift' ? 'lift' : 'stair'} it rises from` : ''
+        // CNT-27: a void has no floor, so it is in no figure.
+        const open = r.void === true ? ', a void, open to the floor below: in no figure' : ''
         // LVL-6: under a roof the floor states, the room's floor by headroom band.
         const headroom = r.headroom === undefined ? '' : `; ${bandsText(r.headroom.bands, units)}, headroom ${lengthText(r.headroom.lowest, units)} to ${lengthText(r.headroom.highest, units)}`
         // CNT-7: an outdoor space is listed apart, with its kind and whether a roof covers it.
         const outdoor = r.outdoor === undefined ? '' : english(said('areas.room.outdoor', { kind: said(`outdoor.kind.${r.outdoor.kind}`), roofed: said(r.outdoor.roofed ? 'outdoor.roofed' : 'outdoor.open') }))
-        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${headroom}`)
+        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${open}${headroom}`)
       }
     }
     if (several) {
@@ -539,6 +542,22 @@ function toPartyWallsText(area: { readonly grossInternal: number; readonly gross
   if (area === null) return ''
   const parts = gross.map((m) => said(m === 'grossInternal' ? 'areas.toPartyWalls.grossInternal' : 'areas.toPartyWalls.grossExternal', { area: areaText(area[m], units) }))
   return english(said('areas.flat.toPartyWalls', { areas: joined(parts, 'join.comma') }))
+}
+
+/** CNT-27: the CSV's `counted` cell for a room of grid_areas: `inside`, or why it is in no total. */
+function countedWord(room: RoomArea): string {
+  const why = notCounted(room)
+  if (why === null) return 'inside'
+  return why === 'shaft' ? `with the ${room.use === 'lift' ? 'lift' : 'stair'} below` : why
+}
+
+/** CNT-27: why a room is in no count or total, in a few words, for grid_count and grid_schedule. */
+const NOT_COUNTED_WORDS: Readonly<Record<NotCounted, readonly [string, string]>> = {
+  zone: ['zone of a room, counted with the room', 'zones of a room, counted with the room'],
+  outside: ['room named outside', 'rooms named outside'],
+  outdoor: ['outdoor space', 'outdoor spaces'],
+  void: ['void, with no floor', 'voids, with no floor'],
+  shaft: ['stair or lift room counted once, with the lowest room of its shaft', 'stair or lift rooms counted once, with the lowest room of their shaft'],
 }
 
 /** ARE-14: a flat's area to the party walls, its free floor and its outdoor space, after its net. */
@@ -969,9 +988,19 @@ function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined,
     // CNT-4: on a plan that lists flats, the flat each room is in.
     const flatNames = new Map((survey.plan.flats ?? []).map((f) => [f.id, f.name ?? f.id] as const))
     const inFlat = (flat: string | null | undefined): string => (flat === undefined ? '' : flat === null ? ', in no flat' : `, flat ${q(flatNames.get(flat) ?? flat)}`)
-    const lines = s.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(r.name)}${r.use ? ` (${r.use})` : ''}, ${q(r.floorName)}: ${r.area === null ? 'not measured: it could not be drawn' : areaText(r.area, units)}, ${r.height === null ? 'height not known' : `${lengthText(r.height, units)} high`}${r.state === 'not-proven' ? ', not proven' : ''}${inFlat(r.flat)}${own(r.properties)}`)
-    for (const t of s.floors) lines.push(`${q(t.floorName!)}: ${t.rooms} rooms, ${areaText(t.area, units)}${stateText(t.state, several)}.`)
-    lines.push(`All floors: ${s.total.rooms} rooms, ${areaText(s.total.area, units)}${stateText(s.total.state, several)}.`, ...s.rules)
+    // CNT-27: a row in no total says why, so the rows that count add up to the totals.
+    const floorNames = new Map(survey.facts.floors.map((f) => [f.id, f.name ?? f.id] as const))
+    const rowNames = new Map(s.rows.map((r) => [`${r.floor}\u0000${r.id}`, r.name] as const))
+    const left = (r: (typeof s.rows)[number]): string => {
+      const c = r.notCounted
+      if (c === undefined) return ''
+      if (c.with !== undefined) return `; in no total: counted once with ${q(rowNames.get(`${c.with.floor}\u0000${c.with.room}`) ?? c.with.room)} on ${q(floorNames.get(c.with.floor) ?? c.with.floor)}`
+      return `; in no total: ${NOT_COUNTED_WORDS[c.why][0]}`
+    }
+    const roomsWord = (n: number): string => `${n} room${n === 1 ? '' : 's'}`
+    const lines = s.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(r.name)}${r.use ? ` (${r.use})` : ''}, ${q(r.floorName)}: ${r.area === null ? 'not measured: it could not be drawn' : areaText(r.area, units)}, ${r.height === null ? 'height not known' : `${lengthText(r.height, units)} high`}${r.state === 'not-proven' ? ', not proven' : ''}${inFlat(r.flat)}${own(r.properties)}${left(r)}`)
+    for (const t of s.floors) lines.push(`${q(t.floorName!)}: ${roomsWord(t.rooms)}, ${areaText(t.area, units)}${stateText(t.state, several)}.`)
+    lines.push(`All floors: ${roomsWord(s.total.rooms)}, ${areaText(s.total.area, units)}${stateText(s.total.state, several)}.`, ...s.rules)
     return { text: lines.join('\n'), data }
   }
   const s = openingSchedule(survey, floors === undefined ? {} : { floors })
@@ -1014,7 +1043,7 @@ const SCHEDULE_OUTPUT: Record<string, unknown> = {
     }, ['rows', 'counts', 'rule']),
     // of=rooms (ARE-12): the room schedule and its totals.
     objectSchema({
-      rows: listSchema(objectSchema({ number: NUMBER, roomNumber: NULLABLE_STRING, mark: STRING, id: STRING, name: STRING, use: NULLABLE_STRING, floor: STRING, floorName: STRING, area: NULLABLE_NUMBER, state: STATE_OUTPUT, height: NULLABLE_NUMBER, properties: FACTS_OUTPUT, flat: NULLABLE_STRING, zones: { type: 'array' } }, ['number', 'roomNumber', 'mark', 'id', 'name', 'use', 'floor', 'floorName', 'area', 'height', 'properties'])),
+      rows: listSchema(objectSchema({ number: NUMBER, roomNumber: NULLABLE_STRING, mark: STRING, id: STRING, name: STRING, use: NULLABLE_STRING, floor: STRING, floorName: STRING, area: NULLABLE_NUMBER, state: STATE_OUTPUT, height: NULLABLE_NUMBER, properties: FACTS_OUTPUT, flat: NULLABLE_STRING, zones: { type: 'array' }, notCounted: { type: 'object' } }, ['number', 'roomNumber', 'mark', 'id', 'name', 'use', 'floor', 'floorName', 'area', 'height', 'properties'])),
       floors: listSchema(roomTotal),
       total: roomTotal,
       rules: listSchema(STRING),
@@ -1055,7 +1084,7 @@ const scheduleTool: GridTool = {
   description:
     'Use this when the person asks for the doors and windows by size, how many of each, a door schedule or window schedule, which doors are narrower than a width, how many toilets, basins, showers, baths or kitchen runs there are and where, or for the flats, the area of each flat or the unit mix. '
     + 'It groups every door, window and doorless opening by type, kind (sliding, double, fixed… when the plan states one) and size, each listed once with the two rooms it joins. Sizes are the hole in the wall: the plan holds no frame, so a clear width is not known. '
-    + 'With of=rooms it gives the room schedule instead: every room numbered in one order whatever the file\'s order, with its name, use, net area, height, floor and, on a plan that lists flats, its flat, and the totals for each floor and for all floors; with of=openings, every door, window and doorless opening once, numbered, with its size, its kind, the part that opens and its handing where the plan states them, and the rooms on its two sides; with of=flats, every flat the plan lists with its type, rooms, bedrooms and net area, and the unit mix by type (how many of each, how many mirrored, their bedrooms and area); with of=doors or of=windows, the door or window schedule a supplier needs: the doors, or the windows, grouped into types (the plan\'s own named types first, with their names and materials, then by kind and size and the part that opens), each type with its count and the marks of its openings; with of=finishes, the finishes plan: each room\'s floor, wall, ceiling and skirting finish with its quantity, a zone with its own finish as its part of its room, and each finish\'s total. Every room and opening has a mark (the room\'s number; D1, W1, O1 for openings) that grid_view kind=plan with marks schedule draws on the plan, one mark for each row. All as text or CSV. '
+    + 'With of=rooms it gives the room schedule instead: every room numbered in one order whatever the file\'s order, with its name, use, net area, height, floor and, on a plan that lists flats, its flat, and the totals for each floor and for all floors, a room in no total (a stair or lift over the lowest room of its shaft, a void, outdoor space) marked with why; with of=openings, every door, window and doorless opening once, numbered, with its size, its kind, the part that opens and its handing where the plan states them, and the rooms on its two sides; with of=flats, every flat the plan lists with its type, rooms, bedrooms and net area, and the unit mix by type (how many of each, how many mirrored, their bedrooms and area); with of=doors or of=windows, the door or window schedule a supplier needs: the doors, or the windows, grouped into types (the plan\'s own named types first, with their names and materials, then by kind and size and the part that opens), each type with its count and the marks of its openings; with of=finishes, the finishes plan: each room\'s floor, wall, ceiling and skirting finish with its quantity, a zone with its own finish as its part of its room, and each finish\'s total. Every room and opening has a mark (the room\'s number; D1, W1, O1 for openings) that grid_view kind=plan with marks schedule draws on the plan, one mark for each row. All as text or CSV. '
     + 'Do not use for wall or plaster quantities (grid_takeoff). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
@@ -1284,6 +1313,7 @@ const countTool: GridTool = {
   description:
     'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor". '
     + 'It groups the parts that meet every condition by the field named in by, and gives each group its count, the sum of each field named in sum, and its ids, with a view argument to pass to grid_view so each group is shown in its own colour. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
+    + 'Rooms are counted as grid_areas counts them, so an area sum is its net: a zone with its room, a stair or lift drawn on floor after floor once, on the floor it rises from (stairs=per floor counts it on each floor), and no void or outdoor space; the answer lists each room left out, with why. '
     + 'Call grid_fields first for the names. Do not use for the list of parts itself (grid_find), for the plan\'s areas by use (grid_areas) or for a door schedule (grid_schedule). Areas are square metres, lengths metres.',
   args: {
     plan: PLAN_ARG,
@@ -1293,11 +1323,14 @@ const countTool: GridTool = {
     where: WHERE_ARG,
     by: { type: 'string', maxLength: 120, description: 'The field or fact to group by, by name, as grid_fields lists it: one group per value, and one for the parts that state none. One group of all of them when left out.', examples: ['department', 'fire rating', 'floor'] },
     sum: { type: 'array', description: 'Fields or facts of numbers to add up in each group, by name: area, width, head count.', examples: [['area'], ['area', 'head count']], items: { maxLength: 120 }, minItems: 1, maxItems: 10 },
+    stairs: { type: 'string', enum: ['once', 'per floor'], description: 'once counts a stair or lift drawn as a room on floor after floor once, on the floor it rises from, as grid_areas does; per floor counts its room on every floor, with its area. once when left out.', examples: ['once', 'per floor'] },
   },
   outputSchema: objectSchema({
     by: { type: ['string', 'null'] },
     groups: listSchema(objectSchema({ value: {}, count: NUMBER, sums: { type: 'object' }, missing: { type: 'object' }, ids: listSchema(STRING) })),
     total: objectSchema({ count: NUMBER, sums: { type: 'object' }, missing: { type: 'object' } }),
+    notCounted: listSchema(objectSchema({ id: STRING, floor: STRING, why: STRING, with: objectSchema({ floor: STRING, room: STRING }) }, ['id', 'floor', 'why'])),
+    stairs: STRING,
     units: { type: 'object' },
     view: { type: 'object' },
     rule: STRING,
@@ -1318,8 +1351,22 @@ const countTool: GridTool = {
         ...(args['where'] === undefined ? {} : { where: args['where'] as string[] }),
       })
       // CNT-8: a zone's floor and facts are its room's to count, so a zone is counted in no group.
-      const found = picked.filter((part) => part.zoneOf === undefined)
+      // CNT-27: nor is any room grid_areas' net counts in no figure: a stair or lift room over the
+      // lowest of its shaft (unless stairs=per floor), a void, outdoor space.
+      const perFloor = args['stairs'] === 'per floor'
+      const leftOut = (part: Part): RoomNotCounted | null => {
+        if (part.zoneOf !== undefined) return { why: 'zone' }
+        const c = ask.counting(part)
+        return c === null || (perFloor && c.why === 'shaft') ? null : c
+      }
+      const found = picked.filter((part) => leftOut(part) === null)
       const zones = picked.filter((part) => part.zoneOf !== undefined)
+      const notCountedParts = picked.flatMap((part) => {
+        const c = leftOut(part)
+        return c === null ? [] : [{ id: part.id, floor: part.floor, ...c }]
+      })
+      const others = notCountedParts.filter((p) => p.why !== 'zone')
+      const shafts = perFloor ? found.filter((part) => ask.counting(part)?.why === 'shaft') : []
       const groups = groupParts(ask, found, by, sums)
       const [total] = groupParts(ask, found, null, sums)
       const units = Object.fromEntries(sums.map((field) => [fieldName(field), unitOf(field)]))
@@ -1334,6 +1381,16 @@ const countTool: GridTool = {
         : [`By ${q(fieldName(by))}:`, ...groups.slice(0, 40).map((g) => `  ${g.value === null ? 'not stated' : valueText(by, g.value)}: ${partsWord(kinds, g.count)}${sums.length === 0 ? '' : `, ${sumText(g)}`}`), ...(groups.length > 40 ? [`  … and ${groups.length - 40} more groups in the data.`] : [])]
       lines.push(`In all: ${partsWord(kinds, found.length)}${sums.length === 0 || total === undefined ? '' : `, ${sumText(total)}`}.`)
       if (zones.length > 0) lines.push(`Not counted: ${zones.length === 1 ? 'a zone' : `${zones.length} zones`} of a room, counted with the room: ${zones.slice(0, 20).map((p) => q(p.id)).join(', ')}${zones.length > 20 ? ', …' : ''}. grid_find lists ${zones.length === 1 ? 'it' : 'them'}.`)
+      if (others.length > 0) {
+        const kinds = (['shaft', 'void', 'outdoor', 'outside'] as const).flatMap((why) => {
+          const these = others.filter((p) => p.why === why)
+          if (these.length === 0) return []
+          const [one, many] = NOT_COUNTED_WORDS[why]
+          return [`${these.length} ${these.length === 1 ? one : many} (${these.slice(0, 20).map((p) => q(p.id)).join(', ')}${these.length > 20 ? ', …' : ''})`]
+        })
+        lines.push(`Not counted, as grid_areas counts them: ${kinds.join('; ')}.${others.some((p) => p.why === 'shaft') ? ' stairs=per floor counts each floor\'s stair and lift rooms.' : ''}`)
+      }
+      if (shafts.length > 0) lines.push(`Stairs and lifts are counted on every floor they are drawn on (stairs=per floor): an area sum holds ${shafts.length} stair or lift room${shafts.length === 1 ? '' : 's'} that grid_areas' net counts once, with the lowest room of ${shafts.length === 1 ? 'its' : 'their'} shaft.`)
       const { view, floors } = viewOf(ask, found.map((p) => p.id), by === null ? { highlight: found.slice(0, 2000).map((p) => p.id) } : { colour: fieldName(by) })
       if (found.length > 0) lines.push(`To see ${by === null ? 'them picked out' : 'each group in its own colour'}, pass view to grid_view${floors.length > 1 ? `: they are on ${floors.length} floors, so draw each floor in turn` : ''}.`)
       lines.push(QUERY_RULE)
@@ -1344,6 +1401,8 @@ const countTool: GridTool = {
           groups,
           total: total === undefined ? { count: 0, sums: Object.fromEntries(sums.map((f) => [fieldName(f), 0])), missing: {} } : { count: total.count, sums: total.sums, missing: total.missing },
           units,
+          notCounted: notCountedParts,
+          stairs: perFloor ? 'per floor' : 'once',
           view,
           rule: QUERY_RULE,
         },

@@ -231,10 +231,50 @@ function sumSureness(rooms: readonly RoomArea[], total: number): AreaSureness | 
   const source = sure.some((room) => room.sureness!.source === 'scanned') ? 'scanned' : sure[0]!.sureness!.source
   return { source, plusMinus, percent: plusMinus === null || total <= 0 ? null : (100 * plusMinus) / total }
 }
-/** The rooms the totals count: no outside room, no zone (CNT-8), no stair room counted with the one below (SHT-11). */
-const inTotals = (room: RoomArea): boolean => !room.outside && room.outdoor === undefined && room.void !== true && room.zoneOf === undefined && room.countedWith === undefined
+/**
+ * CNT-27: why the net counts a room in no total. `shaft` is a stair or lift room over the lowest
+ * room of its shaft (SHT-11, ARE-22), whose floor is counted there.
+ */
+export type NotCounted = 'outside' | 'outdoor' | 'void' | 'zone' | 'shaft'
 
-const key = (floor: string, id: string): string => `${floor}\u0000${id}`
+/**
+ * CNT-27: the one rule for which rooms the totals count, read by every tool that counts rooms or
+ * adds up their areas: why a room is in no total, or null when it is in them.
+ */
+export function notCounted(room: RoomArea): NotCounted | null {
+  if (room.zoneOf !== undefined) return 'zone'
+  if (room.outside) return 'outside'
+  if (room.outdoor !== undefined) return 'outdoor'
+  if (room.void === true) return 'void'
+  if (room.countedWith !== undefined) return 'shaft'
+  return null
+}
+
+/** CNT-27: a room in no total, with why and, for a shaft room, the room it is counted with. */
+export interface RoomNotCounted {
+  readonly why: NotCounted
+  readonly with?: { readonly floor: string; readonly room: string }
+}
+
+/** CNT-27: a room's key by its floor and id, for `notCountedRooms`. */
+export const roomKey = (floor: string, id: string): string => `${floor}\u0000${id}`
+
+/** CNT-27: every room of the figures in no total, by `roomKey`, with why. */
+export function notCountedRooms(areas: Pick<PlanAreas, 'floors'>): Map<string, RoomNotCounted> {
+  const out = new Map<string, RoomNotCounted>()
+  for (const floor of areas.floors) {
+    for (const room of floor.rooms) {
+      const why = notCounted(room)
+      if (why !== null) out.set(roomKey(floor.floor, room.id), { why, ...(room.countedWith === undefined ? {} : { with: room.countedWith }) })
+    }
+  }
+  return out
+}
+
+/** The rooms the totals count: no outside room, no zone (CNT-8), no stair room counted with the one below (SHT-11). */
+const inTotals = (room: RoomArea): boolean => notCounted(room) === null
+
+const key = roomKey
 
 export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas {
   const outside = request.outside ?? new Set<string>()

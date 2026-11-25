@@ -7,7 +7,7 @@ import { compareIds, openingTypeOf, partHeight, partWidth, planForFloor, roomNum
 import { factText, type DoorType, type Facts, type FloorPlan, type Opening, type OpeningKind, type WindowType } from '@ongrid/floorplan/types/floorplan'
 import { english, said, type Said } from '@ongrid/floorplan/messages'
 import type { OpeningFacts } from '../describe/facts'
-import { AREA_RULES, FLAT_RULE, planAreas } from './areas'
+import { AREA_RULES, FLAT_RULE, notCounted, planAreas, type RoomNotCounted } from './areas'
 import { flatOfRoom, planFlatTypes, planFlats } from '@ongrid/floorplan/geometry'
 import { HEIGHT_RULE, roomHeight } from './measure'
 import { joinStates, type AreaState, type NumberState } from './state'
@@ -113,6 +113,11 @@ export interface RoomScheduleRow {
    * its own: its floor is in its room's area, so a column of areas adds up to the total.
    */
   readonly zones?: readonly RoomScheduleZone[]
+  /**
+   * CNT-27, only on a room the net counts in no total (a stair or lift room over the lowest of its
+   * shaft, a void, outdoor space): why, as grid_areas counts it. The rows without it add up to the totals.
+   */
+  readonly notCounted?: RoomNotCounted
 }
 
 /** A zone of a room in the room schedule (CNT-8). */
@@ -232,11 +237,14 @@ export function roomSchedule(survey: Survey, options: { floors?: readonly string
     const storey = planForFloor(survey.plan, floor.id)
     const places = figures.rooms.filter((room) => room.zoneOf === undefined)
     const byId = new Map(places.map((room) => [room.id, room] as const))
+    // CNT-27: the floor's total counts the rooms the net counts.
+    const counted = places.filter((room) => notCounted(room) === null)
     const own = new Map(storey.rooms.map((r) => [r.id, r] as const))
     // HND-2: the library's numbers, which number no zone (CNT-8), so the IFC gives the same.
     for (const { number, stated, id } of numbered.filter((n) => n.floor === floor.id)) {
       const room = byId.get(id)
       if (room === undefined) continue
+      const why = notCounted(room)
       const zones = figures.rooms
         .filter((zone) => zone.zoneOf === room.id)
         .sort((a, z) => compareIds(a.id, z.id))
@@ -256,14 +264,15 @@ export function roomSchedule(survey: Survey, options: { floors?: readonly string
         properties: own.get(id)?.properties ?? {},
         ...(listsFlats ? { flat: flatOf.get(room.id) ?? null } : {}),
         ...(zones.length === 0 ? {} : { zones }),
+        ...(why === null ? {} : { notCounted: { why, ...(room.countedWith === undefined ? {} : { with: room.countedWith }) } }),
       })
     }
-    floors.push({ floor: floor.id, floorName: floor.name, rooms: places.length, area: figures.net, state: figures.states.net })
+    floors.push({ floor: floor.id, floorName: floor.name, rooms: counted.length, area: figures.net, state: figures.states.net })
   }
   return {
     rows,
     floors,
-    total: { floor: null, floorName: null, rooms: rows.length, area: areas.net, state: areas.states.net },
+    total: { floor: null, floorName: null, rooms: rows.filter((row) => row.notCounted === undefined).length, area: areas.net, state: areas.states.net },
     rules: [ROOM_SCHEDULE_RULE, AREA_RULES.net, HEIGHT_RULE],
   }
 }
@@ -543,6 +552,8 @@ export function roomScheduleCsv(schedule: RoomSchedule): string {
   const columns = factColumns(schedule.rows)
   // CNT-4: a flat column only on a plan that lists flats, so every other schedule is as it was.
   const flats = schedule.rows.some((r) => r.flat !== undefined)
+  // CNT-27: a column for the rows in no total only when there is one, so every other schedule is as it was.
+  const left = schedule.rows.some((r) => r.notCounted !== undefined)
   const rows: Cell[][] = schedule.rows.map((r, i) => {
     const n = i + 1
     const area = numberCell(name, n, 'area', r.area, r.state === 'not-looked-at')
@@ -550,14 +561,15 @@ export function roomScheduleCsv(schedule: RoomSchedule): string {
       r.roomNumber ?? numberCell(name, n, 'number', r.number, false), textCell(name, n, 'room id', r.id), textCell(name, n, 'name', r.name), r.use,
       area, area === null ? null : sqFt(area), numberCell(name, n, 'height', r.height, true), textCell(name, n, 'floor', r.floorName), r.state,
       ...(flats ? [r.flat ?? null] : []),
+      ...(left ? [r.notCounted?.why ?? null] : []),
       ...factCells(r.properties, columns),
     ]
   })
   const totals = [...schedule.floors, schedule.total].map((t): Cell[] => {
     const area = numberCell(name, rows.length + 1, 'total area', t.area, false)!
-    return [null, '', t.floor === null ? 'Total, all floors' : `Total, ${t.floorName}`, null, area, sqFt(area), null, t.floorName ?? 'all', t.state.state, ...(flats ? [null] : []), ...columns.map(() => null)]
+    return [null, '', t.floor === null ? 'Total, all floors' : `Total, ${t.floorName}`, null, area, sqFt(area), null, t.floorName ?? 'all', t.state.state, ...(flats ? [null] : []), ...(left ? [null] : []), ...columns.map(() => null)]
   })
-  return csv(['number', 'room id', 'name', 'use', 'area m2', 'area sq ft', 'height m', 'floor', 'state', ...(flats ? ['flat'] : []), ...columns], [...rows, ...totals])
+  return csv(['number', 'room id', 'name', 'use', 'area m2', 'area sq ft', 'height m', 'floor', 'state', ...(flats ? ['flat'] : []), ...(left ? ['not in totals'] : []), ...columns], [...rows, ...totals])
 }
 
 /** The opening schedule as CSV: one row per opening, each listed once. */
