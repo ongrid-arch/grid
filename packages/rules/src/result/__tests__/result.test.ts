@@ -276,7 +276,14 @@ describe('every line', () => {
       const findings = result.lines.filter((l) => l.kind === 'finding' || outAbove(l))
       // LVL-14: the findings first, then the doors out above the ground, each in the report's order.
       const isOutAbove = (f: { code: string }): boolean => f.code === 'door_to_outside_above_ground'
-      expect(findings.map((l) => l.message), name).toEqual([...report.findings.filter((f) => !isOutAbove(f)), ...report.findings.filter(isOutAbove)].map((f) => f.message))
+      // ARE-40: the rooms of a floor with no way out, each without a route, are one line, in the
+      // record's own plural wording (`check.noRoute.many`): compared by whether there is one.
+      const routeless = (code: string): boolean => code === 'no_route_to_exit' || code === 'room/no-route-out'
+      expect(
+        findings.filter((l) => !routeless(l.code)).map((l) => l.message),
+        name
+      ).toEqual([...report.findings.filter((f) => !isOutAbove(f)), ...report.findings.filter(isOutAbove)].filter((f) => !routeless(f.code)).map((f) => f.message))
+      expect(findings.some((l) => routeless(l.code)), name).toBe(report.findings.some((f) => f.code === 'no_route_to_exit'))
       expect(result.lines.filter(outAbove).every((l) => l.kind === 'not-checked'), name).toBe(true)
       // CNT-14: the doors with no swing stated come from the door check, not the report. LVL-14: a
       // floor with no stair at all is said by its finding, not by its notice too.

@@ -22,8 +22,8 @@ describe('rooms that cannot be left', () => {
     expect(checkLocalRules(flat()).findings).toEqual([])
   })
 
-  it('reports a floor with no exit once, and not every room on it', () => {
-    expect(summary(withoutOpening(flat(), 'front'))).toEqual(['no_exit ground '])
+  it('reports a floor with no exit once, and fails the route of each room on it (ARE-40)', () => {
+    expect(summary(withoutOpening(flat(), 'front'))).toEqual(['no_exit ground ', 'no_route_to_exit ground bathroom', 'no_route_to_exit ground bedroom', 'no_route_to_exit ground hall', 'no_route_to_exit ground kitchen'])
   })
 
   it('reports a room with no door, and only that', () => {
@@ -116,7 +116,7 @@ describe('floors other than the ground floor', () => {
       for (const r of copy.rooms) r.floor = 'upper'
     })
     expect(routeNotices(only)).toEqual([])
-    expect(summary(only)).toEqual(['no_exit upper '])
+    expect(summary(only)).toEqual(['no_exit upper ', 'no_route_to_exit upper bathroom', 'no_route_to_exit upper bedroom', 'no_route_to_exit upper hall', 'no_route_to_exit upper kitchen'])
   })
 })
 
