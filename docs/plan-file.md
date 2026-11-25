@@ -11,7 +11,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `room/stair-shifted`, `room/lift-shifted`
-- [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`
+- [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
 - [Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground): `opening/below-ground`
 - [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `opening/missing-wall`
 - [A floor outline before the walls](#a-floor-outline-before-the-walls): `floor/past-outline`; massing, storeys, homes and parking spaces
@@ -379,7 +379,11 @@ draw them; where both floors have stair rooms and none lies over another, they a
 of line (`stair_out_of_line`), and so are lift shafts (rooms used as a `lift`,
 `lift_out_of_line`). A lift shaft is drawn with a cross in it, corner to corner, on every floor
 (SHT-11). A lift is never taken as a way out. A floor no stair joins to the ground floor
-is said not to be checked. A stair that cannot be laid out is said and left out
+is said not to be checked. A floor above the ground with nothing on it to reach it by (no room
+used as a stair or a lift, and no stair or ramp stated from or to it) is a finding,
+`floor/no-stair`, when the plan draws a ground floor; its fix is the rooms-text line that adds a
+stair room on the ground floor rising `through` it, and `grid write` says it as soon as the plan
+is written. A stair that cannot be laid out is said and left out
 (`stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`,
 `stair/too-few-risers`, `stair/duplicate-id`), and one whose end stands in no room joins nothing
 (`stair/end-in-no-room`, a warning).

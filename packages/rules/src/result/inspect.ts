@@ -60,6 +60,8 @@ const safeId = (value: unknown): string | null =>
 
 const FINDING_CODES: Record<FindingCode, string> = {
   no_exit: 'floor/no-exit',
+  // LVL-14: a floor above the ground that nothing joins to the ground floor.
+  no_stair: 'floor/no-stair',
   room_without_door: 'room/no-door',
   no_route_to_exit: 'room/no-route-out',
   door_to_undrawn_space: 'opening/to-undrawn-space',
@@ -485,7 +487,7 @@ function findingThing(finding: RuleFinding, wayOutNotDrawn: ReadonlySet<string>)
   let code = FINDING_CODES[finding.code]
   if (finding.code === 'no_route_to_exit' && wayOutNotDrawn.has(finding.floor)) code = 'room/no-route-to-door-out'
   const thing: Thing =
-    finding.code === 'no_exit'
+    finding.code === 'no_exit' || finding.code === 'no_stair'
       ? { kind: 'floor', id: finding.floor }
       : finding.code === 'setback_short' || finding.code === 'over_boundary'
       ? { kind: 'plan', id: '' }
@@ -886,7 +888,11 @@ function inspectRead(read: Extract<Read, { plan: FloorPlan }>, inspectOptions: I
     // MSG-11: in English with its article (`the United States`); in another language by Grid's name for it.
     const country = report.place === null ? '' : speaking.language === DEFAULT_LANGUAGE ? countryInText(report.place.country) : countryName(report.place.country)
     lines.push(...groupedFindings(report.findings, names, wayOutNotDrawn))
-    lines.push(...report.notChecked.map((notice) => noticeLine(notice, names, country, wayOutNotDrawn)))
+    // LVL-14: a floor with no stair at all is a finding, which says why its way out was not
+    // followed; the notice stays in the report (the coverage reads it) but is not a line beside it.
+    const noStair = new Set(report.findings.filter((f) => f.code === 'no_stair').map((f) => f.floor))
+    const notices = report.notChecked.filter((notice) => !(notice.reason === 'no_stairs' && noStair.has(notice.floor)))
+    lines.push(...notices.map((notice) => noticeLine(notice, names, country, wayOutNotDrawn)))
   })
   // COD-8: the firm's own standards, after the code figures' findings, apart from them.
   if (firm !== undefined) {
