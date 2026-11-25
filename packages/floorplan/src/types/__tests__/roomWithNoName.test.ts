@@ -39,7 +39,7 @@ describe('a room with no name (WRT-43)', () => {
     raw.rooms[1].name = ['Kitchen']
     const result = read(raw)
     expect(result.plan.rooms.map((r) => r.name).slice(0, 2)).toEqual([raw.rooms[0].id, raw.rooms[1].id])
-    expect(result.faults.map((f) => [f.kind, f.path.join('.')])).toEqual([
+    expect(result.faults.map((f) => [f.kind, 'path' in f ? f.path.join('.') : null])).toEqual([
       ['value-left-out', 'rooms.0.name'],
       ['value-left-out', 'rooms.1.name']
     ])

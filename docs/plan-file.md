@@ -97,6 +97,7 @@ id (or its place, when it has no id that can be read) and its place in the file:
 |---|---|---|
 | a number written as text (`"2.5"`, `"0.9 m"`), `"true"`, a word in other capitals (`"Exterior"`, `"Door"`, units `"M"`) | reads it as meant | `plan/read-as-meant` |
 | a value a field can do without that cannot be read (a hinge `"left"`, a `null` thickness, units `"furlong"`) | uses the field's default, or reads it as not stated; a unit Grid has no word for is read as metres | `plan/value-left-out` |
+| a room with no `name`, or one that is not text (`null`, a list) | reads the room with its id as its name, so it is drawn and measured by its id; a blank name (`""`) is read as written, and the drawing and the answers call that room by its id too (WRT-43) | `plan/value-left-out` |
 | units `"mm"`, `"cm"`, `"ft"` or `"in"` | reads every length in that unit, and writes the plan back in metres when it changes it (see [Units](#units)) | `plan/read-as-meant` |
 | a value the part needs that cannot be read (a negative offset, a missing start, an opening type `"gate"`) | leaves the part out, and the rooms and openings on a wall left out with it | `plan/part-left-out` |
 | a wall's thickness or height, or an opening's sill, stated out of range or as a word; a wall's `face` that is not `left` or `right` | leaves the part out: a default would change what is drawn and measured | `plan/part-left-out` |
