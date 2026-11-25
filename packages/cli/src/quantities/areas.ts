@@ -75,6 +75,8 @@ export interface RoomArea {
   readonly zoneOf?: string
   /** CNT-7 (C26), only on an outdoor space: its kind and whether a roof covers it. Measured, and in no total. */
   readonly outdoor?: { readonly kind: OutdoorKind; readonly roofed: boolean }
+  /** ARE-16, only on a void (LVL-4): no floor stands there. Measured, and in no total. */
+  readonly void?: true
   /**
    * WRT-6: only on a room whose walls the plan marks: where they came from and how sure the area
    * is. A zone's band is its own, and is added into no total (CNT-8).
@@ -226,7 +228,7 @@ function sumSureness(rooms: readonly RoomArea[], total: number): AreaSureness | 
   return { source, plusMinus, percent: plusMinus === null || total <= 0 ? null : (100 * plusMinus) / total }
 }
 /** The rooms the totals count: no outside room, no zone (CNT-8), no stair room counted with the one below (SHT-11). */
-const inTotals = (room: RoomArea): boolean => !room.outside && room.outdoor === undefined && room.zoneOf === undefined && room.countedWith === undefined
+const inTotals = (room: RoomArea): boolean => !room.outside && room.outdoor === undefined && room.void !== true && room.zoneOf === undefined && room.countedWith === undefined
 
 const key = (floor: string, id: string): string => `${floor}\u0000${id}`
 
@@ -284,6 +286,7 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
         ...headroomOf(f.floor, id, net),
         ...(figure === undefined || figure.zoneOf === null ? {} : { zoneOf: figure.zoneOf }),
         ...(figure?.outdoor === undefined ? {} : { outdoor: figure.outdoor }),
+        ...(figure?.void === true ? { void: true as const } : {}),
         ...(sureness === undefined ? {} : { sureness }),
       }
     })

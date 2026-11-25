@@ -368,7 +368,7 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
 
   const rooms = roomDeltas(a, b)
   // A zone's floor is its room's (CNT-8): counted once.
-  const netOf = (s: Survey): number => sum(s.rooms.filter((r) => r.facts.zoneOf === undefined && r.facts.outdoor === undefined).map((r) => r.facts.shape?.area ?? 0))
+  const netOf = (s: Survey): number => sum(s.rooms.filter((r) => r.facts.zoneOf === undefined && r.facts.outdoor === undefined && r.facts.void !== true).map((r) => r.facts.shape?.area ?? 0))
   const netBefore = netOf(a)
   const netAfter = netOf(b)
   const inverse = (wall: Wall): boolean => !a.plan.walls.some((other) => sameWall(other, wall, map))

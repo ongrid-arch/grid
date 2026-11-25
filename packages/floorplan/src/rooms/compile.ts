@@ -335,6 +335,8 @@ export interface RoomFacts {
   readonly depth: number
   readonly area: number
   readonly corners: number
+  /** ARE-16: the room is no floor inside the building: outdoor space (CNT-7) or a void (LVL-4). Left out of the inside total. */
+  readonly apart?: 'outdoor' | 'void'
   /** What the size on the room's line measured to, and the numbers written. */
   readonly basis: SizeBasis | null
   readonly written: { readonly width: number | null; readonly depth: number | null } | null
@@ -2178,6 +2180,7 @@ class Compiler {
             depth: b[3] - b[1],
             area,
             corners: rect ? 4 : room.poly.length,
+            ...(room.outdoor !== null ? { apart: 'outdoor' as const } : {}),
             basis: room.size?.basis ?? null,
             written: room.size ? { width: room.size.w, depth: room.size.d } : null,
           })
