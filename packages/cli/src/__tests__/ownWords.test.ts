@@ -149,7 +149,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/versions/diff.ts': [11, 'notYet'],
   'packages/cli/src/versions/git.ts': [19, 'notYet'],
   'packages/cli/src/versions/markers.ts': [19, 'notYet'],
-  'packages/floorplan/src/geometry/areas.ts': [37, 'notYet'],
+  'packages/floorplan/src/geometry/areas.ts': [36, 'notYet'],
   'packages/floorplan/src/geometry/camera.ts': [1, 'agent'],
   'packages/floorplan/src/geometry/diff/building.ts': [28, 'notYet'],
   'packages/floorplan/src/geometry/diff/churn.ts': [2, 'notYet'],
