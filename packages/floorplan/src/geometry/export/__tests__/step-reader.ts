@@ -114,6 +114,16 @@ class Reader {
           this.pos = end + 4
           continue
         }
+        if (this.src.startsWith('\\X4\\', this.pos)) {
+          this.pos += 4
+          const end = this.src.indexOf('\\X0\\', this.pos)
+          if (end < 0) this.fail('unterminated \\X4\\ block')
+          const hex = this.src.slice(this.pos, end)
+          if (hex.length === 0 || hex.length % 8 !== 0 || !/^[0-9A-F]+$/.test(hex)) this.fail(`bad \\X4\\ payload ${hex}`)
+          for (let i = 0; i < hex.length; i += 8) out += String.fromCodePoint(parseInt(hex.slice(i, i + 8), 16))
+          this.pos = end + 4
+          continue
+        }
         this.fail('unknown escape')
       }
 

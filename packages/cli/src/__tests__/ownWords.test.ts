@@ -44,7 +44,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/draw.ts': [46, 'command'],
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
   'packages/cli/src/command/edit.ts': [9, 'command'],
-  'packages/cli/src/command/export.ts': [17, 'command'],
+  'packages/cli/src/command/export.ts': [20, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   'packages/cli/src/command/main.ts': [58, 'command'],
