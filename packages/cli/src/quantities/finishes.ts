@@ -11,7 +11,7 @@
  * Pure: a survey in, plain data out.
  */
 import { FINISH_SURFACES, curveFault, roomFinishes, wallAxis, wallLength, wallTypeOf, type FinishSurface, type Wall } from '@ongrid/floorplan/geometry'
-import type { Survey, SurveyRoom } from './survey'
+import { roomCalled, type Survey, type SurveyRoom } from './survey'
 import { roomTakeoff, wallFaceCut, type RoomTakeoff } from './takeoff'
 
 export { FINISH_SURFACES, type FinishSurface }
@@ -106,7 +106,7 @@ export function finishShares(survey: Survey, onFloor: (floor: string) => boolean
 export function planFinishes(survey: Survey, floors?: readonly string[]): FinishQuantities {
   const onFloor = (floor: string): boolean => floors === undefined || floors.includes(floor)
   const shares = finishShares(survey, onFloor)
-  const names = new Map<string, string>(survey.rooms.map((room) => [`${room.facts.floor}\u0000${room.facts.id}`, room.facts.name]))
+  const names = new Map<string, string>(survey.rooms.map((room) => [`${room.facts.floor}\u0000${room.facts.id}`, roomCalled(room.facts)]))
   const rows = new Map<string, { id: string; name: string; floor: string; zoneOf: string | null; surfaces: Partial<Record<FinishSurface, { finish: string | null; quantity: number }>> }>()
   for (const share of shares) {
     const id = share.zone ?? share.room

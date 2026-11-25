@@ -7,6 +7,7 @@
  * on, and the answer says so first, so a guess never passes for the plan's north.
  */
 import { bearingOf, COMPASS_POINTS, compassPoint, planFacing, type CompassPoint, type FloorPlan, type PlanFacing } from '@ongrid/floorplan/geometry'
+import { roomCalled } from './survey'
 
 export const FACING_RULE =
   'A wall faces the way of the normal of its outside face, the face with no room on it, turned by the plan\'s north; a room faces each way its outside walls face, and a window the way its wall does. It checks no rule.'
@@ -49,7 +50,7 @@ export interface FacingAnswer {
 /** The whole answer, or one room's. Room names come from the plan. */
 export function facingAnswer(plan: FloorPlan, room?: string): FacingAnswer {
   const facing = planFacing(plan)
-  const name = new Map(plan.rooms.map((r) => [r.id, r.name]))
+  const name = new Map(plan.rooms.map((r) => [r.id, roomCalled(r)]))
   const rooms = facing.rooms.filter((r) => room === undefined || r.room === room)
   const lines = [northLine(facing)]
 
@@ -112,7 +113,7 @@ function wayOf(facing: PlanFacing, direction: { x: number; y: number }): Compass
 export function facingDescription(plan: FloorPlan, audience: 'person' | 'agent'): string[] {
   if (plan.north === undefined && plan.front === undefined && plan.yAxis !== 'down') return []
   const facing = planFacing(plan)
-  const name = new Map(plan.rooms.map((r) => [r.id, r.name]))
+  const name = new Map(plan.rooms.map((r) => [r.id, roomCalled(r)]))
   const byWay = new Map<CompassPoint, string[]>()
   for (const r of facing.rooms) for (const w of r.walls) byWay.set(w.faces, [...(byWay.get(w.faces) ?? []), r.room])
   const ways = COMPASS_POINTS.filter((way) => byWay.has(way))

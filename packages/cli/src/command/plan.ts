@@ -162,7 +162,8 @@ function mergeText(merge: UnfinishedMerge): string {
 }
 
 /** A reading fault in one line, for a command that refuses it. */
-function faultText(fault: ReadFault): string {
+/** A fault of the reader in one line, as a refusal names it (WRT-43: a view's refusal too). */
+export function faultText(fault: ReadFault): string {
   if (fault.kind === 'id-clash') return `${fault.part.list}[${fault.part.index}].id is the id of ${fault.kept.list}[${fault.kept.index}] too`
   return `${pathText(fault.path)} is ${fault.found}, and the format takes ${fault.wants}`
 }

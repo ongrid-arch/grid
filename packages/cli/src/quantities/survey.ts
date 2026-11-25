@@ -109,6 +109,20 @@ export function surveyPlan(stated: FloorPlan): Survey {
   return { plan, facts, rooms, byId: new Map(rooms.map((room) => [room.facts.id, room])) }
 }
 
+/**
+ * WRT-43: what an answer calls a room: its name, or its id when its name is blank, so a room
+ * with no name is never written as "" and lost among the others.
+ */
+export function roomCalled(room: { readonly id: string; readonly name: string }): string {
+  return room.name.trim() === '' ? room.id : room.name
+}
+
+/** A room of the survey by id, as `roomCalled` calls it; the id itself when no room has it. */
+export function roomCalledById(survey: Survey, id: string): string {
+  const room = survey.byId.get(id)
+  return room === undefined ? id : roomCalled(room.facts)
+}
+
 /** The two sides of an opening as room ids, or `outside` and the like. */
 export function sideNames(opening: OpeningFacts): [string, string] {
   return opening.sides.map((side) => (typeof side === 'object' ? side.room : side)) as [string, string]

@@ -23,7 +23,7 @@ import { walkPictures } from '../describe/walkPictures'
 import { WALK_EYE_HEIGHT, WALK_PICTURES_MAX } from '../describe/walk'
 import { drawShowOf } from '../command/drawShow'
 import { UsageError } from '../command/options'
-import type { LoadedPlan } from '../command/plan'
+import { faultText, type LoadedPlan } from '../command/plan'
 import { cropFrame, partBounds, type PartBounds } from '../draw/partBoxes'
 import { DESCRIBE_AUDIENCES, DESCRIBE_LENGTHS } from '../describe/card'
 import { LOOKS, SIDES, pictureLook, type LookName, type Side } from '../draw/viewNames'
@@ -61,7 +61,7 @@ import { LIMITS_RULE, massingLines, siteLimits, storeysText } from '../quantitie
 import { figureOf, roomIndicators, USE_RULE, wideRoute, wideRouteLines } from '../quantities/use'
 import { ACCESS_RULE, accessAnswer } from '../quantities/access'
 import { FIGURES_HEADING, readBrief } from '../brief/brief'
-import { surveyPlan, sideNames, type Survey, type SurveyRoom } from '../quantities/survey'
+import { roomCalled, roomCalledById, surveyPlan, sideNames, type Survey, type SurveyRoom } from '../quantities/survey'
 import { planEstimate, WHOLE_BUILDING_KEY, type Estimate, type EstimateLine, type QuantityUnit } from '../quantities/estimate'
 import { estimateCsv, priceEstimate, rateCard, RATE_UNITS, RATES_FILE, RatesRefused, readRates, type PricedLine, type Pricing, type Rates } from '../quantities/rates'
 import { columnRule, parkingRule, planTakeoff, TAKEOFF_RULES, type BayCount, type ColumnRun, type RampFigures } from '../quantities/takeoff'
@@ -998,7 +998,7 @@ function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined,
       return `; in no total: ${NOT_COUNTED_WORDS[c.why][0]}`
     }
     const roomsWord = (n: number): string => `${n} room${n === 1 ? '' : 's'}`
-    const lines = s.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(r.name)}${r.use ? ` (${r.use})` : ''}, ${q(r.floorName)}: ${r.area === null ? 'not measured: it could not be drawn' : areaText(r.area, units)}, ${r.height === null ? 'height not known' : `${lengthText(r.height, units)} high`}${r.state === 'not-proven' ? ', not proven' : ''}${inFlat(r.flat)}${own(r.properties)}${left(r)}`)
+    const lines = s.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(roomCalled(r))}${r.use ? ` (${r.use})` : ''}, ${q(r.floorName)}: ${r.area === null ? 'not measured: it could not be drawn' : areaText(r.area, units)}, ${r.height === null ? 'height not known' : `${lengthText(r.height, units)} high`}${r.state === 'not-proven' ? ', not proven' : ''}${inFlat(r.flat)}${own(r.properties)}${left(r)}`)
     for (const t of s.floors) lines.push(`${q(t.floorName!)}: ${roomsWord(t.rooms)}, ${areaText(t.area, units)}${stateText(t.state, several)}.`)
     lines.push(`All floors: ${roomsWord(s.total.rooms)}, ${areaText(s.total.area, units)}${stateText(s.total.state, several)}.`, ...s.rules)
     return { text: lines.join('\n'), data }
@@ -1117,7 +1117,7 @@ const scheduleTool: GridTool = {
     // CNT-12: the fixtures by kind, with the room each stands in. A width says nothing of them.
     const withFixtures = (types === undefined || types.includes('fixture')) && args['narrower_than'] === undefined
     const f = withFixtures ? planFixtures(survey.plan, floor === undefined ? undefined : [floor]) : null
-    const name = (id: string): string => (survey.facts.rooms.has(id) ? q(survey.facts.rooms.get(id)!.name) : id)
+    const name = (id: string): string => (survey.facts.rooms.has(id) ? q(roomCalled(survey.facts.rooms.get(id)!)) : id)
     const fixtureData = f === null || f.rows.length === 0 ? {} : { fixtures: f.rows.map((r) => ({ id: r.id, kind: r.kind, label: r.label, floor: r.floor, room: r.room, size: r.size, height: r.height })), fixtureCounts: f.counts }
     const data = { rows: s.rows, counts: s.counts, rule: s.rule, ...fixtureData }
     if (args['format'] === 'csv') {
@@ -1433,7 +1433,7 @@ function thingOf(survey: Survey, named: ReturnType<typeof thingArg>): { thing: T
   if (named.kind === 'room') {
     const room = survey.byId.get(named.id)
     if (!room || room.polygon.length < 3) throw new ToolRefusal(`Room ${q(named.id)} has no outline Grid can measure; grid_check says why.`)
-    return { thing: roomThing(room), label: `room ${q(room.facts.name)}` }
+    return { thing: roomThing(room), label: `room ${q(roomCalled(room.facts))}` }
   }
   if (named.kind === 'wall') return { thing: wallThing(plan.walls.find((w) => w.id === named.id)!), label: `wall ${q(named.id)}` }
   if (named.kind === 'item') {
@@ -1525,7 +1525,7 @@ const measureTool: GridTool = {
     const wholeOf = (room: SurveyRoom): { room: SurveyRoom; said: string | null } => {
       const of = room.facts.zoneOf === undefined ? undefined : survey.byId.get(room.facts.zoneOf)
       if (of === undefined || of.polygon.length < 3) return { room, said: null }
-      return { room: of, said: `${q(room.facts.name)} is a zone of ${q(of.facts.name)}: measured as part of it, the room as a whole.` }
+      return { room: of, said: `${q(roomCalled(room.facts))} is a zone of ${q(roomCalled(of.facts))}: measured as part of it, the room as a whole.` }
     }
     if (what === 'room') {
       const room = roomOf()
@@ -1658,7 +1658,7 @@ const measureTool: GridTool = {
       const rule = fixtures.length === 0 ? EMPTY_ROOM_RULE : `${FIT_CLEAR_RULE} ${EMPTY_ROOM_RULE}`
       const entry = named === null ? '' : `${named.said} `
       return {
-        text: `${entry}${fit.what} ${fit.fits ? 'fits' : 'does not fit'} in ${q(room.facts.name)}${clear}${where}. The widest circle ${fixtures.length === 0 ? 'the room holds' : 'its free floor holds'} is ${L(fit.widestCircle)} across.\n${rule}`,
+        text: `${entry}${fit.what} ${fit.fits ? 'fits' : 'does not fit'} in ${q(roomCalled(room.facts))}${clear}${where}. The widest circle ${fixtures.length === 0 ? 'the room holds' : 'its free floor holds'} is ${L(fit.widestCircle)} across.\n${rule}`,
         data: { what, answer: { room: room.facts.id, ...fit, ...(fixtures.length === 0 ? {} : { clearOf: fixtures.map((f) => f.id) }), ...(named === null ? {} : { library: named.name }) }, rule },
       }
     }
@@ -1679,7 +1679,7 @@ const measureTool: GridTool = {
         // CNT-13: a body or a trolley this wide, clear of the fixtures, room by room and doorway by doorway.
         const wide = wideRoute(survey, room.facts.id, to, args['width'] as number)
         if (wide === null) {
-          return { text: [...said, `There is no way from ${q(room.facts.name)} to ${to === 'outside' ? 'the outside' : q(survey.byId.get(to)!.facts.name)} through the plan's doors and openings.`, USE_RULE].join('\n'), data: { what, answer: { found: false, ...zones }, rule: USE_RULE } }
+          return { text: [...said, `There is no way from ${q(roomCalled(room.facts))} to ${to === 'outside' ? 'the outside' : q(roomCalledById(survey, to))} through the plan's doors and openings.`, USE_RULE].join('\n'), data: { what, answer: { found: false, ...zones }, rule: USE_RULE } }
         }
         const figure = figureOf(args['width'], 'usePassageWidth')
         return {
@@ -1690,16 +1690,16 @@ const measureTool: GridTool = {
       if ((args['x'] === undefined) !== (args['y'] === undefined)) throw new ToolRefusal('what=route takes x and y together: the point the route starts from.')
       if (args['x'] !== undefined && args['start'] !== undefined) throw new ToolRefusal('what=route starts at start or at the point x, y, not both.')
       const given = args['x'] === undefined ? null : { x: args['x'] as number, y: args['y'] as number }
-      if (given !== null && !pointInPolygon(given, room.polygon, room.holes)) throw new ToolRefusal(`The point ${L(given.x)}, ${L(given.y)} is not on the floor of ${q(room.facts.name)}: a route starts from a point on its first room's floor.`)
+      if (given !== null && !pointInPolygon(given, room.polygon, room.holes)) throw new ToolRefusal(`The point ${L(given.x)}, ${L(given.y)} is not on the floor of ${q(roomCalled(room.facts))}: a route starts from a point on its first room's floor.`)
       const route = routeBetween(survey, room.facts.id, to, true, { ...(given !== null ? { start: given } : args['start'] === undefined ? {} : { start: args['start'] as 'middle' | 'door' | 'farthest corner' }), ...(args['end'] === undefined ? {} : { end: args['end'] as 'middle' | 'door' }) })
       if (route === null) {
         // ARE-28: from a floor above the ground that nothing joins to the ground floor, the answer says why.
         const noStair = to === 'outside' ? floorsWithNoStair(survey.plan).find((f) => f.floor === room.facts.floor) : undefined
         const floorName = planFloors(survey.plan).find((f) => f.id === noStair?.floor)?.name ?? noStair?.floor ?? ''
-        const why = noStair === undefined ? [] : [english({ key: 'check.noStair.route', values: { floor: { name: floorName }, room: { name: room.facts.name } } })]
-        return { text: [...said, `There is no way from ${q(room.facts.name)} to ${to === 'outside' ? 'the outside' : q(survey.byId.get(to)!.facts.name)} through the plan's doors and openings.`, ...why, EMPTY_ROOM_RULE].join('\n'), data: { what, answer: { found: false, ...(noStair === undefined ? {} : { noStair }), ...zones }, rule: EMPTY_ROOM_RULE } }
+        const why = noStair === undefined ? [] : [english({ key: 'check.noStair.route', values: { floor: { name: floorName }, room: { name: roomCalled(room.facts) } } })]
+        return { text: [...said, `There is no way from ${q(roomCalled(room.facts))} to ${to === 'outside' ? 'the outside' : q(roomCalledById(survey, to))} through the plan's doors and openings.`, ...why, EMPTY_ROOM_RULE].join('\n'), data: { what, answer: { found: false, ...(noStair === undefined ? {} : { noStair }), ...zones }, rule: EMPTY_ROOM_RULE } }
       }
-      const name = (id: string): string => (id === 'outside' ? 'outside' : q(survey.byId.get(id)?.facts.name ?? id))
+      const name = (id: string): string => (id === 'outside' ? 'outside' : q(roomCalledById(survey, id)))
       const steps = route.steps.map((s) => `${s.type} ${q(s.via)}${s.width === null ? '' : ` ${L(s.width)}`} into ${name(s.into)}`).join(', then ')
       const widths = route.rooms.map((id) => {
         const r = survey.byId.get(id)!
@@ -1726,7 +1726,7 @@ const measureTool: GridTool = {
     if (args['under'] === undefined) throw new ToolRefusal('what=narrow needs under: the person\'s figure in metres.')
     const under = args['under'] as number
     const schedule = planSchedule(survey, { types: ['door', 'opening'], narrowerThan: under })
-    const name = (id: string): string => (survey.facts.rooms.has(id) ? q(survey.facts.rooms.get(id)!.name) : id)
+    const name = (id: string): string => (survey.facts.rooms.has(id) ? q(roomCalled(survey.facts.rooms.get(id)!)) : id)
     const doors = schedule.rows.flatMap((row) => row.items.map((item) => ({ id: item.id, type: row.type, width: row.width, between: item.between })))
     const rooms = survey.rooms.filter((r) => r.polygon.length >= 3).map((r) => measureRoom(r)).filter((r) => r.widestCircle < under - tolerance('noLength'))
     const lines = [
@@ -1874,8 +1874,27 @@ function savedViewsLine(plan: FloorPlan): string[] {
   return [`Views saved with the plan, by name (view): ${names.join(', ')}${views.length > 10 ? ` and ${views.length - 10} more` : ''}.`]
 }
 
+/**
+ * WRT-43: why a room is in no view, from the plan as read: the reader left it out (MSG-6), or it
+ * cannot be drawn (its check line). Null when it is drawn, or the file holds no room by that id.
+ */
+function roomLeftOutWhy(loaded: LoadedPlan, id: string): string | null {
+  const read = loaded.faults?.find((f) => (f.kind === 'part-left-out' || f.kind === 'id-clash') && f.part.list === 'rooms' && f.part.id === id)
+  if (read !== undefined) return `room ${q(id)}, which was left out when the plan was read: ${faultText(read)}`
+  if (!loaded.broken.has(id) || !loaded.plan.rooms.some((r) => r.id === id)) return null
+  const issue = loaded.issues.find((i) => i.entity === 'room' && i.id === id && i.severity === 'error') ?? loaded.issues.find((i) => i.entity === 'room' && i.id === id)
+  return `room ${q(id)}, which cannot be drawn${issue === undefined ? '' : `: ${issue.message.replace(/\.$/, '')} (${issue.code})`}`
+}
+
+/** WRT-43: refuses a view of a room that is in no view, saying why it is left out. */
+function refuseLeftOutRoom(loaded: LoadedPlan, room: unknown, argument: string): void {
+  if (typeof room !== 'string') return
+  const why = roomLeftOutWhy(loaded, room)
+  if (why !== null) throw new ToolRefusal(`${argument} names ${why}. It is in no view or measure until that is corrected; grid_check says how.`)
+}
+
 /** The part a crop names on the floor: an id first, else a room's name (any case), else refused naming the rooms. */
-function cropPart(plan: FloorPlan, floor: string, crop: string): PartBounds {
+function cropPart(plan: FloorPlan, floor: string, crop: string, loaded: LoadedPlan): PartBounds {
   const parts = partBounds(plan, floor)
   const byId = parts.find((p) => p.id === crop)
   if (byId) return byId
@@ -1884,8 +1903,9 @@ function cropPart(plan: FloorPlan, floor: string, crop: string): PartBounds {
   if (named.length > 1) throw new ToolRefusal(`${named.length} rooms on that floor are named so: crop by id, one of ${named.map((r) => q(r.id)).join(', ')}.`)
   const room = named[0] && parts.find((p) => p.id === named[0]!.id)
   if (room) return room
+  refuseLeftOutRoom(loaded, named[0]?.id ?? crop, 'crop')
   const onFloor = plan.rooms.filter((r) => floorOf(r) === floor)
-  const rooms = nearestList(crop, onFloor.map((r) => ({ id: r.id, note: ` (${q(r.name)})` })))
+  const rooms = nearestList(crop, onFloor.map((r) => ({ id: r.id, note: r.name.trim() === '' ? ' (no name)' : ` (${q(r.name)})` })))
   throw new ToolRefusal(`crop names no room, door, window or wall drawn on floor ${q(floor)}, nor a room's name. Its nearest rooms: ${onFloor.length === 0 ? 'none' : rooms}.`)
 }
 
@@ -2194,7 +2214,7 @@ const viewTool: GridTool = {
       const shown = floor ?? survey.facts.floors[0]?.id ?? 'ground'
       // VEW-14: drawn as stated, as grid draw draws it: parts to be demolished are in the picture.
       const stated = loaded.plan
-      const crop = args['crop'] === undefined ? null : cropPart(stated, shown, args['crop'] as string)
+      const crop = args['crop'] === undefined ? null : cropPart(stated, shown, args['crop'] as string, loaded)
       // What went wrong, numbered as grid_check numbers it, marked on the drawing (MSG-8).
       // VEW-15: from the file's text and its base, as grid_check reads them, so the fields the reading adds are no notes.
       const faults = inspectPlan(loaded.text ?? plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
@@ -2245,6 +2265,7 @@ const viewTool: GridTool = {
       }
     }
     if (kind === '3d') {
+      refuseLeftOutRoom(loaded, args['room'], 'room')
       if (args['camera'] !== undefined && args['view'] !== undefined) throw new ToolRefusal('Pass camera or view, not both: each is a camera to start from.')
       const lens = args['lens'] as number | undefined
       if (lens !== undefined && lensProblem(lens) !== null) throw new ToolRefusal(`lens ${lensProblem(lens)}.`)
@@ -2309,6 +2330,7 @@ const viewTool: GridTool = {
       }
     }
     if (args['room'] === undefined) throw new ToolRefusal('kind=eye needs room: the room to stand in.')
+    refuseLeftOutRoom(loaded, args['room'], 'room')
     const id = roomArg(plan, args['room'])
     const room = survey.byId.get(id)
     if (!room || room.polygon.length < 3) throw new ToolRefusal('That room has no outline Grid can draw; grid_check says why.')
@@ -2334,7 +2356,7 @@ const viewTool: GridTool = {
     const { cameraView, eyeStand } = await import('../draw/views')
     // VEW-30: stands where the person says, inside the room's floor, else on its middle line.
     const standAt = args['stand_at'] as [number, number] | undefined
-    if (standAt !== undefined && !pointInPolygon({ x: standAt[0], y: standAt[1] }, room.polygon, room.holes)) throw new ToolRefusal(`stand_at (${m(standAt[0])}, ${m(standAt[1])}) is not on the floor of ${q(room.facts.name)}: pass a point inside the room.`)
+    if (standAt !== undefined && !pointInPolygon({ x: standAt[0], y: standAt[1] }, room.polygon, room.holes)) throw new ToolRefusal(`stand_at (${m(standAt[0])}, ${m(standAt[1])}) is not on the floor of ${q(roomCalled(room.facts))}: pass a point inside the room.`)
     const stand = standAt !== undefined ? { x: standAt[0], y: standAt[1] } : eyeStand(room.polygon, toward, room.holes)
     const camera = eyeCamera(plan, { room: id, polygon: room.polygon, stand, height, toward })
     const view = await cameraView(plan, camera, language)
@@ -2345,7 +2367,7 @@ const viewTool: GridTool = {
       : `Windows in the room, sill and top against the eye at ${m(height)} m: ${sills.map((s) => `${q(s.id)} sill ${m(s.sill)}, top ${m(s.top)} (${s.sill < height ? 'the eye is above the sill' : 'the sill is at or above the eye'})`).join('; ')}.`
     return {
       text: [
-        `Standing in ${q(room.facts.name)} at (${m(camera.position[0])}, ${m(camera.position[1])}), eye ${m(height)} m above the room's own floor, looking level toward ${looking} (heading ${heading.toFixed(0)}° from the top of the drawing), 90° across. ${sillText} The model has no ceiling, glass, furniture or anything outside. Look at the picture before you describe it.`,
+        `Standing in ${q(roomCalled(room.facts))} at (${m(camera.position[0])}, ${m(camera.position[1])}), eye ${m(height)} m above the room's own floor, looking level toward ${looking} (heading ${heading.toFixed(0)}° from the top of the drawing), 90° across. ${sillText} The model has no ceiling, glass, furniture or anything outside. Look at the picture before you describe it.`,
         ...cameraLines(plan, camera),
       ].join('\n'),
       data: { kind, floor: room.facts.floor, camera, view: null, pxPerMetre: null, sills, ids: [], boxes: [] },
@@ -2747,7 +2769,7 @@ export function openingBetween(survey: Survey, id: string): string {
   const facts = survey.facts.openings.get(id)
   if (!facts) return ''
   const [a, b] = sideNames(facts)
-  const name = (side: string): string => (survey.facts.rooms.has(side) ? q(survey.facts.rooms.get(side)!.name) : side)
+  const name = (side: string): string => (survey.facts.rooms.has(side) ? q(roomCalled(survey.facts.rooms.get(side)!)) : side)
   return `${name(a)} ↔ ${name(b)}`
 }
 

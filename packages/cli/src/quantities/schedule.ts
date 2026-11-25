@@ -11,7 +11,7 @@ import { AREA_RULES, FLAT_RULE, notCounted, planAreas, type RoomNotCounted } fro
 import { flatOfRoom, planFlatTypes, planFlats } from '@ongrid/floorplan/geometry'
 import { HEIGHT_RULE, roomHeight } from './measure'
 import { joinStates, type AreaState, type NumberState } from './state'
-import { sideNames, surveyPlan, type Survey } from './survey'
+import { roomCalled, sideNames, surveyPlan, type Survey } from './survey'
 import { csv, sqFt } from './units'
 import type { DrawingMarksAsked, ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
 
@@ -314,7 +314,7 @@ export function openingSchedule(survey: Survey, options: { floors?: readonly str
   const seenOf = { door: 0, window: 0, opening: 0 }
   for (const floor of floorOrder(survey, undefined)) {
     const facts = survey.facts.floors.find((f) => f.id === floor.id)!
-    const named = new Map(facts.rooms.map((room) => [room.id, room.name] as const))
+    const named = new Map(facts.rooms.map((room) => [room.id, roomCalled(room)] as const))
     const side = (s: OpeningFacts['sides'][number]): string => (typeof s === 'object' ? named.get(s.room) ?? s.room : s)
     const stated = new Map(survey.plan.openings.map((o) => [o.id, o] as const))
     for (const opening of [...facts.openings].sort((a, b) => TYPE_ORDER[a.type] - TYPE_ORDER[b.type] || compareIds(a.id, b.id))) {

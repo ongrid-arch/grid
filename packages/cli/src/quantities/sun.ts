@@ -11,6 +11,7 @@ import { planSunTable, type FloorPlan, type SunRoom, type SunWall } from '@ongri
 import type { Display } from '@ongrid/floorplan/types/units'
 import { northData, northLine } from './facing'
 import { areaText, lengthText } from './units'
+import { roomCalled } from './survey'
 
 export const SUN_RULE =
   'This is geometry, not a daylight or sunlight result: Grid works out no sun path, shade, sky, glass or reflection, and checks no rule. '
@@ -41,7 +42,7 @@ export interface SunAnswer {
  */
 export function sunAnswer(plan: FloorPlan, display: Display, room?: string): SunAnswer & { missing: boolean } {
   const table = planSunTable(plan)
-  const name = new Map(plan.rooms.map((r) => [r.id, r.name]))
+  const name = new Map(plan.rooms.map((r) => [r.id, roomCalled(r)]))
   const rooms = table.rooms.filter((r) => room === undefined || r.room === room)
   const L = (v: number): string => lengthText(v, display)
   const A = (v: number): string => areaText(v, display)

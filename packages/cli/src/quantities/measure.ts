@@ -41,7 +41,7 @@ import {
 import { drawable } from '@ongrid/floorplan/geometry/rules/check'
 import { floorGraph, roomOutlines } from '@ongrid/floorplan/geometry/rules/graph'
 import { compassOf, type Compass } from '../describe/facts'
-import type { Survey, SurveyRoom } from './survey'
+import { roomCalled, type Survey, type SurveyRoom } from './survey'
 import { walkRoute, type EndAt, type StairPassage, type StartAt, type WalkPoint, type WalkedLeg, type WalkGap } from './walked'
 
 export const EMPTY_ROOM_RULE =
@@ -82,7 +82,7 @@ export function measureRoom(room: SurveyRoom): RoomMeasure {
   const shape = room.facts.shape
   return {
     id: room.facts.id,
-    name: room.facts.name,
+    name: roomCalled(room.facts),
     floor: room.facts.floor,
     area: shape?.area ?? 0,
     perimeter: room.edges.reduce((sum, edge) => sum + edge.length, 0),
@@ -461,7 +461,7 @@ export function wallLengths(survey: Survey, wall: Wall): WallLengths {
   const faces = survey.rooms
     .map((room) => ({
       room: room.facts.id,
-      name: room.facts.name,
+      name: roomCalled(room.facts),
       length: room.edges.filter((edge) => edge.wall?.id === wall.id).reduce((sum, edge) => sum + edge.length, 0),
     }))
     .filter((face) => face.length > tolerance('joint'))
