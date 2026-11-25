@@ -11,8 +11,9 @@
  * Pure: no DOM, no React.
  */
 import type { PlanSite, PlanSiteThing, Vec2 } from '@ongrid/floorplan/geometry'
+import { poleOfInaccessibility, SITE_THING_WORDS } from '@ongrid/floorplan/geometry'
 import type { LineMetres, Look } from './look'
-import { lengthText } from './look'
+import { lengthText, TEXT_PX } from './look'
 import type { Attrs, SvgNode } from './svgNode'
 import { el } from './svgNode'
 
@@ -39,6 +40,7 @@ export function sitePaints(look: Look, line: LineMetres) {
     pool: { fill: c.poolFill, stroke: c.poolEdge, 'stroke-width': w('boundary'), 'stroke-linejoin': 'round' } as Attrs,
     tree: { fill: c.treeFill, stroke: c.treeEdge, 'stroke-width': w('site') } as Attrs,
     trunk: { fill: c.treeEdge, stroke: 'none' } as Attrs,
+    label: { fill: look.colors.dimensionText, 'font-family': look.colors.font, 'font-size': TEXT_PX.siteLabel, 'text-anchor': 'middle' } as Attrs,
   }
 }
 
@@ -82,5 +84,25 @@ export function siteNodes(site: PlanSite, paint: SitePaints, mpp: number): SvgNo
   const children = things.map(({ thing, index }) => thingNode(thing, paint, mpp, index))
   site.streets.forEach((edge, i) => children.push(el('path', { 'data-part': 'site-street', d: open(edge), ...paint.street }, [], `street:${i}`)))
   if (site.boundary !== null) children.push(el('path', { 'data-part': 'site-boundary', d: closed(site.boundary), ...paint.boundary }, [], 'boundary'))
+  for (const label of siteLabels(site)) children.push(el('g', { 'data-part': 'site-label', 'data-id': label.id, transform: `translate(${n(label.at.x)} ${n(-label.at.y)}) scale(${n(mpp)})` }, [el('text', { dy: '3', ...paint.label }, [label.text])], `label:${label.id}`))
   return [el('g', { 'data-part': 'site', 'pointer-events': 'none', 'aria-hidden': 'true' }, children, 'site')]
+}
+
+const sqr = (v: Vec2, w: Vec2): number => (v.x - w.x) ** 2 + (v.y - w.y) ** 2
+
+/** Where a thing's name is written: a shape's pole, a tree's trunk, the middle of a line's longest piece. */
+function labelAt(thing: PlanSiteThing): Vec2 | null {
+  if (thing.tree !== null) return thing.tree.at
+  const ring = [...thing.rings].sort((a, b) => b.length - a.length)[0]
+  if (ring !== undefined) return poleOfInaccessibility(ring).point
+  const line = [...thing.lines].sort((a, b) => sqr(b[0]!, b.at(-1)!) - sqr(a[0]!, a.at(-1)!))[0]
+  return line === undefined ? null : { x: (line[0]!.x + line.at(-1)!.x) / 2, y: (line[0]!.y + line.at(-1)!.y) / 2 }
+}
+
+/** The name of a thing the person called something; one with only its kind's word is left unnamed (VEW-32). */
+export function siteLabels(site: PlanSite): { readonly id: string; readonly text: string; readonly at: Vec2 }[] {
+  return site.things.flatMap((thing) => {
+    const at = labelAt(thing)
+    return at === null || thing.label.trim() === '' || SITE_THING_WORDS[thing.kind].includes(thing.label) ? [] : [{ id: thing.id, text: thing.label, at }]
+  })
 }

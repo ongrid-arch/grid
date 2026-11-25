@@ -59,7 +59,9 @@ import { scheduleMarkNodes } from './drawingMarks'
 import { dimensionClutter, layoutMarks } from './markLayout'
 import { drawingText } from './words'
 import { num } from '@ongrid/floorplan/messages'
+import { bayLabels } from './bayLabels'
 import { siteNodes, sitePaints } from './site'
+import { isSiteScale, withoutSiteClutter } from './siteScale'
 import type { RoomUse } from '@ongrid/floorplan/types/floorplan'
 
 /** The door-sweep warning mark's size on screen, whatever the zoom. */
@@ -751,7 +753,7 @@ export function planScene(input: SceneInput): SvgNode[] {
 function planSceneIn(input: SceneInput): SvgNode[] {
   const { drawing, handings, doorWarnings, metersPerPixel: mpp } = input
   // VEW-31: the dimensions as they are drawn, the chains clear of each other and the grids' names past them.
-  const layout = layoutMarks(drawing, input.dimensions)
+  const layout = layoutMarks(drawing, isSiteScale(drawing.bounds) ? withoutSiteClutter(input.dimensions) : input.dimensions)
   const dimensions = layout.dimensions
   const look = toLook(input.look)
   const style = input.labels ?? {}
@@ -1256,11 +1258,17 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   // CNT-19 (C29): each parking bay, its marking and its number in the middle, and each ramp on
   // both floors it joins, its outline, its middle line ending in an arrow head pointing up and its
   // slope written halfway along. Drawing, not a target: clicks reach the room underneath.
+  const bayNumbers = bayLabels(drawing.bays ?? [], mpp)
   for (const bay of drawing.bays ?? []) {
     const children: SvgNode[] = [el('path', { 'data-part': 'bay-outline', d: pathOf(bay.outline), ...paint.bay })]
-    if (bay.number !== null) children.push(el('g', { transform: labelTransform(bay.centre, mpp) }, [el('text', { 'data-part': 'bay-number', dy: String(DIMENSION_DY), ...paint.bayNumber }, [bay.number])]))
+    // VEW-32: a number that fits its bay stays in it; a row of bays too small for theirs is one range.
+    const own = bayNumbers.find((label) => label.bay === bay.id)
+    if (own !== undefined) children.push(el('g', { transform: labelTransform(bay.centre, mpp) }, [el('text', { 'data-part': 'bay-number', dy: String(DIMENSION_DY), ...paint.bayNumber }, [own.text])]))
     out.push(el('g', { 'data-part': 'bay', 'data-id': bay.id, 'data-number': bay.number ?? undefined, 'pointer-events': 'none', 'aria-hidden': 'true' }, children, `bay:${bay.id}`))
   }
+  bayNumbers
+    .filter((label) => label.bay === null)
+    .forEach((label, index) => out.push(el('g', { 'data-part': 'bay-range', 'pointer-events': 'none', 'aria-hidden': 'true', transform: labelTransform(label.at, mpp) }, [el('text', { dy: String(DIMENSION_DY), ...paint.bayNumber }, [label.text])], `bay-range:${index}`)))
   for (const ramp of drawing.ramps ?? []) {
     const children: SvgNode[] = ramp.pieces.map((piece, index) => el('path', { 'data-part': 'ramp-outline', d: pathOf(piece), ...paint.ramp }, [], String(index)))
     children.push(el('path', { 'data-part': 'ramp-line', d: virtualPath(ramp.line), ...paint.ramp }))
