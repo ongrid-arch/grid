@@ -169,7 +169,7 @@ export const es: Messages = {
   'issue.part.far.wall': 'el muro {wall} está a más de {km} km del origen',
   'issue.part.far.thick': 'el muro {wall} tiene más de {km} km de espesor',
   'issue.part.far.room': 'la estancia {room} está a más de {km} km del origen',
-  'issue.part.notJoined': 'no se pudieron unir los muros ({error})',
+  'issue.part.notJoined': 'no se pudieron unir los muros: sus formas están demasiado cerca para distinguirlas',
   'issue.part.nesting.tooMany': 'el plano tiene más de {most} pares de contornos que comparar, y el resto no se comparó',
   'issue.part.nesting.failed': 'no se pudieron comparar los contornos ({error})',
 
