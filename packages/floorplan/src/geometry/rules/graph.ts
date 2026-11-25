@@ -381,7 +381,17 @@ export function floorGraph(plan: FloorPlan, leftOut: ReadonlySet<string> = new S
     if (wall.virtual !== true) continue
     const stretches = (sides.get(wall.id)?.stretches ?? []).filter((st) => st.to - st.from > tolerance('lineInside'))
     const points = stretches.length > 0 ? stretches.map((st) => (st.from + st.to) / 2) : [wallLength(wall) / 2]
-    for (const along of points) passage(wall, wall.id, along, sidesAt(wall, along, index, outlines))
+    const read = points.map((along) => ({ along, sides: sidesAt(wall, along, index, outlines) }))
+    // ARE-28: a dividing line, with two rooms on its sides along any stretch, joins those rooms
+    // and nothing else. Where only one room is beside it (the bit run on into an outside wall's
+    // body, past a narrower room's end, or along a row of merged lines) it leads nowhere, unless
+    // the plan states what lies beyond it (C23). Only an open edge, a line with one room all
+    // along it, leads out.
+    const divides = read.some(({ sides: [left, right] }) => left !== null && right !== null && left !== right)
+    for (const { along, sides } of read) {
+      if (divides && (sides[0] === null) !== (sides[1] === null) && wallBeyond(wall) === null) continue
+      passage(wall, wall.id, along, sides)
+    }
   }
 
   const bySide = (a: OneSided, b: OneSided): number => byText(a.room, b.room) || byText(a.opening, b.opening)
