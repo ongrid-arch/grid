@@ -63,7 +63,7 @@ export const ROOM_NAMES_TRAVEL =
   + 'Who sits where belongs in the occupancy file beside the plan (plan.occupancy.json), which no export carries.'
 
 /** The label every report carries, and how a report is retold (MSG-3). */
-export const LABEL_AND_RETELLING = `Every report carries the label ${GENERAL_GUIDANCE_LABEL}. ${RETELLING_RULE}`
+export const LABEL_AND_RETELLING = `Every report carries the label ${GENERAL_GUIDANCE_LABEL}. ${RETELLING_RULE} The answers that apply no figure from a code (reading the plan, a picture, a count, a comparison) carry the label in their data and do not repeat it in their text: give it once, where you first give a figure or a check, and not at the head of every message.`
 
 /** Where a shared paragraph is carried. */
 export type GuidePlace = 'instructions' | 'skill' | 'guide' | 'readme'

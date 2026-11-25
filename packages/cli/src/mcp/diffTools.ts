@@ -7,6 +7,7 @@
 import { GitUnread } from '../versions/git'
 import { DEFAULT_MARKER, MARKER_NAME, MARKERS_MAX, MarkerRefused, removeMarker, setMarker } from '../versions/markers'
 import { DIFF_SHOWS, diffData, diffSince, diffText, type DiffShow } from '../versions/diff'
+import { SEEN_NEW_OUTPUT } from '../edit/seen'
 import { asRefusal, BOOLEAN, FLOOR_ARG, floorArg, listSchema, NULLABLE_STRING, NUMBER, objectSchema, PLAN_ARG, projectOf, planFileOf, readPlan, STRING, ToolRefusal, type GridTool } from './toolkit'
 
 const MARKER_ARG = {
@@ -60,6 +61,8 @@ export const diffTool: GridTool = {
     floor: NULLABLE_STRING,
     otherFloors: NUMBER,
     picture: { type: ['object', 'null'] },
+    // MSG-29: each note set aside as seen that is new again since the earlier version.
+    seenNew: SEEN_NEW_OUTPUT,
   }),
   async run(args, context) {
     const project = projectOf(context)

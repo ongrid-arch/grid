@@ -42,6 +42,7 @@ import { briefAnswer } from '../brief/answer'
 import { renameInBrief } from '../brief/rename'
 import { causedText, newLines } from '../edit/caused'
 import { faultText } from '../command/plan'
+import { SEEN_NEW_OUTPUT, seenBefore as seenMarksBefore, seenMadeNew, seenNewData, seenNewLines } from '../edit/seen'
 import { BRIEF_OUTPUT } from './briefTool'
 import { writeLayout } from '../brief/layout'
 import { TAPED_OUTPUT, TAPED_ROWS_IN_AN_EDIT, tapedRows, tapedTable } from '../taped/table'
@@ -283,6 +284,8 @@ export const EDIT_OUTPUT = objectSchema({
   // WRT-59: the notes this change caused (the plot boundary's first), and what the reader left out of the plan.
   caused: { type: 'array', items: objectSchema({ code: STRING, message: STRING }) },
   leftOut: listSchema(STRING),
+  // MSG-29: each note set aside as seen that the change made new again; empty when none did.
+  seenNew: SEEN_NEW_OUTPUT,
 })
 
 /** WRT-59: the rooms a change renames, as [old name, new name]. */
@@ -327,6 +330,8 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   const after = planAfter(patch)
   const fresh = newProblems(loaded.plan, after)
   if (fresh.length > 0) throw new ToolRefusal(`That change would break the drawing, so nothing was written: ${problemsText(fresh)}`)
+  // MSG-29: the seen marks beside the plan, against the plan as it is, when the change replaces it.
+  const marked = project.resolve(out) === project.resolve(file) ? seenMarksBefore(project, file) : null
   let raw: Record<string, unknown>
   try {
     // WRT-7: a file in another unit is written back in metres, the only unit Grid writes.
@@ -373,6 +378,7 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   // HND-11 (lab WR-14): the taped lengths against the plan as it now is.
   const taped = tapedRows(after)
   // WRT-58: a use word read as another use (`gym` as `sport`) is said, so the person sees what it became.
+  const seenNew = seenMadeNew(marked, project, file)
   const usesSaid = usesRead(args).map((read) => english(sentence('edit.use.read', { word: nameOf(read.word), use: read.use })))
   // CMD-30: a name the change brought in that reads as an instruction or holds a person's name, said gently.
   const namesSaid = nameNotes(next as Record<string, unknown>, raw, occupancyFileOf(written)).map((note) => english(note))
@@ -388,11 +394,12 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
     verdict,
     ...doors,
     `To look at: ${toLookAt.before} → ${toLookAt.after}, of them problems in the drawing ${drawingProblems.before} → ${drawingProblems.after}. grid_check lists them.`,
+    ...seenNewLines(seenNew),
     ...brief.text,
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),
     `Wrote ${quoted(written)}.`,
   ].join('\n')
-  return { text, data: { written, changed: [...patch.said], verdict, drawingProblems, toLookAt, doors, guessed, couldNotKeep, caused: newNotes.map((line) => ({ code: line.code, message: line.message })), leftOut: unread, brief: brief.data, taped, ...(patch.extra ?? {}) } }
+  return { text, data: { written, changed: [...patch.said], verdict, drawingProblems, toLookAt, doors, guessed, couldNotKeep, caused: newNotes.map((line) => ({ code: line.code, message: line.message })), leftOut: unread, brief: brief.data, taped, seenNew: seenNewData(seenNew), ...(patch.extra ?? {}) } }
 }
 
 const changeOpeningTool: GridTool = {
