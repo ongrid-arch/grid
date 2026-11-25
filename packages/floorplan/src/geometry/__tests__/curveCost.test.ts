@@ -175,3 +175,33 @@ describe('what is kept between readers gives the answers worked out afresh (CNT-
     expect(again).toEqual(elevations.floorElevations(JSON.parse(JSON.stringify(plan)) as FloorPlan))
   })
 })
+
+describe('the checks that grew with the square of a floor (CNT-25)', () => {
+  /** The plain median, sorting the list given. */
+  const median = (values: readonly number[]): number => {
+    const sorted = [...values].sort((a, b) => a - b)
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+  }
+
+  it("gives a tall wall the median of its floor's other walls as their typical height", () => {
+    const lists: number[][] = [
+      [2.7, 2.7, 2.7, 13],
+      [2.4, 3.1, 2.7, 2.9, 13],
+      [3.2, 2.4, 2.4, 2.8, 2.6, 13],
+      [13, 2.5, 2.5, 3.1, 2.7, 2.7, 2.9],
+      [2.6, 13, 13.5, 2.8, 2.4, 3.1]
+    ]
+    for (const heights of lists) {
+      const walls = heights.map((height, i) => wall(`w${i}`, [i * 5, 0], [i * 5 + 4, 0], { height, kind: 'partition' }))
+      const plan: FloorPlan = { version: '1', units: 'm', walls, rooms: [], openings: [] }
+      const said = validatePlan(plan).issues.filter((issue) => issue.code === 'wall/size-question')
+      expect(said.length).toBeGreaterThan(0)
+      for (const issue of said) {
+        const i = Number(issue.id.slice(1))
+        const typical = median(heights.filter((_, k) => k !== i))
+        expect(issue.message).toContain(`typically ${typical.toFixed(2)} m`)
+      }
+    }
+  })
+})

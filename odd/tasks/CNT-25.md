@@ -44,6 +44,17 @@ The changes, each keeping every answer the same:
 - `geometry/elevations.ts`: `floorElevations` is kept per plan object, as above, and not while
   `withTolerances` is in force. Each caller gets its own map.
 
+- Found while building (the size guard of `diff-size.test.ts` failed once the tracing was kept):
+  two checks that grew with the square of a floor stood out. `geometry/wallFaults.ts`'s
+  `crossingFaults` tried every room against every wall of its floor; it now asks a box index
+  (`boxIndex`) for the walls near each room, in the same order. `geometry/plausible.ts` sorted the
+  floor's other walls' heights once for every wall to find their typical height; it now sorts a
+  floor's heights once and takes the median without the wall from that. Same answers.
+- Also kept by the same rule: a floor's spaces (`floorSpaces` in `geometry/spaces.ts`), while its
+  walls (and a curved wall's pieces, now kept per wall) are the same objects and its rooms the
+  same rooms with the same outlines; and in `geometry/exposure.ts` an edge of a room is passed
+  over when its box is clear of the wall piece being measured.
+
 Decisions:
 
 - No new convention, no new message code and no new tolerance. The number of pieces a curve is

@@ -102,10 +102,32 @@ function unitsQuestion(typical: Typical): Issue | null {
   return null
 }
 
-function wallQuestions(wall: Wall, others: readonly Wall[], building: BuildingKind, storey: number | undefined): Said[] {
+/**
+ * CNT-25: `median` of a floor's wall heights less one wall's, from the floor's heights sorted
+ * once: the entries left out are `times` entries equal to `value`. The same figure as sorting
+ * the rest, without sorting a floor's heights again for each of its walls. A floor with a height
+ * that is not a number has `rest`, the other walls' heights, sorted afresh, as before.
+ */
+function medianLeaving(sorted: readonly number[], value: number, times: number, rest: () => number[]): number | null {
+  if (!sorted.every(Number.isFinite)) return median(rest())
+  const n = sorted.length - times
+  if (n <= 0) return null
+  // The first entry not below `value`: the block the wall's own entries are in.
+  let k = 0
+  let high = sorted.length
+  while (k < high) {
+    const mid = (k + high) >> 1
+    if (sorted[mid]! < value) k = mid + 1
+    else high = mid
+  }
+  const at = (i: number): number => sorted[i < k ? i : i + times]!
+  const mid = Math.floor(n / 2)
+  return n % 2 === 1 ? at(mid) : (at(mid - 1) + at(mid)) / 2
+}
+
+function wallQuestions(wall: Wall, typicalHeight: number | null, building: BuildingKind, storey: number | undefined): Said[] {
   const asked: Said[] = []
   const id = name(wall.id)
-  const typicalHeight = others.length >= 3 ? median(others.map((w) => w.height)) : null
   const highest = limit('wallHighest', building)
   // LVL-1: a floor that states its height keeps it, whatever its walls.
   const stands =
@@ -193,12 +215,23 @@ export function validatePlausibility(
     if (storeys.has(floor.id)) continue
     storeys.set(floor.id, floor.height !== undefined && Number.isFinite(floor.height) ? floor.height : undefined)
   }
+  // Each floor's heights sorted once, and how many times each wall is listed on it.
+  const heightsOf = new Map<string, { list: readonly Wall[]; sorted: number[]; times: Map<Wall, number> }>()
+  for (const [floor, list] of byFloor) {
+    const times = new Map<Wall, number>()
+    for (const w of list) times.set(w, (times.get(w) ?? 0) + 1)
+    heightsOf.set(floor, { list, sorted: list.map((w) => w.height).sort((a, b) => a - b), times })
+  }
   for (const wall of solid) {
     // A part of a wall through floors, in a floor's slice, runs through its slab by design.
     if (sharedPart(wall) !== null) continue
-    const others = byFloor.get(floorOfWall(wall))!.filter((w) => w !== wall)
+    const heights = heightsOf.get(floorOfWall(wall))!
+    const times = heights.times.get(wall)!
+    // The typical height is that of the floor's other walls, when it has three or more.
+    const rest = (): number[] => heights.list.filter((w) => w !== wall).map((w) => w.height)
+    const typicalHeight = heights.list.length - times >= 3 ? medianLeaving(heights.sorted, wall.height, times, rest) : null
     const storey = storeys.get(floorOfWall(wall))
-    for (const message of wallQuestions(wall, others, building, storey)) ask('wall', wall.id, 'wall/size-question', message)
+    for (const message of wallQuestions(wall, typicalHeight, building, storey)) ask('wall', wall.id, 'wall/size-question', message)
   }
 
   for (const opening of plan.openings) {
