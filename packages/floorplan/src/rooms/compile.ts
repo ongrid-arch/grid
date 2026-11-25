@@ -19,7 +19,8 @@
  *                                      refused as a question (WRT-34); `numbers` is not kept in the plan
  *   building <home|office|shop|...>    what kind of building the plan is (CNT-5)
  *   based on <revision>                the plan this text was read from (written by the read-back)
- *   walls outside <t> inside <t> [interior|partition] height <h>      the thickness rule
+ *   walls outside <t> inside <t> [interior|partition] height <h>      the thickness rule, for
+ *       the floor it is on (before its rooms) and every floor after it (WRT-47)
  *   walltype <t> <kind>                every inside wall of that thickness gets that kind
  *   sizes inside|centre|outside        what a room's size measures to, when its line does not say
  *   doors height <h>   windows sill <s> height <h>                    defaults
@@ -30,7 +31,7 @@
  *       `elevation=0`, `level: 1` and `Height = 2.7` are read as `elevation 0` and so on (WRT-14)
  *   room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where> [...]
  *   room <id> "<name>" <use|-> polygon x,y x,y x,y ...                 inside faces
- *       <where>: at x,y (the south-west inside corner)
+ *       <where>: at x,y (the south-west corner the size measures to: inside, unless centre or outside)
  *                <north|south|east|west> of <room or unit> [align <side|centre>] [shift <m>] [until <room>] [open]
  *                inside <room> corner <ne|nw|se|sw> [wall <t> [kind]]  cuts that corner out of the room
  *       then:    walls <t> [kind]  height <h>  floor <m> (its floor above or below the storey's)  first-wall <wall id>
@@ -406,6 +407,8 @@ interface RoomDraft {
   through: string | null
   /** WRT-4: the floor whose room this one is, standing here because that one rises through. */
   risenFrom: string | null
+  /** WRT-47: for a room sized to centre lines or outside faces and placed by its corner, the box its size measures to. */
+  drawn?: Box
 }
 
 interface OpeningLine {
@@ -444,6 +447,17 @@ interface FloorDraft {
   raw: { walls: unknown[]; rooms: unknown[]; openings: unknown[] }
   /** CNT-4: each placement of a flat type on this floor: its label, its unit, its rooms and whether it is mirrored. */
   flats: Array<{ label: string; unit: string; mirrored: boolean; rooms: RoomDraft[] }>
+  /** WRT-47: the walls line this floor is written by: the one in force when it started, and the line it came from. */
+  rule: WallsRule
+}
+
+/** WRT-47: a walls line's figures, and the line that stated them (null for Grid's own). */
+interface WallsRule {
+  outside: number
+  inside: number
+  height: number | null
+  kind: WallKind
+  line: number | null
 }
 
 interface Unit {
@@ -613,7 +627,8 @@ class Compiler {
   private plain: PlainNumbers = PLAIN_METRES
   // WRT-6 (lab AU3-6): no height until the text states one. A wall the text gives no height is
   // written with none, and the reading gives it its floor's height or Grid's default.
-  private rule: { outside: number; inside: number; height: number | null; kind: WallKind } = { ...ROOMS_WALLS, height: null, kind: 'interior' }
+  // WRT-47: the walls line in force; each floor keeps the one it started with (`FloorDraft.rule`).
+  private rule: WallsRule = { ...ROOMS_WALLS, height: null, kind: 'interior', line: null }
   private dflt = { doorH: 2.1, winSill: 0.9, winH: 1.2 }
   private tkinds = new Map<number, WallKind>()
   sizes: { basis: SizeBasis; stated: boolean } = { basis: 'inside', stated: false }
@@ -683,7 +698,7 @@ class Compiler {
 
   private floor(): FloorDraft {
     if (this.cur === null) {
-      this.cur = newFloor('ground', 'Ground floor', 0)
+      this.cur = newFloor('ground', 'Ground floor', 0, this.rule)
       this.cur.ahead = this.openedAhead(this.lines.map((text, i) => ({ line: i + 1, text })))
       this.floors.push(this.cur)
     }
@@ -905,6 +920,8 @@ class Compiler {
         return
       case 'walls':
         this.readPairs(t.slice(1), at, { outside: 'outside', inside: 'inside', height: 'height' }, this.rule as unknown as Record<string, unknown>, true)
+        this.rule.line = at
+        this.wallsLine(at)
         return
       case 'doors':
         this.readPairs(t.slice(1), at, { height: 'doorH' }, this.dflt as unknown as Record<string, unknown>, false)
@@ -990,6 +1007,25 @@ class Compiler {
     }
   }
 
+  /**
+   * WRT-47: a walls line is for the floor it is written on while that floor has no rooms, and for
+   * every floor after it. Written after a floor's rooms, it leaves that floor as it started, and says so.
+   */
+  private wallsLine(at: number): void {
+    const fl = this.cur
+    if (fl === null) return
+    if (!started(fl)) {
+      fl.rule = { ...this.rule }
+      return
+    }
+    const was = fl.rule
+    const now = this.rule
+    const same = (a: number | null, b: number | null): boolean => (a === null ? b === null : b !== null && Math.abs(a - b) <= tolerance('diffLength'))
+    if (same(was.outside, now.outside) && same(was.inside, now.inside) && same(was.height, now.height) && was.kind === now.kind) return
+    const key: MessageKey = was.height === null ? 'rooms.wallsLate' : 'rooms.wallsLate.height'
+    this.warn('rooms/walls-late', at, english(said(key, { line: String(at), floor: fl.id, outside: f2(was.outside), inside: f2(was.inside), height: f2(was.height ?? 0) })))
+  }
+
   private readPairs(t: string[], at: number, keys: Record<string, string>, target: Record<string, unknown>, kinds: boolean): void {
     let i = 0
     while (i < t.length) {
@@ -1052,7 +1088,7 @@ class Compiler {
       const fixed = [`floor ${id.text}`, quoteWords(words.slice(0, end).map((w) => w.text).join(' ')), ...words.slice(end).map(lineWord)].join(' ')
       refuse(say('rooms.floor.unquoted', { word: words[0].text, line: fixed }))
     }
-    const fl = newFloor(id.text, name ?? id.text, this.floors.length === 0 ? 0 : this.floors.length)
+    const fl = newFloor(id.text, name ?? id.text, this.floors.length === 0 ? 0 : this.floors.length, this.rule)
     fl.ahead = this.openedAhead(this.lines.slice(at).map((text, i) => ({ line: at + i + 1, text })))
     let copy: string[] | null = null
     const seen = new Set<string>()
@@ -1222,8 +1258,7 @@ class Compiler {
     return pairs
   }
 
-  private gapBetween(room: RoomDraft, others: RoomDraft[]): number {
-    const fl = this.floor()
+  private gapBetween(room: RoomDraft, others: RoomDraft[], fl: FloorDraft = this.floor()): number {
     if (others.length === 1) {
       const key = pairKey(room.id, others[0]!.id)
       if (fl.open.has(key) || fl.ahead.has(key)) return 0
@@ -1239,7 +1274,7 @@ class Compiler {
       .map((r) => r.wallsT)
       .filter((t): t is number => t !== null)
     if (ts.length > 0) return Math.max(...ts)
-    return outdoorPair ? this.rule.outside : this.rule.inside
+    return outdoorPair ? fl.rule.outside : fl.rule.inside
   }
 
   private readRoom(t: string[], at: number, ctx: PlaceCtx | null): RoomDraft {
@@ -1383,12 +1418,18 @@ class Compiler {
     }
     const used = basis ?? this.sizes.basis
     room.size = { w: Wn, d: Dn, basis: used }
+    // WRT-47: what is taken off each side, so a room placed by its corner is placed by the corner its size measures to.
+    const off = { west: 0, east: 0, south: 0, north: 0 }
     if (used !== 'inside') {
       // The size runs to the walls' centre lines or outside faces: take off the walls round it.
       const share = used === 'centre' ? 0.5 : 1
-      const side = (s: string): number => (this.assumed.get(`${fl.id}|${id}|${s}`) ?? (room.wallsT ?? this.rule.outside)) * share
-      if (Wn !== null) Wn -= side('west') + side('east')
-      if (Dn !== null) Dn -= side('south') + side('north')
+      const side = (s: string): number => (this.assumed.get(`${fl.id}|${id}|${s}`) ?? (room.wallsT ?? fl.rule.outside)) * share
+      off.west = side('west')
+      off.east = side('east')
+      off.south = side('south')
+      off.north = side('north')
+      if (Wn !== null) Wn -= off.west + off.east
+      if (Dn !== null) Dn -= off.south + off.north
       if ((Wn !== null && Wn <= 0) || (Dn !== null && Dn <= 0)) {
         this.stop('rooms/size', at, `line ${at}: room '${id}' measured to the walls' ${used === 'centre' ? 'centre lines' : 'outside faces'} leaves nothing inside them. Write a bigger size, or its inside size.`)
       }
@@ -1398,11 +1439,14 @@ class Compiler {
     if (place.at) {
       if (Wn === null || Dn === null) this.stop('rooms/size', at, `line ${at}: '*' needs a room to stretch to. With 'at', give both sizes.`)
       let [x0, y0] = place.at
+      const Ww = Wn + off.west + off.east
+      const Dw = Dn + off.south + off.north
       if (ctx !== null) {
-        if (mx) x0 = -x0 - Wn
-        if (my) y0 = -y0 - Dn
+        if (mx) x0 = -x0 - Ww
+        if (my) y0 = -y0 - Dw
       }
-      box = [x0, y0, x0 + Wn, y0 + Dn]
+      if (used !== 'inside' && ctx === null) room.drawn = [x0, y0, x0 + Ww, y0 + Dw]
+      box = [x0 + off.west, y0 + off.south, x0 + off.west + Wn, y0 + off.south + Dn]
     } else if (place.dir !== undefined) {
       const { box: rbox, rooms: rrooms } = this.lookup(place.ref!, at, ctx)
       let gap: number
@@ -1422,7 +1466,8 @@ class Compiler {
         this.stop('rooms/syntax', at, `line ${at}: room '${id}' does not say where it goes. Write 'at x,y' or, better, '<north|south|east|west> of <room>'. Only the first room may leave it out (it starts at 0,0).`)
       }
       if (Wn === null || Dn === null) this.stop('rooms/size', at, `line ${at}: '*' needs a room to stretch to.`)
-      box = [0, 0, Wn, Dn]
+      if (used !== 'inside' && ctx === null) room.drawn = [0, 0, Wn + off.west + off.east, Dn + off.south + off.north]
+      box = [off.west, off.south, off.west + Wn, off.south + Dn]
     }
     if (box[2] - box[0] <= eps() || box[3] - box[1] <= eps()) {
       this.stop('rooms/size', at, `line ${at}: room '${id}' comes out with no size (${f2(box[2] - box[0])} x ${f2(box[3] - box[1])}). Check 'until': the room it stretches to must lie beyond this one.`)
@@ -1528,7 +1573,7 @@ class Compiler {
     // building's outside wall, as one placed beside a room is.
     const outdoorPair = facesOutdoor(room, host)
     const ownT = outdoorPair ? (room.outdoor === null ? room.wallsT : host.wallsT) : room.wallsT
-    const T = place.wallT ?? ownT ?? (outdoorPair ? this.rule.outside : this.rule.inside)
+    const T = place.wallT ?? ownT ?? (outdoorPair ? this.floor().rule.outside : this.floor().rule.inside)
     const cx = c.includes('e') ? hb[2] : hb[0]
     const cy = c.includes('n') ? hb[3] : hb[1]
     const sx = c.includes('e') ? -1 : 1
@@ -1706,7 +1751,7 @@ class Compiler {
       if (gap === undefined && this.unitOpensOnto(rooms, ub, place.dir, rrooms)) gap = 0
       if (gap === undefined) {
         const ts = [...rooms, ...rrooms].map((r) => r.wallsT).filter((t): t is number => t !== null)
-        gap = ts.length > 0 ? Math.max(...ts) : this.rule.inside
+        gap = ts.length > 0 ? Math.max(...ts) : fl.rule.inside
       }
       box = this.relBox(W, D, place.dir, rbox, gap, place.align ?? null, place.shift ?? 0, null, at)
     } else {
@@ -1850,6 +1895,8 @@ class Compiler {
     if (!src) this.stop('rooms/unknown-floor', at, `line ${at}: there is no floor '${t[1]}'. Floors so far: ${this.floors.map((f) => f.id).join(', ')}.`)
     const fl = this.floor()
     if (fl === src) this.stop('rooms/syntax', at, `line ${at}: a floor cannot copy itself. Start the new floor with a 'floor' line first.`)
+    // WRT-47: a floor copied before it has rooms of its own is written by the walls its rooms were placed by.
+    if (!started(fl)) fl.rule = { ...src.rule }
     // A room that rose through to this floor is here already (WRT-4).
     for (const r of src.rooms.values()) if (!(fl.rooms.get(r.id)?.risenFrom === (r.risenFrom ?? src.id))) this.addRoom({ ...r, poly: [...r.poly], through: null, risenFrom: r.risenFrom }, null)
     // LVL-16: the floor's outline, roof, parapet, homes and parking too, unless this floor set its own.
@@ -1945,11 +1992,11 @@ class Compiler {
         if (s1 - s0 > eps()) e.cands.push({ s0, s1, d: Math.max(d, 0), f })
       }
     }
-    let junc = this.rule.outside
+    let junc = fl.rule.outside
     const thicknessStated = (t: number): boolean =>
-      [this.rule.inside, this.rule.outside, ...this.statedT, ...[...this.tkinds.keys()].map((k) => k / 1000)].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
+      [fl.rule.inside, fl.rule.outside, ...this.statedT, ...[...this.tkinds.keys()].map((k) => k / 1000)].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
     // WRT-31: what a wall between a room and outdoor space may be without a word: the outside thickness, or one a line states.
-    const outsideStated = (t: number): boolean => [this.rule.outside, ...this.statedT].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
+    const outsideStated = (t: number): boolean => [fl.rule.outside, ...this.statedT].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
     const reported = new Set<string>()
     for (const e of edges) {
       const taken: Array<[number, number]> = []
@@ -1991,7 +2038,7 @@ class Compiler {
             // WRT-17: a wall the text states may be seen end on across an outside face; a wall
             // only as thick as an odd gap between two rooms does not make every such stretch one.
             if (thicknessStated(c.d)) junc = Math.max(junc, c.d)
-          } else if (c.d < 2 * this.rule.outside + maxT && !walled(x, y, c.d)) {
+          } else if (c.d < 2 * fl.rule.outside + maxT && !walled(x, y, c.d)) {
             const key = pairKey(e.room.id, c.f.room.id)
             if (!reported.has(key)) {
               reported.add(key)
@@ -2013,7 +2060,7 @@ class Compiler {
 
     // A floor's stated height is the height of its walls (LVL-1), so they state none of their own:
     // the reading gives it to them, and the file says it once, on the floor (WRT-6).
-    const height = fl.height !== null ? null : this.rule.height
+    const height = fl.height !== null ? null : fl.rule.height
     const raws: RawWall[] = []
     const pt = (e: Edge, s: number, off: number): P => [e.p[0] + e.u[0] * s + e.n[0] * off, e.p[1] + e.u[1] * s + e.n[1] * off]
     for (const e of edges) {
@@ -2034,7 +2081,7 @@ class Compiler {
           this.tkinds.get(Math.round(d * 1000)) ??
           A.wallsKind ??
           B.wallsKind ??
-          this.rule.kind
+          fl.rule.kind
         let virtual = false
         if (d < tolerance('roomsTouch')) {
           if (fl.open.has(key)) {
@@ -2065,7 +2112,7 @@ class Compiler {
         }
         // WRT-17: the wall takes the gap the rooms leave; a gap no line states is said, once a pair.
         if (!virtual && !(spec && spec.t !== null) && !this.fromGap.has(key)) {
-          const values = { a: A.id, aLine: String(A.line), b: B.id, bLine: String(B.line), thickness: f2(d), inside: f2(this.rule.inside), outside: f2(this.rule.outside) }
+          const values = { a: A.id, aLine: String(A.line), b: B.id, bLine: String(B.line), thickness: f2(d), inside: f2(fl.rule.inside), outside: f2(fl.rule.outside) }
           if (!thicknessStated(d)) {
             this.fromGap.add(key)
             this.warn('rooms/wall-from-gap', B.line, english(said('rooms.wallFromGap', values)))
@@ -2103,7 +2150,7 @@ class Compiler {
         cur = Math.max(cur, c.s1)
       }
       if (e.L - cur > eps()) gaps.push([cur, e.L])
-      let T = this.rule.outside
+      let T = fl.rule.outside
       let kind: WallKind = 'exterior'
       let say: WallSay | null = null
       for (const x of fl.extover) {
@@ -2165,18 +2212,46 @@ class Compiler {
     }
   }
 
+  /**
+   * WRT-47: the wall a side of a room sized to centre lines or outside faces is taken to have
+   * next round. Two such rooms placed by their corners, whose sizes meet on one line, have the
+   * wall the text means for the two between them, its centre line on the line they meet on, not
+   * the gap this round's guess left; any other wall is as thick as it came out.
+   */
+  private meantBetween(fl: FloorDraft, e: Edge, r: RawWall): { t: number; meets: boolean } {
+    const asBuilt = { t: r.t, meets: false }
+    if (r.ext || r.virtual || r.rooms.length !== 2) return asBuilt
+    const [A, B] = r.rooms as [RoomDraft, RoomDraft]
+    if (A.drawn === undefined || B.drawn === undefined || !boxesMeet(A.drawn, B.drawn)) return asBuilt
+    const key = pairKey(A.id, B.id)
+    const spec = fl.betweenSide.get(`${key}\u0000${e.room.id}\u0000${compassOf(e.n)}`) ?? fl.between.get(key)
+    if (spec && spec.t !== null && spec.kind !== 'virtual') return { t: spec.t, meets: true }
+    return { t: this.gapBetween(A, [B], fl), meets: true }
+  }
+
   /** What each side of a room sized to centre lines or outside faces turned out to have. */
   private sideThicknesses(fl: FloorDraft, edges: Edge[], raws: RawWall[]): void {
     for (const e of edges) {
       const room = e.room
       if (room.size === null || room.size.basis === 'inside' || room.poly.length !== 4) continue
       const along = new Map<number, number>()
+      const meeting = new Set<number>()
       for (const r of raws) {
-        for (const [idx, s0, s1] of r.sides) if (idx === e.idx) along.set(r.t, (along.get(r.t) ?? 0) + (s1 - s0))
+        for (const [idx, s0, s1] of r.sides) {
+          if (idx !== e.idx) continue
+          const { t, meets } = this.meantBetween(fl, e, r)
+          along.set(t, (along.get(t) ?? 0) + (s1 - s0))
+          if (meets) meeting.add(t)
+        }
       }
-      let best = this.rule.outside
+      let best = fl.rule.outside
       let most = -1
-      for (const [t, len] of along) if (len > most + eps()) [best, most] = [t, len]
+      // WRT-47: a side that meets other rooms on its line takes the wall shared there, however
+      // long its outside stretch: the rooms on both sides are placed by that line.
+      for (const [t, len] of along) if ((meeting.size === 0 || meeting.has(t)) && len > most + eps()) [best, most] = [t, len]
+      // A room sized to its outside faces that meets another on a line gives up half the wall
+      // there, its centre line on that line, so the two sizes add up.
+      if (room.size.basis === 'outside' && meeting.has(best)) best /= 2
       this.found.set(`${fl.id}|${room.id}|${compassOf(e.n, DIRS)}`, best)
     }
   }
@@ -3078,8 +3153,13 @@ class Compiler {
     const rawRoomLines: Array<{ fl: FloorDraft; words: string[]; line: number; local: string }> = []
     for (const fl of this.floors) {
       const wallPrefix = multi ? `${fl.id}-` : ''
-      const height = fl.height ?? this.rule.height ?? WALL_DEFAULTS.solid.height
+      const height = fl.height ?? fl.rule.height ?? WALL_DEFAULTS.solid.height
       let worked: { edges: Edge[]; raws: RawWall[]; gone: ReadonlySet<string> } | null = null
+      // WRT-47: a floor's stated height is its walls' (LVL-1); a walls line that says another is told so.
+      if (fl.rooms.size > 0 && fl.height !== null && fl.rule.height !== null && Math.abs(fl.height - fl.rule.height) > tolerance('diffLength')) {
+        const values = { floor: fl.id, floorHeight: f2(fl.height), height: f2(fl.rule.height), line: String(fl.rule.line ?? '') }
+        this.warn('rooms/walls-height', fl.rule.line, english(said('rooms.wallsHeight', values)))
+      }
       if (fl.rooms.size === 0) {
         if (fl.raw.walls.length + fl.raw.rooms.length === 0) this.warn('rooms/empty-floor', null, `Floor '${fl.id}' has no rooms.`)
       } else {
@@ -3407,8 +3487,21 @@ function carriedKept(fl: FloorDraft): OpeningLine[] {
   return fl.openings.filter((o) => o.risen !== true || (!ids.has(o.words[1]) && !pairs.has(pairKey(o.words[3]!, o.words[5]!)) && fl.rooms.has(o.words[3]!) && fl.rooms.has(o.words[5]!)))
 }
 
-function newFloor(id: string, name: string, level: number): FloorDraft {
+/** WRT-47: whether two boxes meet along a side: one's edge on the other's, with a length in common. */
+function boxesMeet(a: Box, b: Box): boolean {
+  const near = (p: number, q: number): boolean => Math.abs(p - q) <= tolerance('joint')
+  const overlap = (lo0: number, hi0: number, lo1: number, hi1: number): boolean => Math.min(hi0, hi1) - Math.max(lo0, lo1) > tolerance('joint')
+  return ((near(a[2], b[0]) || near(a[0], b[2])) && overlap(a[1], a[3], b[1], b[3])) || ((near(a[3], b[1]) || near(a[1], b[3])) && overlap(a[0], a[2], b[0], b[2]))
+}
+
+/** WRT-47: whether a floor has rooms placed on its own lines (copied ones too), past rising through from below. */
+function started(fl: FloorDraft): boolean {
+  return fl.copied !== null || [...fl.rooms.values()].some((r) => r.risenFrom === null)
+}
+
+function newFloor(id: string, name: string, level: number, rule: WallsRule): FloorDraft {
   return {
+    rule: { ...rule },
     id,
     name,
     level,

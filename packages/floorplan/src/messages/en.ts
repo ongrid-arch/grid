@@ -1956,6 +1956,13 @@ export const en = {
   // WRT-31: a wall between a room and outdoor space is an outside wall, whatever gap the rooms leave.
   'rooms.wallFromGap.outdoor':
     "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) faces outdoor space, so it is an outside wall, but the rooms leave {thickness} m for it, not the outside walls' {outside} m. If that is meant, keep it with 'wall between {a} and {b} {thickness}'; if not, move a room.",
+  // WRT-47: a walls line written after a floor's rooms is for the floors after it; a floor's own height is its walls'.
+  'rooms.wallsLate':
+    "Line {line}: this walls line comes after rooms of floor '{floor}', which keeps the walls it started with (outside {outside} m, inside {inside} m). It is for the floors written after it; to change floor '{floor}' too, write it before that floor's first room.",
+  'rooms.wallsLate.height':
+    "Line {line}: this walls line comes after rooms of floor '{floor}', which keeps the walls it started with (outside {outside} m, inside {inside} m, height {height} m). It is for the floors written after it; to change floor '{floor}' too, write it before that floor's first room.",
+  'rooms.wallsHeight':
+    "Floor '{floor}' states its height, {floorHeight} m, so its walls are {floorHeight} m high, not the {height} m of the walls line (line {line}). The walls line's height is for floors that state none; to give this floor's walls {height} m, write 'height {height}' on its floor line.",
   // CNT-36: a dividing line or an open side needs a side the two rooms share.
   'rooms.openNotShared':
     "Line {line}: '{a}' and '{b}' are opened to each other, but they share no side, so there is nowhere for the dividing line. '{a}' shares sides with: {aNear}; '{b}' with: {bNear}. Place the two rooms face to face, touching, or leave the line out.",
