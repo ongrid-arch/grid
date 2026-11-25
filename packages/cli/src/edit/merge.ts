@@ -22,7 +22,7 @@
  *
  * Pure: a survey in, a patch out.
  */
-import { FINISH_SURFACES, cross, dot, roomFinishes, signedArea, sub, tolerance, wallAxis, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { FINISH_SURFACES, cross, dot, roomFinishes, signedArea, sub, tolerance, wallAxis, wallLength, wallPointAt, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { factOf, statedWall, wallWithEnds } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import type { Survey, SurveyRoom } from '../quantities/survey'
@@ -57,6 +57,17 @@ export function spanOn(room: SurveyRoom, wall: Wall): { lo: number; hi: number; 
   return best
 }
 
+/**
+ * Where a room's outline passes a curved wall (CNT-22): the middle of its sides on the curve, or
+ * the middle of the curve when it has none. A curved wall has no straight axis to measure along.
+ */
+function curvePassed(room: SurveyRoom, wall: Wall): Vec2 {
+  const along = room.edges.filter((edge) => edge.wall?.id === wall.id)
+  if (along.length === 0) return wallPointAt(wall, wallLength(wall) / 2)
+  const sum = along.reduce((p, edge) => ({ x: p.x + edge.from.x + edge.to.x, y: p.y + edge.from.y + edge.to.y }), { x: 0, y: 0 })
+  return { x: sum.x / (2 * along.length), y: sum.y / (2 * along.length) }
+}
+
 /** The room's wall list, turned counter-clockwise if it was written the other way. */
 export function ccwBoundary(room: SurveyRoom, plan: Survey['plan']): string[] {
   const listed = plan.rooms.find((r) => r.id === room.facts.id)!.boundary
@@ -64,6 +75,10 @@ export function ccwBoundary(room: SurveyRoom, plan: Survey['plan']): string[] {
   for (const id of listed) {
     const wall = plan.walls.find((w) => w.id === id)
     if (!wall) continue
+    if (wall.arc !== undefined) {
+      points.push(curvePassed(room, wall))
+      continue
+    }
     const axis = wallAxis(wall)
     const span = spanOn(room, wall)
     const s = span ? (span.lo + span.hi) / 2 : axis.length / 2
@@ -110,6 +125,16 @@ export function cutAt(plan: Survey['plan'], wall: Wall, s: number): number {
   let near: number | null = null
   for (const other of plan.walls) {
     if (other.id === wall.id || (other.floor ?? 'ground') !== (wall.floor ?? 'ground')) continue
+    if (other.arc !== undefined) {
+      // CNT-22: a curved wall meets the cut wall at an end of its curve, or not at all.
+      for (const end of [other.start, other.end]) {
+        const p = { x: end[0], y: end[1] }
+        const t = dot(sub(p, axis.start), axis.dir)
+        const off = Math.abs(cross(axis.dir, sub(p, axis.start)))
+        if (off <= other.thickness / 2 + TOL && Math.abs(t - s) <= other.thickness / 2 + TOL && (near === null || Math.abs(t - s) < Math.abs(near - s))) near = t
+      }
+      continue
+    }
     const x = wallAxis(other)
     const denom = cross(axis.dir, x.dir)
     if (Math.abs(denom) < tolerance('parallel')) continue
@@ -152,7 +177,8 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
     const which = zonesOf(aId).length > 0 ? an : bn
     throw new EditRefused(`${which} has zones already, and a zone is part of a room, not of a zone. Merge without zones, and say the merged room's use.`)
   }
-  refuseCurved([...aRoom.boundary, ...bRoom.boundary].map((id) => plan.walls.find((w) => w.id === id)), 'mergeRooms')
+  // CNT-22: only the wall the two share is cut; a curved wall round either room stays as it is.
+  refuseCurved(aRoom.boundary.filter((id) => bRoom.boundary.includes(id)).map((id) => plan.walls.find((w) => w.id === id)), 'mergeRooms')
 
   const shared: Array<{ wall: Wall; s0: number; s1: number }> = []
   for (const id of new Set(aRoom.boundary.filter((w) => bRoom.boundary.includes(w)))) {

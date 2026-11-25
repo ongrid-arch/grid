@@ -304,8 +304,17 @@ function sidesOf(wall: Wall, listing: readonly Traced[], rooms: Buckets<Traced>,
       if (side.length > 0) continue
       const probe = { x: centre.x + normal.x * step * sign, y: centre.y + normal.y * step * sign }
       const held = roomHolding(probe, rooms.near(probe))
+      const inOther = (p: Vec2): boolean => bodies.near(p).some((b) => b.wall !== wall && inBody(p, b))
+      // WRT-17: the face looks into another wall only where it does so along the whole stretch,
+      // its quarters as well as its middle: a short wall that overlaps the end of an angled one
+      // still faces outside past it.
+      const quarters = (): boolean =>
+        [(3 * from + to) / 4, (from + 3 * to) / 4].every((s) => {
+          const frame = wallFrameAt(wall, s)
+          return inOther({ x: frame.point.x + frame.normal.x * step * sign, y: frame.point.y + frame.normal.y * step * sign })
+        })
       if (held !== null) side.push(held)
-      else blocked[k] = bodies.near(probe).some((b) => b.wall !== wall && inBody(probe, b))
+      else blocked[k] = inOther(probe) && quarters()
       // Floor the walls enclose that no room claims (a forgotten room, a courtyard not drawn) is
       // not the outside (ARE-4). Asked only for a wall not stated exterior, which faces outside anyway.
       if (held === null && !blocked[k] && wall.kind !== 'exterior' && (left.length > 0 || right.length > 0)) blocked[k] = enclosed(probe)
@@ -319,13 +328,22 @@ function sidesOf(wall: Wall, listing: readonly Traced[], rooms: Buckets<Traced>,
     const one = worked === 'exterior' && separates(wall) ? 'separating' : worked
     raw.push({ from, to, left, right, worked: left.length + right.length === 0 ? 'detached' : one })
   }
-  // Neighbouring stretches with the same rooms are one.
+  // Neighbouring stretches with the same rooms are one, worked out as its longest piece is
+  // (WRT-17): a sliver at a joint of three walls, where a probe lands in another wall's body,
+  // does not decide the whole stretch.
   const same = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x) => b.includes(x))
   const stretches: WallStretch[] = []
+  let longest = 0
   for (const s of raw) {
     const last = stretches.at(-1)
-    if (last && same(last.left, s.left) && same(last.right, s.right)) stretches[stretches.length - 1] = { ...last, to: s.to }
-    else stretches.push(s)
+    const length = s.to - s.from
+    if (last && same(last.left, s.left) && same(last.right, s.right)) {
+      stretches[stretches.length - 1] = { ...last, to: s.to, ...(length > longest ? { worked: s.worked } : {}) }
+      longest = Math.max(longest, length)
+    } else {
+      stretches.push(s)
+      longest = length
+    }
   }
   const long = (s: WallStretch): boolean => s.to - s.from > tolerance('lineInside')
   const worked: WallExposure = stretches.some((s) => long(s) && s.worked === 'exterior')
@@ -346,7 +364,10 @@ function sidesOf(wall: Wall, listing: readonly Traced[], rooms: Buckets<Traced>,
   const length = (kind: WallExposure): number =>
     stretches.filter((s) => s.worked === kind).reduce((sum, s) => sum + (s.to - s.from), 0)
   let differs: WallSides['differs'] = null
-  if (wall.kind === 'exterior' && length('interior') > tolerance('lineInside')) differs = { length: length('interior'), stands: 'kept' }
+  // A wall stated exterior is said to have rooms on both sides only where rooms are (WRT-17): a
+  // face that looks into another wall's body, at a joint, is neither a room nor the outside.
+  const roomed = stretches.filter((s) => s.worked === 'interior' && s.left.length > 0 && s.right.length > 0).reduce((sum, s) => sum + (s.to - s.from), 0)
+  if (wall.kind === 'exterior' && roomed > tolerance('lineInside')) differs = { length: length('interior'), stands: 'kept' }
   if (wall.kind === 'partition' && worked === 'exterior') differs = { length: length('exterior'), stands: 'worked' }
   return { wall: wall.id, stated: wall.kind, stretches, worked, exposure, differs }
 }

@@ -85,12 +85,14 @@ function house(extra: number, meant = false, groundThickness = 0.3): FloorPlan {
 
 describe('a floor that no longer lies over the floor below (lab WR-9, E-9)', () => {
   it('is said, with the side and by how much, when the ground floor is widened 30 cm', () => {
-    const issue = validatePlan(house(0.3)).issues.find((i) => i.code === 'floor/out-of-line')!
+    // LVL-10: the first floor now lies wholly inside the ground floor, so it is a set-back.
+    const issue = validatePlan(house(0.3)).issues.find((i) => i.code === 'floor/set-back')!
     expect(issue.severity).toBe('warning')
     expect(issue.id).toBe('f')
     expect(issue.message).toBe(
-      'Floor "First floor" does not line up with "Ground floor" below it: it sits back from it by 0.30 m on the east, from (8.15, -0.15) to (8.45, 6.15). ' +
-        'If that is meant, mark the floor with overhang "meant"; if not, move its outside walls over the floor below, or make a wall that both floors share rise through them (through).'
+      'Floor "First floor" is a part floor over "Ground floor": it sits back from it by 0.30 m on the east, and lines up with it on the north, south and west. ' +
+        'It stands from (-0.15, -0.15) to (8.15, 6.15), the floor below from (-0.15, -0.15) to (8.45, 6.15). ' +
+        'If that is meant, mark the floor with overhang "meant"; if not, move its outside walls out over the edge of the floor below, or make a wall that both floors share rise through them (through).'
     )
   })
 
@@ -100,11 +102,86 @@ describe('a floor that no longer lies over the floor below (lab WR-9, E-9)', () 
   })
 
   it('is not said when the overhang is marked as meant, nor when the floors line up', () => {
-    expect(validatePlan(house(0.3, true)).issues.map((i) => i.code)).not.toContain('floor/out-of-line')
+    expect(validatePlan(house(0.3, true)).issues.map((i) => i.code)).not.toContain('floor/set-back')
     expect(validatePlan(house(0)).issues.map((i) => i.code)).not.toContain('floor/out-of-line')
+    expect(validatePlan(house(0)).issues.map((i) => i.code)).not.toContain('floor/set-back')
     // Wall faces a few centimetres apart line up, and so do walls of different thickness on one
     // axis: 0.50 m walls under 0.30 m ones put their faces 0.10 m apart all round.
-    expect(validatePlan(house(0.03)).issues.map((i) => i.code)).not.toContain('floor/out-of-line')
-    expect(validatePlan(house(0, false, 0.5)).issues.map((i) => i.code)).not.toContain('floor/out-of-line')
+    expect(floorNotes(house(0.03))).toEqual([])
+    expect(floorNotes(house(0, false, 0.5))).toEqual([])
+  })
+})
+
+/** A box of four 0.3 m outside walls round one room, from (x0, y0) to (x1, y1) on their centre lines. */
+function boxOn(floor: string, [x0, y0, x1, y1]: readonly [number, number, number, number]) {
+  const wall = (side: string, start: number[], end: number[]) => ({ id: `${floor}-${side}`, start, end, thickness: 0.3, kind: 'exterior', height: 2.7, floor })
+  return [wall('s', [x0, y0], [x1, y0]), wall('e', [x1, y0], [x1, y1]), wall('n', [x1, y1], [x0, y1]), wall('w', [x0, y1], [x0, y0])]
+}
+
+/** Two floors of one room each: the ground floor on `ground`, the first floor on `first`. */
+function twoBoxes(ground: readonly [number, number, number, number], first: readonly [number, number, number, number], meant = false): FloorPlan {
+  return parseFloorPlan({
+    floors: [
+      { id: 'g', name: 'Ground floor', level: 0 },
+      { id: 'f', name: 'First floor', level: 1, ...(meant ? { overhang: 'meant' } : {}) }
+    ],
+    walls: [...boxOn('g', ground), ...boxOn('f', first)],
+    rooms: [
+      { id: 'g-r', name: 'Store', floor: 'g', boundary: ['g-s', 'g-e', 'g-n', 'g-w'], use: 'storage' },
+      { id: 'f-r', name: 'Mezzanine', floor: 'f', boundary: ['f-s', 'f-e', 'f-n', 'f-w'], use: 'storage' }
+    ],
+    openings: [{ id: 'door', wall: 'g-s', type: 'door', offset: 1, width: 0.9, height: 2.1 }]
+  })
+}
+
+const floorNotes = (plan: FloorPlan) => validatePlan(plan).issues.filter((i) => i.code === 'floor/out-of-line' || i.code === 'floor/set-back')
+
+describe('a part floor wholly inside the floor below', () => {
+  it('is a set-back, said once with the sides it sits back on and how far, never all round', () => {
+    // A storage mezzanine in the south-west corner of a 40 by 30 m store, flush on two sides.
+    const notes = floorNotes(twoBoxes([0, 0, 40, 30], [0, 0, 12, 10]))
+    expect(notes.map((i) => [i.code, i.id, i.severity])).toEqual([['floor/set-back', 'f', 'warning']])
+    expect(notes[0]!.message).toBe(
+      'Floor "First floor" is a part floor over "Ground floor": it sits back from it by 20.00 m on the north and 28.00 m on the east, and lines up with it on the south and west. ' +
+        'It stands from (-0.15, -0.15) to (12.15, 10.15), the floor below from (-0.15, -0.15) to (40.15, 30.15). ' +
+        'If that is meant, mark the floor with overhang "meant"; if not, move its outside walls out over the edge of the floor below, or make a wall that both floors share rise through them (through).'
+    )
+    expect(notes[0]!.message).not.toContain('all round')
+  })
+
+  it('names every side when it sits back on all four', () => {
+    const notes = floorNotes(twoBoxes([0, 0, 20, 10], [2, 1, 17, 7]))
+    expect(notes.map((i) => i.code)).toEqual(['floor/set-back'])
+    expect(notes[0]!.message).toContain('it sits back from it by 3.00 m on the north, 3.00 m on the east, 1.00 m on the south and 2.00 m on the west. It stands')
+  })
+
+  it('names the one side of a floor over a single-storey rear extension', () => {
+    const notes = floorNotes(twoBoxes([0, 0, 8, 14], [0, 0, 8, 10]))
+    expect(notes.map((i) => i.code)).toEqual(['floor/set-back'])
+    expect(notes[0]!.message).toContain('it sits back from it by 4.00 m on the north, and lines up with it on the east, south and west.')
+  })
+
+  it("names the side of a floor that covers the west part only, by how far it sits back, not the strip's width", () => {
+    const notes = floorNotes(twoBoxes([0, 0, 50, 10], [0, 0, 20, 10]))
+    expect(notes[0]!.message).toContain('it sits back from it by 30.00 m on the east, and lines up with it on the north, south and west.')
+  })
+
+  it('is said as the ground floor widened by mistake too, by its one side', () => {
+    const notes = floorNotes(house(0.3))
+    expect(notes.map((i) => i.code)).toEqual(['floor/set-back'])
+    expect(notes[0]!.message).toContain('it sits back from it by 0.30 m on the east, and lines up with it on the north, south and west.')
+  })
+
+  it('is not said when the floor is marked overhang "meant"', () => {
+    expect(floorNotes(twoBoxes([0, 0, 40, 30], [0, 0, 12, 10], true))).toEqual([])
+  })
+
+  it('leaves a floor that reaches past the floor below out of line, by the side it reaches past on', () => {
+    // The first floor runs 30 m east past a 50 m ground floor that it covers only from 20 m on.
+    const notes = floorNotes(twoBoxes([0, 0, 50, 10], [20, 0, 80, 10]))
+    expect(notes.map((i) => i.code)).toEqual(['floor/out-of-line'])
+    expect(notes[0]!.message).toContain('it reaches past it by 30.00 m on the east')
+    expect(notes[0]!.message).toContain('it sits back from it by 20.00 m on the west')
+    expect(notes[0]!.message).not.toContain('all round')
   })
 })

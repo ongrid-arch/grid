@@ -10,6 +10,8 @@
  * do (the scoreboard's sound buildings have outside walls from 0.20 to 0.50 m on each floor). Only floors with a room on them are
  * compared: a parapet or a lone wall is no floor plate. Either way it is a warning, as an
  * overhang or a set-back is often meant: a floor that states `overhang: "meant"` is not asked about.
+ * A floor wholly inside the floors below (a mezzanine, a part upper floor, the floor over a
+ * single-storey extension) is a part floor, said once by its sides (`floor/set-back`, LVL-10).
  *
  * Pure, and never throws: a pair of floors the polygon library cannot cut is not compared.
  */
@@ -106,7 +108,9 @@ function past(a: MultiPolygon, b: MultiPolygon, frame: { x0: number; y0: number;
     // as a share of the floor's half-width and half-depth; all round when it holds the middle.
     const dx = ((x0 + x1) / 2 - middle.x) / Math.max((frame.x1 - frame.x0) / 2, tolerance('noLength'))
     const dy = ((y0 + y1) / 2 - middle.y) / Math.max((frame.y1 - frame.y0) / 2, tolerance('noLength'))
-    const round = x0 < middle.x && middle.x < x1 && y0 < middle.y && middle.y < y1
+    // LVL-10: all round only when it goes round: a piece with a hole. A strip along one side that
+    // holds the middle of the floor below is on that side still.
+    const round = piece.length > 1 && x0 < middle.x && middle.x < x1 && y0 < middle.y && middle.y < y1
     const side = round ? 'all round' : Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'east' : 'west') : dy >= 0 ? 'north' : 'south'
     const depth = side === 'all round' ? widthOf(piece, area) : side === 'east' || side === 'west' ? x1 - x0 : y1 - y0
     found.push({ x0, y0, x1, y1, depth, side, area })
@@ -114,12 +118,54 @@ function past(a: MultiPolygon, b: MultiPolygon, frame: { x0: number; y0: number;
   return found.sort((p, q) => q.area - p.area)
 }
 
+/** The four sides, in the order a set-back names them. */
+const WAYS = ['north', 'east', 'south', 'west'] as const
+type Way = (typeof WAYS)[number]
+
+/**
+ * LVL-10: the sides a floor wholly inside the floors below sits back on, and how far on each:
+ * how far the stretches that sit back (each already wider than `allowed`) reach past the floor's
+ * own box on that side, the deepest of them. A side is named only when that is more than
+ * `allowed` along it, so a sliver or a wall stub names none. Null when no side is: the stretches
+ * lie inside the floor's own outline (a hole in it), which is said as a floor out of line.
+ */
+function setBackSides(
+  upper: MultiPolygon,
+  back: readonly Stretch[],
+  walls: readonly Wall[]
+): { sides: Array<{ side: Way; depth: number }>; box: { x0: number; y0: number; x1: number; y1: number } } | null {
+  const xs = upper.flatMap((piece) => (piece[0] ?? []).map((p) => p[0]))
+  const ys = upper.flatMap((piece) => (piece[0] ?? []).map((p) => p[1]))
+  if (xs.length === 0) return null
+  const box = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) }
+  const sides: Array<{ side: Way; depth: number }> = []
+  for (const side of WAYS) {
+    let deepest = 0
+    for (const s of back) {
+      // The part of the stretch past the floor's box on this side, and how far it reaches.
+      const strip =
+        side === 'north'
+          ? { x0: s.x0, x1: s.x1, y0: box.y1, y1: s.y1 }
+          : side === 'south'
+            ? { x0: s.x0, x1: s.x1, y0: s.y0, y1: box.y0 }
+            : side === 'east'
+              ? { x0: box.x1, x1: s.x1, y0: s.y0, y1: s.y1 }
+              : { x0: s.x0, x1: box.x0, y0: s.y0, y1: s.y1 }
+      const reach = side === 'north' || side === 'south' ? strip.y1 - strip.y0 : strip.x1 - strip.x0
+      if (reach > allowed(strip, walls)) deepest = Math.max(deepest, reach)
+    }
+    if (deepest > 0) sides.push({ side, depth: deepest })
+  }
+  return sides.length === 0 ? null : { sides, box }
+}
+
 /** The most stretches one line names; the rest are counted. */
 const NAMED = 3
 
 /**
  * One warning for each floor whose outline does not lie over the floors one level below it
- * (`floor/out-of-line`), unless it states `overhang: "meant"`. Floors that cannot be worked out
+ * (`floor/out-of-line`, or `floor/set-back` for a part floor wholly inside them), unless it states
+ * `overhang: "meant"`. Floors that cannot be worked out
  * (`spaces` leaves them out) are not compared.
  */
 export function stackingIssues(plan: FloorPlan, spaces: readonly FloorSpaces[]): Issue[] {
@@ -152,8 +198,36 @@ export function stackingIssues(plan: FloorPlan, spaces: readonly FloorSpaces[]):
       const over = past(upper, lowerUnion, frame, walls)
       const back = past(lowerUnion, upper, frame, walls)
       if (over === null || back === null || (over.length === 0 && back.length === 0)) continue
-      // MSG-11: by key (`issue.floor/out-of-line`, `issue.part.lineUp.*`), each stretch with its figures.
       const at = (value: number): Value => num(metresText(value))
+      const lowerNames = joined(below.map((f) => name(f.name || f.id)), 'join.and')
+      // LVL-10: a floor wholly inside the floors below is a part floor, set back from them: said
+      // once, by the sides it sits back on and how far, never as a floor out of line.
+      const setBack = over.length === 0 ? setBackSides(upper, back, walls) : null
+      if (setBack !== null) {
+        const { sides, box } = setBack
+        const flush = WAYS.filter((way) => !sides.some((s) => s.side === way))
+        const sentence = said('issue.floor/set-back', {
+          floor: name(floor.name || floor.id),
+          lower: lowerNames,
+          sides: joined(
+            sides.map((s) => said('issue.part.setBack.side', { depth: at(s.depth), side: said(`describe.way.${s.side}`) })),
+            'join.comma',
+            'join.and'
+          ),
+          flush: flush.length === 0 ? '' : said('issue.part.setBack.flush', { sides: joined(flush.map((way) => said(`describe.way.${way}`)), 'join.comma', 'join.and') }),
+          x0: at(box.x0),
+          y0: at(box.y0),
+          x1: at(box.x1),
+          y1: at(box.y1),
+          lx0: at(frame.x0),
+          ly0: at(frame.y0),
+          lx1: at(frame.x1),
+          ly1: at(frame.y1)
+        })
+        issues.push(withSaid({ entity: 'floor', id: floor.id, code: 'floor/set-back', severity: 'warning', message: english(sentence) }, sentence))
+        continue
+      }
+      // MSG-11: by key (`issue.floor/out-of-line`, `issue.part.lineUp.*`), each stretch with its figures.
       const stretches = (list: readonly Stretch[], verb: 'over' | 'back'): Said => {
         const named = list
           .slice(0, NAMED)
@@ -174,7 +248,7 @@ export function stackingIssues(plan: FloorPlan, spaces: readonly FloorSpaces[]):
       const parts = [over.length > 0 ? stretches(over, 'over') : null, back.length > 0 ? stretches(back, 'back') : null].filter((p): p is Said => p !== null)
       const sentence = said('issue.floor/out-of-line', {
         floor: name(floor.name || floor.id),
-        lower: joined(below.map((f) => name(f.name || f.id)), 'join.and'),
+        lower: lowerNames,
         parts: joined(parts, 'join.semicolonAnd')
       })
       issues.push(withSaid({ entity: 'floor', id: floor.id, code: 'floor/out-of-line', severity: 'warning', message: english(sentence) }, sentence))

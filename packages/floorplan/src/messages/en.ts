@@ -166,7 +166,7 @@ export const en = {
   'issue.part.far.wall': 'wall {wall} lies more than {km} km from the origin',
   'issue.part.far.thick': 'wall {wall} is more than {km} km thick',
   'issue.part.far.room': 'room {room} lies more than {km} km from the origin',
-  'issue.part.notJoined': 'the walls could not be joined ({error})',
+  'issue.part.notJoined': 'the walls could not be joined: their shapes are too close to tell apart',
   'issue.part.nesting.tooMany': 'the plan has more than {most} pairs of outlines to compare, and the rest were not compared',
   'issue.part.nesting.failed': 'the outlines could not be compared ({error})',
 
@@ -1586,7 +1586,7 @@ export const en = {
   'report.checksRun': 'Checks run: {count}.',
   'report.checksRun.title': 'Checks run',
   'report.floorOnly': 'Floor {floor} only.',
-  'report.seenUnread': 'The seen marks were not read: {problem}. Every note is listed as new.',
+  'report.seenUnread': 'The seen marks were not all read: {problem}. A note whose mark was not read is listed as new.',
   'report.toLook.none': 'To look at: nothing. That only means these checks found nothing, not that the plan meets any rule.',
   'report.toLook': 'To look at ({count}): {counts}{seen}.',
   'report.ofThemSeen': '; {count} of them seen, listed under Seen',
@@ -1836,6 +1836,15 @@ export const en = {
   'rooms.floor.building': "'{word}' is not a kind of building Grid knows. Use one of: {kinds}.",
   'rooms.floor.duplicate': "Floor '{id}' is already written.",
   'rooms.floor.roomsFirst': "Rooms were written before the first floor line. Put the floor line first.",
+  // WRT-17: what the writer says so that what it writes passes the drawing's own check.
+  'rooms.openingsOverlap':
+    "Line {line}: {opening} shares {by} m of wall {wall} with {other} (line {otherLine}). The check leaves out an opening that shares a stretch of its wall with another, even one above the other: move one, make one narrower, or write the two as one opening.",
+  'rooms.hole':
+    "The rooms on floor '{floor}' close round {area} m² of floor that no room claims, around {at}, between {rooms}. Write it as a room: a core, a shaft or a light well inside ('-' for no use), or 'outdoor courtyard' for open ground. It is written as it is, and the check notes it as floor no room claims.",
+  'rooms.wallFromGap':
+    "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) is {thickness} m thick, the gap the rooms leave, which no line of the text states (inside walls {inside} m, outside walls {outside} m). If that is meant, say it with 'walls {thickness}' on a room line or a wall line; if not, move a room.",
+  'rooms.checkError': "The check finds this in the plan as written, and would leave a part out ({code}): {message}",
+  'rooms.checkNote': "The check notes this in the plan as written ({code}): {message}",
   'describe.close': 'This describes the plan and checks nothing: grid check runs the checks.',
   'describe.fixtures': 'Fixtures: {list}.',
   'describe.fixture.toilet.one': '{count} toilet',
@@ -2304,6 +2313,9 @@ export const en = {
   'issue.part.through.none': 'No floor is above {own}.',
   'issue.part.through.above': 'The floors above it are {floors}.',
   'issue.floor/out-of-line': 'Floor {floor} does not line up with {lower} below it: {parts}. If that is meant, mark the floor with overhang "meant"; if not, move its outside walls over the floor below, or make a wall that both floors share rise through them (through).',
+  'issue.floor/set-back': 'Floor {floor} is a part floor over {lower}: it sits back from it by {sides}{flush}. It stands from ({x0}, {y0}) to ({x1}, {y1}), the floor below from ({lx0}, {ly0}) to ({lx1}, {ly1}). If that is meant, mark the floor with overhang "meant"; if not, move its outside walls out over the edge of the floor below, or make a wall that both floors share rise through them (through).',
+  'issue.part.setBack.side': '{depth} m on the {side}',
+  'issue.part.setBack.flush': ', and lines up with it on the {sides}',
   'issue.part.lineUp.over': 'it reaches past it by {stretches}{more}',
   'issue.part.lineUp.back': 'it sits back from it by {stretches}{more}',
   'issue.part.lineUp.stretch': '{depth} m on the {side}, from ({x0}, {y0}) to ({x1}, {y1})',
@@ -2347,6 +2359,9 @@ export const en = {
   'line.wall/through-floor.says': '{label} rises through a floor that is not above its own, so it stands on its own floor only',
   'line.wall/through-floor.needed': 'through naming a floor above the wall\'s own, from the plan\'s floors',
   'line.wall/through-floor.fix': 'Name in through a floor above the wall\'s own, or leave through out for a wall of one floor.',
+  'line.floor/set-back.says': '{label} is a part floor, set back from the floor below it',
+  'line.floor/set-back.needed': 'a floor\'s outline over the floor below it, or marked overhang "meant" where it is a part floor on purpose',
+  'line.floor/set-back.fix': 'If it is meant, mark the floor with overhang "meant". If not, move its outside walls out over the edge of the floor below, or let a wall both floors share rise through them (through).',
   'line.floor/out-of-line.says': '{label} does not line up with the floor below it',
   'line.floor/out-of-line.needed': 'a floor\'s outline over the floor below it, or marked overhang "meant" where it overhangs or sits back on purpose',
   'line.floor/out-of-line.fix': 'If it is meant, mark the floor with overhang "meant". If not, move its outside walls over the floor below, or let a wall both floors share rise through them (through).',

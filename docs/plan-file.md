@@ -10,7 +10,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [What kind of building it is, and what each room is for](#what-kind-of-building-it-is-and-what-each-room-is-for): `plan/not-checked-sizes-for-building`, `plan/not-checked-escapes-for-building`, `floor/not-checked-sizes-for-building`, `floor/not-checked-escapes-for-building`, `plan/unknown-use`
 - [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
-- [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `room/stair-shifted`, `room/lift-shifted`
+- [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`
 - [Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground): `opening/below-ground`
 - [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `opening/missing-wall`
@@ -308,7 +308,10 @@ above where it was (lab E-9). The drawing's checks set each floor's outline, as 
 against the floors one level below: where it reaches past them, or sits back from them, by more
 than 0.05 m (`stackShift`) and half the thickest wall that stretch runs along (walls of different
 thickness on one axis have their faces that far apart), it says so, with the side, by how much and the box
-of each stretch (`floor/out-of-line`, a warning). A room used as a stair, or a lift shaft, that
+of each stretch (`floor/out-of-line`, a warning). A floor that lies wholly inside the floors
+below, such as a mezzanine, a part upper floor or the floor over a single-storey extension, is a
+part floor instead: it is said once, with each side it sits back on and how far, the sides it
+lines up with and where it and the floor below stand (`floor/set-back`, a warning, LVL-10). A room used as a stair, or a lift shaft, that
 lies over the one below enough to join it but is moved from it by more than 0.05 m is said too,
 with which way, how far and where both stand (`room/stair-shifted`, `room/lift-shifted`). A lift
 shaft is the same on every floor, so one whose sides stand off the one below's is said even when it
@@ -868,14 +871,16 @@ Grid works the room's outline out along the inside face of the curve, piece by s
 each no more than `arcSagitta` (1 mm) off the curve and turning no more than `arcStep` (0.03
 radians): a round room of 2.9 m inside radius measures 26.417 m² against the 26.421 m² of the true
 circle, 0.016% short. The same pieces are what the area, the spaces, the outside walls and
-the checks read. The 2D drawing, the sheet and the DXF draw the wall's faces as arcs; the 3D
+the checks read; the gross internal area cuts a curved outside wall from the floor as one band
+along those pieces, so a plate with round corners measures as a square one does (CNT-22). The 2D drawing, the sheet and the DXF draw the wall's faces as arcs; the 3D
 view raises it as flat pieces mitred to each other, with a lintel over each hole. What each
 export writes as pieces it says ([commands.md](commands.md#what-an-export-leaves-out-hnd-6)).
 
 Rooms text writes straight walls: a floor with a curved wall is read back in Grid's own terms
 (`raw wall` lines), which keep the curve. The room edits (move a side, merge, split, add a room
 against a wall, stretch) leave a curved wall as it is and refuse a change that would move or cut
-one; an opening on it can still be widened, moved along it from its start or end, or turned.
+one. A curved wall an edit does not touch is no reason to refuse it: two rooms that share a
+straight wall merge though either has a curved wall round it (CNT-22); an opening on it can still be widened, moved along it from its start or end, or turned.
 Squaring a scan leaves a curved wall as it is, and refuses to square a wall that ends on one.
 The wall faults leave a curved wall out: none of them is about one, and `grid tidy` moves none.
 

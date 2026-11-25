@@ -17,6 +17,7 @@ const ALLOWED: ReadonlyArray<readonly [file: string, text: string, why: string]>
   ['cli/src/describe/facts.ts', 'export const ALONG_WALL_SINE = 1e-3', 'no entry in the table yet; reviews/MSG-15.md asks for one'],
   ['cli/src/edit/edits.ts', 'Math.abs(dot(n, out) - 1) < 1e-3', 'a cosine, not a length; no entry in the table yet (reviews/MSG-15.md)'],
   ['cli/src/edit/edits.ts', 'oldAxis.dir) - 1) > 1e-6', 'a cosine, not a length; no entry in the table yet (reviews/MSG-15.md)'],
+  ['cli/src/edit/fit.ts', 'Math.abs(cosine - to) < 1e-3', 'a cosine, not a length, as moveRoomSide reads a side; no entry in the table yet (reviews/MSG-15.md)'],
 ]
 
 const SMALL = /(?<![\w.])\d+(?:\.\d+)?e-\d+\b/

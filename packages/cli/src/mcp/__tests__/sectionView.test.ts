@@ -54,6 +54,21 @@ describe('grid_view kind=section', () => {
   })
 })
 
+describe('grid_view levels in the units asked for (VEW-20)', () => {
+  it('writes a section\'s levels in the units argument instead of ignoring it', async () => {
+    const answer = await call({ kind: 'section', cut: THROUGH_STAIR, units: 'mm' })
+    expect(answer.text).toContain('Levels: "Ground floor" ±0, "First floor" +2950 (worked out), "Second floor" +6100 (worked out); roof +8850; ground ±0 (not stated).')
+    const feet = await call({ kind: 'section', cut: THROUGH_STAIR, units: 'ft' })
+    expect(feet.text).toContain('"First floor" +9\'-8"')
+  })
+
+  it('writes a facade\'s levels the same way', async () => {
+    const answer = await call({ kind: 'facade', side: 'south', units: 'mm' })
+    expect(answer.text).toContain('"First floor" at +2950')
+    expect((await call({ kind: 'facade', side: 'south' })).text).toContain('"First floor" at +2.950')
+  })
+})
+
 describe('grid_view kind=plan with marks', () => {
   it('marks the section\'s line, the elevations and the levels, and says so', async () => {
     const answer = await call({ kind: 'plan', marks: ['section', 'elevations', 'levels'], cut: THROUGH_STAIR, toward: 'right' })

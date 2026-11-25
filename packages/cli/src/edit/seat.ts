@@ -17,7 +17,7 @@
  * Pure: a plan in, offsets and lines out.
  */
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
-import { add, dot, scale, sub, tolerance, wallAxis, type FloorPlan, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { add, dot, scale, sub, tolerance, wallAxis, wallLength, type FloorPlan, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { quoted } from '../fs/projectFiles'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { EditRefused } from './refused'
@@ -110,7 +110,7 @@ export function seatOpenings(
   const what = options.what ?? 'the change'
 
   const fits = (o: Opening, wall: Wall, offset: number): boolean =>
-    offset >= -tolerance('joint') && offset + o.width <= wallAxis(wall).length + tolerance('joint')
+    offset >= -tolerance('joint') && offset + o.width <= wallLength(wall) + tolerance('joint')
   const refuse = (o: Opening, wall: Wall): never => {
     throw new EditRefused(`${what[0]!.toUpperCase()}${what.slice(1)} would leave ${label(o)} outside its wall ${quoted(wall.id)}; move or remove it first.`)
   }
@@ -121,6 +121,9 @@ export function seatOpenings(
     const old = byId.get(o.wall)
     if (!old) continue
     if (o.anchor?.room !== undefined) {
+      // CNT-22: a curved wall the change leaves as it is keeps its openings where they are; the
+      // edits refuse to move a curved wall, so a room's face on it stays where it was.
+      if (old.arc !== undefined && !walls.has(o.wall)) continue
       roomAnchored.push(o)
       continue
     }
@@ -177,7 +180,8 @@ export function seatOpenings(
     const o = plan.openings.find((x) => x.id === change.opening)!
     if (o.anchor !== undefined) continue
     const now = wallAfter(byId.get(o.wall)!, walls.get(o.wall))
-    const along = shift ? dot(shift, wallAxis(now).dir) : 0
+    // CNT-22: a door on a curved wall is not slid along it: it has no straight way to slide.
+    const along = shift && now.arc === undefined ? dot(shift, wallAxis(now).dir) : 0
     const at = offsets.get(o.id) ?? o.offset
     if (Math.abs(along) > tolerance('noLength') && fits(o, now, at + along)) {
       const trial = new Map(offsets).set(o.id, r3(at + along))

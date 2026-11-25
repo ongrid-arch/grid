@@ -491,7 +491,7 @@ describe('the marks file', () => {
     const result = check('plan.json', { country: 'US' })
     expect(result.seen!.states.every((s) => s.state === 'new')).toBe(true)
     const text = checkText(result, 2)
-    expect(text).toContain('The seen marks were not read: plan.seen.json is not JSON. Every note is listed as new.')
+    expect(text).toContain('The seen marks were not all read: plan.seen.json is not JSON. A note whose mark was not read is listed as new.')
     expect(text).not.toContain('A. Person')
     const run = await grid(['check', 'plan.json', '--country', 'US', '--seen', '1', '--reason', 'x', '--by', 'y'])
     expect(run.code).toBe(1)

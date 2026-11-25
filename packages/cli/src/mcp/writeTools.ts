@@ -20,7 +20,8 @@ import { approximatedText, checkExportRequest, dxfProfileLine, ExportWriteFailed
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { PlanRefused } from '../command/plan'
-import { changeOpening, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, moveRoomSide, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
+import { changeOpening, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
+import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
 import { parseSheetWordsChecked } from '../sheet/claims'
 import { SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
 import { checkSheetRequest, drawingIntoProject, drawingLine, readSheetWords, sheetIntoProject, type SheetKind } from '../sheet/sheetFile'
@@ -59,8 +60,6 @@ import {
 } from './toolkit'
 
 export const EXPORT_TOOL_NAME = 'grid_export'
-
-const q = (text: string): string => JSON.stringify(text)
 
 // ---------------------------------------------------------------------------------------------
 // grid_export
@@ -270,19 +269,18 @@ export const EDIT_OUTPUT = objectSchema({
   taped: TAPED_OUTPUT,
 })
 
-function errorsOf(plan: FloorPlan): Array<{ id: string; message: string }> {
-  return validatePlan(plan).issues.filter((i) => i.severity === 'error').map((i) => ({ id: i.id, message: i.message }))
-}
-
 /** Applies a patch to the plan file, or refuses it with nothing written. */
-export function writeChange(context: ToolContext, args: Record<string, unknown>, make: (survey: Survey) => Patch): { text: string; data: Record<string, unknown> } {
+export function writeChange(context: ToolContext, args: Record<string, unknown>, make: (survey: Survey, problemsOf: ProblemsOf) => Patch): { text: string; data: Record<string, unknown> } {
   const { project, file, loaded } = readPlan(context, args['plan'], { whole: true })
   const out = (args['out'] as string | undefined) ?? file
   if (!out.toLowerCase().endsWith('.json')) throw new ToolRefusal('out must name a .json file.')
   const before = surveyPlan(loaded.plan)
+  // A plan written rooms first keeps its derived boundaries derived through Grid's own edits (WRT-2).
+  const planAfter = (patch: Patch): FloorPlan => keptDerived(loaded.plan.rooms, readingAfter(loaded.plan, patch) as unknown as Record<string, unknown>) as unknown as FloorPlan
+  const problemsOf: ProblemsOf = (patch) => newProblems(loaded.plan, planAfter(phasedPatch(loaded.plan, patch)))
   let patch: Patch
   try {
-    patch = make(before)
+    patch = make(before, problemsOf)
   } catch (error) {
     if (error instanceof EditRefused) throw new ToolRefusal(`${error.message} Nothing was written.`)
     throw error
@@ -293,15 +291,9 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
     if (touched.length > 0) throw new ToolRefusal(baseRefusal(touched, loaded.base.file))
   }
   patch = phasedPatch(loaded.plan, patch)
-  // A plan written rooms first keeps its derived boundaries derived through Grid's own edits (WRT-2).
-  const after = keptDerived(loaded.plan.rooms, readingAfter(loaded.plan, patch) as unknown as Record<string, unknown>) as unknown as FloorPlan
-  const oldErrors = errorsOf(loaded.plan)
-  const newErrors = errorsOf(after)
-  const known = new Set(oldErrors.map((e) => `${e.id}|${e.message}`))
-  const fresh = newErrors.filter((e) => !known.has(`${e.id}|${e.message}`))
-  if (fresh.length > 0) {
-    throw new ToolRefusal(`That change would break the drawing, so nothing was written: ${q(fresh[0]!.id)}: ${fresh[0]!.message}${fresh.length > 1 ? ` (and ${fresh.length - 1} more)` : ''}`)
-  }
+  const after = planAfter(patch)
+  const fresh = newProblems(loaded.plan, after)
+  if (fresh.length > 0) throw new ToolRefusal(`That change would break the drawing, so nothing was written: ${problemsText(fresh)}`)
   let raw: Record<string, unknown>
   try {
     // WRT-7: a file in another unit is written back in metres, the only unit Grid writes.
@@ -465,7 +457,7 @@ const moveSideTool: GridTool = {
   hint: 'change-plan',
   description:
     'Use this when the person asks to make a room deeper or wider by moving one of its walls, or to build out: "go out 3 m at the back, full width", "make the kitchen 1 m longer", "bring the bedroom wall in 0.5 m". '
-    + 'It moves the wall on the named side of the room straight out (a positive distance) or in (negative), or to give the room an inside size (to: "the kitchen 4 m deep"); walls that end on it follow, and its doors and windows move with it. Doors and windows on the walls that grow keep their anchor or their place in the building, and a door that would end up between other rooms follows the wall where it can. It answers with every room whose area changed, what it guessed and what it could not keep. '
+    + 'It moves the wall on the named side of the room straight out (a positive distance) or in (negative), or to give the room an inside size (to: "the kitchen 4 m deep"); walls that end on it follow, and its doors and windows move with it. Doors and windows on the walls that grow keep their anchor or their place in the building, and a door that would end up between other rooms follows the wall where it can. It answers with every room whose area changed, what it guessed and what it could not keep. A move that would leave the drawing with a new problem is refused with the largest move that way that fits; call again with that by. '
     + 'Only a side square to the drawing moves: north is the top of the drawing. Do not use to add a separate room or to split one. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
@@ -473,7 +465,7 @@ const moveSideTool: GridTool = {
     room: { type: 'string', id: true, required: true, description: 'The room whose side moves.', examples: ['kitchen', 'bed1'] },
     side: { type: 'string', enum: DIRECTIONS, required: true, description: 'Which side of the room: north (the top of the drawing), east, south or west.', examples: ['north', 'east'] },
     by: { type: 'number', length: true, description: 'Metres to move it: positive makes the room bigger, negative smaller. Pass by or to.', examples: [3, -0.5], minimum: -50, maximum: 50 },
-    to: { type: 'number', length: true, description: 'The room\'s inside size across that side after the move, in metres: its depth for north or south, its width for east or west. Pass by or to.', examples: [4, 3.2], minimum: 0.3, maximum: 100 },
+    to: { type: 'number', length: true, description: 'The room\'s inside size across that side after the move, in metres: its depth for north or south, its width for east or west. Pass by or to.', examples: [4, 3.2], minimum: NARROWEST_ACROSS, maximum: 100 },
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
@@ -481,17 +473,17 @@ const moveSideTool: GridTool = {
     if (args['by'] === undefined && args['to'] === undefined) throw new ToolRefusal('Pass by (metres to move it) or to (the inside size it should have).')
     if (args['by'] !== undefined && args['to'] !== undefined) throw new ToolRefusal('Pass by or to, not both.')
     if (args['by'] === 0) throw new ToolRefusal('by is 0: nothing would move.')
-    return writeChange(context, args, (survey) => {
+    return writeChange(context, args, (survey, problemsOf) => {
       const id = roomArg(survey.plan, args['room'])
       const room = survey.byId.get(id)
       if (!room || room.polygon.length < 3) throw new EditRefused('That room has no outline Grid can measure; grid_check says why.')
       const side = args['side'] as Direction
-      if (args['to'] === undefined) return moveRoomSide(survey, id, side, args['by'] as number)
+      if (args['to'] === undefined) return sideMoveThatFits(survey, id, side, args['by'] as number, problemsOf)
       const now = insideAcross(survey, id, side)
       const by = (args['to'] as number) - now
       const across = side === 'north' || side === 'south' ? 'depth (north-south)' : 'width (east-west)'
       if (Math.abs(by) < 0.0005) throw new EditRefused(`${JSON.stringify(room.facts.name)} is ${now.toFixed(2)} m inside already, its ${across}.`)
-      const patch = moveRoomSide(survey, id, side, by)
+      const patch = sideMoveThatFits(survey, id, side, by, problemsOf)
       return { ...patch, said: [`${JSON.stringify(room.facts.name)}: inside ${across} ${now.toFixed(2)} → ${(args['to'] as number).toFixed(2)} m.`, ...patch.said] }
     })
   },
