@@ -51,6 +51,9 @@ export function sketchNodes(sketch: readonly PlanSketch[], mpp: number, look: Pl
 /** How far under a room's label a note in that room sits, in pixels: below its area line. */
 const UNDER_LABEL_PX = 32
 
+/** The step from one stacked note mark to the next under a room's label, in pixels: a mark's diameter and a gap. */
+const NOTE_ROW_PX = 18
+
 /** The notes and tags that carry words (VEW-17): each is a number on the plan and its words in the band. */
 export function numberedNotes(notes: readonly PlanNote[]): PlanNote[] {
   return notes.filter((note) => (note.kind === 'note' || note.kind === 'tag') && note.at !== null && (note.text ?? '') !== '')
@@ -71,11 +74,13 @@ export function noteNodes(notes: readonly PlanNote[], labelAt: ReadonlyMap<strin
   const words: Attrs = { fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.note, 'text-anchor': 'middle' }
   const ink: Attrs = { fill: look.label, stroke: look.paper, 'stroke-width': 1 }
   const numbered = numberedNotes(notes)
+  // VEW-48: the marks of one room stack under its label, one row each, in the order given.
+  const rowsUsed = new Map<string, number>()
   return notes.flatMap((note, index): SvgNode[] => {
     if (note.kind === 'key' || note.at === null) return []
     const placed = note.room === null ? undefined : labelAt.get(note.room)
     const at = placed ? { x: placed.x, y: placed.y } : note.at
-    const dy = placed ? UNDER_LABEL_PX : 0
+    let dy = placed ? UNDER_LABEL_PX : 0
     const attrs = { 'data-part': `note-${note.kind}`, 'data-id': note.id, 'pointer-events': 'none' }
     const key = `note:${note.id}:${index}`
     if (note.kind === 'symbol') {
@@ -88,6 +93,11 @@ export function noteNodes(notes: readonly PlanNote[], labelAt: ReadonlyMap<strin
     }
     const position = numbered.indexOf(note)
     if (position < 0) return []
+    if (placed && note.room !== null) {
+      const row = rowsUsed.get(note.room) ?? 0
+      rowsUsed.set(note.room, row + 1)
+      dy += row * NOTE_ROW_PX
+    }
     const mark = el('g', { ...attrs, 'data-number': String(position + 1), transform: pixelGroup(at, mpp) }, [
       el('circle', { 'data-part': 'note-mark', cy: n(dy), r: NOTE_MARK_R, fill: look.paper, stroke: look.label, 'stroke-width': 1 }),
       el('text', { y: n(dy + 3.5), ...words, 'font-size': 10 }, [String(position + 1)])
