@@ -20,7 +20,7 @@ import { loadCanvas } from './canvas'
 import { drawPlan, pictureToPng } from './drawPlan'
 import { partBounds, pixelBoxes, type PartBox } from './partBoxes'
 import { forSkia } from './skiaText'
-import { captioned, withLabelMetadata } from './stamp'
+import { captionHeight, captioned, withLabelMetadata } from './stamp'
 
 import { pictureLook, type LookName } from './viewNames'
 
@@ -180,7 +180,8 @@ export interface CameraView {
  * the same record. A camera outside every room sees the ground grid; one in a room does not.
  */
 export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language): Promise<CameraView> {
-  const image = planStill(plan, { camera, width: STILL_W, height: STILL_H, look: 'light', supersample: 2 })
+  // VEW-17: the caption band under the still is part of its size.
+  const image = planStill(plan, { camera, width: STILL_W, height: STILL_H - captionHeight(STILL_W), look: 'light', supersample: 2 })
   return { png: await png(image, language), camera }
 }
 
