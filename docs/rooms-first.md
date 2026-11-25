@@ -157,6 +157,10 @@ thickness, kind, id or direction), and a floor that rooms text cannot give back 
 the plan's own terms. So that nothing is lost unseen, `grid write` refuses, with the difference,
 rooms text read from an earlier version of the plan (its `based on` line) and rooms text written
 over a plan changed some other way since Grid last wrote it; `--replace` writes over it anyway.
+It also refuses rooms text that names fewer floors than the plan holds, naming each floor it would
+drop with its rooms, outline, homes and parking (WRT-16): read the whole plan back and write that, or
+add `--replace` to drop them, which the answer then lists. Rooms text with no rooms is refused
+even with `--replace`.
 
 Some parts are derived: Grid works them out and no one writes them. In a plan written rooms
 first (it records this in `written`), each room's boundary is derived, and one edited by hand is
