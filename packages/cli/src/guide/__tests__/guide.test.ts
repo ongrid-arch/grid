@@ -26,6 +26,16 @@ function blocks(markdown: string, tag: string): string[] {
 }
 
 describe('the guide for agents', () => {
+  it('says a word that is not a use is refused by rooms text, with the uses the writer lists', () => {
+    const refused = compileRoomsText('room k "Kennel" kennel 3 x 3').problems[0]
+    expect(refused?.code).toBe('rooms/unknown-use')
+    const guide = agentGuide()
+    expect(guide).toContain('Rooms text, the way to write a plan, refuses it on its line, lists the uses it takes and writes nothing')
+    const listed = /Use one of: ([^;]+);/.exec(refused?.message ?? '')?.[1]?.split(', ') ?? []
+    expect(listed.length).toBeGreaterThan(20)
+    for (const use of listed) expect(guide, use).toContain('| `' + use + '` |')
+  })
+
   it('is docs/agent-guide.md, word for word', () => {
     expect(readFileSync(page, 'utf8'), 'write it again: GRID_WRITE_GUIDE=1 npx vitest run packages/cli/src/guide').toBe(agentGuide())
   })
