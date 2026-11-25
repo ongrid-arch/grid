@@ -13,6 +13,7 @@ import { compareBuildings, planHasPhases, planInState, type BuildingComparison }
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { loadPlan, loadPlanText, type LoadedPlan } from '../command/plan'
+import { roomsAsTheyStood } from '../edit/phases'
 import { GitUnread, lastCommitted } from './git'
 import { DEFAULT_MARKER, findMarker, GIT_VERSION, MarkerRefused, PHASE_VERSION, readMarkers } from './markers'
 
@@ -75,8 +76,9 @@ function diffByPhase(loaded: LoadedPlan, rooms?: readonly string[]): PlanDiffRun
   if (!planHasPhases(loaded.plan)) {
     throw new MarkerRefused('The plan states no phase, so it holds no work to compare: give its walls, openings and rooms a phase (existing, demolished or new), or compare with a marker or git.')
   }
-  const before = planInState(loaded.plan, 'before')
   const after = planInState(loaded.plan, 'after')
+  // WRT-15: a room an edit reshaped, kept as it stood, is read as the room it became.
+  const before = roomsAsTheyStood(planInState(loaded.plan, 'before'), after)
   const comparison = compareBuildings(before, after, rooms === undefined ? {} : { rooms })
   return { comparison, earlier: { ...loaded, plan: before }, later: { ...loaded, plan: after }, since: { kind: 'phase' } }
 }
