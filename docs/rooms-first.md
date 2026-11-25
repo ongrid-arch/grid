@@ -239,7 +239,9 @@ there or with the tools; rooms text is a way of writing the plan and of reading 
 `grid describe --as rooms` reads any plan back as rooms text, and writing that text again
 changes nothing: the walls line comes with every exception the plan holds (a wall's height,
 thickness, kind, id or direction), and a floor that rooms text cannot give back as it is comes in
-the plan's own terms. So that nothing is lost unseen, `grid write` refuses, with the difference,
+the plan's own terms. The walls line's height is one the walls state themselves (WRT-40): a wall
+that takes its height from its floor, or rises to its floor's roof, gets it again from the floor
+line, never the roof's ridge written as a wall height. So that nothing is lost unseen, `grid write` refuses, with the difference,
 rooms text read from an earlier version of the plan (its `based on` line) and rooms text written
 over a plan changed some other way since Grid last wrote it; `--replace` writes over it anyway.
 It also refuses rooms text that names fewer floors than the plan holds, naming each floor it would
