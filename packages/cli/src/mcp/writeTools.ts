@@ -184,7 +184,7 @@ const sheetTool: GridTool = {
     paper: { type: 'string', enum: PAPER_NAMES, description: 'Drawing only: the paper, turned the way the floor fits. The smallest that fits when left out.', examples: ['A4', 'A3'] },
     floor: { ...FLOOR_ARG, description: 'Drawing only: the floor to draw. The lowest when left out.' },
     roomSizes: { type: 'boolean', description: 'Drawing only: each room\'s width and depth along its walls. true when left out.', examples: [true, false] },
-    date: { type: 'string', maxLength: 40, description: 'The date on the sheet: 2026-01-31 or a time such as 2026-01-31T09:00:00Z. SOURCE_DATE_EPOCH when left out, else today. The same date gives the same file.', examples: ['2026-01-31'] },
+    date: { type: 'string', maxLength: 40, description: 'The date on the sheet: 2026-01-31 or a time such as 2026-01-31T09:00:00Z. SOURCE_DATE_EPOCH when left out, else today. The same date gives the same bytes.', examples: ['2026-01-31'] },
     language: LANGUAGE_ARG,
   },
   outputSchema: objectSchema({
