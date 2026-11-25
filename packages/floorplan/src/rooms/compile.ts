@@ -1413,6 +1413,24 @@ class Compiler {
     const reported = new Set<string>()
     for (const e of edges) {
       const taken: Array<[number, number]> = []
+      // A stretch no wider than a wall, crossed by the two faces of a wall between other rooms
+      // (two rooms stacked between two others, or a room cut out of a corner of the next), is
+      // that wall seen end on: the rooms beyond it leave no gap (WRT-10).
+      const walled = (x: number, y: number, reach: number): boolean => {
+        if (y - x > maxT + eps()) return false
+        const span = (g: Edge): [number, number] => {
+          const a = dot(sub(g.p, e.p), e.n)
+          const b = dot(sub(g.q, e.p), e.n)
+          return [Math.max(Math.min(a, b), 0), Math.min(Math.max(a, b), reach)]
+        }
+        const face = (at: number, side: number): Array<[number, number]> =>
+          edges
+            .filter((g) => Math.abs(dot(g.n, e.u) - side) <= tolerance('parallel') && Math.abs(dot(sub(g.p, e.p), e.u) - at) <= eps())
+            .map(span)
+            .filter(([a, b]) => b - a > eps())
+        const below = face(x, 1)
+        return face(y, -1).some(([a, b]) => below.some(([c, d]) => Math.min(b, d) - Math.max(a, c) > eps()))
+      }
       for (const c of [...e.cands].sort((a, b) => a.d - b.d)) {
         let parts: Array<[number, number]> = [[c.s0, c.s1]]
         for (const [a, b] of taken) {
@@ -1431,7 +1449,7 @@ class Compiler {
           if (c.d <= maxT + eps()) {
             e.cover.push({ s0: x, s1: y, d: c.d, f: c.f })
             junc = Math.max(junc, c.d)
-          } else if (c.d < 2 * this.rule.outside + maxT) {
+          } else if (c.d < 2 * this.rule.outside + maxT && !walled(x, y, c.d)) {
             const key = pairKey(e.room.id, c.f.room.id)
             if (!reported.has(key)) {
               reported.add(key)
