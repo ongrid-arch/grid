@@ -27,6 +27,8 @@ const LENGTH_PARENTS = new Set(['walls', 'wallTypes', 'columns'])
 const AREA_WORD = /area|m2|sqm|face/i
 /** A key whose figure is a place on the globe, never rounded to the millimetre. */
 const PLACE_KEY = /^(lat|lon)/i
+/** A record the agent hands back as it was given, a camera: its figures are state, never rounded. */
+const EXACT_KEYS = new Set(['camera'])
 /** Under this a figure is a tolerance or a ratio, kept as it is. */
 const SMALL = 0.001
 /** Under this a figure is the arithmetic's noise round zero (3.9e-15 of floor no room covers). */
@@ -39,6 +41,7 @@ function figure(value: number, area: boolean): number {
 }
 
 function roundIn(value: unknown, area: boolean, lengths: boolean, key: string): unknown {
+  if (EXACT_KEYS.has(key)) return value
   if (typeof value === 'number') return !Number.isFinite(value) || Number.isInteger(value) || PLACE_KEY.test(key) ? value : figure(value, area)
   if (Array.isArray(value)) return value.map((item) => roundIn(item, area, lengths, key))
   if (typeof value === 'object' && value !== null) {
