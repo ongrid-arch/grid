@@ -22,6 +22,8 @@ export interface SheetWords {
   readonly version: '1'
   readonly name?: string
   readonly headline?: string
+  /** SHT-18: the title of a drawing at a scale, in its title block; Grid's own title when left out. */
+  readonly drawing?: string
   readonly intro?: readonly string[]
   readonly floors?: Readonly<Record<string, readonly string[]>>
 }
@@ -55,7 +57,7 @@ function paragraphsProblem(where: string, value: unknown): string | null {
   return null
 }
 
-const FIELDS = new Set(['version', 'name', 'headline', 'intro', 'floors'])
+const FIELDS = new Set(['version', 'name', 'headline', 'drawing', 'intro', 'floors'])
 /** A key short and plain enough to print back; anything else is named without its text. */
 const PLAIN_KEY = /^[A-Za-z0-9_.-]{1,64}$/
 
@@ -76,6 +78,10 @@ export function sheetWordsProblem(raw: unknown, floorIds: readonly string[] | nu
   }
   if ('headline' in given) {
     const problem = textProblem('headline', given['headline'], SHEET_HEADLINE_MAX)
+    if (problem) return problem
+  }
+  if ('drawing' in given) {
+    const problem = textProblem('drawing', given['drawing'], NAME_MAX)
     if (problem) return problem
   }
   if ('intro' in given) {
@@ -121,6 +127,7 @@ export const SheetWordsSchema = z
     version: z.literal('1'),
     name: sheetText(NAME_MAX).optional(),
     headline: sheetText(SHEET_HEADLINE_MAX).optional(),
+    drawing: sheetText(NAME_MAX).optional(),
     intro: PARAGRAPHS.optional(),
     floors: z.record(z.string(), PARAGRAPHS).optional(),
   })

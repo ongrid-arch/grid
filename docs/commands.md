@@ -978,6 +978,7 @@ The words of a client sheet are the author's, in `<plan>.sheet.json` beside the 
   "version": "1",
   "name": "Example House",
   "headline": "A private retreat for one",
+  "drawing": "Ground floor, as built",
   "intro": ["A two-storey home for everyday comfort, work and hosting."],
   "floors": {
     "ground": ["A dedicated study sits beside the entry.", "Wide garden openings lead out."]
@@ -986,7 +987,7 @@ The words of a client sheet are the author's, in `<plan>.sheet.json` beside the 
 ```
 
 Every field but `version` is optional. `floors` is keyed by the plan's floor ids. A name holds
-120 characters, a headline 200, a paragraph 1,200, and `intro` and each floor at most 3
+120 characters, a drawing title 120 (only a drawing at a scale reads it), a headline 200, a paragraph 1,200, and `intro` and each floor at most 3
 paragraphs. Each string follows the plan's text rule. Without the file, the sheet carries the
 plan's name and no words: Grid writes none in the author's place. A check sheet takes no words.
 
@@ -1029,7 +1030,7 @@ scale and paper), the notes (what the drawing leaves out, a door with no stated 
 no north), a scale bar in metres and the north arrow, turned to the north the plan states; with no
 north stated there is no arrow and a note says so. The title block, at the foot on the right,
 holds the project (the name in `sheet.json`, else the plan's title, else the file's name), the
-drawing, the scale and paper, the date, the status (Draft) and the label "General guidance, not
+drawing (the `drawing` words in `sheet.json`, else "Ground floor plan" and the like), the scale and paper, the date, the status (Draft) and the label "General guidance, not
 your local rules". The sheet's own text is 2.5 mm for notes and labels, 3 to 3.5 mm for values and
 the caption, 5 mm for the drawing's name and 6 mm for the project's.
 

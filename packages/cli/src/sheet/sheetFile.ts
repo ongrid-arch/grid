@@ -265,7 +265,7 @@ export async function makeDrawing(project: Project, planFile: string, request: D
   const { drawingSheetFiles, sheetMeasure } = await import('./drawingFiles')
   let sheet: DrawingSheet
   try {
-    sheet = drawingSheet(loaded, { ...request, ...(floor === undefined ? {} : { floor }) }, { project: projectName, date: exportTime(date), language: lang, measure: await sheetMeasure() })
+    sheet = drawingSheet(loaded, { ...request, ...(floor === undefined ? {} : { floor }) }, { project: projectName, ...(words?.drawing === undefined ? {} : { drawing: words.drawing }), date: exportTime(date), language: lang, measure: await sheetMeasure() })
   } catch (error) {
     if (error instanceof DrawingDoesNotFit) throw new PlanRefused(error.message)
     throw error

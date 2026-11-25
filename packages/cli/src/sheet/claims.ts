@@ -34,6 +34,7 @@ function accessClaims(text: string): string[] {
 export function sheetClaims(words: SheetWords): { field: string; found: string[] }[] {
   const texts: [string, string][] = []
   if (words.headline !== undefined) texts.push(['headline', words.headline])
+  if (words.drawing !== undefined) texts.push(['drawing', words.drawing])
   words.intro?.forEach((p, i) => texts.push([`intro[${i}]`, p]))
   // A floor is named by its place in the words, never by its key, which may be anything.
   Object.values(words.floors ?? {}).forEach((paragraphs, f) => paragraphs.forEach((p, i) => texts.push([`floors (key ${f + 1}) paragraph ${i + 1}`, p])))

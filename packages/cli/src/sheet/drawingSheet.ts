@@ -67,6 +67,8 @@ export interface DrawingRequest {
 export interface DrawingSheetOptions {
   /** The project's name: the sheet's words' name, else the plan's title, else the file's. */
   readonly project: string
+  /** SHT-18: the drawing's own title, from the sheet words; Grid's ("Ground floor plan") when left out. */
+  readonly drawing?: string
   readonly date: Date
   readonly language?: Language
   readonly measure: MeasureText
@@ -371,7 +373,7 @@ export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, option
     ]
     return {
       project: options.project,
-      drawing: say(language, 'sheet.drawing.title', { floor: floor.name }),
+      drawing: options.drawing ?? say(language, 'sheet.drawing.title', { floor: floor.name }),
       caption,
       scale: scaleOn,
       date: sheetDate(options.date, language),
