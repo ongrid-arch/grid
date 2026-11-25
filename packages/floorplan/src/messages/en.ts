@@ -1984,6 +1984,7 @@ export const en = {
   'drawing.section.taken.noStair.one': 'No stair is stated in the stair room cut ({ids}): no flight is drawn, only the room and the opening over it.',
   'drawing.section.taken.noStair.many': 'No stair is stated in {count} stair rooms cut ({ids}): no flight is drawn, only the room and the opening over it.',
   'drawing.section.taken.risers': 'The risers of {ids} are worked out by Grid: the plan states no number of risers.',
+  'drawing.section.taken.waist': 'The flights of {ids} are drawn {waist} m thick under their steps, and their landings as slabs: the plan states no waist.',
   'drawing.section.note': 'The section {what} that the plan does not state: each is listed under the drawing.',
   'drawing.section.note.hatched.one': 'hatched one part',
   'drawing.section.note.hatched.many': 'hatched {count} parts',
