@@ -2061,6 +2061,7 @@ export const en = {
   'diff.cause': 'because {walls}',
   'diff.cause.thickness.one': 'wall {wall} went from {before} to {after} m thick',
   'diff.cause.thickness.many': 'walls {walls} went from {before} to {after} m thick',
+  'diff.cause.radius': 'curved wall {wall} went from a radius of {before} to {after} m',
   'diff.cause.moved': 'wall {wall} moved {by} m',
 
   // --- Comparing two versions: a part whose phase changed (MSG-25, `diff/building.ts`, `diff/summary.ts`)
