@@ -1655,7 +1655,7 @@ the drawing.
 | `id` | Optional: the person's own reference for it |
 
 Both are measured on the room's outline along the inside faces of its walls, the outline its area
-is measured on. Along a [curved wall](#a-curved-wall), a side is the outline round the curve, its
+is measured on. A tape was run on the building as surveyed, so a plan with [phases](#existing-demolished-and-new) is read in its existing state, never the one the work proposes: the check and every change's answer give the same rows, and a length taped in a room that is new is not measured. Along a [curved wall](#a-curved-wall), a side is the outline round the curve, its
 own stretch of the circle only, and a corner where a straight wall meets the curve, or two curves
 meet, is the outline's corner where their inside faces cross (CNT-32). Where the same two walls
 meet at two corners of the room, as a half-round bay closed by one straight wall does, the order
