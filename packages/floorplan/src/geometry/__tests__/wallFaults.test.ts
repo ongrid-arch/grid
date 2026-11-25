@@ -346,14 +346,17 @@ describe('a wall across a room that does not list it (MS-17)', () => {
     expect(faults[0]!.message).toBe(
       'Wall "stray" runs 3.00 m across room "bed", which does not list it, so the room is measured and checked ' +
         'as one space. Fix: split room "bed" along it, into "bed" (4.35 m²) and "bed-2" (4.35 m²), each listing it. ' +
-        'If it should not be there, remove it instead.'
+        'If it should not be there, remove it instead. ' +
+        // WRT-36: the door is on the hall's side of the partition, so the far half has no way in.
+        'Look before making it: it leaves room "bed" with no way in, no door, opening or open side on any of its walls.'
     )
   })
 
   it('tidies into two rooms whose areas add up to the bedroom less the partition', () => {
     const plan = planOf(STRAY)
     const before = area(plan, 'bed')
-    const tidied = tidyPlan(plan).plan
+    // WRT-36: a split that seals a part is made only when named.
+    const tidied = tidyPlan(plan, ['crosses-room:stray:bed']).plan
     expect(tidied.rooms.map((r) => [r.id, r.name, r.boundary])).toEqual([
       ['hall', 'Hall', ['s', 'mid', 'n', 'w']],
       ['bed', 'Bedroom', ['s', 'e', 'n', 'stray']],
@@ -483,5 +486,152 @@ describe('a curved wall meets the straight walls that end on it (CNT-28)', () =>
     expect(fault!.message).not.toContain('If instead')
     expect(fault!.fix!.edits).toEqual([{ op: 'move-end', wall: 'n2', end: 'start', to: [8, 3] }])
     expect(faultsOf(applyWallEdits(plan, fault!.fix!.edits))).toEqual([])
+  })
+})
+
+/**
+ * WRT-36: a dining room whose corner entrance was drawn as a wall across the corner at 45°, with
+ * the door on it, while the room still lists the corner. Splitting along it made the corner a
+ * room of its own, a dead triangle the entrance opened into.
+ */
+const CORNER_ENTRANCE = (extra: { openings?: unknown[]; walls?: unknown[]; rooms?: unknown[] } = {}) => ({
+  walls: [
+    { id: 's', start: [0, 0], end: [10, 0], thickness: 0.3, kind: 'exterior' },
+    { id: 'e', start: [10, 0], end: [10, 8], thickness: 0.3, kind: 'exterior' },
+    { id: 'n', start: [10, 8], end: [0, 8], thickness: 0.3, kind: 'exterior' },
+    { id: 'w', start: [0, 8], end: [0, 0], thickness: 0.3, kind: 'exterior' },
+    { id: 'cut', start: [8, 0], end: [10, 2], thickness: 0.3, kind: 'exterior' },
+    ...(extra.walls ?? [])
+  ],
+  rooms: [{ id: 'dining', name: 'Dining', use: 'living', boundary: ['s', 'e', 'n', 'w'] }, ...(extra.rooms ?? [])],
+  openings: extra.openings ?? [{ id: 'entry', wall: 'cut', type: 'door', offset: 0.9, width: 1, height: 2.1 }]
+})
+
+describe('a wall across a corner of a room, at an angle (WRT-36)', () => {
+  it('takes the corner outside, keeps the door on the new face and leaves no fault', () => {
+    const plan = planOf(CORNER_ENTRANCE())
+    const faults = faultsOf(plan)
+    expect(faults.map((f) => f.id)).toEqual(['crosses-room:cut:dining'])
+    expect(faults[0]!.message).toBe(
+      'Wall "cut" runs 2.404 m across room "dining", which does not list it, so the room is measured and checked as one space. ' +
+        'Fix: take the corner beyond it outside: room "dining" lists it in place of the corner and measures 72.86 m², and walls "s" and "e" end on it. ' +
+        'If the corner is meant to be a room of its own, split the room along it instead.'
+    )
+    const tidied = tidyPlan(plan).plan
+    // No room is made of the corner: it is outside.
+    expect(tidied.rooms.map((r) => [r.id, r.boundary])).toEqual([['dining', ['s', 'cut', 'e', 'n', 'w']]])
+    expect(tidied.walls.find((w) => w.id === 's')!.end).toEqual([8, 0])
+    expect(tidied.walls.find((w) => w.id === 'e')!.start).toEqual([10, 2])
+    expect(tidied.openings).toEqual(plan.openings)
+    expect(area(tidied, 'dining')).toBeCloseTo(72.86, 2)
+    expect(faultsOf(tidied)).toEqual([])
+  })
+
+  it('moves a door on the corner it cuts off onto it, in its middle', () => {
+    const plan = planOf(CORNER_ENTRANCE({ openings: [{ id: 'entry', wall: 's', type: 'door', offset: 8.6, width: 0.9, height: 2.1 }, { id: 'win', wall: 'e', type: 'window', offset: 4, width: 1.2, sill: 0.9, height: 1.2 }] }))
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:cut:dining')!
+    expect(fault.message).toContain('"entry", on the corner, moves onto it, in its middle.')
+    const tidied = tidyPlan(plan).plan
+    const cut = Math.hypot(2, 2)
+    expect(tidied.openings.find((o) => o.id === 'entry')).toMatchObject({ wall: 'cut', offset: Math.round(((cut - 0.9) / 2) * 1e6) / 1e6 })
+    // The window past the new end of wall "e"'s start keeps its place in the building.
+    expect(tidied.openings.find((o) => o.id === 'win')).toMatchObject({ wall: 'e', offset: 2 })
+    expect(faultsOf(tidied)).toEqual([])
+  })
+
+  it('takes out a wall wholly beyond the cut, giving its facts to the cut', () => {
+    // The corner drawn with a short return: s stops at 9.5 and a stub runs to e.
+    const raw = CORNER_ENTRANCE()
+    raw.walls = [
+      { id: 's', start: [0, 0], end: [9.5, 0], thickness: 0.3, kind: 'exterior' },
+      { id: 'ret', start: [9.5, 0], end: [10, 0.5], thickness: 0.3, kind: 'exterior', properties: { finish: 'brick' } },
+      { id: 'e', start: [10, 0.5], end: [10, 8], thickness: 0.3, kind: 'exterior' },
+      ...raw.walls.slice(2)
+    ]
+    raw.rooms = [{ id: 'dining', name: 'Dining', use: 'living', boundary: ['s', 'ret', 'e', 'n', 'w'] }]
+    const plan = planOf(raw)
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:cut:dining')!
+    expect(fault.message).toContain('Taken out, as wholly beyond it: "ret".')
+    const tidied = tidyPlan(plan).plan
+    expect(tidied.walls.map((w) => w.id)).not.toContain('ret')
+    expect(tidied.walls.find((w) => w.id === 'cut')!.properties).toEqual({ finish: 'brick' })
+    expect(tidied.rooms[0]!.boundary).toEqual(['s', 'cut', 'e', 'n', 'w'])
+    expect(faultsOf(tidied)).toEqual([])
+  })
+
+  it('splits the room as before when another room lists a wall round the corner', () => {
+    const plan = planOf(
+      CORNER_ENTRANCE({
+        walls: [{ id: 'e2', start: [14, 0], end: [14, 8], thickness: 0.3 }, { id: 's2', start: [10, 0], end: [14, 0], thickness: 0.3 }, { id: 'n2', start: [14, 8], end: [10, 8], thickness: 0.3 }],
+        rooms: [{ id: 'bar', name: 'Bar', use: 'living', boundary: ['s2', 'e2', 'n2', 'e'] }],
+        openings: [{ id: 'entry', wall: 'cut', type: 'door', offset: 0.9, width: 1, height: 2.1 }, { id: 'front', wall: 'w', type: 'door', offset: 3, width: 1, height: 2.1 }]
+      })
+    )
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:cut:dining')!
+    expect(fault.fix!.says).toMatch(/^split room "dining" along it/)
+    expect(fault.fix!.seals).toBeUndefined()
+  })
+
+  it('splits the room along a wall square to the walls it meets, as before', () => {
+    const plan = planOf(
+      CORNER_ENTRANCE({
+        walls: [],
+        openings: [{ id: 'front', wall: 'w', type: 'door', offset: 3, width: 1, height: 2.1 }, { id: 'store-door', wall: 'part', type: 'door', offset: 3, width: 0.8, height: 2.1 }]
+      })
+    )
+    const raw = { ...CORNER_ENTRANCE(), walls: [...CORNER_ENTRANCE().walls.slice(0, 4), { id: 'part', start: [8, 0], end: [8, 8], thickness: 0.1 }], openings: plan.openings }
+    const fault = faultsOf(planOf(raw)).find((f) => f.id === 'crosses-room:part:dining')!
+    expect(fault.fix!.says).toMatch(/^split room "dining" along it/)
+    expect(fault.fix!.seals).toBeUndefined()
+  })
+})
+
+describe('a split that would seal a space (WRT-36)', () => {
+  const partitioned = (openings: unknown[]) => ({
+    ...CORNER_ENTRANCE(),
+    walls: [...CORNER_ENTRANCE().walls.slice(0, 4), { id: 'part', start: [8, 0], end: [8, 8], thickness: 0.1 }],
+    openings
+  })
+
+  it('warns that a part would have no way in, and tidy with no ids leaves it', () => {
+    const plan = planOf(partitioned([{ id: 'front', wall: 'w', type: 'door', offset: 3, width: 1, height: 2.1 }]))
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:part:dining')!
+    expect(fault.fix!.seals).toEqual(['dining-2'])
+    expect(fault.message).toContain('Look before making it: it leaves room "dining-2" with no way in, no door, opening or open side on any of its walls.')
+    const all = tidyPlan(plan)
+    expect(all.applied).toEqual([])
+    expect(all.skipped).toEqual([
+      { id: fault.id, why: `not made with all, as it would leave "dining-2" with no way in: name it, "${fault.id}", to make it.` }
+    ])
+    expect(all.plan.rooms).toHaveLength(1)
+    const named = tidyPlan(plan, [fault.id])
+    expect(named.applied.map((f) => f.id)).toEqual([fault.id])
+    expect(named.plan.rooms.map((r) => r.id)).toEqual(['dining', 'dining-2'])
+  })
+
+  it('warns when the parts\' only way in is the door between them', () => {
+    const plan = planOf(partitioned([{ id: 'inner', wall: 'part', type: 'door', offset: 3, width: 0.9, height: 2.1 }]))
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:part:dining')!
+    expect(fault.fix!.seals).toEqual(['dining', 'dining-2'])
+    expect(fault.message).toContain('it leaves rooms "dining" and "dining-2" with no way in but through each other')
+  })
+
+  it('does not warn for a part reached through a door on the wall it shares with the room', () => {
+    const plan = planOf(
+      partitioned([
+        { id: 'front', wall: 'w', type: 'door', offset: 3, width: 1, height: 2.1 },
+        { id: 'store-door', wall: 'part', type: 'door', offset: 3, width: 0.8, height: 2.1 }
+      ])
+    )
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:part:dining')!
+    expect(fault.fix!.seals).toBeUndefined()
+    expect(tidyPlan(plan).applied.map((f) => f.id)).toEqual([fault.id])
+  })
+
+  it('counts a door on a wall both parts list for the part it stands in', () => {
+    // The only door is on the south wall, east of the partition: the west part has none.
+    const plan = planOf(partitioned([{ id: 'side', wall: 's', type: 'door', offset: 8.6, width: 0.9, height: 2.1 }]))
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:part:dining')!
+    expect(fault.fix!.seals).toEqual(['dining'])
   })
 })
