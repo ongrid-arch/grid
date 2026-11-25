@@ -25,7 +25,10 @@ centimetres or millimetres, and not in metres, gets one `plan/units-question` in
 per wall. Otherwise a wall, an opening or a room past a limit gets `wall/size-question`,
 `opening/size-question` or `room/size-question`, for example "Wall w1 is 27.00 m high, the
 others on its floor typically 2.70 m: is that meant?". Where the plan says it is a home (a room
-in it is used as a `bedroom` or a `living` room) the home figures apply.
+in it is used as a `bedroom` or a `living` room) the home figures apply. Where the plan, or a
+floor of it, says it is a building of large halls (`building assembly`, `sport`, `industry` or
+`warehouse`) the hall figures apply, the units question among them: a warehouse with 12 m walls
+is not asked whether it was typed in feet.
 
 | Entry | Kind | Value | What it decides |
 |---|---|---|---|
@@ -136,15 +139,18 @@ in it is used as a `bedroom` or a `living` room) the home figures apply.
 | `wallThinnest` | limit | 0.02 m | A thinner solid wall is questioned; a line with no substance should be virtual |
 | `wallThickest` | limit | 3 m (1.5 in a home) | A thicker wall is questioned |
 | `wallLowest` | limit | 0.1 m | A lower solid wall is questioned |
-| `wallHighest` | limit | 40 m (10 in a home) | A higher wall is questioned |
+| `wallHighest` | limit | 40 m (10 in a home, 80 in a hall) | A higher wall is questioned |
 | `wallHigherThanTypical` | limit | 4 ratio | A wall this many times higher than the typical one on its floor (with three others or more) is questioned |
 | `openingNarrowest` | limit | 0.2 m | A narrower opening is questioned; whether a door is a way through is `passableWidth` |
 | `openingLowest` | limit | 0.2 m | A lower opening is questioned |
-| `roomLargest` | limit | 50000 m² (1000 in a home) | A larger room is questioned |
+| `roomLargest` | limit | 50000 m² (1000 in a home, 500000 in a hall) | A larger room is questioned |
 | `typicalHeightLowest` | limit | 1.8 m | The units question: the typical wall height of a building, from this… |
-| `typicalHeightHighest` | limit | 6 m | …to this |
+| `typicalHeightHighest` | limit | 6 m (30 in a hall) | …to this |
 | `typicalThicknessLowest` | limit | 0.08 m | The typical wall thickness that agrees with a unit, from this… |
 | `typicalThicknessHighest` | limit | 1 m | …to this |
 | `typicalDoorLowest` | limit | 0.5 m | The typical door width that agrees with a unit, from this… |
 | `typicalDoorHighest` | limit | 2.5 m | …to this |
+| `roomsSideAsked` | limit | 200 m (50 in a home, 1000 in a hall) | A room side written rooms first as a bare number, stretched with `*` or drawn as a polygon, longer than this is asked about (`rooms/size-question`); written with its unit it is taken as meant (WRT-22) |
+| `roomsSideBare` | limit | 2000 m | A room side written rooms first as a bare number longer than this is refused as most likely millimetres (`rooms/size`); written with its unit it is taken (WRT-22) |
+| `openingWidest` | limit | 1000 m | The widest door, window or opening an edit takes; below it the wall decides, and an opening that does not fit is refused with the free stretches (WRT-22) |
 | `traceUnscaled` | limit | 0.01 m | A trace image with no scale of its own is drawn at this many metres a pixel, and said to be unscaled (HND-10) |

@@ -72,7 +72,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
-  'packages/cli/src/edit/edits.ts': [56, 'notYet'],
+  'packages/cli/src/edit/edits.ts': [57, 'notYet'],
   'packages/cli/src/edit/merge.ts': [25, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
@@ -178,7 +178,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-19: four more, what bayOverlap and rampSlopeDiffers decide.
   // CNT-20: two more, its own tolerance entries.
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
-  'packages/floorplan/src/geometry/tolerances.ts': [288, 'developer'],
+  // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
+  'packages/floorplan/src/geometry/tolerances.ts': [295, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],
@@ -189,7 +190,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/notes/notes.ts': [18, 'notYet'],
   'packages/floorplan/src/rooms/answer.ts': [6, 'notYet'],
   // WRT-14: four fewer, the floor line's refusals moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [120, 'notYet'],
+  'packages/floorplan/src/rooms/compile.ts': [119, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   'packages/floorplan/src/rooms/read.ts': [23, 'notYet'],
   'packages/floorplan/src/rooms/words.ts': [4, 'notYet'],

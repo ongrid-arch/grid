@@ -13,7 +13,9 @@
  *   scan is not, and loosening these is how a survey is checked (`withTolerances`).
  * - `limit`: a size past which Grid refuses a number (`largest`) or asks whether it is meant
  *   (the plausibility limits). A limit with a `home` figure uses that figure where the plan
- *   says it is a home: a room in it is used as a bedroom or a living room.
+ *   says it is a home: a room in it is used as a bedroom or a living room. One with a `hall`
+ *   figure uses that where the plan, or a floor of it, says it is a building of large halls:
+ *   for assembly, sport, industry or a warehouse (WRT-22).
  * - `arithmetic`: what the floating-point numbers can tell apart. These guard against rounding
  *   noise, say nothing about a building, and cannot be adjusted.
  *
@@ -27,13 +29,15 @@ export type ToleranceKind = 'tolerance' | 'limit' | 'arithmetic'
 export type ToleranceUnit = 'm' | 'm²' | 'mm' | 'degree' | 'radian' | 'sine' | 'ratio' | 'count' | '%'
 
 /** The kinds of building a limit can depend on, as the plan says it (`buildingKind`). */
-export type BuildingKind = 'any' | 'home'
+export type BuildingKind = 'any' | 'home' | 'hall'
 
 export interface ToleranceEntry {
   readonly kind: ToleranceKind
   readonly value: number
   /** The figure in a home, where it differs. Plausibility limits only. */
   readonly home?: number
+  /** The figure in a building of large halls, where it differs (WRT-22). Plausibility limits only. */
+  readonly hall?: number
   readonly unit: ToleranceUnit
   /** What the figure decides, in Grid's words. */
   readonly decides: string
@@ -1101,6 +1105,7 @@ export const TOLERANCES = {
     kind: 'limit',
     value: 40,
     home: 10,
+    hall: 80,
     unit: 'm',
     decides: 'A wall higher than this is questioned. Grid stands a storey on its tallest wall.',
     basis: own
@@ -1134,6 +1139,7 @@ export const TOLERANCES = {
     kind: 'limit',
     value: 50000,
     home: 1000,
+    hall: 500000,
     unit: 'm²',
     decides: 'A room larger than this is questioned.',
     basis: own
@@ -1152,6 +1158,7 @@ export const TOLERANCES = {
   typicalHeightHighest: {
     kind: 'limit',
     value: 6,
+    hall: 30,
     unit: 'm',
     decides: 'For the units question: the highest typical solid wall that reads as a storey in metres (see `typicalHeightLowest`).',
     basis: own
@@ -1182,6 +1189,37 @@ export const TOLERANCES = {
     value: 2.5,
     unit: 'm',
     decides: 'For the units question: the widest typical door that agrees with a unit.',
+    basis: own
+  },
+  // WRT-22: a room's side written rooms first, and an opening an edit makes.
+  roomsSideAsked: {
+    kind: 'limit',
+    value: 200,
+    home: 50,
+    hall: 1000,
+    unit: 'm',
+    decides:
+      'A room side written rooms first as a bare number, stretched with * or drawn as a polygon, ' +
+      'longer than this is asked about: it is drawn in metres, and may have been millimetres or ' +
+      'feet. A length written with its unit is taken as meant, at any size.',
+    basis: own
+  },
+  roomsSideBare: {
+    kind: 'limit',
+    value: 2000,
+    unit: 'm',
+    decides:
+      'A room side written rooms first as a bare number longer than this is refused: it is no ' +
+      'building in metres, and most likely millimetres. Written with its unit, it is taken.',
+    basis: own
+  },
+  openingWidest: {
+    kind: 'limit',
+    value: 1000,
+    unit: 'm',
+    decides:
+      'The widest door, window or opening an edit takes. Below it the wall decides: an opening ' +
+      'that does not fit its wall or room side is refused with the stretches that are free.',
     basis: own
   },
   traceUnscaled: {
@@ -1360,12 +1398,14 @@ export function tolerance(name: ToleranceName): number {
   return changed ?? TOLERANCES[name].value
 }
 
-/** A limit for a kind of building: its `home` figure in a home, when it has one. */
+/** A limit for a kind of building: its `home` figure in a home and its `hall` figure in a hall, when it has one. */
 export function limit(name: ToleranceName, building: BuildingKind = 'any'): number {
   const changed = active === null ? undefined : (active as Partial<Record<ToleranceName, number>>)[name]
   if (changed !== undefined) return changed
   const entry: ToleranceEntry = TOLERANCES[name]
-  return building === 'home' && entry.home !== undefined ? entry.home : entry.value
+  if (building === 'home' && entry.home !== undefined) return entry.home
+  if (building === 'hall' && entry.hall !== undefined) return entry.hall
+  return entry.value
 }
 
 /** Whether every entry has its value from the table (no `withTolerances` change is in force). */
