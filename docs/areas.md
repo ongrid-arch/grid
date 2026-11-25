@@ -13,7 +13,7 @@ clause, place, day read and status, and none is carried yet.
 
 | Measure | What it measures | Not taken off | What the plan cannot say |
 |---|---|---|---|
-| Net area | Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover, a room marked as a void (open to the floor below, so with no floor) not counting at all; a stair or a lift shaft drawn as a room on floor after floor counts once, on the floor it rises from. | Nothing else inside a room is taken off: fixed units, a column drawn as a short wall rather than as a column, and floor under a low ceiling all count. | The plan cannot say which rooms the reader counts: a store drawn as a room counts unless it is named as outside, and a balcony, a terrace or a garden counts unless it is marked as outdoor space. |
+| Net area | Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover, a room marked as a void (open to the floor below, so with no floor) not counting at all; a stair or a lift shaft drawn as a room on floor after floor counts once, on the floor it rises from, and only the part of a stair or lift room that lies over the one below is taken off, so a landing, or a half flight of a split level beside the stair below, counts on the level it serves. | Nothing else inside a room is taken off: fixed units, a column drawn as a short wall rather than as a column, and floor under a low ceiling all count. | The plan cannot say which rooms the reader counts: a store drawn as a room counts unless it is named as outside, and a balcony, a terrace or a garden counts unless it is marked as outdoor space. |
 | Gross internal area | Gross internal area is the floor inside the inside face of the walls that face outside, with the inner walls and partitions counted, and less any void, which has no floor. | Inner walls, partitions, stairs and floor no room claims are not taken off. | Which walls face outside is worked out from the rooms beside them, an outdoor space being the outside; floor no room claims, such as a courtyard or a light well not drawn as outdoor space, may be covered or not, so it counts. |
 | Gross external area | Gross external area is the floor inside the outside face of the walls, every wall counted, and less any void, which has no floor. | Outer walls, inner walls and floor no room claims are not taken off. | A wall shared with a neighbour, or with common parts the plan does not draw, counts to its middle once the plan marks it separating; any other wall counts in full, a wall standing apart too. |
 | Area by headroom | Area by headroom is the floor of each room with at least 1.5 m, and with at least 2.2 m, of height over it, from the room's floor to its ceiling or to the underside of the roof its floor states, whichever is lower. | It is measured on the room's whole floor: nothing standing in the room is taken off, a column neither, and floor under a lowered zone of the ceiling counts by that zone's height. | The plan cannot say how deep the roof is built up or where a low slope is boxed in, so the height is taken to the roof's underside as stated, from its eaves on the outside walls' lines. |
@@ -81,7 +81,17 @@ room they are counted with (`countedWith`), and are in no net figure, no area by
 circulation figure; the answer says so in a note. The gross areas still hold them, so on every
 floor the gross external area is the net area plus those stair rooms (`overStairs`), the rooms
 named outside, the walls and the floor no room claims. The same holds when only some floors are
-asked for: a floor's stair room over the stair below is counted on the floor below. A stair the
+asked for: a floor's stair room over the stair below is counted on the floor below.
+
+Only the floor that lies over the open stair below comes off (ARE-35). A stair room that lies
+only partly over the one below, as the half flights of a split level step aside level by level,
+loses just the part over it (`overStair`: that floor, and the room below it lies over): its
+`area` is the rest, a landing or its own half flight, which is in the net, its use and the
+circulation figure on the level it serves, and a note says how much was taken off. The part over
+the stair below is in `overStairs`, so the floor's gross figures still add up. A stair room wholly
+over the one below, to within `areaReported`, is counted with the lowest room of its stair as
+above, found through the rooms that lie wholly over one another. Grid takes the whole of the stair
+room below as open: it cannot say which part of it is flight and which is landing. A stair the
 plan states (`stairs`) adds no floor of its own: its flights stand in rooms already measured. A
 lift shaft is counted the same way (ARE-22): lift rooms one over the other on neighbouring floors
 are one shaft, its floor is counted once on the floor it rises from, and the lift rooms over it are

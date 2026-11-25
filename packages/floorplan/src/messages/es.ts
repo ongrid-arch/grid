@@ -2696,6 +2696,9 @@ export const es: Messages = {
   'line.plan/grid-unknown-floor.fix': 'Nombre la planta por su id, como la da grid describe, o quítela de las plantas de la retícula.',
   'areas.columns.one': '{area} m² de suelo bajo {count} pilar se descuentan de la superficie útil del local en el que está; las superficies construidas lo siguen contando.',
   'areas.columns.many': '{area} m² de suelo bajo {count} pilares se descuentan de la superficie útil de los locales en los que están; las superficies construidas lo siguen contando.',
+  // ARE-35: a stair or lift room only partly over the one below loses only the part over it.
+  'areas.overStair.stair': '{room} en {floor} está en parte sobre la escalera abierta {below} en {belowFloor}: solo los {over} m² que quedan sobre ella se descuentan de su superficie útil, y los otros {rest} m² cuentan en {floor}, el nivel al que sirve; las superficies construidas lo siguen contando todo.',
+  'areas.overStair.lift': '{room} en {floor} está en parte sobre el hueco del ascensor {below} en {belowFloor}: solo los {over} m² que quedan sobre él se descuentan de su superficie útil, y los otros {rest} m² cuentan en {floor}, el nivel al que sirve; las superficies construidas lo siguen contando todo.',
   'drawing.key.column': 'Pilar',
   'drawing.key.grid': 'Retícula estructural',
   'takeoff.rule.columns': 'Un pilar se cuenta una vez, en su propia planta, por forma y tamaño; su longitud va de su pie a su cabeza, a través de todas las plantas que atraviesa, y su volumen es su sección por esa longitud.',

@@ -36,7 +36,7 @@ import { floorSpaces, spacesKnown, type FloorSpaces, type Space } from './spaces
 import { planWallSides, type WallSides } from './exposure'
 import { validatePlan } from './validate'
 import { floorJoins } from './floorJoins'
-import { cornerFills, inPolygon, polygonArea, strip, union, type WallRun } from './polygons'
+import { cornerFills, cutOutline, inPolygon, multiArea, polygonArea, strip, union, type WallRun } from './polygons'
 import { roomZones } from './zones'
 import { planFlats } from './flats'
 import { planBuildings } from './buildings'
@@ -80,7 +80,7 @@ export const MEASURES: Readonly<Record<Measure, MeasureRule>> = {
   net: {
     measure: 'net',
     name: 'Net area',
-    measures: 'Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover, a room marked as a void (open to the floor below, so with no floor) not counting at all; a stair or a lift shaft drawn as a room on floor after floor counts once, on the floor it rises from.',
+    measures: 'Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover, a room marked as a void (open to the floor below, so with no floor) not counting at all; a stair or a lift shaft drawn as a room on floor after floor counts once, on the floor it rises from, and only the part of a stair or lift room that lies over the one below is taken off, so a landing, or a half flight of a split level beside the stair below, counts on the level it serves.',
     notTakenOff: 'Nothing else inside a room is taken off: fixed units, a column drawn as a short wall rather than as a column, and floor under a low ceiling all count.',
     cannotSay: 'The plan cannot say which rooms the reader counts: a store drawn as a room counts unless it is named as outside, and a balcony, a terrace or a garden counts unless it is marked as outdoor space.',
   },
@@ -175,6 +175,13 @@ export interface RoomAreaFigure {
    */
   readonly countedWith?: { readonly floor: string; readonly room: string }
   /**
+   * ARE-35: on a room used as a stair (or a lift) that lies only partly over the stair room below
+   * it (LVL-3's join): the floor of it over that open stair, taken off `area`, and that room. The
+   * rest of it, a landing or the half flight of a split level, is in the net on its own floor.
+   * Absent on every other room, and on a room wholly over the one below (`countedWith`).
+   */
+  readonly overStair?: { readonly area: number; readonly floor: string; readonly room: string }
+  /**
    * CNT-7 (C26): on an outdoor space only, its kind and whether a roof covers it. It is in no net,
    * gross internal or gross external figure: it is listed apart, in `outdoor`.
    */
@@ -205,7 +212,7 @@ export interface FloorAreaFigures {
   readonly byUse: Readonly<Record<string, number>>
   /** The rooms named outside. */
   readonly outsideRooms: number
-  /** SHT-11: the stair rooms over a stair room below, whose floor is counted there (`countedWith`). */
+  /** SHT-11: the stair rooms over a stair room below, whose floor is counted there (`countedWith`), and ARE-35 the part over it of a room only partly over it (`overStair`). */
   readonly overStairs: number
   /** CNT-16: the floor the columns standing in this floor's rooms cover (zones aside): taken off the rooms' areas, in the gross figures. */
   readonly columns: number
@@ -619,7 +626,7 @@ function floorFigures(
   broken: ReadonlySet<string>,
   outside: ReadonlySet<string>,
   sides: () => ReadonlyMap<string, WallSides>,
-  countedWith: ReadonlyMap<string, { readonly floor: string; readonly room: string }>,
+  stacks: ReadonlyMap<string, StairBelow>,
   building: Building | null
 ): FloorAreaFigures {
   const rooms: RoomAreaFigure[] = []
@@ -638,7 +645,11 @@ function floorFigures(
     const kind = outdoorKind(room)
     const apart = kind === null && outside.has(room.id)
     const isVoid = room.void === true
-    const below = apart || kind !== null || isVoid ? undefined : countedWith.get(`${floor}|${room.id}`)
+    const stack = apart || kind !== null || isVoid ? undefined : stacks.get(`${floor}|${room.id}`)
+    const below = stack?.lowest
+    // ARE-35: only the floor over the open stair below comes off a room partly over it.
+    const over = stack?.part
+    const floorArea = roomFloorArea(room, index, outline)
     // CNT-16: the columns standing in it, taken off its area (`roomFloorArea`).
     const columnIds = roomColumns(room, index)
     rooms.push({
@@ -646,10 +657,11 @@ function floorFigures(
       name: nameOf(room),
       use: room.use ?? null,
       floor,
-      area: roomFloorArea(room, index, outline),
+      area: over === undefined ? floorArea : Math.max(0, floorArea - over.area),
       outside: apart,
       zoneOf,
       ...(below === undefined ? {} : { countedWith: below }),
+      ...(over === undefined ? {} : { overStair: over }),
       ...(columnIds.length === 0 ? {} : { columns: { area: roomColumnArea(room, index), ids: columnIds } }),
       ...(kind === null ? {} : { outdoor: { kind, roofed: outdoorRoofed(room)! } }),
       ...(isVoid ? { void: true as const } : {}),
@@ -658,7 +670,7 @@ function floorFigures(
   // A zone is in no figure (CNT-8): its floor is its room's, counted once. A zone is in no stair
   // stack either (`stairStacks`), so it never has `countedWith`.
   const counted = rooms.filter((room) => !room.outside && room.outdoor === undefined && room.void !== true && room.zoneOf === null && room.countedWith === undefined)
-  const overStairs = sum(rooms.filter((room) => room.countedWith !== undefined).map((room) => room.area))
+  const overStairs = sum(rooms.map((room) => (room.countedWith !== undefined ? room.area : (room.overStair?.area ?? 0))))
   const byUse: Record<string, number> = {}
   const add = (use: string | null, value: number): void => {
     byUse[use ?? NOT_SAID] = (byUse[use ?? NOT_SAID] ?? 0) + value
@@ -835,12 +847,26 @@ export const MASSING_WHY = 'it is an outline with no walls yet, so there is no i
 
 
 /**
- * SHT-11, lab DR-5 (and ARE-22 for a lift): the stair and lift rooms whose floor is counted with a
- * room of the same use below, by floor and id, each with the lowest room of its stair or shaft. Rooms used as a stair on neighbouring floors are one
+ * What the floor below does to a stair or lift room over it: either the room lies wholly over the
+ * stair below (`lowest`, the room its floor is counted with) or only partly (`part`, ARE-35).
+ */
+interface StairBelow {
+  readonly lowest?: { readonly floor: string; readonly room: string }
+  readonly part?: { readonly area: number; readonly floor: string; readonly room: string }
+}
+
+/**
+ * SHT-11, lab DR-5 (and ARE-22 for a lift): the stair and lift rooms over a room of the same use
+ * below, by floor and id. Rooms used as a stair on neighbouring floors are one
  * stair when LVL-3's way-out check joins them (`floorJoins`: they share at least
  * `stairRoomOverlap` of the smaller); its floor is counted once, on the floor it rises from.
+ *
+ * ARE-35: only the floor of the upper room that lies over the joined rooms below is open. A room
+ * wholly over them, to within `areaReported`, is counted with the lowest room of its stair, found
+ * through rooms wholly over one another; a room only partly over them loses that part, and the
+ * rest of it (a landing, a split level's half flight) is counted on its own floor.
  */
-function stairStacks(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<string>): Map<string, { floor: string; room: string }> {
+function stairStacks(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<string>): Map<string, StairBelow> {
   const outlines = new Map<string, Map<string, Vec2[]>>()
   // CNT-8: a zone is part of its room, not a room of its own, so it is in no stack.
   const zones = roomZones(index)
@@ -853,15 +879,29 @@ function stairStacks(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<stri
     rooms.set(room.id, outline)
     outlines.set(floor, rooms)
   }
-  const stacks = new Map<string, { floor: string; room: string }>()
+  const stacks = new Map<string, StairBelow>()
   if ([...outlines.values()].filter((rooms) => rooms.size > 0).length < 2) return stacks
-  const below = new Map<string, { floor: string; room: string }>()
+  const lowers = new Map<string, { upper: { floor: string; room: string }; under: { floor: string; room: string }[] }>()
   // Only what the outlines hold: no stated stair is laid out here.
   for (const join of floorJoins({ ...plan, stairs: [] }, outlines, () => broken).joins) {
     if (join.kind !== 'stair-room' && join.kind !== 'lift') continue
     const key = `${join.upper.floor}|${join.upper.room}`
+    const found = lowers.get(key) ?? { upper: join.upper, under: [] as { floor: string; room: string }[] }
+    found.under.push(join.lower)
+    lowers.set(key, found)
+  }
+  const ring = (outline: readonly Vec2[]): Polygon => [outline.map((p): [number, number] => [p.x, p.y])]
+  const below = new Map<string, { floor: string; room: string }>()
+  for (const [key, { upper: at, under }] of lowers) {
+    const upper = outlines.get(at.floor)!.get(at.room)!
     // A room over two stair rooms below goes with the first found: it is still counted once.
-    if (!below.has(key)) below.set(key, join.lower)
+    const first = under[0]!
+    const open = cutOutline('union', ring(outlines.get(first.floor)!.get(first.room)!), under.slice(1).map((r) => ring(outlines.get(r.floor)!.get(r.room)!)))
+    const shared = open === null ? null : cutOutline('intersection', ring(upper), [open])
+    // The polygon library could not cut them: the room is taken as wholly over, as before.
+    const over = shared === null ? null : multiArea(shared)
+    if (over === null || over >= polygonArea(ring(upper)) - tolerance('areaReported')) below.set(key, first)
+    else stacks.set(key, { part: { area: over, floor: first.floor, room: first.room } })
   }
   for (const key of below.keys()) {
     let lowest = below.get(key)!
@@ -872,7 +912,7 @@ function stairStacks(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<stri
       seen.add(at)
       lowest = next
     }
-    stacks.set(key, lowest)
+    stacks.set(key, { lowest })
   }
   return stacks
 }
@@ -961,6 +1001,27 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
         `${JSON.stringify(names.get(`${stair.floor}|${stair.room}`) ?? stair.room)} on ${JSON.stringify(floorNames.get(stair.floor) ?? stair.floor)} is a ${word} that rises through ` +
           `${above.length === 1 ? `the ${word} room` : `${above.length} ${word} rooms`} over it (${above.map((room) => JSON.stringify(floorNames.get(room.floor) ?? room.floor)).join(', ')}): ` +
           `its floor is counted once, there, so ${sum(above.map((room) => room.area)).toFixed(2)} m² over it is in no net figure; the gross figures still hold it.`
+      )
+    }
+  }
+  // ARE-35: a stair or lift room only partly over the one below loses only the part over it.
+  const partly = rooms(floors).filter((room) => room.overStair !== undefined)
+  if (partly.length > 0) {
+    const names = new Map(plan.rooms.map((room) => [`${floorOf(room)}|${room.id}`, nameOf(room)] as const))
+    const floorNames = new Map(planFloors(plan).map((f) => [f.id, f.name || f.id] as const))
+    for (const room of partly) {
+      const under = room.overStair!
+      notes.push(
+        english(
+          said(room.use === 'lift' ? 'areas.overStair.lift' : 'areas.overStair.stair', {
+            room: name(room.name),
+            floor: name(floorNames.get(room.floor) ?? room.floor),
+            below: name(names.get(`${under.floor}|${under.room}`) ?? under.room),
+            belowFloor: name(floorNames.get(under.floor) ?? under.floor),
+            over: num(under.area.toFixed(2)),
+            rest: num(room.area.toFixed(2)),
+          })
+        )
       )
     }
   }
