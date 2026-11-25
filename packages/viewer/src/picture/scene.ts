@@ -586,15 +586,38 @@ function detailNode(opening: PlanOpening, paint: Paints): SvgNode | null {
   const detail = openingDetail(opening)
   if (detail.frames.length === 0) return null
   const dash = opening.above ? paint.aboveDash : {}
+  // The pen is centred on the ring's edge, so the ring is drawn half the pen's width in: the whole
+  // stroke then lies inside the wall's faces and the hole's edges, never past them.
+  const inset = Number(paint.frame['stroke-width']) / 2
+  const rings = detail.frames.map((ring) => insetRing(ring, inset))
   return el(
     'g',
     { 'data-part': 'opening-detail', 'data-opening': opening.id, 'pointer-events': 'none', 'aria-hidden': 'true' },
     [
-      ...detail.frames.map((ring, index) => el('path', { 'data-part': 'frame', d: pathOf(ring), ...paint.frame, ...dash }, [], `f${index}`)),
+      ...rings.map((ring, index) => el('path', { 'data-part': 'frame', d: pathOf(ring), ...paint.frame, ...dash }, [], `f${index}`)),
       ...detail.sills.map(([a, b], index) => el('line', { 'data-part': 'sill', x1: a.x, y1: -a.y, x2: b.x, y2: -b.y, ...paint.sill, ...dash }, [], `s${index}`))
     ],
     `${opening.id}:detail`
   )
+}
+
+/** A rectangle's ring with every edge moved `by` metres inward (not past its middle). */
+function insetRing(ring: readonly Vec2[], by: number): Vec2[] {
+  if (ring.length !== 4 || !(by > 0)) return [...ring]
+  const centre = { x: (ring[0]!.x + ring[2]!.x) / 2, y: (ring[0]!.y + ring[2]!.y) / 2 }
+  const side = (a: Vec2, b: Vec2): number => Math.hypot(b.x - a.x, b.y - a.y)
+  const [u, v] = [side(ring[0]!, ring[1]!), side(ring[1]!, ring[2]!)]
+  if (!(u > 0 && v > 0)) return [...ring]
+  // Each corner moves toward the middle by `by` along both of the rectangle's edge directions.
+  const ex = { x: (ring[1]!.x - ring[0]!.x) / u, y: (ring[1]!.y - ring[0]!.y) / u }
+  const ey = { x: (ring[2]!.x - ring[1]!.x) / v, y: (ring[2]!.y - ring[1]!.y) / v }
+  const cu = Math.min(by, u / 2 - 1e-9)
+  const cv = Math.min(by, v / 2 - 1e-9)
+  return ring.map((p) => {
+    const su = Math.sign((p.x - centre.x) * ex.x + (p.y - centre.y) * ex.y)
+    const sv = Math.sign((p.x - centre.x) * ey.x + (p.y - centre.y) * ey.y)
+    return { x: p.x - su * cu * ex.x - sv * cv * ey.x, y: p.y - su * cu * ex.y - sv * cv * ey.y }
+  })
 }
 
 /** CNT-14: the drawing's names of a symbol's lines, by what each is. */
@@ -603,7 +626,8 @@ const PIECE_PARTS: Readonly<Record<SymbolPart, string>> = {
   leaf: 'door-leaf',
   panel: 'door-panel',
   face: 'window-face',
-  glass: 'window-glass'
+  glass: 'window-glass',
+  arrow: 'door-arrow'
 }
 
 /**
@@ -614,7 +638,7 @@ const PIECE_PARTS: Readonly<Record<SymbolPart, string>> = {
 function kindSymbolNode(opening: PlanOpening, symbol: OpeningSymbol, paint: Paints, opacity: number | undefined): SvgNode {
   const flip = (p: Vec2): Vec2 => ({ x: p.x, y: -p.y })
   const pen = (part: SymbolPart): Attrs =>
-    part === 'jamb' ? paint.jamb : part === 'leaf' ? paint.doorLeaf : part === 'glass' ? paint.glass : paint.windowFace
+    part === 'jamb' ? paint.jamb : part === 'leaf' ? paint.doorLeaf : part === 'glass' ? paint.glass : part === 'arrow' ? paint.jamb : paint.windowFace
   const children = symbol.pieces.map((piece) => {
     if (piece.shape === 'arc') {
       const a = flip(piece.tip)
