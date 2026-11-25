@@ -20,7 +20,7 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 
 `grid serve` is an MCP server over standard input and output, for an agent's host to start.
 Its tools are listed in a fixed order: first those that read the plan, in the order of the
-requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark and the brief, and last the thirteen that
+requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the thirteen that
 change the plan, writing it rooms first leading and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
 and the allowed values of each argument, and an output schema. Each answer is short text with
 the same facts as data; a view also returns its picture. A length argument is metres, or text with its unit (`12'6"`, `360 cm`); the measuring tools, the views and the sheet write in `units` and `decimal`, or the plan's `display`, the person's own units, and in metres when neither says (see [Units](plan-file.md#units)). The check and the edit answers are in metres.
@@ -48,6 +48,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with; or takes one off. At most 5 |
 | `grid_mark_seen` | Sets a note of `grid_check` aside as seen, with the person's reason and the name or role they give, in `plan.seen.json` beside the plan; or takes the mark off (see below) |
 | `grid_write_brief` | Writes the brief beside the plan from the person's words, before the first room: room areas and counts, inside sizes, the footprint, rooms that must or must not touch, and the person's own figures, each with its level, its quote and whether it was given or assumed, and what is still open; answers with each line met or missed ([brief.md](brief.md)). A brief already there is kept: the call is refused unless `replace` is true |
+| `grid_words` | Grid's words in the person's language, for a language Grid ships none for (MSG-24): with `output` (drawing, sheet, check or describe), the keys that output prints for this plan, each with its English, its placeholders and the word the language has now, writing nothing; with `words`, the agent's translations, each checked against the English key's placeholders and refused by name, written into the plan's `display.words` ([languages.md](languages.md#words-the-plan-keeps-for-a-language)). `plan_language` makes the language the plan's own, `decimal` sets its decimal mark |
 | `grid_write_rooms` | Writes the plan from rooms text, as `grid write`: the walls, their kinds, the room boundaries and the openings' places worked out. With `layout` (`tidy` or `sizes`) in place of `rooms`, a first layout from the brief beside the plan, with each size not kept and by how much ([brief.md](brief.md#a-first-layout-from-the-brief)); with `scan`, from a phone room scan, as `grid write --scan`, with what was assumed and the scan kept beside the plan ([commands.md](commands.md#a-plan-from-a-phone-room-scan-grid-write---scan)). It takes one of `rooms`, `layout` and `scan` |
 | `grid_change_opening` | Changes a door or window (width, height, sill, type, which room it opens into, which side it is hinged on as seen from a room, its kind), moves it to a side of a room, places it from a room's side or an end of its wall and keeps it there (its anchor), or removes it |
 | `grid_change_wall` | Sets one wall's thickness: a wall placed by its face keeps that face and grows or shrinks on its other side, any other wall keeps its centre line, and a wall that ended in a thinner wall is carried to its new centre line ([plan-file.md](plan-file.md)) |
@@ -167,9 +168,11 @@ those the output schema requires. The words of the answer do not change.
 
 ## The person's language
 
-`grid_check`, `grid_describe`, `grid_view` and `grid_sheet` take `language` (`en` or `es`; the
-plan's own `display.language` when left out): Grid's own words, the label first, come back in that
-language, with its decimal mark (MSG-11). The codes, kinds, ids, figures and each line's `values`
+`grid_check`, `grid_describe`, `grid_view` and `grid_sheet` take `language` (any language tag:
+`en` and `es` Grid ships, any other in the words the plan keeps for it, written with `grid_words`,
+else in English; the plan's own `display.language` when left out): Grid's own words, the label
+first, come back in that language, with its decimal mark (MSG-11, MSG-24). An answer that printed
+some of Grid's words in English for want of a word in the language says so in its last line. The codes, kinds, ids, figures and each line's `values`
 are the same in every language, so an agent can retell a result in any language from the codes
 and values. Room names stay as written. The tools' own descriptions stay in English. For
 `grid_view`, the picture's words follow the language (a plan's key and marks, a facade's or a

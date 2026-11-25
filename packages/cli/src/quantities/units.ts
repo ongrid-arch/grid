@@ -5,7 +5,7 @@
  */
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/floorplan/geometry'
 
-import { LANGUAGE_DECIMAL, type Language } from '@ongrid/floorplan/messages'
+import { languageDecimal, type Language } from '@ongrid/floorplan/messages'
 import { displayOf, METRES, showArea, showLength, statedDisplay, type DecimalMark, type Display, type LengthKind } from '@ongrid/floorplan/types/units'
 
 /** The units a call may ask for: metres, centimetres, millimetres, feet and inches (`ft` is the same). */
@@ -30,7 +30,7 @@ export function displayFor(units: unknown, decimal: unknown, plan?: { readonly d
   // MSG-11: the call's language, else the plan's; its decimal mark unless one is chosen.
   const tongue = language ?? stated?.language
   const own: Display | undefined = stated === undefined ? undefined : statedDisplay({ ...stated, ...(tongue === undefined ? {} : { language: tongue }) })
-  const mark = (decimal as DecimalMark | undefined) ?? own?.decimal ?? LANGUAGE_DECIMAL[tongue ?? 'en']
+  const mark = (decimal as DecimalMark | undefined) ?? own?.decimal ?? languageDecimal(tongue ?? 'en')
   const withLanguage = (display: Display): Display => (tongue === undefined ? display : { ...display, language: tongue })
   if (units === undefined) return withLanguage(own === undefined ? { ...METRES, decimal: mark } : { ...own, decimal: mark })
   const length = units === 'ft' ? 'ft-in' : (units as Exclude<DisplayUnits, 'ft'>)

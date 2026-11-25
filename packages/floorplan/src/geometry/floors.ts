@@ -15,6 +15,7 @@ import type { FloorPlan, Opening, Wall } from './plan'
 import { hasWallsThrough, storeyWalls, throughFloorParts, wallStandsOn } from './through'
 import { sliceColumns } from './columns'
 import { DEFAULT_LANGUAGE, GROUND_FLOOR_NAME, type Language } from '../messages/languages'
+import { groundFloorName } from '../messages/words'
 
 /** The floor every entity belongs to until it says otherwise, named in English. */
 export const DEFAULT_FLOOR: Floor = { id: DEFAULT_FLOOR_ID, name: GROUND_FLOOR_NAME.en, level: 0 }
@@ -22,7 +23,7 @@ export const DEFAULT_FLOOR: Floor = { id: DEFAULT_FLOOR_ID, name: GROUND_FLOOR_N
 /** MSG-22: the floor every entity belongs to, named in the plan's language (`display.language`). */
 export function groundFloor(plan: Pick<FloorPlan, 'display'>): Floor {
   const language = plan.display?.language ?? DEFAULT_LANGUAGE
-  return language === DEFAULT_LANGUAGE ? DEFAULT_FLOOR : { ...DEFAULT_FLOOR, name: GROUND_FLOOR_NAME[language] }
+  return language === DEFAULT_LANGUAGE ? DEFAULT_FLOOR : { ...DEFAULT_FLOOR, name: groundFloorName(language) }
 }
 
 /**

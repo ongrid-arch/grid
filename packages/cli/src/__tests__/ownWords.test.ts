@@ -123,6 +123,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/serveTools.ts': [1, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
+  // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
+  'packages/cli/src/mcp/wordsTool.ts': [31, 'tools'],
   'packages/cli/src/mcp/toolkit.ts': [28, 'agent'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.

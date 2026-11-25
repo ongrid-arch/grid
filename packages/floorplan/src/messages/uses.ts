@@ -17,9 +17,9 @@
  * and `dining` too, as the labels are: the person chose the use in their own words.
  */
 import type { RoomUse } from '../types/floorplan'
-import type { Language } from './languages'
+import { isLanguage, type Language, type ShippedLanguage } from './languages'
 
-export const USE_LABELS: Readonly<Record<Language, Readonly<Record<RoomUse, string>>>> = {
+export const USE_LABELS: Readonly<Record<ShippedLanguage, Readonly<Record<RoomUse, string>>>> = {
   en: {
     bedroom: 'bedroom',
     living: 'living',
@@ -80,9 +80,12 @@ export const USE_LABELS: Readonly<Record<Language, Readonly<Record<RoomUse, stri
   }
 }
 
-/** A use's label in a language: `dormitorio` for `bedroom` in Spanish. */
+/**
+ * A use's label in a language: `dormitorio` for `bedroom` in Spanish. MSG-24: the English label in
+ * a language Grid ships no file for; a room's name, the person's own, is drawn before its use.
+ */
 export function labelOfUse(language: Language, use: RoomUse): string {
-  return USE_LABELS[language][use]
+  return USE_LABELS[isLanguage(language) ? language : 'en'][use]
 }
 
 /**

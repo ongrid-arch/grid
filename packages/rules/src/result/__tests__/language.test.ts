@@ -13,7 +13,7 @@ import { labPlan } from '@ongrid/floorplan/test-support/lab'
 import { stairWindowAsWritten, stairWindowThrough } from '@ongrid/floorplan/test-support/through'
 import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { approvalWords, GENERAL_GUIDANCE_LABEL, inspectPlan as inspectInLanguage, type GridResult } from '../..'
-import { GROUND_FLOOR_NAME } from '@ongrid/floorplan/messages'
+import { GROUND_FLOOR_NAME, groundFloorName } from '@ongrid/floorplan/messages'
 
 /**
  * MSG-22: the record as these tests compare it. Every value is the same in every language but one:
@@ -24,7 +24,7 @@ function inspectPlan(...args: Parameters<typeof inspectInLanguage>): GridResult 
   const result = inspectInLanguage(...args)
   const language = args[1]?.language
   if (language === undefined || language === 'en') return result
-  const named = JSON.stringify(GROUND_FLOOR_NAME[language])
+  const named = JSON.stringify(groundFloorName(language))
   return JSON.parse(JSON.stringify(result).split(named).join(JSON.stringify(GROUND_FLOOR_NAME.en))) as GridResult
 }
 

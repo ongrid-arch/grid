@@ -221,7 +221,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // CNT-5: a `building` line sets what kind of building it is; without one, the file's stays.
   if (plan.building !== undefined) next['building'] = plan.building
   // WRT-7: a `display` line sets how the person reads lengths; without one, the file's stays.
-  if (plan.display !== undefined) next['display'] = plan.display
+  // MSG-24: the file's language and its own words (C32) stay too, as rooms text holds neither.
+  if (plan.display !== undefined) next['display'] = { ...keptWords(raw['display']), ...plan.display }
   // WRT-6: a height the text did not state stays out of the file; the reading fills it again.
   next['walls'] = plan.walls.map(statedWall)
   next['rooms'] = plan.rooms
@@ -266,4 +267,11 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),
   ]
   return { written, result, plan, verdict, drawingProblems, brief: brief.data, reminder, taped, lines }
+}
+
+/** MSG-24: the language and the words (C32) of the file's display, which rooms text does not hold. */
+function keptWords(display: unknown): Record<string, unknown> {
+  if (typeof display !== 'object' || display === null || Array.isArray(display)) return {}
+  const own = display as Record<string, unknown>
+  return { ...(own['language'] === undefined ? {} : { language: own['language'] }), ...(own['words'] === undefined ? {} : { words: own['words'] }) }
 }

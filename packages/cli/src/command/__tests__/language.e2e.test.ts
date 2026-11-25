@@ -100,11 +100,15 @@ describe('grid check --lang es (MSG-11)', () => {
     expect(grid(['check', 'plan.json', '--full']).out).toMatch(/6\.5 m²/)
   })
 
-  it('refuses a language Grid does not write, by name', () => {
-    const run = grid(['check', 'plan.json', '--lang', 'fr'])
+  // MSG-24: any language is taken, in the plan's own words for it, else in English.
+  it('writes a language Grid ships no words for in English, and refuses a word that is no language tag, by name', () => {
+    const french = grid(['check', 'plan.json', '--lang', 'fr'])
+    expect(french.status).toBe(0)
+    expect(french.out.split('\n')[0]).toBe(GENERAL_GUIDANCE_LABEL)
+    const run = grid(['check', 'plan.json', '--lang', 'Français'])
     expect(run.status).not.toBe(0)
     expect(run.out).toBe('')
     expect(run.err).toContain('--lang')
-    expect(run.err).toContain('en or es')
+    expect(run.err).toContain('language tag')
   })
 })

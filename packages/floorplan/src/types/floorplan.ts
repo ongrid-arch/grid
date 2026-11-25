@@ -322,6 +322,17 @@
  *   the floor a picture draws when none is asked for. It is drawn under that floor's plan in the pictures an agent gets, and is
  *   in no measure, check, export or sheet. All optional and never defaulted: a plan that states
  *   only `path` reads as before (version 1).
+ *
+ * C32 · Grid's words in any language, kept in the plan (MSG-24)
+ *   `display.language` MAY name any language by a BCP-47 tag (`de`, `pt-BR`), read as its primary
+ *   subtag in lower case (`pt`). `display.words` MAY give the plan's own words for Grid's keys:
+ *   a map from a language, as that subtag and never `en`, to a map from a key of Grid's messages
+ *   (`messages/en.ts`) to its wording in the language, with exactly the English key's named
+ *   placeholders and keeping to the text rule. Grid writes a key in a language from the plan's
+ *   word, else from the file it ships for the language (`es.ts`), else in English. A word the
+ *   reader cannot take is left out on its own, with a reading line, and the English is said. The
+ *   decimal mark is the display's (`decimal`), never the words'; room names are never words.
+ *   Optional and never defaulted: a plan with none reads exactly as before (version 1).
  */
 import { z } from 'zod'
 import { limit } from '../geometry/tolerances'
@@ -330,7 +341,7 @@ import { factKey } from './facts'
 import { placeProblem } from './places'
 import { roofFrame, roofTop } from './roofFrame'
 import { en } from '../messages/en'
-import { LANGUAGES, readLanguage } from '../messages/languages'
+import { readLanguage } from '../messages/languages'
 import { roomUseOfLabel } from '../messages/uses'
 import { english, said } from '../messages/say'
 import { ringProblem } from '../geometry/ring'
@@ -351,6 +362,9 @@ export type { ZodIssue as PlanSchemaIssue } from 'zod'
  * no lone half of a character pair, and no longer than its limit (`planText.ts`). A refusal
  * names the part and the limit, never the text.
  */
+/** MSG-24 (C32): a language as `readLanguage` writes it, its primary subtag in lower case. */
+const LANGUAGE_TAG = /^[a-z]{2,3}$/
+
 export const text = (kind: TextKind) =>
   z.string().superRefine((value, ctx) => {
     const problem = textProblem(value, kind)
@@ -2438,11 +2452,13 @@ export const FloorPlanFieldsSchema = z.object({
   // MSG-11: `language` is the language Grid writes its words in for this plan (`en`, `es`); a
   // language with a decimal comma writes one unless `decimal` says otherwise. With a language,
   // `length` may be left out: then lengths are in metres. MSG-22: a language with a region
-  // (`es-MX`, `es-ES`) is read as its language.
+  // (`es-MX`, `es-ES`) is read as its language. MSG-24 (C32): any language, and `words`, the plan's
+  // own words for Grid's keys in a language (`messages/words.ts`), each word checked by the reader.
   display: z
     .object({
       length: z.enum(['m', 'cm', 'mm', 'ft-in']).optional(),
-      language: z.preprocess((value) => readLanguage(value) ?? value, z.enum(LANGUAGES)).optional(),
+      language: z.preprocess((value) => readLanguage(value) ?? value, z.string().regex(LANGUAGE_TAG)).optional(),
+      words: z.record(z.string(), z.record(z.string(), z.string())).optional().catch(undefined),
       area: z.enum(['m2', 'ft2']).optional(),
       decimal: z.enum(['point', 'comma']).optional(),
       precision: z.number().int().min(0).max(5).optional(),

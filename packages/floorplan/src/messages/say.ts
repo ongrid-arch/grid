@@ -12,9 +12,11 @@
 import { quoted } from '../types/planText'
 import type { DecimalMark } from '../types/units'
 import { en, type MessageKey } from './en'
-import { DEFAULT_LANGUAGE, LANGUAGE_DECIMAL, type Language } from './languages'
+import { DEFAULT_LANGUAGE, languageDecimal, type Language } from './languages'
+import { heard, planWord } from './words'
 
 export type { MessageKey } from './en'
+export { placeholders } from './words'
 
 /** A figure as Grid rounds it, written with a decimal point ("0.80"); the language's mark is put in when it is said. */
 export interface Num {
@@ -61,7 +63,7 @@ export function isSaid(value: unknown): value is Said {
   return typeof value === 'object' && value !== null && typeof (value as { key?: unknown }).key === 'string'
 }
 
-const tables: Partial<Record<Language, Messages>> = { en }
+const tables: Record<Language, Messages> = { en }
 
 /** Gives `say` a language's messages: the command loads them when the person asks for the language. */
 export function registerMessages(language: Language, messages: Messages): void {
@@ -70,7 +72,35 @@ export function registerMessages(language: Language, messages: Messages): void {
 
 /** Whether a language's messages are loaded: English always is. */
 export function hasMessages(language: Language): boolean {
-  return tables[language] !== undefined
+  return Object.hasOwn(tables, language)
+}
+
+/**
+ * MSG-24: a key's wording in a language: the plan's own word for it (`display.words`, C32), else
+ * the language's file, else English.
+ */
+function wording(language: Language, key: MessageKey): string {
+  heard(language, key)
+  const own = planWord(language, key)
+  if (own !== undefined) return own
+  const table = Object.hasOwn(tables, language) ? tables[language]! : en
+  return table[key] ?? en[key] ?? key
+}
+
+/**
+ * MSG-24: whether a language has its own wording for a key, from the plan's words or its file.
+ * English has every key.
+ */
+export function hasWording(language: Language, key: MessageKey): boolean {
+  return language === DEFAULT_LANGUAGE || ownWording(language, key) !== undefined
+}
+
+/** MSG-24: a language's own wording for a key, the plan's word or its file's, and where it is from; undefined when it has none. */
+export function ownWording(language: Language, key: MessageKey): { readonly text: string; readonly from: 'plan' | 'grid' } | undefined {
+  const own = planWord(language, key)
+  if (own !== undefined) return { text: own, from: 'plan' }
+  const shipped = Object.hasOwn(tables, language) ? tables[language]![key] : undefined
+  return shipped === undefined ? undefined : { text: shipped, from: 'grid' }
 }
 
 /**
@@ -78,7 +108,7 @@ export function hasMessages(language: Language): boolean {
  * when it is asked for, so the command starts without it.
  */
 export async function loadLanguage(language: Language): Promise<void> {
-  if (tables[language] !== undefined) return
+  if (hasMessages(language)) return
   if (language === 'es') registerMessages('es', (await import('./es')).es)
 }
 
@@ -87,17 +117,12 @@ export interface SayOptions {
   readonly decimal?: DecimalMark | undefined
 }
 
-/** The decimal mark a language writes, unless the display chooses one. */
+/** The decimal mark a language writes, unless the display chooses one: a point for a language Grid ships no file for. */
 export function decimalFor(language: Language, stated?: DecimalMark): DecimalMark {
-  return stated ?? LANGUAGE_DECIMAL[language]
+  return stated ?? languageDecimal(language)
 }
 
 const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9]*)\}/g
-
-/** The names of the placeholders a wording holds, in order, once each. */
-export function placeholders(text: string): string[] {
-  return [...new Set([...text.matchAll(PLACEHOLDER)].map((m) => m[1]!))]
-}
 
 function marked(text: string, decimal: DecimalMark): string {
   return decimal === 'comma' ? text.replace(/(\d)\.(\d)/g, '$1,$2') : text
@@ -121,12 +146,11 @@ export function sayValue(language: Language, value: Value, options: SayOptions =
 }
 
 /**
- * A key's wording in a language, with its placeholders filled. A language whose messages are not
- * loaded is written in English; a placeholder with no value is left as it is, so a test sees it.
+ * A key's wording in a language, with its placeholders filled: the plan's own word, else the
+ * language's file, else English (MSG-24); a placeholder with no value is left as it is, so a test sees it.
  */
 export function say(language: Language, key: MessageKey, values: Values = {}, options: SayOptions = {}): string {
-  const table = tables[language] ?? tables[DEFAULT_LANGUAGE]!
-  const text = table[key] ?? en[key] ?? key
+  const text = wording(language, key)
   if (!text.includes('{')) return text
   return text.replace(PLACEHOLDER, (whole, name: string) => (Object.hasOwn(values, name) ? sayValue(language, values[name]!, options) : whole))
 }
@@ -162,8 +186,7 @@ export interface SaidPart {
  * as `say` writes it: the notes a person reads set the names apart (MSG-9).
  */
 export function sayParts(language: Language, key: MessageKey, values: Values = {}, options: SayOptions = {}): SaidPart[] {
-  const table = tables[language] ?? tables[DEFAULT_LANGUAGE]!
-  const text = table[key] ?? en[key] ?? key
+  const text = wording(language, key)
   const parts: SaidPart[] = []
   let at = 0
   const words = (run: string): void => {

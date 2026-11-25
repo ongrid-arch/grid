@@ -237,8 +237,8 @@ function comparisonLines(c: Comparison): string[] {
 export const LANGUAGE_ARG: ArgSpec = {
   type: 'string',
   maxLength: 35,
-  description: `The language Grid writes its own words in: ${LANGUAGES.join(' or ')}, alone or with a region (es-MX is es). The label, each line's message, found, needed and fix, and the report. The plan's own display.language when left out, else en. Codes and values are the same in every language; room names stay as written.`,
-  examples: ['es', 'es-MX']
+  description: `The language Grid writes its own words in, as a language tag: ${LANGUAGES.join(' or ')}, which Grid ships, or any other (de, fr, pt-BR, zh), written in the words the plan keeps for it (grid_words), else in English; a region is its language (es-MX is es). The label, each line's message, found, needed and fix, and the report. The plan's own display.language when left out, else en. Codes and values are the same in every language; room names stay as written.`,
+  examples: ['es', 'es-MX', 'de']
 }
 
 const compareTool: GridTool = {
@@ -2471,7 +2471,7 @@ const checkTool: GridTool = {
   },
   outputSchema: objectSchema({
     label: STRING,
-    // MSG-11: the language the words are in: en or es.
+    // MSG-11: the language the words are in; MSG-24: any language.
     language: STRING,
     // MSG-1: the one list and the one count, as docs/result-contract.md sets them out.
     count: { type: 'number' },

@@ -8,7 +8,7 @@
  *
  * Pure: keys and values in, text out.
  */
-import { DEFAULT_LANGUAGE, LANGUAGE_DECIMAL, say, sayValue, labelOfUse, type Language, type MessageKey, type Said, type Values } from '@ongrid/floorplan/messages'
+import { DEFAULT_LANGUAGE, languageDecimal, say, sayValue, labelOfUse, type Language, type MessageKey, type Said, type Values } from '@ongrid/floorplan/messages'
 import type { RoomUse } from '@ongrid/floorplan/types/floorplan'
 import type { DecimalMark, Display } from '@ongrid/floorplan/types/units'
 
@@ -23,7 +23,7 @@ export const ENGLISH_WORDS: DrawingWords = { language: DEFAULT_LANGUAGE, decimal
 export function wordsOf(display: Display | undefined): DrawingWords {
   if (display === undefined) return ENGLISH_WORDS
   const language = display.language ?? DEFAULT_LANGUAGE
-  return { language, decimal: display.decimal ?? LANGUAGE_DECIMAL[language] }
+  return { language, decimal: display.decimal ?? languageDecimal(language) }
 }
 
 /** A key's wording on the drawing. */
