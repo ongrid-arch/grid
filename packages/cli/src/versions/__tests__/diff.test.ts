@@ -213,6 +213,24 @@ describe('a survey written rooms first whose rear wall was made thinner (WRT-19)
   })
 })
 
+describe('a house written again with a floor above it (WRT-20)', () => {
+  it('says the floor added with its rooms, and the rooms below it as they were', async () => {
+    const ground = 'room living "Living" living 2.8 x 4.7 at 0.15,0.15\nroom kitchen "Kitchen" kitchen 2.8 x 4.7 east of living\n'
+    const head = 'plan "House"\nwalls outside 0.3 inside 0.1 height 2.7\n'
+    const dir = project({ 'house.rooms': `${head}\n${ground}` })
+    expect((await grid(dir, 'write', 'house.rooms')).status).toBe(0)
+    expect((await grid(dir, 'mark')).status).toBe(0)
+    writeFileSync(join(dir, 'house.rooms'), `${head}\nfloor ground "Ground floor" level 0\n${ground}\nfloor first "First floor" level 1\ncopy ground\nrename living bed "Bedroom" bedroom\nrename kitchen bath "Bath" -\n`)
+    expect((await grid(dir, 'write', 'house.rooms', '--replace')).status).toBe(0)
+    const run = await grid(dir, 'diff')
+    expect(run.status, run.err).toBe(0)
+    expect(run.out).toMatch(/Floor added: "First floor", 2 rooms, \d+\.\d\d m²/)
+    expect(run.out).not.toContain('moved to floor')
+    const data = JSON.parse((await grid(dir, 'diff', '--json')).out) as { rooms: Array<{ room: string; status: string }> }
+    expect(data.rooms.filter((r) => r.room === 'living' || r.room === 'kitchen').map((r) => r.status)).toEqual(['unchanged', 'unchanged'])
+  })
+})
+
 describe('the markers', () => {
   it('keeps at most a few, replaces one set again, takes one off, and names them when one is missing', async () => {
     const dir = project()
