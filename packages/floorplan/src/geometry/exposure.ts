@@ -205,12 +205,22 @@ function listedCover(wall: Wall, rooms: readonly Traced[]): { from: number; to: 
   // A curved wall is read piece by piece (CNT-18): a room traced along it has one edge per piece.
   for (const axis of wallSegments(wall)) {
     const along = axis.length === 0 ? 1 : (axis.to - axis.from) / axis.length
+    // CNT-25: an edge that lies along the piece has a stretch inside the box round the piece and
+    // its faces, so an edge whose box is clear of it is passed over before any measuring. A
+    // curved wall has hundreds of pieces and its rooms hundreds of edges.
+    const reach = half + near + tolerance('wallContact')
+    const end = { x: axis.start.x + axis.dir.x * axis.length, y: axis.start.y + axis.dir.y * axis.length }
+    const x0 = Math.min(axis.start.x, end.x) - reach
+    const x1 = Math.max(axis.start.x, end.x) + reach
+    const y0 = Math.min(axis.start.y, end.y) - reach
+    const y1 = Math.max(axis.start.y, end.y) + reach
     for (const traced of rooms) {
       if (!traced.walls.has(wall.id)) continue
       for (const polygon of [traced.polygon, ...traced.holes]) {
         for (let i = 0; i < polygon.length; i++) {
           const a = polygon[i]!
           const b = polygon[(i + 1) % polygon.length]!
+          if (Math.max(a.x, b.x) < x0 || Math.min(a.x, b.x) > x1 || Math.max(a.y, b.y) < y0 || Math.min(a.y, b.y) > y1) continue
           const e = sub(b, a)
           const length = Math.hypot(e.x, e.y)
           if (length < tolerance('noLength')) continue

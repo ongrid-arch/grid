@@ -41,7 +41,7 @@ import { roomZones } from './zones'
 import { statedOutline } from './massing'
 import type { Vec2 } from './vec2'
 import { signedArea } from './vec2'
-import { TOLERANCES, tolerance } from './tolerances'
+import { TOLERANCES, tolerance, tolerancesAsStated } from './tolerances'
 import type { Box } from './polygons'
 import {
   boxOfRings,
@@ -584,16 +584,97 @@ export function floorSpaces(plan: FloorPlan, floor: string, options: SpacesOptio
     rooms.push(host ? { room, outline, region: host.region, area: host.area } : { room, outline, area: Math.abs(signedArea(outline)) })
   }
 
-  const reach = reachOf(walls, outline)
-  for (const grid of GRIDS) {
-    try {
-      return compare(floor, walls, rooms, grid, reach, outline)
-    } catch {
-      // The polygon library could not join the walls on this grid: the next, coarser one is tried.
+  return keptSpaces(floor, walls, rooms, outline, () => {
+    const reach = reachOf(walls, outline)
+    for (const grid of GRIDS) {
+      try {
+        return compare(floor, walls, rooms, grid, reach, outline)
+      } catch {
+        // The polygon library could not join the walls on this grid: the next, coarser one is tried.
+      }
     }
+    // CNT-22: in Grid's own words; the polygon library's message is never passed on.
+    return unknown(floor, said('issue.part.notJoined'))
+  })
+}
+
+/** What one floor's comparison was worked out from, and what it came to (CNT-25). */
+interface KeptComparison {
+  readonly floor: string
+  readonly walls: readonly Wall[]
+  readonly rooms: readonly DrawnRoom[]
+  readonly outline: Polygon | null
+  readonly result: FloorSpaces | FloorSpacesUnknown
+}
+
+/**
+ * CNT-25: the comparisons worked out, by the floor's first wall, a few each. Every check that
+ * reads the spaces works them out afresh (the whole plan's validation, each floor's drawing, the
+ * areas, the sides of each wall), and a curved wall joins as hundreds of strips; while the walls
+ * are the very same objects (a curved wall's pieces are kept, `straightPieces`) and the rooms the
+ * same rooms with the same outlines, the comparison is the same. A plan is never changed in
+ * place once read. Nothing is kept while `withTolerances` is in force.
+ */
+const comparisons = new WeakMap<Wall, KeptComparison[]>()
+const KEPT_PER_WALL = 4
+
+function keptSpaces(
+  floor: string,
+  walls: readonly Wall[],
+  rooms: readonly DrawnRoom[],
+  outline: Polygon | null,
+  work: () => FloorSpaces | FloorSpacesUnknown
+): FloorSpaces | FloorSpacesUnknown {
+  const first = walls[0]
+  if (first === undefined || !tolerancesAsStated()) return work()
+  const list = comparisons.get(first) ?? []
+  const found = list.find(
+    (kept) =>
+      kept.floor === floor &&
+      kept.walls.length === walls.length &&
+      kept.walls.every((wall, i) => wall === walls[i]) &&
+      sameRooms(kept.rooms, rooms) &&
+      sameNumbers(kept.outline, outline)
+  )
+  if (found !== undefined) return copySpaces(found.result)
+  const result = work()
+  comparisons.set(first, [{ floor, walls, rooms, outline, result }, ...list].slice(0, KEPT_PER_WALL))
+  return copySpaces(result)
+}
+
+function sameRooms(a: readonly DrawnRoom[], b: readonly DrawnRoom[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((r, i) => {
+      const s = b[i]!
+      return (
+        r.room === s.room &&
+        r.area === s.area &&
+        r.outline.length === s.outline.length &&
+        r.outline.every((p, k) => p.x === s.outline[k]!.x && p.y === s.outline[k]!.y) &&
+        sameNumbers(r.region ?? null, s.region ?? null)
+      )
+    })
+  )
+}
+
+/** Two nested lists of numbers (rings, polygons) that hold the same numbers in the same places. */
+function sameNumbers(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+  return a.every((x, i) => sameNumbers(x, b[i]))
+}
+
+/** A kept comparison as its own record, so a caller that changes its lists changes nothing kept. */
+function copySpaces(result: FloorSpaces | FloorSpacesUnknown): FloorSpaces | FloorSpacesUnknown {
+  if (!spacesKnown(result)) return { ...result }
+  return {
+    ...result,
+    outline: [...result.outline],
+    spaces: [...result.spaces],
+    unclaimed: [...result.unclaimed],
+    mismatches: [...result.mismatches]
   }
-  // CNT-22: in Grid's own words; the polygon library's message is never passed on.
-  return unknown(floor, said('issue.part.notJoined'))
 }
 
 /** `floorSpaces` for every floor of the plan, in floor order. */
