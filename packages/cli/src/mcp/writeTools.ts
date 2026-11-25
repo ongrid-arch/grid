@@ -11,7 +11,7 @@ import { baseRefusal, baseTouched, phasedPatch } from '../edit/phases'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { DOOR_KINDS, OPENING_KINDS, WINDOW_KINDS, WallKindSchema, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
-import { planFloors, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { limit, planFloors, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { EXPORT_FORMATS, isExportFormat } from '@ongrid/floorplan/export'
@@ -357,7 +357,7 @@ const changeOpeningTool: GridTool = {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
     opening: { type: 'string', id: true, required: true, description: 'The id of the door, window or opening to change (grid_describe with for=agent lists them).', examples: ['door-bath', 'win-kitchen'] },
-    width: { type: 'number', length: true, description: 'The new width of the hole in the wall, in metres.', examples: [0.9, 4], minimum: 0.3, maximum: 20 },
+    width: { type: 'number', length: true, description: 'The new width of the hole in the wall, in metres. As wide as its wall allows.', examples: [0.9, 4], minimum: 0.3, maximum: limit('openingWidest') },
     keep: { type: 'string', enum: KEEPS, description: 'Which point stays put when the width changes: start (the end nearer the wall\'s start), centre or end. centre when left out.', examples: ['centre', 'start'] },
     height: { type: 'number', length: true, description: 'The new height of the opening, in metres.', examples: [2.1, 1.2], minimum: 0.2, maximum: 10 },
     sill: { type: 'number', length: true, description: 'Windows: the new sill above the floor, in metres.', examples: [0.9, 0.6], minimum: 0, maximum: 5 },
@@ -425,7 +425,7 @@ const changeTypeTool: GridTool = {
     name: { type: 'string', maxLength: 120, description: 'The type\'s name, as the person and the IFC call it.', examples: ['Stud partition 100', 'Internal door 900'] },
     thickness: { type: 'number', length: true, description: 'Wall types: the thickness, in metres.', examples: [0.1, 0.25], minimum: 0.01, maximum: 3 },
     height: { type: 'number', length: true, description: 'The height, in metres: a wall type\'s walls, or a door or window type\'s opening. A wall type with none takes its floor\'s height.', examples: [2.6, 2.1], minimum: 0.1, maximum: 30 },
-    width: { type: 'number', length: true, description: 'Door and window types: the width of the hole in the wall, in metres.', examples: [0.9, 1.2], minimum: 0.3, maximum: 20 },
+    width: { type: 'number', length: true, description: 'Door and window types: the width of the hole in the wall, in metres.', examples: [0.9, 1.2], minimum: 0.3, maximum: limit('openingWidest') },
     sill: { type: 'number', length: true, description: 'Window types: the sill above the floor, in metres.', examples: [0.9], minimum: 0, maximum: 5 },
     kind: { type: 'string', enum: TYPE_KINDS, description: `A wall type: ${WallKindSchema.options.join(', ')} (the kinds a wall may be). A door type: single, double, sliding, pocket, folding, roller or garage. A window type: single, double, sliding, fixed or high-level.`, examples: ['partition', 'sliding'] },
     glazed: { type: 'boolean', description: 'Whether the type is glass: a glazed partition, a glazed door.', examples: [true] },

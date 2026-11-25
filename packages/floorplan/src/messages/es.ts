@@ -211,6 +211,7 @@ export const es: Messages = {
   'issue.part.notARule': 'El límite es propio de Grid, para detectar una cifra o una unidad equivocada, y no es ninguna norma.',
   'issue.part.inHome': ' en una vivienda (una estancia de este plano es un dormitorio o una sala de estar)',
   'issue.part.inAHome': ' en una vivienda',
+  'issue.part.inHall': ' en un edificio de grandes naves (el plano, o una de sus plantas, es para reunión, deporte, industria o almacenaje)',
   'issue.part.unit.feet': 'pies',
   'issue.part.unit.inches': 'pulgadas',
   'issue.part.unit.centimetres': 'centímetros',
@@ -1850,6 +1851,16 @@ export const es: Messages = {
   'rooms.floor.building': "'{word}' no es un tipo de edificio que Grid conozca. Use uno de: {kinds}.",
   'rooms.floor.duplicate': "La planta '{id}' ya está escrita.",
   'rooms.floor.roomsFirst': 'Se escribieron estancias antes de la primera línea de planta. Ponga primero la línea de planta.',
+  'rooms.size.width': 'anchura',
+  'rooms.size.depth': 'profundidad',
+  'rooms.size.bare':
+    "línea {line}: la estancia '{room}' mide {length} m de {side}, escrito sin unidad: pasados {limit} m eso no es un edificio en metros, y lo más probable es que sean milímetros o pies. Escriba la unidad en la misma palabra: {length}m si son metros, o por ejemplo 3600mm o 12ft.",
+  'rooms.size.question.bare':
+    "Línea {line}: la estancia '{room}' mide {length} m de {side}, escrito sin unidad: ¿es así? Grid pregunta por un lado de estancia de más de {limit} m{kind}, y lo ha dibujado en metros. Si es así, escríbalo con su unidad, {length}m, y Grid no pregunta más; si está en otra unidad, escriba esa unidad, por ejemplo 3600mm o 12ft.",
+  'rooms.size.question.stretched':
+    "Línea {line}: la estancia '{room}' se estira con '*' hasta {length} m de {side}: ¿es así? Grid pregunta por un lado de estancia de más de {limit} m{kind}. Compruebe la estancia hasta la que se estira, o escriba la longitud del lado con su unidad.",
+  'rooms.size.question.polygon':
+    "Línea {line}: la estancia '{room}' es un polígono de {length} m de {side}, con sus puntos escritos sin unidad: ¿es así? Grid pregunta por un lado de estancia de más de {limit} m{kind}, y ha dibujado los puntos en metros.",
   // WRT-17
   'rooms.openingsOverlap':
     "Línea {line}: {opening} comparte {by} m del muro {wall} con {other} (línea {otherLine}). La comprobación deja fuera una abertura que comparte un tramo de su muro con otra, aunque una quede sobre la otra: mueva una, haga una más estrecha o escriba las dos como una sola abertura.",

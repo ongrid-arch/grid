@@ -85,7 +85,7 @@ export function readLength(value: unknown, decimal: DecimalMark = 'point'): numb
     if (t === '') throw new LengthRefused('is empty: write a length, such as 3.81 or 381 cm')
     const feetInches = /^([-+]?\d+(?:[.,]\d+)?)\s*(?:'|ft|feet|foot)\s*-?\s*(?:([\d./ ,]+?)\s*(?:"|in|inch|inches))?$/.exec(t)
     const inchesOnly = /^([-+]?[\d./ ,]+?)\s*(?:"|in|inch|inches)$/.exec(t)
-    const withUnit = /^([-+]?[\d.,]+)\s*(mm|cm|m|millimetres?|centimetres?|metres?|millimeters?|centimeters?|meters?)$/.exec(t)
+    const withUnit = /^([-+]?[\d.,]+)\s*(mm|cm|km|m|millimetres?|centimetres?|kilometres?|metres?|millimeters?|centimeters?|kilometers?|meters?)$/.exec(t)
     if (feetInches) {
       const feet = numberOf(feetInches[1]!, decimal)
       const inches = feetInches[2] === undefined ? 0 : inchesOf(feetInches[2], decimal)
@@ -99,7 +99,7 @@ export function readLength(value: unknown, decimal: DecimalMark = 'point'): numb
     } else if (withUnit) {
       const n = numberOf(withUnit[1]!, decimal)
       const unit = withUnit[2]!
-      const per = unit.startsWith('mm') || unit.startsWith('milli') ? 1000 : unit.startsWith('cm') || unit.startsWith('centi') ? 100 : 1
+      const per = unit.startsWith('mm') || unit.startsWith('milli') ? 1000 : unit.startsWith('cm') || unit.startsWith('centi') ? 100 : unit.startsWith('k') ? 1 / 1000 : 1
       if (n !== null) metres = n / per
     } else {
       metres = numberOf(t, decimal)

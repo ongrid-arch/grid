@@ -79,10 +79,11 @@ import { doorKindOf, kindFits, sweepsFloor } from '../geometry/openingKinds'
 import { hingeSeenFrom } from '../geometry/handing'
 import { indexPlan } from '../geometry/plan'
 import { tryRoomPolygon } from '../geometry/room'
-import { tolerance } from '../geometry/tolerances'
+import { limit, tolerance } from '../geometry/tolerances'
+import { buildingKind } from '../geometry/plausible'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
 import { english, name as sayName, said, type MessageKey, type Values } from '../messages/say'
-import { f2, isNumberWord, numberOf, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord } from './words'
+import { f2, hasUnit, isNumberWord, metres, numberOf, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord } from './words'
 import { checkWritten } from './selfCheck'
 
 type P = readonly [number, number]
@@ -486,6 +487,11 @@ class Compiler {
   readonly assumed: Map<string, number>
   /** What each side of a sized room turned out to have. */
   readonly found = new Map<string, number>()
+  /**
+   * WRT-22: the room sides written with no unit, stretched with '*' or drawn as a polygon, keyed
+   * line|room|side; asked about once the plan's kind of building is known (`askSizes`).
+   */
+  private readonly sides = new Map<string, { line: number; room: string; side: 'width' | 'depth'; length: number; how: 'bare' | 'stretched' | 'polygon' }>()
 
   /** How the walls' ends and thicknesses are written: to a tenth of a millimetre, unless asked finer. */
   private readonly fix: (value: number) => number
@@ -995,14 +1001,21 @@ class Compiler {
       if (ctx !== null && place.at) origin = [mx ? -origin[0] : origin[0], my ? -origin[1] : origin[1]]
       room.poly = cleanPoly(pts.map((p) => [p[0] + origin[0], p[1] + origin[1]] as P))
       room.box = boxOf([room.poly])
+      this.side(at, id, 'width', room.box[2] - room.box[0], 'polygon')
+      this.side(at, id, 'depth', room.box[3] - room.box[1], 'polygon')
       return room
     }
     if (W === null || D === null) this.stop('rooms/size', at, `line ${at}: room '${id}' has no size. Write '<width> x <depth>' (metres, or with a unit such as 12ft), inside faces, or 'polygon ...'.`)
     let Wn = W === '*' ? null : numberOf(W, at)
     let Dn = D === '*' ? null : numberOf(D, at)
-    for (const [label, v] of [['width', Wn], ['depth', Dn]] as const) {
+    for (const [label, word, v] of [['width', W, Wn], ['depth', D, Dn]] as const) {
       if (v !== null && v <= 0) this.stop('rooms/size', at, `line ${at}: room '${id}' has a ${label} of ${v}. Sizes are above 0.`)
-      if (v !== null && v > 200) this.stop('rooms/size', at, `line ${at}: room '${id}' is ${v} m in ${label}. That looks like millimetres or feet: write metres, or give the unit in the same word, such as 3600mm or 12ft.`)
+      // WRT-22: a length written with its unit is taken as meant; a bare one past a building's is asked about.
+      if (v === null || hasUnit(word)) continue
+      if (v > limit('roomsSideBare')) {
+        this.stop('rooms/size', at, english(said('rooms.size.bare', { line: String(at), room: id, length: metres(v), side: said(`rooms.size.${label}`), limit: metres(limit('roomsSideBare')) })))
+      }
+      this.side(at, id, label, v, 'bare')
     }
     const used = basis ?? this.sizes.basis
     room.size = { w: Wn, d: Dn, basis: used }
@@ -1052,7 +1065,31 @@ class Compiler {
     }
     room.box = box
     room.poly = [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]]
+    if (W === '*') this.side(at, id, 'width', box[2] - box[0], 'stretched')
+    if (D === '*') this.side(at, id, 'depth', box[3] - box[1], 'stretched')
     return room
+  }
+
+  /** WRT-22: keeps a room side to ask about, the longest when a line is placed more than once. */
+  private side(line: number, room: string, side: 'width' | 'depth', length: number, how: 'bare' | 'stretched' | 'polygon'): void {
+    const key = `${line}|${room}|${side}`
+    const before = this.sides.get(key)
+    if (before === undefined || length > before.length) this.sides.set(key, { line, room, side, length, how })
+  }
+
+  /**
+   * WRT-22: a room side with no unit longer than a building of the plan's kind has is asked
+   * about, never refused: it is drawn as metres, and the answer says how to say it is meant.
+   */
+  private askSizes(plan: WrittenPlan): void {
+    const kind = buildingKind(plan)
+    const longest = limit('roomsSideAsked', kind)
+    const where = kind === 'home' ? said('issue.part.inHome') : kind === 'hall' ? said('issue.part.inHall') : ''
+    for (const s of this.sides.values()) {
+      if (!(s.length > longest + tolerance('joint'))) continue
+      const values = { line: String(s.line), room: s.room, length: metres(s.length), side: said(`rooms.size.${s.side}`), limit: metres(longest), kind: where }
+      this.warn('rooms/size-question', s.line, english(said(`rooms.size.question.${s.how}`, values)))
+    }
   }
 
   private relBox(W: number | null, D: number | null, d: string, rb: Box, gap: number, alignIn: string | null, shift: number, ub: Box | null, at: number): Box {
@@ -2447,6 +2484,7 @@ class Compiler {
     const twice = [...new Set(all.filter((x, k) => all.indexOf(x) !== k))].sort()
     for (const id of twice) this.problem('rooms/duplicate-id', null, `The id '${id}' would name two things in the plan (walls, rooms and openings share one set of ids). Rename one.`)
     if (this.problems.length > 0) return null
+    this.askSizes(plan)
     const wallIds = new Set(plan.walls.map((w) => w.id))
     for (const o of plan.openings) if (!wallIds.has(o.wall)) this.warn('rooms/raw-wall-missing', null, `Opening '${o.id}' names wall '${o.wall}', which the plan does not have; grid check will name it too.`)
     // What Grid itself will measure, by its own method. An outline reads no wall's height.
