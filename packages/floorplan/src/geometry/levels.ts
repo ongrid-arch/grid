@@ -12,7 +12,7 @@ import type { Floor, FloorPlan, Wall } from './plan'
 import { floorHasGeometry, floorOf, isFloorSlice, planFloors, wallsOnFloor } from './floors'
 import { sharedPart, storeyFloorOf } from './through'
 import type { Issue } from './validate'
-import { limit, tolerance } from './tolerances'
+import { limit, tolerance, type BuildingKind } from './tolerances'
 import { metresText } from './rounding'
 import type { Said, Value } from '../messages/say'
 import { english, joined, name, num, said } from '../messages/say'
@@ -300,7 +300,7 @@ function wallsAboveStorey(plan: FloorPlan, floors: readonly Floor[], broken: Rea
 }
 
 /** A floor's stated height far outside a storey's, the same questions a wall's height gets. */
-function floorHeightQuestions(floors: readonly Floor[], building: 'any' | 'home', issues: Issue[]): void {
+function floorHeightQuestions(floors: readonly Floor[], building: BuildingKind, issues: Issue[]): void {
   for (const floor of floors) {
     if (floor.height === undefined || !Number.isFinite(floor.height)) continue
     const highest = limit('wallHighest', building)
@@ -343,7 +343,7 @@ function floorOffsetQuestions(plan: FloorPlan, floors: readonly Floor[], broken:
 export function levelIssues(
   plan: FloorPlan,
   broken: ReadonlySet<string>,
-  building: 'any' | 'home'
+  building: BuildingKind
 ): Issue[] {
   const issues: Issue[] = []
   const floors = planFloors(plan)

@@ -163,6 +163,11 @@ the outdoor space is left out of every total; with one, each kind it counts, at 
 which rule, said as the person's own and not checked by Grid, and the kinds no rule counts. Grid
 holds no such rule of its own.
 
+A garden or boundary wall drawn as a wall, standing apart with no room on either side (CNT-26,
+[plan-file.md](plan-file.md#inside-and-outside-walls)), is in no figure either, and a ring of them
+round the plot encloses no floor: the lab's house with a 1.8 m wall round its 15 × 30 m plot is
+76.34 m² net, 78.96 m² gross internal and 90.00 m² gross external, as it is alone.
+
 The site's things (BRF-3: fences, gates, paths, paving, trees and pools) are in no area: they are
 never rooms. The plot coverage, the building's shape seen from above against the plot's area, is
 not one of these figures: `grid_measure` with `what=site` gives it, from the outside face of every

@@ -1504,6 +1504,22 @@ neither: it is a separating wall ([part of a larger building](#part-of-a-larger-
 In the library, `wallSides(index, wallId)` gives the stretches with the rooms on each face, the
 worked-out exposure and the one used; `wallExposure(index, wallId)` gives the one used.
 
+A wall that stands apart from the building is a garden or boundary wall (CNT-26). On a floor that
+has rooms, a wall is loose when no room lists it, no room lies just past either face, it stands
+in no outdoor space and it rises through no other floor. Loose walls that touch are one group,
+and the group stands apart when it touches no wall of the building, touches it at one place only
+and closes no ring of its own, or closes a ring round rooms. A boundary wall round the plot, a
+garden wall standing apart and a wall run out from the house are; a low wall inside a room is
+not, and nor are walls that close a space against the house at two places or more (a porch or a
+landing not drawn as a room), which stay floor no room claims.
+It stands in the open (`detached`) whatever kind it states, `exterior` included: it is no part
+of the floor's outline, slab or roof, of any area or of the storey height, and a closed ring of
+them encloses a garden, not floor. The drawing draws it in a partition's lighter fill and keys it
+"Garden or boundary wall", and the take-off lists its metres on a run of their own, `garden`. It
+is still drawn, exported and checked as the wall it is. A floor drawn as walls alone, with no
+rooms yet, keeps every wall as the building's. In the library, `landscapeWalls(plan)` gives
+their ids, and `wallSides` marks each `landscape`.
+
 ## A wall placed by its face
 
 A wall's `start` and `end` are its centre line, and its thickness grows half each side of it. A
@@ -1808,7 +1824,8 @@ it reaches; nothing outside the walls, such as eaves or steps, is drawn to measu
 - **Each face.** The distance from each face of the building to the edge of the boundary in
   front of it, square to the face.
 - **The plot coverage.** The part of the building's shape inside the boundary against the
-  boundary's area: 90 m² on 450 m² is 20%.
+  boundary's area: 90 m² on 450 m² is 20%. Open outdoor space is left out of the shape and given
+  as a second figure beside it.
 
 `grid_measure` with `what=site` answers with all three
 ([tool-server.md](tool-server.md#the-plot-distances-to-the-boundary-and-the-coverage)), and

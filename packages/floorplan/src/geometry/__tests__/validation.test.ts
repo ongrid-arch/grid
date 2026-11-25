@@ -681,6 +681,16 @@ describe('lab failures fixed by MSG-15', () => {
     )
   })
 
+  it('WRT-22 reads the kind of building before the units question: a warehouse with 12 m walls is in metres', () => {
+    const { walls, room } = outline(RECT.map(([x, y]) => [x * 20, y * 20] as P), { thickness: [0.3, 0.3, 0.3, 0.3] })
+    const tall = walls.map((w) => ({ ...w, height: 12 }))
+    expect(issuesOf(planOf({ walls: tall, rooms: [room] })).map((i) => i.code)).toContain('plan/units-question')
+    for (const building of ['warehouse', 'industry', 'assembly', 'sport']) {
+      expect(issuesOf(planOf({ walls: tall, rooms: [room], building })).map((i) => i.code), building).not.toContain('plan/units-question')
+      expect(issuesOf(planOf({ walls: tall, rooms: [room], floors: [{ id: 'ground', name: 'Ground', level: 0, building }] })).map((i) => i.code), building).not.toContain('plan/units-question')
+    }
+  })
+
   it('MS-3 asks about a door one nanometre wide, and still counts it as a way through', () => {
     const { walls, room } = outline(RECT)
     const plan = planOf({ walls, rooms: [room], openings: [{ id: 'd', wall: 'w1', type: 'door', offset: 1, width: 1e-9, height: 2.1 }] })

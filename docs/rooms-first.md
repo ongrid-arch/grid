@@ -26,6 +26,13 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   and areas: the drawings, the figures and the sheet follow it, and the read-back writes it again
   ([Units](plan-file.md#units)). The plan file stays in metres either way. Settle the units with
   the brief, from the person's words or their place, and ask only when neither says.
+- A length written with its unit is taken as meant, at any size: `250m x 160m`, `250000mm`,
+  `0.5km`. A room side written as a bare number, stretched with `*` or drawn as a polygon that is
+  longer than a building's is still written, in metres, and the answer asks about it
+  (`rooms/size-question`): past 200 m, 50 m in a home, or 1000 m where the plan or a floor says
+  `building assembly`, `sport`, `industry` or `warehouse` (`roomsSideAsked` in
+  [tolerances.md](tolerances.md)). Write the unit to say it is meant. Only a bare side past 2 km
+  is refused (`rooms/size`), as most likely millimetres.
 - North, east, south and west are the drawing's sides, north at the top, even in a plan that
   states its real north ([plan-file.md](plan-file.md#north-front-and-where-the-building-is)).
 - A size is east-west by north-south, to the inside faces. `3 x 4 centre` measures to the walls'
