@@ -10,8 +10,11 @@
  * WRT-29: the likeness is found with openings paired by place only, so an opening that stands
  * somewhere else under its id is never "where it was"; what differs is then paired as `grid_diff`
  * pairs it (`alignPlans`), and an opening whose middle moved is said to have moved, and how far.
+ *
+ * WRT-32: a room that kept its name and size and stands somewhere else moved, as it was: said with
+ * how far and which way, never counted among the rooms that keep their name and size.
  */
-import { alignPlans, curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { alignPlans, centroid, curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type MessageKey, type Said } from '@ongrid/floorplan/messages'
 import { planAreas, type PlanAreas } from './areas'
 import { sideNames, type Survey } from './survey'
@@ -61,6 +64,22 @@ export interface RoomDelta {
   readonly name: string
   readonly before: number | null
   readonly after: number | null
+  /**
+   * WRT-32: how far its middle moved on the drawing, in metres (to the centimetre), when it is the
+   * one room of its name in both plans (by floor and id in place), kept its size and stands
+   * somewhere else; null otherwise.
+   */
+  readonly moved: number | null
+  /** WRT-32: which way, in metres east and north on the drawing; null when it did not move. */
+  readonly by: readonly [number, number] | null
+}
+
+/** WRT-32: a room that moved as it was, with its line. */
+export interface RoomMove {
+  readonly name: string
+  readonly moved: number
+  readonly by: readonly [number, number]
+  readonly text: string
 }
 
 export interface WallDelta {
@@ -129,6 +148,8 @@ export interface Comparison {
   readonly openingsOut: readonly OpeningDelta[]
   readonly openingsNew: readonly OpeningDelta[]
   readonly openingsChanged: readonly OpeningChange[]
+  /** WRT-32: the rooms that kept their name and size and stand somewhere else, named in the verdict. */
+  readonly roomsMoved: readonly RoomMove[]
   /**
    * WRT-25: the floors in both plans (by id, then by name) that stand elsewhere or changed their
    * level, elevation, height, slab or name: named in the verdict, whatever the likeness.
@@ -430,7 +451,62 @@ function roomDeltas(a: Survey, b: Survey): RoomDelta[] {
   const before = byName(a)
   const after = byName(b)
   const names = [...new Set([...before.keys(), ...after.keys()])]
-  return names.map((name) => ({ name, before: before.get(name) ?? null, after: after.get(name) ?? null }))
+  return names.map((name) => ({ name, before: before.get(name) ?? null, after: after.get(name) ?? null, moved: null, by: null }))
+}
+
+/** WRT-32: at most this many rooms that moved are named in the verdict; more are counted. */
+const ROOMS_MOVED_NAMED = 3
+
+/** WRT-32: "1.00 m east and 0.50 m north on the drawing". */
+function moveText(dx: number, dy: number): string {
+  const least = tolerance('diffMovement')
+  const parts: Said[] = []
+  if (Math.abs(dx) >= least) parts.push(said(dx > 0 ? 'compare.move.east' : 'compare.move.west', { by: num(metres(Math.abs(dx))) }))
+  if (Math.abs(dy) >= least) parts.push(said(dy > 0 ? 'compare.move.north' : 'compare.move.south', { by: num(metres(Math.abs(dy))) }))
+  return english(said('compare.move.onDrawing', { parts: joined(parts, 'join.and') }))
+}
+
+/**
+ * WRT-32: the rooms that kept their size and stand somewhere else, under `map`: paired by name, the
+ * one room of its name on its floor in each plan, or by floor and id in place. A room of the same
+ * area and box whose middle is further than `diffPlace` from where it stood moved.
+ */
+function roomMoves(a: Survey, b: Survey, map: Transform, inPlace: boolean): RoomMove[] {
+  const nets = { a: netsOf(a), b: netsOf(b) }
+  const key = (room: Survey['rooms'][number]): string => (inPlace ? `${room.facts.floor}\u0000${room.facts.id}` : `${room.facts.floor}\u0000${room.facts.name}`)
+  const only = (s: Survey): Map<string, Survey['rooms'][number]> => {
+    const counts = new Map<string, number>()
+    for (const room of s.rooms) counts.set(key(room), (counts.get(key(room)) ?? 0) + 1)
+    return new Map(s.rooms.filter((room) => counts.get(key(room)) === 1 && room.polygon.length >= 3).map((room) => [key(room), room] as const))
+  }
+  const now = only(b)
+  const out: RoomMove[] = []
+  for (const [k, was] of only(a)) {
+    const is = now.get(k)
+    if (is === undefined) continue
+    const net = (s: 'a' | 'b', room: Survey['rooms'][number]): number => nets[s].get(`${room.facts.floor}\u0000${room.facts.id}`) ?? 0
+    if (Math.abs(net('a', was) - net('b', is)) >= 0.01) continue
+    const size = (polygon: readonly Vec2[]): [number, number] => [Math.max(...polygon.map((p) => p.x)) - Math.min(...polygon.map((p) => p.x)), Math.max(...polygon.map((p) => p.y)) - Math.min(...polygon.map((p) => p.y))]
+    const mapped = was.polygon.map(map)
+    const [[wa, da], [wb, db]] = [size(mapped), size(is.polygon)]
+    if (Math.abs(wa - wb) >= joint || Math.abs(da - db) >= joint) continue
+    const from = centroid(mapped)
+    const to = centroid(is.polygon)
+    const [dx, dy] = [to.x - from.x, to.y - from.y]
+    const moved = Math.hypot(dx, dy)
+    if (moved <= samePlaceM) continue
+    const by: [number, number] = [Math.round(dx * 100) / 100, Math.round(dy * 100) / 100]
+    out.push({ name: is.facts.name, moved: Math.round(moved * 100) / 100, by, text: english(said('compare.room.moved.one', { room: name(is.facts.name), by: moveText(dx, dy) })) })
+  }
+  return out
+}
+
+/** WRT-32: the verdict's part for the rooms that moved: a few by name, more counted with how far. */
+function roomsMovedPart(moves: readonly RoomMove[]): string[] {
+  if (moves.length <= ROOMS_MOVED_NAMED) return moves.map((m) => m.text)
+  const figures = moves.map((m) => m.moved)
+  const [low, high] = [metres(Math.min(...figures)), metres(Math.max(...figures))]
+  return [english(said('compare.room.moved.many', { count: moves.length, range: low === high ? num(low) : said('compare.range', { from: num(low), to: num(high) }) }))]
 }
 
 /** WRT-11: how rooms changed between a plan and the same plan changed in place, paired by floor and id. */
@@ -516,7 +592,15 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
     map = sameBox && !inPlace ? transforms(boxA, boxB)[1]!.map : (p) => p
   }
 
-  const rooms = roomDeltas(a, b)
+  // WRT-32: the rooms that moved as they were; none when the plan is the same building, each in its place.
+  const roomsMoved = likeness === null ? roomMoves(a, b, map, inPlace) : []
+  // Said on its row by name only when no other room has the name: a row sums the rooms of its name.
+  const named = (name: string): number => b.rooms.filter((room) => room.facts.name === name).length
+  const movedByName = new Map(roomsMoved.filter((m) => named(m.name) === 1).map((m) => [m.name, m] as const))
+  const rooms = roomDeltas(a, b).map((r) => {
+    const m = movedByName.get(r.name)
+    return m === undefined ? r : { ...r, moved: m.moved, by: m.by }
+  })
   // A zone's floor is its room's (CNT-8): counted once.
   // WRT-11: grid_areas' net, the same rule on both plans.
   const netOf = (s: Survey): number => planAreas(s).net
@@ -600,6 +684,7 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
     if (wallsOut.length + wallsNew.length > 0) parts.push(`walls: ${wallsOut.length} out (${sum(wallsOut.map((w) => w.length)).toFixed(2)} m), ${wallsNew.length} new (${sum(wallsNew.map((w) => w.length)).toFixed(2)} m)`)
     if (wallsChanged.length > 0) parts.push(`${wallsChanged.length} wall${wallsChanged.length === 1 ? '' : 's'} moved or changed length`)
     parts.push(...resizedParts)
+    parts.push(...roomsMovedPart(roomsMoved))
     const openingWords = (n: number, what: string): string => `${n} ${n === 1 ? 'opening' : 'openings'} ${what}`
     // WRT-29: the openings that moved in a part of their own, with how far.
     const moved = movedPart(moves)
@@ -615,5 +700,5 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   const lost = usesOf(a).filter((use) => !usesOf(b).includes(use))
   if (lost.length > 0) verdict += ` ${after.charAt(0).toUpperCase()}${after.slice(1)} has no room or zone used as ${lost.length === 1 ? lost[0] : `${lost.slice(0, -1).join(', ')} or ${lost[lost.length - 1]}`}, which ${before} had.`
   verdict = verdict.charAt(0).toUpperCase() + verdict.slice(1)
-  return { likeness, shift, rooms, netBefore, netAfter, wallsOut, wallsNew, wallsChanged, wallsResized: resized, openingsOut, openingsNew, openingsChanged, floorsChanged, verdict }
+  return { likeness, shift, rooms, netBefore, netAfter, wallsOut, wallsNew, wallsChanged, wallsResized: resized, openingsOut, openingsNew, openingsChanged, roomsMoved, floorsChanged, verdict }
 }

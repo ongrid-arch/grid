@@ -2005,6 +2005,22 @@ export const es: Messages = {
   'compare.word.openings': 'huecos',
   'compare.range': 'de {from} a {to}',
 
+  // --- WRT-32: un recinto en las dos versiones dice cada cambio que tuvo
+  'diff.room.moved': 'se movió {by}',
+  'diff.room.id': '{room} (id {before} → {after})',
+  'diff.room.idNow': 'el id de {room} es ahora {after} (era {before})',
+  'diff.room.merged': 'unido con {rooms}',
+  'diff.room.merged.wall': 'unido con {rooms}, quitado el muro {walls} entre ellos',
+  'diff.room.merged.walls': 'unido con {rooms}, quitados los muros {walls} entre ellos',
+  'diff.room.mergedInto': '{room} unido a {into}, {area}',
+  'compare.room.moved.one': '{room} se movió {by}, tal como era',
+  'compare.room.moved.many': '{count} recintos se movieron tal como eran, {range} m',
+  'compare.move.east': '{by} m al este',
+  'compare.move.west': '{by} m al oeste',
+  'compare.move.north': '{by} m al norte',
+  'compare.move.south': '{by} m al sur',
+  'compare.move.onDrawing': '{parts} en el dibujo',
+
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Plano con {count} estancias',
   'drawing.picture.keyed': 'Plano con {count} estancias y una leyenda de lo que conviene revisar',
