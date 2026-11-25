@@ -383,7 +383,7 @@ export function changeOpening(survey: Survey, id: string, request: OpeningChange
   const height = request.height ?? (request.type === 'door' && opening.type !== 'door' ? 2.1 : opening.height)
   const sill = request.sill ?? (request.type === 'door' && opening.type !== 'door' ? 0 : opening.sill)
   if (type !== 'door' && (request.opensInto !== undefined || request.hinge !== undefined || request.hinged !== undefined)) {
-    throw new EditRefused(`Only a door opens into a room or hangs from a side; this would be a ${type}.`)
+    throw new EditRefused(`Only a door opens into a room or hangs from a side; this would be ${type === 'opening' ? 'an' : 'a'} ${type}.`)
   }
   if (request.hinge !== undefined && request.hinged !== undefined) throw new EditRefused('Give hinge (an end of its wall) or hinged (left or right, as seen from a room), not both.')
   if (request.seenFrom !== undefined && request.hinged === undefined) throw new EditRefused('seen_from says where hinged is seen from: pass hinged as well.')
@@ -523,7 +523,7 @@ export function changeOpening(survey: Survey, id: string, request: OpeningChange
   }
   if (request.hinged !== undefined) {
     // CNT-14: left or right as seen from a room, turned into the wall's terms where the door will be.
-    const placed: Opening = { ...opening, ...(moving ? { wall: onto.id } : {}), offset: change.offset ?? opening.offset, width, ...(change.swing !== undefined ? { swing: change.swing } : {}) }
+    const placed: Opening = { ...opening, type, ...(moving ? { wall: onto.id } : {}), offset: change.offset ?? opening.offset, width, ...(change.swing !== undefined ? { swing: change.swing } : {}) }
     const after: FloorPlan = { ...plan, openings: plan.openings.map((o) => (o.id === id ? placed : o)) }
     const handing = handingFromRooms(after, placed, { hinged: request.hinged, ...(request.seenFrom !== undefined ? { seenFrom: request.seenFrom } : request.opensInto !== undefined ? { seenFrom: request.opensInto } : {}) })
     if ('refused' in handing) throw new EditRefused(handing.refused)
