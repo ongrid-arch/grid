@@ -610,7 +610,9 @@ export const CODES = {
   'floor/overlaps-unknown': {},
   // --- Findings of the plan checks --------------------------------------------------------------
   'floor/no-exit': {
-    values: (s): Values => ({ wording: planCheckSaids.noExit(s.floorName) })
+    values: (s): Values => ({ wording: planCheckSaids.noExit(s.floorName, (s.finding?.openings.length ?? 0) > 0) }),
+    // ARE-50: a floor whose doors to the outside cannot be passed is not one with no door out.
+    variant: { found: (s) => ((s.finding?.openings.length ?? 0) > 0 ? 'cannotPass' : '') }
   },
   // LVL-14: the floor's id and the ground floor's, for the rooms-text line that adds a stair.
   'floor/no-stair': {

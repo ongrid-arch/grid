@@ -68,7 +68,7 @@ export function openingWords(kinds: readonly OpeningKind[] | undefined, count: n
  * the notes and the record say it in any language from one wording.
  */
 export const saids = {
-  noExit: (floor: string): Said => said('check.noExit', { floor: name(floor) }),
+  noExit: (floor: string, cannotPass = false): Said => said(cannotPass ? 'check.noExit.cannotPass' : 'check.noExit', { floor: name(floor) }),
   roomWithoutDoor: (room: string): Said => said('check.roomWithoutDoor', { room: name(room) }),
   noRoute: (room: string): Said => said('check.noRoute', { room: name(room) }),
   noRouteToAnyDoorOut: (room: string): Said => said('check.noRouteToAnyDoorOut', { room: name(room) }),
@@ -162,7 +162,7 @@ export const saids = {
 }
 
 export const wordings = {
-  noExit: (floor: string): WordingPart[] => parts(saids.noExit(floor)),
+  noExit: (floor: string, cannotPass = false): WordingPart[] => parts(saids.noExit(floor, cannotPass)),
   roomWithoutDoor: (room: string): WordingPart[] => parts(saids.roomWithoutDoor(room)),
   noRoute: (room: string): WordingPart[] => parts(saids.noRoute(room)),
   noRouteToAnyDoorOut: (room: string): WordingPart[] => parts(saids.noRouteToAnyDoorOut(room)),
@@ -251,7 +251,7 @@ export function overBoundaryText(past: string, boundary: string): string {
 
 /** The same wordings as report lines. */
 export const messages = {
-  noExit: (floor: string): string => english(saids.noExit(floor)),
+  noExit: (floor: string, cannotPass = false): string => english(saids.noExit(floor, cannotPass)),
   roomWithoutDoor: (room: string): string => english(saids.roomWithoutDoor(room)),
   noRoute: (room: string): string => english(saids.noRoute(room)),
   noRouteToAnyDoorOut: (room: string): string => english(saids.noRouteToAnyDoorOut(room)),

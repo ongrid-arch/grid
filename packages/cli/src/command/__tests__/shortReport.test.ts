@@ -70,7 +70,7 @@ describe('the default report of the 62.65 m² flat', () => {
     expect(run.code).toBe(0)
     const text = run.out
     expect(text.split('\n')[0]).toBe(GENERAL_GUIDANCE_LABEL)
-    expect(text.split('\n')[1]).toBe('No place is stated, so no figure was applied: the US figures would have given no lines. State it in the plan as site.country, or give --country.')
+    expect(text.split('\n')[1]).toBe('No place is stated, so no code figure was applied. State it in the plan as site.country, or give --country.')
     expect(text).toContain('To look at: nothing. That only means these checks found nothing, not that the plan meets any rule.')
     expect(text).toContain('Looked at by at least one check: 6 of 6 rooms.')
     expect(text).toContain('What each check looked at (8):')
@@ -103,7 +103,7 @@ describe('the default report of the 62.65 m² flat', () => {
     const answer = await tool('grid_check').run({ plan: 'flat.json' }, { project })
     const text = answer.text
     expect(text.split('\n')[0]).toBe(GENERAL_GUIDANCE_LABEL)
-    expect(text.split('\n')[1]).toBe('No place is stated, so no figure was applied: the US figures would have given no lines. State it in the plan as site.country, or give country.')
+    expect(text.split('\n')[1]).toBe('No place is stated, so no code figure was applied. State it in the plan as site.country, or give country.')
     expect(text).toContain('To look at: nothing. That only means these checks found nothing, not that the plan meets any rule. Checks run: 4.')
     expect(text).toContain('Looked at by at least one check: 6 of 6 rooms.')
     expect(text).toContain('  Room sizes and escape openings: not run: no place is stated, so no figure was applied.')

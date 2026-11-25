@@ -223,6 +223,7 @@ export const es: Messages = {
   'issue.wall/size-question.stated': 'Su planta indica que tiene {height} m de altura, así que la planta conserva esa altura.',
   'issue.wall/size-question.typical':
     'El muro {wall} tiene {height} m de altura, y los demás de su planta normalmente {typical} m: ¿es intencionado? {stands}',
+  'issue.wall/size-question.typicalStated': 'El muro {wall} tiene {height} m de altura, y su planta indica {typical} m: ¿es intencionado? {stands}',
   'issue.wall/size-question.higher':
     'El muro {wall} tiene {height} m de altura: ¿es intencionado? Grid pregunta por los muros de más de {limit} m{home}, y levanta cada planta sobre su muro más alto.',
   'issue.wall/size-question.higherStated':
@@ -506,6 +507,7 @@ export const es: Messages = {
 
   // --- The plan checks' findings and notices, titles, sources, limits and figure words (`check.*`)
   'check.noExit': '{floor} no tiene ninguna puerta al exterior',
+  'check.noExit.cannotPass': '{floor} no tiene ninguna puerta al exterior por la que pueda pasar una persona',
   'check.roomWithoutDoor': '{room} no tiene ninguna puerta ni hueco a otro espacio',
   'check.noRoute': '{room} no tiene ningún recorrido hasta una puerta al exterior',
   'check.noRouteToAnyDoorOut': '{room} no tiene ningún recorrido hasta una puerta al exterior, ni hasta una puerta a un espacio que no está dibujado',
@@ -664,9 +666,7 @@ export const es: Messages = {
   'check.skip.use_not_covered': 'el valor es solo para dormitorios, salones y comedores',
 
   // ── Tras fusionar main: COD-3 ───────────────────────────────────────────────────────────────
-  'check.noPlace.none': 'No se indica ningún lugar, así que no se aplicó ningún valor: los valores de EE. UU. no habrían dado ninguna línea',
-  'check.noPlace.one': 'No se indica ningún lugar, así que no se aplicó ningún valor: los valores de EE. UU. habrían dado 1 línea',
-  'check.noPlace.many': 'No se indica ningún lugar, así que no se aplicó ningún valor: los valores de EE. UU. habrían dado {count} líneas',
+  'check.noPlace': 'No se indica ningún lugar, así que no se aplicó ningún valor de ninguna norma',
   'check.skip.no_place': 'no se indica ningún lugar, así que no se aplicó ningún valor',
   'check.skip.waits_for_part': 'junto a una parte que no se pudo dibujar: en espera hasta que se pueda',
   'check.skip.part_of_room': 'una zona, revisada como parte de su estancia, con su uso',
@@ -1150,6 +1150,7 @@ export const es: Messages = {
   'line.floor/overlaps-unknown.needed': 'menos parejas de estancias superpuestas',
   'line.floor/overlaps-unknown.fix': 'Corrija los solapes ya indicados. El resto se compara cuando haya menos.',
   'line.floor/no-exit.found': 'ninguna puerta ni hueco de esta planta da al exterior',
+  'line.floor/no-exit.found.cannotPass': 'sus puertas al exterior no se pueden pasar: cada una tiene su propia nota',
   'line.floor/no-exit.needed': 'al menos una puerta al exterior',
   'line.floor/no-exit.fix': 'Añada una puerta en un muro exterior, o marque como exterior el muro de una puerta si esa puerta da afuera.',
   'line.floor/no-stair.found': 'una planta sobre el terreno sin estancia de escalera ni de ascensor, y sin ninguna escalera indicada hasta ella',

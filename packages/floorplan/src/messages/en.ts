@@ -219,6 +219,7 @@ export const en = {
   'issue.wall/size-question.stands': 'Grid stands a storey on its tallest wall, so this one makes the storey {height} m high.',
   'issue.wall/size-question.stated': 'Its floor states it is {height} m high, so the storey stays that high.',
   'issue.wall/size-question.typical': 'Wall {wall} is {height} m high, the others on its floor typically {typical} m: is that meant? {stands}',
+  'issue.wall/size-question.typicalStated': 'Wall {wall} is {height} m high, and its floor states {typical} m: is that meant? {stands}',
   'issue.wall/size-question.higher':
     'Wall {wall} is {height} m high: is that meant? Grid asks about walls higher than {limit} m{home}, and stands a storey on its tallest wall.',
   'issue.wall/size-question.higherStated': 'Wall {wall} is {height} m high: is that meant? Grid asks about walls higher than {limit} m{home}. {stands}',
@@ -492,6 +493,7 @@ export const en = {
 
   // --- The plan checks' findings and notices, titles, sources, limits and figure words (`check.*`)
   'check.noExit': '{floor} has no door to the outside',
+  'check.noExit.cannotPass': '{floor} has no door to the outside that a person can pass',
   'check.roomWithoutDoor': '{room} has no door or opening to another space',
   'check.noRoute': '{room} has no route to a door to the outside',
   'check.noRouteToAnyDoorOut': '{room} has no route to a door to the outside, nor to a door into a space that is not drawn',
@@ -652,9 +654,7 @@ export const en = {
   'check.skip.use_not_covered': 'the figure is for bedrooms, living rooms and dining rooms only',
 
   // ── After merging main: COD-3 ───────────────────────────────────────────────────────────────
-  'check.noPlace.none': 'No place is stated, so no figure was applied: the US figures would have given no lines',
-  'check.noPlace.one': 'No place is stated, so no figure was applied: the US figures would have given 1 line',
-  'check.noPlace.many': 'No place is stated, so no figure was applied: the US figures would have given {count} lines',
+  'check.noPlace': 'No place is stated, so no code figure was applied',
   'check.skip.no_place': 'no place is stated, so no figure was applied',
   'check.skip.waits_for_part': 'beside a part that could not be drawn: held until it can be',
   'check.skip.part_of_room': 'a zone, looked at as part of its room, with its use',
@@ -1138,6 +1138,7 @@ export const en = {
   'line.floor/overlaps-unknown.needed': 'fewer pairs of rooms lying over each other',
   'line.floor/overlaps-unknown.fix': 'Correct the overlaps already listed. The rest are compared once there are fewer.',
   'line.floor/no-exit.found': 'no door or opening on this floor leads outside',
+  'line.floor/no-exit.found.cannotPass': 'its doors to the outside cannot be passed: each has a note of its own',
   'line.floor/no-exit.needed': 'at least one door to the outside',
   'line.floor/no-exit.fix': 'Add a door in an outside wall, or mark the wall a door is in as exterior if it leads outside.',
   'line.floor/no-stair.found': 'a floor above the ground with no stair or lift room on it, and no stair stated to it',

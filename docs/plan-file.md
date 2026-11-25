@@ -1958,7 +1958,7 @@ that names the field and never repeats the text.
 - **Another place.** No US figure is applied; `grid check` says which checks did not run for
   want of figures for the place.
 - **No place stated.** No figure is applied, and the report says so on its first line after the
-  label, with how many lines the US figures would have given.
+  label.
 
 `grid check --country` and `grid_check`'s `country` name another place for one check, in place
 of the plan's; the report says which was used ("from the plan", "from --country"). `grid write`

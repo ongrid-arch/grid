@@ -490,7 +490,7 @@ The first line of every report after the label says the place and the figures ap
 "Place: United States, from the plan; figures from US model codes, read for homes." ("from
 --country" in `grid check`, "from the country argument" in `grid_check`), or "Place: Spain, from
 the plan; Grid carries no figures for it, so none was applied.", or with no place "No place is
-stated, so no figure was applied: the US figures would have given 2 lines. State it in the plan
+stated, so no code figure was applied. State it in the plan
 as site.country, or give --country."
 
 ## Taped against drawn

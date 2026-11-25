@@ -1185,6 +1185,15 @@ export const TOLERANCES = {
     decides: 'A wall higher than this is questioned. Grid stands a storey on its tallest wall.',
     basis: own
   },
+  wallBalustradeHighest: {
+    kind: 'limit',
+    value: 2,
+    unit: 'm',
+    decides:
+      'A solid wall lower than this is a balustrade, parapet or rail, a little under a door: it is left out of ' +
+      'what the typical wall of its floor is.',
+    basis: own
+  },
   wallHigherThanTypical: {
     kind: 'limit',
     value: 4,

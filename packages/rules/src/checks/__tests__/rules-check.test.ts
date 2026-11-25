@@ -255,9 +255,9 @@ describe('lab failures fixed by MSG-18', () => {
       rooms: [{ id: 'r1', name: 'Room', boundary: walls.map((w) => w.id), use: 'living' }],
       openings: [door('d', 'w1', 1, 0.05)]
     }
-    // The same two notes as a room with nothing in its walls, and the hole named.
+    // The same notes as a room with nothing in its walls, and the hole named, floor included (ARE-50).
     expect(checkLocalRules(plan).findings.map((f) => [f.code, f.openings])).toEqual([
-      ['no_exit', []],
+      ['no_exit', ['d']],
       ['opening_too_small_to_pass', ['d']],
       ['room_without_door', []]
     ])

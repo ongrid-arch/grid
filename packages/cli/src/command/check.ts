@@ -241,7 +241,7 @@ export type PlaceWords = 'command' | 'tool' | 'sheet'
  */
 export function placeText(report: Pick<RulesReport, 'place' | 'withoutPlace' | 'figures' | 'notChecked'>, words: PlaceWords = 'command'): string {
   const { place } = report
-  if (place === null) return t('report.place.none', { noPlace: noPlaceSaid(report.withoutPlace?.usLines ?? 0), give: said(`report.place.give.${words}`) })
+  if (place === null) return t('report.place.none', { noPlace: noPlaceSaid(), give: said(`report.place.give.${words}`) })
   const from =
     place.from === 'request'
       ? said('report.place.from.request', { request: said(`report.place.request.${words}`) })
