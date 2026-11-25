@@ -3,7 +3,7 @@
  * and inches, with a decimal point or comma), and CSV for a spreadsheet. Grid's figures are
  * always metres; the display is only a way of writing them (WRT-7).
  */
-import { GENERAL_GUIDANCE_LABEL } from '@ongrid/floorplan/geometry'
+import { GENERAL_GUIDANCE_LABEL, tolerance } from '@ongrid/floorplan/geometry'
 
 import { languageDecimal, type Language } from '@ongrid/floorplan/messages'
 import { displayOf, METRES, showArea, showLength, statedDisplay, type DecimalMark, type Display, type LengthKind } from '@ongrid/floorplan/types/units'
@@ -43,7 +43,7 @@ const SMALL = 0.1
 /** `0.015`, not `0.02` or `0.015000`: three decimals when two would change the figure, never fewer than two. */
 export function smallMetres(metres: number): string {
   const two = metres.toFixed(2)
-  if (Math.abs(Number(two) - metres) < 1e-9) return two
+  if (Math.abs(Number(two) - metres) < tolerance('lengthEqual')) return two
   return Math.abs(metres) < SMALL ? metres.toFixed(3) : two
 }
 
@@ -63,7 +63,10 @@ export function lengthText(metres: number, display: Display, kind: LengthKind = 
 export function ownLengthText(metres: number, display: Display, kind: LengthKind = 'length'): string {
   if (display.length === 'ft-in' || display.precision !== undefined) return showLength(metres, display, { kind })
   const per = { m: 1, cm: 100, mm: 1000 }[display.length]
-  const text = String(Math.round(metres * per * 1e4) / 1e4)
+  const least = { m: 2, cm: 1, mm: 0 }[display.length]
+  const value = Math.round(metres * per * 1e4) / 1e4
+  const given = String(value).split('.')[1]?.length ?? 0
+  const text = value.toFixed(Math.max(least, given))
   return `${display.decimal === 'comma' ? text.replace('.', ',') : text} ${display.length}`
 }
 

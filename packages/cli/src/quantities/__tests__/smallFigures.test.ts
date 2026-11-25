@@ -20,6 +20,7 @@ describe('small figures keep what changes their verdict', () => {
   it('writes the person\'s own figure as given', () => {
     expect(ownLengthText(0.855, m)).toBe('0.855 m')
     expect(ownLengthText(0.015, m)).toBe('0.015 m')
+    expect(ownLengthText(0.8, m)).toBe('0.80 m')
     expect(ownLengthText(0.855, mm)).toBe('855 mm')
     expect(ownLengthText(0.855, displayOf('m', 'comma'))).toBe('0,855 m')
   })
