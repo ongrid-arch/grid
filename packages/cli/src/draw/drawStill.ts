@@ -11,7 +11,7 @@ import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { Language } from '@ongrid/floorplan/messages'
 import { DEFAULT_STILL_HEIGHT, DEFAULT_STILL_WIDTH, planStill, type StillOptions } from '@ongrid/viewer/src/still'
 import { loadCanvas } from './canvas'
-import { stampLabel } from './stamp'
+import { captioned, withLabelMetadata } from './stamp'
 
 export interface StillDrawOptions extends Omit<StillOptions, 'width' | 'height'> {
   /** In pixels, before `scale`: 1200 by 800 by default. */
@@ -53,6 +53,7 @@ export async function drawStill(plan: FloorPlan, options: StillDrawOptions = {})
   const canvas = createCanvas(image.width, image.height)
   const context = canvas.getContext('2d')
   context.putImageData(new ImageData(image.data, image.width, image.height), 0, 0)
-  if (label) stampLabel(context, image.width, undefined, language)
-  return canvas.encode('png')
+  // VEW-17: the label in a caption band under the picture, and in the file's own metadata.
+  if (!label) return canvas.encode('png')
+  return withLabelMetadata(await captioned(createCanvas, canvas, undefined, language).encode('png'), language)
 }

@@ -51,13 +51,26 @@ export function sketchNodes(sketch: readonly PlanSketch[], mpp: number, look: Pl
 /** How far under a room's label a note in that room sits, in pixels: below its area line. */
 const UNDER_LABEL_PX = 32
 
+/** The notes and tags that carry words (VEW-17): each is a number on the plan and its words in the band. */
+export function numberedNotes(notes: readonly PlanNote[]): PlanNote[] {
+  return notes.filter((note) => (note.kind === 'note' || note.kind === 'tag') && note.at !== null && (note.text ?? '') !== '')
+}
+
+/** The radius of a note's numbered mark on the plan, in pixels. */
+const NOTE_MARK_R = 8
+
 /**
  * The notes, tags and symbols, each at its place: a note in a room goes under that room's
  * label where the label was placed (`labelAt`), else at the room's label point.
+ *
+ * VEW-17: a note or tag with words is a small numbered mark at its place, and its words are in
+ * the band under the drawing (`writingBand`, `numberedNotes`), so no sentence ever covers a wall,
+ * a dimension or the page's edge.
  */
 export function noteNodes(notes: readonly PlanNote[], labelAt: ReadonlyMap<string, Vec2>, mpp: number, look: PlanLook): SvgNode[] {
   const words: Attrs = { fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.note, 'text-anchor': 'middle' }
   const ink: Attrs = { fill: look.label, stroke: look.paper, 'stroke-width': 1 }
+  const numbered = numberedNotes(notes)
   return notes.flatMap((note, index): SvgNode[] => {
     if (note.kind === 'key' || note.at === null) return []
     const placed = note.room === null ? undefined : labelAt.get(note.room)
@@ -73,17 +86,13 @@ export function noteNodes(notes: readonly PlanNote[], labelAt: ReadonlyMap<strin
       const label = note.text ? [el('text', { y: '20', ...words }, [note.text])] : []
       return [el('g', { ...attrs, transform: pixelGroup(at, mpp, note.turn) }, [...shape, ...label], key)]
     }
-    const text = note.text ?? ''
-    if (note.kind === 'tag') {
-      const width = estimateTextWidth(text, TEXT_PX.note) + 10
-      return [
-        el('g', { ...attrs, transform: pixelGroup(at, mpp) }, [
-          el('rect', { x: n(-width / 2), y: n(dy - 11), width: n(width), height: '17', rx: '3', fill: look.paper, stroke: look.label, 'stroke-width': 1 }),
-          el('text', { y: n(dy + 2), ...words }, [text])
-        ], key)
-      ]
-    }
-    return [el('g', { ...attrs, transform: pixelGroup(at, mpp) }, [el('text', { y: n(dy), ...words }, [text])], key)]
+    const position = numbered.indexOf(note)
+    if (position < 0) return []
+    const mark = el('g', { ...attrs, 'data-number': String(position + 1), transform: pixelGroup(at, mpp) }, [
+      el('circle', { 'data-part': 'note-mark', cy: n(dy), r: NOTE_MARK_R, fill: look.paper, stroke: look.label, 'stroke-width': 1 }),
+      el('text', { y: n(dy + 3.5), ...words, 'font-size': 10 }, [String(position + 1)])
+    ], key)
+    return [mark]
   })
 }
 
@@ -200,8 +209,8 @@ const HATCH_SWATCH_PX = 3
  * the title on the first line, then the key's entries side by side, wrapping. Null with neither.
  * The title is the plan's own, as written; the key's heading is in `words`' language.
  */
-export function writingBand(title: string | null, entries: readonly KeyEntry[], width: number, look: PlanLook, words: DrawingWords = ENGLISH_WORDS): PictureKey | null {
-  if (title === null && entries.length === 0) return null
+export function writingBand(title: string | null, entries: readonly KeyEntry[], width: number, look: PlanLook, words: DrawingWords = ENGLISH_WORDS, notes: readonly string[] = []): PictureKey | null {
+  if (title === null && entries.length === 0 && notes.length === 0) return null
   const nodes: SvgNode[] = []
   let y = MARGIN_PX
   if (title !== null) {
@@ -229,6 +238,21 @@ export function writingBand(title: string | null, entries: readonly KeyEntry[], 
       x += span
     }
     y += LINE_PX_KEY
+  }
+  // VEW-17: the notes, numbered as their marks on the plan are, wrapped to the band's width.
+  if (notes.length > 0) {
+    y += 8
+    nodes.push(el('text', { 'data-part': 'notes-title', x: MARGIN_PX, y: n(y + 9), fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.warning }, [drawingText(words, 'drawing.notes')]))
+    y += LINE_PX_KEY
+    const indent = 40
+    notes.forEach((text, index) => {
+      const lines = wrapText(text, TEXT_PX.warning, Math.max(width - 2 * MARGIN_PX - indent, 80))
+      nodes.push(el('text', { 'data-part': 'notes-number', x: MARGIN_PX + indent - 8, y: n(y + 9), 'text-anchor': 'end', fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.warning }, [String(index + 1)]))
+      lines.forEach((line) => {
+        nodes.push(el('text', { 'data-part': 'notes-text', x: MARGIN_PX + indent, y: n(y + 9), fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.warning }, [line]))
+        y += LINE_PX_KEY
+      })
+    })
   }
   return { height: Math.ceil(y + MARGIN_PX / 2), nodes }
 }

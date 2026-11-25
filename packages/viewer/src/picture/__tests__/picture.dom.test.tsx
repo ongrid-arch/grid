@@ -78,8 +78,8 @@ describe('the app and the picture draw the same SVG', () => {
 
     const file = planToSvg(make(), { width: WIDTH, height: HEIGHT })
     expect(file).toContain(drawn)
-    // MSG-3: the file adds the label after the drawing, and nothing else.
-    expect(file.slice(file.indexOf(drawn) + drawn.length)).toMatch(/^<g data-part="guidance-label"[^]*General guidance, not your local rules<\/text><\/g><\/svg>\n$/)
+    // MSG-3, VEW-17: the file adds the label after the drawing, in a caption band under it, and nothing else.
+    expect(file.slice(file.indexOf(drawn) + drawn.length)).toMatch(/^<\/svg><g data-part="guidance-label"[^]*General guidance, not your local rules<\/text><\/g><\/svg>\n$/)
     expect(file).toContain(`viewBox="${svg.getAttribute('viewBox')}"`)
   })
 

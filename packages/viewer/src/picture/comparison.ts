@@ -15,6 +15,7 @@ import type { Bounds, ComparisonMarks, PlanDrawing, Vec2 } from '@ongrid/floorpl
 import { buildFloorPlan, computeBounds, planForFloor, resolveFloor } from '@ongrid/floorplan/geometry'
 import { pathOf } from '../canvas2d/viewport'
 import { lengthText, lookWithColors, PICTURE_FONT, type Look, type PlanLook } from './look'
+import type { PictureKey } from './faults'
 import { planPicture, type Picture } from './planSvg'
 import { el, type SvgNode } from './svgNode'
 
@@ -109,20 +110,21 @@ function labelAt(at: Vec2, text: string, colour: string, mpp: number, dy: number
   ])
 }
 
-/** The key in the top-left corner, under the label every picture carries. */
-function keyNode(view: { x: number; y: number }, mpp: number): SvgNode {
+/** The key in a band under the drawing, so it never covers the plan's corner (VEW-17). */
+function keyBand(): PictureKey {
   const entries: Array<[string, string]> = [
     ['Removed', COMPARISON_COLORS.removed],
     ['Added', COMPARISON_COLORS.added],
     ['Changed', COMPARISON_COLORS.changed],
     ['Unchanged', UNCHANGED_COLORS.wallExterior]
   ]
-  const children: SvgNode[] = [el('rect', { x: 0, y: 0, width: 120, height: entries.length * 20 + 10, fill: '#ffffff', opacity: 0.9 })]
+  const children: SvgNode[] = []
   entries.forEach(([words, colour], i) => {
-    children.push(el('rect', { x: 8, y: 9 + i * 20, width: 14, height: 10, fill: colour }))
-    children.push(el('text', { x: 30, y: 18 + i * 20, fill: '#232320', 'font-family': PICTURE_FONT, 'font-size': 12 }, [words]))
+    const x = 16 + i * 110
+    children.push(el('rect', { x, y: 11, width: 14, height: 10, fill: colour }))
+    children.push(el('text', { x: x + 22, y: 20, fill: '#232320', 'font-family': PICTURE_FONT, 'font-size': 12 }, [words]))
   })
-  return el('g', { 'data-part': 'comparison-key', transform: `translate(${lengthText(view.x)} ${lengthText(view.y + 28 * mpp)}) scale(${lengthText(mpp)})` }, children)
+  return { height: 32, nodes: [el('g', { 'data-part': 'comparison-key' }, children)] }
 }
 
 /** The comparison as a picture of one floor. `earlier` is the earlier plan laid on `later` (`BuildingComparison.aligned`). */
@@ -161,6 +163,5 @@ export function comparisonPicture(earlier: FloorPlan, later: FloorPlan, marks: C
   for (const room of before.rooms) {
     if (removedRooms.has(room.id)) nodes.push(labelAt(room.labelAt, `${room.name || room.id}: removed`, COMPARISON_COLORS.removed, mpp, 18, 'removed-label'))
   }
-  nodes.push(keyNode(base.view, mpp))
-  return { ...base, look: COMPARISON_LOOK, nodes, key: null }
+  return { ...base, look: COMPARISON_LOOK, nodes, key: keyBand() }
 }
