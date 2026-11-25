@@ -66,7 +66,7 @@ function withoutRepeats(dims: readonly Dimension[]): Dimension[] {
           other.kind === 'overall' &&
           other.side === dim.side &&
           dot(other.normal, dim.normal) > 0.999 &&
-          dimensionText(other.value) === dimensionText(dim.value) &&
+          dimensionText(other.value, other.kind) === dimensionText(dim.value, dim.kind) &&
           shared(stretch(other), stretch(dim)) > Math.min(other.value, dim.value) / 2
       )
     if (!repeats) kept.push(dim)
