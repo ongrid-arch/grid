@@ -8,7 +8,9 @@
  * rooms text does not give back the very same walls, rooms and openings is given in Grid's own
  * terms instead (raw lines), so writing the text again loses nothing. An opening that rooms
  * text cannot place as it is (one that runs past its wall, or names a wall the plan does not
- * have) is given raw on its own. Asked for rooms anyway (`prefer: 'rooms'`), every floor is
+ * have) is given raw on its own, and so is one whose line the writing refuses (WRT-42), so its
+ * floor's rooms, walls and other openings stay rooms text. Whatever is given raw is named in a
+ * comment line above it, with why. Asked for rooms anyway (`prefer: 'rooms'`), every floor is
  * given rooms first and what would change is said at the top.
  *
  * Pure: a plan in, text out.
@@ -244,6 +246,8 @@ interface FloorDraft {
   readonly rooms: string[]
   readonly walls: Map<string, string[]>
   readonly openings: Map<string, string>
+  /** WRT-42: why an opening is given raw, by its id, said in a comment line above it. */
+  readonly why: Map<string, string>
   readonly raw: string[]
 }
 
@@ -351,8 +355,12 @@ function openingLine(o: Opening, wall: Wall, plan: FloorPlan, polys: Map<string,
     const u = unit(sub(p1, p0))
     edges.push({ p0, p1, u, n: [u[1], -u[0]] })
     if (Math.abs(cross(u, dir)) > tolerance('noTurn')) continue
-    const d = Math.abs(cross(u, sub(mid, p0)))
-    if (best === null || d < best.d) best = { d, p0, u, L: norm(sub(p1, p0)), n: [u[1], -u[0]] }
+    // WRT-42: of two sides on one line (a room round a stair in its corner), the one the
+    // opening's middle lies along, so the line places it in its own stretch of wall.
+    const L = norm(sub(p1, p0))
+    const t = dot(sub(mid, p0), u)
+    const d = Math.abs(cross(u, sub(mid, p0))) + Math.max(0, -t, t - L)
+    if (best === null || d < best.d) best = { d, p0, u, L, n: [u[1], -u[0]] }
   }
   if (best === null) return null
   const s0 = Math.min(dot(sub(a, best.p0), best.u), dot(sub(b, best.p0), best.u))
@@ -405,7 +413,7 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
     const poly = tryRoomPolygon(r, index)
     if (poly) polys.set(r.id, poly.map((p) => [p.x, p.y] as P))
   }
-  const draft: FloorDraft = { id: floor, header: [], rooms: [], walls: new Map(), openings: new Map(), raw: [] }
+  const draft: FloorDraft = { id: floor, header: [], rooms: [], walls: new Map(), openings: new Map(), why: new Map(), raw: [] }
   for (const room of plan.rooms.filter((r) => floorOf(r) === floor)) {
     const poly = polys.get(room.id)
     if (!poly) {
@@ -445,6 +453,7 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
     if (floorOf(wall) !== floor) continue
     const line = openingLine(o, wall, plan, polys, rule, local)
     draft.openings.set(o.id, line ?? rawLine('opening', o))
+    if (line === null) draft.why.set(o.id, english(said('describe.rooms.rawOpening.unplaced')))
   }
   for (const wall of plan.walls.filter((w) => floorOf(w) === floor && (index.roomsByWall.get(w.id)?.length ?? 0) === 0)) draft.raw.push(rawLine('wall', wall))
   return draft
@@ -537,7 +546,7 @@ function floorLine(plan: FloorPlan, floor: string): string | null {
   return [`floor ${f.id}`, quote(f.name), ...extra].join(' ')
 }
 
-function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: readonly FloorDraft[], raw: ReadonlySet<string>): string {
+function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: readonly FloorDraft[], raw: ReadonlySet<string>, why: ReadonlyMap<string, string>): string {
   const lines = headerLines(plan, rule, name)
   for (const d of floors) {
     lines.push('')
@@ -549,7 +558,8 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
     const extra = f === undefined ? {} : { ...(storeyLevel(f.level) ? {} : { level: f.level }), ...Object.fromEntries(RAW_FLOOR_KEYS.flatMap((key) => (f[key as keyof typeof f] === undefined ? [] : [[key, f[key as keyof typeof f]]]))) }
     if (Object.keys(extra).length > 0) lines.push(`raw floor ${JSON.stringify(extra)}`)
     if (raw.has(d.id)) {
-      lines.push(`# Written in Grid's own terms: rooms text does not give back this floor's walls as they are.`)
+      // WRT-42: what stops rooms text, named, so the reader knows which part to look at.
+      lines.push(`# ${english(said('describe.rooms.rawFloor', { why: why.get(d.id) ?? '' }))}`)
       for (const w of plan.walls.filter((x) => floorOf(x) === d.id)) lines.push(rawLine('wall', w))
       for (const r of plan.rooms.filter((x) => floorOf(x) === d.id)) lines.push(rawLine('room', r))
       const walls = new Map(plan.walls.map((w) => [w.id, w]))
@@ -561,7 +571,11 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
     }
     for (const [handle, words] of d.walls) if (words.length > 0) lines.push(`${handle} ${words.join(' ')}`)
     lines.push(...d.rooms)
-    lines.push(...d.openings.values())
+    for (const [id, line] of d.openings) {
+      const reason = d.why.get(id)
+      if (reason !== undefined && line.startsWith('raw ')) lines.push(`# ${english(said('describe.rooms.rawOpening', { opening: `'${id}'`, why: reason }))}`)
+      lines.push(line)
+    }
     lines.push(...d.raw)
   }
   return `${lines.join('\n')}\n`
@@ -659,8 +673,11 @@ function reconcileRooms(original: FloorPlan, written: ReadBack, drafts: FloorDra
   return said
 }
 
-/** How many times the read-back is written again to settle what it must say, at most. */
-const SETTLE_ROUNDS = 6
+/**
+ * How many times the read-back is written again to settle what it must say, at most. WRT-42: two
+ * more than before, for the openings the writing refuses, which are given raw in a round of their own.
+ */
+const SETTLE_ROUNDS = 8
 
 /**
  * The plan as rooms text. By default it loses nothing: writing it again with
@@ -678,7 +695,7 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
   const why = new Map<string, string>()
   let changes: string[] = []
   if (plan.walls.length + plan.rooms.length + plan.openings.length === 0) {
-    return { text: textOf(plan, rule, options.name, drafts, raw), rawFloors: [], rawOpenings: [], changes: [] }
+    return { text: textOf(plan, rule, options.name, drafts, raw, why), rawFloors: [], rawOpenings: [], changes: [] }
   }
   // CNT-18: rooms text writes straight walls. A floor with a curved wall is given in Grid's own
   // terms, which keep the curve, whatever was asked for, so writing it again loses nothing.
@@ -688,18 +705,36 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
     raw.add(floor)
     why.set(floor, english(said('describe.rooms.curved', { wall: quote(wall.id) })))
   }
+  // WRT-42: whether the rounds ended on a decision, not by running out.
+  let decided = false
   for (let round = 0; round < SETTLE_ROUNDS; round++) {
-    const text = textOf(plan, rule, options.name, drafts, raw)
+    const text = textOf(plan, rule, options.name, drafts, raw, why)
     const compiled = compileRoomsText(text)
     // Read as a plan file is read, so a wall it gives no height reads as the plan's do (WRT-6).
     const written: ReadBack = { ...compiled, plan: compiled.plan === null ? null : safeParseFloorPlan(compiled.plan) }
     if (written.plan === null) {
-      // A floor the writing refuses is given in Grid's own terms.
+      // WRT-42: each opening line the writing refuses is given raw on its own, and the rest of
+      // its floor is written again as rooms.
+      const textLines = text.split('\n')
+      let alone = false
+      for (const problem of written.problems) {
+        const found = problem.line === null ? undefined : openingOfLine(drafts, raw, textLines[problem.line - 1] ?? '')
+        if (found === undefined) continue
+        found.draft.openings.set(found.id, rawLine('opening', plan.openings.find((o) => o.id === found.id)!))
+        found.draft.why.set(found.id, withoutLines(problem.message))
+        rawOpenings.push(found.id)
+        alone = true
+      }
+      if (alone) continue
+      // A floor the writing refuses otherwise is given in Grid's own terms.
       const at = written.problems[0]?.line ?? null
       const floor = floorAtLine(text, at, floors) ?? drafts.find((d) => !raw.has(d.id))?.id
-      if (floor === undefined || raw.has(floor)) break
+      if (floor === undefined || raw.has(floor)) {
+        decided = true
+        break
+      }
       raw.add(floor)
-      why.set(floor, written.problems[0]?.message ?? 'its rooms text could not be written')
+      why.set(floor, withoutLines(written.problems[0]?.message ?? 'its rooms text could not be written'))
       continue
     }
     const saidWalls = reconcileWalls(plan, written, drafts)
@@ -713,8 +748,10 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
         if (line.startsWith('raw ')) continue
         const a = plan.openings.find((o) => o.id === id)!
         const b = written.plan.openings.find((o) => o.id === id)
-        if (b === undefined || openingDiffers(a, b) !== null) {
+        const what = b === undefined ? 'is not there' : openingDiffers(a, b)
+        if (what !== null) {
           d.openings.set(id, rawLine('opening', a))
+          d.why.set(id, english(said('describe.rooms.rawOpening.changes', { what })))
           rawOpenings.push(id)
           moved = true
         }
@@ -723,10 +760,17 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
     if (moved) continue
     const left = drafts.filter((d) => !raw.has(d.id)).map((d) => ({ d, diff: floorDifferences(plan, written.plan!, d.id) }))
     const wrong = left.filter((x) => x.diff.length > 0)
-    if (floorsDiffer(plan, written.plan) && !multi) break
-    if (wrong.length === 0) break
+    if (floorsDiffer(plan, written.plan) && !multi) {
+      decided = true
+      break
+    }
+    if (wrong.length === 0) {
+      decided = true
+      break
+    }
     if (options.prefer === 'rooms') {
       changes = wrong.flatMap((x) => x.diff.map((d) => `${d.kind} ${d.id} ${d.what}`))
+      decided = true
       break
     }
     for (const { d, diff } of wrong) {
@@ -734,12 +778,48 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
       why.set(d.id, diff.slice(0, 3).map((x) => `${x.kind} '${x.id}' ${x.what}`).join('; '))
     }
   }
-  let text = textOf(plan, rule, options.name, drafts, raw)
+  // WRT-42: a draft the rounds did not settle is not given unchecked: each floor it would change,
+  // or every floor still in rooms text when its writing is refused, is given in Grid's own terms.
+  // Asked for rooms, the reading stays rooms first.
+  if (!decided && options.prefer !== 'rooms') unsettled(plan, rule, options.name, drafts, raw, why)
+  let text = textOf(plan, rule, options.name, drafts, raw, why)
   if (changes.length > 0) {
     const note = [`# Written rooms first as asked: writing this text again changes ${changes.length} part${changes.length === 1 ? '' : 's'} of the plan:`, ...changes.slice(0, 20).map((c) => `#   ${c}`), ...(changes.length > 20 ? [`#   and ${changes.length - 20} more`] : [])]
     text = `${note.join('\n')}\n${text}`
   }
   return { text, rawFloors: [...raw].map((floor) => ({ floor, why: why.get(floor) ?? '' })), rawOpenings, changes }
+}
+
+/** WRT-42: the floors a draft left unsettled would change, given in Grid's own terms. */
+function unsettled(plan: FloorPlan, rule: Rule, name: string | undefined, drafts: readonly FloorDraft[], raw: Set<string>, why: Map<string, string>): void {
+  const compiled = compileRoomsText(textOf(plan, rule, name, drafts, raw, why))
+  const written = compiled.plan === null ? null : safeParseFloorPlan(compiled.plan)
+  for (const d of drafts) {
+    if (raw.has(d.id) || (written !== null && floorDifferences(plan, written, d.id).length === 0)) continue
+    raw.add(d.id)
+    why.set(d.id, english(said('describe.rooms.unsettled', { rounds: String(SETTLE_ROUNDS) })))
+  }
+}
+
+/**
+ * WRT-42: a refusal of the draft without the line numbers it names (`Line 8:`, `(line 23)`): they
+ * are lines of a text the reader never sees.
+ */
+function withoutLines(message: string): string {
+  return message
+    .replace(/^line [-\d]+: /i, '')
+    .replace(/\s*\(line [-\d]+\)/gi, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\.$/, '')
+}
+
+/** The opening a line of the text writes, rooms first, on a floor not given raw. */
+function openingOfLine(drafts: readonly FloorDraft[], raw: ReadonlySet<string>, line: string): { draft: FloorDraft; id: string } | undefined {
+  for (const draft of drafts) {
+    if (raw.has(draft.id)) continue
+    for (const [id, text] of draft.openings) if (text === line && !text.startsWith('raw ')) return { draft, id }
+  }
+  return undefined
 }
 
 /** The floor a line of the text is on. */

@@ -1,0 +1,9 @@
+# 2026-11-25: the rooms read-back names what it gives raw, and one opening no longer takes its floor with it (WRT-42)
+
+## For people
+
+- `grid describe --as rooms` gives a floor back as room lines even when rooms text cannot write one of its openings as it is: that opening alone comes as a `raw opening`, with a comment line above it saying which opening and why, and the floor's rooms, walls and other openings stay rooms text. An opening on a room side that a stair or lift in the room's corner splits in two is placed on the stretch it is in, so a deck of cabins round a stair lobby reads back as room lines instead of a thousand raw ones. A floor still given in Grid's own terms names, in its comment line, the wall or room that stops rooms text (WRT-42).
+
+## For agents
+
+- `grid_describe` and `grid describe --as rooms`: when writing the read-back again is refused on an opening line, that opening is given as `raw opening` on its own (and listed in `rawOpenings`) instead of its whole floor going raw. Every raw opening given on its own has a `# Opening '<id>' is written in Grid's own terms: <why>.` line above it. A floor given raw has `# Written in Grid's own terms, as rooms text does not give this floor back as it is: <why>.`, where `<why>` names the wall or room and what would change (`wall '<id>' stands elsewhere`), or the writing's refusal without line numbers; `rawFloors[].why` is the same. An opening on one of two room sides on one line is written on the side it is in (`in <room> east.2, …`). A read-back that does not settle in its rounds gives the floors it would change raw, so it still loses nothing. No new code in the record.

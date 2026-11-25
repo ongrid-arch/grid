@@ -245,7 +245,11 @@ there or with the tools; rooms text is a way of writing the plan and of reading 
 `grid describe --as rooms` reads any plan back as rooms text, and writing that text again
 changes nothing: the walls line comes with every exception the plan holds (a wall's height,
 thickness, kind, id or direction), and a floor that rooms text cannot give back as it is comes in
-the plan's own terms. The walls line's height is one the walls state themselves (WRT-40): a wall
+the plan's own terms. Whatever comes in the plan's own terms is named in a comment line above it,
+with why (WRT-42): a floor's names the wall or room that stops rooms text (`wall 'ext-south'
+stands elsewhere`), and an opening rooms text cannot write as it is (one drawn across the corner
+of two rooms) comes as a `raw opening` on its own, so the rooms, walls and other openings of its
+floor stay rooms text. The walls line's height is one the walls state themselves (WRT-40): a wall
 that takes its height from its floor, or rises to its floor's roof, gets it again from the floor
 line, never the roof's ridge written as a wall height. So that nothing is lost unseen, `grid write` refuses, with the difference,
 rooms text read from an earlier version of the plan (its `based on` line) and rooms text written
