@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  cameraInsideWall,
   cameraPlace,
   cameraRecord,
   cameraSetting,
@@ -220,5 +221,35 @@ describe('a camera fitted to a box (VEW-26)', () => {
     const small = fitted({ min: [0, 0, 0], max: [4, 3, 2.6] })
     const large = fitted(station)
     expect(small.distance).toBeLessThan(large.distance / 5)
+  })
+})
+
+describe('a camera inside a wall (VEW-59)', () => {
+  // The flat's south wall runs along y = 0, 0.3 m thick; its windows are at 1.2 to 3 and 6.2 to 7.6 m.
+  const insideSouth = (more: Partial<CameraSetting> = {}): CameraRecord =>
+    cameraRecord(flat, setting({ target: { room: null, point: [4, 5, 1.2] }, bearing: 180, tilt: 0, distance: 5, ...more }))
+
+  it('names the wall and a distance that stands the camera clear of it', () => {
+    const inside = cameraInsideWall(flat, insideSouth())
+    expect(inside?.wall).toBe('ext-south')
+    expect(inside?.clearDistance).toBeCloseTo(5.25, 6)
+    expect(cameraInsideWall(flat, insideSouth({ distance: inside!.clearDistance! }))).toBeNull()
+  })
+
+  it('says nothing for a camera outside every wall or in a room', () => {
+    expect(cameraInsideWall(flat, insideSouth({ distance: 10 }))).toBeNull()
+    expect(cameraInsideWall(flat, insideSouth({ distance: 2 }))).toBeNull()
+  })
+
+  it('says nothing for a camera above the wall or in a door opening', () => {
+    expect(cameraInsideWall(flat, insideSouth({ target: { room: null, point: [4, 5, 30] } }))).toBeNull()
+    // The entrance door is in the north wall (y = 7.6), 3.45 to 4.35 m along it from its start.
+    const inDoor = cameraRecord(flat, setting({ target: { room: null, point: [5.1, 2, 1] }, bearing: 0, tilt: 0, distance: 5.6 }))
+    expect(cameraInsideWall(flat, inDoor)).toBeNull()
+  })
+
+  it('gives no distance for a camera looking straight down', () => {
+    const down = cameraRecord(flat, setting({ target: { room: null, point: [4, 0, 1.2] }, tilt: 90, distance: 0 }))
+    expect(cameraInsideWall(flat, down)).toEqual({ wall: 'ext-south', clearDistance: null })
   })
 })

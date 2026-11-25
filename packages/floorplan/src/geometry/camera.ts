@@ -27,9 +27,11 @@ import { floorOf, planFloors } from './floors'
 import { pointInPolygon } from './innerPoint'
 import { roomShapes } from './items'
 import { directionOfTurn, planOrientation, wrapDegrees, type PlanOrientation } from './orientation'
-import { indexPlan, type FloorPlan } from './plan'
+import { indexPlan, type FloorPlan, type Wall } from './plan'
 import { area } from './vec2'
-import { limit } from './tolerances'
+import type { Vec2 } from './vec2'
+import { wallPolygon, wallSlicePolygon } from './wall'
+import { limit, tolerance } from './tolerances'
 
 export type Point3 = readonly [number, number, number]
 
@@ -442,4 +444,75 @@ export function viewSetting(view: Omit<StoredView, 'floors'> & { readonly floors
 export function findView<V extends { readonly name: string }>(views: readonly V[] | undefined, name: string): V | null {
   const wanted = name.trim().toLowerCase()
   return (views ?? []).find((v) => v.name.trim().toLowerCase() === wanted) ?? null
+}
+
+/** VEW-59: a camera inside a wall: the wall, and the distance that stands the camera clear of it. */
+export interface CameraInWall {
+  /** The wall the camera stands in. */
+  readonly wall: string
+  /** The distance from the target, in metres, that stands the camera outside every wall; null when it looks straight down. */
+  readonly clearDistance: number | null
+}
+
+/** How far past a wall's face a camera is stood to clear it, in metres. */
+const CLEAR_BY = 0.1
+/** Walls a camera is walked out of one after another, at most. */
+const CLEAR_STEPS = 8
+
+/** Walls of the floors a picture shows that hold the point, standing between their floor's level and its top. */
+function wallsAround(plan: FloorPlan, camera: CameraRecord, p: Vec2, z: number, levels: ReturnType<typeof modelFloorLevels>): { wall: Wall; polygon: Vec2[] }[] {
+  const shown = new Set(camera.floors)
+  const out: { wall: Wall; polygon: Vec2[] }[] = []
+  for (const wall of plan.walls) {
+    if (wall.virtual || !shown.has(floorOf(wall))) continue
+    const level = levels.get(floorOf(wall))
+    if (level === undefined || z < level.base || z > level.base + level.clearHeight) continue
+    const polygon = wallPolygon(wall)
+    if (!pointInPolygon(p, polygon)) continue
+    // A door or window leaves the wall open where the camera stands in it.
+    const open = plan.openings.some((o) => o.wall === wall.id && z >= o.sill && z <= o.sill + o.height && pointInPolygon(p, wallSlicePolygon(wall, o.offset, o.offset + o.width)))
+    if (!open) out.push({ wall, polygon })
+  }
+  return out
+}
+
+/** How far along `dir` from `from` the last side of the polygon is crossed. */
+function farthestCrossing(polygon: readonly Vec2[], from: Vec2, dir: Vec2): number {
+  let far = 0
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i]!
+    const b = polygon[(i + 1) % polygon.length]!
+    const ex = b.x - a.x
+    const ey = b.y - a.y
+    const den = dir.x * ey - dir.y * ex
+    if (Math.abs(den) < tolerance('noArea')) continue
+    const t = ((a.x - from.x) * ey - (a.y - from.y) * ex) / den
+    const s = ((a.x - from.x) * dir.y - (a.y - from.y) * dir.x) / den
+    if (s >= 0 && s <= 1 && t > far) far = t
+  }
+  return far
+}
+
+/**
+ * VEW-59: whether the camera stands inside a wall the picture draws, and how far from its target
+ * it would stand clear of every wall, walking out along its bearing. A picture taken from inside
+ * a wall is a flat field of the wall's colour.
+ */
+export function cameraInsideWall(plan: FloorPlan, camera: CameraRecord, levels = modelFloorLevels(plan)): CameraInWall | null {
+  const [x, y, z] = camera.position
+  const first = wallsAround(plan, camera, { x, y }, z, levels)[0]
+  if (first === undefined) return null
+  const away = { x: x - camera.target.point[0], y: y - camera.target.point[1] }
+  const run = Math.hypot(away.x, away.y)
+  const cos = Math.cos(camera.tilt * DEG)
+  if (run === 0 || cos <= 0) return { wall: first.wall.id, clearDistance: null }
+  const dir = { x: away.x / run, y: away.y / run }
+  let walked = 0
+  for (let step = 0; step < CLEAR_STEPS; step++) {
+    const here = { x: x + dir.x * walked, y: y + dir.y * walked }
+    const holding = wallsAround(plan, camera, here, z, levels)
+    if (holding.length === 0) return { wall: first.wall.id, clearDistance: cameraRound(camera.distance + walked / cos) }
+    walked += Math.max(...holding.map((h) => farthestCrossing(h.polygon, here, dir))) + CLEAR_BY
+  }
+  return { wall: first.wall.id, clearDistance: null }
 }

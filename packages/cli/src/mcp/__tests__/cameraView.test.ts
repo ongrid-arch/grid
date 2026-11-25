@@ -342,3 +342,24 @@ describe('a 3D view framed to the building (VEW-26)', () => {
     }
   })
 })
+
+describe('a camera that stands inside a wall (VEW-59)', () => {
+  // The flat's south wall runs along y = 0, with no opening at x = 4.
+  const inWall = async (extra: Record<string, unknown> = {}) => {
+    const start = cameraOf(await ok('grid_view', { plan: 'flat.json', kind: '3d' }))
+    return ok('grid_view', { plan: 'flat.json', kind: '3d', camera: { ...start, target: { room: null, point: [4, 5, 1.2] }, bearing: 180, tilt: 0, distance: 5, ...extra } })
+  }
+
+  it('says which wall, and a distance that clears it', async () => {
+    const reply = await inWall()
+    expect(reply.text).toContain('The camera stands inside wall "south"')
+    expect(reply.text).toMatch(/A distance of 5\.2\d m/)
+    const clear = await ok('grid_view', { plan: 'flat.json', kind: '3d', camera: { ...cameraOf(reply), distance: 5.23 } })
+    expect(clear.text).not.toContain('stands inside wall')
+  })
+
+  it('stays silent for a camera outside the walls', async () => {
+    const reply = await inWall({ distance: 12 })
+    expect(reply.text).not.toContain('stands inside wall')
+  })
+})

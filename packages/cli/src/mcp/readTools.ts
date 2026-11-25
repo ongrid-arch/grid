@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
@@ -1844,6 +1844,16 @@ function bearingFromText(camera: CameraRecord): string {
   return camera.bearingFrom === 'north' ? `clockwise from the north the plan states (${northWords(camera.north!)})` : 'clockwise from the top of the drawing, as the plan states no north'
 }
 
+/** VEW-59: the line that says a camera stands inside a wall, which draws as one flat field, and where it would clear it. */
+function insideWallLines(plan: FloorPlan, camera: CameraRecord): string[] {
+  const inside = cameraInsideWall(plan, camera)
+  if (inside === null) return []
+  const way = inside.clearDistance === null
+    ? 'Point it from outside the wall, or from a room.'
+    : `A distance of ${m(inside.clearDistance)} m from what it is pointed at (${m(inside.clearDistance - camera.distance)} m further out along its bearing) stands it clear of the walls.`
+  return [`The camera stands inside wall ${q(inside.wall)}, so the picture is the wall's inside, a flat field with nothing in it. ${way}`]
+}
+
 /**
  * VEW-3: the camera in a few lines: what it is pointed at, from where, how high, its lens, where
  * it stands (S-16), and how to move it in one call.
@@ -1857,6 +1867,7 @@ export function cameraLines(plan: FloorPlan, camera: CameraRecord): string[] {
   return [
     `Camera: pointed at ${at}, from bearing ${deg1(camera.bearing)} (${bearingFromText(camera)}), on the ${side} side of the drawing; ${looking}, ${m(camera.distance)} m away; the eye ${m(camera.eyeHeight)} m above floor ${q(camera.floor)}; lens ${Number(camera.lens.focalLength.toFixed(2))} mm on a ${camera.lens.sensor.width} × ${camera.lens.sensor.height} mm sensor (${deg1(camera.fieldOfView)} tall). ${camera.cut === null ? 'The whole building is shown.' : `Floor ${q(camera.cut)} is cut away: nothing above it is drawn.`}`,
     `It stands ${camera.standingIn.words}.`,
+    ...insideWallLines(plan, camera),
     'The record is in camera. For another view, send it back to grid_view kind=3d as camera with the numbers changed, or with turn (degrees round the target, above 0 to the camera\'s left) and tilt_by (degrees, below 0 lower); grid_save_view saves it by name.',
   ]
 }
