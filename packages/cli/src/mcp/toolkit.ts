@@ -7,6 +7,7 @@
  * what it takes. It never repeats the value it was sent: that is text from the agent, and may
  * be anything (MS-19, T-3).
  */
+import { LANGUAGES, say } from '@ongrid/floorplan/messages'
 import { GENERAL_GUIDANCE_LABEL, planFloors, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
 import { ID_PATTERN as PLAIN_ID_PATTERN, plainId, readPlainId, ROOM_USES, readUse } from '@ongrid/floorplan/types/floorplan'
@@ -184,12 +185,31 @@ function argSchema(spec: ArgSpec): Record<string, unknown> {
   return rest
 }
 
+/** MSG-30: the text without its first line when that line is the label, in any language Grid words it in. */
+function withoutLabelLine(text: string): string {
+  const [first = '', ...rest] = text.split('\n')
+  return LANGUAGES.some((language) => first === say(language, 'label')) ? rest.join('\n') : text
+}
+
+/**
+ * MSG-30: the tools whose answers apply no figure from a code (the plan read back, a picture, a
+ * comparison, a count). Their text does not lead with the label; the instructions say once why it
+ * is there, and their data still carries it.
+ */
+export const LABEL_SILENT_TOOLS: ReadonlySet<string> = new Set(['grid_describe', 'grid_view', 'grid_compare', 'grid_fields', 'grid_find', 'grid_count'])
+
 /**
  * MSG-3: every answer leads with the label "General guidance, not your local rules" and carries
  * it as `label` in its data. Done here, once, so no tool can leave it out. A refusal is not an
  * answer about the plan and is left as it is.
  */
-export function labelled(answer: Answer): Answer {
+export function labelled(answer: Answer, leads = true): Answer {
+  // MSG-30: an answer that applies no figure from a code carries the label in its data only.
+  if (!leads) {
+    const bare = withoutLabelLine(answer.text)
+    const data = answer.data['text'] === answer.text ? { ...answer.data, text: bare } : answer.data
+    return { ...answer, text: bare, data: { label: GENERAL_GUIDANCE_LABEL, ...data } }
+  }
   // A first line that holds it already (a CSV cell, a comment in rooms text) is left as it is.
   const first = answer.text.split('\n', 1)[0]!
   const text = first.includes(GENERAL_GUIDANCE_LABEL) ? answer.text : `${GENERAL_GUIDANCE_LABEL}\n${answer.text}`

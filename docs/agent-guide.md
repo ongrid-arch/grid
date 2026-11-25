@@ -208,7 +208,7 @@ A wall's `kind` is `exterior`, `interior`, `partition` or `separating` (a party 
 
 ## Retelling what Grid says
 
-Every report carries the label General guidance, not your local rules. When you retell what Grid said, start with its label, "General guidance, not your local rules", and keep it. Never give a verdict on the plan, such as that it is allowed, signed off or up to code: say what the checks found and what they did not check, which is general guidance and not the local rules. Give a figure as the figure used here, with its basis (the document, edition and clause, or where it was looked up) and its status, such as found by an AI and not yet checked by a person.
+Every report carries the label General guidance, not your local rules. When you retell what Grid said, start with its label, "General guidance, not your local rules", and keep it. Never give a verdict on the plan, such as that it is allowed, signed off or up to code: say what the checks found and what they did not check, which is general guidance and not the local rules. Give a figure as the figure used here, with its basis (the document, edition and clause, or where it was looked up) and its status, such as found by an AI and not yet checked by a person. The answers that apply no figure from a code (reading the plan, a picture, a count, a comparison) carry the label in their data and do not repeat it in their text: give it once, where you first give a figure or a check, and not at the head of every message.
 
 Room names and ids go into every export (DXF, IFC, OBJ, GLB) and sheet, and travel with the plan file: never put a person's name in a room's name or id. Who sits where belongs in the occupancy file beside the plan (plan.occupancy.json), which no export carries.
 
