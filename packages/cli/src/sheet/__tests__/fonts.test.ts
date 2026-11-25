@@ -3,7 +3,7 @@ import { pathToFileURL } from 'url'
 import { describe, expect, it, vi } from 'vitest'
 import { GlobalFonts } from '@napi-rs/canvas'
 import * as canvas from '@napi-rs/canvas'
-import { ARABIC_FONT, HEBREW_FONT } from '../../draw/scriptFonts'
+import { ARABIC_FONT, HEBREW_FONT, SCRIPT_FONTS } from '../../draw/scriptFonts'
 import { CJK_FONTS, fontsFolder, sheetFont, SANS, SERIF, registerSheetFonts } from '../fonts'
 
 describe('the sheet fonts (VEW-7)', () => {
@@ -66,6 +66,21 @@ describe('the sheet fonts (VEW-7)', () => {
     expect(name).not.toBeCloseTo(box, 1)
     // An ideograph is one em wide in every CJK face.
     expect(name).toBeCloseTo(40, 0)
+  })
+
+  const han = SCRIPT_FONTS.han.some((family) => GlobalFonts.has(family))
+  it.skipIf(!han)('draws Simplified Chinese characters as glyphs, not the box (VEW-21)', () => {
+    registerSheetFonts(canvas)
+    const ctx = canvas.createCanvas(10, 10).getContext('2d')
+    ctx.font = sheetFont(SANS, 40)
+    const box = ctx.measureText('\uE000').width
+    for (const char of '厅卫间储') expect(ctx.measureText(char).width).toBeCloseTo(40, 0)
+    expect(ctx.measureText('厅').width).not.toBeCloseTo(box, 1)
+  })
+  it('lists the Chinese faces before the Japanese ones in the sheet\'s fallback (VEW-21)', () => {
+    const font = sheetFont(SANS, 12)
+    expect(font.indexOf(`"${SCRIPT_FONTS.han[0]}"`)).toBeGreaterThan(-1)
+    expect(font.indexOf(`"${SCRIPT_FONTS.han[0]}"`)).toBeLessThan(font.indexOf(`"${SCRIPT_FONTS.cjk[0]}"`))
   })
 
   it('draws an Arabic and a Hebrew name in Grid\'s bundled fonts, not as the box, on any machine (VEW-18)', () => {

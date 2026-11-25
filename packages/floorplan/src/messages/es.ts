@@ -1850,6 +1850,15 @@ export const es: Messages = {
   'rooms.floor.building': "'{word}' no es un tipo de edificio que Grid conozca. Use uno de: {kinds}.",
   'rooms.floor.duplicate': "La planta '{id}' ya está escrita.",
   'rooms.floor.roomsFirst': 'Se escribieron estancias antes de la primera línea de planta. Ponga primero la línea de planta.',
+  // WRT-17
+  'rooms.openingsOverlap':
+    "Línea {line}: {opening} comparte {by} m del muro {wall} con {other} (línea {otherLine}). La comprobación deja fuera una abertura que comparte un tramo de su muro con otra, aunque una quede sobre la otra: mueva una, haga una más estrecha o escriba las dos como una sola abertura.",
+  'rooms.hole':
+    "Las estancias de la planta '{floor}' encierran {area} m² de suelo que ninguna estancia reclama, hacia {at}, entre {rooms}. Escríbalo como estancia: un núcleo, un patinillo o un patio interior ('-' si no tiene uso), u 'outdoor courtyard' para terreno abierto. Se escribe tal cual, y la comprobación lo señala como suelo que ninguna estancia reclama.",
+  'rooms.wallFromGap':
+    "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) tiene {thickness} m de grueso, el hueco que dejan las estancias, y ninguna línea del texto lo indica (muros interiores {inside} m, exteriores {outside} m). Si es lo que se quiere, dígalo con 'walls {thickness}' en una línea de estancia o de muro; si no, mueva una estancia.",
+  'rooms.checkError': "La comprobación encuentra esto en el plano tal como se escribe, y dejaría fuera una parte ({code}): {message}",
+  'rooms.checkNote': "La comprobación señala esto en el plano tal como se escribe ({code}): {message}",
   'describe.close': 'Esto describe el plano y no comprueba nada: grid check hace las comprobaciones.',
   'describe.fixtures': 'Aparatos: {list}.',
   'describe.fixture.toilet.one': '{count} inodoro',
@@ -2322,6 +2331,9 @@ export const es: Messages = {
   'issue.part.through.none': 'No hay ninguna planta sobre {own}.',
   'issue.part.through.above': 'Las plantas sobre ella son {floors}.',
   'issue.floor/out-of-line': 'La planta {floor} no está alineada con {lower}, debajo de ella: {parts}. Si es intencionado, marque la planta con overhang "meant"; si no, lleve sus muros exteriores sobre la planta de abajo, o haga que un muro que comparten ambas plantas suba a través de ellas (through).',
+  'issue.floor/set-back': 'La planta {floor} es una planta parcial sobre {lower}: queda retranqueada respecto a ella {sides}{flush}. Ocupa de ({x0}; {y0}) a ({x1}; {y1}), y la planta de abajo de ({lx0}; {ly0}) a ({lx1}; {ly1}). Si es intencionado, marque la planta con overhang "meant"; si no, lleve sus muros exteriores hasta el borde de la planta de abajo, o haga que un muro que comparten ambas plantas suba a través de ellas (through).',
+  'issue.part.setBack.side': '{depth} m por el {side}',
+  'issue.part.setBack.flush': ', y está alineada con ella por el {sides}',
   'issue.part.lineUp.over': 'sobresale de ella {stretches}{more}',
   'issue.part.lineUp.back': 'queda retranqueada respecto a ella {stretches}{more}',
   'issue.part.lineUp.stretch': '{depth} m por el {side}, de ({x0}; {y0}) a ({x1}; {y1})',
@@ -2365,6 +2377,9 @@ export const es: Messages = {
   'line.wall/through-floor.says': '{label} sube hasta una planta que no está sobre la suya, así que solo está en su propia planta',
   'line.wall/through-floor.needed': 'through con una planta sobre la del muro, de las plantas del plano',
   'line.wall/through-floor.fix': 'Indique en through una planta sobre la del muro, o quite through para un muro de una sola planta.',
+  'line.floor/set-back.says': '{label} es una planta parcial, retranqueada respecto a la planta de abajo',
+  'line.floor/set-back.needed': 'el contorno de la planta sobre la planta de abajo, o marcada con overhang "meant" donde es una planta parcial a propósito',
+  'line.floor/set-back.fix': 'Si es intencionado, marque la planta con overhang "meant". Si no, lleve sus muros exteriores hasta el borde de la planta de abajo, o haga que un muro que comparten ambas plantas suba a través de ellas (through).',
   'line.floor/out-of-line.says': '{label} no está alineada con la planta de abajo',
   'line.floor/out-of-line.needed': 'el contorno de la planta sobre la planta de abajo, o marcada con overhang "meant" donde sobresale o queda retranqueada a propósito',
   'line.floor/out-of-line.fix': 'Si es intencionado, marque la planta con overhang "meant". Si no, lleve sus muros exteriores sobre la planta de abajo, o haga que un muro que comparten ambas plantas suba a través de ellas (through).',

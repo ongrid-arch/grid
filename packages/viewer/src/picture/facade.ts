@@ -12,7 +12,7 @@
  * Pure: no DOM, no React. `pictureToSvg` writes it out with the label (MSG-3), as it does a plan.
  */
 import type { Bounds } from '@ongrid/floorplan/geometry'
-import { hatchLines, planFacade, type Facade, type FacadeFace, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { hatchLines, levelText, planFacade, type Facade, type FacadeFace, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { fitTo } from '../canvas2d/viewport'
 import type { LinePart, Look } from './look'
 import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
@@ -23,6 +23,7 @@ import { el } from './svgNode'
 import type { Language } from '@ongrid/floorplan/messages'
 import { said } from '@ongrid/floorplan/messages'
 import { ENGLISH_WORDS, drawingText, wordsOf, type DrawingWords } from './words'
+import { METRES, type Display } from '@ongrid/floorplan/types/units'
 
 export interface FacadePictureOptions {
   /** Which side of the drawing: north is the top of the drawing (+y), as `grid describe` says. */
@@ -37,6 +38,8 @@ export interface FacadePictureOptions {
   readonly paperScale?: number
   /** MSG-11: the language of its words; the plan's own display language when left out. */
   readonly language?: Language
+  /** VEW-20: the units its levels are written in; the plan's own display when left out. */
+  readonly display?: Display
 }
 
 /** A facade laid out as a picture, with the facade it draws. */
@@ -64,12 +67,6 @@ const GROUND_RUN_LEAST = 0.5
 /** How much ground, and how much sky, the picture frames, in metres. */
 const BELOW = 0.6
 const ABOVE = 0.4
-
-/** A level as the floor marks write it: `+2.95`, `0.00`, `-2.60`. */
-function levelText(level: number): string {
-  const fixed = Math.abs(level) < 0.005 ? '0.00' : level.toFixed(2)
-  return level >= 0.005 ? `+${fixed}` : fixed
-}
 
 /** The parts of the drawing a facade frames, in plan screen terms (`u` across, `z` up). */
 function framingOf(facade: Facade): Bounds {
@@ -102,7 +99,7 @@ export function facadeCaption(facade: Facade, words: DrawingWords = ENGLISH_WORD
  * The elements of a facade, in plan screen terms: `x` is `u`, across the facade, and `y` is minus
  * the height, as SVG runs down the page. Widths in metres from the look's lines at this zoom.
  */
-export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, paperScale?: number, words: DrawingWords = ENGLISH_WORDS): SvgNode[] {
+export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, paperScale?: number, words: DrawingWords = ENGLISH_WORDS, units: Display = METRES): SvgNode[] {
   const lines = lineMetres(look, metresPerPixel, paperScale)
   const width = (part: LinePart): string => lengthText(lines.width(part))
   const nodes: SvgNode[] = []
@@ -243,7 +240,7 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
         stroke: look.ink,
         'stroke-width': width('elevationLevel')
       }),
-      textNode(look, markTo + metresPerPixel * 4, -level.level - metresPerPixel * 3, metresPerPixel, `${level.name} ${levelText(level.level)}`, 'facade-level-name')
+      textNode(look, markTo + metresPerPixel * 4, -level.level - metresPerPixel * 3, metresPerPixel, `${levelText(level.level, units)} ${level.name}`, 'facade-level-name')
     ])
   )
   nodes.push(el('g', { 'data-part': 'facade-levels' }, levels))
@@ -268,8 +265,9 @@ export function facadePicture(plan: Parameters<typeof planFacade>[0], options: F
   if (options.paperScale !== undefined && !(Number.isFinite(options.paperScale) && options.paperScale > 0)) {
     throw new RangeError(`The paper scale is N in 1:N, a number above 0: got ${options.paperScale}`)
   }
-  const words: DrawingWords = wordsOf(displayOfPicture(plan, options.language === undefined ? {} : { language: options.language }))
-  const nodes = facadeScene(facade, look, view.width / width, options.paperScale, words)
+  const shown = displayOfPicture(plan, { ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { labels: { display: options.display } }) })
+  const words: DrawingWords = wordsOf(shown)
+  const nodes = facadeScene(facade, look, view.width / width, options.paperScale, words, { ...(shown ?? METRES), decimal: words.decimal })
   const floors = facade.levels.length
   const title = drawingText(words, floors === 1 ? 'drawing.facade.title.one' : 'drawing.facade.title.many', { facade: said(`drawing.facade.name.${facade.side}`), count: floors })
   const picture = { width, height, view, look, rooms: 0, undecidedDoors: [], nodes, key: null, title, facade }
