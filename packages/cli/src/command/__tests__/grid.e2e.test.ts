@@ -252,7 +252,7 @@ describe('grid draw --out: writing a picture', () => {
     const run = grid('draw', 'two-bed-flat.json', '--section', '2,-1:2,9', '--toward', 'right', '--out', 'section.svg')
     expect(run.status).toBe(0)
     expect(run.out).toBe('Wrote section.svg\n')
-    expect(run.err).toMatch(/^The section hatched \d+ parts? and listed \d+ things? that the plan does not state: each is listed under the drawing\.\n$/)
+    expect(run.err).toMatch(/^The section marked \d+ parts? with a dashed outline and listed \d+ things? that the plan does not state: each is listed under the drawing\.\n$/)
     const svg = readFileSync(join(dir, 'section.svg'), 'utf8')
     expect(svg).toContain('aria-label="Section A–A through')
     expect(svg).toContain('data-part="section-cut"')
