@@ -474,6 +474,7 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
     doorWarnings: warningMessages(doorWarningsOf(slice, drawing, words)),
     dimensions,
     metersPerPixel: mpp,
+    view,
     look,
     ...(options.paperScale === undefined ? {} : { paperScale: paperScaleOption(options.paperScale) }),
     // WRT-7: the labels and dimensions are in the call's display, else the plan's own.
