@@ -9,7 +9,6 @@ import { planFacts } from '../facts'
 
 type Tuple = [number, number]
 const wall = (id: string, start: Tuple, end: Tuple, extra: Record<string, unknown> = {}): Record<string, unknown> => ({ id, start, end, thickness: 0.2, height: 2.7, kind: 'interior', ...extra })
-const bay = (n: number): Record<string, unknown>[] => [wall(`d${n}`, [n * 3, 0], [n * 3 + 3, 0], { virtual: true, thickness: 0, height: 0 })]
 
 /** A corridor 9 × 2 along the south of three bays, each 3 × 4, split by walls; one dividing line between. */
 const PLAN = {
