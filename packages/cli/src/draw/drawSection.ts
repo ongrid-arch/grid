@@ -30,10 +30,18 @@ export async function drawSection(plan: FloorPlan, line: SectionLine, options: D
 export function sectionNote(section: PlanSection, language: Language = DEFAULT_LANGUAGE): string | null {
   const hatched = section.assumed.filter((a) => a.hatched).length
   const listed = section.assumed.length - hatched
-  if (section.assumed.length === 0) return null
+  const reach = section.reach
+  const inside = (reach.startInside ? 1 : 0) + (reach.endInside ? 1 : 0)
+  // VEW-38: a line that misses the building or stops inside it is said first.
+  const reachWords = [
+    ...(reach.missesBuilding ? [said('drawing.section.note.reach.misses', {})] : []),
+    ...(inside > 0 ? [said(`drawing.section.note.reach.inside.${inside === 1 ? 'one' : 'many'}`, {})] : [])
+  ]
+  const reachLine = reachWords.length === 0 ? '' : `${say(language, 'drawing.section.note.reach', { what: joined(reachWords, 'join.and') })}\n`
+  if (section.assumed.length === 0) return reachLine === '' ? null : reachLine
   const parts = [
     ...(hatched > 0 ? [said(`drawing.section.note.hatched.${hatched === 1 ? 'one' : 'many'}`, { count: hatched })] : []),
     ...(listed > 0 ? [said(`drawing.section.note.listed.${listed === 1 ? 'one' : 'many'}`, { count: listed })] : [])
   ]
-  return `${say(language, 'drawing.section.note', { what: joined(parts, 'join.and') })}\n`
+  return `${reachLine}${say(language, 'drawing.section.note', { what: joined(parts, 'join.and') })}\n`
 }
