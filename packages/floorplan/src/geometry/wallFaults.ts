@@ -91,6 +91,11 @@ export interface WallFix {
   /** MSG-11: the fix by its key and values. */
   readonly said: Said
   readonly edits: readonly WallEdit[]
+  /**
+   * WRT-36: the rooms the fix would leave with no way in. `tidyPlan` makes such a fix only when
+   * its fault is named.
+   */
+  readonly seals?: readonly string[]
 }
 
 export interface WallFault {
@@ -856,7 +861,15 @@ function freshId(plan: FloorPlan, base: string): string {
  * from one wall the crossing wall meets to the other, closed by the crossing wall. Null when no
  * such split gives two outlines.
  */
-function splitAlong(ctx: Context, room: Room, s: Seg, stretch: [number, number]): { edits: WallEdit[]; areas: [number, number]; ids: [string, string] } | null {
+interface Split {
+  readonly edits: WallEdit[]
+  readonly areas: [number, number]
+  readonly ids: [string, string]
+  /** WRT-36: the two parts' wall lists, the larger first, each with its outline. */
+  readonly parts: readonly [{ readonly boundary: readonly string[]; readonly polygon: readonly Vec2[] }, { readonly boundary: readonly string[]; readonly polygon: readonly Vec2[] }]
+}
+
+function splitAlong(ctx: Context, room: Room, s: Seg, stretch: [number, number]): Split | null {
   const ids = room.boundary
   const meets = (p: Vec2): number[] =>
     ids
@@ -894,6 +907,7 @@ function splitAlong(ctx: Context, room: Room, s: Seg, stretch: [number, number])
           return k <= 0 ? part : [...part.slice(k), ...part.slice(0, k)]
         }
         const [big, small] = (areaA >= areaB ? [one, two] : [two, one]).map(first) as [string[], string[]]
+        const [bigPolygon, smallPolygon] = areaA >= areaB ? [a.polygon, b.polygon] : [b.polygon, a.polygon]
         // The new part says nothing about its use, nor that it sits inside another room: that is for the person to say.
         const part: Room = { id: other, name: `${room.name} (part)`, boundary: small }
         if (room.floor !== undefined) part.floor = room.floor
@@ -905,7 +919,11 @@ function splitAlong(ctx: Context, room: Room, s: Seg, stretch: [number, number])
             { op: 'add-room', room: part }
           ],
           areas: [Math.max(areaA, areaB), Math.min(areaA, areaB)],
-          ids: [room.id, other]
+          ids: [room.id, other],
+          parts: [
+            { boundary: big, polygon: bigPolygon },
+            { boundary: small, polygon: smallPolygon }
+          ]
         }
       } catch {
         continue
@@ -913,6 +931,119 @@ function splitAlong(ctx: Context, room: Room, s: Seg, stretch: [number, number])
     }
   }
   return null
+}
+
+/** The middle of a polygon's corners: enough to tell which side of a line a part lies on. */
+const middleOf = (polygon: readonly Vec2[]): Vec2 => ({
+  x: polygon.reduce((sum, p) => sum + p.x, 0) / polygon.length,
+  y: polygon.reduce((sum, p) => sum + p.y, 0) / polygon.length
+})
+
+interface CornerCut {
+  readonly edits: WallEdit[]
+  /** The walls the cut meets, which now end on it. */
+  readonly met: readonly string[]
+  /** The walls wholly beyond it, taken out. */
+  readonly gone: readonly string[]
+  /** The opening moved onto it from the corner, if one was. */
+  readonly moved: string | null
+}
+
+/**
+ * WRT-36: a solid wall across a corner of a room, at an angle to the walls it meets, with the
+ * room's own outside walls round the corner it cuts off (a chamfered corner, a corner entrance),
+ * is the room's new face: the corner beyond it is outside. The walls it meets end on it, a wall
+ * wholly beyond it is taken out, an opening on the corner moves onto it, and the room lists it in
+ * place of the corner. Null when it is no such wall, or the corner's openings cannot be kept.
+ */
+function cornerCut(ctx: Context, room: Room, s: Seg, split: Split): CornerCut | null {
+  if (s.wall.virtual === true) return null
+  const [big, small] = split.parts
+  const corner = small.boundary.filter((id) => id !== s.wall.id)
+  const met = corner.filter((id) => big.boundary.includes(id))
+  const gone = corner.filter((id) => !big.boundary.includes(id))
+  if (met.length !== 2 || new Set(room.boundary).size !== room.boundary.length) return null
+  const segs: Seg[] = []
+  for (const id of corner) {
+    const seg = ctx.segs.get(id)
+    // Round the corner, only the room's own solid walls: the outside.
+    if (!seg || seg.wall.virtual === true || listing(ctx, id).some((r) => r.id !== room.id)) return null
+    segs.push(seg)
+  }
+  const square = tolerance('squareCorner')
+  const side = Math.sign(across(s, middleOf(small.polygon)))
+  if (side === 0) return null
+  const edits: WallEdit[] = []
+  const toMove: { id: string; width: number }[] = []
+  for (const m of segs.filter((seg) => met.includes(seg.wall.id))) {
+    // At an angle to the wall it meets: a wall square to it divides the room, as before.
+    if (Math.abs(dot(s.dir, m.dir)) <= square || Math.abs(cross(s.dir, m.dir)) <= square) return null
+    const t = -across(s, m.a) / dot(m.dir, s.normal)
+    const p = at(m, t)
+    const end: 'start' | 'end' = Math.sign(across(s, m.b)) === side ? 'end' : 'start'
+    if (Math.sign(across(s, endPoint(m, end))) !== side || Math.abs(across(s, endPoint(m, end))) <= tolerance('gap')) continue
+    const overrun = tolerance('openingOverrun')
+    // What stays of the wall, along it from its start.
+    const [from, to] = end === 'end' ? [0, t] : [t, m.length]
+    if (to - from < tolerance('gap')) return null
+    edits.push({ op: 'move-end', wall: m.wall.id, end, to: pair(p) })
+    for (const o of openingsOf(ctx.index, m.wall.id)) {
+      const [o0, o1] = [o.offset, o.offset + o.width]
+      if (o0 >= from - overrun && o1 <= to + overrun) {
+        if (from !== 0) edits.push({ op: 'move-opening', opening: o.id, wall: m.wall.id, offset: tidy(Math.max(0, o0 - from)) })
+      } else if (o1 <= from + overrun || o0 >= to - overrun) {
+        toMove.push({ id: o.id, width: o.width })
+      } else {
+        return null
+      }
+    }
+  }
+  for (const id of gone) {
+    for (const o of openingsOf(ctx.index, id)) toMove.push({ id: o.id, width: o.width })
+    const facts = ctx.segs.get(id)!.wall.properties
+    edits.push({ op: 'remove-wall', wall: id, ...(facts !== undefined && Object.keys(facts).length > 0 ? { factsTo: s.wall.id } : {}) })
+  }
+  // An opening on the corner keeps the way in: onto the cut, in its middle, clear of the walls it meets.
+  if (toMove.length > 1) return null
+  const moved = toMove[0]
+  if (moved !== undefined) {
+    const clear = s.length - Math.max(...segs.filter((seg) => met.includes(seg.wall.id)).map((seg) => seg.t))
+    if (openingsOf(ctx.index, s.wall.id).length > 0 || moved.width > clear) return null
+    edits.push({ op: 'move-opening', opening: moved.id, wall: s.wall.id, offset: tidy((s.length - moved.width) / 2) })
+  }
+  edits.push({ op: 'set-boundary', room: room.id, boundary: [...big.boundary] })
+  return { edits, met, gone, moved: moved?.id ?? null }
+}
+
+/**
+ * WRT-36: the parts of a split left with no way in, when the room had one: a part with no door,
+ * opening or open side on any of its walls, or both parts when their only ones are on the wall
+ * between them. An opening on a wall both parts list counts for the part it stands in.
+ */
+function sealedBy(ctx: Context, s: Seg, split: Split): string[] {
+  const open = (id: string): boolean => ctx.segs.get(id)?.wall.virtual === true
+  const ways = (part: Split['parts'][number], other: Split['parts'][number]): { any: boolean; out: boolean } => {
+    const side = Math.sign(across(s, middleOf(part.polygon)))
+    let out = false
+    for (const id of part.boundary) {
+      if (id === s.wall.id) continue
+      if (open(id)) out = true
+      const seg = ctx.segs.get(id)
+      for (const o of openingsOf(ctx.index, id)) {
+        if (!other.boundary.includes(id) || seg === undefined) out = true
+        else if (Math.sign(across(s, at(seg, o.offset + o.width / 2))) === side) out = true
+      }
+    }
+    return { any: out || open(s.wall.id) || openingsOf(ctx.index, s.wall.id).length > 0, out }
+  }
+  const [big, small] = split.parts
+  const a = ways(big, small)
+  const b = ways(small, big)
+  // A room with no way in before is still being drawn: its split seals nothing new.
+  if (!a.any && !b.any) return []
+  const sealed = [...(a.any ? [] : [split.ids[0]]), ...(b.any ? [] : [split.ids[1]])]
+  if (sealed.length > 0) return sealed
+  return a.out || b.out ? [] : [...split.ids]
 }
 
 /** Walls in a room that does not list them: `crosses-room` and `stands-in-room`. */
@@ -968,17 +1099,39 @@ function crossingFaults(ctx: Context, out: Map<string, WallFault>): void {
       }
       const id = `crosses-room:${s.wall.id}:${room.id}`
       const part = said(s.wall.virtual === true ? 'issue.part.Named.dividingLine' : 'issue.part.Named.wall', { id: name(s.wall.id) })
-      const fix = fixOf(
-        ctx,
-        said('issue.wall/crosses-room.fix', {
-          room: name(room.id),
-          a: name(split.ids[0]),
-          areaA: num(areaText(split.areas[0])),
-          b: name(split.ids[1]),
-          areaB: num(areaText(split.areas[1]))
-        }),
-        split.edits
-      )
+      // WRT-36: a wall across a corner at an angle is the room's new face; the corner goes outside.
+      const cut = cornerCut(ctx, room, s, split)
+      const cutFix =
+        cut === null
+          ? null
+          : fixOf(
+              ctx,
+              said('issue.wall/crosses-room.corner', {
+                room: name(room.id),
+                area: num(areaText(split.areas[0])),
+                walls: list(cut.met.map(name)),
+                gone: cut.gone.length === 0 ? '' : said('issue.wall/crosses-room.corner.gone', { walls: list(cut.gone.map(name)) }),
+                moved: cut.moved === null ? '' : said('issue.wall/crosses-room.corner.moved', { opening: name(cut.moved) })
+              }),
+              cut.edits
+            )
+      // WRT-36: a split that leaves a part with no way in says so, and tidy makes it only when asked by its id.
+      const seals = cutFix === null ? sealedBy(ctx, s, split) : []
+      const splitSaid = said('issue.wall/crosses-room.fix', {
+        room: name(room.id),
+        a: name(split.ids[0]),
+        areaA: num(areaText(split.areas[0])),
+        b: name(split.ids[1]),
+        areaB: num(areaText(split.areas[1])),
+        seals:
+          seals.length === 0
+            ? ''
+            : seals.length === 1
+              ? said('issue.wall/crosses-room.seals.one', { room: name(seals[0]!) })
+              : said('issue.wall/crosses-room.seals.between', { a: name(seals[0]!), b: name(seals[1]!) })
+      })
+      const splitFix = cutFix === null ? fixOf(ctx, splitSaid, split.edits) : null
+      const fix = cutFix ?? (splitFix === null ? null : seals.length === 0 ? splitFix : { ...splitFix, seals })
       out.set(id, {
         id,
         kind: 'crosses-room',
@@ -1096,9 +1249,15 @@ export function tidyPlan<P extends EditablePlan>(
 ): TidyResult<P> {
   const find = (p: FloorPlan): readonly WallFault[] => wallFaults(p)
   let current = plan
-  const wanted = ids ?? find(parse(plan)).filter((f) => f.fix !== null).map((f) => f.id)
+  const offered = ids === undefined ? find(parse(plan)).filter((f) => f.fix !== null) : []
+  // WRT-36: a fix that would seal a room in is made only when named.
+  const sealing = offered.filter((f) => (f.fix!.seals?.length ?? 0) > 0)
+  const wanted = ids ?? offered.filter((f) => !sealing.includes(f)).map((f) => f.id)
   const applied: WallFault[] = []
-  const skipped: { id: string; why: string }[] = []
+  const skipped: { id: string; why: string }[] = sealing.map((f) => ({
+    id: f.id,
+    why: english(said('issue.wall/fault.sealsSkipped', { rooms: list(f.fix!.seals!.map(name)), id: name(f.id) }))
+  }))
   for (const id of wanted) {
     const fault = find(parse(current)).find((f) => f.id === id)
     if (fault === undefined) {

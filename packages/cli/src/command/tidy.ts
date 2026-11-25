@@ -59,6 +59,8 @@ export interface TidyFault {
   readonly message: string
   /** The fix in words, or null when none is offered. */
   readonly fix: string | null
+  /** WRT-36: the rooms the fix would leave with no way in; `--apply all` leaves such a fix. */
+  readonly seals: readonly string[]
 }
 
 export interface TidyList {
@@ -85,6 +87,7 @@ function shown(fault: WallFault): TidyFault {
     rooms: fault.rooms,
     message: fault.message,
     fix: fault.fix?.says ?? null,
+    seals: fault.fix?.seals ?? [],
   }
 }
 

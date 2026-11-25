@@ -43,7 +43,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid diff [<plan>] [--since <name>\|git\|phase] [--rooms <ids>] [--show all\|summary\|changes\|issues] [--picture <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
 | `grid occupancy [<plan>]` | Lists who sits where, by room, from the occupancy file beside the plan; no export carries it (see below) |
 | `grid preview [<plan>] [--port <n>]` | Serves the preview as a page on this computer only: the plan in 2D and 3D, the part you click shared with the agent, the room it frames and the parts it picks out; it draws again within 2 s of the plan changing (see below) |
-| `grid serve` | Starts the tool server on standard input and output, with the 34 tools in [the tool server](tool-server.md) |
+| `grid serve` | Starts the tool server on standard input and output, with the 35 tools in [the tool server](tool-server.md) |
 | `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`) |
 
 A plan is told by what it holds: a list of walls, rooms or openings, or the stamp Grid writes. `grid write` never
@@ -581,6 +581,17 @@ only after it was tried and left every room it touches with an outline. `grid ti
 again before each fix, and one an earlier fix took care of is skipped and said so. The plan file
 is changed as read, keys Grid does not know included; `--out <file.json>` writes the tidied plan
 there instead. `--json` prints the list or what was applied as JSON.
+
+A solid wall drawn across a corner of a room at an angle, which the room does not list, with the
+room's own outside walls round the corner (a chamfered corner, a corner entrance), is read as the
+room's new face: its fix takes the corner beyond it outside. The room lists the wall in place of
+the corner, the two walls it meets end on it, a wall wholly beyond it is taken out, and a door or
+window on the corner moves onto it, in its middle; a door already on it stays where it is. A
+wall square to the walls it meets, or one with another room round the corner, is a split of the
+room, as before. A split that would leave a part with no way in (no door, opening or open side
+on any of its walls), or two parts whose only way in is the door between them, says so in its
+fix, and its JSON lists those rooms under `seals`: `--apply all` leaves it, skipped with why, and
+it is made only when its id is named. On the tool server the same is `grid_tidy`.
 
 ## Units on the drawing: `grid draw --units`
 

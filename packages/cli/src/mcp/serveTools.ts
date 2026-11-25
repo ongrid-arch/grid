@@ -27,6 +27,7 @@ import { EDIT_TOOLS } from './editTools'
 import { projectTool } from './projectTool'
 import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
+import { tidyTool } from './tidyTool'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -53,6 +54,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   writeBriefTool,
   ...WRITE_TOOLS.filter((tool) => tool.hint === 'change-plan'),
   ...EDIT_TOOLS,
+  // WRT-36: grid tidy's fixes where walls meet, the last of the changes to the building.
+  tidyTool,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
   saveViewTool,
 ]

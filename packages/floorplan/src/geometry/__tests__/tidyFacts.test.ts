@@ -49,7 +49,8 @@ describe('tidy keeps the facts (CNT-9)', () => {
       ],
       openings: [{ id: 'bed-door', wall: 'mid', type: 'door', offset: 1, width: 0.9, height: 2.1 }],
     })
-    const tidied = tidyPlan(plan).plan
+    // WRT-36: the far half has no door, so the split is made only when named.
+    const tidied = tidyPlan(plan, ['crosses-room:stray:bed']).plan
     const bed = tidied.rooms.find((r) => r.id === 'bed')!
     const part = tidied.rooms.find((r) => r.id === 'bed-2')!
     expect(bed.properties).toEqual({ department: 'Sales', 'head count': 2 })
