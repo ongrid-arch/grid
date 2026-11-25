@@ -37,6 +37,7 @@ import { surveyPlan, type Survey } from '../quantities/survey'
 import { LANGUAGE_ARG, openingBetween } from './readTools'
 import { say } from '@ongrid/floorplan/messages'
 import { briefAnswer } from '../brief/answer'
+import { SEEN_NEW_OUTPUT, seenBefore, seenMadeNew, seenNewData, seenNewLines } from '../edit/seen'
 import { BRIEF_OUTPUT } from './briefTool'
 import { writeLayout } from '../brief/layout'
 import { TAPED_OUTPUT, TAPED_ROWS_IN_AN_EDIT, tapedRows, tapedTable } from '../taped/table'
@@ -273,6 +274,8 @@ export const EDIT_OUTPUT = objectSchema({
   brief: BRIEF_OUTPUT,
   // HND-11: each length taped on site against the plan as it now is; empty when it keeps none.
   taped: TAPED_OUTPUT,
+  // MSG-29: each note set aside as seen that the change made new again; empty when none did.
+  seenNew: SEEN_NEW_OUTPUT,
 })
 
 /** Applies a patch to the plan file, or refuses it with nothing written. */
@@ -300,6 +303,8 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   const after = planAfter(patch)
   const fresh = newProblems(loaded.plan, after)
   if (fresh.length > 0) throw new ToolRefusal(`That change would break the drawing, so nothing was written: ${problemsText(fresh)}`)
+  // MSG-29: the seen marks beside the plan, against the plan as it is, when the change replaces it.
+  const marked = project.resolve(out) === project.resolve(file) ? seenBefore(project, file) : null
   let raw: Record<string, unknown>
   try {
     // WRT-7: a file in another unit is written back in metres, the only unit Grid writes.
@@ -338,6 +343,7 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   // HND-11 (lab WR-14): the taped lengths against the plan as it now is.
   const taped = tapedRows(after)
   // WRT-58: a use word read as another use (`gym` as `sport`) is said, so the person sees what it became.
+  const seenNew = seenMadeNew(marked, project, file)
   const usesSaid = usesRead(args).map((read) => english(sentence('edit.use.read', { word: nameOf(read.word), use: read.use })))
   const text = [
     ...patch.said,
@@ -347,11 +353,12 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
     verdict,
     ...doors,
     `To look at: ${toLookAt.before} → ${toLookAt.after}, of them problems in the drawing ${drawingProblems.before} → ${drawingProblems.after}. grid_check lists them.`,
+    ...seenNewLines(seenNew),
     ...brief.text,
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),
     `Wrote ${quoted(written)}.`,
   ].join('\n')
-  return { text, data: { written, changed: [...patch.said], verdict, drawingProblems, toLookAt, doors, guessed, couldNotKeep, brief: brief.data, taped, ...(patch.extra ?? {}) } }
+  return { text, data: { written, changed: [...patch.said], verdict, drawingProblems, toLookAt, doors, guessed, couldNotKeep, brief: brief.data, taped, seenNew: seenNewData(seenNew), ...(patch.extra ?? {}) } }
 }
 
 const changeOpeningTool: GridTool = {

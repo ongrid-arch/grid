@@ -385,6 +385,11 @@ about the plan), the note is listed as new again, saying it was seen before and 
 `--reason` and `--by` go with `--seen` only. Who marked it is the name or role you give: it is
 kept only in the marks file, which no export, sheet or drawing reads.
 
+A change that brings a seen note back says so (MSG-29): `grid edit` and `grid diff` name each
+note that held before and is new again after, with its number in the report counted for the
+country the note was marked with (a mark made with `--country` keeps it), who marked it and which
+of its parts changed.
+
 ## Describing a plan: `grid describe`
 
 `grid describe` is a short account of the plan, for an agent to check its own work without

@@ -92,6 +92,11 @@ export interface SeenMark {
   readonly by: string
   /** When, as an ISO date and time. */
   readonly at: string
+  /**
+   * MSG-29: the country the check was given when the note was marked, as its code; left out when
+   * the check counted by the plan's own place. A change counts the note again with it.
+   */
+  readonly country?: string
 }
 
 export interface SeenFile {
@@ -306,6 +311,40 @@ export function seenStates(source: SeenSource, lines: readonly ResultLine[], mar
   })
 }
 
+/** MSG-29: one version of the plan, and its report's lines counted for a country (undefined: the plan's own place). */
+export interface SeenVersion {
+  readonly source: SeenSource
+  readonly lines: (country: string | undefined) => readonly ResultLine[]
+}
+
+/** MSG-29: a note seen on the version before a change whose mark no longer holds after it. */
+export interface MadeNew {
+  /** Its number in the report after the change, counted with the mark's country. */
+  readonly number: number
+  readonly line: ResultLine
+  readonly mark: SeenMark
+  readonly changed: readonly MarkedPart[]
+}
+
+/**
+ * MSG-29: the notes that were seen before and are new again after, each counted with the same
+ * country as its mark, by the comparison a check makes (`seenStates`). A note the change took
+ * away is not among them: it is gone, not new again. In the order of the countries' first marks,
+ * then of the notes' numbers.
+ */
+export function madeNewAgain(marks: readonly SeenMark[], before: SeenVersion, after: SeenVersion): MadeNew[] {
+  const countries = [...new Set(marks.map((m) => m.country))]
+  return countries.flatMap((country) => {
+    const own = marks.filter((m) => m.country === country)
+    const held = new Set(seenStates(before.source, before.lines(country), own).flatMap((s) => (s.state === 'seen' ? [s.mark] : [])))
+    if (held.size === 0) return []
+    const lines = after.lines(country)
+    return seenStates(after.source, lines, own).flatMap((state, index): MadeNew[] =>
+      state.state === 'back' && held.has(state.mark) ? [{ number: index + 1, line: lines[index]!, mark: state.mark, changed: state.changed }] : [],
+    )
+  })
+}
+
 /** A part as a line names it: `room "bed2"`, `the plan`. */
 export function partText(part: Pick<MarkedPart, 'kind' | 'id'>): string {
   if (part.kind === 'plan') return t('report.thing.plan')
@@ -364,7 +403,7 @@ function marksOf(raw: unknown): unknown[] {
 function readMark(mark: unknown, i: number): SeenMark {
   const where = `marks[${i}]`
   if (!isObject(mark)) throw new SeenRefused(`${where} must be an object`)
-  onlyKeys(mark, ['code', 'thing', 'also', 'parts', 'reason', 'message', 'by', 'at'], where)
+  onlyKeys(mark, ['code', 'thing', 'also', 'parts', 'reason', 'message', 'by', 'at', 'country'], where)
   const code = text(mark['code'], `${where}.code`, 64, 'id')
   const thing = mark['thing']
   if (!isObject(thing) || !THING_KINDS.includes(thing['kind'] as ThingKind) || typeof thing['id'] !== 'string') throw new SeenRefused(`${where}.thing must be an object with a kind and an id`)
@@ -389,6 +428,7 @@ function readMark(mark: unknown, i: number): SeenMark {
     ...(mark['message'] === undefined ? {} : { message: text(mark['message'], `${where}.message`, MESSAGE_MAX) }),
     by: text(mark['by'], `${where}.by`, BY_MAX),
     at,
+    ...(mark['country'] === undefined ? {} : { country: text(mark['country'], `${where}.country`, 64, 'id') }),
   }
 }
 
@@ -477,6 +517,8 @@ export interface MarkRequest {
   readonly by: string
   /** When; now when left out. */
   readonly at?: string
+  /** MSG-29: the country the check was given, when it was given one. */
+  readonly country?: string
 }
 
 /**
@@ -501,6 +543,7 @@ export function markSeen(project: Project, planFile: string, source: SeenSource,
     ...(shared(line, lines) ? { message: line.message } : {}),
     by: request.by,
     at: request.at ?? new Date().toISOString(),
+    ...(request.country === undefined ? {} : { country: request.country }),
   }
   const marks = [...read.marks.filter((m) => !sameNote(m, line) && !earlierNote(m, line)), mark]
   writeSeen(project, planFile, marks)

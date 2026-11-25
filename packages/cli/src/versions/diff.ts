@@ -16,6 +16,8 @@ import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { loadPlan, loadPlanText, type LoadedPlan } from '../command/plan'
 import { roomsAsTheyStood } from '../edit/phases'
+import { seenBefore, seenMadeNew, seenNewData, seenNewLines } from '../edit/seen'
+import type { MadeNew } from '../seen/marks'
 import { GitUnread, lastCommitted } from './git'
 import { DEFAULT_MARKER, findMarker, GIT_VERSION, MarkerRefused, PHASE_VERSION, readMarkers } from './markers'
 
@@ -37,6 +39,8 @@ export interface PlanDiffRun {
   readonly earlier: LoadedPlan
   readonly later: LoadedPlan
   readonly since: EarlierVersion
+  /** MSG-29: the notes seen on the earlier version that are new again now; none for the phases. */
+  readonly seenNew: readonly MadeNew[]
 }
 
 /** The plan file against the version `since` names: a marker, `git`, or the default. */
@@ -66,7 +70,9 @@ export function diffSince(project: Project, planFile: string, since: string | un
   // VEW-15: each version's file text, as `grid check` reads it, so the fields the reading adds are no notes.
   const notes = { before: inspectPlan(earlier.text ?? earlier.plan).lines, after: inspectPlan(later.text ?? later.plan).lines }
   const comparison = compareBuildings(earlier.plan, later.plan, { ...(rooms === undefined ? {} : { rooms }), notes })
-  return { comparison, earlier, later, since: version }
+  // MSG-29: the marks beside the plan, held on the earlier version and not on the plan now.
+  const seenNew = seenMadeNew(seenBefore(project, planFile, earlier), project, planFile, later)
+  return { comparison, earlier, later, since: version, seenNew }
 }
 
 /**
@@ -85,7 +91,7 @@ function diffByPhase(loaded: LoadedPlan, rooms?: readonly string[]): PlanDiffRun
   // MSG-25: a pair here is one part before and after its work (a widened door, a room kept as it
   // stood), so its phase is the work, not a change of phase.
   const comparison = compareBuildings(before, after, { ...(rooms === undefined ? {} : { rooms }), phases: false })
-  return { comparison, earlier: { ...loaded, plan: before }, later: { ...loaded, plan: after }, since: { kind: 'phase' } }
+  return { comparison, earlier: { ...loaded, plan: before }, later: { ...loaded, plan: after }, since: { kind: 'phase' }, seenNew: [] }
 }
 
 export function sinceWords(since: EarlierVersion): string {
@@ -107,6 +113,10 @@ export function diffText(run: PlanDiffRun, show: DiffShow): string {
     }
     lines.push(`Issues (${c.issues.length}):`)
     c.issues.forEach((issue, i) => lines.push(`  ${i + 1}. ${issue.message}`))
+  }
+  // MSG-29: after the issues, the seen notes that came back.
+  const seen = (): void => {
+    lines.push(...seenNewLines(run.seenNew))
   }
   const summary = (): void => {
     lines.push(`Verdict: ${c.verdict}`)
@@ -137,9 +147,12 @@ export function diffText(run: PlanDiffRun, show: DiffShow): string {
       for (const line of c.stayed.slice(0, DIFF_LINES_SHOWN)) lines.push(`  ${line.text}`)
     }
   }
-  if (show === 'issues') issues()
-  else {
+  if (show === 'issues') {
     issues()
+    seen()
+  } else {
+    issues()
+    seen()
     summary()
     if (show !== 'summary') changes()
   }
@@ -170,5 +183,6 @@ export function diffData(run: PlanDiffRun, show: DiffShow): Record<string, unkno
     stayed: show === 'issues' || show === 'summary' ? [] : c.stayed.map((s) => ({ opening: s.opening, text: s.text })),
     movedWith: show === 'issues' || show === 'summary' ? [] : c.movedWith.map((m) => ({ opening: m.opening, with: m.with, by: [...m.by], text: m.text })),
     scope: { checked: c.scope.checked, rooms: [...c.scope.rooms], outside: c.scope.outside.map((l) => l.text) },
+    seenNew: seenNewData(run.seenNew),
   }
 }

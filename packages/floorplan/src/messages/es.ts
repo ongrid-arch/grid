@@ -2571,6 +2571,11 @@ export const es: Messages = {
   'edit.square.curvedLeft.many': 'Los muros curvos {walls} se dejan como están: escuadrar solo gira muros rectos.',
   'edit.square.onlyCurved': 'Solo hay muros curvos marcados para escuadrar ({walls}), y escuadrar solo gira muros rectos: nada se movería.',
   'edit.use.read': 'Se leyó {word} como el uso {use}.',
+  // MSG-29: a seen note a change or a diff made new again.
+  'edit.seenNew': 'La nota vista {number} vuelve a ser nueva{counted}: {note} Se vio {by}; {parts} ha cambiado desde entonces.',
+  'edit.seenNew.counted': ', contada para {country} como cuando se marcó',
+  'edit.seenNew.more.one': 'Una nota vista más vuelve a ser nueva; los datos la listan.',
+  'edit.seenNew.more.many': '{count} notas vistas más vuelven a ser nuevas; los datos las listan.',
   'edit.stretch.carried': '{parts} más allá de la línea se movieron con ella.',
   'edit.stretch.count.column.one': '{n} pilar',
   'edit.stretch.count.column.many': '{n} pilares',

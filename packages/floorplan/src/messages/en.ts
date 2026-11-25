@@ -2440,6 +2440,11 @@ export const en = {
   // WRT-24: what a stretch carries beyond its line with the walls, and what stays behind.
   // WRT-58: a use word an edit took, read as the use it means.
   'edit.use.read': 'Read {word} as the use {use}.',
+  // MSG-29: a seen note a change or a diff made new again.
+  'edit.seenNew': 'Seen note {number} is new again{counted}: {note} It was seen {by}; {parts} changed since.',
+  'edit.seenNew.counted': ', counted for {country} as when it was marked',
+  'edit.seenNew.more.one': 'One more seen note is new again; the data lists it.',
+  'edit.seenNew.more.many': '{count} more seen notes are new again; the data lists them.',
   'edit.stretch.carried': '{parts} beyond the line moved with it.',
   'edit.stretch.count.column.one': '{n} column',
   'edit.stretch.count.column.many': '{n} columns',
