@@ -21,17 +21,32 @@
     `roomsWallWidest` (0.6 m) of the end. An end at a room's corner lies half the meeting
     wall's thickness from its centre line, so walls thicker than 1.2 m never met. The reach is
     now the larger of `roomsWallWidest` and half the meeting wall's thickness (measured along
-    the end's direction), and along the meeting wall the larger of `roomsWallWidest` and half
-    the wall's own thickness. No new tolerance: both figures come from the walls themselves.
+    the end's direction) plus `gap`, and along the meeting wall the larger of `roomsWallWidest`
+    and half the wall's own thickness plus `gap`. Only for walls at a real angle
+    (`nearlyParallel`) and never further than a joined corner may reach (`mitreReach` half
+    thicknesses): a wall nearly in line would otherwise be met kilometres away. No new
+    tolerance.
+  - A wall "holds" the end (WRT-17) when the end stands in its body within `gap`, not a
+    millionth of a metre: a corner written to the millimetre (a polygon room) still holds it.
   - When the end stands in a solid wall's body and on a dividing line both, it ends in the
     solid wall: a dividing line bounds two rooms and is not what an outside wall turns into.
+  - Of two walls about as near (within `gap`), a wall of one of the end's own rooms: where a
+    room stands over another room's wall, its own walls still close its own corner. Otherwise the
+    nearer one is kept, as before, so thin-walled plans read back as they were.
   - `covered`, which decides whether two stretches on one line are one wall seen across the end
     of a crossing wall, reaches a crossing wall as far as half the line's own thickness too, so
     a thick outside wall along a row of rooms stays one wall.
+- `packages/floorplan/src/geometry/wallFaults.ts` (outside the card's area, kept small): at the
+  open inside corner the two outside walls now meet at their centre lines, and the dividing line
+  stops at the rooms' corner (ARE-28), so the room's straight side has a stretch between the
+  line's end and the wall's end. The `gap` fault named it, with a fix that would bring the
+  mismatch back. A gap that the body of a wall across the side closes, where one of the side's
+  pieces ends in that wall, is no longer a gap (`cornerCovers`). The writer cannot avoid it:
+  any wall that ends on the open line is lengthened by `gap` in the space check and runs into
+  the room beyond, and running the line on into the wall would undo ARE-28.
 - `joints.ts` and the space check are left as they are: once the walls meet at their centre
   lines, the corner fill the check already makes closes the corner.
-- Decisions: the dividing line loses to a solid wall only where both hold the end; elsewhere
-  the nearer one is kept, as before.
+- `docs/rooms-first.md` and the `wall/gap` row in `docs/plan-file.md` say so.
 
 ## Done
 
@@ -39,6 +54,7 @@
   walls and a 3 m west front, an aisle open to a transept, and a row of rooms along the thick
   front: no `room/space-mismatch` and no wall fault from `validatePlan`, each wall end on the
   centre line of the wall it meets, the front one wall. It fails before the change.
-- The rooms tests and the lab's eight buildings (`buildings.test.ts`) unchanged.
+- The rooms tests, the lab's eight buildings (`buildings.test.ts`) and the school read back
+  (`rooms.test.ts`) unchanged; the wall-fault tests still find real gaps.
 - `npm run typecheck`, `npm run lint`, `npx vitest run packages/floorplan`, the own-words and
   tolerance tests, `npm run scoreboard` not worse.

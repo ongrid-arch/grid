@@ -1510,7 +1510,7 @@ slip leaves behind at the wall, with the change that would fix it. Each is a war
 | Code | What it says |
 |---|---|
 | `wall/short` | At a corner of a room, one of its two walls stops short of where their lines cross: the gap, both points and the move that closes it |
-| `wall/gap` | The pieces of one straight side of a room leave a gap between their ends, in whatever order they are listed |
+| `wall/gap` | The pieces of one straight side of a room leave a gap between their ends, in whatever order they are listed. A gap that the body of a wall across the side closes, where one of the pieces ends in it (the corner of two outside walls at the end of a dividing line), is no gap |
 | `wall/overrun` | A wall runs on past the last corner any room makes on it, and its end meets no other wall. A wall longer than one room, or a T-junction, is normal and gets nothing |
 | `wall/duplicate` | Two walls, or two dividing lines, on one line lie on top of each other: the drawing and every export show that stretch twice |
 | `wall/line-on-wall` | A dividing line lies on top of a solid wall, so that stretch is both open and solid |

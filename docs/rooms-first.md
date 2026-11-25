@@ -110,6 +110,9 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   ```
 - What Grid writes passes its own check (WRT-17). It reads the plan back as `grid check` will
   before writing it, so the walls it works out close every corner and join only where walls meet.
+  Each wall end reaches the centre line of the wall it meets however thick the two are (a 1.8 m
+  wall at a 3 m front, WRT-39), and where two rooms open to each other and the outside turns a
+  corner, the two outside walls meet each other there, not the open line.
   Two doors or windows that share a stretch of one wall, a window over a door too, are refused
   (`rooms/openings-overlap`), as is a door or window that would run off its wall
   (`rooms/opening-fit`) or anything else the check would leave out (`rooms/check`, in the check's
