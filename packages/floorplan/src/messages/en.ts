@@ -1978,6 +1978,21 @@ export const en = {
   'diff.floor.metres': '{value} m',
   'diff.floor.notStated': 'not stated',
   'compare.same.floors': '{after} has the walls, openings and rooms of {before}, each in its place, but {changes}.',
+  // WRT-29: an opening that moved, among its changes and in the verdict.
+  'compare.opening.moved.along': 'moved {by} m along its wall',
+  'compare.opening.moved.with': 'moved {by} m with its wall',
+  'compare.opening.moved': 'moved {by} m',
+  'compare.opening.was.door': 'was a door',
+  'compare.opening.was.window': 'was a window',
+  'compare.opening.was.opening': 'was an opening',
+  'compare.openings.moved.one': '{type} {id} {how}',
+  'compare.openings.moved.many': '{count} {kind} moved {range} m{how}',
+  'compare.openings.how.along': ' along their walls',
+  'compare.openings.how.with': ' with their walls',
+  'compare.word.doors': 'doors',
+  'compare.word.windows': 'windows',
+  'compare.word.openings': 'openings',
+  'compare.range': '{from} to {to}',
 
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Floor plan with {count} rooms',
