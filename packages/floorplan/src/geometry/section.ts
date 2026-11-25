@@ -62,7 +62,7 @@ import { roomFloorOffset } from './steps'
 import { roomZones } from './zones'
 import { planWallSides, stretchAt } from './exposure'
 import { planMarks } from './marks'
-import { cutOutline, piecesAsRings, ringOf, union } from './polygons'
+import { cutOutline, inPieces, piecesAsRings, ringOf, union } from './polygons'
 import { limit, tolerance } from './tolerances'
 import { metresText } from './rounding'
 import { METRES, showLength, type Display } from '../types/units'
@@ -144,9 +144,17 @@ export interface SectionRoom {
   readonly to: number
   /** Its floor's level: its storey's, and its own offset (LVL-7). */
   readonly floorLevel: number
-  /** Floor to ceiling: its stated `height` (ARE-10), else up to the slab or roof over its storey. */
+  /**
+   * Floor to ceiling: its stated `height` (ARE-10), else up to the slab or roof over its storey;
+   * under a void, up through it to what is over the void (VEW-34).
+   */
   readonly height: number
   readonly heightStated: boolean
+  /**
+   * VEW-34: the rooms marked as voids it rises through, lowest first, when it states no height and
+   * a void is over most of it on the line; `from` and `to` are then where it stands under them.
+   */
+  readonly through?: readonly string[]
 }
 
 export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'wall-top' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers' | 'waist'
@@ -309,6 +317,67 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   const squareFace = tolerance('squareCorner')
   const none = tolerance('noLength')
 
+  // VEW-34: what stands over a point of the plan: each floor's slab (its body and sunken pieces)
+  // and the voids it is open over.
+  const slabsOver = envelope.floors.flatMap((shell) =>
+    shell.slab === null
+      ? []
+      : [{ floor: shell.floor, top: shell.slab.top, pieces: [shell.slab.body, ...shell.slab.sunken.map((s) => s.pieces)], voids: shell.slab.openings.filter((o) => o.kind === 'void' && o.room !== null) }]
+  )
+  const pointAt = (x: number): Vec2 => add(frame.start, scale(frame.right, x))
+  /**
+   * A point of a floor rising through the voids over it: the lowest slab over it, above the
+   * floor, open there as a void, takes it to that floor's top, and on. Null when no void is over it.
+   */
+  const riseAt = (from: string, p: Vec2): { top: number; through: { floor: string; room: string }[] } | null => {
+    const through: { floor: string; room: string }[] = []
+    let floor = from
+    let top = 0
+    for (let step = 0; step < slabsOver.length; step++) {
+      const storey = elevations.floors.get(floor)
+      if (storey === undefined) break
+      const roof = envelope.floors.find((f) => f.floor === floor)?.roof
+      if (roof != null && inPieces(roof.pieces, p)) break
+      let over: (typeof slabsOver)[number] | null = null
+      for (const slab of slabsOver) {
+        if (slab.floor === floor || slab.top <= storey.floorLevel + tolerance('sameFloorLevel') || (over !== null && slab.top >= over.top)) continue
+        if (slab.pieces.some((pieces) => inPieces(pieces, p))) over = slab
+      }
+      const open = over?.voids.find((o) => inPieces(o.pieces, p))
+      const upper = over === null ? undefined : elevations.floors.get(over.floor)
+      if (over === null || open === undefined || upper === undefined) break
+      through.push({ floor: over.floor, room: open.room! })
+      floor = over.floor
+      top = upper.floorLevel + upper.clearHeight
+    }
+    return through.length === 0 ? null : { top, through }
+  }
+  /** The x where a void starts or ends along the line. */
+  const voidEnds = slabsOver.flatMap((slab) => slab.voids.flatMap((o) => inside(frame, ringsOf(o.pieces)).flat()))
+  /** Voids a room rises through: they are its space, and are not labelled of their own. */
+  const risenVoids = new Set<string>()
+  /**
+   * Where a room's stretch on the line stands under a void, when that is most of it: the longest
+   * run under the same voids, its top and the voids.
+   */
+  const underVoid = (floor: string, from: number, to: number): { from: number; to: number; top: number; through: { floor: string; room: string }[] } | null => {
+    if (voidEnds.length === 0) return null
+    const xs = [...new Set([from, to, ...voidEnds.filter((x) => x > from + none && x < to - none)])].sort((a, b) => a - b)
+    const runs: { from: number; to: number; top: number; through: { floor: string; room: string }[] }[] = []
+    let risen = 0
+    for (let i = 0; i + 1 < xs.length; i++) {
+      const rise = riseAt(floor, pointAt((xs[i]! + xs[i + 1]!) / 2))
+      if (rise === null) continue
+      risen += xs[i + 1]! - xs[i]!
+      const last = runs[runs.length - 1]
+      const same = last !== undefined && Math.abs(last.to - xs[i]!) <= none && Math.abs(last.top - rise.top) <= none && last.through.map((t) => t.room).join('\u0000') === rise.through.map((t) => t.room).join('\u0000')
+      if (same) last.to = xs[i + 1]!
+      else runs.push({ from: xs[i]!, to: xs[i + 1]!, ...rise })
+    }
+    if (!(risen * 2 > to - from)) return null
+    return runs.reduce((best, run) => (run.to - run.from > best.to - best.from ? run : best))
+  }
+
   /** A face of the plan, from a to b with its outside toward `outward`, standing between two heights. */
   const face = (kind: SectionFaceKind, id: string, floor: string, a: Vec2, b: Vec2, outward: Vec2, y0: number, y1: number, holes: readonly { readonly a: Vec2; readonly b: Vec2; readonly y0: number; readonly y1: number }[] = []): void => {
     if (!(y1 - y0 > none)) return
@@ -448,15 +517,19 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       }
       const [from, to] = stretches.reduce((best, s) => (s[1] - s[0] > best[1] - best[0] ? s : best))
       const own = room.height !== undefined && Number.isFinite(room.height) && room.height > 0
+      // VEW-34: a room that states no height, under a void over most of it, is as high as the space over the void.
+      const under = own || room.void === true ? null : underVoid(floor.id, from, to)
+      for (const t of under?.through ?? []) risenVoids.add(`${t.floor}\u0000${t.room}`)
       rooms.push({
         room: room.id,
         floor: floor.id,
         name: room.name,
-        from: snap(from),
-        to: snap(to),
+        from: snap(under?.from ?? from),
+        to: snap(under?.to ?? to),
         floorLevel: snap(base + offset),
-        height: snap(own ? room.height! : storey.clearHeight - offset),
-        heightStated: own
+        height: snap(own ? room.height! : under !== null ? under.top - base - offset : storey.clearHeight - offset),
+        heightStated: own,
+        ...(under === null ? {} : { through: under.through.map((t) => t.room) })
       })
     }
   }
@@ -769,13 +842,20 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   for (const level of levels) {
     if (level.source === 'worked-out') taken({ kind: 'level', ids: [level.floor], hatched: false, pieces: [] }, said('drawing.section.taken.level', { floor: nameOf(level.floor), level: num(levelText(level.level)) }))
   }
-  const unstatedRooms = rooms.filter((r) => !r.heightStated)
+  // VEW-34: a void a room below rises through is that room's space: it is not labelled.
+  const shownRooms = rooms.filter((r) => !risenVoids.has(`${r.floor}\u0000${r.room}`))
+  const unstatedRooms = shownRooms.filter((r) => !r.heightStated && r.through === undefined)
   if (unstatedRooms.length > 0) {
     const names = [...new Set(unstatedRooms.map((r) => r.name || r.room))]
     taken({ kind: 'room-height', ids: unstatedRooms.map((r) => r.room), hatched: false, pieces: [] }, said(`drawing.section.taken.roomHeight.${many(unstatedRooms.length)}`, { count: unstatedRooms.length, names: ids(names) }))
   }
+  const risenRooms = shownRooms.filter((r) => r.through !== undefined)
+  if (risenRooms.length > 0) {
+    const names = [...new Set(risenRooms.map((r) => r.name || r.room))]
+    taken({ kind: 'room-height', ids: risenRooms.map((r) => r.room), hatched: false, pieces: [] }, said(`drawing.section.taken.roomVoid.${many(risenRooms.length)}`, { count: risenRooms.length, names: ids(names) }))
+  }
   const stairRooms = new Set(laid.flatMap((s) => [s.lower.room, s.upper.room]).filter((r): r is string => r !== null))
-  const bare = rooms.filter((r) => plan.rooms.some((room) => room.id === r.room && floorOf(room) === r.floor && room.use === 'stair') && !stairRooms.has(r.room))
+  const bare = shownRooms.filter((r) => plan.rooms.some((room) => room.id === r.room && floorOf(room) === r.floor && room.use === 'stair') && !stairRooms.has(r.room))
   if (bare.length > 0) {
     taken({ kind: 'no-stair', ids: bare.map((r) => r.room), hatched: false, pieces: [] }, said(`drawing.section.taken.noStair.${many(bare.length)}`, { count: bare.length, ids: ids(bare.map((r) => r.room)) }))
   }
@@ -810,7 +890,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     ground: { level: ground.level, stated: ground.stated, segments },
     levels: levels.sort((a, b) => a.level - b.level),
     roofs,
-    rooms,
+    rooms: shownRooms,
     assumed: notes,
     bounds: boundsOf(points)
   }
