@@ -344,11 +344,15 @@ and every change outside them is named. A plan that is the earlier one mirrored 
 quarter or half round is said to be so first, in `turn` and in the line after "Compared with"
 (`The plan is mirrored left to right (east and west swap), and every room keeps its size.`), and
 compared from there, so a flipped flat is not every wall moved. Unless `picture: false`, and when something changed, it
-returns one picture of a floor: removed in red, added in green, changed rooms in amber with their
-old and new area, the rest pale. A plan written rooms first in both versions is compared by its
+returns one picture of a floor: removed in red, added in green, what changed in amber (a wall or
+opening at its new place with its old place outlined, a room with its old and new area), the
+rest pale. A plan written rooms first in both versions is compared by its
 rooms and openings: widening the living room of the two-bedroom flat by 30 cm reads as two
 lines, the living room's new size and the four rooms beside it moved 0.30 m as they were, and the
-kitchen door stayed where it was.
+kitchen door stayed where it was. The doors and windows that moved with their wall or room are
+in `movedWith` (`opening`, `with`: `wall` or `room`, `by`: east and north in metres, `text`) and
+the text, never among those that stayed: after a side of a room is moved 0.5 m east, its
+windows on that side moved with their wall, 0.50 m east.
 
 ## Use indicators: will it fit, can you turn, is the window blocked
 

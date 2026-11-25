@@ -145,7 +145,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/sheet/fonts.ts': [1, 'developer'],
   // SHT-6: nine more, the drawing's refusals, its answer line and its file note.
   'packages/cli/src/sheet/sheetFile.ts': [16, 'command'],
-  'packages/cli/src/versions/diff.ts': [10, 'notYet'],
+  // WRT-12: one more, the heading of the openings that moved with their wall or room.
+  'packages/cli/src/versions/diff.ts': [11, 'notYet'],
   'packages/cli/src/versions/git.ts': [19, 'notYet'],
   'packages/cli/src/versions/markers.ts': [19, 'notYet'],
   'packages/floorplan/src/geometry/areas.ts': [37, 'notYet'],
@@ -309,7 +310,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and WRT-16 3: write's refusals of rooms text with no rooms and of floors it would drop,
     // and its line on the floors dropped (command/write.ts) (odd/tasks/WRT-16.md).
     // and WRT-15 4: the room edits' receipts in a plan with phases (edit/phases.ts).
-    expect(left).toBeLessThanOrEqual(1598)
+    // describe's furniture heading (1) (reviews/CNT-20.md); and WRT-12 1: grid diff's heading for
+    // the openings that moved with their wall or room (versions/diff.ts).
+    expect(left).toBeLessThanOrEqual(1599)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
