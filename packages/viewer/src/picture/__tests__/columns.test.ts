@@ -46,4 +46,15 @@ describe('columns and a structural grid in the 2D picture', () => {
     const plain = parseFloorPlan({ ...warehouse(), grids: undefined, columns: undefined })
     expect(planToSvg(plain)).not.toMatch(/data-part="(column|grid)"/)
   })
+
+  it('draws a column in a wall as one outline with it: its line under the walls, its fill over them', () => {
+    const svg = planToSvg(warehouse())
+    const outlines = parts(svg, 'column-outline')
+    expect(outlines).toHaveLength(8)
+    for (const line of outlines) expect(line).toContain('fill="none"')
+    for (const column of parts(svg, 'column')) expect(column).toContain('stroke="none"')
+    const firstWall = svg.indexOf('data-part="wall"')
+    expect(svg.indexOf('data-part="column-outline"')).toBeLessThan(firstWall)
+    expect(svg.indexOf('data-part="column"')).toBeGreaterThan(svg.lastIndexOf('data-part="wall"'))
+  })
 })
