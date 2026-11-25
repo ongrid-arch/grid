@@ -429,7 +429,7 @@ function windowsBetweenRooms(later: FloorPlan, faces: { readonly base: ReturnTyp
     if (!('room' in first) || !('room' in second)) continue
     const before = was.sides.find((face) => !('room' in face))
     if (before === undefined) continue
-    const message = english(said('diff.issue.window.betweenRooms', {
+    const message = english(said('diff.issue.windowBetweenRooms', {
       opening: name(opening.id),
       first: roomName(first.room),
       second: roomName(second.room),

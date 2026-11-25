@@ -61,9 +61,9 @@ describe('the issues of a comparison by phase (CMD-31)', () => {
       ['door_joins_other_rooms', 'door-north'],
       ['window_between_rooms', 'win-old'],
     ])
-    const window = compared.issues.find((i) => i.code === 'window_between_rooms')!
-    expect(window.message).toBe('Window "win-old" now stands between "New classroom" and "Teaching hall"; before the work one side of it was outside')
-    expect(window.entities).toEqual([{ type: 'opening', id: 'win-old' }, { type: 'room', id: 'class-new' }, { type: 'room', id: 'hall' }])
+    const issue = compared.issues.find((i) => i.code === 'window_between_rooms')!
+    expect(issue.message).toBe('Window "win-old" now stands between "New classroom" and "Teaching hall"; before the work one side of it was outside')
+    expect(issue.entities).toEqual([{ type: 'opening', id: 'win-old' }, { type: 'room', id: 'class-new' }, { type: 'room', id: 'hall' }])
     expect(compared.verdict).toMatch(/^2 issues to look at first\./)
   })
 

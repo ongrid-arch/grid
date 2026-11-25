@@ -2296,7 +2296,7 @@ export const es: Messages = {
   'edit.opening.otherWall': 'Estaba entre {before}; ahora está entre {after}.',
 
   // --- Comparar un plano por fases: una ventana que la obra deja entre dos estancias (CMD-31)
-  'diff.issue.window.betweenRooms': 'La ventana {opening} queda ahora entre {first} y {second}; antes de la obra uno de sus lados era {before}',
+  'diff.issue.windowBetweenRooms': 'La ventana {opening} queda ahora entre {first} y {second}; antes de la obra uno de sus lados era {before}',
 
   // --- MSG-27: la volumetría y el solar comparados (`diff/massing.ts`)
   'diff.massing.east': '{distance} m al este',

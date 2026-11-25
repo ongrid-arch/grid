@@ -34,7 +34,7 @@ Comparing two versions (a marker or git) is as it was.
 
 ## Done
 
-- `packages/floorplan/src/geometry/__tests__/diff-building.test.ts`: the refurbishment plan by
+- `packages/floorplan/src/geometry/__tests__/diff-work.test.ts`: the refurbishment plan by
   phase has no door issue; a classroom block whose two rooms are knocked into one has no door
   issue for the doors into the old rooms, and an old outside window now facing a new classroom
   is the one `window_between_rooms` issue; the same plans compared without `work` keep the door
