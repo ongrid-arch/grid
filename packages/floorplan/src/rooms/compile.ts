@@ -359,6 +359,37 @@ function boxOf(polys: readonly (readonly P[])[]): Box {
 const compassOf = (n: P, table: Readonly<Record<string, P>> = COMPASS): string =>
   Object.keys(table).reduce((best, k) => (dot(n, table[k]!) > dot(n, table[best]!) ? k : best))
 
+/**
+ * WRT-52: how far a group of rooms' sizes, as written, run past the inside box `box` of them on
+ * each side, or null when one of them is sized to its inside faces (it has nothing taken off).
+ */
+function marginsOf(rooms: readonly RoomDraft[], box: Box): Margins | null {
+  if (rooms.length === 0 || rooms.some((r) => r.off === undefined)) return null
+  const sized = rooms.map((r) => [r.box[0] - r.off!.west, r.box[1] - r.off!.south, r.box[2] + r.off!.east, r.box[3] + r.off!.north] as const)
+  return {
+    west: box[0] - Math.min(...sized.map((b) => b[0])),
+    south: box[1] - Math.min(...sized.map((b) => b[1])),
+    east: Math.max(...sized.map((b) => b[2])) - box[2],
+    north: Math.max(...sized.map((b) => b[3])) - box[3],
+  }
+}
+
+/**
+ * WRT-52: what lining up a room or unit sized to centre lines or outside faces, placed `dir` of
+ * one sized the same way, moves it by along the side it is placed on, so the sizes as written
+ * line up and not the inside faces: a room beside a dividing line has nothing taken off there,
+ * one beside a wall half of it. None when either is sized to its inside faces.
+ */
+function alongSized(placed: Margins | null, ref: Margins | null, dir: string, alignIn: string | null): number {
+  if (placed === null || ref === null) return 0
+  const horiz = dir === 'east' || dir === 'west'
+  const align = alignIn ?? (horiz ? 'south' : 'west')
+  const [low, high] = horiz ? (['south', 'north'] as const) : (['west', 'east'] as const)
+  if (align === low) return placed[low] - ref[low]
+  if (align === high) return ref[high] - placed[high]
+  return (ref[high] - ref[low] - (placed[high] - placed[low])) / 2
+}
+
 const pairKey = (a: string, b: string): string => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`)
 /** WRT-41: the two rooms a `wall between <a> and <b> [<side>] ... virtual` line opens to each other, or null. */
 function openedPair(words: readonly string[]): string | null {
@@ -409,6 +440,16 @@ interface RoomDraft {
   risenFrom: string | null
   /** WRT-47: for a room sized to centre lines or outside faces and placed by its corner, the box its size measures to. */
   drawn?: Box
+  /** WRT-52: for a room sized to centre lines or outside faces, what its size took off each side for the walls round it. */
+  off?: Margins
+}
+
+/** WRT-52: how far a room's size, as written, runs past its inside faces on each side. */
+interface Margins {
+  west: number
+  east: number
+  south: number
+  north: number
 }
 
 interface OpeningLine {
@@ -1433,6 +1474,7 @@ class Compiler {
       if ((Wn !== null && Wn <= 0) || (Dn !== null && Dn <= 0)) {
         this.stop('rooms/size', at, `line ${at}: room '${id}' measured to the walls' ${used === 'centre' ? 'centre lines' : 'outside faces'} leaves nothing inside them. Write a bigger size, or its inside size.`)
       }
+      room.off = off
     }
     if (place.inside !== undefined) return this.placeInside(room, Wn, Dn, place, at, ctx)
     let box: Box
@@ -1449,17 +1491,21 @@ class Compiler {
       box = [x0 + off.west, y0 + off.south, x0 + off.west + Wn, y0 + off.south + Dn]
     } else if (place.dir !== undefined) {
       const { box: rbox, rooms: rrooms } = this.lookup(place.ref!, at, ctx)
-      let gap: number
       if (place.open) {
         if (rrooms.length !== 1) this.stop('rooms/syntax', at, `line ${at}: 'open' needs one room to be open to, and '${place.ref}' is a unit.`)
         this.floor().open.add(pairKey(id, rrooms[0]!.id))
-        gap = 0
-      } else {
-        gap = this.gapBetween(room, rrooms)
       }
       const ubox = place.until !== undefined ? this.lookup(place.until, at, ctx).box : null
       if ((Wn === null || Dn === null) && ubox === null) this.stop('rooms/size', at, `line ${at}: '*' means 'stretch this side'. Say how far with 'until <room>'.`)
-      box = this.relBox(Wn, Dn, place.dir, rbox, gap, place.align ?? null, place.shift ?? 0, ubox, at)
+      const dir = place.dir
+      const along = alongSized(room.off ?? null, marginsOf(rrooms, rbox), dir, place.align ?? null)
+      const boxAt = (gap: number): Box => this.relBox(Wn, Dn, dir, rbox, gap, place.align ?? null, (place.shift ?? 0) + along, ubox, at)
+      if (place.open) box = boxAt(0)
+      else {
+        // WRT-52: the rooms it will face, two by two; a dividing line between two of them takes no wall's width.
+        const touching = boxAt(0)
+        box = boxAt(this.gapAcross([{ room, box: touching }], touching, dir, rrooms) ?? this.gapBetween(room, rrooms))
+      }
     } else {
       const pool = ctx !== null ? ctx.local : fl.rooms
       if (pool.size > 0) {
@@ -1747,13 +1793,22 @@ class Compiler {
     if (place.at) box = [place.at[0], place.at[1], place.at[0] + W, place.at[1] + D]
     else if (place.dir !== undefined) {
       const { box: rbox, rooms: rrooms } = this.lookup(place.ref!, at, null)
+      const dir = place.dir
+      const along = alongSized(marginsOf(rooms, ub), marginsOf(rrooms, rbox), dir, place.align ?? null)
+      const boxAt = (gap: number): Box => this.relBox(W, D, dir, rbox, gap, place.align ?? null, (place.shift ?? 0) + along, null, at)
       let gap = place.gap
-      if (gap === undefined && this.unitOpensOnto(rooms, ub, place.dir, rrooms)) gap = 0
+      if (gap === undefined) {
+        // WRT-52: the unit's rooms and the rooms it is placed beside that face each other, two by two.
+        const touching = boxAt(0)
+        const moved = rooms.map((r) => ({ room: r, box: [r.box[0] + touching[0] - ub[0], r.box[1] + touching[1] - ub[1], r.box[2] + touching[0] - ub[0], r.box[3] + touching[1] - ub[1]] as Box }))
+        gap = this.gapAcross(moved, touching, dir, rrooms) ?? undefined
+      }
+      if (gap === undefined && this.unitOpensOnto(rooms, ub, dir, rrooms)) gap = 0
       if (gap === undefined) {
         const ts = [...rooms, ...rrooms].map((r) => r.wallsT).filter((t): t is number => t !== null)
         gap = ts.length > 0 ? Math.max(...ts) : fl.rule.inside
       }
-      box = this.relBox(W, D, place.dir, rbox, gap, place.align ?? null, place.shift ?? 0, null, at)
+      box = boxAt(gap)
     } else {
       if (fl.rooms.size > 0) this.stop('rooms/syntax', at, `line ${at}: say where unit '${label}' goes: 'at x,y' or '<north|south|east|west> of <room or unit>'.`)
       box = [0, 0, W, D]
@@ -1782,6 +1837,41 @@ class Compiler {
     const k = dx > 0 ? 0 : dx < 0 ? 2 : dy > 0 ? 1 : 3
     const facing = rooms.filter((r) => Math.abs(r.box[k] - ub[k]) < eps())
     return facing.length > 0 && facing.every((r) => beside.some((b) => fl.open.has(pairKey(r.id, b.id)) || fl.ahead.has(pairKey(r.id, b.id))))
+  }
+
+  /**
+   * WRT-52: how far what is placed `dir` of the rooms `beside` goes from them, worked out for the
+   * rooms that will face each other across the gap: on each side the ones with no room of their
+   * own in front of them, whose extents overlap along it. Each two need the wall between them (a
+   * dividing line or `open` takes none), less how far each stands back from its side's face; the
+   * gap is the most any two need. Null when no two face each other, or when none need a gap at
+   * all, which leaves the rule from before.
+   */
+  private gapAcross(placed: ReadonlyArray<{ room: RoomDraft; box: Box }>, own: Box, dir: string, beside: readonly RoomDraft[]): number | null {
+    const [dx, dy] = DIRS[dir]!
+    const horiz = dx !== 0
+    // The face of what is placed toward the rooms beside, and theirs toward it.
+    const k = dx > 0 ? 0 : dx < 0 ? 2 : dy > 0 ? 1 : 3
+    const kb = dx > 0 ? 2 : dx < 0 ? 0 : dy > 0 ? 3 : 1
+    const lo = horiz ? 1 : 0
+    const hi = horiz ? 3 : 2
+    const besideBox = boxOf(beside.map((r) => [[r.box[0], r.box[1]], [r.box[2], r.box[3]]] as P[]))
+    const overlap = (a: Box, b: Box): boolean => Math.min(a[hi], b[hi]) - Math.max(a[lo], b[lo]) > eps()
+    const front = <T>(items: ReadonlyArray<T>, boxOfItem: (x: T) => Box, back: (x: T) => number): Array<{ item: T; back: number }> =>
+      items
+        .map((item) => ({ item, back: back(item) }))
+        .filter((x, _, all) => !all.some((y) => y !== x && y.back < x.back - eps() && overlap(boxOfItem(y.item), boxOfItem(x.item))))
+    const ours = front(placed, (p) => p.box, (p) => Math.abs(p.box[k] - own[k]))
+    const theirs = front(beside, (b) => b.box, (b) => Math.abs(b.box[kb] - besideBox[kb]))
+    let most: number | null = null
+    for (const p of ours) {
+      for (const b of theirs) {
+        if (!overlap(p.item.box, b.item.box)) continue
+        const need = this.gapBetween(p.item.room, [b.item]) - p.back - b.back
+        if (most === null || need > most) most = need
+      }
+    }
+    return most === null || most < -eps() ? null : Math.max(0, most)
   }
 
   private readPlace(t: string[], at: number): { place: UnitPlace; params: Map<string, string>; mx: boolean; my: boolean } {
@@ -2306,6 +2396,13 @@ class Compiler {
         const [sa, sb] = [dot(sub(f.p, e.p), e.u), dot(sub(f.q, e.p), e.u)].sort((x, y) => x - y) as [number, number]
         const gap = Math.max(sa - e.L, 0 - sb)
         if (gap > maxT || gap < -eps()) continue
+        // WRT-52: two rooms sized to centre lines or outside faces whose sizes as written line up
+        // step only by what each took off for its own wall there (one beside a dividing line, one
+        // beside a wall): their sizes add up.
+        if (e.room.off !== undefined && f.room.off !== undefined) {
+          const side = compassOf(e.n, DIRS) as keyof Margins
+          if (Math.abs(dot(sub(f.p, e.p), e.n) + f.room.off[side] - e.room.off[side]) < tolerance('roomsFaceStep')) continue
+        }
         const key = `${e.room.id}|${f.room.id}|${d.toFixed(4)}`
         if (seen.has(key)) continue
         seen.add(key)

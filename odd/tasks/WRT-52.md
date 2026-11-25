@@ -36,6 +36,8 @@
   - Lining up (`align`) a room or unit sized to centre lines or outside faces, placed beside one
     sized the same way, lines up the sizes as written, not the inside faces, so a write-up room
     north of a lab with a dividing line to its east stands back half the wall on that side.
+  - Two such rooms whose sizes as written line up give no `rooms/out-of-line` note for the
+    half wall each took off (the write-up room's face stands back from the lab's dividing line).
   - A `gap` written on a place line still wins. Rooms placed by their corner or as polygons are
     not moved.
 - Decision: the gap is worked out pair by pair rather than from every room of a unit, since a
