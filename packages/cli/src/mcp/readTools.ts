@@ -938,6 +938,63 @@ function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined,
   return { text: lines.join('\n'), data }
 }
 
+/**
+ * CMD-17: what grid_schedule answers, one schema for each `of` and one for the grouped default,
+ * because the rows of each are a different thing (a room, an opening, a flat, a type, a room's
+ * finishes). A host that checks the answer against one schema for all of them refuses most.
+ */
+const FACTS_OUTPUT = { type: 'object' } as const
+const STATE_OUTPUT = { type: ['string', 'object'] } as const
+const roomTotal = objectSchema({ floor: NULLABLE_STRING, floorName: NULLABLE_STRING, rooms: NUMBER, area: NUMBER, state: STATE_OUTPUT }, ['floor', 'floorName', 'rooms', 'area'])
+const typeItem = objectSchema({ mark: STRING, id: STRING, floor: STRING, floorName: STRING, sill: NUMBER, handing: NULLABLE_STRING, between: listSchema(STRING) })
+const SCHEDULE_OUTPUT: Record<string, unknown> = {
+  type: 'object',
+  anyOf: [
+    // No `of`: the openings grouped by kind and size, and the fixtures.
+    objectSchema({
+      rows: listSchema(objectSchema({ type: STRING, kind: NULLABLE_STRING, width: NUMBER, height: NUMBER, sill: NUMBER, count: NUMBER, items: { type: 'array' } }, ['type', 'width', 'height', 'sill', 'count', 'items'])),
+      counts: objectSchema({ door: NUMBER, window: NUMBER, opening: NUMBER }),
+      rule: STRING,
+      // CNT-12: the fixtures by kind, with the room each stands in.
+      fixtures: listSchema(objectSchema({ id: STRING, kind: STRING, label: STRING, floor: STRING, room: NULLABLE_STRING, size: { type: 'array' }, height: NUMBER })),
+      fixtureCounts: { type: 'object' },
+    }, ['rows', 'counts', 'rule']),
+    // of=rooms (ARE-12): the room schedule and its totals.
+    objectSchema({
+      rows: listSchema(objectSchema({ number: NUMBER, roomNumber: NULLABLE_STRING, mark: STRING, id: STRING, name: STRING, use: NULLABLE_STRING, floor: STRING, floorName: STRING, area: NULLABLE_NUMBER, state: STATE_OUTPUT, height: NULLABLE_NUMBER, properties: FACTS_OUTPUT, flat: NULLABLE_STRING, zones: { type: 'array' } }, ['number', 'roomNumber', 'mark', 'id', 'name', 'use', 'floor', 'floorName', 'area', 'height', 'properties'])),
+      floors: listSchema(roomTotal),
+      total: roomTotal,
+      rules: listSchema(STRING),
+    }, ['rows', 'floors', 'total', 'rules']),
+    // of=openings (ARE-12): one row for each door, window and doorless opening.
+    objectSchema({
+      rows: listSchema(objectSchema({ number: NUMBER, mark: STRING, typeKey: NULLABLE_STRING, id: STRING, type: STRING, floor: STRING, floorName: STRING, width: NUMBER, height: NUMBER, sill: NUMBER, kind: NULLABLE_STRING, opens: { type: ['object', 'null'] }, handing: NULLABLE_STRING, handingSaid: { type: ['object', 'null'] }, between: listSchema(STRING), properties: FACTS_OUTPUT }, ['number', 'mark', 'id', 'type', 'floor', 'floorName', 'width', 'height', 'sill', 'between', 'properties'])),
+      counts: objectSchema({ door: NUMBER, window: NUMBER, opening: NUMBER }),
+      rule: STRING,
+    }, ['rows', 'counts', 'rule']),
+    // of=doors and of=windows (ARE-15): the types, each with the marks of its openings.
+    objectSchema({
+      rows: listSchema(objectSchema({ number: NUMBER, basis: STRING, key: STRING, typeId: NULLABLE_STRING, name: NULLABLE_STRING, material: NULLABLE_STRING, glazed: { type: ['boolean', 'null'] }, type: STRING, kind: NULLABLE_STRING, width: NUMBER, height: NUMBER, opens: { type: ['object', 'null'] }, sills: listSchema(NUMBER), count: NUMBER, marks: listSchema(STRING), items: listSchema(typeItem) }, ['number', 'basis', 'key', 'type', 'width', 'height', 'sills', 'count', 'marks', 'items'])),
+      count: NUMBER,
+      rule: STRING,
+    }, ['rows', 'count', 'rule']),
+    // of=flats (CNT-4): the flats and the mix by type.
+    objectSchema({
+      rows: listSchema(objectSchema({ number: NUMBER, id: STRING, name: STRING, type: NULLABLE_STRING, typeName: NULLABLE_STRING, mirrored: BOOLEAN, floors: listSchema(STRING), rooms: NUMBER, bedrooms: NUMBER, area: NUMBER, state: STATE_OUTPUT }, ['number', 'id', 'name', 'type', 'typeName', 'mirrored', 'floors', 'rooms', 'bedrooms', 'area'])),
+      mix: listSchema(objectSchema({ type: NULLABLE_STRING, name: STRING, flats: NUMBER, mirrored: NUMBER, bedrooms: NULLABLE_NUMBER, share: NUMBER, area: NUMBER, each: NULLABLE_NUMBER })),
+      total: objectSchema({ flats: NUMBER, area: NUMBER, state: STATE_OUTPUT }, ['flats', 'area']),
+      notInFlats: NUMBER,
+      rules: listSchema(STRING),
+    }, ['rows', 'mix', 'total', 'notInFlats', 'rules']),
+    // of=finishes (CNT-15): each room's and zone's finishes by surface, and each finish's total.
+    objectSchema({
+      rows: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, zoneOf: NULLABLE_STRING, surfaces: { type: 'object' } }, ['id', 'name', 'floor', 'zoneOf', 'surfaces'])),
+      totals: listSchema(objectSchema({ surface: STRING, finish: NULLABLE_STRING, unit: STRING, quantity: NUMBER, rooms: listSchema(STRING) })),
+      rule: STRING,
+    }, ['rows', 'totals', 'rule']),
+  ],
+}
+
 const scheduleTool: GridTool = {
   name: 'grid_schedule',
   title: 'Door and window schedule',
@@ -957,24 +1014,7 @@ const scheduleTool: GridTool = {
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
   },
-  outputSchema: objectSchema({
-    rows: listSchema(objectSchema({ type: STRING, width: NUMBER, height: NUMBER, sill: NUMBER, count: NUMBER, items: { type: 'array' } })),
-    counts: objectSchema({ door: NUMBER, window: NUMBER, opening: NUMBER }),
-    rule: STRING,
-    fixtures: listSchema(objectSchema({ id: STRING, kind: STRING, label: STRING, floor: STRING, room: { type: ['string', 'null'] }, size: { type: 'array' }, height: NUMBER })),
-    fixtureCounts: { type: 'object' },
-    // ARE-12, with of=rooms or of=openings: the schedule's rows, and for rooms each floor's total and all floors'.
-    floors: { type: 'array' },
-    total: { type: 'object' },
-    rules: listSchema(STRING),
-    // CNT-4, with of=flats: the mix by type, and the net area of the rooms in no flat.
-    mix: listSchema(objectSchema({ type: { type: ['string', 'null'] }, name: STRING, flats: NUMBER, mirrored: NUMBER, bedrooms: NULLABLE_NUMBER, share: NUMBER, area: NUMBER, each: NULLABLE_NUMBER })),
-    notInFlats: NUMBER,
-    // ARE-15, with of=doors or of=windows: how many of them, each counted once.
-    count: NUMBER,
-    // CNT-15, with of=finishes: each finish's total over the rooms listed.
-    totals: { type: 'array' },
-  }, ['rows']),
+  outputSchema: SCHEDULE_OUTPUT,
   run(args, context) {
     const { survey, floor } = load(context, args['plan'], args['floor'])
     const units = displayFor(args['units'], args['decimal'], survey.plan)
@@ -2275,7 +2315,7 @@ const checkTool: GridTool = {
     limits: listSchema(STRING),
     // COD-3: the place the figure checks were for, from Grid's list, or null when none is stated (then no figure was applied).
     place: { type: ['object', 'null'], properties: { country: STRING, name: STRING, from: STRING } },
-    // COD-3: with no place, how many lines the US figures would have given.
+    // COD-3: with no place, how many lines the US figures would have given; left out when a place is stated (CMD-17).
     withoutPlace: objectSchema({ usLines: { type: 'number' } }, ['usLines']),
     // HND-11: each length taped on site against the drawing; empty for a plan that keeps none.
     taped: TAPED_OUTPUT,
@@ -2296,7 +2336,7 @@ const checkTool: GridTool = {
         notes: { type: 'number' },
       }, ['measure', 'value', 'unit', 'name', 'note', 'uses', 'kinds', 'lookedAt', 'notes'])),
     }, ['heading', 'file', 'read', 'standards']),
-  }, ['label', 'language', 'count', 'problems', 'lines', 'seenCount', 'marksFile', 'marksProblem', 'findings', 'notChecked', 'drawing', 'coverage', 'limits', 'place', 'withoutPlace', 'taped']),
+  }, ['label', 'language', 'count', 'problems', 'lines', 'seenCount', 'marksFile', 'marksProblem', 'findings', 'notChecked', 'drawing', 'coverage', 'limits', 'place', 'taped']),
   async run(args, context) {
     const { loaded, project, file } = readPlan(context, args['plan'])
     const floor = floorArg(loaded.plan, args['floor'])
