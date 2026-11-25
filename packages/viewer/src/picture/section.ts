@@ -233,6 +233,27 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
     nodes.push(el('g', { 'data-part': 'section-cut-group' }, cut))
   }
 
+  // VEW-23: a glazed wall is cut as glass in a frame, never solid: paper inside a frame, a glass
+  // line along its long way, and a mullion where the cut ends (the frame's short sides).
+  const panes = section.glass.flatMap((part) => part.rings.map((ring) => ({ id: part.id, ring })))
+  if (panes.length > 0) {
+    const frame = look.wallOutline ?? look.ink
+    const glassNodes: SvgNode[] = panes.map(({ id, ring }) => {
+      const xs = ring.map((p) => p.x)
+      const ys = ring.map((p) => p.y)
+      const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+      const wide = x1 - x0 >= y1 - y0
+      const mid = wide ? lineOf({ x: x0, y: (y0 + y1) / 2 }, { x: x1, y: (y0 + y1) / 2 }) : lineOf({ x: (x0 + x1) / 2, y: y0 }, { x: (x0 + x1) / 2, y: y1 })
+      const mullions = wide ? lineOf({ x: x0, y: y0 }, { x: x0, y: y1 }) + lineOf({ x: x1, y: y0 }, { x: x1, y: y1 }) : lineOf({ x: x0, y: y0 }, { x: x1, y: y0 }) + lineOf({ x: x0, y: y1 }, { x: x1, y: y1 })
+      return el('g', { 'data-part': 'section-glass', 'data-id': id }, [
+        el('path', { 'data-part': 'section-glass-frame', d: pathOf(ring), fill: paper, stroke: frame, 'stroke-width': n(2 * lines.width('wallOutline')), 'stroke-linejoin': 'miter' }),
+        el('path', { 'data-part': 'section-glass-line', d: mid, fill: 'none', stroke: frame, 'stroke-width': n(lines.width('wallOutline')) }),
+        el('path', { 'data-part': 'section-mullion', d: mullions, fill: 'none', stroke: frame, 'stroke-width': n(2 * lines.width('wallOutline')) })
+      ])
+    })
+    nodes.push(el('g', { 'data-part': 'section-glass-group' }, glassNodes))
+  }
+
   // What was taken, hatched over the cut.
   const hatched = section.assumed.filter((a) => a.hatched && a.pieces.length > 0)
   if (hatched.length > 0) {

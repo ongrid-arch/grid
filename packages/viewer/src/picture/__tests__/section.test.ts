@@ -194,3 +194,26 @@ describe('levels in the plan\'s units (VEW-20)', () => {
     expect(elevation).toEqual(section)
   })
 })
+
+describe('a glazed wall type in section (VEW-23)', () => {
+  const plan = () => {
+    const p = structuredClone(twoFloorHouse())
+    p.types = { walls: [{ id: 'curtain', name: 'Curtain wall', thickness: 0.15, glazed: true }] }
+    for (const w of p.walls) if (w.id === 's1' || w.id === 's2') w.wallType = 'curtain'
+    return p
+  }
+  const line: SectionLine = { from: { x: 3, y: -2 }, to: { x: 3, y: 10 }, toward: 'left' }
+
+  it('draws the glazed wall as glass in a frame with mullions, not as solid', () => {
+    const svg = pictureToSvg(sectionPicture(plan(), line))
+    expect(tagsOf(svg, 'section-glass').length).toBeGreaterThan(0)
+    expect(tagsOf(svg, 'section-glass-frame').length).toBeGreaterThan(0)
+    expect(tagsOf(svg, 'section-glass-line').length).toBeGreaterThan(0)
+    expect(tagsOf(svg, 'section-mullion').length).toBeGreaterThan(0)
+  })
+
+  it('draws no glass where no wall is glazed', () => {
+    const svg = pictureToSvg(sectionPicture(twoFloorHouse(), line))
+    expect(tagsOf(svg, 'section-glass')).toEqual([])
+  })
+})
