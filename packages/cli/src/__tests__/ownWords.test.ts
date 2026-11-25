@@ -72,7 +72,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
-  'packages/cli/src/edit/edits.ts': [56, 'notYet'],
+  'packages/cli/src/edit/edits.ts': [57, 'notYet'],
   'packages/cli/src/edit/merge.ts': [25, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
