@@ -83,8 +83,9 @@ function diffByPhase(loaded: LoadedPlan, rooms?: readonly string[]): PlanDiffRun
   // WRT-15: a room an edit reshaped, kept as it stood, is read as the room it became.
   const before = roomsAsTheyStood(planInState(loaded.plan, 'before'), after)
   // MSG-25: a pair here is one part before and after its work (a widened door, a room kept as it
-  // stood), so its phase is the work, not a change of phase.
-  const comparison = compareBuildings(before, after, { ...(rooms === undefined ? {} : { rooms }), phases: false })
+  // stood), so its phase is the work, not a change of phase. CMD-31: its issues are judged by what
+  // the work does: a door whose room it replaced is no issue, a window it leaves between rooms is.
+  const comparison = compareBuildings(before, after, { ...(rooms === undefined ? {} : { rooms }), phases: false, work: true })
   return { comparison, earlier: { ...loaded, plan: before }, later: { ...loaded, plan: after }, since: { kind: 'phase' } }
 }
 

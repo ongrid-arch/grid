@@ -2287,6 +2287,10 @@ export const en = {
   'diff.opening.side.outside': 'outside',
   'diff.opening.side.none': 'nothing drawn',
   'edit.opening.otherWall': 'It was between {before}; it is now between {after}.',
+
+  // --- Comparing a plan by phase: a window the work leaves between two rooms (CMD-31, `diff/building.ts`)
+  'diff.issue.window.betweenRooms': 'Window {opening} now stands between {first} and {second}; before the work one side of it was {before}',
+
   // --- MSG-27: the massing and the site compared (`diff/massing.ts`)
   'diff.massing.east': '{distance} m east',
   'diff.massing.west': '{distance} m west',

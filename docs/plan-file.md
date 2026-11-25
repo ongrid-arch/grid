@@ -1485,7 +1485,8 @@ What Grid does with each state:
   `Phase` is `existing`, `demolished` or `new`. Room numbers count the rooms after the work.
 - **The comparison.** `grid diff --since phase` (`grid_diff` with `since: "phase"`) compares the
   plan before its work with after it, by what stands where: what is removed is to be demolished,
-  what is added is new, and a widened door is a door whose width changed.
+  what is added is new, and a widened door is a door whose width changed. A door whose room the
+  work replaces is no issue there; an old window the work leaves between two rooms is (CMD-31).
 - **The cost.** `grid_takeoff` with `for: "change"` gives the work as three lists: demolish
   (walls by kind and thickness, doors and windows by size), make good (the floor where a wall
   stood, the wall faces where it met walls that stay, each opening filled in, less what a new one
