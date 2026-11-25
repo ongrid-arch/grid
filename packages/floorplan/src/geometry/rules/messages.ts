@@ -125,9 +125,10 @@ export const saids = {
    * LVL-4: a door, window or opening in an outside wall that lies below the ground the site states
    * (lab VE-7). Its depth is the finding's `belowGround`: its top when it lies wholly below, else its foot.
    */
-  belowGround: (kind: 'door' | 'window' | 'opening', room: string | null, wall: string, wholly: boolean, depth: string): Said => {
+  belowGround: (kind: 'door' | 'window' | 'opening', room: string | null, wall: string, wholly: boolean, depth: string, space?: string): Said => {
     const end = wholly ? 'top' : kind === 'window' ? 'sill' : kind === 'door' ? 'threshold' : 'foot'
-    return said(`check.belowGround.${wholly ? 'wholly' : 'partly'}`, {
+    return said(`check.belowGround.${wholly ? 'wholly' : 'partly'}${space === undefined ? '' : '.space'}` as MessageKey, {
+      ...(space === undefined ? {} : { space: name(space) }),
       what: said(`check.below.${kind}.${room === null ? 'wall' : 'room'}` as MessageKey, room === null ? { wall: name(wall) } : { room: name(room) }),
       end: said(`check.below.end.${end}` as MessageKey),
       depth: num(depth)

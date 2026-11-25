@@ -540,6 +540,8 @@ export const es: Messages = {
   'check.detail.noStair': 'Sus estancias no se pueden alcanzar, así que no se sigue su salida. Dibuje una estancia usada como escalera (o ascensor) en ella y en cada planta inferior, una sobre otra, o indique la escalera en las escaleras del plano.',
   'check.belowGround.wholly': '{what} queda por completo bajo el terreno: su {end} está {depth} m por debajo de la cota del terreno que indica el emplazamiento',
   'check.belowGround.partly': '{what} queda en parte bajo el terreno: su {end} está {depth} m por debajo de la cota del terreno que indica el emplazamiento',
+  'check.belowGround.wholly.space': '{what} queda por completo bajo el terreno: su {end} está {depth} m por debajo de la cota del terreno que indica el emplazamiento, y el suelo de {space} delante de ella queda por encima de su parte inferior',
+  'check.belowGround.partly.space': '{what} queda en parte bajo el terreno: su {end} está {depth} m por debajo de la cota del terreno que indica el emplazamiento, y el suelo de {space} delante de ella queda por encima de su parte inferior',
   'check.below.door.wall': 'La puerta del muro {wall}',
   'check.below.door.room': 'La puerta de {room}',
   'check.below.window.wall': 'La ventana del muro {wall}',

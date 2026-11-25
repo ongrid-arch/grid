@@ -528,6 +528,8 @@ export const en = {
   'check.detail.noStair': 'Its rooms cannot be reached, so their way out is not followed. Draw a room used as a stair (or a lift) on it and on each floor below, one over the other, or state the stair in the plan\'s stairs.',
   'check.belowGround.wholly': '{what} lies wholly below the ground: its {end} is {depth} m under the ground level the site states',
   'check.belowGround.partly': '{what} lies partly below the ground: its {end} is {depth} m under the ground level the site states',
+  'check.belowGround.wholly.space': '{what} lies wholly below the ground: its {end} is {depth} m under the ground level the site states, and the floor of {space} in front of it stands above its foot',
+  'check.belowGround.partly.space': '{what} lies partly below the ground: its {end} is {depth} m under the ground level the site states, and the floor of {space} in front of it stands above its foot',
   'check.below.door.wall': 'The door in wall {wall}',
   'check.below.door.room': 'The door in {room}',
   'check.below.window.wall': 'The window in wall {wall}',

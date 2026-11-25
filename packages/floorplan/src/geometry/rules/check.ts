@@ -12,7 +12,7 @@ import { floorOf, planFloors, planForFloor, wholePlan } from '../floors'
 import { validatePlan } from '../validate'
 import { floorElevations } from '../elevations'
 import { groundLevel, openingsBelowGround } from '../ground'
-import { limit } from '../tolerances'
+import { limit, tolerance } from '../tolerances'
 import type { BetweenLevels, ShortOf } from './graph'
 import { metresText } from '../rounding'
 import { LIMITS, RULES } from './catalogue'
@@ -29,11 +29,24 @@ import { messages, saids, shiftedBoxSaid, shiftedHowSaid, shiftWays } from './me
 import { siteMeasures } from '../site'
 import { boundaryEdgeSaid } from '../plot'
 import type { FindingCode, HeldFinding, NotChecked, RuleFinding, RulesReport } from './types'
-import type { Opening } from '../plan'
+import type { Opening, Wall } from '../plan'
+import { planRamps, type RampLayout } from '../parking'
+import { wallFrameAt, wallLength } from '../wall'
 import { roomWallIds } from '../plan'
 import type { LeftOutPart } from '../../types/readParts'
 import { damaged, doorWaitsFor, leadsWaitsFor, planDamage, routeWaitsFor, type DrawnFloor, type FloorDamage } from './held'
 import { GENERAL_GUIDANCE_LABEL, RULES_REPORT_SCHEMA_VERSION } from './types'
+
+/** Whether the middle of an opening lies within a ramp's width of the foot of a ramp on its floor. */
+function atRampFoot(floor: string, wall: Wall | undefined, opening: Opening | undefined, ramps: readonly RampLayout[]): boolean {
+  if (wall === undefined || opening === undefined) return false
+  try {
+    const at = wallFrameAt(wall, Math.min(opening.offset + opening.width / 2, wallLength(wall))).point
+    return ramps.some((ramp) => ramp.lower.floor === floor && Math.hypot(at.x - ramp.lower.at.x, at.y - ramp.lower.at.y) <= ramp.width)
+  } catch {
+    return false
+  }
+}
 
 const RULE_OF: Record<FindingCode, string> = {
   no_exit: 'floor-has-exit',
@@ -687,10 +700,26 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
   }
 
   // Doors and windows in outside walls below the ground the site states (LVL-4, lab VE-7).
+  const ramps = planRamps(plan).ramps
+  const wallsById = new Map(plan.walls.map((w) => [w.id, w] as const))
+  const openingsById = new Map(plan.openings.map((o) => [o.id, o] as const))
+  const roomsById = new Map(plan.rooms.map((r) => [r.id, r] as const))
   for (const below of openingsBelowGround(plan, elevations)) {
-    const room = below.rooms[0]
+    // ARE-37: ground dug away in front of the opening is what a light well, an area or a cutting
+    // is for. A drawn outdoor space whose floor stands at or under the opening's foot, or the foot
+    // of a ramp, leaves it out; one whose floor stands above the foot is named instead.
+    const base = elevations.floors.get(below.floor)?.floorLevel ?? 0
+    const foot = base + (openingsById.get(below.opening)?.sill ?? 0)
+    const outside = below.rooms.flatMap((id) => {
+      const r = roomsById.get(id)
+      return r !== undefined && isOutdoor(r) ? [r] : []
+    })
+    const dug = outside.some((r) => base + (r.floorOffset ?? 0) - foot <= tolerance('openingBelowGround'))
+    if (dug || atRampFoot(below.floor, wallsById.get(below.wall), openingsById.get(below.opening), ramps)) continue
+    const shallow = outside[0]
+    const room = below.rooms.find((id) => !isOutdoor(roomsById.get(id) ?? { outdoor: undefined })) ?? below.rooms[0]
     const depth = below.wholly ? below.topBelow : below.sillBelow
-    const sentence = saids.belowGround(below.type, room === undefined ? null : roomName(room), below.wall, below.wholly, metresText(depth))
+    const sentence = saids.belowGround(below.type, room === undefined ? null : roomName(room), below.wall, below.wholly, metresText(depth), shallow === undefined ? undefined : roomName(shallow.id))
     findings.push(
       withSentence(
         {
