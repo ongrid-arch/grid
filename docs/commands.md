@@ -51,6 +51,11 @@ writes a plan into `grid.json`, into a file Grid keeps beside a plan (`<plan>.ma
 `.brief.json`, `.preview.json`, `.scan.json`) or into a JSON file that holds none of those, and `--replace` does not
 change that; every command that reads a plan refuses such a file in one line.
 
+A DXF, DWG, IFC, PDF, PNG or JPEG file handed over as a plan (CMD-20) is known by its first bytes, whatever its name
+or ending, and refused in one line that says what it is, that Grid does not read it yet, and what to do: write the
+rooms as rooms text and run `grid write`, or, for a picture, lay it under a plan as its trace (`referenceImage`, see
+[the plan file](plan-file.md)). Grid writes DXF and IFC (`grid export`) but does not read them back.
+
 ## Options and exit codes
 
 Every command also takes `--project <folder>` (see below). An unknown, repeated or
