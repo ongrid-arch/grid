@@ -250,6 +250,25 @@ describe('what a card says and never says', () => {
     expect(card(plans.frontDoor!, 'rooms', 'agent')).toContain('HEIGHTS walls 2.6; window sills 0.9 except win-living-south 0.6, win-kitchen 1, win-bath 1.4; door sills 0 except door-entrance 0.18\n')
   })
 
+  it('counts outdoor rooms by kind, never among rooms that do not say what they are for (VEW-43)', () => {
+    const flat = plans.flat!
+    const kinds = ['balcony', 'balcony', 'terrace', true] as const
+    const withOutdoor = (n: number): FloorPlan => ({
+      ...flat,
+      rooms: flat.rooms.map((room, i) => (i < n ? { ...room, outdoor: kinds[i]! } : room)),
+    })
+    // Every room outdoor: no "none says", and the kinds are counted, with their plurals.
+    const all = card(withOutdoor(flat.rooms.length), 'line', 'person')
+    expect(all).not.toContain('what it is for')
+    expect(all).toContain('2 balconies')
+    expect(all).toContain('1 terrace')
+    expect(all).toContain('1 outdoor space')
+    // Some outdoor, the rest with no use: only the rest are unsaid.
+    const mixed = card(withOutdoor(3), 'line', 'person')
+    expect(mixed).toContain('1 terrace, 2 balconies, 2 do not say what they are for')
+    expect(card(withOutdoor(3), 'rooms', 'agent')).not.toContain('5 do not say')
+  })
+
   it('counts bedrooms only by the use a room states', () => {
     expect(card(plans.flat!, 'line', 'person')).toBe('A plan of one floor with 5 rooms (none says what it is for), 68.8 m² inside; from outside, a door leads into Living room.\n')
     expect(card(plans.frontDoor!, 'line', 'person')).toContain('with 6 rooms (2 bedrooms, 1 bathroom)')
