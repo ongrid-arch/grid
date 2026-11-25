@@ -29,7 +29,7 @@
  * A refusal names the place and never repeats the text.
  */
 import path from 'path'
-import { MARK_SOURCES, ROOM_USES, type MarkSource } from '@ongrid/floorplan/types/floorplan'
+import { MARK_SOURCES, ROOM_USES, readUse, type MarkSource } from '@ongrid/floorplan/types/floorplan'
 import { PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { TextNotDecoded } from '../fs/textEncoding'
 import { NAME_MAX } from '../command/planText'
@@ -218,9 +218,11 @@ function roomWish(raw: unknown, where: string): RoomWish {
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object`)
   onlyKeys(raw, ROOM_KEYS, where)
   const name = optional(raw, 'name', (value) => words(value, `${where}.name`, NAME_MAX))
+  // MSG-22: a use in the person's own word (`cocina`, `Flur`) is kept as the use it means.
   const use = optional(raw, 'use', (value) => {
-    if (!ROOM_USES.includes(value as never)) throw new BriefRefused(`${where}.use must be one of the room uses: ${ROOM_USES.join(', ')}`)
-    return value as string
+    const read = readUse(value)
+    if (typeof read !== 'string' || !ROOM_USES.includes(read as never)) throw new BriefRefused(`${where}.use must be one of the room uses, or a word that plainly means one: ${ROOM_USES.join(', ')}`)
+    return read
   })
   if (name === null && use === null) throw new BriefRefused(`${where} names a room (name) or the rooms of a use (use)`)
   const count = optional(raw, 'count', (value) => {

@@ -9,6 +9,7 @@
  */
 import { GENERAL_GUIDANCE_LABEL, planFloors, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
+import { ROOM_USES, readUse } from '@ongrid/floorplan/types/floorplan'
 import { likelyId, nearestIds } from '@ongrid/floorplan/types/nearest'
 import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { missingDefaultPlan, projectPlanFile } from '../command/init'
@@ -23,6 +24,9 @@ export const DECIMAL_IN_ARG: ArgSpec = {
   description: 'The decimal mark of the lengths typed as text in this call: point (3.81) or comma (3,81). point when left out.',
   examples: ['comma'],
 }
+
+/** MSG-22: the longest word a use argument may be, such as `cuarto de máquinas`. */
+export const USE_WORD_MAX = 64
 
 /** The longest text a length argument may be, such as 12' 6 1/2" (WRT-7). */
 export const LENGTH_TEXT_MAX = 40
@@ -50,6 +54,12 @@ export type ArgSpec =
       readonly id?: boolean
       /** Text of several lines, such as rooms text: line breaks and tabs are allowed, other control characters are not. */
       readonly lines?: boolean
+      /**
+       * MSG-22: a room's use: one of Grid's uses, or a word that plainly means one in any language
+       * the plan file reads (`readUse`): `cocina` and `Flur` are read as `kitchen` and `corridor`.
+       * `enum` then lists the other words it takes as they are (`none`).
+       */
+      readonly use?: boolean
       readonly required?: boolean
     }
   | {
@@ -146,8 +156,13 @@ function argSchema(spec: ArgSpec): Record<string, unknown> {
   const rest = { ...spec }
   delete rest.required
   if (rest.type === 'string') {
-    const { id, ...string } = rest
+    const { id, use, ...string } = rest
     delete string.lines
+    // MSG-22: a use takes the person's own word, so the schema lists no closed set of words.
+    if (use === true) {
+      delete string.enum
+      return { ...string, maxLength: USE_WORD_MAX }
+    }
     return id ? { ...string, pattern: ID_PATTERN, maxLength: ID_MAX } : string
   }
   if (rest.type === 'array') {
@@ -233,10 +248,16 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
         if (value.length > ID_MAX) throw new ToolRefusal(`${name} is longer than ${ID_MAX} characters, the most an id may have.`)
         if (!ID.test(value)) throw new ToolRefusal(`${name} must be an id of the plan: letters, digits, dash, underscore and dot only.`)
       }
-      const max = spec.maxLength
+      const max = spec.use === true ? USE_WORD_MAX : spec.maxLength
       if (max !== undefined && value.length > max) throw new ToolRefusal(`${name} is longer than ${max} characters.`)
       const checked = spec.lines === true ? value.replace(/\r\n|\r|\n|\t/g, ' ') : value
       if (CONTROL.test(checked)) throw new ToolRefusal(`${name} holds a control or direction character${spec.lines === true ? ' other than a line break or a tab' : ''}.`)
+      if (spec.use === true) {
+        if (spec.enum?.includes(value)) return value
+        const use = readUse(value)
+        if (typeof use === 'string' && (ROOM_USES as readonly string[]).includes(use)) return use
+        throw new ToolRefusal(`${name} takes one of Grid's room uses, or a word that plainly means one: ${[...ROOM_USES, ...(spec.enum ?? [])].join(', ')}.`)
+      }
       if (spec.enum && !spec.enum.includes(value)) throw new ToolRefusal(`${name} takes one of ${spec.enum.join(', ')}.`)
       return value
     }

@@ -22,7 +22,9 @@ import { DECIMAL_IN_ARG, floorArg, listSchema, NUMBER, objectSchema, PLAN_ARG, p
 import { EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 
 const NAME = (description: string, example: string, required = false): { type: 'string'; maxLength: number; description: string; examples: string[]; required: boolean } => ({ type: 'string', maxLength: NAME_MAX, description, examples: [example], required })
-const USE = (description: string): { type: 'string'; enum: readonly string[]; description: string; examples: string[] } => ({ type: 'string', enum: ROOM_USES, description, examples: ['bathroom'] })
+const USE_WORDS_TAKEN = `One of ${ROOM_USES.join(', ')}; or a word that plainly means one, in the person's language (cocina, Flur, salle de bains), read as that use.`
+/** MSG-22: a room's use, or a word that plainly means one in the person's language (`cocina`), read as the use. */
+const USE = (description: string): { type: 'string'; use: true; description: string; examples: string[] } => ({ type: 'string', use: true, description: `${description} ${USE_WORDS_TAKEN}`, examples: ['bathroom', 'cocina'] })
 
 const mergeTool: GridTool = {
   name: 'grid_merge_rooms',
@@ -195,7 +197,7 @@ const renameTool: GridTool = {
     plan: PLAN_ARG,
     room: { type: 'string', id: true, required: true, description: 'The room to rename or give another use.', examples: ['bed2'] },
     name: NAME('Its new name.', 'Dormitorio 2'),
-    use: { type: 'string', enum: [...ROOM_USES, 'none'], description: 'Its new use, or none to leave its use unstated.', examples: ['other', 'bedroom'] },
+    use: { type: 'string', use: true, enum: ['none'], description: `Its new use, or none to leave its use unstated. ${USE_WORDS_TAKEN}`, examples: ['other', 'bedroom', 'cocina'] },
     floor_finish: NAME('Its floor finish, in the person\'s words, or none to take it out.', 'Porcelain tile'),
     wall_finish: NAME('The finish of its walls\' inside faces, or none to take it out.', 'Painted plaster'),
     ceiling_finish: NAME('Its ceiling finish, or none to take it out.', 'Painted plasterboard'),

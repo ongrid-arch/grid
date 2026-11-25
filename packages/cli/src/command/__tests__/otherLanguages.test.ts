@@ -55,3 +55,31 @@ describe('the one floor, in the language it is read in', () => {
     expect(told.text).toContain('Planta baja')
   })
 })
+
+describe('a use in the person\'s own words', () => {
+  it('is read as the use by the rename tool and by grid edit', async () => {
+    b.write('uses.json', plan)
+    const renamed = await b.call('grid_rename_room', { plan: 'uses.json', room: 'cocina', use: 'Flur' })
+    expect(renamed.isError, renamed.text).toBe(false)
+    expect(planOf('uses.json').rooms.find((r) => r.id === 'cocina')!.use).toBe('corridor')
+    await grid('edit', 'rename', 'uses.json', '--room', 'cocina', '--use', 'cocina')
+    expect(planOf('uses.json').rooms.find((r) => r.id === 'cocina')!.use).toBe('kitchen')
+    const none = await b.call('grid_rename_room', { plan: 'uses.json', room: 'cocina', use: 'none' })
+    expect(none.isError, none.text).toBe(false)
+    expect(planOf('uses.json').rooms.find((r) => r.id === 'cocina')!.use).toBeUndefined()
+  })
+
+  it('refuses a word that is no use, with the uses it takes', async () => {
+    const refused = await b.call('grid_rename_room', { plan: 'plan.json', room: 'cocina', use: 'sala' })
+    expect(refused.isError).toBe(true)
+    expect(refused.text).toContain('kitchen')
+    expect(refused.text).not.toContain('sala')
+  })
+
+  it('is kept as the use it means in the brief', async () => {
+    const written = await b.call('grid_write_brief', { plan: 'plan.json', brief: { rooms: [{ use: 'dormitorio', count: 2, level: 'must', source: 'given', quote: 'dos dormitorios' }, { use: '卫生间', count: 1, level: 'must', source: 'given', quote: 'un baño' }] } })
+    expect(written.isError, written.text).toBe(false)
+    const brief = JSON.parse(readFileSync(join(b.folder, 'plan.brief.json'), 'utf8')) as { rooms: { use: string }[] }
+    expect(brief.rooms.map((r) => r.use)).toEqual(['bedroom', 'bathroom'])
+  })
+})
