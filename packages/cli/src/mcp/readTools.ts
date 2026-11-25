@@ -716,17 +716,16 @@ function columnsLine(runs: readonly ColumnRun[], units: Display): string {
 }
 
 /** CNT-19: the take-off's parking bays per floor, in a line, and one line per ramp with its levels and slope. */
-function parkingLines(bays: readonly BayCount[], ramps: readonly RampFigures[], units: Display): string[] {
-  const names = new Map(bays.map((b) => [b.floor, b.floorName]))
+function parkingLines(bays: readonly BayCount[], ramps: readonly RampFigures[], units: Display, names: ReadonlyMap<string, string>): string[] {
   return [
     ...(bays.length === 0 ? [] : [english(said('takeoff.bays', { floors: joined(bays.map((b) => said('takeoff.bays.floor', { count: b.count, floor: name(b.floorName) })), 'join.semicolon') }))]),
     ...ramps.map((r) => {
       const values = {
         ramp: name(r.name),
         lower: name(names.get(r.lower.floor) ?? r.lower.floor),
-        lowerLevel: num(r.lower.level.toFixed(2)),
+        lowerLevel: num(lengthText(r.lower.level, units)),
         upper: name(names.get(r.upper.floor) ?? r.upper.floor),
-        upperLevel: num(r.upper.level.toFixed(2)),
+        upperLevel: num(lengthText(r.upper.level, units)),
         rise: num(lengthText(r.rise, units)),
         length: num(lengthText(r.length, units)),
         slope: num(slopeText(r.slope)),
@@ -896,7 +895,7 @@ const takeoffTool: GridTool = {
     const lines = [
       `Walls: ${t.walls.map((w) => `${w.kind} ${lengthText(w.gross, units)} (${w.count} wall${w.count === 1 ? '' : 's'}; ${lengthText(w.net, units)} less openings)`).join('; ')}.`,
       ...(t.columns === undefined ? [] : [columnsLine(t.columns, units)]),
-      ...(t.bays === undefined && t.ramps === undefined ? [] : parkingLines(t.bays ?? [], t.ramps ?? [], units)),
+      ...(t.bays === undefined && t.ramps === undefined ? [] : parkingLines(t.bays ?? [], t.ramps ?? [], units, new Map(planFloors(survey.plan).map((f) => [f.id, f.name ?? f.id])))),
       'By room: floor and ceiling, skirting, wall face to plaster.',
       ...t.rooms.map((r) => `  ${q(r.name)}: floor ${areaText(r.floorArea, units)}, ceiling ${areaText(r.ceiling, units)}, skirting ${lengthText(r.skirting, units)}, wall face ${areaText(r.wallFace, units)} (${r.openingsOff.toFixed(2)} m² of openings off, walls ${r.height === null ? 'none' : `${r.height.toFixed(2)} m`} high)${r.void === true ? `; a void: no floor, ceiling or skirting, guard ${lengthText(r.guard ?? 0, units)} along its open edge` : ''}`),
       `Totals: floor ${areaText(t.totals.floorArea, units)}, ceiling ${areaText(t.totals.ceiling, units)}, skirting ${lengthText(t.totals.skirting, units)}, wall face ${areaText(t.totals.wallFace, units)}${t.totals.guard === undefined ? '' : `, guard ${lengthText(t.totals.guard, units)} round voids`}.`,

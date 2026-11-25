@@ -59,3 +59,19 @@ describe('parking bays and ramps in the quantities and the description', () => {
     expect(SHEET_COVERAGE.ramps).toEqual({ shown: 'drawn' })
   })
 })
+
+describe('the take-off\'s ramp lines', () => {
+  it('writes each unit once and names a floor with no bays by name', async () => {
+    const { bench } = await import('../../mcp/__tests__/replay/harness')
+    const b = bench({ 'car.json': basementCarPark() })
+    try {
+      const reply = await b.call('grid_takeoff', { plan: 'car.json' })
+      const line = reply.text.split('\n').find((l) => l.startsWith('Ramp '))
+      expect(line).toBeDefined()
+      expect(line).not.toMatch(/ m m\b/)
+      expect(line).toContain('from "Basement car park" at -3.00 m to "Ground floor" at 0.00 m, 3.00 m up over 18.00 m')
+    } finally {
+      b.close()
+    }
+  })
+})
