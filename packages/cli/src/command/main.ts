@@ -565,7 +565,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     return EXIT_OK
   }
 
-  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out') }
+  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date') }
   const format = checkExportRequest(request)
   const project = openProject(projectOption, io.cwd)
   if (request.out === undefined) {

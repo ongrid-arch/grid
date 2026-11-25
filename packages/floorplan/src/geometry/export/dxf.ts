@@ -444,6 +444,8 @@ interface OpeningBlock {
   readonly key: string
   readonly kind: OpeningKind
   readonly width: number
+  /** CMD-26: the width the plan states, which names the block; on a curved wall `width` is the chord. */
+  readonly stated: number
   readonly thickness: number
   /** `L` opens towards +Y of the block, `R` towards −Y; null for a door with no swing stated. */
   readonly hand: 'L' | 'R' | null
@@ -531,8 +533,8 @@ function openingBlocks(drawing: PlanDrawing): { blocks: OpeningBlock[]; places: 
     const fromEnd = ofKind !== null ? opening.hinge === 'end' : stated && opening.hinge === 'end'
     const hand = ofKind !== null ? ofKind.hand : !stated ? null : (opening.swing === 'left') !== fromEnd ? 'L' : 'R'
     const symbol = ofKind?.symbol ?? null
-    const key = `${kind}|${num(width)}|${num(opening.thickness)}|${hand ?? ''}${symbol === null ? '' : `|${symbol.kind}|${symbolKey(symbol.pieces)}`}`
-    if (!blocks.has(key)) blocks.set(key, { key, kind, width, thickness: opening.thickness, hand, symbol })
+    const key = `${kind}|${num(width)}|${num(opening.width)}|${num(opening.thickness)}|${hand ?? ''}${symbol === null ? '' : `|${symbol.kind}|${symbolKey(symbol.pieces)}`}`
+    if (!blocks.has(key)) blocks.set(key, { key, kind, width, stated: opening.width, thickness: opening.thickness, hand, symbol })
     const along = Math.atan2(opening.to.y - opening.from.y, opening.to.x - opening.from.x)
     places.push({ key, kind, at: fromEnd ? opening.to : opening.from, rotation: degrees(fromEnd ? along + Math.PI : along) })
   }
@@ -549,7 +551,7 @@ function openingBlocks(drawing: PlanDrawing): { blocks: OpeningBlock[]; places: 
 }
 
 /**
- * `GRID-DOOR-900x200-L`: the kind, the width and the wall's thickness in millimetres, the hand. A
+ * `GRID-DOOR-900x200-L`: the kind, the stated width and the wall's thickness in millimetres, the hand. A
  * door or window of a kind (CNT-14) adds its kind, the part that opens (`-P800`) and a garage
  * door's height (`-H2100`): `GRID-DOOR-SLIDING-2400x200`.
  */
@@ -560,7 +562,7 @@ function blockNames(blocks: readonly OpeningBlock[]): Map<string, string> {
     const kind = block.symbol === null ? '' : `-${block.symbol.kind.toUpperCase()}`
     const part = block.symbol?.part == null ? '' : `-P${block.symbol.part}`
     const height = block.symbol?.height == null ? '' : `-H${block.symbol.height}`
-    const base = `GRID-${block.kind.toUpperCase()}${kind}-${mm(block.width)}x${mm(block.thickness)}${block.hand === null ? '' : `-${block.hand}`}${part}${height}`
+    const base = `GRID-${block.kind.toUpperCase()}${kind}-${mm(block.stated)}x${mm(block.thickness)}${block.hand === null ? '' : `-${block.hand}`}${part}${height}`
     let name = base
     for (let n = 2; taken.has(name); n++) name = `${base}-${n}`
     taken.add(name)
@@ -1164,7 +1166,11 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
     const layer = sketchLayer(item.category, space.doc.layerOf.sketch)
     space.use(layer, space.doc.profile.pens.sketch)
     space.polyline(layer, item.points, item.closed)
-    if (item.arc) space.arc(layer, item.arc)
+    // CMD-26: an arc that goes all the way round is a circle: written as an ARC it starts and ends at one angle.
+    if (item.arc) {
+      if (Math.abs(Math.abs(item.arc.to - item.arc.from) - 2 * Math.PI) <= TOLERANCES.sameAngle.value) space.circle(layer, item.arc.center, item.arc.radius)
+      else space.arc(layer, item.arc)
+    }
     if (item.text) space.text(layer, item.text.at, item.text.text, size.text)
   }
   for (const note of drawing.notes) {

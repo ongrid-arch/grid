@@ -152,26 +152,31 @@ const reals = (values: readonly number[]): string => `(${values.map(real).join('
  * is doubled (it is the escape character). Anything outside printable ASCII is
  * written as `\X2\HHHH\X0\`, the UTF-16 code units in uppercase hex, so the
  * file stays ASCII whatever encoding the caller saves it with and a reader
- * decodes the name as typed; a character outside the BMP is its surrogate pair.
+ * decodes the name as typed; a character outside the BMP is one `\X4\` code point (CMD-26).
  * Control characters (a newline would end the entity's line) are dropped.
  */
 export function ifcString(value: string): string {
   const clean = value.replace(/\p{Cc}/gu, '')
   let out = ''
   let block = ''
+  let wide = false
 
   const flush = (): void => {
-    if (block.length > 0) out += `\\X2\\${block}\\X0\\`
+    if (block.length > 0) out += `\\${wide ? 'X4' : 'X2'}\\${block}\\X0\\`
     block = ''
   }
 
-  for (let i = 0; i < clean.length; i++) {
-    const code = clean.charCodeAt(i)
+  for (const char of clean) {
+    const code = char.codePointAt(0)!
     if (code >= 0x20 && code <= 0x7e) {
       flush()
-      out += code === 0x27 ? "''" : code === 0x5c ? '\\\\' : clean[i]
+      out += code === 0x27 ? "''" : code === 0x5c ? '\\\\' : char
     } else {
-      block += code.toString(16).toUpperCase().padStart(4, '0')
+      // CMD-26: beyond the BMP is one code point of eight hex digits (`\X4\`), not a surrogate pair.
+      const isWide = code > 0xffff
+      if (block.length > 0 && isWide !== wide) flush()
+      wide = isWide
+      block += code.toString(16).toUpperCase().padStart(isWide ? 8 : 4, '0')
     }
   }
   flush()
@@ -832,6 +837,8 @@ interface WallElement {
   readonly footprint: number
   /** CNT-18: a curved wall is placed at the storey's origin, unturned, and its openings at their chords. */
   readonly curved: boolean
+  /** CMD-26: whether it faces outside (`wallExposure`), which its doors and windows share. */
+  readonly outside: boolean
   /** LVL-6: its body's height, the highest point of the top a roof leaves it, else its own. */
   readonly height: number
   /** LVL-6: its side along the axis under its top, and its body's volume, cut by the roof. */
@@ -933,7 +940,7 @@ function writeWall(c: Context, storey: Storey, wall: Wall, ends: WallEnds | unde
   const ring = outline ?? [{ x: 0, y: -half }, { x: axis.length, y: -half }, { x: axis.length, y: half }, { x: 0, y: half }]
   const side = top === null ? axis.length * peak : faceUnderTop(top, 0, axis.length)
   const volume = cuts.length === 0 ? footprint * peak : volumeUnder([...planes, { z0: peak, gx: 0, gy: 0 }], [[ringOf(ring)]])
-  return { id, placement: wallPlacement, wall, length: axis.length, footprint, height: peak, side, volume, cut: cuts.length > 0, curved: false }
+  return { id, placement: wallPlacement, wall, length: axis.length, footprint, height: peak, side, volume, cut: cuts.length > 0, curved: false, outside: wallExposure(storey.model.index, wall.id) === 'exterior' }
 }
 
 /**
@@ -980,7 +987,7 @@ function writeCurvedWall(c: Context, storey: Storey, wall: Wall, curve: WallCurv
   notePhase(c, id, 'wall', wall.id)
   // The roof does not cut a curved wall (LVL-6's wall tops follow straight walls): it is measured at its own height.
   const bodyArea = footprintArea(footprint)
-  return { id, placement: wallPlacement, wall, length: curve.length, footprint: bodyArea, height: wall.height, side: curve.length * wall.height, volume: bodyArea * wall.height, cut: false, curved: true }
+  return { id, placement: wallPlacement, wall, length: curve.length, footprint: bodyArea, height: wall.height, side: curve.length * wall.height, volume: bodyArea * wall.height, cut: false, curved: true, outside: wallExposure(storey.model.index, wall.id) === 'exterior' }
 }
 
 /** A ring of points counter-clockwise, as a profile's outline runs. */
@@ -1449,7 +1456,7 @@ function writeOpening(c: Context, element: WallElement, opening: Opening): numbe
     NULL,
     ref(fillerPlacement),
     ref(fillerShape),
-    NULL,
+    str(opening.id),
     real(opening.height),
     real(width)
   )
@@ -1460,6 +1467,11 @@ function writeOpening(c: Context, element: WallElement, opening: Opening): numbe
     ['AREA', 'Area', opening.width * opening.height, 'The hole in the wall, width by height: the plan holds no frame.']
   ]
   quantitySet(c, `${opening.type}:${opening.id}`, opening.type === 'door' ? 'Qto_DoorBaseQuantities' : 'Qto_WindowBaseQuantities', size, filler)
+  // CMD-26: the set a BIM tool reads a door or window by: its reference (its id) and whether it is external.
+  propertySet(c, `${opening.type}:${opening.id}`, opening.type === 'door' ? 'Pset_DoorCommon' : 'Pset_WindowCommon', [
+    property(c, 'Reference', `IFCIDENTIFIER(${str(opening.id)})`),
+    property(c, 'IsExternal', `IFCBOOLEAN(${en(element.outside ? 'T' : 'F')})`)
+  ], filler)
   typeOpening(c, opening, operation, filler)
   noteFacts(c, filler, opening.type, opening)
   notePhase(c, filler, opening.type, opening.id)
@@ -2485,11 +2497,19 @@ function projectIdOf(plan: FloorPlan, options: IfcOptions): string {
 
 type Pair2 = readonly [number, number]
 
+/** CMD-26: the building's name from the plan: its one named building, else the plan's name or title. */
+function buildingName(plan: FloorPlan): string {
+  const named = plan.buildings ?? []
+  if (named.length === 1 && named[0]!.name !== undefined && named[0]!.name !== '') return named[0]!.name
+  return plan.name ?? plan.title ?? 'Building'
+}
+
 function buildDocument(given: FloorPlan, options: IfcOptions): string {
   const timestamp = usableTimestamp(options.timestamp)
-  const projectName = options.projectName ?? DEFAULT_PROJECT_NAME
   // QAR-5: the parts in id order, so the file does not hang on the order they are listed in.
   const { plan, at: origin } = nearOrigin(inIdOrder(given))
+  // CMD-26: the project is the plan's own name, else its title, else the name the caller gives.
+  const projectName = plan.name ?? plan.title ?? options.projectName ?? DEFAULT_PROJECT_NAME
 
   const w = new StepWriter()
   const issuer = createGuidIssuer(projectIdOf(plan, options))
@@ -2566,7 +2586,7 @@ function buildDocument(given: FloorPlan, options: IfcOptions): string {
     'IFCBUILDING',
     'building',
     'building',
-    'Building',
+    buildingName(plan),
     NULL,
     NULL,
     ref(buildingPlacement),
