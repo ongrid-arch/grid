@@ -58,6 +58,7 @@ import { brokenOnFloor } from './validate'
 import { planStairs } from './stairs'
 import { flightProfile, landingLevels, profileRing, stairWaist, type FlightProfile } from './stairSection'
 import { tryRoomShape } from './room'
+import { outdoorRoofed } from './outdoor'
 import { roomFloorOffset } from './steps'
 import { roomZones } from './zones'
 import { planWallSides, stretchAt } from './exposure'
@@ -150,6 +151,11 @@ export interface SectionRoom {
    */
   readonly height: number
   readonly heightStated: boolean
+  /**
+   * VEW-56: the room has no ceiling to read a height from: an open-air outdoor space or a void.
+   * The picture names it and writes no height.
+   */
+  readonly open?: true
   /**
    * VEW-34: the rooms marked as voids it rises through, lowest first, when it states no height and
    * a void is over most of it on the line; `from` and `to` are then where it stands under them.
@@ -542,6 +548,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         floorLevel: snap(base + offset),
         height: snap(own ? room.height! : under !== null ? under.top - base - offset : storey.clearHeight - offset),
         heightStated: own,
+        ...(room.void === true || outdoorRoofed(room) === false ? { open: true as const } : {}),
         ...(under === null ? {} : { through: under.through.map((t) => t.room) })
       })
     }
@@ -856,7 +863,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
   // VEW-34: a void a room below rises through is that room's space: it is not labelled.
   const shownRooms = rooms.filter((r) => !risenVoids.has(`${r.floor}\u0000${r.room}`))
-  const unstatedRooms = shownRooms.filter((r) => !r.heightStated && r.through === undefined)
+  const unstatedRooms = shownRooms.filter((r) => !r.heightStated && r.through === undefined && r.open !== true)
   if (unstatedRooms.length > 0) {
     const names = [...new Set(unstatedRooms.map((r) => r.name || r.room))]
     taken({ kind: 'room-height', ids: unstatedRooms.map((r) => r.room), hatched: false, pieces: [] }, said(`drawing.section.taken.roomHeight.${many(unstatedRooms.length)}`, { count: unstatedRooms.length, names: ids(names) }))
