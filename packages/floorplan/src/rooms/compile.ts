@@ -2877,8 +2877,8 @@ class Compiler {
   private checkOpeningClash(openings: readonly Opening[], walls: readonly Wall[]): void {
     // CNT-35: a plan that states a phase is checked as the drawing check reads it, once before the
     // work and once after, so a widened door's old opening and its new one are no clash.
-    const phased = planHasPhases({ walls, openings, rooms: [] })
-    const reading = phaseReading({ walls })
+    const phased = planHasPhases({ walls: [...walls], openings: [...openings], rooms: [] })
+    const reading = phaseReading({ walls: [...walls] })
     const seen = new Set<string>()
     for (const state of phased ? (['before', 'after'] as const) : ([null] as const)) {
       this.clashIn(state === null ? openings : openings.filter((o) => standsIn(reading.opening(o), state)), seen)
