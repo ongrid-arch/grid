@@ -658,3 +658,22 @@ The tool server answers clients of both eras of the protocol: an older client th
 handshake, names its version in each request's `_meta` and starts with `server/discover`. A
 version it does not speak is refused with the ones it does. It keeps no state between calls:
 the plan file is the only state.
+
+## Starting the server faster
+
+`npx -y ongrid mcp` asks the registry whether there is a newer package on each start, which can
+take several seconds of a cold start. Once the package is installed (or from a copy of the
+repository after `npm run build`), a host can start the bundled file directly, which does no
+lookup and starts at once:
+
+```bash
+node /path/to/grid.mjs mcp
+```
+
+The server says which Grid it is: `serverInfo.version` in both eras is the package's version, the
+one `grid --version` prints, and so are `gridVersion` in the problem report and in an export's
+data. A request line longer than 1 MiB is refused unread, with its `id` when the line's own top
+level names one (so a client waiting for that id is answered), and null when it cannot be read.
+A refusal for a path outside the project never prints the project folder's place on the disk.
+`what=route` takes `from` for the room it starts in (as `room`), and `what=narrow` takes `width`
+(as `under`).

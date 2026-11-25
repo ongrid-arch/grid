@@ -28,6 +28,7 @@ import {
   TOOLS_WORK_ON_PLANS,
   UNITS_RULE,
 } from '../guide/paragraphs'
+import { version } from '../../package.json'
 
 // The paragraphs other modules have long taken from here.
 export { ROOM_NAMES_TRAVEL, UNITS_RULE }
@@ -49,7 +50,8 @@ const META_SERVER_INFO = 'io.modelcontextprotocol/serverInfo'
 export const UNSUPPORTED_VERSION = -32022
 /** How long a client may keep the tool list and the discover answer: they never change while the server runs. */
 const CACHE_MS = 3_600_000
-const SERVER_INFO = { name: SERVER_NAME, version: '1' }
+/** CMD-29: serverInfo names the package's own version, the one `grid --version` prints. */
+const SERVER_INFO = { name: SERVER_NAME, version }
 /** Only a version shaped like one is repeated back; anything else is text from the client (T-3). */
 const VERSION_SHAPE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -237,6 +239,58 @@ function perRequest(id: Id, method: unknown, params: Record<string, unknown>, to
   }
 }
 
+/**
+ * CMD-29: the id of a request line too long to parse, read without parsing it: the top-level
+ * `"id"` key of the one object, skipping every string and everything nested, so an id inside a
+ * plan in the arguments is never taken. Null when it is not there, not a string or number, or
+ * longer than an id may be: the refusal then carries a null id, as before.
+ */
+export function idOfUnreadLine(line: string): string | number | null {
+  let depth = 0
+  let expectKey = false
+  let i = 0
+  const n = line.length
+  const stringEnd = (from: number): number => {
+    for (let j = from + 1; j < n; j++) {
+      const c = line.charCodeAt(j)
+      if (c === 0x5c) j++
+      else if (c === 0x22) return j
+    }
+    return -1
+  }
+  while (i < n) {
+    const c = line[i]!
+    if (c === '"') {
+      const end = stringEnd(i)
+      if (end < 0) return null
+      if (depth === 1 && expectKey) {
+        const key = line.slice(i + 1, end)
+        if (key === 'id') {
+          const rest = /^\s*:\s*(?:("(?:[^"\\\u0000-\u001f]){0,64}")|(-?\d{1,15}))\s*[,}]/.exec(line.slice(end + 1, end + 200))
+          if (!rest) return null
+          if (rest[2] !== undefined) return Number(rest[2])
+          try {
+            const text: unknown = JSON.parse(rest[1]!)
+            return typeof text === 'string' && text.length <= REQUEST_ID_MAX ? text : null
+          } catch {
+            return null
+          }
+        }
+        expectKey = false
+      }
+      i = end + 1
+      continue
+    }
+    if (c === '{' || c === '[') {
+      depth++
+      expectKey = c === '{' && depth === 1
+    } else if (c === '}' || c === ']') depth--
+    else if (c === ',') expectKey = depth === 1
+    i++
+  }
+  return null
+}
+
 function byteLength(line: string): number {
   // A character takes at least one byte, so a long line needs no counting.
   if (line.length > LINE_MAX_BYTES) return line.length
@@ -249,7 +303,7 @@ function byteLength(line: string): number {
  */
 export function handleLine(line: string, tools: readonly ServerTool[] = [], resources: readonly ServerResource[] = []): string | null | Promise<string> {
   if (byteLength(line) > LINE_MAX_BYTES) {
-    return fail(null, -32600, `Request refused unread: the line is longer than ${LINE_MAX_BYTES} bytes (1 MiB), the most Grid's tool server reads.`)
+    return fail(idOfUnreadLine(line), -32600, `Request refused unread: the line is longer than ${LINE_MAX_BYTES} bytes (1 MiB), the most Grid's tool server reads.`)
   }
   if (!line.trim()) return null
   let message: Record<string, unknown>

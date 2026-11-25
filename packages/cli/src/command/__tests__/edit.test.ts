@@ -80,6 +80,16 @@ describe('grid edit', () => {
     expect(readFileSync(join(dir, 'plan.json'), 'utf8')).toBe(before)
   })
 
+  it('takes a yes-or-no option named alone or followed by true, as its help says (CMD-29)', async () => {
+    const dir = project()
+    const alone = await grid(dir, 'edit', 'merge', '--room', 'living', '--with', 'bath', '--zones')
+    const spelled = await grid(dir, 'edit', 'merge', '--room', 'living', '--with', 'bath', '--zones', 'true')
+    expect(spelled.err).not.toMatch(/takes one plan file/)
+    expect(spelled).toEqual(alone)
+    const off = await grid(dir, 'edit', 'merge', '--room', 'living', '--with', 'bath', '--zones', 'false')
+    expect(off).toEqual(await grid(dir, 'edit', 'merge', '--room', 'living', '--with', 'bath'))
+  })
+
   it('lists its verbs', async () => {
     const ran = await grid(project(), 'edit', '--help')
     expect(ran.status).toBe(0)

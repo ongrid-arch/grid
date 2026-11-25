@@ -160,13 +160,13 @@ export class Project {
   }
 
   private refused(given: string, reason: string): PathRefused {
-    return new PathRefused(`${quoted(given)} is refused: ${reason}. Grid reads and writes only files inside the project folder ${quoted(this.folder)}.`)
+    return new PathRefused(`${quoted(given)} is refused: ${reason}. Grid reads and writes only files inside the project folder.`)
   }
 
   private outside(given: string, throughLink: boolean): PathRefused {
     const how = throughLink ? ', through a symbolic link' : ''
     return new PathRefused(
-      `${quoted(given)} is outside the project folder ${quoted(this.folder)}${how}. `
+      `${quoted(given)} is outside the project folder${how}. `
       + 'Grid reads and writes only files inside it; name another project folder with --project.',
     )
   }

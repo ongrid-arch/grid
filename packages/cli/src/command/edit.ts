@@ -85,6 +85,24 @@ function valueOf(name: string, spec: ArgSpec, text: string | true): unknown {
   return text
 }
 
+/**
+ * CMD-29: a yes-or-no option is given by naming it, and the tool's help says "true": so
+ * `--zones true` is taken as `--zones`, and `--zones false` as leaving it out.
+ */
+function withBooleanWords(args: readonly string[], tool: GridTool): string[] {
+  const flags = new Set<string>(Object.entries(tool.args).filter(([, spec]) => spec.type === 'boolean').map(([name]) => optionOf(name)))
+  const out: string[] = []
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!
+    const next = args[i + 1]
+    if (flags.has(arg) && (next === 'true' || next === 'false')) {
+      if (next === 'true') out.push(arg)
+      i++
+    } else out.push(arg)
+  }
+  return out
+}
+
 /** The tool's words for an argument, as the command line's option. */
 function asOptions(message: string, tool: GridTool): string {
   let text = message
@@ -104,7 +122,7 @@ export async function runEdit(args: readonly string[], cwd: string, stdout: (tex
   if (!Object.hasOwn(EDIT_VERBS, verb)) throw new UsageError(`edit has no verb ${JSON.stringify(verb)}. Its verbs: ${Object.keys(EDIT_VERBS).join(', ')}.`)
   const tool = toolOf(verb as Verb)
   const options = verbOptions(tool)
-  const parsed = parseOptions(`edit ${verb}`, rest, options)
+  const parsed = parseOptions(`edit ${verb}`, withBooleanWords(rest, tool), options)
   if (parsed.values.has('--help')) {
     stdout(helpText(`grid edit ${verb} [<plan.json>] [options]`, `${tool.title}. ${tool.description.replace(/^Use this when /, 'For when ')}`, options))
     return
