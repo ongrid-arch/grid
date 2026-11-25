@@ -318,7 +318,7 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
     if (error instanceof PathRefused) throw new ToolRefusal(error.message)
     throw new ToolRefusal(`Can't write ${quoted(out)}: ${String((error as Error).message).replace(/\s+/g, ' ')}`)
   }
-  const verdict = comparePlans(before, surveyPlan(after), ['the plan before', 'the plan now']).verdict
+  const verdict = comparePlans(before, surveyPlan(after), ['the plan before', 'the plan now'], { inPlace: patch.whole !== true }).verdict
   // A door that joined a room now part of another (a merge) joins the same space: not a change.
   const become = patch.roomsBecome ?? new Map<string, string>()
   const key = (sides: readonly object[]): string => sides.map((side) => ('room' in side ? `r${become.get((side as { room: string }).room) ?? (side as { room: string }).room}` : JSON.stringify(side))).sort().join('|')

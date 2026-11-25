@@ -15,7 +15,8 @@ import { indexPlan, sub, tolerance, wallAxis, wallEndInOpening, type Vec2, type 
 import { heightStated } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import { surveyPlan, type Survey } from '../quantities/survey'
-import { readingAfter, refuseCurved, type Direction, type Patch, type RoomChange } from './edits'
+import { refuseCurved, type Direction, type Patch, type RoomChange } from './edits'
+import { planAfter, roomNets } from './after'
 import { freshId, usedIds } from './merge'
 import { EditRefused } from './refused'
 import { r3 } from './seat'
@@ -197,10 +198,12 @@ export function splitRoom(survey: Survey, roomId: string, request: SplitRequest)
 
   const patch: Patch = { walls: new Map(), openings: new Map(), removeOpenings: new Set(), rooms, said, guessed, notKept, addWalls: [newWall], addRooms, addOpenings }
   // The rooms as the split leaves them, for their areas and their windows.
-  const after = surveyPlan(readingAfter(plan, patch))
-  const area = (id: string): number => after.byId.get(id)?.facts.shape?.area ?? 0
+  // WRT-11: as the file will be read, and measured as grid_areas measures (columns taken off).
+  const after = surveyPlan(planAfter(plan, patch))
+  const nets = { before: roomNets(survey), after: roomNets(after) }
+  const area = (id: string): number => nets.after.get(id) ?? 0
   const kept = request.name !== undefined ? `${name} (now ${quoted(request.name)})` : name
-  said.push(`${kept}: ${(survey.byId.get(roomId)!.facts.shape?.area ?? 0).toFixed(2)} → ${area(roomId).toFixed(2)} m²; new room ${quoted(request.newRoom.name)}: ${area(request.newRoom.id).toFixed(2)} m².`)
+  said.push(`${kept}: ${(nets.before.get(roomId) ?? 0).toFixed(2)} → ${area(roomId).toFixed(2)} m²; new room ${quoted(request.newRoom.name)}: ${area(request.newRoom.id).toFixed(2)} m².`)
   const hadWindow = (s: Survey, id: string): boolean => s.byId.get(id)?.openings.some((o) => o.type === 'window') ?? false
   if (hadWindow(survey, roomId) && !hadWindow(after, roomId)) notKept.push(`${request.name !== undefined ? quoted(request.name) : name} has no window now: ${hadWindow(after, request.newRoom.id) ? `its window is in ${quoted(request.newRoom.name)}` : 'none is left on its side'}.`)
   return patch
