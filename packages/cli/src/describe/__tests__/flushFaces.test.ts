@@ -23,7 +23,7 @@ const plan = parseFloorPlan(compileRoomsText(FEET).plan)
 
 describe('rooms on inside and outside walls keep their W x D (ARE-34)', () => {
   it('are written WxD, not ~WxD, in the description for an agent', () => {
-    const text = describeText(planFacts(plan), 'short', 'agent')
+    const text = describeText(planFacts(plan), 'rooms', 'agent')
     const rooms = text.split('\n').filter((line) => /^(living|kitchen|bed) /.test(line))
     expect(rooms).toHaveLength(3)
     for (const line of rooms) expect(line).not.toMatch(/ ~\d/)
