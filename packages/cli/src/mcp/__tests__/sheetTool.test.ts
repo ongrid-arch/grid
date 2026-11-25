@@ -186,10 +186,10 @@ describe('grid_sheet layout drawing (SHT-6)', () => {
   it('writes the PDF, SVG and PNG into exports/ and answers with the PNG to look at', async () => {
     const ctx = context()
     const reply = (await tool.run(readArgs(tool, { plan: 'plan.json', layout: 'drawing', scale: 100, paper: 'A4' }), ctx.context)) as { text: string; data: Record<string, unknown>; image?: { data: Uint8Array; mimeType: string } }
-    expect(reply.data).toMatchObject({ written: 'exports/plan-drawing.pdf', svg: 'exports/plan-drawing.svg', png: 'exports/plan-drawing.png', layout: 'drawing', scale: 100, paper: 'A4', leftOut: 0 })
+    expect(reply.data).toMatchObject({ written: 'exports/plan-drawing-1-100-A4.pdf', svg: 'exports/plan-drawing-1-100-A4.svg', png: 'exports/plan-drawing-1-100-A4.png', layout: 'drawing', scale: 100, paper: 'A4', leftOut: 0 })
     expect(reply.image?.mimeType).toBe('image/png')
     expect(reply.text.split('\n')[0]).toMatch(/ plan at 1:100 on A4 (portrait|landscape)\.$/)
-    expect(readdirSync(join(ctx.dir, 'exports')).sort()).toEqual(['plan-drawing.pdf', 'plan-drawing.png', 'plan-drawing.svg'])
+    expect(readdirSync(join(ctx.dir, 'exports')).sort()).toEqual(['plan-drawing-1-100-A4.pdf', 'plan-drawing-1-100-A4.png', 'plan-drawing-1-100-A4.svg'])
   })
 
   it('chooses the scale and paper when neither is given, and says so', async () => {

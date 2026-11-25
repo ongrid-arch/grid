@@ -217,12 +217,15 @@ export interface MadeDrawing {
   readonly note?: string
 }
 
-/** The drawing's file names: the plan's export name, its floor by its place when the plan has several, and `-drawing`. */
-function drawingStem(planFile: string, loaded: LoadedPlan, floor: string): { stem: string; note?: string } {
+/**
+ * The drawing's file names: the plan's export name, its floor by its place when the plan has
+ * several, `-drawing`, and its scale and paper (`-1-100-A3`) once the sheet is made.
+ */
+function drawingStem(planFile: string, loaded: LoadedPlan, floor: string, made?: { scale: number; paper: string }): { stem: string; note?: string } {
   const { base, note } = exportBaseOf(planFile)
   const floors = planFloors(loaded.plan)
   const place = floors.length > 1 ? `-floor-${floors.findIndex((f) => f.id === floor) + 1}` : ''
-  const stem = `${base}${place}-drawing`
+  const stem = `${base}${place}-drawing${made === undefined ? '' : `-1-${made.scale}-${made.paper}`}`
   return note === undefined ? { stem } : { stem, note: `Named the sheet ${base}: ${note}.` }
 }
 
@@ -247,7 +250,7 @@ export async function makeDrawing(project: Project, planFile: string, request: D
     if (error instanceof DrawingDoesNotFit) throw new PlanRefused(error.message)
     throw error
   }
-  const { stem } = drawingStem(planFile, loaded, sheet.floor)
+  const { stem } = drawingStem(planFile, loaded, sheet.floor, { scale: sheet.scale, paper: sheet.paper.name })
   const files = await drawingSheetFiles(sheet, `${projectName}: ${sheet.words.drawing}`)
   return named.note === undefined ? { loaded, sheet, files, stem } : { loaded, sheet, files, stem, note: named.note }
 }
