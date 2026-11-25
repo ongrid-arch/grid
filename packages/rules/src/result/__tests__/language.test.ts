@@ -396,14 +396,19 @@ describe('walls through floors and floors that line up, in Spanish (LVL-5, after
       ],
       openings: [{ id: 'door', wall: 'g-s', type: 'door', offset: 1, width: 0.9, height: 2.1 }]
     }
-    const { en, es } = both(plan, 'floor/out-of-line', 'f')
-    expect(en.message).toBe('Floor "First floor" does not line up with the floor below it')
+    // LVL-10: a floor wholly inside the one below is a part floor, set back from it.
+    const { en, es } = both(plan, 'floor/set-back', 'f')
+    expect(en.message).toBe('Floor "First floor" is a part floor, set back from the floor below it')
     expect(en.found).toBe(
-      'Floor "First floor" does not line up with "Ground floor" below it: it sits back from it by 0.30 m on the east, from (8.15, -0.15) to (8.45, 6.15). ' +
-        'If that is meant, mark the floor with overhang "meant"; if not, move its outside walls over the floor below, or make a wall that both floors share rise through them (through).'
+      'Floor "First floor" is a part floor over "Ground floor": it sits back from it by 0.30 m on the east, and lines up with it on the north, south and west. ' +
+        'It stands from (-0.15, -0.15) to (8.15, 6.15), the floor below from (-0.15, -0.15) to (8.45, 6.15). ' +
+        'If that is meant, mark the floor with overhang "meant"; if not, move its outside walls out over the edge of the floor below, or make a wall that both floors share rise through them (through).'
     )
-    expect(es.message).toBe('Planta "First floor" no está alineada con la planta de abajo')
-    expect(es.found).toMatch(/^La planta "First floor" no está alineada con "Ground floor", debajo de ella: queda retranqueada respecto a ella 0,30 m por el este, de \(8,15; -0,15\) a \(8,45; 6,15\)\. /)
+    expect(en.fix).toContain('overhang "meant"')
+    expect(es.message).toBe('Planta "First floor" es una planta parcial, retranqueada respecto a la planta de abajo')
+    expect(es.found).toMatch(
+      /^La planta "First floor" es una planta parcial sobre "Ground floor": queda retranqueada respecto a ella 0,30 m por el este, y está alineada con ella por el norte, sur y oeste\. Ocupa de \(-0,15; -0,15\) a \(8,15; 6,15\)/
+    )
   })
 
   it('says a wall that rises through a floor the plan does not have in main\'s English and in Spanish', () => {

@@ -588,6 +588,8 @@ export const CODES = {
   'floor/unclaimed': {},
   // LVL-5 (lab WR-9): a floor whose outline does not lie over the floor below it.
   'floor/out-of-line': {},
+  // LVL-10: a floor wholly inside the floor below it, a part floor set back from it.
+  'floor/set-back': {},
   'floor/past-outline': {},
   'floor/empty-top': {},
   'floor/rooflight-misplaced': {},
