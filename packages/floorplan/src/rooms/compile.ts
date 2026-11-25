@@ -48,6 +48,9 @@
  *   wall <room> <side> [<t>] [kind] [height <h>] [id <id>] [reversed]  an outside wall
  *   door|window|opening <id> between <room> and <room>, <place>, <w> wide [...]
  *   door|window|opening <id> in <room> <side>, <place>, <w> wide [...]
+ *       <side>: a compass word, or `<side>.<k>` when more than one of the room's sides faces it,
+ *                counted from the west, then the south; a bare word there is refused, except in a
+ *                unit with one such side onto something outside it (WRT-51)
  *       <place>: centred | <m> from <north|south|east|west> [of <room>]
  *       then:    sill <m>, height <m>, opens into <room>|in|out, hinged <direction>, no-swing
  *                hinged left|right [seen from <room>|outside]  as seen from the room it opens into
@@ -660,6 +663,14 @@ class Compiler {
   private readonly fromGap = new Set<string>()
   /** WRT-17: the line each opening was written on, for a refusal that names it. */
   private readonly openingLines = new Map<string, number>()
+  /**
+   * WRT-51: for an opening line refused for not saying which of several sides, the line written
+   * with each side in full, and for a line between two rooms the room it must then join; tried
+   * before they are offered.
+   */
+  readonly sideOffers = new Map<number, Array<{ text: string; onto?: string }>>()
+  /** WRT-51: the room beyond the wall each opening line was placed in, by its line; null for the outside. */
+  readonly placedAt = new Map<number, string | null>()
   /** The wall thickness each side of a sized room was taken to have, keyed floor|room|side. */
   readonly assumed: Map<string, number>
   /** What each side of a sized room turned out to have. */
@@ -2626,7 +2637,60 @@ class Compiler {
   // ------------------------------------------------------------------------------------------
   // Openings
 
-  private pickEdge(fl: FloorDraft, edges: Edge[], rid: string, sideWord: string, at: number): Edge {
+  /** WRT-51: a room's sides facing one way, in the order `<side>.<k>` counts them: from the west, then the south. */
+  private static facing(edges: readonly Edge[], rid: string, side: string): Edge[] {
+    const hits = edges.filter((e) => e.room.id === rid && dot(e.n, COMPASS[side]!) > 0.9)
+    return hits.sort((a, b) => a.p[0] + a.q[0] - (b.p[0] + b.q[0]) || a.p[1] + a.q[1] - (b.p[1] + b.q[1]))
+  }
+
+  /** WRT-51: the word an opening line picks this side by: `east`, or `east.2` when more than one of the room's sides faces east. */
+  private static sideWordOf(edges: readonly Edge[], e: Edge): string {
+    const side = compassOf(e.n)
+    const hits = Compiler.facing(edges, e.room.id, side)
+    return hits.length > 1 ? `${side}.${hits.indexOf(e) + 1}` : side
+  }
+
+  /** WRT-51: what lies beyond a room's side: the rooms on the other face of its stretches of wall, and the outside where one has none. */
+  private static beyondOf(raws: readonly RawWall[], e: Edge): { rooms: string[]; outside: boolean } {
+    const rooms = new Set<string>()
+    let outside = false
+    for (const r of raws) {
+      if (!r.sides.some((sd) => sd[0] === e.idx)) continue
+      const other = r.rooms.filter((x) => x !== e.room)
+      if (other.length === 0) outside = true
+      for (const x of other) rooms.add(x.id)
+    }
+    return { rooms: [...rooms].sort(), outside }
+  }
+
+  /** WRT-51: what lies beyond a side, in words: "the wall to 'wc'", "the wall to the outside". */
+  static beyondSaid(beyond: { rooms: string[]; outside: boolean }): Said {
+    const list: Array<string | Said> = beyond.rooms.map((x) => `'${x}'`)
+    if (beyond.outside || list.length === 0) list.push(said('rooms.rawRoom.outside'))
+    return said('rooms.side.beyond', { list: joined(list, 'join.and') })
+  }
+
+  /**
+   * WRT-51: an opening line as written with another place in place of `find` (a regular
+   * expression for `in <room> <side>` or `between <a> and <b>`), or null when the line is not
+   * written as the words read (a line of a unit, written once for every placement).
+   */
+  private rewritten(t: readonly string[], at: number, find: RegExp, put: string): string | null {
+    const source = this.lines[at - 1]
+    if (source === undefined) return null
+    let words: string[]
+    try {
+      words = wordsOf(source, at)
+    } catch {
+      return null
+    }
+    if (words.length < 4 || words.slice(0, 4).some((w, k) => w !== t[k]) || (t[2] === 'between' && words[5] !== t[5])) return null
+    const m = unquoted(source, find)
+    if (m === null) return null
+    return `${source.slice(0, m.index)}${put}${source.slice(m.index + m[0].length)}`.trim()
+  }
+
+  private pickEdge(fl: FloorDraft, edges: Edge[], raws: readonly RawWall[], t: readonly string[], rid: string, sideWord: string, at: number): Edge {
     if (!fl.rooms.has(rid)) this.stop('rooms/unknown-room', at, `line ${at}: there is no room '${rid}' on floor '${fl.id}'. Rooms: ${[...fl.rooms.keys()].join(', ')}.`)
     let side = sideWord
     let k: number | null = null
@@ -2637,22 +2701,39 @@ class Compiler {
     }
     if (!Object.hasOwn(COMPASS, side)) this.stop('rooms/syntax', at, `line ${at}: '${side}' is not a side. Use north, south, east, west (or ne, nw, se, sw for an angled wall).`)
     const mine = edges.filter((e) => e.room.id === rid)
-    const hits = mine.filter((e) => dot(e.n, COMPASS[side]!) > 0.9)
+    const hits = Compiler.facing(edges, rid, side)
     if (hits.length === 0) {
-      this.stop('rooms/no-side', at, `line ${at}: room '${rid}' has no side facing ${side}. Its sides: ${mine.map((e) => `${compassOf(e.n)} (${f2(e.L)} m)`).join(', ')}.`)
+      this.stop('rooms/no-side', at, `line ${at}: room '${rid}' has no side facing ${side}. Its sides: ${mine.map((e) => `${Compiler.sideWordOf(edges, e)} (${f2(e.L)} m)`).join(', ')}.`)
     }
-    if (k !== null) {
-      hits.sort((a, b) => a.p[0] + a.q[0] - (b.p[0] + b.q[0]) || a.p[1] + a.q[1] - (b.p[1] + b.q[1]))
-      if (!Number.isInteger(k) || k < 1 || k > hits.length) this.stop('rooms/no-side', at, `line ${at}: room '${rid}' has ${hits.length} side(s) facing ${side}; '${side}.${k}' does not exist.`)
-      return hits[k - 1]!
-    }
-    if (hits.length > 1) {
-      hits.sort((a, b) => b.L - a.L)
-      if (hits[0]!.L - hits[1]!.L < eps()) {
-        this.guesses.push(`Line ${at}: room '${rid}' has ${hits.length} sides facing ${side} of the same length; the first was used. Write '${side}.1', '${side}.2' (counted from the west or south) to choose.`)
+    if (hits.length === 1 && k === null) return hits[0]!
+    if (k !== null && Number.isInteger(k) && k >= 1 && k <= hits.length) return hits[k - 1]!
+    // WRT-51: more than one side faces that way. In a unit, the one side onto something that is
+    // not one of the unit's own rooms (the corridor, the outside) is the one meant; else the line
+    // does not say which, and each side is named with what lies beyond it.
+    const beyond = hits.map((e) => Compiler.beyondOf(raws, e))
+    const sides = hits.map((e, n) => said('rooms.side.one', { word: Compiler.sideWordOf(edges, e), length: num(f2(e.L)), beyond: Compiler.beyondSaid(beyond[n]!) }))
+    const unit = k === null ? [...fl.inst].find(([, ids]) => ids.includes(rid)) : undefined
+    if (unit !== undefined) {
+      const own = new Set(unit[1])
+      const onto = hits.filter((_, n) => beyond[n]!.outside || beyond[n]!.rooms.some((x) => !own.has(x)))
+      if (onto.length === 1) {
+        const e = onto[0]!
+        const n = hits.indexOf(e)
+        const others = hits.flatMap((f, m) => (f === e ? [] : [said('rooms.side.other', { word: Compiler.sideWordOf(edges, f), beyond: Compiler.beyondSaid(beyond[m]!) })]))
+        this.guesses.push(
+          english(said('rooms.side.unitGuess', { line: at, room: rid, count: hits.length, side, word: Compiler.sideWordOf(edges, e), beyond: Compiler.beyondSaid(beyond[n]!), unit: unit[0], others: joined(others, 'join.commaOr') }))
+        )
+        return e
       }
     }
-    return hits[0]!
+    const offers = hits.flatMap((e) => {
+      const text = this.rewritten(t, at, new RegExp(`\\bin\\s+${escaped(rid)}\\s+${escaped(sideWord)}(?![\\w.])`), `in ${rid} ${Compiler.sideWordOf(edges, e)}`)
+      return text === null ? [] : [{ text }]
+    })
+    if (offers.length > 0) this.sideOffers.set(at, offers)
+    const list = joined(sides, 'join.semicolon')
+    if (k === null) this.stop('rooms/no-side', at, english(said('rooms.side.many', { line: at, room: rid, count: hits.length, side, sides: list })))
+    this.stop('rooms/no-side', at, english(said('rooms.side.noSuch', { line: at, room: rid, count: hits.length, side, word: sideWord, sides: list })))
   }
 
   /**
@@ -2772,8 +2853,16 @@ class Compiler {
         const desc = shared.map((r) => {
           const k = r.rooms[0]!.id === A ? 0 : 1
           const side = r.sides[k]!
-          return `${A}'s ${compassOf(edges[side[0]]!.n)} side (${f2(side[2] - side[1])} m)`
+          return `${A}'s ${Compiler.sideWordOf(edges, edges[side[0]]!)} side (${f2(side[2] - side[1])} m)`
         })
+        // WRT-51: the line written with each of A's sides in place of 'between A and B', tried before it is offered.
+        const offers = new Map<string, { text: string; onto?: string }>()
+        for (const r of shared) {
+          const word = Compiler.sideWordOf(edges, edges[r.sides[r.rooms[0]!.id === A ? 0 : 1]![0]]!)
+          const text = this.rewritten(t, at, new RegExp(`\\bbetween\\s+${escaped(A)}\\s+and\\s+${escaped(B)}(?![\\w.-])`), `in ${A} ${word}`)
+          if (text !== null && !offers.has(text)) offers.set(text, { text, onto: B })
+        }
+        if (offers.size > 0) this.sideOffers.set(at, [...offers.values()])
         this.stop('rooms/two-shared-walls', at, `line ${at}: '${A}' and '${B}' share ${shared.length} walls: ${desc.join('; ')}. Say which with 'in ${A} <side>' in place of 'between ${A} and ${B}'.`)
       }
       const r = shared[0]!
@@ -2783,7 +2872,7 @@ class Compiler {
       between = { A, B, r }
       i += 4
     } else if (i + 2 < t.length && t[i] === 'in') {
-      e = this.pickEdge(fl, edges, t[i + 1]!, t[i + 2]!, at)
+      e = this.pickEdge(fl, edges, raws, t, t[i + 1]!, t[i + 2]!, at)
       stretch = [0, e.L]
       i += 3
     } else {
@@ -2928,6 +3017,7 @@ class Compiler {
     const loName = compassOf([-u[0], -u[1]], DIRS)
     const hiName = compassOf(u, DIRS)
     this.openingFacts.push(`${oid}: ${kind} ${f2(width)} m in ${w.id}, joins ${joins}; ${f2(s)} m from ${e.room.id}'s ${loName} corner, ${f2(e.L - s - width)} m from its ${hiName} corner${said}`)
+    this.placedAt.set(at, other.length > 0 ? other[0]!.id : null)
     return item
   }
 
@@ -3530,6 +3620,11 @@ const REPEAT_MAX = 500
 /** How many times a plan whose sizes run to the walls is placed again, at most. */
 const SETTLE_ROUNDS = 8
 
+/** WRT-51: a word of rooms text as a regular expression that matches it and nothing else. */
+function escaped(word: string): string {
+  return word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /** Where a word stands in a line of rooms text outside quotes: `re`'s first match there, or null. */
 function unquoted(line: string, re: RegExp): RegExpExecArray | null {
   const quoted: Array<[number, number]> = []
@@ -3610,6 +3705,35 @@ export interface CompileOptions {
  * them share one, when there is one (`offerFixes`, on unless a fix is being tried).
  */
 export function compileRoomsText(text: string, options: CompileOptions = {}): RoomsResult {
+  return compiled(text, options).result
+}
+
+/**
+ * WRT-51: an opening line refused for not saying which of several sides, with the lines that
+ * say it in full and write: each is tried, and kept when the line is then placed (in the wall to
+ * the room it was meant to join, for two rooms that share several walls) and nothing is refused
+ * that was not before. Nothing is changed: they are offered, in the message and as data.
+ */
+function withSideFix(text: string, problem: RoomsProblem, all: readonly RoomsProblem[], offers: Compiler['sideOffers']): RoomsProblem {
+  if ((problem.code !== 'rooms/no-side' && problem.code !== 'rooms/two-shared-walls') || problem.line === null) return problem
+  const at = problem.line
+  const had = new Set(all.map((p) => `${p.code}|${p.line}`))
+  const lines = text.split(/\r\n|\r|\n/)
+  const kept: Array<{ fix: RoomsFix; said: Said }> = []
+  for (const offer of offers.get(at) ?? []) {
+    const tried = compiled([...lines.slice(0, at - 1), offer.text, ...lines.slice(at)].join('\n'), { offerFixes: false })
+    if (!tried.c.placedAt.has(at)) continue
+    const onto = tried.c.placedAt.get(at)!
+    if (offer.onto !== undefined && onto !== offer.onto) continue
+    if (!tried.result.problems.every((p) => p.line !== at && had.has(`${p.code}|${p.line}`))) continue
+    kept.push({ fix: { line: at, text: offer.text }, said: said('rooms.side.offer', { text: offer.text, beyond: Compiler.beyondSaid({ rooms: onto === null ? [] : [onto], outside: onto === null }) }) })
+  }
+  if (kept.length === 0) return problem
+  const written = english(said('rooms.side.offers', { line: at, offers: joined(kept.map((k) => k.said), 'join.commaOr') }))
+  return { ...problem, message: `${problem.message} ${written}`, fixes: [...(problem.fixes ?? []), ...kept.map((k) => k.fix)] }
+}
+
+function compiled(text: string, options: CompileOptions): { result: RoomsResult; c: Compiler } {
   const offerFixes = options.offerFixes ?? true
   let assumed = new Map<string, number>()
   let compiler: Compiler | null = null
@@ -3650,11 +3774,11 @@ export function compileRoomsText(text: string, options: CompileOptions = {}): Ro
     warnings = [...warnings, ...checked.warnings]
     if (problems.length > 0) plan = null
   }
-  return {
+  const result: RoomsResult = {
     plan: stopped === null ? plan : null,
     name: c.name,
     basedOn: c.basedOn,
-    problems: offerFixes ? problems.map((p) => withAlignmentFix(text, p, problems)) : problems,
+    problems: offerFixes ? problems.map((p) => withSideFix(text, withAlignmentFix(text, p, problems), problems, c.sideOffers)) : problems,
     warnings,
     guesses: c.guesses,
     rooms: c.roomFacts,
@@ -3663,4 +3787,5 @@ export function compileRoomsText(text: string, options: CompileOptions = {}): Ro
     sizes: c.sizes,
     ...(c.rawCounts() === null ? {} : { raw: c.rawCounts()! }),
   }
+  return { result, c }
 }

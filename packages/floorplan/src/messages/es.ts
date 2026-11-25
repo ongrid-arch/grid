@@ -2040,6 +2040,15 @@ export const es: Messages = {
   'rooms.rawRoom.guess.opens': "abre hacia '{room}'",
   'rooms.rawRoom.guess.hingeMeasured': 'con las bisagras en la jamba más cercana al extremo desde el que se midió',
   'rooms.rawRoom.guess.hingeStart': 'con las bisagras en la jamba más cercana al principio del muro',
+  // WRT-51: a door, window or opening line on a side of a room that more than one of its sides faces.
+  'rooms.side.many': "Línea {line}: la estancia '{room}' tiene {count} lados que miran al {side}, así que la línea no dice cuál: {sides}. Escribe el lado con su palabra.",
+  'rooms.side.noSuch': "Línea {line}: la estancia '{room}' tiene {count} lados que miran al {side}, y '{word}' no es ninguno: {sides}.",
+  'rooms.side.one': "'{word}', {length} m, {beyond}",
+  'rooms.side.beyond': 'el muro hacia {list}',
+  'rooms.side.other': "'{word}' para {beyond}",
+  'rooms.side.unitGuess': "Línea {line}: la estancia '{room}' tiene {count} lados que miran al {side}; se usó '{word}', {beyond}, el único hacia algo fuera de la unidad '{unit}'. Escribe {others} para elegir otro.",
+  'rooms.side.offer': "'{text}' para {beyond}",
+  'rooms.side.offers': 'Para colocarla, escribe la línea {line} como {offers}.',
   'rooms.copyNoOpenings': '{list}',
   'rooms.copyNoOpenings.one':
     "La planta {floors} copia los recintos de la planta '{from}' pero ninguna de sus puertas y ventanas, y no escribe ninguna propia, así que no tiene ninguna: escriba 'copy {from} with openings' para tomarlas, o escriba sus puertas y ventanas.",

@@ -26,7 +26,7 @@ const DECK = [
   'room lobby "Stair lobby" corridor 8.9 x 10 north of corr align west',
   'room stair "Stair" stair 3 x 5 inside lobby corner ne',
   'room lift "Lifts" lift 3 x 3 inside lobby corner se',
-  'opening o-st in lobby east, 0.5 from north, 1.4 wide',
+  'opening o-st in lobby east.2, 0.5 from north, 1.4 wide',
   'opening o-lf in lift west, centred, 1.2 wide',
   'door dl between lobby and corr, centred, 1 wide',
   'repeat cabin 6 east as 101 east of lobby align south',

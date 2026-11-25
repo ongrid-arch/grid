@@ -2034,6 +2034,15 @@ export const en = {
   'rooms.rawRoom.guess.opens': "opens into '{room}'",
   'rooms.rawRoom.guess.hingeMeasured': 'hinged at the jamb nearer the end it was measured from',
   'rooms.rawRoom.guess.hingeStart': "hinged at the jamb nearer the wall's start",
+  // WRT-51: a door, window or opening line on a side of a room that more than one of its sides faces.
+  'rooms.side.many': "Line {line}: room '{room}' has {count} sides facing {side}, so the line does not say which: {sides}. Write the side by its word.",
+  'rooms.side.noSuch': "Line {line}: room '{room}' has {count} sides facing {side}, and '{word}' is none of them: {sides}.",
+  'rooms.side.one': "'{word}', {length} m, {beyond}",
+  'rooms.side.beyond': 'the wall to {list}',
+  'rooms.side.other': "'{word}' for {beyond}",
+  'rooms.side.unitGuess': "Line {line}: room '{room}' has {count} sides facing {side}; '{word}', {beyond}, was used, the only one onto something outside unit '{unit}'. Write {others} to choose another.",
+  'rooms.side.offer': "'{text}' for {beyond}",
+  'rooms.side.offers': 'To place it, write line {line} as {offers}.',
   'rooms.copyNoOpenings': '{list}',
   'rooms.copyNoOpenings.one':
     "Floor {floors} copies the rooms of floor '{from}' but none of its doors and windows, and writes none of its own, so it has none: write 'copy {from} with openings' to take them, or write its doors and windows.",
