@@ -80,7 +80,8 @@ describe('MS-11 a plan that states no wall kind', () => {
     // The door and the window cut their walls into pieces: every piece is on the outside layer.
     expect(dxfLayers(plan).interior).toBe(0)
     expect(dxfLayers(plan).exterior).toBeGreaterThanOrEqual(4)
-    expect(ifcExternal(plan)).toEqual({ external: 4, not: 0 })
+    // Four walls, and the door and window in the south and north walls (CMD-26) share their wall's exposure.
+    expect(ifcExternal(plan)).toEqual({ external: 6, not: 0 })
   })
 
   // The escape window is checked in packages/rules (rules-escape.test.ts, MS-11).
