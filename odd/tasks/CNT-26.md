@@ -23,6 +23,13 @@ metres on a line of their own (`garden`), apart from the outside walls.
   - no room lies just past either face of it, at its middle and its quarters (so a low wall
     standing inside a room, or one inside a courtyard a room wraps, stays the building's); and
   - it stands in no outdoor space (that is CNT-7's fence, unchanged).
+  Such loose walls that touch are one group, and a group is landscape when it touches no wall of
+  the building, touches it at one place only and closes no ring of its own, or closes a ring
+  round rooms (the boundary wall). A group that meets the building at two places or more without
+  going round it closes a space against the building (a landing or a porch not drawn as a room,
+  which the route checks and `floor/unclaimed` rely on) and stays the building's. (Added while
+  building: the first, simpler rule read those landings as landscape and broke the checks of a
+  door into a space not drawn.)
   It reads only the rooms' shapes, never the spaces or the exposure, so the spaces and the
   exposure can both read it without a loop.
 - `spaces.ts` and `areas.ts` (`floorWalls`): leave the landscape walls out, so the spaces, the
@@ -44,9 +51,9 @@ Decisions:
   lists (a house wall that runs on as a boundary). That is a new convention in
   `types/floorplan.ts` and is left out, as the brief says; the report names it. A wall with no room
   on either side needs no mark.
-- A forgotten room (walls drawn, the room not) whose outer walls no room lists now reads as
-  landscape where it touches no room at all. The partition it shares with a drawn room is still
-  listed and stays the building's.
+- A forgotten room or landing drawn against the house (walls, no room) stays the building's, as
+  above. One drawn standing apart from the house, a closed ring of walls with no room in it, is
+  read as a walled garden.
 - The garden wall is drawn in the partition's weight rather than a new drawn kind, so no look or
   pen set changes.
 - No new message code and no new convention.

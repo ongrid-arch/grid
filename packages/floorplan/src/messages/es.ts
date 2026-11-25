@@ -2570,6 +2570,7 @@ export const es: Messages = {
   'describe.bays.range': '{from} a {to}',
   'describe.ramp': 'Rampa {ramp}, de {lower} hasta {upper}: {rise} m en {length} m, una pendiente del {slope} %.',
   'drawing.key.partition': 'Tabique',
+  'drawing.key.gardenWall': 'Muro de jardín o de linde',
   'drawing.key.material': 'Muro: {material}',
   'drawing.key.finish': 'Suelo: {finish}',
 

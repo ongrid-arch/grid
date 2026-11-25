@@ -27,6 +27,9 @@
  * a parapet round a terrace) stands in the open and faces outside too. The stretches still name
  * the outdoor spaces on their faces.
  *
+ * CNT-26: a garden or boundary wall, with no room on either side on a floor that has rooms
+ * (`landscape.ts`), stands in the open: `detached`, even when it states `exterior`.
+ *
  * Every consumer reads this one answer: the 2D drawing and the 3D scene (`exposure`), the DXF
  * layers, the IFC `IsExternal` mark, the order a plan is built in, and the route and escape
  * checks (which also tell outside from enclosed floor no room claims, `rules/graph.ts`).
@@ -44,6 +47,7 @@ import { dot, sub } from './vec2'
 import { wallFrameAt, wallLength, wallSegments } from './wall'
 import { curveFault } from './arc'
 import { outdoorIds } from './outdoor'
+import { landscapeWalls } from './landscape'
 
 /**
  * Whether the wall separates two rooms or faces the outside, as every view and export shows it.
@@ -99,6 +103,11 @@ export interface WallSides {
    * `partition` facing outside (`worked`, the worked-out kind stands). 0 when they agree.
    */
   readonly differs: { readonly length: number; readonly stands: 'kept' | 'worked' } | null
+  /**
+   * CNT-26: a garden or boundary wall, standing apart from the building (`landscapeWalls`): its
+   * exposure is `detached`, whatever kind it states. Left out for every other wall.
+   */
+  readonly landscape?: true
 }
 
 interface Traced {
@@ -275,7 +284,7 @@ const inBody = (p: Vec2, b: Body): boolean => {
 /** Whether a point lies in floor the walls enclose: a room, or a space no room claims. */
 type Enclosed = (p: Vec2) => boolean
 
-function sidesOf(wall: Wall, listing: readonly Traced[], rooms: Buckets<Traced>, bodies: Buckets<Body>, enclosed: Enclosed, outdoor: ReadonlySet<string>): WallSides {
+function sidesOf(wall: Wall, listing: readonly Traced[], rooms: Buckets<Traced>, bodies: Buckets<Body>, enclosed: Enclosed, outdoor: ReadonlySet<string>, landscape: boolean): WallSides {
   const detached: WallSides = { wall: wall.id, stated: wall.kind, stretches: [], worked: 'detached', exposure: wall.kind === 'exterior' ? 'exterior' : 'detached', differs: null }
   // A curve that cannot be built (CNT-18) has no length to work its sides out along.
   if (curveFault(wall) !== null) return detached
@@ -369,6 +378,8 @@ function sidesOf(wall: Wall, listing: readonly Traced[], rooms: Buckets<Traced>,
   const roomed = stretches.filter((s) => s.worked === 'interior' && s.left.length > 0 && s.right.length > 0).reduce((sum, s) => sum + (s.to - s.from), 0)
   if (wall.kind === 'exterior' && roomed > tolerance('lineInside')) differs = { length: length('interior'), stands: 'kept' }
   if (wall.kind === 'partition' && worked === 'exterior') differs = { length: length('exterior'), stands: 'worked' }
+  // CNT-26: a garden or boundary wall stands in the open, an outside wall of nothing.
+  if (landscape) return { wall: wall.id, stated: wall.kind, stretches, worked, exposure: 'detached', differs: null, landscape: true }
   return { wall: wall.id, stated: wall.kind, stretches, worked, exposure, differs }
 }
 
@@ -383,6 +394,7 @@ export function planWallSides(index: PlanIndex): ReadonlyMap<string, WallSides> 
     found = new Map()
     const rooms = traceRooms(index)
     const outdoor = outdoorIds(index.plan)
+    const landscape = landscapeWalls(index.plan, index)
     const tracedById = new Map([...rooms.values()].flat().map((t) => [t.room.id, t] as const))
     const roomBuckets = new Map<string, Buckets<Traced>>()
     for (const [floor, list] of rooms) {
@@ -433,7 +445,7 @@ export function planWallSides(index: PlanIndex): ReadonlyMap<string, WallSides> 
         const t = tracedById.get(r.id)
         return t !== undefined && floorOf(r) === floor ? [t] : []
       })
-      found.set(wall.id, sidesOf(wall, listing, roomBuckets.get(floor) ?? new Buckets(), bodies.get(floor)!, enclosedOn(floor), outdoor))
+      found.set(wall.id, sidesOf(wall, listing, roomBuckets.get(floor) ?? new Buckets(), bodies.get(floor)!, enclosedOn(floor), outdoor, landscape.has(wall.id)))
     }
     if (stated) cache.set(index, found)
   }

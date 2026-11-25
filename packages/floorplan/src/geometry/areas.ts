@@ -50,6 +50,7 @@ import type { OutdoorKind } from '../types/floorplan'
 import { roomColumnArea, roomColumns } from './columns'
 import { english, name, num, said, type Said } from '../messages/say'
 import { partyWallArea, type PartyWallArea, type PartyWallRoom } from './partyWalls'
+import { landscapeWalls } from './landscape'
 
 /**
  * The three measures, the floor by headroom band (LVL-6), outdoor space (CNT-7), and a flat's area
@@ -407,10 +408,13 @@ const nameOf = (room: Room): string => (room.name.trim() === '' ? room.id : room
 
 /** The walls `floorSpaces` joins on this floor, in plan order. */
 export function floorWalls(plan: FloorPlan, floor: string, broken: ReadonlySet<string>): Wall[] {
+  // CNT-26: a garden or boundary wall is no part of the floor: no outline, slab, roof or area.
+  const landscape = landscapeWalls(plan)
   // LVL-5: a wall through floors is one of each floor's it stands on.
   return wallsOnFloor(plan, floor).filter(
     (wall) =>
       !broken.has(wall.id) &&
+      !landscape.has(wall.id) &&
       (wall.arc !== undefined ? curveFault(wall) === null : wall.start[0] !== wall.end[0] || wall.start[1] !== wall.end[1]) &&
       (wall.virtual === true || wall.thickness > 0)
   )
