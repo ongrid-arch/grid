@@ -36,7 +36,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/brief/brief.ts': [58, 'agent'],
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
-  'packages/cli/src/brief/lines.ts': [29, 'notYet'],
+  'packages/cli/src/brief/lines.ts': [30, 'notYet'],
   'packages/cli/src/command/check.ts': [10, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
   // CMD-32: one fewer, --floor no longer needs --picture.
@@ -362,6 +362,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-34 4: the estimate's gable lines and their rules (estimate.ts).
     // and ARE-44 3: the step line's floor-level and ground-step lines (brief/lines.ts).
     // and ARE-48 5: the keep-apart line's ways between the rooms (brief/lines.ts).
+    // and ARE-56 1: the line's note that a room of the wish's use was taken for the name (brief/lines.ts).
     // and 3 more from the same merge (CMD-25, CNT-37 and CMD-26 each raised the cap on their own).
     expect(left).toBeLessThanOrEqual(1635)
   })
