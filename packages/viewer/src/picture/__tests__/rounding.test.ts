@@ -3,7 +3,7 @@ import { resolve } from 'path'
 import { gunzipSync } from 'zlib'
 import { describe, expect, it } from 'vitest'
 import { parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
-import { dimensionTextBox, formatArea } from '../../canvas2d/labelPlacement'
+import { dimensionText, dimensionTextBox, formatArea } from '../../canvas2d/labelPlacement'
 import { planToSvg } from '../planSvg'
 
 /**
@@ -29,7 +29,10 @@ describe('ARE-7 the numbers on the drawing', () => {
     const svg = planToSvg(parseFloorPlan(labPlan('C/scenarios/hotel-floor.json')))
     const texts = [...svg.matchAll(/data-part="dimension-text"[^>]*>([^<]*)</g)].map((m) => m[1])
     expect(texts.filter((t) => t === '1.87')).toEqual([])
-    expect(texts.filter((t) => t === '1.88')).toHaveLength(10)
+    // VEW-51: a bathroom's width line that a door swings across or its name sits on is left out,
+    // so none of the ten need be drawn; the number each would carry is the one figure.
+    expect(dimensionText(1.875, 'room')).toBe('1.88')
+    expect(dimensionText(1.8749999999999982, 'room')).toBe('1.88')
   })
 
   it('formats an area with the core’s rounding', () => {
