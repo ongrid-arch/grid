@@ -52,7 +52,8 @@ import {
 import type { JsonPath, TextMark } from './jsonText'
 import { quoted, textProblem } from './planText'
 import { planInMetres } from './units'
-import { name, num, said, sayValue, type MessageKey, type Value } from '../messages/say'
+import { joined, name, num, said, sayValue, type MessageKey, type Value } from '../messages/say'
+import { readPlanWords, type WordLeftOut } from '../messages/words'
 
 export type PartList = 'walls' | 'rooms' | 'openings' | 'floors' | 'items' | 'patterns'
 
@@ -498,10 +499,12 @@ export function readPlanParts(given: unknown, marks: readonly TextMark[] = []): 
   const converted = planInMetres(given)
   // CNT-15 (C24): every part filled from its type first, so a part read alone is read as it is meant.
   // CNT-20 (C30): and every item from its library entry.
-  const raw = withLibrary(withTypes(converted.raw)) as Record<string, unknown>
+  const filled = withLibrary(withTypes(converted.raw)) as Record<string, unknown>
   if (converted.from !== null) {
     faults.push({ kind: 'read-as-meant', part: null, path: ['units'], found: JSON.stringify(given['units']), wants: said('read.wants.metres'), read: said('read.read.converted', { unit: said(`read.unit.${converted.from}` as MessageKey) }) })
   }
+  // MSG-24 (C32): the plan's own words, each one the reader cannot take left out alone.
+  const raw = withWords(filled, faults)
   const positions = Object.fromEntries(LISTS.map((list) => [list, [] as number[]])) as Positions
   const work: Record<string, unknown> = { ...raw }
   const whole = FloorPlanSchema.safeParse(raw)
@@ -535,6 +538,50 @@ export function readPlanParts(given: unknown, marks: readonly TextMark[] = []): 
   }
   const inWords = faults.map(inEnglish)
   return { plan, faults: inWords, leftOutWalls, leftOut: leftOutParts(raw, inWords) }
+}
+
+/** MSG-24: what a part of `display.words` left out was, and what the format takes there. */
+function wordFault(left: WordLeftOut): { found: Value; wants: Value } {
+  const list = (names: readonly string[]): Value => joined(names.map((n) => `{${n}}`), 'join.comma', 'join.and')
+  const problem = left.problem
+  switch (problem.kind) {
+    case 'not-a-map':
+      return { found: said('read.found.unreadable'), wants: said(left.at.length === 0 ? 'read.wants.wordsMap' : 'read.wants.wordsOfLanguage') }
+    case 'language':
+      return { found: textProblem(left.at[0]!, 'name') === null ? said('read.found.text', { text: name(left.at[0]!) }) : said('read.found.unreadable'), wants: said('read.wants.wordsLanguage') }
+    case 'unknown-key':
+      return { found: said('read.found.wordKey'), wants: said('read.wants.wordKey') }
+    case 'not-text':
+      return { found: said('read.found.unreadable'), wants: said('read.wants.a', { type: 'string' }) }
+    case 'text':
+      return { found: said('read.found.textThat', { problem: problem.problem }), wants: said('read.wants.word') }
+    case 'placeholders':
+      return {
+        found: problem.found.length === 0 ? said('read.found.noPlaceholders') : said('read.found.placeholders', { placeholders: list(problem.found) }),
+        wants: problem.needed.length === 0 ? said('read.wants.noPlaceholders') : said('read.wants.placeholders', { placeholders: list(problem.needed) }),
+      }
+  }
+}
+
+/**
+ * MSG-24 (C32): the plan with only the sound words of its `display.words`, and a reading line for
+ * each part left out, at its place in the file. The rest of the display is kept as it is.
+ */
+function withWords(raw: Record<string, unknown>, faults: ReadFault<Value>[]): Record<string, unknown> {
+  const display = raw['display']
+  if (!isObject(display) || !Object.hasOwn(display, 'words')) return raw
+  const { words, leftOut } = readPlanWords(display['words'])
+  if (leftOut.length === 0) return raw
+  for (const left of leftOut) {
+    // A language or a key the text rule refuses is not repeated: the line is put at the part above it.
+    const shown = left.at.findIndex((part) => textProblem(part, 'name') !== null)
+    const at = shown === -1 ? left.at : left.at.slice(0, shown)
+    faults.push({ kind: 'value-left-out', part: null, path: ['display', 'words', ...at], ...wordFault(left), used: null })
+  }
+  const rest: Record<string, unknown> = { ...display }
+  if (words === undefined) delete rest['words']
+  else rest['words'] = words
+  return { ...raw, display: rest }
 }
 
 /** A fault's words in English, with the same by key and values as its `words` (MSG-11). */

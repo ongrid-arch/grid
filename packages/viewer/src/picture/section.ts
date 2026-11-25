@@ -32,7 +32,7 @@ import type { Picture, PictureOptions } from './planSvg'
 import { DEFAULT_WIDTH, displayOfPicture, lookOf } from './planSvg'
 import type { Attrs, SvgNode } from './svgNode'
 import { el } from './svgNode'
-import { DEFAULT_LANGUAGE, LANGUAGE_DECIMAL, num, said, type Language } from '@ongrid/floorplan/messages'
+import { DEFAULT_LANGUAGE, languageDecimal, num, said, type Language } from '@ongrid/floorplan/messages'
 import { drawingText, saidText, type DrawingWords } from './words'
 import { METRES, showLength, type Display } from '@ongrid/floorplan/types/units'
 
@@ -88,7 +88,7 @@ interface LevelLabel {
  */
 function sectionWords(plan: FloorPlan, asked: Language | undefined): DrawingWords {
   const language = asked ?? plan.display?.language ?? DEFAULT_LANGUAGE
-  return { language, decimal: language === DEFAULT_LANGUAGE ? 'point' : (plan.display?.decimal ?? LANGUAGE_DECIMAL[language]) }
+  return { language, decimal: language === DEFAULT_LANGUAGE ? 'point' : (plan.display?.decimal ?? languageDecimal(language)) }
 }
 
 /**

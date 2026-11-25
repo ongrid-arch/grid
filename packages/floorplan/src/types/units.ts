@@ -10,7 +10,7 @@
  * Pure: text and numbers in, text and numbers out.
  */
 import { limit, tolerance } from '../geometry/tolerances'
-import { LANGUAGE_DECIMAL, type Language } from '../messages/languages'
+import { languageDecimal, type Language } from '../messages/languages'
 
 export const LENGTH_UNITS = ['m', 'cm', 'mm', 'ft-in'] as const
 export type LengthUnit = (typeof LENGTH_UNITS)[number]
@@ -170,7 +170,7 @@ export function displayOf(length: LengthUnit, decimal: DecimalMark = 'point', ar
  */
 export function statedDisplay(stated: { readonly length?: LengthUnit | undefined; readonly area?: AreaUnit | undefined; readonly decimal?: DecimalMark | undefined; readonly precision?: number | undefined; readonly language?: Language | undefined }): Display {
   const length = stated.length ?? 'm'
-  const decimal = stated.decimal ?? LANGUAGE_DECIMAL[stated.language ?? 'en']
+  const decimal = stated.decimal ?? languageDecimal(stated.language ?? 'en')
   const display = displayOf(length, decimal, stated.area, stated.precision)
   return stated.language === undefined ? display : { ...display, language: stated.language }
 }

@@ -53,11 +53,16 @@ describe('the message files (MSG-11)', () => {
     expect(docs).toMatch(/\| Spanish \| `es\.ts` \| draft translation, not reviewed \|/)
   })
 
-  it('reads a language from a word, a capital or a region tag, and nothing else', () => {
+  it('reads a language from a word, a capital or a region tag, and nothing that is no language tag', () => {
     expect(readLanguage('es')).toBe('es')
     expect(readLanguage('ES')).toBe('es')
     expect(readLanguage('es-MX')).toBe('es')
-    expect(readLanguage('fr')).toBeNull()
+    // MSG-24: any BCP-47 tag is its primary language, Grid ships a file for it or not.
+    expect(readLanguage('fr')).toBe('fr')
+    expect(readLanguage('pt-BR')).toBe('pt')
+    expect(readLanguage('zh-Hant-TW')).toBe('zh')
+    expect(readLanguage('Deutsch')).toBeNull()
+    expect(readLanguage('d')).toBeNull()
     expect(readLanguage(3)).toBeNull()
   })
 })
@@ -133,6 +138,8 @@ describe('the language in a plan\'s display (MSG-11)', () => {
     expect(statedDisplay(spanish)).toMatchObject({ length: 'm', decimal: 'comma', language: 'es' })
     expect(statedDisplay({ language: 'es', decimal: 'point' })).toMatchObject({ decimal: 'point' })
     expect(statedDisplay({ length: 'mm' })).toMatchObject({ length: 'mm', decimal: 'point' })
-    expect(FloorPlanSchema.parse({ ...base, display: { language: 'fr' } }).display).toBeUndefined()
+    // MSG-24: any language is read; a word that is no language tag is not.
+    expect(FloorPlanSchema.parse({ ...base, display: { language: 'fr' } }).display).toEqual({ language: 'fr' })
+    expect(FloorPlanSchema.parse({ ...base, display: { language: 'Français' } }).display).toBeUndefined()
   })
 })

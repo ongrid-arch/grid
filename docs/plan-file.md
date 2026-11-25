@@ -212,7 +212,8 @@ the edge, chosen per person:
   | `length` | `m`, `cm`, `mm` or `ft-in` | `m` |
   | `area` | `m2` or `ft2` | `ft2` with `ft-in`, else `m2` |
   | `decimal` | `point` (2.40) or `comma` (2,40) | the language's: `comma` for `es`, else `point` |
-  | `language` | `en` or `es`: the language Grid writes its own words in (MSG-11, [Languages](languages.md)) | `en` |
+  | `language` | any language, as a BCP-47 tag (`en`, `es`, `de`, `pt-BR`): the language Grid writes its own words in (MSG-11, MSG-24, [Languages](languages.md)) | `en` |
+  | `words` | the plan's own words for Grid's keys, per language (C32, [below](#grids-words-in-another-language)) | none |
   | `precision` | decimals shown, 0 to 5; in feet and inches, the inch in 2^n parts (0 whole inches, 3 eighths) | 2 for m, 1 for cm, 0 for mm and ft-in |
 
   A call's `units` and `decimal` (`--units`, `--decimal` on `grid draw`) win over the plan's
@@ -227,6 +228,29 @@ the edge, chosen per person:
   `packages/floorplan/src/messages/uses.ts`: `cocineta`, `Flur`, `chambre`, `卧室`); its `name` is
   never translated. A `language` with a region (`es-MX`, `es-ES`) is read as its language. A plan
   with no `floors` stands on one floor Grid names in its language: "Ground floor", "Planta baja".
+
+## Grid's words in another language
+
+Grid ships its words in English and Spanish. For any other language the plan keeps its own words
+(MSG-24, C32), which the agent writes with `grid_words`; nobody writes a translation file:
+
+```json
+"display": {
+  "language": "de",
+  "decimal": "comma",
+  "words": { "de": { "label": "Allgemeine Hinweise, nicht Ihre örtlichen Vorschriften", "join.and": " und " } }
+}
+```
+
+- `words` maps a language, as its primary subtag in lower case (`de`, `pt`, `zh`, never `en`), to
+  a map from a key of Grid's messages to its wording, with exactly the English key's placeholders
+  (`{size}`), on one line.
+- Grid writes a key in a language from the plan's word, else from the file it ships for the
+  language, else in English. A word the reader cannot take (a key Grid does not have, a placeholder
+  that differs from the English key's, a line break) is left out alone, with a reading line at its
+  place (`display.words.de.<key>`), and the English is said.
+- The decimal mark is the display's `decimal` (a point for a language Grid ships no file for),
+  never the words'. Room names and floor names are the person's own and never words.
 
 ## Floor levels and heights
 

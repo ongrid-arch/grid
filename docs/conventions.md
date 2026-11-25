@@ -103,6 +103,7 @@ as before. The plan file's page says what each holds and what its checks mean.
 | C29 | Parking bays and ramps | [Parking bays and ramps](plan-file.md#parking-bays-and-ramps) |
 | C30 | A library of fixtures, furniture and typical rooms, placed by name | [The library](library.md#what-the-library-holds) |
 | C31 | A trace image under the plan | [A trace image under the plan](plan-file.md#a-trace-image-under-the-plan) |
+| C32 | Grid's words in any language, kept in the plan | [Grid's words in another language](plan-file.md#grids-words-in-another-language) |
 
 The plan's whole structure, every field each part may hold, is the JSON Schema the build writes
 beside the command (`plan.schema.json`), which the tool server serves as `grid://schema/plan`

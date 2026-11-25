@@ -48,6 +48,8 @@ export const PARTS_MAX = 50_000
 export const BOUNDARY_MAX = 2_000
 /** CNT-9: the most facts of the person's own one wall, opening, room or floor may carry. */
 export const PROPERTIES_MAX = 100
+/** MSG-24: the most characters one of the plan's own words for a key of Grid's (C32) may have. */
+export const WORD_MAX = 2_000
 
 /** Line breaks of every kind: one would start a line of its own in a report. */
 const LINE_BREAK = /[\n\r\u0085\u2028\u2029]/
@@ -62,7 +64,7 @@ const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[
 export const UNSAFE_TEXT = new RegExp(`${LINE_BREAK.source}|${CONTROL.source}|${DIRECTION.source}|${LONE_SURROGATE.source}`)
 
 /** What a piece of text is, for its limit. */
-export type TextKind = 'name' | 'id' | 'path'
+export type TextKind = 'name' | 'id' | 'path' | 'word'
 
 function codePoint(text: string, pattern: RegExp): string {
   const found = pattern.exec(text)![0]
@@ -79,7 +81,7 @@ export function textProblem(text: string, kind: TextKind): string | null {
   if (CONTROL.test(text)) return `holds a control character (${codePoint(text, CONTROL)})`
   if (DIRECTION.test(text)) return `holds a direction character (${codePoint(text, DIRECTION)}), which can show text backwards`
   if (LONE_SURROGATE.test(text)) return 'holds half of a character pair, which is no character'
-  const max = kind === 'name' ? NAME_MAX : kind === 'id' ? ID_MAX : IMAGE_PATH_MAX
+  const max = kind === 'name' ? NAME_MAX : kind === 'id' ? ID_MAX : kind === 'word' ? WORD_MAX : IMAGE_PATH_MAX
   if (text.length > max) {
     return `is ${text.length.toLocaleString('en-US')} characters long; ${kind === 'id' ? 'an id' : `a ${kind}`} may have at most ${max}`
   }
