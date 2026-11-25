@@ -48,9 +48,15 @@ const RATES_MAX = 2_000
 const ORDERS_MAX = 200
 const ORDER_KEYS_MAX = 100
 const CURRENCY_MAX = 16
-const KEY_MAX = 64
-/** A key as the lines write them: a word, then parts after colons (`wall:exterior:0.35`). */
-const KEY = /^[a-z][a-z_]*(?::[a-z0-9._-]+)*$/
+/** Long enough for the longest key the estimate writes: a finish's name of 120 characters after `wall_finish:finish:`. */
+const KEY_MAX = 200
+/**
+ * A key as the lines write them (CNT-31): a word in small letters (`floor`, `wall-type`), then
+ * parts after colons. A part may be the plan's own text, a type's id or a finish's name, so what
+ * follows the word may hold any character, a colon too (`wall-type:Bloc 20:0.2`,
+ * `floor:finish:Roble`); `textProblem` keeps out line breaks and control characters.
+ */
+const KEY = /^[a-z][a-z_-]*(?::.+)?$/u
 
 /** Why a rates file was refused. One line; it names parts of the file, never their text. */
 export class RatesRefused extends Error {
@@ -113,7 +119,7 @@ function share(value: unknown, where: string): number {
 }
 
 function key(value: string, where: string): string {
-  if (value.length > KEY_MAX || !KEY.test(value)) throw new RatesRefused(`${where} has ${named(value)}, which is not a key: a key is a word in small letters, then parts after colons, as the quantities write it (floor:bathroom, wall:exterior:0.35, door:0.8x2.1)`)
+  if (value.length > KEY_MAX || !KEY.test(value) || textProblem(value, 'path') !== null) throw new RatesRefused(`${where} has ${named(value)}, which is not a key: a key is a word in small letters, then parts after colons, as the quantities write it (floor:bathroom, wall:exterior:0.35, wall-type:block:0.2, door:0.8x2.1)`)
   return value
 }
 

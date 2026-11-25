@@ -133,7 +133,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/areas.ts': [9, 'notYet'],
   'packages/cli/src/quantities/change.ts': [18, 'notYet'],
   'packages/cli/src/quantities/compare.ts': [25, 'notYet'],
-  'packages/cli/src/quantities/estimate.ts': [33, 'notYet'],
+  // CNT-31: three more, the roof edges' rule and line and why a roof is left out.
+  'packages/cli/src/quantities/estimate.ts': [36, 'notYet'],
   'packages/cli/src/quantities/finishes.ts': [2, 'notYet'],
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
   // ARE-14: the free floor rule is one of the area measures now, in the message files.
@@ -333,6 +334,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and WRT-28 3: the flats lines of a merge (edit/merge.ts) (odd/tasks/WRT-28.md).
     // and WRT-33 3: the merge's stale type and doubled door lines (edit/merge.ts, mcp/editTools.ts).
     // and CNT-27 2: a shaft counted once in the brief, the schedule CSV's column for rows in no total.
+    // and CNT-31 3: the estimate's roof edges' rule and line, and why a roof is left out (estimate.ts).
     expect(left).toBeLessThanOrEqual(1610)
   })
 
