@@ -313,6 +313,11 @@ to its floor, round inside corners and holes. In the lab's two-bed flat, Bedroom
 is 2.19 m in the bedroom, 0.10 m through the wall and 2.05 m in the Hall: 4.34 m. With `width`,
 the way the body or trolley gets through by carries its `length` too.
 
+ARE-30: a route to a room whose use is `stair` or `lift` ends at the doorway into it, not at its
+middle, so identical stairs measure alike (`end=middle` walks to the middle). `start` is `middle`
+(the default), `door` or `farthest corner`, or `x` and `y` give a point on the first room's floor.
+The answer's `startPoint` and `endPoint` give both points in coordinates, each with its kind `at`.
+
 With `to=outside` the way out is the way-out check's (ARE-18): it goes up or down the stairs the
 check reads (a stair the plan states, or stair rooms one over the other; never a lift) and out
 only through a door on a floor that does not stand above the ground, so a balcony door upstairs
