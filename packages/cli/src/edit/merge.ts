@@ -154,6 +154,14 @@ export interface MergeRequest {
   readonly zones?: boolean
   /** With `zones`: the merged room's id. Made from the two rooms' when left out. */
   readonly id?: string
+  /** WRT-33: the merged room's type, the value of the type fact its rooms carry (named `type` when they carry none). */
+  readonly type?: string
+}
+
+/** WRT-33: a room's type fact, the first of its facts whose name ends in "type", in any capitals. */
+function typeFactOf(room: { readonly properties?: Readonly<Record<string, unknown>> | undefined }): { key: string; value: string } | null {
+  for (const [key, value] of Object.entries(room.properties ?? {})) if (/type$/i.test(key)) return { key, value: String(value) }
+  return null
 }
 
 /**
@@ -311,7 +319,10 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
   const bFacts = bRoom.properties ?? {}
   const taken = Object.entries(bFacts).filter(([fact]) => factOf(aRoom, fact) === undefined)
   const differ = Object.entries(bFacts).filter(([fact, value]) => factOf(aRoom, fact) !== undefined && factOf(aRoom, fact) !== value)
-  const mergedFacts = taken.length > 0 ? { ...aFacts, ...Object.fromEntries(taken) } : null
+  const typeFact = typeFactOf(aRoom) ?? typeFactOf(bRoom)
+  let mergedFacts: Record<string, string | number | boolean> | null = taken.length > 0 ? { ...aFacts, ...Object.fromEntries(taken) } : null
+  // WRT-33: the type the person gives the merged room.
+  if (request.type !== undefined) mergedFacts = { ...(mergedFacts ?? aFacts), [typeFact?.key ?? 'type']: request.type }
   if (taken.length > 0) said.push(`${request.name !== undefined || line !== null ? quoted(mergedName) : an} takes the facts of ${bn} it did not carry: ${taken.map(([fact]) => quoted(fact)).join(', ')}.`)
   if (differ.length > 0) notKept.push(`${bn} said otherwise of ${differ.map(([fact]) => quoted(fact)).join(', ')}; the merged room keeps what ${an} says${line === null ? '' : `, and ${bn} keeps its own as a zone`}.`)
   if (line === null) {
@@ -393,10 +404,30 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
     if (home.id !== wall.id || home.lo > 0) openings.set(o.id, { ...(openings.get(o.id) ?? {}), wall: home.id, offset: r3(o.offset - home.lo) })
   }
 
+  // WRT-33: two doors on one wall of the merged room, as two units' doors on one corridor, are
+  // offered, never taken out: which one goes is the person's.
+  const roomWalls = new Set(joined)
+  const doorsOn = new Map<string, string[]>()
+  for (const o of plan.openings) {
+    if (o.type !== 'door' || removeOpenings.has(o.id)) continue
+    const on = openings.get(o.id)?.wall ?? o.wall
+    if (!roomWalls.has(on)) continue
+    doorsOn.set(on, [...(doorsOn.get(on) ?? []), o.id])
+  }
+  for (const [on, ids] of doorsOn) {
+    if (ids.length < 2) continue
+    said.push(`The merged room has ${ids.length} doors on wall ${quoted(on)}: ${ids.map((id) => quoted(id)).join(', ')}. One may be enough; to take one out, call grid_change_opening with opening set to its id and remove true.`)
+  }
+
   const cut = cutWall(wall, pieces)
   const length = c1 - c0
   const strip = wall.virtual === true ? 0 : (s1 - s0) * wall.thickness
   const sizes = `the ${(A.facts.shape?.area ?? 0).toFixed(2)} m² of ${an} and the ${(B.facts.shape?.area ?? 0).toFixed(2)} m² of ${bn}${strip > 0 ? `, with ${strip.toFixed(2)} m² under the wall taken out` : ''}`
+  // WRT-33: a type the merged room keeps no longer says what it is, whichever room it came from.
+  if (typeFact !== null && request.type === undefined) {
+    const area = (A.facts.shape?.area ?? 0) + (B.facts.shape?.area ?? 0) + strip
+    guessed.push(`The merged room keeps the ${quoted(typeFact.key)} ${quoted(typeFact.value)} of ${typeFactOf(aRoom) !== null ? an : bn}, and is now ${area.toFixed(2)} m², so that type may no longer fit; pass type to give it its own.`)
+  }
   const wordForUse = (use: string | undefined): string => (use === undefined ? 'no use' : use)
   said.unshift(
     pieces.length === 0
