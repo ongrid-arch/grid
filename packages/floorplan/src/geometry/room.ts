@@ -201,12 +201,15 @@ function ringPieces(walls: readonly Wall[]): { pieces: WallAxis[]; of: number }[
 const distanceBetween = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y - b.y)
 
 /**
- * Two walls in a row that show the room exactly one face. Deliberately tight:
- * faces a few millimetres apart are joined by a step of that size, so the
- * floor between them is neither lost nor counted twice.
+ * Two walls in a row that show the room one face. Deliberately tight: faces a
+ * few millimetres apart are joined by a step of that size, so the floor between
+ * them is neither lost nor counted twice. ARE-34: faces closer than
+ * `flushFaces` are one face, because a file holds centre lines to a tenth of a
+ * millimetre and an outside and an inside wall meant to be flush end up a hair
+ * apart; such a step would cost the room its four corners and its size.
  */
 function sameFace(a: Line, b: Line): boolean {
-  return Math.abs(cross(a.dir, b.dir)) < tolerance('parallel') && Math.abs(cross(a.dir, sub(b.point, a.point))) < tolerance('sameFace')
+  return Math.abs(cross(a.dir, b.dir)) < tolerance('parallel') && Math.abs(cross(a.dir, sub(b.point, a.point))) < tolerance('flushFaces')
 }
 
 /** One edge of the face outline: a wall's inner face, or a step between two of them. */
