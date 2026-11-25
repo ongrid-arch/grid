@@ -2206,6 +2206,8 @@ export const en = {
   'drawing.section.taken.level': 'The level of {floor}, {level}, is worked out from the floors below it, their heights and slabs: the floor states no elevation.',
   'drawing.section.taken.roomHeight.one': 'A room cut states no height, so it is drawn up to what is over its storey: {names}.',
   'drawing.section.taken.roomHeight.many': '{count} rooms cut state no height, so each is drawn up to what is over its storey: {names}.',
+  'drawing.section.taken.roomVoid.one': 'A room cut stands under a void and states no height, so it is drawn up through the void to what is over it: {names}.',
+  'drawing.section.taken.roomVoid.many': '{count} rooms cut stand under a void and state no height, so each is drawn up through it to what is over it: {names}.',
   'drawing.section.taken.noStair.one': 'No stair is stated in the stair room cut ({ids}): no flight is drawn, only the room and the opening over it.',
   'drawing.section.taken.noStair.many': 'No stair is stated in {count} stair rooms cut ({ids}): no flight is drawn, only the room and the opening over it.',
   'drawing.section.taken.risers': 'The risers of {ids} are worked out by Grid: the plan states no number of risers.',

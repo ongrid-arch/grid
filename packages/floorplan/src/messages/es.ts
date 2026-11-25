@@ -2160,6 +2160,8 @@ export const es: Messages = {
   'drawing.section.taken.level': 'El nivel de {floor}, {level}, se calcula a partir de las plantas inferiores, sus alturas y sus forjados: la planta no indica su cota.',
   'drawing.section.taken.roomHeight.one': 'Una estancia cortada no indica altura, así que se dibuja hasta lo que hay sobre su planta: {names}.',
   'drawing.section.taken.roomHeight.many': '{count} estancias cortadas no indican altura, así que cada una se dibuja hasta lo que hay sobre su planta: {names}.',
+  'drawing.section.taken.roomVoid.one': 'Una estancia cortada está bajo un vacío y no indica altura, así que se dibuja a través del vacío hasta lo que hay sobre él: {names}.',
+  'drawing.section.taken.roomVoid.many': '{count} estancias cortadas están bajo un vacío y no indican altura, así que cada una se dibuja a través de él hasta lo que hay encima: {names}.',
   'drawing.section.taken.noStair.one': 'No se indica escalera en la caja de escalera cortada ({ids}): no se dibuja ningún tramo, solo la estancia y el hueco sobre ella.',
   'drawing.section.taken.noStair.many': 'No se indica escalera en {count} cajas de escalera cortadas ({ids}): no se dibuja ningún tramo, solo las estancias y el hueco sobre ellas.',
   'drawing.section.taken.risers': 'Las contrahuellas de {ids} las calcula Grid: el plano no indica cuántas son.',
