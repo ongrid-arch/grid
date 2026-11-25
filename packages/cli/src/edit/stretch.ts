@@ -139,8 +139,6 @@ const say = (key: MessageKey, values?: Record<string, Value>): string => english
 const metres = (value: number): Value => num(String(r3(Math.abs(value))))
 /** Kept to the micrometre, as the patterns write their places. */
 const r6 = (value: number): number => Number(value.toFixed(6)) + 0
-/** How near a grid's axis must be to the stretch's to be square to it: a rounding error, no more. */
-const SQUARE = 1e-6
 
 /**
  * WRT-24: the parts beyond the line that move with the walls, and the ones that stay, each named
@@ -244,7 +242,9 @@ function carryGrids(plan: FloorPlan, c: Carry, put: Put, said: string[], notKept
     // How far along the stretch each set's lines step: the x lines along the grid's x, the y lines along its y.
     const kx = Math.cos(turn) * axis.x + Math.sin(turn) * axis.y
     const ky = -Math.sin(turn) * axis.x + Math.cos(turn) * axis.y
-    const which = Math.abs(kx) >= 1 - SQUARE ? 'x' : Math.abs(ky) >= 1 - SQUARE ? 'y' : null
+    // Square to the stretch only when turned by a whole number of quarter turns, as stated.
+    const square = (grid.turn ?? 0) % 90 === 0
+    const which = !square ? null : Math.abs(kx) > Math.abs(ky) ? 'x' : 'y'
     if (which === null) {
       notKept.push(say('edit.stretch.stays.gridTurned', { grid: label }))
       continue
