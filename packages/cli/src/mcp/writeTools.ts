@@ -628,6 +628,10 @@ const writeRoomsTool: GridTool = {
     warnings: listSchema(STRING),
     verdict: { type: ['string', 'null'] },
     drawingProblems: objectSchema({ before: { type: 'number' }, after: { type: 'number' } }),
+    // WRT-57: what grid_check lists (the record's count), before and after; null for a scan.
+    toLookAt: { type: ['object', 'null'], properties: { before: { type: 'number' }, after: { type: 'number' } }, required: ['before', 'after'] },
+    // WRT-57: each door that joins other rooms than before, one that no longer leads outside first.
+    doors: listSchema(STRING),
     // BRF-1: the brief's lines, and the one reminder when a first plan has no brief beside it.
     brief: BRIEF_OUTPUT,
     reminder: NULLABLE_STRING,
@@ -672,6 +676,8 @@ const writeRoomsTool: GridTool = {
             warnings: [...c.warnings],
             verdict: done.verdict,
             drawingProblems: done.drawingProblems,
+            toLookAt: null,
+            doors: [],
             brief: done.brief,
             reminder: done.reminder,
             layout: null,
@@ -704,6 +710,8 @@ const writeRoomsTool: GridTool = {
           warnings: r.warnings.map((w) => `${w.code}: ${w.message}`),
           verdict: done.verdict,
           drawingProblems: done.drawingProblems,
+          toLookAt: done.toLookAt,
+          doors: [...done.doors],
           brief: done.brief,
           reminder: done.reminder,
           layout: laid?.layout ?? null,

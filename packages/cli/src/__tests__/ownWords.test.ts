@@ -56,7 +56,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-6: four more, the help of --scale, --paper, --floor and --room-sizes.
   'packages/cli/src/command/sheet.ts': [8, 'command'],
   'packages/cli/src/command/tidy.ts': [12, 'command'],
-  'packages/cli/src/command/write.ts': [35, 'command'],
+  // WRT-57: one less, the count of problems now said from the messages.
+  'packages/cli/src/command/write.ts': [34, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],

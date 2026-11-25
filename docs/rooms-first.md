@@ -191,7 +191,16 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   answer says so with the word for each other side: a cabin door written `in cabin north` goes
   to the corridor, not into the cabin's own bath partition. Two rooms that share more than one
   wall (`rooms/two-shared-walls`) are offered the same way, the line with `in <room> <side>` in
-  place of `between`, for each shared wall that writes.
+  place of `between`, for each shared wall that writes. A door or doorless opening written in a
+  side of which a part is onto the outside, as a front door is once a store is carved in the
+  hall's corner beside it, is never offered only lines that lead it into a room: when the side
+  onto the outside is too short for it, the refusal offers no line and says so, with the side's
+  word for a door meant to lead into that room (WRT-57).
+- Written over a plan, the answer names each door that now joins other rooms than it did,
+  from where it stands, as an edit does; one that no longer leads outside comes first, said so
+  ("No longer leads outside: …"). Its count is what `grid check` will list, the routes out
+  included, beside the drawing problems: `To look at: 0 → 2, of them problems in the drawing
+  0 → 0`; the data has `toLookAt` and `doors` (WRT-57).
 - What Grid writes passes its own check (WRT-17). It reads the plan back as `grid check` will
   before writing it, so the walls it works out close every corner and join only where walls meet.
   Each wall end reaches the centre line of the wall it meets however thick the two are (a 1.8 m

@@ -62,7 +62,7 @@ describe('grid write over a plan that holds items', () => {
     expect(items.map((i) => i.id)).toEqual(['bed-1', 'bed-2', 'bed-3'])
     // The count after holds the bed the wall runs into, as grid check does: the same text written
     // over the flat with no beds counts fewer.
-    const after = (out: string): number => Number(/Problems in the drawing: \d+ → (\d+)\./.exec(out)?.[1])
+    const after = (out: string): number => Number(/problems in the drawing \d+ → (\d+)\./.exec(out)?.[1])
     expect((await grid(dir, 'check', '--json', '--full')).out).toContain('item/into-wall')
     const bare = mkdtempSync(join(tmpdir(), 'grid-write-items-'))
     made.push(bare)
