@@ -86,7 +86,7 @@ is not asked whether it was typed in feet.
 | `layoutRooms` | limit | 10 count | The most rooms a first layout places; every way of sharing them between its two rows is tried (BRF-6) |
 | `layoutRowOrders` | limit | 6 count | The most rooms in one row of a first layout whose every order is tried for the rooms the brief wants to touch (BRF-6) |
 | `layoutNarrowest` | limit | 1.2 m | Grid's own size, not a code figure. No side of a room a first layout draws from its area alone is narrower than this, or than the room's own square when it is smaller (WRT-61) |
-| `layoutLongest` | limit | 2 ratio | Grid's own proportion, not a code figure. A room a first layout draws from its area alone, keeping its area, is at most this many times as long as it is wide (WRT-61) |
+| `layoutLongest` | limit | 2 ratio | A room a first layout draws from its area alone, keeping its area, is at most this many times as long as it is wide (WRT-61) |
 | `diffPlace` | tolerance | 0.05 m | Two walls whose ends are this close, or two openings whose middles are, stand in the same place when two versions are compared by what stands where (WRT-8) |
 | `tapedAgree` | tolerance | 0.01 m | A length taped on site and the same length drawn agree when they are no further apart than this, unless the taped length states its own tolerance; further apart, `room/taped-differs` names both figures (HND-11) |
 | `setbackShort` | tolerance | 0.005 m | The building stands short of a set-back the person asked for when its outside face is more than this nearer the boundary than their figure; less rounds to the figure (`plan/setback-short`, BRF-3) |

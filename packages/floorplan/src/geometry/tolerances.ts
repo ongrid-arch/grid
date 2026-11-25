@@ -577,8 +577,8 @@ export const TOLERANCES = {
     value: 2,
     unit: 'ratio',
     decides:
-      'Grid\'s own proportion, not a code figure. A room a first layout draws from its area alone, ' +
-      'keeping its area, is at most this many times as long as it is wide (WRT-61).',
+      'A room a first layout draws from its area alone, keeping its area, is at most this many ' +
+      'times as long as it is wide (WRT-61).',
     basis: own
   },
 
