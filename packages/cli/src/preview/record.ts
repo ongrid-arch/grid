@@ -56,7 +56,7 @@ export interface PreviewRecord {
   /** One higher on every write, so a page can tell a new record from the one it has. */
   readonly revision: number
   readonly view: PreviewView
-  /** The floor shown, or null for the plan's lowest (in 3d: the whole building). */
+  /** The floor shown, or null for the plan's ground floor (in 3d: the whole building). */
   readonly floor: string | null
   /** In 3d, the camera the preview looks through (VEW-3), or null for the opening view. */
   readonly camera: CameraRecord | null

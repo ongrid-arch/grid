@@ -79,7 +79,7 @@ export function sideSeenFrom(face: DoorSide, hinge: DoorHinge): HandSide {
  * refused, saying which rooms the door is between.
  */
 export function handingFromRooms(plan: FloorPlan, opening: Opening, asked: RoomHanding): HandingResult {
-  if (opening.type !== 'door') return { refused: `Only a door has a handing; "${opening.id}" is a ${opening.type}.` }
+  if (opening.type !== 'door') return { refused: `Only a door has a handing; "${opening.id}" is ${opening.type === 'opening' ? 'an' : 'a'} ${opening.type}.` }
   if (asked.opensInto === undefined && asked.hinged === undefined) return { refused: 'Say the room it opens into, the side it is hinged on, or both.' }
   const sides = openingRooms(plan, opening)
   const between = `Door "${opening.id}" is between ${named(sides[0])} and ${named(sides[1])}`

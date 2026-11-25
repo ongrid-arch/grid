@@ -47,6 +47,7 @@ import {
   roomNumbers,
   withDisplay,
 } from '../canvas2d/labelPlacement'
+import type { Viewport } from '../canvas2d/viewport'
 import { FRAME_MARGIN, pathOf, roomPathOf } from '../canvas2d/viewport'
 import type { Look, PlanLook } from './look'
 import { GRID_BUBBLE_PX, LINE_PX, TEXT_PX, UNDRAWN_TINT, detailShown, hatchSpacingMetres, lengthText, lineMetres, toLook, wallOutlineMetres } from './look'
@@ -158,6 +159,12 @@ export interface SceneInput {
   readonly dimensions: readonly Dimension[]
   /** How many metres one pixel of the picture measures: the zoom. */
   readonly metersPerPixel: number
+  /**
+   * VEW-44: the part of the plan the picture shows. A label moved out of its room stays inside
+   * it, so no leader is drawn to a label that would fall outside the picture. Left out, the
+   * whole drawing and its margin, as a framed view always shows.
+   */
+  readonly view?: Viewport
   /** A named look, or colours of your own drawn the working way. */
   readonly look: Look | PlanLook
   /**
@@ -1396,6 +1403,14 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   const framed = boundsWithDimensions(drawing, dimensions)
   const padX = Math.max(framed.width, 0.001) * FRAME_MARGIN
   const padY = Math.max(framed.height, 0.001) * FRAME_MARGIN
+  // VEW-44: nor outside the picture's own view, where its leader would lead to nothing.
+  const shown = input.view
+  const reach: Box = {
+    minX: Math.max(framed.min.x - padX, shown ? shown.x : -Infinity),
+    maxX: Math.min(framed.max.x + padX, shown ? shown.x + shown.width : Infinity),
+    minY: Math.max(framed.min.y - padY, shown ? -(shown.y + shown.height) : -Infinity),
+    maxY: Math.min(framed.max.y + padY, shown ? -shown.y : Infinity)
+  }
   // VEW-13: the number a room's label falls back to, its name then listed in the room key.
   const numbers = roomNumbers(drawing.rooms)
   const labels = placeRoomLabels(
@@ -1413,7 +1428,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
       dimensions: dimensionBlocks
     },
     mpp,
-    { minX: framed.min.x - padX, maxX: framed.max.x + padX, minY: framed.min.y - padY, maxY: framed.max.y + padY }
+    reach
   )
   const labelBlocks = labels.flatMap((label) => (label ? [label.box] : []))
   const faults = input.faults ?? []
@@ -1421,7 +1436,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     drawing,
     labelBoxes: new Map(labels.flatMap((label) => (label ? [[label.id, label.box] as const] : []))),
     blocks: labelBlocks,
-    within: { minX: framed.min.x - padX, maxX: framed.max.x + padX, minY: framed.min.y - padY, maxY: framed.max.y + padY },
+    within: reach,
     metersPerPixel: mpp,
     look: look.colors
   }
