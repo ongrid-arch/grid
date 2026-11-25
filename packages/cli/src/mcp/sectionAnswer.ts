@@ -9,7 +9,7 @@ import { sectionView } from '../draw/views'
 import { namedLook, type LookName } from '../draw/viewNames'
 import { m, type Answer } from './toolkit'
 import type { Display } from '@ongrid/floorplan/types/units'
-import type { Language } from '@ongrid/floorplan/messages'
+import { DEFAULT_LANGUAGE, say, type Language } from '@ongrid/floorplan/messages'
 
 const q = (text: string): string => JSON.stringify(text)
 const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
@@ -26,6 +26,8 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
     section.parts.length === 0
       ? 'The line cuts nothing of the building: draw it across the walls.'
       : `It cuts ${count(walls, 'wall')}${stairs > 0 ? `, ${count(stairs, 'stair')}` : ''} and ${count(section.rooms.length, 'room')}; the cut parts join into ${count(section.cut.length, 'shape')}.`,
+    ...(section.reach.startInside ? [say(DEFAULT_LANGUAGE, 'drawing.section.reach.startInside')] : []),
+    ...(section.reach.endInside ? [say(DEFAULT_LANGUAGE, 'drawing.section.reach.endInside')] : []),
     `Levels: ${section.levels.map((l) => `${q(l.name || l.floor)} ${levelText(l.level, display)}${l.source === 'worked-out' ? ' (worked out)' : ''}`).join(', ')}${section.roofs.length === 0 ? '' : `; roof ${section.roofs.map((r) => levelText(r.level, display)).join(', ')}`}; ground ${levelText(section.ground.level, display)}${section.ground.stated ? '' : ' (not stated)'}.`,
     ...(section.rooms.length === 0 ? [] : [`Rooms cut, floor to ceiling: ${section.rooms.map((r) => `${q(r.name || r.room)} ${m(r.height)} m${r.heightStated ? '' : ' (not stated)'}`).join(', ')}.`]),
     ...(section.assumed.length === 0 ? [] : ['Taken by Grid, not stated in the plan (dashed on the drawing where marked so, and listed under it):', ...section.assumed.map((a) => `  ${a.hatched ? 'dashed' : 'listed'}: ${a.words}`)]),
@@ -42,6 +44,7 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
         rooms: section.rooms.map((r) => ({ room: r.room, floor: r.floor, name: r.name, floorLevel: r.floorLevel, height: r.height, heightStated: r.heightStated })),
         cut: section.parts.map((p) => ({ kind: p.kind, id: p.id, floor: p.floor })),
         shapes: section.cut.length,
+        reach: section.reach,
         assumed: section.assumed.map((a) => ({ kind: a.kind, ids: a.ids, words: a.words, hatched: a.hatched })),
       },
     },

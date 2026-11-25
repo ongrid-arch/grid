@@ -171,6 +171,18 @@ function sectionKey(section: PlanSection, label: string, width: number, look: Lo
     ]))
     y += KEY_LINE_PX * lines.length
   }
+  // VEW-38: where the line stands against the building, first: a line that misses it, or stops inside it.
+  const reach = [
+    ...(section.reach.missesBuilding ? ['misses'] : []),
+    ...(section.reach.startInside ? ['startInside'] : []),
+    ...(section.reach.endInside ? ['endInside'] : [])
+  ]
+  for (const key of reach) {
+    const lines = wrapText(drawingText(tongue, `drawing.section.reach.${key}`), TEXT_PX.warning, inner)
+    y += 4
+    nodes.push(el('g', { 'data-part': 'section-reach', 'data-reach': key }, lines.map((line, i) => text(y + KEY_LINE_PX * (i + 1) - 4, line))))
+    y += KEY_LINE_PX * lines.length
+  }
   if (marked.length > 0) {
     y += KEY_LINE_PX
     nodes.push(text(y, drawingText(tongue, 'drawing.section.hatched')))
@@ -256,6 +268,20 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   if (g.segments.length > 0) {
     const d = g.segments.map(([a, b]) => lineOf({ x: a, y: g.level }, { x: b, y: g.level })).join('')
     nodes.push(el('path', { 'data-part': 'section-ground', 'data-stated': String(g.stated), d, fill: 'none', stroke: look.ink, 'stroke-width': n(lines.width('elevationGround')), 'stroke-linecap': 'butt' }))
+  }
+
+  // VEW-38: a line that ends inside the building breaks the cut there: a zigzag across its height.
+  const ends = [...(section.reach.startInside ? [0] : []), ...(section.reach.endInside ? [section.length] : [])]
+  if (ends.length > 0) {
+    const ys = section.bounds
+    const zig = (x: number): string => {
+      const steps = 6
+      const amp = 5 * mpp
+      const top = ys.max.y
+      const step = (ys.max.y - ys.min.y) / steps
+      return Array.from({ length: steps + 1 }, (_, i) => `${i === 0 ? 'M' : 'L'}${(x + (i % 2 === 0 ? -amp : amp)).toFixed(4)},${(-(top - i * step)).toFixed(4)}`).join('')
+    }
+    nodes.push(el('g', { 'data-part': 'section-break-group' }, ends.map((x) => el('path', { 'data-part': 'section-break', 'data-at': x === 0 ? 'start' : 'end', d: zig(x), fill: 'none', stroke: look.ink, 'stroke-width': n(lines.width('wallOutline')), 'stroke-linejoin': 'miter' }))))
   }
 
   // Each room: its name and height, where the line crosses it longest, when they fit.

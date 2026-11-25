@@ -222,3 +222,21 @@ describe('a glazed wall type in section (VEW-23)', () => {
     expect(tagsOf(svg, 'section-glass')).toEqual([])
   })
 })
+
+describe('a section line that misses the building or ends inside it (VEW-38)', () => {
+  const draw = (line: SectionLine) => pictureToSvg(sectionPicture(townhouse(), line))
+  it('draws no break line when the line runs past the building', () => {
+    const svg = draw(THROUGH_STAIR)
+    expect(tagsOf(svg, 'section-break')).toHaveLength(0)
+    expect(tagsOf(svg, 'section-reach')).toHaveLength(0)
+  })
+  it('breaks the cut at an end inside the building and says so', () => {
+    const svg = draw({ from: { x: 4.9, y: -2 }, to: { x: 4.9, y: 5 }, toward: 'left' })
+    expect(tagsOf(svg, 'section-break').map((t) => attr(t, 'data-at'))).toEqual(['end'])
+    expect(textsOf(svg, 'section-reach').join(' ')).toContain('ends inside the building')
+  })
+  it('says a line over open ground cuts nothing of the building', () => {
+    const svg = draw({ from: { x: 40, y: -2 }, to: { x: 40, y: 13 }, toward: 'left' })
+    expect(textsOf(svg, 'section-reach').join(' ')).toContain('cuts nothing of the building')
+  })
+})
