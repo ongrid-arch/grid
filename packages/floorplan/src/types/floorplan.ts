@@ -330,7 +330,7 @@ import { factKey } from './facts'
 import { placeProblem } from './places'
 import { roofFrame, roofTop } from './roofFrame'
 import { en } from '../messages/en'
-import { LANGUAGES } from '../messages/languages'
+import { LANGUAGES, readLanguage } from '../messages/languages'
 import { roomUseOfLabel } from '../messages/uses'
 import { english, said } from '../messages/say'
 import { ringProblem } from '../geometry/ring'
@@ -2435,11 +2435,12 @@ export const FloorPlanFieldsSchema = z.object({
   // Optional and never defaulted (version 1). One that cannot be read is read as unstated.
   // MSG-11: `language` is the language Grid writes its words in for this plan (`en`, `es`); a
   // language with a decimal comma writes one unless `decimal` says otherwise. With a language,
-  // `length` may be left out: then lengths are in metres.
+  // `length` may be left out: then lengths are in metres. MSG-22: a language with a region
+  // (`es-MX`, `es-ES`) is read as its language.
   display: z
     .object({
       length: z.enum(['m', 'cm', 'mm', 'ft-in']).optional(),
-      language: z.enum(LANGUAGES).optional(),
+      language: z.preprocess((value) => readLanguage(value) ?? value, z.enum(LANGUAGES)).optional(),
       area: z.enum(['m2', 'ft2']).optional(),
       decimal: z.enum(['point', 'comma']).optional(),
       precision: z.number().int().min(0).max(5).optional(),

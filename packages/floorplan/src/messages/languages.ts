@@ -42,3 +42,13 @@ export function readLanguage(value: unknown): Language | null {
   const base = value.trim().toLowerCase().split(/[-_]/)[0] ?? ''
   return isLanguage(base) ? base : null
 }
+
+/**
+ * MSG-22: the name of the floor a plan with no floor list stands on (C5), in each language: the
+ * plan's language names it, and a floor the plan names keeps its own name. The Spanish is a draft
+ * translation, not reviewed, as the rest of `es.ts` is.
+ */
+export const GROUND_FLOOR_NAME: Readonly<Record<Language, string>> = {
+  en: 'Ground floor',
+  es: 'Planta baja'
+}

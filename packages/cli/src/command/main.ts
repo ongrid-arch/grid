@@ -26,7 +26,7 @@ import { TextNotDecoded } from '../fs/textEncoding'
 import { FontsMissing } from '../sheet/fonts'
 import { linkSeats, occupancyFileOf, occupancyText, OccupancyRefused, readOccupancy } from '../occupancy/occupancy'
 import { checkDrawingRequest, drawingIntoProject, drawingLine, drawingOutFiles, makeDrawing, makeSheet, readSheetWords, sheetIntoProject, sheetKindOf, sheetLanguage, type SheetRequest } from '../sheet/sheetFile'
-import { askedLanguage, languageFor } from './language'
+import { askedLanguage, languageFor, spokenPlan } from './language'
 import { inLanguage } from './words'
 import { startToolServer } from '../mcp/serve'
 import { PREVIEW_PORT, startLocalPreview } from '../preview/localServer'
@@ -427,8 +427,10 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     // VEW-9: the pictures' folder is checked before anything is read or drawn (CMD-15).
     const pictureFile = (n: number): string => `${request.pictures!.replace(/[\\/]+$/, '')}/walk-${String(n).padStart(2, '0')}.png`
     if (request.pictures !== undefined) checkWritable(project, pictureFile(1))
-    const loaded = loadPlan(project, planFile)
-    const language = await languageFor(asked, loaded.plan)
+    const read = loadPlan(project, planFile)
+    const language = await languageFor(asked, read.plan)
+    // MSG-22: the floor the plan names in no list, named in the language it is described in.
+    const loaded = spokenPlan(read, language)
     if (length === 'walk') {
       const { survey, walk } = walkOf(loaded, floorOption(loaded.plan, request.floor))
       const pictures = new Map<WalkStop, string>()
