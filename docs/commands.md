@@ -705,7 +705,9 @@ optional package: where its binary did not come along, `grid draw --png` says so
 and every command that draws no PNG works without it. The PNG is drawn at its own size, not
 enlarged from a smaller one, so `--scale 2` gives a picture twice as wide and as sharp. Its
 text is set in the first font of the picture's list that the machine has, so letters can differ
-slightly between machines; where each label goes never does.
+slightly between machines; where each label goes never does. A name in Arabic or Hebrew is drawn
+in the Noto fonts Grid ships in `fonts/`, joined and read right to left, on every machine; a name
+in Chinese, Japanese, Korean, Thai, Devanagari or an emoji needs a system font that has it.
 
 Over the lab's plans, half the pictures took under 25 ms as SVG and under 70 ms as PNG, and 19 in
 20 under 300 ms, on a heavily loaded machine. The time grows faster than the plan: a floor of a
