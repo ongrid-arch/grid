@@ -408,3 +408,28 @@ describe('where a section line stands against the building (VEW-38)', () => {
     expect(section.reach.endInside).toBe(false)
   })
 })
+
+describe('walls, slabs and a stair near them join as one outline (VEW-57)', () => {
+  /** The stair's side stands `gap` from the hall's west wall (its inner face is at x 0.1). */
+  const cutWith = (gap: number) => {
+    const plan = edit(stairHouse(), (copy) => {
+      copy.stairs![0]!.run = [[0.55 + gap, 0.6], [0.55 + gap, 3.4]]
+    })
+    return planSection(plan, { from: { x: -1, y: 2 }, to: { x: 4, y: 2 }, toward: 'left' })
+  }
+  const small = (section: PlanSection) => section.cut.flatMap((p) => p.holes).filter((h) => Math.abs(signedArea(h)) < 1e-5)
+
+  it('draws a stair a few centimetres off a wall touching it', () => {
+    const touching = cutWith(0).cut.length
+    expect(cutWith(0.02).cut).toHaveLength(touching)
+    expect(cutWith(0.04).cut).toHaveLength(touching)
+  })
+
+  it('leaves a stair well clear of the wall apart from it', () => {
+    expect(cutWith(0.2).cut.length).toBeGreaterThan(cutWith(0).cut.length)
+  })
+
+  it('leaves no hole too small to be a room', () => {
+    for (const gap of [0, 0.02, 0.04]) expect(small(cutWith(gap))).toEqual([])
+  })
+})
