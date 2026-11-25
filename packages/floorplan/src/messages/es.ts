@@ -1885,6 +1885,10 @@ export const es: Messages = {
   'rooms.floor.building': "'{word}' no es un tipo de edificio que Grid conozca. Use uno de: {kinds}.",
   'rooms.floor.duplicate': "La planta '{id}' ya está escrita.",
   'rooms.floor.roomsFirst': 'Se escribieron estancias antes de la primera línea de planta. Ponga primero la línea de planta.',
+  // WRT-35: una palabra que una línea de estancia no admite, todas las que admite y la más probable.
+  'rooms.room.unknown':
+    "Línea {line}: '{word}' no se entiende en una línea de estancia.{meant} Tras el uso, escriba un tamaño ('3.0 x 4.4' = este-oeste por norte-sur, caras interiores; añada 'centre' u 'outside' para medir a los ejes de los muros o a sus caras exteriores) o 'polygon x,y x,y ...', y luego dónde va: 'at x,y', '<north|south|east|west> of <room>' con 'align', 'shift', 'until' u 'open' si hacen falta, o 'inside <room> corner <ne|nw|se|sw>' con 'wall <t> [kind]' si hace falta. Después, cualquiera de: 'walls <t> [kind]' fija el grosor de los muros propios de la estancia; 'height <m>' su propia altura libre; 'floor <m>' pone su suelo esos metros por encima del suelo de su planta (con un menos, por debajo), para una estancia elevada o rehundida; 'first-wall <wall id>' empieza su contorno en ese muro; 'through <floor>' la repite en cada planta tras esta hasta esa planta; 'tenure <{tenures}>' y 'type \"<text>\"' dicen para quién es y el tipo de estancia propio del estudio; 'outdoor <{outdoor}>', y luego 'roofed' o 'unroofed', la marca como espacio exterior.",
+  'rooms.room.meant': " ¿Quiso decir '{written}'?",
   // WRT-34
   'rooms.numbers.question':
     "línea {line}: '{word}' no tiene unidad, y la línea display lee las longitudes en {reads}, así que Grid no lo toma como metros. Escriba su unidad en la misma palabra, por ejemplo {word}{unit}, o añada a la línea display qué es un número sin unidad: 'display {display} numbers {unit}' lee todo número sin unidad en {plural}, y 'numbers m' en metros.",
