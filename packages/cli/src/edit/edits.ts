@@ -578,8 +578,8 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
     const change: { start?: Pair; end?: Pair } = {}
     // A wall in line with the side that runs on past the room is not one that ends on it: it keeps
     // its place, and the walls that meet the side square carry its end (checked below).
-    const parallel = other.arc === undefined && !(1 - Math.abs(dot(wallAxis(other).dir, axis.dir)) > 1e-6)
-    if (parallel && Math.abs(dot(sub(s, oldStart), axis.normal)) < reach && Math.abs(dot(sub(e, oldStart), axis.normal)) < reach) {
+    const straight = other.arc === undefined
+    if (straight && Math.abs(dot(sub(s, oldStart), axis.normal)) < reach && Math.abs(dot(sub(e, oldStart), axis.normal)) < reach) {
       inLine.push(other)
       continue
     }
