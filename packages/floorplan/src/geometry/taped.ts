@@ -28,9 +28,10 @@ export type TapedWhat = 'side' | 'corners'
 /**
  * Why a taped length could not be set against the drawing: the room or a wall is not in the
  * plan, the wall is not one of the room's, two walls make no corner of the room, or the room's
- * outline cannot be drawn.
+ * outline cannot be drawn. ARE-31: or the length itself is not a number above zero, so there is
+ * nothing to set against the drawing.
  */
-export type TapedMissing = 'no-room' | 'no-wall' | 'not-the-rooms' | 'no-corner' | 'not-drawn'
+export type TapedMissing = 'bad-length' | 'no-room' | 'no-wall' | 'not-the-rooms' | 'no-corner' | 'not-drawn'
 
 export interface TapedRow {
   /** Its place in the plan's `taped` list, from 0. */
@@ -132,6 +133,7 @@ interface Measured {
 }
 
 function measure(entry: Taped, index: PlanIndex, outlines: Map<string, RoomOutline | null>): Measured {
+  if (!Number.isFinite(entry.length) || entry.length <= 0) return { drawn: null, missing: 'bad-length' }
   const room = index.plan.rooms.find((r) => r.id === entry.room)
   if (room === undefined) return { drawn: null, missing: 'no-room' }
   const walls = entry.wall !== undefined ? [entry.wall] : [...(entry.from ?? []), ...(entry.to ?? [])]
@@ -253,6 +255,8 @@ export function tapedMissingSaid(row: Pick<TapedRow, 'missing' | 'missingWalls' 
   switch (row.missing) {
     case undefined:
       return null
+    case 'bad-length':
+      return said('line.part.taped.missing.bad-length')
     case 'no-room':
       return said('line.part.taped.missing.no-room', { room: name(row.room) })
     case 'no-wall':
