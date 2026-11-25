@@ -45,7 +45,7 @@ import { TOLERANCES, tolerance } from './tolerances'
 import type { Vec2 } from './vec2'
 import { wallLength, wallPointAt, wallSegments, wallSlicePolygon, type WallEnds } from './wall'
 import { curveFault, curveTangentAt, wallCurve } from './arc'
-import { buildingPlan, outdoorIds, outdoorKind, outdoorRoofed, planHasOutdoor } from './outdoor'
+import { buildingPlan, isOutdoor, outdoorIds, outdoorKind, outdoorRoofed, planHasOutdoor } from './outdoor'
 import type { OutdoorKind } from '../types/floorplan'
 import { roomColumnArea, roomColumns } from './columns'
 import { english, name, num, said, type Said } from '../messages/say'
@@ -695,7 +695,7 @@ function floorFigures(
   }
   const outdoorSpace = (space: Space): boolean => space.rooms.length > 0 && space.rooms.every((r) => measured.outdoor.has(r.room))
   const enclosedOutdoor = measured.outdoor.size === 0 ? 0 : sum(spaces.spaces.filter(outdoorSpace).map((space) => space.area))
-  const keptOutdoor = measured.outdoor.size === 0 ? 0 : sum(outdoorRooms.filter((room) => measured.plan.rooms.some((r) => r.id === room.id && floorOf(r) === floor)).map((room) => room.area))
+  const keptOutdoor = measured.outdoor.size === 0 ? 0 : sum([...outdoorRooms, ...rooms.filter((room) => room.outside)].filter((room) => measured.plan.rooms.some((r) => r.id === room.id && floorOf(r) === floor)).map((room) => room.area))
   const offSpace = spaces.roomArea - keptOutdoor - (spaces.floorArea - enclosedOutdoor - spaces.unclaimedArea)
   const walls = floorWalls(measured.plan, floor, broken)
   if (walls.length === 0 && statedOutline(plan, floor) !== null) {
@@ -707,8 +707,13 @@ function floorFigures(
   const known = typeof inside === 'number'
   // CNT-6 (C23): a separating wall with more of the building beyond it counts to its middle.
   const beyond = pastMiddle(walls, spaces, measured.sides())
-  const gross = Math.max(0, spaces.outlineArea - beyond - enclosedOutdoor - voids)
-  const internal = known ? Math.max(0, inside - outsideRooms - voids) : null
+  // ARE-29: a room named outside that shares a space with rooms inside (no wall between) is not cut
+  // out with the outdoor spaces: its floor is taken off both gross figures here.
+  const inOutdoorSpace = new Set(spaces.spaces.filter(outdoorSpace).flatMap((space) => space.rooms.map((r) => r.room)))
+  const inSpaces = new Set(spaces.spaces.flatMap((space) => space.rooms.map((r) => r.room)))
+  const mixedOutside = sum(rooms.filter((room) => room.outside && inSpaces.has(room.id) && !inOutdoorSpace.has(room.id)).map((room) => room.area))
+  const gross = Math.max(0, spaces.outlineArea - beyond - enclosedOutdoor - voids - mixedOutside)
+  const internal = known ? Math.max(0, inside - mixedOutside - voids) : null
   return {
     ...base,
     grossExternal: gross,
@@ -916,7 +921,7 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
   let sides: ReadonlyMap<string, WallSides> | undefined
   const sidesOnce = (): ReadonlyMap<string, WallSides> => (sides ??= planWallSides(index))
   const stacks = stairStacks(plan, index, broken)
-  const building = buildingOf(plan, index)
+  const building = buildingOf(plan, index, outside)
   const floors = planFloors(plan)
     .filter((floor) => options.floors === undefined || options.floors.includes(floor.id))
     .map((floor) => floorFigures(plan, floor.id, index, broken, outside, sidesOnce, stacks, building))
@@ -965,7 +970,7 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
     const count = new Set(rooms(floors).flatMap((room) => room.columns?.ids ?? [])).size
     notes.push(english(said(count === 1 ? 'areas.columns.one' : 'areas.columns.many', { count, area: num(columnFloor.toFixed(2)) })))
   }
-  if (rooms(floors).some((room) => room.outside)) notes.push('Rooms named as outside are listed apart: they are in no net or gross internal figure, and their floor is in the gross external one.')
+  if (rooms(floors).some((room) => room.outside)) notes.push('Rooms named as outside are listed apart: they are in no net, gross internal or gross external figure, and the walls round them face outside.')
   const outdoor = outdoorFigure(floors, options.outdoorWeights)
   if (outdoor !== null) notes.push(english(said('areas.note.outdoor', { area: num(outdoor.area.toFixed(2)) })))
   const toParty = partyWallGroups(plan, index, broken, sidesOnce, floors)
@@ -1018,7 +1023,11 @@ function apartFigure(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<stri
 }
 
 /** CNT-7: the building the gross figures are measured on, or null for a plan with no outdoor space. */
-function buildingOf(plan: FloorPlan, index: PlanIndex): Building | null {
+function buildingOf(stated: FloorPlan, statedIndex: PlanIndex, outside: ReadonlySet<string>): Building | null {
+  // ARE-29: a room the caller names as outside is the outside to the building, as outdoor space is.
+  const named = outside.size > 0 && stated.rooms.some((room) => outside.has(room.id) && !isOutdoor(room))
+  const plan = named ? { ...stated, rooms: stated.rooms.map((room) => (outside.has(room.id) && !isOutdoor(room) ? { ...room, outdoor: 'other' as const } : room)) } : stated
+  const index = named ? indexPlan(plan) : statedIndex
   if (!planHasOutdoor(plan)) return null
   const measured = buildingPlan(plan, index)
   const own = measured === plan ? index : indexPlan(measured)

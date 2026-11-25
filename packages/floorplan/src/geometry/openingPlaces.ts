@@ -9,7 +9,10 @@
  *
  * - `opening/crosses-wall`: the opening runs into the body of a wall that meets its wall at a
  *   corner or a junction, or crosses it.
- * - `wall/ends-in-opening`: a wall ends on another wall inside one of its openings.
+ * - `wall/ends-in-opening`: a wall ends on another wall inside one of its openings. A wall whose
+ *   centre line meets that wall at a jamb, within `openingOverrun`, makes the jamb and is not
+ *   named (ARE-32): a corridor carried through an opening as wide as it is between its walls'
+ *   centre lines, or a bay's mouth. One whose body runs into the opening is named otherwise.
  * - `opening/fills-wall`: the opening is as long as its wall; nothing of the wall is left.
  * - `opening/on-dividing-line`: a door or a window on a dividing line, which has no wall to hang
  *   it in. A warning, not a refusal: an open-plan opening is sometimes drawn that way.
@@ -49,6 +52,8 @@ interface Cover {
   readonly wall: string
   readonly from: number
   readonly to: number
+  /** Where that wall's centre line crosses this one's, along it (ARE-32). */
+  readonly at: number
   /** `end`: that wall ends on this one, inside its length. `across`: this wall ends on it, or it passes through. */
   readonly how: 'end' | 'across'
   /** How high that wall stands. */
@@ -129,6 +134,7 @@ function coverOfPieces(wall: Wall, course: Course, a: WallSegment, other: Wall, 
     wall: other.id,
     from: Math.max(0, at - body),
     to: Math.min(course.length, at + body),
+    at,
     how: otherEnds && !wallEnds ? 'end' : 'across',
     height: other.height
   }
@@ -243,6 +249,9 @@ export function openingPlaceIssues(plan: FloorPlan, index: PlanIndex, broken: Re
           // A wall no higher than the sill stands under the window, not across it.
           if (cover.height <= opening.sill + overrun) continue
           if (cover.how === 'end') {
+            // A wall whose centre line meets this one at a jamb makes that jamb (ARE-32): the
+            // opening is as wide as the space between the walls that frame it.
+            if (Math.abs(cover.at - span.from) <= overrun || Math.abs(cover.at - span.to) <= overrun) continue
             issues.push(
               warning(
                 'wall',

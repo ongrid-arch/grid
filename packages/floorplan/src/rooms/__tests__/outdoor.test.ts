@@ -40,6 +40,6 @@ describe('the summary of a write (ARE-16)', () => {
   it('adds up the rooms that are floor inside, and says what it left out', () => {
     const written = compileRoomsText(TEXT)
     const answer = roomsAnswer(written).join('\n')
-    expect(answer).toContain('20.00 m² inside in all (not counting 2 outdoor or void rooms, 18.00 m²).')
+    expect(answer).toContain('20.00 m² inside, plus 18.00 m² outdoor or void in 2 rooms (not in the inside figure).')
   })
 })

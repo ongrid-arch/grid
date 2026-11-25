@@ -118,16 +118,28 @@ describe('ARE-9 per-use and per-floor figures add up to the totals (AC-9)', () =
     expect(broken.notes.find((n) => n.startsWith('Left out of every figure'))).toContain('"Box room"')
   })
 
-  it('lists rooms named outside apart: in no net or gross internal figure, in the gross external one', () => {
+  it('lists rooms named outside apart: in no net, gross internal or gross external figure (ARE-29)', () => {
     const base = fixture('two-bed-flat.json')
     const room = base.rooms[0]!
     const whole = planAreaFigures(base)
     const apart = planAreaFigures(base, { outside: new Set([room.id]) })
     const area = whole.floors[0]!.rooms.find((r) => r.id === room.id)!.area
     expect(apart.net.area).toBeCloseTo(whole.net.area! - area, 9)
-    expect(apart.grossInternal.area).toBeCloseTo(whole.grossInternal.area! - area, 9)
-    expect(apart.grossExternal.area).toBeCloseTo(whole.grossExternal.area!, 9)
-    expect(Math.abs(externalGap(apart.floors[0]!))).toBeLessThan(1e-6)
+    expect(apart.outsideRooms).toBeCloseTo(area, 9)
+    // The walls round it face outside now, so the floor under them is no gross internal floor either.
+    expect(apart.grossInternal.area!).toBeLessThanOrEqual(whole.grossInternal.area! - area + 1e-9)
+    expect(apart.grossExternal.area).toBeCloseTo(whole.grossExternal.area! - area, 6)
+    expect(apart.grossExternal.area!).toBeGreaterThanOrEqual(apart.grossInternal.area!)
+  })
+
+  it('treats a room named outside as outdoor space for both gross figures (ARE-29)', () => {
+    const base = fixture('two-bed-flat.json')
+    const id = base.rooms[0]!.id
+    const named = planAreaFigures(base, { outside: new Set([id]) })
+    const marked = planAreaFigures({ ...base, rooms: base.rooms.map((r) => (r.id === id ? { ...r, outdoor: 'other' as const } : r)) })
+    expect(named.grossExternal.area).toBeCloseTo(marked.grossExternal.area!, 9)
+    expect(named.grossInternal.area).toBeCloseTo(marked.grossInternal.area!, 9)
+    expect(named.net.area).toBeCloseTo(marked.net.area!, 9)
   })
 
   it('gives a floor whose outer walls are not known no gross internal figure, and says why', () => {

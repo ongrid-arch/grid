@@ -89,6 +89,21 @@ export function curveAlong(curve: WallCurve, p: Vec2): number {
   return s - curve.length < (TURN - turned) * curve.radius ? curve.length : 0
 }
 
+/**
+ * The curve's furthest points to the right, up, to the left and down, those of them that lie on
+ * it (CNT-30). With its two ends they bound it, where its stations alone may cut a bulge off.
+ */
+export function curveExtremes(curve: WallCurve): Vec2[] {
+  const out: Vec2[] = []
+  for (let k = 0; k < 4; k++) {
+    const angle = (k * Math.PI) / 2
+    const turned = ((((angle - curve.startAngle) * Math.sign(curve.sweep)) % TURN) + TURN) % TURN
+    if (!curve.closed && turned * curve.radius > curve.length) continue
+    out.push({ x: curve.centre.x + curve.radius * Math.cos(angle), y: curve.centre.y + curve.radius * Math.sin(angle) })
+  }
+  return out
+}
+
 /** The unit direction the curve runs in, `s` metres along it. */
 export function curveTangentAt(curve: WallCurve, s: number): Vec2 {
   const sign = Math.sign(curve.sweep)

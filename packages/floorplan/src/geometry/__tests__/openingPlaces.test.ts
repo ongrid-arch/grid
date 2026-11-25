@@ -73,6 +73,57 @@ describe('where each opening stands (MSG-16)', () => {
     expect(buildFloorPlan(plan).openings.map((o) => o.id)).toEqual(['d'])
   })
 
+  describe('a wall whose centre line meets at a jamb frames the opening (ARE-32)', () => {
+    /** A 0.3 m wall, and a corridor of 0.1 m walls carried through it by an opening `width` wide from `from`. */
+    function corridor(x0: number, from: number, width: number): FloorPlan {
+      const a = x0 + 2.35
+      const b = a + 1.2
+      const walls = [
+        exterior('x', [x0, 0], [x0 + 6, 0], { thickness: 0.3 }),
+        wall('n1', [a, 0], [a, 3]),
+        wall('n2', [b, 0], [b, 3]),
+        wall('s1', [a, 0], [a, -3]),
+        wall('s2', [b, 0], [b, -3])
+      ]
+      return { version: '1', units: 'm', walls, rooms: [], openings: [{ id: 'o', wall: 'x', type: 'opening', offset: a - x0 + from, width, sill: 0, height: 2.1 }] }
+    }
+
+    it('says nothing of a corridor carried through an opening as wide as it is between centre lines, wherever it stands', () => {
+      for (let k = 0; k < 12; k++) {
+        const x0 = k * 12.47 + 0.1 * k
+        expect(placeIssues(corridor(x0, 0, 1.2))).toEqual([])
+        // Within the tolerance of either jamb is at the jamb.
+        expect(placeIssues(corridor(x0, -0.0004, 1.2008))).toEqual([])
+      }
+    })
+
+    it('still names a wall that meets the wall off the jamb, inside the opening or with its body in it', () => {
+      const four = [
+        ['wall/ends-in-opening', 'n1'],
+        ['wall/ends-in-opening', 'n2'],
+        ['wall/ends-in-opening', 's1'],
+        ['wall/ends-in-opening', 's2']
+      ]
+      // Centre lines 5 mm inside the opening, and 5 mm outside it with 45 mm of body in it.
+      expect(placeIssues(corridor(0, -0.005, 1.21)).map((i) => [i.code, i.id])).toEqual(four)
+      expect(placeIssues(corridor(0, 0.005, 1.19)).map((i) => [i.code, i.id])).toEqual(four)
+    })
+
+    it('says nothing of a half-round bay whose mouth is one opening', () => {
+      const bay = { ...exterior('bay', [1.5, 0], [4.5, 0], { thickness: 0.2 }), arc: { centre: [3, 0] as [number, number], sweep: 180 } }
+      const mouth = (offset: number, width: number): FloorPlan => ({
+        version: '1',
+        units: 'm',
+        walls: [exterior('s', [0, 0], [6, 0], { thickness: 0.3 }), bay],
+        rooms: [],
+        openings: [{ id: 'mouth', wall: 's', type: 'opening', offset, width, sill: 0, height: 2.1 }]
+      })
+      expect(placeIssues(mouth(1.5, 3))).toEqual([])
+      // Wider than the mouth, the bay's wall meets inside the opening.
+      expect(placeIssues(mouth(1.4, 3.2)).map((i) => [i.code, i.id])).toEqual([['wall/ends-in-opening', 'bay']])
+    })
+  })
+
   it('names an opening as long as its wall once, not once for each corner', () => {
     const plan = box([{ id: 'gap', wall: 'e', type: 'opening', offset: 0, width: 3, sill: 0, height: 2.1 }])
     expect(placeIssues(plan).map((i) => [i.code, i.id])).toEqual([['opening/fills-wall', 'gap']])

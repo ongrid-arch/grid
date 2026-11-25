@@ -766,6 +766,7 @@ export const en = {
   'line.part.taped.missing.no-wall': 'the plan has no wall {walls}',
   'line.part.taped.missing.not-the-rooms.one': 'wall {walls} is not one of the room\'s',
   'line.part.taped.missing.not-the-rooms.many': 'walls {walls} are not one of the room\'s',
+  'line.part.taped.missing.bad-length': 'the length taped is not a number above zero',
   'line.part.taped.missing.no-corner': 'walls {walls} make no corner of the room',
   'line.part.taped.missing.not-drawn': 'the room\'s outline cannot be drawn',
   'line.part.sketch.one': '{count} sketch item',
@@ -1873,6 +1874,10 @@ export const en = {
   'rooms.floor.building': "'{word}' is not a kind of building Grid knows. Use one of: {kinds}.",
   'rooms.floor.duplicate': "Floor '{id}' is already written.",
   'rooms.floor.roomsFirst': "Rooms were written before the first floor line. Put the floor line first.",
+  // WRT-35: a word a room line does not take, every word it does take and the one most likely meant.
+  'rooms.room.unknown':
+    "Line {line}: '{word}' is not understood on a room line.{meant} After the use, write a size ('3.0 x 4.4' = east-west by north-south, inside faces; add 'centre' or 'outside' to measure to the walls' centre lines or outside faces) or 'polygon x,y x,y ...', then where it goes: 'at x,y', '<north|south|east|west> of <room>' with optional 'align', 'shift', 'until', 'open', or 'inside <room> corner <ne|nw|se|sw>' with optional 'wall <t> [kind]'. Then any of: 'walls <t> [kind]' sets this room's own wall thickness; 'height <m>' its own ceiling height; 'floor <m>' stands its floor that many metres above its storey's floor (a minus for below), for a raised or sunken room; 'first-wall <wall id>' starts its boundary at that wall; 'through <floor>' stands it on every floor after this one up to that floor; 'tenure <{tenures}>' and 'type \"<text>\"' say who it is for and the firm's own room type; 'outdoor <{outdoor}>', then 'roofed' or 'unroofed', marks it as outdoor space.",
+  'rooms.room.meant': " Did you mean '{written}'?",
   // WRT-34: a plain number under a display line that is not metres, and 12-6 in feet.
   'rooms.numbers.question':
     "line {line}: '{word}' has no unit, and the display line reads lengths in {reads}, so Grid does not take it as metres. Write its unit in the same word, such as {word}{unit}, or add to the display line what a plain number is: 'display {display} numbers {unit}' reads every plain number in {plural}, and 'numbers m' in metres.",
@@ -2213,6 +2218,8 @@ export const en = {
   'drawing.section.taken.level': 'The level of {floor}, {level}, is worked out from the floors below it, their heights and slabs: the floor states no elevation.',
   'drawing.section.taken.roomHeight.one': 'A room cut states no height, so it is drawn up to what is over its storey: {names}.',
   'drawing.section.taken.roomHeight.many': '{count} rooms cut state no height, so each is drawn up to what is over its storey: {names}.',
+  'drawing.section.taken.roomVoid.one': 'A room cut stands under a void and states no height, so it is drawn up through the void to what is over it: {names}.',
+  'drawing.section.taken.roomVoid.many': '{count} rooms cut stand under a void and state no height, so each is drawn up through it to what is over it: {names}.',
   'drawing.section.taken.noStair.one': 'No stair is stated in the stair room cut ({ids}): no flight is drawn, only the room and the opening over it.',
   'drawing.section.taken.noStair.many': 'No stair is stated in {count} stair rooms cut ({ids}): no flight is drawn, only the room and the opening over it.',
   'drawing.section.taken.risers': 'The risers of {ids} are worked out by Grid: the plan states no number of risers.',

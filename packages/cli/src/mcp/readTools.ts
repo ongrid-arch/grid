@@ -319,7 +319,7 @@ const areasTool: GridTool = {
     + 'It lists every room with its inside size and net area, the totals by floor and by use, the area of each flat the plan lists (and of the rooms in no flat), and the gross areas, each with a sentence saying what it measures, what it does not take off and what the plan cannot say. '
     + 'Pass country for the gross measure the reader there usually means (the inside face of the outer walls in the UK and most of Europe, the outside face for US homes), or gross to ask for one or both. '
     + 'On a plan that lists flats it gives each flat\'s area to the middle of its party walls too, and where fixtures stand the free floor beside the floor area, per room, zone, flat, floor and in all. Outdoor space is left out of every total unless outdoor_rules states a rule that counts part of it, and the answer says which. '
-    + 'Rooms named in outside_rooms (a balcony, a terrace) are listed apart; a room Grid could not draw is named and left out of every figure. Do not use for wall lengths, plaster or skirting (grid_takeoff), or to compare plans (grid_compare). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
+    + 'Rooms named in outside_rooms (a balcony, a terrace, a garage) are the outside, as outdoor space is: the walls round them face outside, they are listed apart and are in no net, gross internal or gross external figure; a room Grid could not draw is named and left out of every figure. Do not use for wall lengths, plaster or skirting (grid_takeoff), or to compare plans (grid_compare). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
     floor: FLOOR_ARG,
@@ -1472,6 +1472,8 @@ const measureTool: GridTool = {
     diameter: { type: 'number', length: true, description: 'For fit: a circle instead of a box, such as 1.5 for a wheelchair turning circle. For use: the turning circle to set the room against; Grid\'s own indicator when left out.', examples: [1.5], minimum: 0.05, maximum: 100 },
     clearance: { type: 'number', length: true, description: 'For use: the clear floor wanted in front of and beside each fixture, in metres, such as 0.7 beside a bath; Grid\'s own indicator when left out.', examples: [0.7], minimum: 0.05, maximum: 100 },
     under: { type: 'number', length: true, description: 'For narrow: the person\'s figure in metres, such as 0.8 for a door or 1.5 for a turning circle.', examples: [0.8, 1.5], minimum: 0.05, maximum: 100 },
+    start: { type: 'string', enum: ['middle', 'door', 'farthest corner'], description: 'For route: where it starts in its room: the middle of the widest circle (the default), the door it leaves by, or the room\'s corner farthest from that door. A point of your own: x and y instead.', examples: ['door', 'farthest corner'] },
+    end: { type: 'string', enum: ['middle', 'door'], description: 'For route: where it ends in its last room: the middle, or the doorway into it. Left out, a stair or lift room is ended at its door and any other room at its middle; to outside it always ends at the outside face of the door out.', examples: ['door', 'middle'] },
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
   },
@@ -1486,7 +1488,7 @@ const measureTool: GridTool = {
       between: ['from', 'to', 'x', 'y'],
       wall: ['wall'],
       fit: ['room', 'width', 'depth', 'diameter', 'name'],
-      route: ['room', 'to', 'width'],
+      route: ['room', 'to', 'width', 'x', 'y', 'start', 'end'],
       narrow: ['under'],
       facing: ['room'],
       sun: ['room'],
@@ -1495,7 +1497,7 @@ const measureTool: GridTool = {
       access: [],
       library: ['name'],
     }
-    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
+    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`what=${what} takes ${allowed[what]!.length === 0 ? 'no other argument' : allowed[what]!.join(', ')}, not ${stray.join(', ')}.`)
     if (what === 'access') {
       // CNT-17: the accessibility measurements, set only against the person's own figures (the
@@ -1685,7 +1687,11 @@ const measureTool: GridTool = {
           data: { what, answer: { found: true, code: 'use/passage-width', figure, ...wide, ...zones }, rule: USE_RULE },
         }
       }
-      const route = routeBetween(survey, room.facts.id, to)
+      if ((args['x'] === undefined) !== (args['y'] === undefined)) throw new ToolRefusal('what=route takes x and y together: the point the route starts from.')
+      if (args['x'] !== undefined && args['start'] !== undefined) throw new ToolRefusal('what=route starts at start or at the point x, y, not both.')
+      const given = args['x'] === undefined ? null : { x: args['x'] as number, y: args['y'] as number }
+      if (given !== null && !pointInPolygon(given, room.polygon, room.holes)) throw new ToolRefusal(`The point ${L(given.x)}, ${L(given.y)} is not on the floor of ${q(room.facts.name)}: a route starts from a point on its first room's floor.`)
+      const route = routeBetween(survey, room.facts.id, to, true, { ...(given !== null ? { start: given } : args['start'] === undefined ? {} : { start: args['start'] as 'middle' | 'door' | 'farthest corner' }), ...(args['end'] === undefined ? {} : { end: args['end'] as 'middle' | 'door' }) })
       if (route === null) {
         // ARE-28: from a floor above the ground that nothing joins to the ground floor, the answer says why.
         const noStair = to === 'outside' ? floorsWithNoStair(survey.plan).find((f) => f.floor === room.facts.floor) : undefined
@@ -1706,6 +1712,7 @@ const measureTool: GridTool = {
         ...(route.exit === undefined
           ? []
           : [`Nearest way out: ${route.steps.at(-1)!.type} ${q(route.exit)}, the shortest walked of ${(route.otherExits?.length ?? 0) + 1}.${route.otherExits && route.otherExits.length > 0 ? ` Others: ${route.otherExits.map((e) => `${e.type} ${q(e.via)} ${e.length === null ? 'not measured' : L(e.length)}`).join(', ')}.` : ''}`]),
+        ...(route.startPoint === null || route.endPoint === null ? [] : [`Walked from ${L(route.startPoint.point.x)}, ${L(route.startPoint.point.y)} (${route.startPoint.at}) to ${L(route.endPoint.point.x)}, ${L(route.endPoint.point.y)} (${route.endPoint.at}).`]),
         route.narrowestPassage ? `Narrowest door or opening on the way: ${q(route.narrowestPassage.via)}, ${L(route.narrowestPassage.width)}.` : 'No door or opening on the way, only open sides.',
         `Widest circle in each room on the way: ${widths}.`,
         // VEW-9: the length, and each room's share of it.

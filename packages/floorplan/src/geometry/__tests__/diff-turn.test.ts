@@ -11,6 +11,8 @@ import { parseFloorPlan, type FloorPlan, type OpeningPattern } from '../../types
 import { compileRoomsText } from '../../rooms/compile'
 import { stampFor } from '../../rooms/stamp'
 import { compareBuildings, diffPlans, findTurn, turnPlan } from '../diff'
+import { indexPlan } from '../plan'
+import { validatePlan } from '../validate'
 
 const FIXTURES = resolve(__dirname, '../../../fixtures')
 const flat = (): FloorPlan => parseFloorPlan(JSON.parse(readFileSync(join(FIXTURES, 'two-bed-flat.json'), 'utf8')))
@@ -129,5 +131,34 @@ describe('a plan mirrored or turned (lab Y-5, WR-16)', () => {
     expect(compared.roomsFirst).toBe(true)
     expect(compared.turn?.id).toBe('mirror-left-right')
     expect(compared.changes).toEqual([])
+  })
+
+  // MSG-21: the mirrored copy of the earlier plan kept each room's old boundary fingerprint, so
+  // every room read as edited by hand, was left out as broken, and each opening joined "a space
+  // that is not drawn".
+  it('compares a flat written rooms first and mirrored with no issues, every room its size (MSG-21)', () => {
+    const result = compileRoomsText(readFileSync(join(FIXTURES, 'rooms/flat.rooms'), 'utf8'))
+    const plan = parseFloorPlan(result.plan)
+    const before = { ...plan, written: stampFor(plan) }
+    // As the mirror edit writes it: the walls mirrored, and the rooms' boundaries printed again.
+    const mirrored = turnPlan(plan, 'mirror-left-right')
+    const after = { ...mirrored, written: stampFor(mirrored) }
+    const compared = compareBuildings(before, after)
+    expect(compared.issues).toEqual([])
+    expect(compared.verdict).toBe('The plan is mirrored left to right (east and west swap), and every room keeps its size. Nothing else changed.')
+    expect(compared.rooms.every((room) => room.status === 'unchanged')).toBe(true)
+  })
+
+  it('keeps a plan written rooms first drawable when it mirrors it, and a room edited by hand still edited (MSG-21)', () => {
+    const result = compileRoomsText(readFileSync(join(FIXTURES, 'rooms/flat.rooms'), 'utf8'))
+    const plan = parseFloorPlan(result.plan)
+    const stamped = { ...plan, written: stampFor(plan) }
+    const derivedEdited = (p: FloorPlan): string[] => validatePlan(p, indexPlan(p)).issues.filter((i) => i.code === 'room/derived-edited').map((i) => i.id)
+    for (const id of ['mirror-left-right', 'mirror-top-bottom', 'turn-90', 'mirror-diagonal'] as const) expect(derivedEdited(turnPlan(stamped, id))).toEqual([])
+    // One room's walls listed from another wall by hand: found before the mirror and after it.
+    const room = stamped.rooms[0]!
+    const edited = { ...stamped, rooms: stamped.rooms.map((r) => (r.id === room.id ? { ...r, boundary: [...r.boundary.slice(1), r.boundary[0]!] } : r)) }
+    expect(derivedEdited(edited)).toEqual([room.id])
+    expect(derivedEdited(turnPlan(edited, 'mirror-left-right'))).toEqual([room.id])
   })
 })

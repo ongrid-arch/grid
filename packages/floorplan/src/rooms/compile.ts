@@ -97,6 +97,7 @@ import { english, joined, name as sayName, said, type MessageKey, type Said, typ
 import { idsOfText } from './ids'
 import { f2, hasUnit, isNumberWord, metres, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
+import { likelyMeant } from '../types/nearest'
 
 type P = readonly [number, number]
 /** A wall as the text writes it into the file: no height when the text states none (WRT-6). */
@@ -161,6 +162,60 @@ const MIRROR_Y: Readonly<Record<string, string>> = { north: 'south', south: 'nor
 export const SIZE_BASES = ['inside', 'centre', 'outside'] as const
 export type SizeBasis = (typeof SIZE_BASES)[number]
 const BASIS_WORDS: Readonly<Record<string, SizeBasis>> = { inside: 'inside', centre: 'centre', center: 'centre', outside: 'outside' }
+/**
+ * WRT-35: the words a room line takes after its use, each with what it takes after it, for the
+ * word most likely meant when one is not understood; `<m>` and `<t>` take a number.
+ */
+const ROOM_LINE_WORDS: Readonly<Record<string, readonly string[]>> = {
+  at: ['x,y'],
+  north: ['of', '<room>'],
+  south: ['of', '<room>'],
+  east: ['of', '<room>'],
+  west: ['of', '<room>'],
+  align: ['<side|centre>'],
+  shift: ['<m>'],
+  until: ['<room>'],
+  open: [],
+  inside: ['<room>', 'corner', '<ne|nw|se|sw>'],
+  centre: [],
+  outside: [],
+  polygon: ['x,y', 'x,y', 'x,y'],
+  walls: ['<t>'],
+  wall: ['<t>'],
+  height: ['<m>'],
+  floor: ['<m>'],
+  'first-wall': ['<wall id>'],
+  tenure: ['<tenure>'],
+  type: ['"<text>"'],
+  through: ['<floor>'],
+  outdoor: ['<kind>'],
+  roofed: [],
+  unroofed: [],
+}
+/** The words agents write for a room line's own: a room's level above its storey is its `floor`. */
+const ROOM_LINE_MEANS: Readonly<Record<string, string>> = { level: 'floor', elevation: 'floor', offset: 'floor', ceiling: 'height', headroom: 'height', thickness: 'walls' }
+
+/** Whether `word` is what `form` asks for: a number for `<m>` or `<t>`, a point for `x,y`, the word itself for a word. */
+function takesWord(form: string, word: string): boolean {
+  if (form === '<m>' || form === '<t>') return isNumberWord(word)
+  if (form === 'x,y') return /^[0-9.+\-*/()]+,[0-9.+\-*/()]+$/.test(word)
+  if (form.startsWith('<') || form.startsWith('"')) return !Object.hasOwn(ROOM_LINE_WORDS, word)
+  return word === form
+}
+
+/**
+ * The room line's word most likely meant by `t[i]`, written with what follows it on the line
+ * when that fits (`level 0.6` is `floor 0.6`), else with what it takes; null when none is near.
+ */
+function roomWordMeant(t: readonly string[], i: number): string | null {
+  const w = t[i]!
+  const meant = ROOM_LINE_MEANS[w.toLowerCase()] ?? likelyMeant(w, Object.keys(ROOM_LINE_WORDS))
+  if (meant === null) return null
+  const takes = ROOM_LINE_WORDS[meant]!
+  const after = t.slice(i + 1, i + 1 + takes.length)
+  const fits = after.length === takes.length && takes.every((form, k) => takesWord(form, after[k]!))
+  return [meant, ...(fits ? after : takes)].join(' ')
+}
 /** The wall thicknesses rooms text writes when its `walls` line does not say (BRF-6's first layout packs by them). */
 export const ROOMS_WALLS = { outside: 0.3, inside: 0.1 } as const
 /** How far apart two parallel room faces may be and still be looked at as one wall's two faces. */
@@ -1094,10 +1149,11 @@ class Compiler {
           place.wallKind = kind
         }
       } else {
+        const meant = roomWordMeant(t, i)
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${w}' is not understood on a room line. After the use, write a size ('3.0 x 4.4' = east-west by north-south, inside faces; add 'centre' or 'outside' to measure to the walls' centre lines or outside faces) or 'polygon x,y x,y ...', then where it goes: 'at x,y', '<north|south|east|west> of <room>' with optional 'align', 'shift', 'until', 'open', or 'inside <room> corner <ne|nw|se|sw>'. 'walls <t> [kind]' sets this room's own wall thickness; 'through <floor>' stands it on every floor after this one up to that floor; 'tenure <private|shared|common|commercial>' and 'type "<text>"' say who it is for and the firm's own room type; 'outdoor <${OUTDOOR_KINDS.join('|')}>', then 'roofed' or 'unroofed', marks it as outdoor space.`
+          english(said('rooms.room.unknown', { line: at, word: w, meant: meant === null ? '' : said('rooms.room.meant', { written: meant }), tenures: TENURES.join('|'), outdoor: OUTDOOR_KINDS.join('|') }))
         )
       }
     }

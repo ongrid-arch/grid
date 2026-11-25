@@ -25,6 +25,12 @@
  * - A corner so sharp that the faces cross further out than `mitreReach` half thicknesses is
  *   left cut square, as a bevel.
  *
+ * A curved wall (CNT-18) is seen from a joint along its tangent there, and its faces are found
+ * where they really are (CNT-30): past the curve's end a face runs on along the tangent, as the
+ * drawing carries it on (`wallSlicePolygon`), and along the curve it is a circle. Where a face
+ * crosses a curved face, the crossing is found on the curve, so a straight wall and a curve
+ * cornered together end on one line, and a partition stops at the curve's face.
+ *
  * Walls join where their ends, or an end and a wall's axis, are within `joint` of each other: a
  * wall that stops short of its corner or runs past it is not joined (that is MSG-12's to
  * report). Dividing lines have no faces and join nothing. Walls join only on their own floor.
@@ -38,7 +44,7 @@ import { add, cross, dot, perp, scale, sub } from './vec2'
 import type { FaceReach, WallEnds } from './wall'
 import { wallAxis, wallLength, wallPath } from './wall'
 import { boxIndex, boxOfPoints, widenBox } from './boxIndex'
-import { curveFault, curvePointAt, curveTangentAt, wallCurve } from './arc'
+import { curveExtremes, curveFault, curvePointAt, curveTangentAt, wallCurve } from './arc'
 
 /**
  * A wall as the joints see it: where its two ends are and which way it leaves each, and where a
@@ -50,6 +56,14 @@ interface Course {
   readonly box: readonly Vec2[]
   /** Where a joint at `p` lies on the wall's axis, away from its ends, and the way the axis runs there; or null. */
   readonly through: (p: Vec2, near: number) => { readonly at: Vec2; readonly dir: Vec2 } | null
+  /** A curved wall's circle, which its axis follows away from every joint on it (CNT-30). */
+  readonly bend?: Bend
+}
+
+/** The circle a curved wall's axis follows: its faces are circles round the same centre. */
+interface Bend {
+  readonly centre: Vec2
+  readonly radius: number
 }
 
 function courseOf(wall: Wall): Course {
@@ -78,7 +92,9 @@ function courseOf(wall: Wall): Course {
           { end: 'start', at: curvePointAt(curve, 0), dir: curveTangentAt(curve, 0) },
           { end: 'end', at: curvePointAt(curve, length), dir: scale(curveTangentAt(curve, length), -1) }
         ],
-    box: wallPath(wall),
+    // The stations may cut a bulge off: the curve's own furthest points close the box (CNT-30).
+    box: [...wallPath(wall), ...curveExtremes(curve)],
+    bend: { centre: curve.centre, radius: curve.radius },
     through: (p, near) => {
       const off = sub(p, curve.centre)
       if (Math.abs(Math.hypot(off.x, off.y) - curve.radius) > near) return null
@@ -103,6 +119,8 @@ interface Ray {
   readonly dir: Vec2
   readonly half: number
   readonly angle: number
+  /** On a curved wall, its circle: away from the joint, along `dir`, the wall follows it (CNT-30). */
+  readonly bend?: Bend
 }
 
 type Side = 1 | -1
@@ -114,18 +132,110 @@ const facePoint = (ray: Ray, side: Side): Vec2 => add(ray.at, scale(perp(ray.dir
 
 /**
  * How far along `a` (from its point at the joint) its face on `sideA` crosses the face of `b`
- * on `sideB`, or `null` when the two faces are parallel.
+ * on `sideB`, or `null` when the two faces are parallel there. On a curved wall the distance is
+ * along its axis, round the curve, as a reach is read.
  */
 function meet(a: Ray, sideA: Side, b: Ray, sideB: Side): number | null {
-  const turn = cross(a.dir, b.dir)
-  if (Math.abs(turn) < tolerance('parallel')) return null
-  return cross(sub(facePoint(b, sideB), facePoint(a, sideA)), b.dir) / turn
+  return faceCrossing(a, sideA, b, sideB)?.along ?? null
 }
 
 /** Where the face of `a` on `sideA` crosses the face of `b` on `sideB`, or `null`. */
 function crossing(a: Ray, sideA: Side, b: Ray, sideB: Side): Vec2 | null {
-  const s = meet(a, sideA, b, sideB)
-  return s === null ? null : add(facePoint(a, sideA), scale(a.dir, s))
+  return faceCrossing(a, sideA, b, sideB)?.at ?? null
+}
+
+/**
+ * Where two faces cross, and how far along `a` that is. The faces are first taken as the lines
+ * along the walls at the joint. Where the crossing lies along a curved wall, away from the joint,
+ * that wall's face there is a circle (CNT-30), and the crossing is found on it instead: the one of
+ * the circle's crossings nearest the first. A circle that misses, or crosses only further off
+ * than a corner may reach, keeps the crossing of the lines.
+ */
+function faceCrossing(a: Ray, sideA: Side, b: Ray, sideB: Side): { readonly along: number; readonly at: Vec2 } | null {
+  const turn = cross(a.dir, b.dir)
+  if (Math.abs(turn) < tolerance('parallel')) return null
+  const fromA = facePoint(a, sideA)
+  const fromB = facePoint(b, sideB)
+  const s = cross(sub(fromB, fromA), b.dir) / turn
+  const first = add(fromA, scale(a.dir, s))
+  const roundA = a.bend !== undefined && s > 0
+  const roundB = b.bend !== undefined && dot(sub(first, fromB), b.dir) > 0
+  if (!roundA && !roundB) return { along: s, at: first }
+  const found = nearest(first, crossings(faceShape(a, sideA, roundA), faceShape(b, sideB, roundB)))
+  // A crossing further off than a corner may reach is another meeting of the circle, not this one.
+  if (found === null || Math.hypot(found.x - first.x, found.y - first.y) > tolerance('mitreReach') * Math.max(a.half, b.half)) return { along: s, at: first }
+  const along = alongRay(a, sideA, roundA, found)
+  // The crossing on a circle must lie along its wall, away from the joint, as the circle does.
+  if (roundA && !(along > 0)) return { along: s, at: first }
+  if (roundB && !(alongRay(b, sideB, true, found) > 0)) return { along: s, at: first }
+  return { along, at: found }
+}
+
+/** One face of a ray seen from the joint: a line, or the circle a curved wall's face follows. */
+type FaceShape = { readonly line: true; readonly point: Vec2; readonly dir: Vec2 } | { readonly line: false; readonly centre: Vec2; readonly radius: number }
+
+function faceShape(ray: Ray, side: Side, round: boolean): FaceShape {
+  const point = facePoint(ray, side)
+  if (!round || ray.bend === undefined) return { line: true, point, dir: ray.dir }
+  const { centre } = ray.bend
+  return { line: false, centre, radius: Math.hypot(point.x - centre.x, point.y - centre.y) }
+}
+
+/** The points where two face shapes cross: none, one or two. */
+function crossings(a: FaceShape, b: FaceShape): Vec2[] {
+  if (a.line && b.line) return []
+  if (a.line) return lineCircle(a.point, a.dir, b as Extract<FaceShape, { line: false }>)
+  if (b.line) return lineCircle(b.point, b.dir, a)
+  return circleCircle(a, b as Extract<FaceShape, { line: false }>)
+}
+
+function lineCircle(point: Vec2, dir: Vec2, circle: { readonly centre: Vec2; readonly radius: number }): Vec2[] {
+  const off = sub(point, circle.centre)
+  const half = dot(off, dir)
+  const rest = dot(off, off) - circle.radius * circle.radius
+  const disc = half * half - rest
+  if (disc < 0) return []
+  const root = Math.sqrt(disc)
+  return [-half - root, -half + root].map((t) => add(point, scale(dir, t)))
+}
+
+function circleCircle(a: { readonly centre: Vec2; readonly radius: number }, b: { readonly centre: Vec2; readonly radius: number }): Vec2[] {
+  const between = sub(b.centre, a.centre)
+  const d = Math.hypot(between.x, between.y)
+  if (d === 0 || d > a.radius + b.radius || d < Math.abs(a.radius - b.radius)) return []
+  const toChord = (a.radius * a.radius - b.radius * b.radius + d * d) / (2 * d)
+  const h = Math.sqrt(Math.max(0, a.radius * a.radius - toChord * toChord))
+  const unit = scale(between, 1 / d)
+  const foot = add(a.centre, scale(unit, toChord))
+  return [add(foot, scale(perp(unit), h)), add(foot, scale(perp(unit), -h))]
+}
+
+function nearest(to: Vec2, points: readonly Vec2[]): Vec2 | null {
+  let best: Vec2 | null = null
+  let gap = Infinity
+  for (const p of points) {
+    const d = Math.hypot(p.x - to.x, p.y - to.y)
+    if (d < gap) {
+      gap = d
+      best = p
+    }
+  }
+  return best
+}
+
+/**
+ * How far along a ray's axis, from the joint, a point on its face on `side` lies: straight along
+ * the ray, or, on a curved face, round the curve by the angle it turns through from the joint.
+ */
+function alongRay(ray: Ray, side: Side, round: boolean, p: Vec2): number {
+  const from = facePoint(ray, side)
+  if (!round || ray.bend === undefined) return dot(sub(p, from), ray.dir)
+  const { centre, radius } = ray.bend
+  const u = sub(from, centre)
+  const v = sub(p, centre)
+  const angle = Math.atan2(cross(u, v), dot(u, v))
+  const way = Math.sign(cross(sub(ray.at, centre), ray.dir))
+  return angle * way * radius
 }
 
 /** Whether two faces lie on one line. */
@@ -284,20 +394,22 @@ function joinFloor(walls: readonly Wall[], indices: readonly number[], out: Map<
       y: group.reduce((s, e) => s + e.at.y, 0) / group.length
     }
     const rays: Ray[] = group.map((e) => {
-      const dir = courses.get(e.wall)!.ends.find((end) => end.end === e.end)!.dir
-      return { wall: e.wall, end: e.end, at: e.at, dir, half: walls[e.wall]!.thickness / 2, angle: Math.atan2(dir.y, dir.x) }
+      const course = courses.get(e.wall)!
+      const dir = course.ends.find((end) => end.end === e.end)!.dir
+      return { wall: e.wall, end: e.end, at: e.at, dir, half: walls[e.wall]!.thickness / 2, angle: Math.atan2(dir.y, dir.x), ...(course.bend && { bend: course.bend }) }
     })
     // A wall that carries on through the joint: the joint lies on its axis, away from its ends,
     // so within `joint` of its axis, and so in its widened box (QAR-7).
     for (const k of nearAxes.near(boxOfPoints([centre]))) {
       const i = indices[k]!
       if (members.has(i)) continue
-      const on = courses.get(i)!.through(centre, near)
+      const course = courses.get(i)!
+      const on = course.through(centre, near)
       if (on === null) continue
       const { at } = on
       const half = walls[i]!.thickness / 2
       for (const dir of [on.dir, scale(on.dir, -1)]) {
-        rays.push({ wall: i, end: 'through', at, dir, half, angle: Math.atan2(dir.y, dir.x) })
+        rays.push({ wall: i, end: 'through', at, dir, half, angle: Math.atan2(dir.y, dir.x), ...(course.bend && { bend: course.bend }) })
       }
     }
     if (rays.length < 2) continue
