@@ -142,6 +142,14 @@ const DECIMAL_ARG: ArgSpec = {
   examples: ['comma'],
 }
 
+/** CMD-22: the structured data whole, or compact: totals first, what is empty left out. */
+const DATA_ARG: ArgSpec = {
+  type: 'string',
+  enum: ['full', 'compact'],
+  description: 'compact for the structured data with the label, single figures and totals first and empty values left out, shorter to read; full when left out. The words of the answer do not change.',
+  examples: ['compact'],
+}
+
 const FORMAT_ARG: ArgSpec = {
   type: 'string',
   enum: ['text', 'csv'],
@@ -319,6 +327,7 @@ const areasTool: GridTool = {
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
+    data: DATA_ARG,
   },
   outputSchema: withOptional(objectSchema({
     floors: listSchema(objectSchema({ floor: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, circulation: NUMBER, rooms: { type: 'array' }, leftOut: { type: 'array' }, byUse: { type: 'object' } }, ['floor', 'net', 'rooms', 'leftOut'])),
@@ -726,6 +735,7 @@ const takeoffTool: GridTool = {
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
+    data: DATA_ARG,
   },
   outputSchema: objectSchema({
     walls: listSchema(objectSchema({ kind: STRING, count: NUMBER, gross: NUMBER, net: NUMBER })),
@@ -1038,6 +1048,7 @@ const scheduleTool: GridTool = {
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
+    data: DATA_ARG,
   },
   outputSchema: SCHEDULE_OUTPUT,
   run(args, context) {
