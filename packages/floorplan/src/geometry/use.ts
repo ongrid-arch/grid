@@ -221,31 +221,110 @@ function longestFree(from: number, to: number, spans: readonly { from: number; t
   return Math.max(best, to - at)
 }
 
+/** ARE-27: one leaf of a door: where it stands along the hole, and what it leaves clear when open. */
+export interface DoorLeaf {
+  /** Its near and far edges, as offsets along the wall. */
+  readonly from: number
+  readonly to: number
+  /** Its width along the wall. */
+  readonly width: number
+  /** What it and its stop take when open (`openLeafAllowance`). */
+  readonly allowance: number
+  /** The widest stretch of it no fixture stands in front of, less its allowance, never below 0. */
+  readonly clear: number
+  /** True for a leaf the door is judged by: the part the plan says opens, or each leaf of a pair that states none. */
+  readonly active: boolean
+}
+
+/**
+ * ARE-27: what a door is judged by. `hole` for a doorless opening, which leaves its whole hole;
+ * `leaf` for one leaf, the part the plan says opens (`opens`) or a door's only leaf; `pair` for
+ * both leaves of a pair that states no active leaf, opened together.
+ */
+export type DoorJudgedBy = 'hole' | 'leaf' | 'pair'
+
 export interface DoorwayClearance {
   readonly opening: string
   /** The hole in the wall, as the plan states its width. */
   readonly hole: number
-  /** What an open leaf and its stop take (`useOpenLeaf`); 0 for a doorless opening. */
+  /** What the open leaves and their stops take off the width it is judged by; 0 for a doorless opening, or a door that leaves its hole whole. */
   readonly leaf: number
   /** How much of the hole fixtures stand in front of, within `useApproachDepth` on either face, joined where they overlap. */
   readonly covered: number
-  /** The widest stretch of the hole no fixture stands in front of. */
+  /** The widest stretch no fixture stands in front of, of the leaf or leaves it is judged by. */
   readonly run: number
-  /** What is left: the run less the leaf, never below 0. */
+  /** What is left: the run less the leaf, never below 0. The one clear width every check and measure reads. */
   readonly clear: number
+  /** ARE-27: each leaf, in order along the wall; none for a doorless opening. */
+  readonly leaves: readonly DoorLeaf[]
+  /** ARE-27: what `clear` is the width of. */
+  readonly judgedBy: DoorJudgedBy
   /** The fixtures standing in front of the hole, by id, in plan order. */
   readonly narrowedBy: readonly string[]
 }
 
-/** The clear width a door or doorless opening leaves (`use/doorway-clear-width`). */
+/**
+ * ARE-27: what an open leaf and its stop take in its doorway, by the door's kind. A swinging leaf
+ * (no kind, `single`, `double`) and a folding door take `useOpenLeaf`; a door that slides along
+ * its wall or into it, rolls up or lifts overhead leaves its hole whole and takes nothing. A
+ * doorless opening has no leaf.
+ */
+export function openLeafAllowance(opening: Pick<Opening, 'type' | 'kind'>): number {
+  if (opening.type !== 'door') return 0
+  const kind = opening.kind
+  return kind === 'sliding' || kind === 'pocket' || kind === 'roller' || kind === 'garage' ? 0 : limit('useOpenLeaf')
+}
+
+/**
+ * ARE-27: a door's leaves along its hole. A pair (`double`) is two leaves: the part the plan says
+ * opens (`opens`), at the end it hangs from (`hinge`, else the wall's start end), and the rest; or
+ * two equal leaves when it states none, both active. Any other door is one leaf: the part that
+ * opens when stated, beside a fixed panel, else the whole hole.
+ */
+function leafSpans(opening: Opening): { from: number; to: number; active: boolean }[] {
+  const a = opening.offset
+  const b = opening.offset + opening.width
+  const part = opening.opens === undefined ? null : Math.min(opening.opens.width, opening.width)
+  const atEnd = opening.hinge === 'end'
+  if (opening.kind === 'double') {
+    if (part === null || part >= opening.width) {
+      const mid = (a + b) / 2
+      return [{ from: a, to: mid, active: true }, { from: mid, to: b, active: true }]
+    }
+    return atEnd
+      ? [{ from: a, to: b - part, active: false }, { from: b - part, to: b, active: true }]
+      : [{ from: a, to: a + part, active: true }, { from: a + part, to: b, active: false }]
+  }
+  if (part === null) return [{ from: a, to: b, active: true }]
+  return [atEnd ? { from: b - part, to: b, active: true } : { from: a, to: a + part, active: true }]
+}
+
+/** The clear width a door or doorless opening leaves (`use/doorway-clear-width`), leaf by leaf (ARE-27). */
 export function doorwayClearance(wall: Wall, opening: Opening, fixtures: readonly Obstacle[]): DoorwayClearance {
   const frame = frameOf(wall, opening)
   const spans = frame === null ? [] : coveredSpans(frame, opening, fixtures)
-  const run = longestFree(opening.offset, opening.offset + opening.width, spans)
-  const leaf = opening.type === 'door' ? limit('useOpenLeaf') : 0
   const by = new Set(spans.map((s) => s.id))
   const covered = spans.length === 0 ? 0 : Math.max(0, opening.width - longestFreeTotal(opening.offset, opening.offset + opening.width, spans))
-  return { opening: opening.id, hole: opening.width, leaf, covered, run, clear: Math.max(0, run - leaf), narrowedBy: fixtures.filter((f) => by.has(f.id)).map((f) => f.id) }
+  const narrowedBy = fixtures.filter((f) => by.has(f.id)).map((f) => f.id)
+  const base = { opening: opening.id, hole: opening.width, covered, narrowedBy }
+  if (opening.type !== 'door') {
+    const run = longestFree(opening.offset, opening.offset + opening.width, spans)
+    return { ...base, leaf: 0, run, clear: run, leaves: [], judgedBy: 'hole' }
+  }
+  const allowance = openLeafAllowance(opening)
+  const leaves: DoorLeaf[] = leafSpans(opening).map((s) => {
+    const run = longestFree(s.from, s.to, spans)
+    return { from: s.from, to: s.to, width: s.to - s.from, allowance, clear: Math.max(0, run - allowance), active: s.active }
+  })
+  const active = leaves.filter((l) => l.active)
+  if (active.length > 1) {
+    // A pair opened together: the widest free stretch across both leaves, less each leaf's allowance.
+    const run = longestFree(Math.min(...active.map((l) => l.from)), Math.max(...active.map((l) => l.to)), spans)
+    const taken = allowance * active.length
+    return { ...base, leaf: taken, run, clear: Math.max(0, run - taken), leaves, judgedBy: 'pair' }
+  }
+  const one = active[0]!
+  return { ...base, leaf: allowance, run: longestFree(one.from, one.to, spans), clear: one.clear, leaves, judgedBy: 'leaf' }
 }
 
 export interface WindowCover {
