@@ -39,7 +39,7 @@ import {
   type Wall,
 } from '@ongrid/floorplan/geometry'
 import { drawable } from '@ongrid/floorplan/geometry/rules/check'
-import { floorGraph, roomOutlines } from '@ongrid/floorplan/geometry/rules/graph'
+import { floorGraph, roomOutlines, type BlockedBy } from '@ongrid/floorplan/geometry/rules/graph'
 import { compassOf, type Compass } from '../describe/facts'
 import { roomCalled, type Survey, type SurveyRoom } from './survey'
 import { walkRoute, type EndAt, type StairPassage, type StartAt, type WalkPoint, type WalkedLeg, type WalkGap } from './walked'
@@ -167,7 +167,7 @@ export const OUTSIDE = '\u0000outside'
  * The ways from room to room on one floor: for each room, the rooms (or `OUTSIDE`) a door, a
  * doorless opening or a dividing line (`via`) leads to, as the way-out check reads them.
  */
-export function wayGraph(survey: Survey, floor: string): { next: Map<string, Array<{ room: string; via: string }>>; openings: Map<string, Opening> } {
+export function wayGraph(survey: Survey, floor: string): { next: Map<string, Array<{ room: string; via: string }>>; openings: Map<string, Opening>; blocked: readonly BlockedBy[] } {
   const { storey, leftOut } = drawable(planForFloor(survey.plan, floor))
   const graph = floorGraph(storey, leftOut.rooms)
   const openings = new Map(storey.openings.map((o) => [o.id, o]))
@@ -181,7 +181,8 @@ export function wayGraph(survey: Survey, floor: string): { next: Map<string, Arr
     join(l.rooms[1], l.rooms[0], l.via)
   }
   for (const exit of graph.exits) join(exit.room, OUTSIDE, exit.opening)
-  return { next, openings }
+  // ARE-46: a doorway an item leaves no clear width in is no way; it is kept to say why.
+  return { next, openings, blocked: graph.blocked }
 }
 
 /** A door a person comes in by: into `room` from outside, straight, or `through` an outdoor space that reaches outside (ARE-36). */

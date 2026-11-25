@@ -23,6 +23,9 @@ import { wallFrameAt, wallLength } from '../wall'
 import { TOLERANCES, limit, tolerance } from '../tolerances'
 import { overFigure, underFigure } from '../rounding'
 import { roomFloorOffset } from '../steps'
+import { doorwayClearance } from '../use'
+import { itemFootprint } from '../items'
+import { isItemKind } from '../itemKinds'
 
 /** How far past a wall's face a point is taken to be in the room beyond it, in metres (`stepPastFace`). */
 export const STEP_PAST_FACE_M = TOLERANCES.stepPastFace.value
@@ -224,6 +227,18 @@ export interface TooSmall {
 }
 
 /**
+ * ARE-46: a door or doorless opening an item stands in front of so that nothing of its hole is
+ * clear (the `clear` of `doorwayClearance`, as the placing answer says it), with the rooms on its
+ * sides in id order and the items that cover it. None of them is in `links`: a kitchen run across
+ * a door is a closed door until it is moved.
+ */
+export interface BlockedBy {
+  readonly opening: string
+  readonly rooms: readonly string[]
+  readonly by: readonly string[]
+}
+
+/**
  * LVL-17: a door or doorless opening between two rooms of one storey whose floors stand further
  * apart in height than a step (`passableRise`), with neither room used as a stair. Each room's
  * level is its `floorOffset` (LVL-7), in metres from its storey's floor. None of them is in
@@ -310,6 +325,11 @@ export interface FloorGraph {
    */
   readonly tooSmall: readonly TooSmall[]
   /**
+   * ARE-46: doors and doorless openings an item leaves no clear width in. None of them is in `links`,
+   * `exits` or the rest: they are closed while the item stands there.
+   */
+  readonly blocked: readonly BlockedBy[]
+  /**
    * MSG-17 (lab CH-6): doors and doorless openings through a wall stated `exterior` onto outside
    * floor the walls close in on every side, a courtyard or a light well no room claims, with no
    * door from it to the open air. None of them is in `exits`: a way out must lead to open air.
@@ -342,6 +362,9 @@ export function floorGraph(plan: FloorPlan, leftOut: ReadonlySet<string> = new S
   const openEdges: OpenEdge[] = []
   const betweenHomes: RouteLink[] = []
   const tooSmall: TooSmall[] = []
+  const blocked: BlockedBy[] = []
+  // The storey's own items, each by its footprint (`planForFloor` has cut them to the floor).
+  const obstacles = (plan.items ?? []).filter((item) => isItemKind(item.kind)).map((item) => ({ id: item.id, outline: itemFootprint(item) }))
   const closedCourts: OneSided[] = []
   const betweenLevels: BetweenLevels[] = []
   const roomsById = new Map(plan.rooms.map((room) => [room.id, room] as const))
@@ -410,6 +433,17 @@ export function floorGraph(plan: FloorPlan, leftOut: ReadonlySet<string> = new S
       if (rooms.length > 0) tooSmall.push({ opening: opening.id, rooms, short })
       continue
     }
+    // ARE-46: a door an item leaves no clear width in is closed, and names the item.
+    if (obstacles.length > 0) {
+      const clear = doorwayClearance(wall, opening, obstacles)
+      if (clear.narrowedBy.length > 0 && clear.clear < tolerance('noLength')) {
+        const rooms = [...new Set(sides.filter((room): room is string => room !== null))].sort(byText)
+        if (rooms.length > 0) {
+          blocked.push({ opening: opening.id, rooms, by: clear.narrowedBy })
+          continue
+        }
+      }
+    }
     // LVL-17: a door onto a floor much higher than its own is named, and is not a way through.
     const [left, right] = sides
     const levels = left !== null && right !== null && left !== right ? levelsAcross(opening.id, roomsById.get(left), roomsById.get(right)) : null
@@ -458,6 +492,7 @@ export function floorGraph(plan: FloorPlan, leftOut: ReadonlySet<string> = new S
     betweenHomes: once(betweenHomes, (l) => `${l.rooms.join('|')}|${l.via}`).sort(
       (a, b) => byText(a.rooms[0], b.rooms[0]) || byText(a.rooms[1], b.rooms[1]) || byText(a.via, b.via)
     ),
+    blocked: blocked.sort((a, b) => byText(a.rooms[0]!, b.rooms[0]!) || byText(a.opening, b.opening)),
     tooSmall: tooSmall.sort((a, b) => byText(a.rooms[0]!, b.rooms[0]!) || byText(a.opening, b.opening)),
     closedCourts: once(closedCourts, (u) => `${u.room}|${u.opening}`).sort(bySide),
     betweenLevels: betweenLevels.sort((a, b) => byText(a.lower, b.lower) || byText(a.upper, b.upper) || byText(a.opening, b.opening))
