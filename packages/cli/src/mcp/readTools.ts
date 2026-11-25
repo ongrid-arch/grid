@@ -269,7 +269,7 @@ const compareTool: GridTool = {
       minItems: 2,
       maxItems: 6,
     },
-    floor: { ...FLOOR_ARG, description: 'For the picture only: the floor to draw from each plan. Each plan\'s lowest floor when left out.' },
+    floor: { ...FLOOR_ARG, description: 'For the picture only: the floor to draw from each plan. Each plan\'s ground floor when left out.' },
     picture: { type: 'boolean', description: 'true to return one sheet with the plans side by side at one scale. false when left out.', examples: [true, false] },
   },
   outputSchema: objectSchema({

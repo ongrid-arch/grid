@@ -69,7 +69,7 @@ const BRIEF_SCHEMA = {
       properties: {
         width: { ...SIZE, description: 'Outside size one way, metres.' },
         depth: { ...SIZE, description: 'Outside size the other way, metres.' },
-        area: { ...SIZE, description: 'The lowest floor\'s gross external area, m².' },
+        area: { ...SIZE, description: 'The ground floor\'s gross external area, m².' },
         level: { type: 'string', enum: ['must', 'should'] },
         source: SAID.source,
         quote: SAID.quote,

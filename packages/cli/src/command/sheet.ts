@@ -11,7 +11,7 @@ export const SHEET_OPTIONS: OptionSpecs = {
   '--sheet': { takesValue: true, help: 'Client and drawing: the words, as a sheet.json file inside the project (a drawing takes its name). sheet.json beside the plan when left out.' },
   '--scale': { takesValue: true, help: 'Drawing: 1:N, such as 1:50, 1:100 or 1:200. The largest of 1:100, 1:200 and 1:500 the floor fits when left out.' },
   '--paper': { takesValue: true, help: 'Drawing: A4, A3, A2, A1 or A0, turned the way the floor fits. The smallest that fits when left out.' },
-  '--floor': { takesValue: true, help: 'Drawing: the floor to draw (a floor id from the plan). The lowest floor when left out.' },
+  '--floor': { takesValue: true, help: 'Drawing: the floor to draw (a floor id from the plan). The ground floor when left out.' },
   '--room-sizes': { takesValue: true, help: "Drawing: on or off, each room's width and depth along its walls. on when left out." },
   '--out': { takesValue: true, help: 'The PDF to write, inside the project (a drawing writes its SVG and PNG beside it). exports/ beside the plan when left out.' },
   ...LANG_OPTION,
