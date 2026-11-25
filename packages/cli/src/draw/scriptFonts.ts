@@ -13,7 +13,7 @@ import type { SvgChild, SvgNode } from '@ongrid/viewer/src/picture/svgNode'
 import { el } from '@ongrid/viewer/src/picture/svgNode'
 import { visualOrder } from './visualOrder'
 
-export type Script = 'cjk' | 'hangul' | 'thai' | 'devanagari' | 'arabic' | 'hebrew' | 'emoji'
+export type Script = 'cjk' | 'han' | 'hangul' | 'thai' | 'devanagari' | 'arabic' | 'hebrew' | 'emoji'
 
 /** VEW-18: the family names Grid registers its bundled Arabic and Hebrew fonts under. */
 export const ARABIC_FONT = 'Grid Script Arabic'
@@ -21,6 +21,9 @@ export const HEBREW_FONT = 'Grid Script Hebrew'
 
 /** For each script, the fonts that have it, by the names macOS, Windows and Linux give them. */
 export const SCRIPT_FONTS: Readonly<Record<Script, readonly string[]>> = {
+  // VEW-21: for Han characters in a text with no kana or Hangul. Faces with the simplified
+  // forms come first: a Japanese face has none of 厅, 卫, 间 or 储 and draws a box for each.
+  han: ['PingFang SC', 'Hiragino Sans GB', 'Songti SC', 'STHeiti', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'WenQuanYi Micro Hei', 'Source Han Sans SC'],
   cjk: ['Hiragino Sans', 'Hiragino Sans GB', 'Microsoft YaHei', 'Yu Gothic', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'WenQuanYi Micro Hei'],
   hangul: ['Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans CJK KR'],
   thai: ['Sukhumvit Set', 'Thonburi', 'Leelawadee UI', 'Noto Sans Thai'],
@@ -35,6 +38,7 @@ export const SCRIPT_FONTS: Readonly<Record<Script, readonly string[]>> = {
 export const LAST_RESORT_FONT = 'Arial Unicode MS'
 
 const SCRIPTS: readonly (readonly [Script, RegExp])[] = [
+  // 'han' is never found by character: `withScriptFonts` turns a 'cjk' run into it by its text.
   ['cjk', /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Bopomofo}　-〿゠-ヿ㈀-㏿＀-￯]/u],
   ['hangul', /\p{sc=Hangul}/u],
   ['thai', /[฀-๿]/u],
@@ -45,6 +49,8 @@ const SCRIPTS: readonly (readonly [Script, RegExp])[] = [
   // An emoji by default, or a pictograph a text font lacks or that asks to be drawn as one.
   ['emoji', /\p{Emoji_Presentation}|\p{Extended_Pictographic}(?=️)|[\u{1f000}-\u{1faff}]/u]
 ]
+
+const JAPANESE_OR_KOREAN = /[\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}]/u
 
 /** Marks, variation selectors and the joiner belong to the character before them. */
 const CONTINUES = /[\p{M}‍]/u
@@ -85,7 +91,8 @@ export function withScriptFonts(nodes: readonly SvgNode[], installed: (family: s
   const chosen = new Map<Script, string | null>()
   const fontFor = (script: Script): string | null => {
     if (!chosen.has(script)) {
-      const own = SCRIPT_FONTS[script].find(installed)
+      // A Chinese face first for Han text, then the Japanese list when the machine has none.
+      const own = (script === 'han' ? [...SCRIPT_FONTS.han, ...SCRIPT_FONTS.cjk] : SCRIPT_FONTS[script]).find(installed)
       chosen.set(script, own ?? (script !== 'emoji' && installed(LAST_RESORT_FONT) ? LAST_RESORT_FONT : null))
     }
     return chosen.get(script)!
@@ -95,7 +102,10 @@ export function withScriptFonts(nodes: readonly SvgNode[], installed: (family: s
       if (typeof child !== 'string') return [rewrite(child, inText)]
       if (!inText) return [child]
       const pieces: SvgChild[] = []
-      for (const { script, text } of scriptRuns(visualOrder(child))) {
+      // VEW-21: Han with no kana or Hangul in the text is Chinese; the text decides, not the run.
+      const chinese = !JAPANESE_OR_KOREAN.test(child)
+      for (const { script: found, text } of scriptRuns(visualOrder(child))) {
+        const script = found === 'cjk' && chinese && /\p{sc=Han}/u.test(text) ? 'han' : found
         const family = script === null ? null : fontFor(script)
         const last = pieces[pieces.length - 1]
         if (family !== null) pieces.push(el('tspan', { 'font-family': family }, [text]))

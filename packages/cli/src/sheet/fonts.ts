@@ -20,7 +20,7 @@ export const SANS = 'Grid Sheet Sans'
  * character from the first font in a list that has it; without a list it falls back only to
  * the system's default font, which has none of these, and draws a box.
  */
-export const CJK_FONTS = [...SCRIPT_FONTS.cjk, ...SCRIPT_FONTS.hangul] as const
+export const CJK_FONTS = [...SCRIPT_FONTS.han, ...SCRIPT_FONTS.cjk, ...SCRIPT_FONTS.hangul] as const
 const FALLBACK_FONTS = [
   ...SCRIPT_FONTS.arabic,
   ...SCRIPT_FONTS.hebrew,
