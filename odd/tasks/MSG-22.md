@@ -4,7 +4,8 @@
 
 - A plan with one floor and no floor list, read in Spanish (its `display.language`, or `--lang es`
   and `language: "es"` asked of a command or a tool), names that floor "Planta baja" in every
-  report, description, drawing and sheet; in English it stays "Ground floor". A floor the plan
+  description, drawing, view and sheet (the check's record keeps its values the same in every
+  language, so it does not change); in English it stays "Ground floor". A floor the plan
   names keeps its own name.
 - An id written in rooms text with accents (`baño`, `salón`, `küche`, `straße`) is written in plain
   letters (`bano`, `salon`, `kuche`, `strasse`), everywhere the text names it, and the answer says
@@ -28,7 +29,8 @@
 - `geometry/floors.ts`: `planFloors` names the floor no list names by the plan's
   `display.language` (`groundFloor`). `spokenIn(plan, language)` gives the plan as read in the
   language asked for, for a plan whose ground floor has no name of its own: the commands and tools
-  that write in a language read the plan through it, and `inspectPlan` does for its record.
+  that write in a language read the plan through it; `inspectPlan` does not, since a record's values
+  are the same in every language.
   Chosen over passing a language to all seventy-odd callers of `planFloors`, or a module-wide
   language, which async commands cannot scope.
 - `messages/uses.ts`: `OTHER_USE_WORDS`, plain words per language that mean one use, folded as

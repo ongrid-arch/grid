@@ -40,11 +40,12 @@ async function grid(...args: string[]): Promise<string> {
 const planOf = (file: string): typeof plan => JSON.parse(readFileSync(join(b.folder, file), 'utf8')) as typeof plan
 
 describe('the one floor, in the language it is read in', () => {
-  it('is "Planta baja" in a Spanish description and check, and "Ground floor" in English', async () => {
+  it('is "Planta baja" in a Spanish description and "Ground floor" in English, and the same in the record in every language', async () => {
     expect(await grid('describe', 'plan.json', '--lang', 'es', '--for', 'agent')).toContain('Planta baja')
     expect(await grid('describe', 'plan.json', '--for', 'agent')).toContain('Ground floor')
-    const record = JSON.parse(await grid('check', 'plan.json', '--lang', 'es', '--json')) as unknown
-    expect(JSON.stringify(record)).not.toContain('Ground floor')
+    // The record keeps its values the same in every language (docs/result-contract.md), the floor's name among them.
+    const record = JSON.stringify(JSON.parse(await grid('check', 'plan.json', '--lang', 'es', '--json')))
+    expect(record).toContain('"name":"Ground floor"')
   })
 
   it('reads a plan whose language has a region (es-MX) as Spanish', async () => {

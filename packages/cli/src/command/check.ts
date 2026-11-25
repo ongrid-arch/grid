@@ -6,7 +6,7 @@
  * Every report starts with the label "General guidance, not your local rules". No line says a
  * plan complies, passes or is approved: no findings only means these checks found nothing.
  */
-import { floorOf, LIMITS as PLAN_LIMITS, PLAN_LIMIT_KEYS, spokenIn, type FloorPlan, type Issue } from '@ongrid/floorplan/geometry'
+import { floorOf, LIMITS as PLAN_LIMITS, PLAN_LIMIT_KEYS, type FloorPlan, type Issue } from '@ongrid/floorplan/geometry'
 import {
   buildingKindsSaid,
   buildingTypeSaid,
@@ -272,8 +272,7 @@ export function placeText(report: Pick<RulesReport, 'place' | 'withoutPlace' | '
 }
 
 export function checkPlan(loaded: LoadedPlan, request: Omit<CheckRequest, 'json'>, argument = '--country'): CheckResult {
-  // MSG-22: the floor the plan names in no list, named in the language of the check.
-  const plan = spokenIn(loaded.plan, request.language ?? loaded.plan.display?.language)
+  const { plan } = loaded
   const country = countryOption(request.country, argument)
   const floor = floorOption(plan, request.floor)
   const options = country === undefined ? {} : { country }

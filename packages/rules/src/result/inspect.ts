@@ -25,7 +25,6 @@ import {
   planFloors,
   checkDoorSweeps,
   siteThingsSaid,
-  spokenIn,
   tapedLengths,
   tapedMissingSaid,
   validatePlan,
@@ -1033,8 +1032,7 @@ export function inspectPlan(raw: unknown, options: InspectOptions = {}): GridRes
   try {
     const read = readPlan(raw)
     if (read.plan === null) return record(read.lines, false, null)
-    // MSG-22: the floor the plan names in no list is named in the record's language.
-    return inspectRead({ ...read, plan: spokenIn(read.plan, options.language) }, options)
+    return inspectRead(read, options)
   } catch (error) {
     return record([checkFailed('reading', error)], false, null)
   } finally {

@@ -50,7 +50,8 @@ metres.
 - The floor a plan with no floor list stands on is named in the language Grid writes in
   (`GROUND_FLOOR_NAME` in `languages.ts`): "Ground floor", "Planta baja". A floor the plan names
   keeps its own name. A command or a tool asked for a language reads the plan through `spokenIn`
-  (`geometry/floors.ts`), so the name follows the language asked for too (MSG-22).
+  (`geometry/floors.ts`), so the name follows the language asked for too (MSG-22). The check's
+  record does not: its values, the floor's name among them, are the same in every language.
 - A language with a region, `es-MX` or `es-ES`, is its language (`readLanguage`), on the command
   line, in a tool's `language` and in the plan's `display.language`.
 - A room's use may be written in the person's own words, in Spanish, German, French or Chinese
