@@ -7,7 +7,7 @@
 import { GitUnread } from '../versions/git'
 import { DEFAULT_MARKER, MARKER_NAME, MARKERS_MAX, MarkerRefused, removeMarker, setMarker } from '../versions/markers'
 import { DIFF_SHOWS, diffData, diffSince, diffText, type DiffShow } from '../versions/diff'
-import { asRefusal, BOOLEAN, FLOOR_ARG, floorArg, listSchema, NULLABLE_STRING, objectSchema, PLAN_ARG, projectOf, planFileOf, readPlan, STRING, ToolRefusal, type GridTool } from './toolkit'
+import { asRefusal, BOOLEAN, FLOOR_ARG, floorArg, listSchema, NULLABLE_STRING, NUMBER, objectSchema, PLAN_ARG, projectOf, planFileOf, readPlan, STRING, ToolRefusal, type GridTool } from './toolkit'
 
 const MARKER_ARG = {
   type: 'string' as const,
@@ -40,7 +40,7 @@ export const diffTool: GridTool = {
     },
     show: { type: 'string', enum: DIFF_SHOWS, description: 'What to answer: all (the default), summary (issues, verdict and rooms), changes (and the change lines) or issues alone.', examples: ['summary', 'issues'] },
     picture: { type: 'boolean', description: 'false to leave the picture out. true when left out; nothing is drawn when nothing changed.', examples: [true, false] },
-    floor: { ...FLOOR_ARG, description: 'For the picture: the floor to draw. The first floor with a change, else the lowest, when left out.' },
+    floor: { ...FLOOR_ARG, description: 'The floor to show: only the changes, rooms and openings on it are answered, and the picture draws it. The issues and the verdict stay whole. Every floor, and for the picture the first floor with a change, else the lowest, when left out.' },
   },
   outputSchema: objectSchema({
     since: objectSchema({ kind: STRING, name: NULLABLE_STRING, at: NULLABLE_STRING, commit: NULLABLE_STRING }),
@@ -57,6 +57,8 @@ export const diffTool: GridTool = {
     movedWith: { type: 'array' },
     massing: objectSchema({ lines: listSchema(STRING), figures: { type: 'object' }, sideBySide: NULLABLE_STRING }),
     scope: objectSchema({ checked: BOOLEAN, rooms: listSchema(STRING), outside: listSchema(STRING) }),
+    floor: NULLABLE_STRING,
+    otherFloors: NUMBER,
     picture: { type: ['object', 'null'] },
   }),
   async run(args, context) {
@@ -71,8 +73,9 @@ export const diffTool: GridTool = {
     }
     // A floor that is not there is refused, picture or not (MS-19).
     const asked = floorArg(run.later.plan, args['floor'])
-    const text = [diffText(run, show)]
-    const data = diffData(run, show)
+    // CMD-32: the floor narrows the answer as well as the picture.
+    const text = [diffText(run, show, asked)]
+    const data = diffData(run, show, asked)
     const c = run.comparison
     const wanted = args['picture'] !== false
     let image
