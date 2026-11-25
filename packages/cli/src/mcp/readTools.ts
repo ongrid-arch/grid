@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, itemFootprint, kindWords, limit, oneInText, planFloors, planOrientation, planStoreys, buildingHeights, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, itemFootprint, kindWords, limit, oneInText, planOrientation, planStoreys, buildingHeights, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CameraRefused, cameraFor, eyeCamera, lensProblem, settingOfCamera, type CameraAsk } from '../draw/cameraAsk'
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
@@ -1860,7 +1860,7 @@ const viewTool: GridTool = {
     'Use this when the person asks to see the plan: "can I see it", a floor plan, a 3D view from the garden side or from above, the front of the house as an elevation, a section through the stair, "the living room from the south-west, from higher up", "a bit lower and more from the left", a view saved by name, "stand me in the kitchen looking at the garden", "can I see out sitting down", or a black and white drawing. '
     + 'kind=plan draws one floor from above with its sizes; kind=facade draws one side of the drawing (side: north, east, south or west; north is the top of the drawing) in elevation, every floor at its level, its doors and windows, the ground line heaviest and faces set back lighter; kind=3d draws the model through a camera: from a side or corner of the drawing (from), or a compass bearing from the plan\'s stated north (bearing), with tilt, distance, eye_height, lens, a room to point at and a floor cut away; kind=eye stands in a room at eye_height and looks level toward an opening or a direction, and lists the window sills against that eye height; kind=section cuts every floor along a line (cut) and looks to one side of it (toward), with the levels, the room heights, and what Grid takes that the plan does not state hatched and listed. '
     + 'Every 3d and eye picture comes back with its camera record (camera: target, bearing, tilt, distance, eye height, lens in mm on a 36 × 24 mm sensor, cut, floors, where it stands, and position, direction, up and field of view as the BCF format writes them). To change the view, send camera back with turn, tilt_by or changed numbers; view calls up one saved with grid_save_view. '
-    + 'It returns the picture with the numbers that made it; look at the picture before you describe it. It changes nothing and writes no file. Do not use for a file to hand on (grid_export), to move the person\'s live preview (grid_preview) or to save a view (grid_save_view). The model of one floor has no roof; a building of several floors is drawn with a flat roof over every part with nothing above. It has no furniture, glass or door leaves. The drawing\'s figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
+    + 'It returns the picture with the numbers that made it; look at the picture before you describe it. It changes nothing and writes no file. Do not use for a file to hand on (grid_export), to move the person\'s live preview (grid_preview) or to save a view (grid_save_view). The 3d model is drawn with its roof from outside, or when a floor states one: the roof the plan states, and a flat one over every other part with nothing above; a floor cut away is drawn open, and roof shows or hides it. It has no furniture, glass or door leaves. The drawing\'s figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
@@ -1876,6 +1876,7 @@ const viewTool: GridTool = {
     camera: CAMERA_ARG,
     view: { type: 'string', maxLength: 120, description: 'For 3d: a view saved with the plan (grid_save_view), by name, to call up. Its camera comes back the same, digit for digit, while the plan keeps what it was taken of.', examples: ['Garden corner'] },
     turn: { type: 'number', description: 'For 3d: degrees to walk the camera round what it is pointed at, from camera, view or the default: above 0 to the camera\'s left, below 0 to its right.', examples: [20, -15], minimum: -360, maximum: 360 },
+    roof: { type: 'string', enum: ['show', 'hide'], description: 'For 3d: show or hide the roof. Left out, it is shown from outside or when a floor states its roof, and hidden with a floor cut away.', examples: ['hide', 'show'] },
     tilt_by: { type: 'number', description: 'For 3d: degrees to add to the tilt: below 0 the camera comes lower and looks less steeply down, above 0 higher.', examples: [-10, 15], minimum: -178, maximum: 178 },
     room: { type: 'string', id: true, description: 'For eye: the room to stand in. For 3d: the room to point the camera at, the middle of its floor half way up its storey.', examples: ['kitchen', 'living'] },
     toward: { type: 'string', maxLength: 64, description: 'For eye: an opening id to look at, or a direction (north, north-east, east, south-east, south, south-west, west, north-west). The room\'s first window when left out. For section, and for plan with marks section: left or right, the side of the cut the section looks toward, walking from its from point to its to point; left when left out.', examples: ['back-door', 'north', 'left'] },
@@ -1907,11 +1908,11 @@ const viewTool: GridTool = {
     const allowed: Record<string, readonly string[]> = {
       plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
       facade: ['side', 'look'],
-      '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by'],
+      '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof'],
       eye: ['room', 'toward', 'eye_height'],
       section: ['cut', 'toward', 'look'],
     }
-    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'room', 'toward', 'eye_height', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
+    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
     const plan = survey.plan
     // MSG-11: the drawing's own words in the language asked for, else the plan's own.
@@ -2019,11 +2020,17 @@ const viewTool: GridTool = {
         throw error
       }
       const { cameraView } = await import('../draw/views')
-      const view = await cameraView(plan, camera, language)
-      // LVL-4: the whole of a building of several floors is drawn closed, with its roofs; one floor
-      // alone, or a floor cut away, is drawn open from above, as the 3D view draws it.
-      const roofed = camera.cut === null && planFloors(plan).length > 1
-      const roof = roofed ? 'Every part with nothing above it has a flat roof; the model has no furniture, glass or door leaves.' : 'The model has no roof, furniture, glass or door leaves.'
+      // VEW-19: the roof is drawn from outside or when a floor states one, and not with a floor cut
+      // away, unless roof says otherwise; the GLB and the section have it whatever the camera.
+      const asked = args['roof'] as 'show' | 'hide' | undefined
+      const view = await cameraView(plan, camera, language, asked === undefined ? undefined : asked === 'show')
+      const stated = (plan.floors ?? []).filter((f) => f.roof !== undefined && camera.floors.includes(f.id))
+      const statedWords = stated.map((f) => `a ${f.roof!.shape} roof over ${q(f.name || f.id)}`).join(', ')
+      const roof = !view.roof
+        ? `The model is drawn open, without its roof (roof=show draws it), and has no furniture, glass or door leaves.`
+        : stated.length > 0
+          ? `It is drawn with the roof the plan states, ${statedWords}, and a flat roof over every other part with nothing above; it has no furniture, glass or door leaves.`
+          : 'Every part with nothing above it has a flat roof; the model has no furniture, glass or door leaves.'
       const what = viewName !== null ? `The view ${q(viewName)} saved with the plan` : 'The model'
       return {
         text: [

@@ -217,3 +217,38 @@ describe('a camera outside every room (S-16)', () => {
     expect(back.text).toContain('It stands outside any room.')
   })
 })
+
+// VEW-19: a still draws the roof the plan's model has, as its GLB and section do.
+describe('the roof in a 3d view', () => {
+  const flat = BUILDINGS[0].plan as { floors?: unknown[] }
+  const gabled = { ...flat, floors: [{ id: 'ground', name: 'Ground floor', level: 0, roof: { shape: 'gable', eaves: 2.6, pitch: 30 } }] }
+  let roofed: Bench
+  beforeAll(() => {
+    roofed = bench({ 'gable.json': gabled, 'flat.json': flat })
+  })
+  afterAll(() => roofed.close())
+
+  it('draws a stated gable over one storey, and says so', async () => {
+    const reply = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south' })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.text).toContain('It is drawn with the roof the plan states, a gable roof over "Ground floor"')
+    expect(reply.text).not.toContain('no roof')
+  })
+
+  it('draws one storey closed from outside, and open with roof=hide or a floor cut away', async () => {
+    const closed = await roofed.call('grid_view', { plan: 'flat.json', kind: '3d', from: 'south' })
+    expect(closed.text).toContain('Every part with nothing above it has a flat roof')
+    const open = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south', roof: 'hide' })
+    expect(open.text).toContain('drawn open, without its roof (roof=show draws it)')
+    const cut = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south', floor: 'ground' })
+    expect(cut.text).toContain('drawn open, without its roof')
+    const shown = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south', floor: 'ground', roof: 'show' })
+    expect(shown.text).toContain('a gable roof over "Ground floor"')
+  })
+
+  it('takes roof for 3d only', async () => {
+    const reply = await roofed.call('grid_view', { plan: 'gable.json', kind: 'plan', roof: 'show' })
+    expect(reply.isError).toBe(true)
+    expect(reply.text).toContain('not roof')
+  })
+})

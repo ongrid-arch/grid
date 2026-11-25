@@ -100,7 +100,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-14: one more, grid_areas' description of the party walls, free floor and outdoor_rules.
   // CNT-19: one more, grid_takeoff's description of the parking bays and the ramps.
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
-  'packages/cli/src/mcp/readTools.ts': [319, 'tools'],
+  // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
+  'packages/cli/src/mcp/readTools.ts': [321, 'tools'],
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
