@@ -120,6 +120,8 @@ function floorFindings(
   loneRoomReached: boolean,
   /** Rooms marked as a void (LVL-4): no room to stand in, so they need no door and no route; and outdoor spaces (CNT-7). */
   voids: ReadonlySet<string>,
+  /** ARE-40: the outdoor spaces among them: said when no door reaches one. */
+  outdoors: ReadonlySet<string>,
   /** The floor's openings, by id: a way through that is none of them is an open side (CNT-6). */
   openings: ReadonlySet<string>
 ): { findings: RuleFinding[]; doorless: string[] } {
@@ -160,7 +162,8 @@ function floorFindings(
   // A floor that is one open room and that no stair joins is reached by a stair the plan does
   // not draw: it is not a room without a door.
   const loneRoom = loneRoomReached && graph.rooms.length === 1
-  const doorless = loneRoom ? [] : graph.rooms.filter((room) => !touched.has(room) && !voids.has(room))
+  // ARE-40: an outdoor space no door reaches is a finding too: a yard behind a fence with no gate.
+  const doorless = loneRoom ? [] : graph.rooms.filter((room) => !touched.has(room) && (!voids.has(room) || outdoors.has(room)))
   for (const room of doorless) {
     findings.push(finding('room_without_door', floor.id, [room], messages.roomWithoutDoor(roomName(room))))
   }
@@ -197,6 +200,14 @@ function routeFindings(
   if (exits.length === 0 && !wayOutNotDrawn) {
     // No exit: one finding for each ground floor, not one per room.
     for (const floor of ground) findings.push(finding('no_exit', floor.id, [], messages.noExit(floor.name)))
+    // ARE-40: with no way out, no room has a route to one: each room that has a door of some kind
+    // fails the route check as well (a room with no door at all is already said to have none).
+    for (const floor of floors) {
+      for (const room of floor.graph.rooms) {
+        if (doorless.has(at(floor.id, room))) continue
+        findings.push({ ...finding('no_route_to_exit', floor.id, [room], messages.noRoute(roomName(room))), through: [] })
+      }
+    }
     return { findings, wayOutNotDrawn: false }
   }
 
@@ -611,7 +622,8 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
     // CNT-7 (C26): an outdoor space is the outside to the building: it needs no door and no route
     // of its own, as a void needs none, though a route may pass through it.
     const voids = new Set(planForFloor(plan, floor.id).rooms.filter((room) => room.void === true || isOutdoor(room)).map((room) => room.id))
-    const own = floorFindings(routes.get(floor.id)!, joined, roomName, !checked, voids, openingIds)
+    const outdoors = new Set(planForFloor(plan, floor.id).rooms.filter(isOutdoor).map((room) => room.id))
+    const own = floorFindings(routes.get(floor.id)!, joined, roomName, !checked, voids, outdoors, openingIds)
     findings.push(...own.findings)
     for (const room of own.doorless) doorless.add(at(floor.id, room))
   }

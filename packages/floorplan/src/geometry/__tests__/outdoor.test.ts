@@ -105,7 +105,8 @@ describe('the house with its garden drawn as outdoor space (done-when 1, lab EL-
     expect(asDrawn.map((f) => [f.code, f.message])).toEqual([['room_without_door', '"Back garden" has no door or opening to another space']])
     for (const room of fenced.rooms) Object.assign(room, (GARDENS as Record<string, object>)[room.id as string] ?? {})
     const outdoor = checkPlanSanity(parseFloorPlan(fenced)).findings
-    expect(outdoor.filter((f) => f.rooms.some((id) => id in GARDENS))).toEqual([])
+    // ARE-40: marked as outdoor space, the fenced garden is still told no door reaches it.
+    expect(outdoor.filter((f) => f.rooms.some((id) => id in GARDENS)).map((f) => [f.code, f.rooms])).toEqual([['room_without_door', ['back-garden']]])
     // Its fence is no part of the building: it sets no storey height, and is in no area.
     expect(planAreaFigures(parseFloorPlan(fenced)).grossExternal.area!.toFixed(2)).toBe('90.00')
 

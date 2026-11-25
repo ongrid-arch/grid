@@ -97,7 +97,13 @@ describe('an opening that could be placed on no wall', () => {
     // LVL-5 (lab A-16): the door is called a door, by its type.
     expect(report.notChecked[0]!.message).toBe('On "Ground floor", this door could not be drawn, so it and what rests on it were not checked: "front"')
     expect(report.notChecked[0]!.openingKinds).toEqual(['door'])
-    expect(held(misspelt())).toEqual(['no_exit  <- front'])
+    expect(held(misspelt())).toEqual([
+      'no_exit  <- front',
+      'no_route_to_exit bathroom <- front',
+      'no_route_to_exit bedroom <- front',
+      'no_route_to_exit hall <- front',
+      'no_route_to_exit kitchen <- front'
+    ])
   })
 })
 

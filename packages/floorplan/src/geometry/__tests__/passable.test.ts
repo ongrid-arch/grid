@@ -63,7 +63,7 @@ const codes = (plan: FloorPlan): string[] => checkPlanSanity(plan).findings.map(
 
 describe('the lab cases that cleared their notes (CH-6)', () => {
   it('starts from plans whose notes the cases cleared', () => {
-    expect(codes(house(bedDoor))).toEqual(['no_exit '])
+    expect(codes(house(bedDoor))).toEqual(['no_exit ', 'no_route_to_exit bed', 'no_route_to_exit hall'])
     expect(codes(house(front))).toEqual(['room_without_door bed'])
     expect(codes(house(bedDoor, front))).toEqual([])
   })
@@ -71,8 +71,8 @@ describe('the lab cases that cleared their notes (CH-6)', () => {
   it('a 5 x 5 cm hole in the outside wall is not the way out', () => {
     const slot: Opening = { id: 'slot', wall: 's', type: 'opening', offset: 1, width: 0.05, height: 0.05, sill: 0 }
     const report = checkPlanSanity(house(bedDoor, slot))
-    expect(report.findings.map((f) => f.code)).toEqual(['no_exit', 'opening_too_small_to_pass'])
-    expect(report.findings[1]).toMatchObject({
+    expect(report.findings.map((f) => f.code)).toEqual(['no_exit', 'no_route_to_exit', 'no_route_to_exit', 'opening_too_small_to_pass'])
+    expect(report.findings[3]).toMatchObject({
       ruleId: 'room-has-door',
       rooms: ['hall'],
       openings: ['slot'],
@@ -84,11 +84,11 @@ describe('the lab cases that cleared their notes (CH-6)', () => {
   it('a door whose threshold is 1.5 m above the floor is not the way out', () => {
     const high = door('high', 's', { height: 1, sill: 1.5 })
     const report = checkPlanSanity(house(bedDoor, high))
-    expect(report.findings.map((f) => f.code)).toEqual(['no_exit', 'opening_too_small_to_pass'])
-    expect(report.findings[1]).toMatchObject({
+    expect(report.findings.map((f) => f.code)).toEqual(['no_exit', 'no_route_to_exit', 'no_route_to_exit', 'opening_too_small_to_pass'])
+    expect(report.findings[3]).toMatchObject({
       passage: { kind: 'door', short: 'sill', drawn: 1.5, passable: 0.3 }
     })
-    expect(passageText(report.findings[1]!.passage!)).toBe('The door has its sill 1.50 m above the floor')
+    expect(passageText(report.findings[3]!.passage!)).toBe('The door has its sill 1.50 m above the floor')
   })
 
   it('a 0.3 m door as a room\'s only door is not a door', () => {
@@ -109,7 +109,7 @@ describe('the size a person passes through', () => {
     expect(shortOf(atSize)).toBeNull()
     expect(codes(house(bedDoor, atSize))).toEqual([])
     const short = door('front', 's', { width: 0.399 })
-    const passage = checkPlanSanity(house(bedDoor, short)).findings[1]!.passage!
+    const passage = checkPlanSanity(house(bedDoor, short)).findings[3]!.passage!
     expect(passage).toEqual({ kind: 'door', short: 'width', drawn: 0.399, passable: 0.4 })
     expect(passageText(passage)).toBe('The door is 0.399 m wide')
   })

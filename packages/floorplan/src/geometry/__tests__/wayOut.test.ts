@@ -25,7 +25,8 @@ describe('a way out leads to open air (lab CH-6)', () => {
     // The lab's infill house with no street door and its courtyard not drawn as a room: before,
     // the door into the courtyard, in a wall stated exterior, was taken as the way out: no notes.
     const plan = labPlan('G/scenarios/s08g-infill-no-street-door-court-not-room.json')
-    expect(summary(plan)).toEqual(['door_into_closed_court ground living,d-court', 'no_exit ground '])
+    expect(summary(plan)).toEqual(['door_into_closed_court ground living,d-court', 'no_exit ground ',
+      'no_route_to_exit ground backhall', 'no_route_to_exit ground bedA', 'no_route_to_exit ground bedB', 'no_route_to_exit ground link', 'no_route_to_exit ground living'])
     const graph = floorGraph(planForFloor(plan, 'ground'))
     expect(graph.exits).toEqual([])
     expect(graph.closedCourts).toEqual([{ room: 'living', opening: 'd-court' }])
@@ -38,7 +39,7 @@ describe('a way out leads to open air (lab CH-6)', () => {
   })
 
   it('gives the same house with its courtyard drawn as a room no door to the outside', () => {
-    expect(codes(labPlan('G/scenarios/s08d-infill-no-street-door.json'))).toEqual(['no_exit'])
+    expect(codes(labPlan('G/scenarios/s08d-infill-no-street-door.json'))).toEqual(['no_exit', ...Array(6).fill('no_route_to_exit')])
   })
 
   it('says nothing of the courtyard door of a house with a street door', () => {

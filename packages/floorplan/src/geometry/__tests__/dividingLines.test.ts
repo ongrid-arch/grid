@@ -142,6 +142,6 @@ describe('rooms text ends a dividing line where its rooms stop sharing an edge (
     const [now, before] = [planAreaFigures(plan), planAreaFigures(runOn(plan))]
     expect(now.net.area).toBeCloseTo(before.net.area!, 6)
     expect(now.grossInternal.area).toBeCloseTo(before.grossInternal.area!, 6)
-    expect(codes(plan).filter((code) => code !== 'no_exit')).toEqual([])
+    expect(codes(plan).filter((code) => code !== 'no_exit' && code !== 'no_route_to_exit')).toEqual([])
   })
 })
