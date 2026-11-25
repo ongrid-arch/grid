@@ -78,11 +78,28 @@ describe('grid sheet (VEW-7)', () => {
     expect(grid(['sheet', 'two-floor-house.json', '--layout', 'client', '--out', 'x.png']).status).toBe(2)
   })
   it('reads sheet.json beside the plan, and refuses a bad one without repeating it', () => {
-    writeFileSync(join(dir, 'sheet.json'), JSON.stringify({ version: '1', floors: { roof: ['secret words'] } }))
+    writeFileSync(join(dir, 'two-floor-house.sheet.json'), JSON.stringify({ version: '1', floors: { roof: ['secret words'] } }))
     const run = grid(['sheet', 'two-floor-house.json', '--layout', 'client'])
     expect(run.status).toBe(1)
     expect(run.err).toMatch(/"roof"/)
     expect(run.err).not.toMatch(/secret words/)
+  })
+  it('keeps each plan\'s words apart: a second plan never reads the first one\'s', () => {
+    const bad = JSON.stringify({ version: '1', floors: { roof: ['secret words'] } })
+    const good = JSON.stringify({ version: '1', name: 'Second House', intro: ['A short welcome.'] })
+    writeFileSync(join(dir, 'two-floor-house.sheet.json'), bad)
+    writeFileSync(join(dir, 'sheet.json'), bad)
+    writeFileSync(join(dir, 'second.json'), readFileSync(join(cli, 'fixtures', 'two-floor-house.json')))
+    // No words of its own: the first plan's file and the shared one are not read.
+    expect(grid(['sheet', 'second.json', '--layout', 'client']).status).toBe(0)
+    // Its own file is read, and the first plan still reads its own.
+    writeFileSync(join(dir, 'second.sheet.json'), '{ not json')
+    const own = grid(['sheet', 'second.json', '--layout', 'client'])
+    expect(own.status).toBe(1)
+    expect(own.err).toBe('grid: "second.sheet.json" is not JSON.\n')
+    writeFileSync(join(dir, 'second.sheet.json'), good)
+    expect(grid(['sheet', 'second.json', '--layout', 'client']).status).toBe(0)
+    expect(grid(['sheet', 'two-floor-house.json', '--layout', 'client']).status).toBe(1)
   })
   it('names the sheet.json it read beside the plan relative to the project, even for a plan named by its full path', () => {
     mkdirSync(join(dir, 'house'))
@@ -93,7 +110,7 @@ describe('grid sheet (VEW-7)', () => {
     expect(run.err).toBe('grid: "house/sheet.json" is not a sheet: floors names "roof", which is not a floor of the plan.\n')
   })
   it('ignores sheet.json with the check layout', () => {
-    writeFileSync(join(dir, 'sheet.json'), '{ not json')
+    writeFileSync(join(dir, 'two-floor-house.sheet.json'), '{ not json')
     expect(grid(['sheet', 'two-floor-house.json', '--layout', 'check']).status).toBe(0)
   })
 
@@ -105,11 +122,11 @@ describe('grid sheet (VEW-7)', () => {
   }
 
   it('refuses a folder named sheet.json beside the plan, cleanly', () => {
-    mkdirSync(join(dir, 'sheet.json'))
+    mkdirSync(join(dir, 'two-floor-house.sheet.json'))
     expectCleanRefusal(grid(['sheet', 'two-floor-house.json', '--layout', 'client']), 1)
   })
   it('refuses an oversize sheet.json beside the plan, cleanly', () => {
-    writeFileSync(join(dir, 'sheet.json'), ' '.repeat(65 * 1024))
+    writeFileSync(join(dir, 'two-floor-house.sheet.json'), ' '.repeat(65 * 1024))
     expectCleanRefusal(grid(['sheet', 'two-floor-house.json', '--layout', 'client']), 1)
   })
   it('writes an --out whose folder does not exist yet, making it inside the project', () => {
