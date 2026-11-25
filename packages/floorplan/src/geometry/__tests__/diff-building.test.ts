@@ -293,3 +293,67 @@ describe('openings on a wall that moved (WRT-12)', () => {
     expect(marks.changed.openings).toContain('door-bed1')
   })
 })
+
+describe('walls whose own figures changed (WRT-19)', () => {
+  /** The flat written rooms first with outside walls 0.34 m thick. */
+  const survey = (): FloorPlan => written(roomsText().replace('walls outside 0.3 ', 'walls outside 0.34 '))
+  /** The same with some walls 0.30 m thick, on their centre lines. */
+  const thinner = (plan: FloorPlan, ids: readonly string[]): FloorPlan => ({ ...plan, walls: plan.walls.map((w) => (ids.includes(w.id) ? { ...w, thickness: 0.3 } : w)) })
+
+  it('lists a wall made thinner in a plan written rooms first, with both figures, and names it in the rooms that grew', () => {
+    const before = survey()
+    const compared = compareBuildings(before, thinner(before, ['ext-north']))
+    expect(compared.roomsFirst).toBe(true)
+    // Before: the rooms that grew, and no wall.
+    expect(compared.changes.map((c) => c.text)).toContain('Wall "ext-north" thickness 0.34 → 0.30 m, by "Kitchen", "Hall" and "Bedroom 2"')
+    expect(compared.changes.find((c) => c.text.startsWith('Wall "ext-north"'))?.entities).toEqual([{ type: 'wall', id: 'ext-north' }])
+    const kitchen = compared.rooms.find((r) => r.room === 'kitchen')!
+    expect(kitchen).toMatchObject({ status: 'changed', walls: ['ext-north'] })
+    expect(kitchen.text).toMatch(/^"Kitchen" [\d.]+ m² → [\d.]+ m² \(.*\), because wall "ext-north" went from 0\.34 to 0\.30 m thick$/)
+    expect(compared.rooms.find((r) => r.room === 'living')).toMatchObject({ status: 'unchanged', walls: [] })
+    expect(compared.verdict).toContain('1 wall or opening change')
+    expect(compared.sameBuilding).toBe(false)
+  })
+
+  it('says walls made thinner the same way as one cause', () => {
+    const before = survey()
+    const kitchen = compareBuildings(before, thinner(before, ['ext-north', 'ext-west'])).rooms.find((r) => r.room === 'kitchen')!
+    expect(kitchen.walls).toEqual(['ext-north', 'ext-west'])
+    expect(kitchen.text).toContain('because walls "ext-north" and "ext-west" went from 0.34 to 0.30 m thick')
+  })
+
+  it('is no longer the same building when every outside wall is thinner and the rooms kept their inside sizes', () => {
+    const compared = compareBuildings(survey(), written(roomsText()))
+    expect(compared.sameBuilding).toBe(false)
+    expect(compared.changes.map((c) => c.text)).toEqual([
+      expect.stringMatching(/^Wall "ext-east" .*thickness 0\.34 → 0\.30 m, by /),
+      expect.stringMatching(/^Wall "ext-north" .*thickness 0\.34 → 0\.30 m, by /),
+      expect.stringMatching(/^Wall "ext-south" .*thickness 0\.34 → 0\.30 m, by /),
+      expect.stringMatching(/^Wall "ext-west" .*thickness 0\.34 → 0\.30 m, by /)
+    ])
+    // The rooms kept their sizes, so no wall is a cause.
+    expect(compared.rooms.every((r) => r.status === 'unchanged' && r.walls.length === 0)).toBe(true)
+  })
+
+  it('lists a wall another height or kind in a plan written rooms first', () => {
+    const before = survey()
+    const after: FloorPlan = { ...before, walls: before.walls.map((w) => (w.id === 'w-hall-east' ? { ...w, height: 2.4, kind: 'partition' as const } : w)) }
+    expect(compareBuildings(before, after).changes.map((c) => c.text)).toEqual(['Wall "w-hall-east" height 2.60 → 2.40 m; kind interior → partition, by "Hall", "Bathroom" and "Bedroom 2"'])
+  })
+
+  it('names a wall drawn wall by wall that was made thinner, or moved, in the rooms behind it', () => {
+    const before = flat()
+    const made = compareBuildings(before, { ...before, walls: before.walls.map((w) => (w.id === 'ext-south' ? { ...w, thickness: 0.26 } : w)) })
+    expect(made.rooms.find((r) => r.room === 'living')).toMatchObject({ walls: ['ext-south'], text: expect.stringContaining('because wall "ext-south" went from 0.30 to 0.26 m thick') })
+    expect(made.changes.map((c) => c.text)).toContain('Wall "ext-south" thickness 0.30 → 0.26 m, by "Living room" and "Bedroom 1"')
+    const moved = compareBuildings(before, { ...before, walls: before.walls.map((w) => (w.id === 'spine' ? { ...w, start: [4.9, 0], end: [4.9, 7.6] } : w)) })
+    expect(moved.rooms.find((r) => r.room === 'living')).toMatchObject({ walls: ['spine'], text: expect.stringContaining('because wall "spine" moved 0.30 m') })
+    expect(moved.rooms.find((r) => r.room === 'bed1')).toMatchObject({ walls: ['spine'] })
+  })
+
+  it('names no wall for a room written wider: its walls followed the room', () => {
+    const compared = compareBuildings(written(roomsText()), written(roomsText().replace('living   4.4 x 4.2', 'living   4.7 x 4.2')))
+    expect(compared.rooms.every((r) => r.walls.length === 0)).toBe(true)
+    expect(compared.changes.some((c) => c.entities.some((e) => e.type === 'wall'))).toBe(false)
+  })
+})

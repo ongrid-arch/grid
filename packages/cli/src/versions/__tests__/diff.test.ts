@@ -194,6 +194,25 @@ describe('a one-number edit to a flat written rooms first (done-when 2)', () => 
   })
 })
 
+describe('a survey written rooms first whose rear wall was made thinner (WRT-19)', () => {
+  it('lists the wall before and after, in the text and the data, and names it in the rooms behind it', async () => {
+    const dir = project({ 'flat.rooms': roomsText.replace('walls outside 0.3 ', 'walls outside 0.34 ') })
+    expect((await grid(dir, 'write', 'flat.rooms')).status).toBe(0)
+    expect((await grid(dir, 'mark')).status).toBe(0)
+    const plan = JSON.parse(readFileSync(join(dir, 'plan.json'), 'utf8')) as { walls: Array<{ id: string; thickness: number }> }
+    plan.walls.find((w) => w.id === 'ext-north')!.thickness = 0.3
+    writeFileSync(join(dir, 'plan.json'), JSON.stringify(plan, null, 2))
+    const text = await grid(dir, 'diff')
+    expect(text.status, text.err).toBe(0)
+    expect(text.out).toContain('Wall "ext-north" thickness 0.34 → 0.30 m, by "Kitchen", "Hall" and "Bedroom 2"')
+    expect(text.out).toContain('because wall "ext-north" went from 0.34 to 0.30 m thick')
+    const data = JSON.parse((await grid(dir, 'diff', '--json')).out) as { roomsFirst: boolean; changes: Array<{ text: string; entities: Array<{ type: string; id: string }> }>; rooms: Array<{ room: string; walls: string[] }> }
+    expect(data.roomsFirst).toBe(true)
+    expect(data.changes.filter((c) => c.entities.some((e) => e.type === 'wall')).map((c) => c.entities)).toEqual([[{ type: 'wall', id: 'ext-north' }]])
+    expect(data.rooms.find((r) => r.room === 'kitchen')?.walls).toEqual(['ext-north'])
+  })
+})
+
 describe('the markers', () => {
   it('keeps at most a few, replaces one set again, takes one off, and names them when one is missing', async () => {
     const dir = project()

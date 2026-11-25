@@ -1,8 +1,9 @@
 /**
  * The plan diff is part of the geometry core's public surface, and it
- * stays pure. Its sources import only from `geometry/` itself and the shared
- * types, never React, Three, Node or the DOM, so the same engine can run in
- * Node, in a browser and in a test without a window.
+ * stays pure. Its sources import only from `geometry/` itself, the shared
+ * types and Grid's own words (`messages/`, WRT-19), never React, Three, Node
+ * or the DOM, so the same engine can run in Node, in a browser and in a test
+ * without a window.
  */
 
 import { readFileSync, readdirSync } from 'node:fs'
@@ -12,6 +13,7 @@ import * as geometry from '../index'
 
 const GEOMETRY = resolve(__dirname, '..')
 const TYPES = resolve(__dirname, '../../types')
+const MESSAGES = resolve(__dirname, '../../messages')
 const DIFF = resolve(GEOMETRY, 'diff')
 
 /** Globals that only exist in a browser. A pure module never touches them. */
@@ -42,7 +44,7 @@ function impurities(file: string, source: string): string[] {
       const path = relative(root, target)
       return !path.startsWith('..') && !isAbsolute(path)
     }
-    if (!inside(GEOMETRY) && !inside(TYPES)) found.push(`imports ${specifier} from outside`)
+    if (!inside(GEOMETRY) && !inside(TYPES) && !inside(MESSAGES)) found.push(`imports ${specifier} from outside`)
   }
 
   for (const name of [...DOM_GLOBALS, ...NODE_GLOBALS]) {
