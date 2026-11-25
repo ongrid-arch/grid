@@ -17,9 +17,13 @@ in a few seconds, not minutes. Every figure and every line is exactly what it wa
   other fixture's edges, rebuilding that list for each fixture.
 - `packages/cli/src/quantities/use.ts`: `fixturesOf` keeps each fixture's box and gives
   `near(floor, box, margin)`; `roomIndicators` works with the fixtures whose box meets its
-  room's box widened by `reachOf`: the approach depth beyond the thickest wall face, plus two
-  steps of the way-through grid (the furthest a fixture can be and still be listed as standing
-  beside the narrowest point). Anything farther cannot change a figure. Lookups by id use maps,
+  room's box widened by `reachOf`: the approach depth beyond the thickest wall, two steps of the
+  way-through grid (the furthest a fixture can be and still be listed as standing beside the
+  narrowest point) and half the length of the room's doorways and dividing lines (where the
+  outline is open, a fixture just outside can be the nearest thing to a point inside).
+  Anything farther cannot change a figure. The floor round each fixture is the exception: a
+  ray can leave through a doorway and meet a fixture in the next room, as it always has, so
+  `fixtureSpace` is given every fixture on the floor, kept in one bucket grid made once. Lookups by id use maps,
   not scans. The other callers of `obstacles(floor)` (access measures, firm standards) are not
   changed.
 - `packages/floorplan/src/geometry/spatialIndex.ts`: a bucket grid over boxes, exact: it
@@ -44,8 +48,10 @@ in a few seconds, not minutes. Every figure and every line is exactly what it wa
   limit far above what they take now and far below what they took.
 - `packages/floorplan/src/geometry/__tests__/spatialIndex.test.ts`: the index gives the same
   nearest distance, and the same holders of a point, as a plain loop, on random boxes.
-- `packages/floorplan/src/geometry/__tests__/useIndexed.test.ts`: `passageWidth` and
-  `fixtureSpace` give the same answers on a crowded room as on the same room measured by the
-  plain loops (the lists below `INDEX_FROM` pieces at a time).
+- The answers are the same as before: checked once, while building, by running the previous
+  `roomIndicators` and geometry beside the new ones on random plans of 20 to 260 mixed fixtures
+  (two rooms, two doors, a window) and comparing every line and indicator. The comparison needed
+  the old code beside the new, so it is not kept.
 - The existing use-indicator, access, firm-standard and zone tests pass unchanged.
+- `geometry/__tests__/tolerances.test.ts` still holds: the new code reads its limits from the table.
 - `npm run typecheck`, `npm run lint`, the floorplan and cli test folders and `npm run scoreboard`.
