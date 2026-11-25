@@ -106,6 +106,17 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - What rooms cannot say is written raw, one line of the plan file's own JSON:
   `raw wall {...}`, `raw room {...}`, `raw opening {...}`. Free-standing walls, curved or
   out-of-the-way walls and rooms with holes are written that way.
+- A raw wall or room with no `"floor"` is on the floor of the floor line above it, as a room
+  line is (WRT-27). One that states its floor keeps it, and one that names a floor the text does
+  not write is refused with its line (`rooms/unknown-floor`). A raw opening is on its wall's
+  floor: one written under a floor in a wall of another (a wall with no `through`) is refused
+  with its line (`rooms/raw`). With no floor line the plan has one floor and a raw part gets no
+  floor.
+- The answer counts and measures every part written, raw or not: the floors that hold a part,
+  every room with its inside area by Grid's own measure (a raw room too, marked "written raw"),
+  and the area in all. When parts were written raw, a line says how many walls, rooms and
+  openings were, kept as written; the walls "worked out" and the openings "placed" are the ones
+  Grid worked out.
 - A room's name and its id go into every export and sheet, and travel with the plan file: name
   a room for what it is, never for a person. Who sits where is kept in a file of its own
   ([People are kept out of the plan](plan-file.md#people-are-kept-out-of-the-plan)).

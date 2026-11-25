@@ -74,11 +74,14 @@
  *
  * Pure: text in, a plan and a report out. Nothing here reads or writes a file.
  */
-import { BUILDING_TYPES, DOOR_KINDS, OPENING_KINDS, OUTDOOR_KINDS, ROOM_TENURES, ROOM_USES, WALL_DEFAULTS, WINDOW_KINDS, WallKindSchema, readUse, type BuildingType, type FloorPlan, type Opening, type OpeningKind, type Room, type OutdoorKind, type RoomTenure, type RoomUse, type Wall, type WallKind } from '../types/floorplan'
+import { BUILDING_TYPES, DEFAULT_FLOOR_ID, DOOR_KINDS, OPENING_KINDS, OUTDOOR_KINDS, ROOM_TENURES, ROOM_USES, WALL_DEFAULTS, WINDOW_KINDS, WallKindSchema, readUse, type BuildingType, type FloorPlan, type Opening, type OpeningKind, type Room, type OutdoorKind, type RoomTenure, type RoomUse, type Wall, type WallKind, safeParseFloorPlan } from '../types/floorplan'
 import { doorKindOf, kindFits, sweepsFloor } from '../geometry/openingKinds'
 import { hingeSeenFrom } from '../geometry/handing'
 import { indexPlan } from '../geometry/plan'
-import { tryRoomPolygon } from '../geometry/room'
+import { roomFloorArea, tryRoomPolygon } from '../geometry/room'
+import { floorOf } from '../geometry/floors'
+import { isOutdoor } from '../geometry/outdoor'
+import { wallLength } from '../geometry/wall'
 import { limit, tolerance } from '../geometry/tolerances'
 import { buildingKind } from '../geometry/plausible'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
@@ -358,6 +361,8 @@ export interface RoomFacts {
   /** What the size on the room's line measured to, and the numbers written. */
   readonly basis: SizeBasis | null
   readonly written: { readonly width: number | null; readonly depth: number | null } | null
+  /** WRT-27: written raw, in Grid's own JSON, and measured as Grid measures every room; `corners` 0 when Grid cannot draw it. */
+  readonly raw?: true
 }
 
 export interface DerivedWallFacts {
@@ -372,6 +377,8 @@ export interface DerivedWallFacts {
   readonly handles: readonly string[]
   /** Its stretches along its centre line, each with the statement that says something about it. */
   readonly stretches: readonly { readonly handle: string; readonly start: readonly [number, number]; readonly end: readonly [number, number] }[]
+  /** WRT-27: written raw, in Grid's own JSON, not worked out. */
+  readonly raw?: true
 }
 
 export interface RoomsResult {
@@ -387,6 +394,8 @@ export interface RoomsResult {
   readonly openings: readonly string[]
   /** The default size basis, and whether the text stated it. */
   readonly sizes: { readonly basis: SizeBasis; readonly stated: boolean }
+  /** WRT-27: how many of the walls, rooms and openings were written raw; left out when none were. */
+  readonly raw?: { readonly walls: number; readonly rooms: number; readonly openings: number }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -479,6 +488,8 @@ class Compiler {
   readonly openingFacts: string[] = []
   /** WRT-17: the parts written raw, in Grid's own JSON: the person's, not worked out here. */
   readonly rawIds = new Set<string>()
+  /** WRT-27: each raw part with its line and the floor whose line it is written under. */
+  private readonly rawParts: Array<{ kind: 'wall' | 'room' | 'opening'; part: Record<string, unknown>; line: number; under: string }> = []
   /** WRT-17: every wall thickness a line of the text states, besides the walls line. */
   private readonly statedT = new Set<number>()
   /** WRT-17: the pairs of rooms whose wall's thickness, from their gap, has been said. */
@@ -587,6 +598,7 @@ class Compiler {
         `line ${riser.line}: room '${riser.room}' rises through '${riser.through}', which is not a floor written after floor '${riser.from}'. ${after.length === 0 ? 'No floor is written after it.' : `Floors written after it: ${after.join(', ')}.`}`
       )
     }
+    this.rawFloors()
     return this.emit()
   }
 
@@ -617,9 +629,25 @@ class Compiler {
       this.stop('rooms/raw', at, `line ${at}: a raw ${kind} is a JSON object with an "id", as Grid's plan file holds it.`)
     }
     const fl = this.floor()
+    let part = value as Record<string, unknown>
+    // WRT-27: a raw wall or room with no floor is on the floor of the floor line above it, as a
+    // room line is. An opening is on its wall's floor and states none.
+    if (kind !== 'opening' && this.explicitFloors && part['floor'] === undefined) part = { ...part, floor: fl.id }
     const list = kind === 'wall' ? fl.raw.walls : kind === 'room' ? fl.raw.rooms : fl.raw.openings
-    list.push(value)
-    this.rawIds.add((value as { id: string }).id)
+    list.push(part)
+    this.rawIds.add(part['id'] as string)
+    this.rawParts.push({ kind, part, line: at, under: fl.id })
+  }
+
+  /** WRT-27: a raw wall or room that names a floor the text does not write is refused with its line. */
+  private rawFloors(): void {
+    const floors = this.floors.map((f) => f.id)
+    for (const { kind, part, line } of this.rawParts) {
+      if (kind === 'opening' || part['floor'] === undefined) continue
+      const floor = part['floor']
+      if (typeof floor === 'string' && floors.includes(floor)) continue
+      this.stop('rooms/unknown-floor', line, english(said('rooms.raw.unknownFloor', { line, kind, id: String(part['id']), floor: String(floor), floors: floors.join(', ') })))
+    }
   }
 
   private statement(t: string[], at: number): void {
@@ -2489,6 +2517,7 @@ class Compiler {
     const all = [...plan.walls, ...plan.rooms, ...plan.openings].map((x) => x.id)
     const twice = [...new Set(all.filter((x, k) => all.indexOf(x) !== k))].sort()
     for (const id of twice) this.problem('rooms/duplicate-id', null, `The id '${id}' would name two things in the plan (walls, rooms and openings share one set of ids). Rename one.`)
+    this.rawOpeningFloors(plan.walls)
     if (this.problems.length > 0) return null
     this.askSizes(plan)
     const wallIds = new Set(plan.walls.map((w) => w.id))
@@ -2505,7 +2534,78 @@ class Compiler {
         if (Math.abs(area - truth) > tolerance('areaReported')) this.warn('rooms/area-differs', null, `Grid measures room '${room.id}' at ${area.toFixed(2)} m², but its inside is ${truth.toFixed(2)} m².`)
       }
     }
+    this.rawFacts(plan)
     return plan
+  }
+
+  /**
+   * WRT-27: a raw opening written under one floor in a wall of another (one that rises through no
+   * floor) is refused with its line: an opening is on its wall's floor.
+   */
+  private rawOpeningFloors(walls: readonly WrittenWall[]): void {
+    const byId = new Map(walls.map((w) => [w.id, w]))
+    for (const { kind, part, line, under } of this.rawParts) {
+      if (kind !== 'opening') continue
+      const wall = byId.get(String(part['wall']))
+      if (wall === undefined || wall.through !== undefined || (wall.floor ?? DEFAULT_FLOOR_ID) === under) continue
+      this.problem('rooms/raw', line, english(said('rooms.raw.openingFloor', { line, id: String(part['id']), wall: wall.id, floor: wall.floor ?? DEFAULT_FLOOR_ID, under })))
+    }
+  }
+
+  /**
+   * WRT-27: the raw parts in the answer beside the ones worked out: each raw room measured on the
+   * plan as it is read, as Grid measures every room; each raw wall with its length and rooms; each
+   * raw opening with its wall.
+   */
+  private rawFacts(plan: WrittenPlan): void {
+    if (this.rawParts.length === 0) return
+    const read = safeParseFloorPlan(plan)
+    const index = read === null ? null : indexPlan(read)
+    for (const { kind, part } of this.rawParts) {
+      const id = String(part['id'])
+      if (kind === 'room') {
+        const room = read?.rooms.find((r) => r.id === id)
+        const poly = room === undefined || index === null ? null : tryRoomPolygon(room, index)
+        const b = poly === null ? null : boxOf([poly.map((p) => [p.x, p.y] as P)])
+        const apart = room === undefined ? {} : isOutdoor(room) ? { apart: 'outdoor' as const } : room.void === true ? { apart: 'void' as const } : {}
+        this.roomFacts.push({
+          id,
+          name: typeof part['name'] === 'string' ? part['name'] : id,
+          floor: room === undefined ? DEFAULT_FLOOR_ID : floorOf(room),
+          width: b === null ? 0 : b[2] - b[0],
+          depth: b === null ? 0 : b[3] - b[1],
+          area: poly === null || room === undefined || index === null ? 0 : roomFloorArea(room, index, poly),
+          corners: poly === null ? 0 : poly.length,
+          ...apart,
+          basis: null,
+          written: null,
+          raw: true,
+        })
+      } else if (kind === 'wall') {
+        const wall = read?.walls.find((w) => w.id === id)
+        this.wallFacts.push({
+          id,
+          kind: wall?.kind ?? 'exterior',
+          virtual: wall?.virtual === true,
+          thickness: wall?.thickness ?? 0,
+          length: wall === undefined ? 0 : wallLength(wall),
+          rooms: (index?.roomsByWall.get(id) ?? []).map((r) => r.id),
+          handles: [],
+          stretches: [],
+          raw: true,
+        })
+      } else {
+        const width = typeof part['width'] === 'number' ? f2(part['width']) : '?'
+        this.openingFacts.push(english(said('rooms.raw.openingFact', { id, type: String(part['type'] ?? 'opening'), width, wall: String(part['wall']) })))
+      }
+    }
+  }
+
+  /** WRT-27: how many walls, rooms and openings were written raw, or null when none were. */
+  rawCounts(): { walls: number; rooms: number; openings: number } | null {
+    if (this.rawParts.length === 0) return null
+    const count = (kind: 'wall' | 'room' | 'opening'): number => this.rawParts.filter((p) => p.kind === kind).length
+    return { walls: count('wall'), rooms: count('room'), openings: count('opening') }
   }
 
   /**
@@ -2734,5 +2834,6 @@ export function compileRoomsText(text: string, options: CompileOptions = {}): Ro
     walls: c.wallFacts,
     openings: c.openingFacts,
     sizes: c.sizes,
+    ...(c.rawCounts() === null ? {} : { raw: c.rawCounts()! }),
   }
 }

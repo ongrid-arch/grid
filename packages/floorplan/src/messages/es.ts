@@ -1870,6 +1870,16 @@ export const es: Messages = {
     "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) tiene {thickness} m de grueso, el hueco que dejan las estancias, y ninguna línea del texto lo indica (muros interiores {inside} m, exteriores {outside} m). Si es lo que se quiere, dígalo con 'walls {thickness}' en una línea de estancia o de muro; si no, mueva una estancia.",
   'rooms.checkError': "La comprobación encuentra esto en el plano tal como se escribe, y dejaría fuera una parte ({code}): {message}",
   'rooms.checkNote': "La comprobación señala esto en el plano tal como se escribe ({code}): {message}",
+  'rooms.raw.unknownFloor':
+    "línea {line}: el raw {kind} '{id}' nombra la planta '{floor}', que este texto no escribe. Plantas escritas: {floors}. Escriba la parte bajo la línea de su planta sin \"floor\", o escriba una línea para esa planta.",
+  'rooms.raw.openingFloor':
+    "Línea {line}: el raw opening '{id}' está escrito bajo la planta '{under}', pero su muro '{wall}' está en la planta '{floor}', y una abertura está en la planta de su muro. Escríbala bajo la planta '{floor}', o nombre un muro de la planta '{under}'.",
+  'rooms.raw.openingFact': '{id}: {type} de {width} m en {wall}, escrita en crudo',
+  'rooms.answer.raw':
+    'Escrito en crudo y guardado tal como se escribe: muros {walls}, estancias {rooms}, aberturas {openings}. Grid mide las estancias en crudo como mide toda estancia, y las cuenta en las estancias y la superficie de arriba.',
+  'rooms.answer.rawPart': 'en crudo',
+  'rooms.answer.rawNotDrawn': 'escrita en crudo; Grid no puede dibujarla con sus muros, así que su suelo no está en la superficie',
+  'rooms.answer.outsideWallOf': 'muro exterior de {room}',
   'describe.close': 'Esto describe el plano y no comprueba nada: grid check hace las comprobaciones.',
   'describe.fixtures': 'Aparatos: {list}.',
   'describe.fixture.toilet.one': '{count} inodoro',
