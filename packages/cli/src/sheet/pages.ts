@@ -23,6 +23,7 @@ import { AREA_RULES, planAreas, type FloorAreas } from '../quantities/areas'
 import { factsText, flatSchedule, openingSchedule, openingTypeSchedule, roomSchedule, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
 import type { ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
 import { surveyPlan } from '../quantities/survey'
+import { notShownNote } from './limits'
 import { displayFor, sqFt } from '../quantities/units'
 import { showLength, type Display } from '@ongrid/floorplan/types/units'
 
@@ -167,10 +168,6 @@ const ENGLISH = wordsIn(DEFAULT_LANGUAGE)
 
 type Body = Omit<SheetPage, 'footer'>
 
-/** What a client sheet always says it does not show. Grid's own words. */
-export const CLIENT_LIMITS = say('en', 'sheet.limits')
-/** The same, for a plan that states its stairs (LVL-3): they are drawn. */
-export const CLIENT_LIMITS_WITH_STAIRS = say('en', 'sheet.limits.stairs')
 /** When some floor with rooms is joined to no other by a stair (LVL-3). */
 export const STAIR_LIMIT = say('en', 'sheet.stairLimit')
 /** On a client floor page that leaves out a part Grid cannot draw (the check sheet lists it). */
@@ -339,8 +336,8 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
   const height = heightFigure(loaded, units, w)
   if (height) figures.push(height)
 
-  const shown = w.say(facts.connections.stairs.length > 0 ? 'sheet.limits.stairs' : 'sheet.limits')
-  const limits = facts.connections.unjoined.length > 0 ? [shown, w.say('sheet.stairLimit')] : [shown]
+  const stairsDrawn = facts.connections.stairs.length > 0
+  const limits = facts.connections.unjoined.length > 0 ? [w.say('sheet.stairLimit')] : []
   const cover: Body = {
     kind: 'cover', floor: null, topLine: title, title, subtitle: words?.headline ?? null,
     paragraphs: words?.intro ?? [], figures, table: null, picture: { kind: 'model' },
@@ -357,7 +354,7 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
       paragraphs: words?.floors?.[floor.id] ?? [], figures: [],
       table: floorAreas ? areaTable(floorAreas, false, units, w) : null,
       picture: floorPicture(loaded, frames, floor.id, false),
-      notes: [...limits, ...(leftOut ? [w.say('sheet.leftOutLimit')] : []), ...undecidedNote(loaded, floor.id, w)],
+      notes: [notShownNote(loaded.plan, floor.id, stairsDrawn, w.language), ...limits, ...(leftOut ? [w.say('sheet.leftOutLimit')] : []), ...undecidedNote(loaded, floor.id, w)],
     }
   })
   return [cover, ...pages]
