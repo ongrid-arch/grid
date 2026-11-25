@@ -162,7 +162,7 @@ export interface BuildingElevations {
 }
 
 /** The tallest wall a floor draws, as its roof cuts it (LVL-6), or 0 when it draws none or cannot be analysed. */
-function tallestDrawnWall(plan: FloorPlan, floor: Floor): number {
+export function tallestDrawnWall(plan: FloorPlan, floor: Floor): number {
   try {
     // LVL-5: a wall through floors counts toward the floor it rises through, with its own height.
     const slice = storeySlice(plan, floor.id)
