@@ -11,7 +11,7 @@ import { baseRefusal, baseTouched, phasedPatch } from '../edit/phases'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { DOOR_KINDS, OPENING_KINDS, WINDOW_KINDS, WallKindSchema, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
-import { planFloors, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { planFloors, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { EXPORT_FORMATS, isExportFormat } from '@ongrid/floorplan/export'
@@ -323,7 +323,8 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   // A door that joined a room now part of another (a merge) joins the same space: not a change.
   const become = patch.roomsBecome ?? new Map<string, string>()
   const key = (sides: readonly object[]): string => sides.map((side) => ('room' in side ? `r${become.get((side as { room: string }).room) ?? (side as { room: string }).room}` : JSON.stringify(side))).sort().join('|')
-  const doors = doorsThatChangedRooms(loaded.plan, after)
+  // WRT-15: in a plan with phases, the doors of the building after the work, before and after the change.
+  const doors = doorsThatChangedRooms(planInState(loaded.plan, 'after'), planInState(after, 'after'))
     .filter((change) => become.size === 0 || key(change.before) !== key(change.after))
     .map((change) => `${change.message}.`)
   const drawingProblems = { before: validatePlan(loaded.plan).issues.length, after: validatePlan(after).issues.length }

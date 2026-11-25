@@ -73,7 +73,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/edits.ts': [56, 'notYet'],
   'packages/cli/src/edit/merge.ts': [25, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
-  'packages/cli/src/edit/phases.ts': [4, 'notYet'],
+  'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
   'packages/cli/src/edit/split.ts': [20, 'notYet'],
@@ -307,7 +307,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and WRT-11 5: the verdict's room and opening counts (compare.ts).
     // and WRT-16 3: write's refusals of rooms text with no rooms and of floors it would drop,
     // and its line on the floors dropped (command/write.ts) (odd/tasks/WRT-16.md).
-    expect(left).toBeLessThanOrEqual(1594)
+    // and WRT-15 4: the room edits' receipts in a plan with phases (edit/phases.ts).
+    expect(left).toBeLessThanOrEqual(1598)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
