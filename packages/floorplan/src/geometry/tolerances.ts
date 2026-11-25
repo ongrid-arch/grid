@@ -907,6 +907,16 @@ export const TOLERANCES = {
       'only lays the stair out; it judges no riser and no going.',
     basis: own
   },
+  stairSnap: {
+    kind: 'tolerance',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'A flight or landing drawn in a section within this of a wall or a slab it faces is drawn ' +
+      'touching it, so the cut is one outline with no sliver of white between them (VEW-57). It ' +
+      'only draws the stair; it judges nothing.',
+    basis: own
+  },
   stairWaist: {
     kind: 'limit',
     value: 0.15,
@@ -1460,6 +1470,15 @@ export const TOLERANCES = {
     value: 1e-15,
     unit: 'ratio',
     decides: 'A slope below this is none when a segment is clipped.',
+    basis: own
+  },
+  sliverArea: {
+    kind: 'arithmetic',
+    value: 1e-5,
+    unit: 'm²',
+    decides:
+      'A hole in the joined cut of a section smaller than this is a hair left where two parts ' +
+      'almost meet, not a room (VEW-57), and is not drawn.',
     basis: own
   },
   shellGrid: {

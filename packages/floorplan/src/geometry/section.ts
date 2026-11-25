@@ -294,7 +294,35 @@ function joined(rings: readonly (readonly Vec2[])[]): SectionPiece[] {
   const live = rings.filter((ring) => Math.abs(signedArea(ring)) > 0)
   if (live.length === 0) return []
   const pieces = cutOutline('union', [ringOf(live[0]!)], live.slice(1).map((ring) => [ringOf(ring)]))
-  return pieces === null ? [] : piecesAsRings(pieces)
+  if (pieces === null) return []
+  // VEW-57: a hole too small to be a room is a hair between parts that almost meet.
+  const hair = tolerance('sliverArea')
+  return piecesAsRings(pieces).map((piece) => ({ ...piece, holes: piece.holes.filter((hole) => Math.abs(signedArea(hole)) > hair) }))
+}
+
+/**
+ * VEW-57: a stair's ring whose side stands within `stairSnap` of the side of a wall or slab it
+ * faces (their heights overlap) is moved onto it, so the two join. Only the stair moves.
+ */
+function snapToCut(ring: readonly Vec2[], others: readonly (readonly Vec2[])[]): Vec2[] {
+  const reach = tolerance('stairSnap')
+  const xs = ring.map((p) => p.x)
+  const lo = Math.min(...xs)
+  const hi = Math.max(...xs)
+  const ys = ring.map((p) => p.y)
+  const [y0, y1] = [Math.min(...ys), Math.max(...ys)]
+  let toLo: number | null = null
+  let toHi: number | null = null
+  for (const other of others) {
+    const oy = other.map((p) => p.y)
+    if (Math.min(...oy) >= y1 || Math.max(...oy) <= y0) continue
+    const ox = other.map((p) => p.x)
+    const right = Math.max(...ox)
+    const left = Math.min(...ox)
+    if (right < lo && lo - right <= reach && (toLo === null || right > toLo)) toLo = right
+    if (left > hi && left - hi <= reach && (toHi === null || left < toHi)) toHi = left
+  }
+  return ring.map((p) => (toLo !== null && p.x === lo ? { x: toLo, y: p.y } : toHi !== null && p.x === hi ? { x: toHi, y: p.y } : p))
 }
 
 const multiOf = (pieces: MultiPolygon): (readonly Vec2[])[] => piecesAsRings(pieces).flatMap((p) => [p.outline, ...p.holes])
@@ -704,6 +732,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       ringFaces('stair', stair.id, stair.lower.floor, landing.outline, bottom, top)
     }
     if (rings.length > 0) {
+      const fixed = parts.filter((p) => p.kind === 'wall' || p.kind === 'slab').flatMap((p) => p.rings)
+      for (let i = 0; i < rings.length; i++) rings[i] = snapToCut(rings[i]!, fixed)
       parts.push({ kind: 'stair', id: stair.id, floor: stair.lower.floor, rings })
       if (!stair.risersStated) workedRisers.push(stair.id)
       if (stair.flights.length > 0) waisted.push(stair.id)
