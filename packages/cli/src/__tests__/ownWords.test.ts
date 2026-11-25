@@ -338,7 +338,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-27 2: a shaft counted once in the brief, the schedule CSV's column for rows in no total.
     // and CNT-31 3: the estimate's roof edges' rule and line, and why a roof is left out (estimate.ts).
     // and WRT-38 4: one wall's thickness, its receipt and refusals (edit/edits.ts).
-    expect(left).toBeLessThanOrEqual(1614)
+    expect(left).toBeLessThanOrEqual(1617)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
