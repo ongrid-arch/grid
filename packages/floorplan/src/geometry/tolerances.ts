@@ -181,6 +181,18 @@ export const TOLERANCES = {
       'face. Faces further apart are joined by a step of that size.',
     basis: own
   },
+  // ARE-34: a plan file holds centre lines to a tenth of a millimetre, so the faces of two walls
+  // of different thickness meant to be one line can be that far apart each way.
+  flushFaces: {
+    kind: 'tolerance',
+    value: 0.0002,
+    unit: 'm',
+    decides:
+      'Two walls in a row along one side of a room whose inner faces are this close show the room ' +
+      'one face, as if on one line: a face held to a tenth of a millimetre in the file is a hair ' +
+      'off another wall\'s. Faces further apart are joined by a step.',
+    basis: own
+  },
   mitreReach: {
     kind: 'tolerance',
     value: 4,
