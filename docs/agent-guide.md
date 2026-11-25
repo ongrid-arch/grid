@@ -145,7 +145,7 @@ door d-robe in robe south, centred, 0.8 wide, sliding
 
 ## Writing rooms
 
-One statement per line; `#` starts a comment. A plain number is metres.
+One statement per line; `#` starts a comment. A plain number is metres, unless a display line that is not metres says what it is (`display ft-in numbers ft`).
 
 - `room <id> "<name>" <use> <width> x <depth> <where>`: the id is yours and stays the same on every writing; the name is what people read. `<where>` is `at x,y` (the south-west inside corner, for the first room) or `<north|south|east|west> of <room>`, which may add `align <side|centre>`, `shift <m>`, `until <room>` and `open`.
 - `*` as a size stretches the room as far as the room named after `until`: `room hall "Hall" corridor 1.3 x * east of living until kitchen`.

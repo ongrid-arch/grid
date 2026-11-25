@@ -8,8 +8,14 @@
  * `150in`, `12ft6in`, `12'6"`, `12'-6"`. A quote mark straight after a digit is a foot or inch mark, not a
  * quote. A number may be a sum written with digits and the signs + - * / and brackets, such as
  * `3.0+0.3`, in metres: nothing else is evaluated.
+ *
+ * WRT-34: a plain number is metres only in a text that reads metres. Under a display line that
+ * is not metres (`display ft-in`, `display mm`), the line says what a plain number is
+ * (`numbers ft`, `numbers mm`), or a plain number other than 0 is refused as a question; and in a
+ * text read in feet, `12-6` is refused, since it reads as a sum and is most likely 12'6".
  */
-import { LengthRefused, readLength } from '../types/units'
+import { english, said } from '../messages/say'
+import { LengthRefused, readLength, type LengthUnit } from '../types/units'
 
 /** A problem that stops the reading, with its code and the line it is on. */
 export class RoomsStop extends Error {
@@ -140,11 +146,49 @@ export function hasUnit(word: string): boolean {
   return UNIT_WORD.test(word)
 }
 
-/** A length in metres: a plain number is metres; a word with its unit is read in that unit. */
-export function numberOf(word: string, at: number): number {
+/** WRT-34: the units a plain number may be read in, named on the display line (`numbers ft`). */
+export const PLAIN_UNITS = ['m', 'cm', 'mm', 'ft'] as const
+export type PlainUnit = (typeof PLAIN_UNITS)[number]
+
+/** WRT-34: how a plain number is read: the display's length unit, and the unit `numbers` names. */
+export interface PlainNumbers {
+  readonly display: LengthUnit
+  readonly numbers: PlainUnit | null
+}
+
+/** A text with no display line: a plain number is metres. */
+export const PLAIN_METRES: PlainNumbers = { display: 'm', numbers: null }
+
+/** A plain number in metres; exact for the foot, 0.3048 m by definition. */
+function inMetres(value: number, unit: PlainUnit): number {
+  if (unit === 'ft') return (value * 3048) / 10_000
+  return unit === 'm' ? value : value / (unit === 'cm' ? 100 : 1000)
+}
+
+/** The unit a display reads lengths in, as the unit word written after a number. */
+const DISPLAY_WORD: Readonly<Record<LengthUnit, PlainUnit>> = { m: 'm', cm: 'cm', mm: 'mm', 'ft-in': 'ft' }
+
+/** WRT-34: a plain number, read as `plain` says, or refused. */
+function plainLength(word: string, value: number, at: number, plain: PlainNumbers): number {
+  const feet = /^(\d+)-(\d+(?:\.\d+)?)$/.exec(word)
+  if (feet && (plain.display === 'ft-in' || plain.numbers === 'ft')) {
+    throw new RoomsStop('rooms/units', english(said('rooms.numbers.feetInches', { line: String(at), word, feet: feet[1]!, inches: feet[2]! })), at)
+  }
+  if (value === 0) return 0
+  if (plain.numbers !== null) return inMetres(value, plain.numbers)
+  if (plain.display === 'm') return value
+  const unit = DISPLAY_WORD[plain.display]
+  throw new RoomsStop('rooms/units', english(said('rooms.numbers.question', { line: String(at), word, unit, reads: said(`rooms.numbers.reads.${plain.display}`), plural: said(`rooms.numbers.plain.${unit}`), display: plain.display })), at)
+}
+
+/**
+ * A length in metres: a word with its unit is read in that unit; a plain number is read as
+ * `plain` says (WRT-34), metres in a text with no display line.
+ */
+export function numberOf(word: string, at: number, plain: PlainNumbers = PLAIN_METRES): number {
   if (/^[0-9.+\-*/() ]+$/.test(word)) {
     const value = evaluate(word)
-    if (value !== null) return value
+    if (value !== null) return plainLength(word, value, at, plain)
   }
   if (UNIT_WORD.test(word)) {
     try {
@@ -158,12 +202,12 @@ export function numberOf(word: string, at: number): number {
 }
 
 /** A point written `x,y` with no space. */
-export function pointOf(word: string, at: number): [number, number] {
+export function pointOf(word: string, at: number, plain: PlainNumbers = PLAIN_METRES): [number, number] {
   const parts = word.split(',')
   if (parts.length !== 2) {
     throw new RoomsStop('rooms/syntax', `line ${at}: expected a point written x,y with no space (for example 3.2,0), found '${word}'.`, at)
   }
-  return [numberOf(parts[0]!, at), numberOf(parts[1]!, at)]
+  return [numberOf(parts[0]!, at, plain), numberOf(parts[1]!, at, plain)]
 }
 
 /** Is this word a number as `numberOf` reads it? */

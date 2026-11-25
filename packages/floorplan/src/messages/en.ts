@@ -1866,6 +1866,18 @@ export const en = {
   'rooms.floor.building': "'{word}' is not a kind of building Grid knows. Use one of: {kinds}.",
   'rooms.floor.duplicate': "Floor '{id}' is already written.",
   'rooms.floor.roomsFirst': "Rooms were written before the first floor line. Put the floor line first.",
+  // WRT-34: a plain number under a display line that is not metres, and 12-6 in feet.
+  'rooms.numbers.question':
+    "line {line}: '{word}' has no unit, and the display line reads lengths in {reads}, so Grid does not take it as metres. Write its unit in the same word, such as {word}{unit}, or add to the display line what a plain number is: 'display {display} numbers {unit}' reads every plain number in {plural}, and 'numbers m' in metres.",
+  'rooms.numbers.feetInches':
+    "line {line}: '{word}' reads as {feet} minus {inches}, and this text reads feet. For {feet} feet {inches} inches write {feet}'{inches}\" or {feet}ft{inches}in; for the difference, write it in brackets: ({word}).",
+  'rooms.numbers.reads.cm': 'centimetres',
+  'rooms.numbers.reads.mm': 'millimetres',
+  'rooms.numbers.reads.ft-in': 'feet and inches',
+  'rooms.numbers.plain.m': 'metres',
+  'rooms.numbers.plain.cm': 'centimetres',
+  'rooms.numbers.plain.mm': 'millimetres',
+  'rooms.numbers.plain.ft': 'feet',
   // WRT-22: a room side past a building's, written with no unit.
   'rooms.size.width': 'width',
   'rooms.size.depth': 'depth',
