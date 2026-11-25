@@ -4,8 +4,7 @@
 
 `grid draw --out site.png` writes a PNG without `--png`. `--out site.svg`, or an `--out` with no
 extension Grid draws, still writes an SVG or is refused by name. A clash between the extension and
-what the flags ask for (`--png` or `--3d` with a `.svg` file, a `.png` file with an option that
-only a PNG-less SVG could mean) is refused by name, saying both. A PNG is still never written to a
+what the flags ask for (`--png` or `--3d` with a `.svg` file) is refused by name, saying both. A PNG is still never written to a
 terminal (CMD-25): with no `--out`, `--png` is still the only way to ask for one.
 
 ## Design
@@ -22,6 +21,5 @@ terminal (CMD-25): with no `--out`, `--png` is still the only way to ask for one
 ## Done
 
 - `command/__tests__/drawFormat.test.ts`: `--out x.png` writes PNG bytes for a plan, a facade and
-  a section; `--out x.svg --png`, `--out x.svg --3d` and `--out x.png` with `--scale`-less SVG
-  clashes are refused by name; CMD-25's terminal tests still pass.
+  a section; `--out x.svg --png`, `--out x.svg --3d` and an unknown ending are refused by name; CMD-25's terminal tests still pass.
 - `ownWords` and `tolerances` tests, typecheck, lint, the cli package's tests, the scoreboard.

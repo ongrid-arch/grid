@@ -779,8 +779,9 @@ camera record are in [the plan file](plan-file.md#saved-views-and-the-camera-rec
 
 ## A picture of the plan: `grid draw`
 
-`grid draw plan.json` writes one floor as an SVG file, and `grid draw plan.json --png --out
-plan.png` as a PNG; each is a separate run, and the PNG is the same drawing as the SVG. Neither
+`grid draw plan.json` writes one floor as an SVG file, and `grid draw plan.json --out
+plan.png` as a PNG (`--png` is not needed: the file's ending names the format, and `--png` or
+`--3d` with an `--out` that ends in `.svg` is refused); each is a separate run, and the PNG is the same drawing as the SVG. Neither
 needs a browser or the app: both are plain function calls in Node, which a program can make too
 (`drawPlan` in the `ongrid` package; `planToSvg` in `@ongrid/viewer` for the SVG alone).
 
