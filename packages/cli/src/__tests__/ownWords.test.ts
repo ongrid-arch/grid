@@ -55,7 +55,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-6: four more, the help of --scale, --paper, --floor and --room-sizes.
   'packages/cli/src/command/sheet.ts': [7, 'command'],
   'packages/cli/src/command/tidy.ts': [12, 'command'],
-  'packages/cli/src/command/write.ts': [32, 'command'],
+  'packages/cli/src/command/write.ts': [35, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
@@ -304,7 +304,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // library's refusals (library/index.ts 4), the schema's library mark (floorplan.ts 1) and
     // describe's furniture heading (1) (reviews/CNT-20.md).
     // and WRT-11 5: the verdict's room and opening counts (compare.ts).
-    expect(left).toBeLessThanOrEqual(1591)
+    // and WRT-16 3: write's refusals of rooms text with no rooms and of floors it would drop,
+    // and its line on the floors dropped (command/write.ts) (odd/tasks/WRT-16.md).
+    expect(left).toBeLessThanOrEqual(1594)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

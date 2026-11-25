@@ -27,6 +27,7 @@ import { loadPlan, PlanRefused } from './plan'
 import { refuseGridFile } from './planFile'
 import { PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
 import { PROJECT_OPTION, type OptionSpecs } from './options'
+import { droppedWords, floorsDropped, type DroppedFloor } from './writeLoss'
 
 export const WRITE_OPTIONS: OptionSpecs = {
   '--plan': {
@@ -149,9 +150,14 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     throw new RoomsRefused('rooms/schema', `The rooms text was not written: the plan it makes does not fit the plan's format at ${first?.path.join('.') ?? 'its top'} (${first?.message ?? 'invalid'}).`)
   }
   let plan = parsed.data
+  // WRT-16: a text with no rooms would write an empty plan, whatever --replace says.
+  if (plan.rooms.length === 0) {
+    throw new RoomsRefused('rooms/empty', 'The rooms text was not written, and the plan is as it was: it has no rooms, so it would write an empty plan. Add the rooms (room <id> "<name>" <use> <width> x <depth> ...), or read the plan back as rooms text (grid describe --as rooms) and change that.')
+  }
 
   // The plan now, if there is one, and whether writing over it would lose a change.
   let before: FloorPlan | null = null
+  let dropped: DroppedFloor[] = []
   let raw: Record<string, unknown> = { version: '1', units: 'm' }
   // The plan as a person sees its name: relative to the folder Grid runs in.
   const shownFile = project.shown(project.resolve(planFile))
@@ -167,6 +173,15 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
       )
     }
     raw = JSON.parse(project.readText(planFile, PLAN_FILE_MAX_BYTES).text) as Record<string, unknown>
+    // WRT-16: rooms text for some floors would take the others, with their rooms, outlines, homes and parking.
+    dropped = floorsDropped(before, plan)
+    if (options.replace !== true && dropped.length > 0) {
+      const shown = dropped.slice(0, 10).map(droppedWords).join('; ')
+      throw new RoomsRefused(
+        'rooms/floors-dropped',
+        `${shownFile} has ${dropped.length === 1 ? 'a floor' : `${dropped.length} floors`} this rooms text does not mention, and writing it would drop ${dropped.length === 1 ? 'it' : 'them'}: ${shown}${dropped.length > 10 ? ` and ${dropped.length - 10} more` : ''}. Nothing was written. Read the whole plan back as rooms text (grid describe --as rooms), change that and write it, which keeps every floor; or add --replace to drop ${dropped.length === 1 ? 'it' : 'them'}.`
+      )
+    }
     const now = planRevision(before)
     if (options.replace !== true) {
       if (result.basedOn !== null && result.basedOn !== now) {
@@ -227,6 +242,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
     ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX),
     ...(verdict === null ? [] : [verdict]),
+    ...(dropped.length === 0 ? [] : [`Floors dropped, as asked: ${dropped.slice(0, 10).map(droppedWords).join('; ')}${dropped.length > 10 ? ` and ${dropped.length - 10} more` : ''}.`]),
     ...(carried === null || carried.kept === 0 ? [] : [`Facts of your own and room numbers kept by id on ${carried.kept} part${carried.kept === 1 ? '' : 's'}.`]),
     ...(carried === null || carried.lost.length === 0 ? [] : [`Not in the text, so their facts and numbers are gone with them: ${carried.lost.slice(0, 10).join(', ')}${carried.lost.length > 10 ? ` and ${carried.lost.length - 10} more` : ''}.`]),
     ...(before === null || patterns.length === 0 ? [] : [patternsKept(before, kept)]),

@@ -584,7 +584,7 @@ const writeRoomsTool: GridTool = {
     + 'A plain number is metres; a length may carry its unit in one word (360cm, 3600mm, 12ft, 12ft6in, 12\'6"). A display line (display ft-in, display mm, display m decimal comma) records how the person reads lengths: drawings, figures and sheets follow it, and the plan file stays in metres. '
     + 'From a phone room scan: pass scan, the scan file in the project (Apple\'s room model, as JSON), in place of rooms. Grid pairs each wall\'s two faces into one wall as thick as the gap between them, takes a wall seen from one side as an outside wall of its usual thickness, places the doors and windows on their walls, keeps the scan beside the plan as <plan>.scan.json keyed by its ids, and lists everything it assumed to confirm with the person. A re-scan keeps the plan\'s ids for the parts it finds again. '
     + 'Pass one of rooms, layout and scan. '
-    + 'Do not use for one door or window (grid_change_opening) or one wall moved (grid_move_room_side). It replaces the plan file.',
+    + 'Do not use for one door or window (grid_change_opening) or one wall moved (grid_move_room_side). It replaces the plan file. Rooms text that names fewer floors than the plan holds is refused, naming the floors it would drop (replace=true drops them); rooms text with no rooms is always refused.',
   args: {
     plan: { ...PLAN_ARG, description: 'The plan file to write, inside the project folder, ending in .json. The project\'s own plan.json when left out.' },
     rooms: {
