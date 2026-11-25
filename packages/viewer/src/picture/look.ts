@@ -249,6 +249,7 @@ export const TEXT_PX = {
   gridName: 11,
   /** CNT-19: a parking bay's number, and a ramp's slope. */
   bayNumber: 10,
+  siteLabel: 10,
   rampSlope: 10
 } as const
 
