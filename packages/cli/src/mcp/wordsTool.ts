@@ -20,7 +20,7 @@ import { FontsMissing } from '../sheet/fonts'
 import { makeDrawing, makeSheet } from '../sheet/sheetFile'
 import { SHEET_LAYOUTS } from '../sheet/pages'
 import { READ_TOOLS } from './readTools'
-import { asRefusal, BOOLEAN, listSchema, NULLABLE_STRING, NUMBER, objectSchema, PLAN_ARG, readArgs, readPlan, STRING, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
+import { asRefusal, listSchema, NULLABLE_STRING, NUMBER, objectSchema, PLAN_ARG, readArgs, readPlan, STRING, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
 
 export const WORDS_TOOL_NAME = 'grid_words'
 

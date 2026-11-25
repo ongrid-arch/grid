@@ -4,7 +4,7 @@
  * are loaded before anything is said in it. MSG-24: any language, written in the plan's own words
  * for it (`display.words`), else in the file Grid ships for it, else in English.
  */
-import { DEFAULT_LANGUAGE, LANGUAGES, loadLanguage, readLanguage, usePlanWords, type Language } from '@ongrid/floorplan/messages'
+import { DEFAULT_LANGUAGE, LANGUAGES, loadLanguage, readLanguage, setPlanWords, type Language } from '@ongrid/floorplan/messages'
 import { spokenIn } from '@ongrid/floorplan/geometry'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { UsageError, type OptionSpecs } from './options'
@@ -28,7 +28,7 @@ export function askedLanguage(value: unknown, argument = '--lang'): Language | u
 export async function languageFor(asked: Language | undefined, plan?: { readonly display?: { readonly language?: Language | undefined; readonly words?: unknown } | undefined }): Promise<Language> {
   const language = asked ?? plan?.display?.language ?? DEFAULT_LANGUAGE
   await loadLanguage(language)
-  usePlanWords(plan?.display?.words)
+  setPlanWords(plan?.display?.words)
   return language
 }
 

@@ -3,10 +3,10 @@
  * kept in the plan (C32): listed per output, checked, written, and printed by the drawing, the
  * sheet and the check; a language with no words is written in English with one hint.
  */
-import { readdirSync, readFileSync } from 'fs'
+import { readFileSync } from 'fs'
 import { join } from 'path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { english, en, usePlanWords, type MessageKey } from '@ongrid/floorplan/messages'
+import { english, en, setPlanWords, type MessageKey } from '@ongrid/floorplan/messages'
 import { openProject } from '../../fs/projectFiles'
 import { makeDrawing, makeSheet } from '../../sheet/sheetFile'
 import { bench, type Bench } from './replay/harness'
@@ -23,11 +23,12 @@ beforeAll(() => {
   b = bench({ 'plan.json': twoBedFlat(), 'bare.json': twoBedFlat() })
 })
 afterAll(() => {
-  usePlanWords(undefined)
+  setPlanWords(undefined)
   b.close()
 })
 
-const planFile = (file: string): Record<string, any> => JSON.parse(readFileSync(join(b.folder, file), 'utf8')) as Record<string, any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the plan file as JSON, read field by field
+const planFile = (file: string): any => JSON.parse(readFileSync(join(b.folder, file), 'utf8'))
 
 describe('grid_words (MSG-24)', () => {
   it('lists the keys an output prints for this plan, with their English and placeholders, and writes nothing', async () => {

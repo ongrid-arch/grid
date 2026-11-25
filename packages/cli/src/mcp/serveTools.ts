@@ -19,7 +19,7 @@ import { reportProblemTool } from './reportTool'
 import { markSeenTool } from './seenTool'
 import { writeBriefTool } from './briefTool'
 import { wordsHint, wordsTool, WORDS_TOOL_NAME } from './wordsTool'
-import { hasWording, listenForKeys, usePlanWords } from '@ongrid/floorplan/messages'
+import { hasWording, listenForKeys, setPlanWords } from '@ongrid/floorplan/messages'
 import { diffTool, markStartTool } from './diffTools'
 import { shapedData } from './figures'
 import { labelled, readArgs, toolDefinition, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
@@ -68,7 +68,7 @@ async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promi
   try {
     const args = readArgs(tool, raw)
     // MSG-24: no call says another plan's words: the plan a call reads hands its own (`languageFor`).
-    usePlanWords(undefined)
+    setPlanWords(undefined)
     // MSG-24: the keys Grid said in a language with no word for them are said once, at the end.
     const { result: made, keys } = await listenForKeys(() => tool.run(args, context))
     const hint = tool.name === WORDS_TOOL_NAME ? null : wordsHint(keys, hasWording)

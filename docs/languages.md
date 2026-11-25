@@ -55,7 +55,7 @@ For a language Grid ships no file for, the plan keeps Grid's words itself, in
 a map from the language to a map from each key to its wording, with exactly the English key's
 placeholders. A key is said from the plan's word for the language, else from the language's
 file (Spanish), else in English. `packages/floorplan/src/messages/words.ts` reads and checks them
-and hands one plan's words to `say` (`usePlanWords`, done by `languageFor` for every command and
+and hands one plan's words to `say` (`setPlanWords`, done by `languageFor` for every command and
 tool call that reads a plan).
 
 The agent, who speaks the person's language, writes them with `grid_words`

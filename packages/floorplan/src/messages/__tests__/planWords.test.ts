@@ -9,17 +9,17 @@ import { es } from '../es'
 import { en } from '../en'
 import { decimalFor, hasWording, num, registerMessages, say, sayParts } from '../say'
 import { labelOfUse } from '../uses'
-import { listenForKeys, readPlanWords, usePlanWords, wordProblem } from '../words'
+import { listenForKeys, readPlanWords, setPlanWords, wordProblem } from '../words'
 import { parseFloorPlan } from '../../types/floorplan'
 import { readPlanParts } from '../../types/readParts'
 import { statedDisplay } from '../../types/units'
 
 registerMessages('es', es)
-afterEach(() => usePlanWords(undefined))
+afterEach(() => setPlanWords(undefined))
 
 describe('the plan\'s own words (MSG-24)', () => {
   it('are said in their language, before the language\'s file and English', () => {
-    usePlanWords({ de: { 'check.passage.door.width': 'Die Tür ist {size} m breit' }, es: { 'check.passage.door.width': 'La puerta mide {size} m' } })
+    setPlanWords({ de: { 'check.passage.door.width': 'Die Tür ist {size} m breit' }, es: { 'check.passage.door.width': 'La puerta mide {size} m' } })
     expect(say('de', 'check.passage.door.width', { size: num('0.80') })).toBe('Die Tür ist 0.80 m breit')
     expect(say('de', 'check.passage.door.width', { size: num('0.80') }, { decimal: 'comma' })).toBe('Die Tür ist 0,80 m breit')
     expect(say('es', 'check.passage.door.width', { size: num('0.80') })).toBe('La puerta mide 0,80 m')
@@ -31,14 +31,14 @@ describe('the plan\'s own words (MSG-24)', () => {
   })
 
   it('are one plan\'s at a time', () => {
-    usePlanWords({ de: { label: 'Allgemeine Hinweise' } })
+    setPlanWords({ de: { label: 'Allgemeine Hinweise' } })
     expect(say('de', 'label')).toBe('Allgemeine Hinweise')
-    usePlanWords(undefined)
+    setPlanWords(undefined)
     expect(say('de', 'label')).toBe(en.label)
   })
 
   it('tell which keys a language has a wording for', () => {
-    usePlanWords({ de: { label: 'Allgemeine Hinweise' } })
+    setPlanWords({ de: { label: 'Allgemeine Hinweise' } })
     expect(hasWording('de', 'label')).toBe(true)
     expect(hasWording('de', 'join.and')).toBe(false)
     expect(hasWording('es', 'join.and')).toBe(true)
@@ -63,7 +63,7 @@ describe('the plan\'s own words (MSG-24)', () => {
       [['de-DE'], 'language'],
     ])
     // A word that is refused is never said: the English is.
-    usePlanWords({ de: { 'check.passage.door.width': 'Tür {width}' } })
+    setPlanWords({ de: { 'check.passage.door.width': 'Tür {width}' } })
     expect(say('de', 'check.passage.door.width', { size: num('0.80') })).toBe('The door is 0.80 m wide')
   })
 

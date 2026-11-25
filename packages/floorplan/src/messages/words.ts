@@ -8,7 +8,7 @@
  * key's placeholders, keeps to the text rule, and is for a key Grid has. English is the source and
  * is never replaced.
  *
- * Pure but for the one store `say` reads (`usePlanWords`), which the command and every tool call
+ * Pure but for the one store `say` reads (`setPlanWords`), which the command and every tool call
  * set from the plan they read, as `registerMessages` sets a language's file.
  */
 
@@ -101,7 +101,7 @@ let planWords: PlanWords = {}
  * Hands one plan's words to `say`, in place of any plan's before: the command and each tool call
  * that reads a plan does it once it knows the language (`languageFor`). Only sound words are kept.
  */
-export function usePlanWords(words: unknown): void {
+export function setPlanWords(words: unknown): void {
   planWords = readPlanWords(words).words ?? {}
 }
 

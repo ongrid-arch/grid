@@ -36,7 +36,7 @@ and Grid ships no translation file for it:
 - `packages/floorplan/src/messages/words.ts` (new): the plan's own words. `wordProblem` checks
   one word against the English key (known key, same placeholders, the text rule, a length
   limit); `readPlanWords` keeps the sound words of a `display.words` and lists the rest; and
-  `usePlanWords` hands one plan's words to `say` (the command and every tool call that reads a
+  `setPlanWords` hands one plan's words to `say` (the command and every tool call that reads a
   plan does it through `languageFor`, which already loads a language's file, so a call never
   says another plan's words). `listenForKeys` records the keys said in a language other than
   English while an output is made, so the tool lists only what the output prints for this plan
