@@ -782,7 +782,7 @@ const takeoffTool: GridTool = {
     bays: listSchema(objectSchema({ floor: STRING, floorName: STRING, count: NUMBER, numbers: listSchema(STRING), unnumbered: NUMBER })),
     ramps: listSchema(objectSchema({ id: STRING, name: STRING, from: STRING, to: STRING, lower: objectSchema({ floor: STRING, level: NUMBER }), upper: objectSchema({ floor: STRING, level: NUMBER }), width: NUMBER, rise: NUMBER, length: NUMBER, slope: NUMBER, oneIn: NUMBER, statedSlope: NULLABLE_NUMBER })),
     // CNT-15, on a plan that names wall types or finishes: the walls of each named type, and each finish's total.
-    wallTypes: listSchema(objectSchema({ type: STRING, name: STRING, kind: NULLABLE_STRING, material: NULLABLE_STRING, glazed: BOOLEAN, count: NUMBER, gross: NUMBER, net: NUMBER, face: NUMBER })),
+    wallTypes: listSchema(objectSchema({ type: STRING, name: STRING, kind: NULLABLE_STRING, material: NULLABLE_STRING, glazed: BOOLEAN, count: NUMBER, gross: NUMBER, net: NUMBER, face: NUMBER, gable: NUMBER })),
     finishes: listSchema(objectSchema({ surface: STRING, finish: NULLABLE_STRING, unit: STRING, quantity: NUMBER, rooms: listSchema(STRING) })),
     rooms: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, floorArea: NUMBER, ceiling: NUMBER, perimeter: NUMBER, skirting: NUMBER, wallFace: NUMBER, openingsOff: NUMBER, height: NULLABLE_NUMBER, ceilingHeight: NULLABLE_NUMBER, lowered: listSchema(objectSchema({ name: STRING, height: NUMBER, area: NUMBER })) })),
     totals: objectSchema({ floorArea: NUMBER, ceiling: NUMBER, skirting: NUMBER, wallFace: NUMBER }),
@@ -900,7 +900,7 @@ const takeoffTool: GridTool = {
       ...(assumed.length === 0 ? [] : [`Assumed: ${assumed.join('; ')}.`]),
       ...(wallTypes.length === 0
         ? []
-        : [`Walls by type: ${wallTypes.map((w) => `${q(w.name)} ${lengthText(w.gross, units)} (${w.count} wall${w.count === 1 ? '' : 's'}; face ${areaText(w.face, units)}${w.material === null ? ', material not stated' : `, ${w.material}`}${w.glazed ? ', glazed' : ''})`).join('; ')}.`]),
+        : [`Walls by type: ${wallTypes.map((w) => `${q(w.name)} ${lengthText(w.gross, units)} (${w.count} wall${w.count === 1 ? '' : 's'}; face ${areaText(w.face, units)}${w.gable > 0 ? `, of it ${areaText(w.gable, units)} gable` : ''}${w.material === null ? ', material not stated' : `, ${w.material}`}${w.glazed ? ', glazed' : ''})`).join('; ')}.`]),
       ...(finishes === null ? [] : finishLines(finishes, units)),
       ...Object.values(TAKEOFF_RULES),
       ...(wallTypes.length === 0 ? [] : [WALL_TYPE_RULE]),
