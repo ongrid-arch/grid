@@ -20,6 +20,7 @@ import { approximatedText, checkExportRequest, dxfProfileLine, ExportWriteFailed
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { PlanRefused } from '../command/plan'
+import { keepRoomNumbers } from '../edit/numbers'
 import { changeOpening, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
 import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
 import { parseSheetWordsChecked } from '../sheet/claims'
@@ -305,7 +306,8 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   let written: string
   let next: unknown
   try {
-    next = keptDerived(loaded.plan.rooms, applyPatch(raw, patch))
+    // WRT-23: the rooms keep the numbers they had when the change would move them.
+    next = keepRoomNumbers(loaded.plan, keptDerived(loaded.plan.rooms, applyPatch(raw, patch)))
     written = project.relative(project.writeFile(out, `${JSON.stringify(next, null, 2)}\n`))
   } catch (error) {
     if (error instanceof PathRefused) throw new ToolRefusal(error.message)
