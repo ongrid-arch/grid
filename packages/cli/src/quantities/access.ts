@@ -27,6 +27,7 @@ import {
   floorElevations,
   floorJoins,
   groundLevel,
+  limit,
   passageWidth,
   planForFloor,
   planSteps,
@@ -487,27 +488,85 @@ export interface AccessAnswer {
 }
 
 /**
- * The way along a corridor from end to end: its two ends are the sides of its outline no wider
- * than it, farthest apart, and the way is CNT-13's `passageWidth` between them; null when Grid
- * finds no two ends. With the widest circle it holds. COD-8's firm standards read a corridor's
- * width by it too.
+ * The sides of an outline that could end a corridor (ARE-25): its straight runs, pieces in one
+ * line joined, that turn into the room at both their corners by at least `corridorEndTurn`. A
+ * jog in a side (one corner in, one out) and the straight pieces a curve is drawn with (each
+ * turning by no more than `arcStep`) are never an end.
+ */
+function endSides(polygon: readonly Vec2[]): Segment[] {
+  const n = polygon.length
+  if (n < 3) return []
+  const dirOf = (a: Vec2, b: Vec2): Vec2 => ({ x: b.x - a.x, y: b.y - a.y })
+  const cross = (u: Vec2, v: Vec2): number => u.x * v.y - u.y * v.x
+  const dot = (u: Vec2, v: Vec2): number => u.x * v.x + u.y * v.y
+  // The corners: the points where the outline turns, not those where two pieces run on in one line.
+  const corners: Vec2[] = []
+  for (let i = 0; i < n; i++) {
+    const before = polygon[(i + n - 1) % n]!
+    const here = polygon[i]!
+    const after = polygon[(i + 1) % n]!
+    const u = dirOf(before, here)
+    const v = dirOf(here, after)
+    const lu = Math.hypot(u.x, u.y)
+    const lv = Math.hypot(v.x, v.y)
+    if (lu <= tolerance('noLength') || lv <= tolerance('noLength')) continue
+    if (Math.abs(cross(u, v)) / (lu * lv) < tolerance('parallel') && dot(u, v) > 0) continue
+    corners.push(here)
+  }
+  const m = corners.length
+  if (m < 3) return []
+  let area = 0
+  for (let i = 0; i < m; i++) area += cross(corners[i]!, corners[(i + 1) % m]!)
+  const inward = Math.sign(area)
+  const turn = (u: Vec2, v: Vec2): number => inward * Math.atan2(cross(u, v), dot(u, v))
+  // The outline beside a side is read a quarter of the side's length away from its corner, so a
+  // sliver where two faces meet does not turn it the wrong way.
+  const away = (from: number, by: 1 | -1, reach: number): Vec2 => {
+    const corner = corners[from]!
+    for (let k = 1; k < m; k++) {
+      const p = corners[(from + by * k + m * k) % m]!
+      if (Math.hypot(p.x - corner.x, p.y - corner.y) >= reach) return p
+    }
+    return corners[(from + by + m) % m]!
+  }
+  const ends: Segment[] = []
+  for (let i = 0; i < m; i++) {
+    const j = (i + 1) % m
+    const [b, c] = [corners[i]!, corners[j]!]
+    const side = dirOf(b, c)
+    const reach = Math.hypot(side.x, side.y) / 4
+    if (turn(dirOf(away(i, -1, reach), b), side) >= tolerance('corridorEndTurn') && turn(side, dirOf(c, away(j, 1, reach))) >= tolerance('corridorEndTurn')) ends.push([b, c])
+  }
+  return ends
+}
+
+/**
+ * The way along a corridor from end to end: its two ends are the sides of its outline that end
+ * it (`endSides`) no wider than it, farthest apart, and the way is CNT-13's `passageWidth` between
+ * them, on a grid `corridorRasterAcross` steps across the corridor and taken true to the walls
+ * (ARE-25); null when Grid finds no two ends. With the widest circle the corridor holds, never
+ * narrower than the way. COD-8's firm standards read a corridor's width by it too.
  */
 export function corridorEnds(room: SurveyRoom, obstacles: ReturnType<ReturnType<typeof fixturesOf>['obstacles']>): { way: Passage | null; widest: number } {
   const widest = turningSpace(room.polygon, room.holes, obstacles).diameter
-  const outline = room.edges.slice(0, room.polygon.length)
   const reach = widest + 2 * tolerance('useRaster') + tolerance('lengthEqual')
-  const caps = outline.filter((e) => e.length > tolerance('noLength') && e.length <= reach)
-  const mid = (e: (typeof outline)[number]): Vec2 => ({ x: (e.from.x + e.to.x) / 2, y: (e.from.y + e.to.y) / 2 })
+  const sideLength = ([a, b]: Segment): number => Math.hypot(b.x - a.x, b.y - a.y)
+  const caps = endSides(room.polygon).filter((e) => sideLength(e) <= reach)
+  const mid = ([a, b]: Segment): Vec2 => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
   let best: { a: Segment; b: Segment; d: number } | null = null
   for (let i = 0; i < caps.length; i++) {
     for (let j = i + 1; j < caps.length; j++) {
       const [m, n] = [mid(caps[i]!), mid(caps[j]!)]
       const d = Math.hypot(m.x - n.x, m.y - n.y)
-      if (best === null || d > best.d) best = { a: [caps[i]!.from, caps[i]!.to], b: [caps[j]!.from, caps[j]!.to], d }
+      if (best === null || d > best.d) best = { a: caps[i]!, b: caps[j]!, d }
     }
   }
   if (best === null || best.d <= widest) return { way: null, widest }
-  return { way: passageWidth(room.polygon, room.holes, obstacles, best.a, best.b), widest }
+  const step = widest / limit('corridorRasterAcross')
+  const way = passageWidth(room.polygon, room.holes, obstacles, best.a, best.b, { step })
+  // The body at the narrowest point is a circle the corridor holds, so the widest circle is never
+  // narrower than it: the widest is found to a thousandth of the room's length, the way to the walls.
+  return { way, widest: way === null ? widest : Math.max(widest, way.width) }
 }
 
 /** The narrowest point of a corridor from end to end (`corridorEnds`). */
