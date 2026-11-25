@@ -111,7 +111,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-18: two more, why a route's walked length is not given.
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
   // WRT-43: three more, grid_view's refusal of a room in no view, saying why it was left out.
-  'packages/cli/src/mcp/readTools.ts': [370, 'tools'],
+  // ARE-53: one more, the line of a measure that runs through a wall.
+  'packages/cli/src/mcp/readTools.ts': [371, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
