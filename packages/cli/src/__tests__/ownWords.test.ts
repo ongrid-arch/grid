@@ -73,7 +73,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
   'packages/cli/src/edit/edits.ts': [57, 'notYet'],
-  'packages/cli/src/edit/merge.ts': [25, 'notYet'],
+  'packages/cli/src/edit/merge.ts': [29, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
@@ -318,7 +318,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // describe's furniture heading (1) (reviews/CNT-20.md); and WRT-12 1: grid diff's heading for
     // the openings that moved with their wall or room (versions/diff.ts).
     // and MSG-19 3: the seen file's refusals (seen/marks.ts).
-    expect(left).toBeLessThanOrEqual(1602)
+    // and WRT-28 3: the flats lines of a merge (edit/merge.ts) (odd/tasks/WRT-28.md).
+    expect(left).toBeLessThanOrEqual(1605)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
