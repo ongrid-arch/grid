@@ -1517,7 +1517,8 @@ function planSceneIn(input: SceneInput): SvgNode[] {
 
   // SHT-7: the notes, tags and symbols. A note in a room goes under that room's label.
   const labelAt = new Map(labels.flatMap((label) => (label ? [[label.id, label.at] as const] : [])))
-  if (show.notes) out.push(...noteNodes(drawing.notes, labelAt, mpp, look.colors))
+  // VEW-55: hiding notes leaves the person's tags and symbols.
+  out.push(...noteNodes(show.notes ? drawing.notes : drawing.notes.filter((note) => note.kind !== 'note'), labelAt, mpp, look.colors))
   // ARE-15: the schedules' marks, a room's over its label where it was placed.
   if (input.scheduleMarks !== undefined && input.scheduleMarks.length > 0) out.push(...scheduleMarkNodes(input.scheduleMarks, labelAt, look, mpp))
 

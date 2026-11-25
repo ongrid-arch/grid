@@ -2361,7 +2361,7 @@ export const es: Messages = {
   'drawing.key.door': 'Puerta y su sentido de apertura',
   'drawing.key.above': 'Encima: la planta superior',
   'drawing.key.use': 'Estancia: {use}',
-  'drawing.key.sketch': 'Croquis: {category}, solo dibujado',
+  'drawing.key.sketch': '{category}',
   'drawing.key.assumed': 'Supuesto, por confirmar con la persona',
   'drawing.key.marks': 'Algo que conviene revisar, numerado como en la comprobación',
   'drawing.faults.none': 'Nada que revisar en esta planta.',
