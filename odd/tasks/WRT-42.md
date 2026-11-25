@@ -32,6 +32,11 @@ writes again knows what it is looking at:
   line (the lobby's east side, split by a stair in one corner and a lift in the other) the
   opening is written on the one it is in (`east.2`). This was what refused the deck's stair
   opening and sent its floor raw.
+- A refusal that is not about an opening line gives raw every floor a refused line is on, in the
+  same round, not one floor a round: on a plan of many floors with the same fault on each, the
+  old loop ran out of rounds and gave a text that was refused, or changed many parts, when
+  written. A writing that fails outright (`compile.ts` throwing on a raw part) ends the rounds
+  instead of throwing out of the read-back (`writtenAgain`).
 - The reasons are kept beside the draft (`FloorDraft.why` for openings, the floor's `why` map)
   and written as `#` comment lines by `textOf`. A comment is read by no one but the reader, so
   writing the text again gives back the same plan.
@@ -64,6 +69,9 @@ Decisions:
   - a window drawn across the corner of two rooms: before, its floor is raw; after, only the
     window is a `raw opening`, with a comment line above it naming it and why, with no line
     number, and nothing is lost.
+- Over the testers' 291 plans: no read-back that was exact before is less so; the ones that read
+  more raw lines after are plans whose read-back before was refused when written or changed
+  many parts, and is now written with fewer or no changes.
 - A floor given raw for a wall names the wall in its comment line and in `rawFloors`, with no
   line number of the draft.
 - `npx vitest run packages/floorplan`, `npm run typecheck`, `npm run lint`, the ownWords and

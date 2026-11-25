@@ -712,7 +712,11 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
   let decided = false
   for (let round = 0; round < SETTLE_ROUNDS; round++) {
     const text = textOf(plan, rule, options.name, drafts, raw, why)
-    const compiled = compileRoomsText(text)
+    const compiled = writtenAgain(text)
+    if (compiled === null) {
+      decided = true
+      break
+    }
     // Read as a plan file is read, so a wall it gives no height reads as the plan's do (WRT-6).
     const written: ReadBack = { ...compiled, plan: compiled.plan === null ? null : safeParseFloorPlan(compiled.plan) }
     if (written.plan === null) {
@@ -729,15 +733,26 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
         alone = true
       }
       if (alone) continue
-      // A floor the writing refuses otherwise is given in Grid's own terms.
-      const at = written.problems[0]?.line ?? null
-      const floor = floorAtLine(text, at, floors) ?? drafts.find((d) => !raw.has(d.id))?.id
-      if (floor === undefined || raw.has(floor)) {
-        decided = true
-        break
+      // A floor the writing refuses otherwise is given in Grid's own terms. WRT-42: every floor a
+      // refusal is on, in one round, so a plan of many floors does not run out of rounds.
+      const refused = new Map<string, string>()
+      for (const problem of written.problems) {
+        if (problem.line === null) continue
+        const floor = floorAtLine(text, problem.line, floors)
+        if (floor !== null && !raw.has(floor) && !refused.has(floor)) refused.set(floor, problem.message)
       }
-      raw.add(floor)
-      why.set(floor, withoutLines(written.problems[0]?.message ?? 'its rooms text could not be written'))
+      if (refused.size === 0) {
+        const floor = drafts.find((d) => !raw.has(d.id))?.id
+        if (floor === undefined || written.problems.some((p) => p.line !== null)) {
+          decided = true
+          break
+        }
+        refused.set(floor, written.problems[0]?.message ?? 'its rooms text could not be written')
+      }
+      for (const [floor, message] of refused) {
+        raw.add(floor)
+        why.set(floor, withoutLines(message))
+      }
       continue
     }
     const saidWalls = reconcileWalls(plan, written, drafts)
@@ -795,12 +810,21 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
 
 /** WRT-42: the floors a draft left unsettled would change, given in Grid's own terms. */
 function unsettled(plan: FloorPlan, rule: Rule, name: string | undefined, drafts: readonly FloorDraft[], raw: Set<string>, why: Map<string, string>): void {
-  const compiled = compileRoomsText(textOf(plan, rule, name, drafts, raw, why))
-  const written = compiled.plan === null ? null : safeParseFloorPlan(compiled.plan)
+  const compiled = writtenAgain(textOf(plan, rule, name, drafts, raw, why))
+  const written = compiled === null || compiled.plan === null ? null : safeParseFloorPlan(compiled.plan)
   for (const d of drafts) {
     if (raw.has(d.id) || (written !== null && floorDifferences(plan, written, d.id).length === 0)) continue
     raw.add(d.id)
     why.set(d.id, english(said('describe.rooms.unsettled', { rounds: String(SETTLE_ROUNDS) })))
+  }
+}
+
+/** WRT-42: the text written again, or null when the writing fails outright, so the read-back never throws. */
+function writtenAgain(text: string): RoomsResult | null {
+  try {
+    return compileRoomsText(text)
+  } catch {
+    return null
   }
 }
 
