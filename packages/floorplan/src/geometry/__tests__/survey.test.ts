@@ -61,8 +61,8 @@ function tapesOf(plan: FloorPlan): Taped[] {
   const taped: Taped[] = []
   for (const room of plan.rooms) {
     const [a, b, c, d] = room.boundary as [string, string, string, string]
-    for (const wall of room.boundary.filter((id) => id.startsWith('ext-'))) taped.push({ room: room.id, wall, length: 0 })
-    taped.push({ room: room.id, from: [d, a], to: [b, c], length: 0 }, { room: room.id, from: [a, b], to: [c, d], length: 0 })
+    for (const wall of room.boundary.filter((id) => id.startsWith('ext-'))) taped.push({ room: room.id, wall, length: 1 })
+    taped.push({ room: room.id, from: [d, a], to: [b, c], length: 1 }, { room: room.id, from: [a, b], to: [c, d], length: 1 })
   }
   const rows = tapedLengths({ ...plan, taped })
   return taped.map((entry, i) => ({ ...entry, length: round3(rows[i]!.drawn!) }))

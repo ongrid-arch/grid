@@ -49,8 +49,8 @@ function tapes(): Taped[] {
   const taped: Taped[] = []
   for (const room of plan.rooms) {
     const [a, b, c, d] = room.boundary as [string, string, string, string]
-    for (const wall of room.boundary.filter((id) => id.startsWith('ext-'))) taped.push({ room: room.id, wall, length: 0 })
-    taped.push({ room: room.id, from: [d, a], to: [b, c], length: 0 }, { room: room.id, from: [a, b], to: [c, d], length: 0 })
+    for (const wall of room.boundary.filter((id) => id.startsWith('ext-'))) taped.push({ room: room.id, wall, length: 1 })
+    taped.push({ room: room.id, from: [d, a], to: [b, c], length: 1 }, { room: room.id, from: [a, b], to: [c, d], length: 1 })
   }
   const rows = tapedLengths({ ...plan, taped })
   return taped.map((entry, i) => ({ ...entry, length: Math.round(rows[i]!.drawn! * 1000) / 1000 }))
@@ -206,7 +206,7 @@ describe('one bad reading among the taped lengths (ARE-31)', () => {
   })
 
   it('measures what it can when a plan is given straight to tapedLengths with a bad length in it', () => {
-    const plan = parseFloorPlan(rawOf(AS_TAPED))
+    const plan = parseFloorPlan(byFaces())
     const rows = tapedLengths({ ...plan, taped: [{ room: 'hall', wall: 'ext-s', length: -1 }, TAPES[0]!, { room: 'hall', wall: 'ext-s', length: Number.NaN }, TAPES[1]!] })
     expect(rows.map((row) => row.state)).toEqual(['not-measured', 'agrees', 'not-measured', 'agrees'])
     expect(rows.map((row) => row.index)).toEqual([0, 1, 2, 3])
