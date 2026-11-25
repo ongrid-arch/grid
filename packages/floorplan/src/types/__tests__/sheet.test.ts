@@ -58,7 +58,7 @@ describe('sheet.json (VEW-7)', () => {
     expect(problem).toMatch(/half of a character pair/)
   })
   it('refuses line breaks, control and direction characters', () => {
-    for (const bad of ['a\nb', 'a\u0007b', 'a‮b']) {
+    for (const bad of ['a\nb', 'a\u0007b', 'a\u202Eb']) {
       expect(sheetWordsProblem({ version: '1', headline: bad }, floors)).toMatch(/headline/)
     }
   })
