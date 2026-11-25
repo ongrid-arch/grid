@@ -1874,6 +1874,10 @@ export const en = {
   'rooms.floor.building': "'{word}' is not a kind of building Grid knows. Use one of: {kinds}.",
   'rooms.floor.duplicate': "Floor '{id}' is already written.",
   'rooms.floor.roomsFirst': "Rooms were written before the first floor line. Put the floor line first.",
+  // WRT-35: a word a room line does not take, every word it does take and the one most likely meant.
+  'rooms.room.unknown':
+    "Line {line}: '{word}' is not understood on a room line.{meant} After the use, write a size ('3.0 x 4.4' = east-west by north-south, inside faces; add 'centre' or 'outside' to measure to the walls' centre lines or outside faces) or 'polygon x,y x,y ...', then where it goes: 'at x,y', '<north|south|east|west> of <room>' with optional 'align', 'shift', 'until', 'open', or 'inside <room> corner <ne|nw|se|sw>' with optional 'wall <t> [kind]'. Then any of: 'walls <t> [kind]' sets this room's own wall thickness; 'height <m>' its own ceiling height; 'floor <m>' stands its floor that many metres above its storey's floor (a minus for below), for a raised or sunken room; 'first-wall <wall id>' starts its boundary at that wall; 'through <floor>' stands it on every floor after this one up to that floor; 'tenure <{tenures}>' and 'type \"<text>\"' say who it is for and the firm's own room type; 'outdoor <{outdoor}>', then 'roofed' or 'unroofed', marks it as outdoor space.",
+  'rooms.room.meant': " Did you mean '{written}'?",
   // WRT-34: a plain number under a display line that is not metres, and 12-6 in feet.
   'rooms.numbers.question':
     "line {line}: '{word}' has no unit, and the display line reads lengths in {reads}, so Grid does not take it as metres. Write its unit in the same word, such as {word}{unit}, or add to the display line what a plain number is: 'display {display} numbers {unit}' reads every plain number in {plural}, and 'numbers m' in metres.",

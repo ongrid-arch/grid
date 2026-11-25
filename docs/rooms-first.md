@@ -65,7 +65,9 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   floor first "First floor" level 1 elevation 2.875 height 2.6 slab 0.275
   ```
 - `floor -0.15` on a room line puts its floor that far below its storey's (a genkan; LVL-7),
-  `height 2.4` gives its own height.
+  `height 2.4` gives its own height. A word a room line does not take is refused with every word
+  it does take, and the one most likely meant with its value: `level 0.6` on a room line is
+  answered "Did you mean 'floor 0.6'?" (WRT-35).
 - The word after a room's name is its use: one of Grid's uses, a word that plainly means one
   (`wc` is toilet, `bryggers` utility), or `-` for none. The name keeps the person's own word.
   `tenure common` and `type "B2 double"` on a room line say who it is for and the firm's own room
