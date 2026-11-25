@@ -737,6 +737,27 @@ export const TOLERANCES = {
       'measured on a coarser grid, and the answer gives the step it used.',
     basis: own
   },
+  // ARE-25: a corridor's width from end to end.
+  corridorRasterAcross: {
+    kind: 'limit',
+    value: 24,
+    unit: 'count',
+    decides:
+      'The steps of the grid across a corridor\'s widest circle when its narrowest point from end ' +
+      'to end is found, never finer than useRaster. The grid only finds where it is narrowest; ' +
+      'the width there is taken from the walls themselves.',
+    basis: own
+  },
+  corridorEndTurn: {
+    kind: 'tolerance',
+    value: 0.5236,
+    unit: 'radian',
+    decides:
+      'A side of a corridor\'s outline is one of its ends when the outline turns into the ' +
+      'corridor by at least this (30 degrees) at both its corners; a jog in a side and the ' +
+      'straight pieces of a curve are never an end.',
+    basis: own
+  },
 
   // ── A step inside a floor (LVL-7) ─────────────────────────────────────────────────────────
   sameFloorLevel: {

@@ -458,6 +458,66 @@ export interface Passage {
   readonly step: number
 }
 
+/** How a way through a room is measured (ARE-25). */
+export interface PassageOptions {
+  /** The step of the grid to use at least, in metres: coarser than `useRaster`, never finer. */
+  readonly step?: number
+}
+
+/** The point of a segment nearest to `p`. */
+function nearestOnSegment(p: Vec2, [a, b]: Segment): Vec2 {
+  const ab = sub(b, a)
+  const span = dot(ab, ab)
+  const t = span === 0 ? 0 : Math.max(0, Math.min(1, dot(sub(p, a), ab) / span))
+  return add(a, scale(ab, t))
+}
+
+/** How far the grid's figure may be from the plan's, in steps of the grid: a point of any way is within half a diagonal of a point of the grid. */
+const GRID_ERROR_STEPS = 1.5
+
+/**
+ * The width of the way at the point the grid found narrowest, taken from the plan (ARE-25): from
+ * the nearest thing to that point, a line straight across through it to the first thing on the
+ * other side, and the body that fits at its middle, as wide as its clearance from everything.
+ * That body is the figure when it is no narrower than the grid's and within the grid's own error
+ * of it; else the grid's figure stands, at its point. `fromPlan` says which.
+ */
+function acrossAt(
+  point: Vec2,
+  clear: number,
+  step: number,
+  obstacles: readonly { readonly segment: Segment }[],
+  polygon: readonly Vec2[],
+  holes: Holes,
+  fixtures: readonly Obstacle[]
+): { readonly at: Vec2; readonly half: number; readonly fromPlan: boolean } {
+  const grid = { at: point, half: clear, fromPlan: false }
+  let nearest: Vec2 | null = null
+  let least = Infinity
+  for (const o of obstacles) {
+    const q = nearestOnSegment(point, o.segment)
+    const d = length(sub(point, q))
+    if (d < least) {
+      least = d
+      nearest = q
+    }
+  }
+  if (nearest === null || least <= tolerance('noLength')) return grid
+  const dir = scale(sub(point, nearest), 1 / least)
+  let across = Infinity
+  for (const o of obstacles) {
+    const t = rayHits(nearest, dir, o.segment)
+    if (t !== null && t > tolerance('wallContact') && t < across) across = t
+  }
+  if (!Number.isFinite(across)) return grid
+  const middle = add(nearest, scale(dir, across / 2))
+  if (!pointInPolygon(middle, polygon, holes) || fixtures.some((f) => pointInPolygon(middle, f.outline))) return grid
+  let half = Infinity
+  for (const o of obstacles) half = Math.min(half, distanceToSegment(middle, o.segment))
+  if (half < clear || 2 * (half - clear) > GRID_ERROR_STEPS * step) return grid
+  return { at: middle, half, fromPlan: true }
+}
+
 /**
  * The widest body or trolley that gets through a room from one mouth to another
  * (`use/passage-width`), keeping clear of its walls, its holes and the fixtures: the floor is
@@ -467,8 +527,11 @@ export interface Passage {
  * point, such as the room's widest point (`pointMouth`), or null for anywhere in the room, where a
  * way starts or ends for a person already in it. The room's outline is open along the two mouths.
  * Null when the mouths are not joined by free floor at all.
+ *
+ * ARE-25: the grid finds where the way is narrowest; the width there is then taken from the plan
+ * itself (`acrossAt`), so a way between walls w apart measures w, not w less a step of the grid.
  */
-export function passageWidth(polygon: readonly Vec2[], holes: Holes, fixtures: readonly Obstacle[], from: Segment | null, to: Segment | null): Passage | null {
+export function passageWidth(polygon: readonly Vec2[], holes: Holes, fixtures: readonly Obstacle[], from: Segment | null, to: Segment | null, options: PassageOptions = {}): Passage | null {
   if (polygon.length < 3) return null
   const contact = tolerance('wallContact')
   const mouths = [from, to].filter((mouth): mouth is Segment => mouth !== null && length(sub(mouth[1], mouth[0])) > tolerance('noLength'))
@@ -508,7 +571,7 @@ export function passageWidth(polygon: readonly Vec2[], holes: Holes, fixtures: r
     x1 = Math.max(x1, p.x)
     y1 = Math.max(y1, p.y)
   }
-  const step = Math.max(tolerance('useRaster'), Math.sqrt(((x1 - x0) * (y1 - y0)) / limit('useRasterCells')))
+  const step = Math.max(tolerance('useRaster'), options.step ?? 0, Math.sqrt(((x1 - x0) * (y1 - y0)) / limit('useRasterCells')))
   const columns = Math.max(1, Math.ceil((x1 - x0) / step))
   const rows = Math.max(1, Math.ceil((y1 - y0) / step))
   const cells = columns * rows
@@ -597,9 +660,20 @@ export function passageWidth(polygon: readonly Vec2[], holes: Holes, fixtures: r
     if (ends.has(i)) join(i, END)
     if (find(START) !== find(END)) continue
 
-    const at = centre(i)
-    const half = clearance[i]!
-    const near = obstacles.filter((o) => distanceToSegment(at, o.segment) <= half + step)
+    // The width taken from the plan where the grid found the way narrowest, or, where the line
+    // across from there runs off (into a recess, say), from a point of the grid beside it.
+    let found = acrossAt(centre(i), clearance[i]!, step, obstacles, polygon, holes, fixtures)
+    for (let dy = -1; dy <= 1 && !found.fromPlan; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = cx + dx
+        const ny = cy + dy
+        if ((dx === 0 && dy === 0) || nx < 0 || ny < 0 || nx >= columns || ny >= rows || clearance[ny * columns + nx]! < 0) continue
+        const beside = acrossAt(centre(ny * columns + nx), clearance[i]!, step, obstacles, polygon, holes, fixtures)
+        if (beside.fromPlan && (!found.fromPlan || beside.half > found.half)) found = beside
+      }
+    }
+    const { at, half } = found
+    const near = obstacles.filter((o) => distanceToSegment(at, o.segment) <= half + (found.fromPlan ? contact : step))
     const owners = new Set(near.map((o) => o.owner))
     const fixtureIds = fixtures.filter((f) => owners.has(f.id)).map((f) => f.id)
     const width = 2 * half

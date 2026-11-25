@@ -11,8 +11,8 @@ A corridor's narrowest point from end to end (`grid_measure what=access`, the br
   two ends Grid measures between are the corridor's ends, never a short jog in its side.
 - A curved corridor, between two curved walls, measures the width across, centre to outside,
   not the gap between two of the straight pieces its curve is drawn with.
-- The width never comes out wider than the widest circle the corridor holds, and in a corridor
-  of one width the two are the same figure.
+- The widest circle a corridor holds is never said to be narrower than its narrowest point, and
+  in a corridor of one width the two are the same figure.
 - What the narrowest point is said to be beside names only what touches it: the walls or the
   fixtures the width is measured between, not every fixture within a step of the grid.
 - A long corridor is measured in a fraction of a second, so a plan with many corridors answers
@@ -39,14 +39,24 @@ A corridor's narrowest point from end to end (`grid_measure what=access`, the br
     circle, never finer than `useRaster`. The width is taken from the plan (above), so a coarser
     grid only finds where the corridor is narrowest, and a 60 m corridor takes some thousands
     of points instead of a quarter of a million.
-  - The narrowest is never more than the widest circle.
+  - The widest circle is never narrower than the narrowest point: the body measured there is a
+    circle the corridor holds, and the widest circle is found only to a thousandth of the room's
+    length (`poleOfInaccessibility`), the way to the walls. (Built: first tried holding the
+    narrowest to the widest, which put a 1.80 m corridor with a recess at 1.7996 m.)
+  - The outline beside a side is read a quarter of the side's length from its corner, so the
+    sliver where a straight wall's face meets a curved one does not hide the corner. Where the
+    line across from the narrowest point runs into a recess, the points of the grid beside it
+    are tried. (Built: reading the outline as far as the side is long kept a recess's back from
+    being an end, but also dropped the wide end of a hall, which the brief's tests rightly hold
+    to be an end; the old choice, the two ends farthest apart, stays.)
 - Two new rows in `tolerances.ts` and `docs/tolerances.md`: `corridorEndTurn` (radian) and
   `corridorRasterAcross` (count). No new convention, no new message code, no change to the
   record's fields.
-- Decision: the card's "never give a room a width narrower than its own widest circle" is read
-  as "a corridor of one width measures its widest circle", since a corridor that narrows is
-  rightly narrower than the widest circle it holds somewhere else. A narrowest wider than the
-  widest circle is impossible and is held to it.
+- Decision: "never a width narrower than the room's own widest circle" is read as "a corridor of
+  one width measures its widest circle, and the two figures agree", since a corridor that
+  narrows is rightly narrower than the widest circle it holds somewhere else.
+- Known limit: a recess or a stub whose back lies farther out than the corridor's true end
+  still reads as an end, and the width measured from it is no more than the recess's own.
 
 ## Done
 

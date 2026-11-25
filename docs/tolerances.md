@@ -99,6 +99,8 @@ in it is used as a `bedroom` or a `living` room) the home figures apply.
 | `useClearSpace` | limit | 0.6 m | Grid's own size, not a code figure: Grid's own indicator for the clear floor in front of and beside a fixture, when the person gives none |
 | `useRaster` | tolerance | 0.02 m | The step of the grid the way through a room is measured on: the widest body is found to within about this |
 | `useRasterCells` | limit | 250000 count | The most points one room's way through is measured on; a bigger room is measured on a coarser grid, and the answer says the step |
+| `corridorRasterAcross` | limit | 24 count | The steps of the grid across a corridor's widest circle when its narrowest point is found, never finer than `useRaster`; the width there is taken from the walls themselves (ARE-25) |
+| `corridorEndTurn` | tolerance | 0.5236 radian | A side of a corridor is one of its ends when the outline turns into the corridor by at least this (30 degrees) at both its corners; a jog and the pieces of a curve never are |
 | `sameFloorLevel` | tolerance | 0.005 m | Rooms side by side whose floors stand closer than this in height share a level, and no step is drawn between them; so do floors that state their elevations, and neither is set against the other as a floor below it (LVL-11) |
 | `floorOffsetLargest` | limit | 1.5 m | A room set further than this above or below its storey is asked about (`room/offset-question`) |
 | `stairRoomOverlap` | tolerance | 0.5 ratio | Rooms used as a stair (or a lift) on neighbouring floors that share at least this of the smaller one are one stair (or shaft); less, and they are named as out of line |
