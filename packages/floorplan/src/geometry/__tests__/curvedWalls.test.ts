@@ -223,8 +223,10 @@ describe('the curve in the rest of the geometry', () => {
     // One leaving a wall at a right angle is mitred to it, as any corner is.
     const square = [wall('a', [0, 0], [4, 0]), wall('q', [4, 0], [2, 2], { arc: { centre: [2, 0], sweep: 90 } })]
     const turned = wallJoints(square).get('q')!
-    expect(Math.abs(turned.start.left)).toBeCloseTo(0.1, 9)
-    expect(Math.abs(turned.start.right)).toBeCloseTo(0.1, 9)
+    // CNT-30: inside, the curve's face (a circle of 1.9 m) is cut back to where it crosses the
+    // wall's face, 0.1 m up, round the curve; outside it runs on along its tangent 0.1 m past the end.
+    expect(turned.start.left).toBeCloseTo(-2 * Math.asin(0.1 / 1.9), 9)
+    expect(turned.start.right).toBeCloseTo(0.1, 9)
   })
 
   it('reads the curved wall as an outside wall all round, and the floor as one space', () => {
