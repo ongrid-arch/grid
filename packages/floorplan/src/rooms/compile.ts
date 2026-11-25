@@ -738,6 +738,8 @@ class Compiler {
         const fixed = [`floor ${id.text}`, `${setting[1]!.toLowerCase()} ${setting[2]}`.trim(), ...words.slice(1).map(lineWord)].join(' ')
         refuse(say('rooms.floor.settingName', { name: sayName(name), setting: `${setting[1]!.toLowerCase()} ${setting[2]}`.trim(), line: fixed }))
       }
+    } else if (words[0] !== undefined && isNumberWord(words[0].text)) {
+      refuse(say('rooms.floor.unknown', { word: words[0].text }))
     } else if (words[0] !== undefined && !FLOOR_KEYS.includes(words[0].text)) {
       // An unquoted name: the words up to the first setting, offered back in quotes.
       let end = 0

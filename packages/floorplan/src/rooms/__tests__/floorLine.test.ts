@@ -69,10 +69,11 @@ describe('the settings agents guess', () => {
   })
 
   it('refuses a word written twice, a word with no value and a word it does not know, each with the form', () => {
-    for (const line of ['floor a "A" level 1 level 2', 'floor a "A" level', 'floor a "A" storey 2', 'floor a "A" level 1 3.2']) {
+    for (const line of ['floor a "A" level 1 level 2', 'floor a "A" level', 'floor a "A" storey 2', 'floor a "A" level 1 3.2', 'floor a 3.2']) {
       const p = refusal(line)
       expect(p.code, line).toBe('rooms/syntax')
       expect(p.message, line).toContain(FORM)
+      expect(p.message, line).not.toContain('Write it')
     }
   })
 
