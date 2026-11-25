@@ -83,3 +83,21 @@ describe('a use in the person\'s own words', () => {
     expect(brief.rooms.map((r) => r.use)).toEqual(['bedroom', 'bathroom'])
   })
 })
+
+describe('ids in plain letters', () => {
+  it('reads an id given with accents as the plain id rooms text writes', async () => {
+    b.write('ids.json', plan)
+    const renamed = await b.call('grid_rename_room', { plan: 'ids.json', room: 'baño', name: 'Baño grande' })
+    expect(renamed.isError, renamed.text).toBe(false)
+    expect(planOf('ids.json').rooms.find((r) => r.id === 'bano')!.name).toBe('Baño grande')
+  })
+
+  it('writes rooms text with accented ids in plain letters, and says so', async () => {
+    const written = await b.call('grid_write_rooms', { plan: 'written.json', rooms: 'room salón "Salón" salón 4 x 3.5 at 0,0\nroom baño "Baño" baño 2 x 2 east of salón\ndoor puerta between salón and baño, centred, 0.8 wide' })
+    expect(written.isError, written.text).toBe(false)
+    expect(written.text).toContain("'baño' is 'bano'")
+    expect(planOf('written.json').rooms.map((r) => r.id)).toEqual(['salon', 'bano'])
+    const view = await b.call('grid_describe', { plan: 'written.json', for: 'agent' })
+    expect(view.isError, view.text).toBe(false)
+  })
+})

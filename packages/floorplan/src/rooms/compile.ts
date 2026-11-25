@@ -94,6 +94,7 @@ import { limit, tolerance } from '../geometry/tolerances'
 import { buildingKind } from '../geometry/plausible'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
 import { english, joined, name as sayName, said, type MessageKey, type Said, type Values } from '../messages/say'
+import { idsOfText } from './ids'
 import { f2, hasUnit, isNumberWord, metres, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
 
@@ -2936,6 +2937,13 @@ export function compileRoomsText(text: string, options: CompileOptions = {}): Ro
   const c = compiler!
   let problems: RoomsProblem[] = stopped === null ? c.problems : [stopped]
   let warnings: RoomsProblem[] = c.warnings
+  // MSG-22: the ids it writes are ids every tool takes, and the ones put in plain letters are named.
+  if (stopped === null && plan !== null && problems.length === 0) {
+    const ids = idsOfText(text, plan)
+    problems = ids.problems
+    warnings = [...warnings, ...ids.warnings]
+    if (problems.length > 0) plan = null
+  }
   // WRT-17: what is written passes the drawing's own check, or is not written.
   if (stopped === null && plan !== null && problems.length === 0) {
     const checked = checkWritten(plan, warnings, c.rawIds)

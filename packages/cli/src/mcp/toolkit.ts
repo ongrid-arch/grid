@@ -9,7 +9,7 @@
  */
 import { GENERAL_GUIDANCE_LABEL, planFloors, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
-import { ROOM_USES, readUse } from '@ongrid/floorplan/types/floorplan'
+import { plainId, ROOM_USES, readUse } from '@ongrid/floorplan/types/floorplan'
 import { likelyId, nearestIds } from '@ongrid/floorplan/types/nearest'
 import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { missingDefaultPlan, projectPlanFile } from '../command/init'
@@ -245,6 +245,8 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
         throw new ToolRefusal(spec.enum ? `${name} takes one of ${spec.enum.join(', ')}.` : `${name} takes text, for example ${quoted(spec.examples[0] ?? '')}.`)
       }
       if (spec.id) {
+        // MSG-22: an id with accents is read in plain letters, as rooms text writes it: `baño` is `bano`.
+        value = plainId(value)
         if (value.length > ID_MAX) throw new ToolRefusal(`${name} is longer than ${ID_MAX} characters, the most an id may have.`)
         if (!ID.test(value)) throw new ToolRefusal(`${name} must be an id of the plan: letters, digits, dash, underscore and dot only.`)
       }

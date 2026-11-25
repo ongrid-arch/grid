@@ -13,8 +13,12 @@
  * is not metres (`display ft-in`, `display mm`), the line says what a plain number is
  * (`numbers ft`, `numbers mm`), or a plain number other than 0 is refused as a question; and in a
  * text read in feet, `12-6` is refused, since it reads as a sum and is most likely 12'6".
+ *
+ * MSG-22: a word outside quotes is read in plain letters (`plainId`): an id written `baño` is
+ * `bano` wherever the text names it, so every tool takes it; a name in quotes keeps its accents.
  */
 import { english, said } from '../messages/say'
+import { plainId } from '../types/planText'
 import { LengthRefused, readLength, type LengthUnit } from '../types/units'
 
 /** A problem that stops the reading, with its code and the line it is on. */
@@ -40,8 +44,11 @@ export interface LineWord {
   readonly quoted: boolean
 }
 
-/** The words of one line, without its comment, each with whether it was written in quotes. */
-export function quotedWordsOf(line: string, at: number): LineWord[] {
+/**
+ * The words of one line, without its comment, each with whether it was written in quotes. A word
+ * outside quotes is in plain letters (MSG-22) unless `asWritten`.
+ */
+export function quotedWordsOf(line: string, at: number, asWritten = false): LineWord[] {
   const out: LineWord[] = []
   let word = ''
   let started = false
@@ -78,7 +85,10 @@ export function quotedWordsOf(line: string, at: number): LineWord[] {
   }
   if (quote !== null) throw new RoomsStop('rooms/syntax', `line ${at}: a quote is opened and never closed.`, at)
   if (started) out.push({ text: word, quoted })
-  return out.map((w) => (w.text.endsWith(',') ? { ...w, text: w.text.slice(0, -1) } : w)).filter((w) => w.text !== '')
+  return out
+    .map((w) => (w.text.endsWith(',') ? { ...w, text: w.text.slice(0, -1) } : w))
+    .map((w) => (asWritten || w.quoted ? w : { ...w, text: plainId(w.text) }))
+    .filter((w) => w.text !== '')
 }
 
 /** A sum of numbers: digits, a point, + - * / and brackets. Anything else is not read. */
