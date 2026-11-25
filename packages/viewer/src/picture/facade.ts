@@ -155,8 +155,13 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
 
   const faces = facade.faces.map((face, i) => {
     const ink = face.tier === 2 ? look.colors.labelSoft : look.ink
-    const openings = face.openings.map((opening) =>
-      el('rect', {
+    // VEW-49: a doorless opening is a void: a hole in the face's path, the wall's edges stepping
+    // back to an inner edge (its reveals), and what stands behind it seen through it.
+    const voids = face.openings.filter((o) => o.type === 'opening' && o.u0 >= face.u0 && o.u1 <= face.u1 && o.bottom >= face.bottom && o.top <= face.top)
+    const holes = voids.map((o) => `M${lengthText(o.u0)},${lengthText(-o.bottom)}L${lengthText(o.u1)},${lengthText(-o.bottom)}L${lengthText(o.u1)},${lengthText(-o.top)}L${lengthText(o.u0)},${lengthText(-o.top)}Z`)
+    const openings = face.openings.flatMap((opening) => {
+      const isVoid = voids.includes(opening)
+      const rect = el('rect', {
         'data-part': 'facade-opening',
         'data-id': opening.id,
         'data-type': opening.type,
@@ -164,11 +169,25 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
         y: lengthText(-opening.top),
         width: lengthText(opening.u1 - opening.u0),
         height: lengthText(opening.top - opening.bottom),
-        fill: opening.type === 'window' ? look.colors.window : look.colors.paper,
+        fill: isVoid ? 'none' : opening.type === 'window' ? look.colors.window : look.colors.paper,
         stroke: ink,
         'stroke-width': width('elevationOpening')
       })
-    )
+      if (!isVoid) return [rect]
+      const w = opening.u1 - opening.u0
+      const h = opening.top - opening.bottom
+      const inset = Math.min(opening.reveal, Math.min(w, h) / 4)
+      const [a, b, c, d] = [opening.u0 + inset, opening.u1 - inset, -(opening.top - inset), -(opening.bottom + inset)]
+      const line = (x1: number, y1: number, x2: number, y2: number) => el('line', { 'data-part': 'facade-reveal', x1: lengthText(x1), y1: lengthText(y1), x2: lengthText(x2), y2: lengthText(y2), stroke: ink, 'stroke-width': width('elevationOpening') })
+      return [
+        rect,
+        el('rect', { 'data-part': 'facade-reveal', x: lengthText(a), y: lengthText(c), width: lengthText(b - a), height: lengthText(d - c), fill: 'none', stroke: ink, 'stroke-width': width('elevationOpening') }),
+        line(opening.u0, -opening.top, a, c),
+        line(opening.u1, -opening.top, b, c),
+        line(opening.u0, -opening.bottom, a, d),
+        line(opening.u1, -opening.bottom, b, d)
+      ]
+    })
     return el(
       'g',
       {
@@ -181,7 +200,8 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
       },
       [
         el('path', {
-          d: `M${face.outline.map(([u, z]) => `${lengthText(u)},${lengthText(-z)}`).join('L')}Z`,
+          d: `M${face.outline.map(([u, z]) => `${lengthText(u)},${lengthText(-z)}`).join('L')}Z${holes.join('')}`,
+          ...(holes.length === 0 ? {} : { 'fill-rule': 'evenodd' }),
           fill: look.colors.room,
           stroke: ink,
           'stroke-width': width(TIER_PARTS[face.tier]!),
