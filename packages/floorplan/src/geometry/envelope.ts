@@ -11,7 +11,8 @@
  * - **a roof over every part with nothing above**: the floor's outline less the outlines of the
  *   floors on the next level up, flat, on the floor's walls (its floor level plus its clear height),
  *   as thick as `SLAB_THICKNESS`. With a `parapet` stated on the floor, the outside walls under the
- *   roof's edge rise that far above it.
+ *   roof's edge rise that far above it. LVL-13: none is laid where it would lie at or under the
+ *   ground (`site.ground`, else 0): the ground covers a crypt or a basement past the floor above.
  * - **a ceiling** in each room that states one: at the room's height, less its lowered zones, each
  *   at its own height.
  *
@@ -30,7 +31,8 @@
  * courtyard, a light well) is open in it. An outdoor space on the lowest level stands on the ground,
  * so it has no slab; one above it (a balcony, a roof terrace) stands on a slab, as a floor does. Only
  * an outdoor space marked roofed (`outdoorRoofed`) has a roof: a porch or a carport is roofed with
- * the floor, an open terrace is not.
+ * the floor, an open terrace is not. LVL-13: nor are the walls that bound open outdoor space and no
+ * room, along the stretch beside it, even where the same wall runs on past a room.
  *
  * LVL-12: floor no room claims that is open to the sky (`openSky.ts`: a window looks into it, or
  * it lies over open sky below) is cut out of the outline as a courtyard in a room is, and an open
@@ -46,12 +48,12 @@
  */
 
 import { planInState } from './phases'
-import type { MultiPolygon } from 'polygon-clipping'
+import type { MultiPolygon, Polygon } from 'polygon-clipping'
 import { floorOf, planFloors, planForFloor } from './floors'
 import type { BuildingElevations } from './elevations'
 import { SLAB_THICKNESS, floorElevations } from './elevations'
 import type { Floor, FloorPlan, PlanIndex, Room } from './plan'
-import { indexPlan } from './plan'
+import { indexPlan, roomWallIds } from './plan'
 import { floorJoins, roomOutlinesByFloor, type OutlinesByFloor } from './floorJoins'
 import { outlineKnown, slabOutline, type FloorOutline, type FloorOutlineUnknown } from './outline'
 import { boxOfRings, cutOutline, inRing, multiArea, pointInside, ringOf, union } from './polygons'
@@ -68,6 +70,8 @@ import { columnRise, columnsOnFloor, soundColumn } from './columns'
 import type { OutdoorKind } from '../types/floorplan'
 import type { Vec2 } from './vec2'
 import { planRamps } from './parking'
+import { statedGround } from './ground'
+import { overItsWalls } from './partyWalls'
 import type { RoofShape } from './plan'
 import { floorRoofShape, regionAtLeast, roofFacets, rooflightPlace, type RoofPlane, type RooflightPlace, type RoofShapeOverFloor } from './roofs'
 
@@ -238,6 +242,8 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
   const wanted = floors.filter((f) => options.floors === undefined || options.floors.includes(f.id))
   const levels = [...new Set(floors.map(levelOf))].sort((a, b) => a - b)
   const lowest = levels[0] ?? 0
+  // LVL-13: the ground's level, in the floors' own datum: as the site states it, else 0.
+  const ground = statedGround(plan) ?? 0
 
   const slices = new Map<string, Slice>()
   const sliceOf = (id: string) => {
@@ -325,8 +331,13 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
       return { floor: floor.id, outline: own.pieces, outlineArea: own.area, slab, roof: null, roofKnown: false, why: 'the floors above could not be cut from its outline' }
     }
     let roof: FloorRoof | null = null
-    if (pieces.length > 0) {
-      const shape = floorRoofShape(plan, floor.id)
+    const shape = pieces.length > 0 ? floorRoofShape(plan, floor.id) : null
+    // LVL-13: a roof Grid would lay at or under the ground (a crypt, a basement past the floor
+    // above) is not laid: the ground covers that part of the floor. LVL-12: a roof over roofed
+    // outdoor space alone stands as high as that space does.
+    const clear = canopy && shape === null ? canopyHeight(plan, sliceOf(floor.id), floor.id, storey.clearHeight) : storey.clearHeight
+    const buried = shape === null && storey.floorLevel + clear + SLAB_THICKNESS <= ground + tolerance('sameFloorLevel')
+    if (pieces.length > 0 && !buried) {
       const sloped = shape !== null && shape.planes.length > 0
       const height = !sloped && floor.parapet !== undefined && Number.isFinite(floor.parapet) && floor.parapet > 0 ? floor.parapet : null
       let parapet: FloorRoof['parapet'] = null
@@ -336,8 +347,6 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
         const along = band.length === 0 ? [] : cutOutline('intersection', pieces, [union(band)])
         if (along !== null && along.length > 0) parapet = { height, pieces: along }
       }
-      // LVL-12: a roof over roofed outdoor space alone stands as high as that space does.
-      const clear = canopy && shape === null ? canopyHeight(plan, sliceOf(floor.id), floor.id, storey.clearHeight) : storey.clearHeight
       const { facets, rooflights } = roofPieces(shape, pieces, clear)
       roof = {
         pieces,
@@ -444,8 +453,36 @@ function outdoorOutlines(
   }
   const slab = base ? own : join(shapes.filter((s) => !throughSky(s)).map((s) => s.pieces))
   const roofed = shapes.filter((s) => outdoorRoofed(s.room) === true).map((s) => s.pieces)
-  const roof = join(roofed)
+  const roof = lessOpenWalls(join(roofed), slice, id, index, broken)
   return { slab: { ...known, pieces: slab, area: multiArea(slab) }, roof, canopy: known.pieces.length === 0 && roofed.length > 0 }
+}
+
+/**
+ * LVL-13: the roof less the walls that bound open outdoor space and no room: a terrace's parapet,
+ * a balcony's edge, along the stretch beside it, even where the same wall runs on past a room (a
+ * stair house on a roof terrace). Each unroofed outdoor space over the whole of its walls
+ * (`overItsWalls`), less each room and roofed outdoor space over the whole of theirs: a wall a room
+ * lists carries the room's roof.
+ */
+function lessOpenWalls(roof: MultiPolygon, slice: FloorPlan, id: string, index: PlanIndex, broken: ReadonlySet<string>): MultiPolygon {
+  if (roof.length === 0) return roof
+  const zones = roomZones(index).zoneOf
+  const rooms = slice.rooms.filter((room) => floorOf(room) === id && !broken.has(room.id) && !zones.has(room.id))
+  const over = (room: Room): Polygon[] => {
+    const shape = tryRoomShape(room, index)
+    if (shape === null || shape.polygon.length < 3) return []
+    const walls = [...new Set(roomWallIds(room))].flatMap((wallId) => {
+      const wall = index.wallsById.get(wallId)
+      return wall === undefined || broken.has(wallId) ? [] : [wall]
+    })
+    return overItsWalls({ polygon: shape.polygon, holes: shape.holes, walls })
+  }
+  const open = rooms.filter((room) => isOutdoor(room) && outdoorRoofed(room) !== true).flatMap(over)
+  if (open.length === 0) return roof
+  const covered = rooms.filter((room) => !isOutdoor(room) || outdoorRoofed(room) === true).flatMap(over)
+  const bare = cutOutline('difference', open.length === 1 ? open[0]! : (cutOutline('union', [], open) ?? []), covered)
+  if (bare === null || bare.length === 0) return roof
+  return cutOutline('difference', roof, [bare]) ?? roof
 }
 
 /** LVL-12: the outdoor kinds open to the sky down through the floors they stand on. */
