@@ -13,7 +13,7 @@ import { RETELLING_RULE } from '../mcp/retelling'
 
 /** What Grid's tools do, and the one argument every tool takes. */
 export const TOOLS_WORK_ON_PLANS =
-  'Grid\'s tools read, measure, check, draw and change floor plans kept in plan files inside the project folder. Pass plan: the plan file, as a path inside that folder.'
+  'Grid draws floor plans for any small space (a van, a cabin, a module, a container) as well as whole buildings, and gives a picture and the free-floor numbers in one or two calls: grid_view draws, grid_areas measures, and grid_export and grid_sheet make files, a whole-building 3D model (GLB) among them. Grid\'s tools read, measure, check, draw and change floor plans kept in plan files inside the project folder. Pass plan: the plan file, as a path inside that folder.'
 
 /** BRF-1: the brief comes first, from the person's words. */
 export const BRIEF_FIRST =

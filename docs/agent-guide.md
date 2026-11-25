@@ -12,7 +12,7 @@ Read this before you write your first plan with Grid. It is all an agent needs t
 
 ## Start here
 
-Grid's tools read, measure, check, draw and change floor plans kept in plan files inside the project folder. Pass plan: the plan file, as a path inside that folder.
+Grid draws floor plans for any small space (a van, a cabin, a module, a container) as well as whole buildings, and gives a picture and the free-floor numbers in one or two calls: grid_view draws, grid_areas measures, and grid_export and grid_sheet make files, a whole-building 3D model (GLB) among them. Grid's tools read, measure, check, draw and change floor plans kept in plan files inside the project folder. Pass plan: the plan file, as a path inside that folder.
 
 Before the first room, keep what the person asked for with grid_write_brief, from their own words, each wish given or assumed; every change then says which lines are met and which missed.
 
