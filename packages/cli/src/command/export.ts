@@ -29,7 +29,7 @@ import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 
 export const EXPORT_OPTIONS: OptionSpecs = {
   '--format': { takesValue: true, help: `The file format: ${EXPORT_FORMATS.join(', ')}.` },
-  '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export (a floor id from the plan). The lowest floor when left out.' },
+  '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export (a floor id from the plan). The ground floor when left out.' },
   '--date': { takesValue: true, help: 'IFC: the time stamp to write, a date (2026-01-31) or a time (2026-01-31T09:00:00Z). SOURCE_DATE_EPOCH when left out, else now. The same date gives the same file.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in the format\'s extension. exports/ beside the plan when left out.' },
   ...PROJECT_OPTION,
