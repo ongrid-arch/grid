@@ -167,3 +167,40 @@ describe('plot coverage, and the site\'s things (BRF-3 done when 2)', () => {
     expect(site.edges.find((e) => e.edge.faces === 'east')!.distance).toBeCloseTo(3, 9)
   })
 })
+
+describe('open outdoor space is no building (ARE-24)', () => {
+  // The lab's house, 9 x 10 m outside, with an open terrace on its north side (4.65 x 3.00 = 13.95 m2)
+  // and a porch on its south side (2.40 x 1.50 = 3.60 m2), in a 20 x 30 = 600 m2 plot.
+  const BOUNDARY = [[-5, -10], [15, -10], [15, 20], [-5, 20]]
+  const sited = (marks: Record<string, Record<string, unknown>>): FloorPlan => {
+    const raw = JSON.parse(labPlanText('G/scenarios/s02a-terrace-porch.json')) as { rooms: Record<string, unknown>[] } & Record<string, unknown>
+    for (const room of raw.rooms) Object.assign(room, marks[room.id as string] ?? {})
+    return parseFloorPlan({ ...raw, site: { boundary: BOUNDARY, streets: [1], setbacks: [] } })
+  }
+
+  it('measures the coverage and the distances to the enclosed building, and gives the figure with the terrace beside them', () => {
+    const site = siteMeasures(sited({ terrace: { outdoor: 'terrace' }, porch: { outdoor: 'porch' } }))
+    // The house and its roofed porch: 90 + 3.60 m2. The open terrace is left out.
+    expect(site.covered).toBeCloseTo(93.6, 1)
+    expect(site.coverage).toBeCloseTo(93.6 / 600, 1)
+    expect(site.edges.find((e) => e.edge.faces === 'north')!.distance).toBeCloseTo(10.15, 1)
+    expect(site.edges.find((e) => e.edge.faces === 'south')!.distance).toBeCloseTo(8.35, 1)
+    // The same with the terrace counted as building.
+    expect(site.withOpen!.covered).toBeCloseTo(93.6 + 13.95, 1)
+    expect(site.withOpen!.coverage).toBeCloseTo((93.6 + 13.95) / 600, 1)
+    expect(site.withOpen!.edges.find((e) => e.edge.faces === 'north')!.distance).toBeCloseTo(7.15, 1)
+  })
+
+  it('counts a plan whose outdoor rooms are drawn as rooms as it always did, and has no second figure', () => {
+    const drawn = siteMeasures(sited({}))
+    expect(drawn.withOpen).toBeNull()
+    expect(drawn.covered).toBeCloseTo(90 + 13.95 + 3.6, 1)
+    expect(siteMeasures(houseInPlot()).withOpen).toBeNull()
+  })
+
+  it('counts an open outdoor room marked roofed as building', () => {
+    const site = siteMeasures(sited({ terrace: { outdoor: 'terrace', roofed: true }, porch: { outdoor: 'porch' } }))
+    expect(site.covered).toBeCloseTo(90 + 13.95 + 3.6, 1)
+    expect(site.withOpen).toBeNull()
+  })
+})

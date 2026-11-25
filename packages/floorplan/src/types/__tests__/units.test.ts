@@ -12,6 +12,11 @@ describe('reading a length (WRT-7)', () => {
     expect(readLength('6 1/2"')).toBeCloseTo(6.5 * 0.0254, 12)
   })
 
+  it('reads kilometres (WRT-22)', () => {
+    for (const text of ['10km', '10 km', '10 kilometres', '10 kilometers']) expect(readLength(text), text).toBeCloseTo(10000, 9)
+    expect(readLength('0,25 km', 'comma')).toBeCloseTo(250, 9)
+  })
+
   it('names the decimal comma when it is not chosen', () => {
     expect(() => readLength('3,45')).toThrow(/decimal comma/)
   })

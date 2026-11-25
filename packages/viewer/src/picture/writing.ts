@@ -151,7 +151,9 @@ export function keyEntries(
 ): KeyEntry[] {
   const say = (key: Parameters<typeof drawingText>[1], values?: Parameters<typeof drawingText>[2]): string => drawingText(words, key, values)
   const entries: KeyEntry[] = []
-  const solid = drawing.walls.filter((wall) => !wall.virtual && wall.phase === undefined)
+  // CNT-26: a garden or boundary wall has its own entry, in the fill it is drawn in.
+  const garden = drawing.walls.some((wall) => !wall.virtual && wall.phase === undefined && wall.landscape === true)
+  const solid = drawing.walls.filter((wall) => !wall.virtual && wall.phase === undefined && wall.landscape !== true)
   // SHT-10: each kind of wall in the fill the look draws it with.
   const fill = shown.walls ?? { outside: look.wallExterior, inside: look.wallInside ?? look.wall, partition: look.wallPartition ?? look.wallInside ?? look.wall }
   if (solid.some((wall) => wall.exposure === 'exterior')) entries.push({ swatch: 'fill', color: fill.outside, words: say('drawing.key.outsideWall') })
@@ -159,6 +161,7 @@ export function keyEntries(
   if (solid.some((wall) => wall.exposure === 'separating')) entries.push({ swatch: 'fill', color: fill.outside, words: say('drawing.key.separatingWall') })
   if (solid.some((wall) => wallDrawnKind(wall) === 'inside')) entries.push({ swatch: 'fill', color: fill.inside, words: say('drawing.key.insideWall') })
   if (solid.some((wall) => wallDrawnKind(wall) === 'partition')) entries.push({ swatch: 'fill', color: fill.partition, words: say('drawing.key.partition') })
+  if (garden) entries.push({ swatch: 'fill', color: fill.partition, words: say('drawing.key.gardenWall') })
   for (const entry of shown.materials ?? []) entries.push({ swatch: 'hatch', color: entry.ink, angles: entry.angles, words: say('drawing.key.material', { material: entry.material }) })
   // CNT-10: a plan with phases keys its walls by what the work does to them.
   const phased = drawing.walls.filter((wall) => !wall.virtual && wall.phase !== undefined)

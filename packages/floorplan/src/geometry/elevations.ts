@@ -14,6 +14,7 @@ import { wallPeak } from './roofs'
 import { buildingOfFloor } from './buildings'
 import { outdoorOnlyWalls } from './outdoor'
 import { tolerancesAsStated } from './tolerances'
+import { landscapeWalls } from './landscape'
 
 /** What a storey with no drawn wall counts as: the plan's default wall height. */
 export const DEFAULT_STOREY_HEIGHT = 2.7
@@ -167,8 +168,11 @@ function tallestDrawnWall(plan: FloorPlan, floor: Floor): number {
     const slice = storeySlice(plan, floor.id)
     const index = indexPlan(slice)
     const broken = new Set(validatePlan(slice, index, { spaces: false }).broken)
-    // CNT-7 (C26): a fence or a parapet round outdoor space is no part of the building's storey.
-    const open = outdoorOnlyWalls(index)
+    // CNT-7 (C26): a fence or a parapet round outdoor space is no part of the building's storey,
+    // nor (CNT-26) a garden or boundary wall standing apart.
+    const fenced = outdoorOnlyWalls(index)
+    const landscape = landscapeWalls(slice, index)
+    const open = { has: (id: string): boolean => fenced.has(id) || landscape.has(id) }
     let tallest = 0
     for (const wall of slice.walls) {
       // LVL-6: a wall the floor's roof cuts is as tall as the roof leaves it.

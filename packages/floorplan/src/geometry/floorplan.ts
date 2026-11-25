@@ -19,7 +19,7 @@ import { wallJoints } from './joints'
 import type { WallExposure } from './exposure'
 import { roomFloorArea, tryRoomShape } from './room'
 import { poleOfInaccessibility } from './innerPoint'
-import { wallExposure } from './exposure'
+import { wallExposure, wallSides } from './exposure'
 import type { Issue } from './validate'
 import { brokenOnFloor, validatePlan } from './validate'
 import type { PlanStep } from './steps'
@@ -89,6 +89,11 @@ export interface PlanWall {
   readonly partition?: true
   /** SHT-10: the material of the wall's type (CNT-15, C24), as the person names it, for a detailed drawing's hatch. Left out with none. */
   readonly material?: string
+  /**
+   * CNT-26: a garden or boundary wall, standing apart from the building (`landscapeWalls`), so a
+   * drawing draws it lighter than an outside wall and keys it apart. Left out for every other wall.
+   */
+  readonly landscape?: true
 }
 
 /** CNT-18: a curved wall's arc in a drawing (`PlanWall.curve`). */
@@ -525,7 +530,8 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
       ...phaseOf(wall.id),
       // SHT-10: a stated partition standing inside, and its type's material, for the drawing's detail.
       ...(wall.kind === 'partition' && !wall.virtual && exposure === 'interior' && { partition: true as const }),
-      ...(material !== null && !wall.virtual && { material })
+      ...(material !== null && !wall.virtual && { material }),
+      ...(wallSides(index, wall.id)?.landscape === true && { landscape: true as const })
     })
 
     for (const slice of slices) extent.push(...slice)

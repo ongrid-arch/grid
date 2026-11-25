@@ -7,7 +7,9 @@
  * unit, and are no rule: a message never says what a building must be.
  *
  * Where the plan says it is a home (a room in it is used as a bedroom or a living room), the
- * limits for a home apply; otherwise those for any building.
+ * limits for a home apply; where it, or a floor of it, says it is a building of large halls
+ * (WRT-22: for assembly, sport, industry or a warehouse), those for a hall, the units question
+ * among them; otherwise those for any building.
  */
 
 import type { FloorPlan, Opening, PlanIndex, Wall } from './plan'
@@ -25,8 +27,19 @@ import type { Issue } from './validate'
 /** The room uses that make a plan a home. */
 const HOME_USES: readonly string[] = ['bedroom', 'living']
 
-/** What kind of building the plan says it is: a home when a room in it is used as one. */
-export function buildingKind(plan: FloorPlan): BuildingKind {
+/** WRT-22: the kinds of building (CNT-5) whose rooms and walls are a hall's: large spans, tall walls. */
+const HALL_BUILDINGS: readonly string[] = ['assembly', 'sport', 'industry', 'warehouse']
+
+/** The parts of a plan its kind of building is read from. */
+export type KindOfPlan = Pick<FloorPlan, 'rooms' | 'building' | 'floors'>
+
+/**
+ * What kind of building the plan says it is: a hall when it, or a floor of it, is said to be for
+ * assembly, sport, industry or a warehouse (WRT-22); else a home when a room in it is used as one.
+ */
+export function buildingKind(plan: KindOfPlan): BuildingKind {
+  const said = [plan.building, ...(plan.floors ?? []).map((floor) => floor.building)]
+  if (said.some((kind) => kind !== undefined && HALL_BUILDINGS.includes(kind))) return 'hall'
   return plan.rooms.some((room) => room.use !== undefined && HOME_USES.includes(room.use)) ? 'home' : 'any'
 }
 
@@ -61,10 +74,11 @@ function size(value: number): string {
 const squareMetres = (value: number): Value =>
   groupedNum(value.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
 
-const inHome = (building: BuildingKind): Value => (building === 'home' ? said('issue.part.inHome') : '')
+const inHome = (building: BuildingKind): Value =>
+  building === 'home' ? said('issue.part.inHome') : building === 'hall' ? said('issue.part.inHall') : ''
 
-function within(value: number, low: ToleranceName, high: ToleranceName): boolean {
-  return value >= limit(low) && value <= limit(high)
+function within(value: number, low: ToleranceName, high: ToleranceName, building: BuildingKind = 'any'): boolean {
+  return value >= limit(low, building) && value <= limit(high, building)
 }
 
 interface Typical {
@@ -77,10 +91,11 @@ interface Typical {
  * The units question: the plan's typical sizes are not a building's in metres, and are in one
  * of `UNITS`. Null when the sizes read as metres, or as no unit at all.
  */
-function unitsQuestion(typical: Typical): Issue | null {
+function unitsQuestion(typical: Typical, building: BuildingKind): Issue | null {
   const { height, thickness, door } = typical
   if (height === null || thickness === null) return null
-  if (within(height, 'typicalHeightLowest', 'typicalHeightHighest')) return null
+  // WRT-22: a hall's walls are taller than a storey's; read as metres up to a hall's height.
+  if (within(height, 'typicalHeightLowest', 'typicalHeightHighest', building)) return null
   for (const unit of UNITS) {
     const read = (value: number): number => value * unit.metres
     if (!within(read(height), 'typicalHeightLowest', 'typicalHeightHighest')) continue
@@ -189,7 +204,7 @@ export function validatePlausibility(
     height: median(solid.map((w) => w.height)),
     thickness: median(solid.map((w) => w.thickness)),
     door: median(doors.map((o) => o.width))
-  })
+  }, building)
   if (units !== null) {
     issues.push(units)
     return
