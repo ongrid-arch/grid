@@ -414,3 +414,66 @@ describe('a balcony under another floor keeps its low walls (VEW-35)', () => {
     expect(facade.faces.find((f) => f.wall === 'bs')!.top).toBe(4.05)
   })
 })
+
+describe('a building with curved corners (VEW-36)', () => {
+  /**
+   * A tower 30 m square round its middle, its corners quarter circles of `radius`, one floor, its
+   * core round a courtyard in the middle of the office with two lift doors on its south wall.
+   */
+  function roundedTower(radius: number, curvesFirst = false): FloorPlan {
+    const h = 15
+    const r = radius
+    const at = (id: string, start: [number, number], end: [number, number], centre?: [number, number]) => ({ id, start, end, thickness: 0.3, height: 3.5, ...(centre === undefined ? {} : { arc: { centre, sweep: 90 } }) })
+    const outside = [
+      at('south', [-h + r, -h], [h - r, -h]),
+      at('south-east', [h - r, -h], [h, -h + r], [h - r, -h + r]),
+      at('east', [h, -h + r], [h, h - r]),
+      at('north-east', [h, h - r], [h - r, h], [h - r, h - r]),
+      at('north', [h - r, h], [-h + r, h]),
+      at('north-west', [-h + r, h], [-h, h - r], [-h + r, h - r]),
+      at('west', [-h, h - r], [-h, -h + r]),
+      at('south-west', [-h, -h + r], [-h + r, -h], [-h + r, -h + r]),
+    ]
+    const core = [at('core-s', [-3, -3], [3, -3]), at('core-e', [3, -3], [3, 3]), at('core-n', [3, 3], [-3, 3]), at('core-w', [-3, 3], [-3, -3])]
+    const walls = curvesFirst ? [...outside.filter((w) => 'arc' in w), ...outside.filter((w) => !('arc' in w)), ...core] : [...outside, ...core]
+    return parseFloorPlan({
+      version: '1',
+      walls,
+      rooms: [{ id: 'office', name: 'Office', boundary: outside.map((w) => w.id), holes: [core.map((w) => w.id)] }],
+      openings: [
+        { id: 'band', wall: 'south', type: 'window', offset: 0, width: 2 * (h - r), sill: 0.9, height: 1.8 },
+        { id: 'lift-1', wall: 'core-s', type: 'door', offset: 1, width: 1.2, height: 2.1 },
+        { id: 'lift-2', wall: 'core-s', type: 'door', offset: 3.5, width: 1.2, height: 2.1 },
+      ],
+    })
+  }
+
+  it('draws each side\'s straight wall between its two corners, with its window, and nothing from the core', () => {
+    const plan = roundedTower(4)
+    expect(planFacade(plan, 'south').walls).toEqual(['south', 'south-east', 'south-west'])
+    expect(planFacade(plan, 'east').walls).toEqual(['south-east', 'east', 'north-east'])
+    expect(planFacade(plan, 'north').walls).toEqual(['north-east', 'north', 'north-west'])
+    expect(planFacade(plan, 'west').walls).toEqual(['north-west', 'west', 'south-west'])
+    const south = planFacade(plan, 'south')
+    expect(south.openings).toEqual(['band'])
+    const front = south.faces.find((f) => f.wall === 'south')!
+    // To the centimetre: the side may take in the curve's first millimetres, within `facadeOnFace`.
+    const cm = (n: number): number => Math.round(n * 100) / 100 + 0
+    expect([front.u0, front.u1, front.depth].map(cm)).toEqual([-11, 11, 0])
+    expect(front.openings.map((o) => [o.id, cm(o.u0), cm(o.u1)])).toEqual([['band', -11, 11]])
+    for (const side of FACADE_SIDES) {
+      const facade = planFacade(plan, side)
+      expect(facade.walls.filter((w) => w.startsWith('core')), side).toEqual([])
+      expect(facade.openings.filter((o) => o.startsWith('lift')), side).toEqual([])
+    }
+  })
+
+  it('never draws a corner on a side it does not face, however tight the corners and whatever order the walls come in', () => {
+    const plan = roundedTower(0.6, true)
+    expect(planFacade(plan, 'south').walls).toEqual(['south-east', 'south-west', 'south'])
+    expect(planFacade(plan, 'north').walls).toEqual(['north-east', 'north-west', 'north'])
+    expect(planFacade(plan, 'east').walls).toEqual(['south-east', 'north-east', 'east'])
+    expect(planFacade(plan, 'west').walls).toEqual(['north-west', 'south-west', 'west'])
+    expect(planFacade(plan, 'south').openings).toEqual(['band'])
+  })
+})

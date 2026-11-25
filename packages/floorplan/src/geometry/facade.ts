@@ -206,27 +206,39 @@ const band = (a: Vec2, b: Vec2, bottomA: number, bottomB: number, thickness: num
  * walls leaves a corner a little off square, with a notch a hair wide, and cuts a straight side
  * into pieces there. A point within `facadeOnFace` of the line through its neighbours is not a
  * corner, whether it lies between them or past one, at the tip of a notch with no width.
+ *
+ * VEW-36: every point taken out stays within `facadeOnFace` of the side that is left, not only of
+ * the line through its neighbours when it was taken. Otherwise a straight side swallows, one
+ * station at a time, the start of a curve it runs into, as on a rounded corner, and turns off the
+ * straight wall's face by more than that, so the wall is no longer found on it.
  */
 function straightened(ring: readonly Pair[]): Vec2[] {
   const closed = ring.length > 1 && ring[0]![0] === ring[ring.length - 1]![0] && ring[0]![1] === ring[ring.length - 1]![1]
-  const points = (closed ? ring.slice(0, -1) : ring).map(([x, y]) => ({ x, y }))
+  const all = (closed ? ring.slice(0, -1) : ring).map(([x, y]) => ({ x, y }))
   const near = tolerance('facadeOnFace')
-  for (let changed = true; changed && points.length > 3; ) {
+  const offLine = (p: Vec2, a: Vec2, b: Vec2): number => {
+    const length = Math.hypot(b.x - a.x, b.y - a.y)
+    return length > 0 ? Math.abs((p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)) / length : Math.hypot(p.x - a.x, p.y - a.y)
+  }
+  // The points kept, by their place in the ring.
+  const kept = all.map((_, i) => i)
+  for (let changed = true; changed && kept.length > 3; ) {
     changed = false
-    for (let i = 0; i < points.length; i++) {
-      const prev = points[(i - 1 + points.length) % points.length]!
-      const here = points[i]!
-      const next = points[(i + 1) % points.length]!
-      const length = Math.hypot(next.x - prev.x, next.y - prev.y)
-      const off = length > 0 ? Math.abs((here.x - prev.x) * (next.y - prev.y) - (here.y - prev.y) * (next.x - prev.x)) / length : Math.hypot(here.x - prev.x, here.y - prev.y)
-      if (off <= near) {
-        points.splice(i, 1)
-        changed = true
-        break
-      }
+    for (let i = 0; i < kept.length && kept.length > 3; i++) {
+      const from = kept[(i - 1 + kept.length) % kept.length]!
+      const to = kept[(i + 1) % kept.length]!
+      const prev = all[from]!
+      const next = all[to]!
+      // Every point between the two neighbours, this one and the ones taken out before it.
+      let straight = true
+      for (let j = (from + 1) % all.length; j !== to && straight; j = (j + 1) % all.length) straight = offLine(all[j]!, prev, next) <= near
+      if (!straight) continue
+      kept.splice(i, 1)
+      i--
+      changed = true
     }
   }
-  return points
+  return kept.map((i) => all[i]!)
 }
 
 /** Each edge of an outline that turns toward the side, and shows some width across the view. */
@@ -252,6 +264,19 @@ function edgesFacing(pieces: MultiPolygon, direction: Vec2): { a: Vec2; b: Vec2;
     }
   }
   return out
+}
+
+/**
+ * How far a curved wall's outside face may bow off a straightened edge of the outline and still
+ * lie on it (CNT-18): the sagitta of its curve over the edge, and never more than `facadeOnFace`,
+ * since `straightened` keeps every point of the outline within that of the edge it leaves. Taken
+ * over the edge alone, a long straight side between two tight corners would allow metres, and a
+ * corner on the far side of the building would be drawn on it (VEW-36).
+ */
+function curveBow(edge: { readonly length: number }, wall: Wall): number {
+  const curve = wallCurve(wall)
+  if (curve === null) return 0
+  return Math.min(tolerance('facadeOnFace'), (edge.length * edge.length) / (8 * (curve.radius + wall.thickness / 2)))
 }
 
 /** A wall's outside face along an edge: the stretch of the edge it covers, from the edge's start. */
@@ -281,10 +306,9 @@ function coversOf(edge: { a: Vec2; e: Vec2; length: number }, walls: readonly Wa
     const p = { x: sx + normal.x * half, y: sy + normal.y * half }
     const q = { x: wall.end[0] + normal.x * half, y: wall.end[1] + normal.y * half }
     // A piece of a curved wall lies on the curve, which bows off a straightened edge of the
-    // outline by up to the edge's sagitta (CNT-18).
+    // outline (CNT-18, VEW-36: `curveBow`).
     const owner = owners.get(wall)
-    const curve = owner === undefined ? null : wallCurve(owner)
-    const bow = curve === null ? 0 : (edge.length * edge.length) / (8 * (curve.radius + owner!.thickness / 2))
+    const bow = owner === undefined ? 0 : curveBow(edge, owner)
     if (off(p) > near + bow || off(q) > near + bow) continue
     const t0 = Math.max(0, Math.min(along(p), along(q)))
     const t1 = Math.min(edge.length, Math.max(along(p), along(q)))
@@ -356,7 +380,7 @@ function openingsIn(
     const curve = wallCurve(wall)
     if (curve !== null) {
       const off = Math.abs((centre.x - edge.a.x) * edge.e.y - (centre.y - edge.a.y) * edge.e.x)
-      if (off > wall.thickness / 2 + tolerance('facadeOnFace') + (edge.length * edge.length) / (8 * (curve.radius + wall.thickness / 2))) continue
+      if (off > wall.thickness / 2 + tolerance('facadeOnFace') + curveBow(edge, wall)) continue
     }
     const middle = along(centre)
     if (middle < stretch.t0 - tolerance('noLength') || middle > stretch.t1 + tolerance('noLength')) continue
