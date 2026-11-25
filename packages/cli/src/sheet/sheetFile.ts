@@ -219,8 +219,7 @@ export interface MadeDrawing {
 
 /**
  * The drawing's file names: the plan's export name, its floor by its place when the plan has
- * several, `-drawing`, and its scale and paper (`-1-100-A3`), so drawings of one floor at
- * different scales or papers never replace each other. Without them (before the sheet is made) the stem is the name only.
+ * several, `-drawing`, and its scale and paper (`-1-100-A3`) once the sheet is made.
  */
 function drawingStem(planFile: string, loaded: LoadedPlan, floor: string, made?: { scale: number; paper: string }): { stem: string; note?: string } {
   const { base, note } = exportBaseOf(planFile)
