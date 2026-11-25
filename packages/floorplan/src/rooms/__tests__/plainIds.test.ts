@@ -118,7 +118,7 @@ describe('a plan that holds ids with no plain form (CMD-24)', () => {
     const plan = olderPlan()
     const { plan: plainPlan, renamed } = withPlainIds(plan)
     expect(renamed.length).toBeGreaterThan(3)
-    const ids = JSON.stringify({ ...plainPlan, rooms: plainPlan.rooms.map(({ name: _name, ...room }) => room) })
+    const ids = JSON.stringify({ ...plainPlan, rooms: plainPlan.rooms.map((room) => ({ ...room, name: '' })) })
     expect(ids).not.toMatch(/[-"](?:客厅|卧室|次卧)[-"]/u)
     expect(plainPlan.rooms.map((r) => [r.id, r.name])).toEqual([['living', '客厅'], ['bedroom', '卧室'], ['bedroom-2', '卧室']])
     expect(plainPlan.rooms.flatMap((r) => r.boundary).every((id) => plainPlan.walls.some((w) => w.id === id))).toBe(true)
