@@ -4,7 +4,7 @@ import { NAME_MAX } from '../planText'
 import { jsonSchemaOf, parseSheetWords, sheetWordsJsonSchema, sheetWordsProblem, SHEET_HEADLINE_MAX, SHEET_PARAGRAPH_MAX, SheetWordsRefused } from '../sheet'
 
 const floors = ['ground', 'first']
-const ok = { version: '1', name: 'Solace House', headline: 'A retreat', intro: ['One.'], floors: { ground: ['Two.'] } }
+const ok = { version: '1', name: 'Solace House', drawing: 'Ground floor, as built', headline: 'A retreat', intro: ['One.'], floors: { ground: ['Two.'] } }
 
 describe('sheet.json (VEW-7)', () => {
   it('takes good words', () => {
@@ -95,6 +95,7 @@ describe('sheet.json (VEW-7)', () => {
   it('gives the same limits in the JSON Schema a tool shows', () => {
     const { properties } = sheetWordsJsonSchema() as { properties: Record<string, { minLength?: number; maxLength?: number; items?: { minLength?: number; maxLength?: number } }> }
     expect(properties['name']).toEqual({ type: 'string', minLength: 1, maxLength: NAME_MAX })
+    expect(properties['drawing']).toEqual({ type: 'string', minLength: 1, maxLength: NAME_MAX })
     expect(properties['headline']).toEqual({ type: 'string', minLength: 1, maxLength: SHEET_HEADLINE_MAX })
     expect(properties['intro']!.items).toEqual({ type: 'string', minLength: 1, maxLength: SHEET_PARAGRAPH_MAX })
   })

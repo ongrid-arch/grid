@@ -210,3 +210,42 @@ describe('grid_sheet layout drawing (SHT-6)', () => {
     await expect(call({ plan: 'plan.json', layout: 'drawing', scale: 20, paper: 'A4' })).rejects.toThrow(/^At 1:20 the floor's drawing is \d+ x \d+ mm, larger than A4 can hold: A\d fits it, or 1:\d+ fits A4\.$/)
   })
 })
+
+describe('grid_sheet words reach a drawing (SHT-18)', () => {
+  const words = { version: '1', name: 'Harbour View', drawing: 'Ground floor, as built' }
+
+  it('puts the name and the drawing title in the title block, from the sheet argument', async () => {
+    const ctx = context()
+    const reply = await call({ plan: 'plan.json', layout: 'drawing', scale: 100, paper: 'A4', sheet: words }, ctx)
+    const svg = readFileSync(join(ctx.dir, String(reply.data['svg'])), 'utf8')
+    expect(svg).toContain('Harbour View')
+    expect(svg).toContain('Ground floor, as built')
+    expect(svg).not.toContain('Ground floor plan')
+  })
+
+  it('reads the same words from the sheet file beside the plan', async () => {
+    const ctx = context()
+    writeFileSync(join(ctx.dir, 'plan.sheet.json'), JSON.stringify(words))
+    const reply = await call({ plan: 'plan.json', layout: 'drawing', scale: 100, paper: 'A4' }, ctx)
+    const svg = readFileSync(join(ctx.dir, String(reply.data['svg'])), 'utf8')
+    expect(svg).toContain('Harbour View')
+    expect(svg).toContain('Ground floor, as built')
+  })
+
+  it('keeps Grid\'s own title when the words give none', async () => {
+    const ctx = context()
+    const reply = await call({ plan: 'plan.json', layout: 'drawing', scale: 100, paper: 'A4', sheet: { version: '1', name: 'Harbour View' } }, ctx)
+    const svg = readFileSync(join(ctx.dir, String(reply.data['svg'])), 'utf8')
+    expect(svg).toContain('Harbour View')
+    expect(svg).toMatch(/ plan</)
+  })
+
+  it('says in its own words that a drawing takes the words', () => {
+    expect(tool.description).toMatch(/drawing is its title/)
+    expect((tool.args['sheet'] as { description: string }).description).not.toMatch(/^Client only/)
+  })
+
+  it('refuses a drawing title that is too long, naming the field', async () => {
+    await expect(call({ plan: 'plan.json', layout: 'drawing', sheet: { version: '1', drawing: 'x'.repeat(NAME_MAX + 1) } })).rejects.toThrow(/drawing is longer than 120 characters/)
+  })
+})
