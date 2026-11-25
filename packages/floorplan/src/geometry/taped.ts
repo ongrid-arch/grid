@@ -20,7 +20,8 @@ import { roomOutline, type RoomOutline } from './room'
 import { fixedText } from './rounding'
 import { tolerance } from './tolerances'
 import { wallFaces } from './wall'
-import { cross, distance, intersectLines, sub, type Line, type Vec2 } from './vec2'
+import { curvePieceCount, wallCurve, type WallCurve } from './arc'
+import { add, cross, distance, dot, intersectLines, scale, sub, type Line, type Vec2 } from './vec2'
 
 /** What a taped length is of. */
 export type TapedWhat = 'side' | 'corners'
@@ -85,27 +86,73 @@ function sideAlong(polygon: readonly Vec2[], face: Line): number | null {
   return any ? total : null
 }
 
+/** CNT-32: the face of a curved wall that looks into the room, a circle round the wall's centre. */
+interface RoundFace {
+  readonly curve: WallCurve
+  readonly radius: number
+}
+
+/**
+ * CNT-32: the circle the room's outline runs along a curved wall by: of its two faces, the one
+ * the outline has edges on. It is found on the outline itself, since the side the outline names
+ * for a curved wall it goes round against the wall's own direction is told from the way it goes.
+ */
+function roundFace(wall: Wall, outline: RoomOutline): RoundFace | null {
+  const curve = wallCurve(wall)
+  if (!outline.sides.some((s) => s.wallId === wall.id) || curve === null) return null
+  const half = wall.virtual ? 0 : wall.thickness / 2
+  const polygon = outline.polygon
+  for (const radius of [curve.radius - half, curve.radius + half]) {
+    const face = { curve, radius }
+    if (polygon.some((a, i) => alongRound(face, a, polygon[(i + 1) % polygon.length]!))) return face
+  }
+  return null
+}
+
+const TURN = 2 * Math.PI
+
+/** CNT-32: whether a point on a curved face's circle lies on the wall's own stretch of it, from its start round its sweep. */
+function onSweep(face: RoundFace, p: Vec2): boolean {
+  const { curve, radius } = face
+  if (curve.closed) return true
+  const angle = Math.atan2(p.y - curve.centre.y, p.x - curve.centre.x)
+  const turned = ((((angle - curve.startAngle) * Math.sign(curve.sweep)) % TURN) + TURN) % TURN
+  const near = tolerance('chainPoint')
+  return turned * radius <= Math.abs(curve.sweep) * radius + near || (TURN - turned) * radius <= near
+}
+
+/** CNT-32: whether a point lies on a curved face: on its circle, along the wall's own stretch of it. */
+function onRound(face: RoundFace, p: Vec2): boolean {
+  return Math.abs(distance(face.curve.centre, p) - face.radius) <= tolerance('chainPoint') && onSweep(face, p)
+}
+
+/**
+ * CNT-32: whether an edge of the outline runs along a curved face: both its ends on the wall's
+ * stretch of the circle, and turning round it no more than one of the curve's straight pieces
+ * does, so a straight side whose corners happen to lie on the circle is not counted as the curve.
+ */
+function alongRound(face: RoundFace, a: Vec2, b: Vec2): boolean {
+  if (!onRound(face, a) || !onRound(face, b)) return false
+  const half = Math.min(1, distance(a, b) / (2 * face.radius))
+  const piece = Math.abs(face.curve.sweep) / curvePieceCount(face.curve)
+  return 2 * Math.asin(half) <= piece + tolerance('chainPoint') / face.radius
+}
+
 /**
  * CNT-18: the outline's length along a curved wall's face that looks into the room: every edge
- * whose two ends lie on that face's circle, round the wall's centre. Going counter-clockwise the
- * left face is the inner one.
+ * that runs along that face's circle, round the wall's centre (CNT-32: along the wall's own
+ * stretch of it).
  */
 function sideRound(outline: RoomOutline, wall: Wall): number | null {
-  const side = outline.sides.find((s) => s.wallId === wall.id)
-  if (side === undefined || wall.arc === undefined) return null
-  const centre = { x: wall.arc.centre[0], y: wall.arc.centre[1] }
-  const axis = distance(centre, { x: wall.start[0], y: wall.start[1] })
-  const half = wall.virtual ? 0 : wall.thickness / 2
-  const radius = axis - (side.face === 'left' ? 1 : -1) * Math.sign(wall.arc.sweep) * half
-  const near = tolerance('chainPoint')
-  const on = (p: Vec2): boolean => Math.abs(distance(centre, p) - radius) <= near
+  const face = roundFace(wall, outline)
+  if (face === null) return null
   let total = 0
   let any = false
   const polygon = outline.polygon
   for (let i = 0; i < polygon.length; i++) {
     const a = polygon[i]!
     const b = polygon[(i + 1) % polygon.length]!
-    if (on(a) && on(b)) {
+    if (alongRound(face, a, b)) {
       total += distance(a, b)
       any = true
     }
@@ -124,6 +171,73 @@ function cornerOf(polygon: readonly Vec2[], a: Line, b: Line): Vec2 | null {
     if (d < gap) [best, gap] = [p, d]
   }
   return best !== null && gap <= tolerance('chainPoint') ? best : null
+}
+
+/** CNT-32: a wall's face that looks into the room: a line for a straight wall, a circle for a curved one. */
+type RoomFace = { readonly line: Line; readonly round?: undefined } | { readonly round: RoundFace; readonly line?: undefined }
+
+/** Where a line crosses a circle: none, or one or two points. */
+function lineMeetsCircle(line: Line, centre: Vec2, radius: number): Vec2[] {
+  const foot = add(line.point, scale(line.dir, dot(sub(centre, line.point), line.dir)))
+  const off = distance(foot, centre)
+  if (off > radius + tolerance('chainPoint')) return []
+  const along = Math.sqrt(Math.max(0, radius * radius - off * off))
+  return along === 0 ? [foot] : [add(foot, scale(line.dir, along)), add(foot, scale(line.dir, -along))]
+}
+
+/** Where two circles cross: none, or one or two points. */
+function circlesMeet(a: Vec2, ra: number, b: Vec2, rb: number): Vec2[] {
+  const d = distance(a, b)
+  if (!(d > 0) || d > ra + rb + tolerance('chainPoint') || d < Math.abs(ra - rb) - tolerance('chainPoint')) return []
+  const along = (d * d + ra * ra - rb * rb) / (2 * d)
+  const dir = scale(sub(b, a), 1 / d)
+  const foot = add(a, scale(dir, along))
+  const across = Math.sqrt(Math.max(0, ra * ra - along * along))
+  const normal = { x: -dir.y, y: dir.x }
+  return across === 0 ? [foot] : [add(foot, scale(normal, across)), add(foot, scale(normal, -across))]
+}
+
+/**
+ * CNT-32: where two of the room's faces cross, one of them at least a curve, which counts only
+ * along its own wall's stretch. (Two straight faces are `cornerOf`'s.)
+ */
+function crossings(a: RoomFace, b: RoomFace): Vec2[] {
+  let points: Vec2[] = []
+  if (a.round !== undefined && b.round !== undefined) points = circlesMeet(a.round.curve.centre, a.round.radius, b.round.curve.centre, b.round.radius)
+  else if (b.round !== undefined) points = lineMeetsCircle(a.line!, b.round.curve.centre, b.round.radius)
+  else if (a.round !== undefined) points = lineMeetsCircle(b.line!, a.round.curve.centre, a.round.radius)
+  return points.filter((p) => (a.round === undefined || onSweep(a.round, p)) && (b.round === undefined || onSweep(b.round, p)))
+}
+
+/** Whether an edge of the outline runs along a face. */
+function along(face: RoomFace, a: Vec2, b: Vec2): boolean {
+  if (face.round !== undefined) return alongRound(face.round, a, b)
+  const near = tolerance('chainPoint')
+  return offLine(a, face.line) <= near && offLine(b, face.line) <= near
+}
+
+/**
+ * CNT-32: the outline's corner where two faces meet when one of them, or both, is a curve: the
+ * outline's point at one of the places the faces cross. Where they cross at two of the room's
+ * corners (a half-round bay closed by one straight wall), the corner where, going round the room
+ * counter-clockwise, the first face gives way to the second; null when that does not settle it.
+ */
+function roundCornerOf(polygon: readonly Vec2[], a: RoomFace, b: RoomFace): Vec2 | null {
+  const found = new Set<number>()
+  for (const at of crossings(a, b)) {
+    let best = -1
+    let gap = Infinity
+    polygon.forEach((p, i) => {
+      const d = distance(p, at)
+      if (d < gap) [best, gap] = [i, d]
+    })
+    if (best >= 0 && gap <= tolerance('chainPoint')) found.add(best)
+  }
+  const list = [...found]
+  if (list.length === 1) return polygon[list[0]!]!
+  const n = polygon.length
+  const turning = list.filter((i) => along(a, polygon[(i + n - 1) % n]!, polygon[i]!) && along(b, polygon[i]!, polygon[(i + 1) % n]!))
+  return turning.length === 1 ? polygon[turning[0]!]! : null
 }
 
 interface Measured {
@@ -152,15 +266,16 @@ function measure(entry: Taped, index: PlanIndex, outlines: Map<string, RoomOutli
   const outline = outlines.get(room.id) ?? null
   if (outline === null) return { drawn: null, missing: 'not-drawn' }
   const faces = new Map<string, Line>()
+  const rounds = new Map<string, RoundFace>()
   const notTheRooms: string[] = []
   // CNT-18: a curved wall's face is a circle, not a line: a side along it is measured round that
-  // circle, and a corner on it is not worked out (it is said as no corner Grid finds).
-  const curved: string[] = []
+  // circle. CNT-32: a corner on it is where the other wall's face crosses that circle.
   for (const id of new Set(walls)) {
     const wall = index.wallsById.get(id)!
     if (wall.arc !== undefined) {
-      if (outline.sides.some((s) => s.wallId === id)) curved.push(id)
-      else notTheRooms.push(id)
+      const round = roundFace(wall, outline)
+      if (round === null) notTheRooms.push(id)
+      else rounds.set(id, round)
       continue
     }
     const face = roomFace(wall, outline)
@@ -168,16 +283,25 @@ function measure(entry: Taped, index: PlanIndex, outlines: Map<string, RoomOutli
     else faces.set(id, face)
   }
   if (notTheRooms.length > 0) return { drawn: null, missing: 'not-the-rooms', missingWalls: notTheRooms }
-  if (entry.wall !== undefined && curved.includes(entry.wall)) {
+  if (entry.wall !== undefined && rounds.has(entry.wall)) {
     const drawn = sideRound(outline, index.wallsById.get(entry.wall)!)
     return drawn === null ? { drawn: null, missing: 'not-drawn' } : { drawn }
   }
-  if (entry.wall === undefined && curved.length > 0) return { drawn: null, missing: 'no-corner', missingWalls: curved }
   if (entry.wall !== undefined) {
     const drawn = sideAlong(outline.polygon, faces.get(entry.wall)!)
     return drawn === null ? { drawn: null, missing: 'not-drawn' } : { drawn }
   }
-  const corner = (pair: readonly [string, string]): Vec2 | null => cornerOf(outline.polygon, faces.get(pair[0])!, faces.get(pair[1])!)
+  const faceOf = (id: string): RoomFace => {
+    const round = rounds.get(id)
+    return round !== undefined ? { round } : { line: faces.get(id)! }
+  }
+  // A wall named twice makes no corner; two straight faces meet where their lines cross, as before.
+  const corner = (pair: readonly [string, string]): Vec2 | null =>
+    pair[0] === pair[1] && rounds.has(pair[0])
+      ? null
+      : rounds.has(pair[0]) || rounds.has(pair[1])
+        ? roundCornerOf(outline.polygon, faceOf(pair[0]), faceOf(pair[1]))
+        : cornerOf(outline.polygon, faces.get(pair[0])!, faces.get(pair[1])!)
   const from = corner(entry.from!)
   const to = corner(entry.to!)
   if (from === null || to === null) return { drawn: null, missing: 'no-corner', missingWalls: [...(from === null ? entry.from! : []), ...(to === null ? entry.to! : [])] }
