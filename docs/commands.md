@@ -466,7 +466,9 @@ How the scan becomes a plan:
   size, and its thickness is marked assumed.
 - **The rooms** are the scan's floor outlines, each side on the wall face along it (within
   0.05 m, `scanFaceReach`); in a scan with no floor outline, the wall faces joined end to end
-  (corners within 0.15 m, `scanCornerGap`) as one room. Each room's corners are where its faces'
+  (corners within 0.15 m, `scanCornerGap`) round as many rooms as they close round; faces that
+  close round no room are named in what was left out, and a scan where none closes is refused.
+  Each room's corners are where its faces'
   lines cross, as every room in Grid is measured, and its name and use come from the scan's room
   type where it gives one. The walls are held to a micrometre, so each room keeps the scan's
   area: the answer gives both, and how far apart they are.
