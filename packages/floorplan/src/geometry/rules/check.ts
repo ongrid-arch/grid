@@ -158,6 +158,8 @@ function floorFindings(
     ...graph.closedCourts.map((u) => u.room),
     // LVL-17: a room whose only door meets a floor much higher has a door, and no route through it.
     ...graph.betweenLevels.flatMap((b) => [b.lower, b.upper]),
+    // ARE-46: a room whose door an item blocks has a door: it is a room no route reaches, not one without a door.
+    ...graph.blocked.flatMap((b) => b.rooms),
     ...graph.rooms.filter((room) => joined.has(at(floor.id, room)))
   ])
   // A floor that is one open room and that no stair joins is reached by a stair the plan does

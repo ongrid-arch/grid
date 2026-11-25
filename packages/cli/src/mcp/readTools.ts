@@ -48,6 +48,7 @@ import {
   routeBetween,
   wallLengths,
   wallThing,
+  wayGraph,
   type RoomHeight,
   type Thing,
 } from '../quantities/measure'
@@ -1690,7 +1691,10 @@ const measureTool: GridTool = {
         const noStair = to === 'outside' ? floorsWithNoStair(survey.plan).find((f) => f.floor === room.facts.floor) : undefined
         const floorName = planFloors(survey.plan).find((f) => f.id === noStair?.floor)?.name ?? noStair?.floor ?? ''
         const why = noStair === undefined ? [] : [english({ key: 'check.noStair.route', values: { floor: { name: floorName }, room: { name: roomCalled(room.facts) } } })]
-        return { text: [...said, `There is no way from ${q(roomCalled(room.facts))} to ${to === 'outside' ? 'the outside' : q(roomCalledById(survey, to))} through the plan's doors and openings.`, ...why, EMPTY_ROOM_RULE].join('\n'), data: { what, answer: { found: false, ...(noStair === undefined ? {} : { noStair }), ...zones }, rule: EMPTY_ROOM_RULE } }
+        // ARE-46: a doorway an item leaves no clear width in is closed; the answer names it and the item.
+        const shut = wayGraph(survey, room.facts.floor).blocked.map((b) => ({ via: b.opening, between: b.rooms, by: b.by }))
+        const shutLines = shut.map((b) => say('en', 'route.blockedDoorway', { kind: survey.plan.openings.find((o) => o.id === b.via)?.type === 'door' ? 'door' : 'opening', via: { name: b.via }, rooms: joined(b.between.map((id) => ({ name: roomCalledById(survey, id) })), 'join.and'), items: joined(b.by.map((id) => ({ name: id })), 'join.comma') }))
+        return { text: [...said, `There is no way from ${q(roomCalled(room.facts))} to ${to === 'outside' ? 'the outside' : q(roomCalledById(survey, to))} through the plan's doors and openings.`, ...shutLines, ...why, EMPTY_ROOM_RULE].join('\n'), data: { what, answer: { found: false, ...(noStair === undefined ? {} : { noStair }), ...(shut.length === 0 ? {} : { blocked: shut }), ...zones }, rule: EMPTY_ROOM_RULE } }
       }
       const name = (id: string): string => (id === 'outside' ? 'outside' : q(roomCalledById(survey, id)))
       const steps = route.steps.map((s) => `${s.type} ${q(s.via)}${s.width === null ? '' : ` ${L(s.width)}`} into ${name(s.into)}`).join(', then ')
