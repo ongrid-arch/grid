@@ -378,6 +378,14 @@ in `movedWith` (`opening`, `with`: `wall` or `room`, `by`: east and north in met
 the text, never among those that stayed: after a side of a room is moved 0.5 m east, its
 windows on that side moved with their wall, 0.50 m east.
 
+The verdict every change answers with, and `grid_compare`, pair openings the same way: by place,
+then at their place along a wall that moved, then by id (WRT-29). A door or window under its id
+in another place is never "where it was": the verdict says it moved and how far, `door "front"
+moved 2.88 m along its wall` when its wall stands where it stood, `window "w4" moved 0.60 m with
+its wall` when its wall moved, and counts more (`3 windows moved 0.30 m along their walls`).
+`grid_compare` lists each under "Openings changed", and its data gives `moved`, in metres, on
+each entry of `openingsChanged`.
+
 ## Use indicators: will it fit, can you turn, is the window blocked
 
 Read this when the person asks whether a wheelchair can turn in a room, whether a trolley gets

@@ -1979,6 +1979,21 @@ export const es: Messages = {
   'diff.floor.metres': '{value} m',
   'diff.floor.notStated': 'sin indicar',
   'compare.same.floors': '{after} tiene los muros, huecos y estancias de {before}, cada uno en su sitio, pero {changes}.',
+  // WRT-29: an opening that moved, among its changes and in the verdict.
+  'compare.opening.moved.along': 'se movió {by} m a lo largo de su muro',
+  'compare.opening.moved.with': 'se movió {by} m con su muro',
+  'compare.opening.moved': 'se movió {by} m',
+  'compare.opening.was.door': 'era una puerta',
+  'compare.opening.was.window': 'era una ventana',
+  'compare.opening.was.opening': 'era un hueco',
+  'compare.openings.moved.one': '{type} {id} {how}',
+  'compare.openings.moved.many': '{count} {kind} se movieron {range} m{how}',
+  'compare.openings.how.along': ' a lo largo de sus muros',
+  'compare.openings.how.with': ' con sus muros',
+  'compare.word.doors': 'puertas',
+  'compare.word.windows': 'ventanas',
+  'compare.word.openings': 'huecos',
+  'compare.range': 'de {from} a {to}',
 
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Plano con {count} estancias',
