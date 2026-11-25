@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ResultLine, ThingKind } from '@ongrid/rules'
 import { openProject, type Project } from '../../fs/projectFiles'
 import { loadPlan } from '../../command/plan'
-import { markSeen, parseSeen, parseSeenLoose, readSeen, SeenRefused } from '../marks'
+import { madeNewAgain, markSeen, parseSeen, parseSeenLoose, readSeen, SeenRefused } from '../marks'
 
 const FLAT = readFileSync(resolve(__dirname, '../../../../floorplan/fixtures/two-bed-flat.json'), 'utf8')
 
@@ -78,5 +78,43 @@ describe('one mark that cannot be read', () => {
     const loaded = loadPlan(project, 'plan.json')
     expect(() => markSeen(project, 'plan.json', loaded, lineOf('room', 'r9'), { reason: 'Kept', by: 'A. Person' })).toThrow(/Nothing was marked/)
     expect(readFileSync(join(dir, 'plan.seen.json'), 'utf8')).toBe(text)
+  })
+})
+
+describe('MSG-29: the notes a change made new again', () => {
+  const room = (id: string): ResultLine => ({ ...lineOf('room', id), code: 'room/note' }) as ResultLine
+  const flat = JSON.parse(FLAT) as { rooms: { id: string; name?: string }[] }
+  const planWith = (name: string): ReturnType<typeof loadPlan> => {
+    const changed = { ...flat, rooms: flat.rooms.map((r) => (r.id === 'bed2' ? { ...r, name } : r)) }
+    writeFileSync(join(dir, 'plan.json'), JSON.stringify(changed))
+    return loadPlan(project, 'plan.json')
+  }
+
+  it('names a note that held before and is new again after, with its number counted for its country', () => {
+    const before = loadPlan(project, 'plan.json')
+    const us = markSeen(project, 'plan.json', before, room('bed2'), { reason: 'Kept small', by: 'A. Person', country: 'US' }).mark
+    expect(us.country).toBe('US')
+    expect(readSeen(project, 'plan.json').marks[0]!.country).toBe('US')
+    const after = planWith('Box room')
+    // The note is the second of the US report, and in no report counted without a country.
+    const lines = (country: string | undefined): ResultLine[] => (country === 'US' ? [room('bed1'), room('bed2')] : [])
+    const made = madeNewAgain(readSeen(project, 'plan.json').marks, { source: before, lines }, { source: after, lines })
+    expect(made.map((m) => [m.number, m.line.thing.id, m.mark.country])).toEqual([[2, 'bed2', 'US']])
+    expect(made[0]!.changed.map((p) => p.id)).toEqual(['bed2'])
+  })
+
+  it('names no note that already did not hold, none the change took away, and none still seen', () => {
+    const before = loadPlan(project, 'plan.json')
+    const lines = (): ResultLine[] => [room('bed2')]
+    const mark = markSeen(project, 'plan.json', before, room('bed2'), { reason: 'Kept small', by: 'A. Person' }).mark
+    expect(mark.country).toBeUndefined()
+    // Still seen: nothing it is about changed.
+    expect(madeNewAgain([mark], { source: before, lines }, { source: before, lines })).toEqual([])
+    const after = planWith('Box room')
+    // Gone: the change took the note away.
+    expect(madeNewAgain([mark], { source: before, lines }, { source: after, lines: () => [] })).toEqual([])
+    // Already new again before the change: it is not news.
+    const later = planWith('Study')
+    expect(madeNewAgain([mark], { source: after, lines }, { source: later, lines })).toEqual([])
   })
 })

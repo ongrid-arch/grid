@@ -9,7 +9,3 @@
 
 - `grid_takeoff`: the text line for each ramp no longer doubles the unit and names both floors by
   name; the levels are written in the asked units. The data is unchanged. No new code in the record.
-
-## Codes
-
-None.
