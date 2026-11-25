@@ -5,7 +5,7 @@ import { house } from '../../canvas2d/__tests__/fixtures'
 import type { FaultLine } from '../faults'
 import { faultsOnFloor, wrapText } from '../faults'
 import { TEXT_PX } from '../look'
-import { fullHeight, pictureToSvg, planPicture, planToSvg } from '../planSvg'
+import { fileHeight, fullHeight, pictureToSvg, planPicture, planToSvg } from '../planSvg'
 
 /** MSG-8, in the viewer: numbering, the key and the file a picture with faults writes. */
 
@@ -51,7 +51,7 @@ describe('a picture given faults', () => {
     expect(picture.key).not.toBeNull()
     expect(fullHeight(picture)).toBe(600 + picture.key!.height)
     const svg = planToSvg(plan(), { width: 800, height: 600, faults: [line('room', firstRoom(), 'ground', 'Something to look at')] })
-    expect(svg).toMatch(new RegExp(`^<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${fullHeight(picture)}" viewBox="0 0 800 ${fullHeight(picture)}"`))
+    expect(svg).toMatch(new RegExp(`^<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${fileHeight(picture)}" viewBox="0 0 800 ${fileHeight(picture)}"`))
     expect(svg).toContain('data-part="key"')
     expect(svg).toContain('>Something to look at</text>')
     expect(svg).toContain(`data-part="fault-mark" data-thing="room" data-id="${firstRoom()}" data-numbers="1"`)

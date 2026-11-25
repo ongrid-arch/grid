@@ -263,3 +263,29 @@ describe('grid_describe length=walk', () => {
     expect(reply.text).toContain('pictures goes with length=walk only')
   })
 })
+
+describe('ARE-23: a room is sized by its own sides, whatever way the doorway faces', () => {
+  // A hall 40 by 16 with its south-west corner cut off by a wall at 45 degrees, and the way in
+  // through that wall: the doorway is crossed square to the cut, a skewed line to the hall.
+  const hall = parseFloorPlan({
+    version: '1',
+    units: 'm',
+    walls: [
+      { id: 'south', start: [4, 0], end: [40, 0], thickness: 0.3, height: 2.6, kind: 'exterior' },
+      { id: 'east', start: [40, 0], end: [40, 16], thickness: 0.3, height: 2.6, kind: 'exterior' },
+      { id: 'north', start: [40, 16], end: [0, 16], thickness: 0.3, height: 2.6, kind: 'exterior' },
+      { id: 'west', start: [0, 16], end: [0, 4], thickness: 0.3, height: 2.6, kind: 'exterior' },
+      { id: 'cut', start: [0, 4], end: [4, 0], thickness: 0.3, height: 2.6, kind: 'exterior' },
+    ],
+    rooms: [{ id: 'hall', name: 'Hall', use: 'corridor', boundary: ['south', 'east', 'north', 'west', 'cut'] }],
+    openings: [{ id: 'door-cut', wall: 'cut', type: 'door', offset: 1.4, width: 1.2, sill: 0, height: 2.1, hinge: 'start', swing: 'left' }],
+  })
+  it('says the hall across and deep as drawn, and the two figures agree with its area', () => {
+    const s = planWalk(surveyPlan(hall), undefined).floors[0]!.stops[0]!
+    expect(s.room).toBe('hall')
+    expect(Math.max(s.across, s.deep)).toBeGreaterThan(36)
+    expect(Math.min(s.across, s.deep)).toBeCloseTo(15.7, 1)
+    expect(s.across * s.deep).toBeGreaterThan(s.area * 0.9)
+    expect(s.across * s.deep).toBeLessThan(s.area * 1.1)
+  })
+})

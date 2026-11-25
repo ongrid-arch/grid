@@ -71,3 +71,15 @@ repository they are in packages/cli/fonts/):
 
 Both are under the SIL Open Font License, Version 1.1, in fonts/OFL-SourceSerif4.txt and
 fonts/OFL-SourceSans3.txt, beside the fonts.
+
+The ongrid package also ships two fonts for names in Arabic and Hebrew on pictures and the sheet,
+in the same fonts/ folder, unchanged (in this repository they are in packages/cli/fonts/):
+
+- Noto Sans Arabic 2.004 (https://github.com/notofonts/arabic), Copyright 2015-2020 Google LLC;
+- Noto Sans Hebrew 2.003 (https://github.com/notofonts/hebrew), Copyright 2022 The Noto Project
+  Authors.
+
+Both are under the SIL Open Font License, Version 1.1, in fonts/OFL-NotoSansArabic.txt and
+fonts/OFL-NotoSansHebrew.txt, beside the fonts. They were taken from the copies another
+open-source application on the development machine ships, byte for byte, with their licence
+notices in the font files' own name tables.

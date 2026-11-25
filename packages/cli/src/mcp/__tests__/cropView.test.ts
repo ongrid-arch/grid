@@ -33,7 +33,7 @@ const inside = (b: Box['box'], x: number, y: number): boolean => x >= b.x && x <
 /** Where the SVG draws each opening's id and each room's label, in its own pixels. */
 async function drawnCentres(frame?: unknown): Promise<{ width: number; points: Map<string, { x: number; y: number }> }> {
   const svg = await drawPlan(JSON.parse(readFileSync(sample, 'utf8')), { format: 'svg', labels: { ids: true }, ...(frame ? { frame } : {}) } as never)
-  const [vx, vy, vw] = /viewBox="([-\d.e]+) ([-\d.e]+) ([-\d.e]+)/.exec(svg)!.slice(1).map(Number) as [number, number, number]
+  const [vx, vy, vw] = /<svg x="0" y="0"[^>]* viewBox="([-\d.e]+) ([-\d.e]+) ([-\d.e]+)/.exec(svg)!.slice(1).map(Number) as [number, number, number]
   const width = Number(/<svg[^>]* width="(\d+)"/.exec(svg)![1])
   const scale = width / vw
   const points = new Map<string, { x: number; y: number }>()

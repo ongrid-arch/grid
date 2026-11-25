@@ -608,6 +608,16 @@ export const TOLERANCES = {
       'and still stand against it. Past it, both are named.',
     basis: own
   },
+  // CNT-21: an item hanging out of its room.
+  itemLeavesRoom: {
+    kind: 'tolerance',
+    value: 0.005,
+    unit: 'm²',
+    decides:
+      'How much of an item\'s floor may lie outside its room, where no wall stands, before it is ' +
+      'named. Past it, the item is named with the room and the floor outside.',
+    basis: own
+  },
   itemAboveRoom: {
     kind: 'tolerance',
     value: 0.001,
@@ -773,6 +783,16 @@ export const TOLERANCES = {
       'How high above a floor its plan is cut. A stair that climbs from the floor is drawn solid ' +
       'up to where its flight reaches this height, with a break line across it there, and dashed ' +
       'above. It only draws the plan; it judges nothing.',
+    basis: own
+  },
+  plinthLeast: {
+    kind: 'tolerance',
+    value: 0.005,
+    unit: 'm',
+    decides:
+      'A floor on the ground whose slab stands less than this above the ground the site states ' +
+      'stands at the ground; higher, its sections and facades carry its walls down to the ground ' +
+      'on a plinth (VEW-16). It only draws; it judges nothing.',
     basis: own
   },
   sectionGroundRun: {

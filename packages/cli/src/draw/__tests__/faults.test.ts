@@ -7,7 +7,7 @@ import { validatePlan } from '@ongrid/floorplan/geometry'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { inspectPlan } from '@ongrid/rules'
-import { LIGHT_LOOK, fullHeight, planPicture } from '@ongrid/viewer/src/picture'
+import { LIGHT_LOOK, fileHeight, planPicture } from '@ongrid/viewer/src/picture'
 import type { SvgNode } from '@ongrid/viewer/src/picture/svgNode'
 import { checkPlan, checkText } from '../../command/check'
 import type { LoadedPlan } from '../../command/plan'
@@ -133,8 +133,11 @@ describe('the numbered marks match the report', () => {
       // The report prints the same number before the same words.
       expect(text).toContain(`  ${number}. `)
       expect(text.split('\n').find((l) => l.startsWith(`  ${number}. `))).toContain(line.message)
-      // Every line has its mark: on its part, or for the floor in the corner.
-      expect(marked.get(`${line.thing.kind}:${line.thing.id}`), `${number} ${line.code}`).toContain(String(number))
+      // Every line has its mark on its part; one about the floor or the plan is in the key only,
+      // so nothing of it covers a wall (VEW-17).
+      const own = marked.get(`${line.thing.kind}:${line.thing.id}`)
+      if (line.thing.kind === 'floor' || line.thing.kind === 'plan') expect(own, `${number} ${line.code}`).toBeUndefined()
+      else if (own !== undefined) expect(own, `${number} ${line.code}`).toContain(String(number))
     }
     // The door that runs off its wall is marked on that wall.
     const door = check.result.lines.find((l) => l.code === 'opening/out-of-wall')!
@@ -205,7 +208,7 @@ describe('a PNG prints the warning words beside each mark (AU2-4)', () => {
 
     const png = await drawPlan(plan, { format: 'png', faults: result.lines })
     const image = await loadImage(Buffer.from(png))
-    expect(image.height).toBe(fullHeight(picture))
+    expect(image.height).toBe(fileHeight(picture))
     expect(image.height).toBeGreaterThan(picture.height)
     const canvas = createCanvas(image.width, image.height)
     const context = canvas.getContext('2d')

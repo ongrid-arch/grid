@@ -21,7 +21,7 @@ import { say } from '@ongrid/floorplan/messages'
 import { TextNotDecoded } from '../fs/textEncoding'
 import { PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
 import { UsageError } from './options'
-import { holdsAPlan } from './planFile'
+import { holdsAPlan, refuseForeignFile } from './planFile'
 
 /** Why a plan was refused. The message is one line. */
 export class PlanRefused extends Error {
@@ -84,6 +84,8 @@ function oneLine(text: string): string {
 
 function readText(project: Project, file: string): { text: string; real: string } {
   try {
+    // CMD-20: a CAD file, a PDF or a picture is named for what it is, before it is read as text.
+    refuseForeignFile(file, project.readBytes(file, PLAN_FILE_MAX_BYTES))
     return project.readText(file, PLAN_FILE_MAX_BYTES)
   } catch (error) {
     if (error instanceof TextNotDecoded) throw new PlanRefused(oneLine(error.message))

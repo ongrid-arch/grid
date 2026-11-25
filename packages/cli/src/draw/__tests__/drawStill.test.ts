@@ -6,6 +6,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { LIGHT_COLORS_3D, planStill } from '@ongrid/viewer/src/still'
 import { drawStill } from '../drawStill'
+import { captionHeight, readLabelMetadata } from '../stamp'
 
 /**
  * 3D stills from a plain function call, in plain Node: no browser, no WebGL, no GPU, no app.
@@ -48,7 +49,7 @@ describe('drawStill', () => {
     expect(LIGHT_COLORS_3D.background).toBe('#f1eee8')
   })
 
-  it('stamps the label in the top-left corner and leaves the rest of the still as it was (MSG-3)', async () => {
+  it('writes the label in a caption band inside the size asked for, and in the metadata (MSG-3, VEW-17)', async () => {
     const pixelsOf = async (png: Uint8Array): Promise<Uint8ClampedArray> => {
       const image = await loadImage(Buffer.from(png))
       const canvas = createCanvas(image.width, image.height)
@@ -56,12 +57,18 @@ describe('drawStill', () => {
       context.drawImage(image, 0, 0)
       return context.getImageData(0, 0, image.width, image.height).data
     }
-    const labelled = await pixelsOf(await drawStill(flat))
-    const plain = await pixelsOf(await drawStill(flat, { label: false }))
+    const file = await drawStill(flat)
+    expect(pngSize(file)).toEqual([1200, 800])
+    expect(readLabelMetadata(file)).toBe('General guidance, not your local rules')
+    expect(readLabelMetadata(await drawStill(flat, { label: false }))).toBeNull()
+    const labelled = await pixelsOf(file)
     const row = 1200 * 4
-    // The strip is at most 30 rows high: everything under it is the still's own.
-    expect(Buffer.from(labelled.subarray(30 * row)).equals(Buffer.from(plain.subarray(30 * row)))).toBe(true)
-    expect(Buffer.from(labelled.subarray(0, 30 * row)).equals(Buffer.from(plain.subarray(0, 30 * row)))).toBe(false)
+    // The band is the last rows: paper with the label's ink on it, and none of the still's own.
+    const band = labelled.subarray(800 * row - captionHeight(1200) * row)
+    expect(new Set([...band].filter((_, i) => i % 4 === 0)).size).toBeGreaterThan(1)
+    expect([...band.subarray(0, 4)]).toEqual([255, 255, 255, 255])
+    // Nothing of the label is over the still: its top-left corner is the still's background.
+    expect([...labelled.subarray(0, 3)]).toEqual([0xf1, 0xee, 0xe8])
   })
 
   it('draws twice as wide and tall at scale 2', async () => {

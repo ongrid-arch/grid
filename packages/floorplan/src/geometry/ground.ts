@@ -12,12 +12,17 @@
  * Unstated, the ground is at 0 and the ground floor is the floor at level 0, exactly as before.
  * One level for the whole site: the ground on each side of a house on a slope comes later.
  *
+ * A floor on the ground whose slab stands clear of the ground stands on a plinth (VEW-16,
+ * `plinthUnder`): its sections and facades carry it down to the ground, so nothing is left open
+ * under it.
+ *
  * Pure, and never throws.
  */
 
 import { floorOf, planFloors, planForFloor } from './floors'
 import type { BuildingElevations } from './elevations'
 import { floorElevations } from './elevations'
+import type { FloorSlab } from './envelope'
 import type { Floor, FloorPlan, Opening } from './plan'
 import { indexPlan } from './plan'
 import { planWallSides, stretchAt } from './exposure'
@@ -78,6 +83,27 @@ export function groundLevel(plan: FloorPlan, elevations: BuildingElevations = fl
     groundFloors = onGround.filter((f) => Math.abs(above.get(f.id)!) - nearest <= tolerance('sameFloorLevel'))
   }
   return { level, stated: stated !== null, above, groundFloors, aboveGround }
+}
+
+/** The plinth a floor stands on, from the ground up to the underside of its slab. */
+export interface Plinth {
+  /** The ground's level. */
+  readonly bottom: number
+  /** The underside of the floor's slab. */
+  readonly top: number
+}
+
+/**
+ * VEW-16: the plinth under a floor, or null. A floor has one when its slab is a base slab (LVL-4:
+ * on the lowest level, standing on the ground, `below` unstated or `ground`) and the slab's
+ * underside stands more than `plinthLeast` above the ground: the walls are carried down to the
+ * ground under it. A floor at the ground or below it, or standing on anything else, has none.
+ */
+export function plinthUnder(slab: FloorSlab | null, ground: number): Plinth | null {
+  if (slab === null || slab.kind !== 'base' || !Number.isFinite(ground)) return null
+  const foot = slab.top - Math.max(0, slab.thickness)
+  if (!Number.isFinite(foot) || !(foot - ground > tolerance('plinthLeast'))) return null
+  return { bottom: ground, top: foot }
 }
 
 /** A door or window in an outside wall that lies below the ground the site states. */
