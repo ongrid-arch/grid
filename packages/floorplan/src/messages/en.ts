@@ -2045,7 +2045,7 @@ export const en = {
   'rooms.rawRoom.fact': "{id}: {kind} {width} m in {wall}, joins {joins}; {from} m from the wall's start, {to} m from its end{said}",
   'rooms.rawRoom.opensInto': '; opens into {room}',
   'rooms.rawRoom.sweepsNothing': '; {kind}, which sweeps nothing',
-  'rooms.rawRoom.noSwing': '; no swing stated (Grid draws a dashed line and "?" and does not check its sweep)',
+  'rooms.rawRoom.noSwing': '; swing not decided (Grid draws a plain gap)',
   'rooms.rawRoom.guessed': "Line {line}: door '{id}' did not say everything, so: {list}.",
   'rooms.rawRoom.guess.opens': "opens into '{room}'",
   'rooms.rawRoom.guess.hingeMeasured': 'hinged at the jamb nearer the end it was measured from',

@@ -229,12 +229,11 @@ describe('the technical look: its basics', () => {
     }
   })
 
-  it('draws the undecided door the same in the working look, and leaves the rest to the technical look', () => {
+  it('leaves all of it to the technical look: the working look draws the app\'s plain drawing', () => {
     const working = planToSvg(plan())
-    expect(tagsOf(working, 'door-undecided')).toHaveLength(1)
-    expect(planPicture(plan()).undecidedDoors).toEqual(['o2'])
-    for (const part of ['wall-outlines', 'window-symbol', 'dimension-tick']) expect(working).not.toContain(`data-part="${part}"`)
+    for (const part of ['wall-outlines', 'window-symbol', 'door-undecided', 'dimension-tick']) expect(working).not.toContain(`data-part="${part}"`)
     expect(tagsOf(working, 'dimension-text').some((tag) => attr(tag, 'transform') !== undefined)).toBe(false)
-    expect(LOOKS.working.glass || LOOKS.working.wallOutline !== null || LOOKS.working.draftedDimensions).toBe(false)
+    expect(planPicture(plan()).undecidedDoors).toEqual([])
+    expect(LOOKS.working.undecidedDoors || LOOKS.working.glass || LOOKS.working.wallOutline !== null || LOOKS.working.draftedDimensions).toBe(false)
   })
 })
