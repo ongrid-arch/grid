@@ -2092,6 +2092,7 @@ export const en = {
   'drawing.key.existingWall': 'Existing wall',
   'drawing.key.newWall': 'New wall',
   'drawing.key.demolished': 'To be demolished',
+  'view.phases.work': 'The plan marks its work: {total} to be demolished ({walls} walls, {openings} openings, {rooms} rooms), drawn dashed and in the key as "to be demolished", the same count grid_check gives; {new} new. Measures and checks read the building after the work.',
   'describe.count.opening.one': '{count} opening',
   'describe.count.opening.many': '{count} openings',
   'describe.work': 'It holds work: to be demolished {demolished}; new {new}; the sizes here are after the work.',

@@ -1981,9 +1981,8 @@ const viewTool: GridTool = {
       if (trace.line !== null) lines.push(trace.line)
       if (work !== null) {
         const gone = work.demolished
-        const some = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
         const total = gone.walls + gone.openings + gone.rooms
-        lines.push(`The plan marks its work: ${total} ${total === 1 ? 'part is' : 'parts are'} to be demolished (${some(gone.walls, 'wall')}, ${some(gone.openings, 'opening')}, ${some(gone.rooms, 'room')}), drawn dashed and in the key as "to be demolished", the same count grid_check gives; ${work.new.walls + work.new.openings + work.new.rooms} new. Measures and checks read the building after the work.`)
+        lines.push(english(said('view.phases.work', { total: num(String(total)), walls: num(String(gone.walls)), openings: num(String(gone.openings)), rooms: num(String(gone.rooms)), new: num(String(work.new.walls + work.new.openings + work.new.rooms)) })))
       }
       const marked = faults.filter((line) => line.floor === null || line.floor === shown).length
       if (marked > 0) lines.push(`${marked} of grid_check's lines are about this floor: each has its grid_check number on the part it is about, and all are listed under the drawing. A room that cannot be drawn is the dashed box round its walls.`)

@@ -106,7 +106,7 @@ describe('a plan with existing, demolished and new parts (CNT-10, EL-10)', () =>
     expect(boxes).toContain('d-kitchen')
     expect(boxes).toContain('win-south-old')
     // 1 wall, 3 openings and 3 rooms: the count the work line of grid_describe and grid_check give.
-    expect(view.text).toContain('7 parts are to be demolished (1 wall, 3 openings, 3 rooms)')
+    expect(view.text).toContain('7 to be demolished (1 walls, 3 openings, 3 rooms)')
     const check = await ok('grid_check', { plan: 'refurb.json', full: true })
     expect(check.text).toContain('7 to be demolished')
     // A demolished id can be picked out.
