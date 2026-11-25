@@ -8,6 +8,7 @@
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { CameraRecord } from '@ongrid/floorplan/geometry'
 import { GROUND_GRID } from '../canvas3d/BuildingScene'
+import { stillRoofShown } from '../canvas3d/building'
 import type { PlanColors3D } from '../canvas3d/usePlanColors'
 import { DARK_COLORS_3D, LIGHT_COLORS_3D } from './look3d'
 import { rasterise, type RasterImage } from './rasterise'
@@ -15,6 +16,7 @@ import { stillScene } from './stillScene'
 
 export { OPENING_CAMERA, openingCamera, recordCamera, type RecordCameraProps, type ViewCamera } from '../canvas3d/camera'
 export { LIGHT_COLORS_3D, DARK_COLORS_3D } from './look3d'
+export { stillRoofShown } from '../canvas3d/building'
 export { stillScene, type StillScene, type StillSceneOptions } from './stillScene'
 export { rasterise, type RasterImage, type RasteriseOptions, type GroundGrid } from './rasterise'
 
@@ -38,6 +40,12 @@ export interface StillOptions {
    * the floor shown cut away unless `focus` says otherwise. The app's opening camera when left out.
    */
   readonly camera?: CameraRecord
+  /**
+   * VEW-19: whether the roof is drawn over every part with nothing above, the stated roof where a
+   * floor states one. `stillRoofShown` when left out: yes from outside, or when a floor states
+   * its roof, and no with a floor cut away.
+   */
+  readonly roof?: boolean
 }
 
 /** The most pixels a still may have: 4800 by 3200 is within it. */
@@ -65,7 +73,8 @@ export function planStill(plan: FloorPlan, options: StillOptions = {}): RasterIm
 
   const camera = options.camera
   const focus = options.focus !== undefined ? options.focus : (camera?.cut ?? null)
-  const still = stillScene(plan, { focus, colors, width, height, ...(camera ? { camera } : {}) })
+  const roof = options.roof ?? stillRoofShown(plan, { focus, inside: camera !== undefined && camera.standingIn.room !== null })
+  const still = stillScene(plan, { focus, colors, width, height, roof, ...(camera ? { camera } : {}) })
   try {
     const [cx, , cz] = still.frame.target
     // A camera standing in a room sees the room, not the ground under its floor.
