@@ -822,7 +822,7 @@ function firmLines(firm: FirmInput, names: Names): ResultLine[] {
 
 /** Every line about a plan that was read. */
 function inspectRead(read: Extract<Read, { plan: FloorPlan }>, inspectOptions: InspectOptions): GridResult {
-  const { firm, ...options } = inspectOptions
+  const { firm, trace, ...options } = inspectOptions
   // LVL-8: the checks read the plain openings a pattern expands into, so a window placed by a
   // pattern counts for escape like one placed by hand. The drawing check reads the plan as stated,
   // and says first what kept any pattern's openings from being placed (`validatePlan`).
@@ -843,6 +843,7 @@ function inspectRead(read: Extract<Read, { plan: FloorPlan }>, inspectOptions: I
   // What the file says that Grid does not read leads the lines of its kind: it may explain them.
   stage('reading', () => {
     lines.push(...readingLines(read.raw, readingNotes(read.raw), names))
+    if (trace !== undefined && read.plan.referenceImage !== undefined) lines.push(traceLine(trace, names.floors))
   })
   stage('drawing', () => {
     lines.push(...validatePlan(stated, undefined, { leftOutWalls: read.leftOutWalls, leftOutParts: read.leftOut }).issues.map((issue) => issueLine(issue, names)))
@@ -1050,4 +1051,25 @@ export interface InspectOptions extends CheckOptions {
   readonly decimal?: 'point' | 'comma'
   /** COD-8: the firm's own standards beside the plan, measured. */
   readonly firm?: FirmInput
+  /** MSG-20: why the plan's trace image is not followed or drawn, as the command found it in the project folder. */
+  readonly trace?: TraceLeftOut
+}
+
+/**
+ * MSG-20: why the trace image a plan names is not followed or drawn. Only the command can tell,
+ * since it alone looks in the project folder (`loadPlan`); the record says it in one line.
+ */
+export interface TraceLeftOut {
+  /** The path as the plan writes it. */
+  readonly path: string
+  /** `refused`: it leads out of the project folder; `ending`: it is not a picture by its ending; `missing`: no file is there yet. */
+  readonly why: 'refused' | 'ending' | 'missing'
+  /** For `refused`, the project's own sentence on why, which names the project folder. */
+  readonly detail?: string
+}
+
+/** MSG-20: the plan's trace image, left out of every view: why, in one line. */
+function traceLine(trace: TraceLeftOut, floors: number): ResultLine {
+  const why = said(`line.part.trace.${trace.why}`, { path: name(trace.path), ...(trace.detail === undefined ? {} : { detail: trace.detail }) })
+  return line('plan/trace-left-out', 'left-out', { kind: 'plan', id: '' }, null, { ...blank(THE_PLAN), floors, said: why, place: 'referenceImage.path' })
 }

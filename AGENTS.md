@@ -59,7 +59,8 @@ Notes for agents and people changing this repository.
   the one transform it is drawn with; `packages/cli/src/trace/traceImage.ts` reads the picture
   through the project's files (a `.png`, `.jpg` or `.jpeg`, checked by its header) and says what
   became of it; the viewer's `planPicture` draws it, given as a `data:` address, over the rooms'
-  fills and under every line, and reads no file. `loadPlan` refuses a path that is not a picture.
+  fills and under every line, and reads no file. A path that is not a picture inside the project
+  folder is never followed: `loadPlan` reads the plan without it and `grid check` says why (MSG-20).
 - `packages/floorplan/src/geometry/items.ts` (CNT-12): the plan's fixtures (`items`, C6 in
   `types/floorplan.ts`): their footprints, symbols, rooms, the floor they take and their checks.
   CNT-11 decided fixtures first; CNT-20 added furniture (`FURNITURE_KINDS`), and every kind is one

@@ -151,6 +151,55 @@ describe('T-10: characters a drawing cannot hold, or that show text backwards', 
   })
 })
 
+describe('MSG-20: a note, a sketch item or a fact the text rule refuses is left out alone', () => {
+  const survey = 'Survey 1998: ' + 'the cornice and the ceiling rose are original and are to be kept as found. '.repeat(2).slice(0, 134)
+  const notes = [
+    { id: 'n1', kind: 'note', text: survey, at: [1, 1] },
+    { id: 'n2', kind: 'note', text: 'Lintel over the door', at: [2, 1] },
+    { id: 'n3', kind: 'note', text: HOSTILE, at: [3, 1] },
+  ]
+
+  it('reads a plan with a 147-character note and one with a line break, leaving out each with one line', () => {
+    expect(survey).toHaveLength(147)
+    const loaded = read(JSON.stringify(box('Bedroom', { annotations: notes })))
+    expect(loaded.plan.annotations!.map((a) => a.id)).toEqual(['n2'])
+    expect(loaded.plan.rooms).toHaveLength(1)
+    const lines = checkPlan(loaded, {}).result.lines.filter((line) => line.code === 'plan/value-left-out')
+    expect(lines.map((line) => line.found)).toEqual([
+      'a text that is 147 characters long; a name may have at most 120 at annotations[0].text, so it is read as not stated',
+      'a text that holds a line break (U+000A); it must be one line at annotations[2].text, so it is read as not stated',
+    ])
+    expect(JSON.stringify(checkPlan(loaded, {}).result)).not.toMatch(/approved|SYSTEM|cornice/)
+  })
+
+  it('leaves out a sketch item\'s long text alone, and keeps the others', () => {
+    const sketch = [
+      { id: 's1', kind: 'text', category: 'level', at: [0, 0], text: '+12.40' },
+      { id: 's2', kind: 'text', category: 'level', at: [1, 0], text: 'x'.repeat(NAME_MAX + 1) },
+    ]
+    const loaded = read(JSON.stringify(box('Bedroom', { sketch })))
+    expect(loaded.plan.sketch!.map((s) => s.id)).toEqual(['s1'])
+  })
+
+  it('leaves out one fact of 150 characters, and keeps the part and its other facts', () => {
+    const walls = (box('Bedroom') as { walls: Record<string, unknown>[] }).walls
+    walls[0]!['properties'] = { survey: 'y'.repeat(150), fire: 'EI 30' }
+    const loaded = read(JSON.stringify(box('Bedroom', { walls })))
+    expect(loaded.plan.walls[0]!.properties).toEqual({ fire: 'EI 30' })
+    expect(loaded.plan.rooms).toHaveLength(1)
+  })
+
+  it('still refuses a room name or a wall id that is too long, as MSG-9 decided', () => {
+    expect(refusal(JSON.stringify(box('x'.repeat(NAME_MAX + 1))))).toMatch(/^plan\.json is not a Grid plan: rooms\[0\]\.name is 121 characters long/)
+    expect(refusal(JSON.stringify(box('Bedroom', {}, ['s'.repeat(ID_MAX + 1), 'e', 'n', 'w'])))).toMatch(/walls\[0\]\.id is 65 characters long/)
+  })
+
+  it('holds a plan Grid is about to write to every limit', () => {
+    expect(planTextProblem(box('Bedroom', { annotations: notes }))).toMatch(/^annotations\[0\]\.text is 147 characters long/)
+    expect(planTextProblem(box('Bedroom', { annotations: notes }), { leaveOut: true })).toBeNull()
+  })
+})
+
 describe('T-8: one reader for every encoding', () => {
   const text = JSON.stringify(box('Salón Ñandú'))
   const ifcSpace = (bytes: Buffer): string | undefined => {

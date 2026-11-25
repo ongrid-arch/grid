@@ -374,6 +374,8 @@ export const CODES = {
     variant: { found: (s) => (s.used ? 'used' : ''), fix: (s) => (s.used ? 'used' : '') }
   },
   'plan/read-as-meant': {},
+  // MSG-20: the trace image the plan names, not followed or drawn.
+  'plan/trace-left-out': {},
   'plan/blank-id': {},
   'plan/id-clash': {
     variant: { fix: (s) => (s.rename ? 'rename' : '') }

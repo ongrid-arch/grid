@@ -91,16 +91,33 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * MSG-20: the lists whose entries the reader leaves out one by one, each with its line: writing
+ * on the drawing and the sketch layer, which nothing else in the plan rests on.
+ */
+const LEFT_OUT_ALONE: ReadonlySet<string> = new Set(['annotations', 'sketch'])
+
+export interface PlanTextOptions {
+  /**
+   * MSG-20: leave to the reader the texts it leaves out alone, with a line each, instead of
+   * refusing the plan: every text of a note or a sketch item, a fact's name and value, and the
+   * trace image's path. For `loadPlan`; a plan Grid is about to write is held to every limit.
+   */
+  readonly leaveOut?: boolean
+}
+
+/**
  * The first text in a plan, as parsed from JSON, that passes a limit, as `rooms[3].name is …`,
  * or null. Types are left to the schema: a name that is not a string is not looked at here.
  */
-export function planTextProblem(raw: Record<string, unknown>): string | null {
+export function planTextProblem(raw: Record<string, unknown>, options: PlanTextOptions = {}): string | null {
+  const leaveOut = options.leaveOut === true
   for (const [list, fields] of Object.entries(FIELDS)) {
     const parts = raw[list]
     if (!Array.isArray(parts)) continue
     if (parts.length > PARTS_MAX) {
       return `${list} has ${parts.length.toLocaleString('en-US')} entries; a plan may have at most ${PARTS_MAX.toLocaleString('en-US')} ${list}`
     }
+    if (leaveOut && LEFT_OUT_ALONE.has(list)) continue
     for (let i = 0; i < parts.length; i++) {
       const part: unknown = parts[i]
       if (!isObject(part)) continue
@@ -130,7 +147,8 @@ export function planTextProblem(raw: Record<string, unknown>): string | null {
       if ((list === 'walls' || list === 'rooms' || list === 'openings' || list === 'floors') && isObject(facts)) {
         const names = Object.keys(facts)
         if (names.length > PROPERTIES_MAX) return `${list}[${i}].properties has ${names.length.toLocaleString('en-US')} facts; one part may carry at most ${PROPERTIES_MAX}`
-        for (const [n, name] of names.entries()) {
+        // MSG-20: a fact the text rule refuses is left out alone by the reader.
+        for (const [n, name] of leaveOut ? [] : names.entries()) {
           const named = textProblem(name, 'name')
           if (named) return `${list}[${i}].properties, fact ${n + 1}, has a name that ${named}`
           const value = facts[name]
@@ -254,8 +272,8 @@ export function planTextProblem(raw: Record<string, unknown>): string | null {
       }
     }
   }
-  const image = raw['referenceImage']
-
+  // MSG-20: a trace image's path the text rule refuses leaves the trace image out, with its line.
+  const image = leaveOut ? undefined : raw['referenceImage']
   if (isObject(image) && typeof image['path'] === 'string') {
     const problem = textProblem(image['path'], 'path')
     if (problem) return `referenceImage.path ${problem}`

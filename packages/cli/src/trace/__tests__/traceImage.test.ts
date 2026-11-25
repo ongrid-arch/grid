@@ -5,14 +5,16 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { loadCanvas } from '../../draw/canvas'
 import { drawFile } from '../../command/draw'
-import { loadPlan, PlanRefused } from '../../command/plan'
+import { checkPlan } from '../../command/check'
+import { loadPlan } from '../../command/plan'
 import { openProject } from '../../fs/projectFiles'
 import { GRID_TOOLS } from '../../mcp/serveTools'
 import { hasPictureEnding, pictureHeader, readTrace, TRACE_MAX_SIDE } from '../traceImage'
 
 /**
  * HND-10 (C31): the plan's trace image, read from the project folder and drawn under the plan in
- * the pictures an agent gets; a path that is not a picture inside the folder refuses the plan.
+ * the pictures an agent gets; a path that is not a picture inside the folder is never read, and
+ * the plan is read without it, with one line (MSG-20).
  */
 
 const sample = JSON.parse(readFileSync(resolve(__dirname, '../../../fixtures/two-bed-flat.json'), 'utf8')) as Record<string, unknown>
@@ -159,28 +161,55 @@ describe('the six T-5 cases a plan from someone else may name (HND-10)', () => {
     ['an ending that is not a picture', 'assets/run.sh', 'does not end in .png, .jpg or .jpeg'],
   ]
 
-  it.each(cases)('refuses %s: %j', (_, path, why) => {
+  // MSG-20: the plan is read without it, in one line, and the file is never read.
+  it.each(cases)('leaves out %s, and says why: %j', (_, path, why) => {
     const { dir, project: p } = project({ path })
-    let refusal: unknown
-    try {
-      loadPlan(p, 'plan.json')
-    } catch (error) {
-      refusal = error
-    }
-    expect(refusal).toBeInstanceOf(PlanRefused)
-    const message = (refusal as Error).message
-    expect(message).toContain('referenceImage.path')
-    expect(message).toContain(JSON.stringify(path))
-    expect(message).toContain(JSON.stringify(dir))
-    expect(message).toContain(why)
+    const loaded = loadPlan(p, 'plan.json')
+    expect(loaded.plan.rooms.length).toBeGreaterThan(0)
+    expect(loaded.trace).toMatchObject({ path })
+    const lines = checkPlan(loaded, {}).result.lines.filter((line) => line.code === 'plan/trace-left-out')
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatchObject({ kind: 'left-out', thing: { kind: 'plan', id: '' } })
+    expect(lines[0]!.message).toContain(JSON.stringify(path))
+    expect(lines[0]!.message).toContain(why)
+    if (why.startsWith('does not end')) expect(lines[0]!.message).not.toContain(dir)
+    else expect(lines[0]!.message).toContain(JSON.stringify(dir))
+    const drawn = readTrace(p, loaded.plan, 'ground')
+    expect(drawn.picture).toBeNull()
+    expect(drawn.line).toContain(why)
   })
 
-  it('refuses a picture\'s ending on a script or a page too, in any capitals', () => {
+  it('says a picture that is not there yet in the check too, once', () => {
+    const { project: p } = project({ path: 'assets/later.png' })
+    const loaded = loadPlan(p, 'plan.json')
+    expect(loaded.trace).toEqual({ path: 'assets/later.png', why: 'missing' })
+    const lines = checkPlan(loaded, {}).result.lines.filter((line) => line.code === 'plan/trace-left-out')
+    expect(lines.map((line) => line.message)).toEqual(['The plan\'s trace image is left out of every view: "assets/later.png" is not in the project folder yet'])
+    expect(lines[0]!.found).toBe('the plan is read without it')
+  })
+
+  it('keeps the trace image as written when the plan is read whole to be written back', () => {
+    const { project: p } = project({ path: '../scan.png', opacity: 0.3 })
+    const loaded = loadPlan(p, 'plan.json', { whole: true })
+    expect(loaded.plan.referenceImage).toMatchObject({ path: '../scan.png', opacity: 0.3 })
+    expect(loaded.trace?.why).toBe('refused')
+  })
+
+  it('says nothing in the check for a picture that is there', async () => {
+    const { project: p } = project({ path: 'scan.png' }, { 'scan.png': await picture(4, 4) })
+    const loaded = loadPlan(p, 'plan.json')
+    expect(loaded.trace).toBeUndefined()
+    expect(checkPlan(loaded, {}).result.lines.map((line) => line.code)).not.toContain('plan/trace-left-out')
+  })
+
+  it('leaves out a picture\'s ending on a script or a page too, in any capitals', () => {
     for (const path of ['scan.svg', 'scan.png.js', 'scan.html', 'scan.PNG.exe']) {
-      const { project: p } = project({ path })
-      expect(() => loadPlan(p, 'plan.json'), path).toThrow(/does not end in \.png, \.jpg or \.jpeg/)
+      const { project: p } = project({ path }, { [path]: 'not a picture' })
+      const loaded = loadPlan(p, 'plan.json')
+      expect(loaded.trace, path).toEqual({ path, why: 'ending' })
+      expect(readTrace(p, loaded.plan, 'ground').line, path).toBe(`The trace image ${JSON.stringify(path)} does not end in .png, .jpg or .jpeg, so it is not drawn.`)
     }
     const { project: p } = project({ path: 'Scans/Ground.JPEG' })
-    expect(() => loadPlan(p, 'plan.json')).not.toThrow()
+    expect(loadPlan(p, 'plan.json').trace?.why).toBe('missing')
   })
 })

@@ -27,8 +27,10 @@
  * (`plan/duplicate-id`): a room that names that id could mean either; so are a blank id and two
  * ids that differ only in capitals or spaces (`plan/blank-id`, `plan/similar-id`).
  *
- * What is left at the plan's top level (a version Grid does not read, a list that is not a
- * list) still refuses the plan, with the schema's own problems. Pure: the file as JSON in,
+ * The plan's other lists (notes, sketch items, stairs, saved views and the like) lose only the
+ * entries that cannot be read, each with its own line (MSG-20). What is left at the plan's top
+ * level (a version Grid does not read, a list that is not a list) still refuses the plan, with
+ * the schema's own problems. Pure: the file as JSON in,
  * plain data out. Text from the file is repeated only in quotes and only when it keeps to the
  * text rule (MSG-9).
  */
@@ -375,6 +377,8 @@ type Positions = Record<PartList, number[]>
 /** The plan's own fields, once its parts are read: read as meant, left out, or refused. */
 function readTop(work: Record<string, unknown>, faults: ReadFault<Value>[], marks: readonly TextMark[]): { plan: FloorPlan } | { issues: PlanSchemaIssue[] } {
   const tried = new Set<string>()
+  // MSG-20: where each entry kept of a list left out entry by entry was in the file.
+  const positions = new Map<string, number[]>()
   for (let turn = 0; turn < 16; turn++) {
     const parsed = FloorPlanSchema.safeParse(work)
     if (parsed.success) return { plan: parsed.data }
@@ -428,6 +432,26 @@ function readTop(work: Record<string, unknown>, faults: ReadFault<Value>[], mark
       delete rest[key]
       work['referenceImage'] = rest
       faults.push({ kind: 'value-left-out', ...said, used: null })
+      continue
+    }
+    // MSG-20: an entry of one of the plan's other lists (a note, a sketch item, a stair) that
+    // cannot be read is left out alone, each with its own line at its place in the file, and the
+    // rest of the list is kept. Every bad entry of the list goes in one turn.
+    const entries = work[field]
+    if (Array.isArray(entries) && typeof issue.path[1] === 'number') {
+      const first = new Map<number, PlanSchemaIssue>()
+      for (const each of parsed.error.issues as PlanSchemaIssue[]) {
+        const at = each.path[1]
+        if (each.path[0] === field && typeof at === 'number' && !first.has(at)) first.set(at, each)
+      }
+      const places = positions.get(field) ?? entries.map((_, i) => i)
+      for (const [at, each] of [...first].sort(([a], [b]) => a - b)) {
+        const path = [field, places[at]!, ...each.path.slice(2)]
+        const found = foundText(each, getAt(work, each.path), marks.find((m) => sameKeys(m.path, path)))
+        faults.push({ kind: 'value-left-out', part: null, path, found, wants: wantedText(each), used: null })
+      }
+      work[field] = entries.filter((_, i) => !first.has(i))
+      positions.set(field, places.filter((_, i) => !first.has(i)))
       continue
     }
     // `units` keeps its default, metres; `projectId` and `referenceImage` are read as not stated.
