@@ -20,6 +20,7 @@ import { hoverColor, mutedColor, mutedGlow, toThree, wallExposureColor } from '.
 import type { PlanColors3D } from './usePlanColors'
 import type { BuildObjects } from './buildFrame3d'
 import { applyFrame, openingOutline, pulseHeight } from './buildFrame3d'
+import { cutOpening } from './cutWall'
 import { createSceneMemo, type StoreyLayout } from './building'
 
 type ObjectMap = Map<string, THREE.Object3D>
@@ -85,7 +86,7 @@ export function Storey3D({
   const plan = useMemo(() => planForFloor(source, floorId), [source, floorId])
   const memo = useRef(createSceneMemo()).current
   const scene = useMemo(() => memo(plan), [memo, plan])
-  const wallGeometries = useWallGeometries(scene)
+  const wallGeometries = useWallGeometries(scene, storey.cut)
 
   const palette = useMemo(() => {
     const tone = (color: string): string => {
@@ -193,7 +194,7 @@ export function Storey3D({
       {scene.openings.map((opening) => (
         <Opening3D
           key={`opening:${opening.id}`}
-          opening={opening}
+          opening={storey.cut === null ? opening : cutOpening(opening, storey.cut)}
           colors={{ frame: palette.wallExterior, leaf: palette.floor, glass: colors.background }}
           glow={glow}
         />

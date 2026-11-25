@@ -798,7 +798,8 @@ reason. `docs/result-contract.md` says how the numbers are given.
 `grid draw --3d` takes the 3D model as the app opens it: the same scene, from the same camera
 (south-east, about 29.5 degrees down, through a 45 degree lens). It needs no browser and no
 graphics card: the scene is drawn in software, each face lit flat, without shadows. With
-`--floor`, that floor is shown as a cutaway, as in the app; without it, the whole building.
+`--floor`, that floor is shown as a cutaway, as in the app, its walls cut to 1.2 m above its floor
+(`planCutHeight`) whether the building has one storey or several; without it, the whole building.
 The PNG is 1200 by 800 pixels, times `--scale` (up to 4).
 
 `grid draw --view <name>` draws a view saved with the plan (VEW-3, `grid_save_view`): the 3D
