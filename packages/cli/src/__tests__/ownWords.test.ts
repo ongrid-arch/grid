@@ -56,7 +56,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/sheet.ts': [7, 'command'],
   'packages/cli/src/command/tidy.ts': [12, 'command'],
   'packages/cli/src/command/write.ts': [32, 'command'],
-  'packages/cli/src/describe/card.ts': [13, 'agentForm'],
+  // ARE-18: one more, the agent's line for a way in across open sides.
+  'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
   'packages/cli/src/describe/walk.ts': [4, 'agentForm'],
   // CMD-7: three of its skill's paragraphs are in guide/paragraphs.ts now.
@@ -100,7 +101,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-14: one more, grid_areas' description of the party walls, free floor and outdoor_rules.
   // CNT-19: one more, grid_takeoff's description of the parking bays and the ramps.
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
-  'packages/cli/src/mcp/readTools.ts': [319, 'tools'],
+  // ARE-18: two more, why a route's walked length is not given.
+  'packages/cli/src/mcp/readTools.ts': [321, 'tools'],
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
