@@ -2570,6 +2570,7 @@ export const es: Messages = {
   'edit.square.curvedLeft.one': 'El muro curvo {walls} se deja como está: escuadrar solo gira muros rectos.',
   'edit.square.curvedLeft.many': 'Los muros curvos {walls} se dejan como están: escuadrar solo gira muros rectos.',
   'edit.square.onlyCurved': 'Solo hay muros curvos marcados para escuadrar ({walls}), y escuadrar solo gira muros rectos: nada se movería.',
+  'edit.use.read': 'Se leyó {word} como el uso {use}.',
   'edit.stretch.carried': '{parts} más allá de la línea se movieron con ella.',
   'edit.stretch.count.column.one': '{n} pilar',
   'edit.stretch.count.column.many': '{n} pilares',

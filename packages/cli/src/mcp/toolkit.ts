@@ -261,7 +261,10 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
       if (spec.use === true) {
         if (spec.enum?.includes(text)) return text
         const use = readUse(text)
-        if (typeof use === 'string' && (ROOM_USES as readonly string[]).includes(use)) return use
+        if (typeof use === 'string' && (ROOM_USES as readonly string[]).includes(use)) {
+          if (use !== text.toLowerCase()) readings.push({ word: text, use })
+          return use
+        }
         throw new ToolRefusal(`${name} takes one of Grid's room uses, or a word that plainly means one: ${[...ROOM_USES, ...(spec.enum ?? [])].join(', ')}.`)
       }
       if (spec.enum && !spec.enum.includes(text)) throw new ToolRefusal(`${name} takes one of ${spec.enum.join(', ')}.`)
@@ -301,6 +304,15 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
   }
 }
 
+/** WRT-58: the words a call gave for a use that Grid read as another word (`gym` as `sport`), by the call's arguments. */
+const USES_READ = new WeakMap<object, { word: string; use: string }[]>()
+let readings: { word: string; use: string }[] = []
+
+/** WRT-58: each use word the call gave that was read as a different use, in the order given. */
+export function usesRead(args: Record<string, unknown>): readonly { readonly word: string; readonly use: string }[] {
+  return USES_READ.get(args) ?? []
+}
+
 /** The arguments of a call, checked against the tool's own list. */
 export function readArgs(tool: GridTool, raw: unknown): Record<string, unknown> {
   const names = Object.keys(tool.args)
@@ -315,6 +327,7 @@ export function readArgs(tool: GridTool, raw: unknown): Record<string, unknown> 
     throw new ToolRefusal(`${tool.name} takes ${names.length > 0 ? listOf(names) : 'no arguments'}, not ${shown}.`)
   }
   const args: Record<string, unknown> = {}
+  readings = []
   // The decimal mark first: a length typed with a comma is read by it (WRT-7).
   const order = Object.entries(tool.args).sort(([a], [b]) => (a === 'decimal' ? -1 : b === 'decimal' ? 1 : 0))
   for (const [name, spec] of order) {
@@ -325,6 +338,7 @@ export function readArgs(tool: GridTool, raw: unknown): Record<string, unknown> 
     }
     args[name] = checkOne(name, spec, value, args)
   }
+  if (readings.length > 0) USES_READ.set(args, readings)
   return args
 }
 
