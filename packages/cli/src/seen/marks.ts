@@ -344,50 +344,77 @@ export function reasonProblem(value: string, max: number, kind: 'name' | 'id' = 
   return null
 }
 
-const THING_KINDS: readonly ThingKind[] = ['plan', 'floor', 'wall', 'room', 'opening', 'item', 'stair']
+/** Every kind a note's thing can have. The record type fails the type check when `ThingKind` gains one. */
+const THING_KIND_TABLE: Readonly<Record<ThingKind, true>> = { plan: true, floor: true, wall: true, room: true, opening: true, item: true, stair: true, pattern: true, flat: true }
+const THING_KINDS = Object.keys(THING_KIND_TABLE) as ThingKind[]
 const PART_KINDS: readonly MarkedPart['kind'][] = [...THING_KINDS, 'unknown']
 
-/** The file's contents, checked. Refused with the first place that is wrong. */
-export function parseSeen(raw: unknown): SeenFile {
+/** The frame of the file, checked: the list of its marks as written, each still to be read. */
+function marksOf(raw: unknown): unknown[] {
   if (!isObject(raw)) throw new SeenRefused('it must be a JSON object with version and marks')
   onlyKeys(raw, ['version', 'marks'], 'the file')
   if (raw['version'] !== '1') throw new SeenRefused('version must be "1"')
   const marks = raw['marks']
   if (!Array.isArray(marks)) throw new SeenRefused('marks must be a list')
   if (marks.length > MARKS_MAX) throw new SeenRefused(`marks holds ${marks.length.toLocaleString('en-US')} marks; it may hold at most ${MARKS_MAX.toLocaleString('en-US')}`)
+  return marks
+}
+
+/** One mark, checked. Refused with the first place that is wrong. */
+function readMark(mark: unknown, i: number): SeenMark {
+  const where = `marks[${i}]`
+  if (!isObject(mark)) throw new SeenRefused(`${where} must be an object`)
+  onlyKeys(mark, ['code', 'thing', 'also', 'parts', 'reason', 'message', 'by', 'at'], where)
+  const code = text(mark['code'], `${where}.code`, 64, 'id')
+  const thing = mark['thing']
+  if (!isObject(thing) || !THING_KINDS.includes(thing['kind'] as ThingKind) || typeof thing['id'] !== 'string') throw new SeenRefused(`${where}.thing must be an object with a kind and an id`)
+  const also = mark['also']
+  if (!Array.isArray(also) || also.some((id) => typeof id !== 'string')) throw new SeenRefused(`${where}.also must be a list of ids`)
+  const parts = mark['parts']
+  if (!Array.isArray(parts)) throw new SeenRefused(`${where}.parts must be a list`)
+  const read = parts.map((part: unknown, j): MarkedPart => {
+    if (!isObject(part) || !PART_KINDS.includes(part['kind'] as MarkedPart['kind']) || typeof part['id'] !== 'string' || typeof part['hash'] !== 'string') {
+      throw new SeenRefused(`${where}.parts[${j}] must be an object with a kind, an id and a hash`)
+    }
+    return { kind: part['kind'] as MarkedPart['kind'], id: part['id'], hash: part['hash'] }
+  })
+  const at = mark['at']
+  if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) throw new SeenRefused(`${where}.at must be a date and time`)
   return {
-    version: '1',
-    marks: marks.map((mark: unknown, i): SeenMark => {
-      const where = `marks[${i}]`
-      if (!isObject(mark)) throw new SeenRefused(`${where} must be an object`)
-      onlyKeys(mark, ['code', 'thing', 'also', 'parts', 'reason', 'message', 'by', 'at'], where)
-      const code = text(mark['code'], `${where}.code`, 64, 'id')
-      const thing = mark['thing']
-      if (!isObject(thing) || !THING_KINDS.includes(thing['kind'] as ThingKind) || typeof thing['id'] !== 'string') throw new SeenRefused(`${where}.thing must be an object with a kind and an id`)
-      const also = mark['also']
-      if (!Array.isArray(also) || also.some((id) => typeof id !== 'string')) throw new SeenRefused(`${where}.also must be a list of ids`)
-      const parts = mark['parts']
-      if (!Array.isArray(parts)) throw new SeenRefused(`${where}.parts must be a list`)
-      const read = parts.map((part: unknown, j): MarkedPart => {
-        if (!isObject(part) || !PART_KINDS.includes(part['kind'] as MarkedPart['kind']) || typeof part['id'] !== 'string' || typeof part['hash'] !== 'string') {
-          throw new SeenRefused(`${where}.parts[${j}] must be an object with a kind, an id and a hash`)
-        }
-        return { kind: part['kind'] as MarkedPart['kind'], id: part['id'], hash: part['hash'] }
-      })
-      const at = mark['at']
-      if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) throw new SeenRefused(`${where}.at must be a date and time`)
-      return {
-        code,
-        thing: { kind: thing['kind'] as ThingKind, id: thing['id'] },
-        also: also as string[],
-        parts: read,
-        reason: text(mark['reason'], `${where}.reason`, REASON_MAX),
-        ...(mark['message'] === undefined ? {} : { message: text(mark['message'], `${where}.message`, MESSAGE_MAX) }),
-        by: text(mark['by'], `${where}.by`, BY_MAX),
-        at,
-      }
-    }),
+    code,
+    thing: { kind: thing['kind'] as ThingKind, id: thing['id'] },
+    also: also as string[],
+    parts: read,
+    reason: text(mark['reason'], `${where}.reason`, REASON_MAX),
+    ...(mark['message'] === undefined ? {} : { message: text(mark['message'], `${where}.message`, MESSAGE_MAX) }),
+    by: text(mark['by'], `${where}.by`, BY_MAX),
+    at,
   }
+}
+
+/** The file's contents, checked. Refused with the first place that is wrong. */
+export function parseSeen(raw: unknown): SeenFile {
+  return { version: '1', marks: marksOf(raw).map(readMark) }
+}
+
+/**
+ * MSG-19: the file's marks one by one. A mark that is wrong is left out and counted (`left`,
+ * with the first reason), and never takes the others with it. The frame of the file must be right.
+ */
+export function parseSeenLoose(raw: unknown): { readonly marks: readonly SeenMark[]; readonly left: number; readonly firstReason: string | null } {
+  const marks: SeenMark[] = []
+  let left = 0
+  let firstReason: string | null = null
+  marksOf(raw).forEach((mark, i) => {
+    try {
+      marks.push(readMark(mark, i))
+    } catch (error) {
+      if (!(error instanceof SeenRefused)) throw error
+      left += 1
+      firstReason ??= error.message
+    }
+  })
+  return { marks, left, firstReason }
 }
 
 function oneLine(message: string): string {
@@ -434,7 +461,10 @@ export function readSeen(project: Project, planFile: string): SeenRead {
     return { file: relative, marks: [], problem: `${shown} is not JSON` }
   }
   try {
-    return { file: relative, marks: parseSeen(raw).marks, problem: null }
+    const loose = parseSeenLoose(raw)
+    // Marks that can be read count; those that can't are counted, with the first reason.
+    const problem = loose.left === 0 ? null : `${shown} holds ${loose.left === 1 ? 'a mark' : `${loose.left.toLocaleString('en-US')} marks`} Grid could not read (${loose.firstReason})`
+    return { file: relative, marks: loose.marks, problem }
   } catch (error) {
     if (error instanceof SeenRefused) return { file: relative, marks: [], problem: `${shown} is not a marks file: ${error.message}` }
     throw error
@@ -474,6 +504,11 @@ export function markSeen(project: Project, planFile: string, source: SeenSource,
   }
   const marks = [...read.marks.filter((m) => !sameNote(m, line) && !earlierNote(m, line)), mark]
   writeSeen(project, planFile, marks)
+  // Marked is said only when the mark can be read back from the file.
+  const back = readSeen(project, planFile)
+  if (back.problem !== null || !back.marks.some((m) => sameNote(m, line) && m.at === mark.at && m.by === mark.by)) {
+    throw new SeenRefused(`The mark was written to ${path.basename(seenFileOf(planFile))} but can't be read back${back.problem === null ? '' : `: ${back.problem}`}, so it is not counted as made.`)
+  }
   return { file: read.file, mark }
 }
 
