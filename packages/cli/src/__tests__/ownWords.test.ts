@@ -36,7 +36,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/brief/brief.ts': [54, 'agent'],
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
-  'packages/cli/src/brief/lines.ts': [21, 'notYet'],
+  'packages/cli/src/brief/lines.ts': [24, 'notYet'],
   'packages/cli/src/command/check.ts': [10, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
   'packages/cli/src/command/diff.ts': [13, 'command'],
@@ -341,7 +341,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-31 3: the estimate's roof edges' rule and line, and why a roof is left out (estimate.ts).
     // and WRT-38 4: one wall's thickness, its receipt and refusals (edit/edits.ts).
     // and CNT-34 4: the estimate's gable lines and their rules (estimate.ts).
-    expect(left).toBeLessThanOrEqual(1621)
+    // and ARE-44 3: the step line's floor-level and ground-step lines (brief/lines.ts).
+    expect(left).toBeLessThanOrEqual(1624)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
