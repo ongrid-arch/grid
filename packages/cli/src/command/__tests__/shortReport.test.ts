@@ -171,33 +171,34 @@ describe('a plan that says it is not a home (CNT-5)', () => {
 })
 
 describe('a note set aside as seen', () => {
-  const WINDOW = 2
+  // LVL-14: the loft's note that no stair reaches it is note 2, so the window is note 3.
+  const WINDOW = 3
 
   it('stays listed under Seen, with its reason and who marked it, and the count says so', async () => {
     const run = await grid(['check', 'plan.json', '--country', 'US', '--seen', String(WINDOW), '--reason', 'To be enlarged on site', '--by', 'Owner'])
     expect(run.code).toBe(0)
     const [label, marked] = run.out.split('\n')
     expect(label).toBe(GENERAL_GUIDANCE_LABEL)
-    expect(marked).toMatch(/^Marked note 2 as seen, by "Owner" on \d{4}-\d{2}-\d{2}: "To be enlarged on site", in plan\.seen\.json: finding, room "loft-loft": .* \[room\/escape-window-too-small\] It stays listed, under Seen, and is new again when one of room "loft-loft", wall /)
+    expect(marked).toMatch(/^Marked note 3 as seen, by "Owner" on \d{4}-\d{2}-\d{2}: "To be enlarged on site", in plan\.seen\.json: finding, room "loft-loft": .* \[room\/escape-window-too-small\] It stays listed, under Seen, and is new again when one of room "loft-loft", wall /)
 
     const result = check('plan.json', { country: 'US' })
-    expect(result.seen!.states.map((s) => s.state)).toEqual(['new', 'seen', 'new'])
+    expect(result.seen!.states.map((s) => s.state)).toEqual(['new', 'new', 'seen'])
     const text = checkText(result, 2)
-    expect(text).toContain('To look at (3): 1 worth a look, 1 finding, 1 not checked; 1 of them seen, listed under Seen.')
+    expect(text).toContain('To look at (3): 1 worth a look, 2 findings; 1 of them seen, listed under Seen.')
     expect(text).toContain('Seen (1): each stays listed here, and is new again when one of its parts changes.')
-    expect(text).toMatch(/\n {2}2\. finding, room "loft-loft" on "loft": The window of "Sleeping loft" is too small to escape through\. \[room\/escape-window-too-small\]\n {6}seen by "Owner" on \d{4}-\d{2}-\d{2}: "To be enlarged on site"\n/)
+    expect(text).toMatch(/\n {2}3\. finding, room "loft-loft" on "loft": The window of "Sleeping loft" is too small to escape through\. \[room\/escape-window-too-small\]\n {6}seen by "Owner" on \d{4}-\d{2}-\d{2}: "To be enlarged on site"\n/)
     // Listed once, under Seen, and never called dealt with.
     expect(text.match(/\[room\/escape-window-too-small\]/g)).toHaveLength(1)
     expect(text).not.toMatch(/resolved|fixed|closed|dismissed/i)
     expect(approvalWords(text)).toEqual([])
 
     const answer = await tool('grid_check').run({ plan: 'plan.json', country: 'US' }, { project })
-    expect(answer.text).toContain('To look at: 3 (1 worth a look, 1 finding, 1 not checked; 1 of them seen, under Seen).')
-    expect(answer.text).toMatch(/Seen \(1\): .*\n {2}2\. finding, room "loft-loft": .* Seen by "Owner" on \d{4}-\d{2}-\d{2}: "To be enlarged on site"\. \[room\/escape-window-too-small\]/)
+    expect(answer.text).toContain('To look at: 3 (1 worth a look, 2 findings; 1 of them seen, under Seen).')
+    expect(answer.text).toMatch(/Seen \(1\): .*\n {2}3\. finding, room "loft-loft": .* Seen by "Owner" on \d{4}-\d{2}-\d{2}: "To be enlarged on site"\. \[room\/escape-window-too-small\]/)
     const data = answer.data as { seenCount: number; marksFile: string; lines: Array<{ seen?: { state: string; reason: string; by: string } }> }
     expect(data.seenCount).toBe(1)
     expect(data.marksFile).toBe('plan.seen.json')
-    expect(data.lines[1]!.seen).toMatchObject({ state: 'seen', reason: 'To be enlarged on site', by: 'Owner' })
+    expect(data.lines[2]!.seen).toMatchObject({ state: 'seen', reason: 'To be enlarged on site', by: 'Owner' })
     expect(data.lines[0]!.seen).toBeUndefined()
   })
 
@@ -210,7 +211,7 @@ describe('a note set aside as seen', () => {
     const ground = plan.walls.find((w) => (w.floor ?? 'ground') === 'ground')!
     ground.height = (ground.height ?? 2.4) + 0.2
     writeFileSync(join(dir, 'plan.json'), JSON.stringify(plan))
-    expect(check('plan.json', { country: 'US' }).seen!.states[1]!.state).toBe('seen')
+    expect(check('plan.json', { country: 'US' }).seen!.states[WINDOW - 1]!.state).toBe('seen')
 
     // The window itself: wider, and still too low to escape through.
     plan.openings.find((o) => o.id === 'loft-w-loft')!.width += 0.1
@@ -221,7 +222,7 @@ describe('a note set aside as seen', () => {
     const text = checkText(result, 2)
     expect(text).toContain('      seen before, by "Owner" on 2026-11-22: "To be enlarged on site"; but opening "loft-w-loft" changed since, so it is new again.')
     expect(text).not.toContain('Seen (')
-    expect(text).toContain('To look at (3): 1 worth a look, 1 finding, 1 not checked.')
+    expect(text).toContain('To look at (3): 1 worth a look, 2 findings.')
     // Reading never writes: the mark stays in the file, and holds no more.
     expect(readSeen(project, 'plan.json').marks).toHaveLength(1)
   })
@@ -346,11 +347,12 @@ describe('a note set aside as seen', () => {
   })
 
   it('--json gives each line\'s state and what was marked', async () => {
-    const run = await grid(['check', 'plan.json', '--country', 'US', '--seen', '3', '--reason', 'A ladder, on purpose', '--by', 'Owner', '--json'])
+    const run = await grid(['check', 'plan.json', '--country', 'US', '--seen', '2', '--reason', 'A ladder, on purpose', '--by', 'Owner', '--json'])
     const json = JSON.parse(run.out) as { seen: { file: string; states: Array<{ state: string }> }; marked: { number: number; code: string } }
     expect(json.seen.file).toBe('plan.seen.json')
-    expect(json.seen.states.map((s) => s.state)).toEqual(['new', 'new', 'seen'])
-    expect(json.marked).toMatchObject({ number: 3, code: 'floor/not-checked-no-stairs' })
+    // LVL-14: the loft no stair reaches is a finding now, note 2, and may be set aside as one.
+    expect(json.seen.states.map((s) => s.state)).toEqual(['new', 'seen', 'new'])
+    expect(json.marked).toMatchObject({ number: 2, code: 'floor/no-stair' })
   })
 })
 
@@ -455,15 +457,15 @@ describe('the options and the tool are strict', () => {
 
   it('grid_mark_seen marks by number and code, refuses a number that names another code, and needs the person\'s words', async () => {
     const mark = tool('grid_mark_seen')
-    await expect(Promise.resolve().then(() => mark.run({ plan: 'plan.json', line: 2, code: 'room/too-small', reason: 'x', by: 'y', country: 'US' }, { project }))).rejects.toThrow('Note 2 is room/escape-window-too-small now, not the code sent')
-    await expect(Promise.resolve().then(() => mark.run({ plan: 'plan.json', line: 2, code: 'room/escape-window-too-small', by: 'y', country: 'US' }, { project }))).rejects.toThrow('Pass reason')
-    await expect(Promise.resolve().then(() => mark.run({ plan: 'plan.json', line: 2, code: 'room/escape-window-too-small', reason: 'x', country: 'US' }, { project }))).rejects.toThrow('Pass by')
-    await expect(Promise.resolve().then(() => mark.run({ plan: 'plan.json', line: 2, code: 'room/escape-window-too-small', unmark: true, reason: 'x', country: 'US' }, { project }))).rejects.toThrow('leave out reason and by')
+    await expect(Promise.resolve().then(() => mark.run({ plan: 'plan.json', line: 3, code: 'room/too-small', reason: 'x', by: 'y', country: 'US' }, { project }))).rejects.toThrow('Note 3 is room/escape-window-too-small now, not the code sent')
+    await expect(Promise.resolve().then(() => mark.run({ plan: 'plan.json', line: 3, code: 'room/escape-window-too-small', by: 'y', country: 'US' }, { project }))).rejects.toThrow('Pass reason')
+    await expect(Promise.resolve().then(() => mark.run({ plan: 'plan.json', line: 3, code: 'room/escape-window-too-small', reason: 'x', country: 'US' }, { project }))).rejects.toThrow('Pass by')
+    await expect(Promise.resolve().then(() => mark.run({ plan: 'plan.json', line: 3, code: 'room/escape-window-too-small', unmark: true, reason: 'x', country: 'US' }, { project }))).rejects.toThrow('leave out reason and by')
     expect(readSeen(project, 'plan.json').marks).toEqual([])
-    const answer = await mark.run({ plan: 'plan.json', line: 2, code: 'room/escape-window-too-small', reason: 'To be enlarged', by: 'Owner', country: 'US' }, { project })
-    expect(answer.data).toMatchObject({ written: 'plan.seen.json', line: 2, code: 'room/escape-window-too-small', unmarked: false, mark: { reason: 'To be enlarged', by: 'Owner' } })
+    const answer = await mark.run({ plan: 'plan.json', line: 3, code: 'room/escape-window-too-small', reason: 'To be enlarged', by: 'Owner', country: 'US' }, { project })
+    expect(answer.data).toMatchObject({ written: 'plan.seen.json', line: 3, code: 'room/escape-window-too-small', unmarked: false, mark: { reason: 'To be enlarged', by: 'Owner' } })
     expect(answer.text).toContain('It stays listed, under Seen')
-    const off = await mark.run({ plan: 'plan.json', line: 2, code: 'room/escape-window-too-small', unmark: true, country: 'US' }, { project })
+    const off = await mark.run({ plan: 'plan.json', line: 3, code: 'room/escape-window-too-small', unmark: true, country: 'US' }, { project })
     expect(off.data).toMatchObject({ unmarked: true })
     expect(readSeen(project, 'plan.json').marks).toEqual([])
   })
