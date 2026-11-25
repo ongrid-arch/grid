@@ -67,15 +67,31 @@ const n2 = (value: number): string => value.toFixed(2)
 const asWritten = (value: number): string => String(value)
 const same = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase()
 
-/** The rooms a name means: by name, any case, or by id. */
+/** ARE-38: the name, then a number or one letter after it ("Consult 1", "Consult-2", "Consult #3", "Consult A"). */
+function numberedAs(room: string, stem: string): boolean {
+  const a = room.trim().toLowerCase()
+  const b = stem.trim().toLowerCase()
+  if (b === '' || !a.startsWith(b)) return false
+  return /^(?:[\s\-_.:#]*\d+|[\s\-_.:#]+[a-z])$/.test(a.slice(b.length))
+}
+
+/** The rooms a name means: by name, any case, the name numbered ("Consult 1" for "Consult"), or by id. */
 function roomsNamed(plan: FloorPlan, name: string): FloorPlan['rooms'] {
-  const byName = plan.rooms.filter((room) => same(room.name, name))
+  const byName = plan.rooms.filter((room) => same(room.name, name) || numberedAs(room.name, name))
   return byName.length > 0 ? byName : plan.rooms.filter((room) => room.id === name)
 }
 
 function prefix(state: BriefState, level: Level | null, source: Source | null): string {
   if (level === null) return `${state}:`
   return `${state} (${level}${source === 'assumed' ? ', assumed' : ''}):`
+}
+
+/** The rooms a line counted, by name: "(Consult 1, Consult 2)", at most 12 of them. */
+function counted(rooms: FloorPlan['rooms']): string {
+  const names = rooms.map((r) => (r.name.trim() === '' ? r.id : r.name.trim()))
+  if (names.length === 0) return ''
+  const shown = names.slice(0, 12).join(', ')
+  return ` (${shown}${names.length > 12 ? `, and ${names.length - 12} more` : ''})`
 }
 
 /** "asked 4.5" for a figure the person gave, "assumed 4.5" for one to confirm with them. */
@@ -146,7 +162,7 @@ function roomLines(c: Context, brief: Brief): BriefLine[] {
       const most = wish.countAtMost
       const holds = wish.count !== null ? named.length === wish.count : (least === null || named.length >= least) && (most === null || named.length <= most)
       const asked = wish.count !== null ? String(wish.count) : least !== null && most !== null ? `${least} to ${most}` : least !== null ? `at least ${least}` : `at most ${most}`
-      out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}: ${word} ${asked}, drawn ${named.length}${once}.`, { asked, drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
+      out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}: ${word} ${asked}, drawn ${named.length}${counted(named)}${once}.`, { asked, drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
     } else if (!sized || named.length === 0) {
       const holds = named.length > 0
       const drawn = holds ? `drawn${named.length > 1 ? ` ${named.length} times` : ''}` : 'not drawn'
