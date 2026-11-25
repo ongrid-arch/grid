@@ -20,8 +20,11 @@
  * A plan written rooms first (both versions carry `written`, WRT-2) is compared at the level of
  * its rooms and openings, whose names the author chose: its walls are worked out from the rooms
  * and named by where they are, so a wall list is no way to say what changed (lab RT-8). A room
- * that kept its size and moved is said to have moved, and an opening is said to have stayed
- * where it was when it kept its place along its wall in one of its rooms.
+ * that kept its size and moved is said to have moved.
+ *
+ * WRT-12: an opening with no change of its own is said by where it went in the building: one
+ * that moved with its wall, or along it with its room, is said to have moved with it, how far
+ * and which way; one that did not move though its wall changed stayed where it was.
  *
  * Pure: plans in, plain data out. Every word comes from the plans' own names and figures.
  */
@@ -86,8 +89,12 @@ export interface ChangeLine {
 
 /** What a picture of the comparison marks. Ids are the aligned earlier plan's for `removed`, the later plan's otherwise. */
 export interface ComparisonMarks {
+  /** Only what is gone. */
   readonly removed: { readonly walls: readonly string[]; readonly openings: readonly string[]; readonly rooms: readonly string[] }
+  /** Only what is new: a wall that moved or a door that was widened is changed (WRT-12). */
   readonly added: { readonly walls: readonly string[]; readonly openings: readonly string[]; readonly rooms: readonly string[] }
+  /** In both versions and changed: walls whose ends or thickness changed and openings that changed, under ids both share. */
+  readonly changed: { readonly walls: readonly string[]; readonly openings: readonly string[] }
   /** Rooms in both versions that changed or moved, with the words for their label. */
   readonly changedRooms: readonly { readonly room: string; readonly label: string }[]
 }
@@ -105,6 +112,16 @@ export interface CompareOptions {
   readonly rooms?: readonly string[]
   /** The notes of the drawing check on each version, to say which came and went. */
   readonly notes?: { readonly before: readonly NoteLike[]; readonly after: readonly NoteLike[] }
+}
+
+export interface OpeningMovedWith {
+  /** The later id. */
+  readonly opening: string
+  readonly text: string
+  /** What it moved with: its wall, or a room that moved as it was. */
+  readonly with: 'wall' | 'room'
+  /** How far its middle moved on the drawing, in metres, east and north. */
+  readonly by: readonly [number, number]
 }
 
 export interface BuildingComparison {
@@ -135,8 +152,13 @@ export interface BuildingComparison {
   readonly rooms: readonly RoomVerdict[]
   readonly changes: readonly ChangeLine[]
   readonly issues: readonly ComparisonIssue[]
-  /** Openings whose wall changed and which stayed where they were in their rooms. */
+  /** Openings whose wall moved, grew or was replaced and which stayed where they were in the building. */
   readonly stayed: readonly { readonly opening: string; readonly text: string }[]
+  /**
+   * WRT-12: openings with no change of their own that moved in the building with their wall, or
+   * along it with the room they are in. Not change lines: they follow from the wall or room.
+   */
+  readonly movedWith: readonly OpeningMovedWith[]
   readonly scope: { readonly checked: boolean; readonly rooms: readonly string[]; readonly outside: readonly ChangeLine[] }
   readonly marks: ComparisonMarks
   /** The earlier plan, laid on the later one and under its ids: what a picture draws as removed. */
@@ -416,6 +438,9 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   // Openings, by their place in their rooms.
   const openingLines: ChangeLine[] = []
   const stayed: { opening: string; text: string }[] = []
+  const movedWith: OpeningMovedWith[] = []
+  // The walls whose ends moved, and how: an opening on one that kept its place on it moved with it.
+  const movedHosts = new Map(diff.changes.flatMap((c) => (c.entity.type === 'wall' && c.kind === 'modified' && c.motion !== undefined ? [[c.entity.id, c.motion.kind] as const] : [])))
   const baseOpenings = new Map(aligned.openings.map((o) => [o.id, o] as const))
   const headOpenings = new Map(later.openings.map((o) => [o.id, o] as const))
   // The rooms an opening is in: what lies on its two sides where it stands, not every room its wall bounds.
@@ -455,11 +480,11 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     const to = middle(opening, wallsAfter.get(opening.wall))
     const axis = wallsAfter.get(opening.wall) === undefined ? null : axisOf(wallsAfter.get(opening.wall)!)
     let slid: number | null = null
-    let alongWall = 0
+    // The rooms it is in that moved by as much along its wall as it did.
+    let keepers: string[] = []
     if (from !== null && to !== null && axis !== null) {
       const along = (v: Vec2): number => v.x * axis.dir.x + v.y * axis.dir.y
       const moved = along({ x: to.x - from.x, y: to.y - from.y })
-      alongWall = moved
       const slack = tolerance('diffPlace')
       const keeps = (room: string): boolean => {
         const a = was.get(room)?.box
@@ -467,20 +492,43 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
         if (!a || !b) return false
         return [{ x: b.min.x - a.min.x, y: b.min.y - a.min.y }, { x: b.max.x - a.max.x, y: b.max.y - a.max.y }].some((d) => Math.abs(moved - along(d)) <= slack)
       }
-      if (Math.abs(moved) > slack && !rooms.some(keeps)) slid = moved
+      if (Math.abs(moved) > slack) {
+        keepers = rooms.filter(keeps)
+        if (keepers.length === 0) slid = moved
+      }
     }
     if (slid !== null) words.push(`moved ${metresText(Math.abs(slid))} m along its wall`)
     if (words.length > 0) {
       openingLines.push({ text: `${noun} ${quoted(opening.id)} ${words.join('; ')}${where}`, entities: [entity], rooms })
       continue
     }
-    // Worth saying only where something round it changed: its wall replaced, or it moved with its room.
+    // WRT-12: worth saying only where something round it changed, and said by where it went in the building.
     const replaced = before.wall !== opening.wall ? ', on the wall that replaced its own' : ''
-    if (Math.abs(alongWall) > tolerance('diffPlace')) {
-      stayed.push({ opening: opening.id, text: `${noun} ${quoted(opening.id)} kept its place${where}, which moved${replaced}` })
-    } else if (replaced !== '' || (from !== null && to !== null && Math.hypot(to.x - from.x, to.y - from.y) > tolerance('diffLength'))) {
-      stayed.push({ opening: opening.id, text: `${noun} ${quoted(opening.id)} stayed where it was${where}${replaced}` })
+    const motion = movedHosts.get(opening.wall)
+    const by: [number, number] = from !== null && to !== null ? [to.x - from.x, to.y - from.y] : [0, 0]
+    // A wall made thicker on one side: the opening's face on the other side is where it was.
+    const faceStayed = ((): boolean => {
+      const hostBefore = wallsBefore.get(before.wall)
+      const hostAfter = wallsAfter.get(opening.wall)
+      if (axis === null || hostBefore === undefined || hostAfter === undefined) return false
+      const normal = { x: -axis.dir.y, y: axis.dir.x }
+      return [1, -1].some((side) => Math.hypot(by[0] + (normal.x * side * (hostAfter.thickness - hostBefore.thickness)) / 2, by[1] + (normal.y * side * (hostAfter.thickness - hostBefore.thickness)) / 2) < least)
+    })()
+    // The rooms it is in that moved by as much as it did, as they were.
+    const movers = rooms.filter((room) => {
+      const d = moves.get(room)
+      return d !== undefined && Math.abs(d.dx - by[0]) <= tolerance('diffPlace') && Math.abs(d.dy - by[1]) <= tolerance('diffPlace')
+    })
+    const withRooms = movers.length > 0 ? movers : keepers
+    if (Math.hypot(by[0], by[1]) < least || faceStayed) {
+      // Said only of a wall that moved or was replaced: one that only grew at its other end carries nothing.
+      if (replaced !== '' || (motion !== undefined && motion !== 'resized')) stayed.push({ opening: opening.id, text: `${noun} ${quoted(opening.id)} stayed where it was${where}${replaced}` })
+    } else if (withRooms.length > 0) {
+      movedWith.push({ opening: opening.id, with: 'room', by, text: `${noun} ${quoted(opening.id)} moved with ${roomNames(withRooms, headRooms)}, ${moveWords(by[0], by[1])}${where}` })
+    } else if (replaced !== '' || motion !== undefined) {
+      movedWith.push({ opening: opening.id, with: 'wall', by, text: `${noun} ${quoted(opening.id)} moved with its wall, ${moveWords(by[0], by[1])}${where}` })
     }
+    // Else a slip shorter than `diffPlace` along a wall that stood still: no change.
   }
   for (const opening of aligned.openings) {
     if (headOpenings.has(opening.id)) continue
@@ -585,8 +633,10 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const movedWalls = diff.changes.filter((c) => c.entity.type === 'wall' && c.kind === 'modified' && c.props.some((p) => p.key === 'start' || p.key === 'end' || p.key === 'thickness')).map((c) => c.entity.id)
   const movedOpenings = diff.changes.filter((c) => c.entity.type === 'opening' && c.kind === 'modified').map((c) => c.entity.id)
   const marks: ComparisonMarks = {
-    removed: { walls: [...ids('wall', 'removed'), ...movedWalls], openings: [...ids('opening', 'removed'), ...movedOpenings], rooms: ids('room', 'removed') },
-    added: { walls: [...ids('wall', 'added'), ...movedWalls], openings: [...ids('opening', 'added'), ...movedOpenings], rooms: ids('room', 'added') },
+    removed: { walls: ids('wall', 'removed'), openings: ids('opening', 'removed'), rooms: ids('room', 'removed') },
+    added: { walls: ids('wall', 'added'), openings: ids('opening', 'added'), rooms: ids('room', 'added') },
+    // WRT-12: what is in both versions and changed is drawn as changed, never as added.
+    changed: { walls: movedWalls, openings: movedOpenings },
     changedRooms: verdicts.flatMap((v) => {
       // Words a picture's fonts all have: no arrow.
       if (v.status === 'changed') return [{ room: v.room, label: `${v.name || v.room}: ${areaWords(v.before)} to ${areaWords(v.after)}` }]
@@ -607,6 +657,13 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const redrawnWords = redrawn.length === 0
     ? ''
     : `${plural(redrawn.reduce((n, r) => n + r.before.length, 0), 'wall')} drawn as ${plural(redrawn.reduce((n, r) => n + r.after.length, 0), 'piece')} standing where ${redrawn.reduce((n, r) => n + r.before.length, 0) === 1 ? 'it' : 'they'} stood`
+  // WRT-12: the openings that moved with their wall or room, counted, so none is read as having stayed.
+  const withWall = movedWith.some((m) => m.with === 'wall')
+  const withRoom = movedWith.some((m) => m.with === 'room')
+  const their = movedWith.length === 1 ? 'its' : 'their'
+  const movedWithWords = movedWith.length === 0
+    ? ''
+    : `${plural(movedWith.length, 'opening')} moved with ${their} ${withWall && withRoom ? (movedWith.length === 1 ? 'wall or room' : 'walls or rooms') : withWall ? (movedWith.length === 1 ? 'wall' : 'walls') : movedWith.length === 1 ? 'room' : 'rooms'}`
   const sameWords = [renamedWords, redrawnWords].filter((w) => w !== '').join(', ')
   let verdict: string
   let turnFirst = ''
@@ -620,6 +677,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
       for (const v of verdicts) if (v.status === 'changed' || v.status === 'added' || v.status === 'removed') parts.push(v.text)
       const others = changes.length - parts.length
       if (others > 0) parts.push(plural(others, roomsFirst ? 'other change' : 'wall or opening change'))
+      if (movedWithWords !== '') parts.push(movedWithWords)
       if (renamed.length > 0) parts.push(renamedWords)
       if (redrawn.length > 0) parts.push(redrawnWords)
       verdict = `Besides, ${plural(changes.length, 'change')}, room by room: ${parts.join('; ')}${shifted}.`
@@ -634,6 +692,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     if (kept > 0) parts.push(`${plural(kept, 'room')} as ${kept === 1 ? 'it was' : 'they were'}`)
     const others = changes.length - roomLines.length
     if (others > 0) parts.push(`${plural(others, roomsFirst ? 'opening change' : 'wall or opening change')}`)
+    if (movedWithWords !== '') parts.push(movedWithWords)
     if (renamed.length > 0) parts.push(renamedWords)
     if (redrawn.length > 0) parts.push(redrawnWords)
     verdict = `${plural(changes.length, 'change')}, room by room: ${parts.join('; ')}${shifted}.`
@@ -657,6 +716,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     changes,
     issues,
     stayed,
+    movedWith,
     scope: { checked: options.rooms !== undefined, rooms: options.rooms ?? [], outside },
     marks,
     aligned,
