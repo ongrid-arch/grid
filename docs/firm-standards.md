@@ -42,7 +42,7 @@ of it, and no export, sheet or drawing reads it.
 
 Every figure in the file is the firm's own. It cites no document and has no status: a field that
 a code's figure carries (`document`, `edition`, `clause`, `source`, `status`, …) is refused and
-says so. Say where a figure comes from in the firm's words, in `note`. The firm's figures are not
+says so. Say where a figure comes from in the firm's words, in `note`. The note stays with the figure: each `firm/` line says it in what is needed, and its `firm` record carries it (ARE-27). The firm's figures are not
 tied to a place: they are set against the plan whatever place it states, or none.
 
 ## What a standard can measure
@@ -53,7 +53,7 @@ drawing are measured the same way as everywhere else.
 | `measure` | What is measured | Unit |
 |---|---|---|
 | `corridor_width` | The narrowest point of each room used as a corridor (or each room of `uses`) from end to end, as `grid_measure what=access` gives it ([tool-server.md](tool-server.md#accessibility-measurements-as-numbers)): its ends are the sides of its outline no wider than it that turn into it at both corners, farthest apart, and the width is the widest body or trolley that gets from one to the other, clear of its walls and fixtures. A door does not narrow it; a door is `door_clear_width`. A grid of points finds where it is narrowest, and the width there is measured to the walls and fixtures themselves, so a corridor whose walls stand 1.5 m apart measures 1.5 m. With no two ends, the widest circle it holds. | m |
-| `door_clear_width` | What each door and doorless opening leaves clear: its hole in the wall, less what an open leaf and its stop take and what fixtures stand in front of it | m |
+| `door_clear_width` | What each door and doorless opening leaves clear, leaf by leaf: the leaf it opens by, or both leaves of a pair that states none, less what an open leaf and its stop take for a door that swings or folds, and what fixtures stand in front of it. The same width the brief and `grid_measure what=access` judge a door by ([brief.md](brief.md)) | m |
 | `turning_circle` | The widest circle each room's free floor holds, clear of its walls and fixtures | m |
 | `fixture_clearance` | The clear floor straight out from the front of each fixture to the nearest wall face, doorway or other fixture | m |
 | `room_area` | Each room's net area, to the faces of its walls, as `grid_areas` gives it | m² |

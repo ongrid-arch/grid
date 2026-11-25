@@ -393,7 +393,7 @@ holds (`items`); furniture, radiators and the swing of a leaf are not in the pla
 | Ask | Call | Indicator (`code` in the data) |
 |---|---|---|
 | Can a wheelchair turn in the bathroom? | `what=use`, `room`, `diameter` (or Grid's own) | `use/turning-space`: the widest circle the free floor holds, and where |
-| What clear width does each doorway leave? | `what=use`, `room`, `width` | `use/doorway-clear-width`: the widest stretch of the hole no fixture stands in front of (within `useApproachDepth`, 0.3 m), less `useOpenLeaf` (0.05 m) for a door's open leaf and stop |
+| What clear width does each doorway leave? | `what=use`, `room`, `width` | `use/doorway-clear-width`: the widest stretch of the hole no fixture stands in front of (within `useApproachDepth`, 0.3 m), less `useOpenLeaf` (0.05 m) for each open leaf and stop of a door that swings or folds, leaf by leaf (ARE-27) |
 | Is the way through the room wide enough? | `what=use`, `room`, `width` | `use/passage-width`: the widest body that gets from one doorway to another, or from its one doorway to its widest point, and what stands either side of its narrowest point |
 | Is there room beside the bath? | `what=use`, `room`, `clearance` | `use/space-by-fixture`: the clear floor straight out from the front and each side of every fixture to the nearest wall face, doorway or fixture |
 | Does anything block the window? | `what=use`, `room` | `use/window-blocked`: how much of a window's width a fixture higher than its sill stands in front of |
@@ -416,7 +416,7 @@ or every room when it marks none, and says which. It takes only `plan`, `units` 
 
 | What it lists | From | In the data |
 |---|---|---|
-| Every door and doorless opening of a room measured, or on a way: the hole in the wall, the clear width past an open leaf (less `useOpenLeaf`, 0.05 m, and any fixture in front of it), and its sill when it stands above the floor | CNT-13's `doorwayClearance` | `doors`: `id`, `type`, `between`, `hole`, `leaf`, `clear`, `sill`, `entrance`, `against` |
+| Every door and doorless opening of a room measured, or on a way: the hole in the wall, the clear width past an open leaf (less `useOpenLeaf`, 0.05 m, and any fixture in front of it), and its sill when it stands above the floor | CNT-13's `doorwayClearance` | `doors`: `id`, `type`, `between`, `hole`, `leaf`, `clear`, `leaves`, `judgedBy`, `sill`, `entrance`, `against` |
 | Each room used as a corridor, at its narrowest from end to end (its two ends are the sides of its outline no wider than it that turn into it at both corners, farthest apart; never a jog in a side or a piece of a curve), measured to the walls and fixtures themselves where a grid finds it narrowest, across the curve for a curved corridor; its widest circle when Grid finds no two ends, never narrower than its narrowest point | CNT-13's `passageWidth` | `corridors`: `room`, `narrowest`, `at`, `widest`, `against` |
 | Each room's turning space: the widest circle its free floor holds | CNT-13's `turningSpace` | `turning`: `room`, `diameter`, `at`, `against` |
 | The way in from the entrance to each room marked (and each route marked), room by room, with every step on it and its height: a door's sill, a change of level between rooms (LVL-7), the ground outside when the site states its level (LVL-4), and the risers of a stair; between floors a lift where one joins them, else a stair (LVL-3) | the way-out check's ways, `planSteps`, `groundLevel`, `floorJoins` | `ways`: `from`, `to`, `entrance`, `found`, `legs`, `joins`, `steps` (`kind`, `at`, `height`, `count`, `up`), `narrowest`, `cannotTell` |
@@ -437,7 +437,9 @@ named person has confirmed against its source (`confirmedFigure` in `@ongrid/rul
 `checked-once` or `checked-twice`, each check by a person, for the place the plan states and the
 kind of building it was read for). No figure Grid holds is confirmed yet, so today none is used
 and the answer says so. A door's width is set against the person's `door_width` by its clear
-width, not its hole. No line says a room, a route or the plan is accessible.
+width, not its hole, unless the brief says `leaf` or `hole` (ARE-27), and the line names the width
+it was set against. Each leaf of a pair has its own clear width (`leaves`, and `judgedBy`: `leaf`,
+`pair` or `hole`), as [the brief](brief.md) describes. No line says a room, a route or the plan is accessible.
 
 `grid_check` gives a plan that marks anything one line, `plan/not-checked-access`: what is
 marked was not checked, since Grid holds no figure for it that a named person has confirmed.
