@@ -57,6 +57,17 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - A size is east-west by north-south, to the inside faces. `3 x 4 centre` measures to the walls'
   centre lines and `8 x 10 outside` to the outside faces; `sizes outside` makes that the
   default. The answer states for each room what its size measured to, and its inside size.
+  A room so sized and placed by its corner (`at x,y`, or the first room, at 0,0) is placed by
+  the corner its size measures to, so rooms written on a grid have their walls' centre lines on
+  it (WRT-47): `12 x 10.8 centre at 12,0` runs from x = 12 to x = 24. Where two such rooms meet
+  on a line, the wall between them is the inside thickness (or the one a `walls` word or a
+  `wall between` line gives), its centre line on that line, also where the rest of the side is
+  outside; two rooms sized to their outside faces that meet add up to the two sizes.
+- The `walls` line is for the floor it is written on, while that floor has no rooms, and every
+  floor after it (WRT-47). A walls line written after a floor's rooms leaves that floor with the
+  walls it started with, and the answer says so (`rooms/walls-late`); a copied floor keeps the
+  walls of the floor it copies. A floor that states its `height` gives its walls that height;
+  where the walls line says another, the answer says which won (`rooms/walls-height`).
 - A floor line starts each storey (WRT-14):
   `floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]`.
   The name is in quotes, or left out and the id names the floor (`floor ground`). `level` is the

@@ -346,7 +346,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-34 4: the estimate's gable lines and their rules (estimate.ts).
     // and ARE-44 3: the step line's floor-level and ground-step lines (brief/lines.ts).
     // and ARE-48 5: the keep-apart line's ways between the rooms (brief/lines.ts).
-    expect(left).toBeLessThanOrEqual(1629)
+    // and 3 more from the same merge (CMD-25, CNT-37 and CMD-26 each raised the cap on their own).
+    expect(left).toBeLessThanOrEqual(1632)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
