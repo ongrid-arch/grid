@@ -41,7 +41,7 @@ import { drawable } from '@ongrid/floorplan/geometry/rules/check'
 import { floorGraph, roomOutlines } from '@ongrid/floorplan/geometry/rules/graph'
 import { compassOf, type Compass } from '../describe/facts'
 import type { Survey, SurveyRoom } from './survey'
-import { walkRoute, type StairPassage, type WalkedLeg, type WalkGap } from './walked'
+import { walkRoute, type EndAt, type StairPassage, type StartAt, type WalkPoint, type WalkedLeg, type WalkGap } from './walked'
 
 export const EMPTY_ROOM_RULE =
   'Measured in the empty room between wall faces: the fixtures the plan holds, furniture, radiators, door leaves and the space a person needs round them are not taken off.'
@@ -150,6 +150,9 @@ export interface Route {
   readonly onStairs: number | null
   /** ARE-18: when `length` is null, the room it stops at and why. */
   readonly gap: WalkGap | null
+  /** ARE-30: the points the route is walked from and to, on the drawing, and which kind each is; null with `length`. */
+  readonly startPoint: WalkPoint | null
+  readonly endPoint: WalkPoint | null
   /** ARE-21, a route to `outside` only: the way out it takes, the nearest by walked length. */
   readonly exit?: string
   /** ARE-21: the other ways out, nearest first, each with the length of its own route (null when it cannot be measured). */
@@ -195,8 +198,8 @@ interface RouteNode {
  * upstairs is no way out. A way between two rooms keeps to their floor, and so does the way out
  * with `acrossFloors` false: any door out of the floor, as before.
  */
-export function routeBetween(survey: Survey, from: string, to: string, acrossFloors = true): Route | null {
-  const first = routeSearch(survey, from, to, acrossFloors, null)
+export function routeBetween(survey: Survey, from: string, to: string, acrossFloors = true, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}): Route | null {
+  const first = routeSearch(survey, from, to, acrossFloors, null, ends)
   if (first === null || to !== 'outside') return first
   // ARE-21: every way out the search can reach, each by the way with the fewest rooms to it; the
   // shortest walked is the answer and the others are listed, not the one met first.
@@ -204,7 +207,7 @@ export function routeBetween(survey: Survey, from: string, to: string, acrossFlo
   for (const floor of planFloors(survey.plan)) for (const ways of wayGraph(survey, floor.id).next.values()) for (const w of ways) if (w.room === OUTSIDE) doors.add(w.via)
   const routes: Route[] = []
   for (const via of [...doors].sort()) {
-    const r = routeSearch(survey, from, to, acrossFloors, via)
+    const r = routeSearch(survey, from, to, acrossFloors, via, ends)
     if (r !== null && r.steps.at(-1)?.via === via) routes.push(r)
   }
   if (routes.length === 0) return first
@@ -223,7 +226,7 @@ export function routeBetween(survey: Survey, from: string, to: string, acrossFlo
 }
 
 /** One search; `onlyExit` limits the way out to that doorway (ARE-21). */
-function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null): Route | null {
+function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}): Route | null {
   const fromFloor = survey.byId.get(from)!.facts.floor
   const out = to === 'outside'
   const floorsToo = out && acrossFloors
@@ -310,7 +313,8 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
     if (narrowestRoom === null || circle < narrowestRoom.widestCircle) narrowestRoom = { room: id, widestCircle: circle }
   }
   const passages = stairPassages(steps.filter((s) => s.type === 'stair').map((s) => s.via), found)
-  const walked = walkRoute(survey, rooms, steps.map((s) => s.via), out, passages)
+  const doorEnds = new Set(survey.plan.rooms.filter((r) => r.use === 'stair' || r.use === 'lift').map((r) => r.id))
+  const walked = walkRoute(survey, rooms, steps.map((s) => s.via), out, passages, { ...ends, doorEnds })
   return {
     from,
     to,
@@ -323,6 +327,8 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
     legs: walked.walked?.legs ?? [],
     onStairs: walked.walked?.onStairs ?? null,
     gap: walked.gap,
+    startPoint: walked.walked?.start ?? null,
+    endPoint: walked.walked?.end ?? null,
   }
 }
 

@@ -49,8 +49,8 @@ function tapes(): Taped[] {
   const taped: Taped[] = []
   for (const room of plan.rooms) {
     const [a, b, c, d] = room.boundary as [string, string, string, string]
-    for (const wall of room.boundary.filter((id) => id.startsWith('ext-'))) taped.push({ room: room.id, wall, length: 0 })
-    taped.push({ room: room.id, from: [d, a], to: [b, c], length: 0 }, { room: room.id, from: [a, b], to: [c, d], length: 0 })
+    for (const wall of room.boundary.filter((id) => id.startsWith('ext-'))) taped.push({ room: room.id, wall, length: 1 })
+    taped.push({ room: room.id, from: [d, a], to: [b, c], length: 1 }, { room: room.id, from: [a, b], to: [c, d], length: 1 })
   }
   const rows = tapedLengths({ ...plan, taped })
   return taped.map((entry, i) => ({ ...entry, length: Math.round(rows[i]!.drawn! * 1000) / 1000 }))
@@ -169,5 +169,46 @@ describe('lab MS-12: a plan at survey coordinates with a stored origin', () => {
     const kept = await codes('kept.json')
     expect(kept).not.toContain('plan/far-from-origin')
     expect(kept).not.toContain('plan/units-question')
+  })
+})
+
+describe('one bad reading among the taped lengths (ARE-31)', () => {
+  const BAD: Array<[string, Record<string, unknown>]> = [
+    ['a negative length', { room: 'hall', wall: 'ext-s', length: -1.4 }],
+    ['a zero length', { room: 'hall', wall: 'ext-s', length: 0 }],
+    ['a length written as a word', { room: 'hall', wall: 'ext-s', length: 'long' }],
+    ['no length', { room: 'hall', wall: 'ext-s' }],
+    ['neither a wall nor corners', { room: 'hall', length: 1.4 }],
+    ['a wall and corners', { room: 'hall', wall: 'ext-s', from: ['a', 'b'], to: ['c', 'd'], length: 1.4 }],
+    ['one corner only', { room: 'hall', from: ['ext-s', 'ext-w'], length: 1.4 }],
+    ['a corner with one wall', { room: 'hall', from: ['ext-s'], to: ['ext-w', 'row'], length: 1.4 }],
+    ['a tolerance below zero', { room: 'hall', wall: 'ext-s', length: 1.4, tolerance: -0.01 }],
+    ['an entry that is not an object', 7 as unknown as Record<string, unknown>],
+    ['a null entry', null as unknown as Record<string, unknown>],
+  ]
+  for (const [what, bad] of BAD) {
+    it(`leaves out ${what} with its own line and still checks the others`, async () => {
+      b = bench({ 'flat.json': { ...byFaces(), taped: [TAPES[0]!, bad, TAPES[1]!] } })
+      const check = await b.call('grid_check', { plan: 'flat.json' })
+      expect(check.isError).toBe(false)
+      expect(check.text).toContain('Taped against drawn (2; none differ)')
+      expect(check.text).toMatch(/taped\[1\]/)
+      expect(rowsOf(check.data).map((row) => row.state)).toEqual(['agrees', 'agrees'])
+    })
+  }
+
+  it('says every bad reading, each at its place, and checks the good ones between them', async () => {
+    const taped = [{ room: 'hall', wall: 'ext-s', length: -1 }, TAPES[0]!, { room: 'hall', length: 2 }, TAPES[1]!, { room: 'hall', wall: 'ext-s', length: 'x' }]
+    b = bench({ 'flat.json': { ...byFaces(), taped } })
+    const check = await b.call('grid_check', { plan: 'flat.json' })
+    expect(check.text).toContain('Taped against drawn (2; none differ)')
+    for (const at of [0, 2, 4]) expect(check.text).toContain(`taped[${at}]`)
+  })
+
+  it('measures what it can when a plan is given straight to tapedLengths with a bad length in it', () => {
+    const plan = parseFloorPlan(byFaces())
+    const rows = tapedLengths({ ...plan, taped: [{ room: 'hall', wall: 'ext-s', length: -1 }, TAPES[0]!, { room: 'hall', wall: 'ext-s', length: Number.NaN }, TAPES[1]!] })
+    expect(rows.map((row) => row.state)).toEqual(['not-measured', 'agrees', 'not-measured', 'agrees'])
+    expect(rows.map((row) => row.index)).toEqual([0, 1, 2, 3])
   })
 })

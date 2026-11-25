@@ -17,6 +17,7 @@
  */
 
 import type { FloorPlan, Opening, Room, Wall } from '../plan'
+import { boundaryPrint } from '../../rooms/stamp'
 import { wallsInPlace } from './place'
 
 export const PLAN_TURNS = ['mirror-left-right', 'mirror-top-bottom', 'turn-180', 'turn-90', 'turn-270', 'mirror-diagonal', 'mirror-other-diagonal'] as const
@@ -112,7 +113,26 @@ export function turnPlan(plan: FloorPlan, id: PlanTurnId): FloorPlan {
         ...(room.holes === undefined ? {} : { holes: room.holes.map((hole) => [...hole].reverse()) }),
       }))
     : plan.rooms
-  return { ...plan, walls, openings, rooms }
+  return { ...plan, walls, openings, rooms, ...(mirrored ? reprinted(plan, rooms) : {}) }
+}
+
+/**
+ * MSG-21: a plan written rooms first keeps each room's boundary fingerprint (`written`, WRT-2).
+ * A mirror lists each room's walls the other way round, so each room whose fingerprint matched
+ * is printed again for its new order, as the mirror edit does; otherwise the mirrored copy reads
+ * as every room edited by hand. A room already edited by hand keeps its old print and is still
+ * found so.
+ */
+function reprinted(plan: FloorPlan, rooms: readonly Room[]): Pick<FloorPlan, 'written'> {
+  const written = plan.written
+  if (written === undefined) return {}
+  const before = new Map(plan.rooms.map((room) => [room.id, room]))
+  const boundaries: Record<string, string> = { ...written.boundaries }
+  for (const room of rooms) {
+    const was = before.get(room.id)
+    if (was !== undefined && written.boundaries[room.id] === boundaryPrint(was)) boundaries[room.id] = boundaryPrint(room)
+  }
+  return { written: { ...written, boundaries } }
 }
 
 /**

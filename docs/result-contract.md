@@ -514,7 +514,7 @@ and every change's receipt, empty there for a plan that keeps none) holds:
 | `off` | Drawn less taped, positive when the drawing is longer; null with no drawn length |
 | `within` | How far apart they may be and agree: the taped length's own `tolerance`, else `tapedAgree` (0.01 m) |
 | `state` | `agrees`, `differs` or `not-measured` |
-| `missing`, `missingWalls` | Only when not measured: `no-room`, `no-wall`, `not-the-rooms`, `no-corner` or `not-drawn`, and the walls it is about |
+| `missing`, `missingWalls` | Only when not measured: `bad-length`, `no-room`, `no-wall`, `not-the-rooms`, `no-corner` or `not-drawn`, and the walls it is about |
 
 A row that differs is also a line, `room/taped-differs`, and one that cannot be measured is
 `plan/taped-not-measured`; both are worth a look. A row that agrees is no line.

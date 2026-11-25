@@ -108,7 +108,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
   // ARE-18: two more, why a route's walked length is not given.
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
-  'packages/cli/src/mcp/readTools.ts': [362, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [367, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -148,7 +148,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
   'packages/cli/src/quantities/takeoff.ts': [10, 'notYet'],
   'packages/cli/src/quantities/use.ts': [28, 'notYet'],
-  'packages/cli/src/quantities/walked.ts': [1, 'notYet'],
+  'packages/cli/src/quantities/walked.ts': [3, 'notYet'],
   'packages/cli/src/report/draft.ts': [16, 'notYet'],
   // MSG-19: three more, the refusals of a seen file with a mark Grid could not read.
   'packages/cli/src/seen/marks.ts': [24, 'notYet'],
@@ -200,7 +200,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/rooms/answer.ts': [6, 'notYet'],
   // WRT-14: four fewer, the floor line's refusals moved into the message files.
   // LVL-16: one fewer, the warning of ids changed on several floors moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [118, 'notYet'],
+  'packages/floorplan/src/rooms/compile.ts': [117, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   'packages/floorplan/src/rooms/read.ts': [23, 'notYet'],
   'packages/floorplan/src/rooms/words.ts': [4, 'notYet'],
