@@ -10,7 +10,7 @@
  * at its place along the paired wall: WRT-12), and each room with
  * the room that has the same walls or the same floor in the same place. What is left is paired
  * by id. A plan written rooms first names its rooms and openings itself, so there those are
- * paired by id first and by place after (lab RT-8).
+ * paired by id first and by place after (lab RT-8), and a room left over by its name (WRT-32).
  *
  * The result is the earlier plan moved and written under the later plan's ids: what the id diff
  * (`diffPlans`) then compares, so a wall that only got a new name is no change at all.
@@ -312,6 +312,26 @@ function roomsByPlace(
   return candidates
 }
 
+/**
+ * WRT-32: rooms left unpaired that have the same name on the same floor, the one room of that
+ * name on its floor in each version. Used for a plan written rooms first: its author named the
+ * room, and its walls are named after the room's id, so a room whose id changed and that moved
+ * has nothing else to be paired by.
+ */
+function roomsByName(earlier: FloorPlan, later: FloorPlan, taken: { before: Set<string>; after: Set<string> }): Candidate[] {
+  const key = (room: Room): string => `${floorOf(room)}\u0001${room.name.trim()}`
+  const only = (rooms: readonly Room[], gone: ReadonlySet<string>): Map<string, Room> => {
+    const counts = new Map<string, number>()
+    for (const room of rooms) if (room.name.trim() !== '') counts.set(key(room), (counts.get(key(room)) ?? 0) + 1)
+    return new Map(rooms.filter((room) => room.name.trim() !== '' && counts.get(key(room)) === 1 && !gone.has(room.id)).map((room) => [key(room), room] as const))
+  }
+  const theirs = only(later.rooms, taken.after)
+  return [...only(earlier.rooms, taken.before)].flatMap(([k, room]) => {
+    const other = theirs.get(k)
+    return other === undefined ? [] : [{ before: room.id, after: other.id, cost: 0, reversed: false }]
+  })
+}
+
 function byId<T extends { readonly id: string }>(
   earlier: readonly T[],
   later: readonly T[],
@@ -480,7 +500,8 @@ export function alignPlans(earlier: FloorPlan, later: FloorPlan, options: AlignO
   const rooms = options.idsFirst
     ? [
         ...assign(byId(earlier.rooms, later.rooms, roomTaken), roomTaken),
-        ...assign(roomsByPlace(earlier, later, shift, wallPairs, roomTaken), roomTaken)
+        ...assign(roomsByPlace(earlier, later, shift, wallPairs, roomTaken), roomTaken),
+        ...assign(roomsByName(earlier, later, roomTaken), roomTaken)
       ]
     : [
         ...assign(roomsByPlace(earlier, later, shift, wallPairs, roomTaken), roomTaken),

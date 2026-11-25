@@ -2036,6 +2036,22 @@ export const en = {
   'compare.word.openings': 'openings',
   'compare.range': '{from} to {to}',
 
+  // --- WRT-32: a room in both versions says every change it went through (`diff/building.ts`, `quantities/compare.ts`)
+  'diff.room.moved': 'moved {by}',
+  'diff.room.id': '{room} (id {before} → {after})',
+  'diff.room.idNow': 'the id of {room} is now {after} (was {before})',
+  'diff.room.merged': 'merged with {rooms}',
+  'diff.room.merged.wall': 'merged with {rooms}, wall {walls} taken out between them',
+  'diff.room.merged.walls': 'merged with {rooms}, walls {walls} taken out between them',
+  'diff.room.mergedInto': '{room} merged into {into}, {area}',
+  'compare.room.moved.one': '{room} moved {by}, as it was',
+  'compare.room.moved.many': '{count} rooms moved as they were, {range} m',
+  'compare.move.east': '{by} m east',
+  'compare.move.west': '{by} m west',
+  'compare.move.north': '{by} m north',
+  'compare.move.south': '{by} m south',
+  'compare.move.onDrawing': '{parts} on the drawing',
+
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Floor plan with {count} rooms',
   'drawing.picture.keyed': 'Floor plan with {count} rooms, and a key of what to look at',
