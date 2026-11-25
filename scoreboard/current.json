@@ -6,16 +6,16 @@
   "turnsAnswered": 23,
   "mistakesNamed": 5,
   "checksFed": 25,
-  "roomsNotMeasured": 735,
+  "roomsNotMeasured": 731,
   "soundPlansWithAlarm": 95
  },
  "detail": {
   "areas:lab": {
    "plans": 1121,
    "plansGridCannotRead": 0,
-   "compared": 16542,
+   "compared": 16546,
    "wrong": 194,
-   "notMeasured": 735
+   "notMeasured": 731
   },
   "areas:generated": {
    "plans": 2300,

@@ -26,7 +26,7 @@ function corridorNotDrawn(): unknown {
 }
 
 describe('MS-4: one corridor that could not be drawn', () => {
-  it('gives no note, and one "not checked because" line naming the corridor, which keeps the 16 notes it held back', () => {
+  it('gives no note, and one "not checked because" line naming the corridor, which keeps the 19 notes it held back', () => {
     const result = inspectPlan(corridorNotDrawn())
     expect(result.counts.finding).toBe(0)
     const notChecked = result.lines.filter((line) => line.kind === 'not-checked')
@@ -34,11 +34,13 @@ describe('MS-4: one corridor that could not be drawn', () => {
     const [line] = notChecked
     expect(line!.code).toBe('floor/not-checked-rooms-not-drawn')
     expect(line!.message).toBe('On "Ground floor", these rooms could not be drawn, so they and what rests on them were not checked: "Corridor"')
-    // Before MSG-5 these were given: the way out of the floor, and "no door" on 15 sound rooms.
-    expect(line!.held).toHaveLength(16)
+    // Before MSG-5 these were given: the way out of the floor, "no door" on 15 sound rooms,
+    // and (since ARE-40) "no way out" on the 3 rooms that have a door.
+    expect(line!.held).toHaveLength(19)
     expect(line!.held!.every((note) => note.waitsFor.includes('corridor'))).toBe(true)
     expect(line!.held!.filter((note) => note.code === 'room/no-door')).toHaveLength(15)
     expect(line!.held!.filter((note) => note.code === 'floor/no-exit')).toHaveLength(1)
+    expect(line!.held!.filter((note) => note.code === 'room/no-route-out')).toHaveLength(3)
     // The one problem is the corridor itself.
     expect(result.problems).toBe(1)
     expect(result.lines[0]).toMatchObject({ code: 'room/unclosed', thing: { kind: 'room', id: 'corridor' } })
