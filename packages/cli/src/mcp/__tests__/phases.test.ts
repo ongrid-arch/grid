@@ -97,6 +97,29 @@ describe('a plan with existing, demolished and new parts (CNT-10, EL-10)', () =>
     expect(described.text).toContain('WORK existing 6 walls 5 openings 1 rooms; demolished 1 walls 3 openings 3 rooms; new 1 walls 3 openings 3 rooms; figures after the work.')
   })
 
+  it('draws the parts to be demolished in grid_view, as grid draw does, and counts what grid_check counts (VEW-14)', async () => {
+    const view = await ok('grid_view', { plan: 'refurb.json', kind: 'plan' })
+    expect(view.image).toBe(true)
+    // The demolished wall and doors are in the picture's boxes, not dropped with the building after the work.
+    const boxes = (view.data!['boxes'] as { id: string }[]).map((box) => box.id)
+    expect(boxes).toContain('wk')
+    expect(boxes).toContain('d-kitchen')
+    expect(boxes).toContain('win-south-old')
+    // 1 wall, 3 openings and 3 rooms: the count the work line of grid_describe and grid_check give.
+    expect(view.text).toContain('7 parts are to be demolished (1 wall, 3 openings, 3 rooms)')
+    const check = await ok('grid_check', { plan: 'refurb.json', full: true })
+    expect(check.text).toContain('7 to be demolished')
+    // A demolished id can be picked out.
+    const picked = await ok('grid_view', { plan: 'refurb.json', kind: 'plan', highlight: ['wk', 'd-kitchen'] })
+    expect(picked.text).toContain('Picked out 2 of the 2 asked for on this floor')
+  })
+
+  it('draws a plan with no phases as before, with no line about demolition (VEW-14)', async () => {
+    b.write('plain2.json', { version: '1', walls: [{ id: 'a', start: [0, 0], end: [4, 0] }], rooms: [], openings: [] })
+    const view = await ok('grid_view', { plan: 'plain2.json', kind: 'plan' })
+    expect(view.text).not.toContain('to be demolished')
+  })
+
   it('costs the work as three lists: demolish, make good and new', async () => {
     const reply = await ok('grid_takeoff', { plan: 'refurb.json', for: 'change' })
     const lines = reply.data!['lines'] as { key: string; quantity: number; unit: string; list: string }[]
