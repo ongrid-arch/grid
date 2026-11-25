@@ -42,7 +42,7 @@ import type { WalkStop } from '../describe/walk'
 import { DIFF_OPTIONS, MARK_OPTIONS, runDiff, runMark } from './diff'
 import { MARKERS_MAX, MarkerRefused } from '../versions/markers'
 import { GitUnread } from '../versions/git'
-import { checkDrawRequest, DRAW_OPTIONS, drawFile, drawsPng, PNG_TO_TERMINAL, undecidedNote } from './draw'
+import { checkDrawRequest, DRAW_OPTIONS, drawFormat, drawFile, drawsPng, PNG_TO_TERMINAL, undecidedNote } from './draw'
 import { approximatedText, checkExportRequest, dxfProfileLine, EXPORT_OPTIONS, exportFile, exportIntoProject, ExportWriteFailed, leftOutText } from './export'
 import { DxfProfileRefused } from '../export/dxfProfile'
 import type { LeftOutPart } from '@ongrid/floorplan/export'
@@ -446,7 +446,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   }
 
   if (name === 'draw') {
-    const request = {
+    const request = drawFormat({
       png: parsed.values.has('--png'),
       // VEW-3: a saved view is the 3D model through its camera.
       threeD: parsed.values.has('--3d') || parsed.values.has('--view'),
@@ -466,7 +466,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       section: textOf(parsed, '--section'),
       toward: textOf(parsed, '--toward'),
       marks: textOf(parsed, '--marks'),
-    }
+    })
     const { scale, look } = checkDrawRequest(request)
     if (drawsPng(request) && request.out === undefined && io.stdoutIsTerminal) {
       throw new UsageError(PNG_TO_TERMINAL)

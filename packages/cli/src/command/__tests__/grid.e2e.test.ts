@@ -452,7 +452,7 @@ describe('options: each command refuses what it does not take, by name', () => {
     [['draw', 'two-bed-flat.json', '--scale', '2'], '--scale only applies to a PNG'],
     [['draw', 'two-bed-flat.json', '--png', '--scale', '0'], '--scale takes a number above 0'],
     [['draw', 'two-bed-flat.json', '--png', '--scale', 'big'], '--scale takes a number above 0'],
-    [['draw', 'two-bed-flat.json', '--out', 'plan.png'], 'add --png'],
+    [['draw', 'two-bed-flat.json', '--png', '--out', 'plan.svg'], 'does not end in .png: name a .png file, or leave --png out'],
     [['draw', 'two-bed-flat.json', '--3d', '--png'], '--png does nothing with --3d'],
     [['draw', 'two-bed-flat.json', '--3d=yes'], '--3d is a switch and takes no value'],
     [['draw', 'two-bed-flat.json', '--3d', '--out', 'model.svg'], 'does not end in .png: name a .png file'],

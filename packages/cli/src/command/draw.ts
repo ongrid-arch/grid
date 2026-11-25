@@ -32,7 +32,7 @@ export const DRAW_OPTIONS: OptionSpecs = {
   '--3d': { takesValue: false, help: 'Draw the 3D model as the app opens it, as a PNG of 1200 by 800 pixels.' },
   '--facade': { takesValue: true, help: 'Draw one side of the building in elevation instead of a floor plan: north, east, south or west, the sides of the drawing (north is its top). Every floor at its level. Not with --3d, --view or --floor.' },
   '--view': { takesValue: true, help: 'Draw a view saved with the plan (grid_save_view), by name: the 3D model through its camera, as a PNG of 1200 by 800 pixels.' },
-  '--out': { takesValue: true, help: 'The file to write, inside the project, ending in .svg (or .png with --png or --3d). Standard output when left out.' },
+  '--out': { takesValue: true, help: 'The file to write, inside the project, ending in .svg or .png: the format follows the ending when --png and --3d are left out. Standard output when left out.' },
   '--floor': { takesValue: true, help: 'The floor to draw (a floor id from the plan). The ground floor when left out. With --3d, that floor as a cutaway; the whole building when left out.' },
   '--look': { takesValue: true, help: 'How the plan is drawn: technical (the default: black on white, lines in millimetres on paper) or working (as on screen, on light paper). Not with --3d.' },
   '--hide': { takesValue: true, help: 'Parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Not with --3d.' },
@@ -112,6 +112,16 @@ export function drawsPng(request: DrawRequest): boolean {
   return request.png || request.threeD === true
 }
 
+/**
+ * CMD-27: the format follows the `--out` extension when no format is named: a `.png` file is a PNG
+ * without `--png`. `--3d` and `--view` are PNGs already; an extension that clashes with a named
+ * format is refused by `checkDrawRequest`.
+ */
+export function drawFormat<R extends DrawRequest>(request: R): R {
+  if (request.png || request.threeD || request.out === undefined) return request
+  return request.out.toLowerCase().endsWith('.png') ? { ...request, png: true } : request
+}
+
 /** CMD-25: said when a PNG would go to a terminal. */
 export const PNG_TO_TERMINAL = 'A PNG is not shown in a terminal: name a file with --out, or send the output to a file or another program.'
 
@@ -170,8 +180,10 @@ export function checkDrawRequest(request: DrawRequest): { scale: number; look: L
   const png = request.png || request.threeD === true
   const extension = png ? '.png' : '.svg'
   if (request.out !== undefined && !request.out.toLowerCase().endsWith(extension)) {
-    const hint = png ? 'name a .png file' : request.out.toLowerCase().endsWith('.png') ? 'add --png, or name a .svg file' : 'name a .svg file'
-    throw new UsageError(`--out ${JSON.stringify(request.out)} does not end in ${extension}: ${hint}.`)
+    const named = request.threeD ? (request.view !== undefined ? '--view' : '--3d') : '--png'
+    throw new UsageError(png
+      ? `${named} draws a PNG, and --out ${JSON.stringify(request.out)} does not end in .png: name a .png file${named === '--png' ? ', or leave --png out and name a .svg file' : ''}.`
+      : `--out ${JSON.stringify(request.out)} does not end in .svg or .png: name a .svg file for an SVG, or a .png file for a PNG.`)
   }
   if (request.scale === undefined) return { scale: 1, look }
   if (!png) throw new UsageError('--scale only applies to a PNG: add --png or --3d, or leave --scale out.')
