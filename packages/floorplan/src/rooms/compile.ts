@@ -4157,8 +4157,8 @@ function compiled(text: string, options: CompileOptions): { result: RoomsResult;
       const seen = [...(tried.get(line) ?? []), { value: got.value, length: got.length }]
       tried.set(line, seen)
       const [a, b] = seen.length >= 2 ? (seen.slice(-2) as [{ value: number; length: number }, { value: number; length: number }]) : [null, seen[0]!]
-      const slope = a !== null && Math.abs(b.value - a.value) > 1e-9 ? (b.length - a.length) / (b.value - a.value) : null
-      const step = slope !== null && Math.abs(slope) > 1e-9 ? (got.fill - b.length) / slope : (got.fill - b.length) / Math.max(1, compiler.fillCount(line))
+      const slope = a !== null && Math.abs(b.value - a.value) > tolerance('noLength') ? (b.length - a.length) / (b.value - a.value) : null
+      const step = slope !== null && Math.abs(slope) > tolerance('noLength') ? (got.fill - b.length) / slope : (got.fill - b.length) / Math.max(1, compiler.fillCount(line))
       fills.set(line, b.value + step)
       refilled = true
     }
