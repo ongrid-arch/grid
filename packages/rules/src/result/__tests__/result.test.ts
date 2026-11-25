@@ -201,7 +201,7 @@ describe('words Grid does not read (MSG-4)', () => {
     const worth = result.lines.filter((l) => l.kind === 'worth-a-look')
     expect(worth.slice(0, reading.length)).toEqual(reading)
     // LVL-3 added `stairs` to the plan's fields, SHT-7 `title`, `annotations` and `sketch`, CNT-5 `building`, CNT-3 `north`, `yAxis`, `front` and `site` (LVL-4 adds `ground` to it), WRT-6 `marks`, WRT-7 `display`, VEW-3 `views`, LVL-8 `patterns`, CNT-17 `accessible`, HND-11 `taped`, CNT-10 `base`, CNT-4 `flatTypes` and `flats`.
-    expect(reading[3]!.needed).toBe('one of the fields of the plan: version, units, building, projectId, walls, rooms, openings, patterns, floors, stairs, referenceImage, base, items, library, title, annotations, sketch, north, yAxis, front, site, marks, views, accessible, taped, flatTypes, flats, buildings, context, types, columns, grids, bays, ramps, display, written')
+    expect(reading[3]!.needed).toBe('one of the fields of the plan: version, units, building, projectId, name, walls, rooms, openings, patterns, floors, stairs, referenceImage, base, items, library, title, annotations, sketch, north, yAxis, front, site, marks, views, accessible, taped, flatTypes, flats, buildings, context, types, columns, grids, bays, ramps, display, written')
   })
 
   it('names a use Grid does not know with the use meant, and reads Bedroom as bedroom', () => {
