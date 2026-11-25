@@ -507,7 +507,11 @@ plan is laid on the later one, moved to its origin when that lines up more walls
 paired with the wall standing in its place, either way round, its ends within `diffPlace`
 (5 cm) of each other ([tolerances](tolerances.md)), each opening with the opening at its place (or, its wall moved, with the opening of its
 kind at its place along the paired wall) and
-each room with the room on the same walls or the same floor; what is left is paired by id, and
+each room with the room on the same walls or the same floor. A wall keeps its id only while it
+still stands along its line (MSG-27): the walls left are paired along the line they share, so a
+party wall made longer under a new id, or drawn in other pieces and made longer, is the wall it
+was with a new stretch, and the stretch of an earlier wall that no later wall stands on is
+removed (a wall knocked through to two nibs). What is left is paired by id, and
 then two rooms on one floor that share at least three quarters of the larger one's floor
 (`diffRoomOverlapShare`) are one room reshaped, whatever their ids. A plan written rooms first in
 both versions is paired the same way, with the room's name last (MSG-23); there an id or a name is
@@ -571,6 +575,14 @@ The answer, in this order:
   are outside the rooms named. The same building under new ids reads `Same building, 28 ids
   renamed (9 walls, 13 openings, 6 rooms): every room, wall and opening stands where it stood.`
 - **Rooms** that changed, moved, came or went, with their old and new net area.
+- **The massing and the site** (MSG-27): each floor's outline that came, went, moved or changed
+  size, the homes and parking spaces a floor states, the buildings, the plot's boundary and the
+  site's things (`Site tree "t2" removed`), each a change line after the floors'. Two options
+  with other blocks are never the same building. The verdict ends with the figures that differ,
+  side by side: `Side by side: gross external area 1260.00 → 1176.00 m²; plot coverage 17.5 →
+  16.3 %; gross external area to the plot (FAR) 0.53 → 0.49; homes 12 → 18` and each boundary
+  edge's least distance to the building. The data holds them under `massing`. `grid_compare`
+  says the same lines.
 - **Changes**, one line each; walls changed the same way are one line
   (`9 walls height 2.60 → 2.70 m: …`). Then the openings that moved with their wall or room,
   and the openings that stayed where they were though their wall moved or was replaced.
@@ -578,8 +590,15 @@ The answer, in this order:
 `--show summary` stops after the rooms, `--show issues` gives the issues alone, and `--json` the
 same as data. `--picture d.png` writes the comparison as a picture of one floor (the first with
 a change, or `--floor`): what was removed in red, what was added in green, what changed in
-amber (a wall that moved or an opening that changed at its new place, with its old place outlined;
-a room with its old and new area), and the rest pale. A wall that moved is never drawn as added. When nothing changed it draws
+amber (a wall nudged within its own thickness or made thicker, or an opening that changed or
+moved, at its new place with its old place outlined; a room with its old and new area), and the
+rest pale. MSG-27: a wall is drawn by what happened to it where it stands. One made longer or
+shorter along its line is drawn pale, with only the stretch it gained in green or lost in red; one
+that left the ground it stood on (moved across or turned) is red where it stood and green where it
+stands, whatever its id; a door or window that stands where it stood is not marked. A room that
+took another in is drawn as one changed room labelled with its sum (`Living room: 18.48 + 13.20 +
+0.44 = 32.12 m²`, the last term the floor the walls taken out stood on), and the room it took in is
+not drawn as removed. When nothing changed it draws
 nothing and says so.
 
 ## Walls that do not meet: `grid tidy`

@@ -14,7 +14,7 @@
  * WRT-32: a room that kept its name and size and stands somewhere else moved, as it was: said with
  * how far and which way, never counted among the rooms that keep their name and size.
  */
-import { alignPlans, centroid, curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { alignPlans, centroid, compareMassing, curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type MassingFigures, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type MessageKey, type Said } from '@ongrid/floorplan/messages'
 import { notCountedRooms, planAreas, roomKey, type PlanAreas } from './areas'
 import { sideNames, type Survey } from './survey'
@@ -158,6 +158,12 @@ export interface Comparison {
    * level, elevation, height, slab or name: named in the verdict, whatever the likeness.
    */
   readonly floorsChanged: readonly FloorFigures[]
+  /**
+   * MSG-27: the massing and the site (outlines, homes, parking, buildings, the plot and its
+   * things), each a line, and the figures side by side; a plan whose massing or site differs is
+   * never the same building.
+   */
+  readonly massing: { readonly lines: readonly string[]; readonly figures: MassingFigures; readonly sideBySide: string | null }
   readonly verdict: string
 }
 
@@ -602,6 +608,10 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
     map = t.map
     break
   }
+  // MSG-27: the same walls and rooms on other blocks, homes or a site changed are not the same building.
+  const massingFound = likeness === null || likeness === 'same' || likeness === 'moved' ? compareMassing(a.plan, b.plan, likeness === 'moved' ? [boxB.minX - boxA.minX, boxB.minY - boxA.minY] : [0, 0]) : null
+  const massingLines = (massingFound?.lines ?? []).map((line) => english(line.said))
+  if (massingLines.length > 0) likeness = null
   const shift = likeness === 'moved' ? { x: boxB.minX - boxA.minX, y: boxB.minY - boxA.minY } : null
   if (likeness === null) {
     // Not the same building: compare in place, allowing a shifted origin when the boxes agree in size.
@@ -701,6 +711,7 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
     if (wallsOut.length + wallsNew.length > 0) parts.push(`walls: ${wallsOut.length} out (${sum(wallsOut.map((w) => w.length)).toFixed(2)} m), ${wallsNew.length} new (${sum(wallsNew.map((w) => w.length)).toFixed(2)} m)`)
     if (wallsChanged.length > 0) parts.push(`${wallsChanged.length} wall${wallsChanged.length === 1 ? '' : 's'} moved or changed length`)
     parts.push(...resizedParts)
+    parts.push(...massingLines)
     parts.push(...roomsMovedPart(roomsMoved))
     const openingWords = (n: number, what: string): string => `${n} ${n === 1 ? 'opening' : 'openings'} ${what}`
     // WRT-29: the openings that moved in a part of their own, with how far.
@@ -716,6 +727,9 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   // CNT-8 (lab AB-9): a use no room or zone has any more is named, never lost in silence.
   const lost = usesOf(a).filter((use) => !usesOf(b).includes(use))
   if (lost.length > 0) verdict += ` ${after.charAt(0).toUpperCase()}${after.slice(1)} has no room or zone used as ${lost.length === 1 ? lost[0] : `${lost.slice(0, -1).join(', ')} or ${lost[lost.length - 1]}`}, which ${before} had.`
+  const sideBySide = massingFound?.sideBySide == null ? null : english(massingFound.sideBySide)
+  if (sideBySide !== null) verdict += ` ${sideBySide}.`
   verdict = verdict.charAt(0).toUpperCase() + verdict.slice(1)
-  return { likeness, shift, rooms, netBefore, netAfter, wallsOut, wallsNew, wallsChanged, wallsResized: resized, openingsOut, openingsNew, openingsChanged, roomsMoved, floorsChanged, verdict }
+  const massing = { lines: massingLines, figures: massingFound?.figures ?? compareMassing(a.plan, b.plan).figures, sideBySide }
+  return { likeness, shift, rooms, netBefore, netAfter, wallsOut, wallsNew, wallsChanged, wallsResized: resized, openingsOut, openingsNew, openingsChanged, roomsMoved, floorsChanged, massing, verdict }
 }

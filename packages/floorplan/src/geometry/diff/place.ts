@@ -492,6 +492,211 @@ function piecesOf(target: Wall, targetShift: Point, others: readonly Wall[], oth
   return found.length >= 2 && Math.abs(at - length) <= near ? found : null
 }
 
+/** A straight wall's line: where it starts, its direction and its length, the earlier plan moved by `shift`. */
+interface Line {
+  readonly s: Point
+  readonly dir: Vec2
+  readonly length: number
+}
+
+function lineOf(wall: Wall, shift: Point): Line | null {
+  if (wall.arc !== undefined) return null
+  const s = moved(wall.start, shift)
+  const e = moved(wall.end, shift)
+  const length = Math.hypot(e[0] - s[0], e[1] - s[1])
+  return length === 0 ? null : { s, dir: { x: (e[0] - s[0]) / length, y: (e[1] - s[1]) / length }, length }
+}
+
+/** Where a wall lies along `line`, its lower end first, or null when it is off the line by more than `slack`. */
+function stretchOn(line: Line, wall: Wall, shift: Point, slack: number): { lo: number; hi: number; reversed: boolean } | null {
+  if (wall.arc !== undefined) return null
+  const a = moved(wall.start, shift)
+  const b = moved(wall.end, shift)
+  const off = (p: Point): number => Math.abs(line.dir.x * (p[1] - line.s[1]) - line.dir.y * (p[0] - line.s[0]))
+  if (off(a) > slack || off(b) > slack) return null
+  const ta = line.dir.x * (a[0] - line.s[0]) + line.dir.y * (a[1] - line.s[1])
+  const tb = line.dir.x * (b[0] - line.s[0]) + line.dir.y * (b[1] - line.s[1])
+  return { lo: Math.min(ta, tb), hi: Math.max(ta, tb), reversed: tb < ta }
+}
+
+/**
+ * MSG-27: a later wall that still stands along the line of the earlier one, sharing a stretch of
+ * it longer than `diffPlace`: the same wall made longer or shorter. Null otherwise.
+ */
+function sharedStretch(earlier: Wall, earlierShift: Point, later: Wall): { overlap: number; reversed: boolean } | null {
+  const line = lineOf(earlier, earlierShift)
+  if (line === null) return null
+  const on = stretchOn(line, later, [0, 0], tolerance('diffSameLine'))
+  if (on === null) return null
+  const overlap = Math.min(on.hi, line.length) - Math.max(on.lo, 0)
+  return overlap > tolerance('diffPlace') ? { overlap, reversed: on.reversed } : null
+}
+
+/**
+ * MSG-27: what a wall in both versions gained and lost along its line: the stretches the later
+ * wall has beyond the earlier one (added) and the earlier one beyond the later (removed), each
+ * from and to on the centre line. Null when the later wall is off the earlier one's line (moved
+ * across it or turned), or a curve that left its circle: then it no longer stands where it stood.
+ * Both walls are in the same plan's coordinates.
+ */
+export function wallStretches(before: Wall, after: Wall): { added: Array<[Point, Point]>; removed: Array<[Point, Point]> } | null {
+  const near = tolerance('diffPlace')
+  if (before.arc !== undefined || after.arc !== undefined) {
+    if (before.arc === undefined || after.arc === undefined) return null
+    const radius = (w: Wall, c: Point): number => Math.hypot(w.start[0] - c[0], w.start[1] - c[1])
+    const sameCircle = distance(vec(before.arc.centre), vec(after.arc.centre)) <= near && Math.abs(radius(before, before.arc.centre) - radius(after, after.arc.centre)) <= near
+    return sameCircle ? { added: [], removed: [] } : null
+  }
+  const line = lineOf(before, [0, 0])
+  if (line === null) return null
+  // A wall made thicker on one face moves its centre line by half the difference.
+  const on = stretchOn(line, after, [0, 0], tolerance('diffSameLine') + Math.abs(after.thickness - before.thickness) / 2)
+  if (on === null) return null
+  const at = (t: number): Point => [line.s[0] + line.dir.x * t, line.s[1] + line.dir.y * t]
+  const added: Array<[Point, Point]> = []
+  const removed: Array<[Point, Point]> = []
+  const beyond = (lo: number, hi: number, into: Array<[Point, Point]>): void => {
+    if (hi - lo > near) into.push([at(lo), at(hi)])
+  }
+  beyond(on.lo, Math.min(on.hi, 0), added)
+  beyond(Math.max(on.lo, line.length), on.hi, added)
+  beyond(0, Math.min(on.lo, line.length), removed)
+  beyond(Math.max(on.hi, 0), line.length, removed)
+  return { added, removed }
+}
+
+/**
+ * MSG-27: a straight wall whose later centre line still lies inside where the earlier wall stood,
+ * both its ends within half the earlier wall's thickness of the earlier line: a wall nudged, not
+ * taken out and built elsewhere.
+ */
+export function withinItsThickness(before: Wall, after: Wall): boolean {
+  const line = lineOf(before, [0, 0])
+  return line !== null && stretchOn(line, after, [0, 0], before.thickness / 2) !== null
+}
+
+/** MSG-27: walls of the two versions along one line, sharing stretches: one wall lengthened, cut back or cut otherwise. */
+interface LineGroup {
+  readonly before: readonly Wall[]
+  readonly after: readonly Wall[]
+}
+
+/**
+ * MSG-27: the walls left free in both versions grouped by the line they share: two walls alike
+ * and sharing a stretch of one line are in one group, and so is every wall sharing a stretch with
+ * either. A party wall made longer under a new id, or drawn in other pieces and made longer, is
+ * one group: the same wall with a new stretch, not one removed and one added.
+ */
+function lineGroups(freeBefore: readonly Wall[], freeAfter: readonly Wall[], shift: Point): LineGroup[] {
+  const parent = new Map<string, string>()
+  const find = (key: string): string => {
+    let at = key
+    while (parent.get(at) !== at) at = parent.get(at)!
+    parent.set(key, at)
+    return at
+  }
+  const key = (side: 'b' | 'a', id: string): string => `${side}\u0000${id}`
+  for (const w of freeBefore) parent.set(key('b', w.id), key('b', w.id))
+  for (const w of freeAfter) parent.set(key('a', w.id), key('a', w.id))
+  const cells = new Cells<Wall>(Math.max(1, tolerance('diffPlace') * 40))
+  for (const wall of freeAfter) {
+    const line = lineOf(wall, [0, 0])
+    if (line === null) continue
+    // Every metre or so along it, so a lookup near any point of a long wall finds it.
+    const steps = Math.ceil(line.length / (tolerance('diffPlace') * 20))
+    for (let i = 0; i <= steps; i++) cells.add([line.s[0] + (line.dir.x * line.length * i) / steps, line.s[1] + (line.dir.y * line.length * i) / steps], wall)
+  }
+  for (const wall of freeBefore) {
+    const line = lineOf(wall, shift)
+    if (line === null) continue
+    const seen = new Set<string>()
+    const steps = Math.ceil(line.length / (tolerance('diffPlace') * 20))
+    for (let i = 0; i <= steps; i++) {
+      for (const other of cells.near([line.s[0] + (line.dir.x * line.length * i) / steps, line.s[1] + (line.dir.y * line.length * i) / steps])) {
+        if (seen.has(other.id)) continue
+        seen.add(other.id)
+        if (!alike(wall, other) || sharedStretch(wall, shift, other) === null) continue
+        parent.set(find(key('b', wall.id)), find(key('a', other.id)))
+      }
+    }
+  }
+  const groups = new Map<string, { before: Wall[]; after: Wall[] }>()
+  const add = (k: string, wall: Wall, side: 'before' | 'after'): void => {
+    const root = find(k)
+    const group = groups.get(root) ?? { before: [], after: [] }
+    group[side].push(wall)
+    groups.set(root, group)
+  }
+  for (const w of freeBefore) add(key('b', w.id), w, 'before')
+  for (const w of freeAfter) add(key('a', w.id), w, 'after')
+  return [...groups.values()].filter((g) => g.before.length > 0 && g.after.length > 0)
+}
+
+/** MSG-27: one stretch of an earlier wall, kept in the aligned plan under its own name. */
+interface Part {
+  /** The later wall it lies along, or null for a stretch no later wall stands on: removed. */
+  readonly later: Wall | null
+  /** Where it starts and ends, in plan metres on the later plan. */
+  readonly start: Point
+  readonly end: Point
+}
+
+/** MSG-27: earlier walls of a line group cut as the later version cuts them. */
+interface Recut {
+  /** The earlier walls, by earlier id. */
+  readonly before: readonly Wall[]
+  readonly after: readonly Wall[]
+  /** Each earlier wall's parts, in order along it. */
+  readonly parts: ReadonlyMap<string, readonly Part[]>
+}
+
+/**
+ * MSG-27: a group with several walls on one side, cut as the later version cuts it: each later
+ * wall takes the stretch of the earlier walls that lies along it, and a stretch of an earlier
+ * wall along no later wall is a part of its own, so it reads as removed. Null when the earlier
+ * walls overlap one another, the later ones do, or the earlier walls along one later wall leave a
+ * gap: no one way to read it.
+ */
+function recutOf(group: LineGroup, shift: Point): Recut | null {
+  const near = tolerance('diffPlace')
+  const slack = tolerance('diffSameLine')
+  const ref = lineOf([...group.after].sort((a, b) => compareText(a.id, b.id))[0]!, [0, 0])!
+  const at = (t: number): Point => [ref.s[0] + ref.dir.x * t, ref.s[1] + ref.dir.y * t]
+  const stretches = (walls: readonly Wall[], by: Point): Array<{ wall: Wall; lo: number; hi: number; reversed: boolean }> | null => {
+    const found = walls.map((wall) => ({ wall, ...stretchOn(ref, wall, by, slack * 2)! })).sort((a, b) => a.lo - b.lo)
+    for (let i = 1; i < found.length; i++) if (found[i]!.lo < found[i - 1]!.hi - near) return null
+    return found
+  }
+  if (group.before.some((w) => stretchOn(ref, w, shift, slack * 2) === null)) return null
+  const before = stretches(group.before, shift)
+  const after = stretches(group.after, [0, 0])
+  if (before === null || after === null) return null
+  // The earlier walls along each later wall leave no gap within the stretch they cover.
+  for (const l of after) {
+    const along = before.filter((b) => Math.min(b.hi, l.hi) - Math.max(b.lo, l.lo) > near)
+    for (let i = 1; i < along.length; i++) if (along[i]!.lo > along[i - 1]!.hi + near) return null
+  }
+  const parts = new Map<string, Part[]>()
+  for (const b of before) {
+    // The points along it where a later wall starts or ends cut it.
+    const cuts = [b.lo, b.hi, ...after.flatMap((l) => [l.lo, l.hi]).filter((t) => t > b.lo + near && t < b.hi - near)].sort((x, y) => x - y)
+    const own: Part[] = []
+    for (let i = 1; i < cuts.length; i++) {
+      const lo = cuts[i - 1]!
+      const hi = cuts[i]!
+      if (hi - lo <= near) continue
+      const middle = (lo + hi) / 2
+      const later = after.find((l) => middle > l.lo && middle < l.hi)?.wall ?? null
+      // A part runs the way its later wall runs, else the way its own wall ran.
+      const forward = later === null ? !b.reversed : !(after.find((l) => l.wall === later)!.reversed)
+      own.push({ later, start: forward ? at(lo) : at(hi), end: forward ? at(hi) : at(lo) })
+    }
+    // In order along the earlier wall, its start first.
+    parts.set(b.wall.id, b.reversed ? own.reverse() : own)
+  }
+  return { before: group.before, after: group.after, parts }
+}
+
 /** The origin, kept unless moving the earlier plan to the later one's corner pairs more walls, and the walls it pairs by place. */
 function placeWalls(earlier: FloorPlan, later: FloorPlan): { shift: Point; chosen: Candidate[] } {
   const shifts: Point[] = [[0, 0]]
@@ -523,16 +728,19 @@ export function alignPlans(earlier: FloorPlan, later: FloorPlan, options: AlignO
   const { shift, chosen: wallChoice } = placeWalls(earlier, later)
 
   const wallTaken = { before: new Set(wallChoice.map((c) => c.before)), after: new Set(wallChoice.map((c) => c.after)) }
-  const walls = [...wallChoice, ...assign(byId(earlier.walls, later.walls, wallTaken), wallTaken)]
-  const wallPairs = pairsOf(walls)
-  const reversed = new Set(walls.filter((c) => c.reversed).map((c) => c.before))
+  // MSG-27: a wall keeps its id only while it still stands along its line; one that left it is
+  // paired by id last, after every wall that stands where it stood.
+  const onItsLine = (b: Wall, a: Wall): boolean => sharedStretch(b, shift, a) !== null
+  const walls = [...wallChoice, ...assign(byId(earlier.walls, later.walls, wallTaken, onItsLine), wallTaken)]
 
   // Walls drawn in other pieces: one wall where several of the other version stand end to end.
   const splits: Array<{ wall: Wall; pieces: Piece[] }> = []
   const joins: Array<{ wall: Wall; pieces: Piece[] }> = []
+  const recuts: Recut[] = []
   {
-    const pairedAfter = new Set(wallPairs.values())
-    const freeBefore = earlier.walls.filter((w) => !wallPairs.has(w.id))
+    const pairedAfter = new Set(walls.map((c) => c.after))
+    const pairedBefore = new Set(walls.map((c) => c.before))
+    const freeBefore = earlier.walls.filter((w) => !pairedBefore.has(w.id))
     const freeAfter = later.walls.filter((w) => !pairedAfter.has(w.id))
     const usedBefore = new Set<string>()
     const usedAfter = new Set<string>()
@@ -551,7 +759,36 @@ export function alignPlans(earlier: FloorPlan, later: FloorPlan, options: AlignO
       usedAfter.add(wall.id)
       pieces.forEach((p) => usedBefore.add(p.id))
     }
+    // MSG-27: what is left along one line: one wall lengthened or cut back is a pair; several
+    // cut otherwise are cut as the later version cuts them.
+    const groups = lineGroups(freeBefore.filter((w) => !usedBefore.has(w.id)), freeAfter.filter((w) => !usedAfter.has(w.id)), shift)
+    for (const group of groups) {
+      if (group.before.length === 1 && group.after.length === 1) {
+        const shared = sharedStretch(group.before[0]!, shift, group.after[0]!)!
+        walls.push({ before: group.before[0]!.id, after: group.after[0]!.id, cost: 0, reversed: shared.reversed })
+        wallTaken.before.add(group.before[0]!.id)
+        wallTaken.after.add(group.after[0]!.id)
+        continue
+      }
+      const recut = recutOf(group, shift)
+      if (recut === null) continue
+      recuts.push(recut)
+      recut.before.forEach((w) => wallTaken.before.add(w.id))
+      recut.after.forEach((w) => wallTaken.after.add(w.id))
+    }
   }
+  for (const s of splits) {
+    wallTaken.before.add(s.wall.id)
+    s.pieces.forEach((p) => wallTaken.after.add(p.id))
+  }
+  for (const j of joins) {
+    wallTaken.after.add(j.wall.id)
+    j.pieces.forEach((p) => wallTaken.before.add(p.id))
+  }
+  // The rest by id, wherever they stand now: a wall moved off its line, or turned.
+  walls.push(...assign(byId(earlier.walls, later.walls, wallTaken), wallTaken))
+  const wallPairs = pairsOf(walls)
+  const reversed = new Set(walls.filter((c) => c.reversed).map((c) => c.before))
 
   const openingTaken = { before: new Set<string>(), after: new Set<string>() }
   const sameType = (x: Opening, y: Opening): boolean => x.type === y.type
@@ -667,16 +904,163 @@ export function alignPlans(earlier: FloorPlan, later: FloorPlan, options: AlignO
     .filter((r) => r.before !== r.after)
     .sort((x, y) => compareText(x.type, y.type) || compareText(x.before, y.before))
 
-  const redrawnPlan = splits.length + joins.length === 0 ? aligned : redraw(aligned, later, splits, joins, wallName)
+  let redrawnPlan = splits.length + joins.length === 0 ? aligned : redraw(aligned, later, splits, joins, wallName)
   const redrawn: Redrawn[] = [
     ...splits.map(({ wall, pieces }) => ({ before: [wall.id], after: pieces.map((p) => p.id) })),
     ...joins.map(({ wall, pieces }) => ({ before: pieces.map((p) => p.id), after: [wall.id] }))
   ]
+  // MSG-27: the walls of one line cut otherwise, each group cut only where every room keeps its floor.
+  for (const recut of recuts) {
+    const cut = recutPlan(redrawnPlan, later, recut, wallName)
+    if (cut === null) continue
+    redrawnPlan = cut
+    redrawn.push({ before: recut.before.map((w) => w.id), after: recut.after.map((w) => w.id) })
+  }
 
   // What a plan written rooms first keeps of its rooms' walls (`written`) is keyed by the earlier
   // names: under the later names it would read as walls edited by hand, so it is left out then.
   const kept = renamed.some((r) => r.type !== 'opening') || redrawn.length > 0 ? withoutWritten(redrawnPlan) : redrawnPlan
   return { shift: [shift[0], shift[1]], walls: wallPairs, openings: openingPairs, rooms: roomPairs, renamed, redrawn, aligned: kept }
+}
+
+/**
+ * MSG-27: the aligned earlier plan with the walls of one line group cut as the later version cuts
+ * them: one wall under each later wall's id over the stretch the earlier walls had along it, and
+ * each stretch along no later wall under a name of its own. Each opening moves onto the part
+ * holding its middle, at the same place; each room lists the parts. Null when a room would not
+ * keep its floor: then the walls are left as they were.
+ */
+function recutPlan(aligned: FloorPlan, later: FloorPlan, recut: Recut, wallName: (id: string) => string): FloorPlan | null {
+  const near = tolerance('diffPlace')
+  const used = new Set([...aligned.walls.map((w) => w.id), ...later.walls.map((w) => w.id)])
+  const laterRooms = new Map(later.rooms.map((r) => [r.id, r] as const))
+  const own = new Map(aligned.walls.map((w) => [w.id, w] as const))
+  const project = (p: Point, from: Point, dir: Vec2): number => (p[0] - from[0]) * dir.x + (p[1] - from[1]) * dir.y
+  // Each later wall's stretch, over every earlier part along it.
+  const along = new Map<string, { start: Point; end: Point; from: Wall }>()
+  // Each earlier wall's new walls, in order along it, with their ends.
+  const into = new Map<string, Array<{ id: string; start: Point; end: Point }>>()
+  for (const wall of recut.before) {
+    const name = wallName(wall.id)
+    const source = own.get(name)
+    if (source === undefined) return null
+    let first = true
+    const list: Array<{ id: string; start: Point; end: Point }> = []
+    for (const part of recut.parts.get(wall.id) ?? []) {
+      if (part.later === null) {
+        const id = first && !later.walls.some((w) => w.id === name) ? name : freeName(name, used)
+        used.add(id)
+        first = false
+        list.push({ id, start: part.start, end: part.end })
+        continue
+      }
+      const l = part.later
+      const length = Math.hypot(l.end[0] - l.start[0], l.end[1] - l.start[1])
+      const dir = { x: (l.end[0] - l.start[0]) / length, y: (l.end[1] - l.start[1]) / length }
+      const was = along.get(l.id)
+      const lo = (p: Point, q: Point): Point => (project(p, l.start, dir) <= project(q, l.start, dir) ? p : q)
+      const hi = (p: Point, q: Point): Point => (project(p, l.start, dir) >= project(q, l.start, dir) ? p : q)
+      along.set(l.id, was === undefined ? { start: part.start, end: part.end, from: source } : { start: lo(was.start, part.start), end: hi(was.end, part.end), from: was.from })
+      list.push({ id: l.id, start: part.start, end: part.end })
+    }
+    into.set(name, list)
+  }
+  const ends = new Map<string, { start: Point; end: Point }>()
+  for (const [, list] of into) for (const item of list) ends.set(item.id, along.get(item.id) ?? item)
+
+  const walls: Wall[] = []
+  const placed = new Set<string>()
+  for (const wall of aligned.walls) {
+    const list = into.get(wall.id)
+    if (list === undefined) {
+      walls.push(wall)
+      continue
+    }
+    for (const item of list) {
+      if (placed.has(item.id)) continue
+      placed.add(item.id)
+      const at = ends.get(item.id)!
+      const from = along.get(item.id)?.from ?? wall
+      walls.push({ ...from, id: item.id, start: [at.start[0], at.start[1]], end: [at.end[0], at.end[1]] })
+    }
+  }
+
+  const openings: Opening[] = []
+  for (const opening of aligned.openings) {
+    const list = into.get(opening.wall)
+    const host = own.get(opening.wall)
+    if (list === undefined || host === undefined) {
+      openings.push(opening)
+      continue
+    }
+    const length = Math.hypot(host.end[0] - host.start[0], host.end[1] - host.start[1])
+    const dir = { x: (host.end[0] - host.start[0]) / length, y: (host.end[1] - host.start[1]) / length }
+    const point = (t: number): Point => [host.start[0] + dir.x * t, host.start[1] + dir.y * t]
+    const middle = point(opening.offset + opening.width / 2)
+    const target = list.find((item) => {
+      const a = project(item.start, host.start, dir)
+      const b = project(item.end, host.start, dir)
+      const m = project(middle, host.start, dir)
+      return m >= Math.min(a, b) - near && m <= Math.max(a, b) + near
+    }) ?? list[list.length - 1]!
+    const at = ends.get(target.id)!
+    const tl = Math.hypot(at.end[0] - at.start[0], at.end[1] - at.start[1])
+    if (tl === 0) return null
+    const td = { x: (at.end[0] - at.start[0]) / tl, y: (at.end[1] - at.start[1]) / tl }
+    const q0 = project(point(opening.offset), at.start, td)
+    const q1 = project(point(opening.offset + opening.width), at.start, td)
+    const flipped = q1 < q0
+    openings.push({
+      ...opening,
+      wall: target.id,
+      offset: Math.max(0, Math.min(q0, q1)),
+      ...(flipped && opening.hinge !== undefined ? { hinge: opening.hinge === 'start' ? 'end' : 'start' } : {}),
+      ...(flipped && opening.swing !== undefined ? { swing: opening.swing === 'left' ? 'right' : 'left' } : {})
+    })
+  }
+
+  const leftovers = new Set([...into.values()].flat().filter((item) => !along.has(item.id)).map((item) => item.id))
+  const listFor = (ids: readonly string[], room: string, reverse: boolean): string[] => {
+    const theirs = new Set([...(laterRooms.get(room)?.boundary ?? []), ...(laterRooms.get(room)?.holes ?? []).flat()])
+    const out: string[] = []
+    for (const id of ids) {
+      const list = into.get(id)
+      if (list === undefined) {
+        if (out[out.length - 1] !== id) out.push(id)
+        continue
+      }
+      const ordered = reverse ? [...list].reverse() : list
+      const kept = ordered.filter((item) => theirs.has(item.id) || leftovers.has(item.id))
+      for (const item of kept.length > 0 ? kept : ordered) if (out[out.length - 1] !== item.id) out.push(item.id)
+    }
+    while (out.length > 1 && out[0] === out[out.length - 1]) out.pop()
+    return out
+  }
+  const before = footprints(aligned)
+  const next: FloorPlan = { ...aligned, walls, openings, rooms: aligned.rooms }
+  const rooms: Room[] = []
+  for (const room of aligned.rooms) {
+    const touched = [...room.boundary, ...(room.holes ?? []).flat()].some((id) => into.has(id))
+    if (!touched) {
+      rooms.push(room)
+      continue
+    }
+    const was = before.get(room.id)
+    // Either way along each wall, whichever keeps the room's floor.
+    const tried = [false, true].map((reverse): Room => ({
+      ...room,
+      boundary: listFor(room.boundary, room.id, reverse),
+      ...(room.holes === undefined ? {} : { holes: room.holes.map((hole) => listFor(hole, room.id, reverse)) })
+    }))
+    const keeps = tried.find((candidate) => {
+      const now = footprints({ ...next, rooms: [candidate] }).get(room.id)
+      if (was === undefined) return now === undefined
+      return now !== undefined && Math.abs(now.area - was.area) <= tolerance('areaReported')
+    })
+    if (keeps === undefined) return null
+    rooms.push(keeps)
+  }
+  return { ...next, rooms }
 }
 
 /**
