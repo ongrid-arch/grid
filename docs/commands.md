@@ -611,7 +611,12 @@ The answer, in this order:
   and the openings that stayed where they were though their wall moved or was replaced.
 
 `--show summary` stops after the rooms, `--show issues` gives the issues alone, and `--json` the
-same as data. `--picture d.png` writes the comparison as a picture of one floor (the first with
+same as data. `--floor <id>` narrows the rooms, the changes and the openings to one floor, and
+says how many change lines it left out (`Changes on floor "first" (1 of 2; 1 on other floors or
+about none, left out):`, in the data `floor` and `otherFloors`); a line about a part on that floor
+in either version is kept, one about the site alone is left out. The issues, the verdict and the
+scope check stay whole. A floor the plan does not have is refused with the floors it has (CMD-32).
+`--picture d.png` writes the comparison as a picture of one floor (the first with
 a change, or `--floor`): what was removed in red, what was added in green, what changed in
 amber (a wall nudged within its own thickness or made thicker, or an opening that changed or
 moved, at its new place with its old place outlined; a room with its old and new area), and the
