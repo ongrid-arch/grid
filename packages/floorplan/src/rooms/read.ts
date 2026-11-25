@@ -13,7 +13,7 @@
  *
  * Pure: a plan in, text out.
  */
-import { heightByDefault, safeParseFloorPlan, statedWall, type FloorPlan, type Opening, type Room, type Wall } from '../types/floorplan'
+import { heightByDefault, heightStated, safeParseFloorPlan, statedWall, type FloorPlan, type Opening, type Room, type Wall } from '../types/floorplan'
 import { indexPlan } from '../geometry/plan'
 import { planFloors } from '../geometry/floors'
 import { english, said } from '../messages/say'
@@ -211,7 +211,9 @@ interface Rule {
 
 function ruleOf(plan: FloorPlan): Rule {
   const solid = plan.walls.filter((w) => w.virtual !== true)
-  const stated = solid.filter((w) => !heightByDefault(plan, w))
+  // WRT-40: only a height a wall states itself. One it takes from its floor, or from the floor's
+  // roof up to the ridge, is the floor's: the floor line and `raw floor` give it again.
+  const stated = solid.filter((w) => heightStated(w))
   const outsideWalls = solid.filter((w) => w.kind === 'exterior')
   const insideWalls = solid.filter((w) => w.kind !== 'exterior')
   const inside = mostCommon(insideWalls.map((w) => w.thickness), 0.1)
@@ -226,7 +228,7 @@ function ruleOf(plan: FloorPlan): Rule {
   return {
     outside: mostCommon(outsideWalls.map((w) => w.thickness), 0.3),
     inside,
-    // WRT-6: only the heights something states. With none, the text states none either.
+    // WRT-6: only the heights the walls state. With none, the text states none either.
     height: stated.length === 0 ? null : mostCommon(stated.map((w) => w.height), stated[0]!.height),
     kind: kind === 'exterior' ? 'interior' : kind,
     types,
@@ -583,8 +585,9 @@ function reconcileWalls(original: FloorPlan, written: ReadBack, drafts: FloorDra
         const words = draft.walls.get(handle) ?? []
         const before = words.join(' ')
         if (same.id !== w.id) sayWords(handle, words, 'id', same.id)
-        // A height the plan leaves to Grid's default is not said: rooms text would state it (WRT-6).
-        if ((!sameNumber(same.height, w.height) || heightByDefault(plan, w)) && !heightByDefault(original, same)) sayWords(handle, words, 'height', metres(same.height))
+        // A height the wall does not state is not said: rooms text would state it (WRT-6). WRT-40:
+        // nor one it takes from its floor or the floor's roof, which the floor line gives again.
+        if ((!sameNumber(same.height, w.height) || !heightStated(w)) && heightStated(same)) sayWords(handle, words, 'height', metres(same.height))
         if (same.kind !== w.kind && w.virtual !== true) sayWords(handle, words, same.kind)
         if (samePoint(same.start, w.end) && !samePoint(same.start, w.start) && !words.includes('reversed')) words.push('reversed')
         if (words.join(' ') !== before) {
@@ -601,7 +604,7 @@ function reconcileWalls(original: FloorPlan, written: ReadBack, drafts: FloorDra
       const words = draft.walls.get(handle) ?? []
       if (words.includes('id')) continue
       sayWords(handle, words, 'id', covering[0]!.id)
-      if ((!sameNumber(covering[0]!.height, w.height) || heightByDefault(plan, w)) && !heightByDefault(original, covering[0]!)) sayWords(handle, words, 'height', metres(covering[0]!.height))
+      if ((!sameNumber(covering[0]!.height, w.height) || !heightStated(w)) && heightStated(covering[0]!)) sayWords(handle, words, 'height', metres(covering[0]!.height))
       if (covering[0]!.kind !== w.kind) sayWords(handle, words, covering[0]!.kind)
       draft.walls.set(handle, words)
       said = true
