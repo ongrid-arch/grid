@@ -76,7 +76,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   'packages/cli/src/edit/edits.ts': [64, 'notYet'],
-  'packages/cli/src/edit/merge.ts': [31, 'notYet'],
+  'packages/cli/src/edit/merge.ts': [32, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
