@@ -116,7 +116,14 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - `open` on a room line and `wall between <a> and <b> virtual` anywhere on the floor (or in the
   unit) say the same thing: a room placed beside the other is placed against it, with a dividing
   line on their shared face, so both keep the size written for them (WRT-41). A unit placed
-  beside a room goes against it when every room on its facing side is opened to that room. Rooms
+  beside a room goes against it when every room on its facing side is opened to that room. The
+  gap beside a unit is worked out for the rooms that face each other across it, two by two, and
+  a dividing line takes no wall's width (WRT-52): an open lab beside a bay of a lab and a
+  write-up room, opened to the lab only, goes against the lab. Sized to centre lines
+  (`sizes centre`), such bays keep their module, repeats included: a bay written 3.3 m wide is
+  3.3 m between centre lines, the lab 3.3 m inside between two dividing lines and the write-up
+  room half a wall narrower on each walled side. Sized to inside faces they cannot both keep their
+  sizes, and the answer says the labs came out larger (`rooms/area-differs`). Rooms
   placed by their corner (`at x,y`) or as polygons stay where they are written: a dividing line
   in a gap between them lies in its middle, and the answer says the rooms came out larger
   (`rooms/area-differs`). A side shared at an angle works as a square one does (CNT-36): a
