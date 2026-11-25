@@ -91,6 +91,7 @@ describe('the tolerance table', () => {
       passableSill: 0.3,
       useOpenLeaf: 0.05,
       useApproachDepth: 0.3,
+      windowGlassKept: 1.2,
       useDoorwayClear: 0.8,
       usePassageWidth: 0.9,
       useTurningCircle: 1.5,

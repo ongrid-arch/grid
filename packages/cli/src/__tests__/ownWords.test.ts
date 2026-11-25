@@ -183,7 +183,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-20: two more, its own tolerance entries.
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [295, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [298, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],
