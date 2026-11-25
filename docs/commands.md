@@ -821,6 +821,14 @@ floor states (LVL-6), each wall is drawn to the top the roof leaves it, so a gab
 gable, the roof's edges follow its slope, and each plane of it that comes down toward the side is
 drawn as a surface.
 
+A sloped roof's plane is drawn as a roof (VEW-12), never as a blank face: its covering as level
+courses along its eaves (1.5 mm apart on paper, 6 pixels on the screen), its ridge and hips in the
+front plane's pen, its eaves, verges and abutments in its own, and a gutter along each eaves. An
+agent reads the same lines from the facade: each band along a sloped roof's edge says which edge
+it is (`edge`: `eaves`, `ridge`, `hip`, `verge` or `abutment`, where the roof meets more of the
+building above), and each plane lists its edges as seen (`roofLines`). The roof ends at the
+outside face of its walls, as in the 3D model and the section: the plan states no overhang.
+
 ## A sheet for people: `grid sheet`
 
 `grid sheet [plan.json] --layout client|check` writes the plan as an A3 landscape PDF into
