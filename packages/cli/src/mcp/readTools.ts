@@ -7,8 +7,8 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
-import { CameraRefused, cameraFor, eyeCamera, lensProblem, settingOfCamera, type CameraAsk } from '../draw/cameraAsk'
+import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
 import { causeText, checkPlan, checkTitle, countsText, coverageSummary, firmHeadingText, firmNoNoteText, firmSectionTitle, firmStandardsText, kindWord, limitsText, nothingCheckedText, partsText, placeText, type PlaceWords, problemsText, readForText, restText, ruleText, seenBeforeText, seenByText, seenCount, thingText, usedFigures, withSeen, type CheckResult } from '../command/check'
@@ -89,6 +89,7 @@ import { areaText, csv, DISPLAY_UNITS, displayFor, lengthText, sqFt } from '../q
 import type { Display } from '@ongrid/floorplan/types/units'
 import { PLACE_TEXT_MAX } from '@ongrid/floorplan/types/places'
 import { GROUP_COLOURS, HIGHLIGHT_COLOUR } from '@ongrid/viewer/src/picture/look'
+import { TILE_PX_PER_METRE, pictureFrame, pictureTiles } from '@ongrid/viewer/src/picture/planSvg'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { TAPED_OUTPUT, tapedTable } from '../taped/table'
 // CNT-20: the library grid_measure lists and fits by name.
@@ -1744,6 +1745,40 @@ export function cameraLines(plan: FloorPlan, camera: CameraRecord): string[] {
   ]
 }
 
+/**
+ * VEW-26: the pieces a long floor is drawn in (`pictureTiles`), the frame of the one asked for,
+ * and the lines that say so. Refused, with why, for a piece the floor does not have.
+ */
+function tilesOf(plan: FloorPlan, floor: string, dimensions: boolean, cropped: boolean, asked: number | undefined): { tiles: Bounds[]; frame: Bounds | undefined; piece: number | null; lines: string[] } {
+  if (asked !== undefined && cropped) throw new ToolRefusal('Pass crop or tile, not both: each frames part of the floor.')
+  if (asked !== undefined && !Number.isInteger(asked)) throw new ToolRefusal('tile takes a whole number: the piece to draw, from 1.')
+  const tiles = cropped ? [] : pictureTiles(plan, { floor, showDimensions: dimensions })
+  if (asked !== undefined && tiles.length === 0) throw new ToolRefusal(`Floor ${q(floor)} is drawn whole large enough to read, not in pieces: leave tile out.`)
+  if (asked !== undefined && asked > tiles.length) throw new ToolRefusal(`Floor ${q(floor)} is drawn in ${tiles.length} pieces: tile takes 1 to ${tiles.length}.`)
+  if (tiles.length === 0) return { tiles, frame: undefined, piece: null, lines: [] }
+  if (asked !== undefined) {
+    const next = asked < tiles.length ? ` tile=${asked + 1} draws the next.` : ' It is the last.'
+    return { tiles, frame: tiles[asked - 1], piece: asked, lines: [`Piece ${asked} of ${tiles.length} of floor ${q(floor)}, which is far longer than it is wide; each piece overlaps the next a little.${next}`] }
+  }
+  const whole = pictureFrame(plan, { floor, showDimensions: dimensions })
+  const [long, short] = [Math.max(whole.width, whole.height), Math.min(whole.width, whole.height)]
+  return {
+    tiles,
+    frame: undefined,
+    piece: null,
+    lines: [`Floor ${q(floor)} is about ${Math.round(long)} m long and ${Math.round(short)} m across: drawn whole its labels are too small to read and crowd. tile=1 to tile=${tiles.length} draw it in ${tiles.length} pieces along its length, each overlapping the next, at ${TILE_PX_PER_METRE} px a metre or more.`],
+  }
+}
+
+/** VEW-26: what a 3D picture was framed to, and how, when Grid framed it. */
+function fitLines(framed: { camera: CameraRecord; fit: CameraFit | null; level: boolean }): string[] {
+  if (framed.fit === null) return []
+  const frame = framed.camera.aspectRatio < 1 ? 'a portrait frame' : 'a landscape frame'
+  const what = framed.fit === 'room' ? 'the room' : 'the building'
+  const level = framed.level ? ' It looks level from the eye height asked for, so upright lines stay upright.' : ''
+  return [`Framed to ${what} (fit=${framed.fit}), in ${frame}: the camera stands as far as it needs to see all of it.${level}`]
+}
+
 /** The views the plan has saved, for the answer: so an agent knows it can call them up. */
 function savedViewsLine(plan: FloorPlan): string[] {
   const views = plan.views ?? []
@@ -1968,8 +2003,9 @@ const viewTool: GridTool = {
     from: { type: 'string', enum: SIDES, description: 'For 3d: the side or corner of the drawing the camera stands on, or above (north is the top of the drawing here). south-east when left out. Not with bearing.', examples: ['south', 'above'] },
     bearing: { type: 'number', description: 'For 3d: the compass bearing from what the camera is pointed at to the camera, in degrees clockwise from the north the plan states, or from the top of the drawing when it states none (the record says which). Not with from.', examples: [135, 200], minimum: 0, maximum: 360 },
     tilt: { type: 'number', description: 'For 3d: degrees the camera looks down at what it is pointed at; below 0 it looks up. 30 when left out (80 from above).', examples: [30, 10], minimum: -limit('cameraTilt'), maximum: limit('cameraTilt') },
-    distance: { type: 'number', length: true, description: 'For 3d: metres from the camera to what it is pointed at. 2.2 times the building\'s largest side when left out.', examples: [12, 30], minimum: limit('cameraClosest'), maximum: 100000 },
+    distance: { type: 'number', length: true, description: 'For 3d: metres from the camera to what it is pointed at. Left out (and with no camera sent back), the camera stands as far as fit needs. Not with fit.', examples: [12, 30], minimum: limit('cameraClosest'), maximum: 100000 },
     lens: { type: 'number', description: `For 3d: the focal length in millimetres on a 36 × 24 mm sensor: 18 is wide, 50 normal, 85 long. 28.97 when left out (45° tall, as the app opens).`, examples: [24, 50], minimum: limit('lensShortest'), maximum: limit('lensLongest') },
+    fit: { type: 'string', enum: CAMERA_FITS, description: 'For 3d: what fills the frame: building (every floor drawn, up to the floor cut away) or room (the room pointed at). The camera is pointed at its middle and stands as far as its bearing, tilt and lens need; a tall building is taken in a portrait frame. room when room is named, else building, when no camera is sent back and no distance is named. With camera or view it frames that camera again. Not with distance.', examples: ['building', 'room'] },
     camera: CAMERA_ARG,
     view: { type: 'string', maxLength: 120, description: 'For 3d: a view saved with the plan (grid_save_view), by name, to call up. Its camera comes back the same, digit for digit, while the plan keeps what it was taken of.', examples: ['Garden corner'] },
     turn: { type: 'number', description: 'For 3d: degrees to walk the camera round what it is pointed at, from camera, view or the default: above 0 to the camera\'s left, below 0 to its right.', examples: [20, -15], minimum: -360, maximum: 360 },
@@ -1980,6 +2016,7 @@ const viewTool: GridTool = {
     eye_height: { type: 'number', length: true, description: 'For eye: metres above the floor, 0.3 to 3; 1.6 standing when left out; about 1.2 seated. For 3d: metres from the floor of the room pointed at (or the floor cut away, or the ground floor) up to the camera: with a tilt the camera stands back until it is that high; level, or with a distance, the point it looks at moves to meet it.', examples: [1.6, 1.2], minimum: 0, maximum: 10000 },
     look: { type: 'string', enum: LOOKS, description: 'For plan and facade: working (the default: clear labels and strong contrast), technical for black on white as on a sheet, with lines in millimetres at the scale and doors with no stated swing marked "?". A picture is always on light paper, so dark, the app\'s screen theme, draws working. light and mono are older names for working and technical.', examples: ['working', 'technical'] },
     dimensions: { type: 'boolean', description: 'For plan: false to leave the sizes off, for a clean drawing. true when left out.', examples: [true, false] },
+    tile: { type: 'number', description: 'For plan: on a floor far longer than it is wide, which the answer says is drawn in pieces, the piece to draw, from 1 at its left (or top) end; each overlaps the next and is drawn large enough to read. The whole floor when left out. Not with crop.', examples: [1, 2], minimum: 1, maximum: 1000 },
     crop: { type: 'string', maxLength: 120, description: 'For plan: frame just this part: a room, door, window or wall id, or a room\'s name. The whole floor when left out.', examples: ['kitchen', 'front-door'] },
     ids: { type: 'boolean', description: 'For plan: true to draw the id of every room, door and window on the picture, as the plan file holds them, and to list them in the text with the areas, what each door joins, the counts and the drawing\'s problems. false when left out.', examples: [true] },
     hide: { type: 'string', maxLength: 120, description: 'For plan: parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Everything is drawn when left out.', examples: ['areas,swings', 'sketch'] },
@@ -2003,13 +2040,13 @@ const viewTool: GridTool = {
     const floor = floorArg(loaded.plan, args['floor'])
     const kind = args['kind'] as 'plan' | 'facade' | '3d' | 'eye' | 'section'
     const allowed: Record<string, readonly string[]> = {
-      plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
+      plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
       facade: ['side', 'look'],
-      '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof'],
+      '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit'],
       eye: ['room', 'toward', 'eye_height'],
       section: ['cut', 'toward', 'look'],
     }
-    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
+    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
     const plan = survey.plan
     // MSG-11: the drawing's own words in the language asked for, else the plan's own.
@@ -2065,9 +2102,13 @@ const viewTool: GridTool = {
       const dimensions = args['dimensions'] !== false && shownParts.showDimensions
       // HND-10: the plan's trace image under the floor drawn, read from the project folder.
       const trace = readTrace(project, stated, shown, language)
-      const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(crop ? { frame: cropFrame(crop) } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}) })
+      // VEW-26: a floor far longer than it is wide is drawn in pieces, one at a time.
+      const tiling = tilesOf(stated, shown, dimensions, crop !== null, args['tile'] as number | undefined)
+      const frame = crop ? cropFrame(crop) : tiling.frame
+      const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(frame ? { frame } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}) })
       const work = planHasPhases(stated) ? phaseCounts(stated) : null
-      const lines = [`Plan of floor ${q(shown)}${crop ? `, cropped to ${crop.kind} ${q(crop.id)}` : ''}, ${look}${args['dimensions'] === false ? ', without sizes' : ', with inside sizes'}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${plan.north === undefined ? 'North is the top of the drawing; the plan holds no real north.' : `The north arrow in its top-right corner points to the north the plan states, ${northWords(wrapDegrees(plan.north))}; the sides named in other answers are the drawing's, north at the top.`} Look at the picture before you describe it.`]
+      const lines = [`Plan of floor ${q(shown)}${crop ? `, cropped to ${crop.kind} ${q(crop.id)}` : ''}${tiling.piece === null ? '' : `, piece ${tiling.piece} of ${tiling.tiles.length} along its length`}, ${look}${args['dimensions'] === false ? ', without sizes' : ', with inside sizes'}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${plan.north === undefined ? 'North is the top of the drawing; the plan holds no real north.' : `The north arrow in its top-right corner points to the north the plan states, ${northWords(wrapDegrees(plan.north))}; the sides named in other answers are the drawing's, north at the top.`} Look at the picture before you describe it.`]
+      lines.push(...tiling.lines)
       const ids = withIds ? idsOnFloor(stated, shown) : []
       const undecided = view.undecidedDoors ?? []
       if (undecided.length > 0) {
@@ -2119,10 +2160,13 @@ const viewTool: GridTool = {
         ...(floor !== undefined ? { cut: floor } : {}),
         ...(args['turn'] !== undefined ? { turn: args['turn'] as number } : {}),
         ...(args['tilt_by'] !== undefined ? { tiltBy: args['tilt_by'] as number } : {}),
+        ...(args['fit'] !== undefined ? { fit: args['fit'] as CameraFit } : {}),
       }
       let camera: CameraRecord
+      let framed: ReturnType<typeof framedCamera>
       try {
-        camera = cameraFor(plan, survey, ask)
+        framed = framedCamera(plan, survey, ask)
+        camera = framed.camera
       } catch (error) {
         if (error instanceof CameraRefused) throw new ToolRefusal(error.message)
         throw error
@@ -2144,6 +2188,7 @@ const viewTool: GridTool = {
         text: [
           `${what}${camera.cut ? `, floor ${q(camera.cut)} cut away` : ''}. ${roof} Look at the picture before you describe it.`,
           ...cameraLines(plan, camera),
+          ...fitLines(framed),
           ...savedViewsLine(plan),
         ].join('\n'),
         data: { kind, floor: camera.cut, camera, view: viewName, pxPerMetre: null, sills: [], ids: [], boxes: [] },
