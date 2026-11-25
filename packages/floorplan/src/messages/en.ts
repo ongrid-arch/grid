@@ -3109,6 +3109,8 @@ export const en = {
   'areas.partial.one': 'The {measure} of the whole building is not known. The other floor adds up to {area} m²; not measured: {left}.',
   'areas.partial.many': 'The {measure} of the whole building is not known. The other {count} floors add up to {area} m²; not measured: {left}.',
   'areas.partial.line.one': 'not known for the whole building; the other floor adds up to {area}; not measured: {left}',
+  'areas.phase.leftOut': 'The phases leave {rooms} out of every total: {parts}. Grid reads the building after the work, and a room cannot stand there when one of its walls is gone. When the walls between rooms are demolished, give each of those rooms the phase demolished and the room they become the phase new.',
+  'areas.phase.leftOut.part': 'room {room} is {phase} but its wall {wall} is {wallPhase}',
   'areas.partial.line.many': 'not known for the whole building; the other {count} floors add up to {area}; not measured: {left}',
   'areas.apart.notCounted': 'Not in the rooms measured apart, as no room the net counts on the floors given: {ids}.',
   // HND-10 (C31): the trace image under the plan.
