@@ -549,8 +549,8 @@ function agentWalls(floor: FloorFacts): string[] {
     const arc = wall.curve === undefined ? '' : ` arc(${m(wall.curve.centre.x)},${m(wall.curve.centre.y)} ${degrees(wall.curve.sweep)}°)`
     const head = ` ${wall.id} ${m(wall.start.x)},${m(wall.start.y)}>${m(wall.end.x)},${m(wall.end.y)}${arc} ${wall.virtual ? 'v' : `${m(wall.thickness)} ${KIND_LETTER[wall.kind]}`}${height}`
     const openings = floor.openings.filter((o) => o.wall === wall.id).map(agentWallOpening)
-    const open = floor.openSides.find((side) => side.wall === wall.id)
-    const joins = open ? ` | ${open.rooms[0]}|${open.rooms[1]}` : ''
+    const open = floor.openSides.filter((side) => side.wall === wall.id)
+    const joins = open.length > 0 ? ` | ${open.map((side) => `${side.rooms[0]}|${side.rooms[1]}`).join(' ')}` : ''
     return `${head}${joins}${openings.length > 0 ? ` | ${openings.join('; ')}` : ''}`
   })
 }
@@ -565,8 +565,10 @@ function personWalls(floor: FloorFacts, names: PersonNames, w: Words): string[] 
     const what = wall.virtual
       ? t(w, 'describe.wall.virtual')
       : t(w, 'describe.wall.solid', { kind: t(w, `describe.wall.${wall.kind}`), thickness: fig(w, wall.thickness), height })
-    const open = floor.openSides.find((side) => side.wall === wall.id)
-    const joins = open ? t(w, 'describe.wall.joins', { a: names.room(open.rooms[0]), b: names.room(open.rooms[1]) }) : ''
+    const joins = floor.openSides
+      .filter((side) => side.wall === wall.id)
+      .map((side) => t(w, 'describe.wall.joins', { a: names.room(side.rooms[0]), b: names.room(side.rooms[1]) }))
+      .join('')
     const openings = floor.openings
       .filter((o) => o.wall === wall.id)
       .map((opening) => t(w, 'describe.wall.opening', {
