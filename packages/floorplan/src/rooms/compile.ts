@@ -89,6 +89,7 @@ import { BUILDING_TYPES, DEFAULT_FLOOR_ID, DOOR_KINDS, OPENING_KINDS, OUTDOOR_KI
 import { doorKindOf, kindFits, sweepsFloor } from '../geometry/openingKinds'
 import { hingeSeenFrom } from '../geometry/handing'
 import { indexPlan } from '../geometry/plan'
+import { phaseReading, planHasPhases, standsIn } from '../geometry/phases'
 import { roomFloorArea, tryRoomPolygon } from '../geometry/room'
 import { floorOf } from '../geometry/floors'
 import { isOutdoor } from '../geometry/outdoor'
@@ -2742,7 +2743,7 @@ class Compiler {
       plan.rooms.push(...(fl.raw.rooms as Room[]))
       plan.openings.push(...(fl.raw.openings as Opening[]))
     }
-    this.checkOpeningClash(plan.openings)
+    this.checkOpeningClash(plan.openings, plan.walls as Wall[])
     this.emitFlats(plan, idOf)
     const all = [...plan.walls, ...plan.rooms, ...plan.openings].map((x) => x.id)
     const twice = [...new Set(all.filter((x, k) => all.indexOf(x) !== k))].sort()
@@ -2873,7 +2874,18 @@ class Compiler {
    * stretch shared is a clash, a window over a door too, and the check leaves the later one out.
    * So the writing is refused (WRT-17), naming both lines.
    */
-  private checkOpeningClash(openings: readonly Opening[]): void {
+  private checkOpeningClash(openings: readonly Opening[], walls: readonly Wall[]): void {
+    // CNT-35: a plan that states a phase is checked as the drawing check reads it, once before the
+    // work and once after, so a widened door's old opening and its new one are no clash.
+    const phased = planHasPhases({ walls: [...walls], openings: [...openings], rooms: [] })
+    const reading = phaseReading({ walls: [...walls] })
+    const seen = new Set<string>()
+    for (const state of phased ? (['before', 'after'] as const) : ([null] as const)) {
+      this.clashIn(state === null ? openings : openings.filter((o) => standsIn(reading.opening(o), state)), seen)
+    }
+  }
+
+  private clashIn(openings: readonly Opening[], seen: Set<string>): void {
     const byWall = new Map<string, Opening[]>()
     for (const o of openings) {
       const list = byWall.get(o.wall)
@@ -2886,6 +2898,8 @@ class Compiler {
       let kept = sorted[0]!
       for (const b of sorted.slice(1)) {
         if (b.offset < kept.offset + kept.width - tolerance('openingOverrun')) {
+          if (seen.has(`${kept.id}|${b.id}`)) continue
+          seen.add(`${kept.id}|${b.id}`)
           this.problem(
             'rooms/openings-overlap',
             this.openingLines.get(b.id) ?? null,
