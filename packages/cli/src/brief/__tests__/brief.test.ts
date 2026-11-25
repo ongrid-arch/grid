@@ -83,8 +83,8 @@ describe('FD-2: the house whose bathroom took the floor left over', () => {
     const bath = lines.find((l) => l.parts.some((p) => p.id === 'bath1'))!
     expect(bath).toMatchObject({ state: 'missed', level: 'must', source: 'given', asked: '4.5', drawn: '11.93', unit: 'm²', quote: 'a bathroom of about 4.5 square metres' })
     expect(lines.filter((l) => l.wish === 'rooms').map((l) => [l.state, l.text])).toEqual([
-      ['met', 'met (must): rooms used as bedroom: asked 3, drawn 3.'],
-      ['met', 'met (should, assumed): rooms used as bathroom: assumed 2, drawn 2.'],
+      ['met', 'met (must): rooms used as bedroom: asked 3, drawn 3 (Bedroom 1, Bedroom 2, Bedroom 3).'],
+      ['met', 'met (should, assumed): rooms used as bathroom: assumed 2, drawn 2 (Bathroom 1, Bathroom 2).'],
     ])
     // The brief is never in the plan file.
     expect(readFileSync(join(b.folder, 'house.json'), 'utf8')).not.toContain('4.5 square metres')
@@ -348,5 +348,38 @@ describe('ARE-33: a count of rooms is its own field, apart from an area', () => 
     expect((await ask(drawn + 1)).state).toBe('missed')
     const refused = await b.call('grid_write_brief', { plan: 'house.json', replace: true, brief: { rooms: [{ use: 'bedroom', at_least: 4, level: 'must', source: 'given', quote: 'at least 4 bedrooms' }] } })
     expect(refused.isError).toBe(true)
+  })
+})
+
+describe('ARE-38: a room wish by name counts numbered names and lists the rooms counted', () => {
+  const clinic = [
+    'walls outside 0.3 inside 0.1 height 2.6',
+    'room c1 "Consult 1" other 3 x 3',
+    'room c2 "Consult 2" other 3 x 3 east of c1',
+    'room c3 "Consult 3" other 3 x 3 east of c2',
+    'room cat "Cat consult" other 3 x 3 south of c1',
+    'room prep "Prep" other 3 x 3 south of c2',
+    '',
+  ].join('\n')
+  const ask = async (name: string, count: number): Promise<BriefLine> => {
+    const compiled = compileRoomsText(clinic)
+    expect(compiled.problems).toEqual([])
+    b = bench({ 'clinic.json': compiled.plan })
+    const reply = await b.call('grid_write_brief', { plan: 'clinic.json', brief: { rooms: [{ name, count, level: 'must', source: 'given', quote: 'consult rooms' }] } })
+    expect(reply.isError, reply.text).toBe(false)
+    return (reply.data as { lines: BriefLine[] }).lines.find((l) => l.wish === 'rooms')!
+  }
+
+  it('counts Consult 1, 2 and 3 for "Consult" and names them, leaving "Cat consult" out', async () => {
+    const found = await ask('Consult', 3)
+    expect(found).toMatchObject({ state: 'met', drawn: '3', asked: '3' })
+    expect(found.text).toContain('(Consult 1, Consult 2, Consult 3)')
+    expect(found.text).not.toContain('Cat consult')
+  })
+
+  it('still counts an exact name by itself', async () => {
+    const found = await ask('Consult 2', 1)
+    expect(found).toMatchObject({ state: 'met', drawn: '1' })
+    expect(found.text).toContain('(Consult 2)')
   })
 })

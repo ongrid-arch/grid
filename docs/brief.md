@@ -40,7 +40,7 @@ here too, as by every tool, and no brief is written.
 }
 ```
 
-- **A room wish** names one room by the name it has in the plan (`name`, any case, or its id),
+- **A room wish** names one room by the name it has in the plan (`name`, any case, or its id; a name also means the rooms numbered after it, "Consult" for "Consult 1" and "Consult 2", and a count line lists the rooms it counted),
   or the rooms of a use (`use`). It may give a `count` (exactly how many) or `count_at_least` and `count_at_most` ("at least 4 toilet rooms"), always rooms and never square metres, a net area (`area`, about; or `at_least`,
   `at_most`, in m² only) and an inside size (`inside`, metres, either way round). With none of them it
   asks only for the room to be there.
