@@ -111,8 +111,9 @@ describe('two rooms knocked into one', () => {
     expect(lines.some((t) => t.startsWith('Room removed'))).toBe(false)
     expect(compared.verdict).not.toContain('Room removed')
     expect(compared.verdict).toContain('"Living room" merged with "Kitchen"')
-    // The picture still draws the kitchen as gone.
-    expect(compared.marks.removed.rooms).toEqual(['kitchen'])
+    // MSG-27: the picture draws the kitchen as part of the room it went into, with the sum, not as lost.
+    expect(compared.marks.removed.rooms).toEqual([])
+    expect(compared.marks.changedRooms.find((r) => r.room === 'living')?.label).toBe('Living room: 18.48 + 13.20 + 0.44 = 32.12 m²')
   })
 
   it('keeps a room taken out with no room to go into as removed', () => {

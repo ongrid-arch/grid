@@ -13,20 +13,34 @@ import { pictureToSvg } from '../planSvg'
 const flat = (): FloorPlan => parseFloorPlan(JSON.parse(readFileSync(join(resolve(__dirname, '../../../../floorplan/fixtures'), 'two-bed-flat.json'), 'utf8')))
 
 describe('the picture of a comparison', () => {
-  it('marks the wall that moved in amber at its new place with its old place outlined, and the rooms that changed with their areas', () => {
+  it('marks the wall that moved off its ground removed where it stood and added where it stands, and the rooms that changed with their areas', () => {
     const before = flat()
     // The wall between the kitchen and the living room moved 0.5 m north.
     const after: FloorPlan = { ...before, walls: before.walls.map((w) => (w.id === 'living-north' ? { ...w, start: [w.start[0], w.start[1] + 0.5], end: [w.end[0], w.end[1] + 0.5] } : w)) }
     const compared = compareBuildings(before, after)
     const svg = pictureToSvg(comparisonPicture(compared.aligned, after, compared.marks))
-    // WRT-12: a wall that moved is a change, not one taken out and one built.
-    expect(svg).toMatch(new RegExp(`data-part="changed-wall" data-id="living-north"[^>]*fill="${COMPARISON_COLORS.changed}"`))
-    expect(svg).toMatch(/data-part="changed-was-wall" data-id="living-north"[^>]*fill="none"/)
-    expect(svg).not.toMatch(/data-part="(removed|added)-wall" data-id="living-north"/)
+    // MSG-27: a wall that no longer stands on the ground it stood on was taken out and built again.
+    expect(svg).toMatch(new RegExp(`data-part="removed-wall" data-id="living-north"[^>]*fill="${COMPARISON_COLORS.removed}"`))
+    expect(svg).toMatch(new RegExp(`data-part="added-wall" data-id="living-north"[^>]*fill="${COMPARISON_COLORS.added}"`))
+    expect(svg).not.toMatch(/data-part="changed-wall" data-id="living-north"/)
     expect(svg).toContain('Living room: 18.48 m² to 20.68 m²')
     expect(svg).toContain('data-part="comparison-key"')
     // What stayed is drawn in the pale look.
     expect(svg).toContain(UNCHANGED_COLORS.wallExterior)
+  })
+
+  it('marks only the stretch a wall gained, in green, and leaves the rest of it pale (MSG-27)', () => {
+    const before = flat()
+    const wall = before.walls.find((w) => w.kind === 'exterior')!
+    const dx = wall.end[0] - wall.start[0]
+    const dy = wall.end[1] - wall.start[1]
+    const length = Math.hypot(dx, dy)
+    const longer: [number, number] = [wall.end[0] + (dx / length) * 2, wall.end[1] + (dy / length) * 2]
+    const after: FloorPlan = { ...before, walls: before.walls.map((w) => (w.id === wall.id ? { ...w, end: longer } : w)) }
+    const compared = compareBuildings(before, after)
+    const svg = pictureToSvg(comparisonPicture(compared.aligned, after, compared.marks))
+    expect(svg).toMatch(new RegExp(`data-part="added-stretch" data-id="${wall.id}"[^>]*fill="${COMPARISON_COLORS.added}"`))
+    expect(svg).not.toMatch(new RegExp(`data-part="(added|changed)-wall" data-id="${wall.id}"`))
   })
 
   it('marks the wall taken out in red and the one built in green', () => {
