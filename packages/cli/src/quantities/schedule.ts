@@ -273,9 +273,35 @@ const TYPE_ORDER = { door: 0, opening: 1, window: 2 } as const
 /** ARE-15: the letter an opening's mark starts with, by its type. Marks are codes, the same in every language. */
 export const MARK_LETTERS = { door: 'D', window: 'W', opening: 'O' } as const
 
+/**
+ * WRT-23: the marks openings keep, by opening id: the one the opening states (its fact `mark`),
+ * else its id when that is the letter of its type and a number (`W3`). A mark two openings claim
+ * is the first's, in the schedule's order. `taken` holds them all.
+ */
+function claimedMarks(survey: Survey): { byId: Map<string, string>; taken: Set<string> } {
+  const byId = new Map<string, string>()
+  const taken = new Set<string>()
+  const stated = new Map(survey.plan.openings.map((o) => [o.id, o] as const))
+  for (const floor of floorOrder(survey, undefined)) {
+    const facts = survey.facts.floors.find((f) => f.id === floor.id)!
+    for (const opening of [...facts.openings].sort((a, b) => TYPE_ORDER[a.type] - TYPE_ORDER[b.type] || compareIds(a.id, b.id))) {
+      const said = stated.get(opening.id)?.properties?.['mark']
+      const own = typeof said === 'string' && said.trim().length > 0 ? said.trim() : null
+      const mark = own ?? (new RegExp(`^${MARK_LETTERS[opening.type]}[1-9][0-9]*$`).test(opening.id) ? opening.id : null)
+      if (mark === null || taken.has(mark)) continue
+      byId.set(opening.id, mark)
+      taken.add(mark)
+    }
+  }
+  return { byId, taken }
+}
+
 export function openingSchedule(survey: Survey, options: { floors?: readonly string[] } = {}): OpeningSchedule {
   // ARE-15: every floor is listed first, so each opening's mark is the same whichever floors are asked for.
   const all: Omit<OpeningScheduleRow, 'number'>[] = []
+  // WRT-23: a mark an opening states, or its id when that already is one, is kept whatever is
+  // taken out before it; the others are counted from 1, skipping the marks that are taken.
+  const claimed = claimedMarks(survey)
   const seenOf = { door: 0, window: 0, opening: 0 }
   for (const floor of floorOrder(survey, undefined)) {
     const facts = survey.facts.floors.find((f) => f.id === floor.id)!
@@ -283,14 +309,19 @@ export function openingSchedule(survey: Survey, options: { floors?: readonly str
     const side = (s: OpeningFacts['sides'][number]): string => (typeof s === 'object' ? named.get(s.room) ?? s.room : s)
     const stated = new Map(survey.plan.openings.map((o) => [o.id, o] as const))
     for (const opening of [...facts.openings].sort((a, b) => TYPE_ORDER[a.type] - TYPE_ORDER[b.type] || compareIds(a.id, b.id))) {
-      seenOf[opening.type] += 1
       const own = stated.get(opening.id)
+      let mark = claimed.byId.get(opening.id)
+      if (mark === undefined) {
+        do seenOf[opening.type] += 1
+        while (claimed.taken.has(`${MARK_LETTERS[opening.type]}${seenOf[opening.type]}`))
+        mark = `${MARK_LETTERS[opening.type]}${seenOf[opening.type]}`
+      }
       const kind = statedKind(opening.type, own?.kind)
       const opens = own?.opens === undefined || opening.type === 'opening' ? null : { width: partWidth(opening.width, own.opens), height: partHeight(opening.height, own.opens) }
       // CNT-15 (C24): a door or window that takes one of the plan's named types is of that type.
       const named = own === undefined ? null : openingTypeOf(survey.plan, own)
       all.push({
-        mark: `${MARK_LETTERS[opening.type]}${seenOf[opening.type]}`,
+        mark,
         typeKey: opening.type === 'opening' ? null : named !== null ? namedTypeKey(opening.type, named, opening.width, opening.height) : openingTypeKey(opening.type, kind, opening.width, opening.height, opens),
         id: opening.id,
         type: opening.type,
