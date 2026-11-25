@@ -72,6 +72,8 @@ is not asked whether it was typed in feet.
 | `diffWallOverlap` | tolerance | 0.9 ratio | The share of its length a removed wall must share with an added one to be the same |
 | `diffRoomAreaShare` | tolerance | 0.1 ratio | A removed and an added room whose areas differ by less than this share may be the same |
 | `diffRoomCentre` | tolerance | 0.1 m | And whose centres are this close |
+| `diffRoomKeptShare` | tolerance | 0.5 ratio | In a plan written rooms first, a room that kept its id or name is the same room only when the two share at least this share of the smaller one's floor (MSG-23) |
+| `diffRoomOverlapShare` | tolerance | 0.75 ratio | Two rooms under any ids are the same room reshaped when they share at least this share of the larger one's floor (MSG-23) |
 | `briefAbout` | tolerance | 0.05 ratio | A size the person asked for as a figure, not as at least or at most, is met when the drawn size is within this share of it, above or below (BRF-1) |
 | `nameSize` | tolerance | 0.02 ratio | A size written in a room's name and the size drawn differ when they are further apart than this share of the size named (BRF-1) |
 | `layoutHall` | limit | 1.1 m | Grid's own size, not a code figure. How wide the hall a first layout adds is, when the brief names no corridor (BRF-6) |
