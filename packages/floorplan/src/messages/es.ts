@@ -1600,7 +1600,7 @@ export const es: Messages = {
   'report.checksRun': 'Comprobaciones hechas: {count}.',
   'report.checksRun.title': 'Comprobaciones hechas',
   'report.floorOnly': 'Solo la planta {floor}.',
-  'report.seenUnread': 'No se leyeron las marcas de vista: {problem}. Todas las notas aparecen como nuevas.',
+  'report.seenUnread': 'No se leyeron todas las marcas de vista: {problem}. Una nota cuya marca no se leyó aparece como nueva.',
   'report.toLook.none': 'Para revisar: nada. Eso solo significa que estas comprobaciones no encontraron nada, no que el plano se ajuste a ninguna norma.',
   'report.toLook': 'Para revisar ({count}): {counts}{seen}.',
   'report.ofThemSeen': '; {count} de ellas vistas, en Vistas',

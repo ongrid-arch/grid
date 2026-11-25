@@ -1586,7 +1586,7 @@ export const en = {
   'report.checksRun': 'Checks run: {count}.',
   'report.checksRun.title': 'Checks run',
   'report.floorOnly': 'Floor {floor} only.',
-  'report.seenUnread': 'The seen marks were not read: {problem}. Every note is listed as new.',
+  'report.seenUnread': 'The seen marks were not all read: {problem}. A note whose mark was not read is listed as new.',
   'report.toLook.none': 'To look at: nothing. That only means these checks found nothing, not that the plan meets any rule.',
   'report.toLook': 'To look at ({count}): {counts}{seen}.',
   'report.ofThemSeen': '; {count} of them seen, listed under Seen',
