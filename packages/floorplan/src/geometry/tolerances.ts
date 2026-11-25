@@ -69,9 +69,8 @@ export const TOLERANCES = {
     decides:
       'How far an opening may run past either end of its wall, below the floor, above the top of ' +
       'its wall or into the next opening on its wall, and still fit; also how far it may run into ' +
-      'the body of a wall that meets its wall before that is named (MSG-16), and how far from ' +
-      'either jamb a wall that ends on its wall must meet it to be named, not taken for that ' +
-      'jamb (ARE-32). A wall whose ends were ' +
+      'the body of a wall that meets its wall before that is named (MSG-16), and how far from either jamb ' +
+      'a wall that ends on its wall must meet it to be named, not taken for that jamb (ARE-32). A wall whose ends were ' +
       'rounded to the millimetre is up to this much shorter than intended. A refusal states the ' +
       'overrun and the offset that fits.',
     basis: own
