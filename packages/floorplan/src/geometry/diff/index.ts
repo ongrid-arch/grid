@@ -21,5 +21,5 @@ export {
   type OpeningMovedWith,
   type RoomStatus,
   type RoomVerdict,
-  type WallStretch
+  type WallStretchMark
 } from './building'

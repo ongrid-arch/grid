@@ -128,11 +128,11 @@ export interface ComparisonMarks {
    * plan metres, with its thickness. The rest of such a wall stood where it stands: it is not
    * marked changed for its length alone.
    */
-  readonly stretches: readonly WallStretch[]
+  readonly stretches: readonly WallStretchMark[]
 }
 
 /** MSG-27: a stretch of a wall gained or lost along its line. */
-export interface WallStretch {
+export interface WallStretchMark {
   /** The later id for a stretch added; the aligned earlier plan's for one removed. */
   readonly wall: string
   readonly kind: 'added' | 'removed'
@@ -803,7 +803,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const markedChanged: string[] = []
   const wallsTakenDown: string[] = []
   const wallsBuilt: string[] = []
-  const stretches: WallStretch[] = []
+  const stretches: WallStretchMark[] = []
   for (const change of diff.changes) {
     if (change.entity.type !== 'wall' || change.kind !== 'modified') continue
     const id = change.entity.id
