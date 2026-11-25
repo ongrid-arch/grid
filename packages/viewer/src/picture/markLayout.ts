@@ -13,7 +13,7 @@
  * Idempotent: laying out what was laid out changes nothing. Pure: no DOM, no React.
  */
 import type { Bounds, Dimension, PlanDrawing, Vec2 } from '@ongrid/floorplan/geometry'
-import { computeBounds } from '@ongrid/floorplan/geometry'
+import { computeBounds, tolerance } from '@ongrid/floorplan/geometry'
 import { dimensionText, dimensionTextBox, lineBox, type Box } from '../canvas2d/labelPlacement'
 import { GRID_BUBBLE_PX } from './look'
 
@@ -33,7 +33,7 @@ const AT_END = 0.01
 const TICK_PX = 7
 
 const dot = (a: Vec2, b: Vec2): number => a.x * b.x + a.y * b.y
-const near = (a: Vec2, b: Vec2): boolean => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6
+const near = (a: Vec2, b: Vec2): boolean => Math.abs(a.x - b.x) < tolerance('joint') && Math.abs(a.y - b.y) < tolerance('joint')
 
 /** A chain outside the plan, not a room's size, a grid's or an opening's inside a wall. */
 const outside = (dim: Dimension): boolean => dim.kind !== 'room' && dim.kind !== 'grid' && dim.side !== undefined
