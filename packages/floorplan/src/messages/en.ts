@@ -1932,6 +1932,13 @@ export const en = {
   'diff.cause.thickness.many': 'walls {walls} went from {before} to {after} m thick',
   'diff.cause.moved': 'wall {wall} moved {by} m',
 
+  // --- Comparing two versions: a floor added or removed, with its rooms (WRT-20, `diff/building.ts`)
+  'diff.floor.added': 'Floor added: {floor}, {rooms}',
+  'diff.floor.removed': 'Floor removed: {floor}, {rooms}',
+  'diff.floor.rooms.none': 'no rooms',
+  'diff.floor.rooms.one': '{count} room, {area} m²',
+  'diff.floor.rooms.many': '{count} rooms, {area} m²',
+
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Floor plan with {count} rooms',
   'drawing.picture.keyed': 'Floor plan with {count} rooms, and a key of what to look at',
