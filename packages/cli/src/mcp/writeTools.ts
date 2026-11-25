@@ -21,7 +21,7 @@ import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { PlanRefused } from '../command/plan'
 import { keepRoomNumbers } from '../edit/numbers'
-import { changeOpening, changeWallThickness, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
+import { changeOpening, changeWallThickness, listed, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
 import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
 import { parseSheetWordsChecked } from '../sheet/claims'
 import { SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
@@ -37,6 +37,9 @@ import { surveyPlan, type Survey } from '../quantities/survey'
 import { LANGUAGE_ARG, openingBetween } from './readTools'
 import { say } from '@ongrid/floorplan/messages'
 import { briefAnswer } from '../brief/answer'
+import { renameInBrief } from '../brief/rename'
+import { causedText, newLines } from '../edit/caused'
+import { faultText } from '../command/plan'
 import { BRIEF_OUTPUT } from './briefTool'
 import { writeLayout } from '../brief/layout'
 import { TAPED_OUTPUT, TAPED_ROWS_IN_AN_EDIT, tapedRows, tapedTable } from '../taped/table'
@@ -273,11 +276,24 @@ export const EDIT_OUTPUT = objectSchema({
   brief: BRIEF_OUTPUT,
   // HND-11: each length taped on site against the plan as it now is; empty when it keeps none.
   taped: TAPED_OUTPUT,
+  // WRT-59: the notes this change caused (the plot boundary's first), and what the reader left out of the plan.
+  caused: { type: 'array', items: objectSchema({ code: STRING, message: STRING }) },
+  leftOut: listSchema(STRING),
 })
+
+/** WRT-59: the rooms a change renames, as [old name, new name]. */
+function renamesIn(plan: FloorPlan, patch: Patch): [string, string][] {
+  const out: [string, string][] = []
+  for (const [id, change] of patch.rooms) {
+    const room = plan.rooms.find((r) => r.id === id)
+    if (room !== undefined && typeof change.name === 'string' && change.name !== room.name) out.push([room.name, change.name])
+  }
+  return out
+}
 
 /** Applies a patch to the plan file, or refuses it with nothing written. */
 export function writeChange(context: ToolContext, args: Record<string, unknown>, make: (survey: Survey, problemsOf: ProblemsOf) => Patch): { text: string; data: Record<string, unknown> } {
-  const { project, file, loaded } = readPlan(context, args['plan'], { whole: true })
+  const { project, file, loaded } = readPlan(context, args['plan'], { whole: true, leftOutKept: true })
   const out = (args['out'] as string | undefined) ?? file
   if (!out.toLowerCase().endsWith('.json')) throw new ToolRefusal('out must name a .json file.')
   const before = surveyPlan(loaded.plan)
@@ -290,6 +306,13 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   } catch (error) {
     if (error instanceof EditRefused) throw new ToolRefusal(`${error.message} Nothing was written.`)
     throw error
+  }
+  // WRT-59: one rule for a plan the reader leaves parts of out: the change goes on and the answer says
+  // what was left out, the file keeping every part as written. A change of the whole plan would leave
+  // those parts where they were, so it is refused, naming them.
+  const unread = (loaded.faults ?? []).map((fault) => faultText(fault))
+  if (patch.whole === true && unread.length > 0) {
+    throw new ToolRefusal(`The plan has ${unread.length === 1 ? 'a part' : `${unread.length} parts`} Grid would leave out or read otherwise (${listed(unread, 3)}), and a change of the whole plan would leave ${unread.length === 1 ? 'it' : 'them'} where ${unread.length === 1 ? 'it is' : 'they are'}. grid check names each; correct ${unread.length === 1 ? 'it' : 'them'} first. Nothing was written.`)
   }
   // CNT-10: a fit-out's base is read-only; in a plan with phases, the change is the work.
   if (loaded.base !== undefined) {
@@ -330,18 +353,29 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   // The files as written, before and after (MSG-4): a field Grid does not read is kept by the change, and counted.
   // CNT-10: a fit-out's files are read with its base, as the command reads them.
   const withBase = loaded.base === undefined ? {} : { base: loaded.base.plan }
-  const toLookAt = { before: inspectPlan(raw, withBase).count, after: inspectPlan(next, withBase).count }
+  const seenBefore = inspectPlan(raw, withBase)
+  const seenAfter = inspectPlan(next, withBase)
+  const toLookAt = { before: seenBefore.count, after: seenAfter.count }
+  // WRT-59: the notes this change caused lead the answer, the plot boundary's first.
+  const newNotes = newLines(seenBefore, seenAfter)
+  const caused = causedText(newNotes)
   const guessed = [...(patch.guessed ?? [])]
   const couldNotKeep = [...(patch.notKept ?? [])]
   // BRF-1: the brief beside the plan the change read, against the plan as it now is.
+  // WRT-59: a room renamed is renamed in the brief's wishes too, so they do not read as missed.
+  const renamed = renamesIn(loaded.plan, patch)
+  const briefRenamed = renamed.length === 0 ? null : renameInBrief(project, file, renamed, after)
   const brief = briefAnswer(project, file, after)
   // HND-11 (lab WR-14): the taped lengths against the plan as it now is.
   const taped = tapedRows(after)
   // WRT-58: a use word read as another use (`gym` as `sport`) is said, so the person sees what it became.
   const usesSaid = usesRead(args).map((read) => english(sentence('edit.use.read', { word: nameOf(read.word), use: read.use })))
   const text = [
+    ...(caused === null ? [] : [caused]),
     ...patch.said,
     ...usesSaid,
+    ...(unread.length === 0 ? [] : [`Left out of the reading, and kept in the file as written: ${listed(unread, 3)}. grid check names each.`]),
+    ...(briefRenamed === null || briefRenamed.line === null ? [] : [briefRenamed.line]),
     ...guessed.map((line) => `Guessed: ${line}`),
     ...couldNotKeep.map((line) => `Could not keep: ${line}`),
     verdict,
@@ -351,7 +385,7 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),
     `Wrote ${quoted(written)}.`,
   ].join('\n')
-  return { text, data: { written, changed: [...patch.said], verdict, drawingProblems, toLookAt, doors, guessed, couldNotKeep, brief: brief.data, taped, ...(patch.extra ?? {}) } }
+  return { text, data: { written, changed: [...patch.said], verdict, drawingProblems, toLookAt, doors, guessed, couldNotKeep, caused: newNotes.map((line) => ({ code: line.code, message: line.message })), leftOut: unread, brief: brief.data, taped, ...(patch.extra ?? {}) } }
 }
 
 const changeOpeningTool: GridTool = {
