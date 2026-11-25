@@ -69,7 +69,7 @@ answer lists them under it. Grid knows five sizes, all in metres, and four site 
 | Figure | Measured as | Short of it |
 |---|---|---|
 | `door_width` | the hole in the wall of every door and doorless opening; the clear width past a door leaf is less | narrower |
-| `corridor_width` | the widest circle each room used as a corridor holds, between its wall faces | less |
+| `corridor_width` | each room used as a corridor at its narrowest point from end to end, clear of fixtures, the figure `grid_measure what=access` gives; the line says where it is | less |
 | `turning_circle` | the widest circle each room holds, in the empty room; `rooms` names the rooms it is for, every room when left out | less |
 | `step` | the sill of every door and doorless opening above its floor; 0 for none | higher |
 | `ceiling_height` | each room's height, as `grid_measure` gives it | lower |

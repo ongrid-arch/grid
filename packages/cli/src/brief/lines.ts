@@ -17,6 +17,7 @@
 import { floorOf, MEASURES, planFloors, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import { planAreas, type RoomArea } from '../quantities/areas'
 import { measureRoom, roomHeight } from '../quantities/measure'
+import { corridorNarrowestOf } from '../quantities/access'
 import { planSchedule } from '../quantities/schedule'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { METRES } from '@ongrid/floorplan/types/units'
@@ -272,10 +273,16 @@ function figureLines(c: Context, wish: FigureWish): BriefLine[] {
     for (const room of c.survey.rooms) {
       if (room.polygon.length < 3) continue
       if (corridor ? room.facts.use !== 'corridor' : wanted !== null && !wanted.has(room.facts.id)) continue
-      const widest = measureRoom(room).widestCircle
-      if (widest >= wish.value - tolerance('noLength')) continue
-      const body = corridor ? `${q(room.facts.name)} corridor width ${asked}, drawn ${n2(widest)} m, the widest circle it holds.` : `${q(room.facts.name)} turning circle ${asked}, drawn ${n2(widest)} m, the widest circle it holds.`
-      short.push(line('missed', wish, wish.figure, body, { asked: limit, drawn: n2(widest), unit: 'm', parts: [{ kind: 'room', id: room.facts.id }] }))
+      // A corridor is judged by its narrowest point from end to end, the figure `what=access` gives.
+      const found = corridor ? corridorNarrowestOf(c.survey, room) : null
+      const drawn = found === null ? measureRoom(room).widestCircle : (found.narrowest ?? found.widest)
+      if (drawn >= wish.value - tolerance('noLength')) continue
+      const body = !corridor
+        ? `${q(room.facts.name)} turning circle ${asked}, drawn ${n2(drawn)} m, the widest circle it holds.`
+        : found!.narrowest === null
+          ? `${q(room.facts.name)} corridor width ${asked}, drawn ${n2(drawn)} m, the widest circle it holds (Grid finds no two ends to measure between).`
+          : `${q(room.facts.name)} corridor width ${asked}, drawn ${n2(drawn)} m at its narrowest, at (${found!.at!.x.toFixed(2)}, ${found!.at!.y.toFixed(2)}).`
+      short.push(line('missed', wish, wish.figure, body, { asked: limit, drawn: n2(drawn), unit: 'm', parts: [{ kind: 'room', id: room.facts.id }] }))
     }
   }
   if (short.length > 0) return short
