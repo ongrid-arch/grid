@@ -35,7 +35,9 @@ import { roomFloorArea, tryRoomPolygon } from '../room'
 import { doorsThatChangedRooms, openingFaces } from '../rules/doors'
 import { areaText, metresText } from '../rounding'
 import { quoted } from '../../types/planText'
-import { english } from '../../messages/say'
+import { english, name, num, said } from '../../messages/say'
+import { planAreaFigures } from '../areas'
+import { floorOf, planFloors } from '../floors'
 import { tolerance } from '../tolerances'
 import type { Vec2 } from '../vec2'
 import { roomWallCauses } from './causes'
@@ -301,7 +303,7 @@ function crossedOpenings(later: FloorPlan, changed: ReadonlySet<string>): Compar
     for (const id of changed) {
       if (id === opening.wall) continue
       const wall = walls.get(id)
-      if (wall === undefined || wall.virtual === true || (wall.floor ?? '') !== (host.floor ?? '')) continue
+      if (wall === undefined || wall.virtual === true || floorOf(wall) !== floorOf(host)) continue
       const half = wall.thickness / 2
       const meets = [wall.start, wall.end].some((end) => {
         const rx = end[0] - axis.start.x
@@ -367,6 +369,15 @@ const ISSUE_ORDER: Readonly<Record<string, number>> = {
   suspected_id_churn: 9
 }
 
+/** WRT-20: a floor added to or removed from a plan, with the rooms on it and their net area. */
+function floorLine(plan: FloorPlan, floor: string, kind: 'added' | 'removed'): string {
+  const rooms = plan.rooms.filter((room) => floorOf(room) === floor).length
+  const net = rooms === 0 ? 0 : (planAreaFigures(plan).floors.find((f) => f.floor === floor)?.net ?? 0)
+  const named = planFloors(plan).find((f) => f.id === floor)?.name ?? floor
+  const counted = rooms === 0 ? said('diff.floor.rooms.none') : said(rooms === 1 ? 'diff.floor.rooms.one' : 'diff.floor.rooms.many', { count: rooms, area: num(areaText(net)) })
+  return english(said(kind === 'added' ? 'diff.floor.added' : 'diff.floor.removed', { floor: name(named), rooms: counted }))
+}
+
 // ── The comparison ────────────────────────────────────────────────────────────────────────
 
 /**
@@ -419,7 +430,8 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     }
     if ((before.height ?? null) !== (room.height ?? null)) words.push(`height ${before.height === undefined ? 'not stated' : `${metresText(before.height)} m`} → ${room.height === undefined ? 'not stated' : `${metresText(room.height)} m`}`)
     if ((before.floorOffset ?? 0) !== (room.floorOffset ?? 0)) words.push(`floor offset ${metresText(before.floorOffset ?? 0)} → ${metresText(room.floorOffset ?? 0)} m`)
-    if ((before.floor ?? '') !== (room.floor ?? '')) words.push(`moved to floor ${quoted(room.floor ?? 'ground')}`)
+    // WRT-20: an unstated floor is the ground floor (C5), so a room that now states it stands where it stood.
+    if (floorOf(before) !== floorOf(room)) words.push(`moved to floor ${quoted(floorOf(room))}`)
     const subject = quoted(before.name || before.id)
     if (words.length > 0) {
       verdicts.push({ room: room.id, name: room.name, status: 'changed', before: old.area, after: after.area, moved: null, walls: causes, text: `${subject} ${words.join('; ')}` })
@@ -580,6 +592,10 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const listed = (change: PlanChange): boolean =>
     !change.derived && (change.entity.type === 'floor' || (change.entity.type === 'wall' && (!roomsFirst || (change.kind === 'modified' && change.props.some((p) => WALL_FIGURES.has(p.key))))))
   const wallLines: ChangeLine[] = []
+  // WRT-20: a floor added or removed, said first with its rooms and their net area as `grid_areas` gives it.
+  const floorLines: ChangeLine[] = []
+  const floorsGone = new Set<string>()
+  const floorsNew = new Set<string>()
   {
     // Walls changed the same way and nothing else are one line: "9 walls height 2.60 → 2.70 m".
     const alike = new Map<string, PlanChange[]>()
@@ -602,7 +618,12 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
       if (grouped.has(change.entity.id) && change.entity.type === 'wall') continue
       if (!listed(change)) continue
       if (change.entity.type === 'floor') {
-        wallLines.push({ text: change.summary, entities: [change.entity], rooms: [] })
+        if (change.kind === 'modified') wallLines.push({ text: change.summary, entities: [change.entity], rooms: [] })
+        else {
+          const set = change.kind === 'added' ? floorsNew : floorsGone
+          set.add(change.entity.id)
+          floorLines.push({ text: floorLine(change.kind === 'added' ? later : aligned, change.entity.id, change.kind), entities: [change.entity], rooms: [] })
+        }
         continue
       }
       const id = change.entity.id
@@ -614,7 +635,10 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
       wallLines.push({ text: `Wall ${quoted(id)} ${what}${change.kind === 'modified' ? '' : length}${by}`, entities: [change.entity], rooms: rooms.filter((r) => headRooms.has(r)) })
     }
   }
-  const changes: ChangeLine[] = [...roomLines, ...wallLines, ...openingLines]
+  const changes: ChangeLine[] = [...floorLines, ...roomLines, ...wallLines, ...openingLines]
+  // The rooms on a floor added or removed: its floor's line counts them, and the verdict does not say them again.
+  const ofFloorLine = (v: RoomVerdict): boolean =>
+    (v.status === 'added' && floorsNew.has(floorOf(headRooms.get(v.room)!))) || (v.status === 'removed' && floorsGone.has(floorOf(baseRooms.get(v.room)!)))
 
   // Issues first.
   const kinds: Record<string, ReadonlyMap<string, string>> = { wall: alignment.walls, opening: alignment.openings, room: alignment.rooms }
@@ -685,9 +709,10 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     turnFirst = `${turn.text}${keepsSize ? ', and every room keeps its size' : ''}.`
     if (changes.length === 0) verdict = `Nothing else changed${sameWords === '' ? '' : `; ${sameWords}`}${shifted}.`
     else {
-      const parts: string[] = []
-      for (const v of verdicts) if (v.status === 'changed' || v.status === 'added' || v.status === 'removed') parts.push(v.text)
-      const others = changes.length - parts.length
+      const parts: string[] = floorLines.map((line) => line.text)
+      const folded = verdicts.filter(ofFloorLine).length
+      for (const v of verdicts) if ((v.status === 'changed' || v.status === 'added' || v.status === 'removed') && !ofFloorLine(v)) parts.push(v.text)
+      const others = changes.length - parts.length - folded
       if (others > 0) parts.push(plural(others, roomsFirst ? 'other change' : 'wall or opening change'))
       if (movedWithWords !== '') parts.push(movedWithWords)
       if (renamed.length > 0) parts.push(renamedWords)
@@ -697,12 +722,12 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   } else if (sameBuilding) {
     verdict = `Same building${sameWords === '' ? '' : `, ${sameWords}`}: every room, wall and opening stands where it stood${shifted}.`
   } else {
-    const parts: string[] = []
-    for (const v of verdicts) if (v.status === 'changed' || v.status === 'added' || v.status === 'removed') parts.push(v.text)
+    const parts: string[] = floorLines.map((line) => line.text)
+    for (const v of verdicts) if ((v.status === 'changed' || v.status === 'added' || v.status === 'removed') && !ofFloorLine(v)) parts.push(v.text)
     for (const line of roomLines) if (line.entities.every((e) => moves.has(e.id))) parts.push(line.text)
     const kept = verdicts.filter((v) => v.status === 'unchanged').length
     if (kept > 0) parts.push(`${plural(kept, 'room')} as ${kept === 1 ? 'it was' : 'they were'}`)
-    const others = changes.length - roomLines.length
+    const others = changes.length - roomLines.length - floorLines.length
     if (others > 0) parts.push(`${plural(others, roomsFirst && wallLines.length === 0 ? 'opening change' : 'wall or opening change')}`)
     if (movedWithWords !== '') parts.push(movedWithWords)
     if (renamed.length > 0) parts.push(renamedWords)
