@@ -103,7 +103,7 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
     setbacksAre: FIGURES_HEADING,
     footprint: site.footprint === null ? null : { area: round(site.footprint.area), floors: site.footprint.floors },
     why: site.why,
-    coverage: site.coverage === null || site.covered === null || boundary === null ? null : { ratio: round(site.coverage), percent: percentText(site.coverage), covered: round(site.covered), plot: round(boundary.area), openOutdoorLeftOut: site.withOpen !== null },
+    coverage: site.coverage === null || site.covered === null || boundary === null ? null : { ratio: round(site.coverage), percent: percentText(site.coverage), covered: round(site.covered), plot: round(boundary.area), ...(site.withOpen === null ? {} : { openOutdoorLeftOut: true }) },
     coverageWithOpenOutdoor: site.withOpen === null || site.withOpen.coverage === null || site.withOpen.covered === null || boundary === null ? null : { ratio: round(site.withOpen.coverage), percent: percentText(site.withOpen.coverage), covered: round(site.withOpen.covered), plot: round(boundary.area) },
     faces: site.faces.map((f) => ({ face: f.face, from: [round(f.from.x), round(f.from.y)], to: [round(f.to.x), round(f.to.y)], length: round(f.length), faces: f.faces, edge: f.edge, distance: round(f.distance) })),
     things: things.map((t) => ({ id: t.id, kind: t.kind, ...(t.label === undefined ? {} : { label: t.label }) })),

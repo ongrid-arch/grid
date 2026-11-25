@@ -320,8 +320,9 @@ function enclosedPlan(plan: FloorPlan): FloorPlan {
     ...plan,
     rooms: plan.rooms.map((room) => {
       if (!isOutdoor(room) || outdoorRoofed(room) !== true) return room
-      const { outdoor: _outdoor, ...rest } = room
-      return rest
+      const rest: Record<string, unknown> = { ...room }
+      delete rest['outdoor']
+      return rest as unknown as typeof room
     }),
   }
   const built = buildingPlan(roofedAsBuilding, indexPlan(roofedAsBuilding))
