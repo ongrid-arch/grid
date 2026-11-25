@@ -6,14 +6,15 @@
  * markers file beside it. `grid diff [<plan.json>] [--since <name>|git]` compares the plan with
  * that version, or with the version last committed in the project's own git folder, by what
  * stands where: issues first, then the verdict room by room, then the changes one line each.
- * `--rooms` names the rooms meant to be edited, and `--picture` writes the comparison's picture.
+ * `--rooms` names the rooms meant to be edited, `--floor` narrows the lists to one floor (CMD-32)
+ * and `--picture` writes the comparison's picture.
  */
 import { readPlainId } from '@ongrid/floorplan/types/floorplan'
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { DIFF_SHOWS, diffData, diffSince, diffText, type DiffShow } from '../versions/diff'
 import { DEFAULT_MARKER, MARKERS_MAX, removeMarker, setMarker } from '../versions/markers'
-import { loadPlan } from './plan'
+import { floorOption, loadPlan } from './plan'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 
 export const DIFF_OPTIONS: OptionSpecs = {
@@ -21,7 +22,7 @@ export const DIFF_OPTIONS: OptionSpecs = {
   '--rooms': { takesValue: true, help: 'The rooms meant to be edited, by id, separated by commas: every change outside them is named.' },
   '--show': { takesValue: true, help: `What to print: ${DIFF_SHOWS.join(', ')}. all when left out.` },
   '--picture': { takesValue: true, help: 'Write the comparison as a PNG to this file: removed in red, added in green, what changed in amber, the rest pale.' },
-  '--floor': { takesValue: true, help: 'For --picture: the floor to draw. The first floor with a change when left out.' },
+  '--floor': { takesValue: true, help: 'The floor to show: only the changes, rooms and openings on it are listed, and --picture draws it. The issues and the verdict stay whole. Every floor, and for --picture the first floor with a change, when left out.' },
   '--json': { takesValue: false, help: 'Print the comparison as JSON.' },
   ...PROJECT_OPTION,
 }
@@ -43,7 +44,6 @@ export interface DiffRequest {
 /** The options of `grid diff`, checked before anything is read. */
 export function checkDiffRequest(request: DiffRequest): { show: DiffShow; rooms: string[] | undefined } {
   if (request.show !== undefined && !(DIFF_SHOWS as readonly string[]).includes(request.show)) throw new UsageError(`--show takes ${DIFF_SHOWS.join(', ')}.`)
-  if (request.floor !== undefined && request.picture === undefined) throw new UsageError('--floor goes with --picture: it is the floor the picture draws.')
   let rooms: string[] | undefined
   if (request.rooms !== undefined) {
     const given = request.rooms.split(',').map((id) => id.trim()).filter((id) => id !== '')
@@ -69,15 +69,17 @@ export async function runDiff(project: Project, planFile: string, request: DiffR
   // CMD-15: the picture's path is checked before the plans are read.
   if (request.picture !== undefined) project.writable(request.picture)
   const run = diffSince(project, planFile, request.since, rooms)
-  const data = diffData(run, show)
+  // CMD-32: a floor the plan does not have is refused by name, never drawn as another.
+  const asked = floorOption(run.later.plan, request.floor)
+  const data = diffData(run, show, asked)
   let png: Uint8Array | null = null
   let floor: string | null = null
-  const lines = [GENERAL_GUIDANCE_LABEL, diffText(run, show)]
+  const lines = [GENERAL_GUIDANCE_LABEL, diffText(run, show, asked)]
   if (request.picture !== undefined) {
     if (run.comparison.sameBuilding) lines.push('No picture: nothing changed.')
     else {
       const { comparisonView } = await import('../draw/views')
-      const view = await comparisonView(run.comparison, run.later.plan, request.floor ?? run.comparison.diff.changes[0]?.floor)
+      const view = await comparisonView(run.comparison, run.later.plan, asked ?? run.comparison.diff.changes[0]?.floor)
       png = view.png
       floor = view.floor
     }

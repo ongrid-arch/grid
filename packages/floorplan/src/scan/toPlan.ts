@@ -15,7 +15,8 @@
  *    across the drawing, by the least turn, and moved so its walls start at 0,0.
  * 2. Each room's outline is its faces, in order round it: the faces along the edges of a floor
  *    outline the scan gives (a floor surface's corners), or, in a scan with no floor outline,
- *    the faces joined end to end into one room. An edge of a floor outline no face lies on is
+ *    the faces joined end to end round as many rooms as they close round (CMD-33); faces that
+ *    close round no room are named as left out. An edge of a floor outline no face lies on is
  *    drawn along the edge. The corners are where neighbouring faces' lines cross, as every room
  *    in Grid is measured (C3).
  * 3. Faces of two rooms that face each other across a gap no wider than a wall
@@ -334,7 +335,7 @@ export function planFromScan(scan: RoomScan, previous: ScanIds | null = null): S
     value: null,
   })
 
-  // 2. Each storey's rooms: from its floor outlines, or its faces joined end to end.
+  // 2. Each storey's rooms: from its floor outlines, or its faces joined end to end round each room they close.
   const stories = [...new Set(faces.map((f) => f.story))].sort((a, b) => a - b)
   const levelOf = new Map<number, number>()
   for (const story of stories) {
@@ -353,13 +354,16 @@ export function planFromScan(scan: RoomScan, previous: ScanIds | null = null): S
         drafts.push(draft(story, outline.id, sides, Math.abs(signedArea(outline.points)), 'floor outline'))
       }
     } else {
-      const { sides, rest } = chainFaces(own)
+      const { rooms, rest } = roomsOfFaces(own)
       unjoined.push(...rest)
-      const room = draft(story, scan.id === null ? null : stories.length > 1 ? `${scan.id}#${story}` : scan.id, sides, 0, 'wall faces')
-      drafts.push({ ...room, scanArea: Math.abs(signedArea(room.corners)) })
+      const key = scan.id === null ? null : stories.length > 1 ? `${scan.id}#${story}` : scan.id
+      rooms.forEach(({ sides, longest }, i) => {
+        const room = draft(story, key === null ? null : i === 0 ? key : `${key}/${longest}`, sides, 0, 'wall faces')
+        drafts.push({ ...room, scanArea: Math.abs(signedArea(room.corners)) })
+      })
     }
   }
-  if (unjoined.length > 0) leftOut.push(`${plural(unjoined.length, 'wall face')} that do not join the room's outline: kept in the scan beside the plan, not drawn (${idList(unjoined)}).`)
+  if (unjoined.length > 0) leftOut.push(`${plural(unjoined.length, 'wall face')} that close round no room: kept in the scan beside the plan, not drawn (${idList(unjoined)}).`)
 
   // 3. Two faces of one wall a little out of parallel are turned onto one direction.
   const turned = pairFaces(drafts)
@@ -764,10 +768,45 @@ function sideOnFaces(p: P, q: P, faces: readonly Face[]): Side {
   return { p: primary.f.a, u: primary.fu, faces: near.sort((a, b) => a.s0 - b.s0).map((n) => n.f.id) }
 }
 
-/** The faces of a scan with no floor outline, joined end to end round one room. */
-function chainFaces(faces: readonly Face[]): { sides: Side[]; rest: string[] } {
+/**
+ * The faces of a storey with no floor outline, joined end to end round as many rooms as they
+ * close round. Each room starts from the longest face not yet in one; a face no room starts
+ * from or reaches is left over. The first room holds the storey's longest face. Throws
+ * `scan/not-closed` when no room closes, after the longest face's chain.
+ */
+function roomsOfFaces(faces: readonly Face[]): { rooms: { sides: Side[]; longest: string }[]; rest: string[] } {
+  const length = (f: Face): number => norm(sub(f.b, f.a))
+  let left = [...faces].sort((x, y) => length(y) - length(x))
+  const rooms: { sides: Side[]; longest: string }[] = []
+  let firstStop: string | null = null
+  for (;;) {
+    let found: { sides: Side[]; used: Set<Face> } | null = null
+    for (const start of left) {
+      const chain = chainFaces(start, left)
+      if ('stop' in chain) {
+        firstStop ??= chain.stop
+        continue
+      }
+      found = chain
+      rooms.push({ sides: chain.sides, longest: start.id })
+      break
+    }
+    if (found === null) break
+    const used = found.used
+    left = left.filter((f) => !used.has(f))
+  }
+  if (rooms.length === 0) {
+    throw new ScanRefused(
+      'scan/not-closed',
+      `The scan was not drawn: it gives no floor outline, and its walls do not close round a room. After the wall ${quoted(firstStop!)}, no other wall begins within ${tolerance('scanCornerGap')} m. A scan with no floor outline is read as the rooms its walls close round, each joined end to end.`,
+    )
+  }
+  return { rooms, rest: left.map((f) => f.id) }
+}
+
+/** The faces joined end to end from `first` round one room, or the face after which no other begins. */
+function chainFaces(first: Face, faces: readonly Face[]): { sides: Side[]; used: Set<Face> } | { stop: string } {
   const gap = tolerance('scanCornerGap')
-  const first = faces.reduce((best, f) => (norm(sub(f.b, f.a)) > norm(sub(best.b, best.a)) ? f : best))
   const used = new Set<Face>([first])
   const run: { f: Face; a: P; b: P }[] = [{ f: first, a: first.a, b: first.b }]
   for (;;) {
@@ -787,18 +826,23 @@ function chainFaces(faces: readonly Face[]): { sides: Side[]; rest: string[] } {
       continue
     }
     if (home <= gap && run.length >= 3) break
-    throw new ScanRefused(
-      'scan/not-closed',
-      `The scan was not drawn: it gives no floor outline, and its walls do not close round a room. After the wall ${quoted(run[run.length - 1]!.f.id)}, no other wall begins within ${gap} m. A scan with no floor outline is read as one room, its walls joined end to end.`,
-    )
+    return { stop: run[run.length - 1]!.f.id }
   }
   let sides: Side[] = run.map((r) => ({ p: r.a, u: unit(sub(r.b, r.a)), faces: [r.f.id] }))
   sides = joinSides(sides)
-  const corners = cornersOf(sides, 'the room of the scan')
+  if (sides.length < 3) return { stop: run[run.length - 1]!.f.id }
+  let corners: P[]
+  try {
+    corners = cornersOf(sides, 'the room of the scan')
+  } catch (error) {
+    if (error instanceof ScanRefused) return { stop: run[run.length - 1]!.f.id }
+    throw error
+  }
+  if (Math.abs(signedArea(corners)) <= tolerance('noArea')) return { stop: run[run.length - 1]!.f.id }
   if (signedArea(corners) < 0) {
     sides = sides.reverse().map((s) => ({ ...s, u: mul(s.u, -1) }))
   }
-  return { sides, rest: faces.filter((f) => !used.has(f)).map((f) => f.id) }
+  return { sides, used }
 }
 
 /** Whether a point is inside a polygon. */

@@ -48,6 +48,70 @@ describe('lengths with their unit', () => {
   })
 })
 
+describe('a polygon with its points in units (WRT-62)', () => {
+  const head = 'walls outside 0.3 inside 0.1 height 2.7\n'
+  const round = (v: number): number => Math.round(v * 1e6) / 1e6
+  const corners = (text: string): number[][] => written(text).walls.map((w) => [...w.start, ...w.end].map(round))
+
+  it('reads points in feet, feet and inches, centimetres and millimetres as the same room in metres', () => {
+    const metric = corners(`${head}room lake "Lake" storage polygon 0,0 12.192,0 12.192,7.62 6.096,9.144 0,7.62\n`)
+    for (const points of [
+      '0ft,0ft 40ft,0ft 40ft,25ft 20ft,30ft 0ft,25ft',
+      '0,0 40ft,0 40ft,25ft 20ft,30ft 0,25ft',
+      `0,0 40'0",0 40',25' 20'0",30' 0,25'`,
+      '0,0 1219.2cm,0 1219.2cm,762cm 609.6cm,914.4cm 0,762cm',
+      '0mm,0mm 12192mm,0mm 12192mm,7620mm 6096mm,9144mm 0mm,7620mm',
+    ]) {
+      expect(corners(`${head}room lake "Lake" storage polygon ${points}\n`), points).toEqual(metric)
+    }
+  })
+
+  it('reads points in units under a display in feet', () => {
+    const result = compileRoomsText(`display ft-in\n${head.replace('0.3 inside 0.1 height 2.7', '12in inside 4in height 9ft')}room deck "Deck" storage polygon 0,0 20ft,0 20ft,10ft6in 0,10ft6in\n`)
+    expect(result.problems).toEqual([])
+    expect(result.rooms[0]!.width).toBeCloseTo(6.096, 9)
+    expect(result.rooms[0]!.depth).toBeCloseTo(3.2004, 9)
+  })
+
+  it('refuses a point it cannot read by its word, never as a polygon of fewer points', () => {
+    for (const [point, code] of [['10feet,0', 'rooms/syntax'], ['10ft13in,0', 'rooms/units']] as const) {
+      const result = compileRoomsText(`${head}room p "P" storage polygon 0,0 ${point} 10ft,10ft 0,10ft\n`)
+      expect(result.plan, point).toBeNull()
+      expect(result.problems[0], point).toMatchObject({ code, line: 2 })
+      expect(result.problems[0]!.message, point).toContain(point.split(',')[0]!)
+      expect(result.problems[0]!.message, point).not.toContain('at least three points')
+    }
+  })
+
+  it('says a polygon of too few points takes units too', () => {
+    const result = compileRoomsText(`${head}room p "P" storage polygon 0,0 10ft,0\n`)
+    expect(result.problems[0]).toMatchObject({ code: 'rooms/syntax', line: 2 })
+    expect(result.problems[0]!.message).toContain('10ft,0ft')
+  })
+
+  it('takes a long polygon with a unit in its points as meant, and asks about the same one bare', () => {
+    const asked = (points: string): number => {
+      const result = compileRoomsText(`${head}room p "P" storage polygon ${points}\n`)
+      expect(result.problems, points).toEqual([])
+      return result.warnings.filter((w) => w.code === 'rooms/size-question').length
+    }
+    expect(asked('0,0 400m,0 400m,20m 0,20m 0,10')).toBe(0)
+    expect(asked('0,0 1400ft,0 1400ft,60ft 0,60ft 0,30ft')).toBe(0)
+    expect(asked('0,0 400,0 400,20 0,20 0,10')).toBe(1)
+  })
+
+  it('reads a long polygon back with its unit, so writing the reading asks nothing', () => {
+    const plan = written(`${head}room p "P" storage polygon 0,0 400m,0 400m,20m 200m,30m 0,20m\n`)
+    const reading = readRoomsText(plan).text
+    expect(reading).toContain('400m,0m')
+    const again = compileRoomsText(reading)
+    expect(again.problems).toEqual([])
+    expect(again.warnings.filter((w) => w.code === 'rooms/size-question')).toEqual([])
+    const ends = (p: FloorPlan): string[] => p.walls.map((w) => JSON.stringify([...w.start, ...w.end].map(round))).sort()
+    expect(ends(parseFloorPlan(again.plan))).toEqual(ends(plan))
+  })
+})
+
 describe('the display line', () => {
   it('records how the person reads lengths, and changes no length', () => {
     const plan = written(`display ft-in precision 3 numbers m\n${metric}`)
