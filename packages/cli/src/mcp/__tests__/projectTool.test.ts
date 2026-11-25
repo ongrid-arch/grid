@@ -78,3 +78,22 @@ describe('grid_write_brief keeps a brief that is there', () => {
     expect((await import('fs')).readFileSync(file, 'utf8')).not.toBe(before)
   })
 })
+
+describe('grid_write_brief with one wrong line', () => {
+  it('writes the valid lines and returns the refused one, or refuses when none read', async () => {
+    const b = make({ 'plan.json': twoBedFlat() }, false)
+    const fs = await import('fs')
+    const reply = await b.call('grid_write_brief', {
+      brief: { rooms: [{ name: 'Study', area: 8, level: 'must', source: 'given' }, { name: 'Kitchen', area: 10, level: 'must', source: 'given', quote: 'a kitchen' }] },
+    })
+    expect(reply.isError, reply.text).toBe(false)
+    const data = reply.data as { refused: Array<{ where: string; problem: string; line: string }> }
+    expect(data.refused.map((r) => r.where)).toEqual(['rooms[0]'])
+    expect(reply.text).toContain('rooms[0]')
+    const saved = JSON.parse(fs.readFileSync(join(b.folder, 'plan.brief.json'), 'utf8')) as { rooms: Array<{ name: string }> }
+    expect(saved.rooms.map((r) => r.name)).toEqual(['Kitchen'])
+    const none = await make({ 'plan.json': twoBedFlat() }, false).call('grid_write_brief', { brief: { rooms: [{ name: 'Study', area: 8, level: 'must', source: 'given' }] } })
+    expect(none.isError).toBe(true)
+    expect(none.text).toContain('rooms[0]')
+  })
+})
