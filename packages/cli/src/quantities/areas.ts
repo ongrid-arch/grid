@@ -13,6 +13,7 @@
  * are in no figure.
  */
 import { MEASURES, floorOf, floorRoofShape, headroomBands, planMarks, roomHeadroom, wallSureness, type GrossMeasure, type HeadroomBand, type MeasureRule, type ReaderMeasure, type RoomLeftOut } from '@ongrid/floorplan/geometry'
+import { english, joined, num, said } from '@ongrid/floorplan/messages'
 import { FLAT_AREA_RULE, planAreaFigures, type ApartAreaFigure, type FlatAreaFigure, type OutdoorAreaFigure, type OutdoorWeight, type PlanAreaFigures } from '@ongrid/floorplan/geometry/areas'
 import type { PartyWallArea } from '@ongrid/floorplan/geometry/partyWalls'
 import type { MarkSource, OutdoorKind } from '@ongrid/floorplan/types/floorplan'
@@ -411,11 +412,11 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     if (figures[measure].area !== null) continue
     const known = floors.filter((f) => f[measure] !== null)
     if (known.length === 0) continue
-    const name = MEASURES[measure].name.toLowerCase()
+    const label = MEASURES[measure].name.toLowerCase()
     const unmeasured = floors.filter((f) => f[measure] === null).map((f) => ({ floor: f.floor, why: f.why ?? 'not known' }))
     const area = sum(known.map((f) => f[measure]!))
     partial[measure] = { area, floors: known.map((f) => f.floor), unmeasured }
-    notes.push(`The ${name} of the whole building is not known. The other ${known.length === 1 ? 'floor' : `${known.length} floors`} add${known.length === 1 ? 's' : ''} up to ${area.toFixed(2)} m²; not measured: ${unmeasured.map((u) => `floor ${JSON.stringify(u.floor)} (${u.why})`).join(', ')}.`)
+    notes.push(english(said(known.length === 1 ? 'areas.partial.one' : 'areas.partial.many', { measure: label, count: known.length, area: num(area.toFixed(2)), left: joined(unmeasured.map((u) => `floor ${JSON.stringify(u.floor)} (${u.why})`), 'join.comma') })))
   }
   // CNT-10: the state these figures describe, in a plan with phases.
   const work = survey.facts.work

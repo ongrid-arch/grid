@@ -511,7 +511,7 @@ const areasTool: GridTool = {
       const value = m === 'grossInternal' ? areas.grossInternal : areas.grossExternal
       const state = value === null ? '' : stateText(areas.states[m], several)
       const part = areas.partial?.[m]
-      const unknown = part === undefined ? 'not known' : `not known for the whole building; the other ${part.floors.length === 1 ? 'floor' : `${part.floors.length} floors`} add${part.floors.length === 1 ? 's' : ''} up to ${areaText(part.area, units)}; not measured: ${part.unmeasured.map((u) => `floor ${q(u.floor)} (${u.why})`).join(', ')}`
+      const unknown = part === undefined ? 'not known' : english(said(part.floors.length === 1 ? 'areas.partial.line.one' : 'areas.partial.line.many', { count: part.floors.length, area: areaText(part.area, units), left: joined(part.unmeasured.map((u) => `floor ${q(u.floor)} (${u.why})`), 'join.comma') }))
       lines.push(`${m === 'grossInternal' ? 'Gross internal' : 'Gross external'}: ${value === null ? unknown : areaText(value, units)}${state}. ${AREA_RULES[m]}`)
     }
     if (areas.headroom !== null) lines.push(`Area by headroom: ${bandsText(areas.headroom, units)}. ${MEASURES.headroom.measures}`)

@@ -2863,6 +2863,10 @@ export const en = {
   'areas.apart.one': 'Measured apart (1 room): net {net}{toPartyWalls}.',
   'areas.apart': 'Measured apart ({count} rooms): net {net}{toPartyWalls}.',
   'areas.apart.toPartyWalls': '; to the middle of the walls they share with the rest {areas}',
+  'areas.partial.one': 'The {measure} of the whole building is not known. The other floor adds up to {area} m²; not measured: {left}.',
+  'areas.partial.many': 'The {measure} of the whole building is not known. The other {count} floors add up to {area} m²; not measured: {left}.',
+  'areas.partial.line.one': 'not known for the whole building; the other floor adds up to {area}; not measured: {left}',
+  'areas.partial.line.many': 'not known for the whole building; the other {count} floors add up to {area}; not measured: {left}',
   'areas.apart.notCounted': 'Not in the rooms measured apart, as no room the net counts on the floors given: {ids}.',
   // HND-10 (C31): the trace image under the plan.
   'trace.drawn': 'The trace image {path}, {width} × {height} px, is drawn under the plan, {scale}. Its top-left corner is at ({x}, {y}) m, and its pixel (u, v) lies at x = {x} + {metres}·u, y = {y} − {metres}·v.',
