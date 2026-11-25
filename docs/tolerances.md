@@ -102,6 +102,7 @@ in it is used as a `bedroom` or a `living` room) the home figures apply.
 | `stairStepLength` | limit | 0.63 m | A stair that states no number of risers gets the number that brings twice the riser plus the going nearest this |
 | `stairWaist` | limit | 0.15 m | How thick a flight of stairs is drawn in a section, under the roots of its steps and square to its slope, and a landing, at least one riser: the plan states no waist (VEW-11) |
 | `planCutHeight` | limit | 1.2 m | How high above a floor its plan is cut: a stair rising from the floor is drawn solid up to this height, with a break line there, and dashed above (SHT-11) |
+| `plinthLeast` | tolerance | 0.005 m | A floor on the ground whose slab stands higher than this above the site's stated ground is carried down to the ground on a plinth in its sections and facades (VEW-16); lower, it stands at the ground |
 | `sectionGroundRun` | limit | 1 m | How far the ground line of a section runs past the building on each side (LVL-9) |
 | `elevationMarkOffset` | limit | 1.2 m | How far outside the drawing and its dimensions an elevation mark stands on a plan (LVL-9) |
 | `aboveSameEdge` | tolerance | 0.02 m | A stretch of the outline of the floor above this close to the outline of the floor drawn, along it, is the same wall face, and is not drawn dashed (SHT-11) |

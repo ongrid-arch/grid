@@ -775,6 +775,16 @@ export const TOLERANCES = {
       'above. It only draws the plan; it judges nothing.',
     basis: own
   },
+  plinthLeast: {
+    kind: 'tolerance',
+    value: 0.005,
+    unit: 'm',
+    decides:
+      'A floor on the ground whose slab stands less than this above the ground the site states ' +
+      'stands at the ground; higher, its sections and facades carry its walls down to the ground ' +
+      'on a plinth (VEW-16). It only draws; it judges nothing.',
+    basis: own
+  },
   sectionGroundRun: {
     kind: 'limit',
     value: 1,
