@@ -50,6 +50,43 @@ describe('a column comes off the room it stands in (EL-6)', () => {
     expect(columnFootprint({ id: 'x', shape: 'square', width: 1, depth: 2, at: [0, 0], turn: 90 }).map((p) => [Math.round(p.x * 1e6) / 1e6, Math.round(p.y * 1e6) / 1e6])).toEqual([[1, -0.5], [1, 0.5], [-1, 0.5], [-1, -0.5]])
   })
 
+  it('takes a column on a room line off each room it stands in, clipped to each (CNT-33)', () => {
+    const wall = (id: string, a: [number, number], b: [number, number], kind = 'exterior') => ({ id, start: a, end: b, thickness: 0.2, height: 2.7, kind })
+    const two = (columns: unknown[]) =>
+      parseFloorPlan({
+        walls: [
+          wall('wa', [0, 0], [5, 0]), wall('wb', [5, 0], [10, 0]), wall('re', [10, 0], [10, 5]),
+          wall('wc', [10, 5], [5, 5]), wall('wd', [5, 5], [0, 5]), wall('le', [0, 5], [0, 0]),
+          wall('p', [5, 0], [5, 5], 'interior'),
+        ],
+        rooms: [
+          { id: 'ra', name: 'Nave', boundary: ['wa', 'p', 'wd', 'le'], use: 'living' },
+          { id: 'rb', name: 'Aisle', boundary: ['wb', 're', 'wc', 'p'], use: 'living' },
+        ],
+        openings: [],
+        columns,
+      })
+    // 1 m square pier centred on the party wall: 0.4 m² stands in each room, 0.2 m² in the wall.
+    const on = two([{ id: 'c1', shape: 'square', width: 1, at: [5, 2.5] }])
+    const index = indexPlan(on)
+    expect(roomColumnArea(on.rooms[0]!, index)).toBeCloseTo(0.4, 9)
+    expect(roomColumnArea(on.rooms[1]!, index)).toBeCloseTo(0.4, 9)
+    // One whose middle is in the nave but which reaches into the aisle: each room its own part.
+    const near = two([{ id: 'c1', shape: 'square', width: 1, at: [4.8, 2.5] }])
+    const nearIndex = indexPlan(near)
+    expect(roomColumnArea(near.rooms[0]!, nearIndex)).toBeCloseTo(0.6, 9)
+    expect(roomColumnArea(near.rooms[1]!, nearIndex)).toBeCloseTo(0.2, 9)
+    // The net total is the same however the column stands: less the floor it covers inside the rooms.
+    const total = (plan: ReturnType<typeof two>) => planAreaFigures(plan).net.area!
+    const bare = two([])
+    expect(total(bare) - total(on)).toBeCloseTo(0.8, 9)
+    const listed = planAreaFigures(on).floors[0]!.rooms
+    expect(listed.map((r) => r.columns)).toEqual([
+      { area: expect.closeTo(0.4, 9), ids: ['c1'] },
+      { area: expect.closeTo(0.4, 9), ids: ['c1'] },
+    ])
+  })
+
   it('refuses a round column with a depth, and leaves out one on a floor the plan does not have', () => {
     expect(() => openOffice({ columns: [{ id: 'c1', shape: 'round', width: 0.4, depth: 0.4, at: [3, 3] }] })).toThrow(/no depth/)
     const plan = openOffice({ columns: [{ id: 'c1', shape: 'square', width: 0.4, at: [3, 3], floor: 'first' }, { id: 'w1', shape: 'square', width: 0.4, at: [4, 4] }] })
