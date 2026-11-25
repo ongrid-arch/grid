@@ -17,8 +17,14 @@
  *   meets that side of the building) and the overall size. The plan's two main directions
  *   are the walls', not the page's, so a turned house is dimensioned along its walls. Every
  *   chain runs between the same two outermost points, so each adds up to the next.
+ * - VEW-22: the main directions are those of the way that holds half the outside walls' length
+ *   or more, else of the plan's one wing, else the page's, the overall size then from the box
+ *   round the whole outline. Outside walls that run another way are dimensioned along
+ *   themselves, each line of facade with its own chains and overall length (`chain`); a plan of
+ *   two wings or more has each wing dimensioned square to itself. A chain keeps no sliver under
+ *   `chainSliver`, and a wall thinner than `chainThinWall` is marked at its centre line.
  * - Every dimension says what each of its ends measures to: a wall's face, or the centre line
- *   of a dividing line, which has no faces. `finish` is for a plan that records its finishes;
+ *   of a dividing line (or of a thin wall, VEW-22), which has no faces. `finish` is for a plan that records its finishes;
  *   none does yet, so nothing measures to one.
  *
  * Everything here is derived: nothing about dimensions is stored in the plan
@@ -73,6 +79,13 @@ export interface Dimension {
   readonly measuredTo: readonly [MeasuredTo, MeasuredTo]
   /** For a dimension outside the plan, the side it runs along. */
   readonly side?: DimensionSide
+  /**
+   * VEW-22: for a dimension outside the plan along a facade or a wing of its own, square to that
+   * and not to the plan's main directions, the line of chains it is in: the chains of one line
+   * add up to that line's overall size, and `side` is the side in the wing's own directions.
+   * Left out on the plan's main directions.
+   */
+  readonly chain?: string
 }
 
 /** How far the first dimension line sits from what it measures, in meters. */
@@ -108,7 +121,8 @@ function makeDimension(
   normal: Vec2,
   offset: number,
   measuredTo: readonly [MeasuredTo, MeasuredTo],
-  side?: DimensionSide
+  side?: DimensionSide,
+  chain?: string
 ): Dimension {
   const shift = scale(normal, offset)
   const a = add(from, shift)
@@ -123,7 +137,8 @@ function makeDimension(
     offset,
     labelAt: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
     measuredTo,
-    ...(side !== undefined && { side })
+    ...(side !== undefined && { side }),
+    ...(chain !== undefined && { chain })
   }
 }
 
@@ -211,7 +226,125 @@ export interface OutsideOptions {
 export function outsideDimensions(drawing: PlanDrawing, options: OutsideOptions = {}): Dimension[] {
   const { overall = true, chains = true } = options
   if (!overall && !chains) return []
-  const { u, v } = planAxes(drawing.walls)
+  // VEW-22: the outside walls by the way they run. With two wings or more, each is dimensioned
+  // square to itself. Otherwise the plan's main directions are those of the way that holds half
+  // the outside length or more, else of its one wing, else the page's; every other way is
+  // dimensioned along itself.
+  const groups = outsideGroups(drawing.walls)
+  const total = groups.reduce((sum, group) => sum + group.weight, 0)
+  const wings = groups.filter((group) => group.walls.length >= 3 && group.weight >= tolerance('wingShare') * total)
+  const heaviest = groups[0]
+  const main: PlanAxes | null =
+    wings.length >= 2
+      ? null
+      : heaviest === undefined || heaviest.weight >= total / 2
+        ? planAxes(drawing.walls)
+        : wings.length === 1
+          ? { u: wings[0]!.dir, v: perp(wings[0]!.dir) }
+          : { u: { x: 1, y: 0 }, v: { x: 0, y: 1 } }
+  const result = main === null ? [] : mainDimensions(drawing, main, overall, chains)
+  const square = tolerance('squareCorner')
+  groups.forEach((group, index) => {
+    if (main !== null && Math.abs(cross(group.dir, main.u)) <= square) return
+    result.push(...groupDimensions(drawing, group, index + 1, overall, chains))
+  })
+  return result
+}
+
+/** VEW-22: outside straight walls that run one way, square to each other, and their length. */
+interface WallGroup {
+  /** The way they run, folded to within 45 degrees of the page's x axis. */
+  readonly dir: Vec2
+  readonly walls: PlanWall[]
+  readonly weight: number
+}
+
+/** VEW-22: the outside straight walls by the way they run, the most length first. */
+function outsideGroups(walls: readonly PlanWall[]): WallGroup[] {
+  const square = tolerance('squareCorner')
+  const runs = walls
+    .filter((wall) => !wall.virtual && wall.exposure === 'exterior')
+    .flatMap((wall) => {
+      const run = directionOf(wall)
+      return run === null ? [] : [{ wall, dir: folded(run.dir), len: run.len }]
+    })
+    .sort((a, b) => b.len - a.len)
+  const groups: { dir: Vec2; walls: PlanWall[]; weight: number }[] = []
+  for (const run of runs) {
+    const group = groups.find((g) => Math.min(Math.abs(cross(g.dir, run.dir)), Math.abs(dot(g.dir, run.dir))) <= square)
+    if (group) {
+      group.walls.push(run.wall)
+      group.weight += run.len
+    } else groups.push({ dir: run.dir, walls: [run.wall], weight: run.len })
+  }
+  return groups.sort((a, b) => b.weight - a.weight)
+}
+
+/** The four sides of a set of directions, each with the way its chains run and the way out. */
+function sidesOf(u: Vec2, v: Vec2): Side[] {
+  return [
+    { side: 'bottom', along: u, out: scale(v, -1), overallId: 'overall-width', always: true },
+    { side: 'left', along: v, out: scale(u, -1), overallId: 'overall-height', always: true },
+    { side: 'top', along: u, out: v, overallId: 'overall-width-top', always: false },
+    { side: 'right', along: v, out: u, overallId: 'overall-height-right', always: false }
+  ]
+}
+
+/**
+ * VEW-22: one way's walls dimensioned along themselves: on each of its four sides, the facade
+ * walls that stand on one line get that line's openings and walls chains and its overall length,
+ * pushed out from its outermost face. A wing is dimensioned square to itself so, and a single
+ * angled facade gets its own length.
+ */
+function groupDimensions(drawing: PlanDrawing, group: WallGroup, number: number, overall: boolean, chains: boolean): Dimension[] {
+  const near = tolerance('chainPoint')
+  const own = new Set(group.walls.map((wall) => wall.id))
+  const result: Dimension[] = []
+  for (const side of sidesOf(group.dir, perp(group.dir))) {
+    const facade = facadeWalls(drawing, side).filter((wall) => own.has(wall.id))
+    if (facade.length === 0) continue
+    // The facade walls by how far out they stand; walls within a wall's thickness of each other stand on one line.
+    const outermost = (wall: PlanWall): number => Math.max(...wall.slices.flat().map((p) => dot(p, side.out)))
+    const sorted = [...facade].sort((a, b) => outermost(b) - outermost(a))
+    const lines: PlanWall[][] = []
+    for (const wall of sorted) {
+      const line = lines[lines.length - 1]
+      if (line && outermost(line[0]!) - outermost(wall) <= Math.max(line[0]!.thickness, wall.thickness)) line.push(wall)
+      else lines.push([wall])
+    }
+    lines.forEach((line, k) => {
+      const ats = line.flatMap((wall) => wall.slices.flat().map((p) => dot(p, side.along)))
+      const lo: Mark = { at: Math.min(...ats), to: 'face' }
+      const hi: Mark = { at: Math.max(...ats), to: 'face' }
+      if (hi.at - lo.at <= near) return
+      const face = Math.max(...line.map(outermost))
+      const point = (at: number): Vec2 => add(scale(side.along, at), scale(side.out, face))
+      const strings: { kind: DimensionKind; marks: Mark[] }[] = []
+      if (chains) {
+        const openings = chainMarks(lo, hi, openingMarks(drawing, line, side.along))
+        if (openings.length > 2) strings.push({ kind: 'opening', marks: openings })
+        const walls = chainMarks(lo, hi, wallMarks(drawing, line, side.along))
+        if (walls.length > 2) strings.push({ kind: 'wall', marks: walls })
+      }
+      if (overall) strings.push({ kind: 'overall', marks: [lo, hi] })
+      const chain = `g${number}-${side.side}-${k}`
+      strings.forEach(({ kind, marks }, index) => {
+        const offset = BASE_OFFSET + index * CHAIN_SPACING
+        for (let i = 0; i + 1 < marks.length; i++) {
+          const a = marks[i]!
+          const b = marks[i + 1]!
+          const id = kind === 'overall' ? `overall-${chain}` : `${kind}-${chain}-${i}`
+          result.push(makeDimension(id, kind, point(a.at), point(b.at), side.out, offset, [a.to, b.to], side.side, chain))
+        }
+      })
+    })
+  }
+  return result
+}
+
+/** The chains and overall size along the plan's main directions, as SHT-4 gives them. */
+function mainDimensions(drawing: PlanDrawing, axes: PlanAxes, overall: boolean, chains: boolean): Dimension[] {
+  const { u, v } = axes
   const pointAt = (t: number, w: number): Vec2 => add(scale(u, t), scale(v, w))
   const near = tolerance('chainPoint')
 
@@ -242,12 +375,7 @@ export function outsideDimensions(drawing: PlanDrawing, options: OutsideOptions 
   const wMax = extent.get('wMax')
   if (!tMin || !tMax || !wMin || !wMax) return []
 
-  const sides: readonly Side[] = [
-    { side: 'bottom', along: u, out: scale(v, -1), overallId: 'overall-width', always: true },
-    { side: 'left', along: v, out: scale(u, -1), overallId: 'overall-height', always: true },
-    { side: 'top', along: u, out: v, overallId: 'overall-width-top', always: false },
-    { side: 'right', along: v, out: u, overallId: 'overall-height-right', always: false }
-  ]
+  const sides = sidesOf(u, v)
 
   const result: Dimension[] = []
   for (const side of sides) {
@@ -261,9 +389,9 @@ export function outsideDimensions(drawing: PlanDrawing, options: OutsideOptions 
     const strings: { kind: DimensionKind; marks: Mark[] }[] = []
     if (chains) {
       const facade = facadeWalls(drawing, side)
-      const openings = chainMarks(lo, hi, openingMarks(drawing, facade, side.along), near)
+      const openings = chainMarks(lo, hi, openingMarks(drawing, facade, side.along))
       if (openings.length > 2) strings.push({ kind: 'opening', marks: openings })
-      const walls = chainMarks(lo, hi, wallMarks(drawing, facade, side.along), near)
+      const walls = chainMarks(lo, hi, wallMarks(drawing, facade, side.along))
       if (walls.length > 2) strings.push({ kind: 'wall', marks: walls })
     }
     if (overall && (side.always || strings.length > 0)) strings.push({ kind: 'overall', marks: [lo, hi] })
@@ -283,13 +411,15 @@ export function outsideDimensions(drawing: PlanDrawing, options: OutsideOptions 
 
 /**
  * A chain's points in order: its two ends, then the marks between them, each closer than
- * `chainPoint` to the one before it dropped (a wall's face is kept over a centre line there).
+ * `chainSliver` to the one before it dropped (a wall's face is kept over a centre line there):
+ * a wall a little off square leaves no sliver (VEW-22).
  */
-function chainMarks(lo: Mark, hi: Mark, marks: readonly Mark[], near: number): Mark[] {
+function chainMarks(lo: Mark, hi: Mark, marks: readonly Mark[]): Mark[] {
+  const near = tolerance('chainSliver')
   const between = marks.filter((m) => m.at > lo.at + near && m.at < hi.at - near).sort((a, b) => a.at - b.at || (a.to === b.to ? 0 : a.to === 'face' ? -1 : 1))
   const out: Mark[] = [lo]
   for (const mark of between) if (mark.at - out[out.length - 1]!.at > near) out.push(mark)
-  if (hi.at - out[out.length - 1]!.at <= near) out.pop()
+  if (out.length > 1 && hi.at - out[out.length - 1]!.at <= near) out.pop()
   out.push(hi)
   return out
 }
@@ -362,7 +492,8 @@ function wallMarks(drawing: PlanDrawing, facade: readonly PlanWall[], along: Vec
     )
     if (!meets) continue
     const at = dot(meets, along)
-    if (other.virtual) marks.push({ at, to: 'centre-line' })
+    // VEW-22: a thin wall is marked at its centre line, so its thickness is no figure of its own.
+    if (other.virtual || other.thickness < tolerance('chainThinWall')) marks.push({ at, to: 'centre-line' })
     else marks.push({ at: at - other.thickness / 2, to: 'face' }, { at: at + other.thickness / 2, to: 'face' })
   }
   return marks

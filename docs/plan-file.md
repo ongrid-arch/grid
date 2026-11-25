@@ -1235,7 +1235,7 @@ the kind, the part and the handing.
 
 | Code | What it says |
 |---|---|
-| `opening/wide-single-leaf` | A door at least 1.5 m wide (`wideSingleLeaf`) states no kind, so it is drawn and checked as one swinging leaf that wide: say its kind (lab EL-5: 176 of the lab's doors) |
+| `opening/wide-single-leaf` | A door at least 1.5 m wide (`wideSingleLeaf`) states no kind, so it is checked as one swinging leaf that wide and drawn as Grid's guess, a pair or a sliding door (VEW-22): say its kind (lab EL-5: 176 of the lab's doors) |
 | `opening/kind-not-for-type` | A kind its type does not take, such as a window that is a `garage`, or any kind on a doorless opening. It is drawn as one with no kind |
 | `opening/part-too-large` | A part that opens wider or higher than the opening, or on a fixed window or a doorless opening. It is taken as the whole opening |
 | `floor/not-checked-door-swings` | Not checked: the doors on a floor whose kind swings or folds and that state neither `hinge` nor `swing`. Each is drawn with a "?" on a sheet and its sweep is not checked |

@@ -24,9 +24,12 @@ function shed(opening: Partial<Opening>): FloorPlan {
 
 describe('kinds of door and window in the 2D picture', () => {
   it('draws a 3.5 m dock door as a roller door, not as a 3.5 m arc (done when 1)', () => {
+    // VEW-22: with no kind it is drawn as Grid's guess, a sliding door, never one 3.5 m leaf.
     const asLeaf = planToSvg(shed({ hinge: 'start', swing: 'right' }))
-    expect(parts(asLeaf, 'door-arc')).toHaveLength(1)
-    // As one leaf 3.5 m wide, it is asked about: a door warning on the drawing.
+    expect(parts(asLeaf, 'door-arc')).toEqual([])
+    expect(parts(asLeaf, 'door-symbol')[0]).toContain('data-kind="sliding"')
+    expect(parts(asLeaf, 'opening')[0]).toContain('data-kind-guess="true"')
+    // Still checked as one leaf 3.5 m wide, it is asked about: a door warning on the drawing.
     expect(parts(asLeaf, 'door-warning')).toHaveLength(1)
     const roller = planToSvg(shed({ kind: 'roller', swing: 'right' }))
     expect(parts(roller, 'door-arc')).toEqual([])
@@ -37,6 +40,21 @@ describe('kinds of door and window in the 2D picture', () => {
     expect(leaves).toHaveLength(2)
     expect(leaves.filter((l) => l.includes('data-above="true"') && l.includes('stroke-dasharray'))).toHaveLength(1)
     expect(parts(roller, 'door-warning')).toEqual([])
+  })
+
+  it('draws a wide door that states no kind as a pair or a sliding door, Grid\'s guess, and a narrow one as one leaf (VEW-22)', () => {
+    const pair = planToSvg(shed({ width: 1.8, hinge: 'start', swing: 'right' }))
+    expect(parts(pair, 'door-arc')).toHaveLength(2)
+    expect(parts(pair, 'door-symbol')[0]).toContain('data-kind="double"')
+    // A 4 m door, or one whose face is not stated, slides: nothing to guess about its swing, no "?".
+    for (const door of [shed({ width: 4, hinge: 'start', swing: 'right' }), shed({ width: 1.8 })]) {
+      const svg = planToSvg(door, { look: 'technical' })
+      expect(parts(svg, 'door-symbol')[0]).toContain('data-kind="sliding"')
+      expect(parts(svg, 'door-undecided')).toEqual([])
+    }
+    const leaf = planToSvg(shed({ width: 0.9, hinge: 'start', swing: 'right' }))
+    expect(parts(leaf, 'door-arc')).toHaveLength(1)
+    expect(leaf).not.toContain('data-kind-guess')
   })
 
   it('draws a garage door with what lies overhead dashed, a sliding door with no swing, and never a "?" for either', () => {

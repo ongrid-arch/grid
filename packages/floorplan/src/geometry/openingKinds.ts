@@ -14,7 +14,7 @@
  * Pure: no React, no Three, no DOM.
  */
 
-import { tolerance } from './tolerances'
+import { limit, tolerance } from './tolerances'
 import { DOOR_KINDS, WINDOW_KINDS, type DoorKind, type Opening, type OpeningKind, type OpeningPart, type WindowKind } from '../types/floorplan'
 
 const DOORS: ReadonlySet<string> = new Set(DOOR_KINDS)
@@ -39,6 +39,20 @@ export function statedKind(type: Opening['type'], kind: OpeningKind | null | und
 /** The kind a door is drawn and checked as: the kind it states, else one swinging leaf. */
 export function doorKindOf(kind: OpeningKind | null | undefined): DoorKind {
   return kind !== undefined && kind !== null && DOORS.has(kind) ? (kind as DoorKind) : 'single'
+}
+
+/**
+ * VEW-22: the kind a door that states none is drawn as, Grid's guess, or null when it is drawn as
+ * one swinging leaf: a door narrower than `wideSingleLeaf`, or one that states the part that
+ * opens. A wider one is drawn as a pair when it states the face it opens to and is no wider than
+ * two such leaves, else as a sliding door, which needs nothing more stated. It is still checked
+ * as one leaf, and asked about (`opening/wide-single-leaf`).
+ */
+export function guessedDoorKind(width: number, values: KindValues & { readonly swing?: string | null }): 'double' | 'sliding' | null {
+  if ((values.kind !== undefined && values.kind !== null) || (values.opens !== undefined && values.opens !== null)) return null
+  const wide = limit('wideSingleLeaf')
+  if (!(width >= wide)) return null
+  return values.swing !== undefined && values.swing !== null && width <= 2 * wide ? 'double' : 'sliding'
 }
 
 /** The kind a window is drawn as: the kind it states, else one casement, drawn as before. */

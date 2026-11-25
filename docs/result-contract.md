@@ -256,7 +256,7 @@ display chooses a point. Names from the plan are never translated.
 | `opening/door-blocked` | {thing} hits a wall when it opens | floor clear of walls where its leaf swings |
 | `opening/door-hits-item` | {thing} hits {the fixtures, by kind and id} when it opens | floor clear of fixtures where its leaf swings |
 | `opening/doors-collide` | {thing} hits another door when they open | door sweeps that do not overlap |
-| `opening/wide-single-leaf` | {thing} states no kind, so it is drawn and checked as one swinging leaf this wide | its kind: single, double, sliding, pocket, folding, roller or garage |
+| `opening/wide-single-leaf` | {thing} states no kind, so it is checked as one swinging leaf this wide and drawn as Grid's guess, a pair or a sliding door | its kind: single, double, sliding, pocket, folding, roller or garage |
 | `opening/kind-not-for-type` | {thing} states a kind it cannot be, so it is drawn with no kind | a door kind on a door (single, double, sliding, pocket, folding, roller, garage) and a window kind on a window (single, double, sliding, fixed, high-level); none on a doorless opening |
 | `opening/part-too-large` | {thing} states a part that opens that cannot open there, so it is taken as the whole opening | a part that opens no wider and no higher than its opening, on a door or a window that is not fixed |
 | `opening/crosses-wall` | {thing} runs into a wall that meets its wall | an opening within the clear run of its wall, between the walls that meet it |

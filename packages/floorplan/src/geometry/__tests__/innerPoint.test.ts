@@ -97,4 +97,13 @@ describe('spotsInside', () => {
   it('gives the same spots every time', () => {
     expect(spotsInside(ell, 0.5, 0.3)).toEqual(spotsInside(ell, 0.5, 0.3))
   })
+
+  it('finds a spot in a long thin wedge at an angle, where the first grid misses it (VEW-22)', () => {
+    const rad = (d: number): number => (d * Math.PI) / 180
+    // A wedge 20 m long and 4 degrees wide, at 30 degrees: a label 1.6 × 0.4 m fits only near its wide end.
+    const wedge = ring([0, 0], [20 * Math.cos(rad(30)), 20 * Math.sin(rad(30))], [20 * Math.cos(rad(34)), 20 * Math.sin(rad(34))])
+    const spots = spotsInside(wedge, 0.8, 0.2)
+    expect(spots.length).toBeGreaterThan(0)
+    for (const p of spots) expect(rectInsidePolygon({ minX: p.x - 0.8, minY: p.y - 0.2, maxX: p.x + 0.8, maxY: p.y + 0.2 }, wedge)).toBe(true)
+  })
 })

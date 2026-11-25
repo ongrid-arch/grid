@@ -2431,7 +2431,7 @@ export const es: Messages = {
   'line.floor/not-checked-doors-not-drawn.fix.kinds.one': 'Corrija las líneas que dejan fuera {those}. Se comprueba cuando se pueda dibujar, y también lo que se apoya en el hueco: una nota en espera vuelve si sigue siendo cierta.',
   'line.floor/not-checked-doors-not-drawn.fix.kinds.many': 'Corrija las líneas que dejan fuera {those}. Se comprueban cuando se puedan dibujar, y también lo que se apoya en ellos: una nota en espera vuelve si sigue siendo cierta.',
   // ── CNT-14: kinds of door and window, the part that opens and a door's handing ──────────────
-  'issue.opening/wide-single-leaf': 'Esta puerta no indica su tipo, así que se dibuja y se comprueba como una sola hoja abatible; una hoja tan ancha es rara.',
+  'issue.opening/wide-single-leaf': 'Esta puerta no indica su tipo, así que se comprueba como una sola hoja abatible y se dibuja como lo supone Grid, de dos hojas o corredera; una hoja tan ancha es rara.',
   'issue.opening/kind-not-for-type': 'El hueco {opening} es {word} de tipo {kind}, que {word} no puede ser, así que se dibuja sin tipo. Los tipos que admite {word}: {takes}',
   'issue.part.kindOf.door': 'una puerta',
   'issue.part.kindOf.window': 'una ventana',
@@ -2442,7 +2442,7 @@ export const es: Messages = {
   'issue.opening/part-too-large.fixed': 'una ventana fija no tiene parte practicable',
   'issue.opening/part-too-large.wider': 'la parte practicable mide {width} m de ancho, más que el hueco de {whole} m',
   'issue.opening/part-too-large.higher': 'la parte practicable mide {height} m de alto, más que el hueco de {whole} m',
-  'line.opening/wide-single-leaf.says': '{label} no indica su tipo, así que se dibuja y se comprueba como una sola hoja abatible de este ancho',
+  'line.opening/wide-single-leaf.says': '{label} no indica su tipo, así que se comprueba como una sola hoja abatible de este ancho y se dibuja como lo supone Grid, de dos hojas o corredera',
   'line.opening/wide-single-leaf.found': 'una puerta de al menos {wide} m de ancho (una pregunta propia de Grid) sin tipo, tomada como una sola hoja abatible',
   'line.opening/wide-single-leaf.needed': 'su tipo: single, double, sliding, pocket, folding, roller o garage',
   'line.opening/wide-single-leaf.fix': 'Indique su tipo ("kind": "double", "sliding", "folding", "roller" o "garage"), o "single" si es una sola hoja.',

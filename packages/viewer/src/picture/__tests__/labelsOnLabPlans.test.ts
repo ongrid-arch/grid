@@ -7,11 +7,11 @@ import { buildDimensions, buildFloorPlan, centroid, doorSwing, planForFloor, rec
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { Box, LabelForm } from '../../canvas2d/labelPlacement'
-import { LEADER_REACH_PX, SMALL_LABEL, formBox, roomLabelBox } from '../../canvas2d/labelPlacement'
+import { LEADER_REACH_PX, SMALL_LABEL, doorSwingBox, formBox, roomLabelBox } from '../../canvas2d/labelPlacement'
 import { fitTo } from '../../canvas2d/viewport'
 import { LIGHT_LOOK, TEXT_PX } from '../look'
 import { framingOf, handingsOf, planPicture } from '../planSvg'
-import { planScene } from '../scene'
+import { drawnHanding, planScene } from '../scene'
 import type { SvgNode } from '../svgNode'
 
 /**
@@ -232,6 +232,13 @@ for (const { name, plan } of ALL) {
       for (const opening of drawing.openings) {
         if (opening.type !== 'door') continue
         const handing = handings.get(opening.id)
+        // VEW-22: a wide door with no kind is drawn as Grid's guess, and sweeps what that sweeps.
+        const drawn = drawnHanding(opening, handing)
+        if (drawn !== handing) {
+          const box = doorSwingBox(opening, drawn, mpp)
+          if (box) swings.push(box)
+          continue
+        }
         const swing = doorSwing(opening, handing?.hinge, handing?.swing)
         if (swing) swings.push(swingBox(swing.arc.center, swing.arc.radius, swing.arc.from, swing.arc.to))
       }
