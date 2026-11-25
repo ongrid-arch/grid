@@ -451,13 +451,28 @@ export interface Group {
 }
 
 /**
+ * CNT-24: a number as it is printed, so equal sizes are one group. An area is printed to the
+ * hundredth of a square metre (`areaReported`'s figure) and a length to the millimetre; any other
+ * number keeps the four decimals `shown` gives.
+ */
+export function printedValue(field: Field | null, value: number): number {
+  const unit = field === null ? null : unitOf(field)
+  const decimals = unit === 'm²' ? 2 : unit === 'm' ? 3 : 4
+  const scale = 10 ** decimals
+  // Round the digits that print, not the binary value: 13.495 prints as 13.50 whatever its error.
+  const rounded = Math.round(Number((Math.abs(value) * scale).toPrecision(12))) / scale
+  return value < 0 ? -rounded : rounded
+}
+
+/**
  * The parts grouped by one field's value, each group with its count, its sums and its ids, the
  * largest first and "not stated" last; one group of all of them when no field is given.
  */
 export function groupParts(asked: Asked, parts: readonly Part[], by: Field | null, sums: readonly Field[]): Group[] {
   const groups = new Map<string, { value: Value; parts: Part[] }>()
   for (const part of parts) {
-    const value = by === null ? null : asked.value(part, by)
+    const raw = by === null ? null : asked.value(part, by)
+    const value = typeof raw === 'number' ? printedValue(by, raw) : raw
     if (Array.isArray(value)) throw new QueryRefused(`by names a field that holds a list (${JSON.stringify(fieldName(by!))}): group by a field with one value per part, or find by it with where.`)
     const key = value === null ? '\u0000none' : typeof value === 'string' ? `t:${fold(value)}` : `${typeof value}:${String(value)}`
     const group = groups.get(key) ?? { value, parts: [] }
