@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import type { Scene3D, SceneWall } from '@ongrid/floorplan/geometry'
 import { alongFace } from '@ongrid/floorplan/geometry'
 import { toThree } from './convert'
+import { cutElevation } from './cutWall'
 
 /**
  * Built wall meshes, rebuilt only for the walls that actually changed.
@@ -16,8 +17,10 @@ import { toThree } from './convert'
  * Keying on `wall.revision` instead means a wall survives untouched unless its
  * own shape moved.
  */
-export function useWallGeometries(scene: Scene3D): Map<string, THREE.BufferGeometry> {
+export function useWallGeometries(scene: Scene3D, cut: number | null = null): Map<string, THREE.BufferGeometry> {
   const cache = useRef(new Map<string, { revision: string; geometry: THREE.BufferGeometry }>())
+  // A wall kept for one cut is another wall under a different one (VEW-58).
+  const revisionOf = (wall: SceneWall): string => (cut === null ? wall.revision : `${wall.revision}@${cut}`)
 
   const geometries = useMemo(() => {
     const current = cache.current
@@ -26,11 +29,11 @@ export function useWallGeometries(scene: Scene3D): Map<string, THREE.BufferGeome
     for (const wall of scene.walls) {
       alive.add(wall.id)
       const kept = current.get(wall.id)
-      if (kept?.revision === wall.revision) continue
+      if (kept?.revision === revisionOf(wall)) continue
 
       // The shape changed: the old mesh is dead weight on the GPU.
       kept?.geometry.dispose()
-      current.set(wall.id, { revision: wall.revision, geometry: buildWallGeometry(wall) })
+      current.set(wall.id, { revision: revisionOf(wall), geometry: buildWallGeometry(wall, cut) })
     }
 
     // Walls the agent deleted.
@@ -41,7 +44,8 @@ export function useWallGeometries(scene: Scene3D): Map<string, THREE.BufferGeome
     }
 
     return new Map([...current].map(([id, entry]) => [id, entry.geometry]))
-  }, [scene])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- revisionOf reads only `cut`
+  }, [scene, cut])
 
   // On unmount nothing else will release them.
   useEffect(() => {
@@ -63,10 +67,11 @@ export function useWallGeometries(scene: Scene3D): Map<string, THREE.BufferGeome
  * triangulates them on extrusion. Then each face's ends move to the joint the
  * core decided, so the corners close as in the plan.
  */
-export function buildWallGeometry(wall: SceneWall): THREE.BufferGeometry {
+export function buildWallGeometry(wall: SceneWall, cut: number | null = null): THREE.BufferGeometry {
+  const lowered = (elevation: SceneWall['elevation']): SceneWall['elevation'] => (cut === null ? elevation : cutElevation(elevation, cut))
   // CNT-18: a curved wall is raised piece by piece, the pieces one geometry.
-  if (wall.pieces !== undefined) return joinGeometries(wall.pieces.map((piece) => raise(piece.elevation, piece.basis)))
-  return raise(wall.elevation, wall.basis)
+  if (wall.pieces !== undefined) return joinGeometries(wall.pieces.map((piece) => raise(lowered(piece.elevation), piece.basis)))
+  return raise(lowered(wall.elevation), wall.basis)
 }
 
 /** Geometries one after the other as one, each made non-indexed so their faces stay as they are. */

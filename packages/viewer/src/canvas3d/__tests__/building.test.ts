@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Floor, FloorPlan, Room, Wall } from '@ongrid/floorplan/types/floorplan'
-import { SLAB_THICKNESS, floorElevations, planBounds, planForFloor, type Scene3D } from '@ongrid/floorplan/geometry'
+import { SLAB_THICKNESS, floorElevations, limit, planBounds, planForFloor, type Scene3D } from '@ongrid/floorplan/geometry'
 import { buildingFrame, buildingLayout, createSceneMemo, stillRoofShown, type StoreyLayout } from '../building'
 
 /**
@@ -194,6 +194,24 @@ describe('buildingLayout', () => {
         expect(upper.base, `run ${run}`).toBeGreaterThanOrEqual(lower.base)
       }
     }
+  })
+})
+
+describe('buildingLayout: the cut walls (VEW-58)', () => {
+  it('cuts the walls of a one-storey building asked for as a cutaway, and not the whole building', () => {
+    const hall = building([[GROUND, 9]])
+    expect(buildingLayout(hall, null).storeys.map((s) => s.cut)).toEqual([null])
+    expect(buildingLayout(hall, 'ground').storeys.map((s) => s.cut)).toEqual([limit('planCutHeight')])
+  })
+
+  it('cuts the focused storey only, and nothing without a floor cut away', () => {
+    const plan = building([
+      [GROUND, 3],
+      [FIRST, 3]
+    ])
+    expect(buildingLayout(plan, 'first').storeys.map((s) => s.cut)).toEqual([null, limit('planCutHeight')])
+    expect(buildingLayout(plan, null).storeys.map((s) => s.cut)).toEqual([null, null])
+    expect(buildingLayout(plan, 'nowhere').storeys.map((s) => s.cut)).toEqual([null, null])
   })
 })
 

@@ -6,6 +6,7 @@ import {
   floorElevations,
   planBounds,
   planFloors,
+  limit,
   planStairs,
   sceneShell,
   type BuildingElevations,
@@ -36,6 +37,11 @@ export interface StoreyLayout {
   readonly base: number
   readonly clearHeight: number
   readonly look: StoreyLook
+  /**
+   * VEW-58: how high above `base` its walls are drawn, for the floor shown as a cutaway, and null
+   * for every other storey and for the whole building. The plan's own cut (`planCutHeight`).
+   */
+  readonly cut: number | null
 }
 
 export interface BuildingLayout {
@@ -109,7 +115,8 @@ export function buildingLayout(
       level: floor.level,
       base: single ? 0 : (storey?.floorLevel ?? 0),
       clearHeight: storey?.clearHeight ?? 0,
-      look
+      look,
+      cut: focus !== null && floor.id === resolved ? limit('planCutHeight') : null
     }
   })
 

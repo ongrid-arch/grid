@@ -86,6 +86,30 @@ describe('planStill', () => {
     expect(drawn(ground, LIGHT_COLORS_3D.background)).toBeLessThan(drawn(whole, LIGHT_COLORS_3D.background))
   })
 
+  // VEW-58: a floor cut away has its walls lowered, whatever the number of storeys.
+  it('cuts the walls of a one-storey building shown as a cutaway', () => {
+    const whole = planStill(flat, { width: 300, height: 200 })
+    const cut = planStill(flat, { width: 300, height: 200, focus: 'ground' })
+    expect(Buffer.from(whole.data).equals(Buffer.from(cut.data))).toBe(false)
+    const walls = (focus?: string): number => {
+      const still = stillScene(flat, { colors: LIGHT_COLORS_3D, width: 300, height: 200, ...(focus ? { focus } : {}) })
+      try {
+        let top = -Infinity
+        still.scene.traverseVisible((object) => {
+          const mesh = object as THREE.Mesh
+          if (!mesh.isMesh || mesh.geometry.getAttribute('position') === undefined) return
+          mesh.geometry.computeBoundingBox()
+          if (mesh.parent?.name.startsWith('shell:') !== true) top = Math.max(top, mesh.geometry.boundingBox!.max.y)
+        })
+        return top
+      } finally {
+        still.close()
+      }
+    }
+    expect(walls()).toBeGreaterThan(2)
+    expect(walls('ground')).toBeLessThanOrEqual(1.2 + 1e-6)
+  })
+
   // VEW-19: a one-storey plan with its roof stated is drawn with it, as its GLB is.
   describe('the roof', () => {
     const gabled = { ...flat, floors: [{ id: 'ground', name: 'Ground floor', level: 0, roof: { shape: 'gable', eaves: 2.6, pitch: 30 } }] } as FloorPlan
@@ -120,7 +144,7 @@ describe('planStill', () => {
     it('leaves a cutaway open unless the roof is asked for', () => {
       const cut = planStill(gabled, { width: 300, height: 200, focus: 'ground' })
       const asked = planStill(gabled, { width: 300, height: 200, focus: 'ground', roof: true })
-      const open = planStill(gabled, { width: 300, height: 200, roof: false })
+      const open = planStill(gabled, { width: 300, height: 200, focus: 'ground', roof: false })
       expect(Buffer.from(cut.data).equals(Buffer.from(open.data))).toBe(true)
       expect(Buffer.from(asked.data).equals(Buffer.from(open.data))).toBe(false)
     })
