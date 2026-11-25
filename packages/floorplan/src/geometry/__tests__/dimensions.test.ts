@@ -9,6 +9,7 @@ import { planFloors, planForFloor } from '../floors'
 import { parseFloorPlan } from '../../types/floorplan'
 import { signedDistanceToOutline } from '../innerPoint'
 import type { Dimension, DimensionSide } from '../dimensions'
+import type { Vec2 } from '../vec2'
 import {
   boundsWithDimensions,
   buildDimensions,
@@ -69,12 +70,29 @@ function chainsOf(dims: readonly Dimension[]): Map<DimensionSide, Map<string, Di
   return out
 }
 
-/** Every chain adds up to its side's overall size, and joins up end to end. */
+/**
+ * Every chain adds up to its side's overall size, and joins up end to end. VEW-22: a line of
+ * chains along a facade or wing of its own (`chain`) adds up to its own overall size.
+ */
 function expectChainsAddUp(dims: readonly Dimension[], name: string): number {
   let checked = 0
+  const lines = new Map<string, Dimension[]>()
+  for (const dim of dims) if (dim.chain !== undefined) lines.set(dim.chain, [...(lines.get(dim.chain) ?? []), dim])
+  for (const [line, own] of lines) {
+    const total = own.find((d) => d.kind === 'overall')
+    expect(total, `${name}: overall for ${line}`).toBeDefined()
+    for (const kind of ['opening', 'wall'] as const) {
+      const chain = own.filter((d) => d.kind === kind)
+      if (chain.length === 0) continue
+      const sum = chain.reduce((s, d) => s + d.value, 0)
+      expect(Math.abs(sum - total!.value), `${name}: ${line} ${kind} chain adds up`).toBeLessThanOrEqual(MM)
+      checked++
+    }
+  }
   const overall = new Map<'across' | 'up', number>()
-  for (const dim of dims) if (dim.kind === 'overall') overall.set(dim.side === 'bottom' || dim.side === 'top' ? 'across' : 'up', dim.value)
-  for (const [side, chains] of chainsOf(dims)) {
+  const main = dims.filter((dim) => dim.chain === undefined)
+  for (const dim of main) if (dim.kind === 'overall') overall.set(dim.side === 'bottom' || dim.side === 'top' ? 'across' : 'up', dim.value)
+  for (const [side, chains] of chainsOf(main)) {
     const total = overall.get(side === 'bottom' || side === 'top' ? 'across' : 'up')
     expect(total, `${name}: overall for ${side}`).toBeDefined()
     for (const [kind, chain] of chains) {
@@ -165,6 +183,103 @@ describe('chains outside the plan (SHT-4)', () => {
 
   it('gives a plan with no walls none', () => {
     expect(outsideDimensions({ ...drawing, walls: [], openings: [] })).toEqual([])
+  })
+})
+
+/** VEW-22: a one-floor plan from its outside corners, with walls round each room and the walls between given. */
+type Pt = readonly [number, number]
+function plainPlan(rooms: readonly { id: string; corners: readonly Pt[] }[], inner: readonly { id: string; start: Pt; end: Pt; thickness: number; rooms: readonly string[] }[] = []): PlanDrawing {
+  const walls: Record<string, unknown>[] = []
+  const boundary = new Map<string, string[]>()
+  for (const room of rooms) {
+    const ids: string[] = []
+    room.corners.forEach((p, i) => {
+      const id = `${room.id}-${i}`
+      walls.push({ id, start: p, end: room.corners[(i + 1) % room.corners.length], thickness: 0.3, height: 2.6, kind: 'exterior' })
+      ids.push(id)
+    })
+    boundary.set(room.id, ids)
+  }
+  for (const wall of inner) {
+    walls.push({ id: wall.id, start: wall.start, end: wall.end, thickness: wall.thickness, height: 2.6, kind: 'interior' })
+    for (const room of wall.rooms) boundary.get(room)?.push(wall.id)
+  }
+  return buildFloorPlan(parseFloorPlan({ version: '1', units: 'm', walls, rooms: rooms.map((room) => ({ id: room.id, name: room.id, boundary: boundary.get(room.id) })), openings: [] }))
+}
+const way = (dim: Dimension): Vec2 => dimensionAxes(dim).along
+/** Whether the dimension runs along the direction, either way. */
+const runsAlong = (dim: Dimension, dir: Vec2): boolean => Math.abs(way(dim).x * dir.y - way(dim).y * dir.x) < 1e-6
+
+describe('angled plans and wings (VEW-22)', () => {
+  const c = Math.cos(Math.PI / 6)
+  const s = -Math.sin(Math.PI / 6)
+  const turned = (x: number, y: number): Pt => [10 + x * c - y * s, y * c + x * s]
+  const wings = plainPlan([
+    { id: 'hall', corners: [[0, 0], [10, 0], [10, 8], [0, 8]] },
+    { id: 'workshop', corners: [turned(0, 0), turned(12, 0), turned(12, 7), turned(0, 7)] }
+  ])
+
+  it('dimensions each of two wings at 30 degrees square to itself', () => {
+    const dims = outsideDimensions(wings)
+    const across = { x: 1, y: 0 }
+    const wing = { x: c, y: s }
+    // The hall's own width, along the page, and the workshop's own length, along its walls.
+    expect(dims.some((d) => d.kind === 'overall' && runsAlong(d, across) && Math.abs(d.value - 10.3) < 1e-6)).toBe(true)
+    expect(dims.some((d) => d.kind === 'overall' && runsAlong(d, wing) && Math.abs(d.value - 12.3) < 1e-6)).toBe(true)
+    // No size of the two wings together along either one's walls: before, 25.02 ran across both.
+    for (const dim of dims) expect(dim.value, dim.id).toBeLessThan(12.31)
+    // Every outside dimension runs along one wing's walls or square to them.
+    for (const dim of dims) expect(runsAlong(dim, across) || runsAlong(dim, { x: 0, y: 1 }) || runsAlong(dim, wing) || runsAlong(dim, { x: -s, y: c }), dim.id).toBe(true)
+    expect(expectChainsAddUp(dims, 'wings')).toBeGreaterThanOrEqual(0)
+  })
+
+  it('dimensions a chamfered corner along itself, and the rest along the plan', () => {
+    const chamfered = plainPlan([{ id: 'room', corners: [[0, 0], [10, 0], [10, 6], [8, 8], [0, 8]] }])
+    const dims = outsideDimensions(chamfered)
+    expect(byId(dims, 'overall-width').value).toBeCloseTo(10.3, 3)
+    expect(runsAlong(byId(dims, 'overall-width'), { x: 1, y: 0 })).toBe(true)
+    const diagonal = dims.filter((d) => d.chain !== undefined)
+    expect(diagonal.length).toBeGreaterThan(0)
+    for (const dim of diagonal) expect(runsAlong(dim, { x: Math.SQRT1_2, y: -Math.SQRT1_2 }), dim.id).toBe(true)
+    // Its outer face, from mitre to mitre.
+    expect(diagonal.find((d) => d.kind === 'overall')!.value).toBeGreaterThan(2 * Math.SQRT2)
+  })
+
+  it('measures a fan along the page, its overall size from its outline, not along a diagonal', () => {
+    const at = (r: number, deg: number): Pt => [r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180)]
+    const fan = plainPlan([{ id: 'fan', corners: [at(3, 45), at(14, 45), at(14, 63), at(14, 81), at(14, 99), at(14, 117), at(14, 135), at(3, 135), at(3, 90)] }])
+    const dims = outsideDimensions(fan)
+    const width = byId(dims, 'overall-width')
+    expect(runsAlong(width, { x: 1, y: 0 })).toBe(true)
+    expect(width.value).toBeCloseTo(fan.bounds.max.x - fan.bounds.min.x, 3)
+    expect(runsAlong(byId(dims, 'overall-height'), { x: 0, y: 1 })).toBe(true)
+    // Its sides at 45 degrees are dimensioned along themselves.
+    expect(dims.some((d) => d.chain !== undefined && runsAlong(d, { x: Math.SQRT1_2, y: Math.SQRT1_2 }))).toBe(true)
+  })
+
+  it('leaves no sliver in a chain from a wall a little off square', () => {
+    const survey = plainPlan(
+      [{ id: 'flat', corners: [[0, 0], [9, 0.05], [9.04, 6.1], [0.02, 6.06]] }],
+      [{ id: 'p', start: [3, 0.017], end: [3.06, 6.07], thickness: 0.3, rooms: [] }]
+    )
+    const chained = outsideDimensions(survey).filter((d) => d.kind === 'wall' || d.kind === 'opening')
+    expect(chained.length).toBeGreaterThan(0)
+    for (const dim of chained) expect(dim.value, dim.id).toBeGreaterThanOrEqual(0.01)
+  })
+
+  it('marks a thin wall that meets a facade at its centre line, with no figure for its thickness', () => {
+    const flat = plainPlan(
+      [{ id: 'flat', corners: [[0, 0], [8, 0], [8, 5], [0, 5]] }],
+      [{ id: 'p', start: [4, 0], end: [4, 5], thickness: 0.1, rooms: [] }]
+    )
+    const bottom = outsideDimensions(flat).filter((d) => d.side === 'bottom' && d.kind === 'wall')
+    expect(bottom.map((d) => Number(d.value.toFixed(3)))).toEqual([0.3, 3.85, 3.85, 0.3])
+    expect(bottom.map((d) => d.measuredTo)).toEqual([
+      ['face', 'face'],
+      ['face', 'centre-line'],
+      ['centre-line', 'face'],
+      ['face', 'face']
+    ])
   })
 })
 

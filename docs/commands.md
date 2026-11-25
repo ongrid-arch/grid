@@ -661,8 +661,16 @@ by the box it makes on the page.
   chain runs between the same two outer faces, so it adds up to the overall size. The overall
   width is always below the plan and the overall depth to its left; above and to the right
   there is one only where a chain is.
-- Every size measures to a wall's face, or to the line of a dividing line, which has no
-  faces. A plan records no finishes, so none measures to a finish yet. In an SVG each
+- Walls that run another way (VEW-22): a facade at an angle, such as a chamfered corner or the
+  side of a fan, gets its own chains and its own length, along itself. A plan of two wings or
+  more at an angle (each at least three walls and a quarter of the outside length,
+  `wingShare`) has each wing dimensioned square to itself. A plan where no way holds half the
+  outside length and there is no wing is measured along the page, its overall size from the
+  box round its outline. A chain keeps no point closer than `chainSliver` to the one before it,
+  so a wall a little off square leaves no sliver, and a wall thinner than `chainThinWall` that
+  meets a facade is marked at its centre line.
+- Every size measures to a wall's face, or to the line of a dividing line (or of a thin wall),
+  which has no faces. A plan records no finishes, so none measures to a finish yet. In an SVG each
   dimension's `data-measured-to` says it, for its two ends: `face`, `centre-line` or `finish`.
 
 In the technical look each dimension line ends in a 45-degree tick and its number runs along

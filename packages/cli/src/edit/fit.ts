@@ -26,7 +26,7 @@ export type ProblemsOf = (patch: Patch) => DrawingIssue[]
  * extension does; a wall whose stated kind the rooms round it read otherwise, kept as stated; and
  * a fixture's fit, which `grid_place_item` answers.
  */
-const MAY_ADD = (issue: DrawingIssue): boolean => issue.severity !== 'error' && (issue.code.startsWith('item/') || issue.code === 'floor/out-of-line' || issue.code === 'floor/set-back' || issue.code === 'wall/kind-differs')
+const MAY_ADD = (issue: DrawingIssue): boolean => issue.severity !== 'error' && (issue.code.startsWith('item/') || issue.code === 'floor/out-of-line' || issue.code === 'floor/set-back' || issue.code === 'floor/split-level' || issue.code === 'wall/kind-differs')
 
 /**
  * The drawing's problems after a change that it did not have before, of any severity, matched

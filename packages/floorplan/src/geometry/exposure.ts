@@ -25,7 +25,8 @@
  * CNT-7 (C26): a room marked as outdoor space is the outside to the building. A wall between a room
  * and an outdoor space faces outside, and a wall with outdoor space beside it and no room (a fence,
  * a parapet round a terrace) stands in the open and faces outside too. The stretches still name
- * the outdoor spaces on their faces.
+ * the outdoor spaces on their faces. LVL-12: so is floor no room claims that is open to the sky
+ * (`openSky.ts`: a window looks into it, or it lies over open sky): a wall beside it faces outside.
  *
  * Every consumer reads this one answer: the 2D drawing and the 3D scene (`exposure`), the DXF
  * layers, the IFC `IsExternal` mark, the order a plan is built in, and the route and escape
@@ -37,7 +38,8 @@ import type { BeyondWall } from '../types/floorplan'
 import { roomWallIds } from './plan'
 import { floorOf, wallsOnFloor } from './floors'
 import { roomOutline } from './room'
-import { floorSpaces, spacesKnown } from './spaces'
+import { spacesKnown } from './spaces'
+import { enclosedSpaces, inPiece, openSky } from './openSky'
 import { tolerance, tolerancesAsStated } from './tolerances'
 import type { Vec2 } from './vec2'
 import { dot, sub } from './vec2'
@@ -407,18 +409,11 @@ export function planWallSides(index: PlanIndex): ReadonlyMap<string, WallSides> 
     const enclosedOn = (floor: string): Enclosed => (p) => {
       let test = spaces.get(floor)
       if (test === undefined) {
-        const result = floorSpaces(index.plan, floor, { index })
-        const pieces = spacesKnown(result) ? result.spaces : []
-        test = (q) =>
-          pieces.some((piece) => {
-            const [outer, ...islands] = piece.rings
-            return (
-              outer !== undefined &&
-              q.x >= piece.min.x && q.x <= piece.max.x && q.y >= piece.min.y && q.y <= piece.max.y &&
-              pointInPolygon(q, outer) &&
-              !islands.some((ring) => pointInPolygon(q, ring))
-            )
-          })
+        const result = enclosedSpaces(index, floor)
+        // LVL-12: floor open to the sky (a courtyard not drawn as one) is the outside.
+        const open = openSky(index, floor)
+        const pieces = spacesKnown(result) ? result.spaces.filter((piece) => !open.some((space) => inPiece(piece.at, space))) : []
+        test = (q) => pieces.some((piece) => inPiece(q, piece))
         spaces.set(floor, test)
       }
       return test(p)

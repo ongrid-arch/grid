@@ -75,6 +75,11 @@ export interface Patch {
    * start and end, so its places along the wall and its floors hold through a mirror or a turn.
    */
   readonly swingPatterns?: ReadonlySet<string>
+  /**
+   * WRT-24: other parts changed, by the list they are in and their id: each field given is set in
+   * the file's own record (`null` takes it out), so the rest of the record stays as written.
+   */
+  readonly parts?: ReadonlyMap<PartList, ReadonlyMap<string, Readonly<Record<string, unknown>>>>
   /** One line per thing changed, in Grid's words. */
   readonly said: readonly string[]
   /** Walls taken out; walls added go where the first one taken out was, or at the end. */
@@ -121,6 +126,9 @@ export function refuseCurved(walls: Iterable<{ readonly id: string; readonly arc
     throw new EditRefused(english(sentence('edit.curved.refused', { wall: name(wall.id), doing: sentence(`edit.curved.doing.${doing}`) })))
   }
 }
+
+/** WRT-24: the lists of parts a patch's `parts` may change; `site.things` is the site's things. */
+export type PartList = 'columns' | 'grids' | 'bays' | 'stairs' | 'ramps' | 'patterns' | 'site.things'
 
 export function emptyPatch(said: string[]): Patch {
   return { walls: new Map(), openings: new Map(), removeOpenings: new Set(), rooms: new Map(), said }
@@ -239,7 +247,23 @@ export function applyPatch<T extends RawRecord>(raw: T, patch: Patch): T {
         }),
       }
   const top = (patch.plan === undefined ? raw : merged(raw, patch.plan)) as T
-  return { ...top, walls, openings, rooms, ...items, ...library, ...patterns }
+  // WRT-24: other parts' fields, merged into their records by id; a list the plan lacks stays out.
+  const parts: RawRecord = {}
+  for (const [key, changes] of patch.parts ?? []) {
+    const records = (from: unknown): RawRecord[] | null => (Array.isArray(from) ? (from as RawRecord[]).map((part) => {
+      const change = changes.get(part['id'] as string)
+      return change === undefined ? part : merged(part, change)
+    }) : null)
+    if (key === 'site.things') {
+      const site = (parts['site'] ?? top['site']) as RawRecord | undefined
+      const things = records(site?.['things'])
+      if (site !== undefined && things !== null) parts['site'] = { ...site, things }
+      continue
+    }
+    const list = records(key === 'patterns' ? ((patterns as RawRecord)['patterns'] ?? top[key]) : top[key])
+    if (list !== null) parts[key] = list
+  }
+  return { ...top, walls, openings, rooms, ...items, ...library, ...patterns, ...parts }
 }
 
 /** The free stretches of a wall, measured from its start, between the other openings in it. */
@@ -338,7 +362,7 @@ export function changeOpening(survey: Survey, id: string, request: OpeningChange
   const type = request.type ?? opening.type
   const width = request.width ?? opening.width
   const height = request.height ?? (request.type === 'door' && opening.type !== 'door' ? 2.1 : opening.height)
-  const sill = request.sill ?? (type === 'door' ? 0 : opening.sill)
+  const sill = request.sill ?? (request.type === 'door' && opening.type !== 'door' ? 0 : opening.sill)
   if (type !== 'door' && (request.opensInto !== undefined || request.hinge !== undefined || request.hinged !== undefined)) {
     throw new EditRefused(`Only a door opens into a room or hangs from a side; this would be a ${type}.`)
   }
@@ -615,10 +639,11 @@ export function mirrorPlan(survey: Survey, how: Mirror): Patch {
   const plan = survey.plan
   const xs = plan.walls.flatMap((w) => [w.start[0], w.end[0]])
   const ys = plan.walls.flatMap((w) => [w.start[1], w.end[1]])
+  // VEW-22: cleaned of floating noise only, never rounded to millimetres, so every length holds.
   const flip = (p: readonly [number, number]): Pair =>
     how === 'left-right'
-      ? [r3(Math.min(...xs) + Math.max(...xs) - p[0]), p[1]]
-      : [p[0], r3(Math.min(...ys) + Math.max(...ys) - p[1])]
+      ? [exact(Math.min(...xs) + Math.max(...xs) - p[0]), p[1]]
+      : [p[0], exact(Math.min(...ys) + Math.max(...ys) - p[1])]
   // CNT-18: a curved wall's centre is mirrored with it, and it turns the other way round it.
   const walls = new Map(
     plan.walls.map((w) => [w.id, { start: flip(w.start), end: flip(w.end), mirrored: true, ...(w.arc === undefined ? {} : { arc: { centre: flip(w.arc.centre), sweep: -w.arc.sweep } }) }])
@@ -680,6 +705,9 @@ function patternsFollow(plan: FloorPlan): string {
   return n === 0 ? '' : ` ${n === 1 ? 'Its opening pattern stays a pattern' : `Its ${n} opening patterns stay patterns`}, and the openings ${n === 1 ? 'it places follow its wall' : 'they place follow their walls'}.`
 }
 
+/** VEW-22: a coordinate a mirror or a turn worked out, cleaned of floating noise: to the micrometre. */
+const exact = (value: number): number => Math.round(value * 1e6) / 1e6
+
 /** WRT-4: the turns `grid_mirror` makes, in degrees counter-clockwise on the drawing as Grid draws it (y up). */
 export const TURNS = [90, 180, 270] as const
 export type Turn = (typeof TURNS)[number]
@@ -702,10 +730,13 @@ export function turnPlanBy(survey: Survey, turn: Turn): Patch {
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2
   const cy = (Math.min(...ys) + Math.max(...ys)) / 2
   const [cos, sin] = turn === 90 ? [0, 1] : turn === 180 ? [-1, 0] : [0, -1]
+  // VEW-22: a quarter turn moves every point exactly: the result is cleaned of floating noise
+  // only, never rounded to millimetres, which moved a point stated finer by up to half of one
+  // and changed a room's size.
   const map = (p: readonly [number, number]): Pair => {
     const x = p[0] - cx
     const y = p[1] - cy
-    return [r3(cx + cos * x - sin * y), r3(cy + sin * x + cos * y)]
+    return [exact(cx + cos * x - sin * y), exact(cy + sin * x + cos * y)]
   }
   const sides = ['north', 'west', 'south', 'east'] as const
   const turned = (side: string): string => {
