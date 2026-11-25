@@ -60,7 +60,7 @@ file never reaches the exports with its letters turned into question marks. A fi
 
 | Text | At most | Also refused |
 |---|---|---|
-| a room, floor or stair name, a fixture's label, the plan's title, a note's or a sketch's text, a lowered zone's name, a saved view's name, a flat's or a flat type's name, a building's or a context shape's name, a column's label, a structural grid's name or a grid line's name, a ramp's name | 120 characters | line breaks of any kind, control characters, characters that change the direction text is shown in, and half of a character pair |
+| a room, floor or stair name, a fixture's label, the plan's name or title, a note's or a sketch's text, a lowered zone's name, a saved view's name, a flat's or a flat type's name, a building's or a context shape's name, a column's label, a structural grid's name or a grid line's name, a ramp's name | 120 characters | line breaks of any kind, control characters, characters that change the direction text is shown in, and half of a character pair |
 | an id: of a wall, room, opening, floor, stair, rooflight or opening pattern, a wall a room, an opening or a pattern names, a part's floor, the floors a stair joins or a pattern repeats on, the room a zone is part of, a flat's id, type and rooms, a flat type's id, a building's id and floors, a context shape's id and floor, a column's id, floor and `through`, a structural grid's id and floors, a parking bay's id, number and floor, a ramp's id and the floors it joins | 64 characters | the same |
 | the trace image's path, the base plan's path | 1,024 characters | the same |
 | the place, `site.country` | 120 characters, and then a name or a code on Grid's list ([the place](#the-place)) | the same |
@@ -1123,6 +1123,14 @@ is a number.
 - Whether a car can turn into a bay or up a ramp is a swept-path check: bays and ramps make one
   possible, and Grid does not make it. Nothing here says a bay or a ramp is large enough or not
   too steep: General guidance, not your local rules.
+
+## The plan's name
+
+`name` is the plan's own name, as the `plan "<name>"` line of rooms text gives it. `grid write`
+keeps it, and a rooms text with no `plan` line leaves the file's name as it is. The client and
+check sheets head their pages with it (a name in `sheet.json` still names the client sheet), the
+IFC project carries it, and `grid describe --as rooms` writes the `plan` line back. A plan with
+no name is called after its file, as before. It is not the `title`, which is drawn on the picture.
 
 ## Writing on the drawing, and the sketch layer
 
