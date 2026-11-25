@@ -1891,6 +1891,7 @@ export const en = {
   'drawing.picture.titled.keyed': '{title}, and a key of what to look at',
   'drawing.picture.empty': 'Floor plan',
   'drawing.key': 'Key',
+  'drawing.key.rooms': 'Rooms',
   'drawing.key.outsideWall': 'Outside wall',
   'drawing.key.insideWall': 'Inside wall',
   'drawing.key.separatingWall': 'Separating wall',
