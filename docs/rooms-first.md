@@ -104,7 +104,10 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   outside wall. Rooms placed by hand that leave another gap there are said once
   (`rooms/wall-from-gap`), with the `wall between` line that keeps it (WRT-31).
 - `*` stretches a side as far as the room named after `until`. `inside <room> corner ne` cuts a
-  room out of another's corner. `unit`, `place`, `repeat` and `mirror` write a group of rooms
+  room out of another's corner and closes it with its own walls, in a corner against the outside
+  walls or against a neighbouring room, however small: the end of its wall, seen across the corner
+  from the room next door, is never read as a gap or a wall between that room and the host
+  (WRT-53). `unit`, `place`, `repeat` and `mirror` write a group of rooms
   once; `copy <floor>` starts a floor from another, and `through <floor>` stands a room on the
   floors above its own ([many of one room](#many-of-one-room-floors-copied-and-walls-through-floors)).
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),

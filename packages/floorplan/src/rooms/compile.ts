@@ -2033,12 +2033,18 @@ class Compiler {
         }
         for (const [x, y] of parts) {
           if (y - x <= eps()) continue
+          // WRT-53: the end of a wall seen end on is that wall's however near the room beyond it
+          // is: beside a shallow cut-out from a room's corner it is no wall to the room beyond.
+          if (walled(x, y, c.d)) {
+            taken.push([x, y])
+            continue
+          }
           if (c.d <= maxT + eps()) {
             e.cover.push({ s0: x, s1: y, d: c.d, f: c.f })
             // WRT-17: a wall the text states may be seen end on across an outside face; a wall
             // only as thick as an odd gap between two rooms does not make every such stretch one.
             if (thicknessStated(c.d)) junc = Math.max(junc, c.d)
-          } else if (c.d < 2 * fl.rule.outside + maxT && !walled(x, y, c.d)) {
+          } else if (c.d < 2 * fl.rule.outside + maxT) {
             const key = pairKey(e.room.id, c.f.room.id)
             if (!reported.has(key)) {
               reported.add(key)
