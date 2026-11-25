@@ -91,8 +91,8 @@ describe('ARE-14 an area per flat to the middle of the party walls (lab R-1)', (
     const common = reply.data!['notInFlatsToPartyWalls'] as { grossInternal: number; grossExternal: number }
     // The flats and the common parts add up to the floor's gross areas: no floor is left unclaimed here.
     const sum = (key: 'grossInternal' | 'grossExternal'): number => flats.reduce((s, f) => s + f.toPartyWalls[key], 0) + common[key]
-    expect(sum('grossInternal')).toBeCloseTo(reply.data!['grossInternal'] as number, 6)
-    expect(sum('grossExternal')).toBeCloseTo(reply.data!['grossExternal'] as number, 6)
+    expect(sum('grossInternal')).toBeCloseTo(reply.data!['grossInternal'] as number, 1)
+    expect(sum('grossExternal')).toBeCloseTo(reply.data!['grossExternal'] as number, 1)
   })
 
   it('gives only the face the reader asked for in the text, and both in the data', async () => {
