@@ -3,7 +3,8 @@
  * bathroom". The new room takes the named side of the room, the size asked for measured inside
  * from that side's face; the room keeps its id and the rest. A door goes in the new wall unless
  * the call says none. The new room keeps the room's facts of the person's own (CNT-9); the room
- * keeps its stated number, and the new room has none.
+ * keeps its stated number, and the new room has none. The new room has the use of the room it came
+ * from unless the call names another (WRT-49).
  *
  * The way of doing it comes from the lab's edit prototype (`split-room`): rectangles square to
  * the drawing only; the new wall runs between the centre lines of the two walls it meets, and
@@ -156,10 +157,13 @@ export function splitRoom(survey: Survey, roomId: string, request: SplitRequest)
   if (request.name !== undefined) change.name = request.name
   if (request.use !== undefined) change.use = request.use
   rooms.set(roomId, change)
+  // WRT-49: with no use named, the new room has the use the room had before the split.
+  const newUse = request.newRoom.use ?? room.use
+  if (request.newRoom.use === undefined && room.use !== undefined) guessed.push(`${quoted(request.newRoom.name)} takes the use of ${name} (${quoted(room.use)}): pass new_use to give it another.`)
   const addRooms: Record<string, unknown>[] = [{
     id: request.newRoom.id,
     name: request.newRoom.name,
-    ...(request.newRoom.use !== undefined ? { use: request.newRoom.use } : {}),
+    ...(newUse !== undefined ? { use: newUse } : {}),
     boundary: taken,
     ...(room.floor !== undefined ? { floor: room.floor } : {}),
     // WRT-30 (C26): both parts are the same outdoor space, open or roofed as the room says.
