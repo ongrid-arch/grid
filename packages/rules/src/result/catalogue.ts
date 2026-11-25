@@ -596,6 +596,9 @@ export const CODES = {
   'floor/set-back': {},
   // LVL-11: the plan's split levels, said once: each floor a half level up beside another of its building.
   'floor/split-level': {},
+  // VEW-33: a floor's walls set against the slab of the floor over it: a gap under it, or walls past its level.
+  'floor/gap-under-slab': {},
+  'floor/walls-past-floor': {},
   'floor/past-outline': {},
   'floor/empty-top': {},
   'floor/rooflight-misplaced': {},

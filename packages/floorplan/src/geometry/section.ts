@@ -5,7 +5,9 @@
  * shows is the model's own, the same the 3D view, the IFC and the take-off read:
  *
  * - the walls, split into what has substance (`wallParts`: runs, and the sill and lintel round each
- *   door and window), with their corners joined as the plan joins them (`wallJoints`);
+ *   door and window), with their corners joined as the plan joins them (`wallJoints`). Under another
+ *   floor a storey's top is that floor's slab: a full-height wall that stops short of it, or of
+ *   the flat roof Grid lays, rises to it (`wallTopsUnder`, VEW-33), and the strip it adds is listed;
  * - the slabs, the roofs and the parapets (`planEnvelope`, LVL-4), open over stairs, lifts and voids;
  * - the stairs the plan states (LVL-3), as they are built (VEW-11, `stairSection.ts`): each flight
  *   its treads and risers over a waist with the soffit beneath, each landing a slab, nothing
@@ -46,7 +48,7 @@ import type { Floor, FloorPlan, RoofShape, Wall } from './plan'
 import { indexPlan, openingsOf } from './plan'
 import { floorOf, planFloors, planForFloor } from './floors'
 import { wholeWall } from './through'
-import { floorElevations, isFiniteWall } from './elevations'
+import { floorElevations, isFiniteWall, wallTopsUnder, type WallTopUnder } from './elevations'
 import { planEnvelope } from './envelope'
 import { groundLevel, plinthUnder } from './ground'
 import { floorWalls, outerWallBand } from './areas'
@@ -147,7 +149,7 @@ export interface SectionRoom {
   readonly heightStated: boolean
 }
 
-export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers' | 'waist'
+export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'wall-top' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers' | 'waist'
 
 /** Something the section takes that the plan does not state. */
 export interface SectionAssumption {
@@ -293,6 +295,9 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   const floors = planFloors(plan)
   const elevations = floorElevations(plan)
   const envelope = planEnvelope(plan, { elevations })
+  // VEW-33: under another floor a storey's top is that floor's slab: full-height walls rise to it.
+  const topUnder = wallTopsUnder(plan, envelope, elevations)
+  const raisedWalls: { floor: string; wall: string; under: WallTopUnder; rings: Vec2[][] }[] = []
   const ground = groundLevel(plan, elevations)
   const marks = planMarks(plan)
   const parts: SectionPart[] = []
@@ -402,14 +407,20 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         }
       }
       const rings: Vec2[][] = []
+      // VEW-33: a wall through floors keeps its own top; any other may rise to the slab over it.
+      const under = wall === part ? topUnder(wall, floor.id) : null
+      const raised: Vec2[][] = []
       for (const part of wallParts(wall, openings)) {
         const polygon = wallSlicePolygon(wall, part.from, part.to, ends)
+        const atTop = under !== null && part.zTo >= wall.height - none
         for (const [x0, x1] of inside(frame, [polygon])) {
           // VEW-24: a wall's foot beside or in a sunken room is carried down to that room's slab.
           const down = part.zFrom <= none ? Math.min(0, ...sunkSpans.filter((s) => s.from <= x1 + none && s.to >= x0 - none).map((s) => s.offset)) : 0
-          rings.push(rect(snap, x0, x1, base + part.zFrom + down, base + part.zTo))
+          rings.push(rect(snap, x0, x1, base + part.zFrom + down, atTop ? under.top : base + part.zTo))
+          if (atTop) raised.push(rect(snap, x0, x1, base + wall.height, under.top))
         }
       }
+      if (under !== null && raised.length > 0) raisedWalls.push({ floor: floor.id, wall: wall.id, under, rings: raised })
       if (rings.length > 0) {
         const glazed = wallTypeOf(plan, wall)?.glazed === true
         parts.push({ kind: 'wall', id: wall.id, floor: floor.id, rings, outside: outsideAt(frame, wall, sides), ...(glazed ? { glazed: true as const } : {}) })
@@ -420,7 +431,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       // the walls it carries stand down over the slab's edge.
       const slabOf = envelope.floors.find((f) => f.floor === floor.id)?.slab
       const drop = slabOf != null && slabOf.kind === 'floor' && !slabOf.thicknessStated ? slabOf.thickness : 0
-      wallFaces(wall, ends, openings, base, floor.id, base - drop)
+      wallFaces(wall, ends, openings, base, floor.id, base - drop, under?.top)
     }
 
     // A raised room's floor stands on its storey's, solid up to its own (LVL-7).
@@ -451,16 +462,15 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
 
   /** The two faces and two ends of a wall, its doors and windows open in its faces. */
-  function wallFaces(wall: Wall, ends: typeof SQUARE_ENDS, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base): void {
+  function wallFaces(wall: Wall, ends: typeof SQUARE_ENDS, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base, top = base + wall.height): void {
     if (wall.arc !== undefined) {
-      curvedWallFaces(wall, openings, base, floor, foot)
+      curvedWallFaces(wall, openings, base, floor, foot, top)
       return
     }
     const axis = wallAxis(wall)
     const total = axis.length
     const [l0, l1, r1, r0] = wallSlicePolygon(wall, 0, total, ends)
     const half = wall.thickness / 2
-    const top = base + wall.height
     const holesOn = (offset: number) =>
       openings.map((o) => ({
         a: add(pointAlong(axis, Math.max(0, o.offset)), scale(axis.normal, offset)),
@@ -479,9 +489,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
    * `arcSagitta` of it), its doors and windows open where they stand along the curve, and an end
    * face only where the wall ends.
    */
-  function curvedWallFaces(wall: Wall, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base): void {
+  function curvedWallFaces(wall: Wall, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base, top = base + wall.height): void {
     const half = wall.thickness / 2
-    const top = base + wall.height
     const segments = wallSegments(wall)
     segments.forEach((segment, i) => {
       const side = (offset: number, p: Vec2): Vec2 => add(p, scale(segment.normal, offset))
@@ -735,6 +744,22 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   for (const [floor, wallIds] of defaultHeights) {
     const rings = parts.filter((p) => p.kind === 'wall' && p.floor === floor && wallIds.includes(p.id)).flatMap((p) => p.rings)
     taken({ kind: 'wall-height', ids: wallIds, hatched: true, pieces: joined(rings) }, said(`drawing.section.taken.wallHeight.${many(wallIds.length)}`, { count: wallIds.length, floor: nameOf(floor), ids: ids(wallIds) }))
+  }
+  // VEW-33: the walls drawn up to the slab or roof over them, floor by floor, by what is over them.
+  const byOver = new Map<string, (typeof raisedWalls)[number][]>()
+  for (const raised of raisedWalls) {
+    const key = `${raised.floor}\u0000${raised.under.over.kind}\u0000${raised.under.over.floor}`
+    byOver.set(key, [...(byOver.get(key) ?? []), raised])
+  }
+  for (const list of byOver.values()) {
+    const { floor, under } = list[0]!
+    const wallIds = [...new Set(list.map((r) => r.wall))]
+    const rise = Math.max(...list.map((r) => r.under.rise))
+    const values = { count: wallIds.length, floor: nameOf(floor), over: nameOf(under.over.floor), rise: num(metresText(rise)), ids: ids(wallIds) }
+    taken(
+      { kind: 'wall-top', ids: wallIds, hatched: true, pieces: joined(list.flatMap((r) => r.rings)) },
+      said(`drawing.section.taken.wallTop.${under.over.kind}.${many(wallIds.length)}`, values)
+    )
   }
   if (markedWalls.length > 0) {
     const rings = parts.filter((p) => p.kind === 'wall' && markedWalls.includes(p.id)).flatMap((p) => p.rings)
