@@ -148,7 +148,7 @@ const TURNS: Turn[] = [
     run: async (b) => {
       for (const plan of ['a.json', 'b.json', 'c.json']) {
         const text = (await ok(b, 'grid_view', { plan, kind: '3d', from: 'south' })).text
-        expect(text).toContain('has a flat roof')
+        expect(text).toContain('a flat roof over every part with nothing above it')
         expect(text).not.toContain('no roof')
       }
     },

@@ -238,7 +238,7 @@ describe('the roof in a 3d view', () => {
 
   it('draws one storey closed from outside, and open with roof=hide or a floor cut away', async () => {
     const closed = await roofed.call('grid_view', { plan: 'flat.json', kind: '3d', from: 'south' })
-    expect(closed.text).toContain('The plan states no roof, so a flat roof is taken')
+    expect(closed.text).toContain('Grid takes a flat roof over every part with nothing above it, as the plan states none')
     const open = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south', roof: 'hide' })
     expect(open.text).toContain('drawn open, without its roof (roof=show draws the roof the plan states, a gable roof over "Ground floor", pitched 30°)')
     const cut = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south', floor: 'ground' })

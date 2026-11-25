@@ -2223,7 +2223,7 @@ const viewTool: GridTool = {
           : `The model is drawn open, without its roof (roof=show draws the roof the plan states, ${stated}), and has no furniture, glass or door leaves.`
         : stated !== ''
           ? `It is drawn with the roof the plan states, ${stated}, and a flat roof over every other part with nothing above; it has no furniture, glass or door leaves.`
-          : 'The plan states no roof, so a flat roof is taken over every part with nothing above it; the model has no furniture, glass or door leaves.'
+          : 'Grid takes a flat roof over every part with nothing above it, as the plan states none; the model has no furniture, glass or door leaves.'
       const what = viewName !== null ? `The view ${q(viewName)} saved with the plan` : 'The model'
       return {
         text: [
