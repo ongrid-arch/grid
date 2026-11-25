@@ -35,6 +35,7 @@ import { ROOM_NAMES_TRAVEL } from './protocol'
 import { comparePlans } from '../quantities/compare'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { LANGUAGE_ARG, openingBetween } from './readTools'
+import { say } from '@ongrid/floorplan/messages'
 import { briefAnswer } from '../brief/answer'
 import { BRIEF_OUTPUT } from './briefTool'
 import { writeLayout } from '../brief/layout'
@@ -402,8 +403,14 @@ const changeOpeningTool: GridTool = {
         ...(args['from'] !== undefined ? { from: args['from'] as From } : {}),
         ...(args['distance'] !== undefined ? { distance: args['distance'] as number } : {}),
       })
-      const between = openingBetween(survey, id)
-      return between ? { ...patch, said: [...patch.said, `It is between ${between}.`] } : patch
+      // MSG-28: what lies on each side of it where it is after the change, and moved to another
+      // wall, what lay on each side of its old one.
+      const moved = patch.openings.get(id)?.wall !== undefined
+      const between = openingBetween(moved ? surveyPlan(readingAfter(survey.plan, patch)) : survey, id)
+      if (!between) return patch
+      const was = moved ? openingBetween(survey, id) : ''
+      if (was) return { ...patch, said: [...patch.said, say('en', 'edit.opening.otherWall', { before: was, after: between })] }
+      return { ...patch, said: [...patch.said, `It is between ${between}.`] }
     })
   },
 }

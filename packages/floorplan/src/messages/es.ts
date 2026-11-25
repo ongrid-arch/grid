@@ -2244,6 +2244,11 @@ export const es: Messages = {
   'diff.room.merged.wall': 'unido con {rooms}, quitado el muro {walls} entre ellos',
   'diff.room.merged.walls': 'unido con {rooms}, quitados los muros {walls} entre ellos',
   'diff.room.mergedInto': '{room} unido a {into}, {area}',
+  // MSG-28: un hueco llevado de un muro a otro, con lo que hay a cada lado de cada uno.
+  'diff.opening.otherWall': 'pasó del muro {from}, entre {fromSides}, al muro {to}, entre {toSides}',
+  'diff.opening.side.outside': 'el exterior',
+  'diff.opening.side.none': 'nada dibujado',
+  'edit.opening.otherWall': 'Estaba entre {before}; ahora está entre {after}.',
   // --- MSG-27: la volumetría y el solar comparados (`diff/massing.ts`)
   'diff.massing.east': '{distance} m al este',
   'diff.massing.west': '{distance} m al oeste',

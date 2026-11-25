@@ -2237,6 +2237,11 @@ export const en = {
   'diff.room.merged.wall': 'merged with {rooms}, wall {walls} taken out between them',
   'diff.room.merged.walls': 'merged with {rooms}, walls {walls} taken out between them',
   'diff.room.mergedInto': '{room} merged into {into}, {area}',
+  // MSG-28: an opening moved from one wall to another, with what lies on each side of each.
+  'diff.opening.otherWall': 'moved from wall {from}, between {fromSides}, to wall {to}, between {toSides}',
+  'diff.opening.side.outside': 'outside',
+  'diff.opening.side.none': 'nothing drawn',
+  'edit.opening.otherWall': 'It was between {before}; it is now between {after}.',
   // --- MSG-27: the massing and the site compared (`diff/massing.ts`)
   'diff.massing.east': '{distance} m east',
   'diff.massing.west': '{distance} m west',
