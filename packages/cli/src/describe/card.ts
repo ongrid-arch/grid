@@ -202,9 +202,11 @@ function personLine(facts: PlanFacts, names: PersonNames, w: Words): string {
   const floorText = floors === 1 ? t(w, 'describe.floors.one') : t(w, 'describe.floors.many', { count: floors, repeats: repeats.length > 0 ? ` (${repeats.join(t(w, 'join.semicolon'))})` : '' })
   const ways = waysIn(facts)
   const into = [...new Set(ways.map((way) => names.room(way.room)))]
-  const entered = into.length === 0
-    ? t(w, 'describe.entered.none')
-    : t(w, 'describe.entered', { ways: waysText(ways, w), rooms: listed(w, capped(w, into, 5)) })
+  // ARE-18: with no door in, an open side to the outside is the way in, as the check reads it.
+  const open = [...new Set(facts.floors.flatMap((floor) => floor.edgesOut.map((e) => names.room(e.room))))]
+  const entered = into.length > 0
+    ? t(w, 'describe.entered', { ways: waysText(ways, w), rooms: listed(w, capped(w, into, 5)) })
+    : open.length > 0 ? t(w, 'describe.entered.openSide', { rooms: listed(w, capped(w, open, 5)) }) : t(w, 'describe.entered.none')
   const line = t(w, 'describe.line', { floors: floorText, rooms: countOf(w, 'describe.count.room', facts.rooms.size), uses: usesText(facts, w), area: area(w, totalArea(facts)), entered })
   return `${line}${personBuilding(facts, names, w)}${personWork(facts, w)}`
 }
@@ -245,7 +247,10 @@ function agentBuilding(facts: PlanFacts): string {
 
 function agentLine(facts: PlanFacts): string {
   const ways = waysIn(facts)
-  const into = ways.length === 0 ? 'no way in from outside' : `from outside into ${capped(ENGLISH, [...new Set(ways.map((way) => way.room))], 8).join(', ')}`
+  const open = [...new Set(facts.floors.flatMap((floor) => floor.edgesOut.map((e) => e.room)))]
+  const into = ways.length > 0
+    ? `from outside into ${capped(ENGLISH, [...new Set(ways.map((way) => way.room))], 8).join(', ')}`
+    : open.length > 0 ? `from outside across open sides into ${capped(ENGLISH, open, 8).join(', ')}` : 'no way in from outside'
   return `PLAN ${plural(facts.floors.length, 'floor')}, ${plural(facts.rooms.size, 'room')}${usesText(facts, ENGLISH)}, ${m(totalArea(facts))} m2 inside, ${plural(facts.wallCount, 'wall')}, ${plural(facts.openingCount, 'opening')}; ${into}.${agentBuilding(facts)}${agentWork(facts)}`
 }
 

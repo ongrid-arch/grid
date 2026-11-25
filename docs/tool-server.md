@@ -27,9 +27,10 @@ the same facts as data; a view also returns its picture. A length argument is me
 
 | Tool | Answers |
 |---|---|
+| `grid_project` | What the project folder holds, for the first call (CMD-18): the plan files in it, the plan Grid uses when none is named (`plan.json` in the folder, with or without `grid.json`) and whether it is there, and beside each plan its brief, markers, seen marks, preview record, scan and occupancy files. Reads names only, writes nothing |
 | `grid_compare` | Options side by side (net, gross internal, gross external, circulation, area by use), and what differs by room name, walls and openings; a plan mirrored or moved is said to be so. With `picture`, one sheet at one scale |
 | `grid_diff` | What changed since the start marker or the last commit, by what stands where, not by ids: issues first (a door that now joins other rooms, a wall that now meets an opening, notes that came and went), the verdict room by room with how many ids were only renamed, then the changes one line each; with `rooms`, the changes outside them; with a picture unless `picture: false` (see below) |
-| `grid_areas` | Each room's size and net area, totals by floor and by use, gross internal and gross external area (the one usual in `country` first, or as `gross` asks; see [areas.md](areas.md)), each flat's area from the plan's flats list and the rooms in no flat, each to the middle of its party walls too (ARE-14), the outdoor space listed apart by kind, roofed or open (CNT-7), left out of every total unless `outdoor_rules` states a rule that counts part of it, the free floor beside the floor area where fixtures stand, and under a roof the floor states the floor by headroom band, in metres or feet, as text or CSV, each figure with its rule stated |
+| `grid_areas` | Each room's size and net area, totals by floor and by use, gross internal and gross external area (the one usual in `country` first, or as `gross` asks; see [areas.md](areas.md)), each flat's area from the plan's flats list and the rooms in no flat, each to the middle of its party walls too (ARE-14), the outdoor space listed apart by kind, roofed or open (CNT-7), left out of every total unless `outdoor_rules` states a rule that counts part of it, the free floor beside the floor area where fixtures stand, the rooms in `apart_rooms` measured apart as one building from another (ARE-20), and under a roof the floor states the floor by headroom band, in metres or feet, as text or CSV, each figure with its rule stated |
 | `grid_takeoff` | Metres of wall by kind, per room floor, ceiling (with its height and lowered zones), skirting and wall face less openings, and per floor the slab and the roof over every part with nothing above, marked assumed, with the rules stated; with `for=estimate` the bill of quantities for a first estimate, each line with its key, rule and assumed mark, priced only from the person's rates file or given as a rate card ([areas.md](areas.md#quantities-for-a-first-estimate)); with `for=change` a plan's work as three lists, demolish, make good and new, priced the same way ([plan-file.md](plan-file.md#existing-demolished-and-new)); on a plan that names wall types or finishes, the walls of each named type and each finish's total too, and the estimate prices them by type and by finish ([areas.md](areas.md#finishes-and-wall-types)); text or CSV |
 | `grid_schedule` | Doors, windows and openings by type and size, with the rooms each joins; with `of=rooms` the room schedule (number, name, use, area, height, floor, and the totals), with `of=openings` each opening once, with `of=flats` each flat and the unit mix by type, with `of=doors` or `of=windows` the door or window schedule by type (the plan's named types first, with their names and materials, then by kind and size) with each type's marks, with `of=finishes` the finishes plan, room by room, with each finish's total ([areas.md](areas.md#schedules)); a room's stated number and each part's facts of the person's own go with them; text or CSV |
 | `grid_fields` | What can be asked of the plan: the fields Grid works out for each kind of part, with their units, and the facts of the person's own the parts carry, with how many carry each and their values (see below) |
@@ -46,7 +47,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_sheet` | Writes the plan as an A3 PDF into `exports/`: layout `client` (cover, a page per floor, the words as `sheet`) or `check` (every id, use and finding); or layout `drawing`, one floor at a true scale (`scale`, `paper`, `floor`, `roomSizes`) as a vector PDF, an SVG and a PNG, with the PNG in the answer |
 | `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with; or takes one off. At most 5 |
 | `grid_mark_seen` | Sets a note of `grid_check` aside as seen, with the person's reason and the name or role they give, in `plan.seen.json` beside the plan; or takes the mark off (see below) |
-| `grid_write_brief` | Writes the brief beside the plan from the person's words, before the first room: room areas and counts, inside sizes, the footprint, rooms that must or must not touch, and the person's own figures, each with its level, its quote and whether it was given or assumed, and what is still open; answers with each line met or missed ([brief.md](brief.md)) |
+| `grid_write_brief` | Writes the brief beside the plan from the person's words, before the first room: room areas and counts, inside sizes, the footprint, rooms that must or must not touch, and the person's own figures, each with its level, its quote and whether it was given or assumed, and what is still open; answers with each line met or missed ([brief.md](brief.md)). A brief already there is kept: the call is refused unless `replace` is true |
 | `grid_write_rooms` | Writes the plan from rooms text, as `grid write`: the walls, their kinds, the room boundaries and the openings' places worked out. With `layout` (`tidy` or `sizes`) in place of `rooms`, a first layout from the brief beside the plan, with each size not kept and by how much ([brief.md](brief.md#a-first-layout-from-the-brief)); with `scan`, from a phone room scan, as `grid write --scan`, with what was assumed and the scan kept beside the plan ([commands.md](commands.md#a-plan-from-a-phone-room-scan-grid-write---scan)). It takes one of `rooms`, `layout` and `scan` |
 | `grid_change_opening` | Changes a door or window (width, height, sill, type, which room it opens into, which side it is hinged on as seen from a room, its kind), moves it to a side of a room, places it from a room's side or an end of its wall and keeps it there (its anchor), or removes it |
 | `grid_change_type` | Changes one of the plan's named wall, door or window types (thickness, height, size, kind, glazed, material), and every part of it takes the change in the same call; adds a type, gives it to parts by id (taking out their own values for what it states), or makes it the default for parts that name none ([plan-file.md](plan-file.md#named-wall-door-and-window-types-and-finishes)) |
@@ -287,8 +288,18 @@ the hole to the middle of its other face, and on to the middle of the room it en
 outside face of the door out with `to=outside`. Inside a room the line is the shortest that keeps
 to its floor, round inside corners and holes. In the lab's two-bed flat, Bedroom 1 to the Hall
 is 2.19 m in the bedroom, 0.10 m through the wall and 2.05 m in the Hall: 4.34 m. With `width`,
-the way the body or trolley gets through by carries its `length` too. A length is null when a
-room on the way has no outline Grid can measure.
+the way the body or trolley gets through by carries its `length` too.
+
+With `to=outside` the way out is the way-out check's (ARE-18): it goes up or down the stairs the
+check reads (a stair the plan states, or stair rooms one over the other; never a lift) and out
+only through a door on a floor that does not stand above the ground, so a balcony door upstairs
+is no way out. Each room on it carries its floor in `floors`, a stair is a step of `type`
+`stair`, and `onStairs` is how far the stairs are walked: a stated stair along its walking line
+on plan, from its foot to its head; a stair room from its middle to the middle of the one over
+it. The climb is never in the length. With `width` the way keeps to its floor. A length is null
+only when it cannot be walked, and `gap` says where and why: the room and `no outline` (it
+cannot be drawn), `doorway` (the doorway `via` is not found on its side) or `no line` (no line
+keeps to its floor). A door in a curved wall is walked from either side of the curve.
 
 With `to=outside` (ARE-21) the route is walked to every way out on the floor, each by the way
 with the fewest rooms to its door, and the shortest by walked length is the answer. It names the
@@ -304,7 +315,12 @@ doorway, goes as deep as it can and comes back, so a room off a room comes strai
 each room you stand in the doorway you came in by, at its middle, facing in square to the wall,
 and what is in the room is said by the wall it is on: ahead (from left to right, each so far to
 your left or right), on your left and on your right (each so far ahead), and in the wall you
-stand in. A fixture is on the wall nearest its middle. Each wall comes with how far it is,
+stand in. A fixture is on the wall nearest its middle; one that stands more than 0.3 m clear of
+every wall, an island or a table, is said where it stands (`inRoom`; `F` for an agent): how far
+ahead its near side is and whether it is across your way or to one side. Where a floor's walk
+starts with no doorway you stand in the room's middle facing square to its longest side, and the
+room is said by its whole depth. Every way the way-out check reads is a way on, an open side as
+much as a door, round a well in the floor too (ARE-18). Each wall comes with how far it is,
 straight out from where you stand. A plan whose y runs down the page is the building mirrored,
 and left and right are read the right way round. A floor laid out like an earlier one is said
 once; `floor` walks one floor. A room no way reaches is listed as not reached.
@@ -334,11 +350,15 @@ and every change outside them is named. A plan that is the earlier one mirrored 
 quarter or half round is said to be so first, in `turn` and in the line after "Compared with"
 (`The plan is mirrored left to right (east and west swap), and every room keeps its size.`), and
 compared from there, so a flipped flat is not every wall moved. Unless `picture: false`, and when something changed, it
-returns one picture of a floor: removed in red, added in green, changed rooms in amber with their
-old and new area, the rest pale. A plan written rooms first in both versions is compared by its
+returns one picture of a floor: removed in red, added in green, what changed in amber (a wall or
+opening at its new place with its old place outlined, a room with its old and new area), the
+rest pale. A plan written rooms first in both versions is compared by its
 rooms and openings: widening the living room of the two-bedroom flat by 30 cm reads as two
 lines, the living room's new size and the four rooms beside it moved 0.30 m as they were, and the
-kitchen door stayed where it was.
+kitchen door stayed where it was. The doors and windows that moved with their wall or room are
+in `movedWith` (`opening`, `with`: `wall` or `room`, `by`: east and north in metres, `text`) and
+the text, never among those that stayed: after a side of a room is moved 0.5 m east, its
+windows on that side moved with their wall, 0.50 m east.
 
 ## Use indicators: will it fit, can you turn, is the window blocked
 

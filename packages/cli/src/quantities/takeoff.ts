@@ -42,7 +42,7 @@ import { english, said } from '@ongrid/floorplan/messages'
 
 export const TAKEOFF_RULES = {
   walls: 'Wall length is the length of each solid wall along its centre line, each wall counted once; gross is with openings, net takes off the width of every opening in it.',
-  floor: 'Floor and ceiling area is the room between its wall faces (the net area). A ceiling is the floor below it, at the room\'s height, its lowered zones at theirs.',
+  floor: 'Floor and ceiling area is the room between its wall faces (the net area); a void, open to the floor below, has none, nor skirting, and its edge with no wall is given as a guard length. A ceiling is the floor below it, at the room\'s height, its lowered zones at theirs.',
   skirting: 'Skirting is the room\'s inside perimeter less the width of every door and doorless opening on it.',
   plaster: 'Wall face is each inside side of the room times the height of the wall it is on, less every door, window and opening in it (width times height). Dividing lines are not plastered.',
   envelope: 'Slab and roof area is on plan, from each floor\'s outline to the outside face of its walls: a slab is the outline less its openings over stairs, lifts and voids; a roof is the outline less the floors on the level above, so every part with nothing above it is roofed.',
@@ -66,6 +66,10 @@ export interface RoomTakeoff {
   readonly skirting: number
   readonly wallFace: number
   readonly openingsOff: number
+  /** ARE-16: the room is a void (LVL-4): no floor, ceiling or skirting; its wall faces are still taken off. */
+  readonly void?: true
+  /** ARE-16, only on a void: the length of its edge no solid wall closes, and of every door and doorless opening in its walls, which needs a guard. */
+  readonly guard?: number
   /** The usual height of the room's walls. */
   readonly height: number | null
   /** LVL-4: the ceiling's height above the floor: the room's stated height, else its walls' usual one. */
@@ -174,7 +178,7 @@ export interface Takeoff {
   /** CNT-19: the ramps, each with its levels and its slope. Left out on a plan with none. */
   readonly ramps?: readonly RampFigures[]
   readonly rooms: readonly RoomTakeoff[]
-  readonly totals: { readonly floorArea: number; readonly ceiling: number; readonly skirting: number; readonly wallFace: number }
+  readonly totals: { readonly floorArea: number; readonly ceiling: number; readonly skirting: number; readonly wallFace: number; readonly guard?: number }
   /** LVL-4: the slabs and the roof, floor by floor. */
   readonly envelope: EnvelopeTakeoff
   readonly rules: readonly string[]
@@ -218,7 +222,10 @@ export function roomTakeoff(
     openingsOff += opening.width * Math.max(0, top - opening.sill)
     if (opening.type !== 'window') passages += opening.width
   }
-  const area = room.facts.shape?.area ?? 0
+  // ARE-16: a void has no floor, so no floor, ceiling or skirting; its open edge is a guard length.
+  const isVoid = room.facts.void === true
+  const area = isVoid ? 0 : (room.facts.shape?.area ?? 0)
+  const guard = isVoid ? room.edges.reduce((sum, edge) => sum + (edge.wall === null || edge.wall.virtual === true ? edge.length : 0), 0) + passages : 0
   heights.sort((a, b) => a - b)
   const height = heights.length > 0 ? heights[Math.floor(heights.length / 2)]! : null
   const { stated, lowered } = ceiling(room)
@@ -229,9 +236,10 @@ export function roomTakeoff(
     floorArea: area,
     ceiling: area,
     perimeter,
-    skirting: Math.max(0, perimeter - passages),
+    skirting: isVoid ? 0 : Math.max(0, perimeter - passages),
     wallFace: Math.max(0, face - openingsOff),
     openingsOff,
+    ...(isVoid ? { void: true as const, guard } : {}),
     height,
     ceilingHeight: stated ?? height,
     lowered,
@@ -325,7 +333,7 @@ export function planTakeoff(survey: Survey, floors?: readonly string[], rooms?: 
     ...(bays.length === 0 ? {} : { bays }),
     ...(ramps.length === 0 ? {} : { ramps }),
     rooms: list,
-    totals: { floorArea: total('floorArea'), ceiling: total('ceiling'), skirting: total('skirting'), wallFace: total('wallFace') },
+    totals: { floorArea: total('floorArea'), ceiling: total('ceiling'), skirting: total('skirting'), wallFace: total('wallFace'), ...(list.some((room) => room.void === true) ? { guard: list.reduce((sum, room) => sum + (room.guard ?? 0), 0) } : {}) },
     envelope: envelopeTakeoff(survey, floors),
     rules: [...Object.values(TAKEOFF_RULES), ...(columns.length === 0 ? [] : [columnRule()]), ...(bays.length === 0 && ramps.length === 0 ? [] : [parkingRule()])],
   }

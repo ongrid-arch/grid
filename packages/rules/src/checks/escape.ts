@@ -87,7 +87,12 @@ export function escapeCheck(
    * the site's ground level stated, the floor nearest it. Its windows take the figure for a floor
    * at grade where one is carried. Unstated, the floor at level 0.
    */
-  atGround: boolean = level === 0
+  atGround: boolean = level === 0,
+  /**
+   * ARE-19: the openings the plan's below-ground check names (`openingsBelowGround`). One of them
+   * is no way out, unless a drawn outdoor space is in front of it.
+   */
+  belowGround: ReadonlySet<string> = new Set()
 ): { findings: RuleFinding[]; scope: FloorScope; wholeRooms: WholeRoom[] } {
   const index = indexPlan(storey)
   const outlines = roomOutlines(storey, index, leftOut)
@@ -132,6 +137,7 @@ export function escapeCheck(
   // Windows and doors to the outside, by the rooms on their sides: on a wall stated exterior, or
   // with a room on one side only and no enclosed floor on the other (MSG-13, `outsideTest`).
   const outside = new Map<string, Opening[]>()
+  const leftOutBelow = new Map<string, string[]>()
   const facesOutside = outsideTest(storey, index)
   const outdoor = outdoorIds(storey)
   for (const opening of storey.openings) {
@@ -153,8 +159,16 @@ export function escapeCheck(
           : right !== null && left === null && facesOutside(wall, along, 'left')
             ? [right]
             : []
+    // ARE-19: below the ground with no outdoor space in front of it, it is no way out; the room
+    // it serves says so.
     for (const side of new Set(rooms)) {
       if (side === null) continue
+      const beyond = side === left ? right : left
+      const dropped = belowGround.has(opening.id) && !(beyond !== null && outdoor.has(beyond))
+      if (dropped) {
+        leftOutBelow.set(side, [...(leftOutBelow.get(side) ?? []), opening.id])
+        continue
+      }
       const list = outside.get(side)
       if (list) list.push(opening)
       else outside.set(side, [opening])
@@ -176,7 +190,13 @@ export function escapeCheck(
     const whole = zones.zones.has(room.id) ? { use: use.use, ...(use.zone === null ? {} : { zone: use.zone }) } : {}
     const base = { ruleId: 'escape-opening', floor, rooms: use.zone === null ? [room.id] : [room.id, use.zone], ...whole }
     if (windows.length === 0) {
-      findings.push({ ...base, code: 'no_escape_opening', openings: [], message: messages.noEscapeOpening(roomName(room.id)) })
+      const below = [...(leftOutBelow.get(room.id) ?? [])].sort(byText)
+      findings.push({
+        ...base,
+        code: 'no_escape_opening',
+        openings: below,
+        message: below.length === 0 ? messages.noEscapeOpening(roomName(room.id)) : messages.noEscapeOpeningBelowGround(roomName(room.id))
+      })
       continue
     }
     const sized = windows.filter(bigEnough)

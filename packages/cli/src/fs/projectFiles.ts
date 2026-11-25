@@ -16,8 +16,9 @@
  * Then symbolic links are followed, for the file and for every folder above it that exists
  * (a file about to be written doesn't exist yet), and the real path must be inside the real
  * project folder. What is read or written is that real path, so what was checked is what is
- * opened. Grid never creates folders on the way, except the one `exports/` folder it names
- * itself and the one project folder `grid init` is asked to make.
+ * opened. Writing a file makes the folders it needs on the way, always inside the project
+ * folder (CMD-19); `createFile`, `appendText` and `makeFolder` do not, and `grid init` makes
+ * only the one project folder it is asked for.
  *
  * Nothing else in `packages/cli` may import `fs`: a test fails if it does.
  */
@@ -354,23 +355,31 @@ export class Project {
   }
 
   /**
-   * Writes a file atomically: readers see the old contents or all of the new. Its folder must
-   * exist. An existing link inside the project is followed: its target is replaced. Written
+   * Writes a file atomically: readers see the old contents or all of the new. The folders above
+   * it that don't exist are made first, inside the project (CMD-19); a name on the way that is a
+   * file refuses with `ENOTDIR`. An existing link inside the project is followed: its target is replaced. Written
    * files can be read only by their owner. Returns the real path written.
    */
   writeFile(given: string, data: string | Uint8Array): string {
     const real = this.writable(given)
+    fs.mkdirSync(path.dirname(real), { recursive: true })
     atomicWriteFile(real, data)
     return real
   }
 
   /**
-   * Checks, writing nothing, what `writeFile` checks before it writes: the folder is there and
-   * the name is not a folder. Throws as `writeFile` does; returns the real path.
+   * Checks, writing nothing, what `writeFile` checks before it writes: no name on the way is a
+   * file and the name is not a folder. Folders that are not there are made by `writeFile`, not
+   * here. Throws as `writeFile` does; returns the real path.
    */
   writable(given: string): string {
     const { real, missing } = this.locate(given)
-    if (missing > 1) throw errno('ENOENT', `the folder of ${quoted(given)} does not exist`)
+    if (missing > 0) {
+      // The deepest folder that exists must be a folder: a file in its place can't hold the path.
+      let above = real
+      for (let i = 0; i < missing; i++) above = path.dirname(above)
+      if (!fs.statSync(above).isDirectory()) throw errno('ENOTDIR', `a name on the way to ${quoted(given)} is a file, not a folder`)
+    }
     if (missing === 0 && fs.statSync(real).isDirectory()) throw errno('EISDIR', `${quoted(given)} is a folder`)
     return real
   }

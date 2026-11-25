@@ -13,6 +13,7 @@ import { compareBuildings, planHasPhases, planInState, type BuildingComparison }
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { loadPlan, loadPlanText, type LoadedPlan } from '../command/plan'
+import { roomsAsTheyStood } from '../edit/phases'
 import { GitUnread, lastCommitted } from './git'
 import { DEFAULT_MARKER, findMarker, GIT_VERSION, MarkerRefused, PHASE_VERSION, readMarkers } from './markers'
 
@@ -60,7 +61,8 @@ export function diffSince(project: Project, planFile: string, since: string | un
   }
   const named = version.kind === 'marker' ? `${path.basename(planFile)} at marker ${version.name}` : `${path.basename(planFile)} as last committed`
   const earlier = loadPlanText(project, named, text, named)
-  const notes = { before: inspectPlan(earlier.plan).lines, after: inspectPlan(later.plan).lines }
+  // VEW-15: each version's file text, as `grid check` reads it, so the fields the reading adds are no notes.
+  const notes = { before: inspectPlan(earlier.text ?? earlier.plan).lines, after: inspectPlan(later.text ?? later.plan).lines }
   const comparison = compareBuildings(earlier.plan, later.plan, { ...(rooms === undefined ? {} : { rooms }), notes })
   return { comparison, earlier, later, since: version }
 }
@@ -75,8 +77,9 @@ function diffByPhase(loaded: LoadedPlan, rooms?: readonly string[]): PlanDiffRun
   if (!planHasPhases(loaded.plan)) {
     throw new MarkerRefused('The plan states no phase, so it holds no work to compare: give its walls, openings and rooms a phase (existing, demolished or new), or compare with a marker or git.')
   }
-  const before = planInState(loaded.plan, 'before')
   const after = planInState(loaded.plan, 'after')
+  // WRT-15: a room an edit reshaped, kept as it stood, is read as the room it became.
+  const before = roomsAsTheyStood(planInState(loaded.plan, 'before'), after)
   const comparison = compareBuildings(before, after, rooms === undefined ? {} : { rooms })
   return { comparison, earlier: { ...loaded, plan: before }, later: { ...loaded, plan: after }, since: { kind: 'phase' } }
 }
@@ -120,8 +123,13 @@ export function diffText(run: PlanDiffRun, show: DiffShow): string {
       c.changes.slice(0, DIFF_LINES_SHOWN).forEach((line, i) => lines.push(`  ${i + 1}. ${line.text}`))
       if (c.changes.length > DIFF_LINES_SHOWN) lines.push(`  … ${c.changes.length - DIFF_LINES_SHOWN} more, in the data.`)
     }
+    // WRT-12: what moved with its wall or room before what stayed, so neither is taken for the other.
+    if (c.movedWith.length > 0) {
+      lines.push(`Openings that moved with their wall or room (${c.movedWith.length}):`)
+      for (const line of c.movedWith.slice(0, DIFF_LINES_SHOWN)) lines.push(`  ${line.text}`)
+    }
     if (c.stayed.length > 0) {
-      lines.push(`Openings that kept their place (${c.stayed.length}):`)
+      lines.push(`Openings that stayed where they were (${c.stayed.length}):`)
       for (const line of c.stayed.slice(0, DIFF_LINES_SHOWN)) lines.push(`  ${line.text}`)
     }
   }
@@ -152,6 +160,7 @@ export function diffData(run: PlanDiffRun, show: DiffShow): Record<string, unkno
     rooms: show === 'issues' ? [] : c.rooms.map((r) => ({ room: r.room, name: r.name, status: r.status, before: r.before, after: r.after, moved: r.moved, text: r.text })),
     changes: show === 'issues' || show === 'summary' ? [] : c.changes.map((l) => ({ text: l.text, entities: l.entities, rooms: l.rooms })),
     stayed: show === 'issues' || show === 'summary' ? [] : c.stayed.map((s) => ({ opening: s.opening, text: s.text })),
+    movedWith: show === 'issues' || show === 'summary' ? [] : c.movedWith.map((m) => ({ opening: m.opening, with: m.with, by: [...m.by], text: m.text })),
     scope: { checked: c.scope.checked, rooms: [...c.scope.rooms], outside: c.scope.outside.map((l) => l.text) },
   }
 }

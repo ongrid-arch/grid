@@ -27,7 +27,7 @@ import { boundsWithDimensions, hatchLines, openingDetail, openingSymbol, poleOfI
 import type { DoorHanding } from '../canvas2d/doorHanding'
 import { doorSymbolOf } from '../canvas2d/doorSymbol'
 import { openingAt, stripAcross } from '../canvas2d/strip'
-import type { Box, LabelStyle } from '../canvas2d/labelPlacement'
+import type { Box, LabelStyle, PlacedLabel } from '../canvas2d/labelPlacement'
 import {
   DIMENSION_DY,
   ROOM_AREA_DY,
@@ -39,9 +39,12 @@ import {
   drawingWords,
   formatArea,
   labelName,
+  formLines,
   lineBox,
+  lineOutline,
   placeDimensionLabel,
   placeRoomLabels,
+  roomNumbers,
   withDisplay,
 } from '../canvas2d/labelPlacement'
 import { FRAME_MARGIN, pathOf, roomPathOf } from '../canvas2d/viewport'
@@ -685,6 +688,50 @@ function tintOf(look: Look, by: SceneShow['colourBy'], id: string, input: SceneI
 }
 
 /** The plan's elements, back to front: what goes inside the `<svg>`. */
+/**
+ * A room's label as it was placed (VEW-13): the plain form as it has always been drawn, else its
+ * lines at its size, turned a quarter to read from the bottom when it is turned. A keyed label is
+ * the room's number, with the room's name in `data-name` for the room key (`roomKeyOf`).
+ */
+function labelNode(label: PlacedLabel, name: string, area: string[] | null, opacity: number | undefined, mpp: number, paint: Paints, key: string): SvgNode {
+  const { form } = label
+  const transform = `${labelTransform(label.at, mpp)}${form.turned ? ' rotate(-90)' : ''}`
+  if (form.scale === 1 && !form.keyed && form.names.length === 1 && form.area !== null) {
+    return el(
+      'g',
+      { transform, opacity },
+      [
+        el('text', { 'data-part': 'label', ...paint.label }, [name]),
+        ...(area === null ? [] : [el('text', { 'data-part': 'area', dy: String(ROOM_AREA_DY), ...paint.area }, area)])
+      ],
+      key
+    )
+  }
+  const lines = formLines(form)
+  const size = (attrs: Attrs, px: number): Attrs => ({ ...attrs, 'font-size': lengthText(px * form.scale) })
+  return el(
+    'g',
+    { transform, opacity, ...(form.keyed ? { 'data-keyed': form.names[0]!, 'data-name': name } : {}) },
+    [
+      ...form.names.map((line, i) => el('text', { 'data-part': 'label', ...(i === 0 ? {} : { dy: lengthText(lines.names[i]!) }), ...size(paint.label, TEXT_PX.roomName) }, [line])),
+      ...(form.area === null || area === null || lines.area === null ? [] : [el('text', { 'data-part': 'area', dy: lengthText(lines.area), ...size(paint.area, TEXT_PX.roomArea) }, area)])
+    ],
+    key
+  )
+}
+
+/**
+ * VEW-13: the rooms whose labels are their numbers in this scene, in the scene's order: each
+ * number with the room's name as drawn, for the room key under the drawing.
+ */
+export function roomKeyOf(nodes: readonly SvgNode[]): { readonly number: string; readonly name: string }[] {
+  return nodes.flatMap((node) => {
+    const number = node.attrs['data-keyed']
+    const name = node.attrs['data-name']
+    return node.key?.startsWith('label:') === true && number !== undefined && name !== undefined ? [{ number: String(number), name: String(name) }] : []
+  })
+}
+
 export function planScene(input: SceneInput): SvgNode[] {
   return withDisplay(input.labels?.display, () => planSceneIn(input))
 }
@@ -1293,10 +1340,22 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   const framed = boundsWithDimensions(drawing, dimensions)
   const padX = Math.max(framed.width, 0.001) * FRAME_MARGIN
   const padY = Math.max(framed.height, 0.001) * FRAME_MARGIN
+  // VEW-13: the number a room's label falls back to, its name then listed in the room key.
+  const numbers = roomNumbers(drawing.rooms)
   const labels = placeRoomLabels(
-    drawing.rooms.map((room, index) => ({ id: room.id, polygon: room.polygon, holes: room.holes, name: names[index]!, areaText: areaText(room) })),
+    drawing.rooms.map((room, index) => ({ id: room.id, polygon: room.polygon, holes: room.holes, name: names[index]!, areaText: areaText(room), number: numbers[index]! })),
     // A fixture blocks a label like a wall does (CNT-12): a room's name never sits on a bath.
-    { swings, walls: [...drawing.walls.filter((wall) => !wall.virtual).flatMap((wall) => wall.slices), ...drawing.items.map((item) => item.outline)], dimensions: dimensionBlocks },
+    // VEW-13: nor on a stair's treads or a lift's cross.
+    {
+      swings,
+      walls: [
+        ...drawing.walls.filter((wall) => !wall.virtual).flatMap((wall) => wall.slices),
+        ...drawing.items.map((item) => item.outline),
+        ...drawing.stairs.flatMap((stair) => stair.flights.map((flight) => flight.outline)),
+        ...drawing.lifts.flatMap((lift) => lift.lines.map(([a, b]) => lineOutline(a, b, mpp)))
+      ],
+      dimensions: dimensionBlocks
+    },
     mpp,
     { minX: framed.min.x - padX, maxX: framed.max.x + padX, minY: framed.min.y - padY, maxY: framed.max.y + padY }
   )
@@ -1341,17 +1400,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
         )
       )
     }
-    out.push(
-      el(
-        'g',
-        { transform: labelTransform(label.at, mpp), opacity },
-        [
-          el('text', { 'data-part': 'label', ...paint.label }, [names[index]!]),
-          ...(show.areas ? [el('text', { 'data-part': 'area', dy: String(ROOM_AREA_DY), ...paint.area }, areaPieces(room))] : [])
-        ],
-        `label:${room.id}`
-      )
-    )
+    out.push(labelNode(label, names[index]!, show.areas ? areaPieces(room) : null, opacity, mpp, paint, `label:${room.id}`))
   })
 
   // The name of each room that could not be drawn, and why, in the middle of its box.

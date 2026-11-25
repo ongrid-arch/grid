@@ -10,7 +10,12 @@
 import {
   cross,
   dot,
+  floorJoins,
   floorOf,
+  groundLevel,
+  indexPlan,
+  planFloors,
+  wholePlan,
   floorRoofShape,
   fromTuple,
   itemFootprint,
@@ -33,10 +38,10 @@ import {
   type Wall,
 } from '@ongrid/floorplan/geometry'
 import { drawable } from '@ongrid/floorplan/geometry/rules/check'
-import { floorGraph } from '@ongrid/floorplan/geometry/rules/graph'
+import { floorGraph, roomOutlines } from '@ongrid/floorplan/geometry/rules/graph'
 import { compassOf, type Compass } from '../describe/facts'
 import type { Survey, SurveyRoom } from './survey'
-import { walkedLength, type WalkedLeg } from './walked'
+import { walkRoute, type StairPassage, type WalkedLeg, type WalkGap } from './walked'
 
 export const EMPTY_ROOM_RULE =
   'Measured in the empty room between wall faces: the fixtures the plan holds, furniture, radiators, door leaves and the space a person needs round them are not taken off.'
@@ -119,9 +124,9 @@ export function fitInRoom(room: SurveyRoom, shape: { width: number; depth: numbe
 }
 
 export interface RouteStep {
-  /** The opening or dividing line passed, and its width; a dividing line has none. */
+  /** The opening or dividing line passed, and its width; a dividing line has none. ARE-18: or the stair taken, and its width when the plan states the stair. */
   readonly via: string
-  readonly type: 'door' | 'window' | 'opening' | 'open side'
+  readonly type: 'door' | 'window' | 'opening' | 'open side' | 'stair'
   readonly width: number | null
   readonly into: string
 }
@@ -131,17 +136,23 @@ export interface Route {
   readonly to: string
   /** Rooms in order, the first and the last included. */
   readonly rooms: readonly string[]
+  /** ARE-18: the floor of each room in `rooms`, in order: a route out may take the stairs. */
+  readonly floors: readonly string[]
   readonly steps: readonly RouteStep[]
   /** The narrowest door or opening on the way, and the room with the narrowest widest circle. */
   readonly narrowestPassage: { readonly via: string; readonly width: number } | null
   readonly narrowestRoom: { readonly room: string; readonly widestCircle: number } | null
   /** VEW-9: how far it is walked (`WALKED_RULE`), in metres; null when a room on it has no outline. */
   readonly length: number | null
-  /** Each room's share of the length, in order; the holes through the walls are the rest. */
+  /** Each room's share of the length, in order; the holes through the walls and the stairs are the rest. */
   readonly legs: readonly WalkedLeg[]
+  /** ARE-18: along the stairs on the way, on plan, in metres; null with `length`. */
+  readonly onStairs: number | null
+  /** ARE-18: when `length` is null, the room it stops at and why. */
+  readonly gap: WalkGap | null
   /** ARE-21, a route to `outside` only: the way out it takes, the nearest by walked length. */
   readonly exit?: string
-  /** ARE-21: the other ways out on the floor, nearest first, each with the length of its own route (null when it cannot be measured). */
+  /** ARE-21: the other ways out, nearest first, each with the length of its own route (null when it cannot be measured). */
   readonly otherExits?: readonly { readonly via: string; readonly type: RouteStep['type']; readonly rooms: readonly string[]; readonly length: number | null }[]
 }
 
@@ -169,83 +180,126 @@ export function wayGraph(survey: Survey, floor: string): { next: Map<string, Arr
   return { next, openings }
 }
 
+/** A place a route passes: a room on its floor, or the way out. */
+interface RouteNode {
+  readonly floor: string
+  readonly room: string
+}
+
 /**
- * The way with the fewest rooms between two rooms of one floor. To any way out ('outside') it is
- * the way to the nearest one by walked length (ARE-21): each way out gets the way with the fewest
- * rooms to its doorway, and the shortest walked wins; the others are listed in `otherExits`.
+ * The way with the fewest rooms between two rooms of one floor, or to any way out ('outside').
+ *
+ * ARE-18: the way out is the way-out check's: up and down the stairs it reads (`floorJoins`: a
+ * stair the plan states, stair rooms one over the other, never a lift), and out only through a
+ * door or opening on a floor that does not stand above the ground (`groundLevel`). A balcony door
+ * upstairs is no way out. A way between two rooms keeps to their floor, and so does the way out
+ * with `acrossFloors` false: any door out of the floor, as before.
  */
-export function routeBetween(survey: Survey, from: string, to: string): Route | null {
-  const floor = survey.byId.get(from)!.facts.floor
-  const { next, openings } = wayGraph(survey, floor)
-  const OUT = OUTSIDE
-  const goal = to === 'outside' ? OUT : to
-
-  /** The fewest rooms from `from` to the room `target`, as the rooms and the doorways between. */
-  const wayTo = (target: string): { rooms: string[]; vias: string[] } | null => {
-    const back = new Map<string, { room: string; via: string }>()
-    const queue = [from]
-    const seen = new Set([from])
-    while (queue.length > 0) {
-      const room = queue.shift()!
-      if (room === target) break
-      for (const step of next.get(room) ?? []) {
-        if (step.room === OUT || seen.has(step.room)) continue
-        seen.add(step.room)
-        back.set(step.room, { room, via: step.via })
-        queue.push(step.room)
-      }
-    }
-    if (!seen.has(target)) return null
-    const rooms = [target]
-    const vias: string[] = []
-    for (let at = target; at !== from;) {
-      const prev = back.get(at)!
-      vias.unshift(prev.via)
-      rooms.unshift(prev.room)
-      at = prev.room
-    }
-    return { rooms, vias }
+export function routeBetween(survey: Survey, from: string, to: string, acrossFloors = true): Route | null {
+  const first = routeSearch(survey, from, to, acrossFloors, null)
+  if (first === null || to !== 'outside') return first
+  // ARE-21: every way out the search can reach, each by the way with the fewest rooms to it; the
+  // shortest walked is the answer and the others are listed, not the one met first.
+  const doors = new Set<string>()
+  for (const floor of planFloors(survey.plan)) for (const ways of wayGraph(survey, floor.id).next.values()) for (const w of ways) if (w.room === OUTSIDE) doors.add(w.via)
+  const routes: Route[] = []
+  for (const via of [...doors].sort()) {
+    const r = routeSearch(survey, from, to, acrossFloors, via)
+    if (r !== null && r.steps.at(-1)?.via === via) routes.push(r)
   }
-
-  let chosen: { rooms: string[]; vias: string[] } | null
-  let exit: Pick<Route, 'exit' | 'otherExits'> = {}
-  if (goal === OUT) {
-    const ways: Array<{ rooms: string[]; vias: string[]; length: number | null }> = []
-    for (const [inside, links] of next) {
-      for (const link of links) {
-        if (link.room !== OUT) continue
-        const way = wayTo(inside)
-        if (way === null) continue
-        const vias = [...way.vias, link.via]
-        ways.push({ rooms: way.rooms, vias, length: walkedLength(survey, way.rooms, vias, true)?.length ?? null })
-      }
-    }
-    // Measured ways first, shortest first; then the fewest rooms, then the doorway's id.
-    ways.sort((a, b) => {
-      if ((a.length === null) !== (b.length === null)) return a.length === null ? 1 : -1
-      if (a.length !== null && b.length !== null && Math.abs(a.length - b.length) > tolerance('noLength')) return a.length - b.length
-      return a.rooms.length - b.rooms.length || (a.vias.at(-1)! < b.vias.at(-1)! ? -1 : 1)
-    })
-    chosen = ways[0] ?? null
-    if (chosen !== null) {
-      exit = {
-        exit: chosen.vias.at(-1)!,
-        otherExits: ways.slice(1).map((w) => ({ via: w.vias.at(-1)!, type: openings.get(w.vias.at(-1)!)?.type ?? 'open side', rooms: w.rooms, length: w.length })),
-      }
-    }
-  } else {
-    chosen = wayTo(goal)
-  }
-  if (chosen === null) return null
-
-  const rooms = [...chosen.rooms]
-  const steps: RouteStep[] = chosen.vias.map((via, i) => {
-    const opening = openings.get(via)
-    return { via, type: opening?.type ?? 'open side', width: opening?.width ?? null, into: i + 1 < rooms.length ? rooms[i + 1]! : 'outside' }
+  if (routes.length === 0) return first
+  // Measured ways first, shortest first; then the fewest rooms, then the doorway's id.
+  routes.sort((a, b) => {
+    if ((a.length === null) !== (b.length === null)) return a.length === null ? 1 : -1
+    if (a.length !== null && b.length !== null && Math.abs(a.length - b.length) > tolerance('noLength')) return a.length - b.length
+    return a.rooms.length - b.rooms.length || (a.steps.at(-1)!.via < b.steps.at(-1)!.via ? -1 : 1)
   })
+  const [best, ...others] = routes
+  return {
+    ...best!,
+    exit: best!.steps.at(-1)!.via,
+    otherExits: others.map((r) => ({ via: r.steps.at(-1)!.via, type: r.steps.at(-1)!.type, rooms: r.rooms, length: r.length })),
+  }
+}
+
+/** One search; `onlyExit` limits the way out to that doorway (ARE-21). */
+function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null): Route | null {
+  const fromFloor = survey.byId.get(from)!.facts.floor
+  const out = to === 'outside'
+  const floorsToo = out && acrossFloors
+  const graphs = new Map<string, ReturnType<typeof wayGraph>>()
+  const graphOf = (floor: string): ReturnType<typeof wayGraph> => {
+    if (!graphs.has(floor)) graphs.set(floor, wayGraph(survey, floor))
+    return graphs.get(floor)!
+  }
+  const aboveGround = floorsToo ? groundLevel(survey.plan).aboveGround : (): boolean => false
+  const found: Joins = floorsToo ? stairJoins(survey.plan) : { joins: [], stairs: [] }
+  const joins = found.joins
+  const key = (n: RouteNode): string => `${n.floor}\u0000${n.room}`
+  const OUT_KEY = OUTSIDE
+  const goalKey = out ? OUT_KEY : key({ floor: fromFloor, room: to })
+
+  const back = new Map<string, { node: RouteNode; via: string; stair: boolean }>()
+  const nodes = new Map<string, RouteNode>([[key({ floor: fromFloor, room: from }), { floor: fromFloor, room: from }]])
+  const queue: RouteNode[] = [{ floor: fromFloor, room: from }]
+  const seen = new Set([key(queue[0]!)])
+  while (queue.length > 0) {
+    const at = queue.shift()!
+    if (key(at) === goalKey) break
+    const onward: { node: RouteNode | null; via: string; stair: boolean }[] = []
+    for (const step of graphOf(at.floor).next.get(at.room) ?? []) {
+      if (step.room === OUTSIDE) {
+        // On a floor that stands above the ground, a door out is no way out (the check's rule).
+        if (out && !aboveGround(at.floor) && (onlyExit === null || step.via === onlyExit)) onward.push({ node: null, via: step.via, stair: false })
+        continue
+      }
+      if (at.floor !== fromFloor && !out) continue
+      onward.push({ node: { floor: at.floor, room: step.room }, via: step.via, stair: false })
+    }
+    for (const join of joins) {
+      for (const [a, b] of [[join.lower, join.upper], [join.upper, join.lower]] as const) {
+        if (a.floor === at.floor && a.room === at.room) onward.push({ node: b, via: join.via, stair: true })
+      }
+    }
+    for (const step of onward) {
+      const k = step.node === null ? OUT_KEY : key(step.node)
+      if (seen.has(k)) continue
+      seen.add(k)
+      back.set(k, { node: at, via: step.via, stair: step.stair })
+      if (step.node !== null) {
+        nodes.set(k, step.node)
+        queue.push(step.node)
+      }
+    }
+  }
+  if (!seen.has(goalKey)) return null
+
+  const rooms: string[] = []
+  const floors: string[] = []
+  const steps: RouteStep[] = []
+  const stairWidth = new Map(found.stairs.map((s) => [s.id, s.width] as const))
+  for (let at = goalKey; at !== key({ floor: fromFloor, room: from });) {
+    const prev = back.get(at)!
+    const node = nodes.get(at)
+    const opening = prev.stair ? undefined : graphOf(prev.node.floor).openings.get(prev.via)
+    steps.unshift({
+      via: prev.via,
+      type: prev.stair ? 'stair' : (opening?.type ?? 'open side'),
+      width: prev.stair ? (stairWidth.get(prev.via) ?? null) : (opening?.width ?? null),
+      into: node === undefined ? 'outside' : node.room,
+    })
+    if (node !== undefined) {
+      rooms.unshift(node.room)
+      floors.unshift(node.floor)
+    }
+    at = key(prev.node)
+  }
+  rooms.unshift(from)
+  floors.unshift(fromFloor)
 
   let narrowestPassage: Route['narrowestPassage'] = null
   for (const step of steps) {
+    if (step.type === 'stair') continue
     if (step.width !== null && (narrowestPassage === null || step.width < narrowestPassage.width)) narrowestPassage = { via: step.via, width: step.width }
   }
   let narrowestRoom: Route['narrowestRoom'] = null
@@ -255,8 +309,56 @@ export function routeBetween(survey: Survey, from: string, to: string): Route | 
     const circle = 2 * poleOfInaccessibility(room.polygon, undefined, room.holes).distance
     if (narrowestRoom === null || circle < narrowestRoom.widestCircle) narrowestRoom = { room: id, widestCircle: circle }
   }
-  const walked = walkedLength(survey, rooms, steps.map((s) => s.via), goal === OUT)
-  return { from, to, rooms, steps, narrowestPassage, narrowestRoom, length: walked?.length ?? null, legs: walked?.legs ?? [], ...exit }
+  const passages = stairPassages(steps.filter((s) => s.type === 'stair').map((s) => s.via), found)
+  const walked = walkRoute(survey, rooms, steps.map((s) => s.via), out, passages)
+  return {
+    from,
+    to,
+    rooms,
+    floors,
+    steps,
+    narrowestPassage,
+    narrowestRoom,
+    length: walked.walked?.length ?? null,
+    legs: walked.walked?.legs ?? [],
+    onStairs: walked.walked?.onStairs ?? null,
+    gap: walked.gap,
+  }
+}
+
+type Joins = Pick<ReturnType<typeof floorJoins>, 'joins' | 'stairs'>
+
+/** The stairs between floors as the way-out check reads them: its outlines, a lift left out. */
+function stairJoins(plan: FloorPlan): Joins {
+  const outlines = new Map<string, Map<string, readonly Vec2[]>>()
+  const leftOutOn = new Map<string, ReadonlySet<string>>()
+  for (const floor of planFloors(plan)) {
+    const { storey, leftOut } = drawable(planForFloor(plan, floor.id))
+    outlines.set(floor.id, new Map([...roomOutlines(storey, indexPlan(storey), leftOut.rooms)].map(([id, o]) => [id, o.polygon] as const)))
+    leftOutOn.set(floor.id, leftOut.rooms)
+  }
+  if (outlines.size < 2) return { joins: [], stairs: [] }
+  const found = floorJoins(plan, outlines, (slice) => leftOutOn.get(wholePlan(slice).floor ?? '') ?? new Set())
+  return { joins: found.joins.filter((j) => j.kind !== 'lift'), stairs: found.stairs }
+}
+
+/** Where each stair on a route is met in the rooms at its ends, and how long it is on plan. */
+function stairPassages(vias: readonly string[], { joins, stairs }: Joins): Map<string, StairPassage> {
+  const passages = new Map<string, StairPassage>()
+  const laid = new Map(stairs.map((s) => [s.id, s] as const))
+  for (const via of vias) {
+    const join = joins.find((j) => j.via === via)
+    if (join === undefined) continue
+    const stair = join.kind === 'stair' ? laid.get(via) : undefined
+    if (stair === undefined) {
+      passages.set(via, { at: new Map([[join.lower.room, null], [join.upper.room, null]]), length: 0 })
+      continue
+    }
+    const line = stair.line
+    const length = line.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - line[i]!.x, p.y - line[i]!.y), 0)
+    passages.set(via, { at: new Map([[join.lower.room, stair.lower.at], [join.upper.room, stair.upper.at]]), length })
+  }
+  return passages
 }
 
 // ---------------------------------------------------------------------------------------------

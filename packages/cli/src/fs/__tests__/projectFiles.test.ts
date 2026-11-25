@@ -212,8 +212,20 @@ describe('paths inside the project', () => {
     expectRefused(() => project.writeFile('..\\escaped.dxf', 'x'), '..\\escaped.dxf', 'outside the project folder')
   })
 
-  it('creates no folder on the way', () => {
-    expect(() => project.writeFile('missing/plan.svg', 'x')).toThrow(/does not exist/)
+  it('makes the missing folders on the way, inside the project (CMD-19)', () => {
+    expect(project.writeFile('a/b/plan.svg', 'x')).toBe(join(real, 'a', 'b', 'plan.svg'))
+    expect(project.readText('a/b/plan.svg').text).toBe('x')
+  })
+
+  it('refuses a file on the way with ENOTDIR, in one line, and makes nothing', () => {
+    writeFileSync(join(root, 'flat'), 'x')
+    expect(() => project.writeFile('flat/plan.svg', 'x')).toThrow(expect.objectContaining({ code: 'ENOTDIR' }))
+    expect(() => project.writable('flat/deeper/plan.svg')).toThrow(expect.objectContaining({ code: 'ENOTDIR' }))
+    expect(readdirSync(root)).toEqual(['flat'])
+  })
+
+  it('writable checks without making a folder', () => {
+    expect(project.writable('missing/plan.svg')).toBe(join(real, 'missing', 'plan.svg'))
     expect(readdirSync(root)).toEqual([])
   })
 

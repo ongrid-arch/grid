@@ -23,6 +23,7 @@ import { labelled, readArgs, toolDefinition, ToolRefusal, type GridTool, type To
 import { WRITE_TOOLS } from './writeTools'
 import { guideResources } from '../guide/resources'
 import { EDIT_TOOLS } from './editTools'
+import { projectTool } from './projectTool'
 import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
 
@@ -31,6 +32,8 @@ export { PREVIEW_TOOL_NAME } from './previewTools'
 
 /** Every tool, in its fixed order. */
 export const GRID_TOOLS: readonly GridTool[] = [
+  // CMD-18: what the folder holds, the first call of a session.
+  projectTool,
   // WRT-8: what a change did, right after the comparison of separate plans it is told apart from.
   READ_TOOLS[0]!,
   diffTool,

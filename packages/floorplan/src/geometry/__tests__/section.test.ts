@@ -5,7 +5,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import { labPlan } from '../../test-support/lab'
-import { stairHouse, twoFloorHouse } from '../../test-support/plans'
+import { edit, stairHouse, twoFloorHouse } from '../../test-support/plans'
+import { planStairs } from '../stairs'
+import { brokenOnFloor } from '../validate'
 import { parseFloorPlan } from '../../types/floorplan'
 import type { FloorPlan } from '../plan'
 import { levelText, planSection, sectionFrame, type PlanSection, type SectionLine } from '../section'
@@ -100,14 +102,93 @@ describe('a section through a stated stair (LVL-3)', () => {
   it('cuts the flight tread by tread, joined to the slabs it stands on and rises to', () => {
     const stair = section.parts.find((p) => p.kind === 'stair')!
     expect(stair.id).toBe('s1')
-    const tops = stair.rings.map((ring) => Math.max(...ring.map((p) => p.y))).sort((a, b) => a - b)
-    // Every tread one riser higher than the one before.
-    for (let i = 1; i < tops.length; i++) expect(tops[i]! - tops[i - 1]!).toBeCloseTo(tops[0]!, 5)
+    // VEW-11: one shape for the flight, its top a step up at every riser line.
+    expect(stair.rings).toHaveLength(1)
+    const ring = stair.rings[0]!
+    expect(signedArea(ring)).toBeGreaterThan(0)
+    const laid = planStairs(plan, brokenOnFloor).stairs[0]!
+    const treads = [...new Set(ring.map((p) => p.y))].filter((y) => Math.abs(y / laid.riserHeight - Math.round(y / laid.riserHeight)) < 1e-4 && y > 0)
+    expect(treads).toHaveLength(laid.risers - 1)
     expect(section.cut).toHaveLength(1)
+  })
+
+  it('draws the flight over a waist with the soffit beneath, never solid to the floor (VEW-11)', () => {
+    const ring = section.parts.find((p) => p.kind === 'stair')!.rings[0]!
+    const laid = planStairs(plan, brokenOnFloor).stairs[0]!
+    const { riserHeight: riser, going } = laid
+    // Across the section x runs back along the walking line: the foot at x = 8.4, the top at 5.6.
+    const footX = Math.max(...ring.map((p) => p.x))
+    const lowAt = (x: number) => Math.min(...ring.filter((p) => Math.abs(p.x - x) < 1e-3).map((p) => p.y))
+    // Halfway up the flight the underside stands well off the floor, at the soffit.
+    const s = 7 * going
+    const soffit = s * (riser / going) - 0.15 * Math.hypot(1, riser / going)
+    expect(lowAt(footX - s)).toBeCloseTo(soffit, 4)
+    expect(lowAt(footX - s)).toBeGreaterThan(1)
+    // Square to the slope, the flight is the waist thick under the roots of its steps.
+    const rootAt = (sAlong: number) => sAlong * (riser / going)
+    const square = (rootAt(s) - lowAt(footX - s)) / Math.hypot(1, riser / going)
+    expect(square).toBeCloseTo(0.15, 4)
+    // The underside is one straight line from the foot to the top, the soffit.
+    const bottom = ring.filter((p) => p.y < rootAt(footX - p.x) - 1e-6 && p.y > 0)
+    const slopes = bottom.slice(1).map((p, i) => (p.y - bottom[i]!.y) / (p.x - bottom[i]!.x))
+    for (const slope of slopes) expect(slope).toBeCloseTo(-riser / going, 3)
+    // Nothing of the stair is cut under its soffit: a point under the middle of the flight is open.
+    const under = { x: footX - s, y: 0.5 }
+    expect(section.cut.some((piece) => solidAt(piece, under))).toBe(false)
+  })
+
+  it('lists the waist it takes, which the plan does not state (VEW-11)', () => {
+    const waist = section.assumed.find((a) => a.kind === 'waist')!
+    expect(waist).toMatchObject({ ids: ['s1'], hatched: false })
+    expect(waist.words).toContain('0.15 m')
+  })
+
+  it('cuts one tread slice across the flight, from the soffit to the tread', () => {
+    const across = planSection(plan, { from: { x: -1, y: 2 }, to: { x: 3, y: 2 }, toward: 'right' })
+    const laid = planStairs(plan, brokenOnFloor).stairs[0]!
+    const { riserHeight: riser, going } = laid
+    const ring = across.parts.find((p) => p.kind === 'stair')!.rings[0]!
+    expect(ring).toHaveLength(4)
+    const s = 2 - 0.6
+    const top = Math.max(...ring.map((p) => p.y))
+    const low = Math.min(...ring.map((p) => p.y))
+    expect(top).toBeCloseTo((Math.floor(s / going) + 1) * riser, 5)
+    expect(low).toBeCloseTo(s * (riser / going) - 0.15 * Math.hypot(1, riser / going), 5)
   })
 
   it('lists the risers Grid worked out', () => {
     expect(section.assumed.find((a) => a.kind === 'risers')!.ids).toEqual(['s1'])
+  })
+})
+
+describe('a section through a stair that turns at a landing (VEW-11)', () => {
+  const plan = edit(stairHouse(), (copy) => {
+    copy.stairs![0]!.run = [[0.6, 0.6], [0.6, 2.4], [2.2, 2.4]]
+  })
+  const laid = planStairs(plan, brokenOnFloor).stairs[0]!
+  // Along the first flight, through the landing, looking east.
+  const section = planSection(plan, { from: { x: 0.6, y: -1 }, to: { x: 0.6, y: 9 }, toward: 'right' })
+
+  it('draws the landing as a slab and the flight joined to it, open beneath both', () => {
+    expect(laid.landings).toHaveLength(1)
+    const level = laid.landings[0]!.risersBelow * laid.riserHeight
+    const stair = section.parts.find((p) => p.kind === 'stair')!
+    const landing = stair.rings.find((ring) => ring.length === 4 && Math.max(...ring.map((p) => p.y)) === Math.round(level * 1e6) / 1e6)!
+    expect(landing).toBeDefined()
+    expect(Math.min(...landing.map((p) => p.y))).toBeCloseTo(level - Math.max(0.15, laid.riserHeight), 5)
+    // The flight and its landing are one shape.
+    const pieces = section.cut.filter((piece) => piece.outline.some((p) => Math.abs(p.y - level) < 1e-5))
+    expect(pieces).toHaveLength(1)
+    // Under the landing is open, down to the floor.
+    const middle = { x: (Math.min(...landing.map((p) => p.x)) + Math.max(...landing.map((p) => p.x))) / 2, y: level / 2 }
+    expect(section.cut.some((piece) => solidAt(piece, middle))).toBe(false)
+  })
+
+  it('shows the second flight beyond the cut by its side, its profile', () => {
+    // North of the stair, looking south at the second flight's side.
+    const facing = planSection(plan, { from: { x: 3, y: 4 }, to: { x: -1, y: 4 }, toward: 'left' })
+    const sides = facing.beyond.filter((f) => f.kind === 'stair' && f.pieces.length === 1 && f.pieces[0]!.outline.length > 8)
+    expect(sides.length).toBeGreaterThan(0)
   })
 })
 
@@ -240,3 +321,19 @@ describe('the marks on a plan', () => {
     expect(marks.levels.every((m) => m.level === 2.95 && !m.stated)).toBe(true)
   })
 })
+
+/** Whether a point of the section is inside a cut piece: in its outline and in none of its holes. */
+function solidAt(piece: { outline: readonly { x: number; y: number }[]; holes: readonly (readonly { x: number; y: number }[])[] }, p: { x: number; y: number }): boolean {
+  return contains(piece.outline, p) && !piece.holes.some((hole) => contains(hole, p))
+}
+
+/** Whether a point is inside a ring (even-odd), off its edges. */
+function contains(ring: readonly { x: number; y: number }[], p: { x: number; y: number }): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i]!
+    const b = ring[j]!
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
+  }
+  return inside
+}

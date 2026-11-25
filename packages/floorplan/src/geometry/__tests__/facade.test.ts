@@ -186,3 +186,86 @@ describe('on the plans Grid already knows', () => {
     expect(facade.faces.filter((f) => f.kind === 'roof').map((f) => f.floor).sort()).toEqual([...new Set(facade.faces.filter((f) => f.kind === 'roof').map((f) => f.floor))].sort())
   })
 })
+
+describe('a sloped roof seen as a roof (VEW-12)', () => {
+  const w = (id: string, start: [number, number], end: [number, number], floor: string) => ({ id, start, end, thickness: 0.3, height: 2.7, floor })
+  /** Two floors, 10 m by 7 m, the first floor under a roof the plan states. */
+  const house = (roof: Record<string, unknown>): FloorPlan =>
+    parseFloorPlan({
+      version: '1',
+      floors: [
+        { id: 'g', name: 'Ground floor', level: 0 },
+        { id: 'f', name: 'First floor', level: 1, roof },
+      ],
+      walls: [
+        w('gs', [0, 0], [10, 0], 'g'), w('ge', [10, 0], [10, 7], 'g'), w('gn', [10, 7], [0, 7], 'g'), w('gw', [0, 7], [0, 0], 'g'),
+        w('fs', [0, 0], [10, 0], 'f'), w('fe', [10, 0], [10, 7], 'f'), w('fn', [10, 7], [0, 7], 'f'), w('fw', [0, 7], [0, 0], 'f'),
+      ],
+      rooms: [
+        { id: 'a', name: 'Living', boundary: ['gs', 'ge', 'gn', 'gw'], floor: 'g' },
+        { id: 'b', name: 'Bedroom', boundary: ['fs', 'fe', 'fn', 'fw'], floor: 'f' },
+      ],
+      openings: [],
+    })
+  const kinds = (lines: readonly { kind: string }[]): string[] => lines.map((l) => l.kind).sort()
+
+  it('names the lines of a gable\'s plane: its eaves at the foot, its ridge at the top, a verge at each end', () => {
+    const facade = planFacade(house({ shape: 'gable', eaves: 2.6, pitch: 40, ridgeRuns: 'east-west' }), 'south')
+    const planes = facade.faces.filter((f) => f.kind === 'roof-plane')
+    expect(planes).toHaveLength(1)
+    const plane = planes[0]!
+    expect(kinds(plane.roofLines)).toEqual(['eaves', 'ridge', 'verge', 'verge'])
+    const eaves = plane.roofLines.find((l) => l.kind === 'eaves')!
+    const ridge = plane.roofLines.find((l) => l.kind === 'ridge')!
+    expect(eaves.from[1]).toBe(plane.bottom)
+    expect(eaves.to[1]).toBe(plane.bottom)
+    expect(ridge.from[1]).toBe(plane.top)
+    expect(Math.abs(eaves.to[0] - eaves.from[0])).toBeCloseTo(10.3, 6)
+    // The verges run up the plane's two ends, upright as seen from the eaves side.
+    for (const verge of plane.roofLines.filter((l) => l.kind === 'verge')) expect(verge.from[0]).toBe(verge.to[0])
+    // The band along the eaves, the fascia, says it is the eaves; the walls and slabs say nothing.
+    const bands = facade.faces.filter((f) => f.kind === 'roof')
+    expect(bands.filter((f) => f.edge === 'eaves')).toHaveLength(1)
+    expect(facade.faces.filter((f) => f.kind !== 'roof').every((f) => f.edge === null)).toBe(true)
+    expect(facade.faces.filter((f) => f.kind !== 'roof-plane').every((f) => f.roofLines.length === 0)).toBe(true)
+  })
+
+  it('names a verge band on the gable end, and a hip where a hip roof\'s planes meet', () => {
+    const gableEnd = planFacade(house({ shape: 'gable', eaves: 2.6, pitch: 40, ridgeRuns: 'east-west' }), 'east')
+    expect(gableEnd.faces.filter((f) => f.kind === 'roof').map((f) => f.edge)).toEqual(['verge', 'verge'])
+    const hip = planFacade(house({ shape: 'hip', eaves: 2.6, pitch: 40 }), 'south')
+    const plane = hip.faces.find((f) => f.kind === 'roof-plane')!
+    expect(kinds(plane.roofLines)).toEqual(['eaves', 'hip', 'hip', 'ridge'])
+    const end = planFacade(house({ shape: 'hip', eaves: 2.6, pitch: 40 }), 'east').faces.find((f) => f.kind === 'roof-plane')!
+    expect(kinds(end.roofLines)).toEqual(['eaves', 'hip', 'hip'])
+  })
+
+  it('names the top of a mono-pitch roof its ridge, and where a roof meets a floor above an abutment', () => {
+    const mono = planFacade(house({ shape: 'mono-pitch', eaves: 2.6, pitch: 15, highSide: 'north' }), 'south').faces.find((f) => f.kind === 'roof-plane')!
+    expect(kinds(mono.roofLines)).toEqual(['eaves', 'ridge', 'verge', 'verge'])
+    // A lean-to over the ground floor's south part, under the first floor set back 3 m.
+    const plan = parseFloorPlan({
+      version: '1',
+      floors: [
+        { id: 'g', name: 'Ground floor', level: 0, roof: { shape: 'mono-pitch', eaves: 2.4, pitch: 15, highSide: 'north' } },
+        { id: 'f', name: 'First floor', level: 1 },
+      ],
+      walls: [
+        w('gs', [0, 0], [10, 0], 'g'), w('ge', [10, 0], [10, 8], 'g'), w('gn', [10, 8], [0, 8], 'g'), w('gw', [0, 8], [0, 0], 'g'),
+        w('fs', [0, 3], [10, 3], 'f'), w('fe', [10, 3], [10, 8], 'f'), w('fn', [10, 8], [0, 8], 'f'), w('fw', [0, 8], [0, 3], 'f'),
+      ],
+      rooms: [
+        { id: 'a', name: 'Living', boundary: ['gs', 'ge', 'gn', 'gw'], floor: 'g' },
+        { id: 'b', name: 'Bedroom', boundary: ['fs', 'fe', 'fn', 'fw'], floor: 'f' },
+      ],
+      openings: [],
+    })
+    const leanTo = planFacade(plan, 'south').faces.find((f) => f.kind === 'roof-plane')!
+    expect(kinds(leanTo.roofLines)).toEqual(['abutment', 'eaves', 'verge', 'verge'])
+  })
+
+  it('names nothing on a flat roof', () => {
+    const facade = planFacade(house({ shape: 'flat', eaves: 2.6 }), 'south')
+    expect(facade.faces.every((f) => f.edge === null && f.roofLines.length === 0)).toBe(true)
+  })
+})
