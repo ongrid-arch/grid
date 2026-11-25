@@ -24,6 +24,7 @@ import type { Bounds, PlanSection, SectionLine, SectionPiece, Vec2 } from '@ongr
 import { levelText, metresText, planSection } from '@ongrid/floorplan/geometry'
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import { fitTo, pathOf } from '../canvas2d/viewport'
+import { labelObstacles, placeLabel } from './sectionLabels'
 import type { PictureKey } from './faults'
 import { wrapText } from './faults'
 import { TEXT_PX, lengthText, lineMetres } from './look'
@@ -284,23 +285,35 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
     nodes.push(el('g', { 'data-part': 'section-break-group' }, ends.map((x) => el('path', { 'data-part': 'section-break', 'data-at': x === 0 ? 'start' : 'end', d: zig(x), fill: 'none', stroke: look.ink, 'stroke-width': n(lines.width('wallOutline')), 'stroke-linejoin': 'miter' }))))
   }
 
-  // Each room: its name and height, where the line crosses it longest, when they fit.
+  // Each room: its name and height, in the largest empty part of the room's cut (VEW-50), clear of
+  // every line and off the solid parts, on a halo of paper so they read on a dark fill.
   const roomWords: Attrs = { 'text-anchor': 'middle', fill: look.colors.label, 'font-family': look.colors.font, 'font-size': TEXT_PX.roomArea }
   const roomNodes: SvgNode[] = []
+  const obstacles = labelObstacles(section)
+  const haloNodes: SvgNode[] = []
+  const halo = (text: string, at: Vec2, dy: number, attrs: Attrs): SvgNode[] => {
+    haloNodes.push(words(at, text, mpp, { ...attrs, fill: 'none', stroke: paper, 'stroke-width': 4, 'stroke-linejoin': 'round' }, dy))
+    return [words(at, text, mpp, attrs, dy)]
+  }
   for (const room of section.rooms) {
     const across = (room.to - room.from) / mpp
     const tall = room.height / mpp
     const height = units.length === 'm' ? drawingText(tongue, 'drawing.section.height', { height: num(metresText(room.height)) }) : showLength(room.height, units)
     const name = room.name || room.room
-    const at = { x: (room.from + room.to) / 2, y: room.floorLevel + room.height / 2 }
     const attrs = { 'data-part': 'section-room', 'data-id': room.room, 'data-floor': room.floor, 'data-height': n(room.height), 'data-height-stated': String(room.heightStated) }
     const fits = (text: string): boolean => estimateTextWidth(text, TEXT_PX.roomArea) + 8 <= across
-    if (tall >= TEXT_PX.roomArea * 3 && fits(name) && fits(height)) {
-      roomNodes.push(el('g', attrs, [words(at, name, mpp, roomWords, -2), words(at, height, mpp, { ...roomWords, fill: look.colors.labelSoft }, TEXT_PX.roomArea + 2)]))
-    } else if (tall >= TEXT_PX.roomArea * 1.5 && fits(height)) {
-      roomNodes.push(el('g', attrs, [words(at, height, mpp, { ...roomWords, fill: look.colors.labelSoft }, 4)]))
+    const area = { from: room.from, to: room.to, bottom: room.floorLevel, top: room.floorLevel + room.height }
+    const soft = { ...roomWords, fill: look.colors.labelSoft }
+    const wide = (a: string, b: string): number => Math.max(estimateTextWidth(a, TEXT_PX.roomArea), estimateTextWidth(b, TEXT_PX.roomArea)) + 8
+    const both = tall >= TEXT_PX.roomArea * 3 && fits(name) && fits(height) ? placeLabel(area, { width: wide(name, height) * mpp, height: (2 * TEXT_PX.roomArea + 8) * mpp }, obstacles) : null
+    if (both !== null) {
+      roomNodes.push(el('g', attrs, [...halo(name, both, -2, roomWords), ...halo(height, both, TEXT_PX.roomArea + 2, soft)]))
+      continue
     }
+    const one = tall >= TEXT_PX.roomArea * 1.5 && fits(height) ? placeLabel(area, { width: wide(height, height) * mpp, height: (TEXT_PX.roomArea + 6) * mpp }, obstacles) : null
+    if (one !== null) roomNodes.push(el('g', attrs, halo(height, one, 4, soft)))
   }
+  nodes.push(el('g', { 'data-part': 'section-room-halos' }, haloNodes))
   nodes.push(el('g', { 'data-part': 'section-rooms' }, roomNodes))
 
   // The levels beside the drawing.
