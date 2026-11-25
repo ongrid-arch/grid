@@ -199,7 +199,12 @@ Sizes not kept (3):
   each side of a hall running east-west: the brief's first room used as a corridor, or a hall
   Grid adds (`layoutHall` in [tolerances.md](tolerances.md)). Fewer stand in one row. A size is
   either way round, so a room may be turned; a room given only an area (or `at_least`,
-  `at_most`) takes its row's depth and the width that keeps it. Of every way of sharing the rooms
+  `at_most`) takes its row's depth and the width that keeps it, so long as no side of it is
+  under `layoutNarrowest` (or its own square's side, when it is smaller) and, keeping its area,
+  it is no more than `layoutLongest` times as long as wide (both Grid's own, WRT-61). In a row
+  deeper than that it is as narrow as that allows: with `sizes` only as deep as its area needs,
+  the outline stepping; with `tidy` as deep as the row, and named as a size not kept. No row is
+  shallower than such a room's shortest side. Of every way of sharing the rooms
   between the rows and every depth a row could take, it keeps the one that holds the most wishes
   to touch, then the smallest rectangle, then the squarest. The same brief gives the same plan,
   byte for byte.

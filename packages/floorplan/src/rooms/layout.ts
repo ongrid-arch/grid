@@ -9,7 +9,11 @@
  *   each side of a hall running east-west: the list's corridor, or one Grid adds, as wide as
  *   `layoutHall` (Grid's own size, not a code figure). Fewer rooms stand in one row.
  * - A room may be turned: a size is either way round. A room given only an area takes the depth
- *   of its row and the width that keeps its area.
+ *   of its row and the width that keeps its area, so long as that leaves it a usable shape
+ *   (WRT-61): no side under `layoutNarrowest` (or its own square's side, when it is smaller) and,
+ *   keeping its area, no longer than `layoutLongest` times its width (both Grid's own). In a row
+ *   deeper than that it is as narrow as it may be and only as deep as its area needs (with `tidy`
+ *   it is then made as deep as the row, and larger than asked); no row is shallower than it may be.
  * - Of every way of sharing the rooms between the rows, and every depth each row could take, it
  *   keeps the one that holds the most wishes to touch (a `must` counts three, a `should` one, an
  *   `avoid` broken takes three away), then the smallest rectangle round the rooms, then the one
@@ -102,9 +106,25 @@ function quote(name: string): string {
   return name.includes('"') ? `'${name}'` : `"${name}"`
 }
 
+/**
+ * The shortest side a room given only an area may have (WRT-61): `layoutNarrowest`, or its own
+ * square's side when it is smaller than that, and never so short that, keeping its area, the room
+ * runs longer than `layoutLongest` times it.
+ */
+function shortest(area: number): number {
+  return r4(Math.max(Math.min(limit('layoutNarrowest'), Math.sqrt(area)), Math.sqrt(area / limit('layoutLongest'))))
+}
+
 /** One room's width and depth in a row of a given depth, or null when it is deeper both ways. */
 function fit(room: LayoutRoom, depth: number): { w: number; d: number } | null {
-  if (room.inside === null) return { w: r4(room.area! / depth), d: depth }
+  if (room.inside === null) {
+    const short = shortest(room.area!)
+    if (depth < short - tolerance('lengthEqual')) return null
+    // In a row deeper than its longest side, it is as narrow as it may be and as deep as its area needs.
+    const long = r4(room.area! / short)
+    if (depth + tolerance('lengthEqual') >= long) return { w: short, d: long }
+    return { w: r4(room.area! / depth), d: depth }
+  }
   const [a, b] = [...room.inside].sort((x, y) => x - y) as [number, number]
   if (b <= depth + tolerance('lengthEqual')) return { w: a, d: b }
   if (a <= depth + tolerance('lengthEqual')) return { w: b, d: a }
@@ -118,12 +138,16 @@ interface Row {
   readonly sizes: ReadonlyArray<{ w: number; d: number }>
 }
 
-/** The depths a row could take: each size of its rooms at least as deep as its shallowest room needs. */
+/**
+ * The depths a row could take: each size of its rooms, and the depth its rooms need, at least as
+ * deep as the room that needs most: a sized room's shorter side, a room given only an area its
+ * shortest (WRT-61).
+ */
 function depthsOf(rooms: readonly LayoutRoom[], members: readonly number[]): number[] {
-  const need = Math.max(0, ...members.map((i) => (rooms[i]!.inside === null ? 0 : Math.min(...rooms[i]!.inside!))))
+  const need = Math.max(0, ...members.map((i) => (rooms[i]!.inside === null ? shortest(rooms[i]!.area!) : Math.min(...rooms[i]!.inside!))))
   // A row of rooms given only their areas is as deep as the square of its largest.
   const sized = members.filter((i) => rooms[i]!.inside !== null)
-  const all = sized.length > 0 ? sized.flatMap((i) => rooms[i]!.inside!) : [cm(Math.sqrt(Math.max(...members.map((i) => rooms[i]!.area!)))) / 100]
+  const all = [need, ...(sized.length > 0 ? sized.flatMap((i) => rooms[i]!.inside!) : [cm(Math.sqrt(Math.max(...members.map((i) => rooms[i]!.area!)))) / 100])]
   return [...new Set(all.map(r4))].filter((d) => d >= need - tolerance('lengthEqual')).sort((x, y) => x - y)
 }
 
