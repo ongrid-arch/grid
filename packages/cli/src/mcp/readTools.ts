@@ -8,7 +8,7 @@
  * output schema. Names and ids that come from the plan file are quoted.
  */
 import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
-import { CameraRefused, cameraFor, eyeCamera, lensProblem, settingOfCamera, type CameraAsk } from '../draw/cameraAsk'
+import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
 import { causeText, checkPlan, checkTitle, countsText, coverageSummary, firmHeadingText, firmNoNoteText, firmSectionTitle, firmStandardsText, kindWord, limitsText, nothingCheckedText, partsText, placeText, type PlaceWords, problemsText, readForText, restText, ruleText, seenBeforeText, seenByText, seenCount, thingText, usedFigures, withSeen, type CheckResult } from '../command/check'
@@ -1733,6 +1733,15 @@ export function cameraLines(plan: FloorPlan, camera: CameraRecord): string[] {
   ]
 }
 
+/** VEW-26: what a 3D picture was framed to, and how, when Grid framed it. */
+function fitLines(framed: { camera: CameraRecord; fit: CameraFit | null; level: boolean }): string[] {
+  if (framed.fit === null) return []
+  const frame = framed.camera.aspectRatio < 1 ? 'a portrait frame' : 'a landscape frame'
+  const what = framed.fit === 'room' ? 'the room' : 'the building'
+  const level = framed.level ? ' It looks level from the eye height asked for, so upright lines stay upright.' : ''
+  return [`Framed to ${what} (fit=${framed.fit}), in ${frame}: the camera stands as far as it needs to see all of it.${level}`]
+}
+
 /** The views the plan has saved, for the answer: so an agent knows it can call them up. */
 function savedViewsLine(plan: FloorPlan): string[] {
   const views = plan.views ?? []
@@ -1957,8 +1966,9 @@ const viewTool: GridTool = {
     from: { type: 'string', enum: SIDES, description: 'For 3d: the side or corner of the drawing the camera stands on, or above (north is the top of the drawing here). south-east when left out. Not with bearing.', examples: ['south', 'above'] },
     bearing: { type: 'number', description: 'For 3d: the compass bearing from what the camera is pointed at to the camera, in degrees clockwise from the north the plan states, or from the top of the drawing when it states none (the record says which). Not with from.', examples: [135, 200], minimum: 0, maximum: 360 },
     tilt: { type: 'number', description: 'For 3d: degrees the camera looks down at what it is pointed at; below 0 it looks up. 30 when left out (80 from above).', examples: [30, 10], minimum: -limit('cameraTilt'), maximum: limit('cameraTilt') },
-    distance: { type: 'number', length: true, description: 'For 3d: metres from the camera to what it is pointed at. 2.2 times the building\'s largest side when left out.', examples: [12, 30], minimum: limit('cameraClosest'), maximum: 100000 },
+    distance: { type: 'number', length: true, description: 'For 3d: metres from the camera to what it is pointed at. Left out (and with no camera sent back), the camera stands as far as fit needs. Not with fit.', examples: [12, 30], minimum: limit('cameraClosest'), maximum: 100000 },
     lens: { type: 'number', description: `For 3d: the focal length in millimetres on a 36 × 24 mm sensor: 18 is wide, 50 normal, 85 long. 28.97 when left out (45° tall, as the app opens).`, examples: [24, 50], minimum: limit('lensShortest'), maximum: limit('lensLongest') },
+    fit: { type: 'string', enum: CAMERA_FITS, description: 'For 3d: what fills the frame: building (every floor drawn, up to the floor cut away) or room (the room pointed at). The camera is pointed at its middle and stands as far as its bearing, tilt and lens need; a tall building is taken in a portrait frame. room when room is named, else building, when no camera is sent back and no distance is named. With camera or view it frames that camera again. Not with distance.', examples: ['building', 'room'] },
     camera: CAMERA_ARG,
     view: { type: 'string', maxLength: 120, description: 'For 3d: a view saved with the plan (grid_save_view), by name, to call up. Its camera comes back the same, digit for digit, while the plan keeps what it was taken of.', examples: ['Garden corner'] },
     turn: { type: 'number', description: 'For 3d: degrees to walk the camera round what it is pointed at, from camera, view or the default: above 0 to the camera\'s left, below 0 to its right.', examples: [20, -15], minimum: -360, maximum: 360 },
@@ -1994,11 +2004,11 @@ const viewTool: GridTool = {
     const allowed: Record<string, readonly string[]> = {
       plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
       facade: ['side', 'look'],
-      '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof'],
+      '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit'],
       eye: ['room', 'toward', 'eye_height'],
       section: ['cut', 'toward', 'look'],
     }
-    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
+    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
     const plan = survey.plan
     // MSG-11: the drawing's own words in the language asked for, else the plan's own.
@@ -2108,10 +2118,13 @@ const viewTool: GridTool = {
         ...(floor !== undefined ? { cut: floor } : {}),
         ...(args['turn'] !== undefined ? { turn: args['turn'] as number } : {}),
         ...(args['tilt_by'] !== undefined ? { tiltBy: args['tilt_by'] as number } : {}),
+        ...(args['fit'] !== undefined ? { fit: args['fit'] as CameraFit } : {}),
       }
       let camera: CameraRecord
+      let framed: ReturnType<typeof framedCamera>
       try {
-        camera = cameraFor(plan, survey, ask)
+        framed = framedCamera(plan, survey, ask)
+        camera = framed.camera
       } catch (error) {
         if (error instanceof CameraRefused) throw new ToolRefusal(error.message)
         throw error
@@ -2133,6 +2146,7 @@ const viewTool: GridTool = {
         text: [
           `${what}${camera.cut ? `, floor ${q(camera.cut)} cut away` : ''}. ${roof} Look at the picture before you describe it.`,
           ...cameraLines(plan, camera),
+          ...fitLines(framed),
           ...savedViewsLine(plan),
         ].join('\n'),
         data: { kind, floor: camera.cut, camera, view: viewName, pxPerMetre: null, sills: [], ids: [], boxes: [] },
