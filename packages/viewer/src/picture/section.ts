@@ -28,11 +28,12 @@ import { wrapText } from './faults'
 import { TEXT_PX, lengthText, lineMetres } from './look'
 import type { Look } from './look'
 import type { Picture, PictureOptions } from './planSvg'
-import { DEFAULT_WIDTH, lookOf } from './planSvg'
+import { DEFAULT_WIDTH, displayOfPicture, lookOf } from './planSvg'
 import type { Attrs, SvgNode } from './svgNode'
 import { el } from './svgNode'
 import { DEFAULT_LANGUAGE, LANGUAGE_DECIMAL, num, said, type Language } from '@ongrid/floorplan/messages'
 import { drawingText, saidText, type DrawingWords } from './words'
+import { METRES, showLength, type Display } from '@ongrid/floorplan/types/units'
 
 export interface SectionPictureOptions {
   /** Width in pixels. 1200 by default. */
@@ -47,6 +48,8 @@ export interface SectionPictureOptions {
   readonly label?: string
   /** MSG-11: the language of its words; the plan's own display language when left out. */
   readonly language?: Language
+  /** VEW-20: the units its levels and heights are written in; the plan's own display when left out. */
+  readonly display?: Display
 }
 
 /** A section's picture, with the section it was drawn from, for the words that go with it. */
@@ -87,12 +90,21 @@ function sectionWords(plan: FloorPlan, asked: Language | undefined): DrawingWord
   return { language, decimal: language === DEFAULT_LANGUAGE ? 'point' : (plan.display?.decimal ?? LANGUAGE_DECIMAL[language]) }
 }
 
+/**
+ * VEW-20: the units the levels and heights are written in: the call's, else the plan's display,
+ * else metres, with the drawing's own decimal mark.
+ */
+function unitsOf(plan: FloorPlan, options: SectionPictureOptions, tongue: DrawingWords): Display {
+  const base = displayOfPicture(plan, { ...(options.display === undefined ? {} : { labels: { display: options.display } }) }) ?? METRES
+  return { ...base, decimal: tongue.decimal }
+}
+
 /** The levels beside the drawing: every floor on the left; the roofs and the ground on the right. */
-function levelLabels(section: PlanSection, tongue: DrawingWords): { left: LevelLabel[]; right: LevelLabel[] } {
-  const left = section.levels.map((l) => ({ level: l.level, words: `${levelText(l.level)} ${l.name || l.floor}`, part: 'section-level' }))
+function levelLabels(section: PlanSection, tongue: DrawingWords, units: Display): { left: LevelLabel[]; right: LevelLabel[] } {
+  const left = section.levels.map((l) => ({ level: l.level, words: `${levelText(l.level, units)} ${l.name || l.floor}`, part: 'section-level' }))
   const right: LevelLabel[] = [
-    ...section.roofs.map((r) => ({ level: r.level, words: drawingText(tongue, 'drawing.section.roof', { level: levelText(r.level) }), part: 'section-roof-level' })),
-    { level: section.ground.level, words: drawingText(tongue, 'drawing.section.ground', { level: levelText(section.ground.level) }), part: 'section-ground-level' }
+    ...section.roofs.map((r) => ({ level: r.level, words: drawingText(tongue, 'drawing.section.roof', { level: levelText(r.level, units) }), part: 'section-roof-level' })),
+    { level: section.ground.level, words: drawingText(tongue, 'drawing.section.ground', { level: levelText(section.ground.level, units) }), part: 'section-ground-level' }
   ]
   return { left, right }
 }
@@ -100,8 +112,8 @@ function levelLabels(section: PlanSection, tongue: DrawingWords): { left: LevelL
 const widest = (labels: readonly LevelLabel[]): number => Math.max(0, ...labels.map((l) => estimateTextWidth(l.words, TEXT_PX.dimension)))
 
 /** What the picture frames: the section, with room beside it for the level marks, in pixels. */
-function frameOf(section: PlanSection, width: number, height: number | undefined, tongue: DrawingWords): { framed: Bounds; width: number; height: number } {
-  const { left, right } = levelLabels(section, tongue)
+function frameOf(section: PlanSection, width: number, height: number | undefined, tongue: DrawingWords, units: Display): { framed: Bounds; width: number; height: number } {
+  const { left, right } = levelLabels(section, tongue, units)
   const leftPx = widest(left) + TICK_PX + GAP_PX
   const rightPx = widest(right) + TICK_PX + GAP_PX
   const base = section.bounds
@@ -192,7 +204,8 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   const tongue = sectionWords(plan, options.language)
   const requested = options.width ?? DEFAULT_WIDTH
   if (!Number.isInteger(requested) || requested < 1) throw new RangeError(`The picture's width must be a whole number of pixels, at least 1: got ${requested}`)
-  const { framed, width, height } = frameOf(section, requested, options.height, tongue)
+  const units = unitsOf(plan, options, tongue)
+  const { framed, width, height } = frameOf(section, requested, options.height, tongue, units)
   const view = fitTo(framed, width / height, 0)
   const mpp = view.width / width
   const lines = lineMetres(look, mpp, options.paperScale)
@@ -239,7 +252,7 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   for (const room of section.rooms) {
     const across = (room.to - room.from) / mpp
     const tall = room.height / mpp
-    const height = drawingText(tongue, 'drawing.section.height', { height: num(metresText(room.height)) })
+    const height = units.length === 'm' ? drawingText(tongue, 'drawing.section.height', { height: num(metresText(room.height)) }) : showLength(room.height, units)
     const name = room.name || room.room
     const at = { x: (room.from + room.to) / 2, y: room.floorLevel + room.height / 2 }
     const attrs = { 'data-part': 'section-room', 'data-id': room.room, 'data-floor': room.floor, 'data-height': n(room.height), 'data-height-stated': String(room.heightStated) }
@@ -253,7 +266,7 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   nodes.push(el('g', { 'data-part': 'section-rooms' }, roomNodes))
 
   // The levels beside the drawing.
-  const { left, right } = levelLabels(section, tongue)
+  const { left, right } = levelLabels(section, tongue, units)
   const leftX = section.bounds.min.x - GAP_PX * mpp
   const rightX = section.bounds.max.x + GAP_PX * mpp
   const markStroke = lines.width('elevationLevel')

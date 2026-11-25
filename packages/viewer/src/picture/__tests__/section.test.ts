@@ -161,3 +161,36 @@ describe('a section and a facade of one plan (after LVL-8)', () => {
   })
 })
 
+
+describe('levels in the plan\'s units (VEW-20)', () => {
+  const tower = () =>
+    parseFloorPlan({
+      ...twoFloorHouse(),
+      floors: [
+        { id: 'ground', name: 'Ground floor', level: 0, elevation: 0, slab: 0.3, height: 2.6 },
+        { id: 'first', name: 'First floor', level: 1, elevation: 3.2, slab: 0.3, height: 2.5 }
+      ]
+    })
+  const line: SectionLine = { from: { x: 2, y: -2 }, to: { x: 2, y: 10 }, toward: 'left' }
+  const levels = (svg: string): string[] => textsOf(svg, 'section-level')
+  const facadeLevels = (svg: string): string[] => [...svg.matchAll(/data-part="facade-level-name"[^>]*><text[^>]*>([^<]*)</g)].map((m) => m[1]!)
+
+  it('writes a millimetre plan in millimetres, and a feet-and-inches plan in feet and inches', () => {
+    const mm = pictureToSvg(sectionPicture({ ...tower(), display: { length: 'mm' } }, line, { look: 'technical' }))
+    expect(levels(mm)).toEqual(['±0 Ground floor', '+3200 First floor'])
+    const ft = pictureToSvg(sectionPicture({ ...tower(), display: { length: 'ft-in', area: 'ft2', decimal: 'point' } }, line, { look: 'technical' }))
+    expect(levels(ft)).toEqual(['±0\'-0" Ground floor', '+10\'-6" First floor'])
+  })
+
+  it('follows the display a call asks for over the plan\'s own', () => {
+    const asked = pictureToSvg(sectionPicture(tower(), line, { look: 'technical', display: { length: 'cm', area: 'm2', decimal: 'point' } }))
+    expect(levels(asked)).toEqual(['±0.0 Ground floor', '+320.0 First floor'])
+  })
+
+  it('writes a section and an elevation of the same plan the same way: the level first, then the name', () => {
+    const plan = { ...tower(), display: { length: 'mm' as const } }
+    const section = levels(pictureToSvg(sectionPicture(plan, line, { look: 'technical' })))
+    const elevation = facadeLevels(pictureToSvg(facadePicture(plan, { side: 'south', look: 'technical' })))
+    expect(elevation).toEqual(section)
+  })
+})

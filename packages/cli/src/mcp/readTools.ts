@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, planStoreys, buildingHeights, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CameraRefused, cameraFor, eyeCamera, lensProblem, settingOfCamera, type CameraAsk } from '../draw/cameraAsk'
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
@@ -1894,18 +1894,19 @@ function marksText(marks: DrawingMarksAsked): string {
  * LVL-8: grid_view's facade: one side of the drawing in elevation, with what it shows in words and
  * as data (the side, the walls and openings seen, each floor's level, the ground).
  */
-async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, language: Language = 'en'): Promise<{ text: string; data: Record<string, unknown>; image: { data: Uint8Array; mimeType: 'image/png' } }> {
+async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, language: Language = 'en', display?: Display): Promise<{ text: string; data: Record<string, unknown>; image: { data: Uint8Array; mimeType: 'image/png' } }> {
   if (args['side'] === undefined) throw new ToolRefusal(`kind=facade needs side: the side of the drawing to draw, one of ${FACADE_SIDES.join(', ')} (north is the top of the drawing).`)
   const side = args['side'] as FacadeSide
   const asked = (args['look'] as LookName | undefined) ?? 'working'
   const look = asked === pictureLook(asked) ? asked : `${pictureLook(asked)} (asked as ${asked})`
   const { facadeView } = await import('../draw/views')
-  const view = await facadeView(plan, { side, look: asked, language })
+  const view = await facadeView(plan, { side, look: asked, language, ...(display ? { display } : {}) })
   const { facade } = view
   const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
-  const levels = facade.levels.map((l) => `${q(l.name)} at ${m(l.level)} m`).join(', ')
+  const units = display ?? displayFor(undefined, undefined, plan, language)
+  const levels = facade.levels.map((l) => `${q(l.name)} at ${levelText(l.level, units)}`).join(', ')
   const facing = facade.compass === null ? 'The plan states no north, so this is the side of the drawing only.' : `By the north the plan states, this side faces ${facade.compass.faces} (bearing ${Math.round(facade.compass.bearing)}°).`
-  const ground = facade.ground.stated ? `The ground line is at ${m(facade.ground.level)} m, the level the site states.` : "The site states no ground level: the ground line is drawn at the ground floor's floor level."
+  const ground = facade.ground.stated ? `The ground line is at ${levelText(facade.ground.level, units)}, the level the site states.` : "The site states no ground level: the ground line is drawn at the ground floor's floor level."
   const lines = facade.extent === null
     ? [`Nothing of the plan faces ${side}: no outside face of any floor turns that way. ${facing}`]
     : [
@@ -2001,14 +2002,16 @@ const viewTool: GridTool = {
     // MSG-11: the drawing's own words in the language asked for, else the plan's own.
     const language = await languageFor(askedLanguage(args['language'], 'language'), loaded.plan)
     const inTongue = language === 'en' ? {} : { language }
-    if (kind === 'facade') return facadeAnswer(plan, args, language)
+    // VEW-20: a section or a facade writes its levels in the units asked for, else the plan's display.
+    const levelDisplay = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
+    if (kind === 'facade') return facadeAnswer(plan, args, language, levelDisplay)
     if (kind === 'section') {
       const cut = args['cut'] as CutArg | undefined
       if (cut === undefined) throw new ToolRefusal('kind=section needs cut: the line to cut along, as {"from": [x, y], "to": [x, y]} in metres.')
       const line = asToolArg(() => sectionLineOf(cut.from, cut.to, towardOf(args['toward'] as string | undefined, 'toward'), 'cut'))
       // Loaded only for a section: the drawing and the words that go with it.
       const { sectionAnswer } = await import('./sectionAnswer')
-      return sectionAnswer(plan, line, (args['look'] as LookName | undefined) ?? 'working', language)
+      return sectionAnswer(plan, line, (args['look'] as LookName | undefined) ?? 'working', language, levelDisplay)
     }
     // LVL-9: the marks for the plan's other drawings; cut and toward only for a section's line on it.
     const markWords = args['marks'] === undefined ? null : asToolArg(() => readMarks(args['marks'] as string[], 'marks'))

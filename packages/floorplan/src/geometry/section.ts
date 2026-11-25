@@ -62,6 +62,7 @@ import { planMarks } from './marks'
 import { cutOutline, piecesAsRings, ringOf, union } from './polygons'
 import { limit, tolerance } from './tolerances'
 import { metresText } from './rounding'
+import { METRES, showLength, type Display } from '../types/units'
 import type { Vec2 } from './vec2'
 import { add, dot, length, perp, scale, signedArea, sub } from './vec2'
 import type { Bounds } from './floorplan'
@@ -803,11 +804,17 @@ function outsideAt(frame: Frame, wall: Wall, sides: ReturnType<typeof planWallSi
   return Math.abs(x) <= tolerance('squareCorner') ? null : x > 0 ? 'right' : 'left'
 }
 
-/** A level as a drawing writes it: a sign and three decimals, ±0.000 at the datum. */
-export function levelText(level: number): string {
-  const text = Math.abs(level).toFixed(3)
-  if (text === '0.000') return '±0.000'
-  return `${level < 0 ? '−' : '+'}${text}`
+/**
+ * A level as a drawing writes it, in plan, section and elevation alike (VEW-20): a sign and the
+ * figure in the display's unit, ±0 at the datum. Metres keep three decimals (`+94.900`), centimetres
+ * one, millimetres none, feet and inches are `31'-9"`; the display's decimal mark is used.
+ */
+export function levelText(level: number, display: Display = METRES): string {
+  const decimals = display.precision ?? (display.length === 'm' ? 3 : display.length === 'cm' ? 1 : 0)
+  const shown = display.length === 'ft-in' ? display : { ...display, precision: decimals }
+  const figure = showLength(Math.abs(level), shown, { unit: false })
+  if (!/[1-9]/.test(figure)) return `±${figure}`
+  return `${level < 0 ? '−' : '+'}${figure}`
 }
 
 function boundsOf(points: readonly Vec2[]): Bounds {
