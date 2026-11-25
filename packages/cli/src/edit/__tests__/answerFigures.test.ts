@@ -105,6 +105,34 @@ describe('WRT-11: the verdict counts things', () => {
     expect(reply.data!['verdict']).toContain('mirrored left to right')
   })
 
+  it('turns a plan stated finer than a millimetre a quarter round with every wall the same length (VEW-22)', async () => {
+    // Sizes to a tenth of a millimetre: the middle of the walls' box falls on half a millimetre.
+    const box = (w: number, d: number) => ({
+      version: '1', units: 'm',
+      walls: [
+        { id: 's', start: [-0.15, -0.15], end: [w, -0.15], thickness: 0.3, height: 2.6, kind: 'exterior' },
+        { id: 'e', start: [w, -0.15], end: [w, d], thickness: 0.3, height: 2.6, kind: 'exterior' },
+        { id: 'n', start: [w, d], end: [-0.15, d], thickness: 0.3, height: 2.6, kind: 'exterior' },
+        { id: 'w', start: [-0.15, d], end: [-0.15, -0.15], thickness: 0.3, height: 2.6, kind: 'exterior' },
+      ],
+      rooms: [{ id: 'r', name: 'Living', boundary: ['s', 'e', 'n', 'w'] }],
+      openings: [],
+    })
+    b.write('fine.json', box(7.789, 3.3845))
+    for (const turn of [90, 180, 270]) {
+      const reply = await b.call('grid_mirror', { plan: 'fine.json', turn, out: `fine-${turn}.json` })
+      expect(reply.isError, reply.text).toBe(false)
+      const before = JSON.parse(readFileSync(resolve(b.folder, 'fine.json'), 'utf8')) as { walls: { start: number[]; end: number[] }[] }
+      const after = JSON.parse(readFileSync(resolve(b.folder, `fine-${turn}.json`), 'utf8')) as { walls: { start: number[]; end: number[] }[] }
+      const len = (w: { start: number[]; end: number[] }): number => Math.hypot(w.end[0]! - w.start[0]!, w.end[1]! - w.start[1]!)
+      before.walls.forEach((wall, i) => expect(len(after.walls[i]!), `turn ${turn}`).toBeCloseTo(len(wall), 6))
+    }
+    const reply = await b.call('grid_mirror', { plan: 'fine.json', how: 'top-bottom', out: 'fine-m.json' })
+    expect(reply.isError, reply.text).toBe(false)
+    const mirrored = JSON.parse(readFileSync(resolve(b.folder, 'fine-m.json'), 'utf8')) as { walls: { start: number[]; end: number[] }[] }
+    expect(Math.abs(mirrored.walls[1]!.end[1]! - mirrored.walls[1]!.start[1]!)).toBeCloseTo(3.5345, 6)
+  })
+
   it('says writing the same rooms again is the same building', async () => {
     const back = await b.call('grid_describe', { plan: 'flat.json', as: 'rooms' })
     const again = await b.call('grid_write_rooms', { plan: 'flat.json', rooms: back.text })
