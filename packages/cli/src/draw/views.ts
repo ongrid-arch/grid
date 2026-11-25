@@ -196,22 +196,35 @@ export async function cameraView(plan: FloorPlan, camera: CameraRecord, language
  * Where to stand in a room to look toward a point or a heading (degrees clockwise from the top
  * of the drawing): back from its middle, away from what is looked at, so more of the room is seen.
  */
-export function eyeStand(polygon: readonly Vec2[], toward: Vec2 | number): Vec2 {
-  const centre = poleOfInaccessibility(polygon).point
+export function eyeStand(polygon: readonly Vec2[], toward: Vec2 | number, holes: readonly (readonly Vec2[])[] = []): Vec2 {
+  const centre = poleOfInaccessibility(polygon, undefined, holes).point
   const heading = typeof toward === 'number' ? toward : ((Math.atan2(toward.x - centre.x, toward.y - centre.y) / DEG) % 360 + 360) % 360
-  return standBack(polygon, centre, heading)
+  return standBack(polygon, holes, centre, heading)
 }
 
 /** A point behind the room's middle, opposite the heading, still well inside the room. */
-function standBack(polygon: readonly Vec2[], centre: Vec2, heading: number): Vec2 {
+function standBack(polygon: readonly Vec2[], holes: readonly (readonly Vec2[])[], centre: Vec2, heading: number): Vec2 {
   const dir = { x: -Math.sin(heading * DEG), y: -Math.cos(heading * DEG) }
   let best = centre
   for (let step = 0.25; step < 20; step += 0.25) {
     const p = { x: centre.x + dir.x * step, y: centre.y + dir.y * step }
-    if (!insideBy(polygon, p, 0.4)) break
+    if (!insideBy(polygon, p, 0.4) || holes.some((hole) => insideBy(hole, p, 0) || !outsideBy(hole, p, 0.4))) break
     best = p
   }
   return best
+}
+
+/** Whether a point is at least `margin` from every side of a hole. */
+function outsideBy(ring: readonly Vec2[], p: Vec2, margin: number): boolean {
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]!
+    const b = ring[(i + 1) % ring.length]!
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)))
+    if (Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y) < margin) return false
+  }
+  return true
 }
 
 function insideBy(polygon: readonly Vec2[], p: Vec2, margin: number): boolean {
