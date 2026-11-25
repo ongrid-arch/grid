@@ -2299,6 +2299,7 @@ export const es: Messages = {
   'edit.curved.doing.splitRoom': 'dividir una estancia',
   'edit.curved.doing.squareScan': 'escuadrar el escaneo',
   'edit.curved.doing.stretch': 'estirar el plano',
+  'edit.curved.doing.thickness': 'cambiar el grosor de un muro',
   'edit.curved.along': 'El muro {wall} es curvo: un punto a lo largo de él se mide desde su inicio o su final, a lo largo de la curva, no desde {from}.',
   'edit.square.curvedLeft.one': 'El muro curvo {walls} se deja como está: escuadrar solo gira muros rectos.',
   'edit.square.curvedLeft.many': 'Los muros curvos {walls} se dejan como están: escuadrar solo gira muros rectos.',

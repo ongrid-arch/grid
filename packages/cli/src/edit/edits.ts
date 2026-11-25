@@ -12,7 +12,7 @@
  */
 import { planHasTypes, cameraRecord, compassBearing, doorKindOf, dot, drawingBearing, handingFromRooms, kindFits, kindWords, planOrientation, statedKind, storedView, sub, swingNeeds, tolerance, viewSetting, wallAxis, wallLength, wrapDegrees, type FloorPlan, type HandSide, type Opening, type OpeningAnchor, type Room, type StoredView, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { english, name, said as sentence } from '@ongrid/floorplan/messages'
-import { DOOR_KINDS, FloorPlanSchema, WINDOW_KINDS, statedItem, statedOpening, statedWall, wallWithEnds, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
+import { DOOR_KINDS, FloorPlanSchema, WINDOW_KINDS, centreFromFace, faceFromCentre, statedItem, statedOpening, statedWall, wallWithEnds, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { EditRefused } from './refused'
@@ -57,7 +57,7 @@ export interface Patch {
    * HND-11: `mirrored` turns a wall placed by its face over to its other face, as a mirror does.
    * CNT-18: `arc`, a curved wall's new centre and sweep.
    */
-  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: null; height?: null }>
+  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null }>
   readonly openings: ReadonlyMap<string, OpeningChange>
   readonly removeOpenings: ReadonlySet<string>
   readonly rooms: ReadonlyMap<string, RoomChange>
@@ -113,7 +113,7 @@ export function listed(names: readonly string[], max = 3): string {
 }
 
 /** CNT-18: the edits that change straight walls only, by the key of the words that name them (`edit.curved.doing.*`). */
-export type CurvedEdit = 'placeOpening' | 'moveSide' | 'addRoom' | 'mergeRooms' | 'splitRoom' | 'squareScan' | 'stretch'
+export type CurvedEdit = 'placeOpening' | 'moveSide' | 'addRoom' | 'mergeRooms' | 'splitRoom' | 'squareScan' | 'stretch' | 'thickness'
 
 /**
  * CNT-18: Grid's edits change straight walls only. An edit that would move, cut or measure a curved
@@ -150,12 +150,19 @@ function merged(record: RawRecord, change: Readonly<Record<string, unknown>>): R
  * height or the default filled in, so the checks and the answer measure what the plan will be.
  */
 export function readingAfter(plan: FloorPlan, patch: Patch): FloorPlan {
-  const read = (wall: RawRecord): RawRecord => {
-    const parsed = FloorPlanSchema.safeParse({ version: '1', walls: [wall], ...(plan.floors !== undefined ? { floors: plan.floors } : {}) })
+  const read = (wall: RawRecord, types?: unknown): RawRecord => {
+    const parsed = FloorPlanSchema.safeParse({ version: '1', walls: [wall], ...(plan.floors !== undefined ? { floors: plan.floors } : {}), ...(types !== undefined ? { types } : {}) })
     return parsed.success ? (parsed.data.walls[0] as unknown as RawRecord) : wall
   }
-  const reading = patch.addWalls === undefined ? patch : { ...patch, addWalls: patch.addWalls.map(read) }
-  const applied = applyPatch(plan as unknown as RawRecord, reading) as unknown as FloorPlan
+  const reading = patch.addWalls === undefined ? patch : { ...patch, addWalls: patch.addWalls.map((wall) => read(wall)) }
+  // WRT-38: a straight wall placed by its face, or one whose change states a value the reading
+  // filled in, is changed as its file states it and read again as the written file will be, so
+  // a face stays where its file puts it whatever the thickness becomes.
+  const restated = new Set(plan.walls.filter((wall) => asWritten(wall, patch.walls.get(wall.id))).map((wall) => wall.id))
+  const before = restated.size === 0 ? plan : { ...plan, walls: plan.walls.map((wall) => (restated.has(wall.id) ? statedWall(wall) : wall)) }
+  const patched = applyPatch(before as unknown as RawRecord, reading) as unknown as FloorPlan
+  const types = isRecordLike(patch.plan) && patch.plan['types'] !== undefined ? patch.plan['types'] : plan.types
+  const applied = restated.size === 0 ? patched : { ...patched, walls: patched.walls.map((wall) => (restated.has(wall.id) ? (read(wall as unknown as RawRecord, types) as unknown as Wall) : wall)) }
   // CNT-15 (C24): with named types, a part takes what its type gives as the file will be read, so
   // the plan is read again from what each part states: a changed type reaches every part of it.
   // CNT-20 (C30): an item placed by name takes its size from its library entry, as the file will be read.
@@ -171,6 +178,18 @@ export function readingAfter(plan: FloorPlan, patch: Patch): FloorPlan {
 }
 
 const isRecordLike = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * WRT-38: whether a change to a wall is made to the wall as its file states it: a straight wall
+ * placed by its face (HND-11), or one the change gives a value the reading filled in (`unstated`,
+ * `typed`). A curved wall is left to its own reading (CNT-18).
+ */
+function asWritten(wall: Wall, change: Readonly<Record<string, unknown>> | undefined): boolean {
+  if (change === undefined || wall.arc !== undefined) return false
+  if (wall.placedBy !== undefined) return true
+  const filled: readonly string[] = [...(wall.unstated ?? []), ...(wall.typed ?? [])]
+  return Object.entries(change).some(([key, value]) => value !== undefined && value !== null && filled.includes(key))
+}
 
 /** Applies a patch to a plan's JSON, the file's own or Grid's reading of it, without changing anything else. */
 export function applyPatch<T extends RawRecord>(raw: T, patch: Patch): T {
@@ -559,12 +578,15 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
   const oldEnd = pt(wall.end)
   const axis = wallAxis(wall)
   // WRT-18: a wall ends on it when its end is on its centre line or within its body, as a wall
-  // drawn to its face is, so that wall follows too.
+  // drawn to its face is, so that wall follows too. WRT-38: along it, within the other wall's own
+  // half thickness of its ends: a wall placed by its inside face (HND-11) has its centre line end
+  // that far past the corner.
   const reach = wall.thickness / 2 + 0.02
-  const onAxis = (p: Vec2): boolean => {
+  const onAxis = (p: Vec2, other: Wall): boolean => {
     const t = dot(sub(p, oldStart), axis.dir)
     const off = Math.abs(dot(sub(p, oldStart), axis.normal))
-    return off < reach && t > -0.02 && t < axis.length + 0.02
+    const along = other.thickness / 2 + 0.02
+    return off < reach && t > -along && t < axis.length + along
   }
   const moved = (p: Vec2): Pair => [r3(p.x + v.x), r3(p.y + v.y)]
   const patchWalls = new Map<string, { start?: Pair; end?: Pair }>()
@@ -583,8 +605,8 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
       inLine.push(other)
       continue
     }
-    if (onAxis(s) && !onAxis(e)) change.start = moved(s)
-    if (onAxis(e) && !onAxis(s)) change.end = moved(e)
+    if (onAxis(s, other) && !onAxis(e, other)) change.start = moved(s)
+    if (onAxis(e, other) && !onAxis(s, other)) change.end = moved(e)
     if (!change.start && !change.end) continue
     refuseCurved([other], 'moveSide')
     const ns = change.start ? pt(change.start) : s
@@ -626,6 +648,59 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
   const guessed = [...seated.guessed]
   if (others.length > 0) guessed.unshift(`${others.length > 2 ? `${others[0]} and ${others.length - 1} other rooms` : others.join(' and ')} ${by >= 0 ? (others.length === 1 ? 'gives' : 'give') : others.length === 1 ? 'takes' : 'take'} the ${Math.abs(by).toFixed(2)} m: the wall is ${others.length === 1 ? 'its' : 'their'} side too.`)
   return { walls: patchWalls, openings: patchOpenings, removeOpenings: new Set(), rooms: new Map(), said, guessed, notKept: seated.notKept }
+}
+
+/**
+ * WRT-38: one wall's thickness. A wall placed by its face (HND-11) keeps that face, as its file
+ * states it, and grows or shrinks away from it; any other wall keeps its centre line (C1). A wall
+ * that ended within the old body and would end short of the new one is carried along its own line
+ * to the new centre line, so it stays joined. A dividing line has no thickness; a curved wall is
+ * left to the file.
+ */
+export function changeWallThickness(survey: Survey, wallId: string, thickness: number): Patch {
+  const plan = survey.plan
+  const wall = plan.walls.find((w) => w.id === wallId)
+  if (wall === undefined) throw new EditRefused(`The plan has no wall ${quoted(wallId)}.`)
+  if (wall.virtual === true) throw new EditRefused(`Wall ${quoted(wallId)} is a dividing line, which has no thickness.`)
+  refuseCurved([wall], 'thickness')
+  const own = !(wall.unstated ?? []).includes('thickness') && !(wall.typed ?? []).includes('thickness')
+  if (own && Math.abs(wall.thickness - thickness) < tolerance('noLength')) throw new EditRefused(`Wall ${quoted(wallId)} is already ${thickness.toFixed(2)} m thick.`)
+  // The centre line after: the same, or half the change away from the face the file places it by.
+  const face = wall.placedBy
+  const oldStart = pt(wall.start)
+  const newAt = face === undefined ? oldStart : pt(centreFromFace(...faceFromCentre(wall.start, wall.end, face, wall.thickness), face, thickness)[0])
+  const axis = wallAxis(wall)
+  const within = (p: Vec2, at: Vec2, half: number, other: Wall): boolean => {
+    const along = dot(sub(p, at), axis.dir)
+    const reachAlong = other.thickness / 2 + 0.02
+    return Math.abs(dot(sub(p, at), axis.normal)) < half + 0.02 && along > -reachAlong && along < axis.length + reachAlong
+  }
+  const walls = new Map<string, { start?: Pair; end?: Pair; thickness?: number }>([[wall.id, { thickness }]])
+  const carried: string[] = []
+  const floor = wall.floor ?? 'ground'
+  for (const other of plan.walls) {
+    if (other.id === wall.id || other.arc !== undefined || (other.floor ?? 'ground') !== floor) continue
+    const change: { start?: Pair; end?: Pair } = {}
+    for (const key of ['start', 'end'] as const) {
+      const p = pt(other[key])
+      if (!within(p, oldStart, wall.thickness / 2, other) || within(p, newAt, thickness / 2, other)) continue
+      // Along the other wall's own line to the new centre line; a wall in line with it has none.
+      const dir = wallAxis(other).dir
+      const across = dot(dir, axis.normal)
+      if (Math.abs(across) < tolerance('parallel')) continue
+      const by = dot(sub(newAt, p), axis.normal) / across
+      change[key] = [r3(p.x + dir.x * by), r3(p.y + dir.y * by)]
+    }
+    if (change.start === undefined && change.end === undefined) continue
+    walls.set(other.id, change)
+    carried.push(quoted(other.id))
+  }
+  const was = own ? `was ${wall.thickness.toFixed(2)} m` : (wall.typed ?? []).includes('thickness') ? `where it read ${wall.thickness.toFixed(2)} m from its type, which no longer reaches its thickness` : `where it stated none (Grid read ${wall.thickness.toFixed(2)} m)`
+  const kept = face === undefined
+    ? `Its centre line stays where it is, so each face moves ${Math.abs(thickness - wall.thickness) / 2 >= 0.0005 ? `${(Math.abs(thickness - wall.thickness) / 2).toFixed(3)} m` : 'less than a millimetre'} ${thickness > wall.thickness ? 'out' : 'in'}.`
+    : `The face its file places it by stays where it is; the wall ${thickness > wall.thickness ? 'grows' : 'shrinks'} on its other side.`
+  const said = [`Wall ${quoted(wall.id)}: ${thickness.toFixed(2)} m thick, ${was}. ${kept}${carried.length > 0 ? ` Walls that ended in it were carried to its new centre line, so they stay joined: ${listed(carried)}.` : ''}`]
+  return { ...emptyPatch(said), walls }
 }
 
 function compass(edge: { from: Vec2; to: Vec2; length: number }): string {

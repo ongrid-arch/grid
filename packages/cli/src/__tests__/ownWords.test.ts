@@ -74,7 +74,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
-  'packages/cli/src/edit/edits.ts': [57, 'notYet'],
+  // WRT-38: seven more, the receipt and refusals of one wall's thickness.
+  'packages/cli/src/edit/edits.ts': [64, 'notYet'],
   'packages/cli/src/edit/merge.ts': [31, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
@@ -125,7 +126,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/toolkit.ts': [28, 'agent'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
-  'packages/cli/src/mcp/writeTools.ts': [128, 'tools'],
+  // WRT-38: six more, grid_change_wall's description and arguments.
+  'packages/cli/src/mcp/writeTools.ts': [134, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -333,7 +335,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and WRT-28 3: the flats lines of a merge (edit/merge.ts) (odd/tasks/WRT-28.md).
     // and WRT-33 3: the merge's stale type and doubled door lines (edit/merge.ts, mcp/editTools.ts).
     // and CNT-27 2: a shaft counted once in the brief, the schedule CSV's column for rows in no total.
-    expect(left).toBeLessThanOrEqual(1610)
+    // and WRT-38 4: one wall's thickness, its receipt and refusals (edit/edits.ts).
+    expect(left).toBeLessThanOrEqual(1614)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

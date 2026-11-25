@@ -1585,7 +1585,13 @@ the same guess would take 4 cm off each room beside it.
 Grid reads the wall on its centre line, so every drawing, measure, check and export reads it as
 any other wall. Its edits keep the face: a wall moved, cut in two or stretched stays placed by
 the same face, on that face's line, and a mirrored plan turns each such wall to its other face,
-so the inside stays inside. `grid tidy` does the same. A `face` Grid cannot read leaves the wall
+so the inside stays inside. `grid tidy` does the same. Moving a side of a room carries the walls
+placed by their faces that end on it, as it carries walls on their centre lines (WRT-38).
+`grid_change_wall` (`grid edit wall`) sets one wall's thickness: a wall placed by its face keeps
+that face and grows or shrinks on its other side, any other wall keeps its centre line, and a wall
+that ended in a thinner wall is carried to its new centre line, so it stays joined. The answer of
+every change, its areas and its taped lengths among them, is measured on the plan as the written
+file will be read, so it is what `grid check` gives afterwards. A `face` Grid cannot read leaves the wall
 out, rather than draw it half its thickness off. A dividing line has no thickness, so its face is
 its line. Rooms text writes rooms by their inside sizes already ([rooms-first.md](rooms-first.md)):
 there a thicker wall moves the rooms apart and leaves each room's size as written. A plan that

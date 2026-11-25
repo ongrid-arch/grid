@@ -21,7 +21,7 @@ import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { PlanRefused } from '../command/plan'
 import { keepRoomNumbers } from '../edit/numbers'
-import { changeOpening, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
+import { changeOpening, changeWallThickness, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
 import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
 import { parseSheetWordsChecked } from '../sheet/claims'
 import { SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
@@ -55,6 +55,7 @@ import {
   readPlan,
   roomArg,
   STRING,
+  wallArg,
   ToolRefusal,
   type GridTool,
   type ToolContext,
@@ -406,6 +407,28 @@ const changeOpeningTool: GridTool = {
   },
 }
 
+/** WRT-38: one wall's thickness, a wall placed by its face keeping that face. */
+const changeWallTool: GridTool = {
+  name: 'grid_change_wall',
+  title: 'Change one wall\'s thickness',
+  hint: 'change-plan',
+  description:
+    'Use this when the person asks to make one wall thicker or thinner, or gives the thickness of a wall the plan guessed or left out: "the outside wall is 450 mm", "make the wall between the bedrooms 100 mm". '
+    + 'It sets that wall\'s own thickness. A wall placed by its face (face in the file, as a survey taped inside gives it) keeps that face where it is and grows or shrinks on its other side, so the rooms it was taped from keep their size; any other wall keeps its centre line and each face moves half the change. A wall that ended in it and would end short of the thinner wall is carried to its new centre line. It answers with every room whose area changed and the taped lengths against the plan as it now is. '
+    + 'Do not use to change every wall of a kind or a named type (grid_change_type), or to move a wall (grid_move_room_side). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (18", 450 mm).',
+  args: {
+    plan: PLAN_ARG,
+    decimal: DECIMAL_IN_ARG,
+    wall: { type: 'string', id: true, required: true, description: 'The id of the wall (grid_describe with for=agent lists them).', examples: ['ext-s', 'w3'] },
+    thickness: { type: 'number', length: true, required: true, description: 'Its new thickness, in metres.', examples: [0.45, 0.1], minimum: 0.01, maximum: 3 },
+    out: OUT_ARG,
+  },
+  outputSchema: EDIT_OUTPUT,
+  run(args, context) {
+    return writeChange(context, args, (survey) => changeWallThickness(survey, wallArg(survey.plan, args['wall']), args['thickness'] as number))
+  },
+}
+
 const TYPE_KINDS = [...new Set([...WallKindSchema.options, ...DOOR_KINDS, ...WINDOW_KINDS])]
 const TYPE_CLEARABLE = [...new Set(Object.values(TYPE_FIELDS).flat())].filter((field) => field !== 'name')
 
@@ -690,4 +713,4 @@ const writeRoomsTool: GridTool = {
   },
 }
 
-export const WRITE_TOOLS: readonly GridTool[] = [exportTool, sheetTool, writeRoomsTool, changeOpeningTool, changeTypeTool, moveSideTool, mirrorTool]
+export const WRITE_TOOLS: readonly GridTool[] = [exportTool, sheetTool, writeRoomsTool, changeOpeningTool, changeWallTool, changeTypeTool, moveSideTool, mirrorTool]

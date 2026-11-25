@@ -22,6 +22,8 @@ export class EditCommandRefused extends Error {
 /** The verbs, each with the tool it runs. */
 export const EDIT_VERBS = {
   opening: 'grid_change_opening',
+  // WRT-38: one wall's thickness.
+  wall: 'grid_change_wall',
   // CNT-15: one named wall, door or window type, which every part of it takes.
   type: 'grid_change_type',
   'move-side': 'grid_move_room_side',

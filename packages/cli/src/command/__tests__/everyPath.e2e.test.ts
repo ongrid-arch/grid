@@ -255,6 +255,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_change_opening', { plan: '@', opening: 'bed2-door', hinge: 'end' }), given: asIs },
     { arg: 'out', call: tool('grid_change_opening', { plan: PLAN, opening: 'bed2-door', hinge: 'end', out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // WRT-38: one wall's thickness.
+  grid_change_wall: [
+    { arg: 'plan', call: tool('grid_change_wall', { plan: '@', wall: 'bedrooms', thickness: 0.12 }), given: asIs },
+    { arg: 'out', call: tool('grid_change_wall', { plan: PLAN, wall: 'bedrooms', thickness: 0.12, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-15: one named type, which every part of it takes.
   grid_change_type: [
     { arg: 'plan', call: tool('grid_change_type', { plan: '@', of: 'wall', type: 'stud', name: 'Stud partition' }), given: asIs },
