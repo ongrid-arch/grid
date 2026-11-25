@@ -131,7 +131,9 @@ export function changeType(survey: Survey, change: TypeChange): Patch {
   if (change.makeDefault === true) {
     const defaults = { ...((types['defaults'] as Record<string, unknown> | undefined) ?? {}) }
     if (of === 'wall') {
-      const kindOf = (next['kind'] as WallKind | undefined) ?? 'interior'
+      // WRT-59: a default is for the walls of one kind, so the type states which; never a guess.
+      const kindOf = next['kind'] as WallKind | undefined
+      if (kindOf === undefined) throw new EditRefused(`A default wall type is for walls of one kind: give kind (interior or exterior) with default, so ${quoted(id)} is the default for the right walls.`)
       defaults['walls'] = { ...((defaults['walls'] as Record<string, unknown> | undefined) ?? {}), [kindOf]: id }
       lines.push(`It is the default for ${kindOf} walls that name no type.`)
     } else {

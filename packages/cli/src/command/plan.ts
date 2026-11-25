@@ -77,6 +77,11 @@ export interface LoadOptions {
    * For a command that writes the plan back: reading it part by part would drop what it left out.
    */
   readonly whole?: boolean
+  /**
+   * WRT-59: with `whole`, go on with a plan the reader leaves parts of out: the file is written
+   * from its own text, so nothing is lost, and the caller says what was left out (`faults`).
+   */
+  readonly leftOutKept?: boolean
   /** CNT-10: the plan is read as a fit-out's base: its own base, if it names one, is not read. */
   readonly asBase?: boolean
 }
@@ -278,7 +283,7 @@ export function loadPlanText(project: Project, file: string, text: string, real:
   }
   // WRT-7: lengths stated in another unit are read in it, and the change is written in metres.
   const faults = parts.faults.filter((f) => !(f.kind === 'read-as-meant' && f.path.length === 1 && f.path[0] === 'units' && planInMetres(raw).from !== null))
-  if (options.whole === true && faults.length > 0) {
+  if (options.whole === true && options.leftOutKept !== true && faults.length > 0) {
     // A value the text could not hold is named for what it is; the rest in the schema's words.
     if (read.marks.length === 0) strict()
     const [first, ...rest] = faults

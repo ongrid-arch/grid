@@ -566,22 +566,48 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
   })
   const name = quoted(room.facts.name)
   if (edges.length === 0) throw new EditRefused(`${name} has no side facing ${side}: its sides face ${[...new Set(room.edges.map((e) => compass(e)))].join(', ')}.`)
-  const walls = [...new Set(edges.map((edge) => edge.wall!))]
-  if (walls.length > 1) throw new EditRefused(`The ${side} side of ${name} is made of ${walls.length} walls; move one wall at a time is not offered yet.`)
+  // WRT-59: the room's outline runs a side split into walls in one line as one edge, which names one
+  // of them: the others are the room's walls in line with it that lie along the edge.
+  const named = [...new Set(edges.map((edge) => edge.wall!))]
+  const edgeAlong = (edge: (typeof edges)[number], dir: Vec2): [number, number] => [dot(edge.from, dir), dot(edge.to, dir)]
+  const first = named[0]!
+  const firstAxis = first.arc === undefined ? wallAxis(first) : null
+  const inLineWith = (w: Wall): boolean =>
+    firstAxis !== null && w.arc === undefined && w.virtual !== true && (w.floor ?? 'ground') === (first.floor ?? 'ground') && Math.abs(dot(sub(pt(w.start), pt(first.start)), firstAxis.normal)) < first.thickness / 2 + 0.02 && Math.abs(dot(sub(pt(w.end), pt(first.start)), firstAxis.normal)) < first.thickness / 2 + 0.02
+  const along = firstAxis === null ? [] : edges.flatMap((edge) => edgeAlong(edge, firstAxis.dir))
+  // The outline runs along the room's inside faces, so a wall's centre-line ends lie up to its own thickness beyond it.
+  const reach0 = first.thickness + 0.02
+  const within = (w: Wall): boolean => firstAxis !== null && [w.start, w.end].every((p) => dot(pt(p), firstAxis.dir) > Math.min(...along) - reach0 && dot(pt(p), firstAxis.dir) < Math.max(...along) + reach0)
+  const roomWalls = survey.plan.rooms.find((r) => r.id === roomId)?.boundary ?? []
+  const together = survey.plan.walls.filter((w) => roomWalls.includes(w.id) && inLineWith(w) && within(w))
+  const walls = [...new Set([...named, ...together])]
   const wall = walls[0]!
-  if (wall.virtual === true) throw new EditRefused(`The ${side} side of ${name} is a dividing line, not a wall.`)
-  refuseCurved([wall], 'moveSide')
+  if (walls.some((w) => w.virtual === true)) throw new EditRefused(`The ${side} side of ${name} is a dividing line, not a wall.`)
+  refuseCurved(walls, 'moveSide')
   const v = { x: out.x * by, y: out.y * by }
   const plan: FloorPlan = survey.plan
   const floor = wall.floor ?? 'ground'
-  const oldStart = pt(wall.start)
-  const oldEnd = pt(wall.end)
-  const axis = wallAxis(wall)
+  // WRT-59: a side split for heights or kinds is several walls in one line, and moves as one: its
+  // ends are the ends of the whole run. Walls that are not in one line are not offered.
+  const baseStart = pt(wall.start)
+  const baseAxis = wallAxis(wall)
+  const reach = Math.max(...walls.map((w) => w.thickness)) / 2 + 0.02
+  const alongBase = (p: Vec2): number => dot(sub(p, baseStart), baseAxis.dir)
+  const offBase = (p: Vec2): number => Math.abs(dot(sub(p, baseStart), baseAxis.normal))
+  if (walls.length > 1 && !walls.every((w) => (w.floor ?? 'ground') === floor && offBase(pt(w.start)) < reach && offBase(pt(w.end)) < reach)) {
+    throw new EditRefused(`The ${side} side of ${name} is made of ${walls.length} walls that are not in one line; move one wall at a time is not offered yet.`)
+  }
+  const spans = walls.flatMap((w) => [alongBase(pt(w.start)), alongBase(pt(w.end))])
+  const lo = Math.min(...spans)
+  const hi = Math.max(...spans)
+  const oldStart = { x: baseStart.x + baseAxis.dir.x * lo, y: baseStart.y + baseAxis.dir.y * lo }
+  const oldEnd = { x: baseStart.x + baseAxis.dir.x * hi, y: baseStart.y + baseAxis.dir.y * hi }
+  const axis = { ...baseAxis, length: hi - lo }
+  const sideIds = new Set(walls.map((w) => w.id))
   // WRT-18: a wall ends on it when its end is on its centre line or within its body, as a wall
   // drawn to its face is, so that wall follows too. WRT-38: along it, within the other wall's own
   // half thickness of its ends: a wall placed by its inside face (HND-11) has its centre line end
   // that far past the corner.
-  const reach = wall.thickness / 2 + 0.02
   const onAxis = (p: Vec2, other: Wall): boolean => {
     const t = dot(sub(p, oldStart), axis.dir)
     const off = Math.abs(dot(sub(p, oldStart), axis.normal))
@@ -590,11 +616,11 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
   }
   const moved = (p: Vec2): Pair => [r3(p.x + v.x), r3(p.y + v.y)]
   const patchWalls = new Map<string, { start?: Pair; end?: Pair }>()
-  patchWalls.set(wall.id, { start: moved(oldStart), end: moved(oldEnd) })
+  for (const w of walls) patchWalls.set(w.id, { start: moved(pt(w.start)), end: moved(pt(w.end)) })
   const followers: string[] = []
   const inLine: Wall[] = []
   for (const other of plan.walls) {
-    if (other.id === wall.id || (other.floor ?? 'ground') !== floor) continue
+    if (sideIds.has(other.id) || (other.floor ?? 'ground') !== floor) continue
     const s = pt(other.start)
     const e = pt(other.end)
     const change: { start?: Pair; end?: Pair } = {}
@@ -635,16 +661,16 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
     }
   }
   // A point on the moved wall moves with it; everything else stays where it is.
-  const seated = seatOpenings(survey, patchWalls, (p, onWall) => (onWall === wall.id ? { x: p.x + v.x, y: p.y + v.y } : p), { shift: v, what: `moving it ${by.toFixed(2)} m` })
+  const seated = seatOpenings(survey, patchWalls, (p, onWall) => (sideIds.has(onWall) ? { x: p.x + v.x, y: p.y + v.y } : p), { shift: v, what: `moving it ${by.toFixed(2)} m` })
   const patchOpenings = new Map<string, OpeningChange>()
   for (const [id, offset] of seated.offsets) {
     const o = plan.openings.find((x) => x.id === id)!
     if (Math.abs(offset - o.offset) > tolerance('noLength')) patchOpenings.set(id, { offset })
   }
   const said = [
-    `Moved wall ${quoted(wall.id)}, the ${side} side of ${name}, ${Math.abs(by).toFixed(2)} m ${by >= 0 ? side : `back from the ${side}`}${followers.length > 0 ? `; walls that end on it followed: ${listed(followers.map((id) => quoted(id)))}` : ''}.`,
+    `Moved ${walls.length === 1 ? `wall ${quoted(wall.id)}` : `walls ${listed(walls.map((w) => quoted(w.id)))}, in one line`}, the ${side} side of ${name}, ${Math.abs(by).toFixed(2)} m ${by >= 0 ? side : `back from the ${side}`}${followers.length > 0 ? `; walls that end on it followed: ${listed(followers.map((id) => quoted(id)))}` : ''}.`,
   ]
-  const others = survey.rooms.filter((r) => r.facts.id !== roomId && r.edges.some((edge) => edge.wall?.id === wall.id)).map((r) => quoted(r.facts.name))
+  const others = survey.rooms.filter((r) => r.facts.id !== roomId && r.edges.some((edge) => edge.wall !== null && sideIds.has(edge.wall.id))).map((r) => quoted(r.facts.name))
   const guessed = [...seated.guessed]
   if (others.length > 0) guessed.unshift(`${others.length > 2 ? `${others[0]} and ${others.length - 1} other rooms` : others.join(' and ')} ${by >= 0 ? (others.length === 1 ? 'gives' : 'give') : others.length === 1 ? 'takes' : 'take'} the ${Math.abs(by).toFixed(2)} m: the wall is ${others.length === 1 ? 'its' : 'their'} side too.`)
   return { walls: patchWalls, openings: patchOpenings, removeOpenings: new Set(), rooms: new Map(), said, guessed, notKept: seated.notKept }
@@ -733,8 +759,7 @@ const MIRRORED: Record<string, string> = { north: 'south', south: 'north', east:
  */
 export function mirrorPlan(survey: Survey, how: Mirror): Patch {
   const plan = survey.plan
-  const xs = plan.walls.flatMap((w) => [w.start[0], w.end[0]])
-  const ys = plan.walls.flatMap((w) => [w.start[1], w.end[1]])
+  const { xs, ys } = extentPoints(plan, 'mirror')
   // VEW-22: cleaned of floating noise only, never rounded to millimetres, so every length holds.
   const flip = (p: readonly [number, number]): Pair =>
     how === 'left-right'
@@ -767,7 +792,7 @@ export function mirrorPlan(survey: Survey, how: Mirror): Patch {
   // BRF-3: the plot's boundary and the site's things are mirrored with the walls. Each edge keeps
   // its number, so the streets and set-backs still name the same edges.
   const site = plan.site
-  if (site !== undefined && plan.walls.length > 0 && (site.origin !== undefined || site.boundary !== undefined || site.things !== undefined)) {
+  if (site !== undefined && (site.origin !== undefined || site.boundary !== undefined || site.things !== undefined)) {
     top['site'] = {
       ...site,
       ...(site.origin === undefined ? {} : { origin: flip(site.origin) }),
@@ -791,7 +816,7 @@ export function mirrorPlan(survey: Survey, how: Mirror): Patch {
     ...(swingPatterns.size === 0 ? {} : { swingPatterns }),
     ...(Object.keys(top).length === 0 ? {} : { plan: top }),
     whole: true,
-    said: [`Mirrored the plan ${how === 'left-right' ? 'left to right (east and west swap)' : 'top to bottom (north and south swap)'}: ${plan.walls.length} walls, ${plan.openings.length} openings and ${plan.rooms.length} rooms${items.size === 0 ? '' : `, and ${items.size} fixture${items.size === 1 ? '' : 's'}`}.${north}${views === null ? '' : ` The ${views.length === 1 ? 'saved view is' : `${views.length} saved views are`} mirrored with it.`}${patternsFollow(plan)}`],
+    said: [`Mirrored the plan ${how === 'left-right' ? 'left to right (east and west swap)' : 'top to bottom (north and south swap)'}: ${plan.walls.length === 0 ? `${(plan.floors ?? []).filter((f) => f.outline !== undefined).length} floor outlines` : `${plan.walls.length} walls`}, ${plan.openings.length} openings and ${plan.rooms.length} rooms${items.size === 0 ? '' : `, and ${items.size} fixture${items.size === 1 ? '' : 's'}`}.${north}${views === null ? '' : ` The ${views.length === 1 ? 'saved view is' : `${views.length} saved views are`} mirrored with it.`}${patternsFollow(plan)}`],
   }
 }
 
@@ -821,8 +846,7 @@ const TURN_WORDS: Record<Turn, string> = { 90: 'a quarter counter-clockwise (90Â
  */
 export function turnPlanBy(survey: Survey, turn: Turn): Patch {
   const plan = survey.plan
-  const xs = plan.walls.flatMap((w) => [w.start[0], w.end[0]])
-  const ys = plan.walls.flatMap((w) => [w.start[1], w.end[1]])
+  const { xs, ys } = extentPoints(plan, 'turn')
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2
   const cy = (Math.min(...ys) + Math.max(...ys)) / 2
   const [cos, sin] = turn === 90 ? [0, 1] : turn === 180 ? [-1, 0] : [0, -1]
@@ -845,7 +869,7 @@ export function turnPlanBy(survey: Survey, turn: Turn): Patch {
   for (const o of plan.openings) if (o.anchor !== undefined && turned(o.anchor.from) !== o.anchor.from) openings.set(o.id, { anchor: { ...o.anchor, from: turned(o.anchor.from) as From } })
   const items = new Map((plan.items ?? []).map((item) => [item.id, { at: map(item.at), turn: r3((((item.turn ?? 0) + turn) % 360 + 360) % 360) }]))
   const top: Record<string, unknown> = {}
-  if (plan.site?.origin !== undefined && plan.walls.length > 0) top['site'] = { ...plan.site, origin: map(plan.site.origin) }
+  if (plan.site?.origin !== undefined) top['site'] = { ...plan.site, origin: map(plan.site.origin) }
   // BRF-4 (C17): a floor's outline turns with the walls it holds.
   const floors = movedOutlines(plan, map)
   if (floors !== null) top['floors'] = floors
@@ -859,13 +883,23 @@ export function turnPlanBy(survey: Survey, turn: Turn): Patch {
     ...(items.size === 0 ? {} : { items }),
     ...(Object.keys(top).length === 0 ? {} : { plan: top }),
     whole: true,
-    said: [`Turned the plan ${TURN_WORDS[turn]} about the middle of its walls: ${plan.walls.length} walls, ${plan.openings.length} openings and ${plan.rooms.length} rooms${items.size === 0 ? '' : `, and ${items.size} fixture${items.size === 1 ? '' : 's'}`}.${north}${down}${patternsFollow(plan)}`],
+    said: [`Turned the plan ${TURN_WORDS[turn]} about the middle of its walls: ${plan.walls.length === 0 ? `${(plan.floors ?? []).filter((f) => f.outline !== undefined).length} floor outlines` : `${plan.walls.length} walls`}, ${plan.openings.length} openings and ${plan.rooms.length} rooms${items.size === 0 ? '' : `, and ${items.size} fixture${items.size === 1 ? '' : 's'}`}.${north}${down}${patternsFollow(plan)}`],
   }
 }
 
-/** BRF-4: the floors with every stated outline moved as `move` moves a point; null when no floor states one, or no wall moves. */
+/**
+ * WRT-59: the points a mirror or a turn is taken about: the walls' ends, or, on a plan of massing
+ * (floor outlines and no walls), the outlines' corners. A plan with neither has nothing to turn.
+ */
+function extentPoints(plan: FloorPlan, doing: 'mirror' | 'turn'): { xs: number[]; ys: number[] } {
+  const points: (readonly [number, number])[] = plan.walls.length > 0 ? plan.walls.flatMap((w) => [w.start, w.end]) : (plan.floors ?? []).flatMap((floor) => floor.outline ?? [])
+  if (points.length === 0) throw new EditRefused(`The plan has no walls and no floor outline, so there is nothing to ${doing}.`)
+  return { xs: points.map((p) => p[0]), ys: points.map((p) => p[1]) }
+}
+
+/** BRF-4: the floors with every stated outline moved as `move` moves a point; null when no floor states one. */
 function movedOutlines(plan: FloorPlan, move: (p: readonly [number, number]) => Pair): FloorPlan['floors'] | null {
-  if (plan.walls.length === 0 || !(plan.floors ?? []).some((floor) => floor.outline !== undefined)) return null
+  if (!(plan.floors ?? []).some((floor) => floor.outline !== undefined)) return null
   return plan.floors!.map((floor) => (floor.outline === undefined ? floor : { ...floor, outline: floor.outline.map(move) }))
 }
 
