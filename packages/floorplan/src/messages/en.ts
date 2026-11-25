@@ -2691,6 +2691,9 @@ export const en = {
   'line.plan/grid-unknown-floor.fix': 'Name the floor by its id, as grid describe gives it, or take it out of the grid\'s floors.',
   'areas.columns.one': '{area} m² of floor under {count} column is taken off the net area of the room it stands in; the gross figures still hold it.',
   'areas.columns.many': '{area} m² of floor under {count} columns is taken off the net area of the rooms they stand in; the gross figures still hold it.',
+  // ARE-35: a stair or lift room only partly over the one below loses only the part over it.
+  'areas.overStair.stair': '{room} on {floor} lies partly over the open stair {below} on {belowFloor}: only the {over} m² over it is taken off its net area, and the other {rest} m² counts on {floor}, the level it serves; the gross figures still hold it all.',
+  'areas.overStair.lift': '{room} on {floor} lies partly over the lift shaft {below} on {belowFloor}: only the {over} m² over it is taken off its net area, and the other {rest} m² counts on {floor}, the level it serves; the gross figures still hold it all.',
   'drawing.key.column': 'Column',
   'drawing.key.grid': 'Structural grid',
   'takeoff.rule.columns': 'A column is counted once, on its own floor, by shape and size; its length runs from its foot to its top, through every floor it rises through, and its volume is its cross-section times that length.',
