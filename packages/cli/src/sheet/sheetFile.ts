@@ -8,7 +8,7 @@ import { planFloors } from '@ongrid/floorplan/geometry'
 import { SheetWordsRefused, type SheetWords } from '@ongrid/floorplan/types/sheet'
 import { accessNotes } from './accessNotes'
 import { parseSheetWordsChecked } from './claims'
-import { exportBaseOf, writeBesidePlan } from '../command/export'
+import { exportBaseOf, exportTime, writeBesidePlan } from '../command/export'
 import { loadPlan, PlanRefused, type LoadedPlan } from '../command/plan'
 import { UsageError } from '../command/options'
 import { askedLanguage, languageFor, spokenPlan } from '../command/language'
@@ -37,6 +37,8 @@ export interface SheetRequest {
   readonly paper?: string
   readonly floor?: string
   readonly roomSizes?: string
+  /** SHT-16: the date to write on the sheet, as given (the form `grid export --date` takes). */
+  readonly date?: string
 }
 
 /** SHT-6: what `grid sheet` makes: one of VEW-7's sheets, or one drawing at a true scale. */
@@ -88,6 +90,7 @@ export function checkDrawingRequest(request: SheetRequest): DrawingRequest {
     throw new UsageError('--room-sizes takes on or off.')
   }
   sheetLanguage(request)
+  exportTime(request.date)
   return {
     ...(request.scale === undefined ? {} : { scale: scaleOption(request.scale) }),
     ...(request.paper === undefined ? {} : { paper: paperOption(request.paper) }),
@@ -112,6 +115,7 @@ export function checkSheetRequest(request: SheetRequest): SheetLayout {
     throw new UsageError('--out must name a .pdf file.')
   }
   sheetLanguage(request)
+  exportTime(request.date)
   return request.layout as SheetLayout
 }
 
@@ -171,14 +175,14 @@ export interface MadeSheet {
  * words are in `language` when one is asked for, else the plan's own (`display.language`), else
  * English.
  */
-export async function makeSheet(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language): Promise<MadeSheet> {
+export async function makeSheet(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string): Promise<MadeSheet> {
   const read = loadPlan(project, planFile)
   const lang = await languageFor(language, read.plan)
   // MSG-22: the floor the plan names in no list, named in the sheet's language.
   const loaded = spokenPlan(read, lang)
   const { base, note } = exportBaseOf(planFile)
   const notes = layout === 'client' ? accessNotes(project, planFile, loaded) : []
-  const sheet = sheetPages(loaded, words, layout, { name: base, date: new Date(), accessNotes: notes, language: lang })
+  const sheet = sheetPages(loaded, words, layout, { name: base, date: exportTime(date), accessNotes: notes, language: lang })
   // The laid-out sheet is the one written: text that did not fit flows onto continuation pages.
   const { pdf, sheet: laidOut } = await sheetPdf(loaded.plan, sheet)
   const pages = laidOut.pages.map((page) => (page.floor === null ? { kind: page.kind, title: page.title } : { kind: page.kind, title: page.title, floor: page.floor }))
@@ -201,8 +205,8 @@ export interface SheetDone {
  * Makes the sheet and writes it into `exports/` beside the plan, replacing an earlier copy, as
  * `grid export` writes its files. The command and the tool server both call this.
  */
-export async function sheetIntoProject(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language): Promise<SheetDone> {
-  const { loaded, pdf, pages, fileName, note } = await makeSheet(project, planFile, layout, words, language)
+export async function sheetIntoProject(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string): Promise<SheetDone> {
+  const { loaded, pdf, pages, fileName, note } = await makeSheet(project, planFile, layout, words, language, date)
   const written = writeBesidePlan(project, planFile, fileName, pdf)
   return note === undefined ? { loaded, written, pages } : { loaded, written, pages, note }
 }
@@ -233,7 +237,7 @@ function drawingStem(planFile: string, loaded: LoadedPlan, floor: string, made?:
  * SHT-6: reads the plan and makes the drawing at a true scale. The project's name is the sheet
  * words' name (`sheet.json`), else the plan's title, else the export name of the plan's file.
  */
-export async function makeDrawing(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language): Promise<MadeDrawing> {
+export async function makeDrawing(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string): Promise<MadeDrawing> {
   const read = loadPlan(project, planFile)
   const lang = await languageFor(language, read.plan)
   // MSG-22: the floor the plan names in no list, named in the drawing's language.
@@ -245,7 +249,7 @@ export async function makeDrawing(project: Project, planFile: string, request: D
   const { drawingSheetFiles, sheetMeasure } = await import('./drawingFiles')
   let sheet: DrawingSheet
   try {
-    sheet = drawingSheet(loaded, { ...request, ...(floor === undefined ? {} : { floor }) }, { project: projectName, date: new Date(), language: lang, measure: await sheetMeasure() })
+    sheet = drawingSheet(loaded, { ...request, ...(floor === undefined ? {} : { floor }) }, { project: projectName, date: exportTime(date), language: lang, measure: await sheetMeasure() })
   } catch (error) {
     if (error instanceof DrawingDoesNotFit) throw new PlanRefused(error.message)
     throw error
@@ -275,8 +279,8 @@ export interface DrawingDone {
 }
 
 /** SHT-6: makes the drawing and writes its PDF, SVG and PNG into `exports/` beside the plan. */
-export async function drawingIntoProject(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language): Promise<DrawingDone> {
-  const made = await makeDrawing(project, planFile, request, words, language)
+export async function drawingIntoProject(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string): Promise<DrawingDone> {
+  const made = await makeDrawing(project, planFile, request, words, language, date)
   const written = {
     pdf: writeBesidePlan(project, planFile, `${made.stem}.pdf`, made.files.pdf),
     svg: writeBesidePlan(project, planFile, `${made.stem}.svg`, made.files.svg),

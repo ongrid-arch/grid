@@ -272,7 +272,7 @@ async function drawingCommand(io: CommandIo, projectOption: string | undefined, 
   const project = openProject(projectOption, io.cwd)
   const words = readSheetWords(project, planFile, loadPlan(project, planFile), request.sheet)
   if (request.out === undefined) {
-    const done = await drawingIntoProject(project, planFile, asked, words, sheetLanguage(request))
+    const done = await drawingIntoProject(project, planFile, asked, words, sheetLanguage(request), request.date)
     warnLeftOut(io, done.loaded)
     if (done.note) io.stderr(`${done.note}\n`)
     io.stdout(`${drawingLine(done.sheet)}\nWrote ${project.shown(done.written.pdf)}, ${project.shown(done.written.svg)} and ${project.shown(done.written.png)}\n`)
@@ -281,7 +281,7 @@ async function drawingCommand(io: CommandIo, projectOption: string | undefined, 
   const out = drawingOutFiles(request.out)
   // Drawing a large plan takes seconds: a file that can't be written is refused first.
   for (const file of [out.pdf, out.svg, out.png]) checkWritable(project, file)
-  const made = await makeDrawing(project, planFile, asked, words, sheetLanguage(request))
+  const made = await makeDrawing(project, planFile, asked, words, sheetLanguage(request), request.date)
   warnLeftOut(io, made.loaded)
   if (made.note) io.stderr(`${made.note}\n`)
   const written = [write(project, out.pdf, made.files.pdf), write(project, out.svg, made.files.svg), write(project, out.png, made.files.png)]
@@ -542,7 +542,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   if (name === 'sheet') {
     const request = {
       layout: textOf(parsed, '--layout'), sheet: textOf(parsed, '--sheet'), out: textOf(parsed, '--out'), lang: textOf(parsed, '--lang'),
-      scale: textOf(parsed, '--scale'), paper: textOf(parsed, '--paper'), floor: textOf(parsed, '--floor'), roomSizes: textOf(parsed, '--room-sizes'),
+      scale: textOf(parsed, '--scale'), paper: textOf(parsed, '--paper'), floor: textOf(parsed, '--floor'), roomSizes: textOf(parsed, '--room-sizes'), date: textOf(parsed, '--date'),
     }
     const kind = sheetKindOf(request)
     if (kind === 'drawing') return drawingCommand(io, projectOption, planFile, request)
@@ -550,7 +550,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const project = openProject(projectOption, io.cwd)
     const words = layout === 'client' ? readSheetWords(project, planFile, loadPlan(project, planFile), request.sheet) : null
     if (request.out === undefined) {
-      const done = await sheetIntoProject(project, planFile, layout, words, sheetLanguage(request))
+      const done = await sheetIntoProject(project, planFile, layout, words, sheetLanguage(request), request.date)
       warnLeftOut(io, done.loaded)
       if (done.note) io.stderr(`${done.note}\n`)
       io.stdout(`Wrote ${project.shown(done.written)}\n`)
@@ -558,7 +558,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     }
     // Drawing a large plan takes seconds: a file that can't be written is refused first.
     checkWritable(project, request.out)
-    const made = await makeSheet(project, planFile, layout, words, sheetLanguage(request))
+    const made = await makeSheet(project, planFile, layout, words, sheetLanguage(request), request.date)
     warnLeftOut(io, made.loaded)
     if (made.note) io.stderr(`${made.note}\n`)
     io.stdout(`Wrote ${project.shown(write(project, request.out, made.pdf))}\n`)
