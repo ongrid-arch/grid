@@ -1894,6 +1894,12 @@ export const en = {
   'describe.wall.anticlockwise': 'anticlockwise',
   'describe.wall.clockwise': 'clockwise',
   'describe.rooms.curved': 'wall {wall} is curved, and rooms text writes straight walls only',
+  // WRT-42: what the read-back gives in Grid's own terms, named in a comment line above it.
+  'describe.rooms.rawFloor': "Written in Grid's own terms, as rooms text does not give this floor back as it is: {why}.",
+  'describe.rooms.rawOpening': "Opening {opening} is written in Grid's own terms: {why}.",
+  'describe.rooms.rawOpening.unplaced': 'rooms text has no line that places it as it is',
+  'describe.rooms.rawOpening.changes': 'written as rooms text, it {what}',
+  'describe.rooms.unsettled': 'its rooms text could not be checked against the plan in {rounds} writings',
   // WRT-14: the floor line of rooms text, and its refusals, each followed by how it is written.
   'rooms.floor.form': 'floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]',
   'rooms.floor.how':

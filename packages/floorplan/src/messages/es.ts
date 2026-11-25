@@ -1906,6 +1906,12 @@ export const es: Messages = {
   'describe.wall.anticlockwise': 'en sentido antihorario',
   'describe.wall.clockwise': 'en sentido horario',
   'describe.rooms.curved': 'el muro {wall} es curvo, y el texto de estancias solo escribe muros rectos',
+  // WRT-42: lo que la relectura da en los términos propios de Grid, nombrado en una línea de comentario encima.
+  'describe.rooms.rawFloor': 'Escrita en los términos propios de Grid, pues el texto de estancias no devuelve esta planta tal como es: {why}.',
+  'describe.rooms.rawOpening': 'El hueco {opening} se escribe en los términos propios de Grid: {why}.',
+  'describe.rooms.rawOpening.unplaced': 'el texto de estancias no tiene una línea que lo sitúe tal como es',
+  'describe.rooms.rawOpening.changes': 'escrito como texto de estancias, {what}',
+  'describe.rooms.unsettled': 'su texto de estancias no pudo comprobarse frente al plano en {rounds} escrituras',
   // WRT-14: la línea de planta del texto de estancias y sus rechazos, cada uno seguido de cómo se escribe.
   'rooms.floor.form': 'floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]',
   'rooms.floor.how':
