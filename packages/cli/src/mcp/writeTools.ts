@@ -59,7 +59,9 @@ import {
   ToolRefusal,
   type GridTool,
   type ToolContext,
+  usesRead,
 } from './toolkit'
+import { english, name as nameOf, said as sentence } from '@ongrid/floorplan/messages'
 
 export const EXPORT_TOOL_NAME = 'grid_export'
 
@@ -334,8 +336,11 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   const brief = briefAnswer(project, file, after)
   // HND-11 (lab WR-14): the taped lengths against the plan as it now is.
   const taped = tapedRows(after)
+  // WRT-58: a use word read as another use (`gym` as `sport`) is said, so the person sees what it became.
+  const usesSaid = usesRead(args).map((read) => english(sentence('edit.use.read', { word: nameOf(read.word), use: read.use })))
   const text = [
     ...patch.said,
+    ...usesSaid,
     ...guessed.map((line) => `Guessed: ${line}`),
     ...couldNotKeep.map((line) => `Could not keep: ${line}`),
     verdict,

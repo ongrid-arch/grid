@@ -2386,6 +2386,8 @@ export const en = {
   'edit.square.curvedLeft.many': 'Curved walls {walls} are left as they are: squaring turns straight walls only.',
   'edit.square.onlyCurved': 'Only curved walls are marked to square ({walls}), and squaring turns straight walls only: nothing would move.',
   // WRT-24: what a stretch carries beyond its line with the walls, and what stays behind.
+  // WRT-58: a use word an edit took, read as the use it means.
+  'edit.use.read': 'Read {word} as the use {use}.',
   'edit.stretch.carried': '{parts} beyond the line moved with it.',
   'edit.stretch.count.column.one': '{n} column',
   'edit.stretch.count.column.many': '{n} columns',
