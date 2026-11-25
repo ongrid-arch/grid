@@ -120,6 +120,7 @@ Each is worth a look; the item is drawn and measured either way.
 |---|---|
 | `item/unknown-library` | The item names an entry no library holds. It is drawn from what it states; one that states no size is left out by the reading |
 | `item/overlap` | It stands in another item by more than 5 mm (`itemOverlap`) |
+| `item/leaves-room` | More than 0.005 m² of its footprint lies past its room's edge where no wall stands (`itemLeavesRoom`) |
 | `item/clearance-blocked` | A wall, or another item, stands in the clear floor it keeps in front of it |
 
 These come with the checks every item has, in [plan-file.md](plan-file.md#fixtures).
