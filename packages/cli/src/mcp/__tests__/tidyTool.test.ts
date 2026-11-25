@@ -68,18 +68,19 @@ describe('grid_tidy', () => {
     expect((read('tidied.json') as { rooms: { boundary: string[] }[] }).rooms[0]!.boundary).toContain('cut')
   })
 
-  it('leaves a fix that seals a room with all, saying why, and makes it when named', async () => {
+  it('says a fix would seal a room, lists it in seals, and still makes it with all', async () => {
     const plan = corner()
     plan.walls[4] = { id: 'part', start: [8, 0], end: [8, 8], thickness: 0.1, height: 3, kind: 'exterior' }
     plan.openings = [{ id: 'front', wall: 'w', type: 'door', offset: 3, width: 1, height: 2.1 }]
     b = bench({ 'plan.json': plan })
+    const listed = (await b.call('grid_tidy', {})).data as { faults: { id: string; fix: string; seals: string[] }[] }
+    expect(listed.faults[0]!.seals).toEqual(['dining-2'])
+    expect(listed.faults[0]!.fix).toContain('Look before making it: it leaves room "dining-2" with no way in')
     const all = await b.call('grid_tidy', { all: true })
-    const data = all.data as { applied: unknown[]; skipped: { id: string; why: string }[]; written: string | null }
-    expect(data.applied).toEqual([])
-    expect(data.skipped).toEqual([{ id: 'crosses-room:part:dining', why: 'not made with all, as it would leave "dining-2" with no way in: name it, "crosses-room:part:dining", to make it.' }])
-    expect(data.written).toBeNull()
-    const named = await b.call('grid_tidy', { apply: ['crosses-room:part:dining'] })
-    expect((named.data as { applied: { seals: string[] }[] }).applied[0]!.seals).toEqual(['dining-2'])
+    const data = all.data as { applied: { id: string; seals: string[] }[]; skipped: unknown[]; written: string | null }
+    expect(data.applied.map((f) => [f.id, f.seals])).toEqual([['crosses-room:part:dining', ['dining-2']]])
+    expect(data.skipped).toEqual([])
+    expect(data.written).toBe('plan.json')
     expect((read('plan.json') as { rooms: unknown[] }).rooms).toHaveLength(2)
   })
 

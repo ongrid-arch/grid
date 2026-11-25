@@ -393,7 +393,6 @@ export const en = {
   'issue.wall/fault.fix': 'Fix: {fix}',
   'issue.wall/fault.noFix': 'Grid offers no change for this: every one it tried leaves a room without an outline.',
   'issue.wall/fault.moveEnd': 'move the {end} of wall {wall} to {at}.',
-  'issue.wall/fault.sealsSkipped': 'not made with all, as it would leave {rooms} with no way in: name it, {id}, to make it.',
   'issue.wall/short':
     'Wall {wall} stops {gap} m short of its corner with wall {other} in room {room}: its {end} is at {at} and the corner at {corner}. The room is measured as if the two walls met.',
   'issue.wall/gap':
@@ -422,12 +421,14 @@ export const en = {
   'issue.wall/crosses-room.fix':
     'split room {room} along it, into {a} ({areaA} m²) and {b} ({areaB} m²), each listing it. If it should not be there, remove it instead.{seals}',
   'issue.wall/crosses-room.seals.one': ' Look before making it: it leaves room {room} with no way in, no door, opening or open side on any of its walls.',
+  'issue.wall/crosses-room.seals.both': ' Look before making it: it leaves rooms {a} and {b} with no way in, no door, opening or open side on any of their walls.',
   'issue.wall/crosses-room.seals.between':
     ' Look before making it: it leaves rooms {a} and {b} with no way in but through each other, neither with a door, opening or open side on any other wall.',
   'issue.wall/crosses-room.corner':
     'take the corner beyond it outside: room {room} lists it in place of the corner and measures {area} m², and walls {walls} end on it.{gone}{moved} If the corner is meant to be a room of its own, split the room along it instead.',
   'issue.wall/crosses-room.corner.gone': ' Taken out, as wholly beyond it: {walls}.',
-  'issue.wall/crosses-room.corner.moved': ' {opening}, on the corner, moves onto it, in its middle.',
+  'issue.wall/crosses-room.corner.moved': ' {openings}, on the corner, moves onto it, in its middle.',
+  'issue.wall/crosses-room.corner.movedMany': ' {openings}, on the corner, move onto it, spaced evenly along it.',
   'issue.wall/crosses-room.noFix': 'Grid offers no change: split the room along it, or remove it if it should not be there.',
   'issue.wall/stands-in-room':
     'Wall {walls} stands inside room {room}, which does not list it, so the room is measured as if it were not there. If it is a room inside it (a pod, a cupboard, a column), draw that room and mark it "inside"; if furniture, leave it out of the walls; if the room goes round it, add it to its wall list.',

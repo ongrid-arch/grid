@@ -355,8 +355,7 @@ describe('a wall across a room that does not list it (MS-17)', () => {
   it('tidies into two rooms whose areas add up to the bedroom less the partition', () => {
     const plan = planOf(STRAY)
     const before = area(plan, 'bed')
-    // WRT-36: a split that seals a part is made only when named.
-    const tidied = tidyPlan(plan, ['crosses-room:stray:bed']).plan
+    const tidied = tidyPlan(plan).plan
     expect(tidied.rooms.map((r) => [r.id, r.name, r.boundary])).toEqual([
       ['hall', 'Hall', ['s', 'mid', 'n', 'w']],
       ['bed', 'Bedroom', ['s', 'e', 'n', 'stray']],
@@ -539,6 +538,55 @@ describe('a wall across a corner of a room, at an angle (WRT-36)', () => {
     expect(faultsOf(tidied)).toEqual([])
   })
 
+  it('turns the hinge and swing of a door that moves onto a cut running the other way', () => {
+    // Wall "e" runs north; the cut, drawn from (10, 2) to (8, 0), runs south-west: the other way.
+    const raw = CORNER_ENTRANCE({ openings: [{ id: 'side', wall: 'e', type: 'door', offset: 0.6, width: 0.9, height: 2.1, hinge: 'start', swing: 'left' }] })
+    raw.walls[4] = { id: 'cut', start: [10, 2], end: [8, 0], thickness: 0.3, kind: 'exterior' }
+    const tidied = tidyPlan(planOf(raw)).plan
+    expect(tidied.openings.find((o) => o.id === 'side')).toMatchObject({ wall: 'cut', hinge: 'end', swing: 'right' })
+    expect(faultsOf(tidied)).toEqual([])
+  })
+
+  it('keeps the hinge and swing of a door moved onto a cut running its way', () => {
+    // Wall "s" runs east; the cut, from (8, 0) to (10, 2), runs north-east: the same way.
+    const plan = planOf(CORNER_ENTRANCE({ openings: [{ id: 'entry', wall: 's', type: 'door', offset: 8.6, width: 0.9, height: 2.1, hinge: 'start', swing: 'left' }] }))
+    const moved = tidyPlan(plan).plan.openings.find((o) => o.id === 'entry')!
+    expect(moved).toMatchObject({ wall: 'cut', hinge: 'start', swing: 'left' })
+  })
+
+  it('moves two openings on the corner onto the cut, spaced evenly in the order they stood', () => {
+    const plan = planOf(
+      CORNER_ENTRANCE({
+        openings: [
+          { id: 'win', wall: 'e', type: 'window', offset: 0.7, width: 0.6, sill: 0.9, height: 1.2 },
+          { id: 'entry', wall: 's', type: 'door', offset: 8.7, width: 0.9, height: 2.1 }
+        ]
+      })
+    )
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:cut:dining')!
+    expect(fault.message).toContain('"entry" and "win", on the corner, move onto it, spaced evenly along it.')
+    const tidied = tidyPlan(plan).plan
+    const cut = Math.hypot(2, 2)
+    const gap = (cut - 0.3 - 1.5) / 3
+    const round = (v: number): number => Math.round(v * 1e6) / 1e6
+    expect(tidied.openings.find((o) => o.id === 'entry')).toMatchObject({ wall: 'cut', offset: round(0.15 + gap) })
+    expect(tidied.openings.find((o) => o.id === 'win')).toMatchObject({ wall: 'cut', offset: round(0.15 + gap + 0.9 + gap) })
+    expect(faultsOf(tidied)).toEqual([])
+  })
+
+  it('splits instead when the openings on the corner do not fit on the cut', () => {
+    const plan = planOf(
+      CORNER_ENTRANCE({
+        openings: [
+          // 2.8 m of openings, and 2.53 m of the cut clear of the walls it meets.
+          { id: 'win', wall: 'e', type: 'window', offset: 0.3, width: 1.4, sill: 0.9, height: 1.2 },
+          { id: 'entry', wall: 's', type: 'door', offset: 8.2, width: 1.4, height: 2.1 }
+        ]
+      })
+    )
+    expect(faultsOf(plan).find((f) => f.id === 'crosses-room:cut:dining')!.fix!.says).toMatch(/^split room "dining" along it/)
+  })
+
   it('takes out a wall wholly beyond the cut, giving its facts to the cut', () => {
     // The corner drawn with a short return: s stops at 9.5 and a stub runs to e.
     const raw = CORNER_ENTRANCE()
@@ -593,20 +641,22 @@ describe('a split that would seal a space (WRT-36)', () => {
     openings
   })
 
-  it('warns that a part would have no way in, and tidy with no ids leaves it', () => {
+  it('warns that a part would have no way in, and tidy still makes the split', () => {
     const plan = planOf(partitioned([{ id: 'front', wall: 'w', type: 'door', offset: 3, width: 1, height: 2.1 }]))
     const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:part:dining')!
     expect(fault.fix!.seals).toEqual(['dining-2'])
     expect(fault.message).toContain('Look before making it: it leaves room "dining-2" with no way in, no door, opening or open side on any of its walls.')
     const all = tidyPlan(plan)
-    expect(all.applied).toEqual([])
-    expect(all.skipped).toEqual([
-      { id: fault.id, why: `not made with all, as it would leave "dining-2" with no way in: name it, "${fault.id}", to make it.` }
-    ])
-    expect(all.plan.rooms).toHaveLength(1)
-    const named = tidyPlan(plan, [fault.id])
-    expect(named.applied.map((f) => f.id)).toEqual([fault.id])
-    expect(named.plan.rooms.map((r) => r.id)).toEqual(['dining', 'dining-2'])
+    expect(all.applied.map((f) => f.id)).toEqual([fault.id])
+    expect(all.skipped).toEqual([])
+    expect(all.plan.rooms.map((r) => r.id)).toEqual(['dining', 'dining-2'])
+  })
+
+  it('warns too when the room has no openings at all', () => {
+    const plan = planOf(partitioned([]))
+    const fault = faultsOf(plan).find((f) => f.id === 'crosses-room:part:dining')!
+    expect(fault.fix!.seals).toEqual(['dining', 'dining-2'])
+    expect(fault.message).toContain('Look before making it: it leaves rooms "dining" and "dining-2" with no way in, no door, opening or open side on any of their walls.')
   })
 
   it('warns when the parts\' only way in is the door between them', () => {
