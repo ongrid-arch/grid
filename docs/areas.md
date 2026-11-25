@@ -22,7 +22,7 @@ clause, place, day read and status, and none is carried yet.
 | Free floor | Free floor is a room's net area less the floor its fixtures stand on: their footprints, joined where they overlap, within the room. | Only the fixtures the plan states are taken off, at the sizes it states: loose furniture, which the plan does not hold, and the floor kept clear in front of a fixture both count as free. | The plan cannot say what stands in a room beyond what it states: a room with no fixtures stated is free floor all over, and a zone's fixtures are its room's too. |
 
 On every floor the gross external area is the net area, plus the floor under columns, the rooms
-named outside, the walls and the floor no room claims, to a millionth of a square metre. Where rooms overlap, or run over
+the walls and the floor no room claims, to a millionth of a square metre. A room named outside is the outside, as outdoor space is: the walls round it face outside and its floor is in no net, gross internal or gross external figure. Where rooms overlap, or run over
 walls or outside them, the answer says how much floor that is, and the sum takes it off. The
 gross internal area leaves out the walls that face outside, stretch by stretch, as Grid works
 them out from the rooms beside them, with the corners between them; a floor with no such wall
