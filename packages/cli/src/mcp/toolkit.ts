@@ -9,7 +9,7 @@
  */
 import { GENERAL_GUIDANCE_LABEL, planFloors, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
-import { likelyId } from '@ongrid/floorplan/types/nearest'
+import { likelyId, nearestIds } from '@ongrid/floorplan/types/nearest'
 import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { missingDefaultPlan, projectPlanFile } from '../command/init'
 import { UsageError } from '../command/options'
@@ -351,7 +351,8 @@ export function floorArg(plan: FloorPlan, floor: unknown): string | undefined {
   if (floor === undefined) return undefined
   const floors = planFloors(plan)
   if (floors.some((f) => f.id === floor)) return floor as string
-  throw new ToolRefusal(`That floor is not in this plan. Its floors: ${floorList(plan)}.`)
+  const nearest = nearestIdText(floor, floors.map((f) => f.id))
+  throw new ToolRefusal(`That floor is not in this plan.${nearest} Its floors: ${floorList(plan)}.`)
 }
 
 /**
@@ -366,30 +367,41 @@ export function nearestIdText(sent: unknown, known: readonly string[]): string {
   return best === null ? '' : ` The nearest known id is ${quoted(best)}.`
 }
 
-/** A room the call named, checked against the plan, with the nearest id and the rooms it has when it is not there. */
+/**
+ * The ids of a plan nearest the one sent, as a sentence (CMD-21): up to five, each with its note,
+ * and how many more the plan holds. Never the plan's first few, which say nothing about the one
+ * meant. Only known ids are quoted: the one sent is text from the agent (MS-19).
+ */
+export function nearestList(sent: unknown, known: readonly { id: string; note: string }[]): string {
+  const ids = known.map((k) => k.id)
+  const near = typeof sent === 'string' ? nearestIds(sent, ids, 5) : ids.slice(0, 5)
+  const notes = new Map(known.map((k) => [k.id, k.note]))
+  const shown = near.map((id) => `${quoted(id)}${notes.get(id) ?? ''}`)
+  return `${shown.join(', ')}${ids.length > near.length ? ` and ${ids.length - near.length} more` : ''}`
+}
+
+/** A room the call named, checked against the plan, with the nearest ids when it is not there. */
 export function roomArg(plan: FloorPlan, room: unknown, argument = 'room'): string {
   if (plan.rooms.some((r) => r.id === room)) return room as string
-  const shown = plan.rooms.slice(0, 30).map((r) => `${quoted(r.id)} (${quoted(r.name)})`)
-  const more = plan.rooms.length > 30 ? ` and ${plan.rooms.length - 30} more` : ''
   const nearest = nearestIdText(room, plan.rooms.map((r) => r.id))
-  throw new ToolRefusal(`The ${argument} named is not a room of this plan.${nearest} Its rooms: ${shown.join(', ') || 'none'}${more}.`)
+  const list = plan.rooms.length === 0 ? 'none' : nearestList(room, plan.rooms.map((r) => ({ id: r.id, note: ` (${quoted(r.name)})` })))
+  throw new ToolRefusal(`The ${argument} named is not a room of this plan.${nearest} Its nearest rooms: ${list}.`)
 }
 
-/** An opening the call named, checked against the plan, with the nearest id and the openings it has when it is not there. */
+/** An opening the call named, checked against the plan, with the nearest ids when it is not there. */
 export function openingArg(plan: FloorPlan, opening: unknown): string {
   if (plan.openings.some((o) => o.id === opening)) return opening as string
-  const shown = plan.openings.slice(0, 40).map((o) => `${quoted(o.id)} (${o.type})`)
-  const more = plan.openings.length > 40 ? ` and ${plan.openings.length - 40} more` : ''
   const nearest = nearestIdText(opening, plan.openings.map((o) => o.id))
-  throw new ToolRefusal(`The opening named is not in this plan.${nearest} Its doors, windows and openings: ${shown.join(', ') || 'none'}${more}.`)
+  const list = plan.openings.length === 0 ? 'none' : nearestList(opening, plan.openings.map((o) => ({ id: o.id, note: ` (${o.type})` })))
+  throw new ToolRefusal(`The opening named is not in this plan.${nearest} Its nearest doors, windows and openings: ${list}.`)
 }
 
-/** A wall the call named, checked against the plan, with the nearest wall id when it is not there. */
+/** A wall the call named, checked against the plan, with the nearest wall ids when it is not there. */
 export function wallArg(plan: FloorPlan, wall: unknown): string {
   if (plan.walls.some((w) => w.id === wall)) return wall as string
   const ids = plan.walls.map((w) => w.id)
-  // No near id: its walls, so the agent can choose (MSG-7).
-  const listed = ids.length === 0 ? ' It has no walls.' : ` Its walls: ${ids.slice(0, 40).map(quoted).join(', ')}${ids.length > 40 ? ` and ${ids.length - 40} more` : ''}.`
+  // No single near id: the nearest walls, so the agent can choose (MSG-7, CMD-21).
+  const listed = ids.length === 0 ? ' It has no walls.' : ` Its nearest walls: ${nearestList(wall, ids.map((id) => ({ id, note: '' })))}.`
   throw new ToolRefusal(`The wall named is not in this plan.${nearestIdText(wall, ids) || listed}`)
 }
 

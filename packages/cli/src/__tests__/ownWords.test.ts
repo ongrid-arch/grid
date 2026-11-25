@@ -113,7 +113,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   'packages/cli/src/mcp/serveTools.ts': [1, 'tools'],
-  'packages/cli/src/mcp/toolkit.ts': [26, 'agent'],
+  'packages/cli/src/mcp/toolkit.ts': [27, 'agent'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   'packages/cli/src/mcp/writeTools.ts': [128, 'tools'],
