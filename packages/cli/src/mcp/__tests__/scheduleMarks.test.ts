@@ -73,11 +73,11 @@ describe('ARE-15 the unit mix (done when 1)', () => {
       ['flat1', 'One bedroom', 2, 1, 1],
       ['flat2', 'Two bedrooms', 2, 1, 2],
     ])
-    expect(mix[0]!.area).toBeCloseTo(2 * 68.2671, 3)
-    expect(mix[1]!.area).toBeCloseTo(2 * 99.2313, 3)
+    expect(mix[0]!.area).toBeCloseTo(2 * 68.2671, 1)
+    expect(mix[1]!.area).toBeCloseTo(2 * 99.2313, 1)
     const total = reply.data!['total'] as { flats: number; area: number }
     expect(total.flats).toBe(4)
-    expect(total.area).toBeCloseTo(mix[0]!.area + mix[1]!.area, 9)
+    expect(total.area).toBeCloseTo(mix[0]!.area + mix[1]!.area, 1)
     expect(reply.text).toContain('Mix by type:\n  "One bedroom": 2 flats (1 mirrored), 1 bedroom each, 50.0% of the flats, 136.53 m²')
     expect(reply.text).toContain('  "Two bedrooms": 2 flats (1 mirrored), 2 bedrooms each, 50.0% of the flats, 198.46 m²')
     expect(reply.text).toContain('All flats: 4 flats, 335.00 m². In no flat: 84.49 m².')

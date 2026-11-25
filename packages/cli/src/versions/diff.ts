@@ -156,6 +156,8 @@ export function diffData(run: PlanDiffRun, show: DiffShow): Record<string, unkno
     roomsFirst: c.roomsFirst,
     shift: [...c.shift],
     renamed: { count: c.renamed.count, walls: c.renamed.walls, openings: c.renamed.openings, rooms: c.renamed.rooms },
+    // WRT-25: the floors that moved up or down or changed their figures, old and new.
+    floors: c.floors.map((f) => ({ floor: f.floor, name: f.name, renamedFrom: f.renamedFrom, level: f.level, elevation: f.elevation, height: f.height, slab: f.slab, stands: f.stands })),
     issues: c.issues.map((i) => ({ code: i.code, message: i.message, entities: i.entities })),
     rooms: show === 'issues' ? [] : c.rooms.map((r) => ({ room: r.room, name: r.name, status: r.status, before: r.before, after: r.after, moved: r.moved, walls: [...r.walls], text: r.text })),
     changes: show === 'issues' || show === 'summary' ? [] : c.changes.map((l) => ({ text: l.text, entities: l.entities, rooms: l.rooms })),

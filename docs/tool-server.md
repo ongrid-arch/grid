@@ -148,6 +148,17 @@ figure used here, with its basis and its status. The plugin's skill carries the 
 `npm run retell` scores how well a model keeps to them (see the scoreboard's
 [README](../scoreboard/README.md#the-retelling-set)).
 
+## Figures in the data, and the compact data
+
+The figures in an answer's structured data are written once, where the server answers
+(`src/mcp/figures.ts`, CMD-22): a length to the millimetre and an area to 0.01 m², rounded from a
+value cleaned of the arithmetic's noise, halves away from zero, as the text of the answer is. So
+a room's area is 27.36, never 27.359999999999985, and a 20.295 m² room is 20.3 wherever it
+appears. Whole numbers, places on the globe and figures under a millimetre are left as they are.
+`grid_areas`, `grid_takeoff` and `grid_schedule` take `data=compact`: the label, the single
+figures and the totals come first, then the lists, with null and empty values left out except
+those the output schema requires. The words of the answer do not change.
+
 ## The person's language
 
 `grid_check`, `grid_describe`, `grid_view` and `grid_sheet` take `language` (`en` or `es`; the

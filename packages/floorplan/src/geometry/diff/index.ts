@@ -6,6 +6,7 @@ export { statusOf } from './status'
 export { alignPlans, wallsInPlace, type Alignment, type AlignOptions, type Redrawn, type RenamedId } from './place'
 export { findTurn, planTurn, turnPlan, PLAN_TURNS, type PlanTurn, type PlanTurnId } from './turn'
 export { sameRing } from './props'
+export { floorChanges, type FloorChange, type FloorChangeOptions, type FloorFigure } from './floors'
 export {
   compareBuildings,
   BUILDING_COMPARISON_VERSION,

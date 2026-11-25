@@ -79,8 +79,8 @@ describe('ARE-20 one building measured apart (apart_rooms)', () => {
     const apart = reply.data!['apart'] as { rooms: string[]; net: number; toPartyWalls: { grossInternal: number; grossExternal: number }; state: State }
     expect(apart.rooms).toEqual(['chapel'])
     expect(apart.net).toBeCloseTo(74.69, 6)
-    expect(apart.toPartyWalls.grossInternal).toBeCloseTo(75.845, 6)
-    expect(apart.toPartyWalls.grossExternal).toBeCloseTo(84.245, 6)
+    expect(apart.toPartyWalls.grossInternal).toBeCloseTo(75.845, 1)
+    expect(apart.toPartyWalls.grossExternal).toBeCloseTo(84.245, 1)
     expect(apart.state.state).toBe('proven')
     // 75.845 and 84.245 by hand: either rounding of the last half is right.
     expect(reply.text).toMatch(/Measured apart \(1 room\): net 74\.69 m²; to the middle of the walls they share with the rest 75\.8[45] m² to the inside face of the outer walls, 84\.2[45] m² to the outside face of the outer walls\./)

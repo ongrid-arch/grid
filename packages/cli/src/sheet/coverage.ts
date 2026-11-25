@@ -24,6 +24,8 @@ export const SHEET_COVERAGE = {
   building: { shown: 'not shown', why: 'It decides which checks run (CNT-5); the check lines say which did not, and why.' },
   display: { shown: 'not shown', why: 'It says how a person reads lengths; the sheet prints metres (WRT-7).' },
   projectId: { shown: 'not shown', why: 'It names the project to other programs (QAR-5), not the building.' },
+  // SHT-14: the plan's name is on the cover and in every page's top line.
+  name: { shown: 'drawn' },
   walls: { shown: 'drawn' },
   openings: { shown: 'drawn' },
   // LVL-8: an opening pattern is drawn as the plain openings it expands into, on every page that

@@ -205,6 +205,11 @@ export function planTextProblem(raw: Record<string, unknown>): string | null {
     const problem = textProblem(projectId, 'id')
     if (problem) return `projectId ${problem}`
   }
+  const planName = raw['name']
+  if (typeof planName === 'string') {
+    const problem = textProblem(planName, 'name')
+    if (problem) return `name ${problem}`
+  }
   const title = raw['title']
   if (typeof title === 'string') {
     const problem = textProblem(title, 'name')

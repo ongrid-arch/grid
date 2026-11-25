@@ -1951,6 +1951,23 @@ export const en = {
   'diff.floor.rooms.one': '{count} room, {area} m²',
   'diff.floor.rooms.many': '{count} rooms, {area} m²',
 
+  // --- Comparing two versions: a floor that moved up or down or changed its figures (WRT-25, `diff/floors.ts`)
+  'diff.floor.changed': 'Floor {floor} {changes}',
+  'diff.floor.changed.inSentence': 'floor {floor} {changes}',
+  'diff.floor.up': 'Floor {floor} moved up {by} m: {changes}',
+  'diff.floor.up.inSentence': 'floor {floor} moved up {by} m: {changes}',
+  'diff.floor.down': 'Floor {floor} moved down {by} m: {changes}',
+  'diff.floor.down.inSentence': 'floor {floor} moved down {by} m: {changes}',
+  'diff.floor.renamed': 'renamed to {name}',
+  'diff.floor.level': 'level {before} → {after}',
+  'diff.floor.elevation': 'elevation {before} → {after}',
+  'diff.floor.stands': 'standing at {before} → {after} m',
+  'diff.floor.height': 'height {before} → {after}',
+  'diff.floor.slab': 'slab {before} → {after}',
+  'diff.floor.metres': '{value} m',
+  'diff.floor.notStated': 'not stated',
+  'compare.same.floors': '{after} has the walls, openings and rooms of {before}, each in its place, but {changes}.',
+
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Floor plan with {count} rooms',
   'drawing.picture.keyed': 'Floor plan with {count} rooms, and a key of what to look at',
@@ -2616,6 +2633,8 @@ export const en = {
   // SHT-10: the key of a drawing whose walls read by kind, whose walls of a material are hatched
   // and whose rooms are tinted by their floor finish.
   'drawing.key.partition': 'Partition',
+  // CNT-26: a wall standing apart from the building, drawn and keyed apart.
+  'drawing.key.gardenWall': 'Garden or boundary wall',
   'drawing.key.material': 'Wall: {material}',
   'drawing.key.finish': 'Floor: {finish}',
 

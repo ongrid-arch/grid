@@ -575,9 +575,9 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
 
 export function sheetPages(loaded: LoadedPlan, words: SheetWords | null, layout: SheetLayout, options: SheetOptions): Sheet {
   // A check sheet takes nothing from sheet.json, not even its name.
-  const name = layout === 'client' ? words?.name ?? options.name : options.name
+  const name = layout === 'client' ? words?.name ?? loaded.plan.name ?? options.name : loaded.plan.name ?? options.name
   const w = wordsIn(options.language ?? DEFAULT_LANGUAGE)
-  const bodies = layout === 'client' ? clientBodies(loaded, words, options.name, w, options.accessNotes) : checkBodies(loaded, options.name, w)
+  const bodies = layout === 'client' ? clientBodies(loaded, words, loaded.plan.name ?? options.name, w, options.accessNotes) : checkBodies(loaded, loaded.plan.name ?? options.name, w)
   const date = dateText(options.date, w)
   const label = w.say('label')
   const pages = bodies.map((body, i): SheetPage => ({
