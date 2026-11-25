@@ -15,6 +15,7 @@
  */
 import { DEFAULT_FLOOR_ID, type Taped } from '../types/floorplan'
 import { english, joined, name, num, said, type Said, type Value } from '../messages/say'
+import { planInState } from './phases'
 import { indexPlan, type FloorPlan, type PlanIndex, type Wall } from './plan'
 import { roomOutline, type RoomOutline } from './room'
 import { fixedText } from './rounding'
@@ -310,12 +311,16 @@ function measure(entry: Taped, index: PlanIndex, outlines: Map<string, RoomOutli
 
 /**
  * Every length the plan keeps as taped, in its order, set against the drawing. Empty for a plan
- * with none.
+ * with none. ARE-41: a tape was run on the building as surveyed, so it is set against the
+ * existing state (`planInState` 'before'), never the proposed one: a room or wall that is new
+ * is not there to measure, and every reader (the check, every change's answer) gets the same
+ * rows. A plan with no phases is read as it is; `given` is an index of the plan as it is read.
  */
-export function tapedLengths(plan: FloorPlan, given?: PlanIndex): TapedRow[] {
-  const list = plan.taped ?? []
+export function tapedLengths(whole: FloorPlan, given?: PlanIndex): TapedRow[] {
+  const list = whole.taped ?? []
   if (list.length === 0) return []
-  const index = given ?? indexPlan(plan)
+  const plan = planInState(whole, 'before')
+  const index = given !== undefined && plan === whole ? given : indexPlan(plan)
   const outlines = new Map<string, RoomOutline | null>()
   return list.map((entry, at) => {
     const room = plan.rooms.find((r) => r.id === entry.room)

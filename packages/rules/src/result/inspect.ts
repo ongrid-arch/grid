@@ -978,8 +978,8 @@ function inspectRead(read: Extract<Read, { plan: FloorPlan }>, inspectOptions: I
   // cannot be measured, is a line; the whole table rides on the record.
   let taped: readonly TapedRow[] | null = null
   stage('taped', () => {
-    if ((plan.taped ?? []).length === 0) return
-    taped = tapedLengths(plan)
+    if ((whole.taped ?? []).length === 0) return
+    taped = tapedLengths(whole)
     for (const row of taped) {
       if (row.state === 'agrees') continue
       const room = names.thingOf('room', row.room)
