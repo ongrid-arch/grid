@@ -2105,6 +2105,7 @@ export const es: Messages = {
   'drawing.key.existingWall': 'Muro existente',
   'drawing.key.newWall': 'Muro nuevo',
   'drawing.key.demolished': 'A demoler',
+  'view.phases.work': 'El plan marca su obra: {total} por demoler ({walls} muros, {openings} aberturas, {rooms} estancias), dibujados a trazos y en la leyenda como "a demoler", el mismo recuento que da grid_check; {new} nuevos. Las medidas y las comprobaciones leen el edificio tras la obra.',
   'describe.count.opening.one': '{count} hueco',
   'describe.count.opening.many': '{count} huecos',
   'describe.work': 'Contiene obra: a demoler, {demolished}; nuevo, {new}; las medidas de aquí son de después de la obra.',

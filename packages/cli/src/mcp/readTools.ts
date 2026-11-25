@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, itemFootprint, kindWords, limit, oneInText, planFloors, planOrientation, planStoreys, buildingHeights, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planFloors, planOrientation, planStoreys, buildingHeights, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CameraRefused, cameraFor, eyeCamera, lensProblem, settingOfCamera, type CameraAsk } from '../draw/cameraAsk'
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
@@ -1715,7 +1715,7 @@ function checkViewText(loaded: LoadedPlan, floor: string): string[] {
  * of the floor coloured by a field or a fact (`colour`), one colour per value. Ids not on the floor
  * drawn are counted, never drawn; an id the plan does not have is refused with the nearest one.
  */
-function paintOf(survey: Survey, floor: string, by: string | undefined, highlight: readonly string[] | undefined): {
+function paintOf(survey: Survey, floor: string, by: string | undefined, highlight: readonly string[] | undefined, stated: FloorPlan = survey.plan): {
   paint: Map<string, string>
   key: { colour: string; words: string }[]
   groups: { colour: string; value: Value; words: string; ids: string[] }[]
@@ -1751,6 +1751,11 @@ function paintOf(survey: Survey, floor: string, by: string | undefined, highligh
     }
     if (highlight !== undefined) {
       const known = new Map(ask.parts.filter((p) => p.kind !== 'floor').map((p) => [p.id, p] as const))
+      // VEW-14: a part to be demolished is drawn, so it can be picked out; the survey reads the plan after the work.
+      const wallFloor = new Map(stated.walls.map((w) => [w.id, floorOf(w)] as const))
+      for (const room of stated.rooms) if (!known.has(room.id)) known.set(room.id, { kind: 'room', id: room.id, floor: floorOf(room), facts: {} })
+      for (const wall of stated.walls) if (!known.has(wall.id)) known.set(wall.id, { kind: 'wall', id: wall.id, floor: floorOf(wall), facts: {} })
+      for (const opening of stated.openings) if (!known.has(opening.id)) known.set(opening.id, { kind: opening.type, id: opening.id, floor: wallFloor.get(opening.wall) ?? 'ground', facts: {} })
       const missing = highlight.filter((id) => !known.has(id))
       if (missing.length > 0) {
         const near = likelyId(missing[0]!, [...known.keys()])
@@ -1943,7 +1948,9 @@ const viewTool: GridTool = {
       const { planView } = await import('../draw/views')
       const withIds = args['ids'] === true
       const shown = floor ?? survey.facts.floors[0]?.id ?? 'ground'
-      const crop = args['crop'] === undefined ? null : cropPart(plan, shown, args['crop'] as string)
+      // VEW-14: drawn as stated, as grid draw draws it: parts to be demolished are in the picture.
+      const stated = loaded.plan
+      const crop = args['crop'] === undefined ? null : cropPart(stated, shown, args['crop'] as string)
       // What went wrong, numbered as grid_check numbers it, marked on the drawing (MSG-8).
       const faults = inspectPlan(plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}) }).lines
       const display = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
@@ -1957,20 +1964,26 @@ const viewTool: GridTool = {
         throw error
       }
       // CNT-9: parts picked out by id, or coloured by a field or fact, from grid_find's and grid_count's view.
-      const painted = paintOf(survey, shown, colour === 'use' ? undefined : colour, args['highlight'] as string[] | undefined)
+      const painted = paintOf(survey, shown, colour === 'use' ? undefined : colour, args['highlight'] as string[] | undefined, stated)
       if (painted !== null) shownParts = { ...shownParts, show: { ...shownParts.show, paint: painted.paint, paintKey: painted.key } }
       const dimensions = args['dimensions'] !== false && shownParts.showDimensions
       // HND-10: the plan's trace image under the floor drawn, read from the project folder.
-      const trace = readTrace(project, plan, shown, language)
-      const view = await planView(plan, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(crop ? { frame: cropFrame(crop) } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}) })
+      const trace = readTrace(project, stated, shown, language)
+      const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(crop ? { frame: cropFrame(crop) } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}) })
+      const work = planHasPhases(stated) ? phaseCounts(stated) : null
       const lines = [`Plan of floor ${q(shown)}${crop ? `, cropped to ${crop.kind} ${q(crop.id)}` : ''}, ${look}${args['dimensions'] === false ? ', without sizes' : ', with inside sizes'}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${plan.north === undefined ? 'North is the top of the drawing; the plan holds no real north.' : `The north arrow in its top-right corner points to the north the plan states, ${northWords(wrapDegrees(plan.north))}; the sides named in other answers are the drawing's, north at the top.`} Look at the picture before you describe it.`]
-      const ids = withIds ? idsOnFloor(plan, shown) : []
+      const ids = withIds ? idsOnFloor(stated, shown) : []
       const undecided = view.undecidedDoors ?? []
       if (undecided.length > 0) {
         lines.push(`Drawn with a dashed line and "?" as undecided, ${undecided.length === 1 ? 'a door' : `${undecided.length} doors`} with no stated swing: ${undecided.map(q).join(', ')}. Ask the person which side each is hinged on and which way it opens, then set its hinge and swing.`)
       }
       lines.push('Each part\'s box on the picture, in pixels from its top-left corner, is in boxes: id, kind and x, y, width, height.')
       if (trace.line !== null) lines.push(trace.line)
+      if (work !== null) {
+        const gone = work.demolished
+        const total = gone.walls + gone.openings + gone.rooms
+        lines.push(english(said('view.phases.work', { total: num(String(total)), walls: num(String(gone.walls)), openings: num(String(gone.openings)), rooms: num(String(gone.rooms)), new: num(String(work.new.walls + work.new.openings + work.new.rooms)) })))
+      }
       const marked = faults.filter((line) => line.floor === null || line.floor === shown).length
       if (marked > 0) lines.push(`${marked} of grid_check's lines are about this floor: each has its grid_check number on the part it is about, and all are listed under the drawing. A room that cannot be drawn is the dashed box round its walls.`)
       if (withIds) lines.push(...checkViewText(loaded, shown))
