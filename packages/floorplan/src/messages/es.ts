@@ -535,6 +535,7 @@ export const es: Messages = {
   'check.doorOutAboveGround.below': 'No se comprobó adónde da una puerta de {room}, en una planta con más edificio debajo: no se cuenta como salida',
   // MSG-17 (lab CH-6, AB-1).
   'check.doorIntoClosedCourt': 'Una puerta de {room} da a un espacio exterior cerrado por todos sus lados, así que no es una salida',
+  'check.detail.noExitCannotPass': 'Todas las puertas al exterior son demasiado pequeñas para pasar o están bloqueadas; cada una tiene su propia nota.',
   'check.detail.doorIntoClosedCourt': 'Ninguna puerta lleva de ese espacio al aire libre. Si tiene una cancela o un paso, dibújelo como una puerta en su muro; si no, dé al edificio una puerta al exterior.',
   'check.doorBetweenLevels.door': 'Una puerta une {lower}, con su suelo a {lowerAt} m, y {upper}, con su suelo a {upperAt} m: {rise} m de diferencia, más que un escalón, así que no es un paso sin una escalera',
   'check.doorBetweenLevels.opening': 'Un hueco une {lower}, con su suelo a {lowerAt} m, y {upper}, con su suelo a {upperAt} m: {rise} m de diferencia, más que un escalón, así que no es un paso sin una escalera',

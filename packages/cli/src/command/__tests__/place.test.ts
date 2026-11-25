@@ -128,7 +128,7 @@ describe('a place and a kind of building (COD-3 with CNT-5)', () => {
   it('no place stated and an office: the place line says no place, the lines say the kind of building', async () => {
     writeFileSync(join(dir, 'office.json'), office())
     const run = await grid(['check', 'office.json'])
-    expect(run.out.split('\n')[1]).toMatch(/^No place is stated, so no figure was applied: /)
+    expect(run.out.split('\n')[1]).toMatch(/^No place is stated, so no code figure was applied\./)
     expect(run.out).toContain('[plan/not-checked-sizes-for-building]')
     expect(run.out).toContain('[plan/not-checked-escapes-for-building]')
   })

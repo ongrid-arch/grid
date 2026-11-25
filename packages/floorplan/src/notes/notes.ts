@@ -97,7 +97,7 @@ export function planNotes(plan: FloorPlan, report: RulesReport): PlanNotesView {
         return {
           ...base,
           title: wordings.noExit(floorName(finding.floor), finding.openings.length > 0),
-          detail: [words(finding.openings.length > 0 ? 'Every door to the outside is too small to pass or is blocked; each has a note of its own.' : 'No door leads outside.')]
+          detail: [words(finding.openings.length > 0 ? english(said('check.detail.noExitCannotPass')) : 'No door leads outside.')]
         }
       // LVL-14: a floor above the ground that nothing joins to the ground floor.
       case 'no_stair':

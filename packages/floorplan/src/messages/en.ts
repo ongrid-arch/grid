@@ -523,6 +523,7 @@ export const en = {
   'check.doorOutAboveGround.below': 'Where a door from {room} leads, on a floor with more of the building below it, was not checked: it is not taken as a way out',
   // MSG-17 (lab CH-6, AB-1): a way out leads to open air, and a let is left through common parts.
   'check.doorIntoClosedCourt': 'A door from {room} opens onto an outside space closed in on every side, so it is not a way out',
+  'check.detail.noExitCannotPass': 'Every door to the outside is too small to pass or is blocked; each has a note of its own.',
   'check.detail.doorIntoClosedCourt': 'No door leads on from that space to the open air. If it has a gate or a passage out, draw it as a door in its wall; otherwise give the building a door to the outside.',
   'check.doorBetweenLevels.door': 'A door joins {lower}, its floor at {lowerAt} m, and {upper}, its floor at {upperAt} m: {rise} m apart, more than a step, so it is not a way through without a stair',
   'check.doorBetweenLevels.opening': 'An opening joins {lower}, its floor at {lowerAt} m, and {upper}, its floor at {upperAt} m: {rise} m apart, more than a step, so it is not a way through without a stair',

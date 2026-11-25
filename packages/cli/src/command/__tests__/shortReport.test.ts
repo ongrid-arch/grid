@@ -65,7 +65,7 @@ describe('the default report of the 62.65 m² flat', () => {
   })
 
   // COD-3: the flat states no place, so no figure is applied, and the line after the label says so.
-  it('grid check: the label, the place, the notes and the coverage counts, and no fixed tables, in 1,196 bytes (984 without LVL-4\'s ground line)', async () => {
+  it('grid check: the label, the place, the notes and the coverage counts, and no fixed tables, in 1,159 bytes (947 without LVL-4\'s ground line)', async () => {
     const run = await grid(['check', 'flat.json'])
     expect(run.code).toBe(0)
     const text = run.out
@@ -82,9 +82,9 @@ describe('the default report of the 62.65 m² flat', () => {
     expect(text).not.toMatch(/Checks run \(|Figures used|The figure used here|What these checks never look at \(|Ceiling height/)
     expect(approvalWords(text)).toEqual([])
     expect(text).toContain(`  - ${GROUND_LINE}`)
-    expect(bytes(text)).toBe(1196)
+    expect(bytes(text)).toBe(1159)
     // LVL-4's ground line puts the report over MSG-10's 1,000 bytes; without it, it is under.
-    expect(bytes(text) - bytes(`  - ${GROUND_LINE}\n`)).toBe(984)
+    expect(bytes(text) - bytes(`  - ${GROUND_LINE}\n`)).toBe(947)
   })
 
   it('grid check with the US stated: the place line names the figures, in 1,200 bytes (988 without the ground line)', async () => {
@@ -99,7 +99,7 @@ describe('the default report of the 62.65 m² flat', () => {
     expect(bytes(text) - bytes(`  - ${GROUND_LINE}\n`)).toBe(988)
   })
 
-  it('grid_check: the same, in 1,179 bytes of text (969 without the ground line)', async () => {
+  it('grid_check: the same, in 1,142 bytes of text (932 without the ground line)', async () => {
     const answer = await tool('grid_check').run({ plan: 'flat.json' }, { project })
     const text = answer.text
     expect(text.split('\n')[0]).toBe(GENERAL_GUIDANCE_LABEL)
@@ -111,8 +111,8 @@ describe('the default report of the 62.65 m² flat', () => {
     expect(text).not.toMatch(/The figure used here|Never looked at, whatever the plan|Ceiling height/)
     expect(approvalWords(text)).toEqual([])
     expect(text).toContain(`  ${GROUND_LINE}`)
-    expect(bytes(text)).toBe(1179)
-    expect(bytes(text) - bytes(`  ${GROUND_LINE}\n`)).toBe(969)
+    expect(bytes(text)).toBe(1142)
+    expect(bytes(text) - bytes(`  ${GROUND_LINE}\n`)).toBe(932)
     // The data keeps the whole record: coverage and limits are there either way.
     const data = answer.data as { coverage: unknown[]; limits: string[]; seenCount: number; marksProblem: string | null }
     expect(data.coverage).toHaveLength(9)
