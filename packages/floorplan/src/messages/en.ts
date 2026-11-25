@@ -684,6 +684,7 @@ export const en = {
   'read.found.listThat': 'a list that {problem}',
   'read.found.valueThat': 'a value that {problem}',
   'read.found.splitPoint': 'a list of 4 numbers, {numbers}: a decimal comma splits each number of a point in two',
+  'floor.ground': 'Ground floor',
   'read.found.unreadable': 'a part Grid could not read',
   'read.found.wordKey': 'a key Grid does not have',
   'read.found.placeholders': 'a wording with the placeholders {placeholders}',

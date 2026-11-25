@@ -14,7 +14,7 @@
 
 import { textProblem } from '../types/planText'
 import { en, type MessageKey } from './en'
-import { DEFAULT_LANGUAGE, readLanguage, type Language } from './languages'
+import { DEFAULT_LANGUAGE, GROUND_FLOOR_NAME, isLanguage, readLanguage, type Language } from './languages'
 
 /** The plan's words as the file holds them: each language's own map from key to wording. */
 export type PlanWords = Readonly<Record<Language, Readonly<Record<string, string>>>>
@@ -137,4 +137,14 @@ export async function listenForKeys<T>(make: () => T | Promise<T>): Promise<{ re
     listening = before
     if (before !== null) for (const [language, said] of keys) for (const key of said) heard(language, key)
   }
+}
+
+/**
+ * MSG-24: the name of the floor a plan with no floor list stands on, in a language: the plan's
+ * word for it (`floor.ground`), else the shipped language's (`GROUND_FLOOR_NAME`), else English.
+ */
+export function groundFloorName(language: Language): string {
+  if (language === DEFAULT_LANGUAGE) return GROUND_FLOOR_NAME.en
+  heard(language, 'floor.ground')
+  return planWord(language, 'floor.ground') ?? (isLanguage(language) ? GROUND_FLOOR_NAME[language] : GROUND_FLOOR_NAME.en)
 }

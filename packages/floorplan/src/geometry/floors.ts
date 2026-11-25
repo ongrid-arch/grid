@@ -14,7 +14,8 @@ import { DEFAULT_FLOOR_ID, type BuildingType, type Floor } from '../types/floorp
 import type { FloorPlan, Opening, Wall } from './plan'
 import { hasWallsThrough, storeyWalls, throughFloorParts, wallStandsOn } from './through'
 import { sliceColumns } from './columns'
-import { DEFAULT_LANGUAGE, GROUND_FLOOR_NAME, groundFloorName, type Language } from '../messages/languages'
+import { DEFAULT_LANGUAGE, GROUND_FLOOR_NAME, type Language } from '../messages/languages'
+import { groundFloorName } from '../messages/words'
 
 /** The floor every entity belongs to until it says otherwise, named in English. */
 export const DEFAULT_FLOOR: Floor = { id: DEFAULT_FLOOR_ID, name: GROUND_FLOOR_NAME.en, level: 0 }

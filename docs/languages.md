@@ -3,8 +3,10 @@
 Read this when you add or change a sentence Grid writes, or add a language.
 
 Grid writes its own words, in reports, notes, errors, drawings and files, in the person's
-language (MSG-11). Every sentence is a key in one message file per language, with its numbers
-and names as values. Agents get the same codes and values, and retell them in the person's
+language (MSG-11). Every sentence is a key in a message file, with its numbers and names as
+values. Grid ships the files for English and Spanish; for any other language the agent writes
+Grid's words into the plan itself (MSG-24, [below](#words-the-plan-keeps-for-a-language)), so
+nobody writes a translation file per language. Agents get the same codes and values, and retell them in the person's
 language. Room names are never translated: they are the person's own words.
 
 ## The message files
@@ -39,11 +41,44 @@ A wording holds named placeholders, `{width}`. `say(language, key, values)` fill
 A plan may state its language in its `display` (`"display": { "language": "es" }`), and a
 command or a tool call may ask for one (`--lang es` on `grid check`, `describe`, `draw` and
 `sheet`; `language: "es"` on `grid_check`, `grid_describe`, `grid_view` and `grid_sheet`), which
-wins. Spanish is loaded only when it is asked for (`loadLanguage`). English is the
+wins. Any BCP-47 language is taken (`de`, `fr`, `pt-BR`, `zh`); a word that is no language tag is
+refused by name. Spanish is loaded only when it is asked for (`loadLanguage`). English is the
 default. A language with a decimal comma (Spanish) writes one unless the display's `decimal`
 says otherwise. Lengths stay as the display states them, on the sheet too (in Spanish, a sheet in
 feet and inches reads `8'-6" de alto` and its square metres `62,4 m²`); the check's figures stay in
 metres.
+
+## Words the plan keeps for a language
+
+For a language Grid ships no file for, the plan keeps Grid's words itself, in
+`display.words` (MSG-24, convention C32, [the plan file](plan-file.md#grids-words-in-another-language)):
+a map from the language to a map from each key to its wording, with exactly the English key's
+placeholders. A key is said from the plan's word for the language, else from the language's
+file (Spanish), else in English. `packages/floorplan/src/messages/words.ts` reads and checks them
+and hands one plan's words to `say` (`usePlanWords`, done by `languageFor` for every command and
+tool call that reads a plan).
+
+The agent, who speaks the person's language, writes them with `grid_words`
+(`packages/cli/src/mcp/wordsTool.ts`):
+
+1. `grid_words` with `language` and `output` (`drawing`, `sheet`, `check` or `describe`) makes that
+   output for this plan and lists only the keys it prints (`listenForKeys` records the keys said
+   in the language while it is made), each with its English, its placeholders and its word now.
+2. The agent translates them and sends them back as `words`. Every word is checked: a key Grid
+   does not have, a placeholder that differs from the English key's, a line break, or a word
+   that reads as a pass or an approval (`approvalWords`) is refused by name, and none is written.
+3. Every output prints them from then on. `plan_language: true` makes the language the plan's own.
+
+When a tool's answer printed some of Grid's words in a language with no word for them, it says so
+in one line at its end, with how many, and that `grid_words` gives them. The words are the
+agent's, not a reviewed translation: they are the person's plan's, like its room names.
+
+- The decimal mark is the display's `decimal`, never the words': a language Grid ships no file
+  for writes a point unless the display says comma.
+- English is the source and is never replaced; a plan's words for `en` are left out.
+- A region is its language: words for `pt` serve `pt-BR` and `pt-PT` alike.
+- A room's use, on a room the person did not name, is labelled in English in such a language;
+  the floor a plan with no floor list stands on is named by the plan's word for `floor.ground`.
 
 ## Words of the person's language
 
@@ -87,6 +122,9 @@ every language: only the words change. Each line's `values` holds the figures, n
 places its words were made with, so an agent can retell a line in any language from its code.
 
 ## Adding a language
+
+A language most people never need is better written by the agent into each plan (above). Ship
+a file only for a language Grid supports and a named person will review:
 
 1. Copy `en.ts` to the new file, translate every value, and keep every key and placeholder.
 2. Add the language to `LANGUAGES` in `languages.ts`, with its status `draft translation, not

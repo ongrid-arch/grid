@@ -77,8 +77,3 @@ export const GROUND_FLOOR_NAME: Readonly<Record<ShippedLanguage, string>> = {
   en: 'Ground floor',
   es: 'Planta baja'
 }
-
-/** MSG-24: the name of that floor in a language: a shipped language's, else the English. */
-export function groundFloorName(language: Language): string {
-  return isLanguage(language) ? GROUND_FLOOR_NAME[language] : GROUND_FLOOR_NAME.en
-}

@@ -696,6 +696,7 @@ export const es: Messages = {
   'read.found.listThat': 'una lista que {problem}',
   'read.found.valueThat': 'un valor que {problem}',
   'read.found.splitPoint': 'una lista de 4 números, {numbers}: una coma decimal parte en dos cada número de un punto',
+  'floor.ground': 'Planta baja',
   'read.found.unreadable': 'una parte que Grid no pudo leer',
   'read.found.wordKey': 'una clave que Grid no tiene',
   'read.found.placeholders': 'una redacción con los marcadores {placeholders}',

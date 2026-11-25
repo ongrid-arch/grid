@@ -30,6 +30,7 @@ const ORDER = [
   'grid_mark_start',
   'grid_mark_seen',
   'grid_write_brief',
+  'grid_words',
   'grid_write_rooms',
   'grid_change_opening',
   'grid_change_wall',
@@ -111,7 +112,9 @@ describe('tools/list', () => {
     // no way to make (they rebuilt the walls by hand).
     // 36 since WRT-38: one wall's thickness, which agents could set only through a named type or
     // by hand, and a wall placed by its face keeps that face.
-    expect((await listed()).length).toBeLessThanOrEqual(36)
+    // 37 since MSG-24: Grid's words in the person's language, which the agent writes into the plan,
+    // so no translation file is written for each language.
+    expect((await listed()).length).toBeLessThanOrEqual(37)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -148,7 +151,7 @@ describe('tools/list', () => {
 
   it('says the units are metres wherever a tool takes or gives a length', async () => {
     for (const tool of await listed()) {
-      if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room', 'grid_project'].includes(tool.name)) continue
+      if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room', 'grid_project', 'grid_words'].includes(tool.name)) continue
       expect(tool.description, tool.name).toMatch(/metres/)
     }
   })
@@ -224,6 +227,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_mark_start: { plan: 'noted.json' },
     grid_mark_seen: { plan: 'noted.json', line: 1, code: 'plan/unknown-field', reason: 'Kept for our own tool', by: 'Owner' },
     grid_write_brief: { plan: 'plan.json', brief: { rooms: [{ name: 'Bathroom', area: 4.5, level: 'must', source: 'given', quote: 'a bathroom of 4.5 square metres' }], figures: { door_width: { value: 0.8, level: 'must', source: 'given', quote: 'doors of 80 cm' } } } },
+    grid_words: { plan: 'plan.json', language: 'de', output: 'describe' },
     grid_write_rooms: { plan: 'written.json', rooms: 'walls outside 0.3 inside 0.1 height 2.6\nroom living "Living" living 4 x 4\nroom bed "Bed" bedroom 3 x 4 east of living\ndoor d1 between living and bed, centred, 0.8 wide, opens into bed\ndoor front in living south, centred, 0.9 wide, opens in\n' },
     grid_change_opening: { opening: 'door-bath', width: 0.8, out: 'changed.json' },
     grid_change_wall: { wall: 'bed1-north', thickness: 0.12, out: 'thinner.json' },
@@ -274,7 +278,8 @@ describe('the tools on a two-bedroom flat', () => {
 
   it('keeps answers short', async () => {
     for (const [name, args] of Object.entries(CALLS)) {
-      if (name === 'grid_describe') continue
+      // MSG-24: grid_words hands every word an output prints, with its English, to translate.
+      if (name === 'grid_describe' || name === 'grid_words') continue
       const reply = await b.call(name, args)
       expect(reply.text.length, name).toBeLessThan(4000)
     }

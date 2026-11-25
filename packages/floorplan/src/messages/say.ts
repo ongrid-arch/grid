@@ -92,8 +92,15 @@ function wording(language: Language, key: MessageKey): string {
  * English has every key.
  */
 export function hasWording(language: Language, key: MessageKey): boolean {
-  if (language === DEFAULT_LANGUAGE) return true
-  return planWord(language, key) !== undefined || (Object.hasOwn(tables, language) && tables[language]![key] !== undefined)
+  return language === DEFAULT_LANGUAGE || ownWording(language, key) !== undefined
+}
+
+/** MSG-24: a language's own wording for a key, the plan's word or its file's, and where it is from; undefined when it has none. */
+export function ownWording(language: Language, key: MessageKey): { readonly text: string; readonly from: 'plan' | 'grid' } | undefined {
+  const own = planWord(language, key)
+  if (own !== undefined) return { text: own, from: 'plan' }
+  const shipped = Object.hasOwn(tables, language) ? tables[language]![key] : undefined
+  return shipped === undefined ? undefined : { text: shipped, from: 'grid' }
 }
 
 /**

@@ -119,7 +119,7 @@ describe('display.words in the plan file (C32)', () => {
     const result = readPlanParts(plan({ language: 'fr', words: 'bonjour' }))
     if (result.plan === null) throw new Error('refused')
     expect(result.plan.display).toEqual({ language: 'fr' })
-    expect(result.faults.map((f) => f.path)).toEqual([['display', 'words']])
+    expect(result.faults.map((f) => ('path' in f ? f.path : null))).toEqual([['display', 'words']])
   })
 
   it('reads a plan with no words as before', () => {

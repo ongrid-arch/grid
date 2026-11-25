@@ -2,7 +2,7 @@
  * The tools of `grid serve`, in the order `tools/list` gives them: the tools that read the
  * plan first, ordered by the requests they answer most often (lab entry Y-2), with the problem
  * report last of them (CMD-13), then the preview and the preview page's own call (VEW-4), the export, the sheet, the start marker
- * (WRT-8), the seen mark (MSG-10), the brief (BRF-1),
+ * (WRT-8), the seen mark (MSG-10), the brief (BRF-1), Grid's words in the person's language (MSG-24),
  * and last the tools that change the plan, the saved views last of them (VEW-3).
  *
  * Every path an agent passes goes through the project's resolver (`fs/projectFiles.ts`):
@@ -18,6 +18,8 @@ import { READ_TOOLS } from './readTools'
 import { reportProblemTool } from './reportTool'
 import { markSeenTool } from './seenTool'
 import { writeBriefTool } from './briefTool'
+import { wordsHint, wordsTool, WORDS_TOOL_NAME } from './wordsTool'
+import { hasWording, listenForKeys, usePlanWords } from '@ongrid/floorplan/messages'
 import { diffTool, markStartTool } from './diffTools'
 import { shapedData } from './figures'
 import { labelled, readArgs, toolDefinition, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
@@ -52,6 +54,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   markSeenTool,
   // BRF-1: writes the brief beside the plan, never the plan: written before the first room.
   writeBriefTool,
+  // MSG-24: writes Grid's words in the person's language into the plan's display, never the building.
+  wordsTool,
   ...WRITE_TOOLS.filter((tool) => tool.hint === 'change-plan'),
   ...EDIT_TOOLS,
   // WRT-36: grid tidy's fixes where walls meet, the last of the changes to the building.
@@ -63,7 +67,12 @@ export const GRID_TOOLS: readonly GridTool[] = [
 async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promise<ToolAnswer> {
   try {
     const args = readArgs(tool, raw)
-    const result = labelled(await tool.run(args, context))
+    // MSG-24: no call says another plan's words: the plan a call reads hands its own (`languageFor`).
+    usePlanWords(undefined)
+    // MSG-24: the keys Grid said in a language with no word for them are said once, at the end.
+    const { result: made, keys } = await listenForKeys(() => tool.run(args, context))
+    const hint = tool.name === WORDS_TOOL_NAME ? null : wordsHint(keys, hasWording)
+    const result = labelled(hint === null ? made : { ...made, text: `${made.text}\n${hint}` })
     // CMD-22: the figures in the data are written as the text writes them, once, here.
     return { text: result.text, data: shapedData(tool, args, result.data), ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
   } catch (error) {
