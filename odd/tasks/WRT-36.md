@@ -40,12 +40,13 @@
 - `packages/floorplan/src/messages/en.ts` and `es.ts`: the corner fix's sentence, the warning
   and the reason it was skipped, in Grid's own words (MSG-11). The check's fix lines name
   `grid_tidy` beside `grid tidy`.
-- `packages/cli/src/mcp/tidyTool.ts`: `grid_tidy`, a change to the plan, placed after
-  `grid_square_scan` (both tidy what was drawn). It reuses `tidyList` and `tidyFile` of
+- `packages/cli/src/mcp/tidyTool.ts`: `grid_tidy`, a change to the plan, placed after the room
+  edits (`grid_place_item`) and before the saved views, so the room edits keep their order. It reuses `tidyList` and `tidyFile` of
   `command/tidy.ts`, so the command and the tool make the same fixes; the file is written
   through the project's files. The tool count goes from 34 to 35, a decision noted in the test.
-- Docs: `docs/commands.md` (tidy's corner fix and the sealing warning) and
-  `docs/tool-server.md` (the new tool).
+- Docs: `docs/commands.md` (tidy's corner fix and the sealing warning),
+  `docs/tool-server.md` (the new tool) and `AGENTS.md` (the tool count and file).
+- `command/tidy.ts`: each listed fault carries `seals`, so `--json` shows it too.
 
 ## Done
 

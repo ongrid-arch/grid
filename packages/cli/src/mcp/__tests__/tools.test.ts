@@ -42,11 +42,12 @@ const ORDER = [
   'grid_rename_room',
   'grid_square_scan',
   'grid_place_item',
+  'grid_tidy',
   'grid_save_view',
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_view', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_tidy', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -105,7 +106,9 @@ describe('tools/list', () => {
     // 33 since CNT-20: a fixture, furniture or a typical room placed by its library name, so its
     // size is the library's every time; the library itself is grid_measure what=library.
     // 34 since CMD-18: what the folder holds, the first call of a session (grid_project).
-    expect((await listed()).length).toBeLessThanOrEqual(34)
+    // 35 since WRT-36: grid tidy's fixes where walls meet, which agents on the tool server had
+    // no way to make (they rebuilt the walls by hand).
+    expect((await listed()).length).toBeLessThanOrEqual(35)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -230,6 +233,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_rename_room: { room: 'bed2', name: 'Study', use: 'other', out: 'renamed.json' },
     grid_square_scan: { all: true, out: 'squared.json' },
     grid_place_item: { name: 'double-bed', x: 2, y: 1.5, turn: 90, out: 'placed.json' },
+    grid_tidy: { all: true, out: 'tidied.json' },
     grid_save_view: { name: 'Garden corner', camera: { target: { room: null, point: [5, 4, 1] }, bearing: 135, tilt: 30, distance: 20, lens: { focalLength: 35 }, cut: null }, out: 'viewed.json' },
   }
 

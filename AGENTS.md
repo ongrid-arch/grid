@@ -145,13 +145,14 @@ Notes for agents and people changing this repository.
   `bin/grid.mjs`, a committed launcher that runs it, because npm links bins at install time. Its end-to-end tests run that file as a
   child process; `npm test` builds it first. Every option is strict: an unknown, repeated or
   meaningless one is refused by name.
-- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 34 tools named
+- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 35 tools named
   `grid_…`, in a fixed order (`grid_project` first, `projectTool.ts` (CMD-18); then reading tools by the requests they answer, the problem report
   last of them (CMD-13, `src/report/`, which sends nothing), then the preview and the preview
   page's own call (VEW-4, `previewTools.ts`), the
   export, the sheet, the start marker (WRT-8), the seen mark (MSG-10, `seenTool.ts`), the brief (BRF-1,
-  `briefTool.ts`), and the tools that change the plan, the saved views last (VEW-3, `viewTool.ts`)).
-  Each is written once in `readTools.ts`, `writeTools.ts`, `previewTools.ts`, `reportTool.ts`, `seenTool.ts`, `briefTool.ts` or `viewTool.ts`; `toolkit.ts` turns its argument list into both the input schema and the
+  `briefTool.ts`), and the tools that change the plan, tidy's fixes where walls meet (WRT-36,
+  `tidyTool.ts`) and then the saved views last (VEW-3, `viewTool.ts`)).
+  Each is written once in `readTools.ts`, `writeTools.ts`, `previewTools.ts`, `reportTool.ts`, `seenTool.ts`, `briefTool.ts`, `tidyTool.ts` or `viewTool.ts`; `toolkit.ts` turns its argument list into both the input schema and the
   check. The measuring is in `src/quantities/` (CNT-9's asking across parts by their fields and
   facts, for `grid_fields`, `grid_find` and `grid_count`, in `query.ts`), the changes in `src/edit/`, the views in
   `src/draw/views.ts`. A 3D picture is taken from one camera record (VEW-3,
