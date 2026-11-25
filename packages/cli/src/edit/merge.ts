@@ -247,8 +247,6 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
     const beside = plan.rooms.filter((r) => r.id !== aId && r.boundary.some((w) => aRoom.boundary.includes(w))).map((r) => quoted(r.name))
     throw new EditRefused(`${an} and ${bn} do not share a wall, so there is nothing to take out. Rooms that share a wall with ${an}: ${beside.join(', ') || 'none'}.`)
   }
-  if (shared.length > 1) throw new EditRefused(`${an} and ${bn} share ${shared.length} walls (${shared.map((s) => quoted(s.wall.id)).join(', ')}); this tool takes out one. Take the others out with grid_write_rooms.`)
-  const { wall, s0, s1 } = shared[0]!
   // Only once the two can be merged: then what the merged room is for.
   if (request.zones !== true && request.use === undefined && aRoom.use !== undefined && bRoom.use !== undefined && aRoom.use !== bRoom.use) {
     // Asked, never chosen: one of the two uses would leave the plan (lab AB-9).
@@ -267,52 +265,96 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
       `${an} has a ${surface} finish of ${quoted(aFinish[surface]!)} and ${bn} of ${quoted(bFinish[surface]!)}, and one room has one ${surface} finish. Keep both with zones: true, as zones of one open-plan room that each keep their own finishes, or give one of them the other's finish first (grid_rename_room).`
     )
   }
-  const axis = wallAxis(wall)
-  const c0 = cutAt(plan, wall, s0)
-  const c1 = cutAt(plan, wall, s1)
   const used = usedIds(survey)
-  const kept: Piece[] = []
-  if (c0 > 0.05) kept.push({ lo: 0, hi: c0, id: '' })
-  if (axis.length - c1 > 0.05) kept.push({ lo: c1, hi: axis.length, id: '' })
-  const pieces: Piece[] = kept.length === 1 ? [{ ...kept[0]!, id: wall.id }] : kept.map((p, i) => {
-    const id = freshId(used, `${wall.id}-${'ab'[i]}`)
-    used.add(id)
-    return { ...p, id }
-  })
-
-  // CNT-8: with zones, the stretch taken out stays as a dividing line between the two zones.
-  const line: Piece | null = request.zones === true ? { lo: c0, hi: c1, id: freshId(used, `${wall.id}-line`) } : null
-  if (line !== null) used.add(line.id)
-
-  // The merged room's walls, counter-clockwise: A up to the wall, then B round, then A again.
-  const around = (room: SurveyRoom): { head: string[]; pre: string[]; post: string[]; tail: string[] } => {
-    const list = ccwBoundary(room, plan)
-    const k = list.indexOf(wall.id)
-    const span = spanOn(room, wall)!
-    const own = piecesBeside(room, wall, pieces)
-    const mid = (s0 + s1) / 2
-    const centre = (id: string): number => {
-      const p = pieces.find((x) => x.id === id)!
-      return (p.lo + p.hi) / 2
-    }
-    const pre = own.filter((id) => (centre(id) < mid) === (span.sign > 0))
-    const post = own.filter((id) => (centre(id) < mid) !== (span.sign > 0))
-    return { head: list.slice(0, k), pre, post, tail: list.slice(k + 1) }
+  // One cut for every wall the two share (WRT-50): its pieces, and with zones its dividing line.
+  interface Cut {
+    wall: Wall
+    s0: number
+    s1: number
+    c0: number
+    c1: number
+    axis: ReturnType<typeof wallAxis>
+    pieces: Piece[]
+    line: Piece | null
   }
-  const a = around(A)
-  const b = around(B)
+  const cuts: Cut[] = shared.map(({ wall, s0, s1 }) => {
+    const axis = wallAxis(wall)
+    const c0 = cutAt(plan, wall, s0)
+    const c1 = cutAt(plan, wall, s1)
+    const kept: Piece[] = []
+    if (c0 > 0.05) kept.push({ lo: 0, hi: c0, id: '' })
+    if (axis.length - c1 > 0.05) kept.push({ lo: c1, hi: axis.length, id: '' })
+    const pieces: Piece[] = kept.length === 1 ? [{ ...kept[0]!, id: wall.id }] : kept.map((p, i) => {
+      const id = freshId(used, `${wall.id}-${'ab'[i]}`)
+      used.add(id)
+      return { ...p, id }
+    })
+    return { wall, s0, s1, c0, c1, axis, pieces, line: null }
+  })
+  // CNT-8: with zones, each stretch taken out stays as a dividing line between the two zones.
+  if (request.zones === true) {
+    for (const cut of cuts) {
+      cut.line = { lo: cut.c0, hi: cut.c1, id: freshId(used, `${cut.wall.id}-line`) }
+      used.add(cut.line.id)
+    }
+  }
+  const zoned = request.zones === true
+  const cutOf = new Map(cuts.map((cut) => [cut.wall.id, cut]))
+
+  // The merged room's walls, counter-clockwise (WRT-50): each room's list, with a marker where it
+  // met a shared wall; walk A, cross to B at a marker, and back to A at the next.
+  const marker = (id: string): string => `\u0000${id}`
+  const tokens = (room: SurveyRoom): string[] =>
+    ccwBoundary(room, plan).flatMap((id) => {
+      const cut = cutOf.get(id)
+      if (cut === undefined) return [id]
+      const span = spanOn(room, cut.wall)!
+      const own = piecesBeside(room, cut.wall, cut.pieces)
+      const mid = (cut.s0 + cut.s1) / 2
+      const centre = (pid: string): number => {
+        const p = cut.pieces.find((x) => x.id === pid)!
+        return (p.lo + p.hi) / 2
+      }
+      return [...own.filter((pid) => (centre(pid) < mid) === (span.sign > 0)), marker(id), ...own.filter((pid) => (centre(pid) < mid) !== (span.sign > 0))]
+    })
+  const sides = [tokens(A), tokens(B)]
   const joined: string[] = []
-  for (const id of [...a.head, ...a.pre, ...b.post, ...b.tail, ...b.head, ...b.pre, ...a.post, ...a.tail]) {
-    if (joined[joined.length - 1] !== id) joined.push(id)
+  const start = sides[0]!.findIndex((t) => !t.startsWith('\u0000'))
+  if (start >= 0) {
+    let side = 0
+    let at = start
+    for (let guard = 0; guard <= (sides[0]!.length + sides[1]!.length) * 2; guard++) {
+      const token = sides[side]![at]!
+      if (token.startsWith('\u0000')) {
+        side = 1 - side
+        at = sides[side]!.indexOf(token)
+      } else if (joined[joined.length - 1] !== token) joined.push(token)
+      at = (at + 1) % sides[side]!.length
+      if (side === 0 && at === start) break
+    }
+  }
+  // Every wall of either room that is not a shared stretch is on the merged outline; one the walk
+  // did not reach is on another loop: the rooms meet so that the merged room has a hole or two parts.
+  const walked = new Set(joined)
+  if (start < 0 || sides.some((side) => side.some((t) => !t.startsWith('\u0000') && !walked.has(t)))) {
+    throw new EditRefused(`${an} and ${bn} meet at ${cuts.length} walls (${cuts.map((c) => quoted(c.wall.id)).join(', ')}) in a way that would leave the merged room as more than one outline, or with a hole, so Grid does not take them out. Merge them one wall at a time with grid_write_rooms.`)
   }
   while (joined.length > 1 && joined[0] === joined[joined.length - 1]) joined.pop()
+  const line = zoned ? cuts[0]!.line : null
+  const lineIds = cuts.flatMap((cut) => (cut.line === null ? [] : [cut.line.id]))
+  /** A room's wall list with every cut wall in it replaced by the pieces beside the room. */
+  const through = (room: SurveyRoom, listed: readonly string[]): string[] =>
+    listed.flatMap((id) => {
+      const cut = cutOf.get(id)
+      return cut === undefined ? [id] : piecesBeside(room, cut.wall, cut.line === null ? cut.pieces : [...cut.pieces, cut.line])
+    })
 
   const said: string[] = []
   const guessed: string[] = []
   const rooms = new Map<string, RoomChange>()
   const addRooms: Record<string, unknown>[] = []
-  const merged = line === null ? aId : request.id ?? freshId(used, `${aId}-${bId}`)
-  const mergedName = request.name ?? (line === null ? A.facts.name : `${A.facts.name} and ${B.facts.name}`)
+  const merged = !zoned ? aId : request.id ?? freshId(used, `${aId}-${bId}`)
+  const mergedName = request.name ?? (!zoned ? A.facts.name : `${A.facts.name} and ${B.facts.name}`)
   // CNT-9: the merged room keeps the facts of the first room, and takes the second's it does not
   // carry, with zones or without. With zones the two rooms keep their own facts as zones as well.
   const notKept: string[] = []
@@ -325,7 +367,7 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
   // WRT-33: the type the person gives the merged room.
   if (request.type !== undefined) mergedFacts = { ...(mergedFacts ?? aFacts), [typeFact?.key ?? 'type']: request.type }
   if (taken.length > 0) said.push(`${request.name !== undefined || line !== null ? quoted(mergedName) : an} takes the facts of ${bn} it did not carry: ${taken.map(([fact]) => quoted(fact)).join(', ')}.`)
-  if (differ.length > 0) notKept.push(`${bn} said otherwise of ${differ.map(([fact]) => quoted(fact)).join(', ')}; the merged room keeps what ${an} says${line === null ? '' : `, and ${bn} keeps its own as a zone`}.`)
+  if (differ.length > 0) notKept.push(`${bn} said otherwise of ${differ.map(([fact, value]) => `${quoted(fact)} (${quoted(String(factOf(aRoom, fact)))} kept, ${quoted(String(value))} not)`).join(', ')}; the merged room keeps what ${an} says${line === null ? '' : `, and ${bn} keeps its own as a zone`}.`)
   if (line === null) {
     const change: RoomChange = { boundary: joined }
     if (request.name !== undefined) change.name = request.name
@@ -349,12 +391,8 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
     used.add(merged)
     // Each room becomes a zone of the merged room, bounded by its own walls and the new line. It
     // keeps its facts and any number it states (CNT-9), though a zone is numbered by its room.
-    const zoneBoundary = (room: SurveyRoom, listed: readonly string[]): string[] => {
-      const k = listed.indexOf(wall.id)
-      return [...listed.slice(0, k), ...piecesBeside(room, wall, [...pieces, line]), ...listed.slice(k + 1)]
-    }
-    rooms.set(aId, { boundary: zoneBoundary(A, aRoom.boundary), partOf: merged })
-    rooms.set(bId, { boundary: zoneBoundary(B, bRoom.boundary), partOf: merged })
+    rooms.set(aId, { boundary: through(A, aRoom.boundary), partOf: merged })
+    rooms.set(bId, { boundary: through(B, bRoom.boundary), partOf: merged })
     // The merged room gets what a merged room gets without zones: the first room's number and facts.
     const facts = mergedFacts ?? (Object.keys(aFacts).length > 0 ? aFacts : null)
     // CNT-15: the merged room names the finishes its two zones share; each zone keeps its own.
@@ -382,11 +420,13 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
     const id = room.facts.id
     if (id === aId || id === bId) continue
     const listed = plan.rooms.find((r) => r.id === id)!.boundary
-    if (!listed.includes(wall.id)) continue
-    const beside = piecesBeside(room, wall, pieces)
-    if (beside.length === 1 && beside[0] === wall.id) continue
-    const k = listed.indexOf(wall.id)
-    rooms.set(id, { boundary: [...listed.slice(0, k), ...beside, ...listed.slice(k + 1)] })
+    if (!listed.some((w) => cutOf.has(w))) continue
+    const now = listed.flatMap((w) => {
+      const cut = cutOf.get(w)
+      return cut === undefined ? [w] : piecesBeside(room, cut.wall, cut.pieces)
+    })
+    if (now.length === listed.length && now.every((w, i) => w === listed[i])) continue
+    rooms.set(id, { boundary: now })
   }
 
   // Openings in the wall: those in a kept piece stay where they are; those in the stretch go.
@@ -395,7 +435,9 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
   for (const o of plan.openings) {
     // With zones the second room is kept, as a zone, and an anchor on its face still holds.
     if (o.anchor?.room === bId && line === null) openings.set(o.id, { anchor: { ...o.anchor, room: aId } })
-    if (o.wall !== wall.id) continue
+    const cut = cutOf.get(o.wall)
+    if (cut === undefined) continue
+    const { wall, pieces } = cut
     const home = pieces.find((p) => p.lo - tolerance('joint') <= o.offset && o.offset + o.width <= p.hi + tolerance('joint'))
     if (!home) {
       removeOpenings.add(o.id)
@@ -420,9 +462,8 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
     said.push(`The merged room has ${ids.length} doors on wall ${quoted(on)}: ${ids.map((id) => quoted(id)).join(', ')}. One may be enough; to take one out, call grid_change_opening with opening set to its id and remove true.`)
   }
 
-  const cut = cutWall(wall, pieces)
-  const length = c1 - c0
-  const strip = wall.virtual === true ? 0 : (s1 - s0) * wall.thickness
+  const cutPatches = cuts.map((c) => cutWall(c.wall, c.pieces))
+  const strip = cuts.reduce((sum, c) => sum + (c.wall.virtual === true ? 0 : (c.s1 - c.s0) * c.wall.thickness), 0)
   const sizes = `the ${(A.facts.shape?.area ?? 0).toFixed(2)} m² of ${an} and the ${(B.facts.shape?.area ?? 0).toFixed(2)} m² of ${bn}${strip > 0 ? `, with ${strip.toFixed(2)} m² under the wall taken out` : ''}`
   // WRT-33: a type the merged room keeps no longer says what it is, whichever room it came from.
   if (typeFact !== null && request.type === undefined) {
@@ -430,17 +471,23 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
     guessed.push(`The merged room keeps the ${quoted(typeFact.key)} ${quoted(typeFact.value)} of ${typeFactOf(aRoom) !== null ? an : bn}, and is now ${area.toFixed(2)} m², so that type may no longer fit; pass type to give it its own.`)
   }
   const wordForUse = (use: string | undefined): string => (use === undefined ? 'no use' : use)
+  const took = cuts.map((c) =>
+    c.pieces.length === 0
+      ? `Took out wall ${quoted(c.wall.id)} (${c.axis.length.toFixed(2)} m) between ${an} and ${bn}.`
+      : `Took ${(c.c1 - c.c0).toFixed(2)} m out of wall ${quoted(c.wall.id)} between ${an} and ${bn}; what is left: ${c.pieces.map((p) => `${quoted(p.id)} (${(p.hi - p.lo).toFixed(2)} m)`).join(', ')}.`,
+  )
   said.unshift(
-    pieces.length === 0
-      ? `Took out wall ${quoted(wall.id)} (${axis.length.toFixed(2)} m) between ${an} and ${bn}.`
-      : `Took ${length.toFixed(2)} m out of wall ${quoted(wall.id)} between ${an} and ${bn}; what is left: ${pieces.map((p) => `${quoted(p.id)} (${(p.hi - p.lo).toFixed(2)} m)`).join(', ')}.`,
+    ...took,
     line === null
       ? `${request.name !== undefined ? quoted(request.name) : an} is ${sizes}; ${bn} is gone.`
-      : `${quoted(request.name ?? `${A.facts.name} and ${B.facts.name}`)} (${quoted(merged)}) is one room of ${sizes}. ${an} (${wordForUse(aRoom.use)}) and ${bn} (${wordForUse(bRoom.use)}) are kept as its zones, with their ids, names and uses, on either side of the dividing line ${quoted(line.id)}.`,
+      : `${quoted(request.name ?? `${A.facts.name} and ${B.facts.name}`)} (${quoted(merged)}) is one room of ${sizes}. ${an} (${wordForUse(aRoom.use)}) and ${bn} (${wordForUse(bRoom.use)}) are kept as its zones, with their ids, names and uses, on either side of the dividing ${lineIds.length === 1 ? 'line' : 'lines'} ${lineIds.map((id) => quoted(id)).join(', ')}.`,
   )
-  const at = (t: number): [number, number] => [r3(axis.start.x + axis.dir.x * t), r3(axis.start.y + axis.dir.y * t)]
   // A dividing line, written as the format fills one in: no thickness, no height (`WALL_DEFAULTS`).
-  const lineWall = line === null ? [] : [{ id: line.id, start: at(line.lo), end: at(line.hi), thickness: 0, height: 0, kind: 'interior', virtual: true, ...(wall.floor === undefined ? {} : { floor: wall.floor }) }]
+  const lineWall = cuts.flatMap((c) => {
+    if (c.line === null) return []
+    const at = (t: number): [number, number] => [r3(c.axis.start.x + c.axis.dir.x * t), r3(c.axis.start.y + c.axis.dir.y * t)]
+    return [{ id: c.line.id, start: at(c.line.lo), end: at(c.line.hi), thickness: 0, height: 0, kind: 'interior', virtual: true, ...(c.wall.floor === undefined ? {} : { floor: c.wall.floor }) }]
+  })
   // WRT-28: the flats name the merged room, never one that is gone.
   const flatsNow = flatsAfterMerge(plan.flats, aId, bId, merged, { a: an, b: bn, merged: line === null ? an : quoted(mergedName) })
   if (flatsNow !== null) {
@@ -449,14 +496,14 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
   }
   return {
     ...(flatsNow === null ? {} : { plan: { flats: flatsNow.flats } }),
-    walls: cut.change ? new Map([[wall.id, cut.change]]) : new Map(),
+    walls: new Map(cuts.flatMap((c, i) => (cutPatches[i]!.change ? [[c.wall.id, cutPatches[i]!.change!] as const] : []))),
     openings,
     removeOpenings,
     rooms,
     said,
     guessed,
-    removeWalls: cut.remove ? new Set([wall.id]) : new Set(),
-    addWalls: [...cut.add, ...lineWall],
+    removeWalls: new Set(cuts.flatMap((c, i) => (cutPatches[i]!.remove ? [c.wall.id] : []))),
+    addWalls: [...cutPatches.flatMap((c) => c.add), ...lineWall],
     removeRooms: line === null ? new Set([bId]) : new Set(),
     ...(addRooms.length === 0 ? {} : { addRooms }),
     // A door that joined either room joins the merged room now: the same space, not a change.
