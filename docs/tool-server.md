@@ -379,6 +379,17 @@ in `movedWith` (`opening`, `with`: `wall` or `room`, `by`: east and north in met
 the text, never among those that stayed: after a side of a room is moved 0.5 m east, its
 windows on that side moved with their wall, 0.50 m east.
 
+A room in both versions says everything that happened to it in one line, by its name (WRT-32):
+renamed and moved, `"Bedroom 1" renamed "Study"; moved 0.30 m east on the drawing`; its id
+changed, `"Bedroom 1" (id "bed1" → "study") ...`, with up to three such rooms named in the
+verdict; and two rooms knocked into one, `"Living room" merged with "Kitchen", wall
+"living-north" taken out between them; ...`, one change line, never a room lost. Each room's data
+gives `moved` and `by` (east and north in metres), `idBefore`, `mergedWith`, `wallsTakenOut` and,
+on the room that went, `mergedInto`. `grid_compare` says a room of the same name and size that
+stands somewhere else moved (`"Spine" moved 1.00 m east on the drawing, as it was`), in its
+verdict, its text and `roomsMoved`, and never counts it among the rooms that keep their name and
+size.
+
 The verdict every change answers with, and `grid_compare`, pair openings the same way: by place,
 then at their place along a wall that moved, then by id (WRT-29). A door or window under its id
 in another place is never "where it was": the verdict says it moved and how far, `door "front"
