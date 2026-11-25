@@ -267,7 +267,7 @@ describe('one entry of another list of parts (MSG-20)', () => {
     raw.sketch.splice(4, 0, { id: 'bad', kind: 'line', category: 'level', from: [0, 0], to: [4, 0] })
     const result = read(raw)
     expect(result.plan.sketch!.map((s) => s.id)).toEqual(Array.from({ length: 20 }, (_, i) => `s${i}`))
-    const lines = result.faults.filter((f) => f.path[0] === 'sketch')
+    const lines = result.faults.filter((f) => f.kind !== 'id-clash' && f.path[0] === 'sketch')
     expect(lines).toEqual([expect.objectContaining({ kind: 'value-left-out', part: null, path: ['sketch', 4, 'points'] })])
   })
 
@@ -275,7 +275,7 @@ describe('one entry of another list of parts (MSG-20)', () => {
     const result = read(sketched())
     expect(result.plan.annotations!.map((a) => a.id)).toEqual(['n1', 'n3'])
     expect(result.faults).toEqual([expect.objectContaining({ kind: 'value-left-out', part: null, path: ['annotations', 1, 'text'] })])
-    expect(result.faults[0]!.found).toMatch(/147 characters long/)
+    expect(result.faults[0]).toMatchObject({ found: expect.stringMatching(/147 characters long/) })
   })
 
   it('gives each bad entry its own line at its place in the file, however many there are', () => {
@@ -284,7 +284,7 @@ describe('one entry of another list of parts (MSG-20)', () => {
     raw.annotations[0].text = 'one\nline'
     const result = read(raw)
     expect(result.plan.sketch!.map((s) => s.id)).toEqual(['s1', 's2', 's3', 's4', 's6', 's7', 's8', 's10', 's11'])
-    expect(result.faults.map((f) => f.path.slice(0, 2))).toEqual([
+    expect(result.faults.map((f) => (f.kind === 'id-clash' ? [] : f.path.slice(0, 2)))).toEqual([
       ['annotations', 0],
       ['annotations', 1],
       ...[0, 5, 9, 12, 13, 14, 15, 16, 17, 18, 19].map((at) => ['sketch', at])
