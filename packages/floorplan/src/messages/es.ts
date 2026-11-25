@@ -1962,6 +1962,10 @@ export const es: Messages = {
     "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) tiene {thickness} m de grueso, el hueco que dejan las estancias, y ninguna línea del texto lo indica (muros interiores {inside} m, exteriores {outside} m). Si es lo que se quiere, dígalo con 'walls {thickness}' en una línea de estancia o de muro; si no, mueva una estancia.",
   'rooms.wallFromGap.outdoor':
     "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) da a un espacio exterior, así que es un muro exterior, pero las estancias le dejan {thickness} m, no los {outside} m de los muros exteriores. Si es lo que se quiere, manténgalo con 'wall between {a} and {b} {thickness}'; si no, mueva una estancia.",
+  // CNT-36
+  'rooms.openNotShared':
+    "Línea {line}: '{a}' y '{b}' se abren una a otra, pero no comparten ningún lado, así que no hay dónde poner la línea divisoria. '{a}' comparte lados con: {aNear}; '{b}' con: {bNear}. Coloque las dos estancias cara a cara, en contacto, o quite la línea.",
+  'rooms.openNotShared.none': 'ninguna estancia',
   'rooms.checkError': "La comprobación encuentra esto en el plano tal como se escribe, y dejaría fuera una parte ({code}): {message}",
   'rooms.checkNote': "La comprobación señala esto en el plano tal como se escribe ({code}): {message}",
   'rooms.raw.unknownFloor':

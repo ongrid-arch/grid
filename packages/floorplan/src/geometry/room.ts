@@ -209,7 +209,7 @@ const distanceBetween = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y 
  * apart; such a step would cost the room its four corners and its size.
  */
 function sameFace(a: Line, b: Line): boolean {
-  return Math.abs(cross(a.dir, b.dir)) < tolerance('parallel') && Math.abs(cross(a.dir, sub(b.point, a.point))) < tolerance('flushFaces')
+  return Math.abs(cross(a.dir, b.dir)) < tolerance('writtenParallel') && Math.abs(cross(a.dir, sub(b.point, a.point))) < tolerance('flushFaces')
 }
 
 /** One edge of the face outline: a wall's inner face, or a step between two of them. */
@@ -232,7 +232,8 @@ function distanceToSegment(p: Vec2, a: Vec2, b: Vec2): number {
 /**
  * Two neighbours that are one straight side of the room.
  *
- * Exactly parallel: on one line, or so close that their bodies touch. One
+ * Parallel, as a file holds them (`writtenParallel`, CNT-36): on one line, or so
+ * close that their bodies touch. One
  * straight wall drawn as two pieces is the first case; a thick wall carrying on
  * as a thin one with one face flush is the second. Parallel walls that sit
  * further apart than that are a step the boundary does not describe.
@@ -245,7 +246,8 @@ function inRow(a: Piece, b: Piece): boolean {
   const sine = Math.abs(cross(a.line.dir, b.line.dir))
   const contact = tolerance('wallContact')
   const bodies = (thicknessOf(a.wall) + thicknessOf(b.wall)) / 2 + contact
-  if (sine < tolerance('parallel')) {
+  // CNT-36: parallel as a file holds them, so an angled side reads as a square one does.
+  if (sine < tolerance('writtenParallel')) {
     const apart = Math.abs(cross(a.line.dir, sub(b.line.point, a.line.point)))
     return apart < contact || apart <= bodies
   }
