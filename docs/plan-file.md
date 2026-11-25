@@ -868,14 +868,16 @@ Grid works the room's outline out along the inside face of the curve, piece by s
 each no more than `arcSagitta` (1 mm) off the curve and turning no more than `arcStep` (0.03
 radians): a round room of 2.9 m inside radius measures 26.417 m² against the 26.421 m² of the true
 circle, 0.016% short. The same pieces are what the area, the spaces, the outside walls and
-the checks read. The 2D drawing, the sheet and the DXF draw the wall's faces as arcs; the 3D
+the checks read; the gross internal area cuts a curved outside wall from the floor as one band
+along those pieces, so a plate with round corners measures as a square one does (CNT-22). The 2D drawing, the sheet and the DXF draw the wall's faces as arcs; the 3D
 view raises it as flat pieces mitred to each other, with a lintel over each hole. What each
 export writes as pieces it says ([commands.md](commands.md#what-an-export-leaves-out-hnd-6)).
 
 Rooms text writes straight walls: a floor with a curved wall is read back in Grid's own terms
 (`raw wall` lines), which keep the curve. The room edits (move a side, merge, split, add a room
 against a wall, stretch) leave a curved wall as it is and refuse a change that would move or cut
-one; an opening on it can still be widened, moved along it from its start or end, or turned.
+one. A curved wall an edit does not touch is no reason to refuse it: two rooms that share a
+straight wall merge though either has a curved wall round it (CNT-22); an opening on it can still be widened, moved along it from its start or end, or turned.
 Squaring a scan leaves a curved wall as it is, and refuses to square a wall that ends on one.
 The wall faults leave a curved wall out: none of them is about one, and `grid tidy` moves none.
 
