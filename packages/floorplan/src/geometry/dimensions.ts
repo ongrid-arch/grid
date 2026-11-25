@@ -473,6 +473,8 @@ function wallMarks(drawing: PlanDrawing, facade: readonly PlanWall[], along: Vec
   const square = tolerance('squareCorner')
   const gap = tolerance('gap')
   const marks: Mark[] = []
+  // VEW-54: the faces of the thick walls that meet the facade, as stretches along the chain.
+  const stretches: { lo: number; hi: number }[] = []
   for (const wall of facade) {
     const ats = wall.slices.flat().map((p) => dot(p, along))
     if (ats.length > 0) marks.push({ at: Math.min(...ats), to: 'face' }, { at: Math.max(...ats), to: 'face' })
@@ -494,8 +496,19 @@ function wallMarks(drawing: PlanDrawing, facade: readonly PlanWall[], along: Vec
     const at = dot(meets, along)
     // VEW-22: a thin wall is marked at its centre line, so its thickness is no figure of its own.
     if (other.virtual || other.thickness < tolerance('chainThinWall')) marks.push({ at, to: 'centre-line' })
-    else marks.push({ at: at - other.thickness / 2, to: 'face' }, { at: at + other.thickness / 2, to: 'face' })
+    else stretches.push({ lo: at - other.thickness / 2, hi: at + other.thickness / 2 })
   }
+  // VEW-54: walls that touch (an extension built against an old wall) are one wall: only the
+  // outer faces of what they make together are marks, not each wall's own two.
+  const near = tolerance('chainSliver')
+  stretches.sort((a, b) => a.lo - b.lo)
+  const joined: { lo: number; hi: number }[] = []
+  for (const stretch of stretches) {
+    const last = joined[joined.length - 1]
+    if (last !== undefined && stretch.lo <= last.hi + near) last.hi = Math.max(last.hi, stretch.hi)
+    else joined.push({ ...stretch })
+  }
+  for (const stretch of joined) marks.push({ at: stretch.lo, to: 'face' }, { at: stretch.hi, to: 'face' })
   return marks
 }
 
