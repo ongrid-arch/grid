@@ -39,7 +39,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/brief/lines.ts': [29, 'notYet'],
   'packages/cli/src/command/check.ts': [10, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
-  'packages/cli/src/command/diff.ts': [13, 'command'],
+  // CMD-32: one fewer, --floor no longer needs --picture.
+  'packages/cli/src/command/diff.ts': [12, 'command'],
   // SHT-10: one more, the refusal of --look dark for a file.
   'packages/cli/src/command/draw.ts': [46, 'command'],
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
@@ -175,7 +176,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-6: nine more, the drawing's refusals, its answer line and its file note.
   'packages/cli/src/sheet/sheetFile.ts': [16, 'command'],
   // WRT-12: one more, the heading of the openings that moved with their wall or room.
-  'packages/cli/src/versions/diff.ts': [11, 'notYet'],
+  // CMD-32: one more, what a floor's change heading left out.
+  'packages/cli/src/versions/diff.ts': [12, 'notYet'],
   'packages/cli/src/versions/git.ts': [19, 'notYet'],
   'packages/cli/src/versions/markers.ts': [19, 'notYet'],
   'packages/floorplan/src/geometry/areas.ts': [36, 'notYet'],
@@ -204,7 +206,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [327, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [336, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],

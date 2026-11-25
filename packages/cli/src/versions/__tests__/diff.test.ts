@@ -391,3 +391,79 @@ describe('the issues of a comparison by phase (CMD-31)', () => {
     expect(byPhase.out).toContain('Issues (1):\n  1. Window "win-bath" now stands between "Bathroom" and "Utility room"; before the work one side of it was outside')
   })
 })
+
+describe('the floor a comparison is narrowed to (CMD-32)', () => {
+  const head = 'plan "House"\nwalls outside 0.3 inside 0.1 height 2.7\n'
+  const house = (kitchen: string, bath: string): string =>
+    `${head}\nfloor ground "Ground floor" level 0\nroom living "Living" living 2.8 x 4.7 at 0.15,0.15\nroom kitchen "Kitchen" kitchen ${kitchen} x 4.7 east of living\n`
+    + `\nfloor first "First floor" level 1\nroom bed "Bedroom" bedroom 2.8 x 4.7 at 0.15,0.15\nroom bath "Bath" bathroom ${bath} x 4.7 east of bed\n`
+  /** A house of two floors, marked, then a room made wider on each floor. */
+  async function edited(): Promise<string> {
+    const dir = project({ 'house.rooms': house('2.8', '2.8') })
+    const written = await grid(dir, 'write', 'house.rooms')
+    expect(written.status, written.err).toBe(0)
+    expect((await grid(dir, 'mark')).status).toBe(0)
+    writeFileSync(join(dir, 'house.rooms'), house('3.4', '3.2'))
+    const again = await grid(dir, 'write', 'house.rooms', '--replace')
+    expect(again.status, again.err).toBe(0)
+    return dir
+  }
+
+  it('refuses a floor the plan does not have, naming the floors it has, with or without a picture', async () => {
+    const dir = await edited()
+    for (const args of [['--floor', 'roof'], ['--floor', 'roof', '--picture', 'diff.png']]) {
+      const run = await grid(dir, 'diff', ...args)
+      expect(run.status).not.toBe(0)
+      expect(run.out).toBe('')
+      expect(run.err).toContain('--floor "roof" is not a floor of this plan. Its floors: "ground", "first".')
+    }
+    expect(existsSync(join(dir, 'diff.png'))).toBe(false)
+  })
+
+  it('lists only the changes on the floor asked for, and says how many it left out', async () => {
+    const dir = await edited()
+    const whole = await grid(dir, 'diff')
+    expect(whole.status, whole.err).toBe(0)
+    expect(whole.out).toContain('"Kitchen"')
+    expect(whole.out).toContain('"Bath"')
+    const first = await grid(dir, 'diff', '--floor', 'first')
+    expect(first.status, first.err).toBe(0)
+    const changes = first.out.slice(first.out.indexOf('Changes'))
+    expect(changes).toMatch(/^Changes on floor "first" \(\d+ of \d+; \d+ on other floors or about none, left out\):/)
+    expect(changes).toContain('Bath')
+    expect(changes).not.toContain('Kitchen')
+    const rooms = first.out.slice(first.out.indexOf('Rooms:'), first.out.indexOf('Changes'))
+    expect(rooms).toContain('Bath')
+    expect(rooms).not.toContain('Kitchen')
+    const data = JSON.parse((await grid(dir, 'diff', '--floor', 'first', '--json')).out) as { floor: string; otherFloors: number; changes: Array<{ text: string }>; rooms: Array<{ room: string }> }
+    expect(data.floor).toBe('first')
+    expect(data.otherFloors).toBeGreaterThan(0)
+    expect(data.changes.some((c) => c.text.includes('Kitchen'))).toBe(false)
+    expect(data.changes.some((c) => c.text.includes('Bath'))).toBe(true)
+    expect(data.rooms.map((r) => r.room)).not.toContain('kitchen')
+    const all = JSON.parse((await grid(dir, 'diff', '--json')).out) as { floor: null; otherFloors: number; changes: unknown[] }
+    expect(all).toMatchObject({ floor: null, otherFloors: 0 })
+    expect(all.changes.length).toBe(data.changes.length + data.otherFloors)
+    const drawn = await grid(dir, 'diff', '--floor', 'first', '--picture', 'diff.png')
+    expect(drawn.status, drawn.err).toBe(0)
+    expect(drawn.out).toContain('Wrote the picture of floor "first"')
+    expect(drawn.out.slice(drawn.out.indexOf('Changes'))).not.toContain('Kitchen')
+  })
+
+  it('narrows the tool the same way, and refuses an unknown floor there too', async () => {
+    const dir = await edited()
+    const b = bench({ 'plan.json': JSON.parse(readFileSync(join(dir, 'plan.json'), 'utf8')) as unknown, 'plan.markers.json': JSON.parse(readFileSync(join(dir, 'plan.markers.json'), 'utf8')) as unknown })
+    try {
+      const reply = await b.call('grid_diff', { floor: 'ground', picture: false })
+      expect(reply.isError, reply.text).toBe(false)
+      expect(reply.text).toMatch(/Changes on floor "ground" \(\d+ of \d+;/)
+      expect(reply.text.slice(reply.text.indexOf('Changes'))).not.toContain('Bath')
+      expect(reply.data).toMatchObject({ floor: 'ground', picture: null })
+      const refused = await b.call('grid_diff', { floor: 'roof' })
+      expect(refused.isError).toBe(true)
+      expect(refused.text).toContain('Its floors: "ground" and "first"')
+    } finally {
+      b.close()
+    }
+  })
+})

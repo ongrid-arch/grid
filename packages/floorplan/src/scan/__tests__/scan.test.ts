@@ -121,6 +121,51 @@ describe('a scan with no floor outline', () => {
   })
 })
 
+describe('a scan of several rooms with no floor outline', () => {
+  const two: InventedScanOptions = {
+    rooms: [
+      { name: 'front', box: [0, 0, 4, 3.2], label: 'livingRoom' },
+      { name: 'back', box: [4.12, 0, 7, 3.2], label: 'bedroom' },
+    ],
+    floors: false,
+    heading: -21,
+  }
+
+  it('is as many rooms as its walls close round, with one wall between two of them', () => {
+    const done = convert(two)
+    expect(problems(done.plan)).toEqual([])
+    expect(done.rooms.map((r) => r.name).sort()).toEqual(['Bedroom', 'Living room'])
+    expect(done.rooms.every((r) => r.from === 'wall faces' && Math.abs(r.difference) < 0.00001)).toBe(true)
+    expect(done.rooms.map((r) => r.scanArea).sort((a, b) => a - b)).toEqual([expect.closeTo(2.88 * 3.2, 9), expect.closeTo(4 * 3.2, 9)])
+    expect(done.paired).toHaveLength(1)
+    expect(done.paired[0]!.thickness).toBeCloseTo(0.12, 6)
+    expect(done.leftOut.join(' ')).not.toContain('wall face')
+  })
+
+  it('draws every room of the invented flat', () => {
+    const done = convert({ ...INVENTED_FLAT, floors: false })
+    expect(problems(done.plan)).toEqual([])
+    expect(done.rooms).toHaveLength(4)
+    expect(done.rooms.every((r) => Math.abs(r.difference) < 0.00001)).toBe(true)
+  })
+
+  it('draws the rooms that close and names the faces that close round none', () => {
+    const scan = inventedScan({ ...two, without: ['back-north'] })
+    const done = planFromScan(readRoomScan(scan.json))
+    expect(done.rooms).toHaveLength(1)
+    expect(done.rooms[0]!.name).toBe('Living room')
+    const left = done.leftOut.find((l) => l.includes('wall face'))!
+    expect(left).toContain('close round no room')
+    for (const side of ['back-south', 'back-east', 'back-west']) expect(left).toContain(scan.ids[side]!)
+  })
+
+  it('keeps every room\'s id on a re-scan', () => {
+    const first = convert(two)
+    const again = convert(two, Object.fromEntries(Object.entries(first.ids).map(([sid, ref]) => [sid, { ...ref, id: `${ref.id}-kept` }])) as ScanIds)
+    expect(again.rooms.map((r) => r.id).sort()).toEqual(first.rooms.map((r) => `${r.id}-kept`).sort())
+  })
+})
+
 describe('two faces of one wall a little out of parallel', () => {
   it('are turned onto one direction about their middles, and the answer says by how much', () => {
     const done = convert({ ...INVENTED_FLAT, skew: { 'bedroom-west': 0.6 } })

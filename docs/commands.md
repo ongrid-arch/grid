@@ -466,7 +466,9 @@ How the scan becomes a plan:
   size, and its thickness is marked assumed.
 - **The rooms** are the scan's floor outlines, each side on the wall face along it (within
   0.05 m, `scanFaceReach`); in a scan with no floor outline, the wall faces joined end to end
-  (corners within 0.15 m, `scanCornerGap`) as one room. Each room's corners are where its faces'
+  (corners within 0.15 m, `scanCornerGap`) round as many rooms as they close round; faces that
+  close round no room are named in what was left out, and a scan where none closes is refused.
+  Each room's corners are where its faces'
   lines cross, as every room in Grid is measured, and its name and use come from the scan's room
   type where it gives one. The walls are held to a micrometre, so each room keeps the scan's
   area: the answer gives both, and how far apart they are.
@@ -611,7 +613,12 @@ The answer, in this order:
   and the openings that stayed where they were though their wall moved or was replaced.
 
 `--show summary` stops after the rooms, `--show issues` gives the issues alone, and `--json` the
-same as data. `--picture d.png` writes the comparison as a picture of one floor (the first with
+same as data. `--floor <id>` narrows the rooms, the changes and the openings to one floor, and
+says how many change lines it left out (`Changes on floor "first" (1 of 2; 1 on other floors or
+about none, left out):`, in the data `floor` and `otherFloors`); a line about a part on that floor
+in either version is kept, one about the site alone is left out. The issues, the verdict and the
+scope check stay whole. A floor the plan does not have is refused with the floors it has (CMD-32).
+`--picture d.png` writes the comparison as a picture of one floor (the first with
 a change, or `--floor`): what was removed in red, what was added in green, what changed in
 amber (a wall nudged within its own thickness or made thicker, or an opening that changed or
 moved, at its new place with its old place outlined; a room with its old and new area), and the
