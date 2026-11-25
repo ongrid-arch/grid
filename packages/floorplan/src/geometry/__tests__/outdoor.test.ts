@@ -115,7 +115,10 @@ describe('the house with its garden drawn as outdoor space (done-when 1, lab EL-
     const after = planAreaFigures(court)
     // The courtyard, 4.20 × 3.70 = 15.54 m², comes off the net and both gross figures.
     expect(round(after.outdoor!.area)).toBe('15.54')
-    for (const m of ['net', 'grossInternal', 'grossExternal'] as const) expect(round(before[m].area! - after[m].area!), m).toBe('15.54')
+    for (const m of ['net', 'grossExternal'] as const) expect(round(before[m].area! - after[m].area!), m).toBe('15.54')
+    // ARE-39: gross internal follows the rooms beside each wall. Before, the walls round the room
+    // had rooms on both faces and counted as floor; marked outdoor, they face outside and come off too.
+    expect(round(before.grossInternal.area! - after.grossInternal.area!)).toBe('19.17')
   })
 })
 

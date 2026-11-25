@@ -435,8 +435,20 @@ export function floorWalls(plan: FloorPlan, floor: string, broken: ReadonlySet<s
  */
 function outerStretches(sides: WallSides | undefined, length: number, thickness: number): (readonly [number, number])[] {
   if (sides === undefined) return []
-  if (sides.stated === 'exterior') return [[0, length]]
   const list = sides.stretches
+  // ARE-39: a wall built as an outside wall faces outside along its length, less the stretches that
+  // now have rooms on both faces (the old end wall after an extension): the rooms beside it decide.
+  if (sides.stated === 'exterior') {
+    const between = list.filter((s) => s.worked === 'interior' && s.left.length > 0 && s.right.length > 0 && s.to - s.from > tolerance('lineInside'))
+    const faces: [number, number][] = []
+    let at = 0
+    for (const s of between) {
+      if (s.from > at) faces.push([at, s.from])
+      at = Math.max(at, s.to)
+    }
+    if (at < length) faces.push([at, length])
+    return faces.filter(([from, to]) => to - from >= tolerance('lineInside'))
+  }
   // CNT-6: a party wall, or one to the common parts, bounds the floor as an outside wall does.
   const bounds = (worked: WallSides['stretches'][number]['worked']): boolean => worked === 'exterior' || worked === 'separating'
   const outer = (i: number): boolean | null => (i < 0 || i >= list.length ? null : bounds(list[i]!.worked))
