@@ -601,7 +601,9 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
       // VEW-16: down to the ground the site states, under a floor whose slab stands clear of it.
       const plinth = plinthUnder(env.slab, ground.level)
       if (plinth !== null) {
-        for (const edge of edges) add({ kind: 'plinth', floor: floor.id, wall: null, points: band(edge.a, edge.b, plinth.bottom, plinth.bottom, plinth.top - plinth.bottom), openings: [] })
+        // VEW-29: with no band of its own for the slab, the plinth carries on up to the slab's top.
+        const plinthTop = bandStated ? plinth.top : top
+        for (const edge of edges) add({ kind: 'plinth', floor: floor.id, wall: null, points: band(edge.a, edge.b, plinth.bottom, plinth.bottom, plinthTop - plinth.bottom), openings: [] })
       }
     }
     if (env.roof !== null && env.roof.shape === null) {

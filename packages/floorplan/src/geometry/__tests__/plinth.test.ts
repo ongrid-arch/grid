@@ -46,9 +46,9 @@ describe('the plinth under a floor that stands clear of the ground (VEW-16)', ()
     const facade = planFacade(plan, 'south')
     const plinths = facade.faces.filter((f) => f.kind === 'plinth')
     expect(plinths).toHaveLength(1)
-    expect(plinths[0]).toMatchObject({ floor: 'ground', wall: null, u0: -0.15, u1: 10.15, bottom: -0.45, top: -0.25 })
-    // It is drawn before the slab and the wall at its depth.
-    expect(facade.faces.map((f) => f.kind)).toEqual(['plinth', 'slab', 'wall', 'roof'])
+    expect(plinths[0]).toMatchObject({ floor: 'ground', wall: null, u0: -0.15, u1: 10.15, bottom: -0.45, top: 0 })
+    // It is drawn before the wall at its depth (VEW-29: the slab states no thickness, so no band of its own).
+    expect(facade.faces.map((f) => f.kind)).toEqual(['plinth', 'wall', 'roof'])
     // The silhouette reaches the ground, the whole width of the house.
     expect(facade.outline).toHaveLength(1)
     const zs = facade.outline[0]!.map(([, z]) => z)

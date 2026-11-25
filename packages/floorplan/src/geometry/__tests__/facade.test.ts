@@ -116,7 +116,7 @@ describe('the facade of a side', () => {
     // VEW-29: with no band between the floors the first floor's walls stand down to the ground floor's roof,
     // and the silhouette is the walls' own width there, not the band's.
     expect(area).toBeCloseTo(10.3 * (2.95 + 0.15) + 6.3 * (5.9 - 2.95) - 1.545, 6)
-    expect(facade.extent).toEqual({ u0: -0.15, u1: 10.15, bottom: -0.25, top: 5.9 })
+    expect(facade.extent).toEqual({ u0: -0.15, u1: 10.15, bottom: -0.15, top: 5.9 })
     // With no ground stated, the ground floor's floor level, 0, as LVL-4 reads it.
     const { site: _site, ...rest } = steppedHouse()
     void _site
