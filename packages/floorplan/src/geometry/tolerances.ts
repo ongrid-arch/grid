@@ -379,6 +379,17 @@ export const TOLERANCES = {
       'leave a few millimetres (CNT-36).',
     basis: own
   },
+  roomsFaceTurn: {
+    kind: 'tolerance',
+    value: 0.0872,
+    unit: 'sine',
+    decides:
+      'Two faces of rooms written rooms first that run the opposite way, out of parallel by less ' +
+      'than this (the sine of 5 degrees) and no further apart than a wall at both ends of what they ' +
+      'share, are the two faces of one wall between them, drawn along their middle line, as a ' +
+      'scanned room\'s are (WRT-56).',
+    basis: own
+  },
   roomsFaceStep: {
     kind: 'tolerance',
     value: 0.002,

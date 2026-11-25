@@ -130,7 +130,15 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   polygon room written to the centimetre against the angled side of another, a few millimetres
   off it, still shares that side, and the two get a dividing line, or a wall, along it and no
   outside wall across it. Two rooms opened to each other that share no side are refused,
-  naming both and the rooms each shares a side with (`rooms/no-shared-wall`).
+  naming both and the rooms each shares a side with (`rooms/no-shared-wall`). Sides further out
+  of parallel, up to 5 degrees (`roomsFaceTurn`), that are no further apart than a wall at both
+  ends of what they share are one wall's two faces, as a scanned room's are (WRT-56): a surveyed
+  partition between rooms drawn a little askew, or a curved band of rooms written as facets that
+  do not line up with the band beside it. The wall runs along the middle line between the sides,
+  as thick as a wall the text states where the gap passes through that thickness, else as the gap
+  on average (`rooms/wall-from-gap`). The rooms keep their corners, and the answer says once a
+  floor which rooms' sides are out of parallel, by how much and how far a wall's face is off them
+  (`rooms/faces-turned`).
 - A door or window line may say its kind (CNT-14): `sliding`, `double`, `folding`, `pocket`,
   `roller`, `garage` or `single` for a door, `single`, `double`, `sliding`, `fixed` or
   `high-level` for a window; `part 0.9` (or `part 0.6 x 1.0`) for the part that opens. A door

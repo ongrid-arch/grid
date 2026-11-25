@@ -1989,6 +1989,11 @@ export const en = {
   'rooms.openNotShared':
     "Line {line}: '{a}' and '{b}' are opened to each other, but they share no side, so there is nowhere for the dividing line. '{a}' shares sides with: {aNear}; '{b}' with: {bNear}. Place the two rooms face to face, touching, or leave the line out.",
   'rooms.openNotShared.none': 'no room',
+  // WRT-56: sides a few degrees out of parallel, a wall's width apart, share one wall.
+  'rooms.facesTurned':
+    "On floor '{floor}', the facing sides of {list} are out of parallel, by up to {degrees} degrees: each pair of rooms has one wall between them, drawn along the middle line between the two sides. It is as thick as a wall the text states where the gap between the sides passes through that thickness, and otherwise as thick as the gap on average. The rooms keep their corners as written, so a wall's face is up to {off} mm off a room's side. If the sides are meant to be parallel, write the corners on parallel lines.",
+  'rooms.facesTurned.pair': "'{a}' with '{b}'",
+  'rooms.facesTurned.more': '{list} and {count} more pairs',
   'rooms.checkError': "The check finds this in the plan as written, and would leave a part out ({code}): {message}",
   'rooms.checkNote': "The check notes this in the plan as written ({code}): {message}",
   // WRT-27: raw lines are on the floor they are written under, and counted in the answer.

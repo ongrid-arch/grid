@@ -196,7 +196,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [324, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [327, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],
