@@ -215,7 +215,8 @@ function sameCurve(a: Wall, b: Wall, map: Transform): boolean {
 /** A wall's length along its axis, curved or not; 0 for one that cannot be built. */
 function lengthOf(wall: Wall): number {
   if (wall.arc !== undefined) return curveFault(wall) === null ? wallLength(wall) : 0
-  return wallAxis(wall).length
+  // WRT-44: a straight wall whose ends are one point (a plan an older writer wrote) is 0 long.
+  return Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1])
 }
 
 /**
@@ -261,6 +262,7 @@ function openingAt(plan: FloorPlan, id: string): Vec2 | null {
   if (!o || !wall) return null
   const along = o.offset + o.width / 2
   if (wall.arc !== undefined) return curveFault(wall) === null ? wallPointAt(wall, along) : null
+  if (lengthOf(wall) === 0) return null
   const axis = wallAxis(wall)
   return { x: axis.start.x + axis.dir.x * along, y: axis.start.y + axis.dir.y * along }
 }
