@@ -90,8 +90,9 @@ describe('a corridor narrower than the firm\'s 1.5 m', () => {
     const corridor = firm[0]!
     expect(corridor).toMatchObject({ kind: 'finding', thing: { kind: 'room', id: 'hall' }, floor: 'ground' })
     expect(corridor.message).toBe('Room "Hall": the way through is 1.15 m wide at its narrowest, under the firm\'s own figure of 1.5 m for corridor width ("Corridors")')
-    expect(corridor.needed).toBe('at least 1.5 m: the firm\'s figure used here ("Corridors"), from "firm-standards.json", the firm\'s own and not from any code or standard')
-    expect(corridor.firm).toEqual({ standard: 0, measure: 'corridor_width', value: 1.5, unit: 'm', name: 'Corridors', file: 'firm-standards.json' })
+    // ARE-27: the firm's own note on where its figure comes from stays with the figure.
+    expect(corridor.needed).toBe('at least 1.5 m: the firm\'s figure used here ("Corridors"), from "firm-standards.json" (the firm\'s note: "Our office guide, part 3"), the firm\'s own and not from any code or standard')
+    expect(corridor.firm).toEqual({ standard: 0, measure: 'corridor_width', value: 1.5, unit: 'm', name: 'Corridors', note: 'Our office guide, part 3', file: 'firm-standards.json' })
     // Apart from the code figures: a firm's line carries no code figure, and the figures list holds none of the firm's.
     expect(corridor.figures).toBeUndefined()
     expect(JSON.stringify(check.data?.['figures'] ?? [])).not.toContain('firm')

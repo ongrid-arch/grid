@@ -141,8 +141,8 @@ describe('the person\'s own figures, kept and labelled as theirs (BRF-1)', () =>
   it('sets every number against the brief\'s figures, each said as "your figure"', async () => {
     const { text, data } = await access(labPlan(EL15), BRIEF)
     expect(text).toContain('Set against your figures, from the brief "probe.brief.json": door_width 0.80 m, corridor_width 1.20 m, turning_circle 1.50 m, step 0.00 m. They are yours, not a code\'s.')
-    expect(text).toContain('door "door-bath", "Hall" to "Bathroom": 0.55 m hole, 0.50 m clear past the open leaf; under your figure of 0.80 m.')
-    expect(text).toContain('opening "pass-kitchen-living", "Kitchen" to "Living room": 1.20 m hole, 1.20 m clear; at least your figure of 0.80 m.')
+    expect(text).toContain('door "door-bath", "Hall" to "Bathroom": 0.55 m hole, 0.50 m clear past the open leaf; under your figure of 0.80 m for its clear width.')
+    expect(text).toContain('opening "pass-kitchen-living", "Kitchen" to "Living room": 1.20 m hole, 1.20 m clear; at least your figure of 0.80 m for its clear width.')
     expect(text).toMatch(/"Hall": 0\.70 m, at \([^)]*\); under your figure of 1\.20 m\./)
     expect(text).toMatch(/"Hall": 0\.70 m, centred at \([^)]*\); under your figure of 1\.50 m\./)
     expect(text).toContain('1 step: 0.18 m at door "door-entrance", its sill; higher than your figure of 0.00 m;')

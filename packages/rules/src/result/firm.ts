@@ -131,6 +131,8 @@ export interface FirmFigure {
   readonly value: number
   readonly unit: 'm' | 'm²'
   readonly name: string | null
+  /** ARE-27: the firm's own note on where the figure comes from, as its file gives it; null for none. */
+  readonly note: string | null
   readonly file: string
 }
 

@@ -108,12 +108,12 @@ describe('Y-7: the narrow flat, against the wheelchair user\'s own figures', () 
     expect(missed).toHaveLength(9)
     expect(missed.map((l) => `${l.wish} ${l.parts.map((p) => p.id).join(',')} ${l.drawn}`).sort()).toEqual([
       'corridor_width hall 0.70',
-      'door_width door-bath 0.55',
-      'door_width door-bed1 0.55',
-      'door_width door-bed2 0.55',
-      'door_width door-entrance 0.55',
-      'door_width door-kitchen 0.55',
-      'door_width door-living 0.55',
+      'door_width door-bath 0.50',
+      'door_width door-bed1 0.50',
+      'door_width door-bed2 0.50',
+      'door_width door-entrance 0.50',
+      'door_width door-kitchen 0.50',
+      'door_width door-living 0.50',
       'step door-entrance 0.18',
       'turning_circle hall 0.70',
     ])

@@ -27,7 +27,7 @@ describe('the firm\'s lines in the record (COD-8)', () => {
     expect(line.found).toMatch(/^1\.20 m, from "d1" to "d2"; measured as /)
     expect(line.needed).toBe('at least 1.5 m: the firm\'s figure used here ("Corridors"), from "firm-standards.json", the firm\'s own and not from any code or standard')
     expect(line.fix).toContain("The figure is the firm's own")
-    expect(line.firm).toEqual({ standard: 0, measure: 'corridor_width', value: 1.5, unit: 'm', name: 'Corridors', file: 'firm-standards.json' })
+    expect(line.firm).toEqual({ standard: 0, measure: 'corridor_width', value: 1.5, unit: 'm', name: 'Corridors', note: null, file: 'firm-standards.json' })
     expect(line.figures).toBeUndefined()
     expect(result.figures.some((f) => JSON.stringify(f).includes('firm'))).toBe(false)
     expect(result.firm).toEqual({

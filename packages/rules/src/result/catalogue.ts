@@ -107,6 +107,8 @@ export interface FirmSubject {
   readonly name: string | null
   /** The firm's file, as the report names it. */
   readonly file: string
+  /** ARE-27: the firm's own note on where the figure comes from, as its file gives it; null or absent for none. */
+  readonly note?: string | null
   /** What the drawing measured; null when nothing could be. */
   readonly measured: number | null
   /** Where or between what, with the plan's names quoted (MSG-11: a sentence by key, or its text); empty when there is nothing to add. */
@@ -284,6 +286,8 @@ function firmValues(measure: FirmMeasure): (s: Subject) => Values {
       measures: said(`line.part.firm.measures.${measure}`),
       named: f?.name ? said('line.part.firm.named', { name: name(f.name) }) : '',
       file: name(f?.file ?? ''),
+      // ARE-27: the firm's own note on where its figure comes from, kept with the figure.
+      note: f?.note ? said('line.part.firm.note', { note: name(f.note) }) : '',
       where: f?.said === undefined || f.said === '' ? '' : said('line.part.firm.where', { where: f.said })
     }
   }

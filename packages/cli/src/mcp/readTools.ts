@@ -17,6 +17,7 @@ import { inLanguage, t, tv } from '../command/words'
 import { LANGUAGES, english, joined, name, num, said, say, type Language, type MessageKey } from '@ongrid/floorplan/messages'
 import { readSeen, type SeenState } from '../seen/marks'
 import { firmForCheck } from '../firm/measure'
+import { briefMissedText } from '../brief/answer'
 import { describePlan, describeRooms, describeWalk, walkOf } from '../command/describe'
 import { walkPictures } from '../describe/walkPictures'
 import { WALK_EYE_HEIGHT, WALK_PICTURES_MAX } from '../describe/walk'
@@ -2296,6 +2297,7 @@ const checkTool: GridTool = {
     + 'Every answer carries the label "General guidance, not your local rules". It never says a plan complies or is allowed: "is it allowed" is for the person\'s local authority, and the answer says what was not checked. '
     + 'The answer is short and about this plan: the notes, the figures they used, what each check looked at, and the notes the person set aside as seen (grid_mark_seen), each still listed under Seen; full=true adds the checks run, every figure and what these checks never look at. '
     + 'With a firm\'s standards file beside the plan (firm-standards.json), the firm\'s own figures are set against the plan too, and their notes (firm/…) come under their own heading, apart from the code figures. '
+    + 'With a brief beside the plan (plan.brief.json), the person\'s own figures the drawing misses are listed after the notes, measured as grid_write_brief measures them, theirs and not a code\'s. '
     + 'Do not use to measure (grid_measure) or for areas (grid_areas).',
   args: {
     plan: PLAN_ARG,
@@ -2342,7 +2344,7 @@ const checkTool: GridTool = {
       // MSG-10: the person's seen mark, when the line has one: seen, or back (new again, its parts changed since).
       seen: objectSchema({ state: STRING, reason: STRING, by: STRING, at: STRING, changed: listSchema(objectSchema({ kind: STRING, id: STRING })) }, ['state', 'reason', 'by', 'at']),
       // COD-8: on a firm/ line, the firm's own figure it was set against, from the file beside the plan.
-      firm: objectSchema({ standard: { type: 'number' }, measure: STRING, value: { type: 'number' }, unit: STRING, name: { type: ['string', 'null'] }, file: STRING }, ['standard', 'measure', 'value', 'unit', 'name', 'file']),
+      firm: objectSchema({ standard: { type: 'number' }, measure: STRING, value: { type: 'number' }, unit: STRING, name: { type: ['string', 'null'] }, note: { type: ['string', 'null'] }, file: STRING }, ['standard', 'measure', 'value', 'unit', 'name', 'note', 'file']),
     }, ['code', 'kind', 'thing', 'floor', 'also', 'message', 'found', 'needed', 'fix'])),
     // MSG-10: how many lines are seen, the marks file beside the plan, and why it could not be read.
     seenCount: { type: 'number' },
@@ -2404,6 +2406,7 @@ const checkTool: GridTool = {
     } catch (error) {
       throw asRefusal(error)
     }
+    const briefMissed = briefMissedText(project, file, loaded.plan)
     const roomName = new Map(loaded.plan.rooms.map((r) => [r.id, r.name]))
     const findings = result.report.findings.map((f) => ({
       floor: f.floor,
@@ -2470,6 +2473,8 @@ const checkTool: GridTool = {
       if (firmNone !== null) lines.push(firmNone)
       // HND-11 (lab WR-14): each length taped on site against the drawing, after every run.
       lines.push(...tapedTable(record.taped ?? []))
+      // ARE-27: the person's own figures from the brief beside the plan that the drawing misses.
+      lines.push(...briefMissed)
       if (full) {
         // MSG-2: what each check looked at, beside the count, so an empty list cannot read as a pass.
         const rooms = result.rooms
