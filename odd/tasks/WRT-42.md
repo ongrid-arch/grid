@@ -69,7 +69,7 @@ Decisions:
   - a window drawn across the corner of two rooms: before, its floor is raw; after, only the
     window is a `raw opening`, with a comment line above it naming it and why, with no line
     number, and nothing is lost.
-- Over the testers' 291 plans: no read-back that was exact before is less so; the ones that read
+- Over 291 sample plans: no read-back that was exact before is less so; the ones that read
   more raw lines after are plans whose read-back before was refused when written or changed
   many parts, and is now written with fewer or no changes.
 - A floor given raw for a wall names the wall in its comment line and in `rawFloors`, with no
