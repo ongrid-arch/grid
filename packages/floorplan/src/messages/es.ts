@@ -2581,6 +2581,11 @@ export const es: Messages = {
   'name.part.plan': 'del plano',
   'name.note.instruction': 'El nombre {part}, {name}, se lee como una instrucción o como una afirmación sobre el plano. Grid lo guarda tal como está escrito y siempre lo cita, pero va en cada exportación y lámina: cámbialo si no es así como se llama.',
   'name.note.person': 'El nombre {part}, {name}, puede incluir el nombre de una persona. Va en cada exportación y lámina y viaja con el plano; quién usa una estancia puede guardarse aparte, en el archivo de ocupación junto al plano ({file}).',
+  // MSG-29: a seen note a change or a diff made new again.
+  'edit.seenNew': 'La nota vista {number} vuelve a ser nueva{counted}: {note} Se vio {by}; {parts} ha cambiado desde entonces.',
+  'edit.seenNew.counted': ', contada para {country} como cuando se marcó',
+  'edit.seenNew.more.one': 'Una nota vista más vuelve a ser nueva; los datos la listan.',
+  'edit.seenNew.more.many': '{count} notas vistas más vuelven a ser nuevas; los datos las listan.',
   'edit.stretch.carried': '{parts} más allá de la línea se movieron con ella.',
   'edit.stretch.count.column.one': '{n} pilar',
   'edit.stretch.count.column.many': '{n} pilares',

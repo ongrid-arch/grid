@@ -2451,6 +2451,11 @@ export const en = {
   'name.part.plan': 'the plan',
   'name.note.instruction': 'The name of {part}, {name}, reads as an instruction or as a claim about the plan. Grid keeps it as written and always quotes it, but it goes into every export and sheet: rename it if that is not what it is called.',
   'name.note.person': 'The name of {part}, {name}, may hold a person\'s name. It goes into every export and sheet and travels with the plan; who uses a room can be kept apart, in the occupancy file beside the plan ({file}).',
+  // MSG-29: a seen note a change or a diff made new again.
+  'edit.seenNew': 'Seen note {number} is new again{counted}: {note} It was seen {by}; {parts} changed since.',
+  'edit.seenNew.counted': ', counted for {country} as when it was marked',
+  'edit.seenNew.more.one': 'One more seen note is new again; the data lists it.',
+  'edit.seenNew.more.many': '{count} more seen notes are new again; the data lists them.',
   'edit.stretch.carried': '{parts} beyond the line moved with it.',
   'edit.stretch.count.column.one': '{n} column',
   'edit.stretch.count.column.many': '{n} columns',
