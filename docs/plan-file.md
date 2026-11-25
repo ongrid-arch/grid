@@ -1804,7 +1804,8 @@ it reaches; nothing outside the walls, such as eaves or steps, is drawn to measu
 - **Each face.** The distance from each face of the building to the edge of the boundary in
   front of it, square to the face.
 - **The plot coverage.** The part of the building's shape inside the boundary against the
-  boundary's area: 90 m² on 450 m² is 20%.
+  boundary's area: 90 m² on 450 m² is 20%. Open outdoor space is left out of the shape and given
+  as a second figure beside it.
 
 `grid_measure` with `what=site` answers with all three
 ([tool-server.md](tool-server.md#the-plot-distances-to-the-boundary-and-the-coverage)), and
