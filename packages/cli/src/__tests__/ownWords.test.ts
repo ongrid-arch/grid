@@ -74,7 +74,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
   'packages/cli/src/edit/edits.ts': [57, 'notYet'],
-  'packages/cli/src/edit/merge.ts': [29, 'notYet'],
+  'packages/cli/src/edit/merge.ts': [31, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
@@ -96,7 +96,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   'packages/cli/src/mcp/briefTool.ts': [47, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
-  'packages/cli/src/mcp/editTools.ts': [84, 'tools'],
+  'packages/cli/src/mcp/editTools.ts': [85, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -324,7 +324,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // the openings that moved with their wall or room (versions/diff.ts).
     // and MSG-19 3: the seen file's refusals (seen/marks.ts).
     // and WRT-28 3: the flats lines of a merge (edit/merge.ts) (odd/tasks/WRT-28.md).
-    expect(left).toBeLessThanOrEqual(1605)
+    // and WRT-33 3: the merge's stale type and doubled door lines (edit/merge.ts, mcp/editTools.ts).
+    expect(left).toBeLessThanOrEqual(1608)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

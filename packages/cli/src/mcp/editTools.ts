@@ -31,7 +31,7 @@ const mergeTool: GridTool = {
   description:
     'Use this when the person asks to knock two rooms into one, open them up or take out the wall between them: "knock the kitchen and living room into one". '
     + 'It takes out the stretch of wall the two rooms share, cut where the walls round them meet it, with the doors and windows in that stretch; the first room takes in the second and keeps its id, name and use unless name or use say otherwise. '
-    + 'Two rooms of different uses (a kitchen and a living room) need use, the merged room\'s, or zones true, which keeps both as zones of one open-plan room, each with its id, name and use, either side of a dividing line; left out, the call is refused and asks. It answers with the area of the room it makes, and the verdict names any use the plan no longer has. '
+    + 'Two rooms of different uses (a kitchen and a living room) need use, the merged room\'s, or zones true, which keeps both as zones of one open-plan room, each with its id, name and use, either side of a dividing line; left out, the call is refused and asks. It answers with the area of the room it makes, and the verdict names any use the plan no longer has. A type fact the rooms carry ("1.5x3") is kept as the first room\'s and said to be out of date, unless type gives the merged room its own; two doors on one wall of the merged room are named, with the call that takes one out. '
     + 'Do not use to make a room bigger by moving a wall (grid_move_room_side) or for rooms that share more than one wall. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
@@ -39,6 +39,7 @@ const mergeTool: GridTool = {
     with: { type: 'string', id: true, required: true, description: 'The room it takes in, which is gone after; with zones, the second zone.', examples: ['kitchen'] },
     name: NAME('The merged room\'s name. The first room\'s when left out.', 'Kitchen and living'),
     use: USE('The merged room\'s use. The first room\'s when left out; needed when the two rooms have different uses, unless zones is true.'),
+    type: { type: 'string', maxLength: NAME_MAX, description: 'The merged room\'s type, the value of the type fact its rooms carry (a fact named "type" when they carry none). Left out, the merged room keeps the first room\'s type, and the answer says it may no longer fit.', examples: ['3x3'] },
     zones: { type: 'boolean', description: 'true to keep both rooms as zones of the merged room, each with its id, name and use: an open-plan room. The merged room is a new room.', examples: [true] },
     new_room: { type: 'string', id: true, description: 'With zones: the merged room\'s id. Made from the two rooms\' ids when left out.', examples: ['kitchen-living'] },
     out: OUT_ARG,
@@ -51,6 +52,7 @@ const mergeTool: GridTool = {
       return mergeRooms(survey, a, b, {
         ...(args['name'] !== undefined ? { name: args['name'] as string } : {}),
         ...(args['use'] !== undefined ? { use: args['use'] as string } : {}),
+        ...(args['type'] !== undefined ? { type: args['type'] as string } : {}),
         ...(args['zones'] === true ? { zones: true } : {}),
         ...(args['new_room'] !== undefined ? { id: args['new_room'] as string } : {}),
       })

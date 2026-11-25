@@ -61,7 +61,7 @@ describe('grid edit', () => {
   it('refuses an option the verb does not take, by name', async () => {
     const ran = await grid(project(), 'edit', 'merge', '--room', 'living', '--by', '2')
     expect(ran.status).toBe(2)
-    expect(ran.err).toMatch(/^grid: edit merge has no option "--by"\. Its options: --room, --with, --name, --use, --zones, --new-room, --out, --json, --project, --help\.\n$/)
+    expect(ran.err).toMatch(/^grid: edit merge has no option "--by"\. Its options: --room, --with, --name, --use, --type, --zones, --new-room, --out, --json, --project, --help\.\n$/)
   })
 
   it('names a missing option as the command line spells it', async () => {
