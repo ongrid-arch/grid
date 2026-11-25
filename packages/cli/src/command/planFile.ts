@@ -5,6 +5,7 @@
  * they hold: `grid.json` and the files Grid keeps beside a plan.
  */
 import path from 'node:path'
+import { say } from '@ongrid/floorplan/messages'
 import { BRIEF_SUFFIX } from '../brief/brief'
 import { PREVIEW_SUFFIX } from '../preview/record'
 import { SEEN_SUFFIX } from '../seen/marks'
@@ -20,23 +21,23 @@ export function holdsAPlan(raw: Readonly<Record<string, unknown>>): boolean {
   return typeof written === 'object' && written !== null && !Array.isArray(written)
 }
 
-/** What a file's own name says it is for, when it is one of Grid's own; null for any other name. */
+/** What a file's own name says it is for, in Grid's words, when it is one of Grid's own; null for any other name. */
 export function gridFileKind(file: string): string | null {
   const name = path.basename(file).toLowerCase()
-  if (name === PROJECT_FILE) return 'the file that marks the folder as a Grid project'
-  const beside: ReadonlyArray<readonly [string, string]> = [
-    [MARKERS_SUFFIX, 'start markers'],
-    [SEEN_SUFFIX, 'the notes set aside as seen'],
-    [BRIEF_SUFFIX, 'the brief'],
-    [PREVIEW_SUFFIX, 'the preview record'],
-    [SCAN_SUFFIX, 'the room scan'],
+  if (name === PROJECT_FILE) return say('en', 'plan.fileKind.project', {})
+  const beside: ReadonlyArray<readonly [string, 'markers' | 'seen' | 'brief' | 'preview' | 'scan']> = [
+    [MARKERS_SUFFIX, 'markers'],
+    [SEEN_SUFFIX, 'seen'],
+    [BRIEF_SUFFIX, 'brief'],
+    [PREVIEW_SUFFIX, 'preview'],
+    [SCAN_SUFFIX, 'scan'],
   ]
   const hit = beside.find(([suffix]) => name.endsWith(suffix))
-  return hit === undefined ? null : `a file Grid keeps beside a plan (${hit[1]})`
+  return hit === undefined ? null : say('en', `plan.fileKind.${hit[1]}`, {})
 }
 
 /** Refuses, before anything is written, a plan file whose name is one of Grid's own. */
 export function refuseGridFile(shown: string, file: string): void {
   const kind = gridFileKind(file)
-  if (kind !== null) throw new PlanRefused(`${shown} is not a plan file: it is ${kind}, and a plan is never written into it. Name another .json file for the plan; replace does not change this.`)
+  if (kind !== null) throw new PlanRefused(say('en', 'plan.notAPlan.gridFile', { file: shown, kind }))
 }

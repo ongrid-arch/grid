@@ -2550,5 +2550,13 @@ export const es: Messages = {
   'trace.otherFloor': 'La imagen de calco {path} está bajo la planta {floor}, así que no se dibuja en esta.',
   'read.trace.samePoint': 'es el mismo punto que from: una escala necesita dos puntos separados',
   'read.trace.scaleAndCalibration': 'se indica junto a calibration: da la escala o los dos puntos y su longitud, no ambas cosas',
-  'trace.refused.ending': 'No se puede usar {file}: su imagen de calco, referenceImage.path, se rechaza. {path} no termina en .png, .jpg ni .jpeg, así que no es una imagen que Grid dibuje. Indica una imagen PNG o JPEG dentro de la carpeta del proyecto {folder}, o quita referenceImage del plano.'
+  'trace.refused.ending': 'No se puede usar {file}: su imagen de calco, referenceImage.path, se rechaza. {path} no termina en .png, .jpg ni .jpeg, así que no es una imagen que Grid dibuje. Indica una imagen PNG o JPEG dentro de la carpeta del proyecto {folder}, o quita referenceImage del plano.',
+  'plan.notAPlan.gridFile': '{file} no es un archivo de plano: es {kind}, y nunca se escribe un plano en él. Indica otro archivo .json para el plano; replace no cambia esto.',
+  'plan.notAPlan.noParts': '{file} no es un plano de Grid: no contiene muros, estancias ni huecos.',
+  'plan.fileKind.project': 'el archivo que marca la carpeta como proyecto de Grid',
+  'plan.fileKind.markers': 'un archivo que Grid guarda junto a un plano (las marcas de inicio)',
+  'plan.fileKind.seen': 'un archivo que Grid guarda junto a un plano (las notas dadas por vistas)',
+  'plan.fileKind.brief': 'un archivo que Grid guarda junto a un plano (el encargo)',
+  'plan.fileKind.preview': 'un archivo que Grid guarda junto a un plano (el registro de la vista previa)',
+  'plan.fileKind.scan': 'un archivo que Grid guarda junto a un plano (el escaneo de estancias)'
 }
