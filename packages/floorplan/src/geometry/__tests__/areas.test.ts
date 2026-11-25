@@ -228,10 +228,19 @@ describe('SHT-11, lab DR-5: a stair drawn as a room on floor after floor is coun
     expect(areas.floors.every((f) => f.byUse['stair']! > 0)).toBe(true)
   })
 
-  it('counts a lift shaft on every floor it serves', () => {
+  it('counts a lift shaft once, on the floor it rises from, as a stair is (ARE-22)', () => {
     const areas = planAreaFigures(stairRoomHouse({ use: 'lift' }))
+    expect(areas.floors.map((f) => f.overStairs)).toEqual([0, expect.closeTo(STAIR, 9), expect.closeTo(STAIR, 9)])
+    expect(areas.byUse['lift']).toBeCloseTo(STAIR, 9)
+    const over = areas.floors[1]!.rooms.find((room) => room.id === 'first-stair')!
+    expect(over.countedWith).toEqual({ floor: 'ground', room: 'ground-stair' })
+    expect(areas.notes.some((note) => note.startsWith('"Stair" on "Ground floor" is a lift that rises through 2 lift rooms over it'))).toBe(true)
+  })
+
+  it('counts lift rooms that do not line up on every floor', () => {
+    const areas = planAreaFigures(stairRoomHouse({ use: 'lift', shifted: true }))
     expect(areas.floors.map((f) => f.overStairs)).toEqual([0, 0, 0])
-    expect(areas.byUse['lift']).toBeCloseTo(3 * STAIR, 9)
+    expect(areas.floors.every((f) => f.byUse['lift']! > 0)).toBe(true)
   })
 
   it('leaves a floor asked for alone with its stair room counted on the floor below', () => {

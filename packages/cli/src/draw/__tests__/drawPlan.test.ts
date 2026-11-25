@@ -4,7 +4,7 @@ import { join } from 'path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
-import { DARK_LOOK, LIGHT_LOOK, planPicture, planToSvg } from '@ongrid/viewer/src/picture'
+import { CAPTION_PX, DARK_LOOK, LIGHT_LOOK, fileHeight, planPicture, planToSvg } from '@ongrid/viewer/src/picture'
 import { drawPlan } from '../drawPlan'
 import { twoBedFlat } from './twoBedFlat'
 
@@ -63,8 +63,9 @@ describe('drawPlan', () => {
     writeFileSync(file, png)
     const written = new Uint8Array(readFileSync(file))
     expect([...written.subarray(0, 8)]).toEqual(PNG_SIGNATURE)
-    const { width, height } = planPicture(twoBedFlat())
-    expect(pngSize(written)).toEqual({ width, height })
+    const picture = planPicture(twoBedFlat())
+    // VEW-17: the caption band with the label is under the picture.
+    expect(pngSize(written)).toEqual({ width: picture.width, height: fileHeight(picture) })
   })
 
   it('draws the plan in the PNG: paper, room and wall in their colours', async () => {
@@ -83,15 +84,15 @@ describe('drawPlan', () => {
   it('draws a sharper PNG at a scale, with the same drawing', async () => {
     const plan = twoBedFlat()
     const png = await drawPlan(plan, { format: 'png', scale: 2 })
-    const { width, height } = planPicture(plan)
-    expect(pngSize(png)).toEqual({ width: width * 2, height: height * 2 })
+    const picture = planPicture(plan)
+    expect(pngSize(png)).toEqual({ width: picture.width * 2, height: fileHeight(picture) * 2 })
     const room = pixelOf(plan, 0.6, 0.6)
     expect(await pixelAt(png, room.x * 2, room.y * 2)).toBe(LIGHT_LOOK.room)
   })
 
   it('takes the picture options: size, look, dimensions', async () => {
     const png = await drawPlan(twoBedFlat(), { format: 'png', width: 640, height: 480, look: 'technical' })
-    expect(pngSize(png)).toEqual({ width: 640, height: 480 })
+    expect(pngSize(png)).toEqual({ width: 640, height: 480 + CAPTION_PX })
     expect(await pixelAt(png, 2, 2)).toBe('#ffffff')
     expect(await drawPlan(twoBedFlat(), { format: 'svg', look: 'technical', showDimensions: false })).toBe(
       planToSvg(twoBedFlat(), { look: 'technical', showDimensions: false })

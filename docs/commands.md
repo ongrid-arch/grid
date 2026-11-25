@@ -51,6 +51,11 @@ writes a plan into `grid.json`, into a file Grid keeps beside a plan (`<plan>.ma
 `.brief.json`, `.preview.json`, `.scan.json`) or into a JSON file that holds none of those, and `--replace` does not
 change that; every command that reads a plan refuses such a file in one line.
 
+A DXF, DWG, IFC, PDF, PNG or JPEG file handed over as a plan (CMD-20) is known by its first bytes, whatever its name
+or ending, and refused in one line that says what it is, that Grid does not read it yet, and what to do: write the
+rooms as rooms text and run `grid write`, or, for a picture, lay it under a plan as its trace (`referenceImage`, see
+[the plan file](plan-file.md)). Grid writes DXF and IFC (`grid export`) but does not read them back.
+
 ## Options and exit codes
 
 Every command also takes `--project <folder>` (see below). An unknown, repeated or
@@ -506,7 +511,16 @@ each room with the room on the same walls or the same floor; what is left is pai
 point that slipped by less than a centimetre has not moved. A room's walls are compared as a
 ring: the same walls from another wall, or the other way round, are the same room. A plan
 written rooms first in both versions is compared by its rooms and openings, whose names you
-chose: a room that kept its size and moved is said to have moved.
+chose: a room that kept its size and moved is said to have moved. Its walls follow its rooms, so
+a wall is listed there only when its own figures changed: its thickness, height or kind, or
+whether it is a dividing line, curved or on another floor (`Wall "ext-north" thickness 0.34 →
+0.30 m, by "Kitchen", "Hall" and "Bedroom 2"`). A plan drawn wall by wall lists every wall that
+changed.
+
+A room that grew or shrank names the walls on its outline whose face on its side moved: one made
+thinner or thicker, or, in a plan drawn wall by wall, one that moved (`"Kitchen" 13.20 m² →
+13.29 m² (…), because wall "ext-north" went from 0.34 to 0.30 m thick`). In the data, each room's
+`walls` lists them by id.
 
 A door or window with no change of its own is said by where it went in the building. One that
 moved with its wall, or with a room that moved as it was, is said to have moved with it, how far
@@ -722,7 +736,9 @@ optional package: where its binary did not come along, `grid draw --png` says so
 and every command that draws no PNG works without it. The PNG is drawn at its own size, not
 enlarged from a smaller one, so `--scale 2` gives a picture twice as wide and as sharp. Its
 text is set in the first font of the picture's list that the machine has, so letters can differ
-slightly between machines; where each label goes never does.
+slightly between machines; where each label goes never does. A name in Arabic or Hebrew is drawn
+in the Noto fonts Grid ships in `fonts/`, joined and read right to left, on every machine; a name
+in Chinese, Japanese, Korean, Thai, Devanagari or an emoji needs a system font that has it.
 
 Over the lab's plans, half the pictures took under 25 ms as SVG and under 70 ms as PNG, and 19 in
 20 under 300 ms, on a heavily loaded machine. The time grows faster than the plan: a floor of a

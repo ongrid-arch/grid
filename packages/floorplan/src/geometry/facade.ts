@@ -21,6 +21,9 @@
  *   side) is open, and drawn as nothing;
  * - **each floor's slab edge**, the band it stands on, under its walls; **each roof's edge** over
  *   the parts with nothing above, and **each parapet** on it (LVL-4);
+ * - **the plinth** under a floor on the ground whose slab stands clear of the ground (VEW-16,
+ *   `plinthUnder`): a band along the same edges as its slab's, from the ground up to the slab, so
+ *   the building stands on the ground line with nothing open under it;
  * - **the ground**, at the level the site states (`site.ground`), else the ground floor's floor
  *   level, 0, as LVL-4 reads it. Nothing below it is seen.
  *
@@ -42,7 +45,7 @@ import { COMPASS_SIDES } from '../types/floorplan'
 import { floorElevations, isFiniteWall } from './elevations'
 import { planEnvelope } from './envelope'
 import { planFloors, planForFloor } from './floors'
-import { groundLevel } from './ground'
+import { groundLevel, plinthUnder } from './ground'
 import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './orientation'
 import { withPatterns } from './patterns'
 import { tolerance } from './tolerances'
@@ -65,10 +68,11 @@ const SIDE_DIRECTION: Readonly<Record<FacadeSide, Vec2>> = {
 }
 
 /**
- * What a face of a facade is: a wall's outside face, the edge of a slab, a roof or a parapet, or the
- * surface of a sloped roof's plane (`roof-plane`, LVL-6).
+ * What a face of a facade is: a wall's outside face, the edge of a slab, a roof or a parapet, the
+ * surface of a sloped roof's plane (`roof-plane`, LVL-6), or the plinth a floor stands on down to
+ * the ground (`plinth`, VEW-16).
  */
-export type FacadeFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'roof-plane'
+export type FacadeFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'roof-plane' | 'plinth'
 
 /**
  * VEW-12: which edge of a sloped roof a line or a band is: its `eaves`, the level foot of a plane;
@@ -107,7 +111,7 @@ export interface FacadeOpening {
 export interface FacadeFace {
   readonly kind: FacadeFaceKind
   readonly floor: string
-  /** The wall it is the outside face of; null for a slab, a roof or a parapet. */
+  /** The wall it is the outside face of; null for a slab, a roof, a parapet or a plinth. */
   readonly wall: string | null
   readonly u0: number
   readonly u1: number
@@ -456,7 +460,7 @@ function tiersOf(depths: readonly number[]): Map<number, 0 | 1 | 2> {
   return tiers
 }
 
-const KIND_ORDER: Readonly<Record<FacadeFaceKind, number>> = { slab: 0, wall: 1, roof: 2, 'roof-plane': 3, parapet: 4 }
+const KIND_ORDER: Readonly<Record<FacadeFaceKind, number>> = { plinth: 0, slab: 1, wall: 2, roof: 3, 'roof-plane': 4, parapet: 5 }
 
 /** The facade of one side of the building. See the module's header. */
 export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
@@ -529,6 +533,11 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
     if (env.slab !== null) {
       const { top, thickness } = env.slab
       for (const edge of edges) add({ kind: 'slab', floor: floor.id, wall: null, points: band(edge.a, edge.b, top - thickness, top - thickness, thickness), openings: [] })
+      // VEW-16: down to the ground the site states, under a floor whose slab stands clear of it.
+      const plinth = plinthUnder(env.slab, ground.level)
+      if (plinth !== null) {
+        for (const edge of edges) add({ kind: 'plinth', floor: floor.id, wall: null, points: band(edge.a, edge.b, plinth.bottom, plinth.bottom, plinth.top - plinth.bottom), openings: [] })
+      }
     }
     if (env.roof !== null && env.roof.shape === null) {
       const { bottom, thickness } = env.roof

@@ -79,7 +79,7 @@ export const MEASURES: Readonly<Record<Measure, MeasureRule>> = {
   net: {
     measure: 'net',
     name: 'Net area',
-    measures: 'Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover, a room marked as a void (open to the floor below, so with no floor) not counting at all; a stair drawn as a room on floor after floor counts once, on the floor it rises from.',
+    measures: 'Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover, a room marked as a void (open to the floor below, so with no floor) not counting at all; a stair or a lift shaft drawn as a room on floor after floor counts once, on the floor it rises from.',
     notTakenOff: 'Nothing else inside a room is taken off: fixed units, a column drawn as a short wall rather than as a column, and floor under a low ceiling all count.',
     cannotSay: 'The plan cannot say which rooms the reader counts: a store drawn as a room counts unless it is named as outside, and a balcony, a terrace or a garden counts unless it is marked as outdoor space.',
   },
@@ -786,8 +786,8 @@ export const MASSING_WHY = 'it is an outline with no walls yet, so there is no i
 
 
 /**
- * SHT-11, lab DR-5: the stair rooms whose floor is counted with a stair room below, by floor and
- * id, each with the lowest room of its stair. Rooms used as a stair on neighbouring floors are one
+ * SHT-11, lab DR-5 (and ARE-22 for a lift): the stair and lift rooms whose floor is counted with a
+ * room of the same use below, by floor and id, each with the lowest room of its stair or shaft. Rooms used as a stair on neighbouring floors are one
  * stair when LVL-3's way-out check joins them (`floorJoins`: they share at least
  * `stairRoomOverlap` of the smaller); its floor is counted once, on the floor it rises from.
  */
@@ -796,7 +796,7 @@ function stairStacks(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<stri
   // CNT-8: a zone is part of its room, not a room of its own, so it is in no stack.
   const zones = roomZones(index)
   for (const room of plan.rooms) {
-    if (room.use !== 'stair' || broken.has(room.id) || zones.zoneOf.has(room.id)) continue
+    if ((room.use !== 'stair' && room.use !== 'lift') || broken.has(room.id) || zones.zoneOf.has(room.id)) continue
     const outline = tryRoomPolygon(room, index)
     if (outline === null || outline.length < 3) continue
     const floor = floorOf(room)
@@ -809,7 +809,7 @@ function stairStacks(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<stri
   const below = new Map<string, { floor: string; room: string }>()
   // Only what the outlines hold: no stated stair is laid out here.
   for (const join of floorJoins({ ...plan, stairs: [] }, outlines, () => broken).joins) {
-    if (join.kind !== 'stair-room') continue
+    if (join.kind !== 'stair-room' && join.kind !== 'lift') continue
     const key = `${join.upper.floor}|${join.upper.room}`
     // A room over two stair rooms below goes with the first found: it is still counted once.
     if (!below.has(key)) below.set(key, join.lower)
@@ -902,13 +902,15 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
   const over = rooms(floors).filter((room) => room.countedWith !== undefined)
   if (over.length > 0) {
     const names = new Map(plan.rooms.map((room) => [`${floorOf(room)}|${room.id}`, nameOf(room)] as const))
+    const use = new Map(plan.rooms.map((room) => [`${floorOf(room)}|${room.id}`, room.use] as const))
     const floorNames = new Map(planFloors(plan).map((f) => [f.id, f.name || f.id] as const))
     const lowest = [...new Map(over.map((room) => [`${room.countedWith!.floor}|${room.countedWith!.room}`, room.countedWith!] as const)).values()]
     for (const stair of lowest) {
+      const word = use.get(`${stair.floor}|${stair.room}`) === 'lift' ? 'lift' : 'stair'
       const above = over.filter((room) => room.countedWith!.floor === stair.floor && room.countedWith!.room === stair.room)
       notes.push(
-        `${JSON.stringify(names.get(`${stair.floor}|${stair.room}`) ?? stair.room)} on ${JSON.stringify(floorNames.get(stair.floor) ?? stair.floor)} is a stair that rises through ` +
-          `${above.length === 1 ? 'the stair room' : `${above.length} stair rooms`} over it (${above.map((room) => JSON.stringify(floorNames.get(room.floor) ?? room.floor)).join(', ')}): ` +
+        `${JSON.stringify(names.get(`${stair.floor}|${stair.room}`) ?? stair.room)} on ${JSON.stringify(floorNames.get(stair.floor) ?? stair.floor)} is a ${word} that rises through ` +
+          `${above.length === 1 ? `the ${word} room` : `${above.length} ${word} rooms`} over it (${above.map((room) => JSON.stringify(floorNames.get(room.floor) ?? room.floor)).join(', ')}): ` +
           `its floor is counted once, there, so ${sum(above.map((room) => room.area)).toFixed(2)} m² over it is in no net figure; the gross figures still hold it.`
       )
     }

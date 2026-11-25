@@ -104,7 +104,8 @@ describe('what is worth a look about an item', () => {
   it('names an item that runs into a wall, and not one that stands against its face', () => {
     const into: Item = { ...fixtures()[0]!, at: [6.6, 0.3] }
     const issues = validatePlan(withItems([into])).issues.filter((i) => i.entity === 'item')
-    expect(issues.map((i) => [i.code, i.severity])).toEqual([['item/into-wall', 'warning']])
+    // CNT-21: the run's back also reaches into the kitchen window's opening, past the room's edge.
+    expect(issues.map((i) => [i.code, i.severity])).toEqual([['item/into-wall', 'warning'], ['item/leaves-room', 'warning']])
     expect(issues[0]!.message).toContain('"s2" by 0.10 m')
     expect(codes(withItems(fixtures())).filter((c) => c.startsWith('item/'))).toEqual([])
   })
