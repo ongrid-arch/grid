@@ -2011,7 +2011,10 @@ class Compiler {
     // WRT-17: a gap between two stretches on one line is the end of a wall seen end on only where
     // the bodies of walls crossing the line cover it. Open floor between them (two lifts in the
     // corners of one lobby) keeps them two walls, so neither closes the floor off.
-    const covered = (d: P, off: number, from: number, to: number): boolean => {
+    // WRT-39: a crossing wall at a real angle reaches the line as far as half the line's own
+    // thickness, so a thick outside wall along a row of rooms is seen across the ends of the
+    // walls between them.
+    const covered = (d: P, off: number, t: number, from: number, to: number): boolean => {
       const spans: Array<[number, number]> = []
       for (const o of raws) {
         if (o.virtual || Math.abs(cross(o.d!, d)) < tolerance('nearlyParallel')) continue
@@ -2020,7 +2023,9 @@ class Compiler {
         if (x === null) continue
         const so = dot(sub(x, o.a), o.d!)
         const len = dot(sub(o.b, o.a), o.d!)
-        if (so < Math.min(0, len) - maxT - eps() || so > Math.max(0, len) + maxT + eps()) continue
+        const sin = Math.abs(cross(o.d!, d))
+        const reach = sin >= tolerance('nearlyParallel') ? Math.max(maxT, t / 2 / sin) : maxT
+        if (so < Math.min(0, len) - reach - eps() || so > Math.max(0, len) + reach + eps()) continue
         const at = dot(x, d)
         const half = o.t / 2 / Math.abs(cross(o.d!, d))
         spans.push([at - half, at + half])
@@ -2052,7 +2057,7 @@ class Compiler {
         const sameName = curId === null || r.wantId === null || r.wantId === curId
         // Stretches given one id are one wall, however far apart along the line they lie.
         const named = cur !== null && r.wantId !== null && r.wantId === curId
-        const joins = cur !== null && r.lo! - cur.hi <= maxT + eps() && (r.lo! - cur.hi <= eps() || covered(d, cross(d, r.a), cur.hi, r.lo!))
+        const joins = cur !== null && r.lo! - cur.hi <= maxT + eps() && (r.lo! - cur.hi <= eps() || covered(d, cross(d, r.a), r.t, cur.hi, r.lo!))
         if (cur !== null && ((joins && sameName && !this.split) || named)) {
           cur.hi = Math.max(cur.hi, r.hi!)
           cur.raws.push(r)
@@ -2091,19 +2096,47 @@ class Compiler {
           if (x === null) continue
           const tau = dot(sub(x, end), ray)
           const so = dot(x, o.d)
-          if (tau < -maxT - eps() || tau > maxT + eps() || so < o.lo - maxT - eps() || so > o.hi + maxT + eps()) continue
-          const hit = { tau, x, o, half: (o.virtual ? 0 : o.t / 2) / Math.abs(cross(o.d, w.d)) }
-          met.push(hit)
+          const half = (o.virtual ? 0 : o.t / 2) / Math.abs(cross(o.d, w.d))
+          // WRT-39: an end at a room's corner lies half the other wall's thickness from its
+          // centre line, and that wall's end half this wall's thickness short of the crossing,
+          // each within `gap` as the check reads a corner reached: walls thicker than two widest
+          // gaps meet as thin ones do. Only walls at a real angle, and never further than a
+          // joined corner may reach (`mitreReach`): a wall nearly in line is met by neither.
+          const angled = Math.abs(cross(o.d, w.d)) >= tolerance('nearlyParallel')
+          const corner = (tolerance('mitreReach') * Math.max(w.t, o.t)) / 2
+          const reach = angled ? Math.max(maxT, Math.min(half + tolerance('gap'), corner)) : maxT
+          const along = angled ? Math.max(maxT, Math.min(w.t / 2 / Math.abs(cross(o.d, w.d)) + tolerance('gap'), corner)) : maxT
+          if (tau < -reach - eps() || tau > reach + eps() || so < o.lo - along - eps() || so > o.hi + along + eps()) continue
+          met.push({ tau, x, o, half })
         }
         // WRT-17: a wall whose body the end already stands in is the wall it meets, before a
         // nearer centre line past the end: an outside wall ends in the room's corner wall, not
         // across the corner of the room beside it.
-        const holds = (h: { tau: number; half: number }): boolean => Math.abs(h.tau) <= h.half + eps()
+        // WRT-39: a wall too thick for the widest gap's reach holds it within `gap`, so a corner
+        // written to the millimetre (a polygon room) still holds its end. Thinner walls are met as
+        // before, so a plan of them is written again as it was.
+        const wide = (h: { half: number }): boolean => h.half > maxT
+        const holds = (h: { tau: number; half: number }): boolean => Math.abs(h.tau) <= h.half + (wide(h) ? tolerance('gap') : eps())
+        // WRT-39: and a solid wall the end stands in before a dividing line it stands on: where
+        // two rooms open to each other and the outside turns a corner, the outside walls meet
+        // each other, not the open line, which neither may run past into the room beyond.
+        // Then the nearer, and of two such thick walls about as near (within `gap`) a wall of one
+        // of its own rooms: where a room stands over the next one's wall, its own walls still meet
+        // at its corner.
+        type Hit = (typeof met)[number]
+        const solid = (h: Hit): boolean => holds(h) && !h.o.virtual
+        const own = (h: Hit): boolean => solid(h) && [...roomsOf(h.o)].some((room) => mine.has(room))
+        const rank = (h: Hit): number => (holds(h) ? 2 : 0) + (solid(h) ? 1 : 0)
+        const nearer = (h: Hit, b: Hit, by: number): boolean => Math.abs(h.tau) < Math.abs(b.tau) - by
         for (const hit of met) {
+          const by = best !== null && wide(hit) && wide(best) ? tolerance('gap') : tolerance('noLength')
+          const tie = best !== null && rank(hit) === rank(best) && !nearer(hit, best, by) && !nearer(best, hit, by)
           const better =
             best === null ||
-            (holds(hit) && !holds(best)) ||
-            (holds(hit) === holds(best) && Math.abs(hit.tau) < Math.abs(best.tau) - tolerance('noLength'))
+            rank(hit) > rank(best) ||
+            (rank(hit) === rank(best) && nearer(hit, best, by)) ||
+            (tie && by > tolerance('noLength') && own(hit) && !own(best)) ||
+            (tie && own(hit) === own(best) && nearer(hit, best, tolerance('noLength')))
           if (better) best = hit
         }
         // WRT-17: past the wall it meets, through bodies that touch, to the wall that makes the

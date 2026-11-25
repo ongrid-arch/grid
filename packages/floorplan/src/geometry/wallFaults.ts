@@ -11,7 +11,8 @@
  * This module looks for those slips, floor by floor, and names each one at the wall:
  *
  * - `short`: at a corner of a room, one of the two walls stops short of where their lines cross.
- * - `gap`: two walls a room lists one after the other, in a row, leave a gap between their ends.
+ * - `gap`: two walls a room lists one after the other, in a row, leave a gap between their ends
+ *   that no wall across the side closes with its body (WRT-39).
  * - `overrun`: a wall runs on past the last corner a room makes on it, and its end meets no
  *   other wall. A wall longer than one room is normal (it may border several, and T-junctions
  *   are everywhere), so only a free end beyond every outline that uses the wall counts.
@@ -432,6 +433,28 @@ const endPoint = (s: Seg, end: 'start' | 'end'): Vec2 => (end === 'start' ? s.a 
 const reach = (a: Seg, b: Met): number => Math.max(a.t, b.t) / 2 + tolerance('gap')
 
 /**
+ * WRT-39: whether a gap between two pieces of one straight side, from `from` to `to` along
+ * `ref`, is the corner of a wall across the side: one of the two pieces ends in that wall, and
+ * its body spans the whole gap. Where two rooms open to each other and the outside turns a
+ * corner, the outside walls meet at their centre lines and the dividing line stops at the rooms'
+ * corner: the wall the piece ends in closes the side between them.
+ */
+function cornerCovers(ctx: Context, ref: Seg, side: readonly string[], ends: readonly (readonly [Seg, Vec2])[], from: number, to: number): boolean {
+  for (const [piece, near] of ends) {
+    const end = endPoint(piece, nearestEnd(piece, near))
+    for (const x of ctx.segs.values()) {
+      if (x.t === 0 || side.includes(x.wall.id)) continue
+      const sin = Math.abs(cross(x.dir, ref.dir))
+      if (sin < tolerance('parallel') || toSegment(end, x) > reach(piece, x)) continue
+      const middle = along(ref, at(x, along(x, end)))
+      const half = x.t / 2 / sin
+      if (middle - half <= from + tolerance('gap') && middle + half >= to - tolerance('gap')) return true
+    }
+  }
+  return false
+}
+
+/**
  * Corners and rows of each room's own wall list: `short` and `gap`. A corner whose lines cross
  * far from both walls is a wall list out of order, which the outline already refuses, and is
  * left to that refusal.
@@ -513,7 +536,7 @@ function cornerFaults(ctx: Context, out: Map<string, WallFault>): void {
       let reached = spans[0]!
       for (const next of spans.slice(1)) {
         const apart = next.from - reached.to
-        if (apart > tolerance('gap')) {
+        if (apart > tolerance('gap') && !cornerCovers(ctx, ref, side, [[reached.seg, at(ref, reached.to)], [next.seg, at(ref, next.from)]], reached.to, next.from)) {
           const a = reached.seg
           const ia = a.wall.id
           const ib = next.seg.wall.id
