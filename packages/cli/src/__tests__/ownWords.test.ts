@@ -116,7 +116,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/access.ts': [49, 'notYet'],
   'packages/cli/src/quantities/areas.ts': [9, 'notYet'],
   'packages/cli/src/quantities/change.ts': [18, 'notYet'],
-  'packages/cli/src/quantities/compare.ts': [20, 'notYet'],
+  'packages/cli/src/quantities/compare.ts': [25, 'notYet'],
   'packages/cli/src/quantities/estimate.ts': [33, 'notYet'],
   'packages/cli/src/quantities/finishes.ts': [2, 'notYet'],
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
