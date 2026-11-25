@@ -38,6 +38,7 @@ import type { Said } from '../messages/say'
 import { english, name, said } from '../messages/say'
 import { roomNesting, tryRoomPolygon } from './room'
 import { roomZones } from './zones'
+import { landscapeWalls } from './landscape'
 import { statedOutline } from './massing'
 import type { Vec2 } from './vec2'
 import { signedArea } from './vec2'
@@ -501,12 +502,15 @@ function compare(floor: string, walls: readonly Wall[], rooms: readonly DrawnRoo
 }
 
 /** The walls of one floor that the spaces are worked out from, in plan order. */
-function floorWalls(plan: FloorPlan, floor: string, broken: ReadonlySet<string>): Wall[] {
+function floorWalls(plan: FloorPlan, floor: string, broken: ReadonlySet<string>, index?: PlanIndex): Wall[] {
+  // CNT-26: a garden or boundary wall encloses no floor.
+  const landscape = landscapeWalls(plan, index)
   // LVL-5: a wall through floors is one of each floor's it stands on.
   return wallsOnFloor(plan, floor)
     .filter(
       (wall) =>
         !broken.has(wall.id) &&
+        !landscape.has(wall.id) &&
         (wall.arc !== undefined ? curveFault(wall) === null : wall.start[0] !== wall.end[0] || wall.start[1] !== wall.end[1]) &&
         (wall.virtual === true || wall.thickness > 0)
     )
@@ -540,7 +544,7 @@ export function outlineFarSaid(floor: string, outline: Polygon | null): Said | n
  * with no walls; null when the walls cannot be joined (see `floorSpaces`).
  */
 export function floorOutline(plan: FloorPlan, floor: string, options: SpacesOptions = {}): Vec2[][] | null {
-  const walls = floorWalls(plan, floor, options.broken ?? new Set<string>())
+  const walls = floorWalls(plan, floor, options.broken ?? new Set<string>(), options.index)
   const outline = statedOutline(plan, floor)
   if (walls.length === 0 && outline === null) return []
   if (farReason(walls) || outlineFarReason(floor, outline)) return null
@@ -566,7 +570,7 @@ export function floorSpaces(plan: FloorPlan, floor: string, options: SpacesOptio
   const broken = options.broken ?? new Set<string>()
   // CNT-8: a zone is set against no space, and a line that only zones list divides none.
   const zones = roomZones(index)
-  const walls = floorWalls(plan, floor, broken).filter((wall) => !zones.lines.has(wall.id))
+  const walls = floorWalls(plan, floor, broken, index).filter((wall) => !zones.lines.has(wall.id))
   const outline = statedOutline(plan, floor)
   const far = farSaid(walls) ?? outlineFarSaid(floor, outline)
   if (far) return unknown(floor, far)

@@ -231,6 +231,28 @@ describe('a house written again with a floor above it (WRT-20)', () => {
   })
 })
 
+describe('a mezzanine written again lower down (WRT-25)', () => {
+  it('says the move in the write verdict and in grid diff, with both elevations', async () => {
+    const text = (elevation: string): string =>
+      `plan "Warehouse"\nwalls outside 0.3 inside 0.1 height 3\nfloor ground "Ground" level 0 elevation 0 height 13\nroom hall "Hall" storage 20 x 10 at 0,0\nfloor mezz "Mezzanine" level 1 elevation ${elevation} height 3\nroom office "Office" office 6 x 4 at 0,0\n`
+    const dir = project({ 'store.rooms': text('13.75') })
+    expect((await grid(dir, 'write', 'store.rooms')).status).toBe(0)
+    expect((await grid(dir, 'mark')).status).toBe(0)
+    writeFileSync(join(dir, 'store.rooms'), text('4.25'))
+    const written = await grid(dir, 'write', 'store.rooms')
+    expect(written.status, written.err).toBe(0)
+    expect(written.out).not.toContain('the same building')
+    expect(written.out).toContain('but floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m.')
+    const run = await grid(dir, 'diff')
+    expect(run.status, run.err).toBe(0)
+    expect(run.out).toContain('Verdict: 1 change, room by room: Floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m; 2 rooms as they were.')
+    expect(run.out).not.toContain('wall or opening change')
+    const data = JSON.parse((await grid(dir, 'diff', '--json')).out) as { sameBuilding: boolean; floors: unknown[] }
+    expect(data.sameBuilding).toBe(false)
+    expect(data.floors).toEqual([expect.objectContaining({ floor: 'mezz', elevation: { before: 13.75, after: 4.25 }, stands: { before: 13.75, after: 4.25 } })])
+  })
+})
+
 describe('the markers', () => {
   it('keeps at most a few, replaces one set again, takes one off, and names them when one is missing', async () => {
     const dir = project()

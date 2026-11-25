@@ -7,7 +7,8 @@
  * anything is listed, the second plan is tried as the first one moved, mirrored or turned a
  * quarter: a flipped flat is said to be flipped, not listed as twenty moved walls (Y-4, Y-5).
  */
-import { curveFault, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorPlan, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { english, joined, said } from '@ongrid/floorplan/messages'
 import { planAreas, type PlanAreas } from './areas'
 import { sideNames, type Survey } from './survey'
 
@@ -103,6 +104,9 @@ export interface OpeningChange {
   readonly changes: readonly string[]
 }
 
+/** WRT-25: a floor's old and new figures, as data, with its line. */
+export type FloorFigures = Omit<FloorChange, 'said' | 'inSentence'> & { readonly text: string }
+
 export interface Comparison {
   readonly likeness: Likeness
   readonly shift: Vec2 | null
@@ -117,6 +121,11 @@ export interface Comparison {
   readonly openingsOut: readonly OpeningDelta[]
   readonly openingsNew: readonly OpeningDelta[]
   readonly openingsChanged: readonly OpeningChange[]
+  /**
+   * WRT-25: the floors in both plans (by id, then by name) that stand elsewhere or changed their
+   * level, elevation, height, slab or name: named in the verdict, whatever the likeness.
+   */
+  readonly floorsChanged: readonly FloorFigures[]
   readonly verdict: string
 }
 
@@ -467,11 +476,16 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   }
 
   const resized = wallsResized(a.plan, b.plan, map)
-  const resizedParts = resizedWords(resized)
+  // WRT-25: a floor moved up or down is a change, whatever stands where on the drawing.
+  const floors = floorChanges(a.plan, b.plan, { byName: true })
+  const floorParts = floors.map((f) => english(f.inSentence))
+  const floorsChanged: FloorFigures[] = floors.map((f) => ({ floor: f.floor, name: f.name, renamedFrom: f.renamedFrom, level: f.level, elevation: f.elevation, height: f.height, slab: f.slab, stands: f.stands, text: english(f.said) }))
+  const resizedParts = [...floorParts, ...resizedWords(resized)]
   const but = resizedParts.length > 0 ? `, but ${resizedParts.join(' and ')}` : ''
   const [before, after] = labels
   let verdict: string
-  if (likeness === 'same') verdict = resizedParts.length > 0 ? `${after} is the same building as ${before}, every wall, opening and room where it was${but}.` : `${after} is the same building as ${before}: every wall, opening and room is where it was.`
+  if (likeness === 'same' && floorParts.length > 0) verdict = english(said('compare.same.floors', { after, before, changes: joined(resizedParts, 'join.and') }))
+  else if (likeness === 'same') verdict = resizedParts.length > 0 ? `${after} is the same building as ${before}, every wall, opening and room where it was${but}.` : `${after} is the same building as ${before}: every wall, opening and room is where it was.`
   else if (likeness === 'moved') verdict = `${after} is the same building as ${before}, moved ${Math.hypot(shift!.x, shift!.y).toFixed(2)} m on the drawing${but}.`
   else if (likeness !== null) verdict = `${after} is ${before} ${likeness}: every room keeps its size (${areaWord(netAfter)} net)${but}.`
   else {
@@ -494,5 +508,5 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   const lost = usesOf(a).filter((use) => !usesOf(b).includes(use))
   if (lost.length > 0) verdict += ` ${after.charAt(0).toUpperCase()}${after.slice(1)} has no room or zone used as ${lost.length === 1 ? lost[0] : `${lost.slice(0, -1).join(', ')} or ${lost[lost.length - 1]}`}, which ${before} had.`
   verdict = verdict.charAt(0).toUpperCase() + verdict.slice(1)
-  return { likeness, shift, rooms, netBefore, netAfter, wallsOut, wallsNew, wallsChanged, wallsResized: resized, openingsOut, openingsNew, openingsChanged, verdict }
+  return { likeness, shift, rooms, netBefore, netAfter, wallsOut, wallsNew, wallsChanged, wallsResized: resized, openingsOut, openingsNew, openingsChanged, floorsChanged, verdict }
 }

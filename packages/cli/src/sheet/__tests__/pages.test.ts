@@ -29,6 +29,19 @@ const house = fixture('two-floor-house.json')
 const date = new Date('2026-11-21T12:00:00Z')
 const words = { version: '1' as const, name: 'Solace House', headline: 'A retreat', intro: ['Intro.'], floors: { ground: ['Ground words.'] } }
 
+describe('the plan name on the sheet (SHT-14)', () => {
+  const named = { ...house, plan: { ...house.plan, name: 'Harbour Lofts' } }
+  it('heads every page with the name the plan states, not the file name', () => {
+    const sheet = sheetPages(named, null, 'client', { name: 'plan', date })
+    expect(sheet.pages.every((p) => p.topLine.startsWith('Harbour Lofts'))).toBe(true)
+    expect(sheetPages(named, null, 'check', { name: 'plan', date }).pages.every((p) => p.topLine.startsWith('Harbour Lofts'))).toBe(true)
+  })
+  it('lets the sheet words name the sheet over the plan name, and falls back to the file name', () => {
+    expect(sheetPages(named, words, 'client', { name: 'plan', date }).pages[0]!.topLine).toContain('Solace House')
+    expect(sheetPages(house, null, 'client', { name: 'two-floor-house', date }).pages[0]!.topLine).toContain('two-floor-house')
+  })
+})
+
 describe('the client layout (VEW-7)', () => {
   const sheet = sheetPages(house, words, 'client', { name: 'two-floor-house', date })
 

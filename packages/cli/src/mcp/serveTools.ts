@@ -19,6 +19,7 @@ import { reportProblemTool } from './reportTool'
 import { markSeenTool } from './seenTool'
 import { writeBriefTool } from './briefTool'
 import { diffTool, markStartTool } from './diffTools'
+import { shapedData } from './figures'
 import { labelled, readArgs, toolDefinition, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
 import { WRITE_TOOLS } from './writeTools'
 import { guideResources } from '../guide/resources'
@@ -58,8 +59,10 @@ export const GRID_TOOLS: readonly GridTool[] = [
 
 async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promise<ToolAnswer> {
   try {
-    const result = labelled(await tool.run(readArgs(tool, raw), context))
-    return { text: result.text, data: result.data, ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
+    const args = readArgs(tool, raw)
+    const result = labelled(await tool.run(args, context))
+    // CMD-22: the figures in the data are written as the text writes them, once, here.
+    return { text: result.text, data: shapedData(tool, args, result.data), ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
   } catch (error) {
     if (error instanceof ToolRefusal || error instanceof CanvasMissing || error instanceof FontsMissing) return { text: error.message, isError: true }
     throw error

@@ -25,9 +25,12 @@ export type WallDrawnKind = (typeof WALL_DRAWN_KINDS)[number]
 /**
  * SHT-10: how a wall is drawn, from its worked-out exposure (MSG-13, CNT-6) and its stated kind:
  * a wall facing outside, or a party wall or one to the common parts (`separating`), as an outside
- * wall; a stated partition that stands inside as a partition; every other wall as an inside wall.
+ * wall; a stated partition that stands inside as a partition, and a garden or boundary wall
+ * (CNT-26) in the partition's weight; every other wall as an inside wall.
  */
-export function wallDrawnKind(wall: Pick<PlanWall, 'exposure' | 'partition'>): WallDrawnKind {
+export function wallDrawnKind(wall: Pick<PlanWall, 'exposure' | 'partition' | 'landscape'>): WallDrawnKind {
+  // CNT-26: a garden or boundary wall is drawn in the partition's lighter weight.
+  if (wall.landscape === true) return 'partition'
   if (wall.exposure === 'exterior' || wall.exposure === 'separating') return 'outside'
   return wall.partition === true ? 'partition' : 'inside'
 }

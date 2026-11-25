@@ -269,3 +269,99 @@ describe('a sloped roof seen as a roof (VEW-12)', () => {
     expect(facade.faces.every((f) => f.edge === null && f.roofLines.length === 0)).toBe(true)
   })
 })
+
+describe('every wall that faces the viewer, outdoor space and all (VEW-25)', () => {
+  const at = (id: string, start: [number, number], end: [number, number], floor: string, height = 2.7) => ({ id, start, end, thickness: 0.3, height, floor })
+  /** A house 10 m by 8 m, its south wall in three, the middle one from 2 m to 6 m. */
+  const house = (floor: string) => [at('gs1', [0, 0], [2, 0], floor), at('gs2', [2, 0], [6, 0], floor), at('gs3', [6, 0], [10, 0], floor), at('ge', [10, 0], [10, 8], floor), at('gn', [10, 8], [0, 8], floor), at('gw', [0, 8], [0, 0], floor)]
+  const living = (floor: string) => ({ id: 'in', name: 'Living', boundary: ['gs1', 'gs2', 'gs3', 'ge', 'gn', 'gw'], floor })
+
+  /** A walled porch 4 m by 2 m before the middle of the south wall, a door in its front and one into the house. */
+  const porch = (): FloorPlan =>
+    parseFloorPlan({
+      version: '1',
+      floors: [{ id: 'g', name: 'Ground floor', level: 0 }],
+      walls: [...house('g'), at('pw', [2, 0], [2, -2], 'g'), at('ps', [2, -2], [6, -2], 'g'), at('pe', [6, -2], [6, 0], 'g')],
+      rooms: [living('g'), { id: 'po', name: 'Porch', outdoor: 'porch', boundary: ['gs2', 'pw', 'ps', 'pe'], floor: 'g' }],
+      openings: [
+        { id: 'porch-door', wall: 'ps', type: 'door', offset: 1.5, width: 1, height: 2.1 },
+        { id: 'house-door', wall: 'gs2', type: 'door', offset: 1.5, width: 1, height: 2.1 },
+      ],
+    })
+
+  it('draws a porch\'s front wall and its door under the porch\'s roof, and not the house wall it hides', () => {
+    const facade = planFacade(porch(), 'south')
+    const front = facade.faces.find((f) => f.wall === 'ps')!
+    expect([front.u0, front.u1, front.bottom, front.top, front.depth, front.tier]).toEqual([1.85, 6.15, 0, 2.7, 0, 0])
+    expect(front.openings.map((o) => [o.id, o.u0, o.u1, o.bottom, o.top])).toEqual([['porch-door', 3.5, 4.5, 0, 2.1]])
+    // The porch's roof stands on its walls.
+    const roof = facade.faces.find((f) => f.kind === 'roof' && f.u0 > 2 && f.u1 < 6)!
+    expect(roof.bottom).toBe(front.top)
+    // The house wall behind the porch, and its door, are hidden whole.
+    expect(facade.walls).toEqual(['gs1', 'gs3', 'ps'])
+    expect(facade.openings).toEqual(['porch-door'])
+  })
+
+  it('draws a stair enclosure on a roof terrace as walls with its door, and the terrace\'s parapet', () => {
+    const plan = parseFloorPlan({
+      version: '1',
+      floors: [
+        { id: 'g', name: 'Ground floor', level: 0 },
+        { id: 'r', name: 'Roof', level: 1 },
+      ],
+      walls: [
+        ...house('g'),
+        at('rs', [0, 0], [10, 0], 'r', 1.1), at('re', [10, 0], [10, 8], 'r', 1.1), at('rn', [10, 8], [0, 8], 'r', 1.1), at('rw', [0, 8], [0, 0], 'r', 1.1),
+        at('ss', [4, 3], [7, 3], 'r'), at('se', [7, 3], [7, 6], 'r'), at('sn', [7, 6], [4, 6], 'r'), at('sw', [4, 6], [4, 3], 'r'),
+      ],
+      rooms: [
+        living('g'),
+        { id: 't', name: 'Terrace', outdoor: 'terrace', boundary: ['rs', 're', 'rn', 'rw'], floor: 'r' },
+        { id: 'st', name: 'Stair', use: 'stair', boundary: ['ss', 'se', 'sn', 'sw'], floor: 'r' },
+      ],
+      openings: [{ id: 'stair-door', wall: 'ss', type: 'door', offset: 1, width: 0.9, height: 2.1 }],
+    })
+    const facade = planFacade(plan, 'south')
+    const parapet = facade.faces.find((f) => f.wall === 'rs')!
+    expect([parapet.u0, parapet.u1, parapet.bottom, parapet.top, parapet.tier]).toEqual([-0.15, 10.15, 2.95, 4.05, 0])
+    const enclosure = facade.faces.find((f) => f.wall === 'ss')!
+    expect([enclosure.u0, enclosure.u1, enclosure.bottom, enclosure.top, enclosure.depth]).toEqual([3.85, 7.15, 2.95, 5.65, 3])
+    expect(enclosure.openings.map((o) => o.id)).toEqual(['stair-door'])
+    // Its roof stands on its walls, not in the sky.
+    expect(facade.faces.some((f) => f.kind === 'roof' && f.floor === 'r' && f.bottom === enclosure.top && f.u0 === enclosure.u0)).toBe(true)
+    expect(facade.openings).toEqual(['stair-door'])
+  })
+
+  it('draws a stepped block\'s set-back front with its window and door above the terrace\'s parapet', () => {
+    const plan = parseFloorPlan({
+      version: '1',
+      floors: [
+        { id: 'g', name: 'Ground floor', level: 0 },
+        { id: 'f', name: 'First floor', level: 1 },
+      ],
+      walls: [
+        ...house('g'),
+        at('fs', [0, 3], [10, 3], 'f'), at('fe', [10, 3], [10, 8], 'f'), at('fn', [10, 8], [0, 8], 'f'), at('fw', [0, 8], [0, 3], 'f'),
+        at('tw', [0, 3], [0, 0], 'f', 1.1), at('ts', [0, 0], [10, 0], 'f', 1.1), at('te', [10, 0], [10, 3], 'f', 1.1),
+      ],
+      rooms: [
+        living('g'),
+        { id: 'flat', name: 'Flat', boundary: ['fs', 'fe', 'fn', 'fw'], floor: 'f' },
+        { id: 't', name: 'Terrace', outdoor: 'terrace', boundary: ['fs', 'te', 'ts', 'tw'], floor: 'f' },
+      ],
+      openings: [
+        { id: 'flat-window', wall: 'fs', type: 'window', offset: 2, width: 1.2, sill: 0.9, height: 1.2 },
+        { id: 'flat-door', wall: 'fs', type: 'door', offset: 6, width: 0.9, height: 2.1 },
+      ],
+    })
+    const facade = planFacade(plan, 'south')
+    // The flat's front, whole and once, 3 m back.
+    const fronts = facade.faces.filter((f) => f.wall === 'fs')
+    expect(fronts.map((f) => [f.u0, f.u1, f.bottom, f.top, f.depth, f.tier])).toEqual([[-0.15, 10.15, 2.95, 5.65, 3, 2]])
+    expect(fronts[0]!.openings.map((o) => o.id)).toEqual(['flat-window', 'flat-door'])
+    const parapet = facade.faces.find((f) => f.wall === 'ts')!
+    expect([parapet.bottom, parapet.top, parapet.depth]).toEqual([2.95, 4.05, 0])
+    expect(facade.walls).toEqual(['gs1', 'gs2', 'gs3', 'fs', 'ts'])
+    expect(facade.openings).toEqual(['flat-window', 'flat-door'])
+  })
+})

@@ -60,7 +60,7 @@ file never reaches the exports with its letters turned into question marks. A fi
 
 | Text | At most | Also refused |
 |---|---|---|
-| a room, floor or stair name, a fixture's label, the plan's title, a note's or a sketch's text, a lowered zone's name, a saved view's name, a flat's or a flat type's name, a building's or a context shape's name, a column's label, a structural grid's name or a grid line's name, a ramp's name | 120 characters | line breaks of any kind, control characters, characters that change the direction text is shown in, and half of a character pair |
+| a room, floor or stair name, a fixture's label, the plan's name or title, a note's or a sketch's text, a lowered zone's name, a saved view's name, a flat's or a flat type's name, a building's or a context shape's name, a column's label, a structural grid's name or a grid line's name, a ramp's name | 120 characters | line breaks of any kind, control characters, characters that change the direction text is shown in, and half of a character pair |
 | an id: of a wall, room, opening, floor, stair, rooflight or opening pattern, a wall a room, an opening or a pattern names, a part's floor, the floors a stair joins or a pattern repeats on, the room a zone is part of, a flat's id, type and rooms, a flat type's id, a building's id and floors, a context shape's id and floor, a column's id, floor and `through`, a structural grid's id and floors, a parking bay's id, number and floor, a ramp's id and the floors it joins | 64 characters | the same |
 | the trace image's path, the base plan's path | 1,024 characters | the same |
 | the place, `site.country` | 120 characters, and then a name or a code on Grid's list ([the place](#the-place)) | the same |
@@ -1124,6 +1124,14 @@ is a number.
   possible, and Grid does not make it. Nothing here says a bay or a ramp is large enough or not
   too steep: General guidance, not your local rules.
 
+## The plan's name
+
+`name` is the plan's own name, as the `plan "<name>"` line of rooms text gives it. `grid write`
+keeps it, and a rooms text with no `plan` line leaves the file's name as it is. The client and
+check sheets head their pages with it (a name in `sheet.json` still names the client sheet), the
+IFC project carries it, and `grid describe --as rooms` writes the `plan` line back. A plan with
+no name is called after its file, as before. It is not the `title`, which is drawn on the picture.
+
 ## Writing on the drawing, and the sketch layer
 
 A plan may carry writing for its drawings (SHT-7). None of it is measured or checked, and none
@@ -1499,6 +1507,22 @@ neither: it is a separating wall ([part of a larger building](#part-of-a-larger-
 
 In the library, `wallSides(index, wallId)` gives the stretches with the rooms on each face, the
 worked-out exposure and the one used; `wallExposure(index, wallId)` gives the one used.
+
+A wall that stands apart from the building is a garden or boundary wall (CNT-26). On a floor that
+has rooms, a wall is loose when no room lists it, no room lies just past either face, it stands
+in no outdoor space and it rises through no other floor. Loose walls that touch are one group,
+and the group stands apart when it touches no wall of the building, touches it at one place only
+and closes no ring of its own, or closes a ring round rooms. A boundary wall round the plot, a
+garden wall standing apart and a wall run out from the house are; a low wall inside a room is
+not, and nor are walls that close a space against the house at two places or more (a porch or a
+landing not drawn as a room), which stay floor no room claims.
+It stands in the open (`detached`) whatever kind it states, `exterior` included: it is no part
+of the floor's outline, slab or roof, of any area or of the storey height, and a closed ring of
+them encloses a garden, not floor. The drawing draws it in a partition's lighter fill and keys it
+"Garden or boundary wall", and the take-off lists its metres on a run of their own, `garden`. It
+is still drawn, exported and checked as the wall it is. A floor drawn as walls alone, with no
+rooms yet, keeps every wall as the building's. In the library, `landscapeWalls(plan)` gives
+their ids, and `wallSides` marks each `landscape`.
 
 ## A wall placed by its face
 
