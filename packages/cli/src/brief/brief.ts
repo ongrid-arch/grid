@@ -101,6 +101,9 @@ export interface RoomWish extends Said {
   readonly name: string | null
   readonly use: string | null
   readonly count: number | null
+  /** ARE-33: at least / at most this many rooms of the name or use. Counts, never areas. */
+  readonly countAtLeast: number | null
+  readonly countAtMost: number | null
   /** About this net area, m². */
   readonly area: number | null
   readonly atLeast: number | null
@@ -212,7 +215,12 @@ function list(raw: unknown, where: string): unknown[] {
   return raw
 }
 
-const ROOM_KEYS = ['name', 'use', 'count', 'area', 'at_least', 'at_most', 'inside', 'level', 'source', 'quote'] as const
+/** ARE-33: the largest whole number an at_least or at_most on a use wish may be without an area unit said, before it reads as a count. */
+const COUNT_LIKE_MAX = 30
+/** An area unit in the person's words: m², m2, sqm, square, metre, meter, sq ft, feet. */
+const AREA_UNIT = /m²|m2|sq\s?m|sqm|square|metre|meter|\bsq\b|\bft\b|feet|foot|tatami|㎡/i
+
+const ROOM_KEYS = ['name', 'use', 'count', 'count_at_least', 'count_at_most', 'area', 'at_least', 'at_most', 'inside', 'level', 'source', 'quote'] as const
 
 function roomWish(raw: unknown, where: string): RoomWish {
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object`)
@@ -225,20 +233,30 @@ function roomWish(raw: unknown, where: string): RoomWish {
     return read
   })
   if (name === null && use === null) throw new BriefRefused(`${where} names a room (name) or the rooms of a use (use)`)
-  const count = optional(raw, 'count', (value) => {
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 1000) throw new BriefRefused(`${where}.count must be a whole number from 0 to 1,000`)
+  const whole = (key: string) => optional(raw, key, (value) => {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 1000) throw new BriefRefused(`${where}.${key} must be a whole number from 0 to 1,000`)
     return value
   })
+  const count = whole('count')
+  const countAtLeast = whole('count_at_least')
+  const countAtMost = whole('count_at_most')
+  if (count !== null && (countAtLeast !== null || countAtMost !== null)) throw new BriefRefused(`${where} gives count, exactly how many, or count_at_least and count_at_most: not both`)
+  if (countAtLeast !== null && countAtMost !== null && countAtLeast > countAtMost) throw new BriefRefused(`${where}.count_at_least is more than its count_at_most`)
   const area = optional(raw, 'area', (value) => size(value, `${where}.area`, 'm²', 100_000))
   const atLeast = optional(raw, 'at_least', (value) => size(value, `${where}.at_least`, 'm²', 100_000))
   const atMost = optional(raw, 'at_most', (value) => size(value, `${where}.at_most`, 'm²', 100_000))
+  // ARE-33: at_least and at_most are square metres. A whole number of a few, on the rooms of a use, with
+  // no area unit in the person's words, is a count in the wrong field: refused, naming the right ones.
+  if (name === null && use !== null && [atLeast, atMost].some((v) => v !== null && Number.isInteger(v) && v <= COUNT_LIKE_MAX) && !AREA_UNIT.test(raw['quote'] === undefined || raw['quote'] === null ? '' : String(raw['quote']))) {
+    throw new BriefRefused(`${where} gives at_least or at_most, which are square metres, as a small whole number on the rooms of a use: for how many rooms use count_at_least or count_at_most, and for a size say its unit in quote`)
+  }
   if (area !== null && (atLeast !== null || atMost !== null)) throw new BriefRefused(`${where} gives area, a size about which the room is, or at_least and at_most: not both`)
   if (atLeast !== null && atMost !== null && atLeast > atMost) throw new BriefRefused(`${where}.at_least is more than its at_most`)
   const inside = optional(raw, 'inside', (value) => {
     if (!Array.isArray(value) || value.length !== 2) throw new BriefRefused(`${where}.inside must be two sizes in metres, as [3, 4]`)
     return [size(value[0], `${where}.inside[0]`, 'm', 1000), size(value[1], `${where}.inside[1]`, 'm', 1000)] as const
   })
-  return { name, use, count, area, atLeast, atMost, inside, ...said(raw, where) }
+  return { name, use, count, countAtLeast, countAtMost, area, atLeast, atMost, inside, ...said(raw, where) }
 }
 
 function footprintWish(raw: unknown): FootprintWish {
@@ -332,7 +350,7 @@ export function briefJson(brief: Brief): Record<string, unknown> {
   const out: Record<string, unknown> = { version: '1' }
   if (brief.rooms.length > 0) {
     out['rooms'] = brief.rooms.map((w) => ({
-      ...some('name', w.name), ...some('use', w.use), ...some('count', w.count), ...some('area', w.area),
+      ...some('name', w.name), ...some('use', w.use), ...some('count', w.count), ...some('count_at_least', w.countAtLeast), ...some('count_at_most', w.countAtMost), ...some('area', w.area),
       ...some('at_least', w.atLeast), ...some('at_most', w.atMost), ...some('inside', w.inside === null ? null : [...w.inside]), ...s(w),
     }))
   }

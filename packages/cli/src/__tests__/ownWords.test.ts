@@ -33,7 +33,7 @@ const WHY = {
 const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/apps/cadApps.ts': [1, 'developer'],
   'packages/cli/src/brief/answer.ts': [2, 'notYet'],
-  'packages/cli/src/brief/brief.ts': [51, 'agent'],
+  'packages/cli/src/brief/brief.ts': [54, 'agent'],
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
   'packages/cli/src/brief/lines.ts': [21, 'notYet'],
@@ -96,7 +96,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
-  'packages/cli/src/mcp/briefTool.ts': [47, 'tools'],
+  'packages/cli/src/mcp/briefTool.ts': [49, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   'packages/cli/src/mcp/editTools.ts': [86, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
