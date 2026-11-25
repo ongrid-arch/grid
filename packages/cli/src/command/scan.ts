@@ -164,7 +164,7 @@ export function writeScanIntoProject(project: Project, scanFile: string, planFil
   const now = loadPlan(project, planFile, { whole: true }).plan
   const evidence = project.relative(project.writeFile(evidenceFile, `${JSON.stringify(scanEvidence(read, conversion, planRevision(now)), null, 2)}\n`))
   const brief = briefAnswer(project, planFile, now)
-  const reminder = first ? briefReminder(project, planFile) : null
+  const reminder = first ? briefReminder(project, planFile, now) : null
   const verdict = before === null || nothingToLose(before) ? null : comparePlans(surveyPlan(before), surveyPlan(now), ['the plan before', 'the plan now']).verdict
   const drawingProblems = { before: before === null ? 0 : validatePlan(before).issues.length, after: validatePlan(now).issues.length }
   // HND-11: what was taped on site stays beside the plan, and is held against the scan's walls.
