@@ -201,24 +201,26 @@ function columnsTaken(index: PlanIndex): ReadonlyMap<string, { readonly area: nu
       if (out_.has(column)) continue
       for (const floorId of floorIds) {
         if (!columnStandsOn(index.plan, column, floorId)) continue
-        const room = columnRoom(column, rooms, floorId)
-        if (room === null) continue
-        const shape = rooms.find((r) => r.room === room)!.shape
         const footprint = columnFootprint(column)
         const drawn = area(footprint)
-        let cut: number
-        try {
-          cut = intersectionArea([ringOf(shape.polygon), ...shape.holes.map(ringOf)], [ringOf(footprint)])
-        } catch {
-          // The library failed on this room: the column's own floor, which cannot be less.
-          cut = drawn
+        // CNT-33: every room the column stands in takes its own clipped share, so a column on a
+        // room line comes off both and the shares add up to the column's floor.
+        for (const { room, shape } of rooms) {
+          if (floorOf(room) !== floorId) continue
+          let cut: number
+          try {
+            cut = intersectionArea([ringOf(shape.polygon), ...shape.holes.map(ringOf)], [ringOf(footprint)])
+          } catch {
+            // The library failed on this room: the column's own floor, if its middle is in the room.
+            cut = pointInPolygon({ x: column.at[0], y: column.at[1] }, shape.polygon, shape.holes) ? drawn : 0
+          }
+          const share = drawn > 0 ? (cut / drawn) * columnArea(column) : 0
+          if (!(share > tolerance('noArea'))) continue
+          const entry = out.get(room.id) ?? { area: 0, columns: [] }
+          entry.area += share
+          entry.columns.push(column.id)
+          out.set(room.id, entry)
         }
-        const share = drawn > 0 ? (cut / drawn) * columnArea(column) : 0
-        if (!(share > tolerance('noArea'))) continue
-        const entry = out.get(room.id) ?? { area: 0, columns: [] }
-        entry.area += share
-        entry.columns.push(column.id)
-        out.set(room.id, entry)
       }
     }
   } catch {
