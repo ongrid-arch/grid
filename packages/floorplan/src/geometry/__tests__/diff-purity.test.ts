@@ -1,7 +1,8 @@
 /**
  * The plan diff is part of the geometry core's public surface, and it
  * stays pure. Its sources import only from `geometry/` itself, the shared
- * types and Grid's own words (`messages/`, WRT-19), never React, Three, Node
+ * types and Grid's own words (`messages/`, WRT-19), and the rooms-first record's fingerprints
+ * (`rooms/stamp.ts`, itself pure, as `validate.ts` reads them; MSG-21), never React, Three, Node
  * or the DOM, so the same engine can run in Node, in a browser and in a test
  * without a window.
  */
@@ -15,6 +16,8 @@ const GEOMETRY = resolve(__dirname, '..')
 const TYPES = resolve(__dirname, '../../types')
 const MESSAGES = resolve(__dirname, '../../messages')
 const DIFF = resolve(GEOMETRY, 'diff')
+/** MSG-21: the mirrored copy of a plan written rooms first prints its boundaries again. */
+const STAMP = resolve(__dirname, '../../rooms/stamp.ts')
 
 /** Globals that only exist in a browser. A pure module never touches them. */
 const DOM_GLOBALS = ['window', 'document', 'navigator', 'localStorage', 'HTMLElement', 'requestAnimationFrame']
@@ -44,7 +47,7 @@ function impurities(file: string, source: string): string[] {
       const path = relative(root, target)
       return !path.startsWith('..') && !isAbsolute(path)
     }
-    if (!inside(GEOMETRY) && !inside(TYPES) && !inside(MESSAGES)) found.push(`imports ${specifier} from outside`)
+    if (!inside(GEOMETRY) && !inside(TYPES) && !inside(MESSAGES) && `${target}.ts` !== STAMP) found.push(`imports ${specifier} from outside`)
   }
 
   for (const name of [...DOM_GLOBALS, ...NODE_GLOBALS]) {
