@@ -1965,6 +1965,13 @@ export const es: Messages = {
     "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) tiene {thickness} m de grueso, el hueco que dejan las estancias, y ninguna línea del texto lo indica (muros interiores {inside} m, exteriores {outside} m). Si es lo que se quiere, dígalo con 'walls {thickness}' en una línea de estancia o de muro; si no, mueva una estancia.",
   'rooms.wallFromGap.outdoor':
     "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) da a un espacio exterior, así que es un muro exterior, pero las estancias le dejan {thickness} m, no los {outside} m de los muros exteriores. Si es lo que se quiere, manténgalo con 'wall between {a} and {b} {thickness}'; si no, mueva una estancia.",
+  // WRT-47
+  'rooms.wallsLate':
+    "Línea {line}: esta línea walls va después de estancias de la planta '{floor}', que conserva los muros con los que empezó (exteriores {outside} m, interiores {inside} m). Vale para las plantas escritas después; para cambiar también la planta '{floor}', escríbala antes de su primera estancia.",
+  'rooms.wallsLate.height':
+    "Línea {line}: esta línea walls va después de estancias de la planta '{floor}', que conserva los muros con los que empezó (exteriores {outside} m, interiores {inside} m, altura {height} m). Vale para las plantas escritas después; para cambiar también la planta '{floor}', escríbala antes de su primera estancia.",
+  'rooms.wallsHeight':
+    "La planta '{floor}' indica su altura, {floorHeight} m, así que sus muros miden {floorHeight} m de alto, no los {height} m de la línea walls (línea {line}). La altura de la línea walls es para las plantas que no indican ninguna; para dar a los muros de esta planta {height} m, escriba 'height {height}' en su línea de planta.",
   // CNT-36
   'rooms.openNotShared':
     "Línea {line}: '{a}' y '{b}' se abren una a otra, pero no comparten ningún lado, así que no hay dónde poner la línea divisoria. '{a}' comparte lados con: {aNear}; '{b}' con: {bNear}. Coloque las dos estancias cara a cara, en contacto, o quite la línea.",
