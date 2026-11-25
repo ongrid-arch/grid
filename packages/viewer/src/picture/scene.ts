@@ -1013,6 +1013,24 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   // SHT-7: the sketch layer, over the floors and under the walls. Drawn only.
   if (show.sketch) out.push(...sketchNodes(drawing.sketch, mpp, look.colors))
 
+  // VEW-52: each column's outline goes under the walls and its fill over them, so a column in a
+  // wall is one outline with it: the wall's fill hides the column's line inside the wall, and the
+  // column's fill hides the wall's line inside the column. Drawing, not a target.
+  const columnShape = (column: NonNullable<typeof drawing.columns>[number], attrs: Attrs, key: string, part: string): SvgNode =>
+    column.radius !== undefined
+      ? el('circle', { 'data-part': part, 'data-id': column.id, 'data-shape': column.shape, 'data-room': column.room ?? undefined, cx: column.centre.x, cy: -column.centre.y, r: column.radius, 'pointer-events': 'none', ...attrs }, [], key)
+      : el('path', { 'data-part': part, 'data-id': column.id, 'data-shape': column.shape, 'data-room': column.room ?? undefined, d: pathOf(column.outline), 'pointer-events': 'none', ...attrs }, [], key)
+  if ((drawing.columns ?? []).length > 0) {
+    out.push(
+      el(
+        'g',
+        { 'data-part': 'column-outlines', 'pointer-events': 'none', 'aria-hidden': 'true' },
+        (drawing.columns ?? []).map((column) => columnShape(column, { ...paint.column, fill: 'none' }, `column-outline:${column.id}`, 'column-outline')),
+        'column-outlines'
+      )
+    )
+  }
+
   for (const wall of drawing.walls) {
     const tracing = live.wallTrace(wall.id)
     const offset = live.wallOffset(wall.id)
@@ -1096,11 +1114,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   // CNT-16: each column, cut through as the walls are, over them where it meets one. A round one
   // is its true circle. Drawing, not a target: clicks reach the room underneath.
   for (const column of drawing.columns ?? []) {
-    out.push(
-      column.radius !== undefined
-        ? el('circle', { 'data-part': 'column', 'data-id': column.id, 'data-shape': column.shape, 'data-room': column.room ?? undefined, cx: column.centre.x, cy: -column.centre.y, r: column.radius, 'pointer-events': 'none', ...paint.column }, [], `column:${column.id}`)
-        : el('path', { 'data-part': 'column', 'data-id': column.id, 'data-shape': column.shape, 'data-room': column.room ?? undefined, d: pathOf(column.outline), 'pointer-events': 'none', ...paint.column }, [], `column:${column.id}`)
-    )
+    out.push(columnShape(column, { ...paint.column, stroke: 'none' }, `column:${column.id}`, 'column'))
   }
 
   // SHT-11 with CNT-4: each flat's outline, a chain line along the middle of the walls round its
