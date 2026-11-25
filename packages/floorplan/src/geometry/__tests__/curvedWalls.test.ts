@@ -583,7 +583,7 @@ describe('a curved wall in a plan with phases (CNT-10 with CNT-18)', () => {
     expect(outline[0]!.values(42).filter((b) => b !== 0).length).toBeGreaterThanOrEqual(2)
     expect(demolished.filter((e) => e.type === 'ARC')).toHaveLength(1)
     expect(demolished.filter((e) => e.type === 'HATCH')).toHaveLength(0)
-    expect(entitiesOf(dxf).filter((e) => e.type === 'HATCH' && e.layer.startsWith('GRID-WALLS-FILL'))).toHaveLength(4)
+    expect(entitiesOf(dxf).filter((e) => e.type === 'HATCH' && e.layer.startsWith('GRID-WALLS-FILL'))).toHaveLength(3)
   })
 
   it('gives the curved wall its phase in the IFC', () => {

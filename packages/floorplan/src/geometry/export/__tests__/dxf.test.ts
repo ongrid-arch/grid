@@ -154,7 +154,7 @@ describe('coordinates (C4)', () => {
     }) as [{ x: number; y: number }, { x: number; y: number }]
     const points = worldShapes(dxf).flatMap((s) => s.points)
 
-    expect(points.length).toBeGreaterThan(20)
+    expect(points.length).toBeGreaterThan(15)
     for (const p of points) {
       expect(p.x).toBeGreaterThanOrEqual(min.x - 1e-6)
       expect(p.y).toBeGreaterThanOrEqual(min.y - 1e-6)
@@ -180,11 +180,11 @@ describe('shapes', () => {
     const hatches = modelEntities(dxf, 'HATCH')
     const walls = modelEntities(dxf, 'LWPOLYLINE').filter((e) => e.layer === DXF_LAYERS.wallExterior)
 
-    expect(hatches).toHaveLength(4)
+    expect(hatches).toHaveLength(1)
     expect(hatches.every((h) => h.layer === DXF_LAYERS.wallFill && fieldOf(h, 2) === 'SOLID')).toBe(true)
-    // One loop per outline: the door's wall is two pieces, either side of the door.
+    // VEW-54: one loop per outline, and the four walls round the door's gap are one outline.
     expect(hatches.reduce((sum, h) => sum + Number(fieldOf(h, 91)), 0)).toBe(walls.length)
-    expect(walls).toHaveLength(5)
+    expect(walls).toHaveLength(1)
   })
 
   it('tags the room with its name and its area', () => {

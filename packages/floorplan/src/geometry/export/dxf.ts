@@ -25,8 +25,9 @@
  *   window that states its kind (CNT-14) or the part of it that opens is drawn by its kind's
  *   symbol (`openingSymbol`), one block per symbol, and what that symbol shows above the cut or
  *   hidden in the wall is on a dashed layer of its own.
- * - Walls as closed outlines, joined at their corners by the core (SHT-2: `PlanWall.slices`), each
- *   wall filled by a solid hatch on a layer of its own. A curved wall's outline and hatch have its
+ * - Walls as closed outlines, joined at their corners by the core (SHT-2: `PlanWall.slices`) and
+ *   then joined into one outline and one hatch per run of touching walls on a layer, so no mitre
+ *   line crosses a corner (VEW-54), filled by a solid hatch on a layer of its own. A curved wall's outline and hatch have its
  *   faces as true arcs, by their bulges (CNT-18: `PlanWall.curve`), and a curved dividing line is
  *   an ARC, or a CIRCLE all the way round; the room outlines along a curve are straight pieces,
  *   and the left-out note says so.
@@ -54,6 +55,7 @@ import { doorSwing, type SwingArc } from '../door'
 import { boundsWithDimensions, buildDimensions, type Dimension } from '../dimensions'
 import { openingSymbol, type SymbolPiece } from '../openingSymbol'
 import { TOLERANCES } from '../tolerances'
+import { cutOutline, piecesAsRings, ringOf } from '../polygons'
 import { areaText, metresText } from '../rounding'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { approximationLines, kindLabel, leftOutByKind, leftOutSummary, NO_APPROXIMATIONS, partNames, type Approximations, type LeftOutPart } from './leftOut'
@@ -1082,6 +1084,10 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
   //
   // CNT-10: in a plan with phases each wall goes on its phase's layer: a wall to be demolished as
   // its dashed outline with no fill, a new one with its fill on a layer of its own.
+  // VEW-54: the straight walls that touch on one layer are one outline and one hatch, as a
+  // drafter draws them, so no mitre line crosses a corner or a junction. A curved wall keeps its
+  // own runs (its faces are true arcs).
+  const joined = new Map<string, { fill: string | null; layer: string; slices: Vec2[][] }>()
   for (const wall of drawing.walls) {
     if (wall.virtual) {
       // CNT-18: a curved dividing line is a true arc, or a circle all the way round.
@@ -1091,16 +1097,32 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
       continue
     }
     if (wall.slices.length === 0) continue
-    // CNT-18: a curved wall's runs, fill and outline, with their faces as true arcs.
-    const runs = wall.curve?.runs.map(curvedRun) ?? null
-    if (wall.phase !== 'demolished') {
-      space.hatch(space.layer(wall.phase === 'new' ? 'wall-fill-new' : 'wall-fill'), runs?.map((run) => run.points) ?? wall.slices, runs?.map((run) => run.turns) ?? [])
-    }
+    const fill = wall.phase === 'demolished' ? null : space.layer(wall.phase === 'new' ? 'wall-fill-new' : 'wall-fill')
     const layer = space.layer(
       wall.phase === 'demolished' ? 'walls-demolished' : wall.phase === 'new' ? 'walls-new' : wall.phase === 'existing' ? 'walls-existing' : wall.exposure === 'exterior' ? 'walls-outside' : 'walls-inside'
     )
-    if (runs !== null) for (const run of runs) space.polyline(layer, run.points, true, run.turns)
-    else for (const slice of wall.slices) space.polyline(layer, slice, true)
+    // CNT-18: a curved wall's runs, fill and outline, with their faces as true arcs.
+    if (wall.curve !== undefined) {
+      const runs = wall.curve.runs.map(curvedRun)
+      if (fill !== null) space.hatch(fill, runs.map((run) => run.points), runs.map((run) => run.turns))
+      for (const run of runs) space.polyline(layer, run.points, true, run.turns)
+      continue
+    }
+    const key = `${layer}\n${fill ?? ''}`
+    const group = joined.get(key) ?? { fill, layer, slices: [] }
+    group.slices.push(...wall.slices)
+    joined.set(key, group)
+  }
+  for (const { fill, layer, slices } of joined.values()) {
+    // Rounded to the shell grid first, so two faces drawn to meet are one edge for the join.
+    const steps = Math.round(1 / TOLERANCES.shellGrid.value)
+    const snapped = slices.map((slice) => ringOf(slice.map((p) => ({ x: Math.round(p.x * steps) / steps, y: Math.round(p.y * steps) / steps }))))
+    const pieces = slices.length > 1 ? cutOutline('union', [snapped[0]!], snapped.slice(1).map((ring) => [ring])) : null
+    const outlines = pieces === null ? slices.map((slice) => ({ outline: slice, holes: [] as Vec2[][] })) : piecesAsRings(pieces)
+    for (const { outline, holes } of outlines) {
+      if (fill !== null) space.hatch(fill, [outline, ...holes])
+      for (const ring of [outline, ...holes]) space.polyline(layer, ring, true)
+    }
   }
 
   // CNT-16: each column, cut through as a wall is: filled, then its outline; a round one a true
