@@ -7,13 +7,16 @@
  * owner chose as the main way agents write (WRT-1). The plan file stays the source of truth:
  * the text is a way of writing it, and `readRoomsText` reads any plan back as text.
  *
- * The language, one statement per line (`#` starts a comment). A plain number is metres; a length
+ * The language, one statement per line (`#` starts a comment). A plain number is metres (under a
+ * display that is not metres, what its `numbers` word names, WRT-34); a length
  * may instead carry its unit in one word: `360cm`, `3600mm`, `12ft`, `12ft6in`, `12'6"` (`words.ts`):
  *
  *   plan "<name>"
- *   display <m|cm|mm|ft-in> [area m2|ft2] [decimal point|comma] [precision <n>]
+ *   display <m|cm|mm|ft-in> [area m2|ft2] [decimal point|comma] [precision <n>] [numbers <m|cm|mm|ft>]
  *                                      how the person reads lengths and areas: the plan's `display`
- *                                      (WRT-7). It changes no length, and the file stays in metres
+ *                                      (WRT-7). The file stays in metres. Under a display that is
+ *                                      not metres a plain number is what `numbers` names, or is
+ *                                      refused as a question (WRT-34); `numbers` is not kept in the plan
  *   building <home|office|shop|...>    what kind of building the plan is (CNT-5)
  *   based on <revision>                the plan this text was read from (written by the read-back)
  *   walls outside <t> inside <t> [interior|partition] height <h>      the thickness rule
@@ -86,7 +89,7 @@ import { limit, tolerance } from '../geometry/tolerances'
 import { buildingKind } from '../geometry/plausible'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
 import { english, name as sayName, said, type MessageKey, type Values } from '../messages/say'
-import { f2, hasUnit, isNumberWord, metres, numberOf, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord } from './words'
+import { f2, hasUnit, isNumberWord, metres, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
 
 type P = readonly [number, number]
@@ -122,21 +125,26 @@ function roomUseOf(word: string): RoomUse | null {
   const read = readUse(word)
   return typeof read === 'string' && USES.includes(read) ? (read as RoomUse) : null
 }
-/** WRT-7: a `display` line, as the plan's `display`. */
-function displayOfWords(t: readonly string[], at: number): NonNullable<FloorPlan['display']> {
-  const usage = `line ${at}: write 'display <m|cm|mm|ft-in> [area m2|ft2] [decimal point|comma] [precision 0-5]': how the person reads lengths and areas.`
+/**
+ * WRT-7: a `display` line, as the plan's `display`; and WRT-34: what a plain number is, from its
+ * `numbers` word, which is how this text is written and is not kept in the plan.
+ */
+function displayOfWords(t: readonly string[], at: number): { display: NonNullable<FloorPlan['display']>; numbers: PlainUnit | null } {
+  const usage = `line ${at}: write 'display <m|cm|mm|ft-in> [area m2|ft2] [decimal point|comma] [precision 0-5] [numbers m|cm|mm|ft]': how the person reads lengths and areas, and what a number with no unit is.`
   const length = t[1] as NonNullable<FloorPlan['display']>['length']
   if (!(LENGTH_UNITS as readonly string[]).includes(t[1] ?? '')) throw new RoomsStop('rooms/syntax', usage, at)
   const out: { -readonly [K in keyof NonNullable<FloorPlan['display']>]: NonNullable<FloorPlan['display']>[K] } = { length }
+  let numbers: PlainUnit | null = null
   for (let i = 2; i < t.length; i += 2) {
     const key = t[i]!
     const value = t[i + 1]
     if (key === 'area' && (AREA_UNITS as readonly string[]).includes(value ?? '') && out.area === undefined) out.area = value as AreaUnit
     else if (key === 'decimal' && (DECIMAL_MARKS as readonly string[]).includes(value ?? '') && out.decimal === undefined) out.decimal = value as DecimalMark
     else if (key === 'precision' && /^[0-5]$/.test(value ?? '') && out.precision === undefined) out.precision = Number(value)
+    else if (key === 'numbers' && (PLAIN_UNITS as readonly string[]).includes(value ?? '') && numbers === null) numbers = value as PlainUnit
     else throw new RoomsStop('rooms/syntax', usage, at)
   }
-  return out
+  return { display: out, numbers }
 }
 const S2 = Math.sqrt(0.5)
 const DIRS: Readonly<Record<string, P>> = { north: [0, 1], south: [0, -1], east: [1, 0], west: [-1, 0] }
@@ -464,6 +472,8 @@ class Compiler {
   building: BuildingType | null = null
   /** WRT-7: how the person reads lengths and areas, from a `display` line. */
   display: NonNullable<FloorPlan['display']> | null = null
+  /** WRT-34: how a plain number is read, from the text's display line, found before any line is read. */
+  private plain: PlainNumbers = PLAIN_METRES
   // WRT-6 (lab AU3-6): no height until the text states one. A wall the text gives no height is
   // written with none, and the reading gives it its floor's height or Grid's default.
   private rule: { outside: number; inside: number; height: number | null; kind: WallKind } = { ...ROOMS_WALLS, height: null, kind: 'interior' }
@@ -541,6 +551,7 @@ class Compiler {
   }
 
   run(): WrittenPlan | null {
+    this.plain = this.plainNumbers()
     let i = 0
     while (i < this.lines.length) {
       const at = i + 1
@@ -639,6 +650,21 @@ class Compiler {
     this.rawParts.push({ kind, part, line: at, under: fl.id })
   }
 
+  /**
+   * WRT-34: how the text's plain numbers are read, from its last display line, wherever it is
+   * written, so a length above that line is read by the same rule. Raw parts are the plan file's
+   * own JSON, in metres.
+   */
+  private plainNumbers(): PlainNumbers {
+    let plain = PLAIN_METRES
+    this.lines.forEach((text, i) => {
+      if (!/^\s*display\b/.test(text)) return
+      const { display, numbers } = displayOfWords(wordsOf(text, i + 1), i + 1)
+      plain = { display: display.length ?? 'm', numbers }
+    })
+    return plain
+  }
+
   /** WRT-27: a raw wall or room that names a floor the text does not write is refused with its line. */
   private rawFloors(): void {
     const floors = this.floors.map((f) => f.id)
@@ -661,7 +687,7 @@ class Compiler {
         this.building = t[1] as BuildingType
         return
       case 'display':
-        this.display = displayOfWords(t, at)
+        this.display = displayOfWords(t, at).display
         return
       case 'based':
         if (t[1] !== 'on' || t.length !== 3) this.stop('rooms/syntax', at, `line ${at}: write 'based on <revision>', as the read-back writes it.`)
@@ -686,7 +712,7 @@ class Compiler {
         if (t.length !== 3 || !KINDS.includes(t[2] as WallKind)) {
           this.stop('rooms/syntax', at, `line ${at}: write 'walltype <thickness> <interior|partition|exterior>': every inside wall of that thickness gets that kind.`)
         }
-        this.tkinds.set(Math.round(numberOf(t[1]!, at) * 1000), t[2] as WallKind)
+        this.tkinds.set(Math.round(numberOf(t[1]!, at, this.plain) * 1000), t[2] as WallKind)
         return
       case 'floor':
         this.stFloor(t, at)
@@ -736,7 +762,7 @@ class Compiler {
     while (i < t.length) {
       const w = t[i]!
       if (Object.hasOwn(keys, w) && i + 1 < t.length) {
-        target[keys[w]!] = numberOf(t[i + 1]!, at)
+        target[keys[w]!] = numberOf(t[i + 1]!, at, this.plain)
         i += 2
       } else if (kinds && KINDS.includes(w as WallKind)) {
         target['kind'] = w
@@ -821,7 +847,7 @@ class Compiler {
       } else {
         let v: number
         try {
-          v = numberOf(value.text, at)
+          v = numberOf(value.text, at, this.plain)
         } catch (error) {
           if (!(error instanceof RoomsStop)) throw error
           refuse(error.message.replace(/^line \d+: /, ''), error.code)
@@ -954,12 +980,12 @@ class Compiler {
         poly = []
         i++
         while (i < t.length && /^[0-9.+\-*/()]+,[0-9.+\-*/()]+$/.test(t[i]!)) {
-          poly.push(pointOf(t[i]!, at))
+          poly.push(pointOf(t[i]!, at, this.plain))
           i++
         }
         if (poly.length < 3) this.stop('rooms/syntax', at, `line ${at}: a polygon needs at least three points written x,y.`)
       } else if (w === 'at' && i + 1 < t.length) {
-        place.at = pointOf(t[i + 1]!, at)
+        place.at = pointOf(t[i + 1]!, at, this.plain)
         i += 2
       } else if (Object.hasOwn(DIRS, w) && i + 2 < t.length && t[i + 1] === 'of') {
         place.dir = w
@@ -969,7 +995,7 @@ class Compiler {
         place.align = t[i + 1]!
         i += 2
       } else if (w === 'shift' && i + 1 < t.length) {
-        place.shift = numberOf(t[i + 1]!, at)
+        place.shift = numberOf(t[i + 1]!, at, this.plain)
         i += 2
       } else if (w === 'until' && i + 1 < t.length) {
         place.until = t[i + 1]!
@@ -982,10 +1008,10 @@ class Compiler {
         place.open = true
         i++
       } else if (w === 'height' && i + 1 < t.length) {
-        room.height = numberOf(t[i + 1]!, at)
+        room.height = numberOf(t[i + 1]!, at, this.plain)
         i += 2
       } else if (w === 'floor' && i + 1 < t.length && isNumberWord(t[i + 1]!)) {
-        room.floorOffset = numberOf(t[i + 1]!, at)
+        room.floorOffset = numberOf(t[i + 1]!, at, this.plain)
         i += 2
       } else if (w === 'first-wall' && i + 1 < t.length) {
         room.firstWall = t[i + 1]!
@@ -1008,7 +1034,7 @@ class Compiler {
         room.through = t[i + 1]!
         i += 2
       } else if ((w === 'walls' || w === 'wall') && i + 1 < t.length) {
-        const T = numberOf(t[i + 1]!, at)
+        const T = numberOf(t[i + 1]!, at, this.plain)
         this.statedT.add(T)
         let kind: WallKind | null = null
         i += 2
@@ -1044,8 +1070,8 @@ class Compiler {
       return room
     }
     if (W === null || D === null) this.stop('rooms/size', at, `line ${at}: room '${id}' has no size. Write '<width> x <depth>' (metres, or with a unit such as 12ft), inside faces, or 'polygon ...'.`)
-    let Wn = W === '*' ? null : numberOf(W, at)
-    let Dn = D === '*' ? null : numberOf(D, at)
+    let Wn = W === '*' ? null : numberOf(W, at, this.plain)
+    let Dn = D === '*' ? null : numberOf(D, at, this.plain)
     for (const [label, word, v] of [['width', W, Wn], ['depth', D, Dn]] as const) {
       if (v !== null && v <= 0) this.stop('rooms/size', at, `line ${at}: room '${id}' has a ${label} of ${v}. Sizes are above 0.`)
       // WRT-22: a length written with its unit is taken as meant; a bare one past a building's is asked about.
@@ -1256,7 +1282,7 @@ class Compiler {
         say.kind = w as WallKind | 'virtual'
         i++
       } else if (w === 'height' && i + 1 < words.length) {
-        say.height = numberOf(words[i + 1]!, at)
+        say.height = numberOf(words[i + 1]!, at, this.plain)
         i += 2
       } else if (w === 'id' && i + 1 < words.length) {
         say.id = words[i + 1]!
@@ -1265,7 +1291,7 @@ class Compiler {
         say.reversed = true
         i++
       } else if (isNumberWord(w)) {
-        say.t = numberOf(w, at)
+        say.t = numberOf(w, at, this.plain)
         this.statedT.add(say.t)
         i++
       } else {
@@ -1399,7 +1425,7 @@ class Compiler {
     while (i < t.length) {
       const w = t[i]!
       if (w === 'at' && i + 1 < t.length) {
-        place.at = pointOf(t[i + 1]!, at)
+        place.at = pointOf(t[i + 1]!, at, this.plain)
         i += 2
       } else if (Object.hasOwn(DIRS, w) && i + 2 < t.length && t[i + 1] === 'of') {
         place.dir = w
@@ -1409,7 +1435,7 @@ class Compiler {
         place.align = t[i + 1]!
         i += 2
       } else if ((w === 'shift' || w === 'gap') && i + 1 < t.length) {
-        place[w] = numberOf(t[i + 1]!, at)
+        place[w] = numberOf(t[i + 1]!, at, this.plain)
         if (w === 'gap') this.statedT.add(place[w]!)
         i += 2
       } else if (w === 'mirror' && i + 1 < t.length) {
@@ -2179,7 +2205,7 @@ class Compiler {
         pos = { centred: true }
         i++
       } else if (i + 2 < t.length && t[i + 1] === 'from') {
-        const dist = numberOf(w, at)
+        const dist = numberOf(w, at, this.plain)
         const comp = t[i + 2]!
         i += 3
         let ref: string | null = null
@@ -2189,13 +2215,13 @@ class Compiler {
         }
         pos = { centred: false, dist, comp, ref }
       } else if (i + 1 < t.length && t[i + 1] === 'wide') {
-        width = numberOf(w, at)
+        width = numberOf(w, at, this.plain)
         i += 2
       } else if (w === 'sill' && i + 1 < t.length) {
-        sill = numberOf(t[i + 1]!, at)
+        sill = numberOf(t[i + 1]!, at, this.plain)
         i += 2
       } else if (w === 'height' && i + 1 < t.length) {
-        height = numberOf(t[i + 1]!, at)
+        height = numberOf(t[i + 1]!, at, this.plain)
         i += 2
       } else if (w === 'opens' && i + 1 < t.length) {
         if (t[i + 1] === 'into' && i + 2 < t.length) {
@@ -2227,10 +2253,10 @@ class Compiler {
         openingKind = w as OpeningKind
         i++
       } else if (w === 'part' && i + 1 < t.length) {
-        part = { width: numberOf(t[i + 1]!, at) }
+        part = { width: numberOf(t[i + 1]!, at, this.plain) }
         i += 2
         if (t[i] === 'x' && i + 1 < t.length) {
-          part = { ...part, height: numberOf(t[i + 1]!, at) }
+          part = { ...part, height: numberOf(t[i + 1]!, at, this.plain) }
           i += 2
         }
       } else {

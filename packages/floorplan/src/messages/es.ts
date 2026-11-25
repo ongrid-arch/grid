@@ -1877,6 +1877,18 @@ export const es: Messages = {
   'rooms.floor.building': "'{word}' no es un tipo de edificio que Grid conozca. Use uno de: {kinds}.",
   'rooms.floor.duplicate': "La planta '{id}' ya está escrita.",
   'rooms.floor.roomsFirst': 'Se escribieron estancias antes de la primera línea de planta. Ponga primero la línea de planta.',
+  // WRT-34
+  'rooms.numbers.question':
+    "línea {line}: '{word}' no tiene unidad, y la línea display lee las longitudes en {reads}, así que Grid no lo toma como metros. Escriba su unidad en la misma palabra, por ejemplo {word}{unit}, o añada a la línea display qué es un número sin unidad: 'display {display} numbers {unit}' lee todo número sin unidad en {plural}, y 'numbers m' en metros.",
+  'rooms.numbers.feetInches':
+    "línea {line}: '{word}' se lee como {feet} menos {inches}, y este texto lee pies. Para {feet} pies {inches} pulgadas escriba {feet}'{inches}\" o {feet}ft{inches}in; para la diferencia, escríbala entre paréntesis: ({word}).",
+  'rooms.numbers.reads.cm': 'centímetros',
+  'rooms.numbers.reads.mm': 'milímetros',
+  'rooms.numbers.reads.ft-in': 'pies y pulgadas',
+  'rooms.numbers.plain.m': 'metros',
+  'rooms.numbers.plain.cm': 'centímetros',
+  'rooms.numbers.plain.mm': 'milímetros',
+  'rooms.numbers.plain.ft': 'pies',
   'rooms.size.width': 'anchura',
   'rooms.size.depth': 'profundidad',
   'rooms.size.bare':

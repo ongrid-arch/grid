@@ -26,6 +26,17 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   and areas: the drawings, the figures and the sheet follow it, and the read-back writes it again
   ([Units](plan-file.md#units)). The plan file stays in metres either way. Settle the units with
   the brief, from the person's words or their place, and ask only when neither says.
+- Under a `display` line that is not metres, a plain number is never taken as metres by
+  itself. The display line says what it is with `numbers <m|cm|mm|ft>`: under
+  `display ft-in numbers ft`, `room family "Family room" living 18 x 20` is 18 ft by 20 ft; under
+  `display mm numbers mm`, `4800 x 3600 at 0,0` is in millimetres, positions as well as sizes.
+  Without `numbers`, a plain number other than 0 is refused as `rooms/units`, a question that
+  names the number with its unit (`18ft`) and the `numbers` word to add. The read-back writes its
+  lengths in metres, so it writes `numbers m` on such a display line. Raw parts are the plan
+  file's own JSON and stay in metres.
+- In a text read in feet (`display ft-in`, or `numbers ft`), `12-6` is refused as `rooms/units`:
+  it reads as 12 minus 6. Write `12'6"` or `12ft6in` for twelve feet six inches, or `(12-6)` in
+  brackets for the difference. A sum such as `3.0+0.3` is read as before.
 - A length written with its unit is taken as meant, at any size: `250m x 160m`, `250000mm`,
   `0.5km`. A room side written as a bare number, stretched with `*` or drawn as a polygon that is
   longer than a building's is still written, in metres, and the answer asks about it

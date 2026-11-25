@@ -499,8 +499,9 @@ function headerLines(plan: FloorPlan, rule: Rule, name: string | undefined): str
   lines.push(`based on ${planRevision(plan)}`)
   if (plan.building !== undefined) lines.push(`building ${plan.building}`)
   // WRT-7: how the person reads lengths, so writing the text again keeps it.
+  // WRT-34: the reading writes its lengths in metres, so a display that is not metres says so.
   const shown = plan.display
-  if (shown !== undefined) lines.push(['display', shown.length, ...(shown.area !== undefined ? ['area', shown.area] : []), ...(shown.decimal !== undefined ? ['decimal', shown.decimal] : []), ...(shown.precision !== undefined ? ['precision', String(shown.precision)] : [])].join(' '))
+  if (shown !== undefined) lines.push(['display', shown.length, ...(shown.area !== undefined ? ['area', shown.area] : []), ...(shown.decimal !== undefined ? ['decimal', shown.decimal] : []), ...(shown.precision !== undefined ? ['precision', String(shown.precision)] : []), ...(shown.length !== 'm' ? ['numbers', 'm'] : [])].join(' '))
   lines.push(`walls outside ${metres(rule.outside)} inside ${metres(rule.inside)}${rule.kind !== 'interior' ? ` ${rule.kind}` : ''}${rule.height === null ? '' : ` height ${metres(rule.height)}`}`)
   for (const [t, k] of [...rule.types].sort((a, b) => a[0] - b[0])) lines.push(`walltype ${metres(t)} ${k}`)
   if (!sameNumber(rule.doorH, 2.1)) lines.push(`doors height ${metres(rule.doorH)}`)

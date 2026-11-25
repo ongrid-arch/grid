@@ -191,8 +191,9 @@ the edge, chosen per person:
   it, `3,81` is refused with one line that names the decimal comma. A length past Grid's largest,
   or text Grid cannot read, is refused in words, by the argument's name. A plan file that states
   `"units": "mm"` (or `cm`, `ft`, `in`) is read in that unit and written back in metres.
-- **Rooms text.** A plain number is metres; a length may carry its unit in one word, with no
-  space: `360cm`, `12ft`, `12ft6in`, `12'6"` ([rooms first](rooms-first.md)).
+- **Rooms text.** A plain number is metres, unless the display line is not metres and says what
+  a plain number is with `numbers` (`display ft-in numbers ft`); a length may carry its unit in
+  one word, with no space: `360cm`, `12ft`, `12ft6in`, `12'6"` ([rooms first](rooms-first.md)).
 - **Writing.** A plan may say how its person reads lengths, in `display`. It changes no stored
   number. Rooms text sets it with a `display` line (`display ft-in precision 3`), and the
   read-back writes that line again:
