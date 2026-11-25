@@ -166,7 +166,7 @@ export const en = {
   'issue.part.far.wall': 'wall {wall} lies more than {km} km from the origin',
   'issue.part.far.thick': 'wall {wall} is more than {km} km thick',
   'issue.part.far.room': 'room {room} lies more than {km} km from the origin',
-  'issue.part.notJoined': 'the walls could not be joined ({error})',
+  'issue.part.notJoined': 'the walls could not be joined: their shapes are too close to tell apart',
   'issue.part.nesting.tooMany': 'the plan has more than {most} pairs of outlines to compare, and the rest were not compared',
   'issue.part.nesting.failed': 'the outlines could not be compared ({error})',
 
@@ -1586,7 +1586,7 @@ export const en = {
   'report.checksRun': 'Checks run: {count}.',
   'report.checksRun.title': 'Checks run',
   'report.floorOnly': 'Floor {floor} only.',
-  'report.seenUnread': 'The seen marks were not read: {problem}. Every note is listed as new.',
+  'report.seenUnread': 'The seen marks were not all read: {problem}. A note whose mark was not read is listed as new.',
   'report.toLook.none': 'To look at: nothing. That only means these checks found nothing, not that the plan meets any rule.',
   'report.toLook': 'To look at ({count}): {counts}{seen}.',
   'report.ofThemSeen': '; {count} of them seen, listed under Seen',
@@ -1916,6 +1916,12 @@ export const en = {
   // ── After merging main at 8b599e9: LVL-8's opening patterns in rooms text ───────────────────
   'describe.rooms.patterns.one': "The plan's opening pattern is not rooms text: grid write keeps it as the file has it, and its openings are not written here.",
   'describe.rooms.patterns.many': "The plan's {count} opening patterns are not rooms text: grid write keeps them as the file has them, and their openings are not written here.",
+
+  // --- Comparing two versions: the walls a room grew or shrank by (WRT-19, `diff/causes.ts`)
+  'diff.cause': 'because {walls}',
+  'diff.cause.thickness.one': 'wall {wall} went from {before} to {after} m thick',
+  'diff.cause.thickness.many': 'walls {walls} went from {before} to {after} m thick',
+  'diff.cause.moved': 'wall {wall} moved {by} m',
 
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Floor plan with {count} rooms',

@@ -169,7 +169,7 @@ export const es: Messages = {
   'issue.part.far.wall': 'el muro {wall} está a más de {km} km del origen',
   'issue.part.far.thick': 'el muro {wall} tiene más de {km} km de espesor',
   'issue.part.far.room': 'la estancia {room} está a más de {km} km del origen',
-  'issue.part.notJoined': 'no se pudieron unir los muros ({error})',
+  'issue.part.notJoined': 'no se pudieron unir los muros: sus formas están demasiado cerca para distinguirlas',
   'issue.part.nesting.tooMany': 'el plano tiene más de {most} pares de contornos que comparar, y el resto no se comparó',
   'issue.part.nesting.failed': 'no se pudieron comparar los contornos ({error})',
 
@@ -1600,7 +1600,7 @@ export const es: Messages = {
   'report.checksRun': 'Comprobaciones hechas: {count}.',
   'report.checksRun.title': 'Comprobaciones hechas',
   'report.floorOnly': 'Solo la planta {floor}.',
-  'report.seenUnread': 'No se leyeron las marcas de vista: {problem}. Todas las notas aparecen como nuevas.',
+  'report.seenUnread': 'No se leyeron todas las marcas de vista: {problem}. Una nota cuya marca no se leyó aparece como nueva.',
   'report.toLook.none': 'Para revisar: nada. Eso solo significa que estas comprobaciones no encontraron nada, no que el plano se ajuste a ninguna norma.',
   'report.toLook': 'Para revisar ({count}): {counts}{seen}.',
   'report.ofThemSeen': '; {count} de ellas vistas, en Vistas',
@@ -1929,6 +1929,12 @@ export const es: Messages = {
   // ── Tras fusionar main en 8b599e9: los patrones de huecos en el texto de estancias (LVL-8) ──
   'describe.rooms.patterns.one': 'El patrón de huecos del plano no es texto de estancias: grid write lo conserva como lo tiene el archivo, y sus huecos no se escriben aquí.',
   'describe.rooms.patterns.many': 'Los {count} patrones de huecos del plano no son texto de estancias: grid write los conserva como los tiene el archivo, y sus huecos no se escriben aquí.',
+
+  // --- Comparing two versions: the walls a room grew or shrank by (WRT-19, `diff/causes.ts`)
+  'diff.cause': 'porque {walls}',
+  'diff.cause.thickness.one': 'el muro {wall} pasó de {before} a {after} m de espesor',
+  'diff.cause.thickness.many': 'los muros {walls} pasaron de {before} a {after} m de espesor',
+  'diff.cause.moved': 'el muro {wall} se movió {by} m',
 
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Plano con {count} estancias',

@@ -63,7 +63,6 @@ export function slabOutline(plan: FloorPlan, floor: string, broken: ReadonlySet<
   for (const wall of walls) reach = Math.max(reach, ...wall.start.map(Math.abs), ...wall.end.map(Math.abs))
   for (const [x, y] of outline?.[0] ?? []) reach = Math.max(reach, Math.abs(x), Math.abs(y))
   const join = tolerance('gap')
-  let failure: unknown = null
   for (const grid of TOLERANCES.joinGrids.values) {
     try {
       const steps = grid === 0 ? 0 : Math.round(1 / grid)
@@ -88,9 +87,10 @@ export function slabOutline(plan: FloorPlan, floor: string, broken: ReadonlySet<
       const inside = faces.map((face) => pointInside(face, boxOfRings(face)))
       const pieces = filled.filter((piece) => inside.some((p) => inPolygon(p, piece)))
       return { floor, pieces, area: multiArea(pieces), spaces: faces.map((face, i) => ({ pieces: face, at: inside[i]! })) }
-    } catch (error) {
-      failure = error
+    } catch {
+      // The polygon library could not join the walls on this grid: the next, coarser one is tried.
     }
   }
-  return { floor, reason: `the walls could not be joined (${failure instanceof Error ? failure.message : String(failure)})` }
+  // CNT-22: in Grid's own words; the polygon library's message is never passed on.
+  return { floor, reason: 'the walls could not be joined: their shapes are too close to tell apart' }
 }

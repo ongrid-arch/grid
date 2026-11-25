@@ -585,17 +585,15 @@ export function floorSpaces(plan: FloorPlan, floor: string, options: SpacesOptio
   }
 
   const reach = reachOf(walls, outline)
-  let failure: unknown = null
   for (const grid of GRIDS) {
     try {
       return compare(floor, walls, rooms, grid, reach, outline)
-    } catch (error) {
-      failure = error
+    } catch {
+      // The polygon library could not join the walls on this grid: the next, coarser one is tried.
     }
   }
-  const why = failure instanceof Error ? failure.message : String(failure)
-  // The polygon library's own error, in its words.
-  return unknown(floor, said('issue.part.notJoined', { error: why }))
+  // CNT-22: in Grid's own words; the polygon library's message is never passed on.
+  return unknown(floor, said('issue.part.notJoined'))
 }
 
 /** `floorSpaces` for every floor of the plan, in floor order. */
