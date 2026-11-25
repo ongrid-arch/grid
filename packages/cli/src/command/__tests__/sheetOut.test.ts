@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,10 +39,10 @@ async function grid(...args: string[]): Promise<{ status: number; out: string; e
 }
 
 describe('grid sheet --out (VEW-7)', () => {
-  it('refuses an --out whose folder does not exist before drawing, as grid export words it', async () => {
+  it('makes the folder of an --out that is not there yet', async () => {
     const run = await grid('sheet', 'house.json', '--layout', 'check', '--out', 'nope/x.pdf')
-    expect(run).toMatchObject({ status: 1, err: 'grid: Can\'t write nope/x.pdf: its folder does not exist.\n' })
-    expect(drawn.count).toBe(0)
+    expect(run.status).toBe(0)
+    expect(existsSync(join(dir, 'nope', 'x.pdf'))).toBe(true)
   })
 
   it('refuses an --out that is a folder before drawing', async () => {

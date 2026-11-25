@@ -259,9 +259,10 @@ describe('grid draw --out: writing a picture', () => {
     for (const part of ['section-mark', 'elevation-mark', 'level-mark']) expect(svg).toContain(`data-part="${part}"`)
   })
 
-  it('refuses a folder that does not exist, and writes nothing', () => {
-    expectRefusal(grid('draw', 'two-bed-flat.json', '--out', join('missing', 'plan.svg')), 1, 'does not exist')
-    expect(filesIn(dir)).toEqual(['two-bed-flat.json'])
+  it('makes a folder that does not exist yet, inside the project', () => {
+    const run = grid('draw', 'two-bed-flat.json', '--out', join('missing', 'plan.svg'))
+    expect(run.status).toBe(0)
+    expect(existsSync(join(dir, 'missing', 'plan.svg'))).toBe(true)
   })
 })
 
