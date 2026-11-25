@@ -150,6 +150,10 @@ export interface Route {
   readonly onStairs: number | null
   /** ARE-18: when `length` is null, the room it stops at and why. */
   readonly gap: WalkGap | null
+  /** ARE-21, a route to `outside` only: the way out it takes, the nearest by walked length. */
+  readonly exit?: string
+  /** ARE-21: the other ways out, nearest first, each with the length of its own route (null when it cannot be measured). */
+  readonly otherExits?: readonly { readonly via: string; readonly type: RouteStep['type']; readonly rooms: readonly string[]; readonly length: number | null }[]
 }
 
 /** The way out of every room, as a step past the last room of a route to `outside`. */
@@ -192,6 +196,34 @@ interface RouteNode {
  * with `acrossFloors` false: any door out of the floor, as before.
  */
 export function routeBetween(survey: Survey, from: string, to: string, acrossFloors = true): Route | null {
+  const first = routeSearch(survey, from, to, acrossFloors, null)
+  if (first === null || to !== 'outside') return first
+  // ARE-21: every way out the search can reach, each by the way with the fewest rooms to it; the
+  // shortest walked is the answer and the others are listed, not the one met first.
+  const doors = new Set<string>()
+  for (const floor of planFloors(survey.plan)) for (const ways of wayGraph(survey, floor.id).next.values()) for (const w of ways) if (w.room === OUTSIDE) doors.add(w.via)
+  const routes: Route[] = []
+  for (const via of [...doors].sort()) {
+    const r = routeSearch(survey, from, to, acrossFloors, via)
+    if (r !== null && r.steps.at(-1)?.via === via) routes.push(r)
+  }
+  if (routes.length === 0) return first
+  // Measured ways first, shortest first; then the fewest rooms, then the doorway's id.
+  routes.sort((a, b) => {
+    if ((a.length === null) !== (b.length === null)) return a.length === null ? 1 : -1
+    if (a.length !== null && b.length !== null && Math.abs(a.length - b.length) > tolerance('noLength')) return a.length - b.length
+    return a.rooms.length - b.rooms.length || (a.steps.at(-1)!.via < b.steps.at(-1)!.via ? -1 : 1)
+  })
+  const [best, ...others] = routes
+  return {
+    ...best!,
+    exit: best!.steps.at(-1)!.via,
+    otherExits: others.map((r) => ({ via: r.steps.at(-1)!.via, type: r.steps.at(-1)!.type, rooms: r.rooms, length: r.length })),
+  }
+}
+
+/** One search; `onlyExit` limits the way out to that doorway (ARE-21). */
+function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null): Route | null {
   const fromFloor = survey.byId.get(from)!.facts.floor
   const out = to === 'outside'
   const floorsToo = out && acrossFloors
@@ -218,7 +250,7 @@ export function routeBetween(survey: Survey, from: string, to: string, acrossFlo
     for (const step of graphOf(at.floor).next.get(at.room) ?? []) {
       if (step.room === OUTSIDE) {
         // On a floor that stands above the ground, a door out is no way out (the check's rule).
-        if (out && !aboveGround(at.floor)) onward.push({ node: null, via: step.via, stair: false })
+        if (out && !aboveGround(at.floor) && (onlyExit === null || step.via === onlyExit)) onward.push({ node: null, via: step.via, stair: false })
         continue
       }
       if (at.floor !== fromFloor && !out) continue

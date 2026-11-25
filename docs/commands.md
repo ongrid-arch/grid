@@ -51,6 +51,11 @@ writes a plan into `grid.json`, into a file Grid keeps beside a plan (`<plan>.ma
 `.brief.json`, `.preview.json`, `.scan.json`) or into a JSON file that holds none of those, and `--replace` does not
 change that; every command that reads a plan refuses such a file in one line.
 
+A DXF, DWG, IFC, PDF, PNG or JPEG file handed over as a plan (CMD-20) is known by its first bytes, whatever its name
+or ending, and refused in one line that says what it is, that Grid does not read it yet, and what to do: write the
+rooms as rooms text and run `grid write`, or, for a picture, lay it under a plan as its trace (`referenceImage`, see
+[the plan file](plan-file.md)). Grid writes DXF and IFC (`grid export`) but does not read them back.
+
 ## Options and exit codes
 
 Every command also takes `--project <folder>` (see below). An unknown, repeated or
@@ -731,7 +736,9 @@ optional package: where its binary did not come along, `grid draw --png` says so
 and every command that draws no PNG works without it. The PNG is drawn at its own size, not
 enlarged from a smaller one, so `--scale 2` gives a picture twice as wide and as sharp. Its
 text is set in the first font of the picture's list that the machine has, so letters can differ
-slightly between machines; where each label goes never does.
+slightly between machines; where each label goes never does. A name in Arabic or Hebrew is drawn
+in the Noto fonts Grid ships in `fonts/`, joined and read right to left, on every machine; a name
+in Chinese, Japanese, Korean, Thai, Devanagari or an emoji needs a system font that has it.
 
 Over the lab's plans, half the pictures took under 25 ms as SVG and under 70 ms as PNG, and 19 in
 20 under 300 ms, on a heavily loaded machine. The time grows faster than the plan: a floor of a

@@ -103,7 +103,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-19: one more, grid_takeoff's description of the parking bays and the ramps.
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
   // ARE-18: two more, why a route's walked length is not given.
-  'packages/cli/src/mcp/readTools.ts': [322, 'tools'],
+  // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
+  'packages/cli/src/mcp/readTools.ts': [325, 'tools'],
+  // ARE-21: one more, the nearest way out and the others.
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
@@ -149,7 +151,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/versions/diff.ts': [11, 'notYet'],
   'packages/cli/src/versions/git.ts': [19, 'notYet'],
   'packages/cli/src/versions/markers.ts': [19, 'notYet'],
-  'packages/floorplan/src/geometry/areas.ts': [37, 'notYet'],
+  'packages/floorplan/src/geometry/areas.ts': [36, 'notYet'],
   'packages/floorplan/src/geometry/camera.ts': [1, 'agent'],
   'packages/floorplan/src/geometry/diff/building.ts': [28, 'notYet'],
   'packages/floorplan/src/geometry/diff/churn.ts': [2, 'notYet'],
@@ -173,7 +175,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-19: four more, what bayOverlap and rampSlopeDiffers decide.
   // CNT-20: two more, its own tolerance entries.
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
-  'packages/floorplan/src/geometry/tolerances.ts': [265, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [270, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],
