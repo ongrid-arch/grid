@@ -28,6 +28,7 @@ import type { Vec2 } from './vec2'
 import { add, cross, dot, length, lerp, scale, signedArea, sub, vec } from './vec2'
 import { openingChord, wallLength, wallPointAt, wallSegments } from './wall'
 import { curveFault } from './arc'
+import { INDEX_FROM, SpatialIndex, type IndexBox } from './spatialIndex'
 
 /** The indicators, by code, each with what it measures in Grid's words and the figure it is set against when the person gives none. */
 export const USE_INDICATORS = {
@@ -84,6 +85,17 @@ function distanceToSegment(p: Vec2, [a, b]: Segment): number {
   const span = dot(ab, ab)
   const t = span === 0 ? 0 : Math.max(0, Math.min(1, dot(sub(p, a), ab) / span))
   return length(sub(p, add(a, scale(ab, t))))
+}
+
+/** `distanceToSegment` squared, in plain numbers: for ranking many segments, never for a figure that is said. */
+function squaredToSegment(p: Vec2, [a, b]: Segment): number {
+  const abx = b.x - a.x
+  const aby = b.y - a.y
+  const span = abx * abx + aby * aby
+  const t = span === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / span))
+  const dx = p.x - (a.x + abx * t)
+  const dy = p.y - (a.y + aby * t)
+  return dx * dx + dy * dy
 }
 
 /** Where a ray from `origin` along unit `dir` first meets a segment, as a distance, or null. */
@@ -326,6 +338,50 @@ export function turningSpace(polygon: readonly Vec2[], holes: Holes, fixtures: r
   return { diameter: 2 * pole.distance, at: pole.point }
 }
 
+/** The other fixtures' boxes, edges and bucket grid, made once for each list of them a caller measures many fixtures against (CNT-23). */
+interface PreparedOthers {
+  readonly ids: readonly string[]
+  readonly boxes: readonly IndexBox[]
+  readonly edges: readonly (readonly Segment[])[]
+  readonly index: SpatialIndex | null
+}
+
+const preparedCache = new WeakMap<readonly Obstacle[], PreparedOthers>()
+
+function preparedOthers(others: readonly Obstacle[]): PreparedOthers {
+  const known = preparedCache.get(others)
+  if (known) return known
+  const boxes = others.map((o) => boxOfPoints(o.outline))
+  const made: PreparedOthers = {
+    ids: others.map((o) => o.id),
+    boxes,
+    edges: others.map((o) => edgesOf(o.outline)),
+    index: others.length >= INDEX_FROM ? new SpatialIndex(boxes) : null
+  }
+  preparedCache.set(others, made)
+  return made
+}
+
+/** Slack on a ray's reach when narrowing which shapes it could meet: one step of the grid, far more than a hit's own noise. */
+const RAY_SLACK = tolerance('useRaster')
+
+/** How far a ray that meets no edge is followed: past any plan. */
+const RAY_FAR = limit('largest')
+
+function boxOfPoints(points: readonly Vec2[]): IndexBox {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const p of points) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.x > maxX) maxX = p.x
+    if (p.y > maxY) maxY = p.y
+  }
+  return { minX, minY, maxX, maxY }
+}
+
 // ── The floor round a fixture ────────────────────────────────────────────────────────────────
 
 export interface FixtureSpace {
@@ -343,17 +399,37 @@ export interface FixtureSpace {
  */
 export function fixtureSpace(item: Item, polygon: readonly Vec2[], holes: Holes, others: readonly Obstacle[]): FixtureSpace {
   const [backLeft, backRight, frontRight, frontLeft] = itemFootprint(item)
-  const walls: Segment[] = [...edgesOf(polygon), ...holes.flatMap(edgesOf), ...others.filter((o) => o.id !== item.id).flatMap((o) => edgesOf(o.outline))]
+  // CNT-23: the room's own edges are tried first, and of the other fixtures only those whose box
+  // meets the ray as far as the nearest edge so far; the least is the same as trying them all.
+  const walls: Segment[] = [...edgesOf(polygon), ...holes.flatMap(edgesOf)]
+  const { boxes, edges, index, ids } = preparedOthers(others)
   const unit = (v: Vec2): Vec2 => scale(v, 1 / length(v))
   const clear = (a: Vec2, b: Vec2, out: Vec2): number | null => {
     const pieces = Math.max(1, Math.min(200, Math.ceil(length(sub(b, a)) / tolerance('useRaster'))))
     let least = Infinity
+    const hit = (wall: Segment, origin: Vec2): void => {
+      const t = rayHits(origin, out, wall)
+      if (t !== null && t < least) least = t
+    }
     for (let i = 0; i < pieces; i++) {
       const origin = lerp(a, b, (i + 0.5) / pieces)
-      for (const wall of walls) {
-        const t = rayHits(origin, out, wall)
-        if (t !== null && t < least) least = t
+      for (const wall of walls) hit(wall, origin)
+      // A ray the room's edges do not stop is followed as far as any plan goes.
+      const reach = least === Infinity ? RAY_FAR : least + RAY_SLACK
+      const endX = origin.x + out.x * reach
+      const endY = origin.y + out.y * reach
+      const lowX = Math.min(origin.x, endX) - RAY_SLACK
+      const highX = Math.max(origin.x, endX) + RAY_SLACK
+      const lowY = Math.min(origin.y, endY) - RAY_SLACK
+      const highY = Math.max(origin.y, endY) + RAY_SLACK
+      const tryOther = (k: number): void => {
+        const box = boxes[k]!
+        if (ids[k] === item.id) return
+        if ((box.maxX < lowX || box.minX > highX || box.maxY < lowY || box.minY > highY)) return
+        for (const wall of edges[k]!) hit(wall, origin)
       }
+      if (index !== null) index.range(lowX, lowY, highX, highY, tryOther)
+      else for (let k = 0; k < boxes.length; k++) tryOther(k)
     }
     return least === Infinity ? null : least
   }
@@ -439,19 +515,49 @@ export function passageWidth(polygon: readonly Vec2[], holes: Holes, fixtures: r
   const clearance = new Float64Array(cells).fill(-1)
   const centre = (i: number): Vec2 => vec(x0 + ((i % columns) + 0.5) * step, y0 + (Math.floor(i / columns) + 0.5) * step)
   const free: number[] = []
+  // CNT-23: a room with many fixtures has tens of thousands of edges. The nearest edge to a point,
+  // and the fixture a point stands in, come from a bucket grid; the figures are the same.
+  const edgeIndex = obstacles.length >= INDEX_FROM ? new SpatialIndex(obstacles.map(({ segment: [a, b] }) => boxOfPoints([a, b]))) : null
+  const fixtureIndex = fixtures.length >= INDEX_FROM ? new SpatialIndex(fixtures.map((f) => boxOfPoints(f.outline))) : null
   for (let i = 0; i < cells; i++) {
     const p = centre(i)
     if (!pointInPolygon(p, polygon, holes)) continue
-    if (fixtures.some((f) => pointInPolygon(p, f.outline))) continue
+    const stands = fixtureIndex === null ? fixtures.some((f) => pointInPolygon(p, f.outline)) : fixtureIndex.some(p.x, p.y, (k) => pointInPolygon(p, fixtures[k]!.outline))
+    if (stands) continue
     let least = Infinity
-    for (const o of obstacles) least = Math.min(least, distanceToSegment(p, o.segment))
+    if (edgeIndex === null) for (const o of obstacles) least = Math.min(least, distanceToSegment(p, o.segment))
+    else {
+      // Squared distances find the nearest edge; the distance the plain loop would give is then
+      // worked out for every edge as near as that, so the figure is the same to the last digit.
+      const near: number[] = []
+      let nearest = Infinity
+      edgeIndex.nearest(
+        p.x,
+        p.y,
+        (k) => {
+          const d = squaredToSegment(p, obstacles[k]!.segment)
+          if (d <= nearest * (1 + tolerance('relativeNoise'))) {
+            if (d < nearest) nearest = d
+            near.push(k)
+          }
+          return d
+        },
+        true
+      )
+      for (const k of near) least = Math.min(least, distanceToSegment(p, obstacles[k]!.segment))
+    }
     clearance[i] = least
     free.push(i)
   }
 
   // Where a body starts and ends: the free points beside each mouth.
   const reach = step * 1.5
-  const beside = (mouth: Segment | null): Set<number> => new Set(mouth === null ? free : free.filter((i) => distanceToSegment(centre(i), mouth) <= reach))
+  // (A point plainly farther than `reach` is dropped on its squared distance, without the root.)
+  const beside = (mouth: Segment | null): Set<number> =>
+    new Set(mouth === null ? free : free.filter((i) => {
+      const p = centre(i)
+      return squaredToSegment(p, mouth) <= reach * reach * (1 + tolerance('relativeNoise')) && distanceToSegment(p, mouth) <= reach
+    }))
   const starts = beside(from)
   const ends = beside(to)
   if (starts.size === 0 || ends.size === 0) return null
@@ -494,7 +600,8 @@ export function passageWidth(polygon: readonly Vec2[], holes: Holes, fixtures: r
     const at = centre(i)
     const half = clearance[i]!
     const near = obstacles.filter((o) => distanceToSegment(at, o.segment) <= half + step)
-    const fixtureIds = fixtures.filter((f) => near.some((o) => o.owner === f.id)).map((f) => f.id)
+    const owners = new Set(near.map((o) => o.owner))
+    const fixtureIds = fixtures.filter((f) => owners.has(f.id)).map((f) => f.id)
     const width = 2 * half
     const narrowMouth = Math.min(...mouths.map(([a, b]) => length(sub(b, a))), Infinity)
     const atDoorway = fixtureIds.length === 0 && mouths.some((m) => distanceToSegment(at, m) <= 2 * step) && width >= narrowMouth - 2 * step
