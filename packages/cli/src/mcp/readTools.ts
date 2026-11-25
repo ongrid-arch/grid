@@ -1962,7 +1962,8 @@ const viewTool: GridTool = {
       const stated = loaded.plan
       const crop = args['crop'] === undefined ? null : cropPart(stated, shown, args['crop'] as string)
       // What went wrong, numbered as grid_check numbers it, marked on the drawing (MSG-8).
-      const faults = inspectPlan(plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}) }).lines
+      // VEW-15: from the file's text and its base, as grid_check reads them, so the fields the reading adds are no notes.
+      const faults = inspectPlan(loaded.text ?? plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
       const display = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
       // SHT-7: what the picture shows, read as grid draw reads --hide, --colour and --key.
       let shownParts

@@ -60,7 +60,8 @@ export function diffSince(project: Project, planFile: string, since: string | un
   }
   const named = version.kind === 'marker' ? `${path.basename(planFile)} at marker ${version.name}` : `${path.basename(planFile)} as last committed`
   const earlier = loadPlanText(project, named, text, named)
-  const notes = { before: inspectPlan(earlier.plan).lines, after: inspectPlan(later.plan).lines }
+  // VEW-15: each version's file text, as `grid check` reads it, so the fields the reading adds are no notes.
+  const notes = { before: inspectPlan(earlier.text ?? earlier.plan).lines, after: inspectPlan(later.text ?? later.plan).lines }
   const comparison = compareBuildings(earlier.plan, later.plan, { ...(rooms === undefined ? {} : { rooms }), notes })
   return { comparison, earlier, later, since: version }
 }
