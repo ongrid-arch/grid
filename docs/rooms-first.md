@@ -225,6 +225,15 @@ grows, write that wall to start where the row starts (`wall 1 north reversed`): 
 like the rooms, keep their ids when the row grows by one. When the walls written leave a kept
 pattern without its wall, `grid write` says so in its answer.
 
+The walls Grid works out are named by what they are: `ext-south` for an outside wall facing south,
+`w-hall-kitchen` for one between two rooms, `w-hall-south` for one with a room on one side only,
+numbered by place (`ext-north-1`, `ext-north-2`) when one building has two of a name, and with the
+floor's id in front on a plan of several floors (`g-ext-south`). On a floor with buildings that
+share no wall, a shed and a pump house beside it, the building whose room comes first in the text
+keeps those names and every other one puts its first room's id in the names that name no room
+(`ext-pump-south`). So adding a building elsewhere renames no wall of the others, and a pattern on
+one keeps placing its openings.
+
 **The plan file is the source of truth.** Its walls stay in it, and they can still be changed
 there or with the tools; rooms text is a way of writing the plan and of reading it.
 `grid describe --as rooms` reads any plan back as rooms text, and writing that text again

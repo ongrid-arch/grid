@@ -79,6 +79,9 @@
  * refused with where a pattern goes instead (`patternLine`). It lives in the plan file's
  * `patterns`, naming its wall by id, and `grid write` keeps it, so the wall ids written here are
  * what keep it placed (WRT-4: the same on every writing, and when a row grows by one).
+ * WRT-37: they are named per building, rooms that share a wall: the building of the floor's first
+ * room keeps the plain names (`ext-south`) and each other puts its first room's id in the names
+ * that name no room (`ext-pump-south`), so a building added elsewhere renames none of them.
  *
  * Pure: text in, a plan and a report out. Nothing here reads or writes a file.
  */
@@ -2137,7 +2140,7 @@ class Compiler {
       w.start = a
       w.end = b
     }
-    this.nameWalls(walls, edges, prefix)
+    this.nameWalls(walls, edges, prefix, [...fl.rooms.keys()])
     for (const w of walls) {
       const fix = this.fix
       const json: WrittenWall = {
@@ -2187,9 +2190,39 @@ class Compiler {
     }
   }
 
-  private nameWalls(walls: DerivedWall[], edges: Edge[], prefix: string): void {
-    const names = new Map<string, DerivedWall[]>()
+  /**
+   * WRT-37: the floor's rooms in buildings, two rooms in one when a wall borders both. Each room
+   * is given its building's mark: none for the building of the floor's first room, else the id
+   * of the building's first room, in the text's order.
+   */
+  private buildingMarks(walls: DerivedWall[], order: string[]): Map<string, string> {
+    const up = new Map<string, string>()
+    const top = (id: string): string => {
+      let r = id
+      while (up.has(r) && up.get(r) !== r) r = up.get(r)!
+      return r
+    }
+    const place = new Map(order.map((id, k) => [id, k]))
+    const rank = (id: string): number => place.get(id) ?? order.length
     for (const w of walls) {
+      const ids = w.raws.flatMap((r) => r.rooms.map((room) => room.id))
+      for (const id of ids) if (!up.has(id)) up.set(id, id)
+      for (const id of ids.slice(1)) {
+        const [a, b] = [top(ids[0]!), top(id)]
+        if (a === b) continue
+        if (rank(a) <= rank(b)) up.set(b, a)
+        else up.set(a, b)
+      }
+    }
+    const first = order.length > 0 && up.has(order[0]!) ? top(order[0]!) : null
+    return new Map([...up.keys()].map((id) => [id, top(id) === first ? '' : `${top(id)}-`]))
+  }
+
+  private nameWalls(walls: DerivedWall[], edges: Edge[], prefix: string, order: string[]): void {
+    const names = new Map<string, DerivedWall[]>()
+    const marks = this.buildingMarks(walls, order)
+    for (const w of walls) {
+      const mark = marks.get(w.raws[0]!.rooms[0]!.id) ?? ''
       const left: string[] = []
       const right: string[] = []
       for (const r of w.raws) {
@@ -2201,7 +2234,7 @@ class Compiler {
       }
       w.sidesRooms = [left, right]
       let base: string
-      if (w.ext) base = `ext-${compassOf(edges[w.raws[0]!.sides[0]![0]]!.n)}`
+      if (w.ext) base = `ext-${mark}${compassOf(edges[w.raws[0]!.sides[0]![0]]!.n)}`
       else if (w.virtual) base = `open-${[...left, ...right].slice(0, 2).join('-')}`
       else if (left.length === 1 && right.length === 1) base = `w-${left[0]}-${right[0]}`
       else if (left.length === 1 || right.length === 1) {
@@ -2211,9 +2244,9 @@ class Compiler {
           if (room.id === one) n = edges[r.sides[k]![0]]!.n
         })
         base = `w-${one}-${compassOf(n)}`
-      } else if (Math.abs(w.d[0]) < tolerance('noLength')) base = `w-x${r4(w.a[0])}`
-      else if (Math.abs(w.d[1]) < tolerance('noLength')) base = `w-y${r4(w.a[1])}`
-      else base = 'w-angled'
+      } else if (Math.abs(w.d[0]) < tolerance('noLength')) base = `w-${mark}x${r4(w.a[0])}`
+      else if (Math.abs(w.d[1]) < tolerance('noLength')) base = `w-${mark}y${r4(w.a[1])}`
+      else base = `w-${mark}angled`
       const list = names.get(base)
       if (list) list.push(w)
       else names.set(base, [w])
