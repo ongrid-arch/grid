@@ -127,6 +127,20 @@ import {
 
 const q = (text: string): string => JSON.stringify(text)
 
+/** CMD-23: the roofs the plan states over the given floors, in words ('' when it states none). */
+function statedRoofWords(plan: FloorPlan, floorIds: readonly string[]): string {
+  return (plan.floors ?? [])
+    .filter((f) => f.roof !== undefined && floorIds.includes(f.id))
+    .map((f) => {
+      const r = f.roof!
+      const slope = r.pitch !== undefined ? `, pitched ${r.pitch}°` : r.ridge !== undefined ? `, its ridge ${r.ridge} m up` : ''
+      const run = r.ridgeRuns !== undefined ? `, ridge running ${r.ridgeRuns}` : ''
+      const high = r.highSide !== undefined ? `, rising to the ${r.highSide}` : ''
+      return `a ${r.shape} roof over ${q(f.name || f.id)}${slope}${run}${high}`
+    })
+    .join('; ')
+}
+
 /** CNT-12: what `fit` keeps clear of in a room with fixtures. */
 const FIT_CLEAR_RULE = 'What is fitted keeps clear of the room\'s fixtures: each takes the floor its footprint covers.'
 
@@ -1955,6 +1969,11 @@ function marksText(marks: DrawingMarksAsked): string {
  * LVL-8: grid_view's facade: one side of the drawing in elevation, with what it shows in words and
  * as data (the side, the walls and openings seen, each floor's level, the ground).
  */
+function facadeRoofLine(plan: FloorPlan): string {
+  const stated = statedRoofWords(plan, (plan.floors ?? []).map((f) => f.id))
+  return stated === '' ? 'The plan states no roof: the top of each part with nothing above is drawn flat.' : `The roof the plan states is drawn as it is: ${stated}.`
+}
+
 async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, language: Language = 'en', display?: Display): Promise<{ text: string; data: Record<string, unknown>; image: { data: Uint8Array; mimeType: 'image/png' } }> {
   if (args['side'] === undefined) throw new ToolRefusal(`kind=facade needs side: the side of the drawing to draw, one of ${FACADE_SIDES.join(', ')} (north is the top of the drawing).`)
   const side = args['side'] as FacadeSide
@@ -1973,6 +1992,7 @@ async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, lang
     : [
         `Facade of the ${side} side of the drawing (north is its top), ${look}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${facing}`,
         `It shows ${count(facade.walls.length, 'wall')} and ${count(facade.openings.length, 'opening')} (doors and windows), and ${count(facade.levels.length, 'floor')}: ${levels}. ${ground}`,
+        facadeRoofLine(plan),
         'The ground is the heaviest line, the outline against the sky the next; faces set back from the front are drawn lighter. Look at the picture before you describe it.',
       ]
   const data = {
@@ -2005,7 +2025,7 @@ const viewTool: GridTool = {
     'Use this when the person asks to see the plan: "can I see it", a floor plan, a 3D view from the garden side or from above, the front of the house as an elevation, a section through the stair, "the living room from the south-west, from higher up", "a bit lower and more from the left", a view saved by name, "stand me in the kitchen looking at the garden", "can I see out sitting down", or a black and white drawing. '
     + 'kind=plan draws one floor from above with its sizes; kind=facade draws one side of the drawing (side: north, east, south or west; north is the top of the drawing) in elevation, every floor at its level, its doors and windows, the ground line heaviest and faces set back lighter; kind=3d draws the model through a camera: from a side or corner of the drawing (from), or a compass bearing from the plan\'s stated north (bearing), with tilt, distance, eye_height, lens, a room to point at and a floor cut away; kind=eye stands in a room, on its middle line or at stand_at, with the eye eye_height above that room\'s own floor, and looks level toward an opening or a direction, and lists the window sills against that eye height; kind=section cuts every floor along a line (cut) and looks to one side of it (toward), with the levels, the room heights, and what Grid takes that the plan does not state dashed and listed. '
     + 'Every 3d and eye picture comes back with its camera record (camera: target, bearing, tilt, distance, eye height, lens in mm on a 36 × 24 mm sensor, cut, floors, where it stands, and position, direction, up and field of view as the BCF format writes them). To change the view, send camera back with turn, tilt_by or changed numbers; view calls up one saved with grid_save_view. '
-    + 'It returns the picture with the numbers that made it; look at the picture before you describe it. It changes nothing and writes no file. Do not use for a file to hand on (grid_export), to move the person\'s live preview (grid_preview) or to save a view (grid_save_view). The 3d model is drawn with its roof from outside, or when a floor states one: the roof the plan states, and a flat one over every other part with nothing above; a floor cut away is drawn open, and roof shows or hides it. It has no furniture, glass or door leaves. The drawing\'s figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
+    + 'It returns the picture with the numbers that made it; look at the picture before you describe it. It changes nothing and writes no file. Do not use for a file to hand on (grid_export), to move the person\'s live preview (grid_preview) or to save a view (grid_save_view). The 3d model and the facade draw the roof each floor of the plan states (flat, mono-pitch, gable or hip, with its pitch), so a pitched roof the plan holds is drawn pitched; only where the plan states no roof is a flat one taken over the part with nothing above. The 3d model shows its roof from outside, or when a floor states one; a floor cut away is drawn open, and roof shows or hides it. It has no furniture, glass or door leaves. The drawing\'s figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
@@ -2196,13 +2216,14 @@ const viewTool: GridTool = {
       // away, unless roof says otherwise; the GLB and the section have it whatever the camera.
       const asked = args['roof'] as 'show' | 'hide' | undefined
       const view = await cameraView(plan, camera, language, asked === undefined ? undefined : asked === 'show')
-      const stated = (plan.floors ?? []).filter((f) => f.roof !== undefined && camera.floors.includes(f.id))
-      const statedWords = stated.map((f) => `a ${f.roof!.shape} roof over ${q(f.name || f.id)}`).join(', ')
+      const stated = statedRoofWords(plan, camera.floors)
       const roof = !view.roof
-        ? `The model is drawn open, without its roof (roof=show draws it), and has no furniture, glass or door leaves.`
-        : stated.length > 0
-          ? `It is drawn with the roof the plan states, ${statedWords}, and a flat roof over every other part with nothing above; it has no furniture, glass or door leaves.`
-          : 'Every part with nothing above it has a flat roof; the model has no furniture, glass or door leaves.'
+        ? stated === ''
+          ? `The model is drawn open, without its roof (roof=show draws it), and has no furniture, glass or door leaves.`
+          : `The model is drawn open, without its roof (roof=show draws the roof the plan states, ${stated}), and has no furniture, glass or door leaves.`
+        : stated !== ''
+          ? `It is drawn with the roof the plan states, ${stated}, and a flat roof over every other part with nothing above; it has no furniture, glass or door leaves.`
+          : 'Grid takes a flat roof over every part with nothing above it, as the plan states none; the model has no furniture, glass or door leaves.'
       const what = viewName !== null ? `The view ${q(viewName)} saved with the plan` : 'The model'
       return {
         text: [
