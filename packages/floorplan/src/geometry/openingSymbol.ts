@@ -9,7 +9,8 @@
  *   only part of it opens;
  * - a pair: a leaf and a swing from each jamb, meeting where the leaves meet;
  * - folding: its panels folded back in a zig-zag on the face it opens to, from the end it hangs from;
- * - sliding: two leaves in the thickness of the wall, overlapping in the middle;
+ * - sliding: two panels in the thickness of the wall, overlapping in the middle, each a thin
+ *   rectangle with its glass down the middle, and an arrow for the way each slides;
  * - pocket: the leaf across the opening, and dashed (hidden in the wall) where it slides into it;
  * - roller: the curtain across the opening on the face it runs on, and its roll overhead dashed;
  * - garage: the door across the opening, and dashed where it lies overhead when open;
@@ -29,8 +30,8 @@ import { doorKindOf, foldingPanels, pairLeaves, partWidth, windowKindOf } from '
 import { limit } from './tolerances'
 import type { OpeningKind } from '../types/floorplan'
 
-/** What a line of a symbol is: a jamb across the wall, a leaf or panel, a fixed panel, a wall face or glass. */
-export type SymbolPart = 'jamb' | 'leaf' | 'panel' | 'face' | 'glass'
+/** What a line of a symbol is: a jamb across the wall, a leaf or panel, a fixed panel, a wall face, glass or an arrow showing the way a panel slides. */
+export type SymbolPart = 'jamb' | 'leaf' | 'panel' | 'face' | 'glass' | 'arrow'
 
 export interface SymbolLine {
   readonly shape: 'line'
@@ -108,6 +109,36 @@ const track = (opening: PlanOpening, share: number): number =>
 /** The side of the wall a door runs or opens on, as a sign along the normal; 0 when unstated. */
 const faceSign = (side: DoorValues['swing']): number => (side === 'left' ? 1 : side === 'right' ? -1 : 0)
 
+/** An arrow's head, as a share of the opening's width. */
+const ARROW_HEAD = 1 / 25
+
+/** A sliding panel's half-depth, as a share of the offset of the track it runs in. */
+const PANEL_DEPTH = 1 / 4
+
+/** A sliding panel between `t0` and `t1` in the track `by` metres off the axis: its four edges and its glass down the middle. */
+function slidingPanel(opening: PlanOpening, by: number, t0: number, t1: number): SymbolPiece[] {
+  const d = Math.abs(by) * PANEL_DEPTH
+  const [inner, outer] = [by - d, by + d]
+  return [
+    across(opening, 'leaf', inner, t0, t1),
+    across(opening, 'leaf', outer, t0, t1),
+    line('leaf', at(opening, t0, inner), at(opening, t0, outer)),
+    line('leaf', at(opening, t1, inner), at(opening, t1, outer)),
+    across(opening, 'glass', by, t0, t1)
+  ]
+}
+
+/** An arrow along the opening from `t0` to `t1` (its head at `t1`), `by` metres off the axis: a shaft and two strokes of a head. */
+function arrow(opening: PlanOpening, t0: number, t1: number, by: number): SymbolLine[] {
+  const width = distance(opening.from, opening.to)
+  const head = Math.min(width * ARROW_HEAD, (width * Math.abs(t1 - t0) * 2) / 5)
+  const dir = Math.sign(t1 - t0)
+  const back = t1 - (dir * head) / width
+  const spread = head / 2
+  const tip = at(opening, t1, by)
+  return [line('arrow', at(opening, t0, by), tip), line('arrow', tip, at(opening, back, by + spread)), line('arrow', tip, at(opening, back, by - spread))]
+}
+
 function doorSymbol(opening: PlanOpening, values: DoorValues): OpeningSymbol | null {
   const kind = doorKindOf(values.kind)
   const width = distance(opening.from, opening.to)
@@ -146,10 +177,11 @@ function doorSymbol(opening: PlanOpening, values: DoorValues): OpeningSymbol | n
   }
   if (kind === 'sliding') {
     const by = track(opening, SLIDE_TRACK)
-    return {
-      kind,
-      pieces: [...jambs(opening), across(opening, 'leaf', by, 0, 1 / 2 + SLIDE_OVERLAP), across(opening, 'leaf', -by, 1 / 2 - SLIDE_OVERLAP, 1)]
-    }
+    const pieces: SymbolPiece[] = [...jambs(opening)]
+    pieces.push(...slidingPanel(opening, by, 0, 1 / 2 + SLIDE_OVERLAP), ...slidingPanel(opening, -by, 1 / 2 - SLIDE_OVERLAP, 1))
+    // One arrow for each panel, toward the middle: the pair looks the same from either end.
+    pieces.push(...arrow(opening, 0.15, 0.4, 0), ...arrow(opening, 0.85, 0.6, 0))
+    return { kind, pieces }
   }
   if (kind === 'pocket') {
     // The leaf across the opening, and the pocket it slides into, hidden in the wall past the end it opens toward.
