@@ -1917,6 +1917,12 @@ export const en = {
   'describe.rooms.patterns.one': "The plan's opening pattern is not rooms text: grid write keeps it as the file has it, and its openings are not written here.",
   'describe.rooms.patterns.many': "The plan's {count} opening patterns are not rooms text: grid write keeps them as the file has them, and their openings are not written here.",
 
+  // --- Comparing two versions: the walls a room grew or shrank by (WRT-19, `diff/causes.ts`)
+  'diff.cause': 'because {walls}',
+  'diff.cause.thickness.one': 'wall {wall} went from {before} to {after} m thick',
+  'diff.cause.thickness.many': 'walls {walls} went from {before} to {after} m thick',
+  'diff.cause.moved': 'wall {wall} moved {by} m',
+
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Floor plan with {count} rooms',
   'drawing.picture.keyed': 'Floor plan with {count} rooms, and a key of what to look at',
