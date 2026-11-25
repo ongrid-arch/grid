@@ -71,37 +71,37 @@ The flight itself, with its treads, is optional: the plan file's `stairs` list h
 
 ### Which word is the use for an office, a toilet or a stair?
 
-The word after a room's name is its use, one of the words in the table below. A word in the right-hand column is read as the use on its row, in any capitals (`WC` is `toilet`), and `-` means no use. The room's name keeps the person's own word: `room wc1 "Guest loo" toilet`. A word Grid does not read is named in a note and the room is read with no use, so some checks skip it. No other word is read as `bedroom`, `living` or `dining`: the room size checks look at those, so only you choose them. `building office` on its own line says what kind of building the plan is; a floor line takes `building shop` for one floor.
+The word after a room's name is its use, one of the words in the table below. A word in the right-hand column is read as the use on its row, in any capitals (`WC` is `toilet`), and `-` means no use. The room's name keeps the person's own word: `room wc1 "Guest loo" toilet`. The right-hand column holds the words read in other languages, Spanish, German, French and Chinese (`cocina`, `Flur`, `chambre`, `卧室`): each is a use's own name or a word that means it and nothing else. In a plan file, a word Grid does not read is named in a note and the room is read with no use, so some checks skip it; rooms text refuses it on its line, with the uses it takes. No other word is read as `bedroom`, `living` or `dining`: the room size checks look at those, so only you choose them, in your own language or Grid's. `building office` on its own line says what kind of building the plan is; a floor line takes `building shop` for one floor.
 
-| Use | Also read as this use |
-|---|---|
-| `bedroom` | (only this word) |
-| `living` | (only this word) |
-| `dining` | (only this word) |
-| `kitchen` | `kitchenette` |
-| `bathroom` | `shower`, `showers`, `ensuite` |
-| `toilet` | `wc`, `loo`, `lavatory`, `restroom`, `washroom` |
-| `utility` | `laundry`, `scullery`, `bryggers` |
-| `study` | (only this word) |
-| `office` | `offices`, `workspace` |
-| `meeting` | `boardroom`, `conference` |
-| `reception` | (only this word) |
-| `retail` | `shop`, `sales`, `servery` |
-| `classroom` | `teaching` |
-| `treatment` | `consulting`, `consultation`, `examination` |
-| `waiting` | (only this word) |
-| `sport` | `gym`, `fitness` |
-| `changing` | `locker`, `lockers` |
-| `staff` | `staffroom` |
-| `worship` | `prayer`, `pooja`, `puja`, `chapel` |
-| `assembly` | (only this word) |
-| `corridor` | `hallway`, `passage`, `landing`, `lobby`, `circulation` |
-| `stair` | `stairs`, `staircase`, `stairwell` |
-| `lift` | `elevator` |
-| `storage` | `store`, `stockroom`, `warehouse`, `closet`, `cupboard`, `pantry`, `larder`, `wardrobe` |
-| `plant` | `plantroom`, `boiler` |
-| `parking` | `garage`, `carpark` |
-| `other` | (only this word) |
+| Use | Also read as this use | In other languages |
+|---|---|---|
+| `bedroom` | (only this word) | `dormitorio`, `recámara`, `Schlafzimmer`, `Schlafen`, `Kinderzimmer`, `Kind`, `chambre`, `卧室`, `主卧`, `次卧` |
+| `living` | (only this word) | `salón`, `sala de estar`, `Wohnzimmer`, `Wohnen`, `séjour`, `客厅`, `起居室` |
+| `dining` | (only this word) | `comedor`, `Esszimmer`, `Essen`, `salle à manger`, `餐厅` |
+| `kitchen` | `kitchenette` | `cocina`, `cocineta`, `Küche`, `Kochen`, `cuisine`, `厨房` |
+| `bathroom` | `shower`, `showers`, `ensuite` | `baño`, `cuarto de baño`, `baño completo`, `Bad`, `Badezimmer`, `Duschbad`, `salle de bains`, `salle de bain`, `salle d'eau`, `卫生间`, `浴室` |
+| `toilet` | `wc`, `loo`, `lavatory`, `restroom`, `washroom` | `aseo`, `medio baño`, `Gäste-WC`, `Toilette`, `toilettes`, `厕所`, `洗手间` |
+| `utility` | `laundry`, `scullery`, `bryggers` | `lavadero`, `lavandería`, `cuarto de lavado`, `Hauswirtschaftsraum`, `HWR`, `Waschküche`, `buanderie`, `洗衣房` |
+| `study` | (only this word) | `estudio`, `Arbeitszimmer`, `书房` |
+| `office` | `offices`, `workspace` | `oficina`, `Büro`, `bureau`, `办公室` |
+| `meeting` | `boardroom`, `conference` | `sala de reuniones`, `sala de juntas`, `会议室` |
+| `reception` | (only this word) | `recepción` |
+| `retail` | `shop`, `sales`, `servery` | `tienda`, `local comercial` |
+| `classroom` | `teaching` | `aula` |
+| `treatment` | `consulting`, `consultation`, `examination` | `consulta` |
+| `waiting` | (only this word) | `sala de espera` |
+| `sport` | `gym`, `fitness` | `sala de deporte`, `gimnasio` |
+| `changing` | `locker`, `lockers` | `vestuario` |
+| `staff` | `staffroom` | `sala de personal` |
+| `worship` | `prayer`, `pooja`, `puja`, `chapel` | `sala de culto` |
+| `assembly` | (only this word) | `salón de actos` |
+| `corridor` | `hallway`, `passage`, `landing`, `lobby`, `circulation` | `pasillo`, `vestíbulo`, `recibidor`, `distribuidor`, `Flur`, `Diele`, `couloir`, `dégagement`, `走廊`, `过道`, `玄关` |
+| `stair` | `stairs`, `staircase`, `stairwell` | `escalera`, `escaleras`, `Treppe`, `Treppenhaus`, `escalier`, `楼梯` |
+| `lift` | `elevator` | `ascensor`, `elevador`, `Aufzug`, `ascenseur`, `电梯` |
+| `storage` | `store`, `stockroom`, `warehouse`, `closet`, `cupboard`, `pantry`, `larder`, `wardrobe` | `almacén`, `trastero`, `despensa`, `alacena`, `bodega`, `vestidor`, `Abstellraum`, `Speisekammer`, `cellier`, `rangement`, `placard`, `储藏室`, `储物间`, `衣帽间` |
+| `plant` | `plantroom`, `boiler` | `instalaciones`, `cuarto de máquinas`, `Heizraum`, `Technikraum`, `chaufferie` |
+| `parking` | `garage`, `carpark` | `aparcamiento`, `garaje`, `cochera`, `车库` |
+| `other` | (only this word) | `otro` |
 
 ```rooms
 building office

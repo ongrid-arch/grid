@@ -34,6 +34,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   names the number with its unit (`18ft`) and the `numbers` word to add. The read-back writes its
   lengths in metres, so it writes `numbers m` on such a display line. Raw parts are the plan
   file's own JSON and stay in metres.
+- An id is written in plain letters, so every tool and edit takes it (MSG-22): a word outside
+  quotes has its accents taken off, so `room baño "Baño" baño 2 x 2` writes the id `bano`, and
+  `north of baño` names it. The answer names each id written so (`rooms/id-folded`). An id with a
+  letter that has no plain form (`客厅`) is refused on its line (`rooms/bad-id`): write it in plain
+  letters (`keting`). A name in quotes keeps the person's own words, accents and all.
 - In a text read in feet (`display ft-in`, or `numbers ft`), `12-6` is refused as `rooms/units`:
   it reads as 12 minus 6. Write `12'6"` or `12ft6in` for twelve feet six inches, or `(12-6)` in
   brackets for the difference. A sum such as `3.0+0.3` is read as before.
