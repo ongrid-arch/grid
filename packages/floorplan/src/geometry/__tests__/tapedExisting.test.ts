@@ -54,7 +54,7 @@ describe('taped lengths in the existing state (ARE-41)', () => {
 
   it('reads a plan with no phases as it is', () => {
     const raw = plan([{ room: 'old', wall: 's', length: 3.8 }])
-    const bare = { ...raw, walls: raw.walls.slice(0, 4).map(({ phase: _p, ...w }) => w), rooms: [{ ...raw.rooms[0]!, phase: undefined }] }
+    const bare = { ...raw, walls: raw.walls.slice(0, 4).map((w) => ({ ...w, phase: undefined })), rooms: [{ ...raw.rooms[0]!, phase: undefined }] }
     expect(tapedLengths(bare as typeof raw)[0]!.state).toBe('agrees')
   })
 })
