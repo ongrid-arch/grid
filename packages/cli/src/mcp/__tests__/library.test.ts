@@ -22,7 +22,7 @@ function bedroom(): unknown {
 
 let b: Bench
 beforeAll(() => {
-  b = bench({ 'plan.json': bedroom(), 'twice.json': bedroom(), 'office.json': bedroom() })
+  b = bench({ 'plan.json': bedroom(), 'twice.json': bedroom(), 'office.json': bedroom(), 'taken.json': bedroom() })
   mkdirSync(join(b.folder, 'library'))
   writeFileSync(
     join(b.folder, 'library', 'ours.json'),
@@ -115,5 +115,31 @@ describe('placing by name', () => {
     expect(reply.isError).toBe(true)
     expect(reply.text).toContain('Did you mean "wardrobe"?')
     expect(readFileSync(join(b.folder, 'twice.json'), 'utf8')).toBe(before)
+  })
+})
+
+// WRT-46: an id a part holds is refused naming the part and where it is, and a rewrite says what it kept.
+describe('a taken id', () => {
+  it('refuses placing under an id a bed holds, naming the bed, its place and its room, and writes nothing', async () => {
+    await ok('grid_place_item', { plan: 'taken.json', name: 'double-bed', x: 1.9, y: 1.5, id: 'bed-1' })
+    const before = readFileSync(join(b.folder, 'taken.json'), 'utf8')
+    const again = await b.call('grid_place_item', { plan: 'taken.json', name: 'double-bed', x: 1.9, y: 1.5, id: 'bed-1' })
+    expect(again.isError).toBe(true)
+    expect(again.text).toContain('Can\'t place "double-bed": the id "bed-1" is taken by bed "bed-1" at (1.90, 1.50) in room "Bedroom".')
+    expect(again.text).toContain('Pick another id, or leave id out')
+    // A new room is refused the bed's id too, naming it, where it once took it.
+    const room = await b.call('grid_add_room', { plan: 'taken.json', room: 'bed-1', name: 'Study', against: 'bed', side: 'west', width: 2, depth: 2 })
+    expect(room.isError).toBe(true)
+    expect(room.text).toContain('The id "bed-1" is already used in the plan, by bed "bed-1" at (1.90, 1.50) in room "Bedroom"; pick another for the new room.')
+    // A room's id is named with the room.
+    const placed = await b.call('grid_place_item', { plan: 'taken.json', name: 'wardrobe', x: 1, y: 3, id: 'bed' })
+    expect(placed.text).toContain('the id "bed" is taken by room "Bedroom" ("bed").')
+    expect(readFileSync(join(b.folder, 'taken.json'), 'utf8')).toBe(before)
+  })
+
+  it('answers a rewrite from rooms text with the items it kept and the room each is in', async () => {
+    const reply = await ok('grid_write_rooms', { plan: 'taken.json', rooms: 'walls outside 0.2 inside 0.1 height 2.6\nroom bed "Bedroom" bedroom 3.4 x 3.4 at 0.2,0.2', replace: true })
+    expect(reply.text).toContain('Kept the plan\'s item where it stood, as the file has it: bed "bed-1" in "Bedroom".')
+    expect((reply.data as { itemsKept: unknown[] }).itemsKept).toEqual([{ id: 'bed-1', kind: 'bed', at: [1.9, 1.5], floor: 'ground', room: 'Bedroom', worthALook: [] }])
   })
 })

@@ -13,8 +13,8 @@
  *
  * The tool server's `grid_write_rooms` does the same through `writeRoomsIntoProject`.
  */
-import { expandPatterns, floorsWithNoStair, planFloors, planHasPhases, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
-import { english, name, said } from '@ongrid/floorplan/messages'
+import { expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, planFloors, planHasPhases, roomShapes, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
+import { english, name, said, type Said } from '@ongrid/floorplan/messages'
 import { carryFacts, compileRoomsText, planRevision, problemLines, roomsAnswer, stampFor, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
 import type { Project } from '../fs/projectFiles'
@@ -76,7 +76,59 @@ export interface WriteDone {
   readonly reminder: string | null
   /** HND-11: each length taped on site the file keeps, against the plan written. */
   readonly taped: readonly TapedRow[]
+  /** WRT-46: the fixtures and furniture the file keeps, which rooms text does not write, where they stand now. */
+  readonly itemsKept: readonly KeptItem[]
   readonly lines: readonly string[]
+}
+
+/** WRT-46: an item a rewrite kept: where it stands, the room it is in now, and what the checks say of it there. */
+export interface KeptItem {
+  readonly id: string
+  readonly kind: string
+  readonly at: readonly [number, number]
+  readonly floor: string
+  /** The room it stands in now, by name (its id when it has none), or null for none. */
+  readonly room: string | null
+  /** The checks' sentences on it that the new walls may cause: a wall it runs into, standing in no room. */
+  readonly worthALook: readonly string[]
+}
+
+/** The item checks a rewrite's walls can bring about. */
+const KEPT_ITEM_CODES = new Set(['item/into-wall', 'item/outside-rooms'])
+/** Kept items named in the answer, and their "worth a look" lines, at most. */
+const ITEMS_LISTED_MAX = 10
+const ITEM_LOOKS_MAX = 5
+
+/** WRT-46: the items the plan as written keeps, with their rooms and the checks on them. */
+function keptItems(plan: FloorPlan): { readonly items: KeptItem[]; readonly problems: number } {
+  const items = plan.items ?? []
+  const index = indexPlan(plan)
+  const { issues, broken } = validatePlan(plan, index)
+  if (items.length === 0) return { items: [], problems: issues.length }
+  const rooms = roomShapes(index, broken)
+  const looks = new Map<string, string[]>()
+  for (const issue of issues) if (KEPT_ITEM_CODES.has(issue.code)) looks.set(issue.id, [...(looks.get(issue.id) ?? []), issue.message])
+  const kept = items.map((item): KeptItem => {
+    const room = itemRoom(item, rooms)
+    return { id: item.id, kind: item.kind, at: [item.at[0], item.at[1]], floor: floorOf(item), room: room === null ? null : room.name || room.id, worthALook: looks.get(item.id) ?? [] }
+  })
+  return { items: kept, problems: issues.length }
+}
+
+/** WRT-46: the lines on the items kept: how many and which, then each one the new walls put in the way. */
+function keptItemLines(items: readonly KeptItem[]): string[] {
+  if (items.length === 0) return []
+  const one = (item: KeptItem): Said =>
+    item.room === null ? said('write.items.item.noRoom', { kind: itemKindWord(item.kind), id: name(item.id) }) : said('write.items.item.room', { kind: itemKindWord(item.kind), id: name(item.id), room: name(item.room) })
+  const listed = items.slice(0, ITEMS_LISTED_MAX).map((item) => english(one(item)))
+  const more = items.length > ITEMS_LISTED_MAX ? said('write.items.more', { n: items.length - ITEMS_LISTED_MAX }) : ''
+  const head = items.length === 1 ? said('write.items.kept.one', { items: listed[0]! }) : said('write.items.kept.many', { n: items.length, items: listed.join('; '), more })
+  const looks = items.flatMap((item) => item.worthALook)
+  return [
+    english(head),
+    ...looks.slice(0, ITEM_LOOKS_MAX).map((message) => english(said('write.items.look', { message }))),
+    ...(looks.length > ITEM_LOOKS_MAX ? [english(said('write.items.looksMore', { n: looks.length - ITEM_LOOKS_MAX }))] : []),
+  ]
 }
 
 /**
@@ -250,7 +302,10 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // written is counted with them, and what the new walls keep from being placed is said here.
   const patterns = before?.patterns ?? []
   const kept: FloorPlan = patterns.length === 0 ? plan : { ...plan, patterns }
-  const drawingProblems = { before: before === null ? 0 : validatePlan(before).issues.length, after: validatePlan(kept).issues.length }
+  // WRT-46: the plan as written, with the items, columns and other parts the file keeps, is the one
+  // counted after, as the plan before was counted with them; its items are said with their rooms.
+  const items = keptItems(safeParseFloorPlan(next) ?? kept)
+  const drawingProblems = { before: before === null ? 0 : validatePlan(before).issues.length, after: items.problems }
   const lines = [
     `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
     ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX),
@@ -259,6 +314,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(carried === null || carried.kept === 0 ? [] : [`Facts of your own and room numbers kept by id on ${carried.kept} part${carried.kept === 1 ? '' : 's'}.`]),
     ...(carried === null || carried.lost.length === 0 ? [] : [`Not in the text, so their facts and numbers are gone with them: ${carried.lost.slice(0, 10).join(', ')}${carried.lost.length > 10 ? ` and ${carried.lost.length - 10} more` : ''}.`]),
     ...(before === null || patterns.length === 0 ? [] : [patternsKept(before, kept)]),
+    ...keptItemLines(items.items),
     ...(plan.flats !== undefined || (before?.flats ?? []).length === 0 ? [] : [`Kept the plan's ${before!.flats!.length === 1 ? 'flat' : `${before!.flats!.length} flats`} as the file has ${before!.flats!.length === 1 ? 'it' : 'them'}: this rooms text places no flat type. grid check names a room a flat lists that the text no longer has.`]),
     `Problems in the drawing: ${drawingProblems.before} → ${drawingProblems.after}. Run grid check for the notes.`,
     ...noStairLines(plan),
@@ -266,7 +322,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(reminder === null ? [] : [reminder]),
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),
   ]
-  return { written, result, plan, verdict, drawingProblems, brief: brief.data, reminder, taped, lines }
+  return { written, result, plan, verdict, drawingProblems, brief: brief.data, reminder, taped, itemsKept: items.items, lines }
 }
 
 /** MSG-24: the language and the words (C32) of the file's display, which rooms text does not hold. */

@@ -38,9 +38,10 @@ export function freshId(used: ReadonlySet<string>, base: string): string {
   for (let n = 2; ; n++) if (!used.has(`${base}-${n}`)) return `${base}-${n}`
 }
 
+/** Every id the plan's parts have: walls, rooms, openings, and (WRT-46) items and columns, so a new part never shares one. */
 export function usedIds(survey: Survey): Set<string> {
   const plan = survey.plan
-  return new Set([...plan.walls.map((w) => w.id), ...plan.rooms.map((r) => r.id), ...plan.openings.map((o) => o.id)])
+  return new Set([...plan.walls, ...plan.rooms, ...plan.openings, ...(plan.items ?? []), ...(plan.columns ?? [])].map((part) => part.id))
 }
 
 /** Where a room's outline runs along a wall: its span from the wall's start, and +1 or -1 for the way the outline goes. */
