@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { flat } from '@ongrid/floorplan/test-support/plans'
+import { flat, twoFloorHouse } from '@ongrid/floorplan/test-support/plans'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { CAPTION_PX, fileHeight, planPicture, pictureToSvg, planToSvg } from '../planSvg'
 
@@ -41,13 +41,32 @@ describe('notes on the 2D picture', () => {
     expect(parts(planToSvg(withNotes()), 'note-symbol')).toHaveLength(1)
   })
 
-  it('leaves the notes out of both when notes are off', () => {
+  it('leaves the notes out, and keeps the person\'s tags and symbols, when notes are off', () => {
     const picture = planPicture(withNotes(), { show: { notes: false } })
     expect(JSON.stringify(picture)).not.toContain(NOTE)
-    // VEW-22: every note, tag and symbol, and the notes' list in the band, as hide notes asks.
     const svg = pictureToSvg(picture)
-    expect(svg).not.toContain('Existing boiler')
-    for (const part of ['note-note', 'note-tag', 'note-symbol', 'note-mark', 'notes-title', 'notes-number', 'notes-text']) expect(parts(svg, part), part).toEqual([])
+    expect(parts(svg, 'note-note')).toEqual([])
+    expect(parts(svg, 'note-tag')).toHaveLength(1)
+    expect(parts(svg, 'note-symbol')).toHaveLength(1)
+    expect(svg).toContain('Existing boiler')
+    // The tag is the only one left, so it is number 1.
+    expect(parts(svg, 'note-tag')[0]).toContain('data-number="1"')
+  })
+
+  it('draws a key annotation on every floor', () => {
+    const plan: FloorPlan = { ...twoFloorHouse(), annotations: [{ id: 'k', kind: 'key' }] }
+    for (const floor of ['ground', 'first']) {
+      const picture = planPicture(plan, { floor })
+      expect(picture.key, floor).not.toBeNull()
+    }
+  })
+
+  it('names a sketch category in the key by its own name', () => {
+    const plan: FloorPlan = { ...flat(), sketch: [{ id: 's', kind: 'line', category: 'escape route', points: [[1, 1], [3, 3]] }] }
+    const svg = pictureToSvg(planPicture(plan, {}))
+    expect(svg).toContain('escape route')
+    expect(svg).not.toContain('drawn only')
+    expect(svg).not.toContain('Sketch:')
   })
 })
 

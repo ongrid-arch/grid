@@ -22,7 +22,7 @@ import { wordsHint, wordsTool, WORDS_TOOL_NAME } from './wordsTool'
 import { hasWording, listenForKeys, setPlanWords } from '@ongrid/floorplan/messages'
 import { diffTool, markStartTool } from './diffTools'
 import { shapedData } from './figures'
-import { labelled, readArgs, toolDefinition, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
+import { labelled, LABEL_SILENT_TOOLS, readArgs, toolDefinition, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
 import { WRITE_TOOLS } from './writeTools'
 import { guideResources } from '../guide/resources'
 import { EDIT_TOOLS } from './editTools'
@@ -72,7 +72,7 @@ async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promi
     // MSG-24: the keys Grid said in a language with no word for them are said once, at the end.
     const { result: made, keys } = await listenForKeys(() => tool.run(args, context))
     const hint = tool.name === WORDS_TOOL_NAME ? null : wordsHint(keys, hasWording)
-    const result = labelled(hint === null ? made : { ...made, text: `${made.text}\n${hint}` })
+    const result = labelled(hint === null ? made : { ...made, text: `${made.text}\n${hint}` }, !LABEL_SILENT_TOOLS.has(tool.name))
     // CMD-22: the figures in the data are written as the text writes them, once, here.
     return { text: result.text, data: shapedData(tool, args, result.data), ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
   } catch (error) {

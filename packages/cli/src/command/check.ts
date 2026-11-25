@@ -174,7 +174,10 @@ export function markNote(project: Project, planFile: string, loaded: LoadedPlan,
     const text = removed === null ? t('report.mark.none', { number: ask.number, note }) : t('report.mark.off', { number: ask.number, file, note })
     return { text, number: ask.number, code: line.code, file, mark: removed, unmarked: removed !== null }
   }
-  const { file, mark } = markSeen(project, planFile, loaded, line, { reason: ask.reason, by: ask.by, ...(ask.at ? { at: ask.at } : {}) }, whole.result.lines)
+  // MSG-29: the country the check was given, so a change counts the note again with it.
+  const place = whole.report.place
+  const country = place !== null && place.from === 'request' ? { country: place.country } : {}
+  const { file, mark } = markSeen(project, planFile, loaded, line, { reason: ask.reason, by: ask.by, ...(ask.at ? { at: ask.at } : {}), ...country }, whole.result.lines)
   const parts = mark.parts.slice(0, 4).map(partText).join(', ')
   const when = mark.parts.length === 1 ? parts : mark.parts.length > 4 ? t('report.mark.oneOfMore', { parts, more: mark.parts.length - 4 }) : t('report.mark.oneOf', { parts })
   const text = t('report.mark.seen', { number: ask.number, by: seenByText(mark), file, note, when })
