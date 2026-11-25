@@ -185,3 +185,38 @@ describe('a sloped roof drawn as a roof (VEW-12)', () => {
     for (const part of ['facade-roof-course', 'facade-roof-ridge', 'facade-roof-eaves', 'facade-gutter']) expect(tags(svg, part)).toEqual([])
   })
 })
+
+describe('a doorless opening (reveals)', () => {
+  const shop = (type: 'opening' | 'door'): FloorPlan => {
+    const w = (id: string, start: [number, number], end: [number, number], thickness = 0.3) => ({ id, start, end, thickness, height: 3, floor: 'ground' })
+    return parseFloorPlan({
+      version: '1',
+      floors: [{ id: 'ground', name: 'Ground floor', level: 0 }],
+      walls: [w('s1', [0, 0], [2, 0]), w('s2', [2, 0], [6, 0]), w('s3', [6, 0], [10, 0]), w('e', [10, 0], [10, 8]), w('n', [10, 8], [0, 8]), w('wst', [0, 8], [0, 0]), w('pw', [2, 0], [2, -2]), w('ps', [2, -2], [6, -2], 0.4), w('pe', [6, -2], [6, 0])],
+      rooms: [
+        { id: 'in', name: 'Shop', boundary: ['s1', 's2', 's3', 'e', 'n', 'wst'], floor: 'ground' },
+        { id: 'po', name: 'Porch', outdoor: 'porch', boundary: ['s2', 'pw', 'ps', 'pe'], floor: 'ground' },
+      ],
+      openings: [
+        { id: 'bay', wall: 'ps', type, offset: 1, width: 2, height: 2.4 },
+        { id: 'shop-door', wall: 's2', type: 'door', offset: 1.5, width: 1, height: 2.1 },
+      ],
+    })
+  }
+
+  it('is a void with an inner edge and four corner lines, and the door behind it is drawn', () => {
+    const svg = facadeToSvg(shop('opening'), { side: 'south', look: 'technical' })
+    const parts = tags(svg, 'facade-reveal')
+    expect(parts.filter((t) => t.startsWith('<rect'))).toHaveLength(1)
+    expect(parts.filter((t) => t.startsWith('<line'))).toHaveLength(4)
+    expect(tags(svg, 'facade-opening').map((t) => /data-id="([^"]+)"/.exec(t)![1])).toEqual(['shop-door', 'bay'])
+    expect(tags(svg, 'facade-face').length).toBeGreaterThan(0)
+    expect(svg).toContain('fill-rule="evenodd"')
+  })
+
+  it('leaves a door as a plain door, with no reveal and no hole', () => {
+    const svg = facadeToSvg(shop('door'), { side: 'south', look: 'technical' })
+    expect(tags(svg, 'facade-reveal')).toHaveLength(0)
+    expect(svg).not.toContain('fill-rule="evenodd"')
+  })
+})

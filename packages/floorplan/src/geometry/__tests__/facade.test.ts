@@ -89,8 +89,8 @@ describe('the facade of a side', () => {
     const facade = planFacade(steppedHouse(), 'south')
     const openings = facade.faces.flatMap((f) => f.openings).sort((a, b) => a.bottom - b.bottom)
     expect(openings).toEqual([
-      { id: 'front', type: 'door', wall: 'gs', u0: 4.5, u1: 5.5, bottom: 0, top: 2.1 },
-      { id: 'w-first', type: 'window', wall: 'fs', u0: 2, u1: 3.2, bottom: 3.85, top: 5.05 },
+      { id: 'front', type: 'door', wall: 'gs', u0: 4.5, u1: 5.5, bottom: 0, top: 2.1, reveal: 0.3 },
+      { id: 'w-first', type: 'window', wall: 'fs', u0: 2, u1: 3.2, bottom: 3.85, top: 5.05, reveal: 0.3 },
     ])
     expect(facade.openings).toEqual(['front', 'w-first'])
   })
@@ -517,5 +517,37 @@ describe('a window through two floors', () => {
     const across = facade.faces.filter((f) => f.kind === 'slab' && f.u0 >= wall.u0 && f.u1 <= wall.u1 && f.bottom >= wall.bottom && f.top <= wall.top)
     expect(across).toEqual([])
     expect(facade.faces.filter((f) => f.kind === 'wall' && f.wall === 's')).toHaveLength(1)
+  })
+})
+
+describe('a doorless opening and a recessed door', () => {
+  const shop = (frontOpening: 'opening' | 'door'): FloorPlan => {
+    const w = (id: string, start: [number, number], end: [number, number], thickness = 0.3) => ({ id, start, end, thickness, height: 3, floor: 'ground' })
+    return parseFloorPlan({
+      version: '1',
+      floors: [{ id: 'ground', name: 'Ground floor', level: 0 }],
+      walls: [w('s1', [0, 0], [2, 0]), w('s2', [2, 0], [6, 0]), w('s3', [6, 0], [10, 0]), w('e', [10, 0], [10, 8]), w('n', [10, 8], [0, 8]), w('wst', [0, 8], [0, 0]), w('pw', [2, 0], [2, -2]), w('ps', [2, -2], [6, -2], 0.4), w('pe', [6, -2], [6, 0])],
+      rooms: [
+        { id: 'in', name: 'Shop', boundary: ['s1', 's2', 's3', 'e', 'n', 'wst'], floor: 'ground' },
+        { id: 'po', name: 'Porch', outdoor: 'porch', boundary: ['s2', 'pw', 'ps', 'pe'], floor: 'ground' },
+      ],
+      openings: [
+        { id: 'bay', wall: 'ps', type: frontOpening, offset: 1, width: 2, height: 2.4 },
+        { id: 'shop-door', wall: 's2', type: 'door', offset: 1.5, width: 1, height: 2.1 },
+      ],
+    })
+  }
+  const opening = (plan: FloorPlan, id: string) => planFacade(plan, 'south').faces.flatMap((f) => f.openings).find((o) => o.id === id)
+
+  it('carries the thickness of its wall as its reveal', () => {
+    expect(opening(shop('opening'), 'bay')).toMatchObject({ type: 'opening', reveal: 0.4, u0: 3, u1: 5 })
+  })
+
+  it('shows a door on a deeper wall through it', () => {
+    expect(opening(shop('opening'), 'shop-door')).toMatchObject({ u0: 3.5, u1: 4.5 })
+  })
+
+  it('still hides that door behind a solid door in the nearer wall', () => {
+    expect(opening(shop('door'), 'shop-door')).toBeUndefined()
   })
 })
