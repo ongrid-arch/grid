@@ -1857,6 +1857,17 @@ export const en = {
     "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) is {thickness} m thick, the gap the rooms leave, which no line of the text states (inside walls {inside} m, outside walls {outside} m). If that is meant, say it with 'walls {thickness}' on a room line or a wall line; if not, move a room.",
   'rooms.checkError': "The check finds this in the plan as written, and would leave a part out ({code}): {message}",
   'rooms.checkNote': "The check notes this in the plan as written ({code}): {message}",
+  // WRT-27: raw lines are on the floor they are written under, and counted in the answer.
+  'rooms.raw.unknownFloor':
+    "line {line}: raw {kind} '{id}' names floor '{floor}', which this text does not write. Floors written: {floors}. Write the part under its floor's line with no \"floor\", or write a line for that floor.",
+  'rooms.raw.openingFloor':
+    "Line {line}: raw opening '{id}' is written under floor '{under}', but its wall '{wall}' is on floor '{floor}', and an opening is on its wall's floor. Write it under floor '{floor}', or name a wall of floor '{under}'.",
+  'rooms.raw.openingFact': '{id}: {type} {width} m in {wall}, written raw',
+  'rooms.answer.raw':
+    'Written raw and kept as written: walls {walls}, rooms {rooms}, openings {openings}. Grid measures the raw rooms as it measures every room, and counts them in the rooms and the area above.',
+  'rooms.answer.rawPart': 'written raw',
+  'rooms.answer.rawNotDrawn': 'written raw; Grid cannot draw it from its walls, so its floor is not in the area',
+  'rooms.answer.outsideWallOf': 'outside wall of {room}',
   'describe.close': 'This describes the plan and checks nothing: grid check runs the checks.',
   'describe.fixtures': 'Fixtures: {list}.',
   'describe.fixture.toilet.one': '{count} toilet',
@@ -1967,6 +1978,21 @@ export const en = {
   'diff.floor.metres': '{value} m',
   'diff.floor.notStated': 'not stated',
   'compare.same.floors': '{after} has the walls, openings and rooms of {before}, each in its place, but {changes}.',
+  // WRT-29: an opening that moved, among its changes and in the verdict.
+  'compare.opening.moved.along': 'moved {by} m along its wall',
+  'compare.opening.moved.with': 'moved {by} m with its wall',
+  'compare.opening.moved': 'moved {by} m',
+  'compare.opening.was.door': 'was a door',
+  'compare.opening.was.window': 'was a window',
+  'compare.opening.was.opening': 'was an opening',
+  'compare.openings.moved.one': '{type} {id} {how}',
+  'compare.openings.moved.many': '{count} {kind} moved {range} m{how}',
+  'compare.openings.how.along': ' along their walls',
+  'compare.openings.how.with': ' with their walls',
+  'compare.word.doors': 'doors',
+  'compare.word.windows': 'windows',
+  'compare.word.openings': 'openings',
+  'compare.range': '{from} to {to}',
 
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Floor plan with {count} rooms',

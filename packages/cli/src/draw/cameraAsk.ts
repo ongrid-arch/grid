@@ -15,6 +15,9 @@ import {
   CAMERA_SENSOR,
   cameraRecord,
   compassBearing,
+  fitAspect,
+  fitCamera,
+  shownFloors,
   drawingBearing,
   floorOf,
   focalLengthOf,
@@ -27,6 +30,7 @@ import {
   roomFloorOffset,
   wrapDegrees,
   floorElevations,
+  type CameraBox,
   type CameraRecord,
   type CameraSetting,
   type FloorPlan,
@@ -51,8 +55,6 @@ export const SIDE_BEARING: Readonly<Record<Exclude<Side, 'above'>, number>> = {
 export const MODEL_FOCAL_LENGTH = focalLengthOf(45)
 /** The eye view's lens, 90 degrees across a picture of 3 by 2: 18 mm on a 36 × 24 mm sensor. */
 export const EYE_FOCAL_LENGTH = CAMERA_SENSOR.width / 2
-/** How far Grid stands back from the building, for each metre of its span. */
-const STAND_BACK = 2.2
 const MODEL_TILT = 30
 const ABOVE_TILT = 80
 
@@ -73,7 +75,13 @@ export interface CameraAsk {
   readonly cut?: string
   readonly turn?: number
   readonly tiltBy?: number
+  /** VEW-26: what fills the frame: the building (the floors drawn) or the room pointed at. */
+  readonly fit?: CameraFit
 }
+
+/** VEW-26: what a camera Grid frames fills its frame with. */
+export const CAMERA_FITS = ['building', 'room'] as const
+export type CameraFit = (typeof CAMERA_FITS)[number]
 
 /** Three's (x, up, south) as the plan's (x, y, z up). */
 const fromThree = (p: readonly [number, number, number]): Point3 => [p[0], -p[2] + 0, p[1]]
@@ -87,8 +95,35 @@ function roomTarget(plan: FloorPlan, survey: Survey, room: string): Point3 {
   return [centre.x, centre.y, (level?.base ?? 0) + (level?.clearHeight ?? 0) / 2]
 }
 
+/**
+ * VEW-26: the box of what the 3D view draws: the plan's outline, from under its lowest slab up to
+ * its roof, or to the top of the floor cut away.
+ */
+function buildingBox(plan: FloorPlan, frame: ReturnType<typeof buildingFrame>, cut: string | null): CameraBox {
+  const levels = modelFloorLevels(plan)
+  const shown = shownFloors(plan, cut).map((id) => levels.get(id)).filter((l) => l !== undefined)
+  const top = cut === null || shown.length === 0 ? frame.box.max[1] : Math.max(...shown.map((l) => l.base + l.clearHeight))
+  return { min: [frame.box.min[0], -frame.box.max[2] + 0, frame.box.min[1]], max: [frame.box.max[0], -frame.box.min[2] + 0, top] }
+}
+
+/** VEW-26: a room's box: its outline over its storey. */
+function roomBox(plan: FloorPlan, survey: Survey, room: string): CameraBox {
+  const surveyed = survey.byId.get(room)
+  if (!surveyed || surveyed.polygon.length < 3) throw new CameraRefused('That room has no outline Grid can draw, so a camera cannot be pointed at it; grid_check says why.')
+  const level = modelFloorLevels(plan).get(floorOf(plan.rooms.find((r) => r.id === room)!))
+  const xs = surveyed.polygon.map((p) => p.x)
+  const ys = surveyed.polygon.map((p) => p.y)
+  const base = level?.base ?? 0
+  return { min: [Math.min(...xs), Math.min(...ys), base], max: [Math.max(...xs), Math.max(...ys), base + (level?.clearHeight ?? 0)] }
+}
+
 /** The camera a call asks for, as its record. Refused, with why, when it cannot be set. */
 export function cameraFor(plan: FloorPlan, survey: Survey, ask: CameraAsk): CameraRecord {
+  return framedCamera(plan, survey, ask).camera
+}
+
+/** VEW-26: the camera a call asks for, with what Grid fitted it to (null: the call's own distance) and whether it was levelled. */
+export function framedCamera(plan: FloorPlan, survey: Survey, ask: CameraAsk): { camera: CameraRecord; fit: CameraFit | null; level: boolean } {
   const orientation = planOrientation(plan)
   if (ask.bearing !== undefined && ask.from !== undefined) throw new CameraRefused('Pass bearing or from, not both: both say where the camera stands.')
   const several = planFloors(plan).length > 1
@@ -110,7 +145,8 @@ export function cameraFor(plan: FloorPlan, survey: Survey, ask: CameraAsk): Came
     bearing: ask.bearing ?? sideBearing ?? ask.start?.bearing ?? compassBearing(SIDE_BEARING['south-east'], orientation),
     north: ask.bearing !== undefined || sideBearing !== undefined || ask.start === undefined ? orientation.north : (ask.start.north ?? null),
     tilt: ask.tilt ?? (fromAbove ? ABOVE_TILT : ask.start?.tilt ?? MODEL_TILT),
-    distance: ask.distance ?? ask.start?.distance ?? frame.span * STAND_BACK,
+    // VEW-26: fitted to what it frames below when the call names no distance and sends no camera back.
+    distance: ask.distance ?? ask.start?.distance ?? frame.span,
     focalLength: ask.lens ?? ask.start?.focalLength ?? MODEL_FOCAL_LENGTH,
     cut,
     aspectRatio: ask.start?.aspectRatio ?? CAMERA_SENSOR.width / CAMERA_SENSOR.height,
@@ -123,10 +159,27 @@ export function cameraFor(plan: FloorPlan, survey: Survey, ask: CameraAsk): Came
   }
   if (ask.tiltBy !== undefined) setting = { ...setting, tilt: setting.tilt + ask.tiltBy }
 
+  // VEW-26: an eye-level view from outside looks level, so the building's upright lines stay upright.
+  const level = ask.eyeHeight !== undefined && ask.tilt === undefined && ask.tiltBy === undefined && ask.distance === undefined && !fromAbove && setting.target.room === null && ask.fit !== 'room'
+  if (ask.fit !== undefined && ask.distance !== undefined) throw new CameraRefused('Pass fit or distance, not both: each says how far the camera stands.')
+  if (ask.fit === 'room' && setting.target.room === null) throw new CameraRefused('fit=room frames the room the camera is pointed at: pass room too.')
+  const fit: CameraFit | null = ask.fit ?? (level || (ask.start === undefined && ask.distance === undefined) ? (ask.room !== undefined ? 'room' : 'building') : null)
+  if (fit !== null) {
+    const box = fit === 'room' ? roomBox(plan, survey, setting.target.room!) : buildingBox(plan, frame, cut)
+    if (level) {
+      const draft = cameraRecord(plan, setting)
+      const eye = draft.position[2] - draft.eyeHeight + ask.eyeHeight!
+      setting = { ...setting, tilt: 0, target: { ...setting.target, point: [setting.target.point[0], setting.target.point[1], eye] } }
+    }
+    const aspectRatio = fitAspect(plan, setting, box, { level })
+    const fitted = fitCamera(plan, { ...setting, aspectRatio }, box, { level })
+    setting = { ...setting, aspectRatio, target: { ...setting.target, point: fitted.target }, distance: fitted.distance }
+  }
+
   const most = limit('cameraTilt')
   if (Math.abs(setting.tilt) > most) throw new CameraRefused(`That tilts the camera ${Math.abs(setting.tilt).toFixed(1)} degrees ${setting.tilt > 0 ? 'down' : 'up'}; it may tilt at most ${most} degrees from level.`)
 
-  if (ask.eyeHeight !== undefined) {
+  if (ask.eyeHeight !== undefined && !level) {
     // The floor the eye is measured from is the record's own: the target room's, the cut, or the ground floor.
     const draft = cameraRecord(plan, setting)
     const base = draft.position[2] - draft.eyeHeight
@@ -148,7 +201,7 @@ export function cameraFor(plan: FloorPlan, survey: Survey, ask: CameraAsk): Came
 
   if (!(setting.distance >= limit('cameraClosest'))) throw new CameraRefused(`The camera would stand ${setting.distance.toFixed(2)} m from what it is pointed at; it stands at least ${limit('cameraClosest')} m away.`)
   if (setting.distance > limit('largest')) throw new CameraRefused(`The camera would stand further than ${limit('largest')} m from what it is pointed at.`)
-  return cameraRecord(plan, setting)
+  return { camera: cameraRecord(plan, setting), fit: ask.eyeHeight !== undefined && !level ? null : fit, level }
 }
 
 /** The first crossing of a ray from `from` along `dir` with the polygon's sides, or null. */

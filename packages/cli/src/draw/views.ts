@@ -188,7 +188,9 @@ export interface CameraView {
 export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language, roof?: boolean): Promise<CameraView> {
   const drawn = roof ?? stillRoofShown(plan, { focus: camera.cut, inside: camera.standingIn.room !== null })
   // VEW-17: the caption band under the still is part of its size.
-  const image = planStill(plan, { camera, width: STILL_W, height: STILL_H - captionHeight(STILL_W), look: 'light', supersample: 2, roof: drawn })
+  // VEW-26: a record framed in portrait (a tower) is drawn standing up, as many pixels.
+  const [width, height] = camera.aspectRatio < 1 ? [STILL_H, STILL_W] : [STILL_W, STILL_H]
+  const image = planStill(plan, { camera, width, height: height - captionHeight(width), look: 'light', supersample: 2, roof: drawn })
   return { png: await png(image, language), camera, roof: drawn }
 }
 
