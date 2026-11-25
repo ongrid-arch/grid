@@ -3,7 +3,7 @@
  * doors and windows that lie below it.
  */
 import { describe, expect, it } from 'vitest'
-import { edit, flat, twoFloorHouse, window_ } from '../../test-support/plans'
+import { edit, exterior, flat, room, twoFloorHouse, window_ } from '../../test-support/plans'
 import { labPlan } from '../../test-support/lab'
 import { groundLevel, openingsBelowGround, statedGround } from '../ground'
 import { checkPlanSanity } from '../rules/check'
@@ -73,5 +73,39 @@ describe('the plan check', () => {
   it('is one of the six plan checks, and its limit is said in every report', () => {
     expect(RULES.map((r) => r.id)).toContain('openings-above-ground')
     expect(LIMITS).toContain("Whether a door or window lies below the ground is checked only when the plan states the site's ground level, and against that one level, not a slope")
+  })
+})
+
+describe('ground dug away in front of an opening (ARE-37)', () => {
+  // The flat's kitchen window (sill 0.9) is partly below the ground at 1.2. A light well south of it.
+  const withWell = (floorOffset?: number): FloorPlan =>
+    edit(withGround(flat(), 1.2), (p) => {
+      p.walls.push(exterior('w_a', [4, 0], [4, -2]), exterior('w_b', [4, -2], [10, -2]), exterior('w_c', [10, -2], [10, 0]))
+      p.rooms.push({ ...room('well', 'Light well', ['s2', 'w_c', 'w_b', 'w_a']), outdoor: 'light-well', ...(floorOffset === undefined ? {} : { floorOffset }) })
+    })
+  const named = (plan: FloorPlan) => checkPlanSanity(plan).findings.filter((f) => f.code === 'opening_below_ground' && f.openings[0] === 'win_k')
+
+  it('names the window when nothing is drawn in front of it', () => {
+    expect(named(withGround(flat(), 1.2))).toHaveLength(1)
+  })
+
+  it('leaves it out when a light well whose floor is at or under its foot is in front of it', () => {
+    expect(named(withWell(-1.5))).toEqual([])
+    expect(named(withWell(0.9))).toEqual([])
+  })
+
+  it('names it, and the light well, when the well floor stands above its foot', () => {
+    const [finding] = named(withWell(1.1))
+    expect(finding!.message).toBe('The window in "Kitchen" lies partly below the ground: its sill is 0.30 m under the ground level the site states, and the floor of "Light well" in front of it stands above its foot')
+  })
+
+  it('leaves out a door at the foot of a ramp', () => {
+    const plan = edit(withGround(flat(), 1.2), (p) => {
+      p.floors = [{ id: 'ground', name: 'Ground', level: 0 }, { id: 'up', name: 'Up', level: 3 }]
+      p.ramps = [{ id: 'r', from: 'ground', to: 'up', width: 3, run: [[2, 1], [2, -10]] }]
+    })
+    const front = (q: FloorPlan) => checkPlanSanity(q).findings.filter((f) => f.code === 'opening_below_ground' && f.openings[0] === 'front')
+    expect(front(withGround(flat(), 1.2))).toHaveLength(1)
+    expect(front(plan)).toEqual([])
   })
 })
