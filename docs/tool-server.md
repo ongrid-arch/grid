@@ -287,8 +287,18 @@ the hole to the middle of its other face, and on to the middle of the room it en
 outside face of the door out with `to=outside`. Inside a room the line is the shortest that keeps
 to its floor, round inside corners and holes. In the lab's two-bed flat, Bedroom 1 to the Hall
 is 2.19 m in the bedroom, 0.10 m through the wall and 2.05 m in the Hall: 4.34 m. With `width`,
-the way the body or trolley gets through by carries its `length` too. A length is null when a
-room on the way has no outline Grid can measure.
+the way the body or trolley gets through by carries its `length` too.
+
+With `to=outside` the way out is the way-out check's (ARE-18): it goes up or down the stairs the
+check reads (a stair the plan states, or stair rooms one over the other; never a lift) and out
+only through a door on a floor that does not stand above the ground, so a balcony door upstairs
+is no way out. Each room on it carries its floor in `floors`, a stair is a step of `type`
+`stair`, and `onStairs` is how far the stairs are walked: a stated stair along its walking line
+on plan, from its foot to its head; a stair room from its middle to the middle of the one over
+it. The climb is never in the length. With `width` the way keeps to its floor. A length is null
+only when it cannot be walked, and `gap` says where and why: the room and `no outline` (it
+cannot be drawn), `doorway` (the doorway `via` is not found on its side) or `no line` (no line
+keeps to its floor). A door in a curved wall is walked from either side of the curve.
 
 `grid_describe length=walk` is the long form of the description: the plan walked room by room.
 Each floor starts at its way in: the front door the plan names, else the widest door from outside
@@ -298,7 +308,12 @@ doorway, goes as deep as it can and comes back, so a room off a room comes strai
 each room you stand in the doorway you came in by, at its middle, facing in square to the wall,
 and what is in the room is said by the wall it is on: ahead (from left to right, each so far to
 your left or right), on your left and on your right (each so far ahead), and in the wall you
-stand in. A fixture is on the wall nearest its middle. Each wall comes with how far it is,
+stand in. A fixture is on the wall nearest its middle; one that stands more than 0.3 m clear of
+every wall, an island or a table, is said where it stands (`inRoom`; `F` for an agent): how far
+ahead its near side is and whether it is across your way or to one side. Where a floor's walk
+starts with no doorway you stand in the room's middle facing square to its longest side, and the
+room is said by its whole depth. Every way the way-out check reads is a way on, an open side as
+much as a door, round a well in the floor too (ARE-18). Each wall comes with how far it is,
 straight out from where you stand. A plan whose y runs down the page is the building mirrored,
 and left and right are read the right way round. A floor laid out like an earlier one is said
 once; `floor` walks one floor. A room no way reaches is listed as not reached.

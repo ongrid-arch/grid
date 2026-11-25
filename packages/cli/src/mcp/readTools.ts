@@ -50,7 +50,7 @@ import {
   type RoomHeight,
   type Thing,
 } from '../quantities/measure'
-import { WALKED_RULE } from '../quantities/walked'
+import { WALKED_RULE, type WalkGap } from '../quantities/walked'
 import { factsText, flatSchedule, flatScheduleCsv, openingSchedule, openingScheduleCsv, openingTypeSchedule, openingTypeScheduleCsv, planSchedule, roomSchedule, roomScheduleCsv, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
 import { fixtureCountText, FIXTURE_RULES, planFixtures } from '../quantities/fixtures'
 import { FACING_RULE, facingAnswer, northWords } from '../quantities/facing'
@@ -1549,8 +1549,8 @@ const measureTool: GridTool = {
         `Widest circle in each room on the way: ${widths}.`,
         // VEW-9: the length, and each room's share of it.
         ...(route.length === null
-          ? ['The walked length is not given: a room on the way has no outline Grid can measure; grid_check says why.']
-          : [`Walked, ${L(route.length)}: ${route.legs.map((leg) => `${name(leg.room)} ${L(leg.length)}`).join(', ')}, and ${L(route.length - route.legs.reduce((sum, leg) => sum + leg.length, 0))} through the walls.`, WALKED_RULE]),
+          ? [walkGapLine(route.gap, name)]
+          : [`Walked, ${L(route.length)}: ${route.legs.map((leg) => `${name(leg.room)} ${L(leg.length)}`).join(', ')}, ${route.onStairs === null || route.onStairs === 0 ? 'and ' : ''}${L(route.length - route.legs.reduce((sum, leg) => sum + leg.length, 0) - (route.onStairs ?? 0))} through the walls${route.onStairs === null || route.onStairs === 0 ? '' : ` and ${L(route.onStairs)} along the stairs`}.`, WALKED_RULE]),
         EMPTY_ROOM_RULE,
       ]
       return { text: lines.join('\n'), data: { what, answer: { found: true, ...route, ...zones }, rule: EMPTY_ROOM_RULE } }
@@ -1569,6 +1569,16 @@ const measureTool: GridTool = {
     ]
     return { text: lines.join('\n'), data: { what, answer: { under, openings: doors, rooms: rooms.map((r) => ({ id: r.id, name: r.name, widestCircle: r.widestCircle })) }, rule: EMPTY_ROOM_RULE } }
   },
+}
+
+/**
+ * ARE-18: why a route's walked length is not given, with the room it stops at: no outline Grid
+ * can draw (which grid_check names), a doorway not found on its side, or no line across its floor.
+ */
+function walkGapLine(gap: WalkGap | null, name: (id: string) => string): string {
+  if (gap === null || gap.reason === 'no outline') return `The walked length is not given: ${gap === null ? 'a room on the way' : name(gap.room)} has no outline Grid can draw, so its floor is not measured either; grid_check names what stops it.`
+  if (gap.reason === 'doorway') return `The walked length is not given: the doorway ${q(gap.via ?? '')} is not found on the side of ${name(gap.room)}, so the way cannot be walked through it.`
+  return `The walked length is not given: no line from doorway to doorway keeps to the floor of ${name(gap.room)}.`
 }
 
 // ---------------------------------------------------------------------------------------------
