@@ -11,8 +11,13 @@
  */
 import type { SvgChild, SvgNode } from '@ongrid/viewer/src/picture/svgNode'
 import { el } from '@ongrid/viewer/src/picture/svgNode'
+import { visualOrder } from './visualOrder'
 
-export type Script = 'cjk' | 'hangul' | 'thai' | 'devanagari' | 'emoji'
+export type Script = 'cjk' | 'hangul' | 'thai' | 'devanagari' | 'arabic' | 'hebrew' | 'emoji'
+
+/** VEW-18: the family names Grid registers its bundled Arabic and Hebrew fonts under. */
+export const ARABIC_FONT = 'Grid Script Arabic'
+export const HEBREW_FONT = 'Grid Script Hebrew'
 
 /** For each script, the fonts that have it, by the names macOS, Windows and Linux give them. */
 export const SCRIPT_FONTS: Readonly<Record<Script, readonly string[]>> = {
@@ -20,6 +25,9 @@ export const SCRIPT_FONTS: Readonly<Record<Script, readonly string[]>> = {
   hangul: ['Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans CJK KR'],
   thai: ['Sukhumvit Set', 'Thonburi', 'Leelawadee UI', 'Noto Sans Thai'],
   devanagari: ['Kohinoor Devanagari', 'Nirmala UI', 'Noto Sans Devanagari'],
+  // Grid's own bundled fonts first (VEW-18): they shape and join the letters on any machine.
+  arabic: [ARABIC_FONT, 'Geeza Pro', 'Segoe UI', 'Noto Sans Arabic'],
+  hebrew: [HEBREW_FONT, 'Arial Hebrew', 'Segoe UI', 'Noto Sans Hebrew'],
   emoji: ['Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji']
 }
 
@@ -31,6 +39,9 @@ const SCRIPTS: readonly (readonly [Script, RegExp])[] = [
   ['hangul', /\p{sc=Hangul}/u],
   ['thai', /[฀-๿]/u],
   ['devanagari', /[ऀ-ॿ꣠-ꣿ]/u],
+  // Arabic and its supplements and presentation forms; Hebrew with its points and ligatures.
+  ['arabic', /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff]/u],
+  ['hebrew', /[\u0590-\u05ff\ufb1d-\ufb4f]/u],
   // An emoji by default, or a pictograph a text font lacks or that asks to be drawn as one.
   ['emoji', /\p{Emoji_Presentation}|\p{Extended_Pictographic}(?=️)|[\u{1f000}-\u{1faff}]/u]
 ]
@@ -84,7 +95,7 @@ export function withScriptFonts(nodes: readonly SvgNode[], installed: (family: s
       if (typeof child !== 'string') return [rewrite(child, inText)]
       if (!inText) return [child]
       const pieces: SvgChild[] = []
-      for (const { script, text } of scriptRuns(child)) {
+      for (const { script, text } of scriptRuns(visualOrder(child))) {
         const family = script === null ? null : fontFor(script)
         const last = pieces[pieces.length - 1]
         if (family !== null) pieces.push(el('tspan', { 'font-family': family }, [text]))

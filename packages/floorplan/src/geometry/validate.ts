@@ -57,6 +57,7 @@ import { flatIssues } from './flats'
 import { buildingIssues } from './buildings'
 import { typeIssues } from './partTypes'
 import { columnIssues } from './columns'
+import { columnClashIssues } from './columnClash'
 import { parkingIssues } from './parking'
 import { gridIssues } from './structuralGrid'
 
@@ -1400,6 +1401,8 @@ export function validatePlan(
   issues.push(...typeIssues(plan))
   // CNT-16 (C25): the columns' and the structural grids' own faults.
   issues.push(...columnIssues(plan))
+  // CNT-21: a column standing in another column or in an item.
+  issues.push(...columnClashIssues(plan, broken))
   issues.push(...gridIssues(plan))
   // CNT-19 (C29): the parking bays' own faults, and what is worth a look on them. The ramps' are
   // said with the stairs': a ramp is laid out from the floors' levels, which read this check

@@ -44,9 +44,9 @@ function appDrawing(plan: FloorPlan, look: LookName): { inner: string; viewBox: 
   return { inner: svg.innerHTML, viewBox: svg.getAttribute('viewBox') }
 }
 
-/** The file's root and its sheet of paper: all it adds to the app's drawing. */
-const HEAD = /^<svg [^>]*><rect data-part="paper" [^>]*><\/rect>/
-// Every picture file ends with the label (MSG-3), which the app shows in its own frame instead.
+// Every picture file puts the plan in its own frame above its key and the label's caption band
+// (MSG-3, VEW-17), which the app shows in its own frame instead: that frame holds the app's drawing.
+const FRAMED = /<svg x="0" y="0" ([^>]*)>([\s\S]*)<\/svg>(?:<g data-part="key"|<g data-part="guidance-label")/
 const LABEL = /<g data-part="guidance-label"[^>]*>(?:(?!<\/g>)[\s\S])*<\/g><\/svg>\n$/
 
 const CASES = BUILDINGS.flatMap((name) => LOOK_NAMES.map((look) => [name, look] as const))
@@ -62,20 +62,11 @@ describe('the app and grid draw draw the same SVG', () => {
 
     // Make sure there is something to compare.
     expect(app.inner.length).toBeGreaterThan(1000)
-    // A drawing with a key (the phases of a refurbishment, SHT-10's tints) sits in its own frame
-    // above the key, which the app does not draw: that frame holds the app's drawing.
-    if (file.includes('data-part="key"')) {
-      const framed = /<svg x="0" y="0" ([^>]*)>([\s\S]*)<\/svg><g data-part="key"/.exec(file)
-      expect(framed, 'the plan in its own frame above the key').not.toBeNull()
-      expect(framed![1]).toContain(`viewBox="${app.viewBox}"`)
-      expect(framed![2]).toBe(app.inner)
-      return
-    }
-    const head = HEAD.exec(file)?.[0]
-    expect(head, 'the file starts with its root and its paper').toBeDefined()
-    expect(head).toContain(`viewBox="${app.viewBox}"`)
+    const framed = FRAMED.exec(file)
+    expect(framed, 'the plan in its own frame above the key and the caption').not.toBeNull()
+    expect(framed![1]).toContain(`viewBox="${app.viewBox}"`)
+    expect(framed![2]).toBe(app.inner)
     expect(file, 'the file ends with the label').toMatch(LABEL)
-    expect(file.replace(LABEL, '</svg>\n')).toBe(`${head}${app.inner}</svg>\n`)
   })
 
   it('through the function grid draw calls, with what went wrong, where the floor drawn has nothing to mark', async () => {
@@ -87,10 +78,8 @@ describe('the app and grid draw draw the same SVG', () => {
       const loaded = { file: name, plan, issues: [], broken: new Set<string>() }
       const file = String((await drawFile(loaded, { png: false }, 1)).file)
       const app = appDrawing(plan, 'technical')
-      // With a key under it, the plan sits in its own frame above the key.
-      const drawing = file.includes('data-part="key"')
-        ? /<svg x="0" y="0" [^>]*>([\s\S]*)<\/svg><g data-part="key"/.exec(file)?.[1]
-        : file.replace(HEAD, '').replace(LABEL, '</svg>\n').replace(/<\/svg>\n$/, '')
+      // The plan sits in its own frame above the key and the caption.
+      const drawing = FRAMED.exec(file)?.[2]
       expect(drawing, name).toBeDefined()
       if (/data-part="(fault-mark|undrawn)/.test(drawing!)) continue
       expect(drawing, name).toBe(app.inner)

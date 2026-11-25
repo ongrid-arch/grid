@@ -3,7 +3,7 @@ import { GlobalFonts } from '@napi-rs/canvas'
 import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
 import { planToSvg } from '@ongrid/viewer/src/picture'
 import { drawPlan } from '../drawPlan'
-import { SCRIPT_FONTS, scriptRuns, withScriptFonts } from '../scriptFonts'
+import { ARABIC_FONT, HEBREW_FONT, SCRIPT_FONTS, scriptRuns, withScriptFonts } from '../scriptFonts'
 import { twoBedFlat } from './twoBedFlat'
 
 /**
@@ -31,6 +31,14 @@ describe('script runs', () => {
     expect(scriptRuns('부엌')).toEqual([{ script: 'hangul', text: '부엌' }])
     expect(scriptRuns('ห้องครัว')).toEqual([{ script: 'thai', text: 'ห้องครัว' }])
     expect(scriptRuns('रसोई')).toEqual([{ script: 'devanagari', text: 'रसोई' }])
+    expect(scriptRuns('مطبخ')).toEqual([{ script: 'arabic', text: 'مطبخ' }])
+    expect(scriptRuns('מטבח')).toEqual([{ script: 'hebrew', text: 'מטבח' }])
+    // Arabic with its marks and presentation forms stays one run.
+    expect(scriptRuns('كَتَبَ ﻣﻄﺒﺦ')).toEqual([
+      { script: 'arabic', text: 'كَتَبَ' },
+      { script: null, text: ' ' },
+      { script: 'arabic', text: 'ﻣﻄﺒﺦ' }
+    ])
     expect(scriptRuns('👨‍👩‍👧 🏠️ 👍🏽 🇯🇵')).toEqual([
       { script: 'emoji', text: '👨‍👩‍👧' },
       { script: null, text: ' ' },
@@ -43,7 +51,7 @@ describe('script runs', () => {
   })
   it('leaves the scripts the picture font has as they are', () => {
     expect(scriptRuns('Salle à manger · 12.5 m²')).toEqual([{ script: null, text: 'Salle à manger · 12.5 m²' }])
-    expect(scriptRuns('Кухня Κουζίνα مطبخ')).toEqual([{ script: null, text: 'Кухня Κουζίνα مطبخ' }])
+    expect(scriptRuns('Кухня Κουζίνα')).toEqual([{ script: null, text: 'Кухня Κουζίνα' }])
     expect(scriptRuns('')).toEqual([])
   })
 })
@@ -82,5 +90,33 @@ describe('drawPlan with names in other scripts (VEW-7)', () => {
     expect((await png('')).equals(box)).toBe(true)
     // A Japanese name in a real font draws something else.
     expect((await png('家')).equals(box)).toBe(false)
+  })
+})
+
+describe('drawPlan with Arabic and Hebrew names (VEW-18)', () => {
+  it('puts each in a tspan of Grid\'s own bundled font, first in its list', () => {
+    expect(SCRIPT_FONTS.arabic[0]).toBe(ARABIC_FONT)
+    expect(SCRIPT_FONTS.hebrew[0]).toBe(HEBREW_FONT)
+    const installed = (family: string) => family === ARABIC_FONT || family === HEBREW_FONT
+    const out = toSvg(withScriptFonts([el('text', {}, ['A مطبخ מטבח'])], installed))
+    // Each run is drawn in the order it is seen (VEW-18): the Hebrew reversed, the Arabic in its forms.
+    expect(out).toMatch(new RegExp(`<tspan font-family="${ARABIC_FONT}">[\\ufe70-\\ufefc]+</tspan>`))
+    expect(out).toContain(`<tspan font-family="${HEBREW_FONT}">חבטמ</tspan>`)
+  })
+
+  const png = async (name: string) => Buffer.from(await drawPlan(named(name), { format: 'png' }))
+  it('draws the same on a machine with no Arabic or Hebrew system font: from the bundled files', async () => {
+    const box = await png('')
+    const arabic = await png('مطبخ')
+    const hebrew = await png('מטבח')
+    expect(arabic.equals(box)).toBe(false)
+    expect(hebrew.equals(box)).toBe(false)
+    expect(arabic.equals(hebrew)).toBe(false)
+    expect(GlobalFonts.has(ARABIC_FONT)).toBe(true)
+    expect(GlobalFonts.has(HEBREW_FONT)).toBe(true)
+  })
+  it('keeps the SVG file as it was', async () => {
+    const plan = named('مطبخ מטבח')
+    expect(await drawPlan(plan, { format: 'svg' })).toBe(planToSvg(plan))
   })
 })

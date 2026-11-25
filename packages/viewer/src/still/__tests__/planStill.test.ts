@@ -3,7 +3,8 @@ import { resolve } from 'path'
 import { describe, expect, it } from 'vitest'
 import type * as THREE from 'three'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
-import { buildScene } from '@ongrid/floorplan/geometry'
+import { buildScene, sceneShell } from '@ongrid/floorplan/geometry'
+import { toGlb } from '@ongrid/floorplan/geometry/export/gltf'
 import { DARK_COLORS_3D, LIGHT_COLORS_3D, planStill, stillScene, type RasterImage } from '..'
 
 const flat = JSON.parse(readFileSync(resolve(__dirname, '../../../../cli/fixtures/two-bed-flat.json'), 'utf8')) as FloorPlan
@@ -83,6 +84,46 @@ describe('planStill', () => {
     expect(Buffer.from(whole.data).equals(Buffer.from(ground.data))).toBe(false)
     // Without the storey above, less of the picture is building.
     expect(drawn(ground, LIGHT_COLORS_3D.background)).toBeLessThan(drawn(whole, LIGHT_COLORS_3D.background))
+  })
+
+  // VEW-19: a one-storey plan with its roof stated is drawn with it, as its GLB is.
+  describe('the roof', () => {
+    const gabled = { ...flat, floors: [{ id: 'ground', name: 'Ground floor', level: 0, roof: { shape: 'gable', eaves: 2.6, pitch: 30 } }] } as FloorPlan
+    const roofMeshes = (plan: FloorPlan, roof?: boolean): number => {
+      const still = stillScene(plan, { colors: LIGHT_COLORS_3D, width: 300, height: 200, ...(roof === undefined ? {} : { roof }) })
+      try {
+        let count = 0
+        still.scene.traverseVisible((object) => {
+          if ((object as THREE.Mesh).isMesh && object.parent?.name.startsWith('shell:') === true) count++
+        })
+        return count - sceneShell(plan)!.slab.length
+      } finally {
+        still.close()
+      }
+    }
+
+    it('draws a stated gable over one storey from the opening camera, and leaves it off when asked', () => {
+      expect(sceneShell(gabled)!.roof!.pieces.length).toBeGreaterThan(1)
+      expect(roofMeshes(gabled, true)).toBe(sceneShell(gabled)!.roof!.pieces.length)
+      expect(roofMeshes(gabled, false)).toBe(0)
+      const closed = planStill(gabled, { width: 300, height: 200 })
+      const open = planStill(gabled, { width: 300, height: 200, roof: false })
+      expect(Buffer.from(closed.data).equals(Buffer.from(open.data))).toBe(false)
+    })
+
+    it('draws the roof the GLB of the same plan has', () => {
+      const glb = Buffer.from(toGlb(buildScene(gabled)))
+      expect(glb.toString('latin1')).toContain('roof')
+      expect(roofMeshes(gabled, true)).toBeGreaterThan(0)
+    })
+
+    it('leaves a cutaway open unless the roof is asked for', () => {
+      const cut = planStill(gabled, { width: 300, height: 200, focus: 'ground' })
+      const asked = planStill(gabled, { width: 300, height: 200, focus: 'ground', roof: true })
+      const open = planStill(gabled, { width: 300, height: 200, roof: false })
+      expect(Buffer.from(cut.data).equals(Buffer.from(open.data))).toBe(true)
+      expect(Buffer.from(asked.data).equals(Buffer.from(open.data))).toBe(false)
+    })
   })
 
   it('refuses a size it cannot draw', () => {
