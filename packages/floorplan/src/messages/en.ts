@@ -2370,7 +2370,7 @@ export const en = {
   'line.floor/not-checked-doors-not-drawn.fix.kinds.one': 'Correct the lines that leave {those} out. It is checked once it can be drawn, and so is what rests on it: a note held back comes back if it still holds.',
   'line.floor/not-checked-doors-not-drawn.fix.kinds.many': 'Correct the lines that leave {those} out. They are checked once they can be drawn, and so is what rests on them: a note held back comes back if it still holds.',
   // ── CNT-14: kinds of door and window, the part that opens and a door's handing ──────────────
-  'issue.opening/wide-single-leaf': 'This door states no kind, so it is drawn and checked as one swinging leaf; a leaf this wide is rare.',
+  'issue.opening/wide-single-leaf': 'This door states no kind, so it is checked as one swinging leaf and drawn as Grid\'s guess, a pair or a sliding door; a leaf this wide is rare.',
   'issue.opening/kind-not-for-type': 'Opening {opening} is {word} of kind {kind}, which {word} cannot be, so it is drawn as one with no kind. The kinds {word} takes: {takes}',
   'issue.part.kindOf.door': 'a door',
   'issue.part.kindOf.window': 'a window',
@@ -2381,7 +2381,7 @@ export const en = {
   'issue.opening/part-too-large.fixed': 'a fixed window has no part that opens',
   'issue.opening/part-too-large.wider': 'the part that opens is {width} m wide, wider than the {whole} m opening',
   'issue.opening/part-too-large.higher': 'the part that opens is {height} m high, higher than the {whole} m opening',
-  'line.opening/wide-single-leaf.says': '{label} states no kind, so it is drawn and checked as one swinging leaf this wide',
+  'line.opening/wide-single-leaf.says': '{label} states no kind, so it is checked as one swinging leaf this wide and drawn as Grid\'s guess, a pair or a sliding door',
   'line.opening/wide-single-leaf.found': 'a door at least {wide} m wide (Grid\'s own question) with no kind, taken as one swinging leaf',
   'line.opening/wide-single-leaf.needed': 'its kind: single, double, sliding, pocket, folding, roller or garage',
   'line.opening/wide-single-leaf.fix': 'State its kind ("kind": "double", "sliding", "folding", "roller" or "garage"), or "single" if it is one leaf.',
