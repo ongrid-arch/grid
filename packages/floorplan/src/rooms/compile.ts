@@ -2011,8 +2011,9 @@ class Compiler {
     // WRT-17: a gap between two stretches on one line is the end of a wall seen end on only where
     // the bodies of walls crossing the line cover it. Open floor between them (two lifts in the
     // corners of one lobby) keeps them two walls, so neither closes the floor off.
-    // WRT-39: a crossing wall reaches the line as far as half the line's own thickness, so a
-    // thick outside wall along a row of rooms is seen across the ends of the walls between them.
+    // WRT-39: a crossing wall at a real angle reaches the line as far as half the line's own
+    // thickness, so a thick outside wall along a row of rooms is seen across the ends of the
+    // walls between them.
     const covered = (d: P, off: number, t: number, from: number, to: number): boolean => {
       const spans: Array<[number, number]> = []
       for (const o of raws) {
@@ -2022,7 +2023,8 @@ class Compiler {
         if (x === null) continue
         const so = dot(sub(x, o.a), o.d!)
         const len = dot(sub(o.b, o.a), o.d!)
-        const reach = Math.max(maxT, t / 2 / Math.abs(cross(o.d!, d)))
+        const sin = Math.abs(cross(o.d!, d))
+        const reach = sin >= tolerance('nearlyParallel') ? Math.max(maxT, t / 2 / sin) : maxT
         if (so < Math.min(0, len) - reach - eps() || so > Math.max(0, len) + reach + eps()) continue
         const at = dot(x, d)
         const half = o.t / 2 / Math.abs(cross(o.d!, d))
@@ -2110,25 +2112,30 @@ class Compiler {
         // WRT-17: a wall whose body the end already stands in is the wall it meets, before a
         // nearer centre line past the end: an outside wall ends in the room's corner wall, not
         // across the corner of the room beside it.
-        // WRT-39: within `gap`, so a corner written to the millimetre still holds its end.
-        const holds = (h: { tau: number; half: number }): boolean => Math.abs(h.tau) <= h.half + tolerance('gap')
+        // WRT-39: a wall too thick for the widest gap's reach holds it within `gap`, so a corner
+        // written to the millimetre (a polygon room) still holds its end. Thinner walls are met as
+        // before, so a plan of them is written again as it was.
+        const wide = (h: { half: number }): boolean => h.half > maxT
+        const holds = (h: { tau: number; half: number }): boolean => Math.abs(h.tau) <= h.half + (wide(h) ? tolerance('gap') : eps())
         // WRT-39: and a solid wall the end stands in before a dividing line it stands on: where
         // two rooms open to each other and the outside turns a corner, the outside walls meet
         // each other, not the open line, which neither may run past into the room beyond.
-        // Then the nearer, and of two about as near (within `gap`) a wall of one of its own rooms:
-        // where a room stands over the next one's wall, its own walls still meet at its corner.
+        // Then the nearer, and of two such thick walls about as near (within `gap`) a wall of one
+        // of its own rooms: where a room stands over the next one's wall, its own walls still meet
+        // at its corner.
         type Hit = (typeof met)[number]
         const solid = (h: Hit): boolean => holds(h) && !h.o.virtual
         const own = (h: Hit): boolean => solid(h) && [...roomsOf(h.o)].some((room) => mine.has(room))
         const rank = (h: Hit): number => (holds(h) ? 2 : 0) + (solid(h) ? 1 : 0)
         const nearer = (h: Hit, b: Hit, by: number): boolean => Math.abs(h.tau) < Math.abs(b.tau) - by
         for (const hit of met) {
-          const tie = best !== null && rank(hit) === rank(best) && !nearer(hit, best, tolerance('gap')) && !nearer(best, hit, tolerance('gap'))
+          const by = best !== null && wide(hit) && wide(best) ? tolerance('gap') : tolerance('noLength')
+          const tie = best !== null && rank(hit) === rank(best) && !nearer(hit, best, by) && !nearer(best, hit, by)
           const better =
             best === null ||
             rank(hit) > rank(best) ||
-            (rank(hit) === rank(best) && nearer(hit, best, tolerance('gap'))) ||
-            (tie && own(hit) && !own(best)) ||
+            (rank(hit) === rank(best) && nearer(hit, best, by)) ||
+            (tie && by > tolerance('noLength') && own(hit) && !own(best)) ||
             (tie && own(hit) === own(best) && nearer(hit, best, tolerance('noLength')))
           if (better) best = hit
         }

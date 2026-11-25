@@ -26,16 +26,21 @@
     (`nearlyParallel`) and never further than a joined corner may reach (`mitreReach` half
     thicknesses): a wall nearly in line would otherwise be met kilometres away. No new
     tolerance.
-  - A wall "holds" the end (WRT-17) when the end stands in its body within `gap`, not a
-    millionth of a metre: a corner written to the millimetre (a polygon room) still holds it.
+  - A wall too thick for the old reach (half its thickness over `roomsWallWidest`) "holds" the
+    end (WRT-17) when the end stands in its body within `gap`, not a millionth of a metre: a
+    corner written to the millimetre (a polygon room) still holds it.
   - When the end stands in a solid wall's body and on a dividing line both, it ends in the
     solid wall: a dividing line bounds two rooms and is not what an outside wall turns into.
-  - Of two walls about as near (within `gap`), a wall of one of the end's own rooms: where a
-    room stands over another room's wall, its own walls still close its own corner. Otherwise the
-    nearer one is kept, as before, so thin-walled plans read back as they were.
+  - Of two such thick walls about as near (within `gap`), a wall of one of the end's own rooms:
+    where a room stands over another room's wall, its own walls still close its own corner.
+    Otherwise the nearer one is kept, as before. Both rules are kept to thick walls so a plan of
+    thinner walls is written again exactly as it was: tried without that limit, the docs' flat
+    sample moved its stair's south wall end by 0.1 m.
   - `covered`, which decides whether two stretches on one line are one wall seen across the end
-    of a crossing wall, reaches a crossing wall as far as half the line's own thickness too, so
-    a thick outside wall along a row of rooms stays one wall.
+    of a crossing wall, reaches a crossing wall at a real angle as far as half the line's own
+    thickness too, so a thick outside wall along a row of rooms stays one wall.
+  - The one change thin walls see: at the open inside corner they meet each other too (the
+    ring of corridors loses two `room/space-mismatch` and four `wall/gap`).
 - `packages/floorplan/src/geometry/wallFaults.ts` (outside the card's area, kept small): at the
   open inside corner the two outside walls now meet at their centre lines, and the dividing line
   stops at the rooms' corner (ARE-28), so the room's straight side has a stretch between the
