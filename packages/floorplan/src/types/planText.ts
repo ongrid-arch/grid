@@ -40,6 +40,31 @@ export function plainId(id: string): string {
     .normalize('NFC')
 }
 
+/**
+ * CMD-24: the one id rule as a schema pattern: what every tool argument's schema shows, and what
+ * `readPlainId` checks after taking the accents off.
+ */
+export const ID_PATTERN = `^[A-Za-z0-9._-]{1,${ID_MAX}}$`
+
+/**
+ * CMD-24: an id as typed (a tool argument, an option, rooms text) read by the one rule: in plain
+ * letters (`plainId`), then held to `PLAIN_ID` and `ID_MAX`. Null when it is not an id every tool
+ * takes, such as `客厅`.
+ */
+export function readPlainId(text: string): string | null {
+  const plain = plainId(text)
+  return plain.length > 0 && plain.length <= ID_MAX && PLAIN_ID.test(plain) ? plain : null
+}
+
+/**
+ * CMD-24: whether a text is an id a plan file may hold, as the plan holds it: one line, no
+ * character a plan may not hold, at most `ID_MAX`. For a record that sends back the plan's own
+ * ids (a camera, the preview's selection), which may be ids written before ids were plain.
+ */
+export function planIdText(text: unknown): text is string {
+  return typeof text === 'string' && text.length > 0 && textProblem(text, 'id') === null
+}
+
 /** The most characters the trace image's path may have. */
 export const IMAGE_PATH_MAX = 1024
 /** The most walls, rooms, openings, floors, items or stairs a plan may have, each. */

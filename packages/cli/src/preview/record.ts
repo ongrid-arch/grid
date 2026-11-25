@@ -27,6 +27,7 @@
  */
 import path from 'path'
 import { floorOf, hasWallsThrough, planFloors, planForFloor, wallFloorIds, type CameraRecord, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { planIdText } from '@ongrid/floorplan/types/floorplan'
 import { PathRefused, type Project } from '../fs/projectFiles'
 import { TextNotDecoded } from '../fs/textEncoding'
 
@@ -99,14 +100,14 @@ export interface PreviewRead {
   readonly problem: string | null
 }
 
-const ID = /^[A-Za-z0-9._-]{1,64}$/
 const KINDS: readonly PickedKind[] = ['room', 'wall', 'door', 'window', 'opening', 'fixture']
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-const idOrNull = (value: unknown): string | null => (typeof value === 'string' && ID.test(value) ? value : null)
+/** CMD-24: an id of the plan, as the plan holds it: the page sends back the ids it was given. */
+const idOrNull = (value: unknown): string | null => (planIdText(value) ? value : null)
 
 /** The record's fields, each one kept only when it has the shape it should; the rest are their empty values. */
 export function recordOf(raw: unknown): PreviewRecord {
@@ -124,7 +125,7 @@ export function recordOf(raw: unknown): PreviewRecord {
     // Read field by field again where it is used (`settingOfCamera`); only its shape is kept here.
     camera: isObject(raw['camera']) && isObject(raw['camera']['target']) ? (raw['camera'] as unknown as CameraRecord) : null,
     selected,
-    highlight: Array.isArray(raw['highlight']) ? raw['highlight'].filter((id): id is string => typeof id === 'string' && ID.test(id)).slice(0, HIGHLIGHT_MAX) : [],
+    highlight: Array.isArray(raw['highlight']) ? raw['highlight'].filter((id): id is string => planIdText(id)).slice(0, HIGHLIGHT_MAX) : [],
     frame: idOrNull(raw['frame']),
     note: typeof note === 'string' ? note.slice(0, PREVIEW_NOTE_MAX) : null,
     changedBy: raw['changedBy'] === 'agent' || raw['changedBy'] === 'person' ? raw['changedBy'] : null,

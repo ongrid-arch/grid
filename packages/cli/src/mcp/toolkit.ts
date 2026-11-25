@@ -9,7 +9,7 @@
  */
 import { GENERAL_GUIDANCE_LABEL, planFloors, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
-import { plainId, ROOM_USES, readUse } from '@ongrid/floorplan/types/floorplan'
+import { ID_PATTERN as PLAIN_ID_PATTERN, plainId, readPlainId, ROOM_USES, readUse } from '@ongrid/floorplan/types/floorplan'
 import { likelyId, nearestIds } from '@ongrid/floorplan/types/nearest'
 import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { missingDefaultPlan, projectPlanFile } from '../command/init'
@@ -33,8 +33,11 @@ export const LENGTH_TEXT_MAX = 40
 
 /** The longest id an argument may hold: a floor, room, opening or wall id, as long as a plan file may hold. */
 export const ID_MAX = PLAN_ID_MAX
-/** What an id may hold: letters, digits, dash, underscore and dot (T-3). */
-export const ID_PATTERN = '^[A-Za-z0-9._-]{1,64}$'
+/**
+ * What an id may hold: letters, digits, dash, underscore and dot (T-3). CMD-24: the one rule rooms
+ * text writes ids by (`readPlainId` in `types/planText.ts`), so an id one takes, all take.
+ */
+export const ID_PATTERN = PLAIN_ID_PATTERN
 const ID = new RegExp(ID_PATTERN)
 
 /** Why a call was refused, in Grid's words. It comes back as a tool error, never a throw. */
@@ -248,7 +251,8 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
       const text = spec.id ? plainId(value) : value
       if (spec.id) {
         if (text.length > ID_MAX) throw new ToolRefusal(`${name} is longer than ${ID_MAX} characters, the most an id may have.`)
-        if (!ID.test(text)) throw new ToolRefusal(`${name} must be an id of the plan: letters, digits, dash, underscore and dot only.`)
+        // CMD-24: the plan's own ids may hold letters with no plain form, written before ids were plain.
+        if (readPlainId(text) === null) throw new ToolRefusal(`${name} must be an id of the plan: letters, digits, dash, underscore and dot only; a plan whose ids hold other letters gets plain ones from grid_describe as=rooms, written back with grid_write_rooms.`)
       }
       const max = spec.use === true ? USE_WORD_MAX : spec.maxLength
       if (max !== undefined && text.length > max) throw new ToolRefusal(`${name} is longer than ${max} characters.`)

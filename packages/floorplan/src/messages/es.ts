@@ -1962,9 +1962,10 @@ export const es: Messages = {
   'rooms.idFolded.many': 'Los identificadores se escriben en letras simples, para que toda herramienta y edición los acepte: {list}. Use estos identificadores en las llamadas siguientes.',
   'rooms.idFolded.id': "'{written}' es '{id}'",
   'rooms.badId.raw':
-    "El identificador '{id}' tiene una letra sin forma simple. Un identificador lleva letras simples, cifras, '-', '_' y '.', para que toda herramienta y edición lo acepte: escríbalo en letras simples.",
+    "El identificador '{id}' tiene una letra sin forma simple. Un identificador lleva letras simples, cifras, '-', '_' y '.', para que toda herramienta y edición lo acepte: escríbalo en letras simples, como '{plain}'.",
   'rooms.badId':
-    "línea {line}: el identificador '{id}' tiene una letra sin forma simple. Un identificador lleva letras simples, cifras, '-', '_' y '.', para que toda herramienta y edición lo acepte: escríbalo en letras simples ('salon', 'kuche', 'keting'). El nombre del local, entre comillas, conserva las palabras de la persona.",
+    "línea {line}: el identificador '{id}' tiene una letra sin forma simple. Un identificador lleva letras simples, cifras, '-', '_' y '.', para que toda herramienta y edición lo acepte: escríbalo en letras simples, como '{plain}'.{name}",
+  'rooms.badId.name': ' El nombre, entre comillas, conserva las palabras de la persona: {example}.',
   'rooms.answer.raw':
     'Escrito en crudo y guardado tal como se escribe: muros {walls}, estancias {rooms}, aberturas {openings}. Grid mide las estancias en crudo como mide toda estancia, y las cuenta en las estancias y la superficie de arriba.',
   'rooms.answer.rawPart': 'en crudo',
@@ -2047,6 +2048,7 @@ export const es: Messages = {
   'describe.room.outdoor': ' (espacio exterior: {kind}, en ningún total)',
 
   // ── Tras fusionar main en 8b599e9: los patrones de huecos en el texto de estancias (LVL-8) ──
+  'describe.rooms.plainIds': 'Identificadores escritos en letras simples, para que toda herramienta y edición los acepte; escribir de nuevo este texto da al plano estos identificadores: {list}.',
   'describe.rooms.patterns.one': 'El patrón de huecos del plano no es texto de estancias: grid write lo conserva como lo tiene el archivo, y sus huecos no se escriben aquí.',
   'describe.rooms.patterns.many': 'Los {count} patrones de huecos del plano no son texto de estancias: grid write los conserva como los tiene el archivo, y sus huecos no se escriben aquí.',
 
