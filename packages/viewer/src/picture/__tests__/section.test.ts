@@ -119,8 +119,9 @@ describe('levels a plan states', () => {
     const svg = pictureToSvg(sectionPicture(plan, { from: { x: 2, y: -2 }, to: { x: 2, y: 10 }, toward: 'left' }, { look: 'technical' }))
     expect(textsOf(svg, 'section-level')).toEqual([`${levelText(0.15)} Ground floor`, `${levelText(3.2)} First floor`])
     expect(textsOf(svg, 'section-level')).toEqual(['+0.150 Ground floor', '+3.200 First floor'])
-    // The slabs are stated: only the roof is marked.
-    expect(tagsOf(svg, 'section-assumed').map((tag) => attr(tag, 'data-kind'))).toEqual(['roof'])
+    // The slabs are stated: the roof is marked, and the ground floor's walls (2.75 m) raised to
+    // the first floor's slab (2.90 m) are marked as assumed (VEW-33).
+    expect(tagsOf(svg, 'section-assumed').map((tag) => attr(tag, 'data-kind'))).toEqual(['roof', 'wall-top'])
   })
 })
 

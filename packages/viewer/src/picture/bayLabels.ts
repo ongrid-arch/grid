@@ -7,6 +7,7 @@
  * Pure: no DOM, no React.
  */
 import type { PlanBay, Vec2 } from '@ongrid/floorplan/geometry'
+import { tolerance } from '@ongrid/floorplan/geometry'
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import { TEXT_PX } from './look'
 
@@ -68,7 +69,7 @@ function rows<T extends PlanBay>(bays: readonly T[]): T[][] {
         }
       }
       sorted.slice(1).forEach((bay, i) => {
-        if (gaps[i]! > pitch * GAP_FACTOR + 1e-9) {
+        if (gaps[i]! > pitch * GAP_FACTOR + tolerance('joint')) {
           flush()
           run = [bay]
         } else run.push(bay)

@@ -245,7 +245,8 @@ describe('a mezzanine written again lower down (WRT-25)', () => {
     expect(written.out).toContain('but floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m.')
     const run = await grid(dir, 'diff')
     expect(run.status, run.err).toBe(0)
-    expect(run.out).toContain('Verdict: 1 change, room by room: Floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m; 2 rooms as they were.')
+    // VEW-33: the ground floor's walls now rise past the lowered mezzanine, and the check says so.
+    expect(run.out).toContain('Verdict: 2 issues to look at first. 1 change, room by room: Floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m; 2 rooms as they were.')
     expect(run.out).not.toContain('wall or opening change')
     const data = JSON.parse((await grid(dir, 'diff', '--json')).out) as { sameBuilding: boolean; floors: unknown[] }
     expect(data.sameBuilding).toBe(false)
