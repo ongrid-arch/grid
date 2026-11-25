@@ -221,11 +221,12 @@ describe('a fit-out on a base plan (CNT-10, CP4-4)', () => {
   })
 
   it('makes an edit inside the shell, and never writes the base\'s parts into the fit-out', async () => {
-    await ok('grid_move_room_side', { plan: 'fitout.json', room: 'front', side: 'east', by: 0.5 })
+    // WRT-18: 0.4 m, as 0.5 m would end the partition inside the shell's window.
+    await ok('grid_move_room_side', { plan: 'fitout.json', room: 'front', side: 'east', by: 0.4 })
     const file = onDisk('fitout.json')
     const walls = (file['walls'] as { id: string; start: number[] }[])
     expect(walls.map((w) => w.id)).toEqual(['p1'])
-    expect(walls[0]!.start).toEqual([4.5, 0])
+    expect(walls[0]!.start).toEqual([4.4, 0])
     expect((file['openings'] as { id: string }[]).map((o) => o.id)).toEqual(['d1'])
     expect(file['base']).toBe('shell.json')
   })
