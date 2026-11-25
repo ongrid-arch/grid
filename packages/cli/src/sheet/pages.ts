@@ -15,6 +15,7 @@ import { FRAME_MARGIN, fitTo } from '@ongrid/viewer/src/canvas2d/viewport'
 import { pictureView, undecidedDoorsOf, type PictureOptions } from '@ongrid/viewer/src/picture'
 import { TEXT_PX } from '@ongrid/viewer/src/picture/look'
 import { checkOnFloor, checkPlan, floorIssues, placeText } from '../command/check'
+import type { AccessNote } from './accessNotes'
 import { inLanguage } from '../command/words'
 import type { LoadedPlan } from '../command/plan'
 import { describeText } from '../describe/card'
@@ -134,6 +135,8 @@ export interface SheetPage {
 export interface Sheet { readonly layout: SheetLayout; readonly name: string; readonly pages: readonly SheetPage[]; readonly language?: Language }
 export interface SheetOptions {
   readonly name: string
+  /** SHT-12: the measurements under the person's own access figures, printed on a client sheet's first page. */
+  readonly accessNotes?: readonly AccessNote[]
   readonly date: Date
   /** MSG-11: the language of the sheet's own words, with its decimal mark. English when left out. */
   readonly language?: Language
@@ -325,7 +328,20 @@ function areaFigure(value: number | null, label: string, units: SheetUnits, w: W
   return { value: value === null ? w.say('sheet.notKnown') : `${units.area(value)} ${units.areaUnit}`, label }
 }
 
-function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string, w: Words): Body[] {
+/** The most access notes the first page prints; the rest are one line pointing to the full answer. */
+const ACCESS_NOTES_MAX = 6
+
+function accessLines(notes: readonly AccessNote[], units: SheetUnits, w: Words): string[] {
+  const room = (n: string | null): string => n ?? w.say('sheet.access.outside')
+  const line = (n: AccessNote): string => {
+    const values = { figure: units.length(n.figure), value: units.length(n.measured) }
+    if (n.kind === 'door') return w.say('sheet.access.door', { ...values, a: room(n.rooms[0] ?? null), b: room(n.rooms[1] ?? null) })
+    return w.say(n.kind === 'corridor' ? 'sheet.access.corridor' : 'sheet.access.turning', { ...values, room: room(n.rooms[0] ?? null) })
+  }
+  return [...notes.slice(0, ACCESS_NOTES_MAX).map(line), ...(notes.length > ACCESS_NOTES_MAX ? [w.say('sheet.access.more')] : [])]
+}
+
+function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string, w: Words, accessNotes: readonly AccessNote[] = []): Body[] {
   const areas = planAreas(surveyPlan(loaded.plan))
   const floors = planFloors(loaded.plan)
   const frames = floorFrames(loaded)
@@ -344,7 +360,7 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
   const cover: Body = {
     kind: 'cover', floor: null, topLine: title, title, subtitle: words?.headline ?? null,
     paragraphs: words?.intro ?? [], figures, table: null, picture: { kind: 'model' },
-    notes: areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : [],
+    notes: [...(areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : []), ...accessLines(accessNotes, units, w)],
   }
   // Never an id here: floors that share a name are told apart by their place in the plan.
   const named = (name: string) => floors.filter((f) => f.name === name).length
@@ -564,7 +580,7 @@ export function sheetPages(loaded: LoadedPlan, words: SheetWords | null, layout:
   // A check sheet takes nothing from sheet.json, not even its name.
   const name = layout === 'client' ? words?.name ?? options.name : options.name
   const w = wordsIn(options.language ?? DEFAULT_LANGUAGE)
-  const bodies = layout === 'client' ? clientBodies(loaded, words, options.name, w) : checkBodies(loaded, options.name, w)
+  const bodies = layout === 'client' ? clientBodies(loaded, words, options.name, w, options.accessNotes) : checkBodies(loaded, options.name, w)
   const date = dateText(options.date, w)
   const label = w.say('label')
   const pages = bodies.map((body, i): SheetPage => ({

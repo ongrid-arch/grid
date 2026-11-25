@@ -5,7 +5,9 @@
  */
 import path from 'path'
 import { planFloors } from '@ongrid/floorplan/geometry'
-import { parseSheetWords, SheetWordsRefused, type SheetWords } from '@ongrid/floorplan/types/sheet'
+import { SheetWordsRefused, type SheetWords } from '@ongrid/floorplan/types/sheet'
+import { accessNotes } from './accessNotes'
+import { parseSheetWordsChecked } from './claims'
 import { exportBaseOf, writeBesidePlan } from '../command/export'
 import { loadPlan, PlanRefused, type LoadedPlan } from '../command/plan'
 import { UsageError } from '../command/options'
@@ -146,7 +148,7 @@ export function readSheetWords(project: Project, planFile: string, loaded: Loade
     throw new PlanRefused(`${quoted(shown)} is not JSON.`)
   }
   try {
-    return parseSheetWords(raw, planFloors(loaded.plan).map((floor) => floor.id))
+    return parseSheetWordsChecked(raw, planFloors(loaded.plan).map((floor) => floor.id))
   } catch (error) {
     if (error instanceof SheetWordsRefused) throw new PlanRefused(`${quoted(shown)} is not a sheet: ${error.message}.`)
     throw error
@@ -172,7 +174,8 @@ export interface MadeSheet {
 export async function makeSheet(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language): Promise<MadeSheet> {
   const loaded = loadPlan(project, planFile)
   const { base, note } = exportBaseOf(planFile)
-  const sheet = sheetPages(loaded, words, layout, { name: base, date: new Date(), language: await languageFor(language, loaded.plan) })
+  const notes = layout === 'client' ? accessNotes(project, planFile, loaded) : []
+  const sheet = sheetPages(loaded, words, layout, { name: base, date: new Date(), accessNotes: notes, language: await languageFor(language, loaded.plan) })
   // The laid-out sheet is the one written: text that did not fit flows onto continuation pages.
   const { pdf, sheet: laidOut } = await sheetPdf(loaded.plan, sheet)
   const pages = laidOut.pages.map((page) => (page.floor === null ? { kind: page.kind, title: page.title } : { kind: page.kind, title: page.title, floor: page.floor }))

@@ -21,7 +21,8 @@ import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { PlanRefused } from '../command/plan'
 import { changeOpening, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, moveRoomSide, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
-import { parseSheetWords, SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
+import { parseSheetWordsChecked } from '../sheet/claims'
+import { SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
 import { checkSheetRequest, drawingIntoProject, drawingLine, readSheetWords, sheetIntoProject, type SheetKind } from '../sheet/sheetFile'
 import { PAPER_NAMES, SCALE_MAX } from '../sheet/drawingPapers'
 import { askedLanguage } from '../command/language'
@@ -201,7 +202,7 @@ const sheetTool: GridTool = {
     try {
       const { project, file, loaded } = readPlan(context, args['plan'])
       if (layout === 'drawing') {
-        const words = given !== undefined ? parseSheetWords(given, planFloors(loaded.plan).map((floor) => floor.id)) : readSheetWords(project, file, loaded, undefined)
+        const words = given !== undefined ? parseSheetWordsChecked(given, planFloors(loaded.plan).map((floor) => floor.id)) : readSheetWords(project, file, loaded, undefined)
         const asked = {
           ...(args['scale'] === undefined ? {} : { scale: args['scale'] as number }),
           ...(args['paper'] === undefined ? {} : { paper: args['paper'] as (typeof PAPER_NAMES)[number] }),
@@ -224,7 +225,7 @@ const sheetTool: GridTool = {
       const words = layout === 'check'
         ? null
         : given !== undefined
-          ? parseSheetWords(given, planFloors(loaded.plan).map((floor) => floor.id))
+          ? parseSheetWordsChecked(given, planFloors(loaded.plan).map((floor) => floor.id))
           : readSheetWords(project, file, loaded, undefined)
       const done = await sheetIntoProject(project, file, layout, words, askedLanguage(args['language'], 'language'))
       const written = project.relative(done.written)
