@@ -300,7 +300,26 @@ export interface WalkedLeg {
   readonly length: number
 }
 
+/** ARE-30: where a route starts: the room's middle, its door, its farthest corner, or a point given. */
+export type StartAt = 'middle' | 'door' | 'farthest corner' | { readonly x: number; readonly y: number }
+/** ARE-30: where a route ends in its last room: the room's middle or the doorway into it. */
+export type EndAt = 'middle' | 'door'
+export interface RouteEnds {
+  readonly start?: StartAt
+  readonly end?: EndAt
+  /** The rooms that are stairs or lifts: a route to one ends at its door unless `end` says otherwise. */
+  readonly doorEnds?: ReadonlySet<string>
+}
+/** ARE-30: a route's two points, on the drawing, and which kind each is. */
+export interface WalkPoint {
+  readonly point: Vec2
+  readonly at: 'middle' | 'door' | 'farthest corner' | 'given point' | 'outside face of the door'
+}
+
 export interface Walked {
+  /** ARE-30: where the route starts and where it ends, in metres on the drawing. */
+  readonly start: WalkPoint
+  readonly end: WalkPoint
   /** In metres, the whole way. */
   readonly length: number
   /** Each room's share, the first and the last included; the holes through walls are in `through`. */
@@ -335,18 +354,23 @@ export type WalkAnswer = { readonly walked: Walked; readonly gap: null } | { rea
  * when the last doorway leads out. A via in `stairs` is a stair between floors. When the length
  * cannot be measured, the room where it stops and why.
  */
-export function walkRoute(survey: Survey, rooms: readonly string[], vias: readonly string[], toOutside: boolean, stairs: ReadonlyMap<string, StairPassage> = new Map()): WalkAnswer {
+export function walkRoute(survey: Survey, rooms: readonly string[], vias: readonly string[], toOutside: boolean, stairs: ReadonlyMap<string, StairPassage> = new Map(), ends: RouteEnds = {}): WalkAnswer {
   const legs: WalkedLeg[] = []
   let through = 0
   let onStairs = 0
   let enter: Vec2 | null = null
+  let startPoint: WalkPoint | null = null
+  let endPoint: WalkPoint | null = null
   const gap = (room: string, reason: WalkGap['reason'], via?: string): WalkAnswer => ({ walked: null, gap: { room, reason, ...(via === undefined ? {} : { via }) } })
   for (let i = 0; i < rooms.length; i++) {
     const room = survey.byId.get(rooms[i]!)
     if (room === undefined || room.polygon.length < 3) return gap(rooms[i]!, 'no outline')
     const middle = (r: SurveyRoom): Vec2 => poleOfInaccessibility(r.polygon, undefined, r.holes).point
-    const start = enter ?? middle(room)
+    let start = enter ?? middle(room)
     const via = vias[i]
+    const first = i === 0
+    const last = i === rooms.length - 1
+    if (first) startPoint = { point: start, at: 'middle' }
     let leave: Vec2
     if (via === undefined) {
       leave = middle(room)
@@ -372,14 +396,44 @@ export function walkRoute(survey: Survey, rooms: readonly string[], vias: readon
         enter = next
       }
     }
+    if (first) {
+      const asked = ends.start ?? 'middle'
+      if (typeof asked === 'object') {
+        start = { x: asked.x, y: asked.y }
+        startPoint = { point: start, at: 'given point' }
+      } else if (asked === 'door' && via !== undefined) {
+        start = leave
+        startPoint = { point: start, at: 'door' }
+      } else if (asked === 'farthest corner') {
+        let best: Vec2 | null = null
+        let bestLength = -1
+        for (const corner of [...room.polygon]) {
+          const d = lengthAcross(room, corner, leave)
+          if (d !== null && d > bestLength) [best, bestLength] = [corner, d]
+        }
+        if (best !== null) {
+          start = best
+          startPoint = { point: start, at: 'farthest corner' }
+        }
+      }
+    }
+    if (last && via === undefined) {
+      const wantDoor = (ends.end ?? (ends.doorEnds?.has(room.facts.id) === true ? 'door' : 'middle')) === 'door'
+      if (wantDoor && enter !== null && !first) {
+        leave = enter
+        endPoint = { point: leave, at: 'door' }
+      } else endPoint = { point: leave, at: 'middle' }
+    } else if (last && toOutside && enter !== null) {
+      endPoint = { point: enter, at: 'outside face of the door' }
+    }
     const across = lengthAcross(room, start, leave)
     if (across === null) return gap(room.facts.id, 'no line')
     legs.push({ room: room.facts.id, length: across })
   }
-  return { walked: { length: legs.reduce((sum, leg) => sum + leg.length, 0) + through + onStairs, legs, through, onStairs }, gap: null }
+  return { walked: { start: startPoint!, end: endPoint!, length: legs.reduce((sum, leg) => sum + leg.length, 0) + through + onStairs, legs, through, onStairs }, gap: null }
 }
 
 /** `walkRoute`'s length alone: null when it cannot be measured. */
-export function walkedLength(survey: Survey, rooms: readonly string[], vias: readonly string[], toOutside: boolean, stairs: ReadonlyMap<string, StairPassage> = new Map()): Walked | null {
-  return walkRoute(survey, rooms, vias, toOutside, stairs).walked
+export function walkedLength(survey: Survey, rooms: readonly string[], vias: readonly string[], toOutside: boolean, stairs: ReadonlyMap<string, StairPassage> = new Map(), ends: RouteEnds = {}): Walked | null {
+  return walkRoute(survey, rooms, vias, toOutside, stairs, ends).walked
 }
