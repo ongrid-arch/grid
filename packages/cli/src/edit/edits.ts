@@ -362,7 +362,7 @@ export function changeOpening(survey: Survey, id: string, request: OpeningChange
   const type = request.type ?? opening.type
   const width = request.width ?? opening.width
   const height = request.height ?? (request.type === 'door' && opening.type !== 'door' ? 2.1 : opening.height)
-  const sill = request.sill ?? (type === 'door' ? 0 : opening.sill)
+  const sill = request.sill ?? (request.type === 'door' && opening.type !== 'door' ? 0 : opening.sill)
   if (type !== 'door' && (request.opensInto !== undefined || request.hinge !== undefined || request.hinged !== undefined)) {
     throw new EditRefused(`Only a door opens into a room or hangs from a side; this would be a ${type}.`)
   }
