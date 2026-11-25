@@ -257,14 +257,17 @@ function localIds(plan: FloorPlan, floors: readonly string[], multi: boolean): M
     for (const p of parts) out.set(p.id, p.id)
     return out
   }
-  // `ground-door` is written `door` when `first-door` is there too: the writing puts the floor back.
-  const stripped = parts.map((p) => ({ ...p, local: p.id.startsWith(`${p.floor}-`) ? p.id.slice(p.floor.length + 1) : null }))
-  const floorsOf = new Map<string, Set<string>>()
-  for (const p of stripped) if (p.local !== null) floorsOf.set(p.local, (floorsOf.get(p.local) ?? new Set()).add(p.floor))
-  const plain = new Set(parts.map((p) => p.id))
-  for (const p of stripped) {
-    const twice = p.local !== null && (floorsOf.get(p.local)?.size ?? 0) > 1 && floors.length > 1 && !plain.has(p.local)
-    out.set(p.id, twice ? p.local! : p.id)
+  // LVL-16: the writing keeps an id as written on the first floor that writes it and puts the
+  // floor's id in front on the others, so `first-door` is written `door` when an earlier floor
+  // has `door`, and the writing puts the floor back. Any other id, such as one of a plan written
+  // before, when every floor took its id in front, is written as it is, so nothing is renamed.
+  const order = new Map(floors.map((f, i) => [f, i]))
+  const floorOfId = new Map(parts.map((p) => [p.id, p.floor]))
+  for (const p of parts) {
+    const local = p.id.startsWith(`${p.floor}-`) ? p.id.slice(p.floor.length + 1) : null
+    const owner = local === null ? undefined : floorOfId.get(local)
+    const kept = owner !== undefined && (order.get(owner) ?? Infinity) < (order.get(p.floor) ?? -Infinity)
+    out.set(p.id, kept ? local! : p.id)
   }
   return out
 }

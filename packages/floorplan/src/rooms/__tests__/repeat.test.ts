@@ -124,12 +124,12 @@ describe('a floor copied, and walls that rise through several floors', () => {
   it('stands a room that rises through on every floor up to the one named, its walls in the same place', () => {
     const plan = written(block)
     const cores = plan.rooms.filter((room) => room.name === 'Stair')
-    expect(cores.map((room) => [room.id, room.floor])).toEqual([['g-core', 'g'], ['f1-core', 'f1'], ['f2-core', 'f2']])
+    expect(cores.map((room) => [room.id, room.floor])).toEqual([['core', 'g'], ['f1-core', 'f1'], ['f2-core', 'f2']])
     const index = indexPlan(plan)
     for (const core of cores) expect(roomArea(core, index)).toBeCloseTo(13, 6)
     // The core's walls on each floor stand where the ground floor's stand.
     const place = (floor: string): string[] =>
-      plan.walls.filter((w) => w.floor === floor && plan.rooms.find((r) => r.id === `${floor}-core`)!.boundary.includes(w.id)).map((w) => `${w.start.join(',')} ${w.end.join(',')}`).sort()
+      plan.walls.filter((w) => w.floor === floor && plan.rooms.find((r) => r.floor === floor && r.name === 'Stair')!.boundary.includes(w.id)).map((w) => `${w.start.join(',')} ${w.end.join(',')}`).sort()
     expect(place('f1')).toEqual(place('g'))
     expect(place('f2')).toEqual(place('g'))
     expect(plan.rooms.some((room) => room.floor === 'f3' && room.name === 'Stair')).toBe(false)
@@ -138,7 +138,8 @@ describe('a floor copied, and walls that rise through several floors', () => {
   it('copies a floor from its floor line, the rooms risen through it kept once', () => {
     const plan = written(block)
     expect(plan.rooms.filter((room) => room.floor === 'f2').map((room) => room.name).sort()).toEqual(['Flat 1', 'Stair'])
-    expect(plan.openings.map((opening) => opening.id)).toEqual(['f1-w', 'f2-w'])
+    // LVL-16: the floor that writes the window first keeps its id.
+    expect(plan.openings.map((opening) => opening.id)).toEqual(['w', 'f2-w'])
     const once = compileRoomsText(block)
     expect(JSON.stringify(compileRoomsText(block).plan)).toBe(JSON.stringify(once.plan))
   })
@@ -190,8 +191,9 @@ describe("repeated rooms and copied floors with LVL-8's opening patterns", () =>
     const four = placed(4)
     expect(ids(placed(4))).toEqual(ids(four))
     expect(JSON.stringify(placed(4))).toBe(JSON.stringify(four))
-    // Both schemes on both floors: the unit's openings (floor first) and the patterns' (floor after).
-    expect(four.openings.map((o) => o.id)).toEqual(expect.arrayContaining(['g-win-1', 'f1-win-4', 'north-row-g-1', 'north-row-f1-4', 'south-vent-g-4', 'south-vent-f1-1']))
+    // Both schemes on both floors: the unit's openings (as written on the floor that writes them
+    // first, the copy's with its floor first, LVL-16) and the patterns' (floor after).
+    expect(four.openings.map((o) => o.id)).toEqual(expect.arrayContaining(['win-1', 'f1-win-4', 'north-row-g-1', 'north-row-f1-4', 'south-vent-g-4', 'south-vent-f1-1']))
     expect(four.openings.filter((o) => o.id.startsWith('north-row-'))).toHaveLength(8)
     // No id is given twice, across walls, rooms and every opening.
     expect(new Set(ids(four)).size).toBe(ids(four).length)
@@ -202,7 +204,7 @@ describe("repeated rooms and copied floors with LVL-8's opening patterns", () =>
     expect(ids(five)).toEqual(expect.arrayContaining(ids(four)))
     const after = where(five)
     for (const [id, at] of where(four)) expect(after.get(id), id).toBe(at)
-    expect(five.openings.map((o) => o.id)).toEqual(expect.arrayContaining(['g-win-5', 'f1-win-5', 'north-row-g-5', 'north-row-f1-5', 'south-vent-f1-5']))
+    expect(five.openings.map((o) => o.id)).toEqual(expect.arrayContaining(['win-5', 'f1-win-5', 'north-row-g-5', 'north-row-f1-5', 'south-vent-f1-5']))
   })
 
   it('refuses a pattern line, in a unit or out of one, and says where a pattern goes', () => {

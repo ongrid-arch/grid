@@ -277,9 +277,10 @@ describe('ids on several floors (MSG-6, lab AB-7)', () => {
   it('keeps an id written once as written, and names each one it had to change', () => {
     const result = compileRoomsText(text)
     expect(result.problems).toEqual([])
-    expect(result.plan!.rooms.map((r) => r.id)).toEqual(['hall', 'ground-bath', 'study', 'first-bath'])
+    // LVL-16: the floor that writes an id first keeps it; the others take their floor's id in front.
+    expect(result.plan!.rooms.map((r) => r.id)).toEqual(['hall', 'bath', 'study', 'first-bath'])
     expect(result.warnings.filter((w) => w.code === 'rooms/id-changed').map((w) => w.message)).toEqual([
-      "Ids are unique across the whole plan, and this one was written on more than one floor, so each takes its floor's id in front: 'bath' is 'ground-bath' on floor 'ground' and 'first-bath' on floor 'first'. Every other id is kept as written. Use these ids in later calls.",
+      "Ids are unique across the whole plan, and this one was written on more than one floor, so the first floor that writes it keeps it and every other floor takes its floor's id in front: 'bath' is kept on floor 'ground' and is 'first-bath' on floor 'first'. Every other id is kept as written. Use these ids in later calls.",
     ])
   })
 })

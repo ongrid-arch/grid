@@ -156,12 +156,21 @@ A2, …). Each part's id is its name in the unit and the placement's label, `roo
 the ids it had.
 
 - `floor l4 "Fourth floor" level 4 copy l3 with openings` starts a floor as a copy of another,
-  on its own line, as `copy l3` does on the line after. An id written on two floors takes its
-  floor's id in front (`l4-room-301`), and the answer names each one.
+  on its own line, as `copy l3` does on the line after. The copy takes the floor's outline, roof,
+  parapet, homes and parking too; a `raw floor` line on the copy sets any of them for that floor
+  alone, and `null` takes one off it (`raw floor {"roof": null}`). Without `with openings` it
+  takes none of the doors and windows, and the answer warns (`rooms/copy-no-openings`) when
+  copies are left with none.
+- An id written on several floors stays as written on the first floor that writes it, and takes
+  its floor's id in front on the others (`l4-room-301`), so a copy never renames the floor it
+  copies; the answer names each one.
 - `through <floor>` on a room line stands the room, and so its walls, on every floor written
   after its own up to that floor, in the same place: a stair or lift core, a shaft, a block's
-  outside walls. What the text says about the walls between such rooms comes with them. A floor
-  copied from one they rise through holds them once.
+  outside walls. What the text says about the walls between such rooms comes with them, and so
+  does a door, window or opening written between two rooms that both rise (a stair and its
+  lobby); one in a rising room's outside wall stays on its own floor. A floor that writes its own
+  opening between the same two rooms keeps its own, and `remove <id>` takes a carried one off. A
+  floor copied from one they rise through holds them once.
 
 The plan file holds every room, wall and opening written out, floor by floor, with the ids the
 text gave them: a repeat, a copy or a room through several floors leaves nothing in the file for
@@ -184,7 +193,7 @@ place flat1 as B east of riser gap 0.3 mirror east-west fh=east
 ```
 
 A floor copied from one with flats has them too, each with its floor's id in front when the label
-is on more than one floor (`f1-A`). `grid write` writes the flat types and the flats a text places
+is on an earlier floor too (`f1-A`). `grid write` writes the flat types and the flats a text places
 over the file's; a text that places none keeps the file's, and says so. A duplex, a flat on two
 floors, is written in the plan file's `flats`: rooms text places a unit on one floor.
 
