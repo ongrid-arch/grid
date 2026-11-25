@@ -79,6 +79,14 @@ describe('the roof a floor states', () => {
     expect(roofHeightAt(across, { x: 1, y: 3 })).toBeCloseTo(2, 9)
   })
 
+  it('keeps all four planes of a hip, though its hips run through the outline\'s corners (VEW-12)', () => {
+    const roof = planEnvelope(box({ shape: 'hip', eaves: 1, pitch: 45 })).floors[0]!.roof!
+    expect(roof.facets).toHaveLength(4)
+    // The planes cover the roof: 8.3 m by 6.3 m to the outside faces.
+    expect(roof.facets.reduce((sum, f) => sum + f.area, 0)).toBeCloseTo(roof.area, 6)
+    expect(roof.area).toBeCloseTo(8.3 * 6.3, 6)
+  })
+
   it('makes a hip from all four sides at one pitch, a mono-pitch roof from the low side, and a flat roof level', () => {
     const hip = floorRoofShape(box({ shape: 'hip', eaves: 1, pitch: 45 }), 'ground')!
     expect(roofHeightAt(hip, { x: 4, y: 3 })).toBeCloseTo(4, 9)
