@@ -128,7 +128,10 @@ const stateOf = (holds: boolean, level: Level): BriefState => ((level === 'avoid
 function roomLines(c: Context, brief: Brief): BriefLine[] {
   const out: BriefLine[] = []
   for (const wish of brief.rooms) {
-    const named = wish.name !== null ? roomsNamed(c.plan, wish.name) : c.plan.rooms.filter((room) => room.use === wish.use)
+    const all = wish.name !== null ? roomsNamed(c.plan, wish.name) : c.plan.rooms.filter((room) => room.use === wish.use)
+    // CNT-27: a stair or lift drawn on floor after floor is one shaft, counted once, as grid_areas counts it.
+    const named = all.filter((room) => areaOf(c, room)?.countedWith === undefined)
+    const once = named.length < all.length ? ', each stair or lift shaft counted once' : ''
     const what = wish.name !== null ? q(wish.name) : `rooms used as ${wish.use}`
     const avoid = wish.level === 'avoid'
     const word = avoid ? `${askedWord(wish.source)} to avoid` : askedWord(wish.source)
@@ -139,7 +142,7 @@ function roomLines(c: Context, brief: Brief): BriefLine[] {
     const sized = wish.area !== null || wish.atLeast !== null || wish.atMost !== null || wish.inside !== null
     if (wish.count !== null) {
       const holds = named.length === wish.count
-      out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}: ${word} ${wish.count}, drawn ${named.length}.`, { asked: String(wish.count), drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
+      out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}: ${word} ${wish.count}, drawn ${named.length}${once}.`, { asked: String(wish.count), drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
     } else if (!sized || named.length === 0) {
       const holds = named.length > 0
       const drawn = holds ? `drawn${named.length > 1 ? ` ${named.length} times` : ''}` : 'not drawn'

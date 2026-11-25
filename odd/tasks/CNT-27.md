@@ -47,7 +47,7 @@ the floor it rises from.
 
 ## Done
 
-- Tests in `packages/cli/src/quantities/__tests__/countedOnce.test.ts`, on the three-floor house
+- Tests in `packages/cli/src/mcp/__tests__/countedOnce.test.ts`, on the three-floor house
   with a stair (or a lift) drawn on each floor: `grid_count`'s area sum equals `grid_areas`' net;
   the stair is one room by default and three with `stairs: "per floor"`; the schedule's counted
   rows add up to its totals and the rows over the stair are marked; a brief asking for 1 lift is

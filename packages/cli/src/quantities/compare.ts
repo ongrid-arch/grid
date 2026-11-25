@@ -16,7 +16,7 @@
  */
 import { alignPlans, centroid, curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type MessageKey, type Said } from '@ongrid/floorplan/messages'
-import { planAreas, type PlanAreas } from './areas'
+import { notCountedRooms, planAreas, roomKey, type PlanAreas } from './areas'
 import { sideNames, type Survey } from './survey'
 
 /** Two sizes closer than this are one (MSG-15's `joint`; arithmetic, so it never changes). */
@@ -41,11 +41,14 @@ export function optionRow(label: string, survey: Survey): OptionRow {
   const areas: PlanAreas = planAreas(survey)
   const byUse: Record<string, number> = {}
   for (const floor of areas.floors) for (const [use, value] of Object.entries(floor.byUse)) byUse[use] = (byUse[use] ?? 0) + value
-  // CNT-8: a zone is part of a room, not a room of its own.
+  // CNT-8: a zone is part of a room, not a room of its own. CNT-27: the rooms are counted as
+  // grid_count counts them, as the net does: a stair or lift shaft once, no void or outdoor space.
+  const left = notCountedRooms(areas)
   const rooms = survey.rooms.filter((room) => room.facts.zoneOf === undefined)
+  const counted = rooms.filter((room) => !left.has(roomKey(room.facts.floor, room.facts.id)))
   return {
     label,
-    rooms: rooms.length,
+    rooms: counted.length,
     bedrooms: rooms.filter((room) => room.facts.use === 'bedroom').length,
     net: areas.net,
     grossInternal: areas.grossInternal,
@@ -517,7 +520,19 @@ function roomChanges(a: Survey, b: Survey): Map<RoomKind, string[]> {
   const was = new Map(a.rooms.map((room) => [key(room), room] as const))
   const now = new Map(b.rooms.map((room) => [key(room), room] as const))
   const out = new Map<RoomKind, string[]>()
-  const add = (kind: RoomKind, room: Survey['rooms'][number]): void => void out.set(kind, [...(out.get(kind) ?? []), room.facts.floor])
+  // CNT-27: a stair or lift room over the lowest of its shaft is that shaft, counted once, on the
+  // floor it rises from: its change is the shaft's.
+  const shafts = { a: notCountedRooms(planAreas(a)), b: notCountedRooms(planAreas(b)) }
+  const seen = new Map<RoomKind, Set<string>>()
+  const add = (kind: RoomKind, room: Survey['rooms'][number], plan: 'a' | 'b' = 'b'): void => {
+    const shaft = shafts[plan].get(key(room))
+    const lowest = shaft?.why === 'shaft' && shaft.with !== undefined ? shaft.with : { floor: room.facts.floor, room: room.facts.id }
+    const counted = seen.get(kind) ?? new Set<string>()
+    if (counted.has(roomKey(lowest.floor, lowest.room))) return
+    counted.add(roomKey(lowest.floor, lowest.room))
+    seen.set(kind, counted)
+    out.set(kind, [...(out.get(kind) ?? []), lowest.floor])
+  }
   for (const [k, room] of now) {
     const old = was.get(k)
     if (old === undefined) {
@@ -528,7 +543,7 @@ function roomChanges(a: Survey, b: Survey): Map<RoomKind, string[]> {
     if (old.facts.use !== room.facts.use) add('used differently', room)
     if (Math.abs((nets.a.get(k) ?? 0) - (nets.b.get(k) ?? 0)) >= 0.01) add('differ in size', room)
   }
-  for (const [k, room] of was) if (!now.has(k)) add('taken out', room)
+  for (const [k, room] of was) if (!now.has(k)) add('taken out', room, 'a')
   return out
 }
 

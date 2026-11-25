@@ -18,7 +18,7 @@ import { compareIds, floorOf, planFloors, planForFloor, tolerance, wallLength } 
 import { factKey, factOf, factText, type FactValue } from '@ongrid/floorplan/types/floorplan'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
-import { planAreas } from './areas'
+import { notCountedRooms, planAreas, roomKey, type RoomNotCounted } from './areas'
 import { roomHeight } from './measure'
 import type { Survey } from './survey'
 
@@ -98,6 +98,11 @@ export interface Asked {
   readonly parts: readonly Part[]
   /** The value of a field for a part, worked out once. */
   value(part: Part, field: Field): Value
+  /**
+   * CNT-27: why a room part is in no total of grid_areas' net (a zone, a stair or lift room counted
+   * with its shaft's lowest, a void, outdoor space), or null for a room the net counts and any other part.
+   */
+  counting(part: Part): RoomNotCounted | null
 }
 
 /** A field as a question names it: one Grid works out, or a fact of the person's own. */
@@ -128,17 +133,24 @@ export function askPlan(survey: Survey): Asked {
   const floors = new Map(planFloors(plan).map((f) => [f.id, f] as const))
   let areas: Map<string, number | null> | null = null
   let floorAreas: Map<string, number> | null = null
+  let left: Map<string, RoomNotCounted> | null = null
   let beside: Map<string, string[]> | null = null
   const storeys = new Map<string, ReturnType<typeof planForFloor>>()
   const cache = new Map<string, Value>()
 
-  const areaOf = (part: Part): number | null => {
-    if (areas === null || floorAreas === null) {
+  const measured = (): { areas: Map<string, number | null>; floorAreas: Map<string, number>; left: Map<string, RoomNotCounted> } => {
+    if (areas === null || floorAreas === null || left === null) {
       const figures = planAreas(survey)
-      areas = new Map(figures.floors.flatMap((f) => f.rooms.map((r) => [r.id, r.net] as const)))
+      // CNT-27: by floor and id, as the figures list them.
+      areas = new Map(figures.floors.flatMap((f) => f.rooms.map((r) => [roomKey(f.floor, r.id), r.net] as const)))
       floorAreas = new Map(figures.floors.map((f) => [f.floor, f.net] as const))
+      left = notCountedRooms(figures)
     }
-    return part.kind === 'floor' ? floorAreas.get(part.id) ?? null : areas.get(part.id) ?? null
+    return { areas, floorAreas, left }
+  }
+  const areaOf = (part: Part): number | null => {
+    const m = measured()
+    return part.kind === 'floor' ? m.floorAreas.get(part.id) ?? null : m.areas.get(roomKey(part.floor, part.id)) ?? null
   }
   const roomsBeside = (wall: string): string[] => {
     if (beside === null) {
@@ -217,6 +229,9 @@ export function askPlan(survey: Survey): Asked {
       const value = gridValue(part, field.info.name)
       cache.set(key, value)
       return value
+    },
+    counting(part) {
+      return part.kind === 'room' ? measured().left.get(roomKey(part.floor, part.id)) ?? null : null
     },
   }
 }

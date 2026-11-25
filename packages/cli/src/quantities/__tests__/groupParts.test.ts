@@ -10,7 +10,7 @@ const width = field('width')
 const level = field('level')
 
 function asked(values: Record<string, number>): Asked {
-  return { survey: undefined as never, parts: [], value: (part) => values[part.id] ?? null }
+  return { survey: undefined as never, parts: [], value: (part) => values[part.id] ?? null, counting: () => null }
 }
 const parts = (ids: string[]): Part[] => ids.map((id) => ({ kind: 'room', id, floor: 'g', facts: {} }))
 
