@@ -21,7 +21,7 @@ footer of a client or check sheet. A person who pins the date can cache sheets b
 
 ## Done
 
-- `sheetDate.test.ts`: two sheets and two drawings made with one `--date` are byte-identical
-  PDFs; another date differs; the date shows in the title block text.
+- `sheetDate.test.ts`: two sheets and two drawings made with one date are byte-identical PDFs;
+  another date differs.
 - A bad `--date` is refused by name; `SOURCE_DATE_EPOCH` is honoured.
 - typecheck, lint, the cli test folder, ownWords, tolerances and the scoreboard pass.
