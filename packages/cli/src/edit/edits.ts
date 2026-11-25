@@ -570,11 +570,19 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
   const patchWalls = new Map<string, { start?: Pair; end?: Pair }>()
   patchWalls.set(wall.id, { start: moved(oldStart), end: moved(oldEnd) })
   const followers: string[] = []
+  const inLine: Wall[] = []
   for (const other of plan.walls) {
     if (other.id === wall.id || (other.floor ?? 'ground') !== floor) continue
     const s = pt(other.start)
     const e = pt(other.end)
     const change: { start?: Pair; end?: Pair } = {}
+    // A wall in line with the side that runs on past the room is not one that ends on it: it keeps
+    // its place, and the walls that meet the side square carry its end (checked below).
+    const straight = other.arc === undefined
+    if (straight && Math.abs(dot(sub(s, oldStart), axis.normal)) < reach && Math.abs(dot(sub(e, oldStart), axis.normal)) < reach) {
+      inLine.push(other)
+      continue
+    }
     if (onAxis(s) && !onAxis(e)) change.start = moved(s)
     if (onAxis(e) && !onAxis(s)) change.end = moved(e)
     if (!change.start && !change.end) continue
@@ -590,6 +598,19 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
     }
     patchWalls.set(other.id, change)
     followers.push(other.id)
+  }
+  // An in-line wall that touches an end of the side stays put, so a wall that meets the side square
+  // must carry that end; with none, moving would leave a step nothing closes.
+  for (const other of inLine) {
+    for (const end of [oldStart, oldEnd]) {
+      const touches = [pt(other.start), pt(other.end)].some((p) => Math.hypot(p.x - end.x, p.y - end.y) < reach)
+      if (!touches) continue
+      const carried = followers.some((id) => {
+        const f = plan.walls.find((w) => w.id === id)!
+        return [pt(f.start), pt(f.end)].some((p) => Math.hypot(p.x - end.x, p.y - end.y) < reach)
+      })
+      if (!carried) throw new EditRefused(`Wall ${quoted(other.id)} runs on in line with the ${side} side of ${name} and meets it with no wall across, so moving the side ${by.toFixed(2)} m would leave a step in the line. Move wall ${quoted(other.id)} with it (grid_move_room_side on the room it bounds), or add a wall across first.`)
+    }
   }
   // A point on the moved wall moves with it; everything else stays where it is.
   const seated = seatOpenings(survey, patchWalls, (p, onWall) => (onWall === wall.id ? { x: p.x + v.x, y: p.y + v.y } : p), { shift: v, what: `moving it ${by.toFixed(2)} m` })
