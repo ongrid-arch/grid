@@ -306,6 +306,15 @@ const areasTool: GridTool = {
     country: { type: 'string', maxLength: 2, description: 'Where it will be built, as a two-letter country code: the gross measure usual there is given first. Both when left out or when Grid has none for that place.', examples: ['GB', 'US'] },
     gross: { type: 'string', enum: ['internal', 'external', 'both'], description: 'The gross measure to give: internal (to the inside face of the outer walls), external (to the outside face) or both. The usual one for country when left out.', examples: ['both', 'external'] },
     outdoor_rules: OUTDOOR_RULES_ARG,
+    // ARE-20: one building measured apart from another built against it on the same floors.
+    apart_rooms: {
+      type: 'array',
+      description: 'Room ids to measure apart, such as the rooms of one building built against another: their net area, and their area to the middle of each wall they share with the rest of the plan.',
+      examples: [['nave', 'aisle', 'crossing']],
+      items: { id: true },
+      minItems: 1,
+      maxItems: 500,
+    },
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
@@ -343,11 +352,15 @@ const areasTool: GridTool = {
     outdoor: { type: 'object' },
     // CNT-6, only on a plan that names buildings: each building's own floors' figures and its height.
     buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER }, ['id', 'name', 'floors', 'net'])),
-  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor']),
+    // ARE-20, only when apart_rooms is given: those rooms' net and their area to the middle of the walls they share.
+    apart: objectSchema({ rooms: listSchema(STRING), net: NUMBER, byFloor: { type: 'object' }, toPartyWalls: { type: ['object', 'null'], properties: { grossInternal: NUMBER, grossExternal: NUMBER } }, notCounted: listSchema(STRING), state: { type: 'object' } }, ['rooms', 'net', 'toPartyWalls']),
+  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart']),
   run(args, context) {
     const { survey, floor } = load(context, args['plan'], args['floor'])
     const outside = (args['outside_rooms'] as string[] | undefined) ?? []
     for (const id of outside) roomArg(survey.plan, id, 'outside_rooms item')
+    const apart = (args['apart_rooms'] as string[] | undefined) ?? []
+    for (const id of apart) roomArg(survey.plan, id, 'apart_rooms item')
     const units = displayFor(args['units'], args['decimal'], survey.plan)
     const country = args['country'] as string | undefined
     if (country !== undefined && !/^[A-Za-z]{2}$/.test(country)) throw new ToolRefusal(`country takes a two-letter country code, such as GB or US: got ${q(country)}.`)
@@ -362,6 +375,7 @@ const areasTool: GridTool = {
       ...(country === undefined ? {} : { country }),
       ...(gross === undefined ? {} : { gross }),
       ...(outdoorRules === undefined ? {} : { outdoorWeights: outdoorRules }),
+      ...(apart.length === 0 ? {} : { apart: new Set(apart) }),
     })
     const buildings = areas.buildings.map((b) => ({ ...b, height: heights.get(b.id) ?? null }))
     const data = {
@@ -390,6 +404,7 @@ const areasTool: GridTool = {
       ...(areas.outdoor === undefined ? {} : { outdoor: areas.outdoor }),
       // CNT-6: only on a plan that names buildings, so every other answer is as it was.
       ...(buildings.length === 0 ? {} : { buildings }),
+      ...(areas.apart === undefined ? {} : { apart: areas.apart }),
     }
     if (args['format'] === 'csv') {
       const rows = areas.floors.flatMap((f) => f.rooms.map((r) => [f.floor, r.id, r.name, r.use, r.size?.[0] ?? null, r.size?.[1] ?? null, r.net, r.net === null ? null : sqFt(r.net), r.zoneOf !== undefined ? 'zone' : r.outdoor !== undefined ? 'outdoor' : r.outside ? 'outside' : r.countedWith ? 'with the stair below' : 'inside', r.state]))
@@ -447,6 +462,12 @@ const areasTool: GridTool = {
         const gross = areas.reader.gross.map((m) => `${m === 'grossInternal' ? 'gross internal' : 'gross external'} ${b[m] === null ? 'not known' : areaText(b[m]!, units)}`)
         lines.push(`  ${q(b.name)} (${b.floors.length} floor${b.floors.length === 1 ? '' : 's'}): net ${areaText(b.net, units)}, ${gross.join(', ')}${b.height === null ? '' : `, ${lengthText(b.height, units)} high`}.`)
       }
+    }
+    // ARE-20: the rooms measured apart, as one building from the one built against it.
+    if (areas.apart !== undefined) {
+      const parts = areas.apart.toPartyWalls === null ? [] : areas.reader.gross.map((m) => said(m === 'grossInternal' ? 'areas.toPartyWalls.grossInternal' : 'areas.toPartyWalls.grossExternal', { area: areaText(areas.apart!.toPartyWalls![m], units) }))
+      lines.push(english(said(areas.apart.rooms.length === 1 ? 'areas.apart.one' : 'areas.apart', { count: areas.apart.rooms.length, net: `${areaText(areas.apart.net, units)}${stateText(areas.apart.state, several)}`, toPartyWalls: parts.length === 0 ? '' : said('areas.apart.toPartyWalls', { areas: joined(parts, 'join.comma') }) })))
+      if (areas.apart.notCounted.length > 0) lines.push(english(said('areas.apart.notCounted', { ids: joined(areas.apart.notCounted.map((id) => name(id)), 'join.comma') })))
     }
     const uses = Object.entries(areas.byUse)
     if (uses.length > 1) lines.push(`Net by use: ${uses.map(([use, area]) => `${use} ${areaText(area, units)}`).join(', ')}.`)

@@ -2563,6 +2563,18 @@ export const en = {
   'areas.outdoor.counted': 'Your rule counts {share}% of each {kind}, and Grid has not checked it ({rule}): {area}.',
   'areas.outdoor.notCounted': 'No rule you stated counts any {kinds}, so that space is left out of every total.',
   'areas.outdoor.withNet': 'Net with the outdoor space your rules count: {area}. Every other figure here leaves it out.',
+  // ARE-20: a gross figure below one it must hold, and why.
+  'areas.doubt.internalUnderNet': 'The gross internal area is {short} m² less than the net area, which it must hold, so it is not proven: {reason}',
+  'areas.doubt.externalUnderInternal': 'The gross external area is {short} m² less than the gross internal area, which it must hold, so it is not proven: {reason}',
+  'areas.doubt.externalUnderNet': 'The gross external area is {short} m² less than the net area, which it must hold, so it is not proven: {reason}',
+  'areas.doubt.offSpace': '{area} m² of the rooms\' floor lies on walls or outside them, so the net counts it and no gross figure holds it; grid_check names the rooms.',
+  'areas.doubt.rooms': 'the rooms run past the floor the walls enclose; grid_check names the rooms.',
+  'areas.doubt.faces': 'the outside face of the walls was worked out round less floor than the inside face, so one of them is wrong; grid_check names the walls it finds at fault.',
+  'areas.doubt.floor': 'On floor {floor}: {doubt}',
+  'areas.apart.one': 'Measured apart (1 room): net {net}{toPartyWalls}.',
+  'areas.apart': 'Measured apart ({count} rooms): net {net}{toPartyWalls}.',
+  'areas.apart.toPartyWalls': '; to the middle of the walls they share with the rest {areas}',
+  'areas.apart.notCounted': 'Not in the rooms measured apart, as no room the net counts on the floors given: {ids}.',
   // HND-10 (C31): the trace image under the plan.
   'trace.drawn': 'The trace image {path}, {width} × {height} px, is drawn under the plan, {scale}. Its top-left corner is at ({x}, {y}) m, and its pixel (u, v) lies at x = {x} + {metres}·u, y = {y} − {metres}·v.',
   'trace.drawnTurned': 'The trace image {path}, {width} × {height} px, is drawn under the plan, {scale}, turned {degrees}° counter-clockwise about its top-left corner at ({x}, {y}) m.',

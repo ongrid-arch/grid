@@ -2573,6 +2573,18 @@ export const es: Messages = {
   'areas.outdoor.counted': 'Tu regla cuenta el {share} % de cada {kind}, y Grid no la ha comprobado ({rule}): {area}.',
   'areas.outdoor.notCounted': 'Ninguna regla que hayas indicado cuenta {kinds}, así que ese espacio queda fuera de todos los totales.',
   'areas.outdoor.withNet': 'Superficie útil con el espacio exterior que cuentan tus reglas: {area}. Las demás cifras lo dejan fuera.',
+  // ARE-20: a gross figure below one it must hold, and why.
+  'areas.doubt.internalUnderNet': 'La superficie construida interior es {short} m² menor que la superficie útil, que debe contener, así que no está probada: {reason}',
+  'areas.doubt.externalUnderInternal': 'La superficie construida exterior es {short} m² menor que la construida interior, que debe contener, así que no está probada: {reason}',
+  'areas.doubt.externalUnderNet': 'La superficie construida exterior es {short} m² menor que la superficie útil, que debe contener, así que no está probada: {reason}',
+  'areas.doubt.offSpace': '{area} m² del suelo de los locales quedan sobre muros o fuera de ellos, así que la superficie útil los cuenta y ninguna superficie construida los contiene; grid_check nombra los locales.',
+  'areas.doubt.rooms': 'los locales pasan del suelo que encierran los muros; grid_check nombra los locales.',
+  'areas.doubt.faces': 'la cara exterior de los muros se calculó alrededor de menos suelo que la cara interior, así que una de las dos está mal; grid_check nombra los muros con fallos que encuentra.',
+  'areas.doubt.floor': 'En la planta {floor}: {doubt}',
+  'areas.apart.one': 'Medido aparte (1 local): útil {net}{toPartyWalls}.',
+  'areas.apart': 'Medido aparte ({count} locales): útil {net}{toPartyWalls}.',
+  'areas.apart.toPartyWalls': '; hasta el eje de los muros que comparte con el resto {areas}',
+  'areas.apart.notCounted': 'Fuera de los locales medidos aparte, por no ser un local que la superficie útil cuente en las plantas dadas: {ids}.',
   // HND-10 (C31): the trace image under the plan.
   'trace.drawn': 'La imagen de calco {path}, de {width} × {height} px, se dibuja bajo el plano, {scale}. Su esquina superior izquierda está en ({x}, {y}) m, y su píxel (u, v) cae en x = {x} + {metres}·u, y = {y} − {metres}·v.',
   'trace.drawnTurned': 'La imagen de calco {path}, de {width} × {height} px, se dibuja bajo el plano, {scale}, girada {degrees}° en sentido antihorario alrededor de su esquina superior izquierda, en ({x}, {y}) m.',

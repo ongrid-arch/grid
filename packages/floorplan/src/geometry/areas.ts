@@ -48,7 +48,7 @@ import { curveFault } from './arc'
 import { buildingPlan, outdoorIds, outdoorKind, outdoorRoofed, planHasOutdoor } from './outdoor'
 import type { OutdoorKind } from '../types/floorplan'
 import { roomColumnArea, roomColumns } from './columns'
-import { english, num, said } from '../messages/say'
+import { english, name, num, said, type Said } from '../messages/say'
 import { partyWallArea, type PartyWallArea, type PartyWallRoom } from './partyWalls'
 
 /**
@@ -227,6 +227,12 @@ export interface FloorAreaFigures {
   readonly outdoor?: number
   /** ARE-16: the size of its voids (LVL-4), which are in no figure: no floor stands there. 0 with none. */
   readonly voids: number
+  /**
+   * ARE-20: why a gross figure is below a figure it must hold (gross internal below net, gross
+   * external below gross internal or net), in a sentence; null when it is in order or unknown. A
+   * figure with a doubt is still given, and is not proven.
+   */
+  readonly doubts: { readonly grossInternal: string | null; readonly grossExternal: string | null }
 }
 
 /** A total, with the rule it follows. */
@@ -236,6 +242,25 @@ export interface AreaFigure {
   readonly area: number | null
   readonly rule: MeasureRule
   readonly why: string | null
+  /** ARE-20: on a gross figure, why it is below a figure it must hold on some floor, floor by floor; null when it is in order. */
+  readonly doubt: string | null
+}
+
+/**
+ * ARE-20: rooms measured apart, such as one building of two built against each other on the same
+ * floors: their net area, counted as the net counts it, and their area to the middle of each wall
+ * they share with the rest of the plan (`partyWalls.ts`), on the floors given.
+ */
+export interface ApartAreaFigure {
+  /** The rooms counted in `net`, by id, in plan order. */
+  readonly rooms: readonly string[]
+  readonly net: number
+  /** `net` by floor. */
+  readonly byFloor: Readonly<Record<string, number>>
+  /** To the middle of the walls they share, to each face of the walls that face outside; null when the rooms could not be joined. */
+  readonly toPartyWalls: PartyWallArea | null
+  /** Ids asked for that are no room counted on the floors given (not drawn, a zone, outdoor space, a room named outside or a stair counted below). */
+  readonly notCounted: readonly string[]
 }
 
 /** Which gross measure the answer gives first, and why. */
@@ -354,6 +379,8 @@ export interface PlanAreaFigures {
   readonly notes: readonly string[]
   /** CNT-7 (C26): the outdoor spaces on the floors given, listed apart; only on a plan that has one. */
   readonly outdoor?: OutdoorAreaFigure
+  /** ARE-20: the rooms asked to be measured apart (`AreaOptions.apart`); only when some were. */
+  readonly apart?: ApartAreaFigure
 }
 
 export interface AreaOptions {
@@ -370,6 +397,8 @@ export interface AreaOptions {
   readonly gross?: GrossMeasure | 'both'
   /** CNT-7: the share of each kind of outdoor space a rule the caller states counts. None when not given. */
   readonly outdoorWeights?: Readonly<Partial<Record<OutdoorKind, OutdoorWeight>>>
+  /** ARE-20: room ids to measure apart, as one building from another built against it (`ApartAreaFigure`). */
+  readonly apart?: ReadonlySet<string>
 }
 
 const NOT_SAID = 'not said'
@@ -393,18 +422,26 @@ export function floorWalls(plan: FloorPlan, floor: string, broken: ReadonlySet<s
  * round a corner) goes with the outer stretches when they lie on both sides of it, or on one side
  * with the wall's end on the other.
  */
-function outerStretches(sides: WallSides | undefined, length: number): (readonly [number, number])[] {
+function outerStretches(sides: WallSides | undefined, length: number, thickness: number): (readonly [number, number])[] {
   if (sides === undefined) return []
   if (sides.stated === 'exterior') return [[0, length]]
   const list = sides.stretches
   // CNT-6: a party wall, or one to the common parts, bounds the floor as an outside wall does.
   const bounds = (worked: WallSides['stretches'][number]['worked']): boolean => worked === 'exterior' || worked === 'separating'
   const outer = (i: number): boolean | null => (i < 0 || i >= list.length ? null : bounds(list[i]!.worked))
+  // ARE-20: the short end of a wall inside the corner of the wall it meets, with a room on one face
+  // only (round a courtyard, the walk's floor runs on past the courtyard's corner), goes with the
+  // outer stretch beside it, so the corner is cut with the walls and the courtyard is a piece apart.
+  const cornerEnd = (i: number): boolean => {
+    const stretch = list[i]!
+    const end = i === 0 ? outer(1) : i === list.length - 1 ? outer(i - 1) : null
+    return end === true && (stretch.left.length === 0) !== (stretch.right.length === 0) && stretch.to - stretch.from <= thickness + tolerance('joint')
+  }
   const out: [number, number][] = []
   list.forEach((stretch, i) => {
     const before = outer(i - 1)
     const after = outer(i + 1)
-    const faces = bounds(stretch.worked) || (stretch.worked === 'detached' && before !== false && after !== false && (before === true || after === true))
+    const faces = bounds(stretch.worked) || (stretch.worked === 'detached' && before !== false && after !== false && (before === true || after === true)) || cornerEnd(i)
     if (!faces) return
     const last = out[out.length - 1]
     if (last !== undefined && stretch.from - last[1] <= tolerance('noLength')) last[1] = stretch.to
@@ -448,7 +485,7 @@ function outerStrips(runs: readonly Run[], sides: ReadonlyMap<string, WallSides>
     .flatMap((r) => {
       const whole = r.wall.arc === undefined ? r.length : wallLength(r.wall)
       const scale = r.to - r.from === 0 ? 1 : r.length / (r.to - r.from)
-      return outerStretches(sides.get(r.wall.id), whole).flatMap(([from, to]): { run: Run; s: readonly [number, number] }[] => {
+      return outerStretches(sides.get(r.wall.id), whole, r.wall.thickness).flatMap(([from, to]): { run: Run; s: readonly [number, number] }[] => {
         const a = Math.max(from, r.from)
         const b = Math.min(to, r.to)
         return b - a > tolerance('noLength') ? [{ run: r, s: [(a - r.from) * scale, (b - r.from) * scale] as const }] : []
@@ -496,7 +533,11 @@ function insideFace(walls: readonly Wall[], spaces: FloorSpaces, sides: Readonly
       const filled = union(frame.map((polygon) => [polygon[0]!]))
       const rest: MultiPolygon = polygonClipping.difference(filled, ...outerStrips(solid, sides, lineHalf, snap))
       // CNT-7: a piece that holds only outdoor space (a courtyard inside its walls) is no floor.
-      return sum(rest.filter((piece) => spaces.spaces.some((space) => indoor(space) && inPolygon(space.at, piece))).map(polygonArea))
+      const kept = rest.filter((piece) => spaces.spaces.some((space) => indoor(space) && inPolygon(space.at, piece)))
+      // ARE-20: and outdoor space in a piece that holds rooms too (a courtyard behind an open
+      // arcade, drawn as a virtual wall) is taken off it, as gross external takes it off.
+      const open = spaces.spaces.filter((space) => !indoor(space) && kept.some((piece) => inPolygon(space.at, piece)))
+      return Math.max(0, sum(kept.map(polygonArea)) - sum(open.map((space) => space.area)))
     } catch (error) {
       failure = error
     }
@@ -606,7 +647,7 @@ function floorFigures(
   const measured = building ?? { plan, index, sides, outdoor: new Set<string>() }
   const spaces = floorSpaces(measured.plan, floor, { index: measured.index, broken })
   if (!spacesKnown(spaces)) {
-    return { ...base, grossExternal: null, grossInternal: null, walls: null, outerWalls: null, unclaimed: null, offSpace: null, why: `the walls' outline could not be worked out: ${spaces.reason}`, massing: false }
+    return { ...base, grossExternal: null, grossInternal: null, walls: null, outerWalls: null, unclaimed: null, offSpace: null, why: `the walls' outline could not be worked out: ${spaces.reason}`, massing: false, doubts: NO_DOUBTS }
   }
   const outdoorSpace = (space: Space): boolean => space.rooms.length > 0 && space.rooms.every((r) => measured.outdoor.has(r.room))
   const enclosedOutdoor = measured.outdoor.size === 0 ? 0 : sum(spaces.spaces.filter(outdoorSpace).map((space) => space.area))
@@ -616,24 +657,71 @@ function floorFigures(
   if (walls.length === 0 && statedOutline(plan, floor) !== null) {
     // BRF-4 (C17): massing, an outline with no walls yet. Its outline is its outside face; it has
     // no inside face of walls to measure to until the walls are drawn.
-    return { ...base, grossExternal: spaces.outlineArea, grossInternal: null, walls: 0, outerWalls: null, unclaimed: spaces.unclaimedArea, offSpace, why: MASSING_WHY, massing: true }
+    return { ...base, grossExternal: spaces.outlineArea, grossInternal: null, walls: 0, outerWalls: null, unclaimed: spaces.unclaimedArea, offSpace, why: MASSING_WHY, massing: true, doubts: englishDoubts(orderDoubts(net, null, spaces.outlineArea, offSpace)) }
   }
   const inside = insideFace(walls, spaces, measured.sides(), (space) => !outdoorSpace(space))
   const known = typeof inside === 'number'
   // CNT-6 (C23): a separating wall with more of the building beyond it counts to its middle.
   const beyond = pastMiddle(walls, spaces, measured.sides())
   const gross = Math.max(0, spaces.outlineArea - beyond - enclosedOutdoor - voids)
+  const internal = known ? Math.max(0, inside - outsideRooms - voids) : null
   return {
     ...base,
     grossExternal: gross,
-    grossInternal: known ? Math.max(0, inside - outsideRooms - voids) : null,
+    grossInternal: internal,
     walls: Math.max(0, spaces.wallArea - beyond),
     outerWalls: known ? Math.max(0, gross - (inside - voids)) : null,
     unclaimed: spaces.unclaimedArea,
     offSpace,
     why: known ? null : inside,
     massing: false,
+    doubts: englishDoubts(orderDoubts(net, internal, gross, offSpace)),
   }
+}
+
+/** ARE-20: the doubts of a floor whose figures are in order, or unknown. */
+const NO_DOUBTS: FloorAreaFigures['doubts'] = { grossInternal: null, grossExternal: null }
+
+interface OrderDoubts {
+  readonly grossInternal: Said | null
+  readonly grossExternal: Said | null
+}
+
+const englishDoubts = (doubts: OrderDoubts): FloorAreaFigures['doubts'] => ({
+  grossInternal: doubts.grossInternal === null ? null : english(doubts.grossInternal),
+  grossExternal: doubts.grossExternal === null ? null : english(doubts.grossExternal),
+})
+
+/**
+ * ARE-20: gross internal must hold the net, and gross external the gross internal (and so the
+ * net). A figure below one it must hold by more than an area Grid reports is doubted, with why:
+ * room floor on walls or outside them (`offSpace`), which the net counts and no gross figure holds,
+ * or else the two faces of the walls worked out round different floor.
+ */
+function orderDoubts(net: number, internal: number | null, external: number | null, offSpace: number | null): OrderDoubts {
+  const slack = tolerance('areaReported')
+  const off = offSpace !== null && offSpace >= slack ? said('areas.doubt.offSpace', { area: num(offSpace.toFixed(2)) }) : null
+  const short = (a: number, b: number) => num((a - b).toFixed(2))
+  const grossInternal = internal !== null && internal < net - slack
+    ? said('areas.doubt.internalUnderNet', { short: short(net, internal), reason: off ?? said('areas.doubt.rooms') })
+    : null
+  const grossExternal = external === null
+    ? null
+    : internal !== null && external < internal - slack
+      ? said('areas.doubt.externalUnderInternal', { short: short(internal, external), reason: grossInternal !== null && off !== null ? off : said('areas.doubt.faces') })
+      : external < net - slack
+        ? said('areas.doubt.externalUnderNet', { short: short(net, external), reason: off ?? said('areas.doubt.rooms') })
+        : null
+  return { grossInternal, grossExternal }
+}
+
+/** ARE-20: a total's doubt, from its floors', each said with its floor; null when every floor is in order. */
+function totalDoubt(floors: readonly FloorAreaFigures[], measure: GrossMeasure): string | null {
+  const said_ = floors.flatMap((f) => {
+    const doubt = orderDoubts(f.net, f.grossInternal, f.grossExternal, f.offSpace)[measure]
+    return doubt === null ? [] : [english(said('areas.doubt.floor', { floor: name(f.floor), doubt }))]
+  })
+  return said_.length === 0 ? null : said_.join(' ')
 }
 
 /**
@@ -765,6 +853,7 @@ const total = (measure: Measure, floors: readonly FloorAreaFigures[], pick: (f: 
     area: unknown.length > 0 ? null : sum(floors.map((f) => pick(f)!)),
     rule: MEASURES[measure],
     why: unknown.length > 0 ? unknown.map((f) => `Floor ${JSON.stringify(f.floor)}: ${f.why ?? 'not known'}.`).join(' ') : null,
+    doubt: measure === 'grossInternal' || measure === 'grossExternal' ? totalDoubt(floors, measure) : null,
   }
 }
 
@@ -836,6 +925,11 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
   const toParty = partyWallGroups(plan, index, broken, sidesOnce, floors)
   const flats = flatFigures(plan, floors, toParty, options.outdoorWeights)
   const notInFlats = sum(floors.map((f) => f.net)) - sum(flats.map((flat) => flat.net))
+  const grossInternal = total('grossInternal', floors, (f) => f.grossInternal)
+  const grossExternal = total('grossExternal', floors, (f) => f.grossExternal)
+  // ARE-20: a gross figure below one it must hold is given, and says why it cannot be taken as it is.
+  for (const figure of [grossInternal, grossExternal]) if (figure.doubt !== null) notes.push(figure.doubt)
+  const apart = options.apart === undefined || options.apart.size === 0 ? null : apartFigure(plan, index, broken, sidesOnce, floors, options.apart)
 
   return {
     floors,
@@ -844,14 +938,36 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
     notInFlats,
     notInFlatsToPartyWalls: toParty === null ? null : toParty.common,
     net: total('net', floors, (f) => f.net),
-    grossInternal: total('grossInternal', floors, (f) => f.grossInternal),
-    grossExternal: total('grossExternal', floors, (f) => f.grossExternal),
+    grossInternal,
+    grossExternal,
     byUse,
     outsideRooms,
     leftOut,
     reader: readerMeasure(options),
     notes,
     ...(outdoor === null ? {} : { outdoor }),
+    ...(apart === null ? {} : { apart }),
+  }
+}
+
+/** ARE-20: the rooms asked for measured apart: their net as the net counts it, and to the party walls. */
+function apartFigure(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<string>, sides: () => ReadonlyMap<string, WallSides>, floors: readonly FloorAreaFigures[], ids: ReadonlySet<string>): ApartAreaFigure {
+  const counted = new Set<string>()
+  const byFloor: Record<string, number> = {}
+  for (const f of floors) {
+    for (const room of f.rooms) {
+      if (!ids.has(room.id) || room.outside || room.outdoor !== undefined || room.void === true || room.zoneOf !== null || room.countedWith !== undefined) continue
+      counted.add(room.id)
+      byFloor[f.floor] = (byFloor[f.floor] ?? 0) + room.area
+    }
+  }
+  const groups = partyRooms(plan, index, broken, floors, (_floor, id) => (ids.has(id) ? 'apart' : null))
+  return {
+    rooms: plan.rooms.map((room) => room.id).filter((id, i, all) => counted.has(id) && all.indexOf(id) === i),
+    net: sum(Object.values(byFloor)),
+    byFloor,
+    toPartyWalls: measuredGroup(groups.get('apart'), sides),
+    notCounted: [...ids].filter((id) => !counted.has(id)),
   }
 }
 
@@ -994,6 +1110,20 @@ function partyWallGroups(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<
   const flats = planFlats(plan)
   if (flats.length === 0) return null
   const flatOf = new Map(flats.flatMap((flat) => flat.rooms.map((room) => [`${room.floor}|${room.id}`, flat.id] as const)))
+  const groups = partyRooms(plan, index, broken, floors, (floor, id) => flatOf.get(`${floor}|${id}`) ?? null)
+  const given = new Set(floors.map((f) => f.floor))
+  return {
+    flats: new Map(flats.filter((flat) => flat.rooms.some((room) => given.has(room.floor))).map((flat) => [flat.id, measuredGroup(groups.get(flat.id), sides)] as const)),
+    common: measuredGroup(groups.get(null), sides),
+  }
+}
+
+/**
+ * The rooms the floors measure as `partyWallArea` reads them, grouped by `groupOf` (null for a room
+ * in no group), then by floor, so a group's floors are added and never joined across. No zone (it
+ * is in its room), no outdoor space (it is the outside) and no room named outside.
+ */
+function partyRooms(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<string>, floors: readonly FloorAreaFigures[], groupOf: (floor: string, id: string) => string | null): Map<string | null, Map<string, PartyWallRoom[]>> {
   const stated = new Map(plan.rooms.map((room) => [`${floorOf(room)}|${room.id}`, room] as const))
   // Lab plans repeat ids from floor to floor, so a room's walls are looked up on its own floor.
   const wallsOn = new Map(floors.map((f) => [f.floor, new Map(wallsOnFloor(plan, f.floor).map((wall) => [wall.id, wall] as const))] as const))
@@ -1005,7 +1135,7 @@ function partyWallGroups(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<
       const room = stated.get(`${f.floor}|${figure.id}`)
       const shape = room === undefined ? null : tryRoomShape(room, index)
       if (room === undefined || shape === null) continue
-      const group = flatOf.get(`${f.floor}|${figure.id}`) ?? null
+      const group = groupOf(f.floor, figure.id)
       const own = [...new Set(roomWallIds(room))].flatMap((id) => {
         const wall = wallsOn.get(f.floor)?.get(id)
         return wall === undefined || broken.has(id) ? [] : [wall]
@@ -1015,18 +1145,15 @@ function partyWallGroups(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<
       groups.set(group, byFloor)
     }
   }
-  const none: PartyWallArea = { grossInternal: 0, grossExternal: 0 }
-  const measured = (group: string | null): PartyWallArea | null => {
-    let total: PartyWallArea | null = none
-    for (const rooms of (groups.get(group) ?? new Map<string, PartyWallRoom[]>()).values()) {
-      const area = partyWallArea(rooms, sides())
-      total = total === null || area === null ? null : { grossInternal: total.grossInternal + area.grossInternal, grossExternal: total.grossExternal + area.grossExternal }
-    }
-    return total
+  return groups
+}
+
+/** A group's rooms to the party walls, floor by floor and added up; null when a floor's could not be joined. */
+function measuredGroup(byFloor: ReadonlyMap<string, PartyWallRoom[]> | undefined, sides: () => ReadonlyMap<string, WallSides>): PartyWallArea | null {
+  let total: PartyWallArea | null = { grossInternal: 0, grossExternal: 0 }
+  for (const rooms of (byFloor ?? new Map<string, PartyWallRoom[]>()).values()) {
+    const area = partyWallArea(rooms, sides())
+    total = total === null || area === null ? null : { grossInternal: total.grossInternal + area.grossInternal, grossExternal: total.grossExternal + area.grossExternal }
   }
-  const given = new Set(floors.map((f) => f.floor))
-  return {
-    flats: new Map(flats.filter((flat) => flat.rooms.some((room) => given.has(room.floor))).map((flat) => [flat.id, measured(flat.id)] as const)),
-    common: measured(null),
-  }
+  return total
 }
