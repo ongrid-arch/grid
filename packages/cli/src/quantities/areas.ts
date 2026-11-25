@@ -13,6 +13,7 @@
  * are in no figure.
  */
 import { MEASURES, floorOf, floorRoofShape, headroomBands, planMarks, roomHeadroom, wallSureness, type GrossMeasure, type HeadroomBand, type MeasureRule, type ReaderMeasure, type RoomLeftOut } from '@ongrid/floorplan/geometry'
+import { english, joined, num, said } from '@ongrid/floorplan/messages'
 import { FLAT_AREA_RULE, planAreaFigures, type ApartAreaFigure, type FlatAreaFigure, type OutdoorAreaFigure, type OutdoorWeight, type PlanAreaFigures } from '@ongrid/floorplan/geometry/areas'
 import type { PartyWallArea } from '@ongrid/floorplan/geometry/partyWalls'
 import type { MarkSource, OutdoorKind } from '@ongrid/floorplan/types/floorplan'
@@ -131,6 +132,16 @@ export interface FlatAreas extends FlatAreaFigure {
   readonly free?: number
 }
 
+/** ARE-42: a building total that is not known, given for the floors that are, with each floor it leaves out. */
+export interface PartialTotal {
+  /** The sum of the floors that have the figure. */
+  readonly area: number
+  /** The floors it adds up. */
+  readonly floors: readonly string[]
+  /** Every floor left out, with why. */
+  readonly unmeasured: readonly { readonly floor: string; readonly why: string }[]
+}
+
 export interface PlanAreas {
   readonly floors: readonly FloorAreas[]
   /** CNT-4: each flat of the plan's flats list on the floors given, in plan order; empty with none. */
@@ -155,6 +166,8 @@ export interface PlanAreas {
   readonly reader: ReaderMeasure
   /** Why a gross figure is not known, in a sentence; null when both are. */
   readonly grossWhy: string | null
+  /** ARE-42: for a gross figure the whole building lacks, the floors that have it added up and the floors that do not named; only on those. */
+  readonly partial?: Readonly<Partial<Record<GrossMeasure, PartialTotal>>>
   /** LVL-6: the floor by headroom band, over the floors that state their roof; null when none does. */
   readonly headroom: readonly HeadroomBand[] | null
   /** CNT-7 (C26): the outdoor spaces, listed apart from every total; only on a plan that has one. */
@@ -393,6 +406,18 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
   const grossWhy = unknown.length === 0 ? null : `No ${unknown.map((g) => g.rule.name.toLowerCase()).join(' or ')}: ${unknown[0]!.why}`
   const netState = joinStates(floors.map((f) => f.states.net))
   const notes: string[] = grossWhy ? [grossWhy] : []
+  // ARE-42: a floor that fails does not take the building's total from the floors that do not.
+  const partial: Partial<Record<GrossMeasure, PartialTotal>> = {}
+  for (const measure of ['grossInternal', 'grossExternal'] as const) {
+    if (figures[measure].area !== null) continue
+    const known = floors.filter((f) => f[measure] !== null)
+    if (known.length === 0) continue
+    const label = MEASURES[measure].name.toLowerCase()
+    const unmeasured = floors.filter((f) => f[measure] === null).map((f) => ({ floor: f.floor, why: f.why ?? 'not known' }))
+    const area = sum(known.map((f) => f[measure]!))
+    partial[measure] = { area, floors: known.map((f) => f.floor), unmeasured }
+    notes.push(english(said(known.length === 1 ? 'areas.partial.one' : 'areas.partial.many', { measure: label, count: known.length, area: num(area.toFixed(2)), left: joined(unmeasured.map((u) => `floor ${JSON.stringify(u.floor)} (${u.why})`), 'join.comma') })))
+  }
   // CNT-10: the state these figures describe, in a plan with phases.
   const work = survey.facts.work
   if (work !== null) {
@@ -461,6 +486,7 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     leftOut: figures.leftOut,
     reader: figures.reader,
     grossWhy,
+    ...(Object.keys(partial).length === 0 ? {} : { partial }),
     headroom: floorBands.length === 0 ? null : addBands(floorBands),
     measures: [
       MEASURES.net,

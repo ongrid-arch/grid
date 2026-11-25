@@ -2872,6 +2872,10 @@ export const es: Messages = {
   'areas.apart.one': 'Medido aparte (1 local): útil {net}{toPartyWalls}.',
   'areas.apart': 'Medido aparte ({count} locales): útil {net}{toPartyWalls}.',
   'areas.apart.toPartyWalls': '; hasta el eje de los muros que comparte con el resto {areas}',
+  'areas.partial.one': 'La {measure} del edificio entero no se conoce. La otra planta suma {area} m²; sin medir: {left}.',
+  'areas.partial.many': 'La {measure} del edificio entero no se conoce. Las otras {count} plantas suman {area} m²; sin medir: {left}.',
+  'areas.partial.line.one': 'no se conoce para el edificio entero; la otra planta suma {area}; sin medir: {left}',
+  'areas.partial.line.many': 'no se conoce para el edificio entero; las otras {count} plantas suman {area}; sin medir: {left}',
   'areas.apart.notCounted': 'Fuera de los locales medidos aparte, por no ser un local que la superficie útil cuente en las plantas dadas: {ids}.',
   // HND-10 (C31): the trace image under the plan.
   'trace.drawn': 'La imagen de calco {path}, de {width} × {height} px, se dibuja bajo el plano, {scale}. Su esquina superior izquierda está en ({x}, {y}) m, y su píxel (u, v) cae en x = {x} + {metres}·u, y = {y} − {metres}·v.',
