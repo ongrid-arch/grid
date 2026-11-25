@@ -2864,7 +2864,7 @@ class Compiler {
     // CNT-14: a door that slides, rolls or lifts needs no swing: nothing is guessed for it.
     const swingless = kind === 'door' && !sweepsFloor(doorKindOf(openingKind))
     let said = ''
-    if (kind === 'door' && opens === '<none') said = '; swing not decided (Grid draws a plain gap)'
+    if (kind === 'door' && opens === '<none') said = '; no swing stated (Grid does not check its sweep; a drawing sheet marks it with a dashed line and "?", the working picture leaves a plain gap)'
     else if (kind === 'door' && swingless && opens === null && hinged === null) said = `; ${openingKind}, which sweeps nothing`
     else if (kind === 'door') {
       const guessed: string[] = []
