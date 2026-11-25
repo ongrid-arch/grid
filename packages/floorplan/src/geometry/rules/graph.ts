@@ -8,7 +8,7 @@
  * can border several rooms along different stretches.
  */
 
-import type { FloorPlan, Opening, PlanIndex, Wall } from '../plan'
+import type { FloorPlan, Opening, PlanIndex, Room, Wall } from '../plan'
 import { indexPlan } from '../plan'
 import { floorOf } from '../floors'
 import { roomNesting, tryRoomShape } from '../room'
@@ -22,6 +22,7 @@ import { add, area, scale } from '../vec2'
 import { wallFrameAt, wallLength } from '../wall'
 import { TOLERANCES, limit, tolerance } from '../tolerances'
 import { overFigure, underFigure } from '../rounding'
+import { roomFloorOffset } from '../steps'
 
 /** How far past a wall's face a point is taken to be in the room beyond it, in metres (`stepPastFace`). */
 export const STEP_PAST_FACE_M = TOLERANCES.stepPastFace.value
@@ -222,6 +223,38 @@ export interface TooSmall {
   readonly short: ShortOf
 }
 
+/**
+ * LVL-17: a door or doorless opening between two rooms of one storey whose floors stand further
+ * apart in height than a step (`passableRise`), with neither room used as a stair. Each room's
+ * level is its `floorOffset` (LVL-7), in metres from its storey's floor. None of them is in
+ * `links`: a door onto a floor 3 m up is no way through without a stair.
+ */
+export interface BetweenLevels {
+  readonly opening: string
+  /** The room whose floor stands lower, and its level. */
+  readonly lower: string
+  readonly lowerAt: number
+  /** The room whose floor stands higher, and its level. */
+  readonly upper: string
+  readonly upperAt: number
+  /** How much higher the upper floor stands, in metres. */
+  readonly rise: number
+}
+
+/**
+ * LVL-17: the two rooms' levels across a door, when they stand further apart than a step and
+ * neither room is a stair (the stair is how a person climbs between them), else `null`. Compared
+ * as drawn (ARE-7): a rise of exactly `passableRise` is a step.
+ */
+export function levelsAcross(opening: string, a: Room | undefined, b: Room | undefined): BetweenLevels | null {
+  if (a === undefined || b === undefined) return null
+  if (a.use === 'stair' || b.use === 'stair') return null
+  const [lower, upper] = roomFloorOffset(a) <= roomFloorOffset(b) ? [a, b] : [b, a]
+  const rise = roomFloorOffset(upper) - roomFloorOffset(lower)
+  if (!overFigure(rise, limit('passableRise'), 'm')) return null
+  return { opening, lower: lower.id, lowerAt: roomFloorOffset(lower), upper: upper.id, upperAt: roomFloorOffset(upper), rise }
+}
+
 /** Two rooms a person can move between, in id order, and the opening or virtual wall between them. */
 export interface RouteLink {
   readonly rooms: readonly [string, string]
@@ -282,6 +315,11 @@ export interface FloorGraph {
    * door from it to the open air. None of them is in `exits`: a way out must lead to open air.
    */
   readonly closedCourts: readonly OneSided[]
+  /**
+   * LVL-17: doors and doorless openings between rooms whose floors stand further apart than a
+   * step, neither of them a stair. None of them is in `links`.
+   */
+  readonly betweenLevels: readonly BetweenLevels[]
 }
 
 const byText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
@@ -305,6 +343,8 @@ export function floorGraph(plan: FloorPlan, leftOut: ReadonlySet<string> = new S
   const betweenHomes: RouteLink[] = []
   const tooSmall: TooSmall[] = []
   const closedCourts: OneSided[] = []
+  const betweenLevels: BetweenLevels[] = []
+  const roomsById = new Map(plan.rooms.map((room) => [room.id, room] as const))
   // CNT-6: which flat each room is in (CNT-4), so a home is never left through another.
   const flatOf = flatOfRoom(planFlats(plan))
 
@@ -370,6 +410,13 @@ export function floorGraph(plan: FloorPlan, leftOut: ReadonlySet<string> = new S
       if (rooms.length > 0) tooSmall.push({ opening: opening.id, rooms, short })
       continue
     }
+    // LVL-17: a door onto a floor much higher than its own is named, and is not a way through.
+    const [left, right] = sides
+    const levels = left !== null && right !== null && left !== right ? levelsAcross(opening.id, roomsById.get(left), roomsById.get(right)) : null
+    if (levels !== null) {
+      betweenLevels.push(levels)
+      continue
+    }
     passage(wall, opening.id, opening.offset + opening.width / 2, sides)
   }
   // A virtual wall is an open side all along its length (MSG-14): each stretch of it joins the
@@ -412,7 +459,8 @@ export function floorGraph(plan: FloorPlan, leftOut: ReadonlySet<string> = new S
       (a, b) => byText(a.rooms[0], b.rooms[0]) || byText(a.rooms[1], b.rooms[1]) || byText(a.via, b.via)
     ),
     tooSmall: tooSmall.sort((a, b) => byText(a.rooms[0]!, b.rooms[0]!) || byText(a.opening, b.opening)),
-    closedCourts: once(closedCourts, (u) => `${u.room}|${u.opening}`).sort(bySide)
+    closedCourts: once(closedCourts, (u) => `${u.room}|${u.opening}`).sort(bySide),
+    betweenLevels: betweenLevels.sort((a, b) => byText(a.lower, b.lower) || byText(a.upper, b.upper) || byText(a.opening, b.opening))
   }
 }
 

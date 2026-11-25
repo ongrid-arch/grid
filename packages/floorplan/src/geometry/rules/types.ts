@@ -96,6 +96,12 @@ export type FindingCode =
    */
   | 'door_into_closed_court'
   /**
+   * LVL-17: a door or doorless opening between two rooms of one storey whose floors stand further
+   * apart than a step (`passableRise`), neither of them used as a stair. Not a way through. Its
+   * rooms are the lower room, then the upper; its `levels` say both levels.
+   */
+  | 'door_between_levels'
+  /**
    * MSG-17 (lab AB-1): a let, a flat (CNT-4) or a room marked `private` in no flat in a plan with
    * common parts, whose every route to a way out goes through a room another let holds. Its rooms
    * are the let's, then those of the other lets on the way out.
@@ -141,6 +147,15 @@ export interface RuleFinding {
   readonly through?: readonly RouteStep[]
   /** CNT-6: only on `flat_without_front_door`, the flat's id (CNT-4); MSG-17: on `let_through_another_let` when the let is a flat. */
   readonly flat?: string
+  /**
+   * LVL-17, only on `door_between_levels`: each room's floor level, in m from its storey's floor
+   * (LVL-7), the lower room's first, and how much higher the upper stands. Optional, like `through`.
+   */
+  readonly levels?: {
+    readonly lower: { readonly room: string; readonly at: number }
+    readonly upper: { readonly room: string; readonly at: number }
+    readonly rise: number
+  }
   /** LVL-14, only on `no_stair`: the ground floor a stair to the floor would rise from, by id. Optional, like `through`. */
   readonly stairFrom?: string
   /**

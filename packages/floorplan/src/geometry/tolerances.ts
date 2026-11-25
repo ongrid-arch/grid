@@ -622,6 +622,16 @@ export const TOLERANCES = {
       'it is a step.',
     basis: own
   },
+  passableRise: {
+    kind: 'limit',
+    value: 0.3,
+    unit: 'm',
+    decides:
+      'Grid\'s own size, not a code figure. A door or a doorless opening between two rooms whose ' +
+      'floors stand further apart in height than this is not a way through without a stair (LVL-17): ' +
+      'it is named with both levels, and no route is read through it. Lower, it is a step.',
+    basis: own
+  },
   // ── Fixtures (CNT-12) ─────────────────────────────────────────────────────────────────────
   itemIntoWall: {
     kind: 'tolerance',

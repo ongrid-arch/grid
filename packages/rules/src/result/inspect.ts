@@ -72,6 +72,8 @@ const FINDING_CODES: Record<FindingCode, string> = {
   opening_too_small_to_pass: 'opening/too-small-to-pass',
   // MSG-17: a way out leads to open air, and a let is left through common parts.
   door_into_closed_court: 'opening/into-closed-court',
+  // LVL-17: a door onto a floor much higher than its own.
+  door_between_levels: 'opening/between-levels',
   let_through_another_let: 'room/through-another-let',
   room_too_small: 'room/too-small',
   no_escape_opening: 'room/no-escape-opening',
@@ -498,7 +500,8 @@ function findingThing(finding: RuleFinding, wayOutNotDrawn: ReadonlySet<string>)
           finding.code === 'door_to_outside_above_ground' ||
           finding.code === 'opening_below_ground' ||
           finding.code === 'opening_too_small_to_pass' ||
-          finding.code === 'door_into_closed_court') &&
+          finding.code === 'door_into_closed_court' ||
+          finding.code === 'door_between_levels') &&
         finding.openings[0] !== undefined
       ? { kind: 'opening', id: finding.openings[0] }
       : { kind: 'room', id: finding.rooms[0] ?? '' }

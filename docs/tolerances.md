@@ -90,6 +90,7 @@ is not asked whether it was typed in feet.
 | `passableWidth` | limit | 0.4 m | Grid's own size, not a code figure: a door or doorless opening narrower than this is named (`opening/too-small-to-pass`) and is not a way through; outside floor closed in by walls and narrower than this is a gap, not a courtyard (`opening/into-closed-court`) |
 | `passableHeight` | limit | 1.2 m | Grid's own size, not a code figure: one lower than this is named and is not a way through |
 | `passableSill` | limit | 0.3 m | Grid's own size, not a code figure: one whose sill stands higher than this above its floor is named and is not a way through |
+| `passableRise` | limit | 0.3 m | Grid's own size, not a code figure: one between two rooms whose floors stand further apart than this is named with both levels (`opening/between-levels`) and is not a way through without a stair (LVL-17) |
 | `itemIntoWall` | tolerance | 0.005 m | How far a fixture may reach into a solid wall's body and still stand against its face; past it, `item/into-wall` names the wall |
 | `itemOverlap` | tolerance | 0.005 m | How far one item may reach into another, or into the clear floor another keeps in front of it; past it, `item/overlap` or `item/clearance-blocked` names both |
 | `itemLeavesRoom` | tolerance | 0.005 m² | How much of an item's floor may lie outside its room, where no wall stands; past it, `item/leaves-room` names the room and the floor outside |

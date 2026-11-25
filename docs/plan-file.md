@@ -19,7 +19,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [Rooms that overlap, and rooms inside rooms](#rooms-that-overlap-and-rooms-inside-rooms): `room/overlap`, `room/inside-no-host`, `room/overlap-unknown`, `floor/overlaps-unknown`
 - [Zones inside one room](#zones-inside-one-room): `room/zone-not-in-room`
 - [Flats and flat types](#flats-and-flat-types): `flat/unknown-room`, `flat/room-in-two`, `flat/unknown-type`, `flat/duplicate-id`, `flat/duplicate-type`, `flat/zone-without-room`
-- [A way out that leads somewhere, and rooms to let](#a-way-out-that-leads-somewhere-and-rooms-to-let): `opening/into-closed-court`, `room/through-another-let`, `opening/door-out-above-ground`
+- [A way out that leads somewhere, and rooms to let](#a-way-out-that-leads-somewhere-and-rooms-to-let): `opening/into-closed-court`, `room/through-another-let`, `opening/door-out-above-ground`, `opening/between-levels`
 - [Rooms with holes](#rooms-with-holes): `room/hole-outside`, `room/holes-overlap`, `room/unclosed`, `room/out-of-order`, `room/inside-out`
 - [A curved wall](#a-curved-wall): `wall/arc-ends-apart`, `wall/arc-too-tight`
 - [Opening patterns](#opening-patterns): `pattern/unknown-wall`, `pattern/does-not-fit`, `pattern/unknown-floor`, `pattern/no-wall-above`, `pattern/overlaps-opening`, `pattern/id-clash`
@@ -802,6 +802,13 @@ counted no longer do:
   balcony, a terrace, an outside stair) is not looked at: `opening/door-out-above-ground` is a
   `not-checked` line. A way out from an upper floor is followed down a stair ([stairs that join two
   floors](#stairs-that-join-two-floors)).
+- **A door onto a floor much higher than its own** (LVL-17). A door or doorless opening between two
+  rooms of one storey whose floors (their `floorOffset`) stand further apart than a step
+  ([tolerances.md](tolerances.md), `passableRise`) is not a way through, and no route passes it:
+  `opening/between-levels` names it with both rooms and both levels. A room whose only door it is
+  has no route out. A door from or into a room used as a `stair` is a way through whatever the
+  levels: the stair is how a person climbs between them. A dividing line between two such rooms
+  is still an open side.
 
 **Rooms to let.** A let is a [flat](#flats-and-flat-types), or a room whose `tenure` is `private`
 in no flat when the plan marks some room `common` or `shared` (a house of rooms to let, student
@@ -816,6 +823,7 @@ reaches at all is said as before (`room/no-route-out`, `flat/no-front-door`).
 |---|---|
 | `opening/into-closed-court` | the floor's only way out is a door onto a courtyard closed in on every side |
 | `room/through-another-let` | every way out of a let passes through a room another let holds |
+| `opening/between-levels` | a door or doorless opening between rooms whose floors stand further apart than a step, neither of them a stair |
 | `opening/door-out-above-ground` (`not-checked`) | a door to the outside on a floor above the ground: not a way out, and where it leads is not looked at |
 
 These are checks on the drawing, from Grid's own reading of it, and cite no document.

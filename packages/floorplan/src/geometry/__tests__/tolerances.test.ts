@@ -89,6 +89,7 @@ describe('the tolerance table', () => {
       passableWidth: 0.4,
       passableHeight: 1.2,
       passableSill: 0.3,
+      passableRise: 0.3,
       useOpenLeaf: 0.05,
       useApproachDepth: 0.3,
       windowGlassKept: 1.2,
