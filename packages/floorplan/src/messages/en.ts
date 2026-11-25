@@ -766,6 +766,7 @@ export const en = {
   'line.part.taped.missing.no-wall': 'the plan has no wall {walls}',
   'line.part.taped.missing.not-the-rooms.one': 'wall {walls} is not one of the room\'s',
   'line.part.taped.missing.not-the-rooms.many': 'walls {walls} are not one of the room\'s',
+  'line.part.taped.missing.bad-length': 'the length taped is not a number above zero',
   'line.part.taped.missing.no-corner': 'walls {walls} make no corner of the room',
   'line.part.taped.missing.not-drawn': 'the room\'s outline cannot be drawn',
   'line.part.sketch.one': '{count} sketch item',

@@ -778,6 +778,7 @@ export const es: Messages = {
   'line.part.taped.missing.no-wall': 'el plano no tiene ningún muro {walls}',
   'line.part.taped.missing.not-the-rooms.one': 'el muro {walls} no es de la estancia',
   'line.part.taped.missing.not-the-rooms.many': 'los muros {walls} no son de la estancia',
+  'line.part.taped.missing.bad-length': 'la longitud medida no es un número mayor que cero',
   'line.part.taped.missing.no-corner': 'los muros {walls} no forman ninguna esquina de la estancia',
   'line.part.taped.missing.not-drawn': 'no se puede trazar el contorno de la estancia',
   'line.part.sketch.one': '{count} elemento de croquis',
