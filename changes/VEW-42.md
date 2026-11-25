@@ -9,6 +9,6 @@
 ## For agents
 
 - `floor` left out now means the ground floor (the floor at level 0, else the lowest floor
-  above ground, else the lowest) in `grid_draw`, `grid_export`, `grid_sheet`, `grid_preview_sync`
-  and the footprint line of `grid_check_brief`; it was the lowest floor, a basement first. A
+  above ground, else the lowest) in `grid_view`, `grid_export`, `grid_sheet`, `grid_preview`
+  and the footprint line of `grid_write_brief`; it was the lowest floor, a basement first. A
   plan that is all basement still opens on its lowest floor. No new code in the record.
