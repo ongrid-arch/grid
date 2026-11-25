@@ -24,7 +24,7 @@
  * connected shapes (SE-5: not a rectangle per wall).
  *
  * What lies beyond the cut is given as faces, each with how far beyond it is: the faces of walls,
- * slab and roof edges and stairs (a flight's sides as its profile) that face the person looking, as seen on the cut, with
+ * slab edges (only where the slab's thickness is stated, VEW-29), roof edges and stairs (a flight's sides as its profile) that face the person looking, as seen on the cut, with
  * their doors and windows open. Drawn from the farthest to the nearest, each over the last, they
  * hide what lies behind them; a face seen edge-on is a line (a corner).
  *
@@ -416,7 +416,11 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         if (heightByDefault(plan, wall)) defaultHeights.set(floor.id, [...(defaultHeights.get(floor.id) ?? []), wall.id])
         if (marks.assumed('wall', wall.id)) markedWalls.push(wall.id)
       }
-      wallFaces(wall, ends, openings, base, floor.id)
+      // VEW-29: a floor whose slab thickness is not stated draws no band of its own beyond the cut:
+      // the walls it carries stand down over the slab's edge.
+      const slabOf = envelope.floors.find((f) => f.floor === floor.id)?.slab
+      const drop = slabOf != null && slabOf.kind === 'floor' && !slabOf.thicknessStated ? slabOf.thickness : 0
+      wallFaces(wall, ends, openings, base, floor.id, base - drop)
     }
 
     // A raised room's floor stands on its storey's, solid up to its own (LVL-7).
@@ -447,9 +451,9 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
 
   /** The two faces and two ends of a wall, its doors and windows open in its faces. */
-  function wallFaces(wall: Wall, ends: typeof SQUARE_ENDS, openings: ReturnType<typeof openingsOf>, base: number, floor: string): void {
+  function wallFaces(wall: Wall, ends: typeof SQUARE_ENDS, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base): void {
     if (wall.arc !== undefined) {
-      curvedWallFaces(wall, openings, base, floor)
+      curvedWallFaces(wall, openings, base, floor, foot)
       return
     }
     const axis = wallAxis(wall)
@@ -464,10 +468,10 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         y0: base + o.sill,
         y1: base + o.sill + o.height
       }))
-    face('wall', wall.id, floor, l0!, l1!, axis.normal, base, top, holesOn(half))
-    face('wall', wall.id, floor, r0!, r1!, scale(axis.normal, -1), base, top, holesOn(-half))
-    face('wall', wall.id, floor, l1!, r1!, axis.dir, base, top)
-    face('wall', wall.id, floor, r0!, l0!, scale(axis.dir, -1), base, top)
+    face('wall', wall.id, floor, l0!, l1!, axis.normal, foot, top, holesOn(half))
+    face('wall', wall.id, floor, r0!, r1!, scale(axis.normal, -1), foot, top, holesOn(-half))
+    face('wall', wall.id, floor, l1!, r1!, axis.dir, foot, top)
+    face('wall', wall.id, floor, r0!, l0!, scale(axis.dir, -1), foot, top)
   }
 
   /**
@@ -475,7 +479,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
    * `arcSagitta` of it), its doors and windows open where they stand along the curve, and an end
    * face only where the wall ends.
    */
-  function curvedWallFaces(wall: Wall, openings: ReturnType<typeof openingsOf>, base: number, floor: string): void {
+  function curvedWallFaces(wall: Wall, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base): void {
     const half = wall.thickness / 2
     const top = base + wall.height
     const segments = wallSegments(wall)
@@ -494,10 +498,10 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       const l1 = side(half, segment.end)
       const r0 = side(-half, segment.start)
       const r1 = side(-half, segment.end)
-      face('wall', wall.id, floor, l0, l1, segment.normal, base, top, holesOn(half))
-      face('wall', wall.id, floor, r0, r1, scale(segment.normal, -1), base, top, holesOn(-half))
-      if (i === segments.length - 1 && wall.arc!.sweep % 360 !== 0) face('wall', wall.id, floor, l1, r1, segment.dir, base, top)
-      if (i === 0 && wall.arc!.sweep % 360 !== 0) face('wall', wall.id, floor, r0, l0, scale(segment.dir, -1), base, top)
+      face('wall', wall.id, floor, l0, l1, segment.normal, foot, top, holesOn(half))
+      face('wall', wall.id, floor, r0, r1, scale(segment.normal, -1), foot, top, holesOn(-half))
+      if (i === segments.length - 1 && wall.arc!.sweep % 360 !== 0) face('wall', wall.id, floor, l1, r1, segment.dir, foot, top)
+      if (i === 0 && wall.arc!.sweep % 360 !== 0) face('wall', wall.id, floor, r0, l0, scale(segment.dir, -1), foot, top)
     })
   }
 
@@ -525,7 +529,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         parts.push({ kind: 'slab', id: floor.id, floor: floor.id, rings })
         if (!shell.slab.thicknessStated) unstatedSlabs.push({ floor, rings })
       }
-      for (const piece of piecesAsRings(shell.slab.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('slab', floor.id, floor.id, ring, top - thickness, top)
+      if (shell.slab.thicknessStated) for (const piece of piecesAsRings(shell.slab.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('slab', floor.id, floor.id, ring, top - thickness, top)
     }
     // VEW-16: the outside walls carried down to the ground, under a floor whose slab stands clear of it.
     const plinth = plinthUnder(shell.slab, ground.level)

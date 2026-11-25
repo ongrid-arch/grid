@@ -47,7 +47,7 @@ const faceWidths = (svg: string, tier: number): number[] =>
 describe('a facade as a picture', () => {
   it('holds the elevation\'s parts: its faces, its openings, the ground, the outline and each floor\'s level', () => {
     const svg = facadeToSvg(house(), { side: 'south', look: 'technical' })
-    expect(tags(svg, 'facade-face').length).toBeGreaterThanOrEqual(6)
+    expect(tags(svg, 'facade-face').length).toBeGreaterThanOrEqual(4)
     expect(tags(svg, 'facade-opening').map((t) => /data-id="([^"]+)"/.exec(t)![1])).toEqual(['row-first-1', 'row-first-2', 'row-first-3', 'front'])
     expect(tags(svg, 'facade-ground')).toHaveLength(1)
     expect(tags(svg, 'facade-outline')).toHaveLength(1)
