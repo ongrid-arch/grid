@@ -10,6 +10,7 @@
 import { readFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { GRID_TOOLS } from '../serveTools'
 import { bench, type Bench } from './replay/harness'
 
 const fixture = (path: string): unknown => JSON.parse(readFileSync(resolve(__dirname, path), 'utf8'))
@@ -231,19 +232,35 @@ describe('the roof in a 3d view', () => {
   it('draws a stated gable over one storey, and says so', async () => {
     const reply = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south' })
     expect(reply.isError, reply.text).toBe(false)
-    expect(reply.text).toContain('It is drawn with the roof the plan states, a gable roof over "Ground floor"')
+    expect(reply.text).toContain('It is drawn with the roof the plan states, a gable roof over "Ground floor", pitched 30°')
     expect(reply.text).not.toContain('no roof')
   })
 
   it('draws one storey closed from outside, and open with roof=hide or a floor cut away', async () => {
     const closed = await roofed.call('grid_view', { plan: 'flat.json', kind: '3d', from: 'south' })
-    expect(closed.text).toContain('Every part with nothing above it has a flat roof')
+    expect(closed.text).toContain('The plan states no roof, so a flat roof is taken')
     const open = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south', roof: 'hide' })
-    expect(open.text).toContain('drawn open, without its roof (roof=show draws it)')
+    expect(open.text).toContain('drawn open, without its roof (roof=show draws the roof the plan states, a gable roof over "Ground floor", pitched 30°)')
     const cut = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south', floor: 'ground' })
     expect(cut.text).toContain('drawn open, without its roof')
     const shown = await roofed.call('grid_view', { plan: 'gable.json', kind: '3d', from: 'south', floor: 'ground', roof: 'show' })
-    expect(shown.text).toContain('a gable roof over "Ground floor"')
+    expect(shown.text).toContain('a gable roof over "Ground floor", pitched 30°')
+  })
+
+  it('names a hip roof and its pitch, in the facade answer and the description', async () => {
+    const hipped = { ...gabled, floors: [{ id: 'ground', name: 'Ground floor', level: 0, roof: { shape: 'hip', eaves: 2.6, pitch: 25 } }] }
+    const b = bench({ 'hip.json': hipped, 'flat.json': flat })
+    try {
+      const facade = await b.call('grid_view', { plan: 'hip.json', kind: 'facade', side: 'south' })
+      expect(facade.text).toContain('The roof the plan states is drawn as it is: a hip roof over "Ground floor", pitched 25°')
+      const none = await b.call('grid_view', { plan: 'flat.json', kind: 'facade', side: 'south' })
+      expect(none.text).toContain('The plan states no roof')
+      const tool = GRID_TOOLS.find((t) => t.name === 'grid_view')!
+      expect(tool.description).toContain('flat, mono-pitch, gable or hip')
+      expect(tool.description).not.toMatch(/every roof is flat/i)
+    } finally {
+      b.close()
+    }
   })
 
   it('takes roof for 3d only', async () => {
