@@ -10,7 +10,11 @@
  * - the stairs the plan states, tread by tread and landing by landing, solid from the foot
  *   (`stairBlocks`, LVL-3);
  * - the floor of each raised room (LVL-7), solid from its storey's floor up;
- * - the ground the site states (LVL-4), and which side of each cut wall is outside (MSG-13, CNT-3).
+ * - the ground the site states (LVL-4), and which side of each cut wall is outside (MSG-13, CNT-3);
+ * - the plinth under a floor on the ground whose slab stands clear of that ground (VEW-16,
+ *   `plinthUnder`): its outside walls carried down to the ground, the band they stand on
+ *   (`outerWallBand`) from the ground up to the slab, cut and seen beyond. The ground line runs on
+ *   under such a floor, so its plinths stand on it.
  *
  * The section's own coordinates: `x` runs across the picture from its left, along the line, as a
  * person standing on the line and looking toward the chosen side sees it; `y` is the height, in
@@ -42,7 +46,8 @@ import { floorOf, planFloors, planForFloor } from './floors'
 import { wholeWall } from './through'
 import { floorElevations, isFiniteWall } from './elevations'
 import { planEnvelope } from './envelope'
-import { groundLevel } from './ground'
+import { groundLevel, plinthUnder } from './ground'
+import { floorWalls, outerWallBand } from './areas'
 import { wallJoints } from './joints'
 import { SQUARE_ENDS, wallAxis, wallParts, wallPointAt, wallSegments, wallSlicePolygon, pointAlong } from './wall'
 import { brokenOnFloor } from './validate'
@@ -53,7 +58,7 @@ import { roomFloorOffset } from './steps'
 import { roomZones } from './zones'
 import { planWallSides, stretchAt } from './exposure'
 import { planMarks } from './marks'
-import { cutOutline, piecesAsRings, ringOf } from './polygons'
+import { cutOutline, piecesAsRings, ringOf, union } from './polygons'
 import { limit, tolerance } from './tolerances'
 import { metresText } from './rounding'
 import type { Vec2 } from './vec2'
@@ -77,12 +82,12 @@ export interface SectionPiece {
   readonly holes: readonly (readonly Vec2[])[]
 }
 
-export type SectionPartKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'floor'
+export type SectionPartKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'floor' | 'plinth'
 
 /** One part of the model the line cuts, as rectangles (a wall, a slab) or blocks (a stair). */
 export interface SectionPart {
   readonly kind: SectionPartKind
-  /** The wall's or the stair's id, the floor's for a slab, roof or parapet, the room's for a raised floor. */
+  /** The wall's or the stair's id, the floor's for a slab, roof, parapet or plinth, the room's for a raised floor. */
   readonly id: string
   readonly floor: string
   /** The rectangles it is cut into along the line, each counter-clockwise. */
@@ -94,7 +99,7 @@ export interface SectionPart {
   readonly outside?: 'left' | 'right' | null
 }
 
-export type SectionFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair'
+export type SectionFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'plinth'
 
 /** A face beyond the cut that faces the person looking: a piece to paint over what lies behind it. */
 export interface SectionFace {
@@ -168,7 +173,10 @@ export interface PlanSection {
   readonly parts: readonly SectionPart[]
   /** What lies beyond the cut, farthest first. */
   readonly beyond: readonly SectionFace[]
-  /** The ground: its level, whether the site states it, and the stretches of its line outside the building. */
+  /**
+   * The ground: its level, whether the site states it, and the stretches of its line: outside the
+   * building, and under a floor that stands clear of it on its plinth (VEW-16).
+   */
   readonly ground: { readonly level: number; readonly stated: boolean; readonly segments: readonly (readonly [number, number])[] }
   /** Every floor's level, lowest first. */
   readonly levels: readonly SectionLevel[]
@@ -334,9 +342,12 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     faces.push({ kind, id, floor, depth: (da + db) / 2, pieces, edge: null })
   }
 
-  /** The faces of a ring of the plan, its outside to the right of each edge when it runs clockwise. */
-  const ringFaces = (kind: SectionFaceKind, id: string, floor: string, ring: readonly Vec2[], y0: number, y1: number): void => {
-    const clockwise = signedArea(ring) < 0
+  /**
+   * The faces of a ring of the plan, its outside to the right of each edge when it runs clockwise:
+   * the ring holds the solid. A `hole` holds none, and its faces look into it.
+   */
+  const ringFaces = (kind: SectionFaceKind, id: string, floor: string, ring: readonly Vec2[], y0: number, y1: number, hole = false): void => {
+    const clockwise = (signedArea(ring) < 0) !== hole
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i]!
       const b = ring[(i + 1) % ring.length]!
@@ -477,6 +488,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   // The slabs, roofs and parapets (LVL-4).
   const roofs: { floor: string; level: number }[] = []
   const unstatedSlabs: { floor: Floor; rings: Vec2[][] }[] = []
+  const onPlinths = new Set<string>()
   const roofRings: { floor: Floor; rings: Vec2[][]; thickness: number; shape: RoofShape | null }[] = []
   for (const floor of floors) {
     const shell = envelope.floors.find((f) => f.floor === floor.id)
@@ -494,6 +506,18 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       }
       for (const piece of piecesAsRings(shell.slab.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('slab', floor.id, floor.id, ring, top - thickness, top)
     }
+    // VEW-16: the outside walls carried down to the ground, under a floor whose slab stands clear of it.
+    const plinth = plinthUnder(shell.slab, ground.level)
+    if (plinth !== null) {
+      onPlinths.add(floor.id)
+      const band = plinthBand(floor.id)
+      const rings = inside(frame, ringsOf(band)).map(([x0, x1]) => rect(snap, x0, x1, plinth.bottom, plinth.top))
+      if (rings.length > 0) parts.push({ kind: 'plinth', id: floor.id, floor: floor.id, rings })
+      for (const piece of piecesAsRings(band)) {
+        ringFaces('plinth', floor.id, floor.id, piece.outline, plinth.bottom, plinth.top)
+        for (const hole of piece.holes) ringFaces('plinth', floor.id, floor.id, hole, plinth.bottom, plinth.top, true)
+      }
+    }
     const roof = shell.roof
     if (roof !== null) {
       const roofTop = roof.bottom + roof.thickness
@@ -510,6 +534,16 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         if (parapet.length > 0) parts.push({ kind: 'parapet', id: floor.id, floor: floor.id, rings: parapet })
         for (const piece of piecesAsRings(roof.parapet.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('parapet', floor.id, floor.id, ring, roofTop, parapetTop)
       }
+    }
+  }
+
+  /** The band of a floor's outside walls, on plan: what its plinth stands under. Empty when it cannot be worked out. */
+  function plinthBand(floor: string): MultiPolygon {
+    try {
+      const slice = planForFloor(plan, floor)
+      return union(outerWallBand(floorWalls(slice, floor, brokenOnFloor(slice)), planWallSides(indexPlan(slice))))
+    } catch {
+      return []
     }
   }
 
@@ -543,24 +577,27 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
 
   // The ground: outside the floors that meet it, where the line crosses them, run past the building
-  // on both sides.
+  // on both sides. VEW-16: a floor on its plinth stands clear of the ground, which runs on under it.
   const meets = floors.filter((floor) => {
     const shell = envelope.floors.find((f) => f.floor === floor.id)
     const level = elevations.floors.get(floor.id)?.floorLevel ?? 0
     return levelOf(floor) === Math.min(...floors.map(levelOf)) || level - (shell?.slab?.thickness ?? 0) <= ground.level
   })
-  const building = mergeStretches(
-    meets.flatMap((floor) => {
-      const outline = envelope.floors.find((f) => f.floor === floor.id)?.outline
-      return outline == null ? [] : inside(frame, ringsOf(outline), false)
-    }).filter(([a, b]) => b > 0 && a < lineLength)
-  )
+  const stretchesOf = (list: readonly Floor[]): [number, number][] =>
+    mergeStretches(
+      list.flatMap((floor) => {
+        const outline = envelope.floors.find((f) => f.floor === floor.id)?.outline
+        return outline == null ? [] : inside(frame, ringsOf(outline), false)
+      }).filter(([a, b]) => b > 0 && a < lineLength)
+    )
+  const building = stretchesOf(meets)
+  const reaching = stretchesOf(meets.filter((floor) => !onPlinths.has(floor.id)))
   const run = limit('sectionGroundRun')
   const groundFrom = building.length === 0 ? 0 : Math.min(0, building[0]![0] - run)
   const groundTo = building.length === 0 ? lineLength : Math.max(lineLength, building[building.length - 1]![1] + run)
   const segments: [number, number][] = []
   let cursor = groundFrom
-  for (const [a, b] of building) {
+  for (const [a, b] of reaching) {
     if (a - cursor > none) segments.push([snap(cursor), snap(a)])
     cursor = Math.max(cursor, b)
   }

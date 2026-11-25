@@ -101,6 +101,7 @@ in it is used as a `bedroom` or a `living` room) the home figures apply.
 | `stackShift` | tolerance | 0.05 m | A floor whose outline reaches past the floor below it, or sits back from it, by more than this and half the thickest wall that stretch runs along does not line up with it (`floor/out-of-line`), nor does a stair room or a lift shaft moved by more than this from the one below (`room/stair-shifted`, `room/lift-shifted`), unless the plan marks it as meant (LVL-5) |
 | `stairStepLength` | limit | 0.63 m | A stair that states no number of risers gets the number that brings twice the riser plus the going nearest this |
 | `planCutHeight` | limit | 1.2 m | How high above a floor its plan is cut: a stair rising from the floor is drawn solid up to this height, with a break line there, and dashed above (SHT-11) |
+| `plinthLeast` | tolerance | 0.005 m | A floor on the ground whose slab stands higher than this above the site's stated ground is carried down to the ground on a plinth in its sections and facades (VEW-16); lower, it stands at the ground |
 | `sectionGroundRun` | limit | 1 m | How far the ground line of a section runs past the building on each side (LVL-9) |
 | `elevationMarkOffset` | limit | 1.2 m | How far outside the drawing and its dimensions an elevation mark stands on a plan (LVL-9) |
 | `aboveSameEdge` | tolerance | 0.02 m | A stretch of the outline of the floor above this close to the outline of the floor drawn, along it, is the same wall face, and is not drawn dashed (SHT-11) |
