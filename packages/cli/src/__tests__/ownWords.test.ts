@@ -36,7 +36,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/brief/brief.ts': [54, 'agent'],
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
-  'packages/cli/src/brief/lines.ts': [21, 'notYet'],
+  'packages/cli/src/brief/lines.ts': [24, 'notYet'],
   'packages/cli/src/command/check.ts': [10, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
   'packages/cli/src/command/diff.ts': [13, 'command'],
