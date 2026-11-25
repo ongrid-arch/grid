@@ -102,7 +102,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-19: one more, grid_takeoff's description of the parking bays and the ramps.
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
   // ARE-18: two more, why a route's walked length is not given.
-  'packages/cli/src/mcp/readTools.ts': [321, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [322, 'tools'],
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],

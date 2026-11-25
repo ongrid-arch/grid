@@ -36,6 +36,8 @@ export interface AreaState {
   readonly leftOut: readonly RoomRef[]
   /** Rooms it holds whose outline the drawing questions. */
   readonly notProven: readonly RoomRef[]
+  /** ARE-20: why it is not proven when no room makes it so, such as a gross area below the net, in sentences. Absent when there is none. */
+  readonly why?: readonly string[]
 }
 
 /** A room as the states read it: its area, null when not measured, and its own state. */
@@ -94,7 +96,14 @@ export function joinStates(states: readonly AreaState[]): AreaState {
     : states.some((s) => s.state === 'not-proven')
       ? 'not-proven'
       : 'proven'
-  return { state, leftOut: all((s) => s.leftOut), notProven: all((s) => s.notProven) }
+  const why = [...new Set(states.flatMap((s) => s.why ?? []))]
+  return { state, leftOut: all((s) => s.leftOut), notProven: all((s) => s.notProven), ...(why.length === 0 ? {} : { why }) }
+}
+
+/** ARE-20: the state with a reason added that makes it not proven (one not looked at stays so). */
+export function doubted(state: AreaState, why: string | null): AreaState {
+  if (why === null || state.state === 'not-looked-at') return state
+  return { ...state, state: 'not-proven', why: [...new Set([...(state.why ?? []), why])] }
 }
 
 /** A figure Grid could not work out at all: nothing it would be made of was measured. */
@@ -110,5 +119,7 @@ export function stateText(state: AreaState, several: boolean): string {
   const parts: string[] = []
   if (state.leftOut.length > 0) parts.push(`leaves out ${names(state.leftOut, several)}, which could not be measured`)
   if (state.notProven.length > 0) parts.push(`holds ${names(state.notProven, several)}, whose outline the drawing questions`)
+  // ARE-20: a reason in Grid's own words, such as a gross area below the net, ends with its own stop.
+  for (const why of state.why ?? []) parts.push(why.replace(/\.$/, ''))
   return `; ${state.state === 'not-proven' ? 'not proven' : 'not looked at'}: ${parts.join('; ')}`
 }

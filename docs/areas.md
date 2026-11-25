@@ -28,6 +28,31 @@ gross internal area leaves out the walls that face outside, stretch by stretch, 
 them out from the rooms beside them, with the corners between them; a floor with no such wall
 has none. A room Grid could not draw is named and left out of every figure.
 
+The three are held in order (ARE-20): on every floor and in all, the gross external area holds
+the gross internal area, and the gross internal area holds the net. Where the drawing puts one
+below a figure it must hold, most often a room that runs past the walls, so that its floor is in
+the net and in no gross figure, the figure is still given, and `grid_areas` marks it not proven,
+with a sentence in its state (`why`) and in the notes that says which figure is short of which, by
+how much and why. In the library: each floor's `doubts` and each gross total's `doubt` in
+`planAreaFigures(plan)`.
+
+An outdoor space inside the walls, such as a courtyard, a cloister's garth or a light well marked
+as outdoor space, is out of both gross figures, whatever bounds it: walls Grid works out as facing
+it, walls stated exterior, or an open side drawn as a virtual wall, such as an arcade. Floor no
+room claims still counts in both, since Grid cannot tell whether it is covered: mark an open
+courtyard as outdoor space to take it out.
+
+### One building measured apart
+
+Two buildings built against each other on the same floors can be measured apart (ARE-20):
+`grid_areas` with `apart_rooms`, the rooms of one of them, gives their net area, counted as the net
+counts it, and their area to the middle of each wall they share with the rest of the plan, to the
+inside face and to the outside face of the walls that face outside, as a flat's area to its party
+walls is measured. Measured apart, the two buildings add up to the whole. An id that is no room the
+net counts on the floors given (a zone, an outdoor space, a room named outside, a stair counted
+below) is named and left out. In the library: `planAreaFigures(plan, { apart })`. A building the
+plan names (CNT-6) is a group of floors, and is measured from its own floors without this.
+
 Under a sloped roof (LVL-6) a room's floor is also given by headroom band: how much of it has at
 least 1.5 m (`headroomLow`) and at least 2.2 m (`headroomFull`) of height over it, Grid's own
 figures, not a code figure ([tolerances.md](tolerances.md)). The height is measured from the room's
