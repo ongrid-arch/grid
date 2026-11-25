@@ -432,3 +432,56 @@ describe('tidy', () => {
     expect([1.5, 0.025, 2.0749999999, 10].map(wallMetres)).toEqual(['1.50', '0.025', '2.075', '10.00'])
   })
 })
+
+describe('a curved wall meets the straight walls that end on it (CNT-28)', () => {
+  /** A curved wall from (8, 0) to (8, 3), bulging east round (8, 1.5). */
+  const bow = (): Wall => wall('bow', [8, 0], [8, 3], { arc: { centre: [8, 1.5], sweep: 180 } })
+
+  it('reads a wall running along two rooms to the end of a curve as meeting it', () => {
+    const plan = planOf({
+      walls: [wall('long', [0, 0], [8, 0]), wall('e1', [4, 0], [4, 3]), wall('n1', [4, 3], [0, 3]), wall('w1', [0, 3], [0, 0]), bow(), wall('n2', [8, 3], [4, 3])],
+      rooms: [room('a', ['long', 'e1', 'n1', 'w1']), room('b', ['long', 'bow', 'n2', 'e1'])]
+    })
+    expect(faultsOf(plan)).toEqual([])
+    expect(wallLines(plan)).toEqual([])
+  })
+
+  it('reads a wall that ends on the middle of a curve as meeting it', () => {
+    // The curve runs round (3, 0) from (3, -3) to (3, 3), through (6, 0), where "s" ends.
+    const plan = planOf({
+      walls: [
+        wall('s', [-4, 0], [6, 0]),
+        wall('e', [0, 0], [0, 3]),
+        wall('n', [0, 3], [-4, 3]),
+        wall('w', [-4, 3], [-4, 0]),
+        wall('round', [3, -3], [3, 3], { arc: { centre: [3, 0], sweep: 180 } })
+      ],
+      rooms: [room('a', ['s', 'e', 'n', 'w'])]
+    })
+    expect(faultsOf(plan)).toEqual([])
+    expect(wallLines(plan)).toEqual([])
+  })
+
+  it('counts the corner a straight wall makes with a curve in a room the curve bounds', () => {
+    const plan = planOf({
+      walls: [wall('long', [4, 0], [8, 0]), bow(), wall('n2', [8, 3], [4, 3]), wall('e1', [4, 3], [4, 0])],
+      rooms: [room('b', ['long', 'bow', 'n2', 'e1'])]
+    })
+    expect(faultsOf(plan)).toEqual([])
+  })
+
+  it('still names a straight wall that runs on past the end of a curve, and moves only the straight wall', () => {
+    const plan = planOf({
+      walls: [wall('long', [4, 0], [8, 0]), bow(), wall('n2', [10, 3], [4, 3]), wall('e1', [4, 3], [4, 0])],
+      rooms: [room('b', ['long', 'bow', 'n2', 'e1'])]
+    })
+    const faults = faultsOf(plan)
+    expect(faults.map((f) => [f.id, f.walls])).toEqual([['overrun:n2:start', ['n2', 'bow']]])
+    const [fault] = faults
+    expect(fault!.distance).toBeCloseTo(2)
+    expect(fault!.message).toContain('runs 2.00 m past its corner with wall "bow" in room "b"')
+    expect(fault!.message).not.toContain('If instead')
+    expect(fault!.fix!.edits).toEqual([{ op: 'move-end', wall: 'n2', end: 'start', to: [8, 3] }])
+    expect(faultsOf(applyWallEdits(plan, fault!.fix!.edits))).toEqual([])
+  })
+})

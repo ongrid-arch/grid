@@ -49,6 +49,8 @@ import { wallWithEnds } from '../types/floorplan'
 import type { Vec2 } from './vec2'
 import { area, cross, dot, sub } from './vec2'
 import { wallAxis } from './wall'
+import type { WallCurve } from './arc'
+import { curveAlong, curveFault, curvePointAt, wallCurve } from './arc'
 import { boxIndex } from './boxIndex'
 
 export type WallFaultKind =
@@ -132,9 +134,41 @@ interface Seg {
 const thickness = (wall: Wall): number => (wall.virtual === true ? 0 : wall.thickness)
 
 /**
+ * A curved wall as the faults see it (CNT-28): no fault is about it and no fix moves it, but a
+ * straight wall that ends on it, at one of its ends or along it, meets a wall there, and the
+ * corner a straight wall makes with it is a corner on that straight wall.
+ */
+interface Bend {
+  readonly wall: Wall
+  readonly curve: WallCurve
+  readonly t: number
+}
+
+/** What a straight wall meets at a corner: another straight wall, or a curved one. */
+type Met = Seg | Bend
+
+const isBend = (w: Met): w is Bend => 'curve' in w
+
+/** A sound curved wall, or null for a straight one or a curve `curveFault` finds wrong. */
+function bendOf(wall: Wall): Bend | null {
+  if (wall.arc === undefined || curveFault(wall) !== null) return null
+  const curve = wallCurve(wall)
+  return curve === null ? null : { wall, curve, t: thickness(wall) }
+}
+
+/** How far a point lies from a curved wall's curve, between its ends. */
+function toCurve(p: Vec2, b: Bend): number {
+  const q = curvePointAt(b.curve, curveAlong(b.curve, p))
+  return Math.hypot(p.x - q.x, p.y - q.y)
+}
+
+/** How far a point lies from what a straight wall meets, along its axis or its curve. */
+const toMet = (p: Vec2, w: Met): number => (isBend(w) ? toCurve(p, w) : toSegment(p, w))
+
+/**
  * A straight wall as the faults measure it. A curved wall (CNT-18) is left out: its ends are on
  * its curve and moving one would move the curve, so no fault here is about it and no fix moves
- * it. The rooms round it are still traced, and a straight wall in them is still looked at.
+ * it. The rooms round it are still traced (`Bend`), and a straight wall in them is still looked at.
  */
 function segOf(wall: Wall): Seg | null {
   if (wall.arc !== undefined) return null
@@ -319,6 +353,8 @@ interface Context {
   readonly index: PlanIndex
   readonly floor: string
   readonly segs: ReadonlyMap<string, Seg>
+  /** The floor's sound curved walls (CNT-28), which the straight ones may end on. */
+  readonly bends: ReadonlyMap<string, Bend>
   /** Rooms on the floor whose outline was traced, with or without a fault. */
   readonly traced: readonly Traced[]
 }
@@ -391,7 +427,7 @@ const nearestEnd = (s: Seg, p: Vec2): 'start' | 'end' =>
 const endPoint = (s: Seg, end: 'start' | 'end'): Vec2 => (end === 'start' ? s.a : s.b)
 
 /** How far a wall end may lie from the other wall's line and still reach it (`gap`). */
-const reach = (a: Seg, b: Seg): number => Math.max(a.t, b.t) / 2 + tolerance('gap')
+const reach = (a: Seg, b: Met): number => Math.max(a.t, b.t) / 2 + tolerance('gap')
 
 /**
  * Corners and rows of each room's own wall list: `short` and `gap`. A corner whose lines cross
@@ -526,21 +562,23 @@ function straightSides(ids: readonly string[], corners: ReadonlySet<string>): Ma
   return sides
 }
 
-/** Whether a wall end lies on another wall's body, to within `gap`. */
-function touchesAnother(s: Seg, p: Vec2, near: readonly Seg[]): boolean {
-  return near.some((o) => o !== s && toSegment(p, o) <= o.t / 2 + tolerance('gap'))
+/** Whether a wall end lies on another wall's body, straight or curved (CNT-28), to within `gap`. */
+function touchesAnother(s: Seg, p: Vec2, near: readonly Met[]): boolean {
+  return near.some((o) => o !== s && toMet(p, o) <= o.t / 2 + tolerance('gap'))
 }
 
 /** Free ends of listed walls beyond the last corner any room makes on them: `overrun`. */
 function overrunFaults(ctx: Context, out: Map<string, WallFault>): void {
   // The corners each wall has in rooms whose outline is sound, with the wall it meets there.
-  const cornersOn = new Map<string, { d: number; at: Vec2; other: Seg; room: string }[]>()
+  // CNT-28: a corner with a curved wall is a corner on the straight wall that makes it.
+  const cornersOn = new Map<string, { d: number; at: Vec2; other: Met; room: string }[]>()
+  const met = (id: string): Met | undefined => ctx.segs.get(id) ?? ctx.bends.get(id)
   for (const { room, outline } of ctx.traced) {
     if (outline.fault !== null) continue
     for (const c of outline.corners) {
       for (const [id, otherId] of [[c.wallA, c.wallB], [c.wallB, c.wallA]] as const) {
         const s = ctx.segs.get(id)
-        const other = ctx.segs.get(otherId)
+        const other = met(otherId)
         if (!s || !other) continue
         const entry = { d: along(s, c.at), at: c.at, other, room: room.id }
         const known = cornersOn.get(id)
@@ -554,11 +592,12 @@ function overrunFaults(ctx: Context, out: Map<string, WallFault>): void {
     for (let i = 0; i < ids.length; i++) {
       const [ia, ib] = [ids[i]!, ids[(i + 1) % ids.length]!]
       if (ia === ib || corners.has(`${ia}|${ib}`)) continue
-      const a = ctx.segs.get(ia)
-      const b = ctx.segs.get(ib)
+      const a = met(ia)
+      const b = met(ib)
       if (!a || !b) continue
       for (const [s, other] of [[a, b], [b, a]] as const) {
-        const end = toSegment(s.a, other) <= toSegment(s.b, other) ? s.a : s.b
+        if (isBend(s)) continue
+        const end = toMet(s.a, other) <= toMet(s.b, other) ? s.a : s.b
         const entry = { d: along(s, end), at: end, other, room: room.id }
         const known = cornersOn.get(s.wall.id)
         if (known) known.push(entry)
@@ -567,7 +606,7 @@ function overrunFaults(ctx: Context, out: Map<string, WallFault>): void {
     }
   }
   const segs = [...ctx.segs.values()]
-  const nearby = new Map<Seg, Seg[]>()
+  const nearby = new Map<Seg, Met[]>()
   for (const [p, q] of nearPairs(segs)) {
     for (const [x, y] of [[p, q], [q, p]] as const) {
       const known = nearby.get(x)
@@ -575,6 +614,8 @@ function overrunFaults(ctx: Context, out: Map<string, WallFault>): void {
       else nearby.set(x, [y])
     }
   }
+  // A free end on a curved wall meets it too (CNT-28). A floor has few curved walls.
+  const bends = [...ctx.bends.values()]
   for (const s of segs) {
     const corners = cornersOn.get(s.wall.id)
     if (!corners || corners.length === 0) continue
@@ -584,17 +625,13 @@ function overrunFaults(ctx: Context, out: Map<string, WallFault>): void {
       const past = end === 'end' ? d - last.d : last.d - d
       if (past <= reach(s, last.other)) continue
       const p = endPoint(s, end)
-      if (touchesAnother(s, p, nearby.get(s) ?? [])) continue
+      if (touchesAnother(s, p, [...(nearby.get(s) ?? []), ...bends])) continue
       const id = `overrun:${s.wall.id}:${end}`
       const edits = moveEnd(ctx, s, end, last.at)
       const fix = fixOf(ctx, said('issue.wall/overrun.fix', { end: endSaid(end), wall: name(s.wall.id), at: point(last.at) }), edits)
-      // When the other wall ends at the corner, the slip may be its: it may be meant to reach this end.
-      const otherEnd = nearestEnd(last.other, last.at)
-      const otherAt = endPoint(last.other, otherEnd)
-      const theirs =
-        Math.hypot(otherAt.x - last.at.x, otherAt.y - last.at.y) <= tolerance('gap')
-          ? said('issue.wall/overrun.theirs', { other: name(last.other.wall.id), at: point(p), end: endSaid(otherEnd) })
-          : null
+      // When the other wall ends at the corner, the slip may be its: it may be meant to reach this
+      // end. Not a curved wall's (CNT-28): moving its end would move its curve.
+      const theirs = isBend(last.other) ? null : theirsSaid(last.other, last.at, p)
       const otherwise =
         edits === null && openingsOf(ctx.index, s.wall.id).length > 0 ? said('issue.wall/overrun.opening') : NO_FIX
       out.set(id, {
@@ -613,6 +650,15 @@ function overrunFaults(ctx: Context, out: Map<string, WallFault>): void {
       })
     }
   }
+}
+
+/** That the other wall, ending at the corner, may be the one meant to reach `p`; or null. */
+function theirsSaid(other: Seg, corner: Vec2, p: Vec2): Said | null {
+  const otherEnd = nearestEnd(other, corner)
+  const otherAt = endPoint(other, otherEnd)
+  return Math.hypot(otherAt.x - corner.x, otherAt.y - corner.y) <= tolerance('gap')
+    ? said('issue.wall/overrun.theirs', { other: name(other.wall.id), at: point(p), end: endSaid(otherEnd) })
+    : null
 }
 
 /** The rooms that list a wall, on this floor. */
@@ -989,6 +1035,7 @@ export function wallFaults(plan: FloorPlan, options: WallFaultOptions = {}): Wal
   const found: WallFault[] = []
   for (const floor of floors) {
     const segs = new Map<string, Seg>()
+    const bends = new Map<string, Bend>()
     const counts = new Map<string, number>()
     for (const w of plan.walls) counts.set(w.id, (counts.get(w.id) ?? 0) + 1)
     for (const w of plan.walls) {
@@ -996,10 +1043,13 @@ export function wallFaults(plan: FloorPlan, options: WallFaultOptions = {}): Wal
       if (!wallStandsOn(plan, w, floor) || broken.has(w.id) || counts.get(w.id) !== 1) continue
       const s = segOf(w)
       if (s) segs.set(w.id, s)
+      const b = bendOf(w)
+      if (b) bends.set(w.id, b)
     }
     const traced: Traced[] = []
     for (const room of plan.rooms) {
-      if (floorOf(room) !== floor || room.boundary.some((id) => !segs.has(id))) continue
+      // CNT-28: a room a sound curved wall bounds is traced too, as CNT-18 meant it to be.
+      if (floorOf(room) !== floor || room.boundary.some((id) => !segs.has(id) && !bends.has(id))) continue
       try {
         const outline = roomOutline(room, index)
         // A room refused for something other than its outline (an id used twice, an empty one).
@@ -1009,7 +1059,7 @@ export function wallFaults(plan: FloorPlan, options: WallFaultOptions = {}): Wal
         continue
       }
     }
-    const ctx: Context = { plan, index, floor, segs, traced }
+    const ctx: Context = { plan, index, floor, segs, bends, traced }
     const out = new Map<string, WallFault>()
     try {
       listedTwiceFaults(ctx, out)
