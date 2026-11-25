@@ -99,6 +99,13 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),
   or that leave a gap that is neither a wall nor a room are refused in plain words naming both
   rooms. Every refusal has a code, such as `rooms/overlap`.
+- `open` on a room line and `wall between <a> and <b> virtual` anywhere on the floor (or in the
+  unit) say the same thing: a room placed beside the other is placed against it, with a dividing
+  line on their shared face, so both keep the size written for them (WRT-41). A unit placed
+  beside a room goes against it when every room on its facing side is opened to that room. Rooms
+  placed by their corner (`at x,y`) or as polygons stay where they are written: a dividing line
+  in a gap between them lies in its middle, and the answer says the rooms came out larger
+  (`rooms/area-differs`).
 - A door or window line may say its kind (CNT-14): `sliding`, `double`, `folding`, `pocket`,
   `roller`, `garage` or `single` for a door, `single`, `double`, `sliding`, `fixed` or
   `high-level` for a window; `part 0.9` (or `part 0.6 x 1.0`) for the part that opens. A door

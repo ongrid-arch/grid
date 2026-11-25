@@ -133,8 +133,11 @@ describe('rooms text ends a dividing line where its rooms stop sharing an edge (
   })
 
   it('the line between the aisle and the wider stand ends at the end of the aisle', () => {
-    const line = written(HALL).walls.find((w) => w.id === 'open-aisle-b4')!
-    expect(Math.max(line.start[0], line.end[0])).toBe(12)
+    // WRT-41: the stands are placed against each other, so stand 4 is made wider to run past the aisle.
+    const plan = written(HALL.replace('room b4 "Stand 4" shop 3 x 3', 'room b4 "Stand 4" shop 3.3 x 3'))
+    const b4 = plan.walls.filter((w) => w.virtual === true && w.start[1] === 3 && w.end[1] === 3)
+    expect(b4).toHaveLength(1)
+    expect(Math.max(b4[0]!.start[0], b4[0]!.end[0])).toBe(12)
   })
 
   it('every room still closes, with the same areas as with the lines run on', () => {
