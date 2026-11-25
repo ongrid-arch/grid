@@ -254,7 +254,10 @@ describe('the tools on a two-bedroom flat', () => {
       expect(reply.text.length, name).toBeGreaterThan(0)
       expect(conforms(schemas.get(name)!, reply.data), name).toEqual([])
       // MSG-3: the label leads every answer and is in its data.
-      expect(reply.text.split('\n')[0], name).toContain('General guidance, not your local rules')
+      // MSG-30: except where no figure from a code is applied, which carries it in its data only.
+      const silent = ['grid_describe', 'grid_view', 'grid_compare', 'grid_fields', 'grid_find', 'grid_count'].includes(name)
+      if (silent) expect(reply.text, name).not.toContain('General guidance, not your local rules')
+      else expect(reply.text.split('\n')[0], name).toContain('General guidance, not your local rules')
       expect((reply.data as { label?: string }).label, name).toBe('General guidance, not your local rules')
     }
   }, 60_000)

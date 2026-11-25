@@ -614,7 +614,9 @@ When the person has read a note and asks to set it aside, `grid_mark_seen` marks
 note the person did not ask about. The tool writes `plan.seen.json` beside the plan, never the
 plan, and refuses a number that now names a note of another code. A seen note is not dealt
 with: `grid_check` still lists it, under Seen, with the reason and who marked it, and lists it as
-new again, saying so, as soon as one of its parts changes. `unmark: true` takes a mark off. The
+new again, saying so, as soon as one of its parts changes. Every change to the plan, and
+`grid_diff`, names each seen note it made new again in its answer and in `seenNew`, counted with
+the same country as the mark (MSG-29). `unmark: true` takes a mark off. The
 marks file and its format are in the [result contract](result-contract.md#the-short-report-and-seen-notes).
 
 ## Reporting a problem

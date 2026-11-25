@@ -393,6 +393,11 @@ about the plan), the note is listed as new again, saying it was seen before and 
 `--reason` and `--by` go with `--seen` only. Who marked it is the name or role you give: it is
 kept only in the marks file, which no export, sheet or drawing reads.
 
+A change that brings a seen note back says so (MSG-29): `grid edit` and `grid diff` name each
+note that held before and is new again after, with its number in the report counted for the
+country the note was marked with (a mark made with `--country` keeps it), who marked it and which
+of its parts changed.
+
 ## Describing a plan: `grid describe`
 
 `grid describe` is a short account of the plan, for an agent to check its own work without
@@ -671,7 +676,7 @@ and the level marks keep their decimal point. `grid describe --length walk` walk
 A floor plan picture shows the plan's title and key in a band under the drawing, its notes, tags
 and symbols, its sketch, the sizes, the room areas, the door swings and the warnings (the
 plan file's writing is in [plan-file.md](plan-file.md#writing-on-the-drawing-and-the-sketch-layer)).
-`--hide` leaves parts off, named and joined by commas: `title`, `key`, `notes`, `sketch`,
+`--hide notes` leaves off the notes and keeps the tags and symbols. `--hide` leaves parts off, named and joined by commas: `title`, `key`, `notes`, `sketch`,
 `dimensions`, `areas`, `swings`, `warnings`, `above`. `--colour use` fills each room by its use and
 `--colour finish` by its floor finish (each finish the plan's rooms name gets its own pale tint, in
 the order they first name it, the same on every floor), and either lists what each fill stands for
