@@ -68,3 +68,63 @@ describe('the display line', () => {
     expect(result.problems[0]!.message).toContain('display <m|cm|mm|ft-in>')
   })
 })
+
+describe('a long room side (WRT-22)', () => {
+  const head = 'walls outside 0.3 inside 0.1 height 2.7\n'
+  const questions = (text: string): string[] => {
+    const result = compileRoomsText(text)
+    expect(result.problems).toEqual([])
+    return result.warnings.filter((w) => w.code === 'rooms/size-question').map((w) => w.message)
+  }
+
+  it('takes a length written with its unit as meant, at any size', () => {
+    for (const size of ['250m x 160m', '250000mm x 160000mm', '0.25km x 160m']) {
+      const result = compileRoomsText(`${head}room hall "Hall" storage ${size}\n`)
+      expect(result.problems, size).toEqual([])
+      expect(result.rooms[0]!.width, size).toBeCloseTo(250, 6)
+      expect(result.rooms[0]!.depth, size).toBeCloseTo(160, 6)
+      expect(result.warnings.filter((w) => w.code === 'rooms/size-question'), size).toEqual([])
+    }
+  })
+
+  it("writes a bare side past a building's in metres and asks about it, naming the unit to write", () => {
+    const asked = questions(`${head}room hall "Hall" storage 250 x 160\n`)
+    expect(asked).toHaveLength(1)
+    expect(asked[0]).toContain("room 'hall' is 250 m in width, written with no unit: is that meant?")
+    expect(asked[0]).toContain('longer than 200 m')
+    expect(asked[0]).toContain('250m')
+  })
+
+  it('weighs the side by the kind of building: a hall asks later, a home sooner', () => {
+    expect(questions(`building warehouse\n${head}room hall "Hall" storage 250 x 160\n`)).toEqual([])
+    expect(questions(`building sport\n${head}room stand "Stand" assembly 300 x 40\n`)).toEqual([])
+    const home = questions(`${head}room living "Living" living 60 x 4\n`)
+    expect(home).toHaveLength(1)
+    expect(home[0]).toContain('longer than 50 m in a home')
+    expect(questions(`building warehouse\n${head}room hall "Hall" storage 1200 x 160\n`)[0]).toContain('in a building of large halls')
+  })
+
+  it('still refuses a bare side so long it is no building, naming the form that is taken', () => {
+    const result = compileRoomsText(`${head}room hall "Hall" storage 3600 x 160\n`)
+    expect(result.plan).toBeNull()
+    expect(result.problems[0]!.code).toBe('rooms/size')
+    expect(result.problems[0]!.message).toContain('3600m if it is metres')
+    expect(compileRoomsText(`${head}room hall "Hall" storage 3600m x 160\n`).problems).toEqual([])
+  })
+
+  it("asks the same of a side stretched with '*' and of a polygon", () => {
+    const stretched = questions(`${head}room a "A" storage 10 x 10\nroom b "B" storage 10 x 10 at 790,0\nroom c "C" corridor * x 3 north of a until b\n`)
+    expect(stretched).toHaveLength(1)
+    expect(stretched[0]).toContain("room 'c' stretches with '*' to")
+    const polygon = questions(`${head}room p "P" storage polygon 0,0 400,0 400,20 0,20\n`)
+    expect(polygon).toHaveLength(1)
+    expect(polygon[0]).toContain("room 'p' is a polygon 400 m across in width")
+  })
+
+  it('reads a long room back with its unit, so writing the reading asks nothing', () => {
+    const plan = written(`${head}room hall "Hall" storage 250m x 160m\n`)
+    const reading = readRoomsText(plan).text
+    expect(reading).toContain('250m x 160m')
+    expect(questions(reading)).toEqual([])
+  })
+})

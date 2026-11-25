@@ -18,6 +18,7 @@ import { areaText, lengthText } from './units'
 export const SITE_RULE =
   'The building is measured from its outside face, the walls\' outer faces of every floor at or above the ground floor, joined into one shape seen from above; a floor below the ground floor is left out, and nothing outside the walls (eaves, steps) is drawn to measure. '
   + 'An edge\'s distance is the least distance from that shape to the edge, as a tape between the two nearest points measures it. A face\'s distance is to the edge of the boundary in front of it, square to the face. '
+  + 'Open outdoor space (a terrace, a pool deck, a garden, a balcony) is left out of that shape, as it is of every area; a roofed one (a porch, a carport) is part of it. '
   + 'The plot coverage is the part of that shape inside the boundary against the boundary\'s area. '
   + 'The set-backs are the person\'s own figures: Grid sets each distance against them and applies no figure of its own, and checks no rule. The site\'s things are drawn only.'
 
@@ -54,9 +55,11 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
     if (site.footprint === null) lines.push(`Plot coverage and the distances to the boundary were not measured: ${site.why ?? 'the building has no outline'}`)
     else {
       if (site.coverage !== null && site.covered !== null) lines.push(`Plot coverage: ${percentText(site.coverage)}, the building's ${A(site.covered)} on the ${A(boundary.area)} plot.`)
+      const open = site.withOpen
+      if (open !== null && open.coverage !== null && open.covered !== null) lines.push(`With the open outdoor space counted as building: ${percentText(open.coverage)}, ${A(open.covered)} on the ${A(boundary.area)} plot.`)
       if (boundary.edges.some((e) => e.setback !== null)) lines.push(FIGURES_HEADING)
       lines.push('From each edge of the boundary, the least distance to the building:')
-      for (const at of site.edges) lines.push(`  ${edgeLine(at, L)}`)
+      for (const at of site.edges) lines.push(`  ${edgeLine(at, L, site.withOpen?.edges.find((o) => o.edge.edge === at.edge.edge))}`)
       lines.push('From each face of the building, square to it, to the edge of the boundary in front of it:')
       for (const face of site.faces) {
         const edge = boundary.edges[face.edge - 1]!
@@ -77,6 +80,7 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
             problem: boundary.problem,
             edges: boundary.edges.map((e) => {
               const at = site.edges.find((d) => d.edge.edge === e.edge)
+              const withOpenAt = site.withOpen?.edges.find((d) => d.edge.edge === e.edge)
               return {
                 edge: e.edge,
                 from: [round(e.from.x), round(e.from.y)],
@@ -88,6 +92,7 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
                 name: e.name,
                 setback: e.setback,
                 distance: at === undefined ? null : round(at.distance),
+                distanceWithOpenOutdoor: withOpenAt === undefined ? null : round(withOpenAt.distance),
                 past: at === undefined ? null : round(at.past),
                 short: at?.short == null ? null : round(at.short),
                 face: at?.face ?? null,
@@ -98,7 +103,8 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
     setbacksAre: FIGURES_HEADING,
     footprint: site.footprint === null ? null : { area: round(site.footprint.area), floors: site.footprint.floors },
     why: site.why,
-    coverage: site.coverage === null || site.covered === null || boundary === null ? null : { ratio: round(site.coverage), percent: percentText(site.coverage), covered: round(site.covered), plot: round(boundary.area) },
+    coverage: site.coverage === null || site.covered === null || boundary === null ? null : { ratio: round(site.coverage), percent: percentText(site.coverage), covered: round(site.covered), plot: round(boundary.area), ...(site.withOpen === null ? {} : { openOutdoorLeftOut: true }) },
+    coverageWithOpenOutdoor: site.withOpen === null || site.withOpen.coverage === null || site.withOpen.covered === null || boundary === null ? null : { ratio: round(site.withOpen.coverage), percent: percentText(site.withOpen.coverage), covered: round(site.withOpen.covered), plot: round(boundary.area) },
     faces: site.faces.map((f) => ({ face: f.face, from: [round(f.from.x), round(f.from.y)], to: [round(f.to.x), round(f.to.y)], length: round(f.length), faces: f.faces, edge: f.edge, distance: round(f.distance) })),
     things: things.map((t) => ({ id: t.id, kind: t.kind, ...(t.label === undefined ? {} : { label: t.label }) })),
   }
@@ -106,14 +112,15 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
 }
 
 /** One edge: its distance, the set-back asked for beside it, and how far short it falls. */
-function edgeLine(at: EdgeDistance, L: (v: number) => string): string {
+function edgeLine(at: EdgeDistance, L: (v: number) => string, open?: EdgeDistance): string {
   const { edge } = at
   const where = `Edge ${edge.edge}${edge.street ? ', on the street' : ''}`
   const asked = edge.setback
   const figure = asked === null ? 'no set-back asked' : asked.source === 'assumed' ? `${L(asked.distance)} is assumed for you, to confirm` : `you asked for ${L(asked.distance)}`
   if (at.past > 0) return `${where}: the building reaches ${L(at.past)} over ${edge.name}, out of the plot; ${figure}.`
   const short = at.short === null ? '' : `: ${L(at.short)} short`
-  return `${where}: ${L(at.distance)} from ${edge.name}; ${figure}${short}.`
+  const beside = open === undefined || Math.abs(open.distance - at.distance) < 0.0005 ? '' : `; ${open.past > 0 ? `the open outdoor space reaches ${L(open.past)} over it` : `${L(open.distance)} to the open outdoor space`}`
+  return `${where}: ${L(at.distance)} from ${edge.name}${open === undefined ? '' : ' (the enclosed building)'}${beside}; ${figure}${short}.`
 }
 
 /**

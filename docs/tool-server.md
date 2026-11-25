@@ -491,7 +491,7 @@ other argument. The building is measured from its outside face: the outer faces 
 every floor at or above the ground floor, as one shape seen from above.
 
 - **The plot**: its area, how many edges it has, and which are on the street.
-- **Plot coverage**: the part of the building's shape inside the boundary against the plot's area.
+- **Plot coverage**: the part of the building's shape inside the boundary against the plot's area. Open outdoor space (a terrace, a pool deck, a garden, a balcony) is left out of the shape, as it is of every area; a roofed one, a porch or a carport, is part of it. A plan with open outdoor space also gets the figure with it counted, said apart (`coverageWithOpenOutdoor`), and each edge's distance to it beside the building's (`distanceWithOpenOutdoor`).
 - **Each edge**: the least distance from the building, with the set-back asked for that edge
   beside it and how far short of it the building stands, or how far it reaches over the edge.
   The set-backs are the person's own figures, under their heading; no line says a distance is
@@ -539,7 +539,7 @@ Storeys: 2 storeys at or above the ground floor, none below it; counted by level
   "Ground floor": gross external 240.07 m², massing: its outline, no walls yet.
   "First floor": gross external 240.07 m², massing: its outline, no walls yet.
 Site limits, the person's own figures: theirs, not from any code or standard.
-  Plot coverage: used 48.0%, your limit at most 40%: not met. Measured as the building seen from above, every floor at or above the ground floor, inside the plot's boundary, over the plot's area: 240.07 m² over 500.00 m².
+  Plot coverage: used 48.0%, your limit at most 40%: not met. Measured as the building seen from above, every floor at or above the ground floor, open outdoor space left out, inside the plot's boundary, over the plot's area: 240.07 m² over 500.00 m².
   Floor area ratio: used 0.96, your limit at most 1: met. Measured as Gross external area (…), of every floor at or above the ground floor, over the plot's area: 480.15 m² over 500.00 m².
   Building height: used 6.50 m, your limit at most 9.00 m: met. …
   Parking per home: used 0.75 spaces per home, your limit at least 1 space per home: not met. …

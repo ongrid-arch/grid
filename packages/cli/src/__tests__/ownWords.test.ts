@@ -134,7 +134,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/query.ts': [26, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   'packages/cli/src/quantities/schedule.ts': [15, 'notYet'],
-  'packages/cli/src/quantities/site.ts': [19, 'notYet'],
+  'packages/cli/src/quantities/site.ts': [21, 'notYet'],
   'packages/cli/src/quantities/state.ts': [3, 'notYet'],
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
   'packages/cli/src/quantities/takeoff.ts': [10, 'notYet'],
@@ -178,7 +178,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-19: four more, what bayOverlap and rampSlopeDiffers decide.
   // CNT-20: two more, its own tolerance entries.
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
-  'packages/floorplan/src/geometry/tolerances.ts': [279, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [289, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],
@@ -189,7 +189,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/notes/notes.ts': [18, 'notYet'],
   'packages/floorplan/src/rooms/answer.ts': [6, 'notYet'],
   // WRT-14: four fewer, the floor line's refusals moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [120, 'notYet'],
+  'packages/floorplan/src/rooms/compile.ts': [119, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   'packages/floorplan/src/rooms/read.ts': [23, 'notYet'],
   'packages/floorplan/src/rooms/words.ts': [4, 'notYet'],

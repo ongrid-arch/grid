@@ -211,6 +211,7 @@ export const es: Messages = {
   'issue.part.notARule': 'El límite es propio de Grid, para detectar una cifra o una unidad equivocada, y no es ninguna norma.',
   'issue.part.inHome': ' en una vivienda (una estancia de este plano es un dormitorio o una sala de estar)',
   'issue.part.inAHome': ' en una vivienda',
+  'issue.part.inHall': ' en un edificio de grandes naves (el plano, o una de sus plantas, es para reunión, deporte, industria o almacenaje)',
   'issue.part.unit.feet': 'pies',
   'issue.part.unit.inches': 'pulgadas',
   'issue.part.unit.centimetres': 'centímetros',
@@ -1850,6 +1851,16 @@ export const es: Messages = {
   'rooms.floor.building': "'{word}' no es un tipo de edificio que Grid conozca. Use uno de: {kinds}.",
   'rooms.floor.duplicate': "La planta '{id}' ya está escrita.",
   'rooms.floor.roomsFirst': 'Se escribieron estancias antes de la primera línea de planta. Ponga primero la línea de planta.',
+  'rooms.size.width': 'anchura',
+  'rooms.size.depth': 'profundidad',
+  'rooms.size.bare':
+    "línea {line}: la estancia '{room}' mide {length} m de {side}, escrito sin unidad: pasados {limit} m eso no es un edificio en metros, y lo más probable es que sean milímetros o pies. Escriba la unidad en la misma palabra: {length}m si son metros, o por ejemplo 3600mm o 12ft.",
+  'rooms.size.question.bare':
+    "Línea {line}: la estancia '{room}' mide {length} m de {side}, escrito sin unidad: ¿es así? Grid pregunta por un lado de estancia de más de {limit} m{kind}, y lo ha dibujado en metros. Si es así, escríbalo con su unidad, {length}m, y Grid no pregunta más; si está en otra unidad, escriba esa unidad, por ejemplo 3600mm o 12ft.",
+  'rooms.size.question.stretched':
+    "Línea {line}: la estancia '{room}' se estira con '*' hasta {length} m de {side}: ¿es así? Grid pregunta por un lado de estancia de más de {limit} m{kind}. Compruebe la estancia hasta la que se estira, o escriba la longitud del lado con su unidad.",
+  'rooms.size.question.polygon':
+    "Línea {line}: la estancia '{room}' es un polígono de {length} m de {side}, con sus puntos escritos sin unidad: ¿es así? Grid pregunta por un lado de estancia de más de {limit} m{kind}, y ha dibujado los puntos en metros.",
   // WRT-17
   'rooms.openingsOverlap':
     "Línea {line}: {opening} comparte {by} m del muro {wall} con {other} (línea {otherLine}). La comprobación deja fuera una abertura que comparte un tramo de su muro con otra, aunque una quede sobre la otra: mueva una, haga una más estrecha o escriba las dos como una sola abertura.",
@@ -2368,6 +2379,10 @@ export const es: Messages = {
   'issue.part.lineUp.stretch.all': '{depth} m en todo el contorno, de ({x0}; {y0}) a ({x1}; {y1})',
   'issue.part.lineUp.more.one': ', y en {count} sitio más',
   'issue.part.lineUp.more.many': ', y en {count} sitios más',
+  'issue.floor/split-level': 'El plano tiene medios niveles, cada planta medio nivel más arriba junto a la planta de la que parte, sin planta debajo: {steps}{more}. Cada planta se compara solo con las plantas que tiene debajo. Si un escalón no es intencionado, cambie la elevación (elevation) de esa planta; si lo es, marque la planta con overhang "meant".',
+  'issue.part.splitLevel.step': '{floor} está {rise} m por encima de {lower}, por su lado {side}',
+  'issue.part.splitLevel.more.one': ', y {count} medio nivel más',
+  'issue.part.splitLevel.more.many': ', y {count} medios niveles más',
   'check.shifted.stair': 'La escalera {upper} de {upperFloor} {how} {lower} de {lowerFloor}, debajo: ocupa de {upperAt}, y la de abajo de {lowerAt}',
   'check.shifted.lift': 'La caja del ascensor {upper} de {upperFloor} {how} {lower} de {lowerFloor}, debajo: ocupa de {upperAt}, y la de abajo de {lowerAt}',
   'check.shifted.how.moved': 'está {ways} de',
@@ -2408,6 +2423,9 @@ export const es: Messages = {
   'line.floor/set-back.says': '{label} es una planta parcial, retranqueada respecto a la planta de abajo',
   'line.floor/set-back.needed': 'el contorno de la planta sobre la planta de abajo, o marcada con overhang "meant" donde es una planta parcial a propósito',
   'line.floor/set-back.fix': 'Si es intencionado, marque la planta con overhang "meant". Si no, lleve sus muros exteriores hasta el borde de la planta de abajo, o haga que un muro que comparten ambas plantas suba a través de ellas (through).',
+  'line.floor/split-level.says': '{label} está medio nivel más arriba junto a la planta de la que parte: un medio nivel',
+  'line.floor/split-level.needed': 'cada medio nivel a la elevación prevista, junto a la planta de la que parte, o marcado con overhang "meant"',
+  'line.floor/split-level.fix': 'Si un escalón no es intencionado, cambie la elevación (elevation) de esa planta. Si lo es, marque la planta con overhang "meant".',
   'line.floor/out-of-line.says': '{label} no está alineada con la planta de abajo',
   'line.floor/out-of-line.needed': 'el contorno de la planta sobre la planta de abajo, o marcada con overhang "meant" donde sobresale o queda retranqueada a propósito',
   'line.floor/out-of-line.fix': 'Si es intencionado, marque la planta con overhang "meant". Si no, lleve sus muros exteriores sobre la planta de abajo, o haga que un muro que comparten ambas plantas suba a través de ellas (through).',

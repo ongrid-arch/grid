@@ -9,6 +9,9 @@
  * that reaches out past the one below counts where it reaches. A floor whose walls close no
  * floor adds nothing.
  *
+ * - ARE-24: open outdoor space (a terrace, a pool deck, a garden, a balcony) is no building, as it
+ *   is in no area: it is left out of the footprint, and `withOpen` is the same measured with it in.
+ *   A roofed outdoor space (a porch, a carport) is part of the building.
  * - An edge's distance is the least distance, in plan metres, from the footprint to that edge of
  *   the boundary (`plotBoundary`), as a tape between the two nearest points measures it, with the
  *   face nearest the edge named: what a set-back is set against.
@@ -30,6 +33,7 @@ import { slabOutline, outlineKnown } from './outline'
 import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './orientation'
 import type { FloorPlan, PlanIndex } from './plan'
 import { indexPlan } from './plan'
+import { buildingPlan, isOutdoor, outdoorRoofed, planHasOutdoor } from './outdoor'
 import { plotBoundary, type BoundaryEdge, type PlotBoundary } from './plot'
 import { cutOutline, multiArea, piecesAsRings, ringOf } from './polygons'
 import { tolerance } from './tolerances'
@@ -93,6 +97,21 @@ export interface SiteMeasures {
   /** The footprint's area inside the boundary against the boundary's, from 0 to 1; null when either is missing. */
   readonly coverage: number | null
   /** The footprint's area inside the boundary, m². */
+  readonly covered: number | null
+  /**
+   * ARE-24: the same measured with the plan's open outdoor space (a terrace, a pool deck, a garden)
+   * counted as building; null when the plan has none or it changes nothing, or no boundary is
+   * sound. The fields above are the enclosed building, open outdoor space left out.
+   */
+  readonly withOpen: OpenOutdoorMeasures | null
+}
+
+/** ARE-24: the site measured with the open outdoor space in the footprint. */
+export interface OpenOutdoorMeasures {
+  readonly footprint: Footprint
+  readonly edges: readonly EdgeDistance[]
+  readonly faces: readonly FootprintFace[]
+  readonly coverage: number | null
   readonly covered: number | null
 }
 
@@ -183,32 +202,18 @@ function outlineSegments(pieces: MultiPolygon): Segment[][] {
   return piecesAsRings(pieces).map(({ outline }) => outline.map((a, i) => ({ a, b: outline[(i + 1) % outline.length]! })))
 }
 
-/**
- * How far the building stands from the plot's boundary, face by face and edge by edge, and how
- * much of the plot it covers. Never throws on a plan the schema reads.
- */
-export function siteMeasures(plan: FloorPlan, options: SiteOptions = {}): SiteMeasures {
-  const boundary = plotBoundary(plan)
-  const index = options.index ?? indexPlan(plan)
-  const broken = options.broken ?? validatePlan(plan, index, { spaces: false }).broken
-  const floors = footprintFloors(plan)
-  const outlines: { floor: string; pieces: MultiPolygon }[] = []
-  const unknown: Said[] = []
-  for (const floor of floors) {
-    const outline = slabOutline(plan, floor, broken)
-    // The outline's own reason is English (`outline.ts`), as the other measures give it.
-    if (!outlineKnown(outline)) unknown.push(said('check.siteWhy.floor', { floor: JSON.stringify(floor), reason: outline.reason }))
-    else if (outline.pieces.length > 0) outlines.push({ floor, pieces: outline.pieces })
-  }
-  const none = { boundary, edges: [], faces: [], coverage: null, covered: null }
-  const without = (why: Said): SiteMeasures => Object.defineProperty({ ...none, footprint: null, why: english(why) }, 'whySaid', { value: why, enumerable: false })
-  if (unknown.length > 0) return without(said('check.siteWhy.outline', { floors: joined(unknown, 'join.space') }))
-  if (outlines.length === 0) return without(said('check.siteWhy.noFloor'))
-  const pieces = cutOutline('union', outlines[0]!.pieces, outlines.slice(1).map((o) => o.pieces))
-  if (pieces === null || pieces.length === 0) return without(said('check.siteWhy.notJoined'))
-  const footprint: Footprint = { pieces, area: multiArea(pieces), floors: outlines.map((o) => o.floor) }
-  if (boundary === null || boundary.problem !== null) return { ...none, footprint, why: null }
+/** What is measured from one footprint: each edge, each face and the coverage. */
+interface Measured {
+  readonly edges: readonly EdgeDistance[]
+  readonly faces: readonly FootprintFace[]
+  readonly coverage: number | null
+  readonly covered: number | null
+}
 
+type Outlines = readonly { floor: string; pieces: MultiPolygon }[]
+
+function measureFrom(plan: FloorPlan, boundary: PlotBoundary, footprint: Footprint, outlines: Outlines): Measured {
+  const pieces = footprint.pieces
   const plot = [ringOf(boundary.points)]
   const segments = outlineSegments(pieces).flat()
   const byFloor = outlines.map((o) => ({ floor: o.floor, segments: outlineSegments(o.pieces).flat() }))
@@ -283,5 +288,69 @@ export function siteMeasures(plan: FloorPlan, options: SiteOptions = {}): SiteMe
     }
     return { face: i + 1, from: s.a, to: s.b, length, faces: compassPoint(bearingOf(outward, orientation, orientation.north ?? 0) ?? 0), edge, distance }
   })
-  return { boundary, footprint, why: null, edges, faces, coverage: boundary.area > 0 && covered !== null ? covered / boundary.area : null, covered }
+  return { edges, faces, coverage: boundary.area > 0 && covered !== null ? covered / boundary.area : null, covered }
+}
+
+/** The footprint of `plan` as its floors' outlines join, or why it has none. */
+function footprintOf(plan: FloorPlan, broken: ReadonlySet<string>): { footprint: Footprint; outlines: Outlines } | { why: Said } {
+  const outlines: { floor: string; pieces: MultiPolygon }[] = []
+  const unknown: Said[] = []
+  for (const floor of footprintFloors(plan)) {
+    const outline = slabOutline(plan, floor, broken)
+    // The outline's own reason is English (`outline.ts`), as the other measures give it.
+    if (!outlineKnown(outline)) unknown.push(said('check.siteWhy.floor', { floor: JSON.stringify(floor), reason: outline.reason }))
+    else if (outline.pieces.length > 0) outlines.push({ floor, pieces: outline.pieces })
+  }
+  if (unknown.length > 0) return { why: said('check.siteWhy.outline', { floors: joined(unknown, 'join.space') }) }
+  if (outlines.length === 0) return { why: said('check.siteWhy.noFloor') }
+  const pieces = cutOutline('union', outlines[0]!.pieces, outlines.slice(1).map((o) => o.pieces))
+  if (pieces === null || pieces.length === 0) return { why: said('check.siteWhy.notJoined') }
+  return { footprint: { pieces, area: multiArea(pieces), floors: outlines.map((o) => o.floor) }, outlines }
+}
+
+/**
+ * ARE-24: the plan with the open outdoor space (a terrace, a pool deck, a garden: outdoor space
+ * with no roof) taken out of the building, as every area leaves it out: the walls that bound it and
+ * no room are dropped (`buildingPlan`). A roofed one (a porch, a carport) stays, so it counts.
+ * The plan itself, the same object, when nothing is taken out.
+ */
+function enclosedPlan(plan: FloorPlan): FloorPlan {
+  if (!planHasOutdoor(plan)) return plan
+  const roofedAsBuilding: FloorPlan = {
+    ...plan,
+    rooms: plan.rooms.map((room) => {
+      if (!isOutdoor(room) || outdoorRoofed(room) !== true) return room
+      const rest: Record<string, unknown> = { ...room }
+      delete rest['outdoor']
+      return rest as unknown as typeof room
+    }),
+  }
+  const built = buildingPlan(roofedAsBuilding, indexPlan(roofedAsBuilding))
+  return built.walls.length === plan.walls.length ? plan : built
+}
+
+/**
+ * How far the building stands from the plot's boundary, face by face and edge by edge, and how
+ * much of the plot it covers. The building is the enclosed one: open outdoor space is left out of
+ * the footprint, as of every area (ARE-24); `withOpen` is the same measured with it in, null when
+ * the plan has none or it changes nothing. Never throws on a plan the schema reads.
+ */
+export function siteMeasures(plan: FloorPlan, options: SiteOptions = {}): SiteMeasures {
+  const boundary = plotBoundary(plan)
+  const index = options.index ?? indexPlan(plan)
+  const broken = options.broken ?? validatePlan(plan, index, { spaces: false }).broken
+  const none = { boundary, edges: [], faces: [], coverage: null, covered: null, withOpen: null }
+  const without = (why: Said): SiteMeasures => Object.defineProperty({ ...none, footprint: null, why: english(why) }, 'whySaid', { value: why, enumerable: false })
+  const enclosed = enclosedPlan(plan)
+  const made = footprintOf(enclosed, broken)
+  if ('why' in made) return without(made.why)
+  const { footprint, outlines } = made
+  if (boundary === null || boundary.problem !== null) return { ...none, footprint, why: null }
+  const measured = measureFrom(enclosed, boundary, footprint, outlines)
+  let withOpen: OpenOutdoorMeasures | null = null
+  if (enclosed !== plan) {
+    const whole = footprintOf(plan, broken)
+    if (!('why' in whole)) withOpen = { footprint: whole.footprint, ...measureFrom(plan, boundary, whole.footprint, whole.outlines) }
+  }
+  return { boundary, footprint, why: null, ...measured, withOpen }
 }
