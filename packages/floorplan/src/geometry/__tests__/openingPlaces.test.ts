@@ -97,14 +97,16 @@ describe('where each opening stands (MSG-16)', () => {
       }
     })
 
-    it('still names a wall whose centre line meets the wall inside the opening', () => {
-      const found = placeIssues(corridor(0, -0.005, 1.21)).map((i) => [i.code, i.id])
-      expect(found).toEqual([
+    it('still names a wall that meets the wall off the jamb, inside the opening or with its body in it', () => {
+      const four = [
         ['wall/ends-in-opening', 'n1'],
         ['wall/ends-in-opening', 'n2'],
         ['wall/ends-in-opening', 's1'],
         ['wall/ends-in-opening', 's2']
-      ])
+      ]
+      // Centre lines 5 mm inside the opening, and 5 mm outside it with 45 mm of body in it.
+      expect(placeIssues(corridor(0, -0.005, 1.21)).map((i) => [i.code, i.id])).toEqual(four)
+      expect(placeIssues(corridor(0, 0.005, 1.19)).map((i) => [i.code, i.id])).toEqual(four)
     })
 
     it('says nothing of a half-round bay whose mouth is one opening', () => {

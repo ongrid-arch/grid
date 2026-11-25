@@ -9,10 +9,10 @@
  *
  * - `opening/crosses-wall`: the opening runs into the body of a wall that meets its wall at a
  *   corner or a junction, or crosses it.
- * - `wall/ends-in-opening`: a wall ends on another wall inside one of its openings: its centre
- *   line meets that wall inside the opening, more than `openingOverrun` from either jamb. A wall
- *   that meets at a jamb or past it makes the jamb (ARE-32): a corridor carried through an
- *   opening as wide as it is between its walls' centre lines, or a bay's mouth.
+ * - `wall/ends-in-opening`: a wall ends on another wall inside one of its openings. A wall whose
+ *   centre line meets that wall at a jamb, within `openingOverrun`, makes the jamb and is not
+ *   named (ARE-32): a corridor carried through an opening as wide as it is between its walls'
+ *   centre lines, or a bay's mouth. One whose body runs into the opening is named otherwise.
  * - `opening/fills-wall`: the opening is as long as its wall; nothing of the wall is left.
  * - `opening/on-dividing-line`: a door or a window on a dividing line, which has no wall to hang
  *   it in. A warning, not a refusal: an open-plan opening is sometimes drawn that way.
@@ -249,9 +249,9 @@ export function openingPlaceIssues(plan: FloorPlan, index: PlanIndex, broken: Re
           // A wall no higher than the sill stands under the window, not across it.
           if (cover.height <= opening.sill + overrun) continue
           if (cover.how === 'end') {
-            // A wall whose centre line meets this one at a jamb, or past it, stands beside the
-            // opening and makes its jamb (ARE-32): only one that meets inside it is named.
-            if (!(cover.at > span.from + overrun && cover.at < span.to - overrun)) continue
+            // A wall whose centre line meets this one at a jamb makes that jamb (ARE-32): the
+            // opening is as wide as the space between the walls that frame it.
+            if (Math.abs(cover.at - span.from) <= overrun || Math.abs(cover.at - span.to) <= overrun) continue
             issues.push(
               warning(
                 'wall',

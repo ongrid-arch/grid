@@ -32,7 +32,7 @@ is not asked whether it was typed in feet.
 
 | Entry | Kind | Value | What it decides |
 |---|---|---|---|
-| `openingOverrun` | tolerance | 0.001 m | How far an opening may run past either end of its wall, below the floor, above its wall or into the next opening, and still fit; also how far it may run into a wall that meets its wall (MSG-16), and how far from either jamb a wall that ends on its wall must meet it to be named, not taken for that jamb (ARE-32). A refusal states the overrun and the offset that fits |
+| `openingOverrun` | tolerance | 0.001 m | How far an opening may run past either end of its wall, below the floor, above its wall or into the next opening, and still fit; also how far it may run into a wall that meets its wall (MSG-16), and how near a jamb the centre line of a wall that ends on its wall may meet it and be taken for that jamb (ARE-32). A refusal states the overrun and the offset that fits |
 | `arcEnds` | tolerance | 0.005 m | How far a curved wall's end may lie from where its sweep takes its start, and its two ends differ in radius, and still be one arc (CNT-18); further, `wall/arc-ends-apart` names it |
 | `arcSagitta` | tolerance | 0.001 m | How far the straight pieces a curved wall is traced, checked and drawn with may stand off its curve at their middle |
 | `arcStep` | tolerance | 0.03 radian | The most a curved wall turns along one straight piece, so a small round room still measures within a few hundredths of a percent of its true area |
