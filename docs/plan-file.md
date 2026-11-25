@@ -774,7 +774,9 @@ route: a home is not left through another, and `opening/between-homes` says so. 
 common part that is not drawn is a way on: the flat gets no "leads to a space that is not drawn"
 note, and its floor's way out is said not checked, through the common parts
 (`floor/not-checked-way-out-common-parts`). Every flat needs a front door, onto a room in no flat,
-a common part, a space not drawn or the outside (`flat/no-front-door`).
+a common part, a space not drawn or the outside (`flat/no-front-door`). A flat entered only through
+doorless openings or open sides, with no door or stair on its way in, is noted too
+(`flat/entrance-without-door`).
 
 **Open edges.** A virtual wall with a room on one side only is an open edge, never a door. Its
 `beyond` says where it leads; unstated, it leads where the drawing says, to the outside (a way out,

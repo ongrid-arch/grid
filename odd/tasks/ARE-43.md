@@ -25,7 +25,7 @@ no note. A flat with no way in at all keeps `flat/no-front-door`; the two never 
   which flats are entered.
 - Decision: a stair counts as a door-like way in, so a duplex joined to the common stair is never
   noted for it.
-- Decision: the note is `worth-a-look`, not a finding that fails a check.
+- Decision: the note is a drawing-check finding like `flat/no-front-door` (kind `finding`, no failure): the card calls it a worth-a-look note, but every route check here is a `finding`.
 
 ## Done
 

@@ -69,6 +69,7 @@ const FINDING_CODES: Record<FindingCode, string> = {
   door_to_outside_above_ground: 'opening/door-out-above-ground',
   door_between_homes: 'opening/between-homes',
   flat_without_front_door: 'flat/no-front-door',
+  flat_entrance_without_door: 'flat/entrance-without-door',
   opening_below_ground: 'opening/below-ground',
   opening_too_small_to_pass: 'opening/too-small-to-pass',
   // MSG-17: a way out leads to open air, and a let is left through common parts.
@@ -494,7 +495,7 @@ function findingThing(finding: RuleFinding, wayOutNotDrawn: ReadonlySet<string>)
       ? { kind: 'floor', id: finding.floor }
       : finding.code === 'setback_short' || finding.code === 'over_boundary'
       ? { kind: 'plan', id: '' }
-      : finding.code === 'flat_without_front_door' && finding.flat !== undefined
+      : (finding.code === 'flat_without_front_door' || finding.code === 'flat_entrance_without_door') && finding.flat !== undefined
       ? { kind: 'flat', id: finding.flat }
       : (finding.code === 'door_to_undrawn_space' ||
           finding.code === 'door_between_homes' ||

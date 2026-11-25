@@ -128,6 +128,12 @@ export function planNotes(plan: FloorPlan, report: RulesReport): PlanNotesView {
           title: wordings.flatWithoutFrontDoor(flatName(finding.flat ?? '')),
           detail: [words(english(said('check.detail.flatWithoutFrontDoor')))]
         }
+      case 'flat_entrance_without_door':
+        return {
+          ...base,
+          title: wordings.flatEntranceWithoutDoor(flatName(finding.flat ?? '')),
+          detail: [words(english(said('check.detail.flatEntranceWithoutDoor')))]
+        }
       case 'door_to_outside_above_ground':
         return {
           ...base,

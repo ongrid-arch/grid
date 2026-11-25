@@ -59,6 +59,7 @@ const RULE_OF: Record<FindingCode, string> = {
   // CNT-6: a door into another home leads nowhere a route may go; a home's front door is its way out.
   door_between_homes: 'door-leads-somewhere',
   flat_without_front_door: 'room-reaches-exit',
+  flat_entrance_without_door: 'room-reaches-exit',
   stair_out_of_line: 'stairs-line-up',
   lift_out_of_line: 'stairs-line-up',
   stair_shifted: 'stairs-line-up',
@@ -276,30 +277,42 @@ function frontDoorFindings(
   if (flats.length === 0) return []
   const flatOf = flatOfRoom(flats)
   const entered = new Set<string>()
-  const mark = (room: string): void => {
+  // ARE-43: the flats with a way in that is a door or a stair, not an opening with no door or an open side.
+  const byDoor = new Set<string>()
+  const doorIds = new Set(plan.openings.filter((o) => o.type === 'door').map((o) => o.id))
+  const mark = (room: string, door: boolean): void => {
     const flat = flatOf.get(room)
-    if (flat !== undefined) entered.add(flat)
+    if (flat === undefined) return
+    entered.add(flat)
+    if (door) byDoor.add(flat)
   }
-  const across = (a: string, b: string): void => {
+  const across = (a: string, b: string, door: boolean): void => {
     if (flatOf.get(a) === flatOf.get(b)) return
-    mark(a)
-    mark(b)
+    mark(a, door)
+    mark(b, door)
   }
   for (const floor of floors) {
     const graph = routes.get(floor.id)?.graph
     if (graph === undefined) continue
-    for (const { rooms: [a, b] } of graph.links) across(a, b)
-    if (!aboveGround(floor.id)) for (const { room } of graph.exits) mark(room)
-    for (const { room } of [...graph.undrawn, ...graph.common]) mark(room)
-    for (const { room, beyond } of graph.openEdges) if (beyond === 'common' || beyond === 'undrawn') mark(room)
+    for (const { rooms: [a, b], via } of graph.links) across(a, b, doorIds.has(via))
+    if (!aboveGround(floor.id)) for (const { room, opening } of graph.exits) mark(room, doorIds.has(opening))
+    for (const { room, opening } of [...graph.undrawn, ...graph.common]) mark(room, doorIds.has(opening))
+    // An open side is never a door.
+    for (const { room, beyond } of graph.openEdges) if (beyond === 'common' || beyond === 'undrawn') mark(room, false)
   }
-  for (const { ends: [a, b] } of stairs) across(a.room, b.room)
+  for (const { ends: [a, b] } of stairs) across(a.room, b.room, true)
   return flats.flatMap((flat) => {
-    if (flat.rooms.length === 0 || entered.has(flat.id)) return []
+    if (flat.rooms.length === 0) return []
     if (flat.rooms.some((room) => leftOutOn.get(room.floor)?.has(room.id) === true)) return []
     const floor = flat.floors[0] ?? flat.rooms[0]!.floor
+    const rooms = flat.rooms.map((room) => room.id)
+    if (entered.has(flat.id)) {
+      if (byDoor.has(flat.id)) return []
+      const sentence = saids.flatEntranceWithoutDoor(flat.name)
+      return [withSentence({ ...finding('flat_entrance_without_door', floor, rooms, english(sentence)), flat: flat.id }, sentence)]
+    }
     const sentence = saids.flatWithoutFrontDoor(flat.name)
-    return [withSentence({ ...finding('flat_without_front_door', floor, flat.rooms.map((room) => room.id), english(sentence)), flat: flat.id }, sentence)]
+    return [withSentence({ ...finding('flat_without_front_door', floor, rooms, english(sentence)), flat: flat.id }, sentence)]
   })
 }
 
