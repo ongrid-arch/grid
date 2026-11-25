@@ -353,6 +353,8 @@ const areasTool: GridTool = {
     net: NUMBER,
     grossInternal: NULLABLE_NUMBER,
     grossExternal: NULLABLE_NUMBER,
+    // ARE-42: a gross total the whole building lacks, from the floors that have it, with the floors left out named; only then.
+    partial: { type: 'object' },
     byUse: { type: 'object' },
     circulationShare: NULLABLE_NUMBER,
     netToGross: NULLABLE_NUMBER,
@@ -383,7 +385,7 @@ const areasTool: GridTool = {
     buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER }, ['id', 'name', 'floors', 'net'])),
     // ARE-20, only when apart_rooms is given: those rooms' net and their area to the middle of the walls they share.
     apart: objectSchema({ rooms: listSchema(STRING), net: NUMBER, byFloor: { type: 'object' }, toPartyWalls: { type: ['object', 'null'], properties: { grossInternal: NUMBER, grossExternal: NUMBER } }, notCounted: listSchema(STRING), state: { type: 'object' } }, ['rooms', 'net', 'toPartyWalls']),
-  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart']),
+  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial']),
   run(args, context) {
     const { survey, floor } = load(context, args['plan'], args['floor'])
     const outside = (args['outside_rooms'] as string[] | undefined) ?? []
@@ -412,6 +414,7 @@ const areasTool: GridTool = {
       net: areas.net,
       grossInternal: areas.grossInternal,
       grossExternal: areas.grossExternal,
+      ...(areas.partial === undefined ? {} : { partial: areas.partial }),
       byUse: areas.byUse,
       circulationShare: areas.circulationShare,
       netToGross: areas.netToGross,
@@ -507,7 +510,9 @@ const areasTool: GridTool = {
     for (const m of areas.reader.gross) {
       const value = m === 'grossInternal' ? areas.grossInternal : areas.grossExternal
       const state = value === null ? '' : stateText(areas.states[m], several)
-      lines.push(`${m === 'grossInternal' ? 'Gross internal' : 'Gross external'}: ${value === null ? 'not known' : areaText(value, units)}${state}. ${AREA_RULES[m]}`)
+      const part = areas.partial?.[m]
+      const unknown = part === undefined ? 'not known' : `not known for the whole building; the other ${part.floors.length === 1 ? 'floor' : `${part.floors.length} floors`} add${part.floors.length === 1 ? 's' : ''} up to ${areaText(part.area, units)}; not measured: ${part.unmeasured.map((u) => `floor ${q(u.floor)} (${u.why})`).join(', ')}`
+      lines.push(`${m === 'grossInternal' ? 'Gross internal' : 'Gross external'}: ${value === null ? unknown : areaText(value, units)}${state}. ${AREA_RULES[m]}`)
     }
     if (areas.headroom !== null) lines.push(`Area by headroom: ${bandsText(areas.headroom, units)}. ${MEASURES.headroom.measures}`)
     // ARE-14 (lab S-6): the free floor beside the floor area, each with its label.
