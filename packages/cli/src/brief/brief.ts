@@ -343,6 +343,83 @@ export function parseBrief(raw: unknown, options: { readonly versionNeeded?: boo
   return brief
 }
 
+/** ARE-52: a line of a brief that was refused: where it is, why, and the line as it was sent. */
+export interface RefusedLine {
+  readonly where: string
+  readonly problem: string
+  /** The line as the caller sent it, as JSON text, for the caller to mend and send again. */
+  readonly line: string
+}
+
+/** ARE-52: what a brief call holds: the lines that read, and the lines that did not. */
+export interface BriefParts {
+  readonly brief: Brief
+  readonly refused: readonly RefusedLine[]
+}
+
+function lineText(value: unknown): string {
+  const text = JSON.stringify(value) ?? 'null'
+  return text.length > 1000 ? `${text.slice(0, 1000)}…` : text
+}
+
+/**
+ * ARE-52: a brief call's contents read line by line. A wish that is wrong is left out and
+ * returned with its place and why; the others are kept. A fault in the brief as a whole (not an
+ * object, a field it does not take, a wrong version, a list too long or no valid wish at all)
+ * still throws `BriefRefused`; with no valid wish it names every refused line.
+ */
+export function parseBriefLines(raw: unknown, options: { readonly versionNeeded?: boolean } = {}): BriefParts {
+  if (!isObject(raw)) throw new BriefRefused('it must be a JSON object with rooms, footprint, touch, figures or open')
+  onlyKeys(raw, ['version', 'rooms', 'footprint', 'touch', 'figures', 'open'], 'the brief')
+  if ((options.versionNeeded !== false || raw['version'] !== undefined) && raw['version'] !== '1') throw new BriefRefused('version must be "1"')
+  const refused: RefusedLine[] = []
+  const each = <T>(key: string, read: (wish: unknown, where: string) => T): T[] => {
+    const out: T[] = []
+    list(raw[key], key).forEach((wish, i) => {
+      const where = `${key}[${i}]`
+      try {
+        out.push(read(wish, where))
+      } catch (error) {
+        if (!(error instanceof BriefRefused)) throw error
+        refused.push({ where, problem: error.message, line: lineText(wish) })
+      }
+    })
+    return out
+  }
+  const rooms = each('rooms', roomWish)
+  const touch = each('touch', touchWish)
+  const open = each('open', openWish)
+  let footprint: FootprintWish | null = null
+  if (raw['footprint'] !== undefined && raw['footprint'] !== null) {
+    try {
+      footprint = footprintWish(raw['footprint'])
+    } catch (error) {
+      if (!(error instanceof BriefRefused)) throw error
+      refused.push({ where: 'footprint', problem: error.message, line: lineText(raw['footprint']) })
+    }
+  }
+  const figures: FigureWish[] = []
+  const given = raw['figures']
+  if (given !== undefined && given !== null) {
+    if (!isObject(given)) throw new BriefRefused('figures must be an object, each of the person\'s figures by its name')
+    for (const [key, value] of Object.entries(given)) {
+      if (key === 'heading') continue
+      try {
+        figures.push(...figureWishes({ [key]: value }))
+      } catch (error) {
+        if (!(error instanceof BriefRefused)) throw error
+        refused.push({ where: `figures.${KEY.test(key) ? key : '…'}`, problem: error.message, line: lineText(value) })
+      }
+    }
+  }
+  const brief: Brief = { version: '1', rooms, footprint, touch, figures, open }
+  if (rooms.length + touch.length + figures.length + open.length === 0 && footprint === null) {
+    if (refused.length === 0) throw new BriefRefused('it holds no wish: give rooms, footprint, touch, figures or open')
+    throw new BriefRefused(refused.map((r) => r.problem).join('; and '))
+  }
+  return { brief, refused }
+}
+
 /** The brief as its file holds it: the keys the file takes, the person's figures under their heading. */
 export function briefJson(brief: Brief): Record<string, unknown> {
   const s = (wish: Said): Record<string, unknown> => ({ level: wish.level, source: wish.source, ...(wish.quote === null ? {} : { quote: wish.quote }) })

@@ -7,7 +7,7 @@
  * answers with each line met or missed (`brief/lines.ts`).
  */
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
-import { BriefRefused, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBrief, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief } from '../brief/brief'
+import { BriefRefused, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBriefLines, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief, type BriefParts, type RefusedLine } from '../brief/brief'
 import { briefLines, briefText, MAT } from '../brief/lines'
 import { DOOR_MEASURES } from '../quantities/doorWidth'
 
@@ -132,6 +132,8 @@ const EXAMPLE = {
   open: [{ quote: 'somewhere to work from home', about: 'its size, and which room' }],
 }
 
+const REFUSED = objectSchema({ where: STRING, problem: STRING, line: STRING })
+
 const LINE = objectSchema({
   state: { type: 'string', enum: ['met', 'missed', 'open', 'differs'] },
   wish: STRING,
@@ -161,13 +163,22 @@ function planNow(project: ReturnType<typeof projectOf>, file: string): FloorPlan
   return project.exists(file) ? loadPlan(project, file).plan : null
 }
 
+/** ARE-52: the lines left out, each with why and the line as sent, for the agent to mend and send again. */
+function refusedText(refused: readonly RefusedLine[]): string[] {
+  if (refused.length === 0) return []
+  return [
+    `${refused.length === 1 ? '1 line was' : `${refused.length} lines were`} left out and not written; mend ${refused.length === 1 ? 'it' : 'them'} and send the whole brief again with replace: true:`,
+    ...refused.map((line) => `- ${line.where}: ${line.problem}. As sent: ${line.line}`),
+  ]
+}
+
 export const writeBriefTool: GridTool = {
   name: BRIEF_TOOL_NAME,
   title: 'Write the brief',
   hint: 'write-file',
   description:
     'Use this when the person says what they want, before you draw the first room: in one call, write the brief from their words, each wish with its level (must, should, avoid), its source (given, with the person\'s words in quote, or assumed, for them to confirm), and what is still open. '
-    + 'It holds room areas (m²) and counts, inside sizes and the footprint in metres, rooms that must touch or must not (avoid), and under figures the person\'s own figures, theirs and not from any code or standard: door_width, corridor_width, turning_circle, step and ceiling_height, and the site limits plot_coverage (%), floor_area_ratio (with the gross measure it is set by), building_height (m) and parking_per_home. A figure Grid does not know is refused with the ones it knows. '
+    + 'It holds room areas (m²) and counts, inside sizes and the footprint in metres, rooms that must touch or must not (avoid), and under figures the person\'s own figures, theirs and not from any code or standard: door_width, corridor_width, turning_circle, step and ceiling_height, and the site limits plot_coverage (%), floor_area_ratio (with the gross measure it is set by), building_height (m) and parking_per_home. A figure Grid does not know is refused with the ones it knows. A line that is wrong (a given wish with no quote, a number out of range) refuses only that line: the others are written, and the answer returns the refused line with why, in refused, for you to mend and send again with replace: true; a brief with no line Grid can read writes nothing. '
     + `It writes only the brief beside the plan (plan.brief.json beside plan.json), never the plan. A brief already there is not replaced unless replace is true: read it first (leave brief out), then write the whole brief with what changed. It answers with each line met or missed against the plan as drawn, measured as grid_areas and grid_measure measure, and a size written in a room's name (12 m², 6 tatami, a mat taken as ${MAT.width} × ${MAT.length} m) is read against the room until the brief gives one. Leave brief out to read the brief and its lines and write nothing. `
     + 'Every change to the plan then answers with the same lines. Do not use to change the plan (grid_write_rooms and the edit tools), for a rule from a code (grid_check), or to say a plan is allowed: a line met says only that the drawing holds what was asked.',
   args: {
@@ -180,7 +191,7 @@ export const writeBriefTool: GridTool = {
       schema: BRIEF_SCHEMA,
       read: (value) => {
         try {
-          return parseBrief(value, { versionNeeded: false })
+          return parseBriefLines(value, { versionNeeded: false })
         } catch (error) {
           if (error instanceof BriefRefused) throw new ToolRefusal(`The brief was not written: ${error.message}.`)
           throw error
@@ -193,6 +204,7 @@ export const writeBriefTool: GridTool = {
     file: STRING,
     planDrawn: BOOLEAN,
     problem: NULLABLE_STRING,
+    refused: listSchema(REFUSED),
     lines: listSchema(LINE),
   }),
   run(args, context) {
@@ -201,11 +213,13 @@ export const writeBriefTool: GridTool = {
     try {
       // The plan's own path first, so a refusal names it as the call gave it.
       project.resolve(file)
-      const given = args['brief'] as Brief | undefined
+      const parts = args['brief'] as BriefParts | undefined
+      const given = parts?.brief
       const plan = planNow(project, file)
       let brief: Brief | null
       let written: string | null = null
       let problem: string | null = null
+      const refused = parts?.refused ?? []
       let briefFile: string
       if (given === undefined) {
         const read = readBrief(project, file)
@@ -225,12 +239,12 @@ export const writeBriefTool: GridTool = {
       }
       const lines = briefLines(plan, brief)
       const head = written !== null
-        ? [`Wrote the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.`]
+        ? [`Wrote the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.`, ...refusedText(refused)]
         : brief === null
           ? [problem ?? `There is no brief beside the plan yet (${JSON.stringify(briefFile)}): pass brief to write one from the person's words.`]
           : [`Read the brief ${JSON.stringify(briefFile)}; nothing was written.`]
       const text = [...head, ...(plan === null ? ['The plan is not written yet, so every line is open until the rooms are drawn.'] : []), ...briefText(lines, brief === null ? null : briefFile, { quotes: true })]
-      return { text: text.join('\n'), data: { written, file: briefFile, planDrawn: plan !== null, problem, lines } }
+      return { text: text.join('\n'), data: { written, file: briefFile, planDrawn: plan !== null, problem, refused, lines } }
     } catch (error) {
       if (error instanceof BriefRefused || error instanceof PathRefused) throw new ToolRefusal(error.message)
       throw asRefusal(error)
