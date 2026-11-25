@@ -290,6 +290,12 @@ is 2.19 m in the bedroom, 0.10 m through the wall and 2.05 m in the Hall: 4.34 m
 the way the body or trolley gets through by carries its `length` too. A length is null when a
 room on the way has no outline Grid can measure.
 
+With `to=outside` (ARE-21) the route is walked to every way out on the floor, each by the way
+with the fewest rooms to its door, and the shortest by walked length is the answer. It names the
+way out it took (`exit`) and lists the others, nearest first, with their lengths (`otherExits`:
+`via`, `type`, `rooms`, `length`, null when not measurable). Equal lengths go to the fewer rooms,
+then to the smaller id.
+
 `grid_describe length=walk` is the long form of the description: the plan walked room by room.
 Each floor starts at its way in: the front door the plan names, else the widest door from outside
 into a corridor, else the widest door from outside; a floor with no door from outside starts in

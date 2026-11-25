@@ -139,6 +139,10 @@ export interface Route {
   readonly length: number | null
   /** Each room's share of the length, in order; the holes through the walls are the rest. */
   readonly legs: readonly WalkedLeg[]
+  /** ARE-21, a route to `outside` only: the way out it takes, the nearest by walked length. */
+  readonly exit?: string
+  /** ARE-21: the other ways out on the floor, nearest first, each with the length of its own route (null when it cannot be measured). */
+  readonly otherExits?: readonly { readonly via: string; readonly type: RouteStep['type']; readonly rooms: readonly string[]; readonly length: number | null }[]
 }
 
 /** The way out of every room, as a step past the last room of a route to `outside`. */
@@ -165,43 +169,80 @@ export function wayGraph(survey: Survey, floor: string): { next: Map<string, Arr
   return { next, openings }
 }
 
-/** The way with the fewest rooms between two rooms of one floor, or to any way out ('outside'). */
+/**
+ * The way with the fewest rooms between two rooms of one floor. To any way out ('outside') it is
+ * the way to the nearest one by walked length (ARE-21): each way out gets the way with the fewest
+ * rooms to its doorway, and the shortest walked wins; the others are listed in `otherExits`.
+ */
 export function routeBetween(survey: Survey, from: string, to: string): Route | null {
   const floor = survey.byId.get(from)!.facts.floor
   const { next, openings } = wayGraph(survey, floor)
   const OUT = OUTSIDE
   const goal = to === 'outside' ? OUT : to
 
-  const back = new Map<string, { room: string; via: string }>()
-  const queue = [from]
-  const seen = new Set([from])
-  while (queue.length > 0) {
-    const room = queue.shift()!
-    if (room === goal) break
-    for (const step of next.get(room) ?? []) {
-      if (seen.has(step.room)) continue
-      seen.add(step.room)
-      back.set(step.room, { room, via: step.via })
-      queue.push(step.room)
+  /** The fewest rooms from `from` to the room `target`, as the rooms and the doorways between. */
+  const wayTo = (target: string): { rooms: string[]; vias: string[] } | null => {
+    const back = new Map<string, { room: string; via: string }>()
+    const queue = [from]
+    const seen = new Set([from])
+    while (queue.length > 0) {
+      const room = queue.shift()!
+      if (room === target) break
+      for (const step of next.get(room) ?? []) {
+        if (step.room === OUT || seen.has(step.room)) continue
+        seen.add(step.room)
+        back.set(step.room, { room, via: step.via })
+        queue.push(step.room)
+      }
     }
+    if (!seen.has(target)) return null
+    const rooms = [target]
+    const vias: string[] = []
+    for (let at = target; at !== from;) {
+      const prev = back.get(at)!
+      vias.unshift(prev.via)
+      rooms.unshift(prev.room)
+      at = prev.room
+    }
+    return { rooms, vias }
   }
-  if (!seen.has(goal)) return null
 
-  const rooms: string[] = []
-  const steps: RouteStep[] = []
-  for (let at = goal; at !== from;) {
-    const prev = back.get(at)!
-    const opening = openings.get(prev.via)
-    steps.unshift({
-      via: prev.via,
-      type: opening?.type ?? 'open side',
-      width: opening?.width ?? null,
-      into: at === OUT ? 'outside' : at,
+  let chosen: { rooms: string[]; vias: string[] } | null
+  let exit: Pick<Route, 'exit' | 'otherExits'> = {}
+  if (goal === OUT) {
+    const ways: Array<{ rooms: string[]; vias: string[]; length: number | null }> = []
+    for (const [inside, links] of next) {
+      for (const link of links) {
+        if (link.room !== OUT) continue
+        const way = wayTo(inside)
+        if (way === null) continue
+        const vias = [...way.vias, link.via]
+        ways.push({ rooms: way.rooms, vias, length: walkedLength(survey, way.rooms, vias, true)?.length ?? null })
+      }
+    }
+    // Measured ways first, shortest first; then the fewest rooms, then the doorway's id.
+    ways.sort((a, b) => {
+      if ((a.length === null) !== (b.length === null)) return a.length === null ? 1 : -1
+      if (a.length !== null && b.length !== null && Math.abs(a.length - b.length) > tolerance('noLength')) return a.length - b.length
+      return a.rooms.length - b.rooms.length || (a.vias.at(-1)! < b.vias.at(-1)! ? -1 : 1)
     })
-    if (at !== OUT) rooms.unshift(at)
-    at = prev.room
+    chosen = ways[0] ?? null
+    if (chosen !== null) {
+      exit = {
+        exit: chosen.vias.at(-1)!,
+        otherExits: ways.slice(1).map((w) => ({ via: w.vias.at(-1)!, type: openings.get(w.vias.at(-1)!)?.type ?? 'open side', rooms: w.rooms, length: w.length })),
+      }
+    }
+  } else {
+    chosen = wayTo(goal)
   }
-  rooms.unshift(from)
+  if (chosen === null) return null
+
+  const rooms = [...chosen.rooms]
+  const steps: RouteStep[] = chosen.vias.map((via, i) => {
+    const opening = openings.get(via)
+    return { via, type: opening?.type ?? 'open side', width: opening?.width ?? null, into: i + 1 < rooms.length ? rooms[i + 1]! : 'outside' }
+  })
 
   let narrowestPassage: Route['narrowestPassage'] = null
   for (const step of steps) {
@@ -215,7 +256,7 @@ export function routeBetween(survey: Survey, from: string, to: string): Route | 
     if (narrowestRoom === null || circle < narrowestRoom.widestCircle) narrowestRoom = { room: id, widestCircle: circle }
   }
   const walked = walkedLength(survey, rooms, steps.map((s) => s.via), goal === OUT)
-  return { from, to, rooms, steps, narrowestPassage, narrowestRoom, length: walked?.length ?? null, legs: walked?.legs ?? [] }
+  return { from, to, rooms, steps, narrowestPassage, narrowestRoom, length: walked?.length ?? null, legs: walked?.legs ?? [], ...exit }
 }
 
 // ---------------------------------------------------------------------------------------------
