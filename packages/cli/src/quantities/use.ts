@@ -35,7 +35,7 @@ import {
 } from '@ongrid/floorplan/geometry'
 import { planFixtures, type FixtureRow } from './fixtures'
 import { OUTSIDE, routeBetween, wayGraph } from './measure'
-import type { Survey, SurveyRoom } from './survey'
+import { roomCalled, roomCalledById, type Survey, type SurveyRoom } from './survey'
 import { WALKED_RULE, walkedLength } from './walked'
 
 const q = (text: string): string => JSON.stringify(text)
@@ -236,7 +236,7 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
   // A ray from a fixture's face can pass out through a doorway and meet a fixture in the next room.
   const everyFixture = onFloor(room.facts.floor)
   const own = rows.filter((row) => row.room === room.facts.id)
-  const name = q(room.facts.name)
+  const name = q(roomCalled(room.facts))
   const add = (indicator: Indicator, text: string): void => {
     indicators.push(indicator)
     lines.push(`Indicator, ${USE_INDICATORS[indicator.code].name}: ${text}.`)
@@ -471,7 +471,7 @@ export function wideRoute(survey: Survey, from: string, to: string, width: numbe
 /** The lines of a wide route's answer. */
 export function wideRouteLines(survey: Survey, route: WideRoute, figure: Figure, L: Length): string[] {
   const { items } = fixturesOf(survey)
-  const name = (id: string): string => (id === 'outside' ? 'outside' : q(survey.byId.get(id)?.facts.name ?? id))
+  const name = (id: string): string => (id === 'outside' ? 'outside' : q(roomCalledById(survey, id)))
   const body = `a body or trolley ${L(route.width)} wide (${figure.from === 'person' ? 'the width you gave' : 'Grid\'s own indicator'})`
   const stepsText = (way: Way): string => way.steps.map((s) => `${s.type} ${q(s.via)}${s.clear === null ? '' : ` (${L(s.clear)} clear)`} into ${name(s.into)}`).join(', then ')
   const roomsText = (way: Way): string =>

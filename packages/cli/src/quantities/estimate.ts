@@ -35,7 +35,7 @@ import {
 import { ROOM_USES, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { AREA_RULES, planAreas } from './areas'
 import { finishShares, type FinishSurface } from './finishes'
-import type { Survey } from './survey'
+import { roomCalled, type Survey } from './survey'
 import { roomTakeoff, wallFaceOver } from './takeoff'
 
 export type QuantityUnit = 'm2' | 'm' | 'nr'
@@ -161,7 +161,7 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
     // A zone's floor and walls are its room's (CNT-8): priced once.
     if (!onFloor(room.facts.floor) || room.facts.zoneOf !== undefined) continue
     if (room.facts.shape === null || room.polygon.length < 3) {
-      leftOut.push(JSON.stringify(room.facts.name))
+      leftOut.push(JSON.stringify(roomCalled(room.facts)))
       continue
     }
     const t = roomTakeoff(room)

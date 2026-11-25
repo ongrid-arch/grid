@@ -13,7 +13,8 @@
  *   field's default is used, or the field is read as not stated, and the line says which. One
  *   fact of the person's own (CNT-9) is left out on its own, and the part keeps the others. A
  *   size stated where the field has a default is not: the default would change what is drawn,
- *   so the part is left out (`STATED_SIZES`).
+ *   so the part is left out (`STATED_SIZES`). A room's name that cannot be read, or is not
+ *   there, is the room's id (WRT-43): a room is never left out for want of a name.
  * - **part left out**: a value the part cannot do without (a wall's start, an opening's type)
  *   that cannot be read. The part is set aside; the rest of the plan is read and checked
  *   without it, and every view, measure and export leaves it out.
@@ -363,6 +364,15 @@ function readPart(list: PartList, index: number, raw: unknown, marks: readonly T
         pending.set(fault, field)
         continue
       }
+    }
+    // WRT-43: a room whose name cannot be read (none, null, a list) is named by its id,
+    // so it is drawn and measured as that rather than left out of every view and measure.
+    if (list === 'rooms' && field === 'name' && issue.path.length === 1 && ref.id !== null && part['name'] !== ref.id) {
+      part['name'] = ref.id
+      const fault: ReadFault<Value> = { kind: 'value-left-out', ...said, used: null }
+      faults = [...others, fault]
+      pending.set(fault, 'name')
+      continue
     }
     return { part: null, faults: [{ kind: 'part-left-out', ...said }] }
   }

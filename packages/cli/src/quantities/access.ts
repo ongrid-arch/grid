@@ -46,7 +46,7 @@ import {
 import type { ConfirmedFigure, FigureKey } from '@ongrid/rules'
 import type { FigureName, FigureWish } from '../brief/brief'
 import { OUTSIDE, entryWays, wayGraph } from './measure'
-import type { Survey, SurveyRoom } from './survey'
+import { roomCalled, roomCalledById, type Survey, type SurveyRoom } from './survey'
 import { fixturesOf } from './use'
 import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, type DoorMeasure } from './doorWidth'
 
@@ -373,7 +373,7 @@ function wayTo(c: WayContext, route: AccessRoute): AccessWay {
   let path: FloorJoin[] | null = []
   if (startFloor !== target.facts.floor) {
     path = floorPath(c.joins.joins.filter((j) => j.kind === 'lift'), startFloor, target.facts.floor) ?? floorPath(c.joins.joins, startFloor, target.facts.floor)
-    if (path === null) return none(`No stair or lift that Grid can see joins ${q(floorName(survey, startFloor))} to ${q(floorName(survey, target.facts.floor))}, so it cannot tell the way to ${q(target.facts.name)}.`)
+    if (path === null) return none(`No stair or lift that Grid can see joins ${q(floorName(survey, startFloor))} to ${q(floorName(survey, target.facts.floor))}, so it cannot tell the way to ${q(roomCalled(target.facts))}.`)
   }
   const legs: WayLeg[] = []
   let floor = startFloor
@@ -383,8 +383,8 @@ function wayTo(c: WayContext, route: AccessRoute): AccessWay {
     const goal = join === undefined ? target.facts.id : join.lower.floor === floor ? join.lower.room : join.upper.room
     const leg = legOn(survey, c.graphs, floor, start, goal, start === OUTSIDE ? new Set(c.entrance!.doors) : null)
     if (leg === null) {
-      const where = start === OUTSIDE ? 'the entrance' : q(survey.byId.get(start)?.facts.name ?? start)
-      return { ...none(`There is no way from ${where} to ${q(survey.byId.get(goal)?.facts.name ?? goal)} through the plan's doors and openings.`), legs }
+      const where = start === OUTSIDE ? 'the entrance' : q(roomCalledById(survey, start))
+      return { ...none(`There is no way from ${where} to ${q(roomCalledById(survey, goal))} through the plan's doors and openings.`), legs }
     }
     legs.push(leg)
     if (join === undefined) break
@@ -675,7 +675,7 @@ export function accessAnswer(survey: Survey, figures: AccessFigures, L: Length, 
   }
 
   // The words.
-  const name = (id: string): string => (id === 'outside' ? 'outside' : q(survey.byId.get(id)?.facts.name ?? id))
+  const name = (id: string): string => (id === 'outside' ? 'outside' : q(roomCalledById(survey, id)))
   const lines: string[] = [ACCESS_HEAD]
   if (!scope.marked) {
     lines.push('The plan marks no room or route as needing to be accessible (accessible in the plan file), so every room is measured, and the way in to each from the entrance.')

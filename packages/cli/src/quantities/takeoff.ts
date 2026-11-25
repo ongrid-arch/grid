@@ -39,7 +39,7 @@ import {
   type SlabOpeningKind,
   type Wall,
 } from '@ongrid/floorplan/geometry'
-import type { Survey, SurveyRoom } from './survey'
+import { roomCalled, type Survey, type SurveyRoom } from './survey'
 import { english, said } from '@ongrid/floorplan/messages'
 
 export const TAKEOFF_RULES = {
@@ -261,7 +261,7 @@ export function roomTakeoff(
   const { stated, lowered } = ceiling(room)
   return {
     id: room.facts.id,
-    name: room.facts.name,
+    name: roomCalled(room.facts),
     floor: room.facts.floor,
     floorArea: area,
     ceiling: area,

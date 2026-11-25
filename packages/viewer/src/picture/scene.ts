@@ -1345,9 +1345,11 @@ function planSceneIn(input: SceneInput): SvgNode[] {
       ? [areaNumber(change.before, decimals), ' → ', areaNumber(change.after, decimals), ` ${areaUnit()}`]
       : [areaNumber(room.area, decimals), ` ${areaUnit()}`]
   }
+  // WRT-43: a room with no name is labelled with its id, so it is never drawn as a blank.
   const names = drawing.rooms.map((room, index) => {
-    const name = labelName(room.name, index, style)
-    return style.ids ? `${name} [${room.id}]` : name
+    const blank = room.name.trim() === ''
+    const name = labelName(blank ? room.id : room.name, index, style)
+    return style.ids && !blank ? `${name} [${room.id}]` : name
   })
   const swings: Box[] = []
   for (const opening of drawing.openings) {
@@ -1444,7 +1446,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
       el(
         'g',
         { transform: labelTransform(poleOfInaccessibility(room.polygon, undefined, room.holes).point, mpp), ...live.ghostAttrs(room.id) },
-        [el('text', { 'data-part': 'label' }, [`${room.name} · ${formatArea(room.area, decimals)} · ${drawingText(drawingWords(), 'drawing.removed')}`])],
+        [el('text', { 'data-part': 'label' }, [`${room.name.trim() === '' ? room.id : room.name} · ${formatArea(room.area, decimals)} · ${drawingText(drawingWords(), 'drawing.removed')}`])],
         `ghost-label-${room.id}`
       )
     )
