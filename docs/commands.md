@@ -734,9 +734,13 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
 
 - **What the line cuts** is drawn solid in the walls' tone, under the heavy outline the plan's cut
   walls have: the walls, with the sill and lintel round each door and window, the slab of each
-  floor (open over a stair, a lift shaft or a void), the roof and any parapet, the treads and
-  landings of a stair the plan states, and the floor of a raised room. Parts that touch are one
-  shape, not a rectangle each.
+  floor (open over a stair, a lift shaft or a void), the roof and any parapet, a stair the plan
+  states, and the floor of a raised room. Parts that touch are one shape, not a rectangle each.
+  A stair is cut as it is built (VEW-11): each flight its treads and risers over a waist, with
+  the soffit beneath it parallel to its slope, joined to its landings, which are slabs; nothing
+  under a flight or a landing is filled down to the floor. The waist is 0.15 m under the roots of
+  the steps, square to the slope (`stairWaist` in [tolerances.md](tolerances.md)), and a landing
+  at least one riser thick.
 - **What lies beyond the cut** is drawn in a lighter line, the one a facade draws its faces set
   back in: the faces of walls, slab and roof edges and stairs that face you, with their doors and
   windows open, each hiding what is behind it.
@@ -752,7 +756,8 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   it is cut: a slab whose thickness the floor does not state, every roof (flat, as LVL-4 takes
   it), a wall whose height nothing states or that the plan marks assumed. A level worked out from
   the floors below, a ground level the site does not state, a room height taken from the storey,
-  a stair room with no stated stair and a stair's worked-out risers are listed, not hatched.
+  a stair room with no stated stair, a stair's worked-out risers and the waist its flights are
+  drawn with are listed, not hatched.
   `grid draw` says on standard error how many it hatched and listed.
 - **A roof the floor states** (`floors[].roof`, LVL-6) stands at its eaves. A section does not
   draw a sloped roof's slope yet, nor cut the walls under it to the roof: it draws the roof flat

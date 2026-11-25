@@ -1972,6 +1972,7 @@ export const es: Messages = {
   'drawing.section.taken.noStair.one': 'No se indica escalera en la caja de escalera cortada ({ids}): no se dibuja ningún tramo, solo la estancia y el hueco sobre ella.',
   'drawing.section.taken.noStair.many': 'No se indica escalera en {count} cajas de escalera cortadas ({ids}): no se dibuja ningún tramo, solo las estancias y el hueco sobre ellas.',
   'drawing.section.taken.risers': 'Las contrahuellas de {ids} las calcula Grid: el plano no indica cuántas son.',
+  'drawing.section.taken.waist': 'Los tramos de {ids} se dibujan con {waist} m de espesor bajo los peldaños, y sus mesetas como losas: el plano no indica el espesor de la losa.',
   'drawing.section.note': 'La sección {what} que el plano no indica: cada una figura bajo el dibujo.',
   'drawing.section.note.hatched.one': 'raya una parte',
   'drawing.section.note.hatched.many': 'raya {count} partes',
