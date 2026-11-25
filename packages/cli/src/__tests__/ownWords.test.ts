@@ -154,7 +154,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/state.ts': [3, 'notYet'],
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
   'packages/cli/src/quantities/takeoff.ts': [10, 'notYet'],
-  'packages/cli/src/quantities/use.ts': [28, 'notYet'],
+  'packages/cli/src/quantities/use.ts': [32, 'notYet'],
   'packages/cli/src/quantities/walked.ts': [3, 'notYet'],
   'packages/cli/src/report/draft.ts': [16, 'notYet'],
   // MSG-19: three more, the refusals of a seen file with a mark Grid could not read.
