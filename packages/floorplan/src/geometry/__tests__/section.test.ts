@@ -190,6 +190,15 @@ describe('a section through a stair that turns at a landing (VEW-11)', () => {
     const sides = facing.beyond.filter((f) => f.kind === 'stair' && f.pieces.length === 1 && f.pieces[0]!.outline.length > 8)
     expect(sides.length).toBeGreaterThan(0)
   })
+
+  it('draws a flight seen from its foot as one face, not one column per riser (VEW-41)', () => {
+    for (const toward of ['left', 'right'] as const) {
+      const seen = planSection(plan, { from: { x: -1, y: 0 }, to: { x: 3, y: 0 }, toward }).beyond.filter((f) => f.kind === 'stair')
+      // Whichever way it looks, the flights give their sides, their top end and at most one riser face.
+      expect(seen.filter((f) => f.edge === null && f.pieces[0]!.outline.length === 4).length).toBeLessThanOrEqual(3)
+      expect(seen.length).toBeLessThan(10)
+    }
+  })
 })
 
 describe('the levels of a section (LVL-9 done-when 2)', () => {
