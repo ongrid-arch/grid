@@ -120,7 +120,7 @@ describe('Y-7: the narrow flat, against the wheelchair user\'s own figures', () 
     expect(all.filter((l) => l.state !== 'missed')).toEqual([])
     // Under their heading: the person's own figures, not a code's.
     expect(reply.text).toContain("The person's own figures: theirs, not from any code or standard.")
-    expect(reply.text).toContain('missed (must): door "door-bath" ("Hall" to "Bathroom") width asked at least 0.8, drawn 0.55 m.')
+    expect(reply.text).toContain('missed (must): door "door-bath" ("Hall" to "Bathroom") clear width asked at least 0.8, drawn 0.50 m, its hole 0.55 m.')
     // The file keeps them under the same heading.
     const file = JSON.parse(readFileSync(join(b.folder, 'probe.brief.json'), 'utf8')) as { figures: { heading: string } }
     expect(file.figures.heading).toBe("The person's own figures: theirs, not from any code or standard.")
