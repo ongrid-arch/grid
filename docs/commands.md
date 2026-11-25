@@ -120,11 +120,19 @@ folder:
 - network and device paths (`\\server\share`, `\\?\C:\`);
 - names Windows keeps for devices, with or without an extension (`CON`, `NUL`, `AUX`, `PRN`,
   `COM1` to `COM9`, `LPT1` to `LPT9`), hidden data streams (`plan.json:stream`), names
-  ending in a dot or a space, and control or direction-override characters.
+  ending in a dot or a space, and control, direction-override or invisible characters (a
+  zero-width space, a word joiner, a soft hyphen).
 
 These hold on every system, so a path in a plan means the same wherever the plan goes; `\`
 and `/` both separate folders. Grid creates no folder on the way, except `exports/` and the
 one folder `grid init` is asked to make.
+
+A file Grid writes gets the mode your umask gives, as a file you make yourself would (`0644`
+under the usual `022`), so a teammate in the same group or a web server can read the plan and
+its exports. A file Grid replaces keeps the mode it had. A file you made read-only (`chmod 444`,
+or the read-only attribute on Windows) is refused, and left as it is: `Can't write "plan.json":
+it is read-only, so Grid leaves it as it is`. The rules store, kept outside the project on this
+computer, stays readable by you only (CMD-30).
 
 An export's file name comes from the plan file's name, never from text inside the plan.
 Grid sanitises it rather than refusing it, and says so on standard error: a name Windows

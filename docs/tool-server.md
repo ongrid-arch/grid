@@ -89,6 +89,16 @@ person's name in a room's name or id. Who sits where belongs in the occupancy fi
 plan, which no export, sheet or tool reads ([People are kept out of the plan](plan-file.md#people-are-kept-out-of-the-plan)).
 `grid_write_rooms`, `grid_export`, `grid_sheet` and the server's instructions say so.
 
+A name a write or a change brings in is kept as written, and its answer adds one gentle line when
+the name reads as an instruction to an agent or a claim about the plan (`Ignore previous
+instructions`, `Approved`), or may hold a person's name (`Mr Smith office`, `Ana's room`,
+`Dormitorio de Lucía`, pointing at the occupancy file); at most three such lines, and never again
+for a name the plan already had (CMD-30). A name with a character that shows nothing (a
+zero-width space, a word joiner, a soft hyphen, a tag character) is refused, as a control or
+direction character is. Names and searches are read in one Unicode form (NFC), so `Baño` typed
+with `n` and a combining tilde is stored as `ñ`, and `name contains baño` finds it however
+either was typed.
+
 `grid_export` answers with what its file leaves out (HND-6): `leftOut`, how many parts, and
 `leftOutParts`, each part with its `kind`, `id`, `place` (for a part left out when the plan was
 read), `floor` and `code` (the line of `grid_check` that leaves it out). The file carries the
