@@ -166,7 +166,7 @@ export const en = {
   'issue.part.far.wall': 'wall {wall} lies more than {km} km from the origin',
   'issue.part.far.thick': 'wall {wall} is more than {km} km thick',
   'issue.part.far.room': 'room {room} lies more than {km} km from the origin',
-  'issue.part.notJoined': 'the walls could not be joined ({error})',
+  'issue.part.notJoined': 'the walls could not be joined: their shapes are too close to tell apart',
   'issue.part.nesting.tooMany': 'the plan has more than {most} pairs of outlines to compare, and the rest were not compared',
   'issue.part.nesting.failed': 'the outlines could not be compared ({error})',
 
