@@ -10,9 +10,9 @@ import { readFileSync } from 'node:fs'
 import { cpus, loadavg } from 'node:os'
 import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
+import { parseFloorPlan, ROOM_USES, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { planEstimate, type EstimateLine } from '../../quantities/estimate'
-import { parseRates, priceEstimate, RatesRefused } from '../../quantities/rates'
+import { parseRates, priceEstimate, rateCard, RatesRefused } from '../../quantities/rates'
 import { surveyPlan } from '../../quantities/survey'
 import { bench, type Bench } from './replay/harness'
 
@@ -91,16 +91,24 @@ const FOUR_FLATS: ReadonlyArray<{ figure: string; got: (lines: readonly Estimate
   // 6. Outer walls 0.35: 26 + 18 + 26 + 18 = 88 m on centre lines x 2.8 = 246.40, less the
   //    windows' 36.40: 210.00 m².
   { figure: 'exterior walls 0.35 m', got: (l) => line(l, 'wall:exterior:0.35').quantity, want: 210 },
-  // 7. Corridor walls 0.25: 2 x 26 = 52 m x 2.8 = 145.60, less 6 doors of 2.10: 133.00 m².
-  { figure: 'interior walls 0.25 m', got: (l) => line(l, 'wall:interior:0.25').quantity, want: 133 },
-  // 8. Core and party walls 0.3: 7.6 + 7.6 + 8.4 = 23.6 m x 2.8, no openings: 66.08 m².
-  { figure: 'interior walls 0.3 m', got: (l) => line(l, 'wall:interior:0.3').quantity, want: 66.08 },
-  // 9. Stair and lift walls 0.2: 7.6 + 3.0 = 10.6 m x 2.8 = 29.68, less the riser door 1.68: 28.00 m².
-  { figure: 'interior walls 0.2 m', got: (l) => line(l, 'wall:interior:0.2').quantity, want: 28 },
-  // 10. Partitions 0.12: flats A and B 10 + 4.6 + 3 + 3 = 20.6 m each, C and D
-  //     13 + 4.6 + 4.6 + 3.8 + 3.8 = 29.8 m each; 100.8 m x 2.8 = 282.24, less 14 doors of 1.68
-  //     and 4 doorless openings of 3.36: 282.24 - 36.96 = 245.28 m².
-  { figure: 'partitions 0.12 m', got: (l) => line(l, 'wall:partition:0.12').quantity, want: 245.28 },
+  // Walls 7 to 10 run between the faces of the walls they butt into (CNT-31): each end that meets
+  // another wall away from its ends stops half that wall's thickness short of its centre line.
+  // 7. Corridor walls 0.25: 2 x 26 m, each stopping at the outer walls' faces, 0.175 in at both
+  //    ends: 2 x 25.65 = 51.3 m x 2.8 = 143.64, less 6 doors of 2.10: 131.04 m².
+  { figure: 'interior walls 0.25 m', got: (l) => line(l, 'wall:interior:0.25').quantity, want: 131.04 },
+  // 8. Core and party walls 0.3: 7.6 + 7.6 + 8.4 = 23.6 m, each between a 0.35 outer wall and a
+  //    0.25 corridor wall (0.175 + 0.125 = 0.3 off each): 22.7 m x 2.8, no openings: 63.56 m².
+  { figure: 'interior walls 0.3 m', got: (l) => line(l, 'wall:interior:0.3').quantity, want: 63.56 },
+  // 9. Stair and lift walls 0.2: the stair wall 7.6 less 0.175 + 0.125, the lift wall 3.0 between
+  //    the 0.2 stair wall and a 0.3 core wall less 0.1 + 0.15: 7.3 + 2.75 = 10.05 m x 2.8 = 28.14,
+  //    less the riser door 1.68: 26.46 m².
+  { figure: 'interior walls 0.2 m', got: (l) => line(l, 'wall:interior:0.2').quantity, want: 26.46 },
+  // 10. Partitions 0.12: on centre lines flats A and B 10 + 4.6 + 3 + 3 = 20.6 m each, C and D
+  //     13 + 4.6 + 4.6 + 3.8 + 3.8 = 29.8 m each, 100.8 m. Between faces: each middle partition
+  //     less 0.175 + 0.15 = 0.325, each 4.6 m one less 0.175 + 0.06 = 0.235, each short one less
+  //     0.125 + 0.06 = 0.185: 100.8 - 4 x 0.325 - 6 x 0.235 - 8 x 0.185 = 96.61 m x 2.8 = 270.508,
+  //     less 14 doors of 1.68 and 4 doorless openings of 3.36: 270.508 - 36.96 = 233.55 m².
+  { figure: 'partitions 0.12 m', got: (l) => line(l, 'wall:partition:0.12').quantity, want: 233.55 },
   // 11. Outside face: the outline 26.35 x 18.35 m, 2 x (26.35 + 18.35) = 89.40 m x 2.8 = 250.32,
   //     less the windows' 36.40: 213.92 m².
   { figure: 'outside face', got: (l) => line(l, 'external_finish').quantity, want: 213.92 },
@@ -238,10 +246,12 @@ describe('AC-6: the slab and the roof, worked out from the outlines and marked a
 
   it('marks every line that rests on a slab, a floor structure, a roof or a ceiling the plan does not hold', () => {
     // The slab is the ground floor's outline, 83.31 m²; the first floor structure its gross
-    // internal area, 4.7 x 7.7 = 36.19 m², as no stair is stated.
+    // internal area, 4.7 x 7.7 = 36.19 m², less the landing over the ground floor's stair room,
+    // open as the take-off opens it (no stair is stated): (2.94 - 0.15) x (3.94 - 0.15) =
+    // 2.79 x 3.79 = 10.57 m², so 25.62 m² (CNT-31).
     expect(line(lines, 'slab')).toMatchObject({ assumed: true })
     expect(line(lines, 'slab').quantity).toBeCloseTo(83.31, 2)
-    expect(line(lines, 'upper_floor').quantity).toBeCloseTo(36.19, 2)
+    expect(line(lines, 'upper_floor').quantity).toBeCloseTo(36.19 - 2.79 * 3.79, 2)
     expect(lines.filter((l) => l.assumed).map((l) => l.key)).toEqual(['ceiling', 'slab', 'upper_floor', 'roof'])
     for (const l of lines.filter((l) => l.assumed)) expect(l.rule).toMatch(/^Assumed: .*because the plan holds no/)
   })
@@ -249,9 +259,10 @@ describe('AC-6: the slab and the roof, worked out from the outlines and marked a
   it('gives one floor its own part: no slab over a floor that is not the lowest, its own roof', () => {
     const first = planEstimate(surveyPlan(parseFloorPlan(oddHouse)), { floors: ['first'] }).lines
     expect(first.some((l) => l.key === 'slab')).toBe(false)
-    // 5.3 x 8.3 = 43.99 m² of roof over the first floor; its structure 4.7 x 7.7 = 36.19 m².
+    // 5.3 x 8.3 = 43.99 m² of roof over the first floor; its structure 4.7 x 7.7 = 36.19 m² less
+    // the landing's 10.57 m².
     expect(line(first, 'roof').quantity).toBeCloseTo(43.99, 2)
-    expect(line(first, 'upper_floor').quantity).toBeCloseTo(36.19, 2)
+    expect(line(first, 'upper_floor').quantity).toBeCloseTo(36.19 - 2.79 * 3.79, 2)
   })
 
   it('gives every line its rule in one sentence', () => {
@@ -269,6 +280,113 @@ describe('AC-6: the slab and the roof, worked out from the outlines and marked a
     const withStair = { ...plan, stairs: [{ id: 'stair', from: 'ground', to: 'first', width: 0.9, run: [[1, 0.6], [1, 4.0]] }] } as unknown as FloorPlan
     expect(line(estimateOf(plan).lines, 'upper_floor').quantity).toBeCloseTo(26.79, 2)
     expect(line(estimateOf(withStair).lines, 'upper_floor').quantity).toBeCloseTo(23.73, 2)
+  })
+})
+
+/** The one-room plan on a floor of its own, so the floor can state a roof. */
+const onGround = (extra: Record<string, unknown> = {}, roof?: Record<string, unknown>): FloorPlan =>
+  parseFloorPlan({
+    ...JSON.parse(JSON.stringify(minimal)),
+    floors: [{ id: 'ground', name: 'Ground floor', level: 0, ...(roof === undefined ? {} : { roof }) }],
+    ...extra,
+  })
+
+describe('CNT-31: the estimate\'s labels, rate keys and measures', () => {
+  it('words every use\'s lines, never "undefined"', () => {
+    for (const use of ROOM_USES) {
+      const plan = { ...minimal, rooms: [{ ...minimal.rooms[0]!, use }] } as FloorPlan
+      const lines = estimateOf(plan).lines.filter((l) => l.key.endsWith(`:${use}`))
+      expect(lines.map((l) => l.key), use).toEqual([`floor:${use}`, `wall_finish:${use}`])
+      for (const l of lines) expect(l.what, use).not.toMatch(/undefined/)
+    }
+  })
+
+  it('reads back the rate card it writes, typed walls, doors and finishes by their own names', () => {
+    // A wall type and a door type with ids in capitals, a space and an accent, and finishes named
+    // in the person's words: every key the estimate writes is a key the rates file takes.
+    const plan = parseFloorPlan({
+      ...JSON.parse(JSON.stringify(minimal)),
+      floors: [{ id: 'ground', name: 'Ground floor', level: 0, roof: { shape: 'gable', eaves: 2.6, pitch: 35 } }],
+      types: { walls: [{ id: 'Bloc 30 é', name: 'Block wall', thickness: 0.3 }], doors: [{ id: 'P-Entrée', name: 'Front door' }] },
+      walls: minimal.walls.map((w) => (w.id === 'south' ? { ...w, wallType: 'Bloc 30 é' } : w)),
+      rooms: [{ ...minimal.rooms[0]!, finishes: { floor: 'Oak boards, Smoked', walls: 'Paint: Matt White' } }],
+      openings: minimal.openings.map((o) => (o.id === 'door' ? { ...o, doorType: 'P-Entrée' } : o)),
+    })
+    const estimate = planEstimate(surveyPlan(plan))
+    const keys = estimate.lines.map((l) => l.key)
+    expect(keys).toEqual(expect.arrayContaining(['wall-type:Bloc 30 é:0.3', 'door-type:P-Entrée', 'floor:finish:Oak boards, Smoked', 'wall_finish:finish:Paint: Matt White', 'ridge', 'eaves', 'verge']))
+    const card = rateCard(estimate)
+    const filled = { currency: 'TST', rates: Object.fromEntries(Object.entries(card.rates).map(([k, r]) => [k, { rate: 1, unit: r.unit }])) }
+    const rates = parseRates(JSON.parse(JSON.stringify(filled)), 'rates.json')
+    expect([...rates.rates.keys()]).toEqual(keys)
+    const pricing = priceEstimate(estimate, rates)
+    expect(pricing.missing).toEqual([])
+    expect(pricing.wrongUnit).toEqual([])
+    expect(pricing.unused).toEqual([])
+    expect(pricing.complete).toBe(true)
+    for (const l of pricing.lines) expect(l.rateKey, l.key).toBe(l.key)
+  })
+
+  it('still refuses a key that is no key: capitals first, a line break, an empty part at the end', () => {
+    for (const bad of ['Floor', 'floor:', 'floor:a\nb', ':floor', 'wall type:x']) {
+      expect(() => parseRates({ currency: 'TST', rates: { [bad]: { rate: 1, unit: 'm2' } } }, 'rates.json'), bad).toThrow(/not a key/)
+    }
+  })
+
+  it('prices a gable roof on its slope, with its ridge, eaves and verges', () => {
+    // The one-room plan's outline is 4.3 x 3.3 m to the outside faces of its 0.3 m walls: 14.19 m²
+    // on plan. A gable at 35° along the longer side: on the slope 14.19 / cos 35° = 17.32 m²; the
+    // ridge 4.3 m, the eaves 2 x 4.3 = 8.6 m, and four verges each half the 3.3 m span along the
+    // slope, 4 x 1.65 / cos 35° = 8.06 m. Flat on plan it was 18% short.
+    const lines = estimateOf(onGround({}, { shape: 'gable', eaves: 2.6, pitch: 35 }))
+    const cos = Math.cos((35 * Math.PI) / 180)
+    const roof = line(lines.lines, 'roof')
+    expect(roof.quantity).toBeCloseTo(14.19 / cos, 2)
+    expect(roof.what).toBe('Roof, on its slope, wherever no floor is above ("Ground floor" 17.32 m², gable at 35.0°)')
+    expect(line(lines.lines, 'ridge').quantity).toBeCloseTo(4.3, 3)
+    expect(line(lines.lines, 'eaves').quantity).toBeCloseTo(8.6, 3)
+    expect(line(lines.lines, 'verge').quantity).toBeCloseTo((4 * 1.65) / cos, 3)
+    expect(lines.lines.some((l) => l.key === 'hip')).toBe(false)
+    for (const key of ['ridge', 'eaves', 'verge']) expect(line(lines.lines, key)).toMatchObject({ unit: 'm', assumed: true })
+  })
+
+  it('gives a hip roof its hips and a shorter ridge', () => {
+    // A hip at 35° over 4.3 x 3.3 m: ridge 4.3 - 3.3 = 1.0 m, eaves 2 x (4.3 + 3.3) = 15.2 m, four
+    // hips each from a corner to the ridge: 1.65 m each way on plan, rising 1.65 x tan 35°.
+    const { lines } = estimateOf(onGround({}, { shape: 'hip', eaves: 2.6, pitch: 35 }))
+    const rise = 1.65 * Math.tan((35 * Math.PI) / 180)
+    expect(line(lines, 'ridge').quantity).toBeCloseTo(1, 3)
+    expect(line(lines, 'eaves').quantity).toBeCloseTo(15.2, 3)
+    expect(line(lines, 'hip').quantity).toBeCloseTo(4 * Math.hypot(1.65, 1.65, rise), 3)
+    expect(lines.some((l) => l.key === 'verge')).toBe(false)
+  })
+
+  it('takes a void out of the upper floor it opens', () => {
+    // The two-storey plan's first floor: 5.7 x 4.7 = 26.79 m² gross internal. Its bathroom made a
+    // void, (5.85 - 3.05) x (4.85 - 0.15) = 2.8 x 4.7 = 13.16 m², has no floor to build; it is out
+    // of the gross internal area already, so it comes off once.
+    const plan = raw('two-storey.plan.json')
+    const withVoid = { ...plan, rooms: plan.rooms.map((r) => (r.id === 'f-bath' ? { ...r, void: true } : r)) } as unknown as FloorPlan
+    expect(line(estimateOf(withVoid).lines, 'upper_floor').quantity).toBeCloseTo(26.79 - 2.8 * 4.7, 2)
+  })
+
+  it('lays no slab, roof or ceiling over an open deck', () => {
+    // The one-room plan with a terrace of 4 x 2 m on centre lines to its south, edged by dividing
+    // lines. The slab and the roof are the room's alone, 4.3 x 3.3 = 14.19 m², and the ceiling the
+    // room's 3.7 x 2.7 = 9.99 m².
+    const plan = onGround({
+      walls: [
+        ...minimal.walls,
+        { id: 'deck-e', start: [4, 0], end: [4, -2], virtual: true },
+        { id: 'deck-s', start: [4, -2], end: [0, -2], virtual: true },
+        { id: 'deck-w', start: [0, -2], end: [0, 0], virtual: true },
+      ],
+      rooms: [...minimal.rooms, { id: 'deck', name: 'Deck', outdoor: 'terrace', boundary: ['south', 'deck-w', 'deck-s', 'deck-e'] }],
+    })
+    const { lines } = estimateOf(plan)
+    expect(line(lines, 'slab').quantity).toBeCloseTo(14.19, 2)
+    expect(line(lines, 'roof').quantity).toBeCloseTo(14.19, 2)
+    expect(line(lines, 'ceiling').quantity).toBeCloseTo(9.99, 2)
   })
 })
 

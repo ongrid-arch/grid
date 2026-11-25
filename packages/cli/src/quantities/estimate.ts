@@ -18,8 +18,21 @@
  *
  * Pure: a survey in, lines out. Nothing here reads a file.
  */
-import { openingTypeOf, planHasFinishes, planShell, shellKnown, tolerance, wallTypeOf } from '@ongrid/floorplan/geometry'
-import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
+import {
+  floorRoofShape,
+  openingTypeOf,
+  outdoorRoofed,
+  planEnvelope,
+  planHasFinishes,
+  planShell,
+  shellKnown,
+  tolerance,
+  wallJoints,
+  wallTypeOf,
+  type FloorRoof,
+  type RoofShapeOverFloor,
+} from '@ongrid/floorplan/geometry'
+import { ROOM_USES, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { AREA_RULES, planAreas } from './areas'
 import { finishShares, type FinishSurface } from './finishes'
 import type { Survey } from './survey'
@@ -30,19 +43,20 @@ export type QuantityUnit = 'm2' | 'm' | 'nr'
 /** The rule of each kind of line, one sentence each, in Grid's words. */
 export const ESTIMATE_RULES = {
   floor: 'Net floor area of the rooms of this use, between their wall faces as grid_areas measures it, so a stair room over a stair room below is counted once, on the floor the stair rises from; the plan holds no finishes, so which finish goes down is the person\'s, by the key they price.',
-  ceiling: 'Assumed: a flat ceiling the size of the floor below it in every room, because the plan holds no ceilings.',
+  ceiling: 'Assumed: a flat ceiling the size of the floor below it in every room but an open outdoor space, because the plan holds no ceilings.',
   wallFinish: 'Each inside side of the rooms of this use times the height of the wall it is on, less every door, window and opening in it at its full size; both faces of an inside wall are counted, dividing lines are not.',
   skirting: 'Each room\'s inside perimeter less the width of every door and doorless opening on it; dividing lines take none.',
   reveals: 'Round each door and window, its two sides and its head, and its sill when it has one, times the thickness of its wall; doorless openings are left out.',
-  walls: 'The centre-line length of each solid wall of this kind and thickness, each wall counted once, times its height, less every opening in it; the kind is the one the plan states.',
-  wallType: 'The centre-line length of each solid wall of this type the plan names, at this thickness, each wall counted once, times its height, less every opening in it.',
+  walls: 'The length of each solid wall of this kind and thickness between the faces of the walls it meets (its centre line where it turns a corner), each wall counted once, times its height, less every opening in it; the kind is the one the plan states.',
+  wallType: 'The length of each solid wall of this type the plan names, at this thickness, between the faces of the walls it meets (its centre line where it turns a corner), each wall counted once, times its height, less every opening in it.',
   finish: 'The rooms and zones that name this finish: floor and ceiling by their net area, wall faces by each inside side times its wall\'s height less every opening, skirting by the inside perimeter less doorways; a zone\'s finish is its part of its room.',
   openingType: 'Counted once per opening of this type the plan names; one that states a size of its own is still of its type.',
   externalFinish: 'The outer edge of each floor\'s outline, corners included, times the height of the wall it runs along, less every opening in those walls.',
   openings: 'Counted once per opening, not once per room, by the size of its hole in the wall, width by height; the plan holds no frames, leaves or types.',
-  slab: 'Assumed: a slab under the lowest floor\'s outline, its gross external area, because the plan holds no slab.',
-  upperFloor: 'Assumed: the gross internal area of each upper floor, less the footprint of every stair the plan states arriving on it, because the plan holds no floor structure.',
-  roof: 'Assumed: a flat roof over every part of a floor\'s outline that no floor above covers, because the plan holds no roof, pitch or overhang; a floor that is part of a larger building gets one too.',
+  slab: 'Assumed: a slab under the lowest floor\'s outline, to the outside face of its walls, less its openings and any open outdoor space on the ground, because the plan holds no slab.',
+  upperFloor: 'Assumed: the gross internal area of each upper floor, less every opening its floor has over a stair, a stair room, a lift or a ramp, a void being out of that area already, because the plan holds no floor structure.',
+  roof: 'Assumed: a roof over every part of a floor\'s outline that no floor above and no open outdoor space covers, on its slope where the floor states a sloped roof and flat where it states none, because the plan holds no overhang or build-up; none where the plan states more of the building above.',
+  roofEdges: 'Assumed: each edge of the sloped roofs the floors state, laid as Grid lays them over the rectangle the roof spans with no overhang and no valleys, along the slope for a verge or a hip, because the plan holds no roof edges.',
   grossInternal: `${AREA_RULES.grossInternal} For a rate per square metre of the whole building: an alternative to the other lines, never added to them.`,
 } as const
 
@@ -68,18 +82,36 @@ export interface Estimate {
 /** The line that is an alternative to the others: a rate for the whole building. */
 export const WHOLE_BUILDING_KEY = 'gross_internal'
 
-const NO_USE = 'no-use'
+const NO_USE = 'no-use' as const
 
-const USE_WORDS: Readonly<Record<string, string>> = {
+/** Every use's words on its lines: one for each of `ROOM_USES`, so a new use fails the type check until it has them. */
+const USE_WORDS: Readonly<Record<RoomUse | typeof NO_USE, string>> = {
   bedroom: 'bedrooms',
   living: 'living rooms',
   dining: 'dining rooms',
   kitchen: 'kitchens',
   bathroom: 'bathrooms',
+  toilet: 'toilets',
+  utility: 'utility rooms',
+  study: 'studies',
+  office: 'offices',
+  meeting: 'meeting rooms',
+  reception: 'reception areas',
+  retail: 'shop floors',
+  classroom: 'classrooms',
+  treatment: 'treatment rooms',
+  waiting: 'waiting areas',
+  sport: 'sports halls',
+  changing: 'changing rooms',
+  staff: 'staff rooms',
+  worship: 'worship rooms',
+  assembly: 'assembly halls',
   corridor: 'corridors and halls',
   stair: 'stairs',
   lift: 'lift shafts',
   storage: 'stores',
+  plant: 'plant rooms',
+  parking: 'parking areas',
   other: 'other rooms',
   [NO_USE]: 'rooms with no use stated',
 }
@@ -122,6 +154,7 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
     const total = byFinish.get(key) ?? { surface: share.surface, finish: share.finish, quantity: 0 }
     byFinish.set(key, { ...total, quantity: total.quantity + share.quantity })
   }
+  const openOutdoor = new Set(survey.plan.rooms.filter((room) => outdoorRoofed(room) === false).map((room) => room.id))
   for (const room of survey.rooms) {
     // A zone's floor and walls are its room's (CNT-8): priced once.
     if (!onFloor(room.facts.floor) || room.facts.zoneOf !== undefined) continue
@@ -140,7 +173,8 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
     }
     if (!overStair.has(`${room.facts.floor}\u0000${room.facts.id}`)) floorByUse.set(use, (floorByUse.get(use) ?? 0) + left('floor', t.floorArea))
     wallByUse.set(use, (wallByUse.get(use) ?? 0) + left('walls', t.wallFace))
-    ceiling += left('ceiling', t.ceiling)
+    // An outdoor space open to the sky (a deck, a terrace) has no ceiling; a porch has its soffit.
+    if (!openOutdoor.has(id)) ceiling += left('ceiling', t.ceiling)
     skirting += left('skirting', t.skirting)
   }
   const uses = [...ROOM_USES, NO_USE].filter((use) => floorByUse.has(use))
@@ -193,13 +227,18 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
   const byKind = new Map<string, { kind: keyof typeof KIND_ORDER; thickness: number; area: number; name?: string; order?: number }>()
   const statedWalls = new Map(survey.plan.walls.map((w) => [w.id, w] as const))
   const typeOrder = new Map((survey.plan.types?.walls ?? []).map((t, i) => [t.id, i] as const))
+  // Each face's reach past the wall's axis ends once the corners are joined: a wall that butts into
+  // another stops at its face, and at a corner one face gains what the other loses.
+  const joints = wallJoints(survey.plan.walls)
   for (const floor of survey.facts.floors) {
     if (!onFloor(floor.id)) continue
     for (const wall of floor.walls) {
       if (wall.virtual) continue
       // Along a curved wall's curve (CNT-18).
-      const length = wall.curve?.length ?? Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
-      if (length < tolerance('noLength')) continue
+      const axis = wall.curve?.length ?? Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
+      if (axis < tolerance('noLength')) continue
+      const ends = joints.get(wall.id)
+      const length = ends === undefined ? axis : Math.max(0, axis + (ends.start.left + ends.start.right + ends.end.left + ends.end.right) / 2)
       // CNT-15: a wall of a type the plan names is priced by its type and thickness (lab AC-5).
       const own = statedWalls.get(wall.id)
       const named = own === undefined ? null : wallTypeOf(survey.plan, own)
@@ -237,37 +276,61 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
     add({ key, what, quantity: c.count, unit: 'nr', rule: c.name === undefined ? ESTIMATE_RULES.openings : ESTIMATE_RULES.openingType, assumed: false })
   }
 
-  const lowest = built[0]
-  if (lowest !== undefined && onFloor(lowest.floor) && shellKnown(lowest)) {
-    add({ key: 'slab', what: `Lowest floor slab (${floorName(survey, lowest.floor)})`, quantity: lowest.area, unit: 'm2', rule: ESTIMATE_RULES.slab, assumed: true, floors: [{ floor: lowest.floor, quantity: lowest.area }] })
-  }
+  // The slab, the upper floors and the roof as the take-off works them out (`planEnvelope`): open
+  // over stairs, lifts and voids, none under or over open outdoor space, the roof on its slope.
+  const envelope = planEnvelope(survey.plan, options.floors === undefined ? {} : { floors: options.floors })
+  const known = new Set(built.filter((shell) => shellKnown(shell)).map((shell) => shell.floor))
+  const slab: { floor: string; quantity: number }[] = []
   const upper: { floor: string; quantity: number }[] = []
-  for (const shell of built.slice(1)) {
-    if (!onFloor(shell.floor)) continue
-    const gross = areas.floors.find((f) => f.floor === shell.floor)?.grossInternal ?? null
-    if (gross === null) {
-      notes.push(`Floor ${JSON.stringify(shell.floor)} has no gross internal area, so its floor structure is left out of upper_floor.`)
+  const roof: { floor: string; quantity: number; shape: FloorRoof['shape']; pitch: number }[] = []
+  const edges = { ridge: 0, eaves: 0, verge: 0, hip: 0 }
+  const edgeFloors: Record<keyof typeof edges, { floor: string; quantity: number }[]> = { ridge: [], eaves: [], verge: [], hip: [] }
+  for (const env of envelope.floors) {
+    if (!known.has(env.floor) || env.slab === null) continue
+    if (env.slab.kind === 'base') {
+      if (env.slab.area > tolerance('areaEqual')) slab.push({ floor: env.floor, quantity: env.slab.area })
+    } else {
+      const gross = areas.floors.find((f) => f.floor === env.floor)?.grossInternal ?? null
+      if (gross === null) {
+        notes.push(`Floor ${JSON.stringify(env.floor)} has no gross internal area, so its floor structure is left out of upper_floor.`)
+      } else {
+        // A void is out of the gross internal area already (ARE-16).
+        const open = env.slab.openings.reduce((sum, opening) => sum + (opening.kind === 'void' ? 0 : opening.area), 0)
+        upper.push({ floor: env.floor, quantity: Math.max(0, gross - open) })
+      }
+    }
+    if (!env.roofKnown) {
+      notes.push(`The roof over floor ${JSON.stringify(env.floor)} is left out: ${env.why ?? 'its outline, or that of a floor above it, is not known'}.`)
       continue
     }
-    const stairs = survey.facts.connections.stairs.filter((stair) => stair.upper === shell.floor).reduce((sum, stair) => sum + stair.footprint, 0)
-    upper.push({ floor: shell.floor, quantity: Math.max(0, gross - stairs) })
+    if (env.roof === null || env.roof.area <= tolerance('areaEqual')) continue
+    roof.push({ floor: env.floor, quantity: env.roof.slopeArea, shape: env.roof.shape, pitch: env.roof.pitch })
+    const shape = env.roof.shape === null ? null : floorRoofShape(survey.plan, env.floor)
+    if (shape === null) continue
+    const lengths = roofEdges(shape, env.roof)
+    for (const k of Object.keys(edges) as (keyof typeof edges)[]) {
+      if (lengths[k] <= tolerance('noLength')) continue
+      edges[k] += lengths[k]
+      edgeFloors[k].push({ floor: env.floor, quantity: lengths[k] })
+    }
+  }
+  if (slab.length > 0) {
+    const named = slab.map((part) => floorName(survey, part.floor)).join(', ')
+    add({ key: 'slab', what: `Lowest floor slab (${named})`, quantity: slab.reduce((sum, part) => sum + part.quantity, 0), unit: 'm2', rule: ESTIMATE_RULES.slab, assumed: true, floors: slab })
   }
   if (upper.length > 0) {
     const named = upper.map((part) => floorName(survey, part.floor)).join(', ')
     add({ key: 'upper_floor', what: `Upper floor structure (${named})`, quantity: upper.reduce((sum, part) => sum + part.quantity, 0), unit: 'm2', rule: ESTIMATE_RULES.upperFloor, assumed: true, floors: upper })
   }
-  const roof: { floor: string; quantity: number }[] = []
-  for (const shell of built) {
-    if (!onFloor(shell.floor) || !shellKnown(shell)) continue
-    if (shell.open === null) {
-      notes.push(`The roof over floor ${JSON.stringify(shell.floor)} is left out: ${shell.openWhy}.`)
-      continue
-    }
-    if (shell.open > tolerance('areaEqual')) roof.push({ floor: shell.floor, quantity: shell.open })
-  }
   if (roof.length > 0) {
-    const parts = roof.map((part) => `${floorName(survey, part.floor)} ${part.quantity.toFixed(2)} m²`).join(', ')
-    add({ key: 'roof', what: `Roof, taken as flat, wherever no floor is above (${parts})`, quantity: roof.reduce((sum, part) => sum + part.quantity, 0), unit: 'm2', rule: ESTIMATE_RULES.roof, assumed: true, floors: roof })
+    const sloped = roof.some((part) => part.shape !== null && part.pitch > 0)
+    const parts = roof.map((part) => `${floorName(survey, part.floor)} ${part.quantity.toFixed(2)} m²${part.shape !== null && part.pitch > 0 ? `, ${part.shape} at ${part.pitch.toFixed(1)}°` : ''}`).join(', ')
+    const what = sloped ? `Roof, on its slope, wherever no floor is above (${parts})` : `Roof, taken as flat, wherever no floor is above (${parts})`
+    add({ key: 'roof', what, quantity: roof.reduce((sum, part) => sum + part.quantity, 0), unit: 'm2', rule: ESTIMATE_RULES.roof, assumed: true, floors: roof.map((part) => ({ floor: part.floor, quantity: part.quantity })) })
+  }
+  const EDGE_WORDS: Record<keyof typeof edges, string> = { ridge: 'Ridge', eaves: 'Eaves', verge: 'Verges', hip: 'Hips' }
+  for (const k of Object.keys(edges) as (keyof typeof edges)[]) {
+    add({ key: k, what: `${EDGE_WORDS[k]} of the sloped roofs (${edgeFloors[k].map((part) => floorName(survey, part.floor)).join(', ')})`, quantity: edges[k], unit: 'm', rule: ESTIMATE_RULES.roofEdges, assumed: true, floors: edgeFloors[k] })
   }
   if (areas.grossInternal !== null) {
     add({ key: WHOLE_BUILDING_KEY, what: 'Gross internal area, for a rate for the whole building', quantity: areas.grossInternal, unit: 'm2', rule: ESTIMATE_RULES.grossInternal, assumed: false })
@@ -284,4 +347,53 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
 function floorName(survey: Survey, floor: string): string {
   const facts = survey.facts.floors.find((f) => f.id === floor)
   return JSON.stringify(facts?.name ?? floor)
+}
+
+/**
+ * The edges of a sloped roof, in metres: its ridge, its eaves, its verges (along the slope, at a
+ * gable's and a mono-pitch roof's ends) and its hips. Worked out over the rectangle its pieces span
+ * along the roof's own sides, as Grid lays the roof: one roof over that rectangle, with no valleys.
+ */
+export function roofEdges(shape: RoofShapeOverFloor, roof: Pick<FloorRoof, 'pieces'>): { ridge: number; eaves: number; verge: number; hip: number } {
+  const none = { ridge: 0, eaves: 0, verge: 0, hip: 0 }
+  if (shape.planes.length === 0 || !(shape.slope > 0)) return none
+  const { east, north } = shape.frame
+  let w = Infinity
+  let e = -Infinity
+  let s = Infinity
+  let n = -Infinity
+  for (const polygon of roof.pieces) {
+    for (const ring of polygon) {
+      for (const [x, y] of ring) {
+        const u = x! * east.x + y! * east.y
+        const v = x! * north.x + y! * north.y
+        w = Math.min(w, u)
+        e = Math.max(e, u)
+        s = Math.min(s, v)
+        n = Math.max(n, v)
+      }
+    }
+  }
+  if (!(e > w) || !(n > s)) return none
+  const along = e - w
+  const across = n - s
+  const slopeLength = (run: number): number => run * Math.hypot(1, shape.slope)
+  const { roof: stated } = shape
+  if (stated.shape === 'gable') {
+    const ridgeEastWest = shape.planes.length === 2 && Math.abs(shape.planes[0]!.gx * east.x + shape.planes[0]!.gy * east.y) < Math.abs(shape.planes[0]!.gx * north.x + shape.planes[0]!.gy * north.y)
+    const [length, span] = ridgeEastWest ? [along, across] : [across, along]
+    return { ridge: length, eaves: 2 * length, verge: 4 * slopeLength(span / 2), hip: 0 }
+  }
+  if (stated.shape === 'hip') {
+    const long = Math.max(along, across)
+    const short = Math.min(along, across)
+    const half = short / 2
+    return { ridge: long - short, eaves: 2 * (along + across), verge: 0, hip: 4 * Math.hypot(half, half, shape.slope * half) }
+  }
+  if (stated.shape === 'mono-pitch') {
+    const northSouth = stated.highSide === 'north' || stated.highSide === 'south' || stated.highSide === undefined
+    const [length, span] = northSouth ? [along, across] : [across, along]
+    return { ridge: length, eaves: length, verge: 2 * slopeLength(span), hip: 0 }
+  }
+  return none
 }

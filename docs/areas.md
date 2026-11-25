@@ -303,23 +303,24 @@ area, each opening once as the schedule counts it, and each floor's outline.
 | `floor:finish:<name>` | CNT-15: the floor of the rooms and zones that name this finish (a zone's is its part of its room), each by its net area | no |
 | `floor:<use>` | Floor finish: the net area of the rooms of that use that name no floor finish, so a stair is counted once, on the floor it rises from. The person decides which finish a use gets, by the key they price | no |
 | `ceiling:finish:<name>`, `wall_finish:finish:<name>`, `skirting:finish:<name>` | CNT-15: the ceilings, inside wall faces and skirting of the rooms and zones that name this finish | no |
-| `ceiling` | Ceilings: a flat ceiling as big as the floor below it | yes |
+| `ceiling` | Ceilings: a flat ceiling as big as the floor below it, in every room but an outdoor space open to the sky | yes |
 | `wall_finish:<use>` | Inside wall faces of the rooms of that use, at the height of each wall, less every door, window and opening at full size; both faces of an inside wall count | no |
 | `skirting` | Each room's inside perimeter less the width of its doors and doorless openings | no |
 | `reveals` | Round each door and window, its sides and head, and its sill when it has one, times its wall's thickness | no |
 | `wall-type:<id>:<thickness>` | CNT-15: the walls of one of the plan's named types at one thickness, by the type, so a party wall is never priced as a partition (lab AC-5) | no |
-| `wall:<kind>:<thickness>` | The other walls, by the kind the plan states and their thickness: centre-line length times height, less openings | no |
+| `wall:<kind>:<thickness>` | The other walls, by the kind the plan states and their thickness: the length between the faces of the walls each one meets (its centre line where it turns a corner, CNT-31) times its height, less openings | no |
 | `external_finish` | The outer edge of each floor's outline, corners in, times the height of the wall it runs along, less openings | no |
 | `door-type:<id>`, `window-type:<id>` | CNT-15: the doors and windows of one of the plan's named types, each counted once | no |
 | `door:<w>x<h>`, `window:<w>x<h>` | The other doors and windows, by the size of their hole in the wall, each counted once | no |
-| `slab` | A slab under the lowest floor's outline | yes |
-| `upper_floor` | Each upper floor's gross internal area, less the footprint of every stair the plan states arriving on it | yes |
-| `roof` | A flat roof over every part of a floor's outline that no floor above covers, so a single-storey part has its roof | yes |
+| `slab` | A slab under the lowest floor's outline, as the take-off lays it: less its openings and any open outdoor space on the ground | yes |
+| `upper_floor` | Each upper floor's gross internal area, less every opening in its floor over a stair, a stair room, a lift or a ramp (CNT-31); a void is out of the gross internal area already | yes |
+| `roof` | A roof over every part of a floor's outline that no floor above and no open outdoor space covers, so a single-storey part has its roof: on its slope where the floor states a sloped roof, else flat | yes |
+| `ridge`, `eaves`, `verge`, `hip` | CNT-31: the edges of the sloped roofs the floors state, in metres, verges and hips along the slope, over the rectangle the roof spans with no overhang and no valleys, as Grid lays the roof | yes |
 | `gross_internal` | The gross internal area, for a rate for the whole building: an alternative to the other lines, never added to them | no |
 
 The plan holds no slab, floor structure, roof or ceiling yet, so those lines are worked out from
-the outlines and say so. A floor that is part of a larger building cannot say what is above or
-below it, so it gets a slab and a roof like any other. A room Grid could not draw is left out
+the outlines and say so. A floor that is part of a larger building gets a slab like any other,
+and no roof where the plan states more of the building above it, as `grid_takeoff` does. A room Grid could not draw is left out
 of the room lines, and the answer names it.
 
 A cost comes only from the person's own rates, in a file of their own beside the plan:
@@ -347,6 +348,9 @@ A cost comes only from the person's own rates, in a file of their own beside the
 - A rate prices the lines whose key it is, or begins with followed by a colon: `wall:exterior`
   prices every outside wall thickness, `door` every door size, and an exact key wins over a
   shorter one. A rate per ft² or ft is turned into one per m² or m.
+- A key is a word in small letters (`floor`, `wall-type`), then whatever follows its colons: a
+  type's id or a finish's name stays as the plan writes it (`floor:finish:Oak boards`), so the
+  rate card, filled in, is read back as it is (CNT-31).
 - A rate's `waste` is a share added to the quantity before it is priced.
 - A line with no rate, or with a rate left `null`, is listed and never filled. A rate in another
   unit than its line's is not used, and is listed apart from the lines with no rate. A rate that
