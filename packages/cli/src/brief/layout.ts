@@ -48,18 +48,18 @@ function roomsOf(brief: Brief): { rooms: LayoutRoom[]; hall: LayoutRoom | null; 
     else if (room.use === 'corridor' && hall === null) hall = room
     else rooms.push(room)
   }
-  const wishes = brief.rooms.filter((wish) => wish.level !== 'avoid' && wish.count !== 0)
+  const wishes = brief.rooms.filter((wish) => wish.level !== 'avoid' && wish.count !== 0 && wish.countAtMost !== 0)
   const sized = (wish: Brief['rooms'][number]): Pick<LayoutRoom, 'inside' | 'area'> => ({ inside: wish.inside, area: wish.inside !== null ? null : (wish.area ?? wish.atLeast ?? wish.atMost) })
   for (const wish of wishes) {
     if (wish.name === null) continue
-    for (let k = 0; k < (wish.count ?? 1); k++) add({ name: wish.name, use: wish.use, ...sized(wish) })
+    for (let k = 0; k < (wish.count ?? wish.countAtLeast ?? 1); k++) add({ name: wish.name, use: wish.use, ...sized(wish) })
   }
   for (const wish of wishes) {
     if (wish.name !== null || wish.use === null) continue
     const label = wish.use.charAt(0).toUpperCase() + wish.use.slice(1)
     const names = new Set([...rooms, ...(hall === null ? [] : [hall])].map((r) => r.name.toLowerCase()))
     let n = 1
-    for (let k = [...rooms].filter((r) => r.use === wish.use).length; k < (wish.count ?? 1); k++) {
+    for (let k = [...rooms].filter((r) => r.use === wish.use).length; k < (wish.count ?? wish.countAtLeast ?? 1); k++) {
       while (names.has(`${label} ${n}`.toLowerCase())) n++
       names.add(`${label} ${n}`.toLowerCase())
       add({ name: `${label} ${n}`, use: wish.use, ...sized(wish) })

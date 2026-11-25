@@ -140,9 +140,13 @@ function roomLines(c: Context, brief: Brief): BriefLine[] {
       continue
     }
     const sized = wish.area !== null || wish.atLeast !== null || wish.atMost !== null || wish.inside !== null
-    if (wish.count !== null) {
-      const holds = named.length === wish.count
-      out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}: ${word} ${wish.count}, drawn ${named.length}${once}.`, { asked: String(wish.count), drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
+    if (wish.count !== null || wish.countAtLeast !== null || wish.countAtMost !== null) {
+      // ARE-33: a count asked as at least, at most, between or exactly, always in rooms and never in m².
+      const least = wish.countAtLeast
+      const most = wish.countAtMost
+      const holds = wish.count !== null ? named.length === wish.count : (least === null || named.length >= least) && (most === null || named.length <= most)
+      const asked = wish.count !== null ? String(wish.count) : least !== null && most !== null ? `${least} to ${most}` : least !== null ? `at least ${least}` : `at most ${most}`
+      out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}: ${word} ${asked}, drawn ${named.length}${once}.`, { asked, drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
     } else if (!sized || named.length === 0) {
       const holds = named.length > 0
       const drawn = holds ? `drawn${named.length > 1 ? ` ${named.length} times` : ''}` : 'not drawn'

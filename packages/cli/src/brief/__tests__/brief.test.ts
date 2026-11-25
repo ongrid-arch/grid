@@ -14,7 +14,7 @@ import { approvalWords } from '@ongrid/rules'
 import { bench, type Bench } from '../../mcp/__tests__/replay/harness'
 import { MARK_SOURCES } from '@ongrid/floorplan/types/floorplan'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
-import { SOURCES } from '../brief'
+import { SOURCES, parseBrief, briefJson, BriefRefused } from '../brief'
 import { namedSize, type BriefLine } from '../lines'
 
 const LAB = resolve(__dirname, '../../../../../scoreboard/data/lab-plans.ndjson.gz')
@@ -309,5 +309,43 @@ describe('ARE-17: a corridor is judged by its narrowest point', () => {
   it('meets it when the whole hall is wide enough', async () => {
     const lines = await run('0,0 8,0 8,1.3 0,1.3')
     expect(lines.map((l) => l.state)).toEqual(['met'])
+  })
+})
+
+describe('ARE-33: a count of rooms is its own field, apart from an area', () => {
+  const said = { level: 'must', source: 'given' } as const
+
+  it('reads and writes count_at_least and count_at_most', () => {
+    const brief = parseBrief({ rooms: [{ use: 'bathroom', count_at_least: 4, count_at_most: 6, ...said, quote: 'at least 4 toilet rooms, six at most' }] }, { versionNeeded: false })
+    expect(brief.rooms[0]).toMatchObject({ countAtLeast: 4, countAtMost: 6, count: null, atLeast: null })
+    expect(briefJson(brief)['rooms']).toEqual([expect.objectContaining({ count_at_least: 4, count_at_most: 6 })])
+  })
+
+  it('refuses a count beside the exact count, and a least above a most', () => {
+    expect(() => parseBrief({ rooms: [{ use: 'bathroom', count: 4, count_at_least: 2, ...said, quote: 'x' }] }, { versionNeeded: false })).toThrow(BriefRefused)
+    expect(() => parseBrief({ rooms: [{ use: 'bathroom', count_at_least: 5, count_at_most: 2, ...said, quote: 'x' }] }, { versionNeeded: false })).toThrow(/more than/)
+  })
+
+  it('refuses at_least that reads like a count on a use wish, naming the right field, and keeps a real area', () => {
+    expect(() => parseBrief({ rooms: [{ use: 'bathroom', at_least: 4, ...said, quote: 'at least 4 toilet rooms' }] }, { versionNeeded: false })).toThrow(/count_at_least/)
+    expect(() => parseBrief({ rooms: [{ use: 'bathroom', at_most: 2, level: 'must', source: 'assumed' }] }, { versionNeeded: false })).toThrow(/count_at_most/)
+    expect(parseBrief({ rooms: [{ use: 'bedroom', at_least: 9, ...said, quote: 'bedrooms of at least 9 m2' }] }, { versionNeeded: false }).rooms[0]!.atLeast).toBe(9)
+    expect(parseBrief({ rooms: [{ name: 'Bedroom 1', at_least: 9, ...said, quote: 'a decent bedroom' }] }, { versionNeeded: false }).rooms[0]!.atLeast).toBe(9)
+  })
+
+  it('reads six rooms against at least 4 as met in rooms, and two as missed', async () => {
+    b = bench({ 'house.json': labPlan(FD2) })
+    const ask = async (n: number) => {
+      const reply = await b.call('grid_write_brief', { plan: 'house.json', replace: true, brief: { rooms: [{ use: 'bedroom', count_at_least: n, level: 'must', source: 'given', quote: 'bedrooms' }] } })
+      expect(reply.isError, reply.text).toBe(false)
+      return (reply.data as { lines: BriefLine[] }).lines.find((l) => l.wish === 'rooms')!
+    }
+    const drawn = Number((await ask(1)).drawn)
+    expect(drawn).toBeGreaterThanOrEqual(2)
+    const met = await ask(drawn - 1)
+    expect(met).toMatchObject({ state: 'met', unit: 'rooms', asked: `at least ${drawn - 1}` })
+    expect((await ask(drawn + 1)).state).toBe('missed')
+    const refused = await b.call('grid_write_brief', { plan: 'house.json', replace: true, brief: { rooms: [{ use: 'bedroom', at_least: 4, level: 'must', source: 'given', quote: 'at least 4 bedrooms' }] } })
+    expect(refused.isError).toBe(true)
   })
 })

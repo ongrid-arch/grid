@@ -41,8 +41,8 @@ here too, as by every tool, and no brief is written.
 ```
 
 - **A room wish** names one room by the name it has in the plan (`name`, any case, or its id),
-  or the rooms of a use (`use`). It may give a `count`, a net area (`area`, about; or `at_least`,
-  `at_most`, in m²) and an inside size (`inside`, metres, either way round). With none of them it
+  or the rooms of a use (`use`). It may give a `count` (exactly how many) or `count_at_least` and `count_at_most` ("at least 4 toilet rooms"), always rooms and never square metres, a net area (`area`, about; or `at_least`,
+  `at_most`, in m² only) and an inside size (`inside`, metres, either way round). With none of them it
   asks only for the room to be there.
 - **The footprint** gives the outside sizes (`width` and `depth`, either way round) or the area
   it covers (`area`), or both.
