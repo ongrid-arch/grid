@@ -7,6 +7,7 @@
  * Every answer measures the empty room between its wall faces: the plan holds no furniture,
  * fixtures, radiators or door leaves, and says so.
  */
+import { outdoorIds } from '@ongrid/floorplan/geometry/outdoor'
 import {
   cross,
   dot,
@@ -181,6 +182,36 @@ export function wayGraph(survey: Survey, floor: string): { next: Map<string, Arr
   }
   for (const exit of graph.exits) join(exit.room, OUTSIDE, exit.opening)
   return { next, openings }
+}
+
+/** A door a person comes in by: into `room` from outside, straight, or `through` an outdoor space that reaches outside (ARE-36). */
+export interface EntryWay {
+  readonly room: string
+  readonly via: string
+  readonly through: string | null
+}
+
+/**
+ * The doors a person comes in by on one floor, from its ways (`wayGraph`): a door from a room
+ * straight to outside, and a door from a room into an outdoor space (C26) that itself reaches
+ * outside, by a door or an open edge, as a terrace to the street does. A window is never one.
+ */
+export function entryWays(survey: Survey, next: ReadonlyMap<string, ReadonlyArray<{ room: string; via: string }>>): EntryWay[] {
+  const outdoor = outdoorIds(survey.plan)
+  const leads = (room: string): boolean => (next.get(room) ?? []).some((w) => w.room === OUTSIDE)
+  const door = (via: string): boolean => {
+    const facts = survey.facts.openings.get(via)
+    return facts !== undefined && facts.type !== 'window'
+  }
+  const found: EntryWay[] = []
+  for (const [room, ways] of next) {
+    for (const w of ways) {
+      if (!door(w.via)) continue
+      if (w.room === OUTSIDE) found.push({ room, via: w.via, through: null })
+      else if (!outdoor.has(room) && outdoor.has(w.room) && leads(w.room)) found.push({ room, via: w.via, through: w.room })
+    }
+  }
+  return found
 }
 
 /** A place a route passes: a room on its floor, or the way out. */
