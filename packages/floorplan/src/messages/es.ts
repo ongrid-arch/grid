@@ -405,7 +405,6 @@ export const es: Messages = {
   'issue.wall/fault.fix': 'Corrección: {fix}',
   'issue.wall/fault.noFix': 'Grid no propone ningún cambio: todos los que probó dejan una estancia sin contorno.',
   'issue.wall/fault.moveEnd': 'mueva el {end} del muro {wall} a {at}.',
-  'issue.wall/fault.sealsSkipped': 'no se hace con all, porque dejaría {rooms} sin entrada: nómbrelo, {id}, para hacerlo.',
   'issue.wall/short':
     'El muro {wall} se queda a {gap} m de su esquina con el muro {other} en la estancia {room}: su {end} está en {at} y la esquina en {corner}. La estancia se mide como si los dos muros se tocaran.',
   'issue.wall/gap':
@@ -436,12 +435,14 @@ export const es: Messages = {
   'issue.wall/crosses-room.fix':
     'divida la estancia {room} por esa línea, en {a} ({areaA} m²) y {b} ({areaB} m²), cada una con ella en su lista. Si no debería estar ahí, quítela.{seals}',
   'issue.wall/crosses-room.seals.one': ' Mírelo antes de hacerla: deja la estancia {room} sin entrada, sin puerta, hueco ni lado abierto en ninguno de sus muros.',
+  'issue.wall/crosses-room.seals.both': ' Mírelo antes de hacerla: deja las estancias {a} y {b} sin entrada, sin puerta, hueco ni lado abierto en ninguno de sus muros.',
   'issue.wall/crosses-room.seals.between':
     ' Mírelo antes de hacerla: deja las estancias {a} y {b} sin entrada salvo la una por la otra, sin puerta, hueco ni lado abierto en ningún otro muro.',
   'issue.wall/crosses-room.corner':
     'deje fuera la esquina que queda más allá: la estancia {room} lo incluye en lugar de la esquina y mide {area} m², y los muros {walls} acaban en él.{gone}{moved} Si la esquina debe ser una estancia propia, divida la estancia por esa línea.',
   'issue.wall/crosses-room.corner.gone': ' Se quitan, por quedar del todo más allá: {walls}.',
-  'issue.wall/crosses-room.corner.moved': ' {opening}, en la esquina, pasa a él, en su centro.',
+  'issue.wall/crosses-room.corner.moved': ' {openings}, en la esquina, pasa a él, en su centro.',
+  'issue.wall/crosses-room.corner.movedMany': ' {openings}, en la esquina, pasan a él, repartidos por igual a lo largo.',
   'issue.wall/crosses-room.noFix': 'Grid no propone ningún cambio: divida la estancia por esa línea, o quítela si no debería estar ahí.',
   'issue.wall/stands-in-room':
     'El muro {walls} está dentro de la estancia {room}, que no lo tiene en su lista, así que la estancia se mide como si no estuviera. Si es una estancia dentro de ella (un módulo, un armario, un pilar), dibuje esa estancia y márquela con "inside"; si es mobiliario, quítelo de los muros; si la estancia lo rodea, añádalo a su lista de muros.',

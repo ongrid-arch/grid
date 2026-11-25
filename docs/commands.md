@@ -585,13 +585,15 @@ there instead. `--json` prints the list or what was applied as JSON.
 A solid wall drawn across a corner of a room at an angle, which the room does not list, with the
 room's own outside walls round the corner (a chamfered corner, a corner entrance), is read as the
 room's new face: its fix takes the corner beyond it outside. The room lists the wall in place of
-the corner, the two walls it meets end on it, a wall wholly beyond it is taken out, and a door or
-window on the corner moves onto it, in its middle; a door already on it stays where it is. A
-wall square to the walls it meets, or one with another room round the corner, is a split of the
-room, as before. A split that would leave a part with no way in (no door, opening or open side
-on any of its walls), or two parts whose only way in is the door between them, says so in its
-fix, and its JSON lists those rooms under `seals`: `--apply all` leaves it, skipped with why, and
-it is made only when its id is named. On the tool server the same is `grid_tidy`.
+the corner, the two walls it meets end on it, a wall wholly beyond it is taken out, and the doors
+and windows on the corner move onto it, in the order they stood, spaced evenly along it (one in
+its middle), with their hinge and swing turned when the wall runs the other way; a door already on
+it stays where it is. When they do not fit, or the wall carries openings of its own, the room is
+split instead. A wall square to the walls it meets, or one with another room round the corner, is
+a split of the room, as before. A split that would leave a part with no way in (no door, opening
+or open side on any of its walls), or two parts whose only way in is the door between them, says
+so in its fix, and its JSON lists those rooms under `seals`; `--apply all` still makes it, so list
+the faults first. On the tool server the same is `grid_tidy`.
 
 ## Units on the drawing: `grid draw --units`
 

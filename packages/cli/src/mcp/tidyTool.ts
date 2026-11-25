@@ -3,8 +3,8 @@
  * where walls meet, each with the fix Grid offers, and writes nothing; with ids, or `all`, it
  * makes those fixes on the plan file, or on `out`. The faults and the fixes are the command's
  * (`command/tidy.ts`), so the command and the tool make the same change; the file is written
- * through the project's files. A fix that would leave a room with no way in is made only when
- * its id is named.
+ * through the project's files. A fix that would leave a room with no way in says so, and lists
+ * those rooms in `seals`.
  */
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
@@ -28,7 +28,7 @@ export const tidyTool: GridTool = {
   description:
     'Use this when grid_check names a fault where walls meet (a wall short of its corner or past it, a gap, a wall drawn twice, a wall across a room that does not list it), or the person asks to tidy the walls: "close the gap at the corner", "tidy the plan". '
     + 'With no apply and all left out it lists the faults, each with its id and the fix Grid offers, and writes nothing. With apply (fault ids as listed) or all=true it makes those fixes and answers with what was made, what was skipped and why, and the faults left. '
-    + 'A wall across a corner of a room at an angle, with the room\'s outside walls round it, is taken as the room\'s new face: the corner goes outside and a door on it stays on that face. A fix that would leave a room with no way in says so, and all leaves it: name its id to make it, once the person agrees. '
+    + 'A wall across a corner of a room at an angle, with the room\'s outside walls round it, is taken as the room\'s new face: the corner goes outside, a door on it stays on that face and doors or windows on the corner move onto it. A fix that would leave a room with no way in says so and lists the rooms in seals: ask the person before making it, and leave it out of the ids you name. '
     + 'Do not use to move a wall (grid_move_room_side) or to split a room on purpose (grid_split_room). It replaces the plan file unless out is given. Lengths in its answers are metres.',
   args: {
     plan: PLAN_ARG,
@@ -40,7 +40,7 @@ export const tidyTool: GridTool = {
       description: 'The faults to fix, by their ids as this tool lists them. Leave apply and all out to list the faults.',
       examples: [['short:n:start'], ['crosses-room:cut:dining', 'gap:a:b']],
     },
-    all: { type: 'boolean', description: 'true to make every fix offered that leaves no room without a way in. false when left out.', examples: [true] },
+    all: { type: 'boolean', description: 'true to make every fix offered, sealing ones included: list first when the person has not seen them. false when left out.', examples: [true] },
     out: {
       type: 'string',
       maxLength: PATH_MAX,
