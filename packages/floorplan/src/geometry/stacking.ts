@@ -32,7 +32,7 @@ import { english, joined, name, num, said, type Said, type Value } from '../mess
 import { withSaid } from './issueWords'
 import { wallPath } from './wall'
 import { curveFault } from './arc'
-import { floorElevations } from './elevations'
+import { SLAB_THICKNESS, floorElevations, tallestDrawnWall, type BuildingElevations } from './elevations'
 import { buildingOfFloor } from './buildings'
 
 const levelOf = (floor: Floor): number => (Number.isFinite(floor.level) ? floor.level : 0)
@@ -298,11 +298,12 @@ export function stackingIssues(plan: FloorPlan, spaces: readonly FloorSpaces[]):
     groups.set(key, [...(groups.get(key) ?? []), f])
   }
   const issues: Issue[] = []
+  let elevations: BuildingElevations | null = null
   const steps: Step[] = []
   let stepsAt = -1
   for (const floor of floors) {
     const upper = outlines.get(floor.id)
-    if (upper === undefined || floor.overhang === 'meant') continue
+    if (upper === undefined) continue
     const here = at.get(floor.id)!
     const lower = (groups.get(building.get(floor.id) ?? '') ?? []).filter((f) => at.get(f.id)! < here - same).sort((a, b) => at.get(b.id)! - at.get(a.id)!)
     if (lower.length === 0) continue
@@ -328,6 +329,12 @@ export function stackingIssues(plan: FloorPlan, spaces: readonly FloorSpaces[]):
       }
     }
     if (!cut) continue
+    // VEW-33: the walls of each floor under it set against its slab. `overhang` is about outlines, not heights.
+    if (beneath.length > 0) {
+      elevations ??= floorElevations(plan)
+      issues.push(...storeyTops(plan, floor, beneath, elevations, floors))
+    }
+    if (floor.overhang === 'meant') continue
     if (beneath.length > 0) {
       const issue = lineUp(plan, floor, upper, beneath, outlines)
       if (issue !== null) issues.push(issue)
@@ -359,6 +366,43 @@ export function stackingIssues(plan: FloorPlan, spaces: readonly FloorSpaces[]):
     if (issue !== null) issues.push(issue)
   }
   if (steps.length > 0) issues.splice(stepsAt, 0, splitLevels(steps, outlines))
+  return issues
+}
+
+/**
+ * VEW-33: under another floor a storey's top is that floor's slab. Each floor `below` the floor
+ * `over`, by the floors' levels (`floorElevations`), has its tallest drawn wall set against the
+ * slab of `over` (its stated `slab`, else `SLAB_THICKNESS`): walls that stop short of the slab's
+ * underside by more than `sameFloorLevel` leave a gap (`floor/gap-under-slab`), which the sections
+ * and facades close by drawing them up to it; walls that rise past the floor level of `over` stand
+ * in the storey above (`floor/walls-past-floor`). Walls that run into the slab and stop in it are
+ * not said: stating a storey's walls floor to floor, slab included, is a way of writing heights.
+ * A floor that draws no wall, or whose levels are not numbers, is not set against anything.
+ */
+function storeyTops(plan: FloorPlan, over: Floor, below: readonly Floor[], elevations: BuildingElevations, floors: readonly Floor[]): Issue[] {
+  const upper = elevations.floors.get(over.id)
+  if (upper === undefined || !Number.isFinite(upper.floorLevel)) return []
+  const slab = over.slab !== undefined && Number.isFinite(over.slab) && over.slab >= 0 ? over.slab : SLAB_THICKNESS
+  const underside = upper.floorLevel - slab
+  const same = tolerance('sameFloorLevel')
+  const at = (value: number): Value => num(metresText(value))
+  const issues: Issue[] = []
+  for (const floor of below) {
+    const storey = elevations.floors.get(floor.id)
+    // A floor alone on its level that states no height is as tall as its tallest drawn wall (`stackFloors`).
+    const alone = floor.height === undefined && !floors.some((f) => f.id !== floor.id && levelOf(f) === levelOf(floor))
+    const tallest = alone && storey !== undefined ? storey.clearHeight : tallestDrawnWall(plan, floor)
+    if (storey === undefined || !Number.isFinite(storey.floorLevel) || !(tallest > 0)) continue
+    const top = storey.floorLevel + tallest
+    const values = { floor: name(floor.name || floor.id), over: name(over.name || over.id), top: at(top), underside: at(underside), level: at(upper.floorLevel) }
+    if (underside - top > same) {
+      const sentence = said('issue.floor/gap-under-slab', { ...values, gap: at(underside - top) })
+      issues.push(withSaid({ entity: 'floor', id: floor.id, code: 'floor/gap-under-slab', severity: 'warning', message: english(sentence) }, sentence))
+    } else if (top - upper.floorLevel > same) {
+      const sentence = said('issue.floor/walls-past-floor', { ...values, past: at(top - upper.floorLevel) })
+      issues.push(withSaid({ entity: 'floor', id: floor.id, code: 'floor/walls-past-floor', severity: 'warning', message: english(sentence) }, sentence))
+    }
+  }
   return issues
 }
 

@@ -13,8 +13,13 @@ import { validatePlan } from './validate'
 import { wallPeak } from './roofs'
 import { buildingOfFloor } from './buildings'
 import { outdoorOnlyWalls } from './outdoor'
-import { tolerancesAsStated } from './tolerances'
+import { tolerance, tolerancesAsStated } from './tolerances'
 import { landscapeWalls } from './landscape'
+import type { PlanEnvelope } from './envelope'
+import { inPieces } from './polygons'
+import { wallLength, wallPointAt } from './wall'
+import { heightByDefault } from '../types/floorplan'
+import type { MultiPolygon } from 'polygon-clipping'
 
 /** What a storey with no drawn wall counts as: the plan's default wall height. */
 export const DEFAULT_STOREY_HEIGHT = 2.7
@@ -247,4 +252,74 @@ export function roofOver(storeys: ReadonlyMap<string, StoreyLevel>): BuildingEle
   for (const storey of storeys.values()) bottom = Math.max(bottom, storey.floorLevel + storey.clearHeight)
   if (!Number.isFinite(bottom)) bottom = DEFAULT_STOREY_HEIGHT
   return { bottom, top: bottom + SLAB_THICKNESS }
+}
+
+/** VEW-33: what a wall rises to, under the slab or the roof over it. */
+export interface WallTopUnder {
+  /** The underside of what is over the wall, in metres from the ground floor's floor level: the wall's top as drawn. */
+  readonly top: number
+  /** How far above the wall's own top that is, in metres: more than `sameFloorLevel`. */
+  readonly rise: number
+  /** What is over it: the slab of another floor, or a flat roof Grid lays, with the floor it belongs to. */
+  readonly over: { readonly kind: 'slab' | 'roof'; readonly floor: string }
+}
+
+/**
+ * VEW-33: under another floor, a storey's top is that floor's slab. Given the plan's envelope and
+ * levels, this says, for a wall of a floor, what it rises to in a section or a facade: the lowest
+ * underside, above the wall's foot, of each slab of another floor (its sunken parts too) and each
+ * flat roof Grid lays (`planEnvelope`) whose pieces hold the middle of the wall on plan. Where
+ * that underside lies above the wall's top, a wall at its storey's full height (its floor's
+ * tallest drawn wall, or one whose height nothing states) rises to it, so the drawing shows no
+ * band of nothing between them. A lower wall (a dwarf wall, a parapet), a virtual wall, a wall
+ * through floors (C19), a wall on a floor whose stated roof slopes and a wall whose top meets or
+ * passes what is over it keep their own tops: null. The check (`floor/gap-under-slab`) says the
+ * gap. Pure; never throws.
+ */
+export function wallTopsUnder(plan: FloorPlan, envelope: PlanEnvelope, elevations: BuildingElevations): (wall: Wall, floor: string) => WallTopUnder | null {
+  const same = tolerance('sameFloorLevel')
+  const over: { kind: 'slab' | 'roof'; floor: string; underside: number; pieces: MultiPolygon }[] = []
+  const sloped = new Set<string>()
+  for (const shell of envelope.floors) {
+    const slab = shell.slab
+    if (slab !== null && slab.thickness >= 0) {
+      over.push({ kind: 'slab', floor: shell.floor, underside: slab.top - slab.thickness, pieces: slab.body })
+      for (const sunk of slab.sunken) over.push({ kind: 'slab', floor: shell.floor, underside: slab.top + sunk.offset - slab.thickness, pieces: sunk.pieces })
+    }
+    if (shell.roof !== null) {
+      if (shell.roof.shape === null) over.push({ kind: 'roof', floor: shell.floor, underside: shell.roof.bottom, pieces: shell.roof.pieces })
+      else sloped.add(shell.floor)
+    }
+  }
+  const floors = new Map(floorsOf(plan).map((f) => [f.id, f] as const))
+  const tallest = new Map<string, number>()
+  const tallestOf = (floor: string): number => {
+    let found = tallest.get(floor)
+    if (found === undefined) {
+      const f = floors.get(floor)
+      found = f === undefined ? 0 : tallestDrawnWall(plan, f)
+      tallest.set(floor, found)
+    }
+    return found
+  }
+  return (wall, floor) => {
+    try {
+      const storey = elevations.floors.get(floor)
+      if (storey === undefined || wall.virtual === true || wall.through !== undefined || sloped.has(floor) || !isFiniteWall(wall)) return null
+      const foot = storey.floorLevel
+      const top = foot + wall.height
+      const middle = wallPointAt(wall, wallLength(wall) / 2)
+      let lowest: (typeof over)[number] | null = null
+      for (const o of over) {
+        if (o.kind === 'slab' && o.floor === floor) continue
+        if (o.underside <= foot + same || (lowest !== null && o.underside >= lowest.underside)) continue
+        if (inPieces(o.pieces, middle)) lowest = o
+      }
+      if (lowest === null || lowest.underside <= top + same) return null
+      const full = heightByDefault(plan, wall) || wall.height >= tallestOf(floor) - same
+      return full ? { top: lowest.underside, rise: lowest.underside - top, over: { kind: lowest.kind, floor: lowest.floor } } : null
+    } catch {
+      return null
+    }
+  }
 }

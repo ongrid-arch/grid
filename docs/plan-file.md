@@ -10,7 +10,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [What kind of building it is, and what each room is for](#what-kind-of-building-it-is-and-what-each-room-is-for): `plan/not-checked-sizes-for-building`, `plan/not-checked-escapes-for-building`, `floor/not-checked-sizes-for-building`, `floor/not-checked-escapes-for-building`, `plan/unknown-use`
 - [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
-- [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `room/stair-shifted`, `room/lift-shifted`
+- [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `floor/gap-under-slab`, `floor/walls-past-floor`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
 - [Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground): `opening/below-ground`
 - [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `opening/missing-wall`
@@ -325,6 +325,19 @@ the floor it steps from (`floor/split-level`, a warning), never as a floor that 
 floor below. A floor with nothing under it that is no half level, such as one drawn a storey up
 beside the floor below by mistake, is set against the floors of its building at the nearest level
 below it, and said to be out of line.
+
+Under another floor a storey's top is that floor's slab (VEW-33). Each floor under another, as the
+pairs above find them, has its tallest drawn wall set against the underside of the upper floor's
+slab (its `slab`, else 0.25 m), by the floors' levels: walls that stop short of it by more than
+0.005 m (`sameFloorLevel`) leave a gap (`floor/gap-under-slab`, a warning), and walls that rise
+past the upper floor's level stand in the storey above it (`floor/walls-past-floor`, a warning).
+Walls that run into the slab and stop in it are not said, since writing each storey's walls floor
+to floor, slab included, is a common way to state heights. A floor marked `"overhang": "meant"` is
+still set against them: that mark is about outlines. Sections and facades draw no gap: a wall at
+its storey's full height (its floor's tallest, or one whose height nothing states) that stops
+short of the slab of a floor over it, or of the flat roof Grid lays over it, is drawn up to it,
+and the section lists the walls it raised and marks the strip it added. A lower wall, such as a
+dwarf wall or a parapet, keeps its own top.
 
 A room used as a stair, or a lift shaft, that
 lies over the one below enough to join it but is moved from it by more than 0.05 m is said too,

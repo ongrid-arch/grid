@@ -445,6 +445,39 @@ describe('walls through floors and floors that line up, in Spanish (LVL-5, after
     expect(inspectPlan(plan).lines.filter((l) => l.code === 'floor/out-of-line' || l.code === 'floor/set-back')).toEqual([])
   })
 
+  it('says walls that stop short of the slab over them in English and in Spanish (VEW-33)', () => {
+    // A car park at -4.00 with walls 3.00 m high, under a ground floor at 0 on a 0.25 m slab.
+    const box = (floor: string, height: number) => [
+      { id: `${floor}-s`, start: [0, 0], end: [10, 0], thickness: 0.3, kind: 'exterior', height, floor },
+      { id: `${floor}-e`, start: [10, 0], end: [10, 8], thickness: 0.3, kind: 'exterior', height, floor },
+      { id: `${floor}-n`, start: [10, 8], end: [0, 8], thickness: 0.3, kind: 'exterior', height, floor },
+      { id: `${floor}-w`, start: [0, 8], end: [0, 0], thickness: 0.3, kind: 'exterior', height, floor }
+    ]
+    const plan = {
+      version: '1',
+      units: 'm',
+      floors: [
+        { id: 'park', name: 'Car park', level: -1, elevation: -4 },
+        { id: 'g', name: 'Ground floor', level: 0, elevation: 0 }
+      ],
+      walls: [...box('park', 3), ...box('g', 2.7)],
+      rooms: [
+        { id: 'park-r', name: 'Parking', floor: 'park', boundary: ['park-s', 'park-e', 'park-n', 'park-w'] },
+        { id: 'g-r', name: 'Hall', floor: 'g', boundary: ['g-s', 'g-e', 'g-n', 'g-w'] }
+      ],
+      openings: [{ id: 'door', wall: 'g-s', type: 'door', offset: 1, width: 0.9, height: 2.1 }]
+    }
+    const { en, es } = both(plan, 'floor/gap-under-slab', 'park')
+    expect(en.kind).toBe('worth-a-look')
+    expect(en.message).toBe('Floor "Car park" stops short of the slab of the floor over it')
+    expect(en.found).toBe(
+      'The walls of floor "Car park" stop 0.75 m short of the slab of "Ground floor" over it: they reach -1.00 m, and the slab\'s underside is at -0.25 m. ' +
+        'Sections and facades draw them up to the slab. If they are meant to meet it, give the walls the height that does, or change the elevation or the slab of one of the floors.'
+    )
+    expect(es.message).toBe('Planta "Car park" no llega al forjado de la planta que tiene encima')
+    expect(es.found).toContain('se quedan 0,75 m por debajo del forjado de "Ground floor"')
+  })
+
   it('says a wall that rises through a floor the plan does not have in main\'s English and in Spanish', () => {
     const raw = JSON.parse(JSON.stringify(stairWindowThrough())) as FloorPlan
     const plan = parseFloorPlan({ ...raw, walls: raw.walls.map((w) => (w.id === 'g-n' ? { ...w, through: 'roof' } : w)) })

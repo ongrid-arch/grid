@@ -212,7 +212,10 @@ describe('the levels of a section (LVL-9 done-when 2)', () => {
 
   it('hatches nothing and lists no level, slab or ground the plan states', () => {
     const section = planSection(parseFloorPlan(stated()), line)
-    expect(section.assumed.map((a) => a.kind)).toEqual(['roof', 'room-height'])
+    // VEW-33: the ground floor's walls (2.70 m) stop 0.10 m short of the first floor's slab (3.10 less 0.30):
+    // drawn up to it, and listed, since the plan's levels leave that gap.
+    expect(section.assumed.map((a) => a.kind)).toEqual(['roof', 'wall-top', 'room-height'])
+    expect(section.assumed.find((a) => a.kind === 'wall-top')!.words).toContain('stop short of the slab of "First floor" over them, by up to 0.10 m')
     // The slab the floor states is cut at its own thickness.
     const slab = section.parts.find((p) => p.kind === 'slab' && p.id === 'first')!.rings[0]!
     expect(Math.min(...slab.map((p) => p.y))).toBeCloseTo(2.8, 9)

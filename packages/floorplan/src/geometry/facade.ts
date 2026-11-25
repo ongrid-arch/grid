@@ -16,7 +16,8 @@
  *   its edge is every wall's outside face;
  * - **the wall behind each stretch of that edge** is the solid wall whose outside face lies on it
  *   (within `facadeOnFace`): its height, from its floor's level (`floorElevations`, LVL-1), and its
- *   doors and windows, at their sills and heads. A short stretch with no wall on it (a corner, a
+ *   doors and windows, at their sills and heads. Under another floor a storey's top is that
+ *   floor's slab: a full-height wall that stops short of it rises to it (`wallTopsUnder`, VEW-33). A short stretch with no wall on it (a corner, a
  *   wall end) is part of the wall beside it; a long one (a dividing line on the outline, an open
  *   side) is open, and drawn as nothing;
  * - **on a floor with outdoor space** (C26, VEW-25), whose slab's outline leaves out the walls round
@@ -50,7 +51,7 @@ import type { MultiPolygon, Polygon } from 'polygon-clipping'
 import polygonClipping from 'polygon-clipping'
 import type { FloorPlan, Opening, Wall } from './plan'
 import { COMPASS_SIDES } from '../types/floorplan'
-import { floorElevations, isFiniteWall } from './elevations'
+import { floorElevations, isFiniteWall, wallTopsUnder } from './elevations'
 import { planEnvelope } from './envelope'
 import { planFloors, planForFloor } from './floors'
 import { groundLevel, plinthUnder } from './ground'
@@ -374,16 +375,19 @@ function openingsIn(
 
 /**
  * A wall's face along a stretch of an edge, as corners: along the bottom at its floor's level, then
- * back along its top: level at its height, or, under a roof the floor states (LVL-6), the top the
- * roof leaves it (`wallTopProfile`), turning where it turns.
+ * back along its top: level at its height, or at the underside of the slab or flat roof over it
+ * when it stops short of it (`raisedTo`, VEW-33), or, under a roof the floor states (LVL-6), the
+ * top the roof leaves it (`wallTopProfile`), turning where it turns.
  */
-function wallPoints(plan: FloorPlan, wall: Wall, edge: { a: Vec2; e: Vec2 }, stretch: { t0: number; t1: number }, floorLevel: number, drop = 0): Seen['points'] {
+function wallPoints(plan: FloorPlan, wall: Wall, edge: { a: Vec2; e: Vec2 }, stretch: { t0: number; t1: number }, floorLevel: number, drop = 0, raisedTo?: number): Seen['points'] {
   const point = (t: number): Vec2 => ({ x: edge.a.x + edge.e.x * t, y: edge.a.y + edge.e.y * t })
   const a = point(stretch.t0)
   const b = point(stretch.t1)
   const bottom = [{ p: a, z: floorLevel - drop }, { p: b, z: floorLevel - drop }]
   const profile = wallTopProfile(plan, wall)
-  if (profile === null) return [...bottom, { p: b, z: floorLevel + wall.height }, { p: a, z: floorLevel + wall.height }]
+  // VEW-33: a level top under another floor's slab, or the flat roof Grid lays, rises to it.
+  const level = raisedTo ?? floorLevel + wall.height
+  if (profile === null) return [...bottom, { p: b, z: level }, { p: a, z: level }]
   const sx = wall.start[0]
   const sy = wall.start[1]
   const length = Math.hypot(wall.end[0] - sx, wall.end[1] - sy)
@@ -538,6 +542,8 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
     return empty
   }
   const envelope = planEnvelope(plan, { elevations })
+  // VEW-33: under another floor a storey's top is that floor's slab: full-height walls rise to it.
+  const topUnder = wallTopsUnder(plan, envelope, elevations)
   const seen: Seen[] = []
   const add = (face: Omit<Seen, 'order'>): void => {
     seen.push({ ...face, order: seen.length })
@@ -589,7 +595,7 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
             kind: 'wall',
             floor: floor.id,
             wall: stretch.wall.id,
-            points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel, bandDrop),
+            points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel, bandDrop, topUnder(owners.get(stretch.wall) ?? stretch.wall, floor.id)?.top),
             openings: openingsIn(stretch.wall, openingsOf.get(stretch.wall.id) ?? [], edge, stretch, across, storey.floorLevel)
           })
         }
