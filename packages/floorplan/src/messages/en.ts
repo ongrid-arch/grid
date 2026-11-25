@@ -1971,6 +1971,32 @@ export const en = {
   // WRT-44: a wall with no length is refused with its line, never thrown on.
   'rooms.raw.zeroLength':
     "Line {line}: raw wall '{id}' starts and ends at the same point, ({x}, {y}), so it has no length. Give it a start and an end at different points, or leave it out and take its id out of the boundary of any room that names it.",
+  // WRT-48: what rooms text does not read is refused by name, never dropped or misread.
+  'rooms.raw.unknownField':
+    "Line {line}: raw {kind} '{id}' has {field}{place}, which Grid's plan file does not have, so it would be left out. {fix} The fields there: {known}.",
+  'rooms.raw.unknownField.named': 'the field "{field}"',
+  'rooms.raw.unknownField.unnamed': 'a field whose name Grid does not repeat',
+  'rooms.raw.unknownField.in': ' in its "{place}"',
+  'rooms.raw.unknownField.arc': 'A curved wall states "arc": {"centre": [x, y], "sweep": <degrees>}, the centre of its curve and the degrees it turns through from start to end, counter-clockwise positive.',
+  'rooms.raw.unknownField.properties': 'Facts of your own go in "properties": {"<name>": <value>}, which Grid keeps and checks nothing against.',
+  'rooms.raw.unknownField.nearest': 'Did you mean "{nearest}"?',
+  'rooms.raw.unknownField.written': 'It has "{nearest}" too, which is what Grid reads: take "{field}" out.',
+  'rooms.raw.unknownField.none': 'Take it out, or say it with the fields listed.',
+  'rooms.raw.floorField':
+    "Line {line}: a raw floor holds the floor's {known}, as Grid's plan file holds them, and {field} is none of them. {fix}",
+  'rooms.raw.floorField.line': "The floor's {field} is written on its floor line: floor <id> {field} <value>.",
+  'rooms.raw.kind':
+    "Line {line}: raw takes wall, room, opening or floor, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
+  'rooms.raw.kind.opening': 'A door or a window is written raw opening {"id": "<id>", "type": "{type}", "wall": "<wall id>", "offset": <m>, "width": <m>, "height": <m>}.',
+  'rooms.raw.kind.floor': 'A floor\'s {list} is written raw floor {"{list}": ...}, under its floor line.',
+  'rooms.raw.kind.list': 'Rooms text has no line for it: Grid\'s plan file holds it in "{list}", changed in the file once the plan is written.',
+  'rooms.raw.kind.none': 'Rooms text has no line for it, raw or not.',
+  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening or floor, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
+  'rooms.plan.oneName': 'Line {line}: the plan line takes one name, in quotes when it has spaces, and {extra} after it would not be read. Write {offered}.',
+  'rooms.wall.unknownRoom':
+    "Line {line}: the wall line names '{room}', which is no room written on floor '{floor}'.{nearest} Rooms there: {rooms}.",
+  'rooms.wall.unknownRoom.nearest': " Did you mean '{nearest}'?",
+  'rooms.wall.unknownRoom.none': 'none',
   'rooms.opening.noLength':
     "Line {line}: '{id}' would stand in wall '{wall}', which has no length here: the walls on either side stand closer together than their own thickness, so nothing is left between them to hold it. Put it in another side of the room, or move the rooms apart.",
   // WRT-45: door and window lines that name a raw room.

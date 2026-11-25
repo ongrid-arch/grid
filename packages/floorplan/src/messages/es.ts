@@ -1978,6 +1978,32 @@ export const es: Messages = {
   'rooms.raw.openingFact': '{id}: {type} de {width} m en {wall}, escrita en crudo',
   'rooms.raw.zeroLength':
     "Línea {line}: el raw wall '{id}' empieza y termina en el mismo punto, ({x}, {y}), así que no tiene longitud. Dele un principio y un final en puntos distintos, o quítelo y quite su id del contorno de toda estancia que lo nombre.",
+  // WRT-48: borrador.
+  'rooms.raw.unknownField':
+    "Línea {line}: el raw {kind} '{id}' tiene {field}{place}, que el archivo de plano de Grid no tiene, así que quedaría fuera. {fix} Los campos de ahí: {known}.",
+  'rooms.raw.unknownField.named': 'el campo "{field}"',
+  'rooms.raw.unknownField.unnamed': 'un campo cuyo nombre Grid no repite',
+  'rooms.raw.unknownField.in': ' en su "{place}"',
+  'rooms.raw.unknownField.arc': 'Un muro curvo indica "arc": {"centre": [x, y], "sweep": <grados>}, el centro de su curva y los grados que gira del principio al final, positivos en sentido antihorario.',
+  'rooms.raw.unknownField.properties': 'Los datos propios van en "properties": {"<nombre>": <valor>}, que Grid guarda y con los que no comprueba nada.',
+  'rooms.raw.unknownField.nearest': '¿Quería decir "{nearest}"?',
+  'rooms.raw.unknownField.written': 'También tiene "{nearest}", que es lo que Grid lee: quite "{field}".',
+  'rooms.raw.unknownField.none': 'Quítelo, o dígalo con los campos de la lista.',
+  'rooms.raw.floorField':
+    "Línea {line}: un raw floor contiene {known} de la planta, como los guarda el archivo de plano de Grid, y {field} no es ninguno de ellos. {fix}",
+  'rooms.raw.floorField.line': 'El {field} de la planta se escribe en su línea de planta: floor <id> {field} <valor>.',
+  'rooms.raw.kind':
+    "Línea {line}: raw admite wall, room, opening o floor, y luego un objeto JSON como lo guarda el archivo de plano de Grid; 'raw {kind}' no es ninguno de ellos. {where}",
+  'rooms.raw.kind.opening': 'Una puerta o una ventana se escribe raw opening {"id": "<id>", "type": "{type}", "wall": "<id del muro>", "offset": <m>, "width": <m>, "height": <m>}.',
+  'rooms.raw.kind.floor': 'El {list} de una planta se escribe raw floor {"{list}": ...}, bajo su línea de planta.',
+  'rooms.raw.kind.list': 'El texto de estancias no tiene línea para ello: el archivo de plano de Grid lo guarda en "{list}", que se cambia en el archivo una vez escrito el plano.',
+  'rooms.raw.kind.none': 'El texto de estancias no tiene línea para ello, en crudo o no.',
+  'rooms.raw.kind.nothing': "Línea {line}: raw admite wall, room, opening o floor, y luego un objeto JSON como lo guarda el archivo de plano de Grid: raw wall {\"id\": ...}.",
+  'rooms.plan.oneName': 'Línea {line}: la línea plan admite un nombre, entre comillas si tiene espacios, y {extra} tras él no se leería. Escriba {offered}.',
+  'rooms.wall.unknownRoom':
+    "Línea {line}: la línea de muro nombra '{room}', que no es una estancia escrita en la planta '{floor}'.{nearest} Estancias de ahí: {rooms}.",
+  'rooms.wall.unknownRoom.nearest': " ¿Quería decir '{nearest}'?",
+  'rooms.wall.unknownRoom.none': 'ninguna',
   'rooms.opening.noLength':
     "Línea {line}: '{id}' quedaría en el muro '{wall}', que aquí no tiene longitud: los muros de uno y otro lado están más cerca que su propio grosor, así que no queda nada entre ellos que lo sostenga. Póngalo en otro lado de la estancia, o separe las estancias.",
   'rooms.rawRoom.refused':
