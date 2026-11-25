@@ -80,6 +80,8 @@ export interface RoomFacts {
   readonly zoneOf?: string
   /** CNT-7 (C26), only on an outdoor space: its kind. It is measured, and counted in no total. */
   readonly outdoor?: OutdoorKind
+  /** ARE-16 (LVL-4), only on a void: open to the floor below, so no floor. It is measured, and counted in no total. */
+  readonly void?: true
 }
 
 /** How far an opening's edge is from the inside corner at one end of the room's side. */
@@ -518,6 +520,7 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
       neighbours: [...(next.get(room.id) ?? [])].sort(byText),
       ...(of === undefined ? {} : { zoneOf: of }),
       ...(outdoorKind(room) === null ? {} : { outdoor: outdoorKind(room)! }),
+      ...(room.void === true ? { void: true as const } : {}),
     }
   })
 
@@ -579,7 +582,7 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
     repeats: null,
     // A zone's floor is its room's (CNT-8): counted once.
     // CNT-7: an outdoor space is listed apart, in no total.
-    area: rooms.reduce((sum, room) => sum + (room.zoneOf === undefined && room.outdoor === undefined ? (room.shape?.area ?? 0) : 0), 0),
+    area: rooms.reduce((sum, room) => sum + (room.zoneOf === undefined && room.outdoor === undefined && room.void !== true ? (room.shape?.area ?? 0) : 0), 0),
     wallHeight: usualHeight(plan, storey.walls),
     leftOut: [...leftOut.rooms, ...leftOut.openings].sort(byText),
     ...(storey.columns === undefined ? {} : { columns: columnFacts(storey, index) }),

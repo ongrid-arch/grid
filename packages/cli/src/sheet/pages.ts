@@ -286,7 +286,7 @@ function areaTable(floor: FloorAreas, withUse: boolean, units: SheetUnits, w: Wo
   const places = floor.rooms.filter((r) => r.zoneOf === undefined)
   // SHT-11: a stair room over the stair below is counted there, so it is in no part of the sum.
   // CNT-7: an outdoor space is listed with its area, apart from the sum.
-  const counted = places.filter((r) => r.countedWith === undefined && r.outdoor === undefined)
+  const counted = places.filter((r) => r.countedWith === undefined && r.outdoor === undefined && r.void !== true)
   const shown = units.sum(counted.map((r) => r.net ?? 0), floor.net)
   const parts = new Map(counted.map((room, i) => [room, shown.parts[i]!] as const))
   return {
