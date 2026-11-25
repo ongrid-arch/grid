@@ -139,7 +139,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/use.ts': [28, 'notYet'],
   'packages/cli/src/quantities/walked.ts': [1, 'notYet'],
   'packages/cli/src/report/draft.ts': [16, 'notYet'],
-  'packages/cli/src/seen/marks.ts': [21, 'notYet'],
+  // MSG-19: three more, the refusals of a seen file with a mark Grid could not read.
+  'packages/cli/src/seen/marks.ts': [24, 'notYet'],
   // CNT-16: +1, the columns' place on the sheet ("drawn and tabled").
   'packages/cli/src/sheet/coverage.ts': [30, 'developer'],
   // SHT-6: the refusal of a floor too large for the paper.
@@ -314,7 +315,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and WRT-15 4: the room edits' receipts in a plan with phases (edit/phases.ts).
     // describe's furniture heading (1) (reviews/CNT-20.md); and WRT-12 1: grid diff's heading for
     // the openings that moved with their wall or room (versions/diff.ts).
-    expect(left).toBeLessThanOrEqual(1599)
+    // and MSG-19 3: the seen file's refusals (seen/marks.ts).
+    expect(left).toBeLessThanOrEqual(1602)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
