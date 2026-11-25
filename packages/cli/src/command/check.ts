@@ -285,8 +285,15 @@ export function checkPlan(loaded: LoadedPlan, request: Omit<CheckRequest, 'json'
   // The file's text (MSG-6), so the record names what the reader did and the words the schema
   // drops (MSG-4).
   // COD-8: the firm's own standards beside the plan, when it has a file of them. CNT-10: a
-  // fit-out's base, which the record reads in as the command did.
-  const result = inspectPlan(loaded.text ?? plan, { ...options, ...speech, ...(request.firm === undefined ? {} : { firm: request.firm }), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) })
+  // fit-out's base, which the record reads in as the command did. MSG-20: the trace image the
+  // command could not follow in the project folder.
+  const result = inspectPlan(loaded.text ?? plan, {
+    ...options,
+    ...speech,
+    ...(request.firm === undefined ? {} : { firm: request.firm }),
+    ...(loaded.base === undefined ? {} : { base: loaded.base.plan }),
+    ...(loaded.trace === undefined ? {} : { trace: loaded.trace }),
+  })
   const whole: CheckResult = { label: result.label, ...speech, issues: loaded.issues, report: full, result, rooms: roomsLookedAt(plan, result.coverage), numbers: result.lines.map((_, index) => index + 1) }
   return floor === undefined ? whole : checkOnFloor(loaded, whole, floor)
 }

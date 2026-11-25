@@ -79,7 +79,10 @@ file never reaches the exports with its letters turned into question marks. A fi
 | the walls a room lists | 2,000 | |
 
 A refusal names the part and the limit (`rooms[0].name holds a line break (U+000A); it must be
-one line`) and never repeats the text. Markup in a name is allowed: it is drawn as text. The
+one line`) and never repeats the text. Writing on the drawing and the facts of your own are not
+refused (MSG-20): a note's or a sketch item's text, a fact's name or value, or the trace image's
+path that breaks a rule here leaves out that note, sketch item, fact or trace image alone, with
+one `plan/value-left-out` line at its place, and the rest of the plan is read. Markup in a name is allowed: it is drawn as text. The
 ids in `grid check`'s drawing problems are quoted, and `grid_check` returns the rooms a finding
 is about, by id and name, apart from its message.
 
@@ -98,6 +101,7 @@ id (or its place, when it has no id that can be read) and its place in the file:
 | a value the part needs that cannot be read (a negative offset, a missing start, an opening type `"gate"`) | leaves the part out, and the rooms and openings on a wall left out with it | `plan/part-left-out` |
 | a wall's thickness or height, or an opening's sill, stated out of range or as a word; a wall's `face` that is not `left` or `right` | leaves the part out: a default would change what is drawn and measured | `plan/part-left-out` |
 | `NaN`, `Infinity`, or a number with a decimal comma in an object (`"offset": 3,45`) | reads it as a value that is not there, and names it for what it is | as above |
+| an entry of one of the plan's other lists that cannot be read (a sketch line with `from` and `to` where a line takes `points`, a note with too long a text, a stair) | leaves that entry out, each with its own line, and keeps the rest of the list (MSG-20) | `plan/value-left-out` |
 | git's conflict markers | refuses the plan as an unfinished merge, with the line and what each side adds | `plan/unfinished-merge` |
 
 Ids are unique across the whole plan. Of two parts that share an id, only the clash is left out
@@ -1653,11 +1657,14 @@ The trace image "assets/ground-floor-scan.png", 1600 × 1200 px, is drawn under 
 ```
 
 A plan may come from someone else, so the path is held to the project folder: another folder,
-`..`, a web address, a script (`javascript:`), an absolute path or an ending that is not a
-picture refuses the whole plan, in every command and tool, with the path and the folder
-([the project folder](commands.md#the-project-folder)). A path that is fine but leads to nothing
-yet, to a file that is not a PNG or a JPEG whatever its ending, to a file over 32 MB or to a
-picture more than 16,384 pixels along a side is not drawn, and the answer says which. The
+`..`, a web address, a script (`javascript:`), an absolute path, a link out of the folder or an
+ending that is not a picture is never followed, in any command or tool
+([the project folder](commands.md#the-project-folder)). The plan is read without the trace image
+(MSG-20): `grid check` and `grid_check` give one `plan/trace-left-out` line with the path, the
+folder and why, and so does a picture that is not in the folder yet. The plan file keeps
+`referenceImage` as written. A path that is fine but leads to nothing yet, to a file that is not
+a PNG or a JPEG whatever its ending, to a file over 32 MB or to a picture more than 16,384 pixels
+along a side is not drawn, and the picture's answer says which. The
 picture is read through the project's own files and handed to the drawing as the picture
 itself; the drawing reads no file and fetches nothing.
 

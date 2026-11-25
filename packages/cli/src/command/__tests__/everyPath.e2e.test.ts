@@ -308,9 +308,9 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
 }
 
 /**
- * The plan-reading call of every tool that reads one and follows its trace image. CMD-13's
- * grid_report_problem never follows it: the draft leaves it out, and a refused trace image is
- * one of the failures it reports (reportProblem.test.ts holds that the path is not in the draft).
+ * The plan-reading call of every tool that reads one and would follow its trace image. CMD-13's
+ * grid_report_problem never follows it: the draft leaves it out (reportProblem.test.ts holds
+ * that the path is not in the draft).
  */
 const PLAN_TOOLS: ReadonlyArray<readonly [name: string, call: (plan: string) => Call]> = Object.entries(TOOL_SLOTS)
   .filter(([name]) => name !== 'grid_write_rooms' && name !== 'grid_report_problem')
@@ -359,6 +359,14 @@ function expectToolRefused(answer: ToolAnswer, given: string, ...words: string[]
   expect(answer.text).toContain(JSON.stringify(given))
   expect(answer.text).toContain(JSON.stringify(real))
   for (const word of words) expect(answer.text).toContain(word)
+}
+
+/** MSG-20: the check's one line on a trace image it did not follow: the path, the project folder and why. */
+function expectTraceLeftOut(text: string, given: string, why: string): void {
+  expect(text.match(/\[plan\/trace-left-out\]/g) ?? []).toHaveLength(1)
+  expect(text).toContain(JSON.stringify(given))
+  expect(text).toContain(JSON.stringify(real))
+  expect(text).toContain(why)
 }
 
 function expectOutsideUntouched(): void {
@@ -448,53 +456,62 @@ describe('the trace image a plan names (T-5)', () => {
     return name
   }
 
-  it.each(T5_TRACE_IMAGE_PATHS)('%j makes every command refuse the plan', (path, why) => {
+  // MSG-20: a trace image that cannot be followed is left out with one line: the plan still reads.
+  it.each(T5_TRACE_IMAGE_PATHS)('%j is never followed: every command reads the plan without it', (path, why) => {
     const plan = tracePlan('traced.json', path)
-    for (const [, args] of PLAN_READERS) {
-      expectCommandRefused(grid(args(plan)), path, 'referenceImage.path', why)
+    for (const [label, args] of PLAN_READERS) {
+      const run = grid(args(plan))
+      expect(run.err, label).not.toContain("can't be used: its trace image")
     }
-    expect(tree(project)).toEqual([ROOMS, PLAN, plan].sort())
+    const check = grid(['check', plan])
+    expect(check.status).toBe(0)
+    expectTraceLeftOut(check.out, path, why)
     expectOutsideUntouched()
   }, 120_000)
 
-  it('makes every tool refuse the plan, for each of the six', async () => {
+  it('is never followed by a tool either, for each of the six; grid_check says why', async () => {
     const plans = T5_TRACE_IMAGE_PATHS.map(([path], i) => tracePlan(`traced-${i}.json`, path))
     const calls = plans.flatMap((plan) => PLAN_TOOLS.map(([, call]) => call(plan)))
     const answers = await callTools(calls)
-    answers.forEach((answer, i) => {
-      const [path, why] = T5_TRACE_IMAGE_PATHS[Math.floor(i / PLAN_TOOLS.length)]!
-      expectToolRefused(answer, path, 'referenceImage.path', why)
-    })
+    answers.forEach((answer, i) => expect(answer.text, calls[i]!.name).not.toContain("can't be used: its trace image"))
     expect(answers).toHaveLength(T5_TRACE_IMAGE_PATHS.length * PLAN_TOOLS.length)
-    expect(tree(project)).toEqual([ROOMS, PLAN, ...plans].sort())
+    const checks = await callTools(plans.map((plan) => ({ name: 'grid_check', arguments: { plan } })))
+    checks.forEach((answer, i) => {
+      const [path, why] = T5_TRACE_IMAGE_PATHS[i]!
+      expect(answer.isError).toBe(false)
+      expectTraceLeftOut(answer.text, path, why)
+    })
     expectOutsideUntouched()
   }, 60_000)
 
-  it('HND-10: makes every command and tool refuse the plan when it does not end as a picture', async () => {
+  it('HND-10: is never followed when it does not end as a picture, by any command or tool', async () => {
     const path = 'notes/plan.sh'
     const plan = tracePlan('traced.json', path)
-    for (const [, args] of PLAN_READERS) {
-      expectCommandRefused(grid(args(plan)), path, 'referenceImage.path', 'does not end in .png, .jpg or .jpeg')
-    }
+    const check = grid(['check', plan])
+    expect(check.status).toBe(0)
+    expect(check.out).toContain('[plan/trace-left-out]')
+    expect(check.out).toContain(`${JSON.stringify(path)} does not end in .png, .jpg or .jpeg`)
     const answers = await callTools(PLAN_TOOLS.map(([, call]) => call(plan)))
-    for (const answer of answers) expectToolRefused(answer, path, 'referenceImage.path', 'does not end in .png, .jpg or .jpeg')
-    expect(tree(project)).toEqual([ROOMS, PLAN, plan].sort())
+    for (const answer of answers) expect(answer.text).not.toContain("can't be used: its trace image")
   }, 120_000)
 
-  it('is refused through a link to a folder outside, by the command and the tool server', async () => {
+  it('is never followed through a link to a folder outside, by the command and the tool server', async () => {
     linkFolder(outside, join(project, 'linked'))
     const plan = tracePlan('traced.json', 'linked/victim.svg')
-    expectCommandRefused(grid(['check', plan]), 'linked/victim.svg', 'referenceImage.path', 'through a symbolic link')
+    expectTraceLeftOut(grid(['check', plan]).out, 'linked/victim.svg', 'through a symbolic link')
     const [answer] = await callTools([{ name: 'grid_check', arguments: { plan } }])
-    expectToolRefused(answer!, 'linked/victim.svg', 'referenceImage.path', 'through a symbolic link')
+    expectTraceLeftOut(answer!.text, 'linked/victim.svg', 'through a symbolic link')
+    expectOutsideUntouched()
   }, 20_000)
 
-  it.skipIf(windows)(`is refused through a link to a file outside (${LINK_CASES_SKIPPED_ON_WINDOWS})`, async () => {
+  it.skipIf(windows)(`is never followed through a link to a file outside (${LINK_CASES_SKIPPED_ON_WINDOWS})`, async () => {
     symlinkSync(join(outside, 'victim.svg'), join(project, 'trace.png'))
     const plan = tracePlan('traced.json', 'trace.png')
-    expectCommandRefused(grid(['describe', plan]), 'trace.png', 'referenceImage.path', 'through a symbolic link')
-    const [answer] = await callTools([{ name: 'grid_describe', arguments: { plan } }])
-    expectToolRefused(answer!, 'trace.png', 'referenceImage.path', 'through a symbolic link')
+    expect(grid(['describe', plan]).status).toBe(0)
+    expectTraceLeftOut(grid(['check', plan]).out, 'trace.png', 'through a symbolic link')
+    const [answer] = await callTools([{ name: 'grid_check', arguments: { plan } }])
+    expectTraceLeftOut(answer!.text, 'trace.png', 'through a symbolic link')
+    expectOutsideUntouched()
   }, 20_000)
 
   it('starts from the project folder, wherever Grid runs, and need not be there yet', async () => {
@@ -516,7 +533,7 @@ describe('the trace image a plan names (T-5)', () => {
     for (const answer of answers) expect(answer.isError).toBe(false)
     // Inside the project folder by its text, but outside once `..` is followed.
     tracePlan('up.json', 'assets/../../outside/victim.svg')
-    expectCommandRefused(grid(['check', 'up.json']), 'assets/../../outside/victim.svg', 'referenceImage.path', 'outside the project folder')
+    expectTraceLeftOut(grid(['check', 'up.json']).out, 'assets/../../outside/victim.svg', 'outside the project folder')
   }, 20_000)
 })
 

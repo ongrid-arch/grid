@@ -248,3 +248,46 @@ describe('readPlanText (MSG-6, lab U-10)', () => {
     expect(readPlanText('{"start": [4,6], "x": NaN}')).toMatchObject({ ok: true, value: { start: [4, 6], x: null } })
   })
 })
+
+describe('one entry of another list of parts (MSG-20)', () => {
+  /** Twenty sketch lines, and a note of each kind. */
+  function sketched(): Record<string, any> {
+    const raw = file()
+    raw.sketch = Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, kind: 'line', category: 'level', points: [[i, 0], [i, 1]] }))
+    raw.annotations = [
+      { id: 'n1', kind: 'note', text: 'Cornice to be kept', at: [1, 1] },
+      { id: 'n2', kind: 'note', text: 'Survey: ' + 'x'.repeat(139), at: [2, 1] },
+      { id: 'n3', kind: 'tag', text: 'Lintel', at: [3, 1] }
+    ]
+    return raw
+  }
+
+  it('leaves out a sketch line written with from and to alone, and keeps the other items', () => {
+    const raw = sketched()
+    raw.sketch.splice(4, 0, { id: 'bad', kind: 'line', category: 'level', from: [0, 0], to: [4, 0] })
+    const result = read(raw)
+    expect(result.plan.sketch!.map((s) => s.id)).toEqual(Array.from({ length: 20 }, (_, i) => `s${i}`))
+    const lines = result.faults.filter((f) => f.path[0] === 'sketch')
+    expect(lines).toEqual([expect.objectContaining({ kind: 'value-left-out', part: null, path: ['sketch', 4, 'points'] })])
+  })
+
+  it('leaves out a note longer than a name may be alone, and keeps the others', () => {
+    const result = read(sketched())
+    expect(result.plan.annotations!.map((a) => a.id)).toEqual(['n1', 'n3'])
+    expect(result.faults).toEqual([expect.objectContaining({ kind: 'value-left-out', part: null, path: ['annotations', 1, 'text'] })])
+    expect(result.faults[0]!.found).toMatch(/147 characters long/)
+  })
+
+  it('gives each bad entry its own line at its place in the file, however many there are', () => {
+    const raw = sketched()
+    for (const at of [0, 5, 9, 12, 13, 14, 15, 16, 17, 18, 19]) raw.sketch[at] = { ...raw.sketch[at], points: [[0, 0]] }
+    raw.annotations[0].text = 'one\nline'
+    const result = read(raw)
+    expect(result.plan.sketch!.map((s) => s.id)).toEqual(['s1', 's2', 's3', 's4', 's6', 's7', 's8', 's10', 's11'])
+    expect(result.faults.map((f) => f.path.slice(0, 2))).toEqual([
+      ['annotations', 0],
+      ['annotations', 1],
+      ...[0, 5, 9, 12, 13, 14, 15, 16, 17, 18, 19].map((at) => ['sketch', at])
+    ])
+  })
+})

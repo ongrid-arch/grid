@@ -4,7 +4,7 @@
  * picture does (`traceEndingProblem`). The picture is read through the project's own files, its
  * size taken from its header, and handed to the viewer as a `data:` address: the viewer reads no
  * file and fetches nothing. Whatever stops it being drawn is said, never refused: a plan may name
- * its trace image before the picture is in the folder.
+ * its trace image before the picture is in the folder, or one that is not Grid's to read.
  */
 import { tracePlacement, traceFloor, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { name, said, say, type Language, type Values } from '@ongrid/floorplan/messages'
@@ -124,9 +124,9 @@ function figure(n: number): { num: string } {
 }
 
 /**
- * The plan's trace image for a picture of `floor`, read from the project folder. The plan has
- * been read by `loadPlan`, which refuses a path that leads out of the folder or does not end as a
- * picture, so this only reads the file it names.
+ * The plan's trace image for a picture of `floor`, read from the project folder. A path that
+ * leads out of the folder or does not end as a picture is never read (MSG-20: `loadPlan` reads the
+ * plan without it, and says so), and the line says why it is not drawn.
  */
 export function readTrace(project: Project, plan: FloorPlan, floor: string, language: Language = 'en'): TraceRead {
   const image = plan.referenceImage
@@ -135,11 +135,19 @@ export function readTrace(project: Project, plan: FloorPlan, floor: string, lang
   const on = traceFloor(plan)
   if (!on.known) return { picture: null, line: say(language, 'trace.unknownFloor', { path, floor: name(on.floor) }) }
   if (on.floor !== floor) return { picture: null, line: say(language, 'trace.otherFloor', { path, floor: name(on.floor) }) }
+  // MSG-20: a path out of the project folder, or one that is no picture by its ending, is never read.
+  let real: string
+  try {
+    real = project.resolve(image.path, 'project')
+  } catch (error) {
+    if (!(error instanceof PathRefused)) throw error
+    return { picture: null, line: say(language, 'trace.refused', { path, detail: error.message.replace(/\s+/g, ' ').trim() }) }
+  }
+  if (!hasPictureEnding(image.path)) return { picture: null, line: say(language, 'trace.notPictureEnding', { path }) }
   let bytes: Uint8Array
   try {
-    bytes = project.readBytes(project.resolve(image.path, 'project'), TRACE_MAX_BYTES)
+    bytes = project.readBytes(real, TRACE_MAX_BYTES)
   } catch (error) {
-    if (error instanceof PathRefused) throw error
     const code = (error as { code?: unknown }).code
     if (code === 'EFBIG') return { picture: null, line: say(language, 'trace.tooLarge', { path, megabytes: TRACE_MAX_BYTES / 1024 / 1024 }) }
     if (code === 'ENOENT' || code === 'EISDIR') return { picture: null, line: say(language, 'trace.missing', { path }) }

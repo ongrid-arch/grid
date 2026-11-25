@@ -15,7 +15,8 @@ import { mergeBase, planFloors, validatePlan, withPatterns, type Issue } from '@
 import { FloorPlanSchema, quoted, type FloorPlan, type PlanSchemaIssue } from '@ongrid/floorplan/types/floorplan'
 import { readPlanText, type UnfinishedMerge } from '@ongrid/floorplan/types/jsonText'
 import { readPlanParts, type LeftOutPart, type ReadFault } from '@ongrid/floorplan/types/readParts'
-import { PathRefused, quoted as quotedPath, type Project } from '../fs/projectFiles'
+import type { TraceLeftOut } from '@ongrid/rules'
+import { PathRefused, type Project } from '../fs/projectFiles'
 import { hasPictureEnding } from '../trace/traceImage'
 import { say } from '@ongrid/floorplan/messages'
 import { TextNotDecoded } from '../fs/textEncoding'
@@ -56,6 +57,8 @@ export interface LoadedPlan {
    * Absent for a plan that names no base.
    */
   readonly base?: LoadedBase
+  /** MSG-20: why the plan's trace image is not followed or drawn; absent when it is, or there is none. */
+  readonly trace?: TraceLeftOut
 }
 
 /** CNT-10: a fit-out's base plan, as `loadPlan` read it in. */
@@ -169,22 +172,22 @@ function faultText(fault: ReadFault): string {
  * the plan may come from a stranger. It must lead to a file inside the project folder, by the
  * same resolver as every other path: no web address, no network or device path, no `..` or
  * absolute path out of the folder, no symbolic link out of it. Relative to the project folder,
- * as the schema says, for the command and the tool server alike. The picture need not exist.
+ * as the schema says, for the command and the tool server alike. HND-10: and it is a picture by
+ * its ending, so no script, page or other file is named as one. MSG-20: one that is not is never
+ * followed, and the plan is read without it, with one line; so is a picture not there yet.
  */
-function traceImageCheck(project: Project, file: string, plan: FloorPlan): void {
+function traceImageCheck(project: Project, plan: FloorPlan): TraceLeftOut | null {
   const image = plan.referenceImage
-  if (image === undefined) return
+  if (image === undefined) return null
+  let real: string
   try {
-    project.resolve(image.path, 'project')
+    real = project.resolve(image.path, 'project')
   } catch (error) {
     if (!(error instanceof PathRefused)) throw error
-    throw new PlanRefused(`${file} can't be used: its trace image, referenceImage.path, is refused. ${error.message} `
-      + 'Take referenceImage out of the plan, or name a picture inside the project folder.')
+    return { path: image.path, why: 'refused', detail: oneLine(error.message) }
   }
-  // HND-10 (T-5): and it is a picture by its ending, so no script, page or other file is named as one.
-  if (!hasPictureEnding(image.path)) {
-    throw new PlanRefused(say('en', 'trace.refused.ending', { file, path: quotedPath(image.path), folder: quotedPath(project.folder) }))
-  }
+  if (!hasPictureEnding(image.path)) return { path: image.path, why: 'ending' }
+  return project.exists(real) ? null : { path: image.path, why: 'missing' }
 }
 
 /**
@@ -254,7 +257,9 @@ export function loadPlanText(project: Project, file: string, text: string, real:
   // WRT-13: the schema defaults every list, so an object that is no plan would read as an empty one.
   if (!holdsAPlan(raw as Record<string, unknown>)) throw new PlanRefused(say('en', 'plan.notAPlan.noParts', { file }))
   // MSG-9: names and ids are limited and cleaned before the schema reads them.
-  const textProblem = planTextProblem(raw as Record<string, unknown>)
+  // MSG-20: a note, a sketch item, a fact or the trace image's path is left to the reader, which
+  // leaves it out alone with a line.
+  const textProblem = planTextProblem(raw as Record<string, unknown>, { leaveOut: true })
   if (textProblem !== null) throw new PlanRefused(`${file} is not a Grid plan: ${textProblem}.`)
   const parts = readPlanParts(raw, read.marks)
   const strict = (): void => {
@@ -279,7 +284,7 @@ export function loadPlanText(project: Project, file: string, text: string, real:
     const more = rest.length > 0 ? ` (and ${rest.length} more)` : ''
     throw new PlanRefused(`${file} has a part Grid would leave out or read otherwise: ${faultText(first!)}${more}. grid check names each; correct them first.`)
   }
-  traceImageCheck(project, file, parts.plan)
+  const trace = traceImageCheck(project, parts.plan)
   // CNT-10: a fit-out is read with its base's walls and openings in it, as existing.
   const based = parts.plan.base === undefined || options.asBase === true ? null : readBase(project, file, parts.plan)
   const plan = based?.plan ?? parts.plan
@@ -297,6 +302,7 @@ export function loadPlanText(project: Project, file: string, text: string, real:
     leftOut: parts.leftOut,
     text,
     ...(based === null ? {} : { base: based.base }),
+    ...(trace === null ? {} : { trace }),
   }
 }
 
