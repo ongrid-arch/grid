@@ -84,21 +84,25 @@ describe('floors other than the ground floor', () => {
     expect(routeNotices(twoFloorHouse())).toMatchObject([{ reason: 'no_stairs', floor: 'first', rooms: [] }])
     // LVL-1 (lab VE-8): the balcony door upstairs leads outside 2.95 m up. It is named, and it
     // is no way out; there are still no route findings. Before LVL-1, nothing upstairs.
+    // LVL-14: the floor itself, which no stair reaches, is a finding too.
     expect(report.findings.filter((f) => f.floor === 'first').map((f) => [f.code, f.openings])).toEqual([
-      ['door_to_outside_above_ground', ['balcony']]
+      ['door_to_outside_above_ground', ['balcony']],
+      ['no_stair', []]
     ])
   })
 
   it('still report a room with no door', () => {
     const plan = withoutOpening(twoFloorHouse(), 'd_up')
     // LVL-1: with the balcony door named (lab VE-8).
-    expect(summary(plan)).toEqual(['door_to_outside_above_ground first study', 'room_without_door first landing'])
+    // LVL-14: with the floor no stair reaches named.
+    expect(summary(plan)).toEqual(['door_to_outside_above_ground first study', 'no_stair first ', 'room_without_door first landing'])
   })
 
   it('never count on a balcony door, so losing one changes nothing', () => {
     // Were upstairs checked for exits, the balcony would be its only one.
     const plan = withoutOpening(twoFloorHouse(), 'balcony')
-    expect(checkPlanSanity(plan).findings.filter((f) => f.floor === 'first')).toEqual([])
+    // LVL-14: only the floor no stair reaches is said, as with the balcony door.
+    expect(checkPlanSanity(plan).findings.filter((f) => f.floor === 'first').map((f) => f.code)).toEqual(['no_stair'])
   })
 
   it('check the only floor of a plan, whatever its level', () => {
@@ -173,7 +177,8 @@ describe('a floor that is one open room', () => {
 
   it('is not reported as a room with no door when it is off the ground floor', () => {
     const report = checkPlanSanity(loft())
-    expect(report.findings.filter((f) => f.floor === 'first')).toEqual([])
+    // LVL-14: the loft no stair reaches is named, but never as a room with no door.
+    expect(report.findings.filter((f) => f.floor === 'first').map((f) => f.code)).toEqual(['no_stair'])
     expect(report.notChecked).toMatchObject([{ reason: 'no_stairs', floor: 'first' }])
   })
 

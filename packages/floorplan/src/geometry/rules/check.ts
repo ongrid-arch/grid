@@ -19,6 +19,7 @@ import { LIMITS, RULES } from './catalogue'
 import { floorGraph, roomOutlines } from './graph'
 import type { FloorGraph } from './graph'
 import { floorJoins } from '../floorJoins'
+import { floorsWithNoStair } from './noStair'
 import { flatOfRoom, planFlats } from '../flats'
 import { indexPlan } from '../plan'
 import { isOutdoor } from '../outdoor'
@@ -36,6 +37,8 @@ import { GENERAL_GUIDANCE_LABEL, RULES_REPORT_SCHEMA_VERSION } from './types'
 
 const RULE_OF: Record<FindingCode, string> = {
   no_exit: 'floor-has-exit',
+  // LVL-14: a floor above the ground nothing joins to the ground floor has no way out either.
+  no_stair: 'floor-has-exit',
   room_without_door: 'room-has-door',
   no_route_to_exit: 'room-reaches-exit',
   door_to_undrawn_space: 'door-leads-somewhere',
@@ -615,6 +618,7 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
     }
   }
 
+  const noStair = new Map(floorsWithNoStair(plan).map((f) => [f.floor, f.from] as const))
   for (const floor of floors) {
     const graph = routes.get(floor.id)!.graph
     // A door to the outside in mid-air (lab VE-8): said, and never a way out. Open sides of a
@@ -639,6 +643,12 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
           elevation: Number(height)
         })
       }
+    }
+    // LVL-14: a floor above the ground with no stair or lift room and no stated stair to it is a
+    // finding of its own. Its way out is still not followed, so the notice below stays.
+    const stairFrom = noStair.get(floor.id)
+    if (stairFrom !== undefined && !checkedGroups.has(find(floor.id))) {
+      findings.push({ ...finding('no_stair', floor.id, [], messages.noStair(floorName(floor.id))), stairFrom })
     }
     if (!checkedGroups.has(find(floor.id)) && graph.rooms.length > 0) {
       notChecked.push({

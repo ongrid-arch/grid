@@ -1,6 +1,8 @@
 export * from './types'
 export { LIMITS, PLAN_LIMIT_KEYS, PLAN_SANITY, RULES } from './catalogue'
 export { checkPlanSanity, cannotBeDrawnNotices } from './check'
+export { floorsWithNoStair } from './noStair'
+export type { FloorWithNoStair } from './noStair'
 export type { SanityOptions } from './check'
 export { damaged, doorWaitsFor, escapeWaitsFor, leadsWaitsFor, planDamage, routeWaitsFor } from './held'
 export type { DrawnFloor, FloorDamage } from './held'
