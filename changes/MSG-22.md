@@ -3,9 +3,8 @@
 ## For people
 
 - A plan with one floor and no floor list names that floor in the language Grid writes in:
-  "Planta baja" in a Spanish description, drawing, view or sheet, "Ground floor" in English. A
-  floor the plan names keeps its name. The check's record keeps its values the same in every
-  language, so it still names the floor "Ground floor" (MSG-22).
+  "Planta baja" in a Spanish check, description, drawing, view or sheet, "Ground floor" in
+  English. A floor the plan names keeps its name (MSG-22).
 - Rooms text writes an id with accents in plain letters (`baño` is `bano`) and says so, and
   refuses an id with letters that have no plain form, so every tool and edit takes the ids it
   writes (MSG-22).
@@ -25,7 +24,7 @@
   person's language (`cocina`, `Flur`, `卫生间`) and keep the use it means; their schemas list no
   closed set of words any more. An unknown word is refused with the uses.
 - `language` takes a region tag (`es-MX`); its schema lists no closed set of words any more.
-- A description, a drawing, a view or a sheet in Spanish names the floor of a plan with no floor
-  list "Planta baja", where it said "Ground floor". The record (`grid_check`) is unchanged: its
-  values, the floor's name among them, are the same in every language.
+- A record, a description, a drawing, a view or a sheet in Spanish names the floor of a plan with
+  no floor list "Planta baja", where it said "Ground floor". In the record this is the one value
+  that differs by language: it is Grid's own word, not the plan's (`values`, `docs/result-contract.md`).
 - No new code in the record.
