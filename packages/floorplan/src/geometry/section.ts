@@ -382,6 +382,10 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     const sides = planWallSides(index)
     const usable = slice.walls.filter((wall) => !broken.has(wall.id) && isFiniteWall(wall))
     const joints = wallJoints(usable)
+    // VEW-24: where rooms of this floor stand below it, across the line: the walls round them run down to their slab.
+    const sunkSpans = (envelope.floors.find((f) => f.floor === floor.id)?.slab?.sunken ?? []).flatMap((sunk) =>
+      inside(frame, ringsOf(sunk.pieces)).map(([from, to]) => ({ from, to, offset: sunk.offset }))
+    )
 
     for (const part of usable) {
       if (part.virtual) continue
@@ -400,7 +404,11 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       const rings: Vec2[][] = []
       for (const part of wallParts(wall, openings)) {
         const polygon = wallSlicePolygon(wall, part.from, part.to, ends)
-        for (const [x0, x1] of inside(frame, [polygon])) rings.push(rect(snap, x0, x1, base + part.zFrom, base + part.zTo))
+        for (const [x0, x1] of inside(frame, [polygon])) {
+          // VEW-24: a wall's foot beside or in a sunken room is carried down to that room's slab.
+          const down = part.zFrom <= none ? Math.min(0, ...sunkSpans.filter((s) => s.from <= x1 + none && s.to >= x0 - none).map((s) => s.offset)) : 0
+          rings.push(rect(snap, x0, x1, base + part.zFrom + down, base + part.zTo))
+        }
       }
       if (rings.length > 0) {
         const glazed = wallTypeOf(plan, wall)?.glazed === true
@@ -506,7 +514,12 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       const rings: Vec2[][] = []
       for (const [x0, x1] of inside(frame, ringsOf(shell.slab.pieces))) rings.push(rect(snap, x0, x1, top - thickness, top))
       for (const sunk of shell.slab.sunken) {
-        for (const [x0, x1] of inside(frame, ringsOf(sunk.pieces))) rings.push(rect(snap, x0, x1, top + sunk.offset - thickness, top + sunk.offset))
+        for (const [x0, x1] of inside(frame, ringsOf(sunk.pieces))) {
+          rings.push(rect(snap, x0, x1, top + sunk.offset - thickness, top + sunk.offset))
+          // VEW-24: the step up to the floor is slab too, so the lowered slab and the floor are one piece.
+          const rib = Math.min(thickness, (x1 - x0) / 2)
+          rings.push(rect(snap, x0, x0 + rib, top + sunk.offset - thickness, top), rect(snap, x1 - rib, x1, top + sunk.offset - thickness, top))
+        }
       }
       if (rings.length > 0) {
         parts.push({ kind: 'slab', id: floor.id, floor: floor.id, rings })

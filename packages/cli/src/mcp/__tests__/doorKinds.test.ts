@@ -52,7 +52,7 @@ describe('doors with no swing stated (done when 2)', () => {
     expect(line.message).toBe('On "Ground floor", 2 doors state no swing, so whether they open clear was not checked: "d", "patio"')
     expect(line.also).toEqual(['d', 'patio'])
     // The 2.4 m patio door states no kind: asked about too.
-    expect(lines.filter((l) => l.code === 'opening/wide-single-leaf').map((l) => l.message)).toEqual(['Door "patio" states no kind, so it is drawn and checked as one swinging leaf this wide'])
+    expect(lines.filter((l) => l.code === 'opening/wide-single-leaf').map((l) => l.message)).toEqual(['Door "patio" states no kind, so it is checked as one swinging leaf this wide and drawn as Grid\'s guess, a pair or a sliding door'])
   })
 })
 

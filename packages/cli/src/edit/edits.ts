@@ -660,10 +660,11 @@ export function mirrorPlan(survey: Survey, how: Mirror): Patch {
   const plan = survey.plan
   const xs = plan.walls.flatMap((w) => [w.start[0], w.end[0]])
   const ys = plan.walls.flatMap((w) => [w.start[1], w.end[1]])
+  // VEW-22: cleaned of floating noise only, never rounded to millimetres, so every length holds.
   const flip = (p: readonly [number, number]): Pair =>
     how === 'left-right'
-      ? [r3(Math.min(...xs) + Math.max(...xs) - p[0]), p[1]]
-      : [p[0], r3(Math.min(...ys) + Math.max(...ys) - p[1])]
+      ? [exact(Math.min(...xs) + Math.max(...xs) - p[0]), p[1]]
+      : [p[0], exact(Math.min(...ys) + Math.max(...ys) - p[1])]
   // CNT-18: a curved wall's centre is mirrored with it, and it turns the other way round it.
   const walls = new Map(
     plan.walls.map((w) => [w.id, { start: flip(w.start), end: flip(w.end), mirrored: true, ...(w.arc === undefined ? {} : { arc: { centre: flip(w.arc.centre), sweep: -w.arc.sweep } }) }])
@@ -725,6 +726,9 @@ function patternsFollow(plan: FloorPlan): string {
   return n === 0 ? '' : ` ${n === 1 ? 'Its opening pattern stays a pattern' : `Its ${n} opening patterns stay patterns`}, and the openings ${n === 1 ? 'it places follow its wall' : 'they place follow their walls'}.`
 }
 
+/** VEW-22: a coordinate a mirror or a turn worked out, cleaned of floating noise: to the micrometre. */
+const exact = (value: number): number => Math.round(value * 1e6) / 1e6
+
 /** WRT-4: the turns `grid_mirror` makes, in degrees counter-clockwise on the drawing as Grid draws it (y up). */
 export const TURNS = [90, 180, 270] as const
 export type Turn = (typeof TURNS)[number]
@@ -747,10 +751,13 @@ export function turnPlanBy(survey: Survey, turn: Turn): Patch {
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2
   const cy = (Math.min(...ys) + Math.max(...ys)) / 2
   const [cos, sin] = turn === 90 ? [0, 1] : turn === 180 ? [-1, 0] : [0, -1]
+  // VEW-22: a quarter turn moves every point exactly: the result is cleaned of floating noise
+  // only, never rounded to millimetres, which moved a point stated finer by up to half of one
+  // and changed a room's size.
   const map = (p: readonly [number, number]): Pair => {
     const x = p[0] - cx
     const y = p[1] - cy
-    return [r3(cx + cos * x - sin * y), r3(cy + sin * x + cos * y)]
+    return [exact(cx + cos * x - sin * y), exact(cy + sin * x + cos * y)]
   }
   const sides = ['north', 'west', 'south', 'east'] as const
   const turned = (side: string): string => {

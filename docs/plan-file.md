@@ -10,7 +10,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [What kind of building it is, and what each room is for](#what-kind-of-building-it-is-and-what-each-room-is-for): `plan/not-checked-sizes-for-building`, `plan/not-checked-escapes-for-building`, `floor/not-checked-sizes-for-building`, `floor/not-checked-escapes-for-building`, `plan/unknown-use`
 - [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
-- [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `room/stair-shifted`, `room/lift-shifted`
+- [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`
 - [Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground): `opening/below-ground`
 - [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `opening/missing-wall`
@@ -305,13 +305,28 @@ out (`room/cross-floor`).
 
 Floors are drawn one over the other, each with its own walls, so widening one floor leaves the one
 above where it was (lab E-9). The drawing's checks set each floor's outline, as its walls draw it,
-against the floors one level below: where it reaches past them, or sits back from them, by more
+against the floors below it: where it reaches past them, or sits back from them, by more
 than 0.05 m (`stackShift`) and half the thickest wall that stretch runs along (walls of different
 thickness on one axis have their faces that far apart), it says so, with the side, by how much and the box
 of each stretch (`floor/out-of-line`, a warning). A floor that lies wholly inside the floors
 below, such as a mezzanine, a part upper floor or the floor over a single-storey extension, is a
 part floor instead: it is said once, with each side it sits back on and how far, the sides it
-lines up with and where it and the floor below stand (`floor/set-back`, a warning, LVL-10). A room used as a stair, or a lift shaft, that
+lines up with and where it and the floor below stand (`floor/set-back`, a warning, LVL-10).
+
+The floors below a floor are those of its own building (each building in `buildings`, and the
+floors no building names together) that stand lower, by their floor levels when a floor states its
+`elevation` (else by `level`), and that lie under its outline by more than a wall they share:
+the two halves of a split level overlap by the wall between them, and neither is under the other.
+A floor covered by a nearer one is left out, so a floor over a ground floor over a basement is set
+against the ground floor (LVL-11). A floor with nothing under it that stands a half level up beside
+a lower floor of its building, less than that floor's clear height above it, is a split level: the
+plan's split levels are said once, each half level with how far up it stands and on which side of
+the floor it steps from (`floor/split-level`, a warning), never as a floor that reaches past the
+floor below. A floor with nothing under it that is no half level, such as one drawn a storey up
+beside the floor below by mistake, is set against the floors of its building at the nearest level
+below it, and said to be out of line.
+
+A room used as a stair, or a lift shaft, that
 lies over the one below enough to join it but is moved from it by more than 0.05 m is said too,
 with which way, how far and where both stand (`room/stair-shifted`, `room/lift-shifted`). A lift
 shaft is the same on every floor, so one whose sides stand off the one below's is said even when it
@@ -803,14 +818,27 @@ An outdoor space is drawn and measured as a room is, and to the building it is t
 - **Slabs and roofs.** On the lowest level an outdoor space stands on the ground: the slab is the
   building's alone. Above it (a balcony, a roof terrace) it stands on a slab, as the floor does. Only
   a roofed one is roofed: the 3D view, the GLB, the OBJ and the IFC put a roof over a porch or a
-  carport and none over an open terrace, a garden or a courtyard (lab EL-18).
+  carport and none over an open terrace, a garden or a courtyard (lab EL-18). An open courtyard or
+  light well above the lowest level that lies over open sky on the floor below has no slab either:
+  the sky reaches down through every floor of it (LVL-12). A roofed outdoor space on a floor with
+  no building to roof with it (a canopy on columns, drawn alone) is roofed at its stated `height`,
+  else at the height of the tallest column standing in it, else at the storey's height; beside
+  the building it is roofed with the floor, at the storey's height.
+- **A courtyard not drawn as a room.** Floor the walls enclose that no room on its floor claims is
+  read as floor someone has not drawn yet. It is read as open sky instead (LVL-12) when a window in
+  a wall of a room looks into it, or when the greater part of it lies over open sky on the floor
+  below (an open outdoor space there, or floor read as open sky the same way). Open sky has no slab
+  and no roof in any view, export or section, a wall beside it faces outside, and the check does
+  not call it floor no room claims. The areas still count it as floor no room claims: draw it as
+  `outdoor: "courtyard"` to take it off them.
 - **Exports.** The IFC writes it as an external space (`EXTERNAL`, `IsExternal` true), and
   `Grid_Space` holds its kind and whether it is roofed; its area there is outdoor area. In the GLB
   its floor's node carries `extras.gridOutdoor` and `extras.gridRoofed`; in the OBJ a comment
   `# grid-outdoor <kind> roofed=<true|false>` comes before its floor.
 - **Rooms text.** A room line may end `outdoor <kind>` and then `roofed` or `unroofed`
   ([rooms-first.md](rooms-first.md)). A room marked `outdoor: true` has no words of its own there,
-  so its floor is read back raw.
+  so its floor is read back raw. The wall rooms text works out between a room and an outdoor space
+  is an outside wall, `exterior` at the outside thickness, unless a line states it.
 
 Both fields are optional and never defaulted, so a plan with no outdoor space reads, checks and
 exports exactly as before (version 1).
@@ -1235,7 +1263,7 @@ the kind, the part and the handing.
 
 | Code | What it says |
 |---|---|
-| `opening/wide-single-leaf` | A door at least 1.5 m wide (`wideSingleLeaf`) states no kind, so it is drawn and checked as one swinging leaf that wide: say its kind (lab EL-5: 176 of the lab's doors) |
+| `opening/wide-single-leaf` | A door at least 1.5 m wide (`wideSingleLeaf`) states no kind, so it is checked as one swinging leaf that wide and drawn as Grid's guess, a pair or a sliding door (VEW-22): say its kind (lab EL-5: 176 of the lab's doors) |
 | `opening/kind-not-for-type` | A kind its type does not take, such as a window that is a `garage`, or any kind on a doorless opening. It is drawn as one with no kind |
 | `opening/part-too-large` | A part that opens wider or higher than the opening, or on a fixed window or a doorless opening. It is taken as the whole opening |
 | `floor/not-checked-door-swings` | Not checked: the doors on a floor whose kind swings or folds and that state neither `hinge` nor `swing`. Each is drawn with a "?" on a sheet and its sweep is not checked |
