@@ -137,6 +137,12 @@ export const saids = {
   openingTooSmall: (room: string): Said => said('check.openingTooSmall', { room: name(room) }),
   /** MSG-17 (lab CH-6): a door onto outside floor closed in on every side, with no way on to the open air. */
   doorIntoClosedCourt: (room: string): Said => said('check.doorIntoClosedCourt', { room: name(room) }),
+  /**
+   * LVL-17: a door or doorless opening between rooms whose floors stand further apart than a step.
+   * The levels and the rise in metres as the check prints them; the lower room first.
+   */
+  doorBetweenLevels: (kind: 'door' | 'opening', lower: string, lowerAt: string, upper: string, upperAt: string, rise: string): Said =>
+    said(`check.doorBetweenLevels.${kind}`, { lower: name(lower), lowerAt: num(lowerAt), upper: name(upper), upperAt: num(upperAt), rise: num(rise) }),
   /** MSG-17 (lab AB-1): a let left only through other lets' rooms; `flat` when the let is a flat. */
   letThroughAnotherLet: (lot: string, through: readonly string[], flat: boolean): Said =>
     said(flat ? 'check.letThroughAnotherLet.flat' : 'check.letThroughAnotherLet', { let: name(lot), through: joined(through.map(name), 'join.comma', 'join.and') }),
@@ -172,6 +178,7 @@ export const wordings = {
   belowGround: (...args: Parameters<typeof saids.belowGround>): WordingPart[] => parts(saids.belowGround(...args)),
   openingTooSmall: (room: string): WordingPart[] => parts(saids.openingTooSmall(room)),
   doorIntoClosedCourt: (room: string): WordingPart[] => parts(saids.doorIntoClosedCourt(room)),
+  doorBetweenLevels: (...args: Parameters<typeof saids.doorBetweenLevels>): WordingPart[] => parts(saids.doorBetweenLevels(...args)),
   letThroughAnotherLet: (lot: string, through: readonly string[], flat: boolean): WordingPart[] => parts(saids.letThroughAnotherLet(lot, through, flat))
 }
 
@@ -258,5 +265,6 @@ export const messages = {
   doorOutAboveGround: (room: string, height: string): string => english(saids.doorOutAboveGround(room, height)),
   belowGround: (...args: Parameters<typeof saids.belowGround>): string => english(saids.belowGround(...args)),
   openingTooSmall: (room: string): string => english(saids.openingTooSmall(room)),
-  doorIntoClosedCourt: (room: string): string => english(saids.doorIntoClosedCourt(room))
+  doorIntoClosedCourt: (room: string): string => english(saids.doorIntoClosedCourt(room)),
+  doorBetweenLevels: (...args: Parameters<typeof saids.doorBetweenLevels>): string => english(saids.doorBetweenLevels(...args))
 }

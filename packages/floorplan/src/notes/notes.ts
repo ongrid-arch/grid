@@ -189,6 +189,19 @@ export function planNotes(plan: FloorPlan, report: RulesReport): PlanNotesView {
           title: wordings.doorIntoClosedCourt(roomName(room!)),
           detail: [words(english(said('check.detail.doorIntoClosedCourt')))]
         }
+      // LVL-17: a door between floors further apart than a step, named with both levels.
+      case 'door_between_levels': {
+        const l = finding.levels
+        const kind = doors.has(finding.openings[0] ?? '') ? 'door' : 'opening'
+        return {
+          ...base,
+          title:
+            l === undefined
+              ? [words(finding.message)]
+              : wordings.doorBetweenLevels(kind, roomName(l.lower.room), metresText(l.lower.at), roomName(l.upper.room), metresText(l.upper.at), metresText(l.rise, 2, limit('passableRise'))),
+          detail: [words(english(said('check.detail.doorBetweenLevels')))]
+        }
+      }
       case 'let_through_another_let': {
         const lets = finding.lets
         const who = finding.flat !== undefined ? flatName(finding.flat) : roomName(room!)

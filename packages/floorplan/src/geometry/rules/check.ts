@@ -13,7 +13,7 @@ import { validatePlan } from '../validate'
 import { floorElevations } from '../elevations'
 import { groundLevel, openingsBelowGround } from '../ground'
 import { limit } from '../tolerances'
-import type { ShortOf } from './graph'
+import type { BetweenLevels, ShortOf } from './graph'
 import { metresText } from '../rounding'
 import { LIMITS, RULES } from './catalogue'
 import { floorGraph, roomOutlines } from './graph'
@@ -53,6 +53,8 @@ const RULE_OF: Record<FindingCode, string> = {
   opening_too_small_to_pass: 'room-has-door',
   // MSG-17: a way out leads to open air, and a let is left through common parts.
   door_into_closed_court: 'door-leads-somewhere',
+  // LVL-17: a door onto a floor much higher than its own leads nowhere a person can walk.
+  door_between_levels: 'door-leads-somewhere',
   let_through_another_let: 'room-reaches-exit',
   opening_below_ground: 'openings-above-ground',
   setback_short: 'site-boundary',
@@ -138,6 +140,8 @@ function floorFindings(
     ...graph.openEdges.map((e) => e.room),
     ...graph.betweenHomes.flatMap((l) => l.rooms),
     ...graph.closedCourts.map((u) => u.room),
+    // LVL-17: a room whose only door meets a floor much higher has a door, and no route through it.
+    ...graph.betweenLevels.flatMap((b) => [b.lower, b.upper]),
     ...graph.rooms.filter((room) => joined.has(at(floor.id, room)))
   ])
   // A floor that is one open room and that no stair joins is reached by a stair the plan does
@@ -425,6 +429,21 @@ function tooSmallFinding(
   }
 }
 
+/** LVL-17: the finding for a door or doorless opening between floors further apart than a step. */
+function betweenLevelsFinding(opening: Opening, levels: BetweenLevels, floor: string, roomName: (id: string) => string): RuleFinding {
+  const step = limit('passableRise')
+  const rise = metresText(levels.rise, 2, step)
+  const kind = opening.type === 'door' ? 'door' : 'opening'
+  const sentence = saids.doorBetweenLevels(kind, roomName(levels.lower), metresText(levels.lowerAt), roomName(levels.upper), metresText(levels.upperAt), rise)
+  return withSentence(
+    {
+      ...finding('door_between_levels', floor, [levels.lower, levels.upper], english(sentence), [opening.id]),
+      levels: { lower: { room: levels.lower, at: Number(metresText(levels.lowerAt)) }, upper: { room: levels.upper, at: Number(metresText(levels.upperAt)) }, rise: Number(rise) }
+    },
+    sentence
+  )
+}
+
 /**
  * The storey without the walls and openings validation rejects, and the rooms it
  * rejects (including those resting on a rejected wall), which stay in the plan so
@@ -542,6 +561,12 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
       const drawn = openingsById.get(opening)
       if (drawn === undefined) continue
       findings.push(tooSmallFinding(drawn, rooms, short, floor.id, roomName))
+    }
+    // LVL-17: a door between floors further apart than a step, on every floor: named with both levels.
+    for (const levels of graph.betweenLevels) {
+      const drawn = openingsById.get(levels.opening)
+      if (drawn === undefined) continue
+      findings.push(betweenLevelsFinding(drawn, levels, floor.id, roomName))
     }
     outlines.set(floor.id, new Map([...roomOutlines(storey, index, leftOut.rooms)].map(([id, o]) => [id, o.polygon] as const)))
     leftOutOn.set(floor.id, leftOut.rooms)

@@ -647,6 +647,14 @@ export const CODES = {
   'opening/into-closed-court': {
     values: (s): Values => ({ wording: grouped(s, planCheckSaids.doorIntoClosedCourt(s.name)) })
   },
+  // LVL-17: a door between floors further apart than a step: the rise as drawn and Grid's own step.
+  'opening/between-levels': {
+    values: (s): Values => ({
+      wording: s.finding?.said ?? s.finding?.message ?? s.label,
+      rise: num(metresText(s.finding?.levels?.rise ?? 0, 2, tolerance('passableRise'))),
+      step: num(metresText(tolerance('passableRise')))
+    })
+  },
   'room/through-another-let': {
     values: (s): Values => ({ wording: s.finding?.said ?? s.finding?.message ?? s.label })
   },
