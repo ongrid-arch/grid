@@ -803,14 +803,27 @@ An outdoor space is drawn and measured as a room is, and to the building it is t
 - **Slabs and roofs.** On the lowest level an outdoor space stands on the ground: the slab is the
   building's alone. Above it (a balcony, a roof terrace) it stands on a slab, as the floor does. Only
   a roofed one is roofed: the 3D view, the GLB, the OBJ and the IFC put a roof over a porch or a
-  carport and none over an open terrace, a garden or a courtyard (lab EL-18).
+  carport and none over an open terrace, a garden or a courtyard (lab EL-18). An open courtyard or
+  light well above the lowest level that lies over open sky on the floor below has no slab either:
+  the sky reaches down through every floor of it (LVL-12). A roofed outdoor space on a floor with
+  no building to roof with it (a canopy on columns, drawn alone) is roofed at its stated `height`,
+  else at the height of the tallest column standing in it, else at the storey's height; beside
+  the building it is roofed with the floor, at the storey's height.
+- **A courtyard not drawn as a room.** Floor the walls enclose that no room on its floor claims is
+  read as floor someone has not drawn yet. It is read as open sky instead (LVL-12) when a window in
+  a wall of a room looks into it, or when the greater part of it lies over open sky on the floor
+  below (an open outdoor space there, or floor read as open sky the same way). Open sky has no slab
+  and no roof in any view, export or section, a wall beside it faces outside, and the check does
+  not call it floor no room claims. The areas still count it as floor no room claims: draw it as
+  `outdoor: "courtyard"` to take it off them.
 - **Exports.** The IFC writes it as an external space (`EXTERNAL`, `IsExternal` true), and
   `Grid_Space` holds its kind and whether it is roofed; its area there is outdoor area. In the GLB
   its floor's node carries `extras.gridOutdoor` and `extras.gridRoofed`; in the OBJ a comment
   `# grid-outdoor <kind> roofed=<true|false>` comes before its floor.
 - **Rooms text.** A room line may end `outdoor <kind>` and then `roofed` or `unroofed`
   ([rooms-first.md](rooms-first.md)). A room marked `outdoor: true` has no words of its own there,
-  so its floor is read back raw.
+  so its floor is read back raw. The wall rooms text works out between a room and an outdoor space
+  is an outside wall, `exterior` at the outside thickness, unless a line states it.
 
 Both fields are optional and never defaulted, so a plan with no outdoor space reads, checks and
 exports exactly as before (version 1).
