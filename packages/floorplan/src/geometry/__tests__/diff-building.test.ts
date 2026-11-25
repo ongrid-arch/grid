@@ -219,3 +219,77 @@ describe('a door of another kind (CNT-14 with WRT-8)', () => {
     expect(line(renamedAndMoved(after, [3, -2]))).toContain('now sliding')
   })
 })
+
+/**
+ * The flat with every point east of `line` moved `by` further east, as `grid_move_room_side`
+ * moves it: an opening on a wall that grew at its start keeps its place in the building.
+ */
+function sideMovedEast(plan: FloorPlan, line: number, by: number): FloorPlan {
+  const east = (p: readonly [number, number]): boolean => p[0] >= line
+  const out = (p: readonly [number, number]): [number, number] => [east(p) ? p[0] + by : p[0], p[1]]
+  const grewAtStart = new Set(plan.walls.filter((w) => east(w.start) && !east(w.end)).map((w) => w.id))
+  return {
+    ...plan,
+    walls: plan.walls.map((w) => ({ ...w, start: out(w.start), end: out(w.end) })),
+    openings: plan.openings.map((o) => (grewAtStart.has(o.wall) ? { ...o, offset: o.offset + by } : o))
+  }
+}
+
+describe('openings on a wall that moved (WRT-12)', () => {
+  it('says the windows on a side moved 0.5 m east moved with their wall, and not that they stayed', () => {
+    const before = flat()
+    const after = sideMovedEast(before, 9, 0.5)
+    const compared = compareBuildings(before, after)
+    expect(compared.stayed).toEqual([])
+    expect(compared.movedWith.map((m) => m.text)).toEqual([
+      'Window "win-bath" moved with its wall, 0.50 m east on the drawing, in "Bathroom"',
+      'Window "win-bed2" moved with its wall, 0.50 m east on the drawing, in "Bedroom 2"'
+    ])
+    expect(compared.movedWith[0]).toMatchObject({ opening: 'win-bath', with: 'wall' })
+    expect(compared.movedWith[0]!.by[0]).toBeCloseTo(0.5, 6)
+    expect(compared.movedWith[0]!.by[1]).toBeCloseTo(0, 6)
+    expect(compared.verdict).toContain('2 openings moved with their walls')
+    // They follow from the wall: no change line of their own.
+    expect(compared.changes.some((c) => c.entities.some((e) => e.type === 'opening'))).toBe(false)
+  })
+
+  it('after a stretch north, says the entrance moved with its wall, and nothing of the openings on the walls that grew', () => {
+    const before = flat()
+    const north = (p: readonly [number, number]): [number, number] => [p[0], p[1] >= 7 ? p[1] + 0.5 : p[1]]
+    // The west wall runs north to south: it grows at its start, so its windows keep their place by a longer offset.
+    const after: FloorPlan = {
+      ...before,
+      walls: before.walls.map((w) => ({ ...w, start: north(w.start), end: north(w.end) })),
+      openings: before.openings.map((o) => (o.wall === 'ext-west' ? { ...o, offset: o.offset + 0.5 } : o))
+    }
+    const compared = compareBuildings(before, after)
+    expect(compared.movedWith.map((m) => m.text)).toEqual(['Door "door-entrance" moved with its wall, 0.50 m north on the drawing, in "Hall"'])
+    // The walls that only grew at their north end carried nothing: their openings are not named at all.
+    expect(compared.stayed).toEqual([])
+    expect(compared.changes.some((c) => c.entities.some((e) => e.type === 'opening'))).toBe(false)
+  })
+
+  it('pairs a window whose wall moved and whose id changed with itself, by its place along the wall', () => {
+    const before = flat()
+    const moved = sideMovedEast(before, 9, 0.5)
+    const after: FloorPlan = { ...moved, openings: moved.openings.map((o) => (o.wall === 'ext-east' ? { ...o, id: `${o.id}-new` } : o)) }
+    const compared = compareBuildings(before, after)
+    expect(compared.changes.map((c) => c.text).filter((t) => /Window (added|removed)/.test(t))).toEqual([])
+    expect(compared.renamed.pairs).toContainEqual({ type: 'opening', before: 'win-bath', after: 'win-bath-new' })
+    expect(compared.movedWith.map((m) => m.opening)).toEqual(['win-bath-new', 'win-bed2-new'])
+  })
+
+  it('marks a wall moved 2 cm and an opening widened as changed, not as added', () => {
+    const before = flat()
+    const after: FloorPlan = {
+      ...before,
+      walls: before.walls.map((w) => (w.id === 'spine' ? { ...w, start: [4.62, 0], end: [4.62, 7.6] } : w)),
+      openings: before.openings.map((o) => (o.id === 'door-bed1' ? { ...o, width: 0.9 } : o))
+    }
+    const { marks } = compareBuildings(before, after)
+    expect(marks.added).toEqual({ walls: [], openings: [], rooms: [] })
+    expect(marks.removed).toEqual({ walls: [], openings: [], rooms: [] })
+    expect(marks.changed.walls).toEqual(['spine'])
+    expect(marks.changed.openings).toContain('door-bed1')
+  })
+})

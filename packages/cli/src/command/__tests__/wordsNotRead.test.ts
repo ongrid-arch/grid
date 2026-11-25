@@ -31,7 +31,7 @@ const PLAN = {
   openings: [{ id: 'd', wall: 's', type: 'door', offset: 1, width: 0.9, height: 2.1 }],
 }
 writeFileSync(join(dir, 'plan.json'), JSON.stringify(PLAN))
-writeFileSync(join(dir, 'empty.json'), '{}')
+writeFileSync(join(dir, 'empty.json'), '{"version":"1","units":"m","walls":[],"rooms":[],"openings":[]}')
 
 describe('grid check', () => {
   const project = openProject(dir, dir)

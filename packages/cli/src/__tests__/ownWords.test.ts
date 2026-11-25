@@ -44,9 +44,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
   'packages/cli/src/command/edit.ts': [9, 'command'],
   'packages/cli/src/command/export.ts': [17, 'command'],
-  'packages/cli/src/command/init.ts': [15, 'command'],
+  'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
-  'packages/cli/src/command/main.ts': [63, 'command'],
+  'packages/cli/src/command/main.ts': [59, 'command'],
   'packages/cli/src/command/options.ts': [9, 'command'],
   'packages/cli/src/command/plan.ts': [29, 'command'],
   'packages/cli/src/command/planText.ts': [19, 'command'],
@@ -55,8 +55,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-6: four more, the help of --scale, --paper, --floor and --room-sizes.
   'packages/cli/src/command/sheet.ts': [7, 'command'],
   'packages/cli/src/command/tidy.ts': [12, 'command'],
-  'packages/cli/src/command/write.ts': [32, 'command'],
-  'packages/cli/src/describe/card.ts': [13, 'agentForm'],
+  'packages/cli/src/command/write.ts': [35, 'command'],
+  // ARE-18: one more, the agent's line for a way in across open sides.
+  'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
   'packages/cli/src/describe/walk.ts': [4, 'agentForm'],
   // CMD-7: three of its skill's paragraphs are in guide/paragraphs.ts now.
@@ -72,7 +73,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/edits.ts': [56, 'notYet'],
   'packages/cli/src/edit/merge.ts': [25, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
-  'packages/cli/src/edit/phases.ts': [4, 'notYet'],
+  'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
   'packages/cli/src/edit/split.ts': [20, 'notYet'],
@@ -89,7 +90,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/guide.ts': [98, 'agent'],
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
-  'packages/cli/src/mcp/briefTool.ts': [44, 'tools'],
+  'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
+  'packages/cli/src/mcp/briefTool.ts': [46, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   'packages/cli/src/mcp/editTools.ts': [84, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
@@ -100,13 +102,14 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-14: one more, grid_areas' description of the party walls, free floor and outdoor_rules.
   // CNT-19: one more, grid_takeoff's description of the parking bays and the ramps.
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
-  'packages/cli/src/mcp/readTools.ts': [319, 'tools'],
+  // ARE-18: two more, why a route's walked length is not given.
+  'packages/cli/src/mcp/readTools.ts': [322, 'tools'],
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   'packages/cli/src/mcp/serveTools.ts': [1, 'tools'],
-  'packages/cli/src/mcp/toolkit.ts': [27, 'agent'],
+  'packages/cli/src/mcp/toolkit.ts': [26, 'agent'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   'packages/cli/src/mcp/writeTools.ts': [128, 'tools'],
@@ -116,7 +119,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/access.ts': [49, 'notYet'],
   'packages/cli/src/quantities/areas.ts': [9, 'notYet'],
   'packages/cli/src/quantities/change.ts': [18, 'notYet'],
-  'packages/cli/src/quantities/compare.ts': [20, 'notYet'],
+  'packages/cli/src/quantities/compare.ts': [25, 'notYet'],
   'packages/cli/src/quantities/estimate.ts': [33, 'notYet'],
   'packages/cli/src/quantities/finishes.ts': [2, 'notYet'],
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
@@ -142,7 +145,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/sheet/fonts.ts': [1, 'developer'],
   // SHT-6: nine more, the drawing's refusals, its answer line and its file note.
   'packages/cli/src/sheet/sheetFile.ts': [16, 'command'],
-  'packages/cli/src/versions/diff.ts': [10, 'notYet'],
+  // WRT-12: one more, the heading of the openings that moved with their wall or room.
+  'packages/cli/src/versions/diff.ts': [11, 'notYet'],
   'packages/cli/src/versions/git.ts': [19, 'notYet'],
   'packages/cli/src/versions/markers.ts': [19, 'notYet'],
   'packages/floorplan/src/geometry/areas.ts': [37, 'notYet'],
@@ -179,7 +183,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/geometry/wallFaults.ts': [3, 'notYet'],
   'packages/floorplan/src/notes/notes.ts': [18, 'notYet'],
   'packages/floorplan/src/rooms/answer.ts': [6, 'notYet'],
-  'packages/floorplan/src/rooms/compile.ts': [125, 'notYet'],
+  // WRT-14: four fewer, the floor line's refusals moved into the message files.
+  'packages/floorplan/src/rooms/compile.ts': [121, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   'packages/floorplan/src/rooms/read.ts': [23, 'notYet'],
   'packages/floorplan/src/rooms/words.ts': [4, 'notYet'],
@@ -301,7 +306,13 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // rule (library/answer.ts 9), the office folder's problems (library/office.ts 6), the
     // library's refusals (library/index.ts 4), the schema's library mark (floorplan.ts 1) and
     // describe's furniture heading (1) (reviews/CNT-20.md).
-    expect(left).toBeLessThanOrEqual(1586)
+    // and WRT-11 5: the verdict's room and opening counts (compare.ts).
+    // and WRT-16 3: write's refusals of rooms text with no rooms and of floors it would drop,
+    // and its line on the floors dropped (command/write.ts) (odd/tasks/WRT-16.md).
+    // and WRT-15 4: the room edits' receipts in a plan with phases (edit/phases.ts).
+    // describe's furniture heading (1) (reviews/CNT-20.md); and WRT-12 1: grid diff's heading for
+    // the openings that moved with their wall or room (versions/diff.ts).
+    expect(left).toBeLessThanOrEqual(1599)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

@@ -7,8 +7,9 @@
  * - the walls, split into what has substance (`wallParts`: runs, and the sill and lintel round each
  *   door and window), with their corners joined as the plan joins them (`wallJoints`);
  * - the slabs, the roofs and the parapets (`planEnvelope`, LVL-4), open over stairs, lifts and voids;
- * - the stairs the plan states, tread by tread and landing by landing, solid from the foot
- *   (`stairBlocks`, LVL-3);
+ * - the stairs the plan states (LVL-3), as they are built (VEW-11, `stairSection.ts`): each flight
+ *   its treads and risers over a waist with the soffit beneath, each landing a slab, nothing
+ *   solid down to the floor the stair leaves;
  * - the floor of each raised room (LVL-7), solid from its storey's floor up;
  * - the ground the site states (LVL-4), and which side of each cut wall is outside (MSG-13, CNT-3);
  * - the plinth under a floor on the ground whose slab stands clear of that ground (VEW-16,
@@ -23,7 +24,7 @@
  * connected shapes (SE-5: not a rectangle per wall).
  *
  * What lies beyond the cut is given as faces, each with how far beyond it is: the faces of walls,
- * slab and roof edges and stair blocks that face the person looking, as seen on the cut, with
+ * slab and roof edges and stairs (a flight's sides as its profile) that face the person looking, as seen on the cut, with
  * their doors and windows open. Drawn from the farthest to the nearest, each over the last, they
  * hide what lies behind them; a face seen edge-on is a line (a corner).
  *
@@ -52,7 +53,7 @@ import { wallJoints } from './joints'
 import { SQUARE_ENDS, wallAxis, wallParts, wallPointAt, wallSegments, wallSlicePolygon, pointAlong } from './wall'
 import { brokenOnFloor } from './validate'
 import { planStairs } from './stairs'
-import { stairBlocks } from './scene3d'
+import { flightProfile, landingLevels, profileRing, stairWaist, type FlightProfile } from './stairSection'
 import { tryRoomShape } from './room'
 import { roomFloorOffset } from './steps'
 import { roomZones } from './zones'
@@ -142,7 +143,7 @@ export interface SectionRoom {
   readonly heightStated: boolean
 }
 
-export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers'
+export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers' | 'waist'
 
 /** Something the section takes that the plan does not state. */
 export interface SectionAssumption {
@@ -561,19 +562,98 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     })
   }
 
-  // The stairs the plan states, tread by tread, solid from the foot (LVL-3).
+  // The stairs the plan states (LVL-3), as they are built (VEW-11): each flight its treads and
+  // risers over a waist and the soffit beneath, each landing a slab, nothing solid to the floor.
   const laid = (plan.stairs ?? []).length === 0 ? [] : planStairs(plan, brokenOnFloor).stairs
   const workedRisers: string[] = []
+  const waisted: string[] = []
   for (const stair of laid) {
     const rings: Vec2[][] = []
-    for (const block of stairBlocks(stair, 0).blocks) {
-      for (const [x0, x1] of inside(frame, [block.outline])) rings.push(rect(snap, x0, x1, block.bottom, block.top))
-      ringFaces('stair', stair.id, stair.lower.floor, block.outline, block.bottom, block.top)
+    for (const flight of stair.flights) {
+      const profile = flightProfile(stair, flight)
+      const along = profile.length > none ? scale(sub(flight.to, flight.from), 1 / profile.length) : frame.right
+      const sOf = (x: number): number => dot(sub(add(frame.start, scale(frame.right, x)), flight.from), along)
+      for (const [x0, x1] of inside(frame, [flight.outline])) {
+        const ring = profileRing(profile, x0, sOf(x0), x1, sOf(x1), snap)
+        if (ring.length >= 3 && Math.abs(signedArea(ring)) > 0) rings.push(ring)
+      }
+      flightFaces(stair, flight, profile, along)
+    }
+    for (const landing of stair.landings) {
+      const { bottom, top } = landingLevels(stair, landing.risersBelow)
+      for (const [x0, x1] of inside(frame, [landing.outline])) rings.push(rect(snap, x0, x1, bottom, top))
+      ringFaces('stair', stair.id, stair.lower.floor, landing.outline, bottom, top)
     }
     if (rings.length > 0) {
       parts.push({ kind: 'stair', id: stair.id, floor: stair.lower.floor, rings })
       if (!stair.risersStated) workedRisers.push(stair.id)
+      if (stair.flights.length > 0) waisted.push(stair.id)
     }
+  }
+
+  /**
+   * A flight's faces beyond the cut (VEW-11): its two sides, each its profile; each riser, one
+   * riser tall; its upper end, from the soffit to its last tread, which also stands for the soffit
+   * seen from above the flight.
+   */
+  function flightFaces(stair: (typeof laid)[number], flight: (typeof laid)[number]['flights'][number], profile: FlightProfile, along: Vec2): void {
+    const half = stair.width / 2
+    const side = scale(perp(along), half)
+    const ends = (s: number): [Vec2, Vec2] => {
+      const at = add(flight.from, scale(along, s))
+      return [add(at, side), sub(at, side)]
+    }
+    const [lFoot, rFoot] = ends(0)
+    const [lTop, rTop] = ends(profile.length)
+    sideFace(stair, profile, lFoot, lTop, perp(along))
+    sideFace(stair, profile, rFoot, rTop, scale(perp(along), -1))
+    flight.riserLines.forEach(([a, b], k) => {
+      face('stair', stair.id, stair.lower.floor, a, b, scale(along, -1), profile.lower + k * stair.riserHeight, profile.lower + (k + 1) * stair.riserHeight)
+    })
+    face('stair', stair.id, stair.lower.floor, lTop, rTop, along, profile.bottomAt(profile.length), profile.topAt(profile.length))
+  }
+
+  /** A side of a flight, from its foot `a` to its top `b`, facing `outward`: the flight's profile. */
+  function sideFace(stair: (typeof laid)[number], profile: FlightProfile, a: Vec2, b: Vec2, outward: Vec2): void {
+    const facing = dot(outward, frame.look)
+    let da = beyondOf(frame, a)
+    let db = beyondOf(frame, b)
+    if ((da <= none && db <= none) || facing > squareFace) return
+    let sa = 0
+    let sb = profile.length
+    if (da < 0 || db < 0) {
+      const t = da / (da - db)
+      if (da < 0) {
+        sa = t * profile.length
+        da = 0
+      } else {
+        sb = t * profile.length
+        db = 0
+      }
+    }
+    const xAt = (s: number): number => across(frame, add(a, scale(sub(b, a), s / profile.length)))
+    let xa = xAt(sa)
+    let xb = xAt(sb)
+    if (facing >= -squareFace || Math.abs(xb - xa) <= none) {
+      // Seen edge-on: a line at its nearest point, from the soffit's lowest to the highest tread.
+      const x = da <= db ? xa : xb
+      if (x < -none || x > frame.length + none) return
+      faces.push({ kind: 'stair', id: stair.id, floor: stair.lower.floor, depth: Math.min(da, db), pieces: [], edge: [{ x: snap(x), y: snap(profile.bottomAt(sa)) }, { x: snap(x), y: snap(profile.topAt(sb)) }] })
+      return
+    }
+    // Kept within the line: where x leaves [0, length], so does the piece of the side.
+    const sAtX = (x: number): number => sa + ((x - xa) / (xb - xa)) * (sb - sa)
+    if (Math.min(xa, xb) < 0 || Math.max(xa, xb) > frame.length) {
+      const lo = Math.max(0, Math.min(xa, xb))
+      const hi = Math.min(frame.length, Math.max(xa, xb))
+      if (!(hi - lo > none)) return
+      const [na, nb] = xa <= xb ? [lo, hi] : [hi, lo]
+      ;[sa, sb] = [sAtX(na), sAtX(nb)]
+      ;[xa, xb] = [na, nb]
+    }
+    const ring = profileRing(profile, xa, sa, xb, sb, snap)
+    if (ring.length < 3) return
+    faces.push({ kind: 'stair', id: stair.id, floor: stair.lower.floor, depth: (da + db) / 2, pieces: [{ outline: ring, holes: [] }], edge: null })
   }
 
   // The ground: outside the floors that meet it, where the line crosses them, run past the building
@@ -652,6 +732,9 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
   if (workedRisers.length > 0) {
     taken({ kind: 'risers', ids: workedRisers, hatched: false, pieces: [] }, said('drawing.section.taken.risers', { ids: ids(workedRisers) }))
+  }
+  if (waisted.length > 0) {
+    taken({ kind: 'waist', ids: waisted, hatched: false, pieces: [] }, said('drawing.section.taken.waist', { ids: ids(waisted), waist: num(metresText(stairWaist())) }))
   }
 
   const cut = joined(parts.flatMap((p) => p.rings))

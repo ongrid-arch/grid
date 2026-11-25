@@ -43,8 +43,13 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid diff [<plan>] [--since <name>\|git\|phase] [--rooms <ids>] [--show all\|summary\|changes\|issues] [--picture <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
 | `grid occupancy [<plan>]` | Lists who sits where, by room, from the occupancy file beside the plan; no export carries it (see below) |
 | `grid preview [<plan>] [--port <n>]` | Serves the preview as a page on this computer only: the plan in 2D and 3D, the part you click shared with the agent, the room it frames and the parts it picks out; it draws again within 2 s of the plan changing (see below) |
-| `grid serve` | Starts the tool server on standard input and output, with the 33 tools in [the tool server](tool-server.md) |
+| `grid serve` | Starts the tool server on standard input and output, with the 34 tools in [the tool server](tool-server.md) |
 | `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`) |
+
+A plan is told by what it holds: a list of walls, rooms or openings, or the stamp Grid writes. `grid write` never
+writes a plan into `grid.json`, into a file Grid keeps beside a plan (`<plan>.markers.json`, `.seen.json`,
+`.brief.json`, `.preview.json`, `.scan.json`) or into a JSON file that holds none of those, and `--replace` does not
+change that; every command that reads a plan refuses such a file in one line.
 
 ## Options and exit codes
 
@@ -76,7 +81,9 @@ With no folder, `grid init` starts the project in the folder it runs in. A folde
 project when it holds `grid.json`. In a Grid project (the folder Grid runs in, or the one
 named with `--project`), `check`, `describe`, `draw`, `export` and `sheet` read `plan.json` when no
 plan file is named, and `export` writes into `exports/`. A plan file named on the command line is used
-instead. Outside a Grid project a plan file must be named.
+instead. With no `grid.json` the same holds (CMD-18): the folder's own `plan.json` is the plan, for reading
+and for writing, in the commands and in the tool server. When it is not there, the refusal says which
+folder and file Grid looked in and what to do, and `grid_project` lists what the folder holds.
 
 `grid init` never replaces a file. It refuses, changing nothing, a folder that already
 holds `grid.json` (a second `grid init`) or `plan.json`, or a file named `exports`. Any
@@ -493,13 +500,22 @@ names. A repository whose `.git` is above the project folder is outside it, and 
 The two versions are compared by what stands where in the building, not by ids. The earlier
 plan is laid on the later one, moved to its origin when that lines up more walls; each wall is
 paired with the wall standing in its place, either way round, its ends within `diffPlace`
-(5 cm) of each other ([tolerances](tolerances.md)), each opening with the opening at its place and
+(5 cm) of each other ([tolerances](tolerances.md)), each opening with the opening at its place (or, its wall moved, with the opening of its
+kind at its place along the paired wall) and
 each room with the room on the same walls or the same floor; what is left is paired by id. A
 point that slipped by less than a centimetre has not moved. A room's walls are compared as a
 ring: the same walls from another wall, or the other way round, are the same room. A plan
 written rooms first in both versions is compared by its rooms and openings, whose names you
-chose: a room that kept its size and moved is said to have moved, and an opening that kept its
-place along its wall in one of its rooms is said to have stayed where it was.
+chose: a room that kept its size and moved is said to have moved.
+
+A door or window with no change of its own is said by where it went in the building. One that
+moved with its wall, or with a room that moved as it was, is said to have moved with it, how far
+and which way on the drawing: after `grid edit move-side --room bed1 --side east --by 0.5` on the
+two-bedroom flat, `Window "win-bath" moved with its wall, 0.50 m east on the drawing, in
+"Bathroom"`. One whose wall moved or was replaced while it kept its place in the building (one of
+its faces where it was) is said to have stayed where it was. Neither is a change line: they follow
+from the wall or room, and the verdict counts the ones that moved (`2 openings moved with their
+walls`).
 
 Before anything is paired, the later plan is tried as the earlier one mirrored left to right or
 top to bottom, turned a quarter either way or half round, or mirrored across a diagonal. When
@@ -521,13 +537,14 @@ The answer, in this order:
   renamed (9 walls, 13 openings, 6 rooms): every room, wall and opening stands where it stood.`
 - **Rooms** that changed, moved, came or went, with their old and new net area.
 - **Changes**, one line each; walls changed the same way are one line
-  (`9 walls height 2.60 → 2.70 m: …`). Then the openings that kept their place though their
-  wall changed or their room moved.
+  (`9 walls height 2.60 → 2.70 m: …`). Then the openings that moved with their wall or room,
+  and the openings that stayed where they were though their wall moved or was replaced.
 
 `--show summary` stops after the rooms, `--show issues` gives the issues alone, and `--json` the
 same as data. `--picture d.png` writes the comparison as a picture of one floor (the first with
-a change, or `--floor`): what was removed in red, what was added in green, the rooms that
-changed in amber with their old and new area, and the rest pale. When nothing changed it draws
+a change, or `--floor`): what was removed in red, what was added in green, what changed in
+amber (a wall that moved or an opening that changed at its new place, with its old place outlined;
+a room with its old and new area), and the rest pale. A wall that moved is never drawn as added. When nothing changed it draws
 nothing and says so.
 
 ## Walls that do not meet: `grid tidy`
@@ -734,9 +751,13 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
 
 - **What the line cuts** is drawn solid in the walls' tone, under the heavy outline the plan's cut
   walls have: the walls, with the sill and lintel round each door and window, the slab of each
-  floor (open over a stair, a lift shaft or a void), the roof and any parapet, the treads and
-  landings of a stair the plan states, and the floor of a raised room. Parts that touch are one
-  shape, not a rectangle each.
+  floor (open over a stair, a lift shaft or a void), the roof and any parapet, a stair the plan
+  states, and the floor of a raised room. Parts that touch are one shape, not a rectangle each.
+  A stair is cut as it is built (VEW-11): each flight its treads and risers over a waist, with
+  the soffit beneath it parallel to its slope, joined to its landings, which are slabs; nothing
+  under a flight or a landing is filled down to the floor. The waist is 0.15 m under the roots of
+  the steps, square to the slope (`stairWaist` in [tolerances.md](tolerances.md)), and a landing
+  at least one riser thick.
 - **What lies beyond the cut** is drawn in a lighter line, the one a facade draws its faces set
   back in: the faces of walls, slab and roof edges and stairs that face you, with their doors and
   windows open, each hiding what is behind it.
@@ -752,7 +773,8 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   it is cut: a slab whose thickness the floor does not state, every roof (flat, as LVL-4 takes
   it), a wall whose height nothing states or that the plan marks assumed. A level worked out from
   the floors below, a ground level the site does not state, a room height taken from the storey,
-  a stair room with no stated stair and a stair's worked-out risers are listed, not hatched.
+  a stair room with no stated stair, a stair's worked-out risers and the waist its flights are
+  drawn with are listed, not hatched.
   `grid draw` says on standard error how many it hatched and listed.
 - **A roof the floor states** (`floors[].roof`, LVL-6) stands at its eaves. A section does not
   draw a sloped roof's slope yet, nor cut the walls under it to the roof: it draws the roof flat
@@ -816,6 +838,14 @@ floor states (LVL-6), each wall is drawn to the top the roof leaves it, so a gab
 gable, the roof's edges follow its slope, and each plane of it that comes down toward the side is
 drawn as a surface.
 
+A sloped roof's plane is drawn as a roof (VEW-12), never as a blank face: its covering as level
+courses along its eaves (1.5 mm apart on paper, 6 pixels on the screen), its ridge and hips in the
+front plane's pen, its eaves, verges and abutments in its own, and a gutter along each eaves. An
+agent reads the same lines from the facade: each band along a sloped roof's edge says which edge
+it is (`edge`: `eaves`, `ridge`, `hip`, `verge` or `abutment`, where the roof meets more of the
+building above), and each plane lists its edges as seen (`roofLines`). The roof ends at the
+outside face of its walls, as in the 3D model and the section: the plan states no overhang.
+
 ## A sheet for people: `grid sheet`
 
 `grid sheet [plan.json] --layout client|check` writes the plan as an A3 landscape PDF into
@@ -852,6 +882,13 @@ Every field but `version` is optional. `floors` is keyed by the plan's floor ids
 120 characters, a headline 200, a paragraph 1,200, and `intro` and each floor at most 3
 paragraphs. Each string follows the plan's text rule. Without the file, the sheet carries the
 plan's name and no words: Grid writes none in the author's place. A check sheet takes no words.
+
+The words print above Grid's own figures, so Grid refuses the ones that claim what it never
+says: that the building is accessible, wheelchair-friendly or barrier-free, complies, passes or is
+approved (in English and Spanish). The refusal names the field and the words and writes nothing;
+words inside quotation marks are left alone. When the brief beside the plan holds your access
+figures (`door_width`, `corridor_width`, `turning_circle`), the first page lists the doors,
+corridors and turning spaces that measure under one, as `Under your figure of 0.80 m: ...`.
 
 Grid draws only what the plan holds: no furniture or landscape, and no stair treads but for the
 stairs the plan states. Every figure comes from

@@ -25,9 +25,21 @@ export class RoomsStop extends Error {
 
 /** The words of one line, without its comment. */
 export function wordsOf(line: string, at: number): string[] {
-  const out: string[] = []
+  return quotedWordsOf(line, at).map((w) => w.text)
+}
+
+/** A word of a line, and whether any of it was written in quotes (WRT-14: a floor's name must be). */
+export interface LineWord {
+  readonly text: string
+  readonly quoted: boolean
+}
+
+/** The words of one line, without its comment, each with whether it was written in quotes. */
+export function quotedWordsOf(line: string, at: number): LineWord[] {
+  const out: LineWord[] = []
   let word = ''
   let started = false
+  let quoted = false
   let quote: string | null = null
   for (let i = 0; i < line.length; i++) {
     const c = line[i]!
@@ -44,21 +56,23 @@ export function wordsOf(line: string, at: number): string[] {
     if (c === '"' || c === "'") {
       quote = c
       started = true
+      quoted = true
       continue
     }
     if (c === '#') break
     if (c === ' ' || c === '\t') {
-      if (started) out.push(word)
+      if (started) out.push({ text: word, quoted })
       word = ''
       started = false
+      quoted = false
       continue
     }
     word += c
     started = true
   }
   if (quote !== null) throw new RoomsStop('rooms/syntax', `line ${at}: a quote is opened and never closed.`, at)
-  if (started) out.push(word)
-  return out.map((w) => (w.endsWith(',') ? w.slice(0, -1) : w)).filter((w) => w !== '')
+  if (started) out.push({ text: word, quoted })
+  return out.map((w) => (w.text.endsWith(',') ? { ...w, text: w.text.slice(0, -1) } : w)).filter((w) => w.text !== '')
 }
 
 /** A sum of numbers: digits, a point, + - * / and brackets. Anything else is not read. */

@@ -50,7 +50,7 @@ import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './o
 import { withPatterns } from './patterns'
 import { tolerance } from './tolerances'
 import { brokenOnFloor } from './validate'
-import { planeAt, topAt, wallTopProfile } from './roofs'
+import { planeAt, topAt, wallTopProfile, type RoofPlane } from './roofs'
 import type { Vec2 } from './vec2'
 import { straightPieces, wallPointAt } from './wall'
 import { curveFault, wallCurve } from './arc'
@@ -73,6 +73,21 @@ const SIDE_DIRECTION: Readonly<Record<FacadeSide, Vec2>> = {
  * the ground (`plinth`, VEW-16).
  */
 export type FacadeFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'roof-plane' | 'plinth'
+
+/**
+ * VEW-12: which edge of a sloped roof a line or a band is: its `eaves`, the level foot of a plane;
+ * its `ridge`, a level line higher up (the top of a mono-pitch roof too); a `hip`, where two planes
+ * meet on a slope; a `verge`, where a plane ends on a slope at the floor's outline (a gable); an
+ * `abutment`, where the roof meets more of the building above it.
+ */
+export type FacadeRoofEdge = 'eaves' | 'ridge' | 'hip' | 'verge' | 'abutment'
+
+/** VEW-12: one edge of a roof's plane, as seen: from one end to the other, `[u, z]`. */
+export interface FacadeRoofLine {
+  readonly kind: FacadeRoofEdge
+  readonly from: readonly [number, number]
+  readonly to: readonly [number, number]
+}
 
 /** A door, window or doorless opening in a wall face, where it is seen. */
 export interface FacadeOpening {
@@ -109,6 +124,10 @@ export interface FacadeFace {
   /** Its plane, front to back: 0 the front, 1 the next set back, 2 anything further. */
   readonly tier: 0 | 1 | 2
   readonly openings: readonly FacadeOpening[]
+  /** VEW-12: for a band along a sloped roof's edge, which edge it is; null for any other face. */
+  readonly edge: FacadeRoofEdge | null
+  /** VEW-12: for a roof's plane, each of its edges with what it is; empty for any other face. */
+  readonly roofLines: readonly FacadeRoofLine[]
 }
 
 /** A floor of a facade, at its level. */
@@ -157,6 +176,8 @@ interface Seen {
   /** Its corners in order: each a point on the plan and its height. */
   readonly points: readonly { readonly p: Vec2; readonly z: number }[]
   readonly openings: readonly FacadeOpening[]
+  readonly edge?: FacadeRoofEdge | null
+  readonly roofLines?: readonly { readonly kind: FacadeRoofEdge; readonly a: { readonly p: Vec2; readonly z: number }; readonly b: { readonly p: Vec2; readonly z: number } }[]
   readonly order: number
 }
 
@@ -369,6 +390,39 @@ function wallPoints(plan: FloorPlan, wall: Wall, edge: { a: Vec2; e: Vec2 }, str
   return [...bottom, ...top]
 }
 
+/** Whether a point of the plan lies on a ring of these pieces, within `facadeOnFace`. */
+function onEdgeOf(p: Vec2, pieces: MultiPolygon): boolean {
+  const near = tolerance('facadeOnFace')
+  for (const polygon of pieces) {
+    for (const ring of polygon) {
+      for (let i = 0; i + 1 < ring.length; i++) {
+        const [ax, ay] = ring[i]!
+        const [bx, by] = ring[i + 1]!
+        const length2 = (bx - ax) ** 2 + (by - ay) ** 2
+        const t = length2 > 0 ? Math.max(0, Math.min(1, ((p.x - ax) * (bx - ax) + (p.y - ay) * (by - ay)) / length2)) : 0
+        if (Math.hypot(p.x - (ax + (bx - ax) * t), p.y - (ay + (by - ay) * t)) <= near) return true
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * VEW-12: which edge of a sloped roof the plan's edge `a`–`b` of a plane is: on the roof's edge but
+ * not on the floor's outline, an abutment; level, its eaves at the plane's lowest (`low`) and else
+ * a ridge; sloped, a verge on the outline and a hip inside the roof. Null on a level plane.
+ */
+function roofEdgeOf(a: Vec2, b: Vec2, plane: RoofPlane, low: number, roof: MultiPolygon, outline: MultiPolygon): FacadeRoofEdge | null {
+  if (!(Math.hypot(plane.gx, plane.gy) > tolerance('noLength'))) return null
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+  const onOutline = onEdgeOf(mid, outline)
+  if (!onOutline && onEdgeOf(mid, roof)) return 'abutment'
+  const za = planeAt(plane, a)
+  const zb = planeAt(plane, b)
+  if (Math.abs(za - zb) <= tolerance('facadeOnFace')) return Math.min(za, zb) - low <= tolerance('facadeOnFace') ? 'eaves' : 'ridge'
+  return onOutline ? 'verge' : 'hip'
+}
+
 /** The silhouette of the faces above the ground: their union. Empty when it cannot be worked out. */
 function silhouette(faces: readonly FacadeFace[], ground: number): (readonly (readonly [number, number])[])[] {
   const shapes: Polygon[] = faces
@@ -495,14 +549,25 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
     } else if (env.roof !== null) {
       // LVL-6: a sloped roof, plane by plane: each edge as a band that follows the slope, and each
       // plane that comes down toward the side as a surface, its top face.
-      const { thickness } = env.roof
+      // VEW-12: each band and each plane's edge says which edge of the roof it is.
+      const { thickness, pieces: roofPieces } = env.roof
+      const outline = env.outline
       for (const facet of env.roof.facets) {
         const at = (p: Vec2): number => storey.floorLevel + planeAt(facet.plane, p)
-        for (const edge of edgesFacing(facet.pieces, direction)) add({ kind: 'roof', floor: floor.id, wall: null, points: band(edge.a, edge.b, at(edge.a), at(edge.b), thickness), openings: [] })
+        const low = Math.min(...facet.pieces.flatMap((polygon) => polygon.flatMap((ring) => ring.map(([x, y]) => planeAt(facet.plane, { x, y })))))
+        const edgeOf = (a: Vec2, b: Vec2): FacadeRoofEdge | null => roofEdgeOf(a, b, facet.plane, low, roofPieces, outline)
+        for (const edge of edgesFacing(facet.pieces, direction)) add({ kind: 'roof', floor: floor.id, wall: null, points: band(edge.a, edge.b, at(edge.a), at(edge.b), thickness), openings: [], edge: edgeOf(edge.a, edge.b) })
         if (-(facet.plane.gx * direction.x + facet.plane.gy * direction.y) <= tolerance('facadeFacing')) continue
         for (const polygon of facet.pieces) {
           const ring = straightened(polygon[0] ?? [])
-          if (ring.length >= 3) add({ kind: 'roof-plane', floor: floor.id, wall: null, points: ring.map((p) => ({ p, z: at(p) + thickness })), openings: [] })
+          if (ring.length < 3) continue
+          const points = ring.map((p) => ({ p, z: at(p) + thickness }))
+          const roofLines = points.flatMap((a, i) => {
+            const b = points[(i + 1) % points.length]!
+            const kind = edgeOf(a.p, b.p)
+            return kind === null ? [] : [{ kind, a, b }]
+          })
+          add({ kind: 'roof-plane', floor: floor.id, wall: null, points, openings: [], roofLines })
         }
       }
     }
@@ -523,7 +588,25 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
       const us = outline.map(([u]) => u)
       const zs = outline.map(([, z]) => z)
       const depth = depthOf(s)
-      const face: FacadeFace = { kind: s.kind, floor: s.floor, wall: s.wall, u0: Math.min(...us), u1: Math.max(...us), bottom: Math.min(...zs), top: Math.max(...zs), outline, depth: fine(depth), tier: tiers.get(depth)!, openings: s.openings }
+      const seenAt = ({ p, z }: { readonly p: Vec2; readonly z: number }): Pair => [fine(dot(p, across)), fine(z)]
+      const roofLines = (s.roofLines ?? [])
+        .map((line) => ({ kind: line.kind, from: seenAt(line.a), to: seenAt(line.b) }))
+        .filter((line) => Math.hypot(line.to[0] - line.from[0], line.to[1] - line.from[1]) > tolerance('noLength'))
+      const face: FacadeFace = {
+        kind: s.kind,
+        floor: s.floor,
+        wall: s.wall,
+        u0: Math.min(...us),
+        u1: Math.max(...us),
+        bottom: Math.min(...zs),
+        top: Math.max(...zs),
+        outline,
+        depth: fine(depth),
+        tier: tiers.get(depth)!,
+        openings: s.openings,
+        edge: s.edge ?? null,
+        roofLines
+      }
       return { s, face }
     })
     .filter(({ face }) => face.u1 - face.u0 > tolerance('noLength'))

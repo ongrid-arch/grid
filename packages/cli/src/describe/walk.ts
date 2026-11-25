@@ -6,12 +6,16 @@
  * from outside starts in its stair room, where the stairs arrive. From there the walk goes room
  * by room through the doors, doorless openings and open sides, as the way-out check reads them
  * (`wayGraph`): it takes the ways out of each room from left to right as you stand in its doorway,
- * goes as deep as it can, and comes back. A room no way reaches is said as such.
+ * goes as deep as it can, and comes back. Every way the check reads is a way on (ARE-18), an open
+ * side as much as a door. A room no way reaches is said as such.
  *
  * In each room you stand in the doorway you came in by, at its middle on the room's side, facing
  * into the room square to the wall. What is in the room is said by the wall it is on: ahead, on
  * your left, on your right, and in the wall you stand in (behind you), each with how far it is.
- * A fixture is on the wall nearest its middle. Left and right are the building's: when the plan
+ * A fixture is on the wall nearest its middle; one that stands clear of every wall (ARE-18: an
+ * island, a table) is said where it stands, by how far ahead its near side is and whether it is
+ * across your way. Where the walk starts with no doorway you stand in the room's middle, facing
+ * square to the room's longest side, and the room is said by its whole depth. Left and right are the building's: when the plan
  * says its y runs down the page, the drawing is the building mirrored and they are read the
  * right way round.
  *
@@ -37,8 +41,11 @@ export const WALK_EYE_HEIGHT = 1.6
 export const WALK_PICTURES_MAX = 12
 /** Within this much of straight ahead (or of beside you), a thing is said to be straight there. */
 const STRAIGHT = 0.3
+/** ARE-18: a fixture whose footprint comes within this much of a side of its room stands against that wall; else it stands clear of them, in the room. Grid's own figure for the walk's words, not a check. */
+const AGAINST_WALL = 0.3
 
 export type WalkWall = 'ahead' | 'left' | 'right' | 'behind'
+type WalkGroup = WalkWall | 'inRoom'
 
 export interface WalkThing {
   readonly kind: 'door' | 'window' | 'opening' | 'open side' | 'fixture'
@@ -53,6 +60,8 @@ export interface WalkThing {
   readonly ahead: number
   /** How far to your left (+) or right (−) its middle is. */
   readonly across: number
+  /** ARE-18, a fixture clear of the walls only: how far ahead its near side is (negative: behind you), and how far to your left (+) or right (−) its near side is, 0 when it is across your way. */
+  readonly near?: { readonly ahead: number; readonly across: number }
 }
 
 export interface WalkStop {
@@ -78,6 +87,8 @@ export interface WalkStop {
   readonly left: readonly WalkThing[]
   readonly right: readonly WalkThing[]
   readonly behind: readonly WalkThing[]
+  /** ARE-18: fixtures that stand clear of every wall, nearest first. */
+  readonly inRoom: readonly WalkThing[]
 }
 
 export interface FloorWalk {
@@ -135,8 +146,8 @@ interface Ways {
 }
 
 /** The things in a room, by wall, as seen from `stand` facing `f`; `skip` is the doorway you stand in. */
-function thingsIn(survey: Survey, ways: Ways, room: SurveyRoom, stand: Vec2, f: Vec2, skip: string | null, mirror: number, fixtures: ReadonlyMap<string, FixtureSpot[]>): Record<WalkWall, WalkThing[]> {
-  const out: Record<WalkWall, WalkThing[]> = { ahead: [], left: [], right: [], behind: [] }
+function thingsIn(survey: Survey, ways: Ways, room: SurveyRoom, stand: Vec2, f: Vec2, skip: string | null, mirror: number, fixtures: ReadonlyMap<string, FixtureSpot[]>): Record<WalkGroup, WalkThing[]> {
+  const out: Record<WalkGroup, WalkThing[]> = { ahead: [], left: [], right: [], behind: [], inRoom: [] }
   const place = (middle: Vec2): { ahead: number; across: number } => ({ ahead: dot(sub(middle, stand), f), across: mirror * dot(sub(middle, stand), leftOf(f)) })
   const put = (wall: WalkWall, thing: WalkThing): void => {
     // Mirrored, the drawing's left wall is the building's right one.
@@ -166,6 +177,17 @@ function thingsIn(survey: Survey, ways: Ways, room: SurveyRoom, stand: Vec2, f: 
     put(wallFor({ x: -crossing.inward.x, y: -crossing.inward.y }, f), { kind: 'open side', id: wall.id, width: stretch, to: to === undefined || to === OUTSIDE ? 'nothing drawn' : to, ...place(crossing.near) })
   }
   for (const spot of fixtures.get(room.facts.id) ?? []) {
+    // ARE-18: clear of every wall by more than AGAINST_WALL, it stands in the room.
+    const clear = Math.min(...spot.corners.map((c) => distanceToOutline(c, room)))
+    if (clear > AGAINST_WALL) {
+      const aheadOf = spot.corners.map((c) => dot(sub(c, stand), f))
+      const sideOf = spot.corners.map((c) => mirror * dot(sub(c, stand), leftOf(f)))
+      const lo = Math.min(...sideOf)
+      const hi = Math.max(...sideOf)
+      const nearAhead = Math.min(...aheadOf) > 0 ? Math.min(...aheadOf) : Math.max(...aheadOf) < 0 ? Math.max(...aheadOf) : 0
+      out.inRoom.push({ kind: 'fixture', id: spot.id, width: spot.width, to: null, label: spot.label, ...place(spot.at), near: { ahead: nearAhead, across: lo > 0 ? lo : hi < 0 ? hi : 0 } })
+      continue
+    }
     let best: { d: number; out: Vec2 } | null = null
     for (const edge of room.edges) {
       const e = sub(edge.to, edge.from)
@@ -183,7 +205,39 @@ function thingsIn(survey: Survey, ways: Ways, room: SurveyRoom, stand: Vec2, f: 
   out.behind.sort((a, b) => b.across - a.across)
   out.left.sort((a, b) => a.ahead - b.ahead)
   out.right.sort((a, b) => a.ahead - b.ahead)
+  out.inRoom.sort((a, b) => Math.abs(a.near!.ahead) - Math.abs(b.near!.ahead))
   return out
+}
+
+/** How far a point is from the nearest side of a room's outline or holes. */
+function distanceToOutline(p: Vec2, room: SurveyRoom): number {
+  let best = Infinity
+  for (const ring of [room.polygon, ...room.holes]) {
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i]!
+      const e = sub(ring[(i + 1) % ring.length]!, a)
+      const span = dot(e, e)
+      const t = span === 0 ? 0 : Math.max(0, Math.min(1, dot(sub(p, a), e) / span))
+      best = Math.min(best, Math.hypot(a.x + e.x * t - p.x, a.y + e.y * t - p.y))
+    }
+  }
+  return best
+}
+
+/**
+ * ARE-18: the way to face from a room's middle: of the four ways square to its longest side,
+ * the one nearest `toward` (north on the drawing with none), so the room is said square.
+ */
+function squareFacing(room: SurveyRoom, toward: Vec2 | null): Vec2 {
+  const want = toward ?? { x: 0, y: 1 }
+  let longest: Vec2 | null = null
+  let length = 0
+  for (const edge of room.edges) {
+    if (edge.length > length) [longest, length] = [unit(sub(edge.to, edge.from)), edge.length]
+  }
+  if (longest === null) return want
+  const ways = [longest, leftOf(longest), { x: -longest.x, y: -longest.y }, { x: longest.y, y: -longest.x }]
+  return ways.reduce((best, d) => (dot(d, want) > dot(best, want) ? d : best))
 }
 
 interface FixtureSpot {
@@ -191,6 +245,19 @@ interface FixtureSpot {
   readonly label: string
   readonly width: number
   readonly at: Vec2
+  /** Its footprint's four corners. */
+  readonly corners: readonly Vec2[]
+}
+
+/** A footprint's four corners from its middle, its size (along its back × to its front) and its turn in degrees, counter-clockwise. */
+function cornersOf(at: Vec2, size: readonly [number, number], turn: number): Vec2[] {
+  const r = (turn * Math.PI) / 180
+  const across = { x: Math.cos(r), y: Math.sin(r) }
+  const front = { x: -Math.sin(r), y: Math.cos(r) }
+  return [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(([u, v]) => ({
+    x: at.x + across.x * u! * size[0] + front.x * v! * size[1],
+    y: at.y + across.y * u! * size[0] + front.y * v! * size[1],
+  }))
 }
 
 function fixtureSpots(survey: Survey): Map<string, FixtureSpot[]> {
@@ -199,7 +266,8 @@ function fixtureSpots(survey: Survey): Map<string, FixtureSpot[]> {
   for (const row of planFixtures(survey.plan).rows) {
     if (row.room === null) continue
     if (!byRoom.has(row.room)) byRoom.set(row.room, [])
-    byRoom.get(row.room)!.push({ id: row.id, label: row.label, width: row.size[0], at: { x: row.at[0], y: row.at[1] } })
+    const at = { x: row.at[0], y: row.at[1] }
+    byRoom.get(row.room)!.push({ id: row.id, label: row.label, width: row.size[0], at, corners: cornersOf(at, row.size, row.turn) })
   }
   return byRoom
 }
@@ -237,7 +305,7 @@ function stopAt(survey: Survey, ways: Ways, room: SurveyRoom, from: string | nul
     f = crossing.inward
   } else {
     stand = poleOfInaccessibility(room.polygon, undefined, room.holes).point
-    f = toward === null ? { x: 0, y: 1 } : unit(sub(toward, stand))
+    f = squareFacing(room, toward === null ? null : unit(sub(toward, stand)))
   }
   const things = thingsIn(survey, ways, room, stand, f, via, mirror, fixtures)
   const l = leftOf(f)
@@ -258,7 +326,8 @@ function stopAt(survey: Survey, ways: Ways, room: SurveyRoom, from: string | nul
     facing: compassOf(f),
     heading: ((Math.atan2(f.x, f.y) * 180) / Math.PI + 360) % 360,
     across: Math.max(...across) - Math.min(...across),
-    deep: Math.max(...ahead) - Math.max(0, Math.min(...ahead)),
+    // From a doorway, as deep as the room goes ahead of you; from its middle, the whole room.
+    deep: crossing === null ? Math.max(...ahead) - Math.min(...ahead) : Math.max(...ahead) - Math.max(0, Math.min(...ahead)),
     area: room.facts.shape?.area ?? 0,
     reach: {
       ahead: rayReach(room, stand, f),
@@ -293,9 +362,11 @@ function walkFloor(survey: Survey, floorId: string, mirror: number, fixtures: Re
       // The ways on, from left to right as you stand here, sweeping round from your left hand.
       const all = [...stop.ahead, ...stop.left, ...stop.right, ...stop.behind].sort((a, b) => Math.atan2(b.across, b.ahead) - Math.atan2(a.across, a.ahead))
       const order = new Map(all.map((t, i) => [t.id, i]))
+      // ARE-18: every way the check reads is a way on; one not said in the room's walls goes last.
+      const rank = (via: string): number => order.get(via) ?? order.size
       const onward = (ways.next.get(at.room) ?? [])
-        .filter((w) => w.room !== OUTSIDE && rooms.has(w.room) && !visited.has(w.room) && order.has(w.via))
-        .sort((a, b) => order.get(a.via)! - order.get(b.via)!)
+        .filter((w) => w.room !== OUTSIDE && rooms.has(w.room) && !visited.has(w.room))
+        .sort((a, b) => rank(a.via) - rank(b.via))
       const firstBy = new Map<string, string>()
       for (const w of onward) if (!firstBy.has(w.room)) firstBy.set(w.room, w.via)
       const next = [...firstBy.entries()]
@@ -398,7 +469,16 @@ function personStop(n: number, stop: WalkStop, names: PersonNames, w: Words): st
   lines.push(`   ${t(w, 'describe.walk.left', { reach: reach(stop.reach.left), things: list(stop.left, (x) => along(w, x.ahead)) })}`)
   lines.push(`   ${t(w, 'describe.walk.right', { reach: reach(stop.reach.right), things: list(stop.right, (x) => along(w, x.ahead)) })}`)
   if (stop.behind.length > 0) lines.push(`   ${t(w, stop.via === null ? 'describe.walk.behind' : 'describe.walk.inWall', { things: list(stop.behind, (x) => besideYou(w, x.across)) })}`)
+  if (stop.inRoom.length > 0) lines.push(`   ${t(w, 'describe.walk.inRoom', { things: stop.inRoom.map((x) => personFree(x, w)).join(t(w, 'join.semicolon')) })}`)
   return lines
+}
+
+/** ARE-18: a fixture clear of the walls, where it stands: its near side ahead or behind, and across your way or to one side. */
+function personFree(thing: WalkThing, w: Words): string {
+  const near = thing.near ?? { ahead: thing.ahead, across: thing.across }
+  const ahead = Math.abs(near.ahead) < tolerance('joint') ? t(w, 'describe.walk.free.level') : t(w, near.ahead > 0 ? 'describe.walk.free.ahead' : 'describe.walk.free.behind', { distance: fig(Math.abs(near.ahead)) })
+  const where = near.across === 0 ? t(w, 'describe.walk.free.across') : toSide(w, near.across)
+  return thing.label === undefined ? t(w, 'describe.walk.free.unnamed', { ahead, where }) : t(w, 'describe.walk.free', { label: thing.label, ahead, where })
 }
 
 function agentThing(thing: WalkThing): string {
@@ -420,6 +500,8 @@ function agentStop(n: number, stop: WalkStop): string {
     group('L', stop.reach.left, stop.left, (t) => `+${m(Math.max(0, t.ahead))}`),
     group('R', stop.reach.right, stop.right, (t) => `+${m(Math.max(0, t.ahead))}`),
     group('B', null, stop.behind, (t) => lr(t.across)),
+    // ARE-18: fixtures clear of the walls, only where there are some.
+    ...(stop.inRoom.length === 0 ? [] : [group('F', null, stop.inRoom, (t) => `${(t.near?.ahead ?? 0) < 0 ? '-' : '+'}${m(Math.abs(t.near?.ahead ?? 0))} ${(t.near?.across ?? 0) === 0 ? 'X' : `${(t.near?.across ?? 0) > 0 ? 'L' : 'R'}${m(Math.abs(t.near?.across ?? 0))}`}`)]),
   ].join(' | ')
 }
 
@@ -455,7 +537,7 @@ export function walkText(survey: Survey, walk: PlanWalk, audience: DescribeAudie
     lines.push('')
     lines.push(t(w, 'describe.walk.close'))
   } else {
-    lines.push('KEY walk: n room <from via(OUT=outside, START=no doorway) | facing WxD(across x deep from the doorway) m2 | A(head) wall dist: things, left (L) or right (R) of you, 0=straight | L(eft wall) dist, R(ight wall) dist: things, +metres ahead | B(ehind, the wall you stand in): things L/R. Thing: id d/w/o/v(open side)/f(fixture) width >other side. Ways on are walked left to right, depth first.')
+    lines.push('KEY walk: n room <from via(OUT=outside, START=no doorway) | facing WxD(across x deep from the doorway) m2 | A(head) wall dist: things, left (L) or right (R) of you, 0=straight | L(eft wall) dist, R(ight wall) dist: things, +metres ahead | B(ehind, the wall you stand in): things L/R | F(ree, clear of the walls, when any): fixtures +metres ahead (- behind) to the near side, X=across your way else L/R to the near side. Thing: id d/w/o/v(open side)/f(fixture) width >other side. Ways on are walked left to right, depth first.')
     if (walk.mirrored) lines.push('Y DOWN: the drawing is the building mirrored; L and R are the building\'s.')
     for (const floor of walk.floors) {
       if (floor.repeats !== null) {

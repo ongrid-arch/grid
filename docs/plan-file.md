@@ -1375,8 +1375,17 @@ What Grid does with each state:
 - **Edits.** In a plan with phases a change is the work: what it adds is new; a door, window,
   wall or room it takes out of what stood before stays, demolished; a door or window it changes
   keeps its old self beside it as `<id>-before`, demolished, so widening a door is an old opening
-  and a new one. A wall or a room that stood before and that a change moves, cuts or reshapes is
-  changed in place, and the answer says so under what it could not keep. `grid write` will not
+  and a new one. The room edits (WRT-15) keep what stood before too: a wall made longer stays
+  and each stretch added is new, `<id>-new`; a wall made shorter takes its new ends and the
+  stretch cut off is kept as `<id>-before`, demolished; a wall moved off its line is new under its
+  id and the wall it was is kept as `<id>-before`, demolished, with its doors and windows (a door
+  left on it is new). A room that a change reshapes, or that would stand on a new wall, is new
+  under its id, and the room it was is kept as `<id>-before`, demolished, round the walls as they
+  stood; a room on the pieces of a wall cut where it stood keeps its shape and stays. A door whose
+  place along its wall changes only because the wall's start moved is not new work. The answer
+  lists what stays to be demolished and what is new, and the comparison by phase reads a room kept
+  as `<id>-before` as the room it became. A curved wall a change moves is changed in place, and
+  the answer says so under what it could not keep. `grid write` will not
   write rooms text over a plan with phases without `--replace` (rooms text holds no phase), and
   `grid tidy --apply` will not change one.
 

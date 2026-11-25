@@ -30,10 +30,13 @@ export function problemLines(result: RoomsResult): string[] {
 export function roomsAnswer(result: RoomsResult, full = true): string[] {
   const lines: string[] = []
   const floors = new Set(result.rooms.map((r) => r.floor)).size
-  const total = result.rooms.reduce((sum, r) => sum + r.area, 0)
+  // ARE-16: outdoor space and voids are no floor inside the building: listed, but not in the total.
+  const total = result.rooms.reduce((sum, r) => sum + (r.apart === undefined ? r.area : 0), 0)
+  const apart = result.rooms.filter((r) => r.apart !== undefined)
+  const apartArea = apart.reduce((sum, r) => sum + r.area, 0)
   const derived = result.walls.length
   lines.push(
-    `${floors} floor${floors === 1 ? '' : 's'}, ${result.rooms.length} room${result.rooms.length === 1 ? '' : 's'}; ${derived} wall${derived === 1 ? '' : 's'} and their kinds worked out; ${result.openings.length} opening${result.openings.length === 1 ? '' : 's'} placed; ${total.toFixed(2)} m² inside in all.`
+    `${floors} floor${floors === 1 ? '' : 's'}, ${result.rooms.length} room${result.rooms.length === 1 ? '' : 's'}; ${derived} wall${derived === 1 ? '' : 's'} and their kinds worked out; ${result.openings.length} opening${result.openings.length === 1 ? '' : 's'} placed; ${total.toFixed(2)} m² inside in all${apart.length === 0 ? '' : ` (not counting ${apart.length} outdoor or void room${apart.length === 1 ? '' : 's'}, ${apartArea.toFixed(2)} m²)`}.`
   )
   lines.push(`Sizes are to the ${TO[result.sizes.basis]}${result.sizes.stated ? '' : ' unless a room says otherwise (the default)'}.`)
   if (full) {
