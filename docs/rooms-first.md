@@ -151,6 +151,14 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   floor: one written under a floor in a wall of another (a wall with no `through`) is refused
   with its line (`rooms/raw`). With no floor line the plan has one floor and a raw part gets no
   floor.
+- A door, window or opening line may name a raw room (WRT-45). `between <a> and <b>` goes in
+  the one wall both rooms' boundaries name, and `in <room> <side>` in the one wall of the room
+  whose outside face looks that way, a curved wall too. The place is `centred` or
+  `<m> from <side>`, measured along the wall (its arc, when curved) from the end that lies that
+  way, never `of` another room. When the line does not say which wall (none in common, or
+  several), it is refused with the room's name, its walls and the `raw opening {...}` line to
+  write instead (`rooms/no-shared-wall`, `rooms/two-shared-walls`, `rooms/no-side`). A floor
+  whose rooms are all raw reads its door and window lines like any other.
 - The answer counts and measures every part written, raw or not: the floors that hold a part,
   every room with its inside area by Grid's own measure (a raw room too, marked "written raw"),
   and the area in all. When parts were written raw, a line says how many walls, rooms and
