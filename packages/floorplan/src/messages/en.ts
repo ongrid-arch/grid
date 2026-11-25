@@ -208,6 +208,7 @@ export const en = {
   'issue.part.notARule': 'The limit is Grid\'s own, for catching a slipped digit or unit, and no rule.',
   'issue.part.inHome': ' in a home (a room in this plan is a bedroom or a living room)',
   'issue.part.inAHome': ' in a home',
+  'issue.part.inHall': ' in a building of large halls (the plan, or a floor of it, is for assembly, sport, industry or a warehouse)',
   'issue.part.unit.feet': 'feet',
   'issue.part.unit.inches': 'inches',
   'issue.part.unit.centimetres': 'centimetres',
@@ -1836,6 +1837,17 @@ export const en = {
   'rooms.floor.building': "'{word}' is not a kind of building Grid knows. Use one of: {kinds}.",
   'rooms.floor.duplicate': "Floor '{id}' is already written.",
   'rooms.floor.roomsFirst': "Rooms were written before the first floor line. Put the floor line first.",
+  // WRT-22: a room side past a building's, written with no unit.
+  'rooms.size.width': 'width',
+  'rooms.size.depth': 'depth',
+  'rooms.size.bare':
+    "line {line}: room '{room}' is {length} m in {side}, written with no unit: past {limit} m that is no building in metres, and most likely millimetres or feet. Give the unit in the same word: {length}m if it is metres, or such as 3600mm or 12ft.",
+  'rooms.size.question.bare':
+    "Line {line}: room '{room}' is {length} m in {side}, written with no unit: is that meant? Grid asks about a room side longer than {limit} m{kind}, and has drawn it in metres. If it is meant, write it with its unit, {length}m, and Grid asks no more; if it is in another unit, write that unit, such as 3600mm or 12ft.",
+  'rooms.size.question.stretched':
+    "Line {line}: room '{room}' stretches with '*' to {length} m in {side}: is that meant? Grid asks about a room side longer than {limit} m{kind}. Check the room it stretches until, or write the side's length with its unit.",
+  'rooms.size.question.polygon':
+    "Line {line}: room '{room}' is a polygon {length} m across in {side}, its points written with no unit: is that meant? Grid asks about a room side longer than {limit} m{kind}, and has drawn the points in metres.",
   // WRT-17: what the writer says so that what it writes passes the drawing's own check.
   'rooms.openingsOverlap':
     "Line {line}: {opening} shares {by} m of wall {wall} with {other} (line {otherLine}). The check leaves out an opening that shares a stretch of its wall with another, even one above the other: move one, make one narrower, or write the two as one opening.",
@@ -2358,6 +2370,10 @@ export const en = {
   'issue.part.lineUp.stretch.all': '{depth} m all round, from ({x0}, {y0}) to ({x1}, {y1})',
   'issue.part.lineUp.more.one': ', and in {count} more place',
   'issue.part.lineUp.more.many': ', and in {count} more places',
+  'issue.floor/split-level': 'The plan has split levels, each floor a half level up beside the floor it steps from, with no floor under it: {steps}{more}. Each floor is set only against the floors under it. If a step is not meant, change that floor\'s elevation; if it is, mark the floor with overhang "meant".',
+  'issue.part.splitLevel.step': '{floor} stands {rise} m above {lower}, on its {side} side',
+  'issue.part.splitLevel.more.one': ', and {count} more half level',
+  'issue.part.splitLevel.more.many': ', and {count} more half levels',
   'check.shifted.stair': 'The stair {upper} on {upperFloor} {how} {lower} on {lowerFloor} below it: it stands from {upperAt}, the one below from {lowerAt}',
   'check.shifted.lift': 'The lift shaft {upper} on {upperFloor} {how} {lower} on {lowerFloor} below it: it stands from {upperAt}, the one below from {lowerAt}',
   'check.shifted.how.moved': 'is {ways} of',
@@ -2398,6 +2414,9 @@ export const en = {
   'line.floor/set-back.says': '{label} is a part floor, set back from the floor below it',
   'line.floor/set-back.needed': 'a floor\'s outline over the floor below it, or marked overhang "meant" where it is a part floor on purpose',
   'line.floor/set-back.fix': 'If it is meant, mark the floor with overhang "meant". If not, move its outside walls out over the edge of the floor below, or let a wall both floors share rise through them (through).',
+  'line.floor/split-level.says': '{label} is a half level up beside the floor it steps from: a split level',
+  'line.floor/split-level.needed': 'each half level at the elevation meant, beside the floor it steps from, or marked overhang "meant"',
+  'line.floor/split-level.fix': 'If a step is not meant, change that floor\'s elevation. If it is, mark the floor with overhang "meant".',
   'line.floor/out-of-line.says': '{label} does not line up with the floor below it',
   'line.floor/out-of-line.needed': 'a floor\'s outline over the floor below it, or marked overhang "meant" where it overhangs or sits back on purpose',
   'line.floor/out-of-line.fix': 'If it is meant, mark the floor with overhang "meant". If not, move its outside walls over the floor below, or let a wall both floors share rise through them (through).',

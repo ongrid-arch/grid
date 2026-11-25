@@ -4,8 +4,8 @@
  * A line is split at spaces; a word in double or single quotes may hold spaces; `#` starts a
  * comment outside quotes; a comma at the end of a word is dropped, so a line may read like a
  * sentence. A plain number is metres. A length may instead carry its unit in one word, with no
- * space (`readLength` in `types/units.ts` reads it): `381cm`, `3810mm`, `3.81m`, `12ft`, `150in`,
- * `12ft6in`, `12'6"`, `12'-6"`. A quote mark straight after a digit is a foot or inch mark, not a
+ * space (`readLength` in `types/units.ts` reads it): `381cm`, `3810mm`, `3.81m`, `0.5km`, `12ft`,
+ * `150in`, `12ft6in`, `12'6"`, `12'-6"`. A quote mark straight after a digit is a foot or inch mark, not a
  * quote. A number may be a sum written with digits and the signs + - * / and brackets, such as
  * `3.0+0.3`, in metres: nothing else is evaluated.
  */
@@ -132,8 +132,13 @@ function evaluate(text: string): number | null {
   return value !== null && i === text.length && Number.isFinite(value) ? value : null
 }
 
-/** A length with its unit in one word: `381cm`, `12ft6in`, `12'-6"`. */
-const UNIT_WORD = /^[-+]?[0-9.]+\s*(mm|cm|m|ft|in|'|")/
+/** A length with its unit in one word: `381cm`, `12ft6in`, `12'-6"`, `10km`. */
+const UNIT_WORD = /^[-+]?[0-9.]+\s*(mm|cm|km|m|ft|in|'|")/
+
+/** WRT-22: whether a length word carries its unit (`250m`, `240000mm`), so it is taken as meant. */
+export function hasUnit(word: string): boolean {
+  return UNIT_WORD.test(word)
+}
 
 /** A length in metres: a plain number is metres; a word with its unit is read in that unit. */
 export function numberOf(word: string, at: number): number {

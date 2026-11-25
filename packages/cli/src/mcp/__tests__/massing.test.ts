@@ -78,7 +78,7 @@ describe('FD-1: the person\'s own site limits, used, allowed, and met or not', (
     const reply = await call('grid_measure', { what: 'site', plan: 'fd1.json' })
     const limits = reply.text.split('\n').filter((l) => /^ {2}(Plot coverage|Floor area ratio|Building height|Parking per home|Set-back)/.test(l))
     expect(limits).toEqual([
-      "  Plot coverage: used 48.0%, your limit at most 40%: not met. Measured as the building seen from above, every floor at or above the ground floor, inside the plot's boundary, over the plot's area: 240.07 m² over 500.00 m².",
+      "  Plot coverage: used 48.0%, your limit at most 40%: not met. Measured as the building seen from above, every floor at or above the ground floor, open outdoor space left out, inside the plot's boundary, over the plot's area: 240.07 m² over 500.00 m².",
       '  Floor area ratio: used 0.96, your limit at most 1: met. Measured as Gross external area (Gross external area is the floor inside the outside face of the walls, every wall counted, and less any void, which has no floor), of every floor at or above the ground floor, over the plot\'s area: 480.15 m² over 500.00 m².',
       "  Building height: used 6.50 m, your limit at most 9.00 m: met. Measured as from the ground to the top of the highest roof: a floor's level, its clear height and the roof slab over it, or the ridge its roof states, and its parapet; from the ground floor's floor level, since site.ground states no ground, to the roof over \"First floor\".",
       '  Parking per home: used 0.75 spaces per home, your limit at least 1 space per home: not met. Measured as the parking spaces the floors state (floors[].parking) over the homes they state (floors[].homes), added up over every floor: 3 spaces for 4 homes.',

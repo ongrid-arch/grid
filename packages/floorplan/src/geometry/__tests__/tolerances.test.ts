@@ -73,11 +73,11 @@ describe('the tolerance table', () => {
       expect(entry.basis, name).toBe('grid-drawing-check')
       expect(['tolerance', 'limit', 'arithmetic'], name).toContain(entry.kind)
       expect(entry.decides.length, name).toBeGreaterThan(10)
-      const values = 'values' in entry ? entry.values : [entry.value, (entry as ToleranceEntry).home ?? entry.value]
+      const values = 'values' in entry ? entry.values : [entry.value, (entry as ToleranceEntry).home ?? entry.value, (entry as ToleranceEntry).hall ?? entry.value]
       for (const value of values) expect(value >= 0 && Number.isFinite(value), name).toBe(true)
       // No entry cites a document: it has no field for one, and its words name none.
       expect(Object.keys(entry).sort(), name).toEqual(
-        'values' in entry ? ['basis', 'decides', 'kind', 'unit', 'values'] : ['basis', 'decides', 'kind', 'unit', 'value', ...('home' in entry ? ['home'] : [])].sort()
+        'values' in entry ? ['basis', 'decides', 'kind', 'unit', 'values'] : ['basis', 'decides', 'kind', 'unit', 'value', ...('home' in entry ? ['home'] : []), ...('hall' in entry ? ['hall'] : [])].sort()
       )
       // A size that could be read as a requirement says it is not one (MSG-18), in these words only.
       expect(entry.decides.replace(NOT_A_CODE_FIGURE, ''), name).not.toMatch(/\b(code|regulation|standard|clause|CTE|BS|DIN|IBC)\b/)
@@ -119,7 +119,11 @@ describe('the tolerance table', () => {
     const readme = readFileSync(resolve(SOURCE, '../../../docs/tolerances.md'), 'utf8')
     for (const [name, entry] of Object.entries(TOLERANCES)) {
       if (entry.kind === 'arithmetic' || !('value' in entry)) continue
-      const home = 'home' in entry ? ` (${String((entry as ToleranceEntry).home)} in a home)` : ''
+      const figures = [
+        ...('home' in entry ? [`${String((entry as ToleranceEntry).home)} in a home`] : []),
+        ...('hall' in entry ? [`${String((entry as ToleranceEntry).hall)} in a hall`] : [])
+      ]
+      const home = figures.length > 0 ? ` (${figures.join(', ')})` : ''
       expect(readme, name).toContain(`| \`${name}\` | ${entry.kind} | ${String(entry.value)} ${entry.unit}${home} |`)
     }
   })
@@ -165,6 +169,15 @@ describe('adjusting the table for a survey', () => {
     expect(withTolerances({ wallHighest: 20 }, () => limit('wallHighest', 'home'))).toBe(20)
   })
 
+  it('uses a hall figure only in a hall, and the plain one where an entry has none (WRT-22)', () => {
+    expect(limit('roomsSideAsked')).toBe(200)
+    expect(limit('roomsSideAsked', 'home')).toBe(50)
+    expect(limit('roomsSideAsked', 'hall')).toBe(1000)
+    expect(limit('typicalHeightHighest', 'hall')).toBe(30)
+    expect(limit('wallThickest', 'hall')).toBe(3)
+    expect(withTolerances({ roomsSideAsked: 300 }, () => limit('roomsSideAsked', 'hall'))).toBe(300)
+  })
+
   it('reads a home from the rooms the plan says are lived in', () => {
     const { walls, room } = outline([[0, 0], [5, 0], [5, 4], [0, 4]])
     const planWith = (use: string | undefined): FloorPlan => parseFloorPlan({ walls, rooms: [{ ...room, use }] })
@@ -172,6 +185,18 @@ describe('adjusting the table for a survey', () => {
     expect(buildingKind(planWith('living'))).toBe('home')
     expect(buildingKind(planWith('storage'))).toBe('any')
     expect(buildingKind(planWith(undefined))).toBe('any')
+  })
+
+  it('reads a building of large halls from the kind of building the plan or a floor says it is (WRT-22)', () => {
+    const { walls, room: bare } = outline([[0, 0], [5, 0], [5, 4], [0, 4]])
+    const room = { ...bare, use: 'storage' }
+    for (const kind of ['assembly', 'sport', 'industry', 'warehouse'] as const) {
+      expect(buildingKind(parseFloorPlan({ walls, rooms: [room], building: kind }))).toBe('hall')
+      expect(buildingKind(parseFloorPlan({ walls, rooms: [room], floors: [{ id: 'ground', name: 'Ground', level: 0, building: kind }] }))).toBe('hall')
+    }
+    expect(buildingKind(parseFloorPlan({ walls, rooms: [{ ...room, use: 'bedroom' }], building: 'warehouse' }))).toBe('hall')
+    expect(buildingKind(parseFloorPlan({ walls, rooms: [room], building: 'office' }))).toBe('any')
+    expect(buildingKind(parseFloorPlan({ walls, rooms: [room], building: 'parking' }))).toBe('any')
   })
 })
 

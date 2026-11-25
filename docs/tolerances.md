@@ -25,7 +25,10 @@ centimetres or millimetres, and not in metres, gets one `plan/units-question` in
 per wall. Otherwise a wall, an opening or a room past a limit gets `wall/size-question`,
 `opening/size-question` or `room/size-question`, for example "Wall w1 is 27.00 m high, the
 others on its floor typically 2.70 m: is that meant?". Where the plan says it is a home (a room
-in it is used as a `bedroom` or a `living` room) the home figures apply.
+in it is used as a `bedroom` or a `living` room) the home figures apply. Where the plan, or a
+floor of it, says it is a building of large halls (`building assembly`, `sport`, `industry` or
+`warehouse`) the hall figures apply, the units question among them: a warehouse with 12 m walls
+is not asked whether it was typed in feet.
 
 | Entry | Kind | Value | What it decides |
 |---|---|---|---|
@@ -99,10 +102,10 @@ in it is used as a `bedroom` or a `living` room) the home figures apply.
 | `useClearSpace` | limit | 0.6 m | Grid's own size, not a code figure: Grid's own indicator for the clear floor in front of and beside a fixture, when the person gives none |
 | `useRaster` | tolerance | 0.02 m | The step of the grid the way through a room is measured on: the widest body is found to within about this |
 | `useRasterCells` | limit | 250000 count | The most points one room's way through is measured on; a bigger room is measured on a coarser grid, and the answer says the step |
-| `sameFloorLevel` | tolerance | 0.005 m | Rooms side by side whose floors stand closer than this in height share a level, and no step is drawn between them |
+| `sameFloorLevel` | tolerance | 0.005 m | Rooms side by side whose floors stand closer than this in height share a level, and no step is drawn between them; so do floors that state their elevations, and neither is set against the other as a floor below it (LVL-11) |
 | `floorOffsetLargest` | limit | 1.5 m | A room set further than this above or below its storey is asked about (`room/offset-question`) |
 | `stairRoomOverlap` | tolerance | 0.5 ratio | Rooms used as a stair (or a lift) on neighbouring floors that share at least this of the smaller one are one stair (or shaft); less, and they are named as out of line |
-| `stackShift` | tolerance | 0.05 m | A floor whose outline reaches past the floor below it, or sits back from it, by more than this and half the thickest wall that stretch runs along does not line up with it (`floor/out-of-line`, or `floor/set-back` for a floor wholly inside the one below), nor does a stair room or a lift shaft moved by more than this from the one below (`room/stair-shifted`, `room/lift-shifted`), unless the plan marks it as meant (LVL-5) |
+| `stackShift` | tolerance | 0.05 m | A floor whose outline reaches past the floor below it, or sits back from it, by more than this and half the thickest wall that stretch runs along does not line up with it (`floor/out-of-line`, or `floor/set-back` for a floor wholly inside the one below), nor does a stair room or a lift shaft moved by more than this from the one below (`room/stair-shifted`, `room/lift-shifted`), unless the plan marks it as meant (LVL-5). A lower floor lies under a floor only where their outlines share more than this and the whole of the thickest wall along that share, so the two halves of a split level, which overlap by the wall between them, are neither under the other (LVL-11) |
 | `stairStepLength` | limit | 0.63 m | A stair that states no number of risers gets the number that brings twice the riser plus the going nearest this |
 | `stairWaist` | limit | 0.15 m | How thick a flight of stairs is drawn in a section, under the roots of its steps and square to its slope, and a landing, at least one riser: the plan states no waist (VEW-11) |
 | `planCutHeight` | limit | 1.2 m | How high above a floor its plan is cut: a stair rising from the floor is drawn solid up to this height, with a break line there, and dashed above (SHT-11) |
@@ -134,15 +137,18 @@ in it is used as a `bedroom` or a `living` room) the home figures apply.
 | `wallThinnest` | limit | 0.02 m | A thinner solid wall is questioned; a line with no substance should be virtual |
 | `wallThickest` | limit | 3 m (1.5 in a home) | A thicker wall is questioned |
 | `wallLowest` | limit | 0.1 m | A lower solid wall is questioned |
-| `wallHighest` | limit | 40 m (10 in a home) | A higher wall is questioned |
+| `wallHighest` | limit | 40 m (10 in a home, 80 in a hall) | A higher wall is questioned |
 | `wallHigherThanTypical` | limit | 4 ratio | A wall this many times higher than the typical one on its floor (with three others or more) is questioned |
 | `openingNarrowest` | limit | 0.2 m | A narrower opening is questioned; whether a door is a way through is `passableWidth` |
 | `openingLowest` | limit | 0.2 m | A lower opening is questioned |
-| `roomLargest` | limit | 50000 m² (1000 in a home) | A larger room is questioned |
+| `roomLargest` | limit | 50000 m² (1000 in a home, 500000 in a hall) | A larger room is questioned |
 | `typicalHeightLowest` | limit | 1.8 m | The units question: the typical wall height of a building, from this… |
-| `typicalHeightHighest` | limit | 6 m | …to this |
+| `typicalHeightHighest` | limit | 6 m (30 in a hall) | …to this |
 | `typicalThicknessLowest` | limit | 0.08 m | The typical wall thickness that agrees with a unit, from this… |
 | `typicalThicknessHighest` | limit | 1 m | …to this |
 | `typicalDoorLowest` | limit | 0.5 m | The typical door width that agrees with a unit, from this… |
 | `typicalDoorHighest` | limit | 2.5 m | …to this |
+| `roomsSideAsked` | limit | 200 m (50 in a home, 1000 in a hall) | A room side written rooms first as a bare number, stretched with `*` or drawn as a polygon, longer than this is asked about (`rooms/size-question`); written with its unit it is taken as meant (WRT-22) |
+| `roomsSideBare` | limit | 2000 m | A room side written rooms first as a bare number longer than this is refused as most likely millimetres (`rooms/size`); written with its unit it is taken (WRT-22) |
+| `openingWidest` | limit | 1000 m | The widest door, window or opening an edit takes; below it the wall decides, and an opening that does not fit is refused with the free stretches (WRT-22) |
 | `traceUnscaled` | limit | 0.01 m | A trace image with no scale of its own is drawn at this many metres a pixel, and said to be unscaled (HND-10) |
