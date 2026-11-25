@@ -58,6 +58,7 @@ import { faultMarks, undrawnRoomText } from './faults'
 import { noteNodes, sketchNodes } from './writing'
 import { scheduleMarkNodes } from './drawingMarks'
 import { dimensionClutter, layoutMarks } from './markLayout'
+import { crossesAny, withoutBlockedSizeLines } from './sizeLines'
 import { drawingText } from './words'
 import { num } from '@ongrid/floorplan/messages'
 import { bayLabels } from './bayLabels'
@@ -1389,7 +1390,14 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   }
   // The dimension lines, and the numbers that never move: a label keeps off them when it can.
   const dimensionBlocks: Box[] = []
-  for (const dim of dimensions) {
+  // VEW-51: a room's size lines that would cross a stair, a lift or a door are left out first.
+  const liftOutlines = drawing.lifts.flatMap((lift) => lift.lines.map(([a, b]) => lineOutline(a, b, mpp)))
+  const clearOfFixed = withoutBlockedSizeLines(
+    dimensions,
+    [...drawing.stairs.flatMap((stair) => stair.flights.map((flight) => flight.outline)), ...liftOutlines],
+    swings
+  )
+  for (const dim of clearOfFixed) {
     const shift = { x: dim.normal.x * dim.offset, y: dim.normal.y * dim.offset }
     dimensionBlocks.push(lineBox({ x: dim.from.x + shift.x, y: dim.from.y + shift.y }, { x: dim.to.x + shift.x, y: dim.to.y + shift.y }, mpp))
     if (dim.kind !== 'room') dimensionBlocks.push(dimensionTextBox(dim.labelAt, dim, mpp))
@@ -1431,6 +1439,8 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     reach
   )
   const labelBlocks = labels.flatMap((label) => (label ? [label.box] : []))
+  // VEW-51: and those a room's label could not keep off.
+  const shownDimensions = clearOfFixed.filter((dim) => dim.kind !== 'room' || !crossesAny(dim, labelBlocks))
   const faults = input.faults ?? []
   const faultLayout = {
     drawing,
@@ -1446,7 +1456,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   // VEW-31: nor on a tick across a chain's ends or an extension line, its own or a neighbour's.
   const clutter = dimensionClutter(dimensions, mpp, look.draftedDimensions)
   const placedNumbers: Box[] = []
-  for (const dim of dimensions) {
+  for (const dim of shownDimensions) {
     const shown = live.dimensionShown(dim)
     if (shown <= 0) continue
     const labelAt =
