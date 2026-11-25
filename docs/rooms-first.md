@@ -31,6 +31,21 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - A size is east-west by north-south, to the inside faces. `3 x 4 centre` measures to the walls'
   centre lines and `8 x 10 outside` to the outside faces; `sizes outside` makes that the
   default. The answer states for each room what its size measured to, and its inside size.
+- A floor line starts each storey (WRT-14):
+  `floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]`.
+  The name is in quotes, or left out and the id names the floor (`floor ground`). `level` is the
+  storey number, 0 the ground floor, 1 the one above, -1 a basement, 0.5 a half level; it is
+  never a height. `elevation` is the metres from the ground floor's level up to this floor's,
+  `height` from this floor to its ceiling (its walls take it), `slab` the floor it stands on. A
+  floor with no elevation stands on the one below, at that floor's elevation and height plus its
+  own slab, so a floor-to-floor figure is each floor's `elevation`, not its `height`. Settings
+  written `elevation=0` or `level: 1` are read as `elevation 0` and `level 1`; an unquoted name,
+  `level 2.85` or `level -9ft` is refused, and every refusal shows the whole line.
+
+  ```
+  floor ground "Ground floor" level 0 elevation 0 height 2.6
+  floor first "First floor" level 1 elevation 2.875 height 2.6 slab 0.275
+  ```
 - `floor -0.15` on a room line puts its floor that far below its storey's (a genkan; LVL-7),
   `height 2.4` gives its own height.
 - The word after a room's name is its use: one of Grid's uses, a word that plainly means one
@@ -157,6 +172,10 @@ thickness, kind, id or direction), and a floor that rooms text cannot give back 
 the plan's own terms. So that nothing is lost unseen, `grid write` refuses, with the difference,
 rooms text read from an earlier version of the plan (its `based on` line) and rooms text written
 over a plan changed some other way since Grid last wrote it; `--replace` writes over it anyway.
+It also refuses rooms text that names fewer floors than the plan holds, naming each floor it would
+drop with its rooms, outline, homes and parking (WRT-16): read the whole plan back and write that, or
+add `--replace` to drop them, which the answer then lists. Rooms text with no rooms is refused
+even with `--replace`.
 
 Some parts are derived: Grid works them out and no one writes them. In a plan written rooms
 first (it records this in `written`), each room's boundary is derived, and one edited by hand is

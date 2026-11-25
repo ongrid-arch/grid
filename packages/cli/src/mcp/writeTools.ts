@@ -11,7 +11,7 @@ import { baseRefusal, baseTouched, phasedPatch } from '../edit/phases'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { DOOR_KINDS, OPENING_KINDS, WINDOW_KINDS, WallKindSchema, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
-import { planFloors, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { planFloors, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { EXPORT_FORMATS, isExportFormat } from '@ongrid/floorplan/export'
@@ -21,7 +21,8 @@ import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { PlanRefused } from '../command/plan'
 import { changeOpening, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, moveRoomSide, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
-import { parseSheetWords, SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
+import { parseSheetWordsChecked } from '../sheet/claims'
+import { SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
 import { checkSheetRequest, drawingIntoProject, drawingLine, readSheetWords, sheetIntoProject, type SheetKind } from '../sheet/sheetFile'
 import { PAPER_NAMES, SCALE_MAX } from '../sheet/drawingPapers'
 import { askedLanguage } from '../command/language'
@@ -201,7 +202,7 @@ const sheetTool: GridTool = {
     try {
       const { project, file, loaded } = readPlan(context, args['plan'])
       if (layout === 'drawing') {
-        const words = given !== undefined ? parseSheetWords(given, planFloors(loaded.plan).map((floor) => floor.id)) : readSheetWords(project, file, loaded, undefined)
+        const words = given !== undefined ? parseSheetWordsChecked(given, planFloors(loaded.plan).map((floor) => floor.id)) : readSheetWords(project, file, loaded, undefined)
         const asked = {
           ...(args['scale'] === undefined ? {} : { scale: args['scale'] as number }),
           ...(args['paper'] === undefined ? {} : { paper: args['paper'] as (typeof PAPER_NAMES)[number] }),
@@ -224,7 +225,7 @@ const sheetTool: GridTool = {
       const words = layout === 'check'
         ? null
         : given !== undefined
-          ? parseSheetWords(given, planFloors(loaded.plan).map((floor) => floor.id))
+          ? parseSheetWordsChecked(given, planFloors(loaded.plan).map((floor) => floor.id))
           : readSheetWords(project, file, loaded, undefined)
       const done = await sheetIntoProject(project, file, layout, words, askedLanguage(args['language'], 'language'))
       const written = project.relative(done.written)
@@ -318,11 +319,12 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
     if (error instanceof PathRefused) throw new ToolRefusal(error.message)
     throw new ToolRefusal(`Can't write ${quoted(out)}: ${String((error as Error).message).replace(/\s+/g, ' ')}`)
   }
-  const verdict = comparePlans(before, surveyPlan(after), ['the plan before', 'the plan now']).verdict
+  const verdict = comparePlans(before, surveyPlan(after), ['the plan before', 'the plan now'], { inPlace: patch.whole !== true }).verdict
   // A door that joined a room now part of another (a merge) joins the same space: not a change.
   const become = patch.roomsBecome ?? new Map<string, string>()
   const key = (sides: readonly object[]): string => sides.map((side) => ('room' in side ? `r${become.get((side as { room: string }).room) ?? (side as { room: string }).room}` : JSON.stringify(side))).sort().join('|')
-  const doors = doorsThatChangedRooms(loaded.plan, after)
+  // WRT-15: in a plan with phases, the doors of the building after the work, before and after the change.
+  const doors = doorsThatChangedRooms(planInState(loaded.plan, 'after'), planInState(after, 'after'))
     .filter((change) => become.size === 0 || key(change.before) !== key(change.after))
     .map((change) => `${change.message}.`)
   const drawingProblems = { before: validatePlan(loaded.plan).issues.length, after: validatePlan(after).issues.length }
@@ -583,7 +585,7 @@ const writeRoomsTool: GridTool = {
     + 'A plain number is metres; a length may carry its unit in one word (360cm, 3600mm, 12ft, 12ft6in, 12\'6"). A display line (display ft-in, display mm, display m decimal comma) records how the person reads lengths: drawings, figures and sheets follow it, and the plan file stays in metres. '
     + 'From a phone room scan: pass scan, the scan file in the project (Apple\'s room model, as JSON), in place of rooms. Grid pairs each wall\'s two faces into one wall as thick as the gap between them, takes a wall seen from one side as an outside wall of its usual thickness, places the doors and windows on their walls, keeps the scan beside the plan as <plan>.scan.json keyed by its ids, and lists everything it assumed to confirm with the person. A re-scan keeps the plan\'s ids for the parts it finds again. '
     + 'Pass one of rooms, layout and scan. '
-    + 'Do not use for one door or window (grid_change_opening) or one wall moved (grid_move_room_side). It replaces the plan file.',
+    + 'Do not use for one door or window (grid_change_opening) or one wall moved (grid_move_room_side). It replaces the plan file. Rooms text that names fewer floors than the plan holds is refused, naming the floors it would drop (replace=true drops them); rooms text with no rooms is always refused.',
   args: {
     plan: { ...PLAN_ARG, description: 'The plan file to write, inside the project folder, ending in .json. The project\'s own plan.json when left out.' },
     rooms: {

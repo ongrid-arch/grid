@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { approvalWords } from '@ongrid/rules'
 import { bench, type Bench } from '../../mcp/__tests__/replay/harness'
 import { MARK_SOURCES } from '@ongrid/floorplan/types/floorplan'
+import { compileRoomsText } from '@ongrid/floorplan/rooms'
 import { SOURCES } from '../brief'
 import { namedSize, type BriefLine } from '../lines'
 
@@ -276,5 +277,37 @@ describe('no line met reads as approval, and the first write is reminded, never 
     const edit = await b.call('grid_rename_room', { plan: 'house.json', room: 'bed1', name: 'Main bedroom' })
     expect(edit.isError, edit.text).toBe(false)
     expect(edit.text).toContain('The brief beside the plan was not read, so no line is checked: house.brief.json is not a brief: rooms[0].area must be a number of square metres above 0 and at most 100,000.')
+  })
+})
+
+describe('ARE-17: a corridor is judged by its narrowest point', () => {
+  const rooms = (polygon: string): string => `walls outside 0.3 inside 0.1 height 2.6\nroom hall "Hall" corridor polygon ${polygon}\nroom study "Study" other 3 x 3 south of hall\ndoor d1 between hall and study, centred, 0.9 wide, opens into study\n`
+  const asked = { figures: { corridor_width: { value: 1.2, level: 'must', source: 'given', quote: 'a hall I can pass along' } } }
+  const run = async (polygon: string): Promise<BriefLine[]> => {
+    const compiled = compileRoomsText(rooms(polygon))
+    expect(compiled.problems).toEqual([])
+    b = bench({ 'probe.json': compiled.plan })
+    const reply = await b.call('grid_write_brief', { plan: 'probe.json', brief: asked })
+    expect(reply.isError, reply.text).toBe(false)
+    return (reply.data as { lines: BriefLine[] }).lines.filter((l) => l.wish === 'corridor_width')
+  }
+
+  it('misses a hall 0.90 m wide for 7 m with one wide end, and says where it is narrowest', async () => {
+    const lines = await run('0,0 8,0 8,1.6 7,1.6 7,0.9 0,0.9')
+    expect(lines).toHaveLength(1)
+    expect(lines[0]!.state).toBe('missed')
+    expect(lines[0]!.drawn).toBe('0.90')
+    expect(lines[0]!.text).toContain('at its narrowest, at (')
+  })
+
+  it('still misses it when only one stretch is widened', async () => {
+    const lines = await run('0,0 8,0 8,1.6 4,1.6 4,0.9 0,0.9')
+    expect(lines[0]!.state).toBe('missed')
+    expect(lines[0]!.drawn).toBe('0.90')
+  })
+
+  it('meets it when the whole hall is wide enough', async () => {
+    const lines = await run('0,0 8,0 8,1.3 0,1.3')
+    expect(lines.map((l) => l.state)).toEqual(['met'])
   })
 })

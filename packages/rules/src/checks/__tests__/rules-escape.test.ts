@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { FloorPlan, Opening, Room, Wall } from '@ongrid/floorplan/geometry'
+import { openingsBelowGround, type FloorPlan, type Opening, type Room, type Wall } from '@ongrid/floorplan/geometry'
 import { ESCAPE_TOP_LEVEL, FIGURES, RULES, checkLocalRules } from '..'
 import { messages } from '../messages'
 import { inspectPlan } from '../../result'
@@ -341,5 +341,48 @@ describe('CNT-14: the part of a window that opens', () => {
 
   it('takes a fixed window as opening nothing', () => {
     expect(escapes(bedroom([{ ...win('o1', 1.0, 1.2, 0.9), kind: 'fixed' }])).map((f) => [f.code, f.area])).toEqual([['escape_window_too_small', 0]])
+  })
+})
+
+describe('ARE-19 an opening below the ground is not a way out', () => {
+  const dug = (openings: Omit<Opening, 'wall'>[], ground: number | null = 3, well = false): FloorPlan => {
+    const plan = bedroom(openings, { interiorBottom: well })
+    if (well) plan.rooms = plan.rooms.map((r) => (r.id === 'h' ? ({ ...r, name: 'Light well', use: undefined, outdoor: 'light-well' } as Room) : r))
+    return ground === null ? plan : { ...plan, site: { ...plan.site, ground } }
+  }
+  const good = win('o1', 1.0, 1.2, 0.9)
+
+  it('is counted when the plan states no ground, as before', () => {
+    expect(escapes(dug([good], null))).toEqual([])
+  })
+
+  it('is left out when the below-ground check names it, and the finding points at it', () => {
+    const found = escapes(dug([good]))
+    expect(found.map((f) => [f.code, f.openings])).toEqual([['no_escape_opening', ['o1']]])
+    expect(found[0]!.message).toBe('"Bedroom 2" has no window or door to escape through: its windows and doors in outside walls lie below the ground')
+  })
+
+  it('is counted again when the ground is below it', () => {
+    expect(escapes(dug([good], 0.2))).toEqual([])
+  })
+
+  it('leaves a window above the ground to count', () => {
+    expect(escapes(dug([win('o1', 1.0, 1.2, 0.2), win('o2', 1.0, 1.2, 0.9, 1.8)], 0.5))).toEqual([])
+  })
+
+  it('is counted when a drawn outdoor space, a light well, is in front of it', () => {
+    const plan = dug([good], 3, true)
+    // The wall to the well is stated interior, so the below-ground check may not name it at all;
+    // make it exterior so both checks read it, and the well alone keeps it counted.
+    const exterior = { ...plan, walls: plan.walls.map((w) => (w.id === 'b-w0' ? { ...w, kind: 'exterior' as const } : w)) }
+    expect(openingsBelowGround(exterior).map((o) => o.opening)).toEqual(['o1'])
+    expect(escapes(exterior)).toEqual([])
+  })
+
+  it('says the same in the result line, which names the note on the opening', () => {
+    const lines = inspectPlan(dug([good])).lines
+    const line = lines.find((l) => l.code === 'room/no-escape-opening')!
+    expect(line.found).toBe('its outside openings lie below the ground level the site states: see the note on each')
+    expect(lines.some((l) => l.code === 'opening/below-ground' && l.thing.id === 'o1')).toBe(true)
   })
 })

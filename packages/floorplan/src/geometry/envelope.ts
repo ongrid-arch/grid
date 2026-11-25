@@ -340,6 +340,15 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
   }
 }
 
+/** A convex ring with each corner moved toward its middle by `noLength`. */
+function pulledIn(ring: readonly Vec2[]): Vec2[] {
+  const middle = { x: ring.reduce((sum, p) => sum + p.x, 0) / ring.length, y: ring.reduce((sum, p) => sum + p.y, 0) / ring.length }
+  return ring.map((p) => {
+    const length = Math.hypot(middle.x - p.x, middle.y - p.y)
+    return length > tolerance('noLength') ? { x: p.x + ((middle.x - p.x) / length) * tolerance('noLength'), y: p.y + ((middle.y - p.y) / length) * tolerance('noLength') } : p
+  })
+}
+
 const samePlane = (a: RoofPlane, b: RoofPlane): boolean =>
   Math.abs(a.z0 - b.z0) <= tolerance('joint') && Math.abs(a.gx - b.gx) <= tolerance('joint') && Math.abs(a.gy - b.gy) <= tolerance('joint')
 
@@ -362,7 +371,9 @@ function roofPieces(shape: RoofShapeOverFloor | null, pieces: MultiPolygon, clea
     return inside !== null && Math.abs(multiArea(inside) - whole) <= tolerance('areaReported') ? [place] : []
   })
   const facets = roofFacets(shape).flatMap((facet): RoofFacetPieces[] => {
-    let under = cutOutline('intersection', pieces, [[[ringOf([...facet.polygon])]]])
+    // VEW-12: a hip line running exactly through a corner of the outline can defeat the cut; the
+    // plane is then cut again, pulled in toward its middle by a hair (`noLength`), never lost.
+    let under = cutOutline('intersection', pieces, [[[ringOf([...facet.polygon])]]]) ?? cutOutline('intersection', pieces, [[[ringOf(pulledIn(facet.polygon))]]])
     if (under === null || under.length === 0) return []
     const holes = rooflights.filter((r) => samePlane(r.plane, facet.plane)).map((r): MultiPolygon => [[ringOf([...r.outline])]])
     if (holes.length > 0) under = cutOutline('difference', under, holes) ?? under

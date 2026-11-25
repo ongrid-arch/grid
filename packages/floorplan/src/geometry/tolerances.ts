@@ -763,6 +763,16 @@ export const TOLERANCES = {
       'only lays the stair out; it judges no riser and no going.',
     basis: own
   },
+  stairWaist: {
+    kind: 'limit',
+    value: 0.15,
+    unit: 'm',
+    decides:
+      'How thick a flight of stairs is drawn in a section, under the roots of its steps and square ' +
+      'to its slope, and how thick a landing is, at least one riser (VEW-11): the plan states no ' +
+      'waist. It only draws the stair; it judges nothing.',
+    basis: own
+  },
 
   // ── The plan as drawn (SHT-11) ────────────────────────────────────────────────────────────
   planCutHeight: {

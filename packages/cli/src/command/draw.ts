@@ -235,7 +235,8 @@ export async function drawFile(loaded: LoadedPlan, request: DrawRequest, scale: 
   const display = request.units === undefined && request.decimal === undefined && asked === undefined ? undefined : displayFor(request.units, request.decimal, loaded.plan, language)
   const labels = { ...(request.ids || display ? { labels: { ...(request.ids ? { ids: true } : {}), ...(display ? { display } : {}) } } : {}), ...drawShowOf(request), ...(drawing.marks === null ? {} : { marks: drawing.schedule ? withScheduleMarks(drawing.marks, loaded.plan) : drawing.marks }) }
   // What went wrong, numbered as `grid check` numbers it, marked on the drawing (MSG-8).
-  const faults = inspectPlan(loaded.plan, language === 'en' ? {} : { language, ...(loaded.plan.display?.decimal ? { decimal: loaded.plan.display.decimal } : {}) }).lines
+  // VEW-15: from the file's text and its base, as `grid check` reads them, so the fields the reading adds are no notes.
+  const faults = inspectPlan(loaded.text ?? loaded.plan, { ...(language === 'en' ? {} : { language, ...(loaded.plan.display?.decimal ? { decimal: loaded.plan.display.decimal } : {}) }), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
   const undecidedDoors = planPicture(loaded.plan, { floor, look, ...labels }).undecidedDoors
   // HND-10: the trace image under the floor drawn, and its line for standard error.
   const trace = project === undefined ? null : readTrace(project, loaded.plan, resolveFloor(loaded.plan, floor), language)

@@ -96,6 +96,49 @@ describe('refusals in plain words', () => {
   })
 })
 
+describe('the wall between two rooms, seen end on, is no gap (WRT-10)', () => {
+  const walls = 'walls outside 0.3 inside 0.1\n'
+  /** Written, clean in the drawing's own check, and the same when read back and written again. */
+  function clean(text: string): FloorPlan {
+    const plan = written(text)
+    expect(validatePlan(plan).issues.filter((i) => i.severity === 'error')).toEqual([])
+    const again = written(readRoomsText(plan).text)
+    expect(diffPlans(plan, again).changes).toEqual([])
+    return plan
+  }
+  it('writes two small rooms stacked between two larger ones, with the wall between the two', () => {
+    const plan = clean(
+      `${walls}room a "A" bedroom 3 x 3.1 at 0,0\n` +
+        'room b "B" toilet 1 x 1.5 east of a align north\n' +
+        'room c "C" storage 1 x 1.5 south of b align west\n' +
+        'room d "D" living 3 x 3.1 east of b align north\n'
+    )
+    expect(plan.rooms.map((r) => r.id).sort()).toEqual(['a', 'b', 'c', 'd'])
+    const partition = plan.walls.find((w) => w.id === 'w-b-c')
+    expect(partition?.thickness).toBeCloseTo(0.1, 9)
+    // It runs from the wall along A to the wall along D, across the stack.
+    expect(partition?.start[1]).toBeCloseTo(1.55, 9)
+    expect(Math.abs(partition!.end[0] - partition!.start[0])).toBeCloseTo(1.1, 9)
+  })
+
+  it('writes a WC cut out of a hall corner, with another room along that side of the hall', () => {
+    clean(`${walls}room garage "Garage" garage 3 x 5 at 0,0\nroom hall "Hall" corridor 2 x 5 east of garage align north\nroom wc "WC" toilet 0.9 x 1.5 inside hall corner nw\n`)
+    clean(`${walls}room garage "Garage" garage 3 x 5 at 0,0\nroom hall "Hall" corridor polygon 3.1,0 5.1,0 5.1,5 4.1,5 4.1,3.4 3.1,3.4\nroom wc "WC" toilet 0.9 x 1.5 at 3.1,3.5\n`)
+  })
+
+  it('still refuses a gap beside a stack that is shorter than the rooms either side', () => {
+    const result = compileRoomsText(
+      `${walls}room a "A" bedroom 3 x 3.6 at 0,0\n` +
+        'room b "B" toilet 1 x 1.5 east of a align north\n' +
+        'room c "C" storage 1 x 1.5 south of b align west\n' +
+        'room d "D" living 3 x 3.6 east of b align north\n'
+    )
+    expect(result.plan).toBeNull()
+    expect(result.problems.map((p) => p.code)).toEqual(['rooms/gap'])
+    expect(result.problems[0]!.message).toMatch(/^Rooms 'a' \(line 2\) and 'd' \(line 5\) leave a gap of 1\.20 m between them, along 0\.50 m/)
+  })
+})
+
 describe('reading a plan back as rooms text', () => {
   for (const name of BUILDINGS) {
     it(`${name}: rooms text to plan to rooms text to plan changes nothing`, () => {

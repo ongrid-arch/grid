@@ -44,7 +44,7 @@ import {
 import { DEFAULT_FLOOR_ID, heightByDefault, WALL_DEFAULTS, type BuildingType, type OutdoorKind, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { outdoorKind } from '@ongrid/floorplan/geometry/outdoor'
 import { drawable } from '@ongrid/floorplan/geometry/rules/check'
-import { openingSides, roomOutlines, sidesAt, type RoomOutline } from '@ongrid/floorplan/geometry/rules/graph'
+import { floorGraph, openingSides, roomOutlines, sidesAt, type RoomOutline } from '@ongrid/floorplan/geometry/rules/graph'
 
 /** A direction on the drawing: north is up (+y), whatever north the plan states (CNT-3). */
 export type Compass = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW'
@@ -80,6 +80,8 @@ export interface RoomFacts {
   readonly zoneOf?: string
   /** CNT-7 (C26), only on an outdoor space: its kind. It is measured, and counted in no total. */
   readonly outdoor?: OutdoorKind
+  /** ARE-16 (LVL-4), only on a void: open to the floor below, so no floor. It is measured, and counted in no total. */
+  readonly void?: true
 }
 
 /** How far an opening's edge is from the inside corner at one end of the room's side. */
@@ -150,6 +152,8 @@ export interface FloorFacts {
   /** Wall by wall, in the order of `walls`, and along each wall from its start. */
   readonly openings: readonly OpeningFacts[]
   readonly openSides: readonly OpenSide[]
+  /** ARE-18: open sides with a room on one side only that the way-out check reads as a way out, each with its room. */
+  readonly edgesOut: readonly { readonly wall: string; readonly room: string }[]
   readonly repeats: Repeat | null
   readonly area: number
   /**
@@ -516,14 +520,20 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
       neighbours: [...(next.get(room.id) ?? [])].sort(byText),
       ...(of === undefined ? {} : { zoneOf: of }),
       ...(outdoorKind(room) === null ? {} : { outdoor: outdoorKind(room)! }),
+      ...(room.void === true ? { void: true as const } : {}),
     }
   })
 
+  // ARE-18: a door or opening is a way in from outside when the way-out check reads it as one,
+  // as stated (an exterior wall) or worked out (no room and no enclosed floor past it).
+  const graph = floorGraph(storey, leftOut.rooms)
+  const exits = new Set(graph.exits.map((e) => `${e.room}\u0000${e.opening}`))
   const openings: OpeningFacts[] = []
   for (const wall of storey.walls) {
     for (const opening of index.openingsByWall.get(wall.id) ?? []) {
       const [left, right] = openingSides(opening, index, outlines)
-      const past = beyond(wall, index, outlines)
+      const room = left ?? right
+      const past = opening.type !== 'window' && room !== null && exits.has(`${room}\u0000${opening.id}`) ? 'outside' : beyond(wall, index, outlines)
       openings.push({
         id: opening.id,
         type: opening.type,
@@ -568,10 +578,11 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
     walls,
     openings,
     openSides,
+    edgesOut: graph.openEdges.filter((e) => e.beyond === 'outside').map((e) => ({ wall: e.edge, room: e.room })),
     repeats: null,
     // A zone's floor is its room's (CNT-8): counted once.
     // CNT-7: an outdoor space is listed apart, in no total.
-    area: rooms.reduce((sum, room) => sum + (room.zoneOf === undefined && room.outdoor === undefined ? (room.shape?.area ?? 0) : 0), 0),
+    area: rooms.reduce((sum, room) => sum + (room.zoneOf === undefined && room.outdoor === undefined && room.void !== true ? (room.shape?.area ?? 0) : 0), 0),
     wallHeight: usualHeight(plan, storey.walls),
     leftOut: [...leftOut.rooms, ...leftOut.openings].sort(byText),
     ...(storey.columns === undefined ? {} : { columns: columnFacts(storey, index) }),

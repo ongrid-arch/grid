@@ -13,9 +13,9 @@ clause, place, day read and status, and none is carried yet.
 
 | Measure | What it measures | Not taken off | What the plan cannot say |
 |---|---|---|---|
-| Net area | Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover; a stair drawn as a room on floor after floor counts once, on the floor it rises from. | Nothing else inside a room is taken off: fixed units, a column drawn as a short wall rather than as a column, and floor under a low ceiling all count. | The plan cannot say which rooms the reader counts: a store drawn as a room counts unless it is named as outside, and a balcony, a terrace or a garden counts unless it is marked as outdoor space. |
-| Gross internal area | Gross internal area is the floor inside the inside face of the walls that face outside, with the inner walls and partitions counted. | Inner walls, partitions, stairs and floor no room claims are not taken off. | Which walls face outside is worked out from the rooms beside them, an outdoor space being the outside; floor no room claims, such as a courtyard or a light well not drawn as outdoor space, may be covered or not, so it counts. |
-| Gross external area | Gross external area is the floor inside the outside face of the walls, every wall counted. | Outer walls, inner walls and floor no room claims are not taken off. | A wall shared with a neighbour, or with common parts the plan does not draw, counts to its middle once the plan marks it separating; any other wall counts in full, a wall standing apart too. |
+| Net area | Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover, a room marked as a void (open to the floor below, so with no floor) not counting at all; a stair drawn as a room on floor after floor counts once, on the floor it rises from. | Nothing else inside a room is taken off: fixed units, a column drawn as a short wall rather than as a column, and floor under a low ceiling all count. | The plan cannot say which rooms the reader counts: a store drawn as a room counts unless it is named as outside, and a balcony, a terrace or a garden counts unless it is marked as outdoor space. |
+| Gross internal area | Gross internal area is the floor inside the inside face of the walls that face outside, with the inner walls and partitions counted, and less any void, which has no floor. | Inner walls, partitions, stairs and floor no room claims are not taken off. | Which walls face outside is worked out from the rooms beside them, an outdoor space being the outside; floor no room claims, such as a courtyard or a light well not drawn as outdoor space, may be covered or not, so it counts. |
+| Gross external area | Gross external area is the floor inside the outside face of the walls, every wall counted, and less any void, which has no floor. | Outer walls, inner walls and floor no room claims are not taken off. | A wall shared with a neighbour, or with common parts the plan does not draw, counts to its middle once the plan marks it separating; any other wall counts in full, a wall standing apart too. |
 | Area by headroom | Area by headroom is the floor of each room with at least 1.5 m, and with at least 2.2 m, of height over it, from the room's floor to its ceiling or to the underside of the roof its floor states, whichever is lower. | It is measured on the room's whole floor: nothing standing in the room is taken off, a column neither, and floor under a lowered zone of the ceiling counts by that zone's height. | The plan cannot say how deep the roof is built up or where a low slope is boxed in, so the height is taken to the roof's underside as stated, from its eaves on the outside walls' lines. |
 | Outdoor area | Outdoor area is the floor of each room the plan marks as outdoor space, roofed or open, measured to the faces of its walls and edges as a room is. | It is in no net, gross internal or gross external figure, and nor is a wall that bounds outdoor space and no room, such as a fence or a parapet. | The plan cannot say how much of an outdoor space a local rule counts, such as part of a balcony: Grid counts none of it unless the caller states such a rule, with where it comes from. |
 | Area to the party walls | Area to the party walls is the floor of a flat's rooms with the walls and partitions between them, measured to the middle of each wall it shares with another flat, the common parts or a neighbour, and to the inside face of the walls that face outside, or to their outside face for the outside-face figure. | Nothing inside the flat is taken off: its inner walls, its partitions, its columns and its stair, on each floor it stands on, are all in it. | The plan cannot say which rooms make a flat but by its flats list, so floor no room claims and outdoor space are in no flat's figure, and a wall to a neighbour counts to its middle only once the plan marks it separating. |
@@ -27,6 +27,31 @@ walls or outside them, the answer says how much floor that is, and the sum takes
 gross internal area leaves out the walls that face outside, stretch by stretch, as Grid works
 them out from the rooms beside them, with the corners between them; a floor with no such wall
 has none. A room Grid could not draw is named and left out of every figure.
+
+The three are held in order (ARE-20): on every floor and in all, the gross external area holds
+the gross internal area, and the gross internal area holds the net. Where the drawing puts one
+below a figure it must hold, most often a room that runs past the walls, so that its floor is in
+the net and in no gross figure, the figure is still given, and `grid_areas` marks it not proven,
+with a sentence in its state (`why`) and in the notes that says which figure is short of which, by
+how much and why. In the library: each floor's `doubts` and each gross total's `doubt` in
+`planAreaFigures(plan)`.
+
+An outdoor space inside the walls, such as a courtyard, a cloister's garth or a light well marked
+as outdoor space, is out of both gross figures, whatever bounds it: walls Grid works out as facing
+it, walls stated exterior, or an open side drawn as a virtual wall, such as an arcade. Floor no
+room claims still counts in both, since Grid cannot tell whether it is covered: mark an open
+courtyard as outdoor space to take it out.
+
+### One building measured apart
+
+Two buildings built against each other on the same floors can be measured apart (ARE-20):
+`grid_areas` with `apart_rooms`, the rooms of one of them, gives their net area, counted as the net
+counts it, and their area to the middle of each wall they share with the rest of the plan, to the
+inside face and to the outside face of the walls that face outside, as a flat's area to its party
+walls is measured. Measured apart, the two buildings add up to the whole. An id that is no room the
+net counts on the floors given (a zone, an outdoor space, a room named outside, a stair counted
+below) is named and left out. In the library: `planAreaFigures(plan, { apart })`. A building the
+plan names (CNT-6) is a group of floors, and is measured from its own floors without this.
 
 Under a sloped roof (LVL-6) a room's floor is also given by headroom band: how much of it has at
 least 1.5 m (`headroomLow`) and at least 2.2 m (`headroomFull`) of height over it, Grid's own

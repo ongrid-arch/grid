@@ -148,6 +148,8 @@ const wholeRoom = (s: Subject, language: Language): Values => {
   const zone = s.finding?.zone
   return zone === undefined ? { as } : { as, zone: name(s.names[1] ?? zone) }
 }
+/** ARE-19: an escape finding that carries the openings it left out for lying below the ground. */
+const below = (s: Subject): boolean => (s.finding?.openings.length ?? 0) > 0
 const wholeVariant = (s: Subject): string => (s.finding?.use === undefined ? '' : s.finding.zone === undefined ? 'whole' : 'whole.zone')
 /** A figure from a line's fixes (MSG-7), or null. */
 const fixOf = (s: Subject, key: 'width' | 'offset' | 'height' | 'sill'): number | null => s.fixes?.find((f) => f[key] !== undefined)?.[key] ?? null
@@ -702,7 +704,12 @@ export const CODES = {
     variant: { found: wholeVariant }
   },
   'room/no-escape-opening': {
-    values: (s): Values => ({ wording: grouped(s, figureSaids.noEscapeOpening(s.name)), readFor: readFor(s) })
+    values: (s): Values => ({
+      wording: grouped(s, below(s) ? figureSaids.noEscapeOpeningBelowGround(s.name) : figureSaids.noEscapeOpening(s.name)),
+      readFor: readFor(s)
+    }),
+    // ARE-19: a room left with no way out because its outside openings lie below the ground.
+    variant: { found: (s) => (below(s) ? 'belowGround' : ''), fix: (s) => (below(s) ? 'belowGround' : '') }
   },
   'room/escape-window-too-small': {
     values: (s): Values => ({ wording: grouped(s, figureSaids.escapeWindowTooSmall(s.name)), ...escapeWindowFound(s), ...escapeWindowNeeded(s) }),

@@ -13,12 +13,12 @@
  * are in no figure.
  */
 import { MEASURES, floorOf, floorRoofShape, headroomBands, planMarks, roomHeadroom, wallSureness, type GrossMeasure, type HeadroomBand, type MeasureRule, type ReaderMeasure, type RoomLeftOut } from '@ongrid/floorplan/geometry'
-import { FLAT_AREA_RULE, planAreaFigures, type FlatAreaFigure, type OutdoorAreaFigure, type OutdoorWeight, type PlanAreaFigures } from '@ongrid/floorplan/geometry/areas'
+import { FLAT_AREA_RULE, planAreaFigures, type ApartAreaFigure, type FlatAreaFigure, type OutdoorAreaFigure, type OutdoorWeight, type PlanAreaFigures } from '@ongrid/floorplan/geometry/areas'
 import type { PartyWallArea } from '@ongrid/floorplan/geometry/partyWalls'
 import type { MarkSource, OutdoorKind } from '@ongrid/floorplan/types/floorplan'
 import type { Survey, SurveyRoom } from './survey'
 import { FIXTURE_RULES, planFixtures } from './fixtures'
-import { joinStates, lessRooms, NOT_LOOKED_AT, roomDoubts, roomState, sumState, type AreaState, type NumberState } from './state'
+import { doubted, joinStates, lessRooms, NOT_LOOKED_AT, roomDoubts, roomState, sumState, type AreaState, type NumberState } from './state'
 
 /** What each measure measures, in one sentence each. */
 export const AREA_RULES = {
@@ -75,6 +75,8 @@ export interface RoomArea {
   readonly zoneOf?: string
   /** CNT-7 (C26), only on an outdoor space: its kind and whether a roof covers it. Measured, and in no total. */
   readonly outdoor?: { readonly kind: OutdoorKind; readonly roofed: boolean }
+  /** ARE-16, only on a void (LVL-4): no floor stands there. Measured, and in no total. */
+  readonly void?: true
   /**
    * WRT-6: only on a room whose walls the plan marks: where they came from and how sure the area
    * is. A zone's band is its own, and is added into no total (CNT-8).
@@ -166,6 +168,8 @@ export interface PlanAreas {
   /** ARE-14 (lab S-6), only on a plan with fixtures: the floor they take from the rooms the net counts, and the net less it. */
   readonly fixtures?: number
   readonly free?: number
+  /** ARE-20: the rooms asked to be measured apart, with the state of their net; only when some were. */
+  readonly apart?: ApartAreaFigure & { readonly state: AreaState }
   /** MSG-2: the state of each total, and the rooms it left out or holds in doubt. */
   readonly states: {
     readonly net: AreaState
@@ -184,6 +188,8 @@ export interface AreasRequest {
   readonly gross?: GrossMeasure | 'both'
   /** CNT-7, ARE-14: the share of each kind of outdoor space a rule the person states counts. */
   readonly outdoorWeights?: Readonly<Partial<Record<OutdoorKind, OutdoorWeight>>>
+  /** ARE-20: room ids to measure apart, as one building from another built against it. */
+  readonly apart?: ReadonlySet<string>
 }
 
 const CIRCULATION = new Set(['corridor', 'stair'])
@@ -226,7 +232,7 @@ function sumSureness(rooms: readonly RoomArea[], total: number): AreaSureness | 
   return { source, plusMinus, percent: plusMinus === null || total <= 0 ? null : (100 * plusMinus) / total }
 }
 /** The rooms the totals count: no outside room, no zone (CNT-8), no stair room counted with the one below (SHT-11). */
-const inTotals = (room: RoomArea): boolean => !room.outside && room.outdoor === undefined && room.zoneOf === undefined && room.countedWith === undefined
+const inTotals = (room: RoomArea): boolean => !room.outside && room.outdoor === undefined && room.void !== true && room.zoneOf === undefined && room.countedWith === undefined
 
 const key = (floor: string, id: string): string => `${floor}\u0000${id}`
 
@@ -238,6 +244,7 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     ...(request.country ? { country: request.country } : {}),
     ...(request.gross ? { gross: request.gross } : {}),
     ...(request.outdoorWeights ? { outdoorWeights: request.outdoorWeights } : {}),
+    ...(request.apart ? { apart: request.apart } : {}),
   })
   const { taken, zoneTaken } = planFixtures(survey.plan, request.floors)
   // LVL-6: a room on a floor that states its roof has its floor by headroom band.
@@ -284,6 +291,7 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
         ...headroomOf(f.floor, id, net),
         ...(figure === undefined || figure.zoneOf === null ? {} : { zoneOf: figure.zoneOf }),
         ...(figure?.outdoor === undefined ? {} : { outdoor: figure.outdoor }),
+        ...(figure?.void === true ? { void: true as const } : {}),
         ...(sureness === undefined ? {} : { sureness }),
       }
     })
@@ -330,9 +338,10 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
         net: sumState(inside),
         byUse: byUseState,
         circulation: sumState(circulating),
-        // Gross areas come from the walls; gross internal takes off the outside rooms.
-        grossInternal: f.grossInternal === null ? NOT_LOOKED_AT : lessRooms(rooms.filter((room) => room.outside)),
-        grossExternal: f.grossExternal === null ? NOT_LOOKED_AT : lessRooms([]),
+        // Gross areas come from the walls; gross internal takes off the outside rooms. ARE-20: one
+        // below a figure it must hold is not proven, and says why.
+        grossInternal: f.grossInternal === null ? NOT_LOOKED_AT : doubted(lessRooms(rooms.filter((room) => room.outside)), f.doubts.grossInternal),
+        grossExternal: f.grossExternal === null ? NOT_LOOKED_AT : doubted(lessRooms([]), f.doubts.grossExternal),
       },
     }
   })
@@ -358,8 +367,10 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
   }
   // The library's own note on rooms left out says the same, so it is not said twice.
   notes.push(...figures.notes.filter((note) => !note.startsWith('Left out of every figure')))
-  const grossInternalState = grossInternal === null ? NOT_LOOKED_AT : joinStates(floors.map((f) => f.states.grossInternal))
-  const grossExternalState = figures.grossExternal.area === null ? NOT_LOOKED_AT : joinStates(floors.map((f) => f.states.grossExternal))
+  // ARE-20: a total's doubt is its floors', each said with its floor, so the floors' own are not joined in again.
+  const withoutWhy = (state: AreaState): AreaState => ({ state: state.state === 'not-proven' && state.leftOut.length + state.notProven.length === 0 ? 'proven' : state.state, leftOut: state.leftOut, notProven: state.notProven })
+  const grossInternalState = grossInternal === null ? NOT_LOOKED_AT : doubted(joinStates(floors.map((f) => withoutWhy(f.states.grossInternal))), figures.grossInternal.doubt)
+  const grossExternalState = figures.grossExternal.area === null ? NOT_LOOKED_AT : doubted(joinStates(floors.map((f) => withoutWhy(f.states.grossExternal))), figures.grossExternal.doubt)
   const circulationState = joinStates(floors.map((f) => f.states.circulation))
   // LVL-3: a stair the plan states stands in rooms that are already measured, so its flights add
   // no floor: its area is counted once, in the rooms it stands in.
@@ -426,6 +437,7 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     ...(figures.outdoor === undefined ? {} : { outdoor: figures.outdoor }),
     ...(sureness === undefined ? {} : { sureness }),
     ...(fittedFloors.length === 0 ? {} : { fixtures: planFixtureFloor, free: Math.max(0, net - planFixtureFloor) }),
+    ...(figures.apart === undefined ? {} : { apart: { ...figures.apart, state: sumState(floors.flatMap((f) => f.rooms.filter((room) => inTotals(room) && figures.apart!.rooms.includes(room.id)))) } }),
     states: {
       net: netState,
       circulation: circulationState,

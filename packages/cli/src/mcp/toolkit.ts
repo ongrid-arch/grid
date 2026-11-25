@@ -11,7 +11,7 @@ import { GENERAL_GUIDANCE_LABEL, planFloors, type FloorPlan } from '@ongrid/floo
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
-import { PROJECT_FILE, projectPlanFile } from '../command/init'
+import { missingDefaultPlan, projectPlanFile } from '../command/init'
 import { UsageError } from '../command/options'
 import { loadPlan, PlanRefused, type LoadedPlan, type LoadOptions } from '../command/plan'
 import { ID_MAX as PLAN_ID_MAX, UNSAFE_TEXT } from '../command/planText'
@@ -180,6 +180,11 @@ export function labelled(answer: Answer): Answer {
 
 /** The output schema with the label every answer carries (MSG-3). */
 function labelledSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  // CMD-17: a tool whose answer differs by argument lists its variants under `anyOf`; each carries the label.
+  const variants = schema['anyOf'] as readonly Record<string, unknown>[] | undefined
+  const { anyOf: _variants, ...root } = schema
+  void _variants
+  if (variants !== undefined) return { ...labelledSchema(root), anyOf: variants.map(labelledSchema) }
   const properties = schema['properties'] as Record<string, unknown> | undefined
   if (properties === undefined) return schema
   const required = (schema['required'] as readonly string[] | undefined) ?? []
@@ -304,14 +309,10 @@ export function projectOf(context: ToolContext): Project {
   return context.project
 }
 
-/** The plan file a call names, or the project's own plan when it names none. */
+/** The plan file a call names, or the folder's own plan.json when it names none (CMD-18). */
 export function planFileOf(project: Project, plan: unknown): string {
   if (typeof plan === 'string') return plan
-  const own = projectPlanFile(project)
-  if (own === null) {
-    throw new ToolRefusal(`Pass plan: the plan file, as a path inside the project folder. This folder holds no ${PROJECT_FILE}, so there is no plan to fall back on.`)
-  }
-  return own
+  return projectPlanFile(project)
 }
 
 /**
@@ -321,6 +322,7 @@ export function planFileOf(project: Project, plan: unknown): string {
 export function readPlan(context: ToolContext, plan: unknown, options: LoadOptions = {}): { project: Project; file: string; loaded: LoadedPlan } {
   const project = projectOf(context)
   const file = planFileOf(project, plan)
+  if (typeof plan !== 'string' && !project.exists(file)) throw new ToolRefusal(missingDefaultPlan(project, file))
   try {
     return { project, file, loaded: loadPlan(project, file, options) }
   } catch (error) {

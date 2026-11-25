@@ -15,6 +15,7 @@ import { FRAME_MARGIN, fitTo } from '@ongrid/viewer/src/canvas2d/viewport'
 import { pictureView, undecidedDoorsOf, type PictureOptions } from '@ongrid/viewer/src/picture'
 import { TEXT_PX } from '@ongrid/viewer/src/picture/look'
 import { checkOnFloor, checkPlan, floorIssues, placeText } from '../command/check'
+import type { AccessNote } from './accessNotes'
 import { inLanguage } from '../command/words'
 import type { LoadedPlan } from '../command/plan'
 import { describeText } from '../describe/card'
@@ -23,6 +24,7 @@ import { AREA_RULES, planAreas, type FloorAreas } from '../quantities/areas'
 import { factsText, flatSchedule, openingSchedule, openingTypeSchedule, roomSchedule, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
 import type { ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
 import { surveyPlan } from '../quantities/survey'
+import { notShownNote } from './limits'
 import { displayFor, sqFt } from '../quantities/units'
 import { showLength, type Display } from '@ongrid/floorplan/types/units'
 
@@ -134,6 +136,8 @@ export interface SheetPage {
 export interface Sheet { readonly layout: SheetLayout; readonly name: string; readonly pages: readonly SheetPage[]; readonly language?: Language }
 export interface SheetOptions {
   readonly name: string
+  /** SHT-12: the measurements under the person's own access figures, printed on a client sheet's first page. */
+  readonly accessNotes?: readonly AccessNote[]
   readonly date: Date
   /** MSG-11: the language of the sheet's own words, with its decimal mark. English when left out. */
   readonly language?: Language
@@ -167,10 +171,6 @@ const ENGLISH = wordsIn(DEFAULT_LANGUAGE)
 
 type Body = Omit<SheetPage, 'footer'>
 
-/** What a client sheet always says it does not show. Grid's own words. */
-export const CLIENT_LIMITS = say('en', 'sheet.limits')
-/** The same, for a plan that states its stairs (LVL-3): they are drawn. */
-export const CLIENT_LIMITS_WITH_STAIRS = say('en', 'sheet.limits.stairs')
 /** When some floor with rooms is joined to no other by a stair (LVL-3). */
 export const STAIR_LIMIT = say('en', 'sheet.stairLimit')
 /** On a client floor page that leaves out a part Grid cannot draw (the check sheet lists it). */
@@ -286,7 +286,7 @@ function areaTable(floor: FloorAreas, withUse: boolean, units: SheetUnits, w: Wo
   const places = floor.rooms.filter((r) => r.zoneOf === undefined)
   // SHT-11: a stair room over the stair below is counted there, so it is in no part of the sum.
   // CNT-7: an outdoor space is listed with its area, apart from the sum.
-  const counted = places.filter((r) => r.countedWith === undefined && r.outdoor === undefined)
+  const counted = places.filter((r) => r.countedWith === undefined && r.outdoor === undefined && r.void !== true)
   const shown = units.sum(counted.map((r) => r.net ?? 0), floor.net)
   const parts = new Map(counted.map((room, i) => [room, shown.parts[i]!] as const))
   return {
@@ -325,7 +325,20 @@ function areaFigure(value: number | null, label: string, units: SheetUnits, w: W
   return { value: value === null ? w.say('sheet.notKnown') : `${units.area(value)} ${units.areaUnit}`, label }
 }
 
-function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string, w: Words): Body[] {
+/** The most access notes the first page prints; the rest are one line pointing to the full answer. */
+const ACCESS_NOTES_MAX = 6
+
+function accessLines(notes: readonly AccessNote[], units: SheetUnits, w: Words): string[] {
+  const room = (n: string | null): string => n ?? w.say('sheet.access.outside')
+  const line = (n: AccessNote): string => {
+    const values = { figure: units.length(n.figure), value: units.length(n.measured) }
+    if (n.kind === 'door') return w.say('sheet.access.door', { ...values, a: room(n.rooms[0] ?? null), b: room(n.rooms[1] ?? null) })
+    return w.say(n.kind === 'corridor' ? 'sheet.access.corridor' : 'sheet.access.turning', { ...values, room: room(n.rooms[0] ?? null) })
+  }
+  return [...notes.slice(0, ACCESS_NOTES_MAX).map(line), ...(notes.length > ACCESS_NOTES_MAX ? [w.say('sheet.access.more')] : [])]
+}
+
+function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string, w: Words, accessNotes: readonly AccessNote[] = []): Body[] {
   const areas = planAreas(surveyPlan(loaded.plan))
   const floors = planFloors(loaded.plan)
   const frames = floorFrames(loaded)
@@ -339,12 +352,12 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
   const height = heightFigure(loaded, units, w)
   if (height) figures.push(height)
 
-  const shown = w.say(facts.connections.stairs.length > 0 ? 'sheet.limits.stairs' : 'sheet.limits')
-  const limits = facts.connections.unjoined.length > 0 ? [shown, w.say('sheet.stairLimit')] : [shown]
+  const stairsDrawn = facts.connections.stairs.length > 0
+  const limits = facts.connections.unjoined.length > 0 ? [w.say('sheet.stairLimit')] : []
   const cover: Body = {
     kind: 'cover', floor: null, topLine: title, title, subtitle: words?.headline ?? null,
     paragraphs: words?.intro ?? [], figures, table: null, picture: { kind: 'model' },
-    notes: areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : [],
+    notes: [...(areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : []), ...accessLines(accessNotes, units, w)],
   }
   // Never an id here: floors that share a name are told apart by their place in the plan.
   const named = (name: string) => floors.filter((f) => f.name === name).length
@@ -357,7 +370,7 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
       paragraphs: words?.floors?.[floor.id] ?? [], figures: [],
       table: floorAreas ? areaTable(floorAreas, false, units, w) : null,
       picture: floorPicture(loaded, frames, floor.id, false),
-      notes: [...limits, ...(leftOut ? [w.say('sheet.leftOutLimit')] : []), ...undecidedNote(loaded, floor.id, w)],
+      notes: [notShownNote(loaded.plan, floor.id, stairsDrawn, w.language), ...limits, ...(leftOut ? [w.say('sheet.leftOutLimit')] : []), ...undecidedNote(loaded, floor.id, w)],
     }
   })
   return [cover, ...pages]
@@ -564,7 +577,7 @@ export function sheetPages(loaded: LoadedPlan, words: SheetWords | null, layout:
   // A check sheet takes nothing from sheet.json, not even its name.
   const name = layout === 'client' ? words?.name ?? options.name : options.name
   const w = wordsIn(options.language ?? DEFAULT_LANGUAGE)
-  const bodies = layout === 'client' ? clientBodies(loaded, words, options.name, w) : checkBodies(loaded, options.name, w)
+  const bodies = layout === 'client' ? clientBodies(loaded, words, options.name, w, options.accessNotes) : checkBodies(loaded, options.name, w)
   const date = dateText(options.date, w)
   const label = w.say('label')
   const pages = bodies.map((body, i): SheetPage => ({
