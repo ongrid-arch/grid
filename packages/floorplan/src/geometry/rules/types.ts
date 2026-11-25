@@ -71,6 +71,11 @@ export type FindingCode =
    */
   | 'flat_without_front_door'
   /**
+   * ARE-43: a flat that is entered, but only through doorless openings or open sides, never a door
+   * or a stair. Its rooms are the flat's.
+   */
+  | 'flat_entrance_without_door'
+  /**
    * LVL-3: rooms used as a stair on two neighbouring levels, none lying over one on the other, so
    * they join nothing. On the upper floor; its rooms are the upper level's, then the lower's.
    */
@@ -145,7 +150,7 @@ export interface RuleFinding {
    * Optional, so the report stays at schema version 1.
    */
   readonly through?: readonly RouteStep[]
-  /** CNT-6: only on `flat_without_front_door`, the flat's id (CNT-4); MSG-17: on `let_through_another_let` when the let is a flat. */
+  /** CNT-6: only on `flat_without_front_door` and `flat_entrance_without_door`, the flat's id (CNT-4); MSG-17: on `let_through_another_let` when the let is a flat. */
   readonly flat?: string
   /**
    * LVL-17, only on `door_between_levels`: each room's floor level, in m from its storey's floor

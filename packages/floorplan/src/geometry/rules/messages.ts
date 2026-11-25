@@ -116,6 +116,8 @@ export const saids = {
   betweenHomes: (room: string, other: string | null, open: boolean): Said =>
     other === null ? said('check.doorIntoNeighbour', { room: name(room) }) : said(open ? 'check.openBetweenHomes' : 'check.doorBetweenHomes', { room: name(room), other: name(other) }),
   /** CNT-6 (lab R-10): a flat none of whose doors opens onto a common part, a space not drawn or the outside. */
+  /** ARE-43: a flat whose only ways in from the common parts are openings with no door, or open sides. */
+  flatEntranceWithoutDoor: (flat: string): Said => said('check.flatEntranceWithoutDoor', { flat: name(flat) }),
   flatWithoutFrontDoor: (flat: string): Said => said('check.flatWithoutFrontDoor', { flat: name(flat) }),
   /** CNT-6 (lab R-10): the floor's way out goes on through common parts the plan does not draw. */
   wayOutThroughCommonParts: (floor: string): Said => said('check.wayOutThroughCommonParts', { floor: name(floor) }),
@@ -173,6 +175,7 @@ export const wordings = {
   doorsNotDrawn: (floor: string, openings: readonly string[], kinds?: readonly OpeningKind[]): WordingPart[] => parts(saids.doorsNotDrawn(floor, openings, kinds)),
   doorToUndrawnSpace: (room: string): WordingPart[] => parts(saids.doorToUndrawnSpace(room)),
   betweenHomes: (room: string, other: string | null, open: boolean): WordingPart[] => parts(saids.betweenHomes(room, other, open)),
+  flatEntranceWithoutDoor: (flat: string): WordingPart[] => parts(saids.flatEntranceWithoutDoor(flat)),
   flatWithoutFrontDoor: (flat: string): WordingPart[] => parts(saids.flatWithoutFrontDoor(flat)),
   wayOutThroughCommonParts: (floor: string): WordingPart[] => parts(saids.wayOutThroughCommonParts(floor)),
   doorOutAboveGround: (room: string, height: string): WordingPart[] => parts(saids.doorOutAboveGround(room, height)),
@@ -261,6 +264,7 @@ export const messages = {
     english(rooms.length > 0 ? saids.roomsNotDrawn(floor, rooms) : saids.doorsNotDrawn(floor, openings, kinds)),
   doorToUndrawnSpace: (room: string): string => english(saids.doorToUndrawnSpace(room)),
   betweenHomes: (room: string, other: string | null, open: boolean): string => english(saids.betweenHomes(room, other, open)),
+  flatEntranceWithoutDoor: (flat: string): string => english(saids.flatEntranceWithoutDoor(flat)),
   flatWithoutFrontDoor: (flat: string): string => english(saids.flatWithoutFrontDoor(flat)),
   wayOutThroughCommonParts: (floor: string): string => english(saids.wayOutThroughCommonParts(floor)),
   doorOutAboveGround: (room: string, height: string): string => english(saids.doorOutAboveGround(room, height)),

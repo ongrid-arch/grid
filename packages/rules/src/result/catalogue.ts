@@ -632,6 +632,9 @@ export const CODES = {
   'opening/between-homes': {
     values: (s): Values => ({ wording: s.finding?.said ?? s.finding?.message ?? s.label })
   },
+  'flat/entrance-without-door': {
+    values: (s): Values => ({ wording: s.finding?.said ?? s.finding?.message ?? s.label })
+  },
   'flat/no-front-door': {
     values: (s): Values => ({ wording: s.finding?.said ?? s.finding?.message ?? s.label })
   },
