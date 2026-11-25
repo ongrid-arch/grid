@@ -54,6 +54,7 @@ import { COMPASS_SIDES } from '../types/floorplan'
 import { floorElevations, isFiniteWall, wallTopsUnder } from './elevations'
 import { planEnvelope } from './envelope'
 import { planFloors, planForFloor } from './floors'
+import { indexPlan } from './plan'
 import { groundLevel, plinthUnder } from './ground'
 import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './orientation'
 import { withPatterns } from './patterns'
@@ -64,7 +65,7 @@ import type { Vec2 } from './vec2'
 import { straightPieces, wallPointAt } from './wall'
 import { curveFault, wallCurve } from './arc'
 import { outlineKnown, slabOutline } from './outline'
-import { buildingPlan, isOutdoor } from './outdoor'
+import { buildingPlan, isOutdoor, outdoorOnlyWalls } from './outdoor'
 
 /** The sides a facade is drawn for: the drawing's four (C4). */
 export const FACADE_SIDES = COMPASS_SIDES
@@ -566,6 +567,9 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
       for (const piece of pieces) owners.set(piece, w)
       return pieces
     })
+    // VEW-35: a wall round outdoor space alone (a balcony's edge, a terrace's parapet) keeps its own
+    // top: it does not rise to the slab over it, so the doors behind it show above it.
+    const fenced = outdoorOnlyWalls(indexPlan(slice))
     const thickest = Math.max(0, ...walls.map((w) => w.thickness))
     const openingsOf = new Map<string, Opening[]>()
     for (const opening of slice.openings) {
@@ -595,7 +599,7 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
             kind: 'wall',
             floor: floor.id,
             wall: stretch.wall.id,
-            points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel, bandDrop, topUnder(owners.get(stretch.wall) ?? stretch.wall, floor.id)?.top),
+            points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel, bandDrop, fenced.has((owners.get(stretch.wall) ?? stretch.wall).id) ? undefined : topUnder(owners.get(stretch.wall) ?? stretch.wall, floor.id)?.top),
             openings: openingsIn(stretch.wall, openingsOf.get(stretch.wall.id) ?? [], edge, stretch, across, storey.floorLevel)
           })
         }

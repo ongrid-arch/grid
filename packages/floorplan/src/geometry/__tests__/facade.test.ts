@@ -368,3 +368,49 @@ describe('every wall that faces the viewer, outdoor space and all (VEW-25)', () 
     expect(facade.openings).toEqual(['flat-window', 'flat-door'])
   })
 })
+
+describe('a balcony under another floor keeps its low walls (VEW-35)', () => {
+  const at = (id: string, start: [number, number], end: [number, number], floor: string, height?: number) => ({ id, start, end, thickness: 0.2, floor, ...(height === undefined ? {} : { height }) })
+  const house = (f: string) => [at(f + 's1', [0, 0], [2, 0], f, 2.7), at(f + 's2', [2, 0], [8, 0], f, 2.7), at(f + 's3', [8, 0], [10, 0], f, 2.7), at(f + 'e', [10, 0], [10, 8], f, 2.7), at(f + 'n', [10, 8], [0, 8], f, 2.7), at(f + 'w', [0, 8], [0, 0], f, 2.7)]
+  /** A flat's floor stated as an outline with no walls but the balcony's, under a top floor. */
+  const block = (): FloorPlan =>
+    parseFloorPlan({
+      version: '1',
+      floors: [{ id: 'g', name: 'G', level: 0 }, { id: 'u', name: 'U', level: 3, outline: [[0, 0], [10, 0], [10, 8], [0, 8]] }, { id: 'v', name: 'V', level: 6 }],
+      walls: [...house('g'), ...house('v'), at('bw', [2, 0], [2, -1.5], 'u', 1.1), at('bs', [2, -1.5], [8, -1.5], 'u', 1.1), at('be', [8, -1.5], [8, 0], 'u', 1.1)],
+      rooms: [
+        { id: 'gi', name: 'Ground', boundary: ['gs1', 'gs2', 'gs3', 'ge', 'gn', 'gw'], floor: 'g' },
+        { id: 'vi', name: 'Top', boundary: ['vs1', 'vs2', 'vs3', 've', 'vn', 'vw'], floor: 'v' },
+        { id: 'bal', name: 'Balcony', outdoor: 'balcony', boundary: ['bw', 'bs', 'be'], floor: 'u' },
+      ],
+      openings: [{ id: 'slide-1', wall: 'bs', type: 'door', offset: 0.5, width: 2, height: 2.1 }],
+    })
+
+  it('draws the balcony walls at their own 1.10 m, not up to the slab over them', () => {
+    const facade = planFacade(block(), 'south')
+    const front = facade.faces.find((f) => f.wall === 'bs')!
+    expect([front.bottom, front.top]).toEqual([2.7, 4.05])
+  })
+
+  it('counts every sliding door behind a balcony whose walls are low', () => {
+    const plan = parseFloorPlan({
+      version: '1',
+      floors: [{ id: 'g', name: 'G', level: 0 }, { id: 'u', name: 'U', level: 3 }, { id: 'v', name: 'V', level: 6 }],
+      walls: [...house('g'), ...house('u'), ...house('v'), at('bw', [2, 0], [2, -1.5], 'u', 1.1), at('bs', [2, -1.5], [8, -1.5], 'u', 1.1), at('be', [8, -1.5], [8, 0], 'u', 1.1)],
+      rooms: [
+        { id: 'gi', name: 'Ground', boundary: ['gs1', 'gs2', 'gs3', 'ge', 'gn', 'gw'], floor: 'g' },
+        { id: 'ui', name: 'Flat', boundary: ['us1', 'us2', 'us3', 'ue', 'un', 'uw'], floor: 'u' },
+        { id: 'vi', name: 'Top', boundary: ['vs1', 'vs2', 'vs3', 've', 'vn', 'vw'], floor: 'v' },
+        { id: 'bal', name: 'Balcony', outdoor: 'balcony', boundary: ['us2', 'bw', 'bs', 'be'], floor: 'u' },
+      ],
+      openings: [
+        { id: 'slide-1', wall: 'us2', type: 'door', offset: 0.5, width: 2, height: 2.1 },
+        { id: 'slide-2', wall: 'us2', type: 'door', offset: 3.5, width: 2, height: 2.1 },
+      ],
+    })
+    const facade = planFacade(plan, 'south')
+    expect(facade.openings).toEqual(['slide-1', 'slide-2'])
+    expect(facade.faces.find((f) => f.wall === 'us1')!.top).toBe(5.65)
+    expect(facade.faces.find((f) => f.wall === 'bs')!.top).toBe(4.05)
+  })
+})
