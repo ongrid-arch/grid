@@ -70,8 +70,8 @@ describe('grid_sheet and the words', () => {
     expect(reply.text).toContain('"accessible"')
   })
 
-  it('refuses claim words in sheet.json beside the plan', async () => {
-    b = bench({ 'probe.json': labPlan(NARROW), 'sheet.json': words({ intro: ['This building complies.'] }) })
+  it('refuses claim words in the sheet file beside the plan', async () => {
+    b = bench({ 'probe.json': labPlan(NARROW), 'probe.sheet.json': words({ intro: ['This building complies.'] }) })
     const reply = await b.call('grid_sheet', { plan: 'probe.json', layout: 'client' })
     expect(reply.isError).toBe(true)
     expect(reply.text).toContain('"complies"')

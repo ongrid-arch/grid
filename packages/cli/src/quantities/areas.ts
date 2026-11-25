@@ -12,7 +12,7 @@
  * net or the gross internal area. Rooms Grid could not draw are listed with no area, named, and
  * are in no figure.
  */
-import { MEASURES, floorOf, floorRoofShape, headroomBands, planMarks, roomHeadroom, wallSureness, type GrossMeasure, type HeadroomBand, type MeasureRule, type ReaderMeasure, type RoomLeftOut } from '@ongrid/floorplan/geometry'
+import { MEASURES, PHASE_WORDS, floorOf, floorRoofShape, headroomBands, planMarks, roomHeadroom, wallSureness, type GrossMeasure, type HeadroomBand, type MeasureRule, type ReaderMeasure, type RoomLeftOut } from '@ongrid/floorplan/geometry'
 import { english, joined, num, said } from '@ongrid/floorplan/messages'
 import { FLAT_AREA_RULE, planAreaFigures, type ApartAreaFigure, type FlatAreaFigure, type OutdoorAreaFigure, type OutdoorWeight, type PlanAreaFigures } from '@ongrid/floorplan/geometry/areas'
 import type { PartyWallArea } from '@ongrid/floorplan/geometry/partyWalls'
@@ -429,6 +429,13 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     const several = survey.facts.floors.length > 1
     const named = netState.leftOut.map((room) => `${JSON.stringify(room.name)}${several ? ` on ${JSON.stringify(room.floor)}` : ''}`).join(', ')
     notes.push(`Every total here leaves out ${netState.leftOut.length === 1 ? 'a room' : `${netState.leftOut.length} rooms`} that could not be measured, and is short by ${netState.leftOut.length === 1 ? 'its' : 'their'} area: ${named}.`)
+  }
+  // ARE-54: a room left out because of the phases says so, with the pattern that fixes it.
+  const leftOutIds = new Set(netState.leftOut.map((room) => room.id))
+  const byPhase = survey.phaseClashes.filter((c) => c.code === 'room/phase-wall' && leftOutIds.has(c.id))
+  if (byPhase.length > 0) {
+    const parts = byPhase.map((c) => english(said('areas.phase.leftOut.part', { room: JSON.stringify(c.id), phase: said(PHASE_WORDS[c.phase]), wall: JSON.stringify(c.wall), wallPhase: said(PHASE_WORDS[c.wallPhase]) })))
+    notes.push(english(said('areas.phase.leftOut', { rooms: byPhase.length === 1 ? 'a room' : `${byPhase.length} rooms`, parts: joined(parts, 'join.comma') })))
   }
   // The library's own note on rooms left out says the same, so it is not said twice.
   notes.push(...figures.notes.filter((note) => !note.startsWith('Left out of every figure')))
