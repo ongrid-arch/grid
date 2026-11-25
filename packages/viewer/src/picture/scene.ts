@@ -23,7 +23,7 @@
  * Pure: no DOM, no React.
  */
 import type { Dimension, Ghosts, OpeningSymbol, PlanAbove, PlanDrawing, PlanOpening, PlanRoom, PlanWall, ScheduleMark, SymbolPart, Vec2, WallDrawnKind } from '@ongrid/floorplan/geometry'
-import { boundsWithDimensions, hatchLines, openingDetail, openingSymbol, poleOfInaccessibility, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
+import { boundsWithDimensions, guessedDoorKind, hatchLines, openingDetail, openingSymbol, poleOfInaccessibility, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
 import type { DoorHanding } from '../canvas2d/doorHanding'
 import { doorSymbolOf } from '../canvas2d/doorSymbol'
 import { openingAt, stripAcross } from '../canvas2d/strip'
@@ -654,6 +654,17 @@ function kindSymbolNode(opening: PlanOpening, symbol: OpeningSymbol, paint: Pain
 const drawnByKind = (handing: DoorHanding | undefined): boolean => handing?.kind !== undefined || handing?.opens !== undefined
 
 /**
+ * VEW-22: what a door is drawn from: its own hanging, or for a door at least `wideSingleLeaf`
+ * wide that states no kind, the same with Grid's guess (`guessedDoorKind`), a pair or a sliding
+ * door, never one leaf as wide as the door. The same object when nothing is guessed.
+ */
+export function drawnHanding(opening: PlanOpening, handing: DoorHanding | undefined): DoorHanding | undefined {
+  if (opening.type !== 'door') return handing
+  const kind = guessedDoorKind(Math.hypot(opening.to.x - opening.from.x, opening.to.y - opening.from.y), handing ?? {})
+  return kind === null ? handing : { ...handing, kind }
+}
+
+/**
  * A door whose hinge or swing the plan does not state: a dashed line across the gap and a "?",
  * so it reads as a door still to be decided, never as a guessed swing or an open gap.
  */
@@ -1072,7 +1083,9 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     const span = opened === null ? opening : openingAt(opening, opened)
     const host = drawing.walls.find((wall) => wall.id === opening.wallId)
     const exposure = host?.exposure
-    const handing = handings.get(opening.id)
+    // VEW-22: a wide door that states no kind is drawn as Grid's guess, a pair or a sliding door.
+    const handing = drawnHanding(opening, handings.get(opening.id))
+    const guessed = handing !== handings.get(opening.id)
     // CNT-14: a door or window that states its kind is drawn from its kind's symbol; any other as before.
     const kinded = opening.type !== 'opening' && drawnByKind(handing) ? openingSymbol(opening, handing) : null
     const door = kinded === null ? doorSymbolOf(opening, handing) : null
@@ -1117,6 +1130,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
           ...live.marks(opening.id),
           'data-swing': opening.type === 'door' && drawn ? 'true' : undefined,
           ...(kinded !== null && { 'data-kind': kinded.kind }),
+          'data-kind-guess': guessed ? 'true' : undefined,
           'data-above': opening.above ? 'true' : undefined,
           ...live.hit(opening.id),
           ...paint.opening(opening.type, opening.type === 'door' && drawn, opening.above === true)
@@ -1321,7 +1335,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   })
   const swings: Box[] = []
   for (const opening of drawing.openings) {
-    const box = doorSwingBox(opening, handings.get(opening.id), mpp)
+    const box = doorSwingBox(opening, drawnHanding(opening, handings.get(opening.id)), mpp)
     if (box) swings.push(box)
   }
   // The dimension lines, and the numbers that never move: a label keeps off them when it can.

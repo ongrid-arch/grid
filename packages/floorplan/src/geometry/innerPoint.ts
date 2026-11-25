@@ -304,8 +304,37 @@ export function rectTouchesPolygon(rect: Rect, polygon: readonly Vec2[]): boolea
   return p.x > rect.minX && p.x < rect.maxX && p.y > rect.minY && p.y < rect.maxY
 }
 
-/** How many spots across the outline's longer side `spotsInside` tries. */
+/** How many spots across the outline's longer side `spotsInside` tries first. */
 const SPOTS_ACROSS = 24
+
+/** The spots of a grid `count` across the outline's longer side where the box fits, the farthest from the edges first. */
+function gridSpots(polygon: readonly Vec2[], halfWidth: number, halfHeight: number, holes: Holes, count: number, fits: (p: Vec2) => boolean): Vec2[] {
+  const box = rectOf(polygon)
+  const x0 = box.minX + halfWidth
+  const x1 = box.maxX - halfWidth
+  const y0 = box.minY + halfHeight
+  const y1 = box.maxY - halfHeight
+  if (x0 > x1 || y0 > y1) return []
+  const step = Math.max(box.maxX - box.minX, box.maxY - box.minY) / count
+  if (!(step > 0) || !Number.isFinite(step)) return []
+  const across = Math.min(count, Math.floor((x1 - x0) / step))
+  const up = Math.min(count, Math.floor((y1 - y0) / step))
+
+  const grid: { at: Vec2; depth: number }[] = []
+  for (let i = 0; i <= across; i++) {
+    // Centred on the free span, so a box that only just fits is tried in the middle.
+    const x = across === 0 ? (x0 + x1) / 2 : x0 + ((x1 - x0) * i) / across
+    for (let j = 0; j <= up; j++) {
+      const y = up === 0 ? (y0 + y1) / 2 : y0 + ((y1 - y0) * j) / up
+      const at = { x, y }
+      if (!fits(at)) continue
+      grid.push({ at, depth: signedDistanceToOutline(at, polygon, holes) })
+    }
+  }
+  // The sort is stable, so equal spots keep their grid order: the same plan, the same spots.
+  grid.sort((a, b) => b.depth - a.depth)
+  return grid.map((spot) => spot.at)
+}
 
 /**
  * Where the centre of a box `halfWidth` × `halfHeight` (half sizes, metres) could sit with the
@@ -322,30 +351,12 @@ export function spotsInside(polygon: readonly Vec2[], halfWidth: number, halfHei
   const pole = poleOfInaccessibility(polygon, undefined, holes).point
   if (fits(pole)) out.push(pole)
 
-  const box = rectOf(polygon)
-  const x0 = box.minX + halfWidth
-  const x1 = box.maxX - halfWidth
-  const y0 = box.minY + halfHeight
-  const y1 = box.maxY - halfHeight
-  if (x0 > x1 || y0 > y1) return out
-  const step = Math.max(box.maxX - box.minX, box.maxY - box.minY) / SPOTS_ACROSS
-  if (!(step > 0) || !Number.isFinite(step)) return out
-  const across = Math.min(SPOTS_ACROSS, Math.floor((x1 - x0) / step))
-  const up = Math.min(SPOTS_ACROSS, Math.floor((y1 - y0) / step))
-
-  const grid: { at: Vec2; depth: number }[] = []
-  for (let i = 0; i <= across; i++) {
-    // Centred on the free span, so a box that only just fits is tried in the middle.
-    const x = across === 0 ? (x0 + x1) / 2 : x0 + ((x1 - x0) * i) / across
-    for (let j = 0; j <= up; j++) {
-      const y = up === 0 ? (y0 + y1) / 2 : y0 + ((y1 - y0) * j) / up
-      const at = { x, y }
-      if (!fits(at)) continue
-      grid.push({ at, depth: signedDistanceToOutline(at, polygon, holes) })
-    }
+  // VEW-22: a grid four times finer when the first finds no spot, so a long thin room at an
+  // angle, a wedge, still holds a label that fits in it somewhere.
+  for (const across of [SPOTS_ACROSS, 4 * SPOTS_ACROSS]) {
+    const grid = gridSpots(polygon, halfWidth, halfHeight, holes, across, fits)
+    for (const spot of grid) out.push(spot)
+    if (out.length > 0) break
   }
-  // The sort is stable, so equal spots keep their grid order: the same plan, the same spots.
-  grid.sort((a, b) => b.depth - a.depth)
-  for (const spot of grid) out.push(spot.at)
   return out
 }

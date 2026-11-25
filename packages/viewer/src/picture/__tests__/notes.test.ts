@@ -44,6 +44,10 @@ describe('notes on the 2D picture', () => {
   it('leaves the notes out of both when notes are off', () => {
     const picture = planPicture(withNotes(), { show: { notes: false } })
     expect(JSON.stringify(picture)).not.toContain(NOTE)
+    // VEW-22: every note, tag and symbol, and the notes' list in the band, as hide notes asks.
+    const svg = pictureToSvg(picture)
+    expect(svg).not.toContain('Existing boiler')
+    for (const part of ['note-note', 'note-tag', 'note-symbol', 'note-mark', 'notes-title', 'notes-number', 'notes-text']) expect(parts(svg, part), part).toEqual([])
   })
 })
 
