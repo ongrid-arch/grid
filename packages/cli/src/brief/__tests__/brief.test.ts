@@ -6,7 +6,7 @@
  * into Bathroom 1; Y-7's probe is the wheelchair user's flat with everything narrow
  * (`J/scenarios/7-wheelchair-user/probe-narrow-everything.json`). R-14's room is written here.
  */
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { gunzipSync } from 'zlib'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -16,6 +16,10 @@ import { MARK_SOURCES } from '@ongrid/floorplan/types/floorplan'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
 import { SOURCES, parseBrief, briefJson, BriefRefused } from '../brief'
 import { namedSize, type BriefLine } from '../lines'
+import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
+import { openProject, type Project } from '../../fs/projectFiles'
+import { tmpdir } from 'os'
+import { briefReminder, isSurvey } from '../answer'
 
 const LAB = resolve(__dirname, '../../../../../scoreboard/data/lab-plans.ndjson.gz')
 
@@ -381,5 +385,34 @@ describe('ARE-38: a room wish by name counts numbered names and lists the rooms 
     const found = await ask('Consult 2', 1)
     expect(found).toMatchObject({ state: 'met', drawn: '1' })
     expect(found.text).toContain('(Consult 2)')
+  })
+})
+
+describe('ARE-49: no reminder on a survey', () => {
+  const rooms = 'walls outside 0.3 inside 0.1 height 2.6\nroom living "Living" living 4 x 4\ndoor front in living south, centred, 0.9 wide, opens in\n'
+  const built = (): FloorPlan => {
+    const result = compileRoomsText(rooms)
+    if (result.plan === null) throw new Error('the rooms did not compile')
+    return result.plan
+  }
+  const folder = mkdtempSync(join(tmpdir(), 'brief-'))
+  const project: Project = openProject(folder, process.cwd())
+  const planFile = join(folder, 'plan.json')
+
+  it('reads a plan with every part existing, taped lengths or only measured marks as a survey', () => {
+    const plan = built()
+    expect(isSurvey(plan)).toBe(false)
+    const existing = { ...plan, walls: plan.walls.map((w) => ({ ...w, phase: 'existing' as const })), openings: plan.openings.map((o) => ({ ...o, phase: 'existing' as const })), rooms: plan.rooms.map((r) => ({ ...r, phase: 'existing' as const })) }
+    expect(isSurvey(existing)).toBe(true)
+    expect(isSurvey({ ...existing, rooms: existing.rooms.map((r, i) => (i === 0 ? { ...r, phase: 'new' as const } : r)) })).toBe(false)
+    expect(isSurvey({ ...plan, marks: [{ part: 'wall', id: plan.walls[0]!.id, source: 'scanned' }] } as FloorPlan)).toBe(true)
+    expect(isSurvey({ ...plan, marks: [{ part: 'wall', id: plan.walls[0]!.id, source: 'given' }] } as FloorPlan)).toBe(false)
+  })
+
+  it('gives a survey no reminder and any other plan the same one as before', () => {
+    const plan = built()
+    expect(briefReminder(project, planFile, plan)).toContain('No brief is kept beside this plan')
+    const existing = { ...plan, walls: plan.walls.map((w) => ({ ...w, phase: 'existing' as const })), openings: plan.openings.map((o) => ({ ...o, phase: 'existing' as const })), rooms: plan.rooms.map((r) => ({ ...r, phase: 'existing' as const })) }
+    expect(briefReminder(project, planFile, existing)).toBeNull()
   })
 })

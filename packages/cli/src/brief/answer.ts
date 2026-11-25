@@ -34,10 +34,24 @@ export function briefAnswer(project: Project, planFile: string, plan: FloorPlan)
 }
 
 /**
- * The reminder, one line, when a plan is first written and no brief is kept beside it. Never a
- * refusal: the plan is written either way. Null when there is a brief, or one that can't be read.
+ * ARE-49: whether the plan records what stands rather than what a person asked for: it keeps taped
+ * lengths, every part is existing, or every mark says measured or scanned. A survey has no wishes.
  */
-export function briefReminder(project: Project, planFile: string): string | null {
+export function isSurvey(plan: FloorPlan): boolean {
+  if ((plan.taped?.length ?? 0) > 0) return true
+  const parts = [...plan.walls, ...plan.openings, ...plan.rooms]
+  if (parts.length > 0 && parts.every((p) => p.phase === 'existing')) return true
+  const marks = plan.marks ?? []
+  return marks.length > 0 && marks.every((m) => m.source === 'measured' || m.source === 'scanned')
+}
+
+/**
+ * The reminder, one line, when a plan is first written and no brief is kept beside it. Never a
+ * refusal: the plan is written either way. Null when there is a brief, or one that can't be read,
+ * and (ARE-49) when the plan is a survey.
+ */
+export function briefReminder(project: Project, planFile: string, plan: FloorPlan): string | null {
+  if (isSurvey(plan)) return null
   const read = readBrief(project, planFile)
   if (read.brief !== null || read.problem !== null) return null
   return `No brief is kept beside this plan (${JSON.stringify(read.file)}): write what the person asked for with grid_write_brief, from their own words, and every change then says what is met and what missed.`
