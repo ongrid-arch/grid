@@ -46,9 +46,12 @@ warnings.
   chapel against its angled side and one against its square side, both opened by
   `wall between ... virtual`, written exactly and written to the centimetre: each chapel has one
   dividing line along its mouth, no outside wall crosses it, no wall stands in a room and the
-  answer has no warnings; the same with `open` on the room line; a polygon hall with one angled
-  bay and 1.8 m outside walls; a pair opened that shares no side is refused by name; and for
-  each written plan every issue `validatePlan` finds is in the answer's warnings. These fail
-  before the change.
-- The rooms test folder, `packages/floorplan` whole, `ownWords.test.ts`, `tolerances.test.ts`,
-  the type check, the lint and the scoreboard (no count worse).
+  answer has no warnings (`open` on a room line places a room square against another, so it
+  has no angled case); a polygon hall with one angled bay and 1.8 m outside walls; an inside wall
+  between rooms 0.15 m apart across an angled side written to the centimetre; a pair opened that
+  shares no side is refused by name; and for each written plan every issue `validatePlan` finds
+  is in the answer's warnings. These fail before the change, but the square chapel's, which
+  holds it as it was.
+- The rooms test folder, `packages/floorplan` whole, `ownWords.test.ts` (the tolerance table's
+  count goes up by the two new descriptions), `tolerances.test.ts`, the type check, the lint and
+  the scoreboard (no count worse).
