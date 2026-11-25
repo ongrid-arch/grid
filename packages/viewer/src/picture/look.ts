@@ -356,7 +356,7 @@ export interface Look {
   readonly wallOutline: string | null
   /** Windows as a break in the wall, bridged by two face lines and a glass line, not a tint. */
   readonly glass: boolean
-  /** A door with no stated hinge or swing gets its own "undecided" mark, not a plain gap. */
+  /** A door with no stated hinge or swing gets its own "undecided" mark, in every look (VEW-45). */
   readonly undecidedDoors: boolean
   /**
    * Dimensions as a drawing gives them (SHT-4): a 45-degree tick at each end of the line and
@@ -660,7 +660,7 @@ export const WORKING_LOOK: Look = {
   ink: LIGHT_LOOK.wall,
   wallOutline: null,
   glass: false,
-  undecidedDoors: false,
+  undecidedDoors: true,
   draftedDimensions: false,
   // CNT-10: what stays in a mid tone, the new walls as walls are drawn, the demolished dashed in ink.
   phases: { existing: '#7f7a70', new: null, demolished: LIGHT_LOOK.wall },

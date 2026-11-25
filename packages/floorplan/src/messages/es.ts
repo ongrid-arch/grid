@@ -2051,7 +2051,7 @@ export const es: Messages = {
   'rooms.rawRoom.fact': "{id}: {kind} de {width} m en {wall}, une {joins}; a {from} m del principio del muro, a {to} m de su final{said}",
   'rooms.rawRoom.opensInto': '; abre hacia {room}',
   'rooms.rawRoom.sweepsNothing': '; {kind}, que no barre nada',
-  'rooms.rawRoom.noSwing': '; giro sin decidir (Grid dibuja un hueco sin hoja)',
+  'rooms.rawRoom.noSwing': '; sin giro indicado (Grid dibuja una línea discontinua y "?" y no comprueba su barrido)',
   'rooms.rawRoom.guessed': "Línea {line}: la puerta '{id}' no lo decía todo, así que: {list}.",
   'rooms.rawRoom.guess.opens': "abre hacia '{room}'",
   'rooms.rawRoom.guess.hingeMeasured': 'con las bisagras en la jamba más cercana al extremo desde el que se midió',
