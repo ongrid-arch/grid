@@ -86,6 +86,7 @@ in it is used as a `bedroom` or a `living` room) the home figures apply.
 | `passableSill` | limit | 0.3 m | Grid's own size, not a code figure: one whose sill stands higher than this above its floor is named and is not a way through |
 | `itemIntoWall` | tolerance | 0.005 m | How far a fixture may reach into a solid wall's body and still stand against its face; past it, `item/into-wall` names the wall |
 | `itemOverlap` | tolerance | 0.005 m | How far one item may reach into another, or into the clear floor another keeps in front of it; past it, `item/overlap` or `item/clearance-blocked` names both |
+| `itemLeavesRoom` | tolerance | 0.005 m² | How much of an item's floor may lie outside its room, where no wall stands; past it, `item/leaves-room` names the room and the floor outside |
 | `itemAboveRoom` | tolerance | 0.001 m | How far a fixture may rise past the height of its room; past it, `item/too-tall` names both heights |
 | `useOpenLeaf` | limit | 0.05 m | Grid's own size, not a code figure: what an open door leaf and its stop take of a doorway; the clear width a door leaves is its hole less this (CNT-13) |
 | `useApproachDepth` | limit | 0.3 m | Grid's own size, not a code figure: a fixture within this of a doorway's or a window's hole, across its width, stands in front of it (`item/blocks-doorway`, `item/blocks-window`) |

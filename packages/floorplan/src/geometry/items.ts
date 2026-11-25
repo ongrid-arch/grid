@@ -26,7 +26,7 @@ import { area } from './vec2'
 import { tryRoomShape, type RoomShape } from './room'
 import { roomZones } from './zones'
 import { pointInPolygon } from './innerPoint'
-import { intersectionArea, union } from './polygons'
+import { intersectionArea, ringOf, union } from './polygons'
 import { tolerance } from './tolerances'
 import { wallPlanSlices } from './wall'
 import { nearestFloorId } from './levels'
@@ -302,6 +302,26 @@ export function wallsRunInto(footprint: readonly Vec2[], walls: readonly { reado
   return found.sort((a, b) => b.depth - a.depth)
 }
 
+/**
+ * CNT-21: the floor, in square metres, of a footprint that is neither in the room's floor nor in a
+ * solid wall's body: what hangs out through a doorway, a window's opening or an open side. A
+ * footprint in a wall is `wallsRunInto`'s to name, not this.
+ */
+export function footprintOutside(footprint: readonly Vec2[], shape: RoomShape, walls: readonly { readonly slices: readonly (readonly Vec2[])[] }[]): number {
+  const own = footprint.reduce((sum, p, i) => {
+    const q = footprint[(i + 1) % footprint.length]!
+    return sum + (p.x * q.y - q.x * p.y)
+  }, 0)
+  const size = Math.abs(own) / 2
+  try {
+    const covered = union([[ringOf(shape.polygon), ...shape.holes.map(ringOf)], ...walls.flatMap((w) => w.slices.map((slice) => [ringOf(slice)]))])
+    return Math.max(0, size - intersectionArea([ringOf(footprint)], covered))
+  } catch {
+    // The library failed on this one: say nothing rather than a wrong figure.
+    return 0
+  }
+}
+
 // ── What is worth a look ─────────────────────────────────────────────────────────────────────
 
 const issue = (id: string, code: string, sentence: Said, severity: Issue['severity']): Issue =>
@@ -425,6 +445,14 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
       const more = into.length > 3 ? said('issue.item/into-wall.more', { n: into.length - 3 }) : ''
       const key = into.length === 1 ? 'issue.item/into-wall.one' : 'issue.item/into-wall.many'
       issues.push(issue(item.id, 'item/into-wall', said(key, { item: noun, walls: named, more }), 'warning'))
+    }
+    // CNT-21: the part of its footprint past the room's floor where no wall stands.
+    if (room !== null) {
+      const shape = rooms.find((r) => r.room === room)!.shape
+      const outside = footprintOutside(itemFootprint(item), shape, wallsByFloor.get(floorOf(item)) ?? [])
+      if (outside > tolerance('itemLeavesRoom')) {
+        issues.push(issue(item.id, 'item/leaves-room', said('issue.item/leaves-room', { item: noun, room: name(room.name || room.id), outside: num(outside.toFixed(2)) }), 'warning'))
+      }
     }
     const height = roomHeightOf(room, index, floorHeights.get(floorOf(item)))
     if (height !== null && item.height > height + tolerance('itemAboveRoom')) {

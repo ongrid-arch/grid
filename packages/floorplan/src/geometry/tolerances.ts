@@ -608,6 +608,16 @@ export const TOLERANCES = {
       'and still stand against it. Past it, both are named.',
     basis: own
   },
+  // CNT-21: an item hanging out of its room.
+  itemLeavesRoom: {
+    kind: 'tolerance',
+    value: 0.005,
+    unit: 'm²',
+    decides:
+      'How much of an item\'s floor may lie outside its room, where no wall stands, before it is ' +
+      'named. Past it, the item is named with the room and the floor outside.',
+    basis: own
+  },
   itemAboveRoom: {
     kind: 'tolerance',
     value: 0.001,
