@@ -102,6 +102,7 @@ import { idsOfText } from './ids'
 import { f2, hasUnit, isNumberWord, metres, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
 import { likelyMeant } from '../types/nearest'
+import { readingNotes } from '../types/reading'
 
 type P = readonly [number, number]
 /** A wall as the text writes it into the file: no height when the text states none (WRT-6). */
@@ -109,6 +110,37 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 
 /** The floor's fields a `raw floor` line may hold: LVL-6's roof and parapet, BRF-4's outline, homes and parking. */
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
+
+/**
+ * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
+ * an opening's type, a floor's own field, or one of the plan file's lists.
+ */
+const RAW_ELSEWHERE: Readonly<Record<string, Said>> = {
+  door: said('rooms.raw.kind.opening', { type: 'door' }),
+  doorway: said('rooms.raw.kind.opening', { type: 'door' }),
+  gate: said('rooms.raw.kind.opening', { type: 'door' }),
+  window: said('rooms.raw.kind.opening', { type: 'window' }),
+  skylight: said('rooms.raw.kind.opening', { type: 'window' }),
+  roof: said('rooms.raw.kind.floor', { list: 'roof' }),
+  parapet: said('rooms.raw.kind.floor', { list: 'parapet' }),
+  outline: said('rooms.raw.kind.floor', { list: 'outline' }),
+  stair: said('rooms.raw.kind.list', { list: 'stairs' }),
+  staircase: said('rooms.raw.kind.list', { list: 'stairs' }),
+  column: said('rooms.raw.kind.list', { list: 'columns' }),
+  pillar: said('rooms.raw.kind.list', { list: 'columns' }),
+  fixture: said('rooms.raw.kind.list', { list: 'items' }),
+  item: said('rooms.raw.kind.list', { list: 'items' }),
+  furniture: said('rooms.raw.kind.list', { list: 'items' }),
+  site: said('rooms.raw.kind.list', { list: 'site' }),
+  bay: said('rooms.raw.kind.list', { list: 'bays' }),
+  ramp: said('rooms.raw.kind.list', { list: 'ramps' }),
+  grid: said('rooms.raw.kind.list', { list: 'grids' }),
+}
+
+/** WRT-48: words agents write on a raw wall for a curve, which Grid states as `arc`. */
+const CURVE_WORDS = new Set(['bulge', 'spline', 'ellipse', 'curve', 'curved', 'radius', 'sagitta', 'bend', 'controlpoints', 'centre', 'center', 'sweep'])
+/** WRT-48: words agents write on a raw part for facts of their own, which Grid holds in `properties`. */
+const FACT_WORDS = new Set(['facts', 'fact', 'attributes', 'attrs', 'props', 'metadata', 'meta', 'custom', 'data', 'tags'])
 
 /** WRT-14: the words a floor line knows after its id, `name` among them. */
 const FLOOR_KEYS: readonly string[] = ['name', 'level', 'elevation', 'height', 'slab', 'building', 'copy']
@@ -588,6 +620,8 @@ class Compiler {
   readonly rawIds = new Set<string>()
   /** WRT-27: each raw part with its line and the floor whose line it is written under. */
   private readonly rawParts: Array<{ kind: 'wall' | 'room' | 'opening'; part: Record<string, unknown>; line: number; under: string }> = []
+  /** WRT-48: the names a wall line gives that were no room of its floor when it was read. */
+  private readonly wallNames: Array<{ fl: FloorDraft; room: string; line: number }> = []
   /** WRT-17: every wall thickness a line of the text states, besides the walls line. */
   private readonly statedT = new Set<number>()
   /** WRT-17: the pairs of rooms whose wall's thickness, from their gap, has been said. */
@@ -646,15 +680,14 @@ class Compiler {
       const at = i + 1
       const text = this.lines[i]!
       i++
-      const rawFloor = /^\s*raw\s+floor\s+(.*)$/.exec(text)
-      if (rawFloor) {
-        this.rawFloor(rawFloor[1]!, at)
-        continue
-      }
-      if (/^\s*raw\s+pattern\b/.test(text)) this.stop('rooms/syntax', at, patternLine(at, false))
-      const raw = /^\s*raw\s+(wall|room|opening)\s+(.*)$/.exec(text)
+      // WRT-48: every line starting `raw` is read here, so a kind raw does not take is named as such.
+      const raw = /^\s*raw\b\s*([^\s{]*)\s*(.*)$/.exec(text)
       if (raw) {
-        this.rawPart(raw[1] as 'wall' | 'room' | 'opening', raw[2]!, at)
+        const [, kind, rest] = raw as unknown as [string, string, string]
+        if (kind === 'floor') this.rawFloor(rest, at)
+        else if (kind === 'pattern') this.stop('rooms/syntax', at, patternLine(at, false))
+        else if (kind === 'wall' || kind === 'room' || kind === 'opening') this.rawPart(kind, rest, at)
+        else this.rawKind(kind, at)
         continue
       }
       const t = wordsOf(text, at)
@@ -699,6 +732,7 @@ class Compiler {
       )
     }
     this.rawFloors()
+    this.wallRooms()
     return this.emit()
   }
 
@@ -711,11 +745,73 @@ class Compiler {
       this.stop('rooms/raw', at, `line ${at}: a raw floor is one JSON object on the rest of the line, with the floor's roof, parapet, outline, homes, parking or level as Grid's plan file holds them; this one could not be read.`)
     }
     const keys = typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.keys(value) : null
-    // WRT-14: a level that is no storey number (neither whole nor a half) is the plan file's own too.
-    if (keys === null || keys.some((k) => !RAW_FLOOR_KEYS.includes(k) && k !== 'level')) {
+    if (keys === null) {
       this.stop('rooms/raw', at, `line ${at}: a raw floor is a JSON object holding only the floor's "roof", "parapet", "outline", "homes", "parking" and "level", as Grid's plan file holds them.`)
     }
-    Object.assign(this.floor().extra, value)
+    // WRT-14: a level that is no storey number (neither whole nor a half) is the plan file's own too.
+    const known = [...RAW_FLOOR_KEYS, 'level']
+    // WRT-48: each field it does not take is named, with where it goes when that is the floor line.
+    for (const key of keys.filter((k) => !known.includes(k))) {
+      const nearest = likelyMeant(key, known)
+      const fix = FLOOR_KEYS.includes(key)
+        ? said('rooms.raw.floorField.line', { field: key })
+        : nearest !== null
+          ? said('rooms.raw.unknownField.nearest', { nearest })
+          : said('rooms.raw.unknownField.none')
+      const field = said('rooms.raw.unknownField.named', { field: key })
+      this.problem('rooms/raw', at, english(said('rooms.raw.floorField', { line: at, field, known: joined(known.map((k) => `"${k}"`), 'join.comma', 'join.and'), fix })))
+    }
+    // WRT-48: with no floor line above it, it is the one floor the text has, the ground floor (`emit` writes it).
+    Object.assign(this.floor().extra, Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([k]) => known.includes(k))))
+  }
+
+  /** WRT-48: a `raw` line of a kind raw does not take, named, with where that part goes. */
+  private rawKind(kind: string, at: number): void {
+    if (kind === '') {
+      this.problem('rooms/raw', at, english(said('rooms.raw.kind.nothing', { line: at })))
+      return
+    }
+    const word = kind.toLowerCase().replace(/s$/, '')
+    const where = Object.hasOwn(RAW_ELSEWHERE, word) ? RAW_ELSEWHERE[word]! : said('rooms.raw.kind.none')
+    this.problem('rooms/raw', at, english(said('rooms.raw.kind', { line: at, kind, where })))
+  }
+
+  /**
+   * WRT-48: each field of a raw part that Grid's plan file does not have, named with its line, the
+   * nearest field Grid knows and the fields that place has, read from the schema (`readingNotes`).
+   */
+  private rawFields(kind: 'wall' | 'room' | 'opening', part: Record<string, unknown>, at: number): void {
+    const list = kind === 'wall' ? 'walls' : kind === 'room' ? 'rooms' : 'openings'
+    for (const note of readingNotes({ [list]: [part] })) {
+      if (note.kind !== 'unknown-field') continue
+      const place = note.at.replace(/^[a-z]+\[0\]\.?/, '')
+      const word = (note.field ?? '').toLowerCase()
+      const fix =
+        place === '' && kind === 'wall' && CURVE_WORDS.has(word)
+          ? said('rooms.raw.unknownField.arc')
+          : place === '' && FACT_WORDS.has(word)
+            ? said('rooms.raw.unknownField.properties')
+            : note.nearest !== null && note.field !== null
+              ? note.nearestWritten
+                ? said('rooms.raw.unknownField.written', { field: note.field, nearest: note.nearest })
+                : said('rooms.raw.unknownField.nearest', { nearest: note.nearest })
+              : said('rooms.raw.unknownField.none')
+      this.problem(
+        'rooms/raw',
+        at,
+        english(
+          said('rooms.raw.unknownField', {
+            line: at,
+            kind,
+            id: String(part['id']),
+            field: note.field === null ? said('rooms.raw.unknownField.unnamed') : said('rooms.raw.unknownField.named', { field: note.field }),
+            place: place === '' ? '' : said('rooms.raw.unknownField.in', { place }),
+            fix,
+            known: joined(note.known.map((k) => `"${k}"`), 'join.comma', 'join.and'),
+          })
+        )
+      )
+    }
   }
 
   private rawPart(kind: 'wall' | 'room' | 'opening', json: string, at: number): void {
@@ -739,6 +835,7 @@ class Compiler {
       const at0 = part['start'] as [number, number]
       this.problem('rooms/raw', at, english(said('rooms.raw.zeroLength', { line: at, id: String(part['id']), x: metres(at0[0]), y: metres(at0[1]) })))
     }
+    this.rawFields(kind, part, at)
     const list = kind === 'wall' ? fl.raw.walls : kind === 'room' ? fl.raw.rooms : fl.raw.openings
     list.push(part)
     this.rawIds.add(part['id'] as string)
@@ -776,6 +873,7 @@ class Compiler {
     switch (kw) {
       case 'plan':
         this.name = t[1] ?? null
+        if (t.length > 2) this.planWords(t, at)
         return
       case 'building':
         if (t.length !== 2 || !BUILDINGS.includes(t[1]!)) this.stop('rooms/syntax', at, `line ${at}: write 'building <kind>': one of ${BUILDINGS.join(', ')}.`)
@@ -849,6 +947,29 @@ class Compiler {
           at,
           `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw.`
         )
+    }
+  }
+
+  /**
+   * WRT-48: a plan line with words after its one name: the name in quotes is kept and the rest
+   * named; a name not in quotes is offered in quotes with the words after it.
+   */
+  private planWords(t: string[], at: number): void {
+    const quoted = quotedWordsOf(this.lines[at - 1] ?? t.join(' '), at)[1]?.quoted === true
+    const extra = `'${t.slice(2).join(' ')}'`
+    const offered = `plan ${quoteWords(quoted ? t[1]! : t.slice(1).join(' '))}`
+    this.problem('rooms/syntax', at, english(said('rooms.plan.oneName', { line: at, extra, offered })))
+  }
+
+  /** WRT-48: each room a wall line names that is no room of its floor, there or written after it. */
+  private wallRooms(): void {
+    for (const { fl, room, line } of this.wallNames) {
+      if (fl.rooms.has(room)) continue
+      const ids = [...fl.rooms.keys()]
+      const meant = likelyMeant(room, ids)
+      const rooms = ids.length === 0 ? said('rooms.wall.unknownRoom.none') : joined(ids, 'join.comma')
+      const nearest = meant === null ? '' : said('rooms.wall.unknownRoom.nearest', { nearest: meant })
+      this.problem('rooms/unknown-room', line, english(said('rooms.wall.unknownRoom', { line, room, floor: fl.id, nearest, rooms })))
     }
   }
 
@@ -1465,6 +1586,9 @@ class Compiler {
 
   private stWall(t: string[], at: number): void {
     const fl = this.floor()
+    // WRT-48: a name that is no room yet is checked once every line is read (`wallRooms`).
+    const named = t[1] === 'between' ? [t[2], t[4]] : [t[1]]
+    for (const room of named) if (room !== undefined && !fl.rooms.has(room)) this.wallNames.push({ fl, room, line: at })
     if (t.length >= 4 && t[1] === 'between' && t[3] === 'and') {
       // 'wall between a and b east': the wall on a's east side, where a and b share more than one.
       const side = t[5] !== undefined && Object.hasOwn(COMPASS, t[5]) ? t[5] : null
@@ -2705,7 +2829,8 @@ class Compiler {
 
   private emit(): WrittenPlan | null {
     const plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] } = { version: '1', units: 'm', walls: [], rooms: [], openings: [] }
-    if (this.explicitFloors) {
+    // WRT-48: a raw floor with no floor line gives its fields to the one floor, which is written then.
+    if (this.explicitFloors || this.floors.some((f) => Object.values(f.extra).some((v) => v !== null))) {
       plan.floors = this.floors.map((f) => ({
         id: f.id,
         name: f.name,
