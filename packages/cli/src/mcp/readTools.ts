@@ -1468,7 +1468,7 @@ const measureTool: GridTool = {
     // CNT-20: a library entry, for fit and library.
     name: { type: 'string', id: true, description: 'For fit, instead of width and depth: a library item or typical room by name (double-bed, bathroom). For library: one entry only.', examples: ['double-bed', 'double-bedroom'] },
     room: { type: 'string', id: true, description: 'For room, fit, use and route: the room id, where the route starts. For facing and sun: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
-    from: { type: 'string', id: true, description: 'For between: the id of a wall, door, window, opening, fixture or room to measure from.', examples: ['front-door', 'w-west'] },
+    from: { type: 'string', id: true, description: 'For between: the id of a wall, door, window, opening, fixture or room to measure from. For route: the room it starts in, as room.', examples: ['front-door', 'w-west'] },
     to: { type: 'string', id: true, description: 'For between: the id of the wall, door, window, opening, fixture or room to measure to. For route: the room id where it ends, or "outside" for the nearest way out.', examples: ['w-west', 'bed1', 'outside'] },
     x: { type: 'number', length: true, description: 'For between, instead of to: a point\'s x on the drawing in metres, such as an inside corner. The plan names no points.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
     y: { type: 'number', length: true, description: 'For between, with x: the point\'s y on the drawing in metres.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
@@ -1477,7 +1477,7 @@ const measureTool: GridTool = {
     depth: { type: 'number', length: true, description: 'For fit: the box\'s depth in metres. It is tried both ways round.', examples: [2.4, 0.6], minimum: 0.05, maximum: 100 },
     diameter: { type: 'number', length: true, description: 'For fit: a circle instead of a box, such as 1.5 for a wheelchair turning circle. For use: the turning circle to set the room against; Grid\'s own indicator when left out.', examples: [1.5], minimum: 0.05, maximum: 100 },
     clearance: { type: 'number', length: true, description: 'For use: the clear floor wanted in front of and beside each fixture, in metres, such as 0.7 beside a bath; Grid\'s own indicator when left out.', examples: [0.7], minimum: 0.05, maximum: 100 },
-    under: { type: 'number', length: true, description: 'For narrow: the person\'s figure in metres, such as 0.8 for a door or 1.5 for a turning circle.', examples: [0.8, 1.5], minimum: 0.05, maximum: 100 },
+    under: { type: 'number', length: true, description: 'For narrow: the person\'s figure in metres, such as 0.8 for a door or 1.5 for a turning circle; width does the same.', examples: [0.8, 1.5], minimum: 0.05, maximum: 100 },
     start: { type: 'string', enum: ['middle', 'door', 'farthest corner'], description: 'For route: where it starts in its room: the middle of the widest circle (the default), the door it leaves by, or the room\'s corner farthest from that door. A point of your own: x and y instead.', examples: ['door', 'farthest corner'] },
     end: { type: 'string', enum: ['middle', 'door'], description: 'For route: where it ends in its last room: the middle, or the doorway into it. Left out, a stair or lift room is ended at its door and any other room at its middle; to outside it always ends at the outside face of the door out.', examples: ['door', 'middle'] },
     units: UNITS_ARG,
@@ -1487,6 +1487,16 @@ const measureTool: GridTool = {
   run(args, context) {
     const { survey, file } = load(context, args['plan'])
     const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library'
+    // CMD-29: the same thing goes by the same name in every mode: a route goes from a room, and
+    // a narrow measure takes the width the way route and use do.
+    if (what === 'route' && args['from'] !== undefined) {
+      if (args['room'] !== undefined && args['room'] !== args['from']) throw new ToolRefusal('what=route takes from or room, the room it starts in, not two different ones.')
+      args = { ...args, room: args['from'], from: undefined }
+    }
+    if (what === 'narrow' && args['width'] !== undefined) {
+      if (args['under'] !== undefined && args['under'] !== args['width']) throw new ToolRefusal('what=narrow takes under or width, the figure to be narrower than, not two different ones.')
+      args = { ...args, under: args['width'], width: undefined }
+    }
     const units = displayFor(args['units'], args['decimal'], survey.plan)
     const L = (v: number, own?: boolean): string => (own === true ? ownLengthText(v, units) : lengthText(v, units))
     const allowed: Record<string, readonly string[]> = {
@@ -1494,8 +1504,8 @@ const measureTool: GridTool = {
       between: ['from', 'to', 'x', 'y'],
       wall: ['wall'],
       fit: ['room', 'width', 'depth', 'diameter', 'name'],
-      route: ['room', 'to', 'width', 'x', 'y', 'start', 'end'],
-      narrow: ['under'],
+      route: ['room', 'from', 'to', 'width', 'x', 'y', 'start', 'end'],
+      narrow: ['under', 'width'],
       facing: ['room'],
       sun: ['room'],
       site: [],

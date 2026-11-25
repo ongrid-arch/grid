@@ -66,6 +66,7 @@ import {
   usesRead,
 } from './toolkit'
 import { english, name as nameOf, said as sentence } from '@ongrid/floorplan/messages'
+import { version } from '../../package.json'
 
 export const EXPORT_TOOL_NAME = 'grid_export'
 
@@ -108,6 +109,7 @@ const exportTool: GridTool = {
     approximated: listSchema(objectSchema({ kind: STRING, id: STRING, floor: NULLABLE_STRING }, ['kind', 'id', 'floor'])),
     note: { type: ['string', 'null'] },
     dxfProfile: { type: ['string', 'null'] },
+    gridVersion: STRING,
   }),
   run(args, context) {
     const project = projectOf(context)
@@ -130,7 +132,7 @@ const exportTool: GridTool = {
       if (curves !== null) lines.push(curves)
       // HND-1: a DXF names the project's profile when its layers and pens came from one.
       if (done.dxfProfile !== null) lines.push(dxfProfileLine(done.dxfProfile))
-      return { text: lines.join('\n'), data: { written, format, leftOut: done.leftOut.length, leftOutParts: done.leftOut, approximated: done.approximated, note: done.note ?? null, dxfProfile: done.dxfProfile } }
+      return { text: lines.join('\n'), data: { written, format, leftOut: done.leftOut.length, leftOutParts: done.leftOut, approximated: done.approximated, note: done.note ?? null, dxfProfile: done.dxfProfile, gridVersion: version } }
     } catch (error) {
       if (error instanceof PathRefused || error instanceof PlanRefused || error instanceof ExportWriteFailed || error instanceof DxfProfileRefused) throw new ToolRefusal(error.message)
       if (error instanceof UsageError) throw new ToolRefusal(asArguments(error.message))

@@ -362,14 +362,16 @@ function expectCommandRefused(run: Run, given: string, ...words: string[]): void
   expect(run.err.trimEnd().split('\n')).toHaveLength(1)
   expect(run.err.startsWith('grid: ')).toBe(true)
   expect(run.err).toContain(JSON.stringify(given))
-  expect(run.err).toContain(JSON.stringify(real))
+  // CMD-29: a refusal never says where the project folder is on the disk.
+  expect(run.err).not.toContain(real)
   for (const word of words) expect(run.err).toContain(word)
 }
 
 function expectToolRefused(answer: ToolAnswer, given: string, ...words: string[]): void {
   expect(answer.isError).toBe(true)
   expect(answer.text).toContain(JSON.stringify(given))
-  expect(answer.text).toContain(JSON.stringify(real))
+  // CMD-29: a refusal never says where the project folder is on the disk.
+  expect(answer.text).not.toContain(real)
   for (const word of words) expect(answer.text).toContain(word)
 }
 
@@ -377,7 +379,8 @@ function expectToolRefused(answer: ToolAnswer, given: string, ...words: string[]
 function expectTraceLeftOut(text: string, given: string, why: string): void {
   expect(text.match(/\[plan\/trace-left-out\]/g) ?? []).toHaveLength(1)
   expect(text).toContain(JSON.stringify(given))
-  expect(text).toContain(JSON.stringify(real))
+  // CMD-29: a refusal never says where the project folder is on the disk.
+  expect(text).not.toContain(real)
   expect(text).toContain(why)
 }
 

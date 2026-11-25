@@ -95,9 +95,32 @@ describe('the limits of a request (T-3)', () => {
     const out = handleLine(huge, [echo]) as string
     expect(out.length).toBeLessThan(300)
     const res = JSON.parse(out) as { id: unknown; error: { code: number; message: string } }
-    expect(res.id).toBeNull()
+    expect(res.id).toBe(1)
     expect(res.error.code).toBe(-32600)
     expect(res.error.message).toContain(`${LINE_MAX_BYTES} bytes`)
+  })
+
+  it('answers an oversize line with its own id when its top level names one (CMD-29)', () => {
+    const pad = 'x'.repeat(LINE_MAX_BYTES + 10)
+    const idOf = (line: string): unknown => (JSON.parse(handleLine(line, [echo]) as string) as { id: unknown }).id
+    const call = (id: unknown, extra = ''): string => `{"jsonrpc":"2.0","id":${JSON.stringify(id)},"method":"tools/call","params":{"arguments":{"pad":"${pad}","id":"inner"${extra}}}}`
+    expect(idOf(call(7))).toBe(7)
+    expect(idOf(call('req-1'))).toBe('req-1')
+    // An id inside the arguments, or after them, is never taken for the request's.
+    expect(idOf(`{"params":{"id":"inner","pad":"${pad}"},"id":"outer"}`)).toBe('outer')
+    expect(idOf(`{"params":{"id":"inner","pad":"${pad}"}}`)).toBeNull()
+    expect(idOf(call('a'.repeat(REQUEST_ID_MAX + 1)))).toBeNull()
+    expect(idOf(`{"id":{"a":1},"pad":"${pad}"}`)).toBeNull()
+    expect(idOf(`{"pad":"say \\"id\\": 5 ${pad}"}`)).toBeNull()
+  })
+
+  it('reports the package version in serverInfo, in both eras (CMD-29)', async () => {
+    const { version } = await import('../../../package.json')
+    expect(version).not.toBe('1')
+    const old = await call({ jsonrpc: '2.0', id: 0, method: 'initialize', params: { protocolVersion: '2025-06-18' } }) as { result: { serverInfo: unknown } }
+    expect(old.result.serverInfo).toEqual({ name: 'grid', version })
+    const modern = await call({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) as { result: { _meta: Record<string, unknown> } }
+    expect(modern.result._meta['io.modelcontextprotocol/serverInfo']).toEqual({ name: 'grid', version })
   })
 
   it('counts bytes, not characters', () => {

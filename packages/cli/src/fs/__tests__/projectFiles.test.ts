@@ -47,7 +47,9 @@ function expectRefused(act: () => unknown, given: string, ...words: string[]): v
   const message = (caught as Error).message
   expect(message.split('\n')).toHaveLength(1)
   expect(message).toContain(JSON.stringify(given))
-  expect(message).toContain(JSON.stringify(real))
+  // CMD-29: a refusal never says where the project folder is on the disk.
+  expect(message).not.toContain(real)
+  expect(message).toContain('the project folder')
   for (const word of words) expect(message).toContain(word)
 }
 
