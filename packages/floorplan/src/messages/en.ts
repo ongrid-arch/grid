@@ -1907,6 +1907,20 @@ export const en = {
   'rooms.raw.openingFloor':
     "Line {line}: raw opening '{id}' is written under floor '{under}', but its wall '{wall}' is on floor '{floor}', and an opening is on its wall's floor. Write it under floor '{floor}', or name a wall of floor '{under}'.",
   'rooms.raw.openingFact': '{id}: {type} {width} m in {wall}, written raw',
+  'rooms.copyNoOpenings': '{list}',
+  'rooms.copyNoOpenings.one':
+    "Floor {floors} copies the rooms of floor '{from}' but none of its doors and windows, and writes none of its own, so it has none: write 'copy {from} with openings' to take them, or write its doors and windows.",
+  'rooms.copyNoOpenings.many':
+    "Floors {floors} copy the rooms of floor '{from}' but none of its doors and windows, and write none of their own, so they have none: write 'copy {from} with openings' on each to take them, or write their doors and windows.",
+  'rooms.copyNoOpenings.more': '{list} and {count} more',
+  'rooms.idChanged.one':
+    "Ids are unique across the whole plan, and this one was written on more than one floor, so the first floor that writes it keeps it and every other floor takes its floor's id in front: {list}. Every other id is kept as written. Use these ids in later calls.",
+  'rooms.idChanged.many':
+    "Ids are unique across the whole plan, and these were written on more than one floor, so the first floor that writes each keeps it and every other floor takes its floor's id in front: {list}. Every other id is kept as written. Use these ids in later calls.",
+  'rooms.idChanged.id': "'{id}' is kept on floor '{first}' and is {others}",
+  'rooms.idChanged.on': "'{id}' on floor '{floor}'",
+  'rooms.idChanged.moreFloors': '{list}, and so on for {count} more',
+  'rooms.idChanged.moreIds': '{list}; and so on for {count} more',
   'rooms.answer.raw':
     'Written raw and kept as written: walls {walls}, rooms {rooms}, openings {openings}. Grid measures the raw rooms as it measures every room, and counts them in the rooms and the area above.',
   'rooms.answer.rawPart': 'written raw',

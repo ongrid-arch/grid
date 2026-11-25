@@ -39,7 +39,8 @@
  *                                 the room is outdoor space (CNT-7, C26), roofed or not
  *                through <floor>  the room, and so its walls, stands on every floor written after this
  *                                 one up to that floor too, in the same place (WRT-4): a stair or lift
- *                                 core, a shaft, a block's outside walls
+ *                                 core, a shaft, a block's outside walls; with the openings written
+ *                                 between two rooms that both rise (LVL-16)
  *       <use>:   one of Grid's uses, or a word that plainly means one (`USE_WORDS`): 'wc' is toilet
  *       a size may be '*': the room stretches as far as the room named after 'until'
  *   wall between <room> and <room> [<side>] [<t>] [kind|virtual] [height <h>] [id <id>] [reversed]
@@ -66,9 +67,13 @@
  *       only (end rooms a wall's width narrower). A numeric label counts up (301, 302, ...),
  *       another takes a number after it (A1, A2, ...), so the ids are the same on every writing.
  *   copy <floor> [with openings]   rename <room> <new id> "<name>" [use]   remove <id>
+ *       a copy takes the floor's rooms and its raw floor fields (LVL-16), its openings only when
+ *       asked; an id written on several floors is kept on the first and has the floor's id in
+ *       front on the others
  *   raw wall|room|opening { ...Grid's own JSON... }     a part written the Grid way
  *   raw floor { "roof": {...}, "parapet": <m> }         the floor's fields rooms text has no words for (LVL-6);
- *                                                      BRF-4 adds "outline", "homes" and "parking"
+ *                                                      BRF-4 adds "outline", "homes" and "parking";
+ *                                                      null takes a copied one off (LVL-16)
  *
  * An opening pattern (LVL-8) is not rooms text, in a unit or out of one: a `pattern` line is
  * refused with where a pattern goes instead (`patternLine`). It lives in the plan file's
@@ -88,7 +93,7 @@ import { wallLength } from '../geometry/wall'
 import { limit, tolerance } from '../geometry/tolerances'
 import { buildingKind } from '../geometry/plausible'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
-import { english, name as sayName, said, type MessageKey, type Values } from '../messages/say'
+import { english, joined, name as sayName, said, type MessageKey, type Said, type Values } from '../messages/say'
 import { f2, hasUnit, isNumberWord, metres, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
 
@@ -296,6 +301,8 @@ interface RoomDraft {
 interface OpeningLine {
   words: string[]
   line: number
+  /** LVL-16: carried up with two rooms that rise through, from the floor they rise from. */
+  risen?: true
 }
 
 interface FloorDraft {
@@ -307,8 +314,10 @@ interface FloorDraft {
   slab: number | null
   /** CNT-5: the floor's own kind of building. */
   building: BuildingType | null
-  /** LVL-6: the floor's fields rooms text has no words for, as Grid's plan file holds them (`raw floor`). */
-  extra: { roof?: unknown; parapet?: unknown }
+  /** LVL-6: the floor's fields rooms text has no words for, as Grid's plan file holds them (`raw floor`); LVL-16: `null` takes a copied one off. */
+  extra: Record<string, unknown>
+  /** LVL-16: the floor this one copies, and whether it took its openings. */
+  copied: { from: string; openings: boolean } | null
   rooms: Map<string, RoomDraft>
   inst: Map<string, string[]>
   between: Map<string, WallSay>
@@ -895,7 +904,41 @@ class Compiler {
       for (const [k, v] of src.betweenSide) if (ofRisers(from, k)) fl.betweenSide.set(k, { ...v })
       for (const k of src.open) if (ofRisers(from, k)) fl.open.add(k)
       for (const e of src.extover) if (risen.has(`${from}\u0000${e.room}`)) fl.extover.push({ ...e, say: { ...e.say } })
+      // LVL-16: an opening between two rooms that both rise goes up with them, when every room its
+      // line names rises too; one in a rising room's outside wall (a stair's door to the street) does not.
+      for (const o of src.openings) {
+        const [, , word, a, and, b] = o.words
+        if (word !== 'between' || and !== 'and' || a === undefined || b === undefined) continue
+        const rises = (id: string): boolean => risen.has(`${from}\u0000${id}`)
+        if (rises(a) && rises(b) && o.words.slice(2).filter((w) => src.rooms.has(w)).every(rises)) fl.openings.push({ words: o.words, line: o.line, risen: true })
+      }
     }
+  }
+
+  /**
+   * LVL-16: the floors that copy another's rooms and took none of its doors and windows, nor
+   * wrote their own, named in one warning by the floor they copy.
+   */
+  private warnCopiesWithoutOpenings(): void {
+    const SHOWN = 10
+    const bySource = new Map<string, string[]>()
+    const own = (fl: FloorDraft): number => fl.openings.filter((o) => o.risen !== true).length + fl.raw.openings.length
+    // A copy of a copy that took none is named too: its doors are on the floor the first copied.
+    const warned = new Set<string>()
+    for (const fl of this.floors) {
+      if (fl.copied === null || fl.copied.openings || fl.rooms.size === 0 || own(fl) > 0) continue
+      const src = this.floors.find((f) => f.id === fl.copied!.from)!
+      if (own(src) === 0 && !warned.has(src.id)) continue
+      warned.add(fl.id)
+      bySource.set(src.id, [...(bySource.get(src.id) ?? []), fl.id])
+    }
+    if (bySource.size === 0) return
+    const parts = [...bySource].map(([from, floors]) => {
+      const shown = joined(floors.slice(0, SHOWN).map((id) => `'${id}'`), 'join.comma', 'join.and')
+      const list = floors.length > SHOWN ? said('rooms.copyNoOpenings.more', { list: shown, count: floors.length - SHOWN }) : shown
+      return said(floors.length === 1 ? 'rooms.copyNoOpenings.one' : 'rooms.copyNoOpenings.many', { floors: list, from })
+    })
+    this.warn('rooms/copy-no-openings', null, english(said('rooms.copyNoOpenings', { list: joined(parts, 'join.space') })))
   }
 
   // ------------------------------------------------------------------------------------------
@@ -1529,6 +1572,8 @@ class Compiler {
     if (fl === src) this.stop('rooms/syntax', at, `line ${at}: a floor cannot copy itself. Start the new floor with a 'floor' line first.`)
     // A room that rose through to this floor is here already (WRT-4).
     for (const r of src.rooms.values()) if (!(fl.rooms.get(r.id)?.risenFrom === (r.risenFrom ?? src.id))) this.addRoom({ ...r, poly: [...r.poly], through: null, risenFrom: r.risenFrom }, null)
+    // LVL-16: the floor's outline, roof, parapet, homes and parking too, unless this floor set its own.
+    for (const key of RAW_FLOOR_KEYS) if (src.extra[key] !== undefined && !(key in fl.extra)) fl.extra[key] = structuredClone(src.extra[key])
     for (const [k, v] of src.inst) fl.inst.set(k, [...v])
     // CNT-4: the flats placed on the floor copied are flats here too, of the copied rooms.
     for (const flat of src.flats) {
@@ -1540,8 +1585,11 @@ class Compiler {
     for (const k of src.open) fl.open.add(k)
     fl.extover.push(...src.extover.map((e) => ({ ...e, say: { ...e.say } })))
     const rest = t.slice(2).join(' ')
-    if (rest === 'with openings') fl.openings.push(...src.openings)
-    else if (rest !== '') this.stop('rooms/syntax', at, `line ${at}: after the floor id only 'with openings' is understood.`)
+    if (rest !== '' && rest !== 'with openings') this.stop('rooms/syntax', at, `line ${at}: after the floor id only 'with openings' is understood.`)
+    // LVL-16: an opening carried up with the rooms that rose through to this floor is here already.
+    const here = new Set(fl.openings.map((o) => o.words[1]))
+    if (rest === 'with openings') fl.openings.push(...src.openings.filter((o) => !here.has(o.words[1])).map((o) => ({ words: o.words, line: o.line })))
+    fl.copied = { from: src.id, openings: rest === 'with openings' }
   }
 
   private stRename(t: string[], at: number): void {
@@ -2436,31 +2484,42 @@ class Compiler {
         ...(f.height !== null ? { height: f.height } : {}),
         ...(f.slab !== null ? { slab: f.slab } : {}),
         ...(f.building !== null ? { building: f.building } : {}),
-        ...(f.extra as Pick<NonNullable<FloorPlan['floors']>[number], 'roof' | 'parapet' | 'outline' | 'homes' | 'parking'>),
+        // LVL-16: a field set to null (a copied one taken off) is not written.
+        ...(Object.fromEntries(Object.entries(f.extra).filter(([, v]) => v !== null)) as Pick<NonNullable<FloorPlan['floors']>[number], 'roof' | 'parapet' | 'outline' | 'homes' | 'parking'>),
       }))
     }
     if (this.building !== null) plan.building = this.building
     if (this.display !== null) plan.display = this.display
     const multi = this.floors.length > 1
-    // An id written on two floors gets its floor's id in front, so it stays one id in the plan.
-    const count = new Map<string, number>()
+    for (const fl of this.floors) fl.openings = carriedKept(fl)
+    this.warnCopiesWithoutOpenings()
+    // An id written on two floors stays as written on the first floor that writes it (LVL-16), and
+    // takes its floor's id in front on the others, so it stays one id in the plan.
+    const first = new Map<string, string>()
+    const on = new Map<string, FloorDraft[]>()
     for (const fl of this.floors) {
       const ids = new Set([...fl.rooms.keys(), ...fl.openings.map((o) => o.words[1] ?? '')])
-      for (const id of ids) count.set(id, (count.get(id) ?? 0) + 1)
+      for (const id of ids) {
+        if (!first.has(id)) first.set(id, fl.id)
+        on.set(id, [...(on.get(id) ?? []), fl])
+      }
     }
-    const idOf = (fl: FloorDraft, id: string): string => ((count.get(id) ?? 0) > 1 ? `${fl.id}-${id}` : id)
+    const idOf = (fl: FloorDraft, id: string): string => (first.get(id) === fl.id ? id : `${fl.id}-${id}`)
     // MSG-6 (lab AB-7): an id written once is kept as written; one Grid had to change is named
     // with what it is now, so the next call can use it.
-    const changed = [...count].filter(([id, n]) => id !== '' && n > 1).map(([id]) => {
-      const on = this.floors.filter((fl) => fl.rooms.has(id) || fl.openings.some((o) => o.words[1] === id))
-      return `'${id}' is ${on.map((fl) => `'${idOf(fl, id)}' on floor '${fl.id}'`).join(' and ')}`
-    })
+    const changed = [...on].filter(([id, floors]) => id !== '' && floors.length > 1)
     if (changed.length > 0) {
-      this.warn(
-        'rooms/id-changed',
-        null,
-        `Ids are unique across the whole plan, and ${changed.length === 1 ? 'this one was' : 'these were'} written on more than one floor, so each takes its floor's id in front: ${changed.join('; ')}. Every other id is kept as written. Use these ids in later calls.`
-      )
+      const FLOORS_SHOWN = 3
+      const IDS_SHOWN = 10
+      const line = ([id, floors]: [string, FloorDraft[]]): Said => {
+        const others = floors.slice(1)
+        const shown = joined(others.slice(0, FLOORS_SHOWN).map((fl) => said('rooms.idChanged.on', { id: idOf(fl, id), floor: fl.id })), 'join.comma', 'join.and')
+        const list = others.length > FLOORS_SHOWN ? said('rooms.idChanged.moreFloors', { list: shown, count: others.length - FLOORS_SHOWN }) : shown
+        return said('rooms.idChanged.id', { id, first: floors[0]!.id, others: list })
+      }
+      const ids = joined(changed.slice(0, IDS_SHOWN).map(line), 'join.semicolon')
+      const list = changed.length > IDS_SHOWN ? said('rooms.idChanged.moreIds', { list: ids, count: changed.length - IDS_SHOWN }) : ids
+      this.warn('rooms/id-changed', null, english(said(changed.length === 1 ? 'rooms.idChanged.one' : 'rooms.idChanged.many', { list })))
     }
     const trueAreas = new Map<string, number>()
     for (const fl of this.floors) {
@@ -2664,15 +2723,16 @@ class Compiler {
   private emitFlats(plan: { flatTypes?: FloorPlan['flatTypes']; flats?: FloorPlan['flats'] }, idOf: (fl: FloorDraft, id: string) => string): void {
     if (this.flatTypes.size === 0) return
     plan.flatTypes = [...this.flatTypes].map(([id, type]) => ({ id, name: type.name }))
-    const labels = new Map<string, number>()
-    for (const fl of this.floors) for (const label of new Set(fl.flats.map((f) => f.label))) labels.set(label, (labels.get(label) ?? 0) + 1)
+    // LVL-16: a label on several floors stays as written on the first that places it.
+    const labels = new Map<string, string>()
+    for (const fl of this.floors) for (const f of fl.flats) if (!labels.has(f.label)) labels.set(f.label, fl.id)
     const flats: NonNullable<FloorPlan['flats']> = []
     for (const fl of this.floors) {
       for (const flat of fl.flats) {
         const rooms = flat.rooms.filter((r) => fl.rooms.get(r.id) === r).map((r) => idOf(fl, r.id))
         if (rooms.length === 0) continue
         const type = this.flatTypes.get(flat.unit)!
-        const id = (labels.get(flat.label) ?? 0) > 1 ? `${fl.id}-${flat.label}` : flat.label
+        const id = labels.get(flat.label) === fl.id ? flat.label : `${fl.id}-${flat.label}`
         flats.push({
           id,
           ...(type.flatName === null ? {} : { name: type.flatName.split('{n}').join(flat.label) }),
@@ -2732,6 +2792,17 @@ interface UnitPlace {
   gap?: number
 }
 
+/**
+ * LVL-16: a floor's openings with the carried ones it does not keep left out: one whose two rooms
+ * are not both on the floor, and one the floor writes itself, by its id or between the same rooms.
+ */
+function carriedKept(fl: FloorDraft): OpeningLine[] {
+  const own = fl.openings.filter((o) => o.risen !== true)
+  const ids = new Set(own.map((o) => o.words[1]))
+  const pairs = new Set(own.filter((o) => o.words[2] === 'between' && o.words[4] === 'and').map((o) => pairKey(o.words[3]!, o.words[5]!)))
+  return fl.openings.filter((o) => o.risen !== true || (!ids.has(o.words[1]) && !pairs.has(pairKey(o.words[3]!, o.words[5]!)) && fl.rooms.has(o.words[3]!) && fl.rooms.has(o.words[5]!)))
+}
+
 function newFloor(id: string, name: string, level: number): FloorDraft {
   return {
     id,
@@ -2742,6 +2813,7 @@ function newFloor(id: string, name: string, level: number): FloorDraft {
     slab: null,
     building: null,
     extra: {},
+    copied: null,
     rooms: new Map(),
     inst: new Map(),
     between: new Map(),

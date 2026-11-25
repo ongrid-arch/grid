@@ -311,7 +311,7 @@
       "use": "corridor"
     },
     {
-      "id": "ground-stair",
+      "id": "stair",
       "name": "Stair",
       "boundary": [
         "ground-ext-south",
@@ -623,12 +623,12 @@
   ],
   "written": {
     "from": "rooms",
-    "revision": "0aede94cf2b766ee",
+    "revision": "499fb3beedd61f9c",
     "boundaries": {
       "living": "782dbed4",
       "kitchen": "d0da1f4e",
       "hall": "d6cd1a53",
-      "ground-stair": "38546c22",
+      "stair": "38546c22",
       "wc": "8b3fc3fb",
       "store": "f9e83396",
       "first-stair": "833073b9",

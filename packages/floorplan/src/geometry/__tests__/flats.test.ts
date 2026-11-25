@@ -126,7 +126,7 @@ describe('CNT-4 a flat type placed many times, mirrored (WRT-4)', () => {
     expect(x('bed-B1') < x('living-B1')).toBe(true)
   })
 
-  it('makes a flat of each copy of a floor, with the floor\'s id in front, and keeps a removed room out of its flat', () => {
+  it('makes a flat of each copy of a floor, with the copy\'s id in front, and keeps a removed room out of its flat', () => {
     const plan = written([
       ...ROW.split('\n').slice(0, 7),
       'floor g "Ground floor" level 0',
@@ -135,8 +135,8 @@ describe('CNT-4 a flat type placed many times, mirrored (WRT-4)', () => {
       'remove bed-A'
     ].join('\n'))
     expect(plan.flats!.map((f) => [f.id, f.rooms])).toEqual([
-      // The bedroom is on the ground floor only, so its id is kept as written.
-      ['g-A', ['g-living-A', 'bed-A']],
+      // LVL-16: the floor that places a flat first keeps its ids as written; the copy's take its id in front.
+      ['A', ['living-A', 'bed-A']],
       ['f1-A', ['f1-living-A']]
     ])
   })

@@ -1916,6 +1916,20 @@ export const es: Messages = {
   'rooms.raw.openingFloor':
     "Línea {line}: el raw opening '{id}' está escrito bajo la planta '{under}', pero su muro '{wall}' está en la planta '{floor}', y una abertura está en la planta de su muro. Escríbala bajo la planta '{floor}', o nombre un muro de la planta '{under}'.",
   'rooms.raw.openingFact': '{id}: {type} de {width} m en {wall}, escrita en crudo',
+  'rooms.copyNoOpenings': '{list}',
+  'rooms.copyNoOpenings.one':
+    "La planta {floors} copia los recintos de la planta '{from}' pero ninguna de sus puertas y ventanas, y no escribe ninguna propia, así que no tiene ninguna: escriba 'copy {from} with openings' para tomarlas, o escriba sus puertas y ventanas.",
+  'rooms.copyNoOpenings.many':
+    "Las plantas {floors} copian los recintos de la planta '{from}' pero ninguna de sus puertas y ventanas, y no escriben ninguna propia, así que no tienen ninguna: escriba 'copy {from} with openings' en cada una para tomarlas, o escriba sus puertas y ventanas.",
+  'rooms.copyNoOpenings.more': '{list} y {count} más',
+  'rooms.idChanged.one':
+    'Los ids son únicos en todo el plano, y este se escribió en más de una planta, así que la primera planta que lo escribe lo conserva y cada otra planta lo toma con su id de planta delante: {list}. Todos los demás ids se conservan como se escribieron. Use estos ids en las llamadas siguientes.',
+  'rooms.idChanged.many':
+    'Los ids son únicos en todo el plano, y estos se escribieron en más de una planta, así que la primera planta que escribe cada uno lo conserva y cada otra planta lo toma con su id de planta delante: {list}. Todos los demás ids se conservan como se escribieron. Use estos ids en las llamadas siguientes.',
+  'rooms.idChanged.id': "'{id}' se conserva en la planta '{first}' y es {others}",
+  'rooms.idChanged.on': "'{id}' en la planta '{floor}'",
+  'rooms.idChanged.moreFloors': '{list}, y así para {count} más',
+  'rooms.idChanged.moreIds': '{list}; y así para {count} más',
   'rooms.answer.raw':
     'Escrito en crudo y guardado tal como se escribe: muros {walls}, estancias {rooms}, aberturas {openings}. Grid mide las estancias en crudo como mide toda estancia, y las cuenta en las estancias y la superficie de arriba.',
   'rooms.answer.rawPart': 'en crudo',
