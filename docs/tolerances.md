@@ -52,6 +52,9 @@ in it is used as a `bedroom` or a `living` room) the home figures apply.
 | `lineInside` | tolerance | 0.05 m | The shortest stretch of a dividing line, or of a wall, inside a room that a message names |
 | `squareCorner` | tolerance | 0.0175 sine | Directions this close to a right angle are square: a room with four square corners is dimensioned by its width and depth, any other side by side, and a wall this close to one of the plan's main directions is dimensioned in the chains outside it (SHT-4) |
 | `chainPoint` | tolerance | 0.001 m | Two points of a chain of dimensions outside the plan closer than this are one point (SHT-4) |
+| `chainSliver` | tolerance | 0.01 m | Two points between a chain's ends closer than this are one point, so a wall a little off square leaves no sliver in it (VEW-22) |
+| `chainThinWall` | tolerance | 0.12 m | A solid wall thinner than this that meets a facade is marked in the walls chain at its centre line, so its thickness is no figure of its own (VEW-22) |
+| `wingShare` | tolerance | 0.25 ratio | Outside walls running one way that hold this share of the outside length, in three walls or more, are a wing dimensioned square to itself; half or more is the plan's main directions (VEW-22) |
 | `roomsWallWidest` | tolerance | 0.6 m | The widest gap between two rooms written rooms first that is still one wall between them; a wider gap that is not a room is refused |
 | `roomsTouch` | tolerance | 0.02 m | Rooms written rooms first closer than this touch with no wall between them, refused unless they are open to each other |
 | `roomsFaceStep` | tolerance | 0.002 m | Faces of rooms written rooms first further out of line than this are named as sizes that do not add up |
