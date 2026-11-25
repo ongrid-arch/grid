@@ -56,7 +56,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-6: four more, the help of --scale, --paper, --floor and --room-sizes.
   'packages/cli/src/command/sheet.ts': [8, 'command'],
   'packages/cli/src/command/tidy.ts': [12, 'command'],
-  'packages/cli/src/command/write.ts': [35, 'command'],
+  // WRT-57: one less, the count of problems now said from the messages.
+  'packages/cli/src/command/write.ts': [34, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
@@ -111,7 +112,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-18: two more, why a route's walked length is not given.
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
   // WRT-43: three more, grid_view's refusal of a room in no view, saying why it was left out.
-  'packages/cli/src/mcp/readTools.ts': [370, 'tools'],
+  // ARE-53: one more, the line of a measure that runs through a wall.
+  'packages/cli/src/mcp/readTools.ts': [371, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -196,7 +198,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [324, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [327, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],
@@ -209,7 +211,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-14: four fewer, the floor line's refusals moved into the message files.
   // LVL-16: one fewer, the warning of ids changed on several floors moved into the message files.
   // WRT-51: two fewer, the sides facing one way moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [114, 'notYet'],
+  // WRT-55: nine fewer, the gap, touching, overlap and wall-line refusals moved too.
+  'packages/floorplan/src/rooms/compile.ts': [105, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   'packages/floorplan/src/rooms/read.ts': [22, 'notYet'],

@@ -13,10 +13,11 @@
  *
  * The tool server's `grid_write_rooms` does the same through `writeRoomsIntoProject`.
  */
-import { expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, planFloors, planHasPhases, roomShapes, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
+import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, planFloors, planHasPhases, roomShapes, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
 import { english, name, said, type Said } from '@ongrid/floorplan/messages'
 import { carryFacts, compileRoomsText, planRevision, problemLines, roomsAnswer, stampFor, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
+import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { briefAnswer, briefReminder, type BriefData } from '../brief/answer'
 import { TAPED_ROWS_IN_AN_EDIT, tapedRows, tapedTable } from '../taped/table'
@@ -70,6 +71,10 @@ export interface WriteDone {
   /** The comparison with the plan before, or null when there was none. */
   readonly verdict: string | null
   readonly drawingProblems: { readonly before: number; readonly after: number }
+  /** WRT-57: what grid check lists (the record's count, routes out and all), before and after. */
+  readonly toLookAt: { readonly before: number; readonly after: number }
+  /** WRT-57: each door that joins other rooms than it did before, one that no longer leads outside first. */
+  readonly doors: readonly string[]
   /** BRF-1: the brief beside the plan, line by line against the plan written. */
   readonly brief: BriefData
   /** BRF-1: one line when this is the plan's first write and no brief is kept beside it; never a refusal. */
@@ -306,6 +311,10 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // counted after, as the plan before was counted with them; its items are said with their rooms.
   const items = keptItems(safeParseFloorPlan(next) ?? kept)
   const drawingProblems = { before: before === null ? 0 : validatePlan(before).issues.length, after: items.problems }
+  // WRT-57: what grid check will list, as an edit counts it, so a write that leaves no way out says so;
+  // and the doors that now join other rooms, from where each stands.
+  const toLookAt = { before: before === null ? 0 : inspectPlan(raw).count, after: inspectPlan(next).count }
+  const doors = before === null ? [] : doorLines(before, safeParseFloorPlan(next) ?? kept)
   const lines = [
     `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
     ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX),
@@ -316,13 +325,22 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(before === null || patterns.length === 0 ? [] : [patternsKept(before, kept)]),
     ...keptItemLines(items.items),
     ...(plan.flats !== undefined || (before?.flats ?? []).length === 0 ? [] : [`Kept the plan's ${before!.flats!.length === 1 ? 'flat' : `${before!.flats!.length} flats`} as the file has ${before!.flats!.length === 1 ? 'it' : 'them'}: this rooms text places no flat type. grid check names a room a flat lists that the text no longer has.`]),
-    `Problems in the drawing: ${drawingProblems.before} → ${drawingProblems.after}. Run grid check for the notes.`,
+    ...doors,
+    english(said('write.toLookAt', { before: toLookAt.before, after: toLookAt.after, drawingBefore: drawingProblems.before, drawingAfter: drawingProblems.after })),
     ...noStairLines(plan),
     ...brief.text,
     ...(reminder === null ? [] : [reminder]),
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),
   ]
-  return { written, result, plan, verdict, drawingProblems, brief: brief.data, reminder, taped, itemsKept: items.items, lines }
+  return { written, result, plan, verdict, drawingProblems, toLookAt, doors, brief: brief.data, reminder, taped, itemsKept: items.items, lines }
+}
+
+/** WRT-57: the doors that join other rooms than before (MSG-14), those that no longer lead outside first and said so. */
+function doorLines(before: FloorPlan, after: FloorPlan): string[] {
+  const out = (sides: readonly object[]): boolean => sides.some((side) => 'outside' in side)
+  const changes = doorsThatChangedRooms(before, after)
+  const lost = changes.filter((change) => out(change.before) && !out(change.after))
+  return [...lost.map((change) => english(said('write.door.notOut', { change: change.message }))), ...changes.filter((change) => !lost.includes(change)).map((change) => `${change.message}.`)]
 }
 
 /** MSG-24: the language and the words (C32) of the file's display, which rooms text does not hold. */

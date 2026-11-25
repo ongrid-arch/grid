@@ -539,6 +539,13 @@ its faces where it was) is said to have stayed where it was. Neither is a change
 from the wall or room, and the verdict counts the ones that moved (`2 openings moved with their
 walls`).
 
+A door or window moved from one wall to another is a change line that names both walls and what
+lies on each side of each, never a distance along its wall, nor its hinge and swing compared
+across the two walls: `Window "win-bed1" moved from wall "ext-south", between "Bedroom 1" and
+outside, to wall "bed1-north", between "Bathroom" and "Bedroom 1"` (MSG-28). `grid edit opening`
+moving it says the same of its new wall and its old one: `It was between "Hall" ↔ "Living"; it is
+now between "Living" ↔ outside.`
+
 In a plan with existing, demolished and new parts, a wall, door, window or room whose phase
 changed between the two versions is a change of its own, with its phase before and after:
 `Window "win-bed1" now to be demolished (was existing), in "Bedroom 1"`, `Wall "bath-north" now

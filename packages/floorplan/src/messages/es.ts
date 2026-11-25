@@ -2000,6 +2000,11 @@ export const es: Messages = {
   'rooms.openNotShared':
     "Línea {line}: '{a}' y '{b}' se abren una a otra, pero no comparten ningún lado, así que no hay dónde poner la línea divisoria. '{a}' comparte lados con: {aNear}; '{b}' con: {bNear}. Coloque las dos estancias cara a cara, en contacto, o quite la línea.",
   'rooms.openNotShared.none': 'ninguna estancia',
+  // WRT-56
+  'rooms.facesTurned':
+    "En la planta '{floor}', los lados enfrentados de {list} no son paralelos, hasta {degrees} grados: cada par de estancias tiene un muro entre ellos, trazado por la línea media entre los dos lados. Tiene el grueso de un muro que el texto indica cuando el hueco entre los lados pasa por ese grueso, y si no, el grueso medio del hueco. Las estancias conservan sus esquinas como se escribieron, así que la cara de un muro queda hasta {off} mm del lado de una estancia. Si los lados deben ser paralelos, escriba las esquinas sobre líneas paralelas.",
+  'rooms.facesTurned.pair': "'{a}' con '{b}'",
+  'rooms.facesTurned.more': '{list} y {count} pares más',
   'rooms.checkError': "La comprobación encuentra esto en el plano tal como se escribe, y dejaría fuera una parte ({code}): {message}",
   'rooms.checkNote': "La comprobación señala esto en el plano tal como se escribe ({code}): {message}",
   'rooms.raw.unknownFloor':
@@ -2077,8 +2082,48 @@ export const es: Messages = {
   'rooms.side.beyond': 'el muro hacia {list}',
   'rooms.side.other': "'{word}' para {beyond}",
   'rooms.side.unitGuess': "Línea {line}: la estancia '{room}' tiene {count} lados que miran al {side}; se usó '{word}', {beyond}, el único hacia algo fuera de la unidad '{unit}'. Escribe {others} para elegir otro.",
+  // WRT-55: a room line read as written, or refused for what is really wrong.
+  'rooms.room.placedTwice': "Línea {line}: la estancia '{room}' se sitúa dos veces, con '{first}' y con '{second}'. Una estancia va en un solo sitio: deja el que quieres y quita el otro.",
+  'rooms.room.sizedTwice': "Línea {line}: la estancia '{room}' tiene dos tamaños, '{first}' y '{second}'. Una estancia tiene un tamaño: deja el que quieres y quita el otro.",
+  'rooms.room.floorNamed':
+    "Línea {line}: 'floor {floor}' no se lee en una línea de estancia. Una estancia está en la planta cuya línea floor va encima de ella: escribe 'floor {floor}' en una línea propia y debajo las estancias de esa planta; la siguiente línea floor empieza la planta siguiente. En una línea de estancia, 'floor <m>' es un número: cuánto sube o baja el suelo de la estancia respecto al de su planta (con un menos si baja).",
+  'rooms.room.openUnit': "Línea {line}: 'open' necesita una estancia a la que abrirse, y '{ref}' es una unidad. Nombra la estancia: {rooms}.",
+  'rooms.room.openWhich': "Línea {line}: 'open' en la estancia '{room}' no dice a qué estancia se abre: no está situada junto a otra. Escribe 'open <estancia>' con la estancia que toca.",
+  'rooms.room.openUnknown': "Línea {line}: la estancia '{room}' se abre a '{to}', que no es ninguna estancia escrita antes de esta línea. Estancias hasta aquí: {rooms}.",
+  'rooms.room.openBeside': "Línea {line}: '{room}' está abierta a '{to}', la estancia junto a la que se sitúa: una línea divisoria entre ellas, sin muro. Para abrirla a otra estancia, escribe 'open <estancia>'.",
+  'rooms.room.openHost': "Línea {line}: '{room}' está abierta a '{to}', la estancia de la que se recorta: una línea divisoria entre ellas, sin muro. Para abrirla a otra estancia, escribe 'open <estancia>'.",
+  'rooms.room.starExtent': "Línea {line}: la estancia '{room}' tiene '*' en lugar de su {side} y ningún 'until', así que toma esa medida de '{ref}', la estancia junto a la que se sitúa: {length} m.",
+  'rooms.room.outdoorUse':
+    "Línea {line}: '{word}' no es un uso de estancia. Un espacio exterior es una estancia de uso '-' (o un uso, como 'parking' para una cochera), con 'outdoor <tipo>' después de su tamaño y su sitio: uno de {kinds}.{offer}",
+  'rooms.room.outdoorUse.offer': " Escribe '{written}'.",
+  'rooms.repeat.fill':
+    "Línea {line}: 'fill <longitud>' hace una fila de esa longitud calculando uno de los ajustes de la unidad, escrito '*' en la línea repeat: uno de {settings}. Escribe la longitud después de 'fill' y ese ajuste como nombre=*, y deja los demás como están.",
+  'rooms.repeat.fillNone': "Línea {line}: {count} unidades no pueden llenar {length} m con '{key}': no quedaría nada de ellas. Llena una longitud mayor, o repite la unidad menos veces.",
+  'rooms.repeat.fillMissed': "Línea {line}: la fila sale de {length} m, no de los {fill} m que debe llenar, sea cual sea el ajuste escrito '*'. Comprueba que ese ajuste dimensiona la unidad a lo largo de la fila.",
+  'rooms.row.overrun':
+    "Línea {line}: la fila de {count} '{unit}' sobresale {by} m del extremo {end} de '{street}', la estancia al {side} de la que se sitúa, así que la fachada hace un escalón ahí. Para terminar la fila con '{street}', haz cada unidad {each} m más estrecha, escribe 'fill {length}' en la línea repeat con el ajuste que dimensiona la unidad escrito nombre=*, o alarga '{street}' {by} m.",
+  'rooms.gap':
+    "Las estancias '{a}' (línea {aLine}) y '{b}' (línea {bLine}) dejan un hueco de {gap} m entre ellas, a lo largo de {along} m: más ancho que un muro (aquí los muros llegan a {widest} m) y demasiado estrecho para un muro exterior en cada una.{closes} Si es un conducto o un armario, escríbelo como una estancia.",
+  'rooms.gap.close': ' Si es un muro, cierra el hueco a su grosor.',
+  'rooms.gap.closes': ' Para cerrarlo a un muro de {wall} m, haz una de ellas {by} m mayor hacia la otra: {sizes}.',
+  'rooms.gap.size': "'{size}' para '{room}'",
+  'rooms.door.inOutBetween': "Línea {line}: la puerta '{id}' une '{a}' y '{b}', así que 'opens {how}' no dice hacia dónde abre: ninguna de las dos es el exterior. Escribe 'opens into {a}' u 'opens into {b}'.",
+  'rooms.door.alongShared': "Línea {line}: '{id}' se mide desde el extremo {comp} de los {length} m de muro que comparten '{a}' y '{b}': medida desde el extremo {comp} del lado de la estancia, no quedaría en ese muro.",
+  'rooms.window.outsideStretch': "Línea {line}: la ventana '{id}' va en el tramo exterior del lado {side} de {room} ({length} m), situada a lo largo de ese tramo: el resto de ese lado es el muro con {rooms}.",
+  'rooms.wall.unknownWord': "Línea {line}: '{word}' no se entiende en una línea de muro. Se conocen: el grosor como número sin más, como 0.2 (o con su unidad, 200mm); {kinds}; height <m>; id <id>; reversed.",
+  'rooms.wallOnLine': "Línea {line}: el muro entre '{a}' y '{b}' se levanta sobre la línea donde se tocan las dos estancias, de {thickness} m, así que cada una queda {half} m más pequeña ahí de lo escrito. Para conservar los dos tamaños, deja {thickness} m entre las estancias.",
+  'rooms.touching':
+    "Las estancias '{a}' (línea {aLine}) y '{b}' (línea {bLine}) se tocan a lo largo de {along} m sin muro entre ellas (el hueco es de {gap} mm). Si el espacio es abierto, {open}. Si hay un muro, deja su grosor entre las estancias, o escribe 'wall between {a} and {b}' para levantarlo sobre la línea que comparten.",
+  'rooms.touching.openBeside': "añade 'open' a la línea de '{b}' o escribe 'wall between {a} and {b} virtual'",
+  'rooms.touching.openNamed': "añade 'open {a}' a la línea de '{b}' o escribe 'wall between {a} and {b} virtual'",
+  'rooms.overlap':
+    "Las estancias '{a}' (línea {aLine}) y '{b}' (línea {bLine}) se solapan: comparten un área de unos {ox} m de este a oeste por {oy} m de norte a sur. Para despejarla, {move}, o haz una de ellas más pequeña en esa medida más el muro entre ellas.{corner}",
+  'rooms.overlap.eastWest': "mueve '{room}' {by} m al este o al oeste",
+  'rooms.overlap.northSouth': "mueve '{room}' {by} m al norte o al sur",
+  'rooms.overlap.corner': " Si '{b}' debe quedar en una esquina de '{a}', escribe 'inside {a} corner <ne|nw|se|sw>'.",
   'rooms.side.offer': "'{text}' para {beyond}",
   'rooms.side.offers': 'Para colocarla, escribe la línea {line} como {offers}.',
+  'rooms.side.staysOut': "No se ofrece ninguna línea: el único lado donde cabe es el muro hacia {rooms}, así que daría a {rooms}, no al exterior, y el lado hacia el exterior es demasiado corto. Haz sitio allí, o escribe {words} si debe dar a {rooms}.",
   'rooms.copyNoOpenings': '{list}',
   'rooms.copyNoOpenings.one':
     "La planta {floors} copia los recintos de la planta '{from}' pero ninguna de sus puertas y ventanas, y no escribe ninguna propia, así que no tiene ninguna: escriba 'copy {from} with openings' para tomarlas, o escriba sus puertas y ventanas.",
@@ -2244,6 +2289,11 @@ export const es: Messages = {
   'diff.room.merged.wall': 'unido con {rooms}, quitado el muro {walls} entre ellos',
   'diff.room.merged.walls': 'unido con {rooms}, quitados los muros {walls} entre ellos',
   'diff.room.mergedInto': '{room} unido a {into}, {area}',
+  // MSG-28: un hueco llevado de un muro a otro, con lo que hay a cada lado de cada uno.
+  'diff.opening.otherWall': 'pasó del muro {from}, entre {fromSides}, al muro {to}, entre {toSides}',
+  'diff.opening.side.outside': 'el exterior',
+  'diff.opening.side.none': 'nada dibujado',
+  'edit.opening.otherWall': 'Estaba entre {before}; ahora está entre {after}.',
   // --- MSG-27: la volumetría y el solar comparados (`diff/massing.ts`)
   'diff.massing.east': '{distance} m al este',
   'diff.massing.west': '{distance} m al oeste',
@@ -2491,6 +2541,8 @@ export const es: Messages = {
   'write.items.item.noRoom': '{kind} {id} en ninguna estancia',
   'write.items.more': ' y {n} más',
   'write.items.look': 'Conviene revisar: {message}',
+  'write.toLookAt': 'Por revisar: {before} → {after}, de ellos problemas en el dibujo {drawingBefore} → {drawingAfter}. Ejecuta grid check para ver las notas.',
+  'write.door.notOut': 'Ya no da al exterior: {change}.',
   'write.items.looksMore': 'Y {n} elementos conservados más chocan con un muro o no están en ninguna estancia: grid check los nombra.',
   'edit.idTaken.item': '{kind} {id} en ({x}, {y}) en la estancia {room}{floor}',
   'edit.idTaken.item.noRoom': '{kind} {id} en ({x}, {y}), en ninguna estancia{floor}',
@@ -2518,6 +2570,7 @@ export const es: Messages = {
   'edit.square.curvedLeft.one': 'El muro curvo {walls} se deja como está: escuadrar solo gira muros rectos.',
   'edit.square.curvedLeft.many': 'Los muros curvos {walls} se dejan como están: escuadrar solo gira muros rectos.',
   'edit.square.onlyCurved': 'Solo hay muros curvos marcados para escuadrar ({walls}), y escuadrar solo gira muros rectos: nada se movería.',
+  'edit.use.read': 'Se leyó {word} como el uso {use}.',
   'edit.stretch.carried': '{parts} más allá de la línea se movieron con ella.',
   'edit.stretch.count.column.one': '{n} pilar',
   'edit.stretch.count.column.many': '{n} pilares',

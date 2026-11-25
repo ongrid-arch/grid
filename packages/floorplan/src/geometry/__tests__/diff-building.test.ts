@@ -114,9 +114,9 @@ describe('a one-number edit to a flat written rooms first (done-when 2, lab RT-8
 
   it('has at most two change lines, and says the kitchen door stayed where it was', () => {
     const [before, after] = [base(), wider()]
-    // Today: 23 changes, the kitchen door "moved to another wall; moved 4.40 m along its wall".
+    // By id: 23 changes, the kitchen door "moved to another wall" (MSG-28: with no distance along two walls).
     expect(diffPlans(before, after).changes.length).toBe(23)
-    expect(diffPlans(before, after).changes.find((c) => c.entity.id === 'door-kitchen')?.summary).toContain('moved 4.40 m')
+    expect(diffPlans(before, after).changes.find((c) => c.entity.id === 'door-kitchen')?.summary).toBe('Door moved to another wall')
 
     const compared = compareBuildings(before, after)
     expect(compared.roomsFirst).toBe(true)

@@ -39,7 +39,8 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   `north of baño` names it. The answer names each id written so (`rooms/id-folded`). An id with a
   letter that has no plain form (`客厅`) is refused on its line (`rooms/bad-id`), which offers a plain
   id made from what the part is (`room living "客厅"`). A name in quotes keeps the person's own
-  words, accents and all. A plan whose file already holds such ids reads back with plain ones in
+  words, accents and all. A name holding a quote mark is written in the other quote mark
+  (`"Kid's room"`, `'The "den"'`), or with a backslash before the mark: `"The \"den\""` (WRT-55). A plan whose file already holds such ids reads back with plain ones in
   their place (CMD-24): the read-back names each in a comment, and writing it back gives the plan
   those ids. Every tool and option reads an id by this one rule (`readPlainId`).
 - In a text read in feet (`display ft-in`, or `numbers ft`), `12-6` is refused as `rooms/units`:
@@ -62,7 +63,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   it (WRT-47): `12 x 10.8 centre at 12,0` runs from x = 12 to x = 24. Where two such rooms meet
   on a line, the wall between them is the inside thickness (or the one a `walls` word or a
   `wall between` line gives), its centre line on that line, also where the rest of the side is
-  outside; two rooms sized to their outside faces that meet add up to the two sizes.
+  outside; two rooms sized to their outside faces that meet add up to the two sizes, placed by
+  their corners or one beside the other (`2.44 x 6.06 outside east of a`, two containers), and so
+  do rooms of a unit placed by their corners (WRT-55).
+- A room line places a room once and sizes it once: `north of a south of a`, `at` twice, `at`
+  with `east of`, or two sizes are refused by name (`rooms/syntax`), never read by the last words.
 - The `walls` line is for the floor it is written on, while that floor has no rooms, and every
   floor after it (WRT-47). A walls line written after a floor's rooms leaves that floor with the
   walls it started with, and the answer says so (`rooms/walls-late`); a copied floor keeps the
@@ -92,6 +97,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   `tenure common` and `type "B2 double"` on a room line say who it is for and the firm's own room
   type. `building office` says what kind of building the plan is, and `building shop` on a
   `floor` line what that floor is ([the plan file](plan-file.md#what-kind-of-building-it-is-and-what-each-room-is-for)).
+  `outdoor` or an outdoor kind (`terrace`) written as the use is refused with the line written
+  the way that writes: `-` for the use and `outdoor terrace` after the size (WRT-55, in `fixes`).
+- A room stands on the floor whose floor line comes above it. `floor first` on a room line is
+  refused with that (WRT-55): write the floor line, then its rooms under it. On a room line,
+  `floor <m>` is a number, its own floor raised or sunk.
 - `outdoor terrace` on a room line marks it as outdoor space (CNT-7), one of `garden`,
   `courtyard`, `terrace`, `balcony`, `light-well`, `porch`, `carport` or `other`, and `roofed` or
   `unroofed` after it says whether a roof covers it; unstated, a porch and a carport are roofed.
@@ -103,7 +113,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   thins the building's wall: they are its edges, a railing or a fence. A window onto it is in an
   outside wall. Rooms placed by hand that leave another gap there are said once
   (`rooms/wall-from-gap`), with the `wall between` line that keeps it (WRT-31).
-- `*` stretches a side as far as the room named after `until`. `inside <room> corner ne` cuts a
+- `*` stretches a side as far as the room named after `until`: to that room's far face, or to its
+  near face less the wall between when that room stands in the way of the stretch, or the line
+  says `until near <room>` (WRT-55). A `*` along the room it is placed beside, with no `until`
+  (`room hall "Hall" corridor * x 1.4 north of living`), takes that room's extent, and the answer
+  says so. `inside <room> corner ne` cuts a
   room out of another's corner and closes it with its own walls, in a corner against the outside
   walls or against a neighbouring room, however small: the end of its wall, seen across the corner
   from the room next door, is never read as a gap or a wall between that room and the host
@@ -112,7 +126,12 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   floors above its own ([many of one room](#many-of-one-room-floors-copied-and-walls-through-floors)).
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),
   or that leave a gap that is neither a wall nor a room are refused in plain words naming both
-  rooms. Every refusal has a code, such as `rooms/overlap`.
+  rooms. Every refusal has a code, such as `rooms/overlap`. Each gives the advice that applies
+  (WRT-55): a gap too wide for a wall is refused with the size of each room that closes it to the
+  wall between them; `open` is offered to a room placed beside the other, `open <room>` to one
+  placed by its corner, and a corner (`inside <room> corner`) only to a room that fits inside the
+  other. A `wall between` line for two rooms placed touching stands its wall on the line they
+  share, each room giving up half of it, and the answer says so (`rooms/wall-on-line`).
 - `open` on a room line and `wall between <a> and <b> virtual` anywhere on the floor (or in the
   unit) say the same thing: a room placed beside the other is placed against it, with a dividing
   line on their shared face, so both keep the size written for them (WRT-41). A unit placed
@@ -130,7 +149,19 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   polygon room written to the centimetre against the angled side of another, a few millimetres
   off it, still shares that side, and the two get a dividing line, or a wall, along it and no
   outside wall across it. Two rooms opened to each other that share no side are refused,
-  naming both and the rooms each shares a side with (`rooms/no-shared-wall`).
+  naming both and the rooms each shares a side with (`rooms/no-shared-wall`). Sides further out
+  of parallel, up to 5 degrees (`roomsFaceTurn`), that are no further apart than a wall at both
+  ends of what they share are one wall's two faces, as a scanned room's are (WRT-56): a surveyed
+  partition between rooms drawn a little askew, or a curved band of rooms written as facets that
+  do not line up with the band beside it. The wall runs along the middle line between the sides,
+  as thick as a wall the text states where the gap passes through that thickness, else as the gap
+  on average (`rooms/wall-from-gap`). The rooms keep their corners, and the answer says once a
+  floor which rooms' sides are out of parallel, by how much and how far a wall's face is off them
+  (`rooms/faces-turned`).
+  A bare `open` opens the room to the room it is placed beside, and the answer says which (WRT-55);
+  `open <room>` names it, also for a room placed `at x,y`, where a bare `open` is refused. On a
+  room cut out of a corner (`inside living corner ne open`), `open` opens it to the room it is cut
+  out of, with no wall between: a stair or a closet that is part of the room.
 - A door or window line may say its kind (CNT-14): `sliding`, `double`, `folding`, `pocket`,
   `roller`, `garage` or `single` for a door, `single`, `double`, `sliding`, `fixed` or
   `high-level` for a window; `part 0.9` (or `part 0.6 x 1.0`) for the part that opens. A door
@@ -143,6 +174,14 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   door d-patio in living south, centred, 2.4 wide, sliding
   door d-bed   between hall and bedroom, 0.1 from west, 0.8 wide, opens into bedroom, hinged left
   ```
+- A door, window or opening may carry a name after its id, in quotes (`door front "Front door"
+  in hall north, centred, 0.9 wide`): it is kept in the opening's facts as `name` (WRT-55).
+  Between two rooms, a `<m> from <side>` that, measured along the room's side as before, would
+  fall outside the stretch of wall the two share is measured along that stretch, from its end on
+  that side, and the answer says so; `opens in` or `opens out` is refused (neither room is the outside),
+  with the line written `opens into` each room. A window written in a side that is partly the
+  wall to another room goes in that side's outside stretch, placed along it, and the answer says
+  so; one that already stands in the outside stretch as written stays where it is.
 - A room whose outline steps (a corner cut out for a WC, an L) can have more than one side
   facing one way. `in <room> east.1`, `east.2` picks one, counted from the west, then the south
   (WRT-51). A line that says only `east` there is refused with each of those sides by its word,
@@ -152,7 +191,16 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   answer says so with the word for each other side: a cabin door written `in cabin north` goes
   to the corridor, not into the cabin's own bath partition. Two rooms that share more than one
   wall (`rooms/two-shared-walls`) are offered the same way, the line with `in <room> <side>` in
-  place of `between`, for each shared wall that writes.
+  place of `between`, for each shared wall that writes. A door or doorless opening written in a
+  side of which a part is onto the outside, as a front door is once a store is carved in the
+  hall's corner beside it, is never offered only lines that lead it into a room: when the side
+  onto the outside is too short for it, the refusal offers no line and says so, with the side's
+  word for a door meant to lead into that room (WRT-57).
+- Written over a plan, the answer names each door that now joins other rooms than it did,
+  from where it stands, as an edit does; one that no longer leads outside comes first, said so
+  ("No longer leads outside: …"). Its count is what `grid check` will list, the routes out
+  included, beside the drawing problems: `To look at: 0 → 2, of them problems in the drawing
+  0 → 0`; the data has `toLookAt` and `doors` (WRT-57).
 - What Grid writes passes its own check (WRT-17). It reads the plan back as `grid check` will
   before writing it, so the walls it works out close every corner and join only where walls meet.
   Each wall end reaches the centre line of the wall it meets however thick the two are (a 1.8 m
@@ -234,11 +282,18 @@ room corridor "Corridor" corridor * x 1.4 north of 301 until 306 walls 0.2
 repeat guest 6 east as 307 north of corridor mirror north-south bhinge=north first w=3.375 bw=1.8 win="0.65 from west" last w=3.375 door=0.2 win="0.725 from west"
 ```
 
-A numeric first label counts up (301, 302, … 306) and any other takes a number after it (A1,
-A2, …). Each part's id is its name in the unit and the placement's label, `room-301`,
+A first label ending in digits counts up from them and keeps their width (301, 302, … 306;
+001, 002; A01, A02), and any other takes a number after it (A1, A2, …) (WRT-55). Each part's id is its name in the unit and the placement's label, `room-301`,
 `door-306`, so the same text writes the same ids every time, and a row that grows by one keeps
 the ids it had.
 
+- `fill <length>` on a repeat line works out the one setting written `*` so the row is that long,
+  to the faces its rooms' sizes measure to (WRT-55): `repeat bay 6 east as 1 at 0,0 w=* fill 20.7`
+  gives six bays and their five walls 20.7 m. A row that cannot come out that long is refused
+  (`rooms/fill`). A row whose first unit is placed beside a room across the row (its street, a
+  corridor) and that runs past an end of that room is said once, first among the warnings and
+  first among the problems when the text is refused, with how much narrower each unit makes it
+  end with the room (`rooms/row-overrun`); so is a room of a fixed length placed beside a row.
 - `floor l4 "Fourth floor" level 4 copy l3 with openings` starts a floor as a copy of another,
   on its own line, as `copy l3` does on the line after. The copy takes the floor's outline, roof,
   parapet, homes and parking too; a `raw floor` line on the copy sets any of them for that floor

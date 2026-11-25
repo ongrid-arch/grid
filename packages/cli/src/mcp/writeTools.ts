@@ -35,6 +35,7 @@ import { ROOM_NAMES_TRAVEL } from './protocol'
 import { comparePlans } from '../quantities/compare'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { LANGUAGE_ARG, openingBetween } from './readTools'
+import { say } from '@ongrid/floorplan/messages'
 import { briefAnswer } from '../brief/answer'
 import { BRIEF_OUTPUT } from './briefTool'
 import { writeLayout } from '../brief/layout'
@@ -59,7 +60,9 @@ import {
   ToolRefusal,
   type GridTool,
   type ToolContext,
+  usesRead,
 } from './toolkit'
+import { english, name as nameOf, said as sentence } from '@ongrid/floorplan/messages'
 
 export const EXPORT_TOOL_NAME = 'grid_export'
 
@@ -334,8 +337,11 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   const brief = briefAnswer(project, file, after)
   // HND-11 (lab WR-14): the taped lengths against the plan as it now is.
   const taped = tapedRows(after)
+  // WRT-58: a use word read as another use (`gym` as `sport`) is said, so the person sees what it became.
+  const usesSaid = usesRead(args).map((read) => english(sentence('edit.use.read', { word: nameOf(read.word), use: read.use })))
   const text = [
     ...patch.said,
+    ...usesSaid,
     ...guessed.map((line) => `Guessed: ${line}`),
     ...couldNotKeep.map((line) => `Could not keep: ${line}`),
     verdict,
@@ -402,8 +408,14 @@ const changeOpeningTool: GridTool = {
         ...(args['from'] !== undefined ? { from: args['from'] as From } : {}),
         ...(args['distance'] !== undefined ? { distance: args['distance'] as number } : {}),
       })
-      const between = openingBetween(survey, id)
-      return between ? { ...patch, said: [...patch.said, `It is between ${between}.`] } : patch
+      // MSG-28: what lies on each side of it where it is after the change, and moved to another
+      // wall, what lay on each side of its old one.
+      const moved = patch.openings.get(id)?.wall !== undefined
+      const between = openingBetween(moved ? surveyPlan(readingAfter(survey.plan, patch)) : survey, id)
+      if (!between) return patch
+      const was = moved ? openingBetween(survey, id) : ''
+      if (was) return { ...patch, said: [...patch.said, say('en', 'edit.opening.otherWall', { before: was, after: between })] }
+      return { ...patch, said: [...patch.said, `It is between ${between}.`] }
     })
   },
 }
@@ -628,6 +640,10 @@ const writeRoomsTool: GridTool = {
     warnings: listSchema(STRING),
     verdict: { type: ['string', 'null'] },
     drawingProblems: objectSchema({ before: { type: 'number' }, after: { type: 'number' } }),
+    // WRT-57: what grid_check lists (the record's count), before and after; null for a scan.
+    toLookAt: { type: ['object', 'null'], properties: { before: { type: 'number' }, after: { type: 'number' } }, required: ['before', 'after'] },
+    // WRT-57: each door that joins other rooms than before, one that no longer leads outside first.
+    doors: listSchema(STRING),
     // BRF-1: the brief's lines, and the one reminder when a first plan has no brief beside it.
     brief: BRIEF_OUTPUT,
     reminder: NULLABLE_STRING,
@@ -672,6 +688,8 @@ const writeRoomsTool: GridTool = {
             warnings: [...c.warnings],
             verdict: done.verdict,
             drawingProblems: done.drawingProblems,
+            toLookAt: null,
+            doors: [],
             brief: done.brief,
             reminder: done.reminder,
             layout: null,
@@ -704,6 +722,8 @@ const writeRoomsTool: GridTool = {
           warnings: r.warnings.map((w) => `${w.code}: ${w.message}`),
           verdict: done.verdict,
           drawingProblems: done.drawingProblems,
+          toLookAt: done.toLookAt,
+          doors: [...done.doors],
           brief: done.brief,
           reminder: done.reminder,
           layout: laid?.layout ?? null,

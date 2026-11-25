@@ -112,6 +112,8 @@ export interface FacadeOpening {
   /** Its sill and its head, from the ground floor's floor level. */
   readonly bottom: number
   readonly top: number
+  /** The thickness of the wall it is cut in, in metres: how deep its reveals are (VEW-49). */
+  readonly reveal: number
 }
 
 /**
@@ -444,7 +446,8 @@ function openingsIn(
       u0: fine(Math.min(...ends)),
       u1: fine(Math.max(...ends)),
       bottom: fine(floorLevel + opening.sill),
-      top: fine(floorLevel + opening.sill + opening.height)
+      top: fine(floorLevel + opening.sill + opening.height),
+      reveal: fine(wall.thickness)
     })
   }
   return out
@@ -562,7 +565,9 @@ function hiddenBy(shape: Ring, box: { u0: number; u1: number; bottom: number; to
   const over = nearer.filter((f) => f.u0 < box.u1 && f.u1 > box.u0 && f.bottom < box.top && f.top > box.bottom && f.outline.length >= 3)
   if (over.length === 0) return false
   try {
-    const left = polygonClipping.difference([shape], ...over.map((f): Polygon => [closedRing(f.outline)]))
+    // VEW-49: a doorless opening is a hole in the face that holds it: what stands behind is seen.
+    const solid = (f: FacadeFace): Polygon => [closedRing(f.outline), ...f.openings.filter((o) => o.type === 'opening' && o.u0 >= f.u0 && o.u1 <= f.u1 && o.bottom >= f.bottom && o.top <= f.top).map((o) => boxRing(o.u0, o.u1, o.bottom, o.top))]
+    const left = polygonClipping.difference([shape], ...over.map(solid))
     return ringsArea(left) <= tolerance('areaReported')
   } catch {
     return false

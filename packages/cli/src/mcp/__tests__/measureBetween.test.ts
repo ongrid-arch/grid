@@ -38,10 +38,28 @@ function box(heights: readonly [number, number, number, number], roomHeight?: nu
   }
 }
 
+/** Three 3 × 3 m rooms in a row, A, B and C, 0.2 m walls between; `door` cuts a door in the first partition. */
+function row(door: boolean): unknown {
+  const xs = [0, 3, 6, 9]
+  const wall = (id: string, start: number[], end: number[]) => ({ id, start, end, thickness: 0.2, height: 2.7, kind: 'exterior' })
+  const walls = [
+    wall('s', [0, 0], [9, 0]), wall('n', [9, 3], [0, 3]),
+    ...xs.map((x, i) => wall(`x${i}`, [x, 0], [x, 3])),
+  ]
+  const boundary = (i: number) => [`x${i}`, 's', `x${i + 1}`, 'n']
+  return {
+    version: '1', units: 'm', walls,
+    rooms: ['A', 'B', 'C'].map((name, i) => ({ id: name.toLowerCase(), name, boundary: boundary(i) })),
+    openings: door ? [{ id: 'door', type: 'door', wall: 'x1', offset: 1, width: 1, height: 2.1 }] : [],
+  }
+}
+
 let b: Bench
 beforeAll(() => {
   b = bench({
     'odd.json': oddHouse(),
+    'row.json': row(false),
+    'rowDoor.json': row(true),
     'level.json': box([2.7, 2.7, 2.7, 2.7]),
     'mixed.json': box([2.7, 2.7, 2.4, 2.7]),
     'stated.json': box([2.7, 2.7, 2.4, 2.7], 2.55),
@@ -118,6 +136,34 @@ describe('what=between: the clear distance between two named things, from their 
 
   it('refuses an argument that belongs to another measure', async () => {
     expect(await refused({ plan: 'odd.json', what: 'between', from: 'entrance', to: 'g-w', room: 'g-living' })).toMatch(/takes from, to, x, y/)
+  })
+})
+
+describe('what=between: says when the measure runs through a wall (ARE-53)', () => {
+  it('names the partitions between two rooms and calls the figure overall, not clear', async () => {
+    const reply = await ok({ plan: 'row.json', what: 'between', from: 'a', to: 'c' })
+    expect(answer(reply)['through']).toEqual(['x1', 'x2'])
+    expect(answer(reply)['clear']).toBe(false)
+    expect(reply.text).toMatch(/overall/)
+    expect(reply.text).toMatch(/through walls "x1", "x2"/)
+    expect(reply.text).not.toMatch(/ clear,/)
+  })
+
+  it('names nothing for two walls with open floor between them', async () => {
+    const reply = await ok({ plan: 'row.json', what: 'between', from: 'x0', x: 1.5, y: 1.5 })
+    expect(answer(reply)['through']).toEqual([])
+    expect(answer(reply)['clear']).toBe(true)
+    expect(reply.text).toMatch(/ clear,/)
+  })
+
+  it('leaves out the wall a measured door stands in', async () => {
+    const reply = await ok({ plan: 'rowDoor.json', what: 'between', from: 'door', to: 'x2' })
+    expect(answer(reply)['through']).toEqual([])
+  })
+
+  it('does not count a wall the line passes through at a door', async () => {
+    const reply = await ok({ plan: 'rowDoor.json', what: 'between', from: 'a', x: 7.5, y: 1.5 })
+    expect(answer(reply)['through']).toEqual(['x2'])
   })
 })
 
