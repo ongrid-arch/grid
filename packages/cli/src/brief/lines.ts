@@ -16,6 +16,7 @@
  * Pure: a plan and a brief in, lines out. Nothing here reads a file.
  */
 import { floorElevations, floorOf, groundLevel, MEASURES, planFloors, planForFloor, planSteps, roomFloorOffset, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
+import { smallMetres } from '../quantities/units'
 import { planAreas, type RoomArea } from '../quantities/areas'
 import { measureRoom, roomHeight } from '../quantities/measure'
 import { corridorNarrowestOf, entranceOf } from '../quantities/access'
@@ -64,7 +65,7 @@ export const MAT = { width: 0.9, length: 1.8 } as const
 const MAT_AREA = MAT.width * MAT.length
 
 const q = (text: string): string => JSON.stringify(text)
-const n2 = (value: number): string => value.toFixed(2)
+const n2 = (value: number): string => smallMetres(value)
 const asWritten = (value: number): string => String(value)
 const same = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase()
 
