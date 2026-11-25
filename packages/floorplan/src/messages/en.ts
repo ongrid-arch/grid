@@ -2440,6 +2440,13 @@ export const en = {
   // WRT-24: what a stretch carries beyond its line with the walls, and what stays behind.
   // WRT-58: a use word an edit took, read as the use it means.
   'edit.use.read': 'Read {word} as the use {use}.',
+  // CMD-30: a name the plan now has that reads as an instruction or a claim, or holds a person's name.
+  'name.part.room': 'a room',
+  'name.part.floor': 'a floor',
+  'name.part.flat': 'a flat',
+  'name.part.plan': 'the plan',
+  'name.note.instruction': 'The name of {part}, {name}, reads as an instruction or as a claim about the plan. Grid keeps it as written and always quotes it, but it goes into every export and sheet: rename it if that is not what it is called.',
+  'name.note.person': 'The name of {part}, {name}, may hold a person\'s name. It goes into every export and sheet and travels with the plan; who uses a room can be kept apart, in the occupancy file beside the plan ({file}).',
   'edit.stretch.carried': '{parts} beyond the line moved with it.',
   'edit.stretch.count.column.one': '{n} column',
   'edit.stretch.count.column.many': '{n} columns',

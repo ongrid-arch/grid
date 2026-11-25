@@ -43,7 +43,8 @@ const LINKS_MAX = 40
 export const NAME_MAX_BYTES = 255
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
-const INVISIBLE = /[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/
+// CMD-30: the zero-width space, the word joiner and the soft hyphen too, which hide in a file name.
+const INVISIBLE = /[\u00ad\u200b\u200e\u200f\u2060\u202a-\u202e\u2066-\u2069\ufeff]/
 const DEVICE_PATH = /^[\\/]{2}[?.][\\/]|^[\\/]\?\?[\\/]/
 const NETWORK_PATH = /^[\\/]{2}/
 // Two letters or more, so `C:` stays a drive. No dot, so `plan.json:x` reads as a data stream.
@@ -385,7 +386,8 @@ export class Project {
       const entry = fs.statSync(real)
       if (entry.isDirectory()) throw errno('EISDIR', `${quoted(given)} is a folder`)
       // CMD-30: a file the person made read-only is theirs to keep; the atomic writer refuses it too.
-      if (entry.isFile() && (entry.mode & 0o200) === 0) throw errno('EACCES', `${quoted(given)} is read-only, so Grid leaves it as it is`)
+      // Its message follows "Can't write <file>: ", so it names neither the file nor the code.
+      if (entry.isFile() && (entry.mode & 0o200) === 0) throw Object.assign(new Error('it is read-only, so Grid leaves it as it is'), { code: 'EACCES' })
     }
     return real
   }

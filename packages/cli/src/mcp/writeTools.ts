@@ -20,6 +20,8 @@ import { approximatedText, checkExportRequest, dxfProfileLine, ExportWriteFailed
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { PlanRefused } from '../command/plan'
+import { nameNotes } from '../command/planText'
+import { occupancyFileOf } from '../occupancy/occupancy'
 import { keepRoomNumbers } from '../edit/numbers'
 import { changeOpening, changeWallThickness, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
 import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
@@ -339,9 +341,12 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   const taped = tapedRows(after)
   // WRT-58: a use word read as another use (`gym` as `sport`) is said, so the person sees what it became.
   const usesSaid = usesRead(args).map((read) => english(sentence('edit.use.read', { word: nameOf(read.word), use: read.use })))
+  // CMD-30: a name the change brought in that reads as an instruction or holds a person's name, said gently.
+  const namesSaid = nameNotes(next as Record<string, unknown>, raw, occupancyFileOf(written)).map((note) => english(note))
   const text = [
     ...patch.said,
     ...usesSaid,
+    ...namesSaid,
     ...guessed.map((line) => `Guessed: ${line}`),
     ...couldNotKeep.map((line) => `Could not keep: ${line}`),
     verdict,
