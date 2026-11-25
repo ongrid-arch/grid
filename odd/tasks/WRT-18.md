@@ -17,19 +17,22 @@ rather than to its centre line, now follows it as a wall that ends on its centre
 
 ## Design
 
+- `packages/cli/src/edit/fit.ts` (new): `newProblems(before, after)` compares the drawing's
+  issues by code and part, counted, so a problem that only changes its figures is not new, and
+  one that appears is, of any severity. Left out, because they report the design asked for and
+  not a fault: a fixture's fit (`item/`, which `grid_place_item` answers), a floor that sits
+  back from the one below (`floor/out-of-line`, an extension), and a wall's stated kind read
+  otherwise (`wall/kind-differs`, kept as stated). A warning left on a part whose error the change
+  clears is not new: the fix calls Grid offers move a door clear of the wall's end into a corner.
+  `problemsText` names up to three problems. `largestFit` finds the largest move up to the one
+  asked for that fits, by halving to the centimetre and checking the figure it gives;
+  `sideMoveThatFits` moves a side or refuses with the problems and that move (`by`, and the
+  inside size it leaves). A move must leave every room on the moved wall at least 0.30 m across
+  (`NARROWEST_ACROSS`, the least `to` the tool takes), or a side could pass to a 2 cm room.
 - `packages/cli/src/mcp/writeTools.ts` (`writeChange`, the edits' one final check; outside the
-  card's folder by a few lines, because the check lives there): `newProblems(before, after)`
-  compares the drawing's issues by code and part, counted, so a problem that only changes its
-  figures is not new, and one that appears is, of any severity. Fixtures are left out
-  (`item/` codes): `grid_place_item` answers whether an item fits rather than refusing it. The
-  refusal names up to three problems in their own words. `make` gets a second argument,
-  `problemsOf(patch)`, the same check for a patch it has not returned yet, so an edit can try a
-  smaller one.
-- `packages/cli/src/edit/fit.ts` (new): `largestFit`, the largest distance up to the one asked
-  for that a move of a side makes with no new problem, found by halving to the centimetre and
-  checked once more at the end; `null` when none fits.
-- `grid_move_room_side` (`writeTools.ts`): when the move would write a problem, it is refused
-  with the problems and the largest move that fits (`by`, and `to` as the inside size).
+  card's folder by a few lines, because the check lives there): refuses with `newProblems`, and
+  hands `make` a second argument, `problemsOf(patch)`, the same check for a patch not yet
+  returned. `grid_move_room_side` goes through `sideMoveThatFits`.
 - `packages/cli/src/edit/edits.ts` (`moveRoomSide`): a wall follows when its end is within half
   the moved wall's thickness of its centre line, on either face, not only on the line itself.
 - Decisions: the comparison is by code and part, not by the sentence, because the sentence

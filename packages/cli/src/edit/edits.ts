@@ -534,10 +534,13 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
   const oldStart = pt(wall.start)
   const oldEnd = pt(wall.end)
   const axis = wallAxis(wall)
+  // WRT-18: a wall ends on it when its end is on its centre line or within its body, as a wall
+  // drawn to its face is, so that wall follows too.
+  const reach = wall.thickness / 2 + 0.02
   const onAxis = (p: Vec2): boolean => {
     const t = dot(sub(p, oldStart), axis.dir)
     const off = Math.abs(dot(sub(p, oldStart), axis.normal))
-    return off < 0.02 && t > -0.02 && t < axis.length + 0.02
+    return off < reach && t > -0.02 && t < axis.length + 0.02
   }
   const moved = (p: Vec2): Pair => [r3(p.x + v.x), r3(p.y + v.y)]
   const patchWalls = new Map<string, { start?: Pair; end?: Pair }>()

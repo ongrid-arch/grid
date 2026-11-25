@@ -51,7 +51,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_write_rooms` | Writes the plan from rooms text, as `grid write`: the walls, their kinds, the room boundaries and the openings' places worked out. With `layout` (`tidy` or `sizes`) in place of `rooms`, a first layout from the brief beside the plan, with each size not kept and by how much ([brief.md](brief.md#a-first-layout-from-the-brief)); with `scan`, from a phone room scan, as `grid write --scan`, with what was assumed and the scan kept beside the plan ([commands.md](commands.md#a-plan-from-a-phone-room-scan-grid-write---scan)). It takes one of `rooms`, `layout` and `scan` |
 | `grid_change_opening` | Changes a door or window (width, height, sill, type, which room it opens into, which side it is hinged on as seen from a room, its kind), moves it to a side of a room, places it from a room's side or an end of its wall and keeps it there (its anchor), or removes it |
 | `grid_change_type` | Changes one of the plan's named wall, door or window types (thickness, height, size, kind, glazed, material), and every part of it takes the change in the same call; adds a type, gives it to parts by id (taking out their own values for what it states), or makes it the default for parts that name none ([plan-file.md](plan-file.md#named-wall-door-and-window-types-and-finishes)) |
-| `grid_move_room_side` | Moves one side of a room out or in, or to an inside size; walls ending on it follow, and openings keep their anchor or their place in the building |
+| `grid_move_room_side` | Moves one side of a room out or in, or to an inside size; walls ending on it, on its centre line or its face, follow, and openings keep their anchor or their place in the building. A move that would leave the drawing with a new problem, or a room on the wall less than 0.30 m across, is refused with the largest move that way that fits |
 | `grid_mirror` | Mirrors the plan left to right or top to bottom (`how`), or turns it a quarter or half round (`turn`: 90, 180, 270 or -90 degrees, counter-clockwise as Grid draws it) |
 | `grid_merge_rooms` | Knocks two rooms into one, taking out the stretch of wall they share. Two rooms of different uses need `use`, or `zones` to keep both as zones of one open-plan room ([Zones inside one room](plan-file.md#zones-inside-one-room)); left out, the call is refused and asks. The verdict names any use the plan no longer has |
 | `grid_split_room` | Splits a room with a new wall, the new room taking one side, with a door in it |
@@ -75,7 +75,9 @@ A tool that names no plan reads the project's `plan.json` in a folder `grid init
 or room the plan does not have is refused with the ones it has, a room, wall, door or window
 with the nearest id the plan has, and the word sent is never repeated back. A request line over 1 MiB and an id over 64 characters are refused, naming the
 limit. A change that would leave the drawing with a new problem is refused and nothing is
-written; otherwise only the change is written back, and keys Grid does not know stay. The
+written: a problem of any severity that the drawing did not have, matched by its code and part,
+so one that only changes its figures is not new; a fixture's fit is answered, not refused
+(WRT-18). The refusal names up to three of the problems; otherwise only the change is written back, and keys Grid does not know stay. The
 answer to a change also names every door or doorless opening that now joins other rooms, read
 from where it stands: `bath-door joined bath and lounge; it now joins kitchen and lounge.`
 
