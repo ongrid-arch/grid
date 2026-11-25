@@ -71,7 +71,7 @@ describe('CNT-15 one change to a type changes every part of it (done when 1)', (
   })
 
   it('makes it the default for inside walls, raises them, and refuses a field the type does not have', async () => {
-    const reply = await ok('grid_change_type', { plan: 'thicker.json', out: 'raised.json', of: 'wall', type: 'stud-100', height: 2.5, default: true })
+    const reply = await ok('grid_change_type', { plan: 'thicker.json', out: 'raised.json', of: 'wall', type: 'stud-100', height: 2.5, kind: 'interior', default: true })
     expect(reply.text).toContain('It is the default for interior walls that name no type.')
     expect((fileOf('raised.json')['types'] as { defaults: unknown }).defaults).toEqual({ walls: { interior: 'stud-100' } })
     const refused = await b.call('grid_change_type', { plan: 'thicker.json', of: 'door', type: 'stud-100', thickness: 0.1 })

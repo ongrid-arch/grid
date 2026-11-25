@@ -76,9 +76,12 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
-  'packages/cli/src/edit/edits.ts': [64, 'notYet'],
+  // WRT-59: one more, a plan with nothing to mirror or turn.
+  'packages/cli/src/edit/edits.ts': [65, 'notYet'],
+  // WRT-59: the notes an edit caused, opening its answer.
+  'packages/cli/src/edit/caused.ts': [1, 'notYet'],
   'packages/cli/src/edit/merge.ts': [32, 'notYet'],
-  'packages/cli/src/edit/types.ts': [14, 'notYet'],
+  'packages/cli/src/edit/types.ts': [15, 'notYet'],
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
@@ -132,7 +135,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
-  'packages/cli/src/mcp/writeTools.ts': [136, 'tools'],
+  'packages/cli/src/mcp/writeTools.ts': [139, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],

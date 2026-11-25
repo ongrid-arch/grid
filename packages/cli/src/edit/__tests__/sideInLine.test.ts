@@ -53,7 +53,12 @@ describe('a side with a wall in line beyond it', () => {
     expect(get('s2').start).toEqual([4, 0])
   })
 
-  it('names the wall in line when nothing across carries its end', async () => {
-    await expect(async () => await run(plan(false), { room: 'a', side: 'south', by: 1 }).answer).rejects.toThrow(/Wall "s2" runs on in line.*step in the line/)
+  it('moves a side split into walls in one line as one (WRT-59)', async () => {
+    const { dir, answer } = run(plan(false), { room: 'a', side: 'south', by: 1 })
+    const result = await answer
+    expect(result.text).toMatch(/Moved walls "s1" and "s2", in one line/)
+    const moved = JSON.parse(readFileSync(join(dir, 'moved.json'), 'utf8')) as { walls: { id: string; start: Pair; end: Pair }[] }
+    expect(moved.walls.find((w) => w.id === 's2')!.end).toEqual([8, -1])
   })
+
 })

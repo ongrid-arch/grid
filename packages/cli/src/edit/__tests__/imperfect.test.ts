@@ -19,7 +19,7 @@ afterAll(() => {
   for (const path of made) rmSync(path, { recursive: true, force: true })
 })
 
-type Raw = Record<string, any>
+type Raw = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const flat = (): Raw => JSON.parse(readFileSync(sample, 'utf8')) as Raw
 
 function project(raw: Raw, extra: Record<string, unknown> = {}): string {
@@ -30,8 +30,8 @@ function project(raw: Raw, extra: Record<string, unknown> = {}): string {
   return dir
 }
 
-const run = async (dir: string, name: string, args: Record<string, unknown>): Promise<{ text: string; data: Record<string, any> }> =>
-  (await GRID_TOOLS.find((t) => t.name === name)!.run({ plan: 'plan.json', out: 'out.json', ...args }, { project: openProject(dir, dir) })) as { text: string; data: Record<string, any> }
+const run = async (dir: string, name: string, args: Record<string, unknown>): Promise<{ text: string; data: Raw }> =>
+  (await GRID_TOOLS.find((t) => t.name === name)!.run({ plan: 'plan.json', out: 'out.json', ...args }, { project: openProject(dir, dir) })) as { text: string; data: Raw }
 
 const refusal = async (dir: string, name: string, args: Record<string, unknown>): Promise<string> => {
   try {
