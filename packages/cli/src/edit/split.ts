@@ -160,6 +160,9 @@ export function splitRoom(survey: Survey, roomId: string, request: SplitRequest)
     ...(request.newRoom.use !== undefined ? { use: request.newRoom.use } : {}),
     boundary: taken,
     ...(room.floor !== undefined ? { floor: room.floor } : {}),
+    // WRT-30 (C26): both parts are the same outdoor space, open or roofed as the room says.
+    ...(room.outdoor !== undefined ? { outdoor: room.outdoor } : {}),
+    ...(room.outdoor !== undefined && room.roofed !== undefined ? { roofed: room.roofed } : {}),
     // CNT-9: both parts keep the room's facts of the person's own; its number stays with the room.
     ...(room.properties !== undefined && Object.keys(room.properties).length > 0 ? { properties: { ...room.properties } } : {}),
   }]

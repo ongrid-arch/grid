@@ -6,14 +6,20 @@
  * are paired by name, walls by where they stand, openings by where they are in a wall. Before
  * anything is listed, the second plan is tried as the first one moved, mirrored or turned a
  * quarter: a flipped flat is said to be flipped, not listed as twenty moved walls (Y-4, Y-5).
+ *
+ * WRT-29: the likeness is found with openings paired by place only, so an opening that stands
+ * somewhere else under its id is never "where it was"; what differs is then paired as `grid_diff`
+ * pairs it (`alignPlans`), and an opening whose middle moved is said to have moved, and how far.
  */
-import { curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
-import { english, joined, said } from '@ongrid/floorplan/messages'
+import { alignPlans, curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { english, joined, name, num, said, type MessageKey, type Said } from '@ongrid/floorplan/messages'
 import { planAreas, type PlanAreas } from './areas'
 import { sideNames, type Survey } from './survey'
 
 /** Two sizes closer than this are one (MSG-15's `joint`; arithmetic, so it never changes). */
 const joint = tolerance('joint')
+/** WRT-29: two openings whose middles are this close stand in the same place, as in the diff. */
+const samePlaceM = tolerance('diffPlace')
 
 export interface OptionRow {
   readonly label: string
@@ -102,6 +108,8 @@ export interface OpeningChange {
   readonly id: string
   readonly type: string
   readonly changes: readonly string[]
+  /** WRT-29: how far its middle moved on the drawing, in metres (to the centimetre); null when it stands where it stood. */
+  readonly moved: number | null
 }
 
 /** WRT-25: a floor's old and new figures, as data, with its line. */
@@ -245,6 +253,11 @@ function openingFloor(plan: FloorPlan, wallId: string): string {
   return plan.walls.find((w) => w.id === wallId)?.floor ?? 'ground'
 }
 
+/**
+ * Openings paired by where they are, under `map`: the likeness is found with these. WRT-29: an
+ * opening somewhere else is never paired by its id here, so it is never "where it was"; only two
+ * openings whose places cannot be worked out (a curve that cannot be built) are paired by id.
+ */
 function pairOpenings(a: FloorPlan, b: FloorPlan, map: Transform): { pairs: OpeningPair[]; onlyA: string[]; onlyB: string[] } {
   const pairs: OpeningPair[] = []
   const usedB = new Set<string>()
@@ -255,8 +268,9 @@ function pairOpenings(a: FloorPlan, b: FloorPlan, map: Transform): { pairs: Open
       // The same place on another floor is another opening (WRT-3: a window moved on one floor of a block).
       if (usedB.has(x.id) || x.type !== o.type || openingFloor(b, x.wall) !== floor) return false
       const there = openingAt(b, x.id)
-      return at !== null && there !== null && close(map(at), there, Math.max(NEAR_M, Math.abs(x.width - o.width) / 2 + NEAR_M))
-    }) ?? b.openings.find((x) => !usedB.has(x.id) && x.id === o.id && x.type === o.type)
+      if (at === null || there === null) return at === there && x.id === o.id
+      return close(map(at), there, Math.max(NEAR_M, Math.abs(x.width - o.width) / 2 + NEAR_M))
+    })
     if (match) {
       pairs.push({ a: o.id, b: match.id })
       usedB.add(match.id)
@@ -264,6 +278,84 @@ function pairOpenings(a: FloorPlan, b: FloorPlan, map: Transform): { pairs: Open
   }
   const pairedA = new Set(pairs.map((p) => p.a))
   return { pairs, onlyA: a.openings.filter((o) => !pairedA.has(o.id)).map((o) => o.id), onlyB: b.openings.filter((o) => !usedB.has(o.id)).map((o) => o.id) }
+}
+
+/**
+ * WRT-29: openings paired as `grid_diff` pairs them (`alignPlans`): by place, then at their place
+ * along a wall that moved, then by id of the same type, then by id; by id first when both plans
+ * were written rooms first, whose authors named their openings.
+ */
+function pairOpeningsAsDiff(a: FloorPlan, b: FloorPlan): { pairs: OpeningPair[]; onlyA: string[]; onlyB: string[] } {
+  const idsFirst = a.written?.from === 'rooms' && b.written?.from === 'rooms'
+  const found = alignPlans(a, b, { idsFirst }).openings
+  const pairs = a.openings.flatMap((o) => (found.has(o.id) ? [{ a: o.id, b: found.get(o.id)! }] : []))
+  const pairedB = new Set(pairs.map((p) => p.b))
+  return { pairs, onlyA: a.openings.filter((o) => !found.has(o.id)).map((o) => o.id), onlyB: b.openings.filter((o) => !pairedB.has(o.id)).map((o) => o.id) }
+}
+
+type MovedHow = 'along' | 'with' | 'plain'
+
+interface OpeningMove {
+  readonly id: string
+  readonly type: Opening['type']
+  readonly how: MovedHow
+  /** Metres, to the centimetre. */
+  readonly by: number
+}
+
+const MOVED_WORDS: Readonly<Record<MovedHow, MessageKey>> = { along: 'compare.opening.moved.along', with: 'compare.opening.moved.with', plain: 'compare.opening.moved' }
+
+/**
+ * WRT-29: how far an opening paired across the two plans moved, and how: along its wall (its wall
+ * stands where it stood), with its wall (its wall moved and it kept its place along it, from
+ * either end), or plainly. Null when it stands where it stood: its middle no further than
+ * `diffPlace`, or half the change of its width more (an opening widened from one edge).
+ */
+function openingMove(a: FloorPlan, b: FloorPlan, oa: Opening, ob: Opening, map: Transform): OpeningMove | null {
+  const from = openingAt(a, oa.id)
+  const to = openingAt(b, ob.id)
+  if (from === null || to === null) return null
+  const at = map(from)
+  const distance = Math.hypot(to.x - at.x, to.y - at.y)
+  if (distance <= samePlaceM + Math.abs(oa.width - ob.width) / 2) return null
+  const wa = a.walls.find((w) => w.id === oa.wall)
+  const wb = b.walls.find((w) => w.id === ob.wall)
+  let how: MovedHow = 'plain'
+  if (wa !== undefined && wb !== undefined) {
+    if (samePlace(wa, wb, map)) how = 'along'
+    else {
+      const [la, lb] = [lengthOf(wa), lengthOf(wb)]
+      const [ma, mb] = [oa.offset + oa.width / 2, ob.offset + ob.width / 2]
+      const reversed = dirOf(wa, map).x * dirOf(wb, (p) => p).x + dirOf(wa, map).y * dirOf(wb, (p) => p).y < 0
+      const ends = reversed ? [[ma, lb - mb], [la - ma, mb]] : [[ma, mb], [la - ma, lb - mb]]
+      if (ends.some(([x, y]) => Math.abs(x! - y!) <= samePlaceM)) how = 'with'
+    }
+  }
+  return { id: ob.id, type: ob.type, how, by: Math.round(distance * 100) / 100 }
+}
+
+const metres = (value: number): string => value.toFixed(2)
+
+/** WRT-29: the words for an opening that moved, among its changes. */
+function movedWords(move: OpeningMove): Said {
+  return said(MOVED_WORDS[move.how], { by: num(metres(move.by)) })
+}
+
+/** WRT-29: the openings that moved, in the verdict: one by its id, more counted with how far. */
+function movedPart(moves: readonly OpeningMove[]): string | null {
+  if (moves.length === 0) return null
+  if (moves.length === 1) {
+    const move = moves[0]!
+    return english(said('compare.openings.moved.one', { type: said(`describe.word.${move.type}` as const), id: name(move.id), how: movedWords(move) }))
+  }
+  const types = new Set(moves.map((m) => m.type))
+  const kind = types.size === 1 ? said(`compare.word.${[...types][0]!}s` as const) : said('compare.word.openings')
+  const figures = moves.map((m) => m.by)
+  const [low, high] = [metres(Math.min(...figures)), metres(Math.max(...figures))]
+  const range = low === high ? num(low) : said('compare.range', { from: num(low), to: num(high) })
+  const hows = new Set(moves.map((m) => m.how))
+  const how = hows.size === 1 && hows.has('along') ? said('compare.openings.how.along') : hows.size === 1 && hows.has('with') ? said('compare.openings.how.with') : ''
+  return english(said('compare.openings.moved.many', { count: moves.length, kind, range, how }))
 }
 
 function wallRooms(survey: Survey, wall: Wall): string[] {
@@ -446,15 +538,21 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   const changedIds = new Set(wallsChanged.map((w) => w.id))
   const wallsOut = missing.filter((wall) => !changedIds.has(wall.id)).map((wall) => wallDelta(a, wall))
   const wallsNew = added.filter((wall) => !changedIds.has(wall.id)).map((wall) => wallDelta(b, wall))
-  const paired = pairOpenings(a.plan, b.plan, map)
-  const openingsOut = likeness ? [] : paired.onlyA.map((id) => openingDelta(a, id))
-  const openingsNew = likeness ? [] : paired.onlyB.map((id) => openingDelta(b, id))
+  // WRT-29: what differs is paired as grid_diff pairs it; the same building lists no openings.
+  const paired = likeness ? { pairs: [], onlyA: [], onlyB: [] } : pairOpeningsAsDiff(a.plan, b.plan)
+  const openingsOut = paired.onlyA.map((id) => openingDelta(a, id))
+  const openingsNew = paired.onlyB.map((id) => openingDelta(b, id))
   const openingsChanged: OpeningChange[] = []
+  const moves: OpeningMove[] = []
+  // The openings with a change other than where they are: "N openings changed" counts these.
+  const otherChanged = new Set<string>()
   if (likeness === null) {
     for (const pair of paired.pairs) {
       const oa = a.plan.openings.find((o) => o.id === pair.a)!
       const ob = b.plan.openings.find((o) => o.id === pair.b)!
       const changes: string[] = []
+      // WRT-29: a door turned into a window under its id, as the diff says it.
+      if (oa.type !== ob.type) changes.push(english(said(`compare.opening.was.${oa.type}` as const)))
       if (Math.abs(oa.width - ob.width) > joint) changes.push(`width ${oa.width.toFixed(2)} → ${ob.width.toFixed(2)} m`)
       if (Math.abs(oa.height - ob.height) > joint) changes.push(`height ${oa.height.toFixed(2)} → ${ob.height.toFixed(2)} m`)
       if (Math.abs(oa.sill - ob.sill) > joint) changes.push(`sill ${oa.sill.toFixed(2)} → ${ob.sill.toFixed(2)} m`)
@@ -471,7 +569,13 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
       if (hingeA !== ob.hinge && swingA === ob.swing) changes.push('hung from the other side')
       // CNT-14: a door or window of another kind.
       if ((oa.kind ?? null) !== (ob.kind ?? null)) changes.push(ob.kind === undefined ? `no kind stated now (was ${oa.kind})` : `now ${ob.kind}${oa.kind === undefined ? '' : ` (was ${oa.kind})`}`)
-      if (changes.length > 0) openingsChanged.push({ id: pair.b, type: ob.type, changes })
+      // WRT-29: where it went, and how far, after what else changed.
+      const move = openingMove(a.plan, b.plan, oa, ob, map)
+      if (move !== null) moves.push(move)
+      const other = changes.length
+      if (move !== null) changes.push(english(movedWords(move)))
+      if (changes.length > 0) openingsChanged.push({ id: pair.b, type: ob.type, changes, moved: move?.by ?? null })
+      if (other > 0) otherChanged.add(pair.b)
     }
   }
 
@@ -497,11 +601,14 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
     if (wallsChanged.length > 0) parts.push(`${wallsChanged.length} wall${wallsChanged.length === 1 ? '' : 's'} moved or changed length`)
     parts.push(...resizedParts)
     const openingWords = (n: number, what: string): string => `${n} ${n === 1 ? 'opening' : 'openings'} ${what}`
+    // WRT-29: the openings that moved in a part of their own, with how far.
+    const moved = movedPart(moves)
+    if (moved !== null) parts.push(moved)
     if (inPlace) {
-      if (openingsChanged.length > 0) parts.push(openingWords(openingsChanged.length, 'changed'))
+      if (otherChanged.size > 0) parts.push(openingWords(otherChanged.size, 'changed'))
       if (openingsOut.length > 0) parts.push(openingWords(openingsOut.length, 'taken out'))
       if (openingsNew.length > 0) parts.push(openingWords(openingsNew.length, 'new'))
-    } else if (openingsOut.length + openingsNew.length + openingsChanged.length > 0) parts.push(`openings: ${openingsOut.length} out, ${openingsNew.length} new, ${openingsChanged.length} changed`)
+    } else if (openingsOut.length + openingsNew.length + otherChanged.size > 0) parts.push(`openings: ${openingsOut.length} out, ${openingsNew.length} new, ${otherChanged.size} changed`)
     verdict = `${before} → ${after}: ${parts.join('; ')}.`
   }
   // CNT-8 (lab AB-9): a use no room or zone has any more is named, never lost in silence.

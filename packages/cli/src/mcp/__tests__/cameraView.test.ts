@@ -252,3 +252,76 @@ describe('the roof in a 3d view', () => {
     expect(reply.text).toContain('not roof')
   })
 })
+
+/** VEW-26: a plain block of `storeys` floors, `width` by `depth` metres. */
+function boxPlan(width: number, depth: number, storeys: number): unknown {
+  const floors = Array.from({ length: storeys }, (_, i) => ({ id: `f${i}`, name: `Floor ${i}`, level: i }))
+  const corners: Array<[number, number]> = [[0, 0], [width, 0], [width, depth], [0, depth]]
+  const walls = floors.flatMap((f) => corners.map((c, i) => ({ id: `${f.id}-w${i}`, start: c, end: corners[(i + 1) % 4]!, thickness: 0.3, height: 3, kind: 'exterior', floor: f.id })))
+  const rooms = floors.map((f) => ({ id: `${f.id}-r`, name: `Room ${f.id}`, boundary: [0, 1, 2, 3].map((i) => `${f.id}-w${i}`), use: 'office', floor: f.id }))
+  return { version: '1', units: 'm', floors, walls, rooms, openings: [] }
+}
+
+describe('a 3D view framed to the building (VEW-26)', () => {
+  let framed: Bench
+  beforeAll(() => {
+    framed = bench({ 'tower.json': boxPlan(12, 12, 30), 'hall.json': boxPlan(120, 14, 1), 'flat.json': fixture('../../../fixtures/two-bed-flat.json') })
+  })
+  afterAll(() => framed.close())
+
+  const view = async (args: Record<string, unknown>) => {
+    const reply = await framed.call('grid_view', { kind: '3d', ...args })
+    expect(reply.isError, reply.text).toBe(false)
+    return reply
+  }
+
+  it('takes a tower in a portrait frame and a long hall in a landscape one', async () => {
+    const tower = await view({ plan: 'tower.json' })
+    expect(cameraOf(tower).aspectRatio).toBeLessThan(1)
+    expect(tower.text).toContain('Framed to the building (fit=building), in a portrait frame')
+    const hall = await view({ plan: 'hall.json' })
+    expect(cameraOf(hall).aspectRatio).toBe(1.5)
+    // Near enough that its 120 m fill the frame: far nearer than 2.2 times its length.
+    expect(cameraOf(hall).distance).toBeLessThan(120 * 1.6)
+  })
+
+  it('points at the middle of the tower, half way up, not at its foot', async () => {
+    const camera = cameraOf(await view({ plan: 'tower.json', from: 'south' }))
+    expect(camera.target.point[2]).toBeGreaterThan(30)
+  })
+
+  it('fills the frame with the room when a room is named, and with the building on fit=building', async () => {
+    const room = cameraOf(await view({ plan: 'flat.json', room: 'lounge' }))
+    const whole = cameraOf(await view({ plan: 'flat.json', room: 'lounge', fit: 'building' }))
+    expect(room.distance).toBeLessThan(whole.distance)
+    expect(room.target.room).toBe('lounge')
+    expect(whole.target.room).toBe('lounge')
+  })
+
+  it('keeps a camera sent back where it was, and frames it again on fit', async () => {
+    const first = cameraOf(await view({ plan: 'tower.json', distance: 400 }))
+    expect(first.distance).toBe(400)
+    const kept = cameraOf(await view({ plan: 'tower.json', camera: first, turn: 30 }))
+    expect(kept.distance).toBe(400)
+    const again = cameraOf(await view({ plan: 'tower.json', camera: first, fit: 'building' }))
+    expect(again.distance).toBeLessThan(400)
+  })
+
+  it('looks level from an eye height outside, so upright lines stay upright', async () => {
+    const reply = await view({ plan: 'tower.json', from: 'south', eye_height: 1.6 })
+    const camera = cameraOf(reply)
+    expect(camera.tilt).toBe(0)
+    expect(camera.up).toEqual([0, 0, 1])
+    expect(camera.eyeHeight).toBeCloseTo(1.6, 6)
+    expect(camera.standingIn.room).toBeNull()
+    expect(reply.text).toContain('It looks level from the eye height asked for')
+  })
+
+  it('refuses fit with distance, and fit=room with no room', async () => {
+    for (const [args, why] of [[{ fit: 'building', distance: 30 }, /fit or distance, not both/], [{ fit: 'room' }, /fit=room frames the room/]] as const) {
+      const reply = await framed.call('grid_view', { plan: 'flat.json', kind: '3d', ...args })
+      expect(reply.isError, reply.text).toBe(true)
+      expect(reply.text).toMatch(why)
+    }
+  })
+})
