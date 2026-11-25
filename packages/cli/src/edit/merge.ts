@@ -23,7 +23,7 @@
  * Pure: a survey in, a patch out.
  */
 import { FINISH_SURFACES, cross, dot, roomFinishes, signedArea, sub, tolerance, wallAxis, wallLength, wallPointAt, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
-import { factOf, statedWall, wallWithEnds } from '@ongrid/floorplan/types/floorplan'
+import { factOf, statedWall, wallWithEnds, type Flat } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import type { Survey, SurveyRoom } from '../quantities/survey'
 import { refuseCurved, type OpeningChange, type Patch, type RoomChange } from './edits'
@@ -154,6 +154,48 @@ export interface MergeRequest {
   readonly zones?: boolean
   /** With `zones`: the merged room's id. Made from the two rooms' when left out. */
   readonly id?: string
+}
+
+/**
+ * WRT-28 (C18): the plan's flats after a merge. A flat never lists a room that is gone, and a room
+ * is in one flat at most. The merged room takes the place the first room had in its flat, or the
+ * second's when only that one was in a flat; the second room's own flat gives it up, and is taken
+ * out when no room is left in it. Returns null when no flat names either room.
+ */
+export function flatsAfterMerge(
+  flats: readonly Flat[] | undefined,
+  aId: string,
+  bId: string,
+  merged: string,
+  names: { readonly a: string; readonly b: string; readonly merged: string },
+): { flats: Flat[]; said: string[]; notKept: string[] } | null {
+  if (flats === undefined || !flats.some((f) => f.rooms.includes(aId) || f.rooms.includes(bId))) return null
+  const said: string[] = []
+  const notKept: string[] = []
+  const owner = flats.find((f) => f.rooms.includes(aId)) ?? flats.find((f) => f.rooms.includes(bId))!
+  const label = (f: Flat): string => quoted(f.name ?? f.id)
+  const next: Flat[] = []
+  for (const flat of flats) {
+    if (!flat.rooms.includes(aId) && !flat.rooms.includes(bId)) {
+      next.push(flat)
+      continue
+    }
+    const rooms: string[] = []
+    for (const id of flat.rooms) {
+      const gone = id === aId || id === bId
+      const put = gone ? (flat === owner ? merged : null) : id
+      if (put !== null && !rooms.includes(put)) rooms.push(put)
+    }
+    if (rooms.length === 0) {
+      said.push(`Flat ${label(flat)} is taken out: ${names.b} was its only room.`)
+      continue
+    }
+    if (flat !== owner) notKept.push(`Flat ${label(flat)} no longer lists ${names.b}: ${names.merged} is in flat ${label(owner)}, and a room is in one flat only.`)
+    next.push({ ...flat, rooms })
+  }
+  if (owner.rooms.includes(bId) && !owner.rooms.includes(aId)) said.push(`Flat ${label(owner)} lists ${names.merged} in place of ${names.b}.`)
+  else if (notKept.length === 0 && said.length === 0) said.push(`Flat ${label(owner)} no longer lists ${names.b}.`)
+  return { flats: next, said, notKept }
 }
 
 export function mergeRooms(survey: Survey, aId: string, bId: string, request: MergeRequest): Patch {
@@ -367,7 +409,14 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
   const at = (t: number): [number, number] => [r3(axis.start.x + axis.dir.x * t), r3(axis.start.y + axis.dir.y * t)]
   // A dividing line, written as the format fills one in: no thickness, no height (`WALL_DEFAULTS`).
   const lineWall = line === null ? [] : [{ id: line.id, start: at(line.lo), end: at(line.hi), thickness: 0, height: 0, kind: 'interior', virtual: true, ...(wall.floor === undefined ? {} : { floor: wall.floor }) }]
+  // WRT-28: the flats name the merged room, never one that is gone.
+  const flatsNow = flatsAfterMerge(plan.flats, aId, bId, merged, { a: an, b: bn, merged: line === null ? an : quoted(mergedName) })
+  if (flatsNow !== null) {
+    said.push(...flatsNow.said)
+    notKept.push(...flatsNow.notKept)
+  }
   return {
+    ...(flatsNow === null ? {} : { plan: { flats: flatsNow.flats } }),
     walls: cut.change ? new Map([[wall.id, cut.change]]) : new Map(),
     openings,
     removeOpenings,
