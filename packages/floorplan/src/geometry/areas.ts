@@ -79,21 +79,21 @@ export const MEASURES: Readonly<Record<Measure, MeasureRule>> = {
   net: {
     measure: 'net',
     name: 'Net area',
-    measures: 'Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover; a stair drawn as a room on floor after floor counts once, on the floor it rises from.',
+    measures: 'Net area is the floor inside each room, measured to the faces of its walls, less any hole in it, any room drawn inside it and the floor the columns standing in it cover, a room marked as a void (open to the floor below, so with no floor) not counting at all; a stair drawn as a room on floor after floor counts once, on the floor it rises from.',
     notTakenOff: 'Nothing else inside a room is taken off: fixed units, a column drawn as a short wall rather than as a column, and floor under a low ceiling all count.',
     cannotSay: 'The plan cannot say which rooms the reader counts: a store drawn as a room counts unless it is named as outside, and a balcony, a terrace or a garden counts unless it is marked as outdoor space.',
   },
   grossInternal: {
     measure: 'grossInternal',
     name: 'Gross internal area',
-    measures: 'Gross internal area is the floor inside the inside face of the walls that face outside, with the inner walls and partitions counted.',
+    measures: 'Gross internal area is the floor inside the inside face of the walls that face outside, with the inner walls and partitions counted, and less any void, which has no floor.',
     notTakenOff: 'Inner walls, partitions, stairs and floor no room claims are not taken off.',
     cannotSay: 'Which walls face outside is worked out from the rooms beside them, an outdoor space being the outside; floor no room claims, such as a courtyard or a light well not drawn as outdoor space, may be covered or not, so it counts.',
   },
   grossExternal: {
     measure: 'grossExternal',
     name: 'Gross external area',
-    measures: 'Gross external area is the floor inside the outside face of the walls, every wall counted.',
+    measures: 'Gross external area is the floor inside the outside face of the walls, every wall counted, and less any void, which has no floor.',
     notTakenOff: 'Outer walls, inner walls and floor no room claims are not taken off.',
     cannotSay: 'A wall shared with a neighbour, or with common parts the plan does not draw, counts to its middle once the plan marks it separating; any other wall counts in full, a wall standing apart too.',
   },
@@ -178,6 +178,11 @@ export interface RoomAreaFigure {
    * gross internal or gross external figure: it is listed apart, in `outdoor`.
    */
   readonly outdoor?: { readonly kind: OutdoorKind; readonly roofed: boolean }
+  /**
+   * ARE-16 (LVL-4): on a void only: the room is open to the floor below and has no floor. It is
+   * listed and measured, and is in no net, gross internal or gross external figure.
+   */
+  readonly void?: true
 }
 
 /** A room Grid could not draw, so it is in no figure. */
@@ -220,6 +225,8 @@ export interface FloorAreaFigures {
   readonly massing: boolean
   /** CNT-7 (C26): the floor of its outdoor spaces, in no other figure; only on a floor that has one. */
   readonly outdoor?: number
+  /** ARE-16: the size of its voids (LVL-4), which are in no figure: no floor stands there. 0 with none. */
+  readonly voids: number
 }
 
 /** A total, with the rule it follows. */
@@ -545,7 +552,8 @@ function floorFigures(
     // CNT-7: an outdoor space is listed apart, in no figure, whatever else the caller names it.
     const kind = outdoorKind(room)
     const apart = kind === null && outside.has(room.id)
-    const below = apart || kind !== null ? undefined : countedWith.get(`${floor}|${room.id}`)
+    const isVoid = room.void === true
+    const below = apart || kind !== null || isVoid ? undefined : countedWith.get(`${floor}|${room.id}`)
     // CNT-16: the columns standing in it, taken off its area (`roomFloorArea`).
     const columnIds = roomColumns(room, index)
     rooms.push({
@@ -559,11 +567,12 @@ function floorFigures(
       ...(below === undefined ? {} : { countedWith: below }),
       ...(columnIds.length === 0 ? {} : { columns: { area: roomColumnArea(room, index), ids: columnIds } }),
       ...(kind === null ? {} : { outdoor: { kind, roofed: outdoorRoofed(room)! } }),
+      ...(isVoid ? { void: true as const } : {}),
     })
   }
   // A zone is in no figure (CNT-8): its floor is its room's, counted once. A zone is in no stair
   // stack either (`stairStacks`), so it never has `countedWith`.
-  const counted = rooms.filter((room) => !room.outside && room.outdoor === undefined && room.zoneOf === null && room.countedWith === undefined)
+  const counted = rooms.filter((room) => !room.outside && room.outdoor === undefined && room.void !== true && room.zoneOf === null && room.countedWith === undefined)
   const overStairs = sum(rooms.filter((room) => room.countedWith !== undefined).map((room) => room.area))
   const byUse: Record<string, number> = {}
   const add = (use: string | null, value: number): void => {
@@ -588,7 +597,9 @@ function floorFigures(
   const outsideRooms = sum(rooms.filter((room) => room.outside).map((room) => room.area))
   const outdoorRooms = rooms.filter((room) => room.outdoor !== undefined)
   const columns = sum(rooms.map((room) => room.columns?.area ?? 0))
-  const base = { floor, rooms, leftOut, net, byUse, outsideRooms, overStairs, columns, ...(outdoorRooms.length === 0 ? {} : { outdoor: sum(outdoorRooms.map((room) => room.area)) }) }
+  // ARE-16: a void has no floor, so its floor is taken from both gross figures as well as the net.
+  const voids = sum(rooms.filter((room) => room.void === true && room.zoneOf === null).map((room) => room.area))
+  const base = { floor, rooms, leftOut, net, byUse, outsideRooms, overStairs, columns, voids, ...(outdoorRooms.length === 0 ? {} : { outdoor: sum(outdoorRooms.map((room) => room.area)) }) }
 
   // CNT-7: the gross figures are the building's, measured without the walls that bound only
   // outdoor space; an outdoor space inside the building's walls (a courtyard) is taken off them.
@@ -611,13 +622,13 @@ function floorFigures(
   const known = typeof inside === 'number'
   // CNT-6 (C23): a separating wall with more of the building beyond it counts to its middle.
   const beyond = pastMiddle(walls, spaces, measured.sides())
-  const gross = Math.max(0, spaces.outlineArea - beyond - enclosedOutdoor)
+  const gross = Math.max(0, spaces.outlineArea - beyond - enclosedOutdoor - voids)
   return {
     ...base,
     grossExternal: gross,
-    grossInternal: known ? Math.max(0, inside - outsideRooms) : null,
+    grossInternal: known ? Math.max(0, inside - outsideRooms - voids) : null,
     walls: Math.max(0, spaces.wallArea - beyond),
-    outerWalls: known ? Math.max(0, gross - inside) : null,
+    outerWalls: known ? Math.max(0, gross - (inside - voids)) : null,
     unclaimed: spaces.unclaimedArea,
     offSpace,
     why: known ? null : inside,
