@@ -355,7 +355,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const done = laid?.done ?? writeRoomsIntoProject(project, readRoomsFile(project, roomsFile!), target, options)
     if (parsed.values.has('--json')) {
       const r = done.result
-      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
+      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, itemsKept: done.itemsKept, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
     } else io.stdout(`${[GENERAL_GUIDANCE_LABEL, ...(laid?.lines ?? done.lines)].join('\n')}\n`)
     return EXIT_OK
   }

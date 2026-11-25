@@ -70,7 +70,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/draw/drawPlan.ts': [2, 'developer'],
   'packages/cli/src/draw/drawStill.ts': [2, 'developer'],
   'packages/cli/src/draw/stamp.ts': [1, 'notWords'],
-  'packages/cli/src/edit/addRoom.ts': [19, 'notYet'],
+  'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
@@ -81,7 +81,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
-  'packages/cli/src/edit/split.ts': [20, 'notYet'],
+  'packages/cli/src/edit/split.ts': [18, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
   'packages/cli/src/export/dxfProfile.ts': [5, 'command'],
@@ -130,7 +130,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
-  'packages/cli/src/mcp/writeTools.ts': [134, 'tools'],
+  'packages/cli/src/mcp/writeTools.ts': [135, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],

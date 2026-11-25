@@ -8,10 +8,12 @@
  */
 import { floorOf, indexPlan, itemKindWord, itemRoom, roomShapes, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { LibraryRefused, libraryNames, placeFromLibrary, type Library, type Pair } from '@ongrid/floorplan/library'
+import { english, name as idName, said as sentence } from '@ongrid/floorplan/messages'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { quoted } from '../fs/projectFiles'
 import type { Survey } from '../quantities/survey'
 import { emptyPatch, readingAfter, type Patch } from './edits'
+import { idHolder } from './holder'
 import { EditRefused } from './refused'
 
 /** The checks on an item that say whether it fits where it was put. */
@@ -27,9 +29,14 @@ function takenIds(plan: FloorPlan): Set<string> {
 export function placeItems(survey: Survey, library: Library, request: { readonly name: string; readonly at: Pair; readonly turn?: number; readonly floor?: string; readonly id?: string }, problems: readonly string[] = []): Patch {
   const leftOut = problems.map((problem) => `Left out of the library: ${problem}.`)
   const plan = survey.plan
+  // WRT-46: an id a part holds is refused naming that part and where it is, as a kept item is easily taken for cleared.
+  const taken = takenIds(plan)
+  if (request.id !== undefined && taken.has(request.id) && library.items.has(request.name)) {
+    throw new EditRefused([english(sentence('edit.idTaken.place', { name: idName(request.name), id: idName(request.id), holder: idHolder(plan, request.id) })), ...leftOut].join(' '))
+  }
   let placed: ReturnType<typeof placeFromLibrary>
   try {
-    placed = placeFromLibrary(library, request, takenIds(plan))
+    placed = placeFromLibrary(library, request, taken)
   } catch (error) {
     if (!(error instanceof LibraryRefused)) throw error
     const meant = likelyId(request.name, libraryNames(library))

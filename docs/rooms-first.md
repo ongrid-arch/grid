@@ -238,6 +238,13 @@ grows, write that wall to start where the row starts (`wall 1 north reversed`): 
 like the rooms, keep their ids when the row grows by one. When the walls written leave a kept
 pattern without its wall, `grid write` says so in its answer.
 
+Fixtures and furniture (the plan file's `items`) are not rooms text either, so writing a plan
+again from rooms text never clears them: they stay where they stood, as the file has them, and
+their ids stay taken. `grid write` and `grid_write_rooms` say how many they kept, each one with
+the room it stands in now, and name at once one the new walls run into or that now stands in no
+room (`itemsKept` in the tool's answer, WRT-46). To move one or take it out, change it in the plan
+file's `items`. A refusal of a taken id names the part that holds it and where it is.
+
 The walls Grid works out are named by what they are: `ext-south` for an outside wall facing south,
 `w-hall-kitchen` for one between two rooms, `w-hall-south` for one with a room on one side only,
 numbered by place (`ext-north-1`, `ext-north-2`) when one building has two of a name, and with the

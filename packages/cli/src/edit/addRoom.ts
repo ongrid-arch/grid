@@ -11,11 +11,13 @@
  * Pure: a survey in, a patch out.
  */
 import { add, dot, scale, signedArea, sub, tolerance, wallAxis, type Vec2 } from '@ongrid/floorplan/geometry'
+import { english, name as idName, said as sentence } from '@ongrid/floorplan/messages'
 import { heightStated } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import type { Survey } from '../quantities/survey'
 import { refuseCurved, type Direction, type OpeningChange, type Patch, type RoomChange } from './edits'
 import { cutWall, freshId, piecesBeside, spanOn, usedIds } from './merge'
+import { idHolder } from './holder'
 import { EditRefused } from './refused'
 import { COMPASS, r3, roomFaceAlong } from './seat'
 import { facing } from './split'
@@ -46,7 +48,7 @@ export interface AddRoomRequest {
 export function addRoom(survey: Survey, request: AddRoomRequest): Patch {
   const plan = survey.plan
   const used = usedIds(survey)
-  if (used.has(request.id)) throw new EditRefused(`The id ${quoted(request.id)} is already used in the plan; pick another for the new room.`)
+  if (used.has(request.id)) throw new EditRefused(english(sentence('edit.idTaken.newRoom', { id: idName(request.id), holder: idHolder(plan, request.id) })))
   const host = survey.byId.get(request.against)!
   const hostName = quoted(host.facts.name)
   const out = COMPASS[request.side]

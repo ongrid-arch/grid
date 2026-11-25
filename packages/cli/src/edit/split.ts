@@ -12,12 +12,14 @@
  * Pure: a survey in, a patch out.
  */
 import { indexPlan, sub, tolerance, wallAxis, wallEndInOpening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { english, name as idName, said as sentence } from '@ongrid/floorplan/messages'
 import { heightStated } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { refuseCurved, type Direction, type Patch, type RoomChange } from './edits'
 import { planAfter, roomNets } from './after'
 import { freshId, usedIds } from './merge'
+import { idHolder } from './holder'
 import { EditRefused } from './refused'
 import { r3 } from './seat'
 
@@ -75,8 +77,8 @@ export function splitRoom(survey: Survey, roomId: string, request: SplitRequest)
   refuseCurved(room.boundary.map((id) => plan.walls.find((w) => w.id === id)), 'splitRoom')
   const name = quoted(survey.byId.get(roomId)!.facts.name)
   const used = usedIds(survey)
-  if (used.has(request.newRoom.id)) throw new EditRefused(`The id ${quoted(request.newRoom.id)} is already used in the plan; pick another for the new room.`)
-  if (request.wallId !== undefined && used.has(request.wallId)) throw new EditRefused(`The id ${quoted(request.wallId)} is already used in the plan; pick another for the new wall.`)
+  if (used.has(request.newRoom.id)) throw new EditRefused(english(sentence('edit.idTaken.newRoom', { id: idName(request.newRoom.id), holder: idHolder(plan, request.newRoom.id) })))
+  if (request.wallId !== undefined && used.has(request.wallId)) throw new EditRefused(english(sentence('edit.idTaken.newWall', { id: idName(request.wallId), holder: idHolder(plan, request.wallId) })))
   const { box, sides } = rectangleSides(survey, roomId)
   const { side, size } = request
   const t = request.thickness ?? 0.1
