@@ -337,3 +337,15 @@ function contains(ring: readonly { x: number; y: number }[], p: { x: number; y: 
   }
   return inside
 }
+
+describe('a level written in a display (VEW-20)', () => {
+  it('keeps the sign and the datum in every unit, with the display\'s decimal mark', () => {
+    expect(levelText(94.9)).toBe('+94.900')
+    expect(levelText(-2.6)).toBe('−2.600')
+    expect(levelText(94.9, { length: 'mm', area: 'm2', decimal: 'point' })).toBe('+94900')
+    expect(levelText(94.9, { length: 'cm', area: 'm2', decimal: 'comma' })).toBe('+9490,0')
+    expect(levelText(0.0001, { length: 'mm', area: 'm2', decimal: 'point' })).toBe('±0')
+    expect(levelText(3.2, { length: 'ft-in', area: 'ft2', decimal: 'point' })).toBe('+10\'-6"')
+    expect(levelText(-3.2, { length: 'ft-in', area: 'ft2', decimal: 'point' })).toBe('−10\'-6"')
+  })
+})

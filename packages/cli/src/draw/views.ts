@@ -80,9 +80,9 @@ export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 't
 }
 
 /** LVL-9: a section along a line through every floor, with the section it was drawn from. */
-export async function sectionView(plan: FloorPlan, line: SectionLine, look: LookName, language?: Language): Promise<PlanView & { readonly section: PlanSection }> {
+export async function sectionView(plan: FloorPlan, line: SectionLine, look: LookName, language?: Language, display?: Display): Promise<PlanView & { readonly section: PlanSection }> {
   // MSG-11: the drawing's own words in the language asked for, else the plan's own.
-  const picture = sectionPicture(plan, line, { look: lookOf(look), ...(language === undefined ? {} : { language }) })
+  const picture = sectionPicture(plan, line, { look: lookOf(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }) })
   const png = await pictureToPng(picture)
   return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section }
 }
@@ -91,8 +91,8 @@ export async function sectionView(plan: FloorPlan, line: SectionLine, look: Look
  * LVL-8: one side of the building in elevation, every floor at its level. The core works out what
  * is seen (`planFacade`); the viewer draws it (`facadePicture`), in the look asked for.
  */
-export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; look: LookName; language?: Language }): Promise<PlanView & { readonly facade: Facade }> {
-  const picture = facadePicture(plan, { side: options.side, look: lookOf(options.look), ...(options.language === undefined ? {} : { language: options.language }) })
+export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; look: LookName; language?: Language; display?: Display }): Promise<PlanView & { readonly facade: Facade }> {
+  const picture = facadePicture(plan, { side: options.side, look: lookOf(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
   const png = await pictureToPng(picture)
   return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade }
 }

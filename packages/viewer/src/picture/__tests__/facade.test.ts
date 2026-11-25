@@ -53,8 +53,8 @@ describe('a facade as a picture', () => {
     expect(tags(svg, 'facade-outline')).toHaveLength(1)
     expect(tags(svg, 'facade-below-ground')).toHaveLength(1)
     expect(tags(svg, 'facade-level').map((t) => /data-floor="([^"]+)"/.exec(t)![1])).toEqual(['ground', 'first'])
-    expect(svg).toContain('Ground floor 0.00')
-    expect(svg).toContain('First floor +2.95')
+    expect(svg).toContain('±0.000 Ground floor')
+    expect(svg).toContain('+2.950 First floor')
     expect(svg).toContain('aria-label="South facade of the plan, 2 floors at their levels"')
   })
 
