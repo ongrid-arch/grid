@@ -800,7 +800,7 @@ export function wallWithEnds<T extends Record<string, unknown>>(wall: T, ends: {
  * A wall as its file states it (WRT-6): without the values the reading filled in and without
  * `unstated`, for whatever writes a wall back, so a default never lands in a file that stated
  * none. HND-11: a wall Grid read from its face (`placedBy`) is given back by that face, with
- * `face`, as its file gave it. CNT-15 (C24): without the values its type filled in (`typed`), so a
+ * `face`, as its file gave it, round its curve for a curved wall (CNT-32). CNT-15 (C24): without the values its type filled in (`typed`), so a
  * change to the type still reaches it. A wall that left nothing out is returned as it is.
  */
 export function statedWall<T extends { readonly unstated?: readonly UnstatedWallValue[]; readonly placedBy?: WallFace | undefined; readonly typed?: readonly TypedValue[] | undefined }>(wall: T): Omit<T, 'unstated' | 'placedBy' | 'typed'> {
@@ -809,7 +809,9 @@ export function statedWall<T extends { readonly unstated?: readonly UnstatedWall
   const left: readonly string[] = [...(unstated ?? []), ...(typed ?? [])]
   const out: Record<string, unknown> = { ...rest }
   if (placedBy !== undefined && isEndPair(out['start']) && isEndPair(out['end'])) {
-    const [start, end] = faceFromCentre(out['start'], out['end'], placedBy, movingThickness(out))
+    // CNT-32: a curved wall's face is written back round its own curve, as it was read, so its
+    // ends stay on their circle however often it is written.
+    const [start, end] = faceFromCentre(out['start'], out['end'], placedBy, movingThickness(out), arcOf(out))
     const ordered: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(out)) {
       ordered[key] = key === 'start' ? start : key === 'end' ? end : value

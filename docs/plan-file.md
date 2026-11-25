@@ -1587,7 +1587,10 @@ any other wall. Its edits keep the face: a wall moved, cut in two or stretched s
 the same face, on that face's line, and a mirrored plan turns each such wall to its other face,
 so the inside stays inside. `grid tidy` does the same. A `face` Grid cannot read leaves the wall
 out, rather than draw it half its thickness off. A dividing line has no thickness, so its face is
-its line. Rooms text writes rooms by their inside sizes already ([rooms-first.md](rooms-first.md)):
+its line. A [curved wall](#a-curved-wall) placed by its face has its line on that
+face's circle, round the same centre: Grid moves each end along its radius to the curve's middle,
+and writes it back the same way, so a bow-fronted room taped on its inside faces reads as taped
+however often Grid writes it (CNT-32). Rooms text writes rooms by their inside sizes already ([rooms-first.md](rooms-first.md)):
 there a thicker wall moves the rooms apart and leaves each room's size as written. A plan that
 places walls by their faces is read back as rooms text in Grid's own terms, so nothing is lost.
 
@@ -1614,7 +1617,12 @@ the drawing.
 | `id` | Optional: the person's own reference for it |
 
 Both are measured on the room's outline along the inside faces of its walls, the outline its area
-is measured on. `grid check` and `grid_check` print the table after the notes, and every change
+is measured on. Along a [curved wall](#a-curved-wall), a side is the outline round the curve, its
+own stretch of the circle only, and a corner where a straight wall meets the curve, or two curves
+meet, is the outline's corner where their inside faces cross (CNT-32). Where the same two walls
+meet at two corners of the room, as a half-round bay closed by one straight wall does, the order
+they are named in tells the corners apart: going round the room counter-clockwise, `["W", "S"]` is
+the corner where wall `W` gives way to wall `S`, and `["S", "W"]` the other. `grid check` and `grid_check` print the table after the notes, and every change
 to the plan (the edit tools, `grid edit`, `grid write`, `grid_write_rooms`) prints it in its
 answer, the ones that differ first ([the result contract](result-contract.md#taped-against-drawn)):
 
