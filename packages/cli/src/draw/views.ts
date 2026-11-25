@@ -17,6 +17,7 @@ import type { PlanSection, SectionLine } from '@ongrid/floorplan/geometry/sectio
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
 import { planStill } from '@ongrid/viewer/src/still'
 import { loadCanvas } from './canvas'
+import { registerScriptFonts } from '../sheet/fonts'
 import { drawPlan, pictureToPng } from './drawPlan'
 import { partBounds, pixelBoxes, type PartBox } from './partBoxes'
 import { forSkia } from './skiaText'
@@ -117,7 +118,9 @@ const TITLE = 48
  */
 export async function sheetView(plans: readonly { plan: FloorPlan; title: string; floor?: string }[], look: LookName, language?: Language): Promise<PlanView> {
   const tongue = language === undefined ? {} : { language }
-  const { createCanvas, loadImage, GlobalFonts } = await loadCanvas()
+  const canvasModule = await loadCanvas()
+  const { createCanvas, loadImage, GlobalFonts } = canvasModule
+  registerScriptFonts(canvasModule)
   // The pictures' text is written the way Skia draws it right (`forSkia`, VEW-7).
   const installed = (family: string): boolean => GlobalFonts.has(family)
   const first = plans.map((p) => planPicture(p.plan, { floor: p.floor ?? null, look: lookOf(look), ...tongue }))

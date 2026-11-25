@@ -9,7 +9,7 @@
  * the package's `fonts/`, two folders up from this file.
  */
 import { fileURLToPath } from 'url'
-import { LAST_RESORT_FONT, SCRIPT_FONTS } from '../draw/scriptFonts'
+import { ARABIC_FONT, HEBREW_FONT, LAST_RESORT_FONT, SCRIPT_FONTS } from '../draw/scriptFonts'
 
 export const SERIF = 'Grid Sheet Serif'
 export const SANS = 'Grid Sheet Sans'
@@ -22,6 +22,8 @@ export const SANS = 'Grid Sheet Sans'
  */
 export const CJK_FONTS = [...SCRIPT_FONTS.cjk, ...SCRIPT_FONTS.hangul] as const
 const FALLBACK_FONTS = [
+  ...SCRIPT_FONTS.arabic,
+  ...SCRIPT_FONTS.hebrew,
   ...CJK_FONTS,
   ...SCRIPT_FONTS.thai,
   ...SCRIPT_FONTS.devanagari,
@@ -60,4 +62,24 @@ export function registerSheetFonts(canvas: typeof import('@napi-rs/canvas')): vo
   const keys = FILES.map(([file, family]) => canvas.GlobalFonts.registerFromPath(`${folder}${file}`, family))
   if (keys.some((key) => key === null)) throw new FontsMissing('The sheet fonts are missing from this install of Grid: reinstall it.')
   registered = true
+  registerScriptFonts(canvas)
+}
+
+/** VEW-18: Noto Sans Arabic and Noto Sans Hebrew (SIL Open Font License 1.1), for names in those scripts. */
+const SCRIPT_FILES = [
+  ['NotoSansArabic.woff2', ARABIC_FONT],
+  ['NotoSansHebrew-Regular.woff2', HEBREW_FONT],
+] as const
+
+let scriptRegistered = false
+
+/**
+ * Registers the Arabic and Hebrew fonts once, for a picture or the sheet. Unlike the sheet's own
+ * fonts, an install without them still draws: those names fall back to a system font, if any.
+ */
+export function registerScriptFonts(canvas: typeof import('@napi-rs/canvas')): void {
+  if (scriptRegistered) return
+  const folder = fontsFolder()
+  for (const [file, family] of SCRIPT_FILES) canvas.GlobalFonts.registerFromPath(`${folder}${file}`, family)
+  scriptRegistered = true
 }

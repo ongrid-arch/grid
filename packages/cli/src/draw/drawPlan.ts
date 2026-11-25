@@ -17,6 +17,7 @@ import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { FacadePictureOptions, Picture, PictureOptions } from '@ongrid/viewer/src/picture'
 import { facadePicture, fileLookOf, fullHeight, pictureToSvg, planPicture } from '@ongrid/viewer/src/picture'
 import { loadCanvas } from './canvas'
+import { registerScriptFonts } from '../sheet/fonts'
 import { forSkia } from './skiaText'
 
 export type { PictureOptions }
@@ -94,7 +95,9 @@ export async function pictureToPng(picture: Picture, options: { readonly scale?:
   if (width < 1 || height < 1) throw new RangeError(`A scale of ${scale} leaves no pixels to draw`)
 
   // Loaded only for a PNG: it is a native module, and an SVG needs none of it.
-  const { createCanvas, loadImage, GlobalFonts } = await loadCanvas()
+  const canvasModule = await loadCanvas()
+  const { createCanvas, loadImage, GlobalFonts } = canvasModule
+  registerScriptFonts(canvasModule)
 
   // The SVG is written at the PNG's own size, so Skia draws it at full resolution rather than
   // enlarging a smaller image. Its text is written the way Skia draws it right (`forSkia`).
