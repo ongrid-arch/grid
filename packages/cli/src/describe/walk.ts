@@ -26,7 +26,7 @@
  */
 import { dot, planOrientation, poleOfInaccessibility, sub, tolerance, type Vec2 } from '@ongrid/floorplan/geometry'
 import { planFixtures } from '../quantities/fixtures'
-import { OUTSIDE, wayGraph } from '../quantities/measure'
+import { OUTSIDE, entryWays, wayGraph } from '../quantities/measure'
 import { crossingOf } from '../quantities/walked'
 import type { Survey, SurveyRoom } from '../quantities/survey'
 import { compassOf, type Compass } from './facts'
@@ -274,21 +274,19 @@ function fixtureSpots(survey: Survey): Map<string, FixtureSpot[]> {
 
 const CIRCULATION = new Set(['corridor', 'reception'])
 
-/** The way into a floor from outside: the named front, else the widest door into a corridor, else the widest. */
+/**
+ * The way into a floor from outside: the named front, else a way in through an outdoor space that
+ * reaches outside (ARE-36), else the widest door into a corridor, else the widest.
+ */
 function wayIn(survey: Survey, ways: Ways, rooms: ReadonlySet<string>, done: ReadonlySet<string>): { room: string; via: string; front: boolean } | null {
   const front = survey.plan.front?.opening
-  const doors: { room: string; via: string; width: number; circulation: boolean }[] = []
-  for (const [room, next] of ways.next) {
-    if (!rooms.has(room) || done.has(room)) continue
-    for (const w of next) {
-      if (w.room !== OUTSIDE) continue
-      const facts = survey.facts.openings.get(w.via)
-      if (facts === undefined || facts.type === 'window') continue
-      if (w.via === front) return { room, via: w.via, front: true }
-      doors.push({ room, via: w.via, width: facts.width, circulation: CIRCULATION.has(survey.byId.get(room)?.facts.use ?? '') })
-    }
+  const doors: { room: string; via: string; width: number; circulation: boolean; outdoor: boolean }[] = []
+  for (const way of entryWays(survey, ways.next)) {
+    if (!rooms.has(way.room) || done.has(way.room)) continue
+    if (way.via === front) return { room: way.room, via: way.via, front: true }
+    doors.push({ room: way.room, via: way.via, width: survey.facts.openings.get(way.via)!.width, circulation: CIRCULATION.has(survey.byId.get(way.room)?.facts.use ?? ''), outdoor: way.through !== null })
   }
-  doors.sort((a, b) => Number(b.circulation) - Number(a.circulation) || b.width - a.width)
+  doors.sort((a, b) => Number(b.outdoor) - Number(a.outdoor) || Number(b.circulation) - Number(a.circulation) || b.width - a.width)
   const best = doors[0]
   return best === undefined ? null : { room: best.room, via: best.via, front: false }
 }

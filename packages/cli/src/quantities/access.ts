@@ -45,7 +45,7 @@ import {
 } from '@ongrid/floorplan/geometry'
 import type { ConfirmedFigure, FigureKey } from '@ongrid/rules'
 import type { FigureName, FigureWish } from '../brief/brief'
-import { OUTSIDE, wayGraph } from './measure'
+import { OUTSIDE, entryWays, wayGraph } from './measure'
 import type { Survey, SurveyRoom } from './survey'
 import { fixturesOf } from './use'
 import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, type DoorMeasure } from './doorWidth'
@@ -260,7 +260,7 @@ function legOn(survey: Survey, graphs: Map<string, Graph>, floor: string, start:
   const step = (room: string): Array<{ room: string; via: string }> => {
     if (room !== OUTSIDE) return (graph.next.get(room) ?? []).filter((s) => s.room !== OUTSIDE)
     const out: Array<{ room: string; via: string }> = []
-    for (const [inside, ways] of graph.next) for (const w of ways) if (w.room === OUTSIDE && (doors === null || doors.has(w.via))) out.push({ room: inside, via: w.via })
+    for (const e of entryWays(survey, graph.next)) if (doors === null || doors.has(e.via)) out.push({ room: e.room, via: e.via })
     return out
   }
   const back = new Map<string, { room: string; via: string }>()
@@ -297,11 +297,11 @@ export interface Entrance {
 }
 
 export function entranceOf(survey: Survey): Entrance | null {
+  // ARE-36: a way in through an outdoor space that reaches outside is the entrance, before a door straight out.
   const exitsOn = (floor: string): string[] => {
-    const next = wayGraph(survey, floor).next
-    const doors = new Set<string>()
-    for (const ways of next.values()) for (const w of ways) if (w.room === OUTSIDE && survey.facts.openings.get(w.via)?.type !== 'window') doors.add(w.via)
-    return [...doors]
+    const entries = entryWays(survey, wayGraph(survey, floor).next)
+    const through = entries.filter((e) => e.through !== null)
+    return [...new Set((through.length > 0 ? through : entries).map((e) => e.via))]
   }
   const front = survey.plan.front?.opening
   if (front !== undefined) {
