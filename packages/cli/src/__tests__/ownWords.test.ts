@@ -116,7 +116,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/access.ts': [49, 'notYet'],
   'packages/cli/src/quantities/areas.ts': [9, 'notYet'],
   'packages/cli/src/quantities/change.ts': [18, 'notYet'],
-  'packages/cli/src/quantities/compare.ts': [20, 'notYet'],
+  'packages/cli/src/quantities/compare.ts': [25, 'notYet'],
   'packages/cli/src/quantities/estimate.ts': [33, 'notYet'],
   'packages/cli/src/quantities/finishes.ts': [2, 'notYet'],
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
@@ -301,7 +301,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // rule (library/answer.ts 9), the office folder's problems (library/office.ts 6), the
     // library's refusals (library/index.ts 4), the schema's library mark (floorplan.ts 1) and
     // describe's furniture heading (1) (reviews/CNT-20.md).
-    expect(left).toBeLessThanOrEqual(1586)
+    // and WRT-11 5: the verdict's room and opening counts (compare.ts).
+    expect(left).toBeLessThanOrEqual(1591)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
