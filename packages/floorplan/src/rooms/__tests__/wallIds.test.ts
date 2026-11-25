@@ -22,7 +22,7 @@ const shed = [
 const pumpHouse = 'room pump "Pump house" plant 3 x 3 at 50,0'
 const store = ['room store "Store" storage 4 x 4 at 0,40', 'room tank "Tank room" plant 3 x 4 east of store']
 
-const dock: OpeningPattern = { id: 'dock', wall: 'ext-south', opening: { type: 'door', width: 3, height: 4 }, spacing: 5, margins: { start: 1 } }
+const dock: OpeningPattern = { id: 'dock', wall: 'ext-south', opening: { type: 'door', width: 3, sill: 0, height: 4 }, spacing: 5, margins: { start: 1 } }
 const wallIds = (plan: FloorPlan): Map<string, string> => new Map(plan.walls.map((w) => [w.id, `${w.start.join(',')} ${w.end.join(',')}`]))
 
 describe('derived wall ids when a building is added elsewhere (WRT-37)', () => {
