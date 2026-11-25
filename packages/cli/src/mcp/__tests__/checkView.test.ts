@@ -64,7 +64,7 @@ describe('the check view', () => {
 
   it('refuses ids with another kind, and an unknown floor naming the floors there are', async () => {
     const dir = project()
-    await expect(view.run({ plan: 'plan.json', kind: '3d', ids: true }, { project: openProject(dir, dir) })).rejects.toThrow(/kind=3d takes floor, from, bearing, tilt, distance, eye_height, lens, room, camera, view, turn, tilt_by, roof, not ids/)
+    await expect(view.run({ plan: 'plan.json', kind: '3d', ids: true }, { project: openProject(dir, dir) })).rejects.toThrow(/kind=3d takes floor, from, bearing, tilt, distance, eye_height, lens, room, camera, view, turn, tilt_by, roof, fit, not ids/)
     await expect(view.run({ plan: 'plan.json', kind: 'plan', ids: true, floor: 'attic' }, { project: openProject(dir, dir) })).rejects.toThrow(/"ground"/)
   })
 

@@ -63,7 +63,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-7: three of its skill's paragraphs are in guide/paragraphs.ts now.
   'packages/cli/src/distribution/listing.ts': [81, 'developer'],
   'packages/cli/src/distribution/zip.ts': [1, 'developer'],
-  'packages/cli/src/draw/cameraAsk.ts': [12, 'agent'],
+  // VEW-26: three more, the refusals of fit with distance and of fit=room with no room, and a room's outline.
+  'packages/cli/src/draw/cameraAsk.ts': [15, 'agent'],
   'packages/cli/src/draw/canvas.ts': [1, 'developer'],
   'packages/cli/src/draw/drawPlan.ts': [2, 'developer'],
   'packages/cli/src/draw/drawStill.ts': [2, 'developer'],
@@ -73,7 +74,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
   'packages/cli/src/edit/edits.ts': [57, 'notYet'],
-  'packages/cli/src/edit/merge.ts': [25, 'notYet'],
+  'packages/cli/src/edit/merge.ts': [29, 'notYet'],
   'packages/cli/src/edit/types.ts': [14, 'notYet'],
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
@@ -106,7 +107,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
   // ARE-18: two more, why a route's walked length is not given.
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
-  'packages/cli/src/mcp/readTools.ts': [326, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [340, 'tools'],
+  // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
+  // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
   // ARE-21: one more, the nearest way out and the others.
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
@@ -178,7 +181,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-19: four more, what bayOverlap and rampSlopeDiffers decide.
   // CNT-20: two more, its own tolerance entries.
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
-  'packages/floorplan/src/geometry/tolerances.ts': [289, 'developer'],
+  // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
+  'packages/floorplan/src/geometry/tolerances.ts': [295, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],
@@ -318,7 +322,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // describe's furniture heading (1) (reviews/CNT-20.md); and WRT-12 1: grid diff's heading for
     // the openings that moved with their wall or room (versions/diff.ts).
     // and MSG-19 3: the seen file's refusals (seen/marks.ts).
-    expect(left).toBeLessThanOrEqual(1602)
+    // and WRT-28 3: the flats lines of a merge (edit/merge.ts) (odd/tasks/WRT-28.md).
+    expect(left).toBeLessThanOrEqual(1605)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

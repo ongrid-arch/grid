@@ -405,7 +405,11 @@ and no roof, and a garden wall standing apart carries neither.
   hole in a room that no room fills, a courtyard, is open: no slab and no roof.
 - **A roof over every part with nothing above**: the floor's outline less the outlines of the
   floors on the next level up, flat, on the floor's walls, 0.25 m thick, with no overhang. So a
-  single-storey wing is roofed where the floor above does not reach.
+  single-storey wing is roofed where the floor above does not reach. A roof that would lie at or
+  under the ground (`site.ground`, else 0) is not laid: the ground covers a crypt or a basement
+  where the floor above does not. On a floor with open outdoor space, the walls that bound it and
+  no room (a terrace's parapet, a balcony's edge) have no roof over them, even where the same wall
+  runs on past a room, such as a stair house on a roof terrace (LVL-13).
 - **A void**: a room marked `"void": true` is open to the floor below. It has no floor, so its
   floor's slab is open over it, and it adds no floor area to the slab; it needs no door and has no
   route to check.

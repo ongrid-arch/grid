@@ -34,7 +34,7 @@ import type { DoorHanding } from '../canvas2d/doorHanding'
 import type { LabelStyle } from '../canvas2d/labelPlacement'
 import { doorHandingOf } from '../canvas2d/doorHanding'
 import type { Viewport } from '../canvas2d/viewport'
-import { fitTo, viewBoxOf } from '../canvas2d/viewport'
+import { FRAME_MARGIN, fitTo, viewBoxOf } from '../canvas2d/viewport'
 import type { Look, LookName, PlanLook } from './look'
 import { LOOKS, detailShown, fileLook, lengthText, toLook } from './look'
 import { drawnHanding, planScene, roomKeyOf } from './scene'
@@ -365,6 +365,42 @@ export function pictureFrame(plan: FloorPlan, options: PictureOptions = {}): Bou
   const { drawing, dimensions, marks } = framePicture(plan, options)
   const around = framingOf(drawing, dimensions)
   return options.frame ?? (marks === null ? around : withMarks(around, marks))
+}
+
+/** VEW-26: the fewest pixels a metre a long floor's piece is drawn at, so its rooms' labels have room. */
+export const TILE_PX_PER_METRE = 12
+/** VEW-26: how much of its length each piece of a long floor shares with the next, so no room is lost at a seam. */
+const TILE_OVERLAP = 0.05
+
+/**
+ * VEW-26: the pieces a floor far longer than it is wide is drawn in, along its length, left to
+ * right or top to bottom: none when its picture's shape holds it (its short side at least
+ * `MIN_SHAPE` of its long one) or it is drawn whole at `TILE_PX_PER_METRE` or more. Each piece is
+ * a frame for `planPicture`, overlapping the next a little, short enough along the floor to be
+ * drawn at that scale; a floor wide as well as long is drawn as large as its width lets it be.
+ */
+export function pictureTiles(plan: FloorPlan, options: Omit<PictureOptions, 'frame'> = {}): Bounds[] {
+  const framed = pictureFrame(plan, options)
+  const along = framed.width >= framed.height ? 'x' : 'y'
+  const long = Math.max(framed.width, framed.height)
+  const short = Math.min(framed.width, framed.height)
+  if (!(long > 0) || short / long >= MIN_SHAPE) return []
+  // A wide floor is drawn across the picture's width; a tall one down its height, which stops at MAX_SHAPE times it.
+  const width = options.width ?? DEFAULT_WIDTH
+  const pixels = along === 'x' ? width : width * MAX_SHAPE
+  if (pixels / long >= TILE_PX_PER_METRE) return []
+  // Each piece is drawn with its overlap and the picture's margin round it.
+  const count = Math.max(2, Math.ceil((long * (1 + 2 * TILE_OVERLAP) * (1 + 2 * FRAME_MARGIN) * TILE_PX_PER_METRE) / pixels))
+  const piece = long / count
+  const overlap = piece * TILE_OVERLAP
+  const start = along === 'x' ? framed.min.x : framed.max.y
+  return Array.from({ length: count }, (_, i) => {
+    const from = Math.max(0, i * piece - overlap)
+    const to = Math.min(long, (i + 1) * piece + overlap)
+    return along === 'x'
+      ? computeBounds([{ x: start + from, y: framed.min.y }, { x: start + to, y: framed.max.y }])
+      : computeBounds([{ x: framed.min.x, y: start - to }, { x: framed.max.x, y: start - from }])
+  })
 }
 
 /**

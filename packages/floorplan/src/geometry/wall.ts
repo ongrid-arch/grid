@@ -13,7 +13,7 @@
 
 import type { Opening, Wall } from './plan'
 import type { Line, Vec2 } from './vec2'
-import { tolerance } from './tolerances'
+import { tolerance, tolerancesAsStated } from './tolerances'
 import { quoted } from '../types/planText'
 import { add, fromTuple, length, normalize, perp, scale, sub } from './vec2'
 import type { WallCurve } from './arc'
@@ -117,8 +117,19 @@ export function wallSegments(wall: Wall): WallSegment[] {
     const axis = wallAxis(wall)
     return [{ ...axis, from: 0, to: axis.length }]
   }
-  return chords(curve, curveStations(curve))
+  // CNT-25: a curve's chords are worked out once per wall, as its curve is (`wallCurve`), and
+  // not while `withTolerances` is in force, which may change how many there are.
+  const stated = tolerancesAsStated()
+  let kept = stated ? curveChords.get(wall) : undefined
+  if (kept === undefined) {
+    kept = chords(curve, curveStations(curve))
+    if (stated) curveChords.set(wall, kept)
+  }
+  return [...kept]
 }
+
+/** Each curved wall's chords, as `wallSegments` gives them (CNT-25). */
+const curveChords = new WeakMap<Wall, readonly WallSegment[]>()
 
 function chords(curve: WallCurve, stations: readonly number[]): WallSegment[] {
   const points = stations.map((s) => curvePointAt(curve, s))
@@ -150,12 +161,22 @@ export function openingChord(wall: Wall, from: number, to: number): WallSegment 
  */
 export function straightPieces(wall: Wall): Wall[] {
   if (wall.arc === undefined) return [wall]
-  return wallSegments(wall).map((segment) => {
-    const piece: Wall = { ...wall, start: [segment.start.x, segment.start.y], end: [segment.end.x, segment.end.y] }
-    delete piece.arc
-    return piece
-  })
+  // CNT-25: the same pieces for the same wall, so what is worked out from them can be kept too.
+  const stated = tolerancesAsStated()
+  let kept = stated ? curvePieces.get(wall) : undefined
+  if (kept === undefined) {
+    kept = wallSegments(wall).map((segment) => {
+      const piece: Wall = { ...wall, start: [segment.start.x, segment.start.y], end: [segment.end.x, segment.end.y] }
+      delete piece.arc
+      return piece
+    })
+    if (stated) curvePieces.set(wall, kept)
+  }
+  return [...kept]
 }
+
+/** Each curved wall's straight copies, as `straightPieces` gives them (CNT-25). */
+const curvePieces = new WeakMap<Wall, readonly Wall[]>()
 
 /**
  * The wall's two faces, as infinite lines.

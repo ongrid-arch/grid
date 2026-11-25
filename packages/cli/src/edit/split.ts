@@ -160,6 +160,9 @@ export function splitRoom(survey: Survey, roomId: string, request: SplitRequest)
     ...(request.newRoom.use !== undefined ? { use: request.newRoom.use } : {}),
     boundary: taken,
     ...(room.floor !== undefined ? { floor: room.floor } : {}),
+    // WRT-30 (C26): both parts are the same outdoor space, open or roofed as the room says.
+    ...(room.outdoor !== undefined ? { outdoor: room.outdoor } : {}),
+    ...(room.outdoor !== undefined && room.roofed !== undefined ? { roofed: room.roofed } : {}),
     // CNT-9: both parts keep the room's facts of the person's own; its number stays with the room.
     ...(room.properties !== undefined && Object.keys(room.properties).length > 0 ? { properties: { ...room.properties } } : {}),
   }]
@@ -196,7 +199,13 @@ export function splitRoom(survey: Survey, roomId: string, request: SplitRequest)
     guessed.push(`Door ${quoted(doorId)} hangs from its ${lo} end and opens into ${quoted(opensInto)}: grid_change_opening changes that.`)
   }
 
-  const patch: Patch = { walls: new Map(), openings: new Map(), removeOpenings: new Set(), rooms, said, guessed, notKept, addWalls: [newWall], addRooms, addOpenings }
+  // WRT-28 (C18): the new room is in the flat of the room it was split from.
+  const flat = plan.flats?.find((f) => f.rooms.includes(roomId))
+  if (flat !== undefined) said.push(`Flat ${quoted(flat.name ?? flat.id)} lists ${quoted(request.newRoom.name)} too.`)
+  const flatsPlan = flat === undefined
+    ? {}
+    : { plan: { flats: plan.flats!.map((f) => (f === flat ? { ...f, rooms: f.rooms.flatMap((id) => (id === roomId ? [id, request.newRoom.id] : [id])) } : f)) } }
+  const patch: Patch = { ...flatsPlan, walls: new Map(), openings: new Map(), removeOpenings: new Set(), rooms, said, guessed, notKept, addWalls: [newWall], addRooms, addOpenings }
   // The rooms as the split leaves them, for their areas and their windows.
   // WRT-11: as the file will be read, and measured as grid_areas measures (columns taken off).
   const after = surveyPlan(planAfter(plan, patch))

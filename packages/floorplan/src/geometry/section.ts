@@ -29,7 +29,7 @@
  * hide what lies behind them; a face seen edge-on is a line (a corner).
  *
  * What the plan does not state and Grid takes is listed (`assumed`), and the cut parts it is about
- * are given to be hatched: a slab whose thickness is not stated, every roof, a wall whose height
+ * are given to be marked, tinted and dashed, never hatched: a slab whose thickness is not stated, every roof, a wall whose height
  * nothing states or that the plan marks assumed. Levels worked out from the floors below, a ground
  * level the site does not state, room heights taken from the storey and stair rooms with no stated
  * stair are listed too, not hatched.
@@ -158,7 +158,7 @@ export interface SectionAssumption {
   readonly words: string
   /** MSG-11: the same sentence by key and values, to say in another language. Not enumerable. */
   readonly said?: Said
-  /** Whether its cut parts are hatched (`pieces`); a level, a height or a ground is listed only. */
+  /** Whether its cut parts are marked on the drawing (`pieces`), tinted and dashed, never hatched: a hatch reads as a material. A level, a height or a ground is listed only. */
   readonly hatched: boolean
   /** The cut parts it is about, joined; empty when it is not hatched. */
   readonly pieces: readonly SectionPiece[]

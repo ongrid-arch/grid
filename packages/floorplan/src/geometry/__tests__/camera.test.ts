@@ -19,6 +19,9 @@ import {
   shownFloors,
   storedView,
   viewSetting,
+  fitAspect,
+  fitCamera,
+  type CameraBox,
   type CameraRecord,
   type CameraSetting,
 } from '../index'
@@ -155,5 +158,67 @@ describe('a view saved with the plan (C9)', () => {
     expect(safeParseFloorPlan({ ...flat, views: [{ ...view, lens: { ...view.lens, focalLength: 2 } }] })).toBeNull()
     expect(safeParseFloorPlan({ ...flat, views: [{ ...view, bearingFrom: 'north' }] })).toBeNull()
     expect(safeParseFloorPlan({ ...flat, views: [view] })).not.toBeNull()
+  })
+})
+
+/** VEW-26: where each corner of a box falls on a record's picture, from -1 to 1 across and up. */
+function onPicture(r: CameraRecord, box: CameraBox): Array<[number, number]> {
+  const right = [r.direction[1] * r.up[2] - r.direction[2] * r.up[1], r.direction[2] * r.up[0] - r.direction[0] * r.up[2], r.direction[0] * r.up[1] - r.direction[1] * r.up[0]]
+  const high = Math.tan((r.fieldOfView * Math.PI) / 360)
+  const out: Array<[number, number]> = []
+  for (const x of [box.min[0], box.max[0]]) for (const y of [box.min[1], box.max[1]]) for (const z of [box.min[2], box.max[2]]) {
+    const d = [x - r.position[0], y - r.position[1], z - r.position[2]]
+    const depth = dot(d, r.direction)
+    out.push([dot(d, right) / depth / (high * r.aspectRatio), dot(d, r.up) / depth / high])
+  }
+  return out
+}
+
+describe('a camera fitted to a box (VEW-26)', () => {
+  const tower: CameraBox = { min: [0, 0, 0], max: [30, 30, 170] }
+  const station: CameraBox = { min: [0, 0, 0], max: [130, 25, 12] }
+  const fitted = (box: CameraBox, more: Partial<CameraSetting> = {}, level = false): CameraRecord => {
+    const base = setting({ focalLength: focalLengthOf(45), ...more })
+    const aspectRatio = fitAspect(flat, base, box, { level })
+    const fit = fitCamera(flat, { ...base, aspectRatio }, box, { level })
+    return cameraRecord(flat, { ...base, aspectRatio, target: { room: null, point: fit.target }, distance: fit.distance })
+  }
+
+  it('sees every corner, with one near an edge of the frame, and centres what it sees', () => {
+    for (const box of [tower, station]) {
+      for (const bearing of [0, 135, 200]) {
+        const r = fitted(box, { bearing })
+        const spots = onPicture(r, box)
+        const most = Math.max(...spots.flat().map(Math.abs))
+        expect(most).toBeLessThanOrEqual(0.9)
+        expect(most).toBeGreaterThan(0.8)
+        const xs = spots.map((s) => s[0])
+        const ys = spots.map((s) => s[1])
+        expect(Math.abs(Math.max(...xs) + Math.min(...xs))).toBeLessThan(0.02)
+        expect(Math.abs(Math.max(...ys) + Math.min(...ys))).toBeLessThan(0.02)
+      }
+    }
+  })
+
+  it('takes a tower in a portrait frame and a long low building in a landscape one', () => {
+    expect(fitted(tower).aspectRatio).toBeLessThan(1)
+    expect(fitted(station).aspectRatio).toBe(1.5)
+  })
+
+  it('keeps a level camera level at the height it was given, the box still in its frame', () => {
+    const r = fitted(tower, { tilt: 0, target: { room: null, point: [0, 0, 1.6] } }, true)
+    expect(r.tilt).toBe(0)
+    expect(r.position[2]).toBeCloseTo(1.6, 6)
+    expect(r.up).toEqual([0, 0, 1])
+    for (const [x, y] of onPicture(r, tower)) {
+      expect(Math.abs(x)).toBeLessThanOrEqual(0.9)
+      expect(Math.abs(y)).toBeLessThanOrEqual(0.9)
+    }
+  })
+
+  it('stands closer to a small box than to a large one', () => {
+    const small = fitted({ min: [0, 0, 0], max: [4, 3, 2.6] })
+    const large = fitted(station)
+    expect(small.distance).toBeLessThan(large.distance / 5)
   })
 })

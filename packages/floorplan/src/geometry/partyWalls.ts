@@ -57,6 +57,9 @@ const signedArea = (ring: readonly Vec2[]): number => {
 /** The ring turned so that the floor lies on its left: outer rings counter-clockwise, holes clockwise. */
 const floorOnLeft = (ring: readonly Vec2[], outer: boolean): Vec2[] => (signedArea(ring) > 0 === outer ? [...ring] : [...ring].reverse())
 
+/** How far across its walls a room is pushed: to their inside face (0), their outside face (1), or across all of each (LVL-13). */
+type PushDepth = 0 | 1 | 'whole'
+
 /** A run of a room's side that lies on one wall's face, with how far the floor reaches past it. */
 interface Reach {
   readonly from: number
@@ -66,9 +69,10 @@ interface Reach {
 
 /**
  * How far past a room's side the figure reaches, along the side, in runs. `outer` is how much of a
- * wall that faces outside is counted: 0 to its inside face, 1 to its outside face.
+ * wall that faces outside is counted: 0 to its inside face, 1 to its outside face. LVL-13: `whole`
+ * reaches across the whole of every wall, whatever lies beyond it.
  */
-function reaches(a: Vec2, b: Vec2, walls: readonly { readonly wall: Wall; readonly segment: WallSegment }[], sides: ReadonlyMap<string, WallSides>, outer: 0 | 1): Reach[] {
+function reaches(a: Vec2, b: Vec2, walls: readonly { readonly wall: Wall; readonly segment: WallSegment }[], sides: ReadonlyMap<string, WallSides>, outer: PushDepth): Reach[] {
   const length = Math.hypot(b.x - a.x, b.y - a.y)
   if (!(length > tolerance('noLength'))) return []
   const dir = { x: (b.x - a.x) / length, y: (b.y - a.y) / length }
@@ -95,6 +99,12 @@ function reaches(a: Vec2, b: Vec2, walls: readonly { readonly wall: Wall; readon
     const here = on.find((w) => w.u0 <= m && m <= w.u1) ?? on.find((w) => w.u0 - w.wall.thickness <= m && m <= w.u1 + w.wall.thickness)
     if (here === undefined) continue
     const { wall, segment } = here
+    if (outer === 'whole') {
+      const last = out[out.length - 1]
+      if (last !== undefined && last.depth === wall.thickness && from - last.to <= tolerance('noLength')) out[out.length - 1] = { ...last, to }
+      else out.push({ from, to, depth: wall.thickness })
+      continue
+    }
     const point = { x: a.x + dir.x * m, y: a.y + dir.y * m }
     const t = Math.min(segment.length, Math.max(0, (point.x - segment.start.x) * segment.dir.x + (point.y - segment.start.y) * segment.dir.y))
     const along = segment.from + (segment.length === 0 ? 0 : (t * (segment.to - segment.from)) / segment.length)
@@ -110,7 +120,7 @@ function reaches(a: Vec2, b: Vec2, walls: readonly { readonly wall: Wall; readon
 }
 
 /** A ring's floor pushed out past each side by its reach, with the corners between two pushed sides filled. */
-function pushedOut(ring: readonly Vec2[], walls: readonly { readonly wall: Wall; readonly segment: WallSegment }[], sides: ReadonlyMap<string, WallSides>, outer: 0 | 1): Polygon[] {
+function pushedOut(ring: readonly Vec2[], walls: readonly { readonly wall: Wall; readonly segment: WallSegment }[], sides: ReadonlyMap<string, WallSides>, outer: PushDepth): Polygon[] {
   const n = ring.length
   const pieces: Polygon[] = []
   const runs = ring.map((a, i) => reaches(a, ring[(i + 1) % n]!, walls, sides, outer))
@@ -156,6 +166,33 @@ function pushedOut(ring: readonly Vec2[], walls: readonly { readonly wall: Wall;
   return pieces
 }
 
+/** A room's floor and the pieces it is pushed out by across its walls, not yet joined. */
+function roomPushed(room: PartyWallRoom, sides: ReadonlyMap<string, WallSides>, outer: PushDepth): Polygon[] {
+  if (room.polygon.length < 3) return []
+  const walls = room.walls.flatMap((wall) => {
+    try {
+      return wallSegments(wall).map((segment) => ({ wall, segment }))
+    } catch {
+      return []
+    }
+  })
+  const outline = floorOnLeft(room.polygon, true)
+  const holes = room.holes.filter((hole) => hole.length >= 3).map((hole) => floorOnLeft(hole, false))
+  const ring = (points: readonly Vec2[]): Pair[] => points.map((p) => [p.x, p.y])
+  const pieces: Polygon[] = [[ring(outline), ...holes.map(ring)]]
+  // A hole's sides are pushed into it, to the middle or the face of the walls round it, as the outline's are.
+  for (const r of [outline, ...holes]) pieces.push(...pushedOut(r, walls, sides, outer))
+  return pieces
+}
+
+/**
+ * LVL-13: a room's floor with the whole of each wall it lies on, the corners between two of them
+ * filled: what a roof over the room alone covers. Pieces, not yet joined.
+ */
+export function overItsWalls(room: PartyWallRoom): Polygon[] {
+  return roomPushed(room, new Map(), 'whole')
+}
+
 /**
  * The area of a group of rooms on one floor (a flat's, or the rooms in no flat) to the middle of
  * the walls they share with anything else of the building, and to the inside face and to the
@@ -164,23 +201,7 @@ function pushedOut(ring: readonly Vec2[], walls: readonly { readonly wall: Wall;
 export function partyWallArea(rooms: readonly PartyWallRoom[], sides: ReadonlyMap<string, WallSides>): PartyWallArea | null {
   if (rooms.length === 0) return { grossInternal: 0, grossExternal: 0 }
   const measure = (outer: 0 | 1): number | null => {
-    const pieces: Polygon[] = []
-    for (const room of rooms) {
-      if (room.polygon.length < 3) continue
-      const walls = room.walls.flatMap((wall) => {
-        try {
-          return wallSegments(wall).map((segment) => ({ wall, segment }))
-        } catch {
-          return []
-        }
-      })
-      const outline = floorOnLeft(room.polygon, true)
-      const holes = room.holes.filter((hole) => hole.length >= 3).map((hole) => floorOnLeft(hole, false))
-      const ring = (points: readonly Vec2[]): Pair[] => points.map((p) => [p.x, p.y])
-      pieces.push([ring(outline), ...holes.map(ring)])
-      // A hole's sides are pushed into it, to the middle or the face of the walls round it, as the outline's are.
-      for (const r of [outline, ...holes]) pieces.push(...pushedOut(r, walls, sides, outer))
-    }
+    const pieces = rooms.flatMap((room) => roomPushed(room, sides, outer))
     if (pieces.length === 0) return 0
     try {
       return union(pieces).reduce((sum, polygon) => sum + polygonArea(polygon), 0)
