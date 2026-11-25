@@ -66,9 +66,9 @@ describe('LVL-18 a storey lower than a person stands in', () => {
     expect(asked(plan, 'floor/size-question')).toEqual([])
   })
 
-  it('questions a storey its walls make 1.2 m high, in a plan of more than one floor', () => {
+  it('questions a storey its walls make 1.2 m high under another floor, and not the top one, which may be a loft', () => {
     const issues = asked(decks(1.2, [{}, {}]), 'floor/size-question')
-    expect(issues.map((i) => i.id)).toEqual(['p0', 'p1'])
+    expect(issues.map((i) => i.id)).toEqual(['p0'])
     expect(issues[0]!.message).toContain('Floor "p0" states no height, so its storey is 1.20 m high, the height of its tallest wall: is that meant?')
     expect(issues[0]!.severity).toBe('warning')
   })
@@ -89,7 +89,7 @@ describe('LVL-18 a storey lower than a person stands in', () => {
         'room d1 "Deck 1" parking 10 x 10'
       ].join('\n')
     )
-    expect(asked(plan, 'floor/size-question').map((i) => i.id)).toEqual(['p0', 'p1'])
+    expect(asked(plan, 'floor/size-question').map((i) => i.id)).toEqual(['p0'])
   })
 })
 

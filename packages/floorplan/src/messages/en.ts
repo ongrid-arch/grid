@@ -266,7 +266,7 @@ export const en = {
   'issue.floor/size-question.higher': 'higher than {limit} m',
   'issue.floor/size-question.lower': 'lower than {limit} m',
   'issue.floor/size-question.walls':
-    'Floor {floor} states no height, so its storey is {height} m high, the height of its tallest wall: is that meant? Grid asks about a storey lower than {limit} m in a plan of more than one floor. If the storey is taller, state its height.',
+    'Floor {floor} states no height, so its storey is {height} m high, the height of its tallest wall: is that meant? Grid asks about a storey lower than {limit} m with a floor over it. If the storey is taller, state its height.',
   'issue.room/offset-question':
     'Room {room} stands {offset} m {way} its storey\'s floor: is that meant? It is drawn and counted at that level, {why}. A level that far off may be a floor of its own: give it its own entry in the floor list with its elevation.',
   'issue.room/offset-question.above': 'above',

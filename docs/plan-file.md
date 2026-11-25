@@ -278,8 +278,9 @@ elevation), two floors at one level one over the other (`plan/same-level`), an e
 that still counts as a storey (`floor/empty-top`), a wall taller than the height its floor states
 (`wall/above-storey`) and a floor height far outside a storey's (`floor/size-question`): higher
 than a wall is asked about, or lower than a storey a person stands in (`storeyLowest`, 2 m, Grid's
-own size). In a plan of more than one floor, a floor that states no height is asked about when its
-tallest wall, which then sets its storey, is lower than that; a floor under a roof of its own is
+own size). A floor with another floor over it that states no height is asked about when its
+tallest wall, which then sets its storey, is lower than that (the top floor is not: its low walls
+may be a loft's); a floor under a roof of its own is
 asked about only below `wallLowest`, since a loft's eaves may be that low (LVL-18). A wall
 or room on a floor id the plan does not know is an error and is left out, with the nearest id the
 plan has (`wall/unknown-floor`, `room/unknown-floor`); with no floor list, only an id spelt like

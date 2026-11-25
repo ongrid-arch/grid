@@ -1217,8 +1217,8 @@ export const TOLERANCES = {
     unit: 'm',
     decides:
       "Grid's own size, not a code figure. A storey lower than this is questioned: a floor that " +
-      'states a lower height, or, in a plan of more than one floor, one that states none and whose ' +
-      'tallest wall is lower. A floor under a roof of its own is asked about below `wallLowest` only.',
+      'states a lower height, or one under another floor that states none and whose tallest wall is ' +
+      'lower. A floor under a roof of its own is asked about below `wallLowest` only.',
     basis: own
   },
   stairDoorLowest: {

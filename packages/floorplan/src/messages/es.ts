@@ -278,7 +278,7 @@ export const es: Messages = {
   'issue.floor/size-question.higher': 'de más de {limit} m',
   'issue.floor/size-question.lower': 'de menos de {limit} m',
   'issue.floor/size-question.walls':
-    'La planta {floor} no indica su altura, así que tiene {height} m, la altura de su muro más alto: ¿es intencionado? Grid pregunta por las plantas de menos de {limit} m en un plano de más de una planta. Si la planta es más alta, indique su altura.',
+    'La planta {floor} no indica su altura, así que tiene {height} m, la altura de su muro más alto: ¿es intencionado? Grid pregunta por las plantas de menos de {limit} m con otra planta encima. Si la planta es más alta, indique su altura.',
   'issue.room/offset-question':
     'La estancia {room} está {offset} m {way} del suelo de su planta: ¿es intencionado? Se dibuja y se cuenta a ese nivel, {why}. Un nivel tan desplazado puede ser una planta aparte: dele su propia entrada en la lista de plantas, con su cota.',
   'issue.room/offset-question.above': 'por encima',

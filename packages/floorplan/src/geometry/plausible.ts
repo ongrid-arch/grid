@@ -204,9 +204,9 @@ function climbsByWall(plan: FloorPlan, broken: ReadonlySet<string>): Map<string,
 }
 
 /**
- * LVL-18: a storey too low to stand in, set by its walls. In a plan of more than one floor, a floor
- * that states no height and no roof of its own stands as high as its tallest wall; when that is
- * lower than `storeyLowest` it is asked about. Fences, parapets round outdoor space and garden
+ * LVL-18: a storey too low to stand in, set by its walls. A floor with another floor over it that
+ * states no height and no roof of its own stands as high as its tallest wall; when that is lower
+ * than `storeyLowest` it is asked about. The top floor is not: its low walls may be a loft's. Fences, parapets round outdoor space and garden
  * walls are no part of the storey, as `tallestDrawnWall` leaves them out. A stated height is asked
  * about in `levels.ts`.
  */
@@ -219,6 +219,8 @@ function lowStoreyQuestions(
 ): void {
   const floors = plan.floors ?? []
   if (new Set(floors.map((floor) => floor.id)).size < 2) return
+  // Only a storey with a floor over it: the top floor's low walls may be a loft's knee walls.
+  const top = Math.max(...floors.map((floor) => floor.level))
   const outdoor = outdoorOnlyWalls(index)
   const landscape = landscapeWalls(plan, index)
   const lowest = limit('storeyLowest', building)
@@ -226,7 +228,7 @@ function lowStoreyQuestions(
   for (const floor of floors) {
     if (seen.has(floor.id)) continue
     seen.add(floor.id)
-    if (floor.roof !== undefined || (floor.height !== undefined && Number.isFinite(floor.height))) continue
+    if (floor.roof !== undefined || (floor.height !== undefined && Number.isFinite(floor.height)) || !(floor.level < top)) continue
     const walls = (byFloor.get(floor.id) ?? []).filter((wall) => !outdoor.has(wall.id) && !landscape.has(wall.id) && Number.isFinite(wall.height))
     if (walls.length === 0) continue
     const tallest = Math.max(...walls.map((wall) => wall.height))
