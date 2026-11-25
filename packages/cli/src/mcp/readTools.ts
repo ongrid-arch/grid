@@ -949,6 +949,9 @@ const roomTotal = objectSchema({ floor: NULLABLE_STRING, floorName: NULLABLE_STR
 const typeItem = objectSchema({ mark: STRING, id: STRING, floor: STRING, floorName: STRING, sill: NUMBER, handing: NULLABLE_STRING, between: listSchema(STRING) })
 const SCHEDULE_OUTPUT: Record<string, unknown> = {
   type: 'object',
+  // The one key every variant has, for a host that reads the root's properties.
+  properties: { rows: { type: 'array' } },
+  required: ['rows'],
   anyOf: [
     // No `of`: the openings grouped by kind and size, and the fixtures.
     objectSchema({

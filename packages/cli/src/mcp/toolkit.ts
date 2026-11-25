@@ -182,7 +182,9 @@ export function labelled(answer: Answer): Answer {
 function labelledSchema(schema: Record<string, unknown>): Record<string, unknown> {
   // CMD-17: a tool whose answer differs by argument lists its variants under `anyOf`; each carries the label.
   const variants = schema['anyOf'] as readonly Record<string, unknown>[] | undefined
-  if (variants !== undefined) return { ...schema, anyOf: variants.map(labelledSchema) }
+  const { anyOf: _variants, ...root } = schema
+  void _variants
+  if (variants !== undefined) return { ...labelledSchema(root), anyOf: variants.map(labelledSchema) }
   const properties = schema['properties'] as Record<string, unknown> | undefined
   if (properties === undefined) return schema
   const required = (schema['required'] as readonly string[] | undefined) ?? []
