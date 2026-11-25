@@ -76,7 +76,7 @@ describe('boxes on the picture', () => {
   })
 
   it('refuses a crop that names nothing on the floor, naming the rooms', async () => {
-    await expect(view.run({ plan: 'plan.json', kind: 'plan', crop: 'attic' }, context())).rejects.toThrow(/Its rooms: "bed2" \("Bedroom 2"\)/)
+    await expect(view.run({ plan: 'plan.json', kind: 'plan', crop: 'attic' }, context())).rejects.toThrow(/Its nearest rooms: .*"bed2" \("Bedroom 2"\)/)
     await expect(view.run({ plan: 'plan.json', kind: '3d', crop: 'kitchen' }, context())).rejects.toThrow(/not crop/)
   })
 })
