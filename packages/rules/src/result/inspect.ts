@@ -1012,7 +1012,18 @@ function inspectRead(read: Extract<Read, { plan: FloorPlan }>, inspectOptions: I
     if (stated !== undefined) CAUSE_LINES.set(units, stated)
     for (const l of lines) if (SIZED.has(l.code)) CAUSE_LINES.set(l, units)
   }
-  return record(lines, true, report, taped, firm ?? null)
+  return record(oneNotePerOpening(lines), true, report, taped, firm ?? null)
+}
+
+/**
+ * ARE-50: one note per opening. A door the check says nobody can pass is also asked about for its
+ * size ("it still counts as a way through"), which the check has just contradicted: the check's
+ * note is the one that stands.
+ */
+function oneNotePerOpening(lines: ResultLine[]): ResultLine[] {
+  const cannotPass = new Set(lines.filter((l) => l.code === 'opening/too-small-to-pass').flatMap((l) => [l.thing.id, ...(l.each ?? []).map((t) => t.id)]))
+  if (cannotPass.size === 0) return lines
+  return lines.filter((l) => !(l.code === 'opening/size-question' && l.thing.kind === 'opening' && cannotPass.has(l.thing.id)))
 }
 
 /** WRT-6: a marked value as a line names it: a field with words of its own (`line.part.value.*`), else the field as the format names it. */

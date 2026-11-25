@@ -362,12 +362,11 @@ The plan states its place in `site.country` ([the place](plan-file.md#the-place)
 names another for this check: a country's name or its two- or three-letter code, such as `US`,
 `USA`, `United States` or `Spain`, in any case. A place not on Grid's list is refused with exit
 code 2, naming `--country` and never the text. With no place stated, no figure is applied, and
-the line says how many lines the US figures would have given: `--country US` checks against
-them for one run.
+the line says so: `--country US` checks against the US figures for one run.
 
 ```text
 General guidance, not your local rules
-No place is stated, so no figure was applied: the US figures would have given no lines. State it in the plan as site.country, or give --country.
+No place is stated, so no code figure was applied. State it in the plan as site.country, or give --country.
 ```
 
 A note you have looked at can be set aside as seen, with why and who:

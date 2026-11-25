@@ -46,12 +46,12 @@ const HOSTILE = [
 ]
 
 describe('with no place stated', () => {
-  it('grid check applies no figure, and the line after the label says so, with the count the US figures would have given', async () => {
+  it('grid check applies no figure, and the line after the label says so, without naming other figures; the record keeps the count the US figures would have given', async () => {
     const run = await grid(['check', 'loft.json'])
     expect(run.code).toBe(0)
     const [label, place] = run.out.split('\n')
     expect(label).toBe(GENERAL_GUIDANCE_LABEL)
-    expect(place).toMatch(/^No place is stated, so no figure was applied: the US figures would have given \d+ lines?\. State it in the plan as site\.country, or give --country\.$/)
+    expect(place).toMatch(/^No place is stated, so no code figure was applied\. State it in the plan as site\.country, or give --country\.$/)
     expect(run.out).not.toMatch(/room\/escape-window|room\/too-small|Figures these notes used/)
     expect(run.out).toContain('  - Room sizes and escape openings: not run: no place is stated, so no figure was applied.')
     // The count is the lines the same plan gets with the US stated.
@@ -62,14 +62,14 @@ describe('with no place stated', () => {
     expect(withUs.result.place.country).toBe('US')
     expect(without.result.withoutPlace.usLines).toBe(withUs.result.count - without.result.count)
     expect(without.result.withoutPlace.usLines).toBeGreaterThan(0)
-    expect(place).toContain(`would have given ${without.result.withoutPlace.usLines} line`)
+    expect(place).not.toMatch(/US figures/)
   })
 
   it('grid_check says the same in its second line, and gives the place as data', async () => {
     const answer = await tool('grid_check').run({ plan: 'loft.json' }, { project })
     const [label, place] = answer.text.split('\n')
     expect(label).toBe(GENERAL_GUIDANCE_LABEL)
-    expect(place).toMatch(/^No place is stated, so no figure was applied: the US figures would have given \d+ lines?\. State it in the plan as site\.country, or give country\.$/)
+    expect(place).toMatch(/^No place is stated, so no code figure was applied\. State it in the plan as site\.country, or give country\.$/)
     const data = answer.data as { place: unknown; withoutPlace: { usLines: number } }
     expect(data.place).toBeNull()
     expect(data.withoutPlace.usLines).toBeGreaterThan(0)
@@ -128,7 +128,7 @@ describe('a place and a kind of building (COD-3 with CNT-5)', () => {
   it('no place stated and an office: the place line says no place, the lines say the kind of building', async () => {
     writeFileSync(join(dir, 'office.json'), office())
     const run = await grid(['check', 'office.json'])
-    expect(run.out.split('\n')[1]).toMatch(/^No place is stated, so no figure was applied: /)
+    expect(run.out.split('\n')[1]).toMatch(/^No place is stated, so no code figure was applied\./)
     expect(run.out).toContain('[plan/not-checked-sizes-for-building]')
     expect(run.out).toContain('[plan/not-checked-escapes-for-building]')
   })

@@ -147,6 +147,7 @@ is not asked whether it was typed in feet.
 | `wallThickest` | limit | 3 m (1.5 in a home) | A thicker wall is questioned |
 | `wallLowest` | limit | 0.1 m | A lower solid wall is questioned |
 | `wallHighest` | limit | 40 m (10 in a home, 80 in a hall) | A higher wall is questioned |
+| `wallBalustradeHighest` | limit | 2 m | A solid wall lower than this is a balustrade or rail, a little under a door: it is not counted in the typical wall of its floor |
 | `wallHigherThanTypical` | limit | 4 ratio | A wall this many times higher than the typical one on its floor (with three others or more) is questioned |
 | `openingNarrowest` | limit | 0.2 m | A narrower opening is questioned; whether a door is a way through is `passableWidth` |
 | `openingLowest` | limit | 0.2 m | A lower opening is questioned |

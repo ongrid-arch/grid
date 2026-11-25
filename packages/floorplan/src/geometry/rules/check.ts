@@ -186,7 +186,9 @@ function routeFindings(
   doorless: ReadonlySet<string>,
   /** The floors the way out is checked from: the ground floors among them. */
   ground: readonly FloorRoutes[],
-  roomName: (id: string) => string
+  roomName: (id: string) => string,
+  /** ARE-50: the doors in an outside wall of a floor that nobody can pass (too small, or blocked). */
+  cannotPass: (floor: FloorRoutes) => string[]
 ): { findings: RuleFinding[]; wayOutNotDrawn: boolean } {
   const findings: RuleFinding[] = []
   const starts = (pick: (f: FloorRoutes) => readonly { readonly room: string }[]): string[] =>
@@ -202,7 +204,11 @@ function routeFindings(
   const wayOutNotDrawn = exits.length === 0 && undrawn.length > 0
   if (exits.length === 0 && !wayOutNotDrawn) {
     // No exit: one finding for each ground floor, not one per room.
-    for (const floor of ground) findings.push(finding('no_exit', floor.id, [], messages.noExit(floor.name)))
+    for (const floor of ground) {
+      // ARE-50: a door to the outside that cannot be passed is not "no door to the outside": say which.
+      const unusable = cannotPass(floor)
+      findings.push(finding('no_exit', floor.id, [], messages.noExit(floor.name, unusable.length > 0), unusable))
+    }
     // ARE-40: with no way out, no room has a route to one: each room that has a door of some kind
     // fails the route check as well (a room with no door at all is already said to have none).
     for (const floor of floors) {
@@ -652,7 +658,14 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
       stairLinks.filter((l) => memberIds.has(l.ends[0].floor)),
       doorless,
       members.filter((m) => groundIds.has(m.id)),
-      roomName
+      roomName,
+      (member) =>
+        [...member.graph.tooSmall, ...member.graph.blocked]
+          .map((door) => door.opening)
+          .filter((id) => {
+            const wall = plan.walls.find((w) => w.id === plan.openings.find((o) => o.id === id)?.wall)
+            return wall?.kind === 'exterior'
+          })
     )
     findings.push(...found.findings)
     // MSG-17 (lab CH-6): a door onto a courtyard closed in on every side leads to no open air. It

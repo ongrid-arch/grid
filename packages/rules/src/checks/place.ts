@@ -78,12 +78,12 @@ export function placeFor(
   return (options.withoutPlace ?? WITHOUT_PLACE) === 'us-figures' ? { country: 'US', name: countryName('US'), from: 'assumed' } : null
 }
 
-/** COD-3: what a report says when no place is stated: no figure was applied, and how many lines the US figures would have given. */
-export function noPlaceText(usLines: number): string {
-  return messages.noPlace(usLines)
+/** COD-3: what a report says when no place is stated: no figure was applied. The count the US figures would have given stays in the record, not in the sentence. */
+export function noPlaceText(): string {
+  return messages.noPlace()
 }
 
 /** The same, by its key and values (MSG-11), to say in any language. */
-export function noPlaceSaid(usLines: number): Said {
-  return saids.noPlace(usLines)
+export function noPlaceSaid(): Said {
+  return saids.noPlace()
 }

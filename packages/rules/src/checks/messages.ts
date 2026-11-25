@@ -35,8 +35,8 @@ export const saids = {
   noUse: (floor: string, count: number): Said => said('check.noUse', { floor: name(floor), count }),
   /** `country`: Grid's name for the place, from its list (COD-3), never the text it was given. */
   noFiguresForPlace: (what: FigureSubject, country: string): Said => said('check.noFiguresForPlace', { what: said(`check.subject.${SUBJECT_KEY[what]}`), country }),
-  /** COD-3 (lab W-12): no place is stated; `usLines` is how many lines the US figures give on the plan. */
-  noPlace: (usLines: number): Said => said(`check.noPlace.${usLines === 0 ? 'none' : usLines === 1 ? 'one' : 'many'}`, { count: usLines }),
+  /** COD-3 (lab W-12): no place is stated; the sentence no longer counts what the US figures would have given (the record's `withoutPlace.usLines` still does). */
+  noPlace: (): Said => said('check.noPlace'),
   /** MSG-2 (lab CH-4): `count` bedrooms on a floor above the third storey. */
   aboveEscapeStoreys: (floor: string, count: number): Said => said('check.aboveEscapeStoreys', { floor: name(floor), count }),
   /** MSG-2 (lab CH-1): a plan with walls and no rooms. */
@@ -57,7 +57,7 @@ export const wordings = {
   escapeWindowTooHigh: (room: string): WordingPart[] => parts(saids.escapeWindowTooHigh(room)),
   noUse: (floor: string, count: number): WordingPart[] => parts(saids.noUse(floor, count)),
   noFiguresForPlace: (what: FigureSubject, country: string): WordingPart[] => parts(saids.noFiguresForPlace(what, country)),
-  noPlace: (usLines: number): WordingPart[] => parts(saids.noPlace(usLines)),
+  noPlace: (): WordingPart[] => parts(saids.noPlace()),
   aboveEscapeStoreys: (floor: string, count: number): WordingPart[] => parts(saids.aboveEscapeStoreys(floor, count)),
   noRooms: (): WordingPart[] => parts(saids.noRooms()),
   notForBuilding: (what: FigureSubject, readFor: Value, building: Value): WordingPart[] => parts(saids.notForBuilding(what, readFor, building)),
@@ -73,7 +73,7 @@ export const messages = {
   escapeWindowTooHigh: (room: string): string => english(saids.escapeWindowTooHigh(room)),
   noUse: (floor: string, count: number): string => english(saids.noUse(floor, count)),
   noFiguresForPlace: (what: FigureSubject, country: string): string => english(saids.noFiguresForPlace(what, country)),
-  noPlace: (usLines: number): string => english(saids.noPlace(usLines)),
+  noPlace: (): string => english(saids.noPlace()),
   aboveEscapeStoreys: (floor: string, count: number): string => english(saids.aboveEscapeStoreys(floor, count)),
   noRooms: (): string => english(saids.noRooms()),
   notForBuilding: (what: FigureSubject, readFor: Value, building: Value): string => english(saids.notForBuilding(what, readFor, building)),
