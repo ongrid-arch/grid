@@ -340,6 +340,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and MSG-19 3: the seen file's refusals (seen/marks.ts).
     // and WRT-28 3: the flats lines of a merge (edit/merge.ts) (odd/tasks/WRT-28.md).
     // and WRT-33 3: the merge's stale type and doubled door lines (edit/merge.ts, mcp/editTools.ts).
+    // and WRT-50 1: the merge refuses rooms that meet in more than one outline (edit/merge.ts).
     // and CNT-27 2: a shaft counted once in the brief, the schedule CSV's column for rows in no total.
     // and CNT-31 3: the estimate's roof edges' rule and line, and why a roof is left out (estimate.ts).
     // and WRT-38 4: one wall's thickness, its receipt and refusals (edit/edits.ts).
@@ -347,7 +348,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and ARE-44 3: the step line's floor-level and ground-step lines (brief/lines.ts).
     // and ARE-48 5: the keep-apart line's ways between the rooms (brief/lines.ts).
     // and 3 more from the same merge (CMD-25, CNT-37 and CMD-26 each raised the cap on their own).
-    expect(left).toBeLessThanOrEqual(1632)
+    expect(left).toBeLessThanOrEqual(1633)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
