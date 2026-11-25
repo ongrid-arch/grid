@@ -219,10 +219,11 @@ function cutFloor(plan: FloorPlan, floorId: string, walls: readonly Wall[], cand
     // CNT-19: a parking bay by its own floor. A ramp, as a stair, is kept whole on every slice.
     ...(plan.bays !== undefined && { bays: plan.bays.filter((bay) => floorOf(bay) === floorId) }),
     // SHT-7: a sketch item by its own floor; a note by its room's, or its own when at a point.
+    // VEW-55: a key belongs to no floor, so every floor's drawing carries it.
     ...(plan.sketch !== undefined && { sketch: plan.sketch.filter((item) => floorOf(item) === floorId) }),
     ...(plan.annotations !== undefined && {
       annotations: plan.annotations.filter((note) =>
-        note.room !== undefined ? plan.rooms.some((room) => room.id === note.room && floorOf(room) === floorId) : floorOf(note) === floorId
+        note.kind === 'key' ? true : note.room !== undefined ? plan.rooms.some((room) => room.id === note.room && floorOf(room) === floorId) : floorOf(note) === floorId
       )
     })
   }

@@ -2358,7 +2358,7 @@ export const en = {
   'drawing.key.door': 'Door, and the way it opens',
   'drawing.key.above': 'Above: the floor over this one',
   'drawing.key.use': 'Room: {use}',
-  'drawing.key.sketch': 'Sketch: {category}, drawn only',
+  'drawing.key.sketch': '{category}',
   'drawing.key.assumed': 'Assumed, to confirm with the person',
   'drawing.key.marks': 'Something to look at, numbered as in the check',
   'drawing.faults.none': 'Nothing to look at on this floor.',

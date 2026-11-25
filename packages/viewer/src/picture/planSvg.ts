@@ -524,7 +524,7 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
   const marked = on('warnings') && faults.length > 0
   const entries = keyed ? keyEntries(drawing, look.colors, { swings: on('swings'), sketch: on('sketch'), uses: shownUses, marks: marked, above: (above?.lines.length ?? 0) > 0, painted, phases: look.phases, walls: look.walls.fill, useFills: look.tints.uses, finishes: shownFinishes, materials: shownMaterials }, words) : []
   // VEW-17: a note's words are in the band, numbered; its mark on the plan carries the number.
-  const noteWords = on('notes') ? numberedNotes(drawing.notes).map((note) => note.text ?? '') : []
+  const noteWords = numberedNotes(on('notes') ? drawing.notes : drawing.notes.filter((note) => note.kind !== 'note')).map((note) => note.text ?? '')
   const writing = writingBand(title, entries, width, look.colors, words, noteWords)
   const listed = options.faults === undefined || !on('warnings') ? null : faultKey(faults, all.length - faults.length, width, look.colors, words)
   // VEW-13: the rooms written as their numbers, and their names, unless the key is turned off.
