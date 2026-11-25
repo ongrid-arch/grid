@@ -166,9 +166,10 @@ A room says what it is for with `use`, one of 27:
 The person's own word for a room is its `name`: "Pooja room", "Bryggers", "Open office (12
 desks)". A use is read whatever its capitals, and a word that plainly means a use is read as it
 (`USE_WORDS` in `packages/floorplan/src/types/floorplan.ts`): `WC` is `toilet`, `staff room` is
-`staff`, `warehouse` is `storage`, `bryggers` is `utility`, `pooja room` is `worship`. No word
-is read as `bedroom`, `living` or `dining`, the uses the figure checks look at, so a room comes
-under them only by its author's choice: `lounge` and `living room` give a `plan/unknown-use`
+`staff`, `warehouse` is `storage`, `bryggers` is `utility`, `pooja room` is `worship`. No English
+word is read as `bedroom`, `living` or `dining`, the uses the figure checks look at, so a room comes
+under them only by its author's choice (a use's own name in another language, `dormitorio`,
+`Schlafzimmer`, `卧室`, is that choice made in the author's words, see [Units](#units)): `lounge` and `living room` give a `plan/unknown-use`
 line that suggests `living`. A word that means two things (`hall`, `studio`) is not read either.
 Any other word is read as no use stated, with a line that names it.
 
@@ -221,8 +222,11 @@ the edge, chosen per person:
   tables and drawings, follow the display. The check's report and the edit answers are still in
   metres; the check's report and the sheet follow its language and decimal mark (MSG-11). The
   exports stay in metres and say so in the file, as DXF, IFC and glTF expect. A room's `use` may
-  be written by its label in a language Grid writes (`dormitorio` is `bedroom`); its `name` is
-  never translated.
+  be written by its label in a language Grid writes (`dormitorio` is `bedroom`), or by a word for
+  it in Spanish, German, French or Chinese (MSG-22, `USE_WORDS_BY_LANGUAGE` in
+  `packages/floorplan/src/messages/uses.ts`: `cocineta`, `Flur`, `chambre`, `卧室`); its `name` is
+  never translated. A `language` with a region (`es-MX`, `es-ES`) is read as its language. A plan
+  with no `floors` stands on one floor Grid names in its language: "Ground floor", "Planta baja".
 
 ## Floor levels and heights
 

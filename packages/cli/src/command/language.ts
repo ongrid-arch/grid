@@ -4,6 +4,8 @@
  * are loaded before anything is said in it.
  */
 import { DEFAULT_LANGUAGE, LANGUAGES, loadLanguage, readLanguage, type Language } from '@ongrid/floorplan/messages'
+import { spokenIn } from '@ongrid/floorplan/geometry'
+import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { UsageError, type OptionSpecs } from './options'
 
 export const LANG_OPTION: OptionSpecs = {
@@ -23,4 +25,14 @@ export async function languageFor(asked: Language | undefined, plan?: { readonly
   const language = asked ?? plan?.display?.language ?? DEFAULT_LANGUAGE
   await loadLanguage(language)
   return language
+}
+
+/**
+ * MSG-22: the plan as read in the language a command or a tool writes in, so the floor it names in
+ * no list is named in that language (`spokenIn`). The plan as stated goes with it.
+ */
+export function spokenPlan<T extends { readonly plan: FloorPlan; readonly stated?: FloorPlan | undefined }>(loaded: T, language: Language): T {
+  const plan = spokenIn(loaded.plan, language)
+  if (plan === loaded.plan) return loaded
+  return { ...loaded, plan, ...(loaded.stated === undefined ? {} : { stated: spokenIn(loaded.stated, language) }) }
 }

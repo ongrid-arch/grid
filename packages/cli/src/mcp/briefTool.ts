@@ -50,7 +50,7 @@ const BRIEF_SCHEMA = {
         type: 'object',
         properties: {
           name: { ...NAME, description: 'One room, by the name it will have in the plan.' },
-          use: { type: 'string', enum: ROOM_USES, description: 'Or the rooms of a use, with count for how many.' },
+          use: { type: 'string', maxLength: 64, description: `Or the rooms of a use, with count for how many: one of ${ROOM_USES.join(', ')}, or a word that plainly means one in the person's language (cocina), kept as that use.` },
           count: { type: 'integer', minimum: 0, maximum: 1000, description: 'How many rooms of that name or use.' },
           area: { ...SIZE, description: 'About this net area, m².' },
           at_least: { ...SIZE, description: 'A net area of at least this, m².' },

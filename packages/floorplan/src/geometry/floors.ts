@@ -14,9 +14,28 @@ import { DEFAULT_FLOOR_ID, type BuildingType, type Floor } from '../types/floorp
 import type { FloorPlan, Opening, Wall } from './plan'
 import { hasWallsThrough, storeyWalls, throughFloorParts, wallStandsOn } from './through'
 import { sliceColumns } from './columns'
+import { DEFAULT_LANGUAGE, GROUND_FLOOR_NAME, type Language } from '../messages/languages'
 
-/** The floor every entity belongs to until it says otherwise. */
-export const DEFAULT_FLOOR: Floor = { id: DEFAULT_FLOOR_ID, name: 'Ground floor', level: 0 }
+/** The floor every entity belongs to until it says otherwise, named in English. */
+export const DEFAULT_FLOOR: Floor = { id: DEFAULT_FLOOR_ID, name: GROUND_FLOOR_NAME.en, level: 0 }
+
+/** MSG-22: the floor every entity belongs to, named in the plan's language (`display.language`). */
+export function groundFloor(plan: Pick<FloorPlan, 'display'>): Floor {
+  const language = plan.display?.language ?? DEFAULT_LANGUAGE
+  return language === DEFAULT_LANGUAGE ? DEFAULT_FLOOR : { ...DEFAULT_FLOOR, name: GROUND_FLOOR_NAME[language] }
+}
+
+/**
+ * MSG-22: the plan as read in a language asked of a command or a tool, so the floor it names in
+ * no list (`groundFloor`) is named in that language. The same plan when the language is the
+ * plan's own, or when every floor it stands on has its own name. Nothing else changes: the
+ * display's language is the one the words are written in anyway.
+ */
+export function spokenIn<T extends FloorPlan>(plan: T, language: Language | undefined): T {
+  if (language === undefined || language === (plan.display?.language ?? DEFAULT_LANGUAGE)) return plan
+  if ((plan.floors ?? []).some((floor) => floor.id === DEFAULT_FLOOR_ID)) return plan
+  return { ...plan, display: { ...plan.display, language } }
+}
 
 /** The floor an entity belongs to. Unstated means the ground floor (C5). */
 export function floorOf(entity: { readonly floor?: string }): string {
@@ -56,11 +75,11 @@ export function planFloors(plan: FloorPlan): Floor[] {
     if (seen.has(id)) continue
     seen.add(id)
     // No registry entry, so no name of its own. The id is the best label there is.
-    derived.push(id === DEFAULT_FLOOR_ID ? DEFAULT_FLOOR : { id, name: id, level: 0 })
+    derived.push(id === DEFAULT_FLOOR_ID ? groundFloor(plan) : { id, name: id, level: 0 })
   }
 
   const all = [...registry, ...derived]
-  return all.length > 0 ? all : [DEFAULT_FLOOR]
+  return all.length > 0 ? all : [groundFloor(plan)]
 }
 
 /**

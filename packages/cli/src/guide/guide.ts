@@ -13,6 +13,7 @@
  * Pure: it builds text and touches no file.
  */
 import { ROOM_USES, USE_WORDS } from '@ongrid/floorplan/types/floorplan'
+import { USE_LABELS, USE_WORDS_BY_LANGUAGE } from '@ongrid/floorplan/messages'
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import {
   BRIEF_FIRST,
@@ -125,14 +126,21 @@ export const SMALLEST_PLAN_FILE = `{
   ]
 }`
 
-/** The words Grid reads as each use, from `USE_WORDS`. */
+/** The words Grid reads as each use, from `USE_WORDS`; MSG-22: and in other languages, from `USE_LABELS` and `USE_WORDS_BY_LANGUAGE`. */
 function usesTable(): string[] {
   const words = new Map<string, string[]>()
   for (const [word, use] of Object.entries(USE_WORDS)) words.set(use, [...(words.get(use) ?? []), word])
+  const other = new Map<string, string[]>()
+  const add = (use: string, word: string): void => {
+    if (!(other.get(use) ?? []).includes(word)) other.set(use, [...(other.get(use) ?? []), word])
+  }
+  for (const [language, labels] of Object.entries(USE_LABELS)) if (language !== 'en') for (const [use, label] of Object.entries(labels)) add(use, label)
+  for (const byWord of Object.values(USE_WORDS_BY_LANGUAGE)) for (const [word, use] of Object.entries(byWord)) add(use, word)
+  const listed = (list: readonly string[] | undefined): string => (list ?? []).map((w) => `\`${w}\``).join(', ')
   return [
-    '| Use | Also read as this use |',
-    '|---|---|',
-    ...ROOM_USES.map((use) => `| \`${use}\` | ${(words.get(use) ?? []).map((w) => `\`${w}\``).join(', ') || '(only this word)'} |`),
+    '| Use | Also read as this use | In other languages |',
+    '|---|---|---|',
+    ...ROOM_USES.map((use) => `| \`${use}\` | ${listed(words.get(use)) || '(only this word)'} | ${listed(other.get(use))} |`),
   ]
 }
 
@@ -189,7 +197,7 @@ export function agentGuide(): string {
     '',
     '### Which word is the use for an office, a toilet or a stair?',
     '',
-    'The word after a room\'s name is its use, one of the words in the table below. A word in the right-hand column is read as the use on its row, in any capitals (`WC` is `toilet`), and `-` means no use. The room\'s name keeps the person\'s own word: `room wc1 "Guest loo" toilet`. A word Grid does not read is named in a note and the room is read with no use, so some checks skip it. No other word is read as `bedroom`, `living` or `dining`: the room size checks look at those, so only you choose them. `building office` on its own line says what kind of building the plan is; a floor line takes `building shop` for one floor.',
+    'The word after a room\'s name is its use, one of the words in the table below. A word in the right-hand column is read as the use on its row, in any capitals (`WC` is `toilet`), and `-` means no use. The room\'s name keeps the person\'s own word: `room wc1 "Guest loo" toilet`. The right-hand column holds the words read in other languages, Spanish, German, French and Chinese (`cocina`, `Flur`, `chambre`, `卧室`): each is a use\'s own name or a word that means it and nothing else. In a plan file, a word Grid does not read is named in a note and the room is read with no use, so some checks skip it; rooms text refuses it on its line, with the uses it takes. No other word is read as `bedroom`, `living` or `dining`: the room size checks look at those, so only you choose them, in your own language or Grid\'s. `building office` on its own line says what kind of building the plan is; a floor line takes `building shop` for one floor.',
     '',
     ...usesTable(),
     '',

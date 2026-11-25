@@ -45,6 +45,22 @@ says otherwise. Lengths stay as the display states them, on the sheet too (in Sp
 feet and inches reads `8'-6" de alto` and its square metres `62,4 m²`); the check's figures stay in
 metres.
 
+## Words of the person's language
+
+- The floor a plan with no floor list stands on is named in the language Grid writes in
+  (`GROUND_FLOOR_NAME` in `languages.ts`): "Ground floor", "Planta baja". A floor the plan names
+  keeps its own name. A command or a tool asked for a language reads the plan through `spokenIn`
+  (`geometry/floors.ts`), so the name follows the language asked for too (MSG-22). The check's
+  record does not: its values, the floor's name among them, are the same in every language.
+- A language with a region, `es-MX` or `es-ES`, is its language (`readLanguage`), on the command
+  line, in a tool's `language` and in the plan's `display.language`.
+- A room's use may be written in the person's own words, in Spanish, German, French or Chinese
+  (`USE_WORDS_BY_LANGUAGE` in `uses.ts`), and is read as the use wherever a use is given. Each word
+  means one use and nothing else; a word that means two things (`sala`, `entrée`) is left out.
+  These words are Grid's own choice, not reviewed by a speaker of each language.
+- An id is plain letters, digits, `-`, `_` and `.`: rooms text takes the accents off one, and a
+  tool reads an id given with accents the same way (`plainId` in `types/planText.ts`).
+
 ## Adding or changing a sentence
 
 1. Add the key to `en.ts`, with its placeholders, in plain English. Never anything that reads as

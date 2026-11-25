@@ -12,7 +12,7 @@ import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, setti
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
 import { causeText, checkPlan, checkTitle, countsText, coverageSummary, firmHeadingText, firmNoNoteText, firmSectionTitle, firmStandardsText, kindWord, limitsText, nothingCheckedText, partsText, placeText, type PlaceWords, problemsText, readForText, restText, ruleText, seenBeforeText, seenByText, seenCount, thingText, usedFigures, withSeen, type CheckResult } from '../command/check'
-import { askedLanguage, languageFor } from '../command/language'
+import { askedLanguage, languageFor, spokenPlan } from '../command/language'
 import { inLanguage, t, tv } from '../command/words'
 import { LANGUAGES, english, joined, name, num, said, say, type Language, type MessageKey } from '@ongrid/floorplan/messages'
 import { readSeen, type SeenState } from '../seen/marks'
@@ -236,9 +236,9 @@ function comparisonLines(c: Comparison): string[] {
 /** MSG-11: the language Grid writes its words in; the codes and values are the same in every language. */
 export const LANGUAGE_ARG: ArgSpec = {
   type: 'string',
-  enum: [...LANGUAGES],
-  description: "The language Grid writes its own words in: the label, each line's message, found, needed and fix, and the report. The plan's own display.language when left out, else en. Codes and values are the same in every language; room names stay as written.",
-  examples: ['es']
+  maxLength: 35,
+  description: `The language Grid writes its own words in: ${LANGUAGES.join(' or ')}, alone or with a region (es-MX is es). The label, each line's message, found, needed and fix, and the report. The plan's own display.language when left out, else en. Codes and values are the same in every language; room names stay as written.`,
+  examples: ['es', 'es-MX']
 }
 
 const compareTool: GridTool = {
@@ -2145,7 +2145,11 @@ const viewTool: GridTool = {
   },
   outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' } }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes']),
   async run(args, context) {
-    const { project, loaded } = readPlan(context, args['plan'])
+    const { project, loaded: read } = readPlan(context, args['plan'])
+    // MSG-11: the drawing's own words in the language asked for, else the plan's own. MSG-22: the
+    // floor the plan names in no list, named in it.
+    const language = await languageFor(askedLanguage(args['language'], 'language'), read.plan)
+    const loaded = spokenPlan(read, language)
     const survey = surveyPlan(loaded.plan)
     const floor = floorArg(loaded.plan, args['floor'])
     const kind = args['kind'] as 'plan' | 'facade' | '3d' | 'eye' | 'section'
@@ -2159,8 +2163,6 @@ const viewTool: GridTool = {
     const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
     const plan = survey.plan
-    // MSG-11: the drawing's own words in the language asked for, else the plan's own.
-    const language = await languageFor(askedLanguage(args['language'], 'language'), loaded.plan)
     const inTongue = language === 'en' ? {} : { language }
     // VEW-20: a section or a facade writes its levels in the units asked for, else the plan's display.
     const levelDisplay = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
@@ -2379,9 +2381,11 @@ const describeTool: GridTool = {
     if (args['as'] !== undefined && (args['length'] !== undefined || args['for'] !== undefined || args['floor'] !== undefined || args['pictures'] !== undefined)) {
       throw new ToolRefusal('as=rooms reads the plan back as rooms text, which has no length or for: leave them out.')
     }
-    const { loaded } = readPlan(context, args['plan'])
+    const { loaded: read } = readPlan(context, args['plan'])
     // MSG-11: the description in the language asked for, else the plan's own.
-    const language = await languageFor(askedLanguage(args['language'], 'language'), loaded.plan)
+    const language = await languageFor(askedLanguage(args['language'], 'language'), read.plan)
+    // MSG-22: the floor the plan names in no list, named in that language.
+    const loaded = spokenPlan(read, language)
     if (args['as'] === 'rooms') {
       const text = describeRooms(loaded, { language })
       return { text, data: { length: null, for: null, as: 'rooms', text } }
