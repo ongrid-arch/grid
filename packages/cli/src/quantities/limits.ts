@@ -116,7 +116,7 @@ export function siteLimits(plan: FloorPlan, figures: readonly FigureWish[], disp
 
   const measure = (wish: FigureWish): Measured => {
     if (wish.figure === 'plot_coverage') {
-      const rule = 'the building seen from above, every floor at or above the ground floor, inside the plot\'s boundary, over the plot\'s area'
+      const rule = 'the building seen from above, every floor at or above the ground floor, open outdoor space left out, inside the plot\'s boundary, over the plot\'s area'
       if (plot === null) return { used: null, unit: '%', rule, why: noPlot, assumed: null }
       if (site.coverage === null || site.covered === null) return { used: null, unit: '%', rule, why: site.why ?? 'the building has no outline to measure', assumed: null }
       return { used: site.coverage * 100, unit: '%', rule: `${rule}: ${A(site.covered)} over ${A(plot)}`, why: null, assumed: null }
