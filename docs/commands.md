@@ -946,7 +946,7 @@ Its figures, tables and drawings are in the plan's `display`, the person's own u
 inches with square feet, millimetres, a decimal comma), and in metres when the plan has none
 ([Units](plan-file.md#units)). The findings are in metres.
 
-The words of a client sheet are the author's, in `sheet.json` beside the plan, or the file
+The words of a client sheet are the author's, in `<plan>.sheet.json` beside the plan (`house.json` reads `house.sheet.json`; `plan.json` also reads an older `sheet.json`), or the file
 `--sheet` names:
 
 ```json

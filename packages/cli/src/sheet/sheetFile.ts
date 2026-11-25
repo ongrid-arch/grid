@@ -1,7 +1,7 @@
 /**
- * VEW-7: the files of `grid sheet` and `grid_sheet`. The words are read from `sheet.json`
- * beside the plan, or from the file named; the PDF goes into `exports/` beside the plan, or to
- * the file named. Every file goes through the project (`projectFiles.ts`).
+ * VEW-7: the files of `grid sheet` and `grid_sheet`. The words are read from the plan's own
+ * `<plan>.sheet.json` beside it (SHT-17; `plan.json` also reads an older `sheet.json`), or from
+ * the file named; the PDF goes into `exports/` beside the plan, or to the file named. Every file goes through the project (`projectFiles.ts`).
  */
 import path from 'path'
 import { planFloors } from '@ongrid/floorplan/geometry'
@@ -22,6 +22,7 @@ import type { DrawingRequest, DrawingSheet } from './drawingSheet'
 import { PAPER_NAMES, SCALE_MAX, scaleText, type PaperName } from './drawingPapers'
 
 export const SHEET_FILE = 'sheet.json'
+export const SHEET_SUFFIX = '.sheet.json'
 const SHEET_FILE_MAX_BYTES = 64 * 1024
 
 /**
@@ -136,14 +137,29 @@ function readSheetFile(project: Project, file: string, shown: string, mayBeMissi
   }
 }
 
+/** SHT-17: the words file of a plan file, beside it: its name without `.json`, then `.sheet.json`. */
+export function sheetFileOf(planFile: string): string {
+  const name = path.basename(planFile)
+  const base = name.toLowerCase().endsWith('.json') ? name.slice(0, -'.json'.length) : name
+  return path.join(path.dirname(planFile), `${base}${SHEET_SUFFIX}`)
+}
+
 /**
- * The words for a client sheet: the file named, else `sheet.json` beside the plan, else none.
- * A file named is called what it was named; the one beside the plan, by its path in the project.
+ * The words for a client sheet: the file named, else the plan's own `<plan>.sheet.json` beside
+ * it, else none. Only the project's own plan, `plan.json`, also reads the older shared
+ * `sheet.json`, so another plan in the folder never gets its words. A file named is called what
+ * it was named; the one beside the plan, by its path in the project.
  */
 export function readSheetWords(project: Project, planFile: string, loaded: LoadedPlan, given: string | undefined): SheetWords | null {
-  const file = given ?? path.join(path.dirname(planFile), SHEET_FILE)
-  const shown = given ?? project.relative(project.resolve(file))
-  const text = readSheetFile(project, file, shown, given === undefined)
+  const candidates = given !== undefined ? [given] : [sheetFileOf(planFile)]
+  if (given === undefined && path.basename(planFile).toLowerCase() === 'plan.json') candidates.push(path.join(path.dirname(planFile), SHEET_FILE))
+  let shown = given ?? ''
+  let text: string | null = null
+  for (const file of candidates) {
+    shown = given ?? project.relative(project.resolve(file))
+    text = readSheetFile(project, file, shown, given === undefined)
+    if (text !== null) break
+  }
   if (text === null) return null
   let raw: unknown
   try {

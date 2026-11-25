@@ -158,7 +158,7 @@ const sheetTool: GridTool = {
   hint: 'write-file',
   description:
     'Use this when the person wants the plan as a PDF to read, print or send: layout client for the person the house is for (a cover with the 3D model and key figures, then a page per floor with its drawing and room areas), or layout check for whoever checks the plan (every id, every room\'s use, and what grid check finds on each floor). '
-    + 'The words of a client sheet (name, headline, intro, a few paragraphs per floor) are yours to write: pass them as sheet, or Grid reads sheet.json beside the plan. The name is the one the person gave the building, else the plan\'s; never a name from an example. Grid draws only what the plan holds: no furniture or landscape. Every page carries "General guidance, not your local rules". '
+    + 'The words of a client sheet (name, headline, intro, a few paragraphs per floor) are yours to write: pass them as sheet, or Grid reads <plan>.sheet.json beside the plan. The name is the one the person gave the building, else the plan\'s; never a name from an example. Grid draws only what the plan holds: no furniture or landscape. Every page carries "General guidance, not your local rules". '
     + 'It writes the PDF into the exports folder beside the plan, replacing an earlier sheet of the same name and layout, and answers with the path and what is on each page. It never changes the plan. '
     + `${ROOM_NAMES_TRAVEL} `
     + 'Layout drawing (SHT-6) is one floor to print and measure: drawn at a true scale (scale, N in 1:N) on a paper (A4 to A0), in black on white with walls joined, dimensions along the walls and room sizes, with a scale bar, a caption, north, a title block and the label; it writes a vector PDF, an SVG and a PNG, and returns the PNG to look at. Left out, the scale is the largest of 1:100, 1:200 and 1:500 the floor fits and the paper the smallest; a floor too large for the paper asked for is refused with what fits. '
@@ -168,7 +168,7 @@ const sheetTool: GridTool = {
     layout: { type: 'string', required: true, enum: ['client', 'check', 'drawing'], description: 'client, check, or drawing for one floor at a true scale.', examples: ['client', 'check', 'drawing'] },
     sheet: {
       type: 'object',
-      description: 'Client only: the words, as sheet.json holds them. sheet.json beside the plan is read when left out.',
+      description: 'Client only: the words, as the sheet file holds them. <plan>.sheet.json beside the plan is read when left out.',
       examples: [{ version: '1', name: 'Example House', headline: 'A private retreat for one', intro: ['A two-storey home for work and rest.'], floors: { ground: ['The study sits beside the entry.'] } }],
       schema: sheetWordsJsonSchema(),
       // The shape and limits here; the plan's floor ids in run(), where the plan is known.
