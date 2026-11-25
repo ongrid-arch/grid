@@ -688,7 +688,7 @@ export const TOLERANCES = {
   },
   windowGlassKept: {
     kind: 'limit',
-    value: 1.0,
+    value: 1.2,
     unit: 'm',
     decides:
       'Grid\'s own size, not a code figure. How much of a window\'s height must stay clear above ' +
