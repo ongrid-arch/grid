@@ -24,7 +24,8 @@
  *   core's (`slabOutline`): the floor with every wall, and the building alone (`buildingPlan`). So a
  *   porch's front, a terrace's parapet, a stair enclosure on a roof terrace and a front set back
  *   behind a terrace are seen. A wall found along two of them is drawn once, whole;
- * - **each floor's slab edge**, the band it stands on, under its walls; **each roof's edge** over
+ * - **each floor's slab edge**, the band it stands on, under its walls, only where the floor states
+ *   its slab's thickness (VEW-29); otherwise its walls stand down over the edge; **each roof's edge** over
  *   the parts with nothing above, and **each parapet** on it (LVL-4);
  * - **the plinth** under a floor on the ground whose slab stands clear of the ground (VEW-16,
  *   `plinthUnder`): a band along the same edges as its slab's, from the ground up to the slab, so
@@ -376,11 +377,11 @@ function openingsIn(
  * back along its top: level at its height, or, under a roof the floor states (LVL-6), the top the
  * roof leaves it (`wallTopProfile`), turning where it turns.
  */
-function wallPoints(plan: FloorPlan, wall: Wall, edge: { a: Vec2; e: Vec2 }, stretch: { t0: number; t1: number }, floorLevel: number): Seen['points'] {
+function wallPoints(plan: FloorPlan, wall: Wall, edge: { a: Vec2; e: Vec2 }, stretch: { t0: number; t1: number }, floorLevel: number, drop = 0): Seen['points'] {
   const point = (t: number): Vec2 => ({ x: edge.a.x + edge.e.x * t, y: edge.a.y + edge.e.y * t })
   const a = point(stretch.t0)
   const b = point(stretch.t1)
-  const bottom = [{ p: a, z: floorLevel }, { p: b, z: floorLevel }]
+  const bottom = [{ p: a, z: floorLevel - drop }, { p: b, z: floorLevel - drop }]
   const profile = wallTopProfile(plan, wall)
   if (profile === null) return [...bottom, { p: b, z: floorLevel + wall.height }, { p: a, z: floorLevel + wall.height }]
   const sx = wall.start[0]
@@ -566,6 +567,11 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
       openingsOf.set(opening.wall, [...(openingsOf.get(opening.wall) ?? []), opening])
     }
     const edges = edgesFacing(env.outline, direction)
+    // VEW-29: a slab's edge is a band of its own only where its thickness is stated; unstated, the
+    // wall above it stands down over the edge, as brick and render do, with no string course.
+    const bandStated = env.slab !== null && env.slab.thicknessStated
+    // A base slab lies on the ground: the wall stays on it.
+    const bandDrop = env.slab !== null && !bandStated && env.slab.kind === 'floor' ? env.slab.thickness : 0
     // VEW-25: on a floor with outdoor space (C26), the slab's outline leaves out the walls round
     // outdoor space alone (a porch's front, a terrace's parapet) and takes a terrace in, so the
     // building's own front behind it lies inside. The walls are also read along the floor's
@@ -583,7 +589,7 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
             kind: 'wall',
             floor: floor.id,
             wall: stretch.wall.id,
-            points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel),
+            points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel, bandDrop),
             openings: openingsIn(stretch.wall, openingsOf.get(stretch.wall.id) ?? [], edge, stretch, across, storey.floorLevel)
           })
         }
@@ -591,7 +597,7 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
     }
     if (env.slab !== null) {
       const { top, thickness } = env.slab
-      for (const edge of edges) add({ kind: 'slab', floor: floor.id, wall: null, points: band(edge.a, edge.b, top - thickness, top - thickness, thickness), openings: [] })
+      if (bandStated) for (const edge of edges) add({ kind: 'slab', floor: floor.id, wall: null, points: band(edge.a, edge.b, top - thickness, top - thickness, thickness), openings: [] })
       // VEW-16: down to the ground the site states, under a floor whose slab stands clear of it.
       const plinth = plinthUnder(env.slab, ground.level)
       if (plinth !== null) {
