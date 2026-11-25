@@ -90,7 +90,7 @@ describe('a start marker, an edit and grid diff, in a folder with no git (done-w
       expect(reply.image).toBe(true)
       expect(reply.text).toContain('Verdict:')
       expect(reply.text).toContain('door-bed1')
-      expect(reply.text).toContain('removed in red, added in green, changed rooms in amber')
+      expect(reply.text).toContain('removed in red, added in green, what changed in amber (a wall or opening at its new place with its old place outlined')
       expect(reply.data).toMatchObject({ sameBuilding: false, since: { kind: 'marker', name: 'start' }, changes: [], picture: { floor: 'ground' } })
       const none = await b.call('grid_diff', { picture: false, show: 'issues' })
       expect(none.image).toBe(false)
@@ -253,5 +253,27 @@ describe.skipIf(!gitThere)('the last committed version, read from the project\'s
     const run = await grid(dir, 'diff', 'plan.json', '--since', 'git')
     expect(run.status).toBe(1)
     expect(run.err).toContain('"plan.json" is not in the last commit')
+  })
+})
+
+describe('openings on a wall that moved (WRT-12)', () => {
+  it('says, after a side moved 0.5 m east, that its windows moved with their wall and none stayed', async () => {
+    const b = bench({ 'plan.json': JSON.parse(flat) as unknown })
+    try {
+      expect((await b.call('grid_mark_start', {})).isError).toBe(false)
+      const edit = await b.call('grid_move_room_side', { room: 'bed1', side: 'east', by: 0.5 })
+      expect(edit.isError, edit.text).toBe(false)
+      const reply = await b.call('grid_diff', { picture: false })
+      expect(reply.isError, reply.text).toBe(false)
+      expect(reply.text).toContain('Openings that moved with their wall or room (2):\n  Window "win-bath" moved with its wall, 0.50 m east on the drawing, in "Bathroom"\n  Window "win-bed2" moved with its wall, 0.50 m east on the drawing, in "Bedroom 2"')
+      expect(reply.text).not.toContain('stayed where it was')
+      expect(reply.text).toContain('2 openings moved with their walls')
+      const data = reply.data as { stayed: unknown[]; movedWith: Array<{ opening: string; with: string; by: number[] }> }
+      expect(data.stayed).toEqual([])
+      expect(data.movedWith.map((m) => [m.opening, m.with])).toEqual([['win-bath', 'wall'], ['win-bed2', 'wall']])
+      expect(data.movedWith[0]!.by[0]).toBeCloseTo(0.5, 6)
+    } finally {
+      b.close()
+    }
   })
 })

@@ -109,3 +109,59 @@ describe('a facade as a picture', () => {
     expect(tags(svg, 'facade-ground')).toEqual([])
   })
 })
+
+describe('a sloped roof drawn as a roof (VEW-12)', () => {
+  /** Two floors, 10 m by 7 m, under a gable whose ridge runs east to west. */
+  const gableHouse = (): FloorPlan =>
+    parseFloorPlan({
+      version: '1',
+      floors: [
+        { id: 'ground', name: 'Ground floor', level: 0 },
+        { id: 'first', name: 'First floor', level: 1, roof: { shape: 'gable', eaves: 2.6, pitch: 40, ridgeRuns: 'east-west' } },
+      ],
+      walls: [
+        wall('gs', [0, 0], [10, 0], 'ground'), wall('ge', [10, 0], [10, 7], 'ground'), wall('gn', [10, 7], [0, 7], 'ground'), wall('gw', [0, 7], [0, 0], 'ground'),
+        wall('fs', [0, 0], [10, 0], 'first'), wall('fe', [10, 0], [10, 7], 'first'), wall('fn', [10, 7], [0, 7], 'first'), wall('fw', [0, 7], [0, 0], 'first'),
+      ],
+      rooms: [
+        { id: 'g', name: 'Living', boundary: ['gs', 'ge', 'gn', 'gw'], floor: 'ground' },
+        { id: 'f', name: 'Bedroom', boundary: ['fs', 'fe', 'fn', 'fw'], floor: 'first' },
+      ],
+      openings: [],
+    })
+  /** The SVG of the face groups of one kind, each whole. */
+  const groups = (svg: string, kind: string): string[] => [...svg.matchAll(new RegExp(`<g data-part="facade-face" data-kind="${kind}"[^>]*>(?:(?!<g data-part="facade-face").)*`, 'gs'))].map((m) => m[0])
+  const ys = (tag: string): number[] => ['y1', 'y2'].map((a) => Number(new RegExp(`${a}="([^"]+)"`).exec(tag)![1]))
+
+  for (const look of ['technical', 'working'] as const) {
+    it(`draws the plane facing the eaves with its covering, ridge, verges and eaves, in the ${look} look`, () => {
+      const picture = facadePicture(gableHouse(), { side: 'south', look })
+      const plane = picture.facade.faces.find((f) => f.kind === 'roof-plane')!
+      const svg = pictureToSvg(picture)
+      const [group] = groups(svg, 'roof-plane')
+      expect(group).toBeDefined()
+      // The covering: level courses across the plane, every one inside it, between its eaves and its ridge.
+      const courses = tags(group!, 'facade-roof-course')
+      expect(courses.length).toBeGreaterThan(5)
+      for (const course of courses) {
+        const [y1, y2] = ys(course)
+        expect(y1).toBe(y2)
+        expect(-y1!).toBeGreaterThanOrEqual(plane.bottom - 1e-6)
+        expect(-y1!).toBeLessThanOrEqual(plane.top + 1e-6)
+      }
+      expect(tags(group!, 'facade-roof-ridge')).toHaveLength(1)
+      expect(tags(group!, 'facade-roof-verge')).toHaveLength(2)
+      expect(tags(group!, 'facade-roof-eaves')).toHaveLength(1)
+      // The gutter along the eaves, in the fascia's own group so a nearer face still hides it.
+      const fascia = groups(svg, 'roof').filter((g) => g.includes('data-edge="eaves"'))
+      expect(fascia).toHaveLength(1)
+      expect(tags(fascia[0]!, 'facade-gutter')).toHaveLength(1)
+      expect(tags(svg, 'facade-gutter')).toHaveLength(1)
+    })
+  }
+
+  it('draws a flat roof as before: no covering, no roof lines and no gutter', () => {
+    const svg = facadeToSvg(house(), { side: 'south', look: 'technical' })
+    for (const part of ['facade-roof-course', 'facade-roof-ridge', 'facade-roof-eaves', 'facade-gutter']) expect(tags(svg, part)).toEqual([])
+  })
+})

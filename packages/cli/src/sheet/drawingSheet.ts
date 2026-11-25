@@ -22,6 +22,7 @@ import { el, toSvg, type SvgChild, type SvgNode } from '@ongrid/viewer/src/pictu
 import { TEXT_PX } from '@ongrid/viewer/src/picture/look'
 import type { LoadedPlan } from '../command/plan'
 import { planFacts } from '../describe/facts'
+import { notShownNote } from './limits'
 import { SHEET_LOOK, sheetDate } from './pages'
 import { COMMON_SCALES, PAPERS, PAPER_NAMES, SCALES_TRIED, scaleText, type PaperName } from './drawingPapers'
 
@@ -364,7 +365,7 @@ export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, option
       ? say(language, 'sheet.drawing.caption.many', { floor: floor.name, number: floorIndex + 1, count: floors.length, scale: scaleText(scale), paper })
       : say(language, 'sheet.drawing.caption.one', { floor: floor.name, scale: scaleText(scale), paper })
     const notes = [
-      say(language, facts.connections.stairs.length > 0 ? 'sheet.limits.stairs' : 'sheet.limits'),
+      notShownNote(plan, floorId, facts.connections.stairs.length > 0, language),
       ...(undecided ? [say(language, 'sheet.undecided')] : []),
       ...(north === null ? [say(language, 'sheet.north.notStated')] : []),
     ]

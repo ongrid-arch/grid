@@ -3,13 +3,13 @@ import { resolve } from 'path'
 import { gunzipSync } from 'zlib'
 import { describe, expect, it } from 'vitest'
 import type { PlanRoom, Vec2 } from '@ongrid/floorplan/geometry'
-import { buildDimensions, buildFloorPlan, centroid, doorSwing, planForFloor, resolveFloor } from '@ongrid/floorplan/geometry'
+import { buildDimensions, buildFloorPlan, centroid, doorSwing, planForFloor, rectOf, rectTouchesPolygon, resolveFloor, spotsInside } from '@ongrid/floorplan/geometry'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
-import type { Box } from '../../canvas2d/labelPlacement'
-import { roomLabelBox } from '../../canvas2d/labelPlacement'
+import type { Box, LabelForm } from '../../canvas2d/labelPlacement'
+import { LEADER_REACH_PX, SMALL_LABEL, formBox, roomLabelBox } from '../../canvas2d/labelPlacement'
 import { fitTo } from '../../canvas2d/viewport'
-import { LIGHT_LOOK } from '../look'
+import { LIGHT_LOOK, TEXT_PX } from '../look'
 import { framingOf, handingsOf, planPicture } from '../planSvg'
 import { planScene } from '../scene'
 import type { SvgNode } from '../svgNode'
@@ -127,16 +127,20 @@ interface DrawnLabel {
   readonly at: Vec2
   readonly anchor: Vec2
   readonly leader: boolean
+  readonly leaderTo: Vec2 | null
   readonly box: Box
+  readonly form: LabelForm
 }
 
 /** The labels as drawn, read back from the picture's elements. */
 function drawnLabels(nodes: readonly SvgNode[], rooms: readonly PlanRoom[], mpp: number): DrawnLabel[] {
   const byId = new Map(rooms.map((room) => [room.id, room]))
   const leaders = new Map<string, Vec2>()
+  const leaderTo = new Map<string, Vec2>()
   for (const node of nodes) {
     if (!node.key?.startsWith('leader:')) continue
     leaders.set(node.key.slice('leader:'.length), { x: Number(node.attrs.x1), y: -Number(node.attrs.y1) })
+    leaderTo.set(node.key.slice('leader:'.length), { x: Number(node.attrs.x2), y: -Number(node.attrs.y2) })
   }
   const out: DrawnLabel[] = []
   for (const node of nodes) {
@@ -145,10 +149,18 @@ function drawnLabels(nodes: readonly SvgNode[], rooms: readonly PlanRoom[], mpp:
     const room = byId.get(id)!
     const [x, y] = numbers(String(node.attrs.transform), /translate\((\S+) (\S+)\)/)
     const at = { x: x!, y: -y! }
-    const [nameNode, areaNode] = node.children as SvgNode[]
-    const box = roomLabelBox({ name: textOf(nameNode), area: room.area, areaText: textOf(areaNode), labelAt: at }, mpp)
+    // VEW-13: the form it was written in, read back from its lines, their size and its turn.
+    const children = node.children as SvgNode[]
+    const names = children.filter((child) => child.attrs['data-part'] === 'label')
+    const areaNode = children.find((child) => child.attrs['data-part'] === 'area')
+    const scale = Number(names[0]!.attrs['font-size']) / TEXT_PX.roomName
+    const turned = String(node.attrs.transform).includes('rotate(-90)')
+    const keyed = node.attrs['data-keyed'] !== undefined
+    const plain = scale === 1 && !turned && !keyed && names.length === 1
+    const form: LabelForm = { names: names.map(textOf), area: plain ? textOf(areaNode) : areaNode === undefined ? null : textOf(areaNode), scale, turned, keyed }
+    const box = plain ? roomLabelBox({ name: textOf(names[0]), area: room.area, areaText: textOf(areaNode), labelAt: at }, mpp) : formBox(form, at, mpp)
     const leaderFrom = leaders.get(id)
-    out.push({ room, at, anchor: leaderFrom ?? at, leader: leaderFrom !== undefined, box })
+    out.push({ room, at, anchor: leaderFrom ?? at, leader: leaderFrom !== undefined, leaderTo: leaderTo.get(id) ?? null, box, form })
   }
   return out
 }
@@ -177,13 +189,17 @@ interface Tally {
   /** Labels and leaders on floors where every label is drawn. */
   calmLabels: number
   calmLeaders: number
+  /** VEW-13: labels written as their room's number. */
+  keyed: number
+  /** VEW-13: rooms with no spot for even their number clear of the door swings, left unlabelled. */
+  slivers: number
   /** Rooms whose old label point, the average of the corners, lay outside the room. */
   centreOutside: number
   failures: string[]
 }
 
 const TALLIES = new Map<number, Tally>(
-  WIDTHS.map((width) => [width, { floors: 0, labels: 0, leaders: 0, hidden: 0, crowded: new Set(), calmLabels: 0, calmLeaders: 0, centreOutside: 0, failures: [] }])
+  WIDTHS.map((width) => [width, { floors: 0, labels: 0, leaders: 0, hidden: 0, crowded: new Set(), calmLabels: 0, calmLeaders: 0, keyed: 0, slivers: 0, centreOutside: 0, failures: [] }])
 )
 
 /** The floor drawn as `planPicture` draws it, `width` pixels wide, without the warning marks. */
@@ -211,15 +227,6 @@ for (const { name, plan } of ALL) {
       tally.floors++
       tally.labels += labels.length
       const where = `${name}${floor ? ` floor ${floor}` : ''} at ${width} px`
-      const crowded = labels.length < drawing.rooms.length
-      if (crowded) {
-        tally.hidden += drawing.rooms.length - labels.length
-        tally.crowded.add(name)
-      } else {
-        tally.calmLabels += labels.length
-        tally.calmLeaders += labels.filter((label) => label.leader).length
-      }
-
       const handings = handingsOf(slice)
       const swings: Box[] = []
       for (const opening of drawing.openings) {
@@ -227,6 +234,29 @@ for (const { name, plan } of ALL) {
         const handing = handings.get(opening.id)
         const swing = doorSwing(opening, handing?.hinge, handing?.swing)
         if (swing) swings.push(swingBox(swing.arc.center, swing.arc.radius, swing.arc.from, swing.arc.to))
+      }
+
+      // VEW-13: a room with no spot for even its number clear of the door swings, a sliver or a
+      // closet the doors sweep, is left unlabelled rather than named over its neighbours; only
+      // another hidden label makes the floor crowded.
+      const smallest = formBox({ names: ['8'], area: null, scale: SMALL_LABEL, turned: false, keyed: true }, { x: 0, y: 0 }, mpp)
+      const half = { x: (smallest.maxX - smallest.minX) / 2, y: (smallest.maxY - smallest.minY) / 2 }
+      // The air the placement keeps round a swing: its padding and a pixel more.
+      const air = 3 * mpp
+      const drawnIds = new Set(labels.map((label) => label.room.id))
+      const slivers = drawing.rooms.filter(
+        (room) =>
+          !drawnIds.has(room.id) &&
+          !spotsInside(room.polygon, half.x, half.y, room.holes).some((spot) => !swings.some((swing) => overlap(swing, { minX: spot.x - half.x - air, maxX: spot.x + half.x + air, minY: spot.y - half.y - air, maxY: spot.y + half.y + air })))
+      ).length
+      tally.slivers += slivers
+      const crowded = labels.length + slivers < drawing.rooms.length
+      if (crowded) {
+        tally.hidden += drawing.rooms.length - labels.length - slivers
+        tally.crowded.add(name)
+      } else {
+        tally.calmLabels += labels.length
+        tally.calmLeaders += labels.filter((label) => label.leader).length
       }
 
       labels.forEach((label, i) => {
@@ -240,8 +270,26 @@ for (const { name, plan } of ALL) {
         // In the picture: its view is in plan metres with y down.
         const shown = label.box.minX >= view.x && label.box.maxX <= view.x + view.width && -label.box.maxY >= view.y && -label.box.minY <= view.y + view.height
         if (!shown) tally.failures.push(`${where}: ${room.id}'s label is outside the picture`)
-        if (label.leader) tally.leaders++
-        else if (!boxInRoom(label.box, room.polygon)) tally.failures.push(`${where}: ${room.id}'s label spills out of the room with no leader`)
+        if (label.leader) {
+          tally.leaders++
+          // VEW-13: a moved label sits off every room, by its own, and its leader crosses no other room.
+          for (const other of drawing.rooms) {
+            if (rectTouchesPolygon(label.box, other.polygon)) tally.failures.push(`${where}: ${room.id}'s moved label sits on room ${other.id}`)
+          }
+          const own = rectOf(room.polygon)
+          const gap = Math.max(own.minX - label.box.maxX, label.box.minX - own.maxX, own.minY - label.box.maxY, label.box.minY - own.maxY)
+          if (gap > (LEADER_REACH_PX + 1) * mpp) tally.failures.push(`${where}: ${room.id}'s leader is long`)
+          const to = label.leaderTo!
+          for (let k = 1; k < 32; k++) {
+            const p = { x: label.anchor.x + ((to.x - label.anchor.x) * k) / 32, y: label.anchor.y + ((to.y - label.anchor.y) * k) / 32 }
+            const crossed = drawing.rooms.find((other) => other.id !== room.id && inside(p, other.polygon))
+            if (crossed) {
+              tally.failures.push(`${where}: ${room.id}'s leader crosses room ${crossed.id}`)
+              break
+            }
+          }
+        } else if (!boxInRoom(label.box, room.polygon)) tally.failures.push(`${where}: ${room.id}'s label spills out of the room with no leader`)
+        if (label.form.keyed) tally.keyed++
       })
     }
   }
@@ -269,7 +317,10 @@ describe('room labels on every scoreboard plan (SHT-5)', () => {
     // The size tests (grids of 100 to 5,000 rooms on one picture), the names of a hundred
     // characters, and coordinates of 10²¹ m. At a fixed text size their labels cannot all fit
     // in the picture; the rest stay off each other.
-    const stress = /(^|\/)(size|odd)\/|k-grid-|k-accents/
+    // VEW-13: and the generated tight plans, where a closet swept by its doors and hemmed in by
+    // its neighbours has no clear spot even for its number: it is left unlabelled at this size
+    // rather than named over the rooms round it.
+    const stress = /(^|\/)(size|odd|tight)\/|k-grid-|k-accents/
     expect([...TALLIES.get(width)!.crowded].filter((name) => !stress.test(name))).toEqual([])
   })
 

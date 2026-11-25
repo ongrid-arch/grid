@@ -69,7 +69,7 @@ export const FIGURES_HEADING = "The person's own figures: theirs, not from any c
  */
 export const FIGURES = {
   door_width: { what: 'door width', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'the hole in the wall of every door and doorless opening; the clear width past a door leaf is less' },
-  corridor_width: { what: 'corridor width', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'the widest circle each room used as a corridor holds, between its wall faces' },
+  corridor_width: { what: 'corridor width', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'each room used as a corridor at its narrowest point from end to end, clear of fixtures' },
   turning_circle: { what: 'turning circle', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'the widest circle each room holds (or the rooms the figure names), in the empty room' },
   step: { what: 'step at a door', most: true, unit: 'm', least: 0, top: 100, site: false, measures: 'the sill of every door and doorless opening above its floor' },
   ceiling_height: { what: 'ceiling height', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'each room\'s height, as grid_measure gives it' },

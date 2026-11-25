@@ -89,6 +89,11 @@ export interface Patch {
   readonly notKept?: readonly string[]
   /** Rooms that are now part of another, by id: a door that joined the old one joins the new. */
   readonly roomsBecome?: ReadonlyMap<string, string>
+  /**
+   * WRT-11: the change turns the whole plan over or round (a mirror, a turn), so its answer may
+   * call the result the same building mirrored or turned. Every other change is made in place.
+   */
+  readonly whole?: true
   /** Anything else the answer carries as data. */
   readonly extra?: Readonly<Record<string, unknown>>
 }
@@ -661,6 +666,7 @@ export function mirrorPlan(survey: Survey, how: Mirror): Patch {
     ...(items.size === 0 ? {} : { items }),
     ...(swingPatterns.size === 0 ? {} : { swingPatterns }),
     ...(Object.keys(top).length === 0 ? {} : { plan: top }),
+    whole: true,
     said: [`Mirrored the plan ${how === 'left-right' ? 'left to right (east and west swap)' : 'top to bottom (north and south swap)'}: ${plan.walls.length} walls, ${plan.openings.length} openings and ${plan.rooms.length} rooms${items.size === 0 ? '' : `, and ${items.size} fixture${items.size === 1 ? '' : 's'}`}.${north}${views === null ? '' : ` The ${views.length === 1 ? 'saved view is' : `${views.length} saved views are`} mirrored with it.`}${patternsFollow(plan)}`],
   }
 }
@@ -722,6 +728,7 @@ export function turnPlanBy(survey: Survey, turn: Turn): Patch {
     rooms: new Map(),
     ...(items.size === 0 ? {} : { items }),
     ...(Object.keys(top).length === 0 ? {} : { plan: top }),
+    whole: true,
     said: [`Turned the plan ${TURN_WORDS[turn]} about the middle of its walls: ${plan.walls.length} walls, ${plan.openings.length} openings and ${plan.rooms.length} rooms${items.size === 0 ? '' : `, and ${items.size} fixture${items.size === 1 ? '' : 's'}`}.${north}${down}${patternsFollow(plan)}`],
   }
 }
