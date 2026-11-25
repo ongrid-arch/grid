@@ -315,8 +315,12 @@ widest circle the room holds) to the middle of each doorway on the room's face, 
 the hole to the middle of its other face, and on to the middle of the room it ends in, or to the
 outside face of the door out with `to=outside`. Inside a room the line is the shortest that keeps
 to its floor, round inside corners and holes. In the lab's two-bed flat, Bedroom 1 to the Hall
-is 2.19 m in the bedroom, 0.10 m through the wall and 2.05 m in the Hall: 4.34 m. With `width`,
-the way the body or trolley gets through by carries its `length` too.
+is 2.19 m in the bedroom, 0.10 m through the wall and 2.05 m in the Hall: 4.34 m. The answer
+has the same fields with or without `width` (ARE-45): the length, the legs and the narrowest
+door or opening, and whether a body or trolley gets through (`through`, `way`, `shortest`,
+`narrower`, `figure`). Without `width` Grid's own indicator, 0.9 m, is used and `figure.from` is
+`grid`. The way the body or trolley gets through by carries its `length` too. A way up or down
+stairs is not measured for a body: `through` is null.
 
 ARE-30: a route to a room whose use is `stair` or `lift` ends at the doorway into it, not at its
 middle, so identical stairs measure alike (`end=middle` walks to the middle). `start` is `middle`

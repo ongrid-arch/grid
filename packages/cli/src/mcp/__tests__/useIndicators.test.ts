@@ -149,9 +149,26 @@ describe('a way for a body or a trolley (what=route with width)', () => {
     expect(reply.text).toContain('it does not get through: "door-bed" leaves 0.75 m clear.')
   })
 
-  it('keeps the answer without width as it was', async () => {
-    const reply = await b.call('grid_measure', { plan: 'flat.json', what: 'route', room: 'bed', to: 'outside' })
-    expect(reply.text).toContain('Narrowest door or opening on the way: "door-bed", 0.80 m.')
-    expect(reply.text).not.toContain('Indicator')
+  it('answers with the same fields without a width, set against Grid\'s own indicator', async () => {
+    const without = await b.call('grid_measure', { plan: 'flat.json', what: 'route', room: 'bed', to: 'outside' })
+    const given = await ok({ what: 'route', room: 'bed', to: 'outside', width: 0.7 })
+    expect(without.text).toContain('Narrowest door or opening on the way: "door-bed", 0.80 m.')
+    expect(without.text).toContain('a body or trolley 0.90 m wide (Grid\'s own indicator)')
+    const a = without.data!['answer'] as Record<string, unknown>
+    const g = given.data!['answer'] as Record<string, unknown>
+    expect(Object.keys(a).sort()).toEqual(Object.keys(g).sort())
+    for (const key of ['length', 'legs', 'steps', 'narrowestPassage', 'through', 'way', 'shortest', 'narrower', 'figure']) expect(a).toHaveProperty(key)
+    expect(a['figure']).toEqual({ value: 0.9, from: 'grid' })
+    expect(g['figure']).toEqual({ value: 0.7, from: 'person' })
+    expect(typeof a['length']).toBe('number')
+    expect(a['length']).toBe(g['length'])
+    expect(g['narrowestPassage']).toEqual(a['narrowestPassage'])
+  })
+
+  it('gives the length and the legs with a width too', async () => {
+    const reply = await ok({ what: 'route', room: 'bed', to: 'outside', width: 0.6 })
+    expect(reply.text).toContain('Narrowest door or opening on the way')
+    expect(reply.text).toMatch(/Walked, \d+\.\d\d m: /)
+    expect((reply.data!['answer'] as { legs: unknown[] }).legs.length).toBeGreaterThan(0)
   })
 })
