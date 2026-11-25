@@ -244,24 +244,24 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
       if (typeof value !== 'string' || value === '') {
         throw new ToolRefusal(spec.enum ? `${name} takes one of ${spec.enum.join(', ')}.` : `${name} takes text, for example ${quoted(spec.examples[0] ?? '')}.`)
       }
+      // MSG-22: an id with accents is read in plain letters, as rooms text writes it: `baño` is `bano`.
+      const text = spec.id ? plainId(value) : value
       if (spec.id) {
-        // MSG-22: an id with accents is read in plain letters, as rooms text writes it: `baño` is `bano`.
-        value = plainId(value)
-        if (value.length > ID_MAX) throw new ToolRefusal(`${name} is longer than ${ID_MAX} characters, the most an id may have.`)
-        if (!ID.test(value)) throw new ToolRefusal(`${name} must be an id of the plan: letters, digits, dash, underscore and dot only.`)
+        if (text.length > ID_MAX) throw new ToolRefusal(`${name} is longer than ${ID_MAX} characters, the most an id may have.`)
+        if (!ID.test(text)) throw new ToolRefusal(`${name} must be an id of the plan: letters, digits, dash, underscore and dot only.`)
       }
       const max = spec.use === true ? USE_WORD_MAX : spec.maxLength
-      if (max !== undefined && value.length > max) throw new ToolRefusal(`${name} is longer than ${max} characters.`)
-      const checked = spec.lines === true ? value.replace(/\r\n|\r|\n|\t/g, ' ') : value
+      if (max !== undefined && text.length > max) throw new ToolRefusal(`${name} is longer than ${max} characters.`)
+      const checked = spec.lines === true ? text.replace(/\r\n|\r|\n|\t/g, ' ') : text
       if (CONTROL.test(checked)) throw new ToolRefusal(`${name} holds a control or direction character${spec.lines === true ? ' other than a line break or a tab' : ''}.`)
       if (spec.use === true) {
-        if (spec.enum?.includes(value)) return value
-        const use = readUse(value)
+        if (spec.enum?.includes(text)) return text
+        const use = readUse(text)
         if (typeof use === 'string' && (ROOM_USES as readonly string[]).includes(use)) return use
         throw new ToolRefusal(`${name} takes one of Grid's room uses, or a word that plainly means one: ${[...ROOM_USES, ...(spec.enum ?? [])].join(', ')}.`)
       }
-      if (spec.enum && !spec.enum.includes(value)) throw new ToolRefusal(`${name} takes one of ${spec.enum.join(', ')}.`)
-      return value
+      if (spec.enum && !spec.enum.includes(text)) throw new ToolRefusal(`${name} takes one of ${spec.enum.join(', ')}.`)
+      return text
     }
     case 'number': {
       if (spec.length === true && typeof value === 'string') {
