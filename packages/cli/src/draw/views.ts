@@ -9,8 +9,8 @@
 import type { Display } from '@ongrid/floorplan/types/units'
 import type { Language } from '@ongrid/floorplan/messages'
 import { poleOfInaccessibility, type Bounds, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
-import { LOOKS as PICTURE_LOOKS, comparisonPicture, facadePicture, fileHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
-import { resolveFloor, type BuildingComparison, type Facade, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { LOOKS as PICTURE_LOOKS, comparisonPicture, facadePicture, fileHeight, fullHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
+import { planFloors, resolveFloor, type BuildingComparison, type Facade, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
 import { sectionPicture } from '@ongrid/viewer/src/picture/section'
 import type { PlanSection, SectionLine } from '@ongrid/floorplan/geometry/section'
@@ -112,6 +112,7 @@ export async function comparisonView(comparison: Pick<BuildingComparison, 'align
 const SHEET_WIDTH = 2400
 const GAP = 40
 const TITLE = 48
+const FLOOR_NAME = 30
 
 /**
  * Several plans side by side, every one at the same scale, each under its title. MSG-11: the
@@ -124,24 +125,41 @@ export async function sheetView(plans: readonly { plan: FloorPlan; title: string
   registerScriptFonts(canvasModule)
   // The pictures' text is written the way Skia draws it right (`forSkia`, VEW-7).
   const installed = (family: string): boolean => GlobalFonts.has(family)
-  const first = plans.map((p) => planPicture(p.plan, { floor: p.floor ?? null, look: lookOf(look), ...tongue }))
-  const metres = first.reduce((sum, picture) => sum + picture.view.width, 0)
+  // VEW-37: with no floor asked, every floor of a plan is drawn, the highest first, stacked in
+  // the plan's column; a plan of one floor, or a floor asked for, is one drawing as before.
+  const columns = plans.map((p) => {
+    const floors = p.floor ? [p.floor] : planFloors(p.plan).length > 1 ? [...planFloors(p.plan)].reverse().map((f) => f.id) : [null]
+    return floors.map((id) => ({ id, name: id === null || floors.length === 1 ? null : (planFloors(p.plan).find((f) => f.id === id)?.name ?? id) }))
+  })
+  const first = plans.map((p, i) => columns[i]!.map((f) => planPicture(p.plan, { floor: f.id, look: lookOf(look), ...tongue })))
+  // One scale for every floor of every option: the columns' widths, in metres, fill the sheet.
+  const metres = first.reduce((sum, pictures) => sum + Math.max(...pictures.map((picture) => picture.view.width)), 0)
   const pxPerMetre = (SHEET_WIDTH - GAP * (plans.length - 1)) / metres
   let x = 0
   let tallest = 0
   const parts: string[] = []
   plans.forEach((p, i) => {
-    const view = first[i]!.view
-    const width = Math.max(1, Math.round(view.width * pxPerMetre))
-    const height = Math.max(1, Math.round(view.height * pxPerMetre))
-    const picture = planPicture(p.plan, { floor: p.floor ?? null, look: lookOf(look), width, height, ...tongue })
-    // One label for the whole sheet, stamped below, not one per plan (MSG-3).
-    const svg = pictureToSvg({ ...picture, nodes: forSkia(picture.nodes, installed) }, 1, { label: false })
-    parts.push(svg.replace(/^<svg /, `<svg x="${x}" y="${TITLE}" `))
-    const title = el('text', { x: x + width / 2, y: TITLE - 14, 'text-anchor': 'middle', 'font-family': PICTURE_FONT, 'font-size': 28, fill: '#000000' }, [p.title])
+    const columnWidth = Math.max(1, Math.round(Math.max(...first[i]!.map((picture) => picture.view.width)) * pxPerMetre))
+    let y = TITLE
+    columns[i]!.forEach((f, j) => {
+      const view = first[i]![j]!.view
+      const width = Math.max(1, Math.round(view.width * pxPerMetre))
+      const height = Math.max(1, Math.round(view.height * pxPerMetre))
+      const picture = planPicture(p.plan, { floor: f.id, look: lookOf(look), width, height, ...tongue })
+      if (f.name !== null) {
+        parts.push(toSvg(forSkia([el('text', { x: x + columnWidth / 2, y: y + FLOOR_NAME - 8, 'text-anchor': 'middle', 'font-family': PICTURE_FONT, 'font-size': 20, fill: '#000000' }, [f.name])], installed)))
+        y += FLOOR_NAME
+      }
+      // One label for the whole sheet, stamped below, not one per plan (MSG-3).
+      const svg = pictureToSvg({ ...picture, nodes: forSkia(picture.nodes, installed) }, 1, { label: false })
+      parts.push(svg.replace(/^<svg /, `<svg x="${x + Math.round((columnWidth - width) / 2)}" y="${y}" `))
+      // The drawing's own band of title and key sits under it: count it, so it is never cut off.
+      y += fullHeight(picture) + (f.name !== null ? 8 : 0)
+    })
+    const title = el('text', { x: x + columnWidth / 2, y: TITLE - 14, 'text-anchor': 'middle', 'font-family': PICTURE_FONT, 'font-size': 28, fill: '#000000' }, [p.title])
     parts.push(toSvg(forSkia([title], installed)))
-    x += width + GAP
-    tallest = Math.max(tallest, height)
+    x += columnWidth + GAP
+    tallest = Math.max(tallest, y - TITLE)
   })
   const width = x - GAP
   const height = tallest + TITLE
