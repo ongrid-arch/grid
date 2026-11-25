@@ -184,6 +184,7 @@ const sheetTool: GridTool = {
     paper: { type: 'string', enum: PAPER_NAMES, description: 'Drawing only: the paper, turned the way the floor fits. The smallest that fits when left out.', examples: ['A4', 'A3'] },
     floor: { ...FLOOR_ARG, description: 'Drawing only: the floor to draw. The lowest when left out.' },
     roomSizes: { type: 'boolean', description: 'Drawing only: each room\'s width and depth along its walls. true when left out.', examples: [true, false] },
+    date: { type: 'string', maxLength: 40, description: 'The date on the sheet: 2026-01-31 or a time such as 2026-01-31T09:00:00Z. SOURCE_DATE_EPOCH when left out, else today. The same date gives the same bytes.', examples: ['2026-01-31'] },
     language: LANGUAGE_ARG,
   },
   outputSchema: objectSchema({
@@ -210,7 +211,7 @@ const sheetTool: GridTool = {
           ...(args['floor'] === undefined ? {} : { floor: floorArg(loaded.plan, args['floor']) }),
           ...(args['roomSizes'] === undefined ? {} : { roomSizes: args['roomSizes'] as boolean }),
         }
-        const done = await drawingIntoProject(project, file, asked, words, askedLanguage(args['language'], 'language'))
+        const done = await drawingIntoProject(project, file, asked, words, askedLanguage(args['language'], 'language'), args['date'] as string | undefined)
         const written = { pdf: project.relative(done.written.pdf), svg: project.relative(done.written.svg), png: project.relative(done.written.png) }
         const lines = [drawingLine(done.sheet), `Wrote ${quoted(written.pdf)}, ${quoted(written.svg)} and ${quoted(written.png)} in the project folder. Print the PDF at 100%, not fitted to the page, to keep the scale. Look at the picture before you describe it.`]
         if (done.note) lines.push(done.note)
@@ -228,7 +229,7 @@ const sheetTool: GridTool = {
         : given !== undefined
           ? parseSheetWordsChecked(given, planFloors(loaded.plan).map((floor) => floor.id))
           : readSheetWords(project, file, loaded, undefined)
-      const done = await sheetIntoProject(project, file, layout, words, askedLanguage(args['language'], 'language'))
+      const done = await sheetIntoProject(project, file, layout, words, askedLanguage(args['language'], 'language'), args['date'] as string | undefined)
       const written = project.relative(done.written)
       const lines = [`Wrote ${quoted(written)} in the project folder: ${done.pages.length} pages.`]
       if (done.note) lines.push(done.note)

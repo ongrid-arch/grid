@@ -14,6 +14,7 @@ export const SHEET_OPTIONS: OptionSpecs = {
   '--floor': { takesValue: true, help: 'Drawing: the floor to draw (a floor id from the plan). The ground floor when left out.' },
   '--room-sizes': { takesValue: true, help: "Drawing: on or off, each room's width and depth along its walls. on when left out." },
   '--out': { takesValue: true, help: 'The PDF to write, inside the project (a drawing writes its SVG and PNG beside it). exports/ beside the plan when left out.' },
+  '--date': { takesValue: true, help: 'The date on the sheet, a date (2026-01-31) or a time (2026-01-31T09:00:00Z). SOURCE_DATE_EPOCH when left out, else today. The same date gives the same file.' },
   ...LANG_OPTION,
   ...PROJECT_OPTION,
 }
