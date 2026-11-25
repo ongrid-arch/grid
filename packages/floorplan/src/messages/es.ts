@@ -2079,6 +2079,7 @@ export const es: Messages = {
   'rooms.side.unitGuess': "Línea {line}: la estancia '{room}' tiene {count} lados que miran al {side}; se usó '{word}', {beyond}, el único hacia algo fuera de la unidad '{unit}'. Escribe {others} para elegir otro.",
   'rooms.side.offer': "'{text}' para {beyond}",
   'rooms.side.offers': 'Para colocarla, escribe la línea {line} como {offers}.',
+  'rooms.side.staysOut': "No se ofrece ninguna línea: el único lado donde cabe es el muro hacia {rooms}, así que daría a {rooms}, no al exterior, y el lado hacia el exterior es demasiado corto. Haz sitio allí, o escribe {words} si debe dar a {rooms}.",
   'rooms.copyNoOpenings': '{list}',
   'rooms.copyNoOpenings.one':
     "La planta {floors} copia los recintos de la planta '{from}' pero ninguna de sus puertas y ventanas, y no escribe ninguna propia, así que no tiene ninguna: escriba 'copy {from} with openings' para tomarlas, o escriba sus puertas y ventanas.",
@@ -2491,6 +2492,8 @@ export const es: Messages = {
   'write.items.item.noRoom': '{kind} {id} en ninguna estancia',
   'write.items.more': ' y {n} más',
   'write.items.look': 'Conviene revisar: {message}',
+  'write.toLookAt': 'Por revisar: {before} → {after}, de ellos problemas en el dibujo {drawingBefore} → {drawingAfter}. Ejecuta grid check para ver las notas.',
+  'write.door.notOut': 'Ya no da al exterior: {change}.',
   'write.items.looksMore': 'Y {n} elementos conservados más chocan con un muro o no están en ninguna estancia: grid check los nombra.',
   'edit.idTaken.item': '{kind} {id} en ({x}, {y}) en la estancia {room}{floor}',
   'edit.idTaken.item.noRoom': '{kind} {id} en ({x}, {y}), en ninguna estancia{floor}',

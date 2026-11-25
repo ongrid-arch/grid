@@ -718,9 +718,10 @@ class Compiler {
   /**
    * WRT-51: for an opening line refused for not saying which of several sides, the line written
    * with each side in full, and for a line between two rooms the room it must then join; tried
-   * before they are offered.
+   * before they are offered. WRT-57: `leadsOut` marks a door or doorless opening written in a
+   * side of which a part is onto the outside, and `word` the side each line writes.
    */
-  readonly sideOffers = new Map<number, Array<{ text: string; onto?: string }>>()
+  readonly sideOffers = new Map<number, Array<{ text: string; onto?: string; leadsOut?: true; word?: string }>>()
   /** WRT-51: the room beyond the wall each opening line was placed in, by its line; null for the outside. */
   readonly placedAt = new Map<number, string | null>()
   /** The wall thickness each side of a sized room was taken to have, keyed floor|room|side. */
@@ -2840,9 +2841,13 @@ class Compiler {
         return e
       }
     }
+    // WRT-57: a door or opening in a side partly onto the outside may be the way out, as an entrance
+    // beside a room carved in the corner is: a line that leads it into a room instead is not offered alone.
+    const leadsOut = (t[0] === 'door' || t[0] === 'opening') && beyond.some((b) => b.outside)
     const offers = hits.flatMap((e) => {
-      const text = this.rewritten(t, at, new RegExp(`\\bin\\s+${escaped(rid)}\\s+${escaped(sideWord)}(?![\\w.])`), `in ${rid} ${Compiler.sideWordOf(edges, e)}`)
-      return text === null ? [] : [{ text }]
+      const word = Compiler.sideWordOf(edges, e)
+      const text = this.rewritten(t, at, new RegExp(`\\bin\\s+${escaped(rid)}\\s+${escaped(sideWord)}(?![\\w.])`), `in ${rid} ${word}`)
+      return text === null ? [] : [{ text, word, ...(leadsOut ? { leadsOut: true as const } : {}) }]
     })
     if (offers.length > 0) this.sideOffers.set(at, offers)
     const list = joined(sides, 'join.semicolon')
@@ -3833,16 +3838,24 @@ function withSideFix(text: string, problem: RoomsProblem, all: readonly RoomsPro
   const at = problem.line
   const had = new Set(all.map((p) => `${p.code}|${p.line}`))
   const lines = text.split(/\r\n|\r|\n/)
-  const kept: Array<{ fix: RoomsFix; said: Said }> = []
+  const kept: Array<{ fix: RoomsFix; said: Said; onto: string | null; leadsOut: boolean; word: string }> = []
   for (const offer of offers.get(at) ?? []) {
     const tried = compiled([...lines.slice(0, at - 1), offer.text, ...lines.slice(at)].join('\n'), { offerFixes: false })
     if (!tried.c.placedAt.has(at)) continue
     const onto = tried.c.placedAt.get(at)!
     if (offer.onto !== undefined && onto !== offer.onto) continue
     if (!tried.result.problems.every((p) => p.line !== at && had.has(`${p.code}|${p.line}`))) continue
-    kept.push({ fix: { line: at, text: offer.text }, said: said('rooms.side.offer', { text: offer.text, beyond: Compiler.beyondSaid({ rooms: onto === null ? [] : [onto], outside: onto === null }) }) })
+    kept.push({ fix: { line: at, text: offer.text }, said: said('rooms.side.offer', { text: offer.text, beyond: Compiler.beyondSaid({ rooms: onto === null ? [] : [onto], outside: onto === null }) }), onto, leadsOut: offer.leadsOut === true, word: offer.word ?? '' })
   }
-  if (kept.length === 0) return problem
+  // WRT-57: a door that could lead outside is never offered only lines that lead it into a room.
+  const into = kept.filter((k) => k.leadsOut && k.onto !== null)
+  let staysOut = ''
+  if (into.length > 0 && into.length === kept.length) {
+    kept.length = 0
+    const rooms = joined([...new Set(into.map((k) => `'${k.onto}'`))], 'join.and')
+    staysOut = ` ${english(said('rooms.side.staysOut', { rooms, words: joined(into.map((k) => `'${k.word}'`), 'join.commaOr') }))}`
+  }
+  if (kept.length === 0) return staysOut === '' ? problem : { ...problem, message: `${problem.message}${staysOut}` }
   const written = english(said('rooms.side.offers', { line: at, offers: joined(kept.map((k) => k.said), 'join.commaOr') }))
   return { ...problem, message: `${problem.message} ${written}`, fixes: [...(problem.fixes ?? []), ...kept.map((k) => k.fix)] }
 }

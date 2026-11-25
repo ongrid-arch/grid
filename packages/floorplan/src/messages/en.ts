@@ -2071,6 +2071,7 @@ export const en = {
   'rooms.side.unitGuess': "Line {line}: room '{room}' has {count} sides facing {side}; '{word}', {beyond}, was used, the only one onto something outside unit '{unit}'. Write {others} to choose another.",
   'rooms.side.offer': "'{text}' for {beyond}",
   'rooms.side.offers': 'To place it, write line {line} as {offers}.',
+  'rooms.side.staysOut': "No line is offered: the only side that holds it is the wall to {rooms}, so it would lead into {rooms}, not outside, and the side onto the outside is too short for it. Make room for it there, or write {words} if it is meant to lead into {rooms}.",
   'rooms.copyNoOpenings': '{list}',
   'rooms.copyNoOpenings.one':
     "Floor {floors} copies the rooms of floor '{from}' but none of its doors and windows, and writes none of its own, so it has none: write 'copy {from} with openings' to take them, or write its doors and windows.",
@@ -2358,6 +2359,8 @@ export const en = {
   'write.items.item.noRoom': '{kind} {id} in no room',
   'write.items.more': ' and {n} more',
   'write.items.look': 'Worth a look: {message}',
+  'write.toLookAt': 'To look at: {before} → {after}, of them problems in the drawing {drawingBefore} → {drawingAfter}. Run grid check for the notes.',
+  'write.door.notOut': 'No longer leads outside: {change}.',
   'write.items.looksMore': 'And {n} more kept items run into a wall or stand in no room: grid check names them.',
   'edit.idTaken.item': '{kind} {id} at ({x}, {y}) in room {room}{floor}',
   'edit.idTaken.item.noRoom': '{kind} {id} at ({x}, {y}), in no room{floor}',

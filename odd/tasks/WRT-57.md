@@ -5,12 +5,13 @@
 - A room carved in the corner of another (`inside hall corner nw`), beside the door that leads
   outside, splits that side of the room in two: the wall to the new room and a short piece of
   outside wall. The door line written `in hall north` is refused, as WRT-51 refuses it, but the
-  refusal no longer offers the line that puts the door in the wall to the new room. A door or
-  doorless opening written in a side of which a part is onto the outside is offered only the
-  lines that keep it leading outside; when none of them holds it, the refusal says so, and that
-  a door in the wall to the room would lead into that room, not outside.
-- `grid write` and `grid_write_rooms` over an existing plan name each door that joined other
-  rooms before than it joins now, from where it stands, as the edit tools already do; a door that
+  refusal no longer offers, on its own, the line that puts the door in the wall to the new room.
+  A door or doorless opening written in a side of which a part is onto the outside is never
+  offered only lines that lead it into a room: when no line onto the outside holds it, the
+  refusal offers none and says so, and that a door in the wall to the room would lead into that
+  room, not outside. Where both hold it, both are offered, as WRT-51 offers them.
+- `grid write` and `grid_write_rooms` over an existing plan name each door that joins other
+  rooms than it joined before, from where it stands, as the edit tools already do; a door that
   led outside and no longer does is said first and in so many words.
 - The write's answer counts what `grid check` will list, route findings and all, beside the
   drawing problems: "To look at: 0 → 2, of them problems in the drawing 0 → 0". So a write that
@@ -20,16 +21,17 @@
 
 - `packages/floorplan/src/rooms/compile.ts`, the WRT-51 offers only: `pickEdge` marks the offers
   of a `door` or `opening` line when one of the sides it chose between is onto the outside
-  (`leadsOut`); `withSideFix` keeps such an offer only when the tried line places it in a wall to
-  the outside, and adds one sentence naming the rooms it did not offer. No placement changes, no
+  (`leadsOut`); when every such offer that writes places it in a wall to a room, `withSideFix`
+  keeps none of them and adds one sentence naming the rooms and the side's word. No placement changes, no
   new code (the refusal stays `rooms/no-side`).
 - `packages/cli/src/command/write.ts`: after the write, `doorsThatChangedRooms` (MSG-14, the
   edits' own check) between the plan before and the plan as written, and `inspectPlan`'s count
   of the file before and after, as `writeTools.ts` counts an edit. The answer's lines and the
   data `doors` and `toLookAt` (null for a scan, which keeps its own answer) in `grid_write_rooms`.
 - The words in `packages/floorplan/src/messages/en.ts` and the draft `es.ts`.
-- Decisions: the line into the room's wall is not offered at all, rather than offered with a
-  warning, since an agent takes an offered line as written; a writer who means that room still
+- Decisions: the line into the room's wall is not offered alone, rather than offered with a
+  warning, since an agent takes an offered line as written; offered beside a line onto the
+  outside it stays, as the choice is then plain (WRT-51's WC beside an outside wall); a writer who means that room still
   writes the side by its word or `between`. A door that stops leading outside is named in the
   answer, not refused: the person may mean it (a store that becomes the porch), and the count and
   `grid check` say what it costs. `drawingProblems` stays as it was, for readers of the data.
