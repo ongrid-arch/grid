@@ -43,7 +43,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid diff [<plan>] [--since <name>\|git\|phase] [--rooms <ids>] [--show all\|summary\|changes\|issues] [--picture <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
 | `grid occupancy [<plan>]` | Lists who sits where, by room, from the occupancy file beside the plan; no export carries it (see below) |
 | `grid preview [<plan>] [--port <n>]` | Serves the preview as a page on this computer only: the plan in 2D and 3D, the part you click shared with the agent, the room it frames and the parts it picks out; it draws again within 2 s of the plan changing (see below) |
-| `grid serve` | Starts the tool server on standard input and output, with the 33 tools in [the tool server](tool-server.md) |
+| `grid serve` | Starts the tool server on standard input and output, with the 34 tools in [the tool server](tool-server.md) |
 | `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`) |
 
 A plan is told by what it holds: a list of walls, rooms or openings, or the stamp Grid writes. `grid write` never
@@ -81,7 +81,9 @@ With no folder, `grid init` starts the project in the folder it runs in. A folde
 project when it holds `grid.json`. In a Grid project (the folder Grid runs in, or the one
 named with `--project`), `check`, `describe`, `draw`, `export` and `sheet` read `plan.json` when no
 plan file is named, and `export` writes into `exports/`. A plan file named on the command line is used
-instead. Outside a Grid project a plan file must be named.
+instead. With no `grid.json` the same holds (CMD-18): the folder's own `plan.json` is the plan, for reading
+and for writing, in the commands and in the tool server. When it is not there, the refusal says which
+folder and file Grid looked in and what to do, and `grid_project` lists what the folder holds.
 
 `grid init` never replaces a file. It refuses, changing nothing, a folder that already
 holds `grid.json` (a second `grid init`) or `plan.json`, or a file named `exports`. Any

@@ -481,7 +481,6 @@ describe('options: each command refuses what it does not take, by name', () => {
     [['draw', 'two-bed-flat.json', '--floor', 'upstairs'], '--floor "upstairs" is not a floor of this plan'],
     [['export', 'two-bed-flat.json', '--format', 'obj', '--floor', 'upstairs'], '--floor "upstairs" is not a floor of this plan'],
     [['check', 'two-bed-flat.json', '--country', 'the moon'], '--country names no place Grid knows'],
-    [['check'], 'check needs a plan file'],
     [['check', 'two-bed-flat.json', 'other.json'], 'check takes one plan file'],
     [['serve', 'two-bed-flat.json'], 'serve takes no arguments'],
     [['inspect', 'two-bed-flat.json'], 'There is no command "inspect"'],
