@@ -58,6 +58,26 @@ describe('a facade as a picture', () => {
     expect(svg).toContain('aria-label="South facade of the plan, 2 floors at their levels"')
   })
 
+  it('draws a porch\'s front wall with its door, in front of the house wall it hides (VEW-25)', () => {
+    const at = (id: string, start: [number, number], end: [number, number]) => wall(id, start, end, 'ground')
+    const plan = parseFloorPlan({
+      version: '1',
+      floors: [{ id: 'ground', name: 'Ground floor', level: 0 }],
+      walls: [at('s1', [0, 0], [2, 0]), at('s2', [2, 0], [6, 0]), at('s3', [6, 0], [10, 0]), at('e', [10, 0], [10, 8]), at('n', [10, 8], [0, 8]), at('w', [0, 8], [0, 0]), at('pw', [2, 0], [2, -2]), at('ps', [2, -2], [6, -2]), at('pe', [6, -2], [6, 0])],
+      rooms: [
+        { id: 'in', name: 'Living', boundary: ['s1', 's2', 's3', 'e', 'n', 'w'], floor: 'ground' },
+        { id: 'po', name: 'Porch', outdoor: 'porch', boundary: ['s2', 'pw', 'ps', 'pe'], floor: 'ground' },
+      ],
+      openings: [
+        { id: 'porch-door', wall: 'ps', type: 'door', offset: 1.5, width: 1, height: 2.1 },
+        { id: 'house-door', wall: 's2', type: 'door', offset: 1.5, width: 1, height: 2.1 },
+      ],
+    })
+    const svg = facadeToSvg(plan, { side: 'south', look: 'technical' })
+    expect(tags(svg, 'facade-face').filter((t) => t.includes('data-wall="ps"'))).toHaveLength(1)
+    expect(tags(svg, 'facade-opening').map((t) => /data-id="([^"]+)"/.exec(t)![1])).toEqual(['porch-door'])
+  })
+
   it('carries the label in its corner, as every picture does (MSG-3)', () => {
     const svg = facadeToSvg(house(), { side: 'north' })
     expect(tags(svg, 'guidance-label')).toHaveLength(1)
