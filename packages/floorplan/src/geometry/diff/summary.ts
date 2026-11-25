@@ -126,7 +126,8 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
     if (type) parts.push(`changed from ${text(type.before)}`)
     const wall = prop(change, 'wall')
     if (wall) parts.push('moved to another wall')
-    const offset = prop(change, 'offset')
+    // MSG-28: a distance along two different walls means nothing.
+    const offset = wall ? undefined : prop(change, 'offset')
     if (offset) {
       parts.push(`moved ${metres(Number(offset.after) - Number(offset.before))} m along its wall`)
     }

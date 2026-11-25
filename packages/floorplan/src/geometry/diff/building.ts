@@ -41,7 +41,7 @@ import { doorsThatChangedRooms, openingFaces } from '../rules/doors'
 import { areaText, metresText } from '../rounding'
 import { quoted } from '../../types/planText'
 import type { Phase } from '../../types/floorplan'
-import { english, joined, name, num, said, sayValue } from '../../messages/say'
+import { english, joined, name, num, said, sayValue, type Joined, type Value } from '../../messages/say'
 import { planAreaFigures } from '../areas'
 import { floorOf, planFloors } from '../floors'
 import { tolerance } from '../tolerances'
@@ -581,6 +581,15 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const faces = { base: openingFaces(aligned, { windows: true }), head: openingFaces(later, { windows: true }) }
   const roomsOfOpening = (o: Opening, side: 'base' | 'head'): string[] =>
     [...new Set((faces[side].get(o.id)?.sides ?? []).flatMap((face) => ('room' in face ? [face.room] : [])))].sort(compareText)
+  // MSG-28: what lies on the two sides of an opening's wall where it stands: the rooms by name, then outside.
+  const sidesOfOpening = (o: Opening, side: 'base' | 'head'): Joined => {
+    const plan = side === 'base' ? baseRooms : headRooms
+    const found = faces[side].get(o.id)?.sides ?? []
+    const rooms = [...new Set(found.flatMap((face) => ('room' in face ? [plan.get(face.room)?.name || face.room] : [])))].sort(compareText)
+    const rest = found.filter((face) => !('room' in face)).map((face) => ('outside' in face ? 'outside' : 'none'))
+    const words: Value[] = [...rooms.map((room) => name(room)), ...[...new Set(rest)].sort().reverse().map((rest) => said(rest === 'outside' ? 'diff.opening.side.outside' : 'diff.opening.side.none'))]
+    return joined(words.length === 0 ? [said('diff.opening.side.none')] : words, 'join.comma', 'join.and')
+  }
   for (const opening of later.openings) {
     const before = baseOpenings.get(opening.id)
     const rooms = roomsOfOpening(opening, 'head')
@@ -604,10 +613,20 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     const part = (o: Opening): string => (o.opens === undefined ? 'the whole of it' : `${metresText(o.opens.width)}${o.opens.height === undefined ? '' : ` × ${metresText(o.opens.height)}`} m`)
     const partMoved = (a: number | undefined, b: number | undefined): boolean => (a === undefined) !== (b === undefined) || (a !== undefined && b !== undefined && Math.abs(a - b) > tolerance('diffLength'))
     if (partMoved(before.opens?.width, opening.opens?.width) || partMoved(before.opens?.height, opening.opens?.height)) words.push(`part that opens ${part(before)} → ${part(opening)}`)
-    const handBefore = handing(before, wallsBefore.get(before.wall))
-    const handAfter = handing(opening, wallsAfter.get(opening.wall))
-    if (!sameWay(handBefore.hinge, handAfter.hinge)) words.push(opening.hinge === undefined ? 'hinge no longer stated' : before.hinge === undefined ? 'hinge now stated' : 'hung from the other jamb')
-    if (!sameWay(handBefore.swing, handAfter.swing)) words.push(opening.swing === undefined ? 'swing no longer stated' : before.swing === undefined ? 'swing now stated' : 'opens to the other side')
+    // MSG-28: on another wall that stood in both versions, not a wall that replaced its own nor
+    // another piece of its own line. A distance along two walls means nothing, and nor does a
+    // hinge or a swing compared across them: its line names both walls and their sides instead.
+    const hostBefore = wallsBefore.get(before.wall)
+    const hostAfter = wallsAfter.get(opening.wall)
+    const otherWall = before.wall !== opening.wall
+      && (wallsAfter.has(before.wall) || wallsBefore.has(opening.wall))
+      && (hostBefore === undefined || hostAfter === undefined || wallStretches(hostBefore, hostAfter) === null)
+    if (!otherWall) {
+      const handBefore = handing(before, hostBefore)
+      const handAfter = handing(opening, hostAfter)
+      if (!sameWay(handBefore.hinge, handAfter.hinge)) words.push(opening.hinge === undefined ? 'hinge no longer stated' : before.hinge === undefined ? 'hinge now stated' : 'hung from the other jamb')
+      if (!sameWay(handBefore.swing, handAfter.swing)) words.push(opening.swing === undefined ? 'swing no longer stated' : before.swing === undefined ? 'swing now stated' : 'opens to the other side')
+    }
 
     // Where it is along its wall, against where its rooms went.
     const from = middle(before, wallsBefore.get(before.wall))
@@ -629,16 +648,21 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
       // MSG-27: widened or narrowed from one edge, its other edge where it was: it did not slide.
       const grew = (opening.width - before.width) / 2
       const edgeKept = Math.min(Math.abs(moved - grew), Math.abs(moved + grew)) <= slack
-      if (Math.abs(moved) > slack && !edgeKept) {
+      if (Math.abs(moved) > slack && !edgeKept && !otherWall) {
         keepers = rooms.filter(keeps)
         if (keepers.length === 0) slid = moved
       }
     }
     if (slid !== null) words.push(`moved ${metresText(Math.abs(slid))} m along its wall`)
+    if (otherWall) {
+      words.push(english(said('diff.opening.otherWall', { from: name(before.wall), fromSides: sidesOfOpening(before, 'base'), to: name(opening.wall), toSides: sidesOfOpening(opening, 'head') })))
+    }
     // MSG-25: a window blocked up, a door kept that was to go.
     if (phaseSaid('opening', opening.id) !== '') words.push(phaseSaid('opening', opening.id))
     if (words.length > 0) {
-      openingLines.push({ text: `${noun} ${quoted(opening.id)} ${words.join('; ')}${where}`, entities: [entity], rooms })
+      // MSG-28: moved to another wall, it is about the rooms on its old wall too, where they still are.
+      const about = otherWall ? [...new Set([...rooms, ...roomsOfOpening(before, 'base').filter((id) => headRooms.has(id))])].sort(compareText) : rooms
+      openingLines.push({ text: `${noun} ${quoted(opening.id)} ${words.join('; ')}${otherWall ? '' : where}`, entities: [entity], rooms: about })
       continue
     }
     // WRT-12: worth saying only where something round it changed, and said by where it went in the building.
@@ -647,8 +671,6 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     const by: [number, number] = from !== null && to !== null ? [to.x - from.x, to.y - from.y] : [0, 0]
     // A wall made thicker on one side: the opening's face on the other side is where it was.
     const faceStayed = ((): boolean => {
-      const hostBefore = wallsBefore.get(before.wall)
-      const hostAfter = wallsAfter.get(opening.wall)
       if (axis === null || hostBefore === undefined || hostAfter === undefined) return false
       const normal = { x: -axis.dir.y, y: axis.dir.x }
       return [1, -1].some((side) => Math.hypot(by[0] + (normal.x * side * (hostAfter.thickness - hostBefore.thickness)) / 2, by[1] + (normal.y * side * (hostAfter.thickness - hostBefore.thickness)) / 2) < least)
