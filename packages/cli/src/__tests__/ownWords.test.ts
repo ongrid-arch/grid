@@ -33,7 +33,7 @@ const WHY = {
 const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/apps/cadApps.ts': [1, 'developer'],
   'packages/cli/src/brief/answer.ts': [2, 'notYet'],
-  'packages/cli/src/brief/brief.ts': [50, 'agent'],
+  'packages/cli/src/brief/brief.ts': [51, 'agent'],
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   'packages/cli/src/brief/lines.ts': [20, 'notYet'],
   'packages/cli/src/command/check.ts': [10, 'command'],
@@ -94,7 +94,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
-  'packages/cli/src/mcp/briefTool.ts': [46, 'tools'],
+  'packages/cli/src/mcp/briefTool.ts': [47, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   'packages/cli/src/mcp/editTools.ts': [84, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
@@ -107,9 +107,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
   // ARE-18: two more, why a route's walked length is not given.
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
-  'packages/cli/src/mcp/readTools.ts': [344, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [345, 'tools'],
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
+  // ARE-27: one more, grid_check's word on the brief's missed figures.
   // ARE-21: one more, the nearest way out and the others.
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],

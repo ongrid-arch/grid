@@ -108,19 +108,19 @@ describe('Y-7: the narrow flat, against the wheelchair user\'s own figures', () 
     expect(missed).toHaveLength(9)
     expect(missed.map((l) => `${l.wish} ${l.parts.map((p) => p.id).join(',')} ${l.drawn}`).sort()).toEqual([
       'corridor_width hall 0.70',
-      'door_width door-bath 0.55',
-      'door_width door-bed1 0.55',
-      'door_width door-bed2 0.55',
-      'door_width door-entrance 0.55',
-      'door_width door-kitchen 0.55',
-      'door_width door-living 0.55',
+      'door_width door-bath 0.50',
+      'door_width door-bed1 0.50',
+      'door_width door-bed2 0.50',
+      'door_width door-entrance 0.50',
+      'door_width door-kitchen 0.50',
+      'door_width door-living 0.50',
       'step door-entrance 0.18',
       'turning_circle hall 0.70',
     ])
     expect(all.filter((l) => l.state !== 'missed')).toEqual([])
     // Under their heading: the person's own figures, not a code's.
     expect(reply.text).toContain("The person's own figures: theirs, not from any code or standard.")
-    expect(reply.text).toContain('missed (must): door "door-bath" ("Hall" to "Bathroom") width asked at least 0.8, drawn 0.55 m.')
+    expect(reply.text).toContain('missed (must): door "door-bath" ("Hall" to "Bathroom") clear width asked at least 0.8, drawn 0.50 m, its hole 0.55 m.')
     // The file keeps them under the same heading.
     const file = JSON.parse(readFileSync(join(b.folder, 'probe.brief.json'), 'utf8')) as { figures: { heading: string } }
     expect(file.figures.heading).toBe("The person's own figures: theirs, not from any code or standard.")

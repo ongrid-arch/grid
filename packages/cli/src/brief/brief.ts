@@ -34,6 +34,7 @@ import { PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { TextNotDecoded } from '../fs/textEncoding'
 import { NAME_MAX } from '../command/planText'
 import { reasonProblem } from '../seen/marks'
+import { DOOR_MEASURES, type DoorMeasure } from '../quantities/doorWidth'
 
 /** What the file name adds to the plan's name. */
 export const BRIEF_SUFFIX = '.brief.json'
@@ -68,7 +69,7 @@ export const FIGURES_HEADING = "The person's own figures: theirs, not from any c
  * refused but for a step (no sill) and parking (none per home).
  */
 export const FIGURES = {
-  door_width: { what: 'door width', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'the hole in the wall of every door and doorless opening; the clear width past a door leaf is less' },
+  door_width: { what: 'door width', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'the clear width every door and doorless opening leaves, leaf by leaf, unless the figure says leaf or hole (measure)' },
   corridor_width: { what: 'corridor width', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'each room used as a corridor at its narrowest point from end to end, clear of fixtures' },
   turning_circle: { what: 'turning circle', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'the widest circle each room holds (or the rooms the figure names), in the empty room' },
   step: { what: 'step at a door', most: true, unit: 'm', least: 0, top: 100, site: false, measures: 'the sill of every door and doorless opening above its floor' },
@@ -130,6 +131,8 @@ export interface FigureWish extends Said {
   readonly rooms: readonly string[]
   /** For a floor area ratio: the gross measure it is set by; null when the brief names none. */
   readonly measure: RatioMeasure | null
+  /** ARE-27: for a door width, the width it is for (`measure` in the file): clear, leaf or hole. Null when the brief names none, read as clear. */
+  readonly door: DoorMeasure | null
 }
 
 /** What the person said that has no figure yet: still to ask. */
@@ -270,7 +273,7 @@ function figureWishes(raw: unknown): FigureWish[] {
     const figure = key as FigureName
     const where = `figures.${figure}`
     if (!isObject(value)) throw new BriefRefused(`${where} must be an object with value, level and source`)
-    const extra = figure === 'turning_circle' ? ['rooms'] : figure === 'floor_area_ratio' ? ['measure'] : []
+    const extra = figure === 'turning_circle' ? ['rooms'] : figure === 'floor_area_ratio' || figure === 'door_width' ? ['measure'] : []
     onlyKeys(value, ['value', ...extra, 'level', 'source', 'quote'], where)
     const v = value['value']
     const { unit, least, top } = FIGURES[figure]
@@ -281,11 +284,16 @@ function figureWishes(raw: unknown): FigureWish[] {
       throw new BriefRefused(`${where}.value must be ${of}${zero ? ` from ${least}` : ` above ${least}`} to ${top.toLocaleString('en-US')}`)
     }
     const rooms = list(value['rooms'], `${where}.rooms`).map((room, i) => words(room, `${where}.rooms[${i}]`, NAME_MAX))
-    const measure = optional(value, 'measure', (m) => {
+    const measure = figure !== 'floor_area_ratio' ? null : optional(value, 'measure', (m) => {
       if (!RATIO_MEASURES.includes(m as RatioMeasure)) throw new BriefRefused(`${where}.measure must be ${RATIO_MEASURES.join(' or ')}`)
       return m as RatioMeasure
     })
-    out.push({ figure, value: v, rooms, measure, ...said(value, where, ['must', 'should']) })
+    // ARE-27: a door width is for the clear width unless the brief says leaf or hole.
+    const door = figure !== 'door_width' ? null : optional(value, 'measure', (m) => {
+      if (!DOOR_MEASURES.includes(m as DoorMeasure)) throw new BriefRefused(`${where}.measure must be clear, leaf or hole`)
+      return m as DoorMeasure
+    })
+    out.push({ figure, value: v, rooms, measure, door, ...said(value, where, ['must', 'should']) })
   }
   return out
 }
@@ -334,7 +342,7 @@ export function briefJson(brief: Brief): Record<string, unknown> {
   if (brief.figures.length > 0) {
     out['figures'] = {
       heading: FIGURES_HEADING,
-      ...Object.fromEntries(brief.figures.map((w) => [w.figure, { value: w.value, ...(w.rooms.length > 0 ? { rooms: [...w.rooms] } : {}), ...some('measure', w.measure), ...s(w) }])),
+      ...Object.fromEntries(brief.figures.map((w) => [w.figure, { value: w.value, ...(w.rooms.length > 0 ? { rooms: [...w.rooms] } : {}), ...some('measure', w.measure ?? w.door), ...s(w) }])),
     }
   }
   if (brief.open.length > 0) out['open'] = brief.open.map((w) => ({ quote: w.quote, ...some('about', w.about) }))

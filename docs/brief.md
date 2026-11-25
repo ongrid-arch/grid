@@ -68,7 +68,7 @@ answer lists them under it. Grid knows five sizes, all in metres, and four site 
 
 | Figure | Measured as | Short of it |
 |---|---|---|
-| `door_width` | the hole in the wall of every door and doorless opening; the clear width past a door leaf is less | narrower |
+| `door_width` | the clear width every door and doorless opening leaves, leaf by leaf, as `grid_measure what=access` gives it; with `measure`, `leaf` (the leaf it opens by) or `hole` (the hole in the wall) instead | narrower |
 | `corridor_width` | each room used as a corridor at its narrowest point from end to end, clear of fixtures, the figure `grid_measure what=access` gives; the line says where it is | less |
 | `turning_circle` | the widest circle each room holds, in the empty room; `rooms` names the rooms it is for, every room when left out | less |
 | `step` | the sill of every door and doorless opening above its floor; 0 for none | higher |
@@ -99,6 +99,28 @@ with the reason. Grid brings no limit of its own, and no line says a plan is all
 clear width past its leaf), `corridor_width` (by a corridor's narrowest point), `turning_circle`
 and `step`, and says each as "your figure" (CNT-17,
 [the tool server](tool-server.md#accessibility-measurements-as-numbers)).
+
+A door is judged by one rule wherever a figure meets it (ARE-27): the brief's lines,
+`grid_measure what=access`, a firm's `door_clear_width` and `grid check` read the same width, and
+each says which width it measured. `door_width` takes `measure`: `clear` (left out, the default),
+`leaf` or `hole`:
+
+```json
+"door_width": { "value": 0.9, "measure": "leaf", "level": "must", "source": "given", "quote": "90 cm door leaves" }
+```
+
+- **Clear width**: the hole less what an open leaf and its stop take (`useOpenLeaf`), leaf by
+  leaf, and less what fixtures stand in front of it. A door that swings or folds takes the
+  allowance; a sliding, pocket, roller or garage door leaves its whole hole.
+- **A pair** (`kind: "double"`) is two leaves. With `opens`, the plan states its active leaf, and
+  the door is judged by that leaf. With none, both leaves open together, each taking its own
+  allowance: a 1.8 m pair leaves 1.70 m. A single door with `opens` beside a fixed panel is judged
+  by the part that opens.
+- **Leaf width** is the width of the leaf or leaves it is judged by, with no allowance.
+
+`grid check` and `grid_check` list the figures of the brief beside the plan that the drawing
+misses, after the report and under their own heading: the person's, not from any code or
+standard. They carry no code in the record.
 
 A figure Grid does not know is refused with the ones it knows. Each door, room or opening short
 of a figure is one line; a figure nothing is short of is one line met.

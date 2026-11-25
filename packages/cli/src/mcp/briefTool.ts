@@ -9,6 +9,7 @@
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
 import { BriefRefused, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBrief, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief } from '../brief/brief'
 import { briefLines, briefText, MAT } from '../brief/lines'
+import { DOOR_MEASURES } from '../quantities/doorWidth'
 
 /** What each figure's value is, in the tool's schema. */
 const VALUE_SAYS: Readonly<Record<FigureName, string>> = {
@@ -92,6 +93,7 @@ const BRIEF_SCHEMA = {
         properties: {
           value: { type: 'number', minimum: FIGURES[figure].least, maximum: FIGURES[figure].top, description: VALUE_SAYS[figure] },
           ...(figure === 'turning_circle' ? { rooms: { type: 'array', items: NAME, maxItems: 500, description: 'The rooms it is for, by name. Every room when left out.' } } : {}),
+          ...(figure === 'door_width' ? { measure: { type: 'string', enum: DOOR_MEASURES, description: 'The width the figure is for: clear (what the open door leaves, leaf by leaf), leaf (the leaf it opens by) or hole (the hole in the wall). Left out, clear.' } } : {}),
           ...(figure === 'floor_area_ratio' ? { measure: { type: 'string', enum: RATIO_MEASURES, description: 'The gross measure the ratio is set by. Left out, the usual one for the plan\'s place, else gross external, said as assumed.' } } : {}),
           level: { type: 'string', enum: ['must', 'should'] },
           source: SAID.source,

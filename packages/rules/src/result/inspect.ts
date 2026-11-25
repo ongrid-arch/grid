@@ -813,8 +813,8 @@ function firmLines(firm: FirmInput, names: Names): ResultLine[] {
         also: [...measured.also],
         floors: names.floors,
         // MSG-11: where it was measured by key when the caller gives it, else its text.
-        firm: { value: standard.value, name: standard.name, file: firm.file, measured: measured.measured, said: measured.sentence ?? measured.said }
-      }, { firm: { standard: measured.standard, measure: standard.measure, value: standard.value, unit, name: standard.name, file: firm.file } })
+        firm: { value: standard.value, name: standard.name, file: firm.file, note: standard.note, measured: measured.measured, said: measured.sentence ?? measured.said }
+      }, { firm: { standard: measured.standard, measure: standard.measure, value: standard.value, unit, name: standard.name, note: standard.note, file: firm.file } })
     )
   }
   return out

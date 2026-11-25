@@ -5,8 +5,9 @@
  * one line, and the change is written as asked.
  */
 import type { FloorPlan } from '@ongrid/floorplan/geometry'
+import { say } from '@ongrid/floorplan/messages'
 import type { Project } from '../fs/projectFiles'
-import { readBrief } from './brief'
+import { FIGURES, readBrief } from './brief'
 import { briefLines, briefText, type BriefLine } from './lines'
 
 /** How many lines a change's answer lists, so it stays short; the brief tool lists them all. */
@@ -40,4 +41,22 @@ export function briefReminder(project: Project, planFile: string): string | null
   const read = readBrief(project, planFile)
   if (read.brief !== null || read.problem !== null) return null
   return `No brief is kept beside this plan (${JSON.stringify(read.file)}): write what the person asked for with grid_write_brief, from their own words, and every change then says what is met and what missed.`
+}
+
+/**
+ * ARE-27: for `grid check` and `grid_check`, the person's own figures in the brief beside the
+ * plan that the drawing misses, under a heading that says whose they are. They are the person's,
+ * never a code's, and the check's record keeps no code for them. Empty when there is no brief,
+ * or nothing missed; one line when the brief can't be read.
+ */
+export function briefMissedText(project: Project, planFile: string, plan: FloorPlan, max = BRIEF_LINES_IN_AN_EDIT): string[] {
+  const read = readBrief(project, planFile)
+  if (read.problem !== null) return [say('en', 'report.brief.notRead', { problem: read.problem })]
+  if (read.brief === null) return []
+  const missed = briefLines(plan, read.brief).filter((l) => l.state === 'missed' && l.wish in FIGURES)
+  if (missed.length === 0) return []
+  const out = [say('en', 'report.brief.missed', { count: missed.length, file: JSON.stringify(read.file) })]
+  out.push(...missed.slice(0, max).map((l) => `  ${l.text}`))
+  if (missed.length > max) out.push(`  ${say('en', 'report.brief.missedMore', { count: missed.length - max })}`)
+  return out
 }

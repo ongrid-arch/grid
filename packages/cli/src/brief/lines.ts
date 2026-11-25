@@ -5,8 +5,9 @@
  * The drawing is measured here as everywhere else, so a target and the drawing are measured by
  * the same rule: a room's net area is ARE-9's (`planAreas`, `MEASURES.net`), its inside size the
  * one `grid_areas` gives, a footprint the lowest floor's gross external area and the outside of
- * its walls, a width or a turning circle `grid_measure`'s widest circle, a door its hole in the
- * wall, a height `roomHeight`. Until a brief names a size for a room, a size written in the
+ * its walls, a width or a turning circle `grid_measure`'s widest circle, a door the width its
+ * figure is for, clear by default, as the access measure gives it (ARE-27, `doorWidth.ts`), a
+ * height `roomHeight`. Until a brief names a size for a room, a size written in the
  * room's own name ("6 tatami", "12 m²") is read against the room as drawn (lab R-14).
  *
  * A line met says that what was drawn is what the person asked for, and nothing else: no line
@@ -18,7 +19,7 @@ import { floorOf, MEASURES, planFloors, tolerance, wallPolygon, computeBounds, t
 import { planAreas, type RoomArea } from '../quantities/areas'
 import { measureRoom, roomHeight } from '../quantities/measure'
 import { corridorNarrowestOf } from '../quantities/access'
-import { planSchedule } from '../quantities/schedule'
+import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, DOOR_MEASURE_RULES } from '../quantities/doorWidth'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { METRES } from '@ongrid/floorplan/types/units'
 import { isSiteFigure, siteLimits } from '../quantities/limits'
@@ -249,10 +250,19 @@ function figureLines(c: Context, wish: FigureWish): BriefLine[] {
   const eps = tolerance('lengthEqual')
   const roomName = (id: string): string => (c.survey.facts.rooms.has(id) ? q(c.survey.facts.rooms.get(id)!.name) : id)
   if (wish.figure === 'door_width') {
-    for (const row of planSchedule(c.survey, { types: ['door', 'opening'], narrowerThan: wish.value }).rows) {
-      for (const item of row.items) {
-        short.push(line('missed', wish, wish.figure, `${row.type} ${q(item.id)} (${roomName(item.between[0])} to ${roomName(item.between[1])}) width ${asked}, drawn ${n2(row.width)} m.`, { asked: limit, drawn: n2(row.width), unit: 'm', parts: [{ kind: 'opening', id: item.id }] }))
-      }
+    // ARE-27: every door judged as the access measure judges it, by the width the figure is for.
+    const measure = wish.door ?? 'clear'
+    const width = DOOR_MEASURE_NAMES[measure]
+    for (const opening of c.survey.facts.openings.values()) {
+      if (opening.type === 'window') continue
+      const d = doorClearanceOf(c.survey, opening.id)
+      if (d === null) continue
+      const drawn = doorWidthFor(d, measure)
+      if (drawn + tolerance('joint') >= wish.value) continue
+      const between = opening.sides.map((s) => (typeof s === 'object' ? roomName(s.room) : s))
+      const leaves = doorLeavesSaid(d, (v) => `${n2(v)} m`)
+      const hole = measure === 'hole' ? '' : `, its hole ${n2(d.hole)} m`
+      short.push(line('missed', wish, wish.figure, `${opening.type} ${q(opening.id)} (${between[0]} to ${between[1]}) ${width} ${asked}, drawn ${n2(drawn)} m${hole}${leaves === '' ? '' : `; ${leaves}`}.`, { asked: limit, drawn: n2(drawn), unit: 'm', parts: [{ kind: 'opening', id: opening.id }] }))
     }
   } else if (wish.figure === 'step') {
     for (const floor of c.survey.facts.floors) {
@@ -283,7 +293,8 @@ function figureLines(c: Context, wish: FigureWish): BriefLine[] {
     }
   }
   if (short.length > 0) return short
-  return [line('met', wish, wish.figure, `${figure.what} ${asked} m: nothing drawn is short of it (${figure.measures}).`, { asked: limit, unit: 'm' })]
+  const measures = wish.figure === 'door_width' ? `${DOOR_MEASURE_NAMES[wish.door ?? 'clear']}: ${DOOR_MEASURE_RULES[wish.door ?? 'clear']}` : figure.measures
+  return [line('met', wish, wish.figure, `${figure.what} ${asked} m: nothing drawn is short of it (${measures}).`, { asked: limit, unit: 'm' })]
 }
 
 // ---------------------------------------------------------------------------------------------

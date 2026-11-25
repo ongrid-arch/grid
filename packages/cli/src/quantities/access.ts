@@ -23,7 +23,9 @@
  * Pure: a survey, the person's figures and the code's in, lines and data out.
  */
 import {
-  doorwayClearance,
+  type DoorJudgedBy,
+  type DoorLeaf,
+  type DoorwayClearance,
   floorElevations,
   floorJoins,
   groundLevel,
@@ -46,6 +48,7 @@ import type { FigureName, FigureWish } from '../brief/brief'
 import { OUTSIDE, wayGraph } from './measure'
 import type { Survey, SurveyRoom } from './survey'
 import { fixturesOf } from './use'
+import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, type DoorMeasure } from './doorWidth'
 
 const q = (text: string): string => JSON.stringify(text)
 
@@ -93,6 +96,8 @@ export type AccessFigure =
 export interface Against {
   readonly figure: AccessFigure
   readonly short: boolean
+  /** ARE-27: for the person's door width, the width it was set against: clear, leaf or hole. */
+  readonly measure?: DoorMeasure
 }
 
 export interface AccessFigures {
@@ -118,6 +123,11 @@ function yoursFor(figures: AccessFigures, name: FigureName, room?: SurveyRoom): 
   return wish === undefined ? null : { from: 'yours', label: YOUR_FIGURE, figure: name, value: wish.value, quote: wish.quote }
 }
 
+/** ARE-27: the width the person's door figure is for: clear unless the brief says leaf or hole. */
+function doorMeasureOf(figures: AccessFigures): DoorMeasure {
+  return figures.yours.find((w) => w.figure === 'door_width')?.door ?? 'clear'
+}
+
 function codeFor(figures: AccessFigures, key: FigureKey): AccessFigure | null {
   const confirmed = figures.code(key)
   return confirmed === null ? null : { from: 'code', label: codeLabel(confirmed), key, value: confirmed.value, confirmed }
@@ -141,7 +151,9 @@ function againstText(against: readonly Against[], L: Length, words: { short: str
   return against
     .map((a) => {
       const whose = a.figure.from === 'yours' ? `${YOUR_FIGURE} of ${L(a.figure.value)}` : `the ${L(a.figure.value)} of ${a.figure.label}`
-      return `; ${a.short ? words.short : words.enough} ${whose}`
+      // ARE-27: a door figure says which width it was set against.
+      const by = a.measure === undefined ? '' : ` for its ${DOOR_MEASURE_NAMES[a.measure]}`
+      return `; ${a.short ? words.short : words.enough} ${whose}${by}`
     })
     .join('')
 }
@@ -444,6 +456,9 @@ export interface AccessDoor {
   readonly leaf: number
   /** The clear width past the open leaf and any fixture in front of it (CNT-13's `doorwayClearance`). */
   readonly clear: number
+  /** ARE-27: each leaf with its own clear width, and what `clear` is the width of. */
+  readonly leaves: readonly DoorLeaf[]
+  readonly judgedBy: DoorJudgedBy
   /** The sill above the floor: a step at the door when more than 0. */
   readonly sill: number
   readonly entrance: boolean
@@ -599,18 +614,8 @@ export function accessAnswer(survey: Survey, figures: AccessFigures, L: Length, 
   const scope = accessScope(survey)
   const { obstacles } = fixturesOf(survey)
   const entrance = entranceOf(survey)
-  const clearOf = new Map<string, ReturnType<typeof doorwayClearance>>()
-  const clearance = (via: string): ReturnType<typeof doorwayClearance> | null => {
-    const known = clearOf.get(via)
-    if (known) return known
-    const opening = survey.plan.openings.find((o) => o.id === via)
-    const facts = survey.facts.openings.get(via)
-    const wall = opening && survey.plan.walls.find((w) => w.id === opening.wall)
-    if (!opening || !wall || !facts || opening.type === 'window') return null
-    const found = doorwayClearance(wall, opening, obstacles(facts.floor))
-    clearOf.set(via, found)
-    return found
-  }
+  // ARE-27: every door read through the one rule the brief reads it by.
+  const clearance = (via: string): DoorwayClearance | null => doorClearanceOf(survey, via)
   const context: WayContext = {
     survey,
     graphs: new Map(),
@@ -642,11 +647,14 @@ export function accessAnswer(survey: Survey, figures: AccessFigures, L: Length, 
       const d = clearance(opening.id)
       if (d === null) continue
       const isEntrance = entrance?.doors.includes(opening.id) === true
+      // ARE-27: the person's figure against the width it is for (clear unless the brief says leaf or hole), as the brief sets it.
+      const measure = doorMeasureOf(figures)
+      const yours = least(doorWidthFor(d, measure), yoursFor(figures, 'door_width')).map((a) => ({ ...a, measure }))
       const against = [
-        ...least(d.clear, yoursFor(figures, 'door_width')),
+        ...yours,
         ...(isEntrance ? least(d.clear, codeFor(figures, ACCESS_CODE_FIGURES.entranceDoor)) : []),
       ]
-      doors.push({ id: opening.id, type: opening.type, floor: opening.floor, between: sides, hole: d.hole, leaf: d.leaf, clear: d.clear, sill: opening.sill, entrance: isEntrance, against })
+      doors.push({ id: opening.id, type: opening.type, floor: opening.floor, between: sides, hole: d.hole, leaf: d.leaf, clear: d.clear, leaves: d.leaves, judgedBy: d.judgedBy, sill: opening.sill, entrance: isEntrance, against })
     }
   }
 
@@ -699,10 +707,11 @@ export function accessAnswer(survey: Survey, figures: AccessFigures, L: Length, 
     for (const item of list.slice(0, ACCESS_LINES_MAX)) lines.push(`  ${line(item)}`)
     if (list.length > ACCESS_LINES_MAX) lines.push(`  And ${list.length - ACCESS_LINES_MAX} more, in the data. Marking the rooms that need to be accessible measures only them and the ways to them.`)
   }
-  capped(`Doors and doorless openings (${doors.length}): the hole in the wall, and the clear width past an open leaf:`, doors, (d) => {
-    const leaf = d.leaf > 0 ? `${L(d.clear)} clear past the open leaf` : `${L(d.clear)} clear`
+  capped(`Doors and doorless openings (${doors.length}): the hole in the wall, and the clear width past an open leaf, leaf by leaf:`, doors, (d) => {
+    const leaf = d.leaf > 0 ? `${L(d.clear)} clear past the open ${d.judgedBy === 'pair' ? 'leaves' : 'leaf'}` : `${L(d.clear)} clear`
+    const leaves = doorLeavesSaid(d, L)
     const sill = d.sill > tolerance('sameFloorLevel') ? `; its sill stands ${L(d.sill)} above the floor` : ''
-    return `${d.type} ${q(d.id)}${d.entrance ? ' (the entrance)' : ''}, ${name(d.between[0])} to ${name(d.between[1])}: ${L(d.hole)} hole, ${leaf}${sill}${againstText(d.against, L, LEAST_WORDS)}.`
+    return `${d.type} ${q(d.id)}${d.entrance ? ' (the entrance)' : ''}, ${name(d.between[0])} to ${name(d.between[1])}: ${L(d.hole)} hole, ${leaf}${leaves === '' ? '' : ` (${leaves})`}${sill}${againstText(d.against, L, LEAST_WORDS)}.`
   })
   if (rooms.some((r) => r.facts.use === 'corridor')) {
     capped(`Corridors (${corridors.length}), at their narrowest from end to end:`, corridors, (c) =>

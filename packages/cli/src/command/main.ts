@@ -34,6 +34,7 @@ import { projectResources, projectTools } from '../mcp/serveTools'
 import { CHECK_OPTIONS, checkJson, checkPlan, checkText, markNote, withSeen, type MarkAsk, type MarkDone } from './check'
 import { readSeen, SeenRefused } from '../seen/marks'
 import { firmForCheck } from '../firm/measure'
+import { briefMissedText } from '../brief/answer'
 import { EDIT_SUMMARY, EDIT_USAGE, EditCommandRefused, runEdit } from './edit'
 import { checkDescribeRequest, DESCRIBE_OPTIONS, describePlan, describeRooms, describeWalk, walkOf } from './describe'
 import { walkPictures } from '../describe/walkPictures'
@@ -398,7 +399,10 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const result = withSeen(checkPlan(loaded, { floor: textOf(parsed, '--floor'), country, firm, ...speech }), loaded, readSeen(project, planFile))
     if (json) io.stdout(checkJson(result, done ?? undefined))
     else {
-      const text = checkText(result, planFloors(loaded.plan).length, { full: parsed.values.has('--full') })
+      const report = checkText(result, planFloors(loaded.plan).length, { full: parsed.values.has('--full') })
+      // ARE-27: the person's own figures from the brief beside the plan that the drawing misses, after the report.
+      const missed = briefMissedText(project, planFile, loaded.plan)
+      const text = missed.length === 0 ? report : `${report.replace(/\n*$/, '')}\n\n${missed.join('\n')}\n`
       // The label stays the first line; what was marked comes right after it.
       io.stdout(done === null ? text : text.replace('\n', `\n${done.text}\n`))
     }
