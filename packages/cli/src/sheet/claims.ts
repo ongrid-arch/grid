@@ -6,6 +6,7 @@
  * accessible. A word inside quotation marks is somebody else's and is left alone, as elsewhere.
  */
 import { approvalWords } from '@ongrid/rules'
+import { DEFAULT_LANGUAGE, say } from '@ongrid/floorplan/messages'
 import { SheetWordsRefused, parseSheetWords, type SheetWords } from '@ongrid/floorplan/types/sheet'
 
 /** Each access claim, as a pattern over lower-case text. Spanish and English. */
@@ -46,9 +47,7 @@ export function refuseClaims(words: SheetWords): void {
   const [first] = sheetClaims(words)
   if (first === undefined) return
   const said = first.found.map((word) => `"${word}"`).join(', ')
-  throw new SheetWordsRefused(
-    `${first.field} says ${said}, which Grid does not print as a claim about the building. Grid measures the plan and never says it is accessible, complies or is approved; write what the plan holds (its rooms, sizes and layout) and leave the claim to the people who check it. Words in quotation marks are left alone`,
-  )
+  throw new SheetWordsRefused(say(DEFAULT_LANGUAGE, 'sheet.claim.refused', { field: first.field, words: said }))
 }
 
 /** The words, checked for their shape and limits (`parseSheetWords`) and then for claims. */

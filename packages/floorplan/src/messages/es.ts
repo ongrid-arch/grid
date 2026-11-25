@@ -1991,6 +1991,7 @@ export const es: Messages = {
   'sheet.undecided': 'Una puerta dibujada con línea discontinua y "?" aún no tiene sentido de apertura indicado.',
   'sheet.limits': 'Dibujado solo a partir del plano. No se muestran el mobiliario, las escaleras, la estructura, las instalaciones ni el paisajismo.',
   'sheet.limits.stairs': 'Dibujado solo a partir del plano. No se muestran el mobiliario, la estructura, las instalaciones ni el paisajismo.',
+  'sheet.claim.refused': '{field} dice {words}, que Grid no imprime como afirmación sobre el edificio. Grid mide el plano y nunca dice que sea accesible, cumpla o esté aprobado; escribe lo que el plano contiene (sus estancias, tamaños y distribución) y deja la afirmación a quienes lo comprueban. Las palabras entre comillas se dejan como están',
   'sheet.access.door': 'Por debajo de tu cifra de {figure}: la puerta entre {a} y {b} mide {value} libres.',
   'sheet.access.corridor': 'Por debajo de tu cifra de {figure}: el pasillo {room} se estrecha a {value}.',
   'sheet.access.turning': 'Por debajo de tu cifra de {figure}: el espacio de giro en {room} mide {value} de ancho.',

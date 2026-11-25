@@ -2004,6 +2004,7 @@ export const en = {
   'sheet.undecided': 'A door drawn with a dashed line and "?" has no stated swing yet.',
   'sheet.limits': 'Drawn from the plan alone. Furniture, stairs, structure, services and landscape are not shown.',
   'sheet.limits.stairs': 'Drawn from the plan alone. Furniture, structure, services and landscape are not shown.',
+  'sheet.claim.refused': '{field} says {words}, which Grid does not print as a claim about the building. Grid measures the plan and never says it is accessible, complies or is approved; write what the plan holds (its rooms, sizes and layout) and leave the claim to the people who check it. Words in quotation marks are left alone',
   'sheet.access.door': 'Under your figure of {figure}: the door between {a} and {b} measures {value} clear.',
   'sheet.access.corridor': 'Under your figure of {figure}: the corridor {room} narrows to {value}.',
   'sheet.access.turning': 'Under your figure of {figure}: the turning space in {room} is {value} across.',
