@@ -20,7 +20,11 @@
  *   walltype <t> <kind>                every inside wall of that thickness gets that kind
  *   sizes inside|centre|outside        what a room's size measures to, when its line does not say
  *   doors height <h>   windows sill <s> height <h>                    defaults
- *   floor <id> "<name>" [level <n>] [height <h>] [elevation <e>] [slab <s>] [building <kind>] [copy <floor> [with openings]]
+ *   floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]
+ *       the name in quotes (or `name <text>`), or left out: the id names the floor. level is the
+ *       storey number, whole or a half (0.5), never a height; elevation the metres from the
+ *       ground floor's level to this one's; height to its ceiling; slab the floor under it.
+ *       `elevation=0`, `level: 1` and `Height = 2.7` are read as `elevation 0` and so on (WRT-14)
  *   room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where> [...]
  *   room <id> "<name>" <use|-> polygon x,y x,y x,y ...                 inside faces
  *       <where>: at x,y (the south-west inside corner)
@@ -77,7 +81,8 @@ import { indexPlan } from '../geometry/plan'
 import { tryRoomPolygon } from '../geometry/room'
 import { tolerance } from '../geometry/tolerances'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
-import { f2, isNumberWord, numberOf, pointOf, RoomsStop, wordsOf } from './words'
+import { english, name as sayName, said, type MessageKey, type Values } from '../messages/say'
+import { f2, isNumberWord, numberOf, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord } from './words'
 
 type P = readonly [number, number]
 /** A wall as the text writes it into the file: no height when the text states none (WRT-6). */
@@ -85,6 +90,15 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 
 /** The floor's fields a `raw floor` line may hold: LVL-6's roof and parapet, BRF-4's outline, homes and parking. */
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
+
+/** WRT-14: the words a floor line knows after its id, `name` among them. */
+const FLOOR_KEYS: readonly string[] = ['name', 'level', 'elevation', 'height', 'slab', 'building', 'copy']
+
+/** A word of a floor line as it is written back in a refusal's offered line. */
+const lineWord = (w: LineWord): string => (w.quoted ? quoteWords(w.text) : w.text)
+
+/** Words in double quotes, or single when they hold a double quote. */
+const quoteWords = (text: string): string => (text.includes('"') ? `'${text}'` : `"${text}"`)
 
 /**
  * The plan as rooms text writes it: the file's own JSON, before the reading fills anything in.
@@ -565,11 +579,12 @@ class Compiler {
     try {
       value = JSON.parse(json)
     } catch {
-      this.stop('rooms/raw', at, `line ${at}: a raw floor is one JSON object on the rest of the line, with the floor's roof, parapet, outline, homes or parking as Grid's plan file holds them; this one could not be read.`)
+      this.stop('rooms/raw', at, `line ${at}: a raw floor is one JSON object on the rest of the line, with the floor's roof, parapet, outline, homes, parking or level as Grid's plan file holds them; this one could not be read.`)
     }
     const keys = typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.keys(value) : null
-    if (keys === null || keys.some((k) => !RAW_FLOOR_KEYS.includes(k))) {
-      this.stop('rooms/raw', at, `line ${at}: a raw floor is a JSON object holding only the floor's "roof", "parapet", "outline", "homes" and "parking", as Grid's plan file holds them.`)
+    // WRT-14: a level that is no storey number (neither whole nor a half) is the plan file's own too.
+    if (keys === null || keys.some((k) => !RAW_FLOOR_KEYS.includes(k) && k !== 'level')) {
+      this.stop('rooms/raw', at, `line ${at}: a raw floor is a JSON object holding only the floor's "roof", "parapet", "outline", "homes", "parking" and "level", as Grid's plan file holds them.`)
     }
     Object.assign(this.floor().extra, value)
   }
@@ -686,39 +701,103 @@ class Compiler {
     }
   }
 
+  /**
+   * WRT-14: `floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy ...]`.
+   * The name is optional (the id names a floor with none) and written in quotes, or as `name <text>`;
+   * the settings may be written as agents guess them (`elevation=0`, `level: 1`, `Height = 2.7`);
+   * and level is the storey number, a whole number or a half. Every refusal quotes the whole form.
+   */
   private stFloor(t: string[], at: number): void {
-    if (t.length < 3) this.stop('rooms/syntax', at, `line ${at}: write 'floor <id> "<name>" [level <n>] [height <m>]'.`)
-    const fl = newFloor(t[1]!, t[2]!, this.floors.length === 0 ? 0 : this.floors.length)
-    let copy: string[] | null = null
-    let i = 3
-    while (i < t.length) {
-      const w = t[i]!
-      if (['level', 'height', 'elevation', 'slab'].includes(w) && i + 1 < t.length) {
-        const v = numberOf(t[i + 1]!, at)
-        if (w === 'level') fl.level = v
-        else if (w === 'height') fl.height = v
-        else if (w === 'elevation') fl.elevation = v
-        else fl.slab = v
-        i += 2
-      } else if (w === 'building' && i + 1 < t.length) {
-        if (!BUILDINGS.includes(t[i + 1]!)) this.stop('rooms/syntax', at, `line ${at}: '${t[i + 1]}' is not a kind of building Grid knows. Use one of: ${BUILDINGS.join(', ')}.`)
-        fl.building = t[i + 1] as BuildingType
-        i += 2
-      } else if (w === 'copy' && i + 1 < t.length) {
-        // WRT-4: 'floor l4 "Fourth floor" level 4 copy l3', the floor and its copy on one line.
-        copy = t.slice(i)
-        break
+    const refuse: (problem: string, code?: string) => never = (problem, code = 'rooms/syntax') => this.stop(code, at, `line ${at}: ${problem} ${english(said('rooms.floor.how', { form: said('rooms.floor.form') }))}`)
+    const say = (key: MessageKey, values?: Values): string => english(said(key, values))
+    const all = quotedWordsOf(this.lines[at - 1] ?? t.join(' '), at)
+    const id = all[1]
+    if (id === undefined || id.text.includes('=') || id.text.includes(':') || FLOOR_KEYS.includes(id.text.toLowerCase())) refuse(say('rooms.floor.noId'))
+    // The settings as `key value`, whichever way the key and its value were joined.
+    const words: LineWord[] = []
+    for (const w of all.slice(2)) {
+      const m = w.quoted ? null : /^([A-Za-z]+)\s*[=:]\s*(.*)$/.exec(w.text)
+      if (m !== null && FLOOR_KEYS.includes(m[1]!.toLowerCase())) {
+        words.push({ text: m[1]!.toLowerCase(), quoted: false })
+        if (m[2] !== '') words.push({ text: m[2]!, quoted: false })
+      } else if (!w.quoted && (w.text === '=' || w.text === ':') && words.length > 0) {
+        continue
+      } else if (!w.quoted && FLOOR_KEYS.includes(w.text.toLowerCase())) {
+        words.push({ text: w.text.toLowerCase(), quoted: false })
       } else {
-        this.stop('rooms/syntax', at, `line ${at}: '${w}' is not understood on a floor line. Known words: level, height, elevation, slab, building, copy.`)
+        words.push(w)
       }
     }
-    if (this.floors.some((f) => f.id === fl.id)) this.stop('rooms/duplicate-id', at, `line ${at}: floor '${fl.id}' is already written.`)
-    if (!this.explicitFloors && this.floors.length > 0) this.stop('rooms/syntax', at, `line ${at}: rooms were written before the first 'floor' line. Put the floor line first.`)
+    let name: string | null = null
+    let i = 0
+    if (words[0]?.quoted === true) {
+      name = words[0].text
+      i = 1
+      const setting = /^\s*([A-Za-z]+)\s*[=:]\s*(\S*)\s*$/.exec(name)
+      if (setting !== null && FLOOR_KEYS.includes(setting[1]!.toLowerCase())) {
+        const fixed = [`floor ${id.text}`, `${setting[1]!.toLowerCase()} ${setting[2]}`.trim(), ...words.slice(1).map(lineWord)].join(' ')
+        refuse(say('rooms.floor.settingName', { name: sayName(name), setting: `${setting[1]!.toLowerCase()} ${setting[2]}`.trim(), line: fixed }))
+      }
+    } else if (words[0] !== undefined && !FLOOR_KEYS.includes(words[0].text)) {
+      // An unquoted name: the words up to the first setting, offered back in quotes.
+      let end = 0
+      while (end < words.length && (words[end]!.quoted || !FLOOR_KEYS.includes(words[end]!.text))) end++
+      const fixed = [`floor ${id.text}`, quoteWords(words.slice(0, end).map((w) => w.text).join(' ')), ...words.slice(end).map(lineWord)].join(' ')
+      refuse(say('rooms.floor.unquoted', { word: words[0].text, line: fixed }))
+    }
+    const fl = newFloor(id.text, name ?? id.text, this.floors.length === 0 ? 0 : this.floors.length)
+    let copy: string[] | null = null
+    const seen = new Set<string>()
+    while (i < words.length) {
+      const w = words[i]!
+      const key = w.quoted ? '' : w.text
+      if (!FLOOR_KEYS.includes(key)) refuse(say('rooms.floor.unknown', { word: w.text }))
+      if (key === 'copy') {
+        // WRT-4: 'floor l4 "Fourth floor" level 4 copy l3', the floor and its copy on one line.
+        copy = words.slice(i).map((x) => x.text)
+        break
+      }
+      if (seen.has(key) || (key === 'name' && name !== null)) refuse(say('rooms.floor.twice', { word: key }))
+      seen.add(key)
+      const value = words[i + 1]
+      if (value === undefined || (!value.quoted && FLOOR_KEYS.includes(value.text))) refuse(say('rooms.floor.noValue', { word: key }))
+      i += 2
+      if (key === 'name') {
+        name = value.text
+        fl.name = name
+      } else if (key === 'building') {
+        if (!BUILDINGS.includes(value.text)) refuse(say('rooms.floor.building', { word: value.text, kinds: BUILDINGS.join(', ') }))
+        fl.building = value.text as BuildingType
+      } else if (key === 'level') {
+        fl.level = this.storeyNumber(value.text, at, refuse)
+      } else {
+        let v: number
+        try {
+          v = numberOf(value.text, at)
+        } catch (error) {
+          if (!(error instanceof RoomsStop)) throw error
+          refuse(error.message.replace(/^line \d+: /, ''), error.code)
+        }
+        if (key === 'height') fl.height = v
+        else if (key === 'elevation') fl.elevation = v
+        else fl.slab = v
+      }
+    }
+    if (this.floors.some((f) => f.id === fl.id)) refuse(say('rooms.floor.duplicate', { id: fl.id }), 'rooms/duplicate-id')
+    if (!this.explicitFloors && this.floors.length > 0) refuse(say('rooms.floor.roomsFirst'))
     this.explicitFloors = true
     this.floors.push(fl)
     this.cur = fl
     this.riseInto(fl)
     if (copy !== null) this.stCopy(copy, at)
+  }
+
+  /** WRT-14: a level is the storey number, a whole number or a half; never a length. */
+  private storeyNumber(word: string, at: number, refuse: (problem: string) => never): number {
+    if (/[a-z'"]/i.test(word)) refuse(english(said('rooms.floor.levelLength', { value: word })))
+    const v = numberOf(word, at)
+    if (!Number.isInteger(v * 2)) refuse(english(said('rooms.floor.levelFraction', { value: word })))
+    return v
   }
 
   /**
