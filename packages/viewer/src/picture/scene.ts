@@ -524,7 +524,7 @@ function dimensionMark(
     children.push(
       el('g', { transform: labelTransform(labelAt, mpp) }, [
         el('text', { 'data-part': 'dimension-text', dy: String(DIMENSION_DY), ...(angle !== 0 && { transform: `rotate(${angle})` }), ...paint.dimensionText(room) }, [
-          dimensionText(dim.value)
+          dimensionText(dim.value, dim.kind)
         ])
       ])
     )

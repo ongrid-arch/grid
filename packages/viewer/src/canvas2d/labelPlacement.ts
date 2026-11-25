@@ -117,9 +117,10 @@ export function areaUnit(): string {
 }
 
 /** A dimension's number as it is drawn: metres to the millimetre, then to the centimetre (ARE-7); else in the drawing's display, as 12'-6" or 2860. */
-export function dimensionText(value: number): string {
+export function dimensionText(value: number, kind?: Dimension['kind']): string {
   if (drawingDisplay !== null) return showLength(value, drawingDisplay, { unit: false })
-  return metresText(value)
+  // A grid's spacings are set out to the millimetre, so they are drawn so and add up to the overall (VEW-46).
+  return metresText(value, kind === 'grid' ? 3 : 2)
 }
 
 /** The first line of a room's tag, as `style` asks. `index` is the room's place on its floor. */
@@ -149,7 +150,7 @@ export function roomLabelBox(
 /** A dimension's number anchored at `at`, drawn 5 px above it and centred. */
 export function dimensionTextBox(at: Vec2, dim: Pick<Dimension, 'kind' | 'value'>, metersPerPixel: number): Box {
   const px = dim.kind === 'room' ? DIMENSION_PX.room : DIMENSION_PX.other
-  const half = estimateTextWidth(dimensionText(dim.value), px) / 2 + PADDING_PX
+  const half = estimateTextWidth(dimensionText(dim.value, dim.kind), px) / 2 + PADDING_PX
   // Screen y grows down and plan y up: 5 px above the line is +5 px in the plan.
   const baseline = -DIMENSION_DY
   return {

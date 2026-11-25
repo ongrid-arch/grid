@@ -28,7 +28,7 @@ describe('columns and a structural grid in the 2D picture', () => {
         'grid:main:x:1-2', 'grid:main:x:2-3', 'grid:main:x:3-4', 'grid:main:x:4-5', 'grid:main:x:overall',
         'grid:main:y:A-B', 'grid:main:y:B-C', 'grid:main:y:overall',
       ])
-      expect(svg).toContain('>7.50<')
+      expect(svg).toContain('>7.500<')
       const columns = parts(svg, 'column')
       expect(columns).toHaveLength(8)
       const tone = look === 'working' ? LIGHT_LOOK.wallExterior : TECHNICAL_COLORS.wallExterior
