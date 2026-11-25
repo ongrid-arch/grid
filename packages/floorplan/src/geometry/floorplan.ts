@@ -633,8 +633,10 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
   const sketchBounds = sketch.length === 0 ? null : computeBounds(sketchExtent(sketch))
   const stated = planOrientation(plan).north
   const north = stated === null || notes.some((note) => note.kind === 'symbol' && note.symbol === 'north') ? null : { turn: (stated * Math.PI) / 180 }
-  // BRF-3: the site on the ground floor's plan, and on a plan that is no slice.
-  const site = floor === null || siteFloors(wholePlan(plan).whole).includes(floor) ? planSite(plan) : null
+  // BRF-3: the site on the ground floor's plan, and on a plan that is no slice. CNT-25: which
+  // floors those are is asked only of a plan with a site, since it works out every floor's level.
+  const sited = planSite(plan)
+  const site = sited === null || floor === null || siteFloors(wholePlan(plan).whole).includes(floor) ? sited : null
   const siteBounds = site === null ? null : computeBounds(siteExtent(site))
   const flats = flatOutlines(plan, index, broken)
   // BRF-4 (C17): the floor's stated outline, on its own plan; on a plan that is no slice, its one floor's.

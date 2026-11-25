@@ -49,6 +49,7 @@ import { wallWithEnds } from '../types/floorplan'
 import type { Vec2 } from './vec2'
 import { area, cross, dot, sub } from './vec2'
 import { wallAxis } from './wall'
+import { boxIndex } from './boxIndex'
 
 export type WallFaultKind =
   | 'short'
@@ -872,6 +873,15 @@ function splitAlong(ctx: Context, room: Room, s: Seg, stretch: [number, number])
 function crossingFaults(ctx: Context, out: Map<string, WallFault>): void {
   const nesting = roomNesting(ctx.index)
   const zones = roomZones(ctx.index)
+  // CNT-25: each room is tried only against the walls whose boxes meet its own (`boxIndex`), in
+  // the order they are listed, as before; a box that is not all numbers is tried by every room.
+  const segs = [...ctx.segs.values()]
+  const finite = (b: Seg['box']): boolean => [b.x0, b.y0, b.x1, b.y1].every(Number.isFinite)
+  const filed = segs.map((s, i) => ({ s, i })).filter(({ s }) => finite(s.box))
+  const filedIndex = boxIndex(filed.map(({ s }) => s.box))
+  const unfiled = segs.map((s, i) => ({ s, i })).filter(({ s }) => !finite(s.box)).map(({ i }) => i)
+  const nearRoom = (box: Seg['box']): Seg[] =>
+    finite(box) ? [...filedIndex.near(box).map((k) => filed[k]!.i), ...unfiled].sort((x, y) => x - y).map((i) => segs[i]!) : segs
   for (const { room, outline } of ctx.traced) {
     if (outline.fault !== null) continue
     // The walls round its holes are its own too (ARE-6).
@@ -882,7 +892,7 @@ function crossingFaults(ctx: Context, out: Map<string, WallFault>): void {
       { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity }
     )
     const standing: { s: Seg; inside: number }[] = []
-    for (const s of ctx.segs.values()) {
+    for (const s of nearRoom(box)) {
       if (listed.has(s.wall.id)) continue
       if (s.box.x0 > box.x1 || s.box.x1 < box.x0 || s.box.y0 > box.y1 || s.box.y1 < box.y0) continue
       // The walls of a room that sits inside this one stand in it by right (ARE-5).
