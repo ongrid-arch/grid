@@ -611,8 +611,8 @@ function insetRing(ring: readonly Vec2[], by: number): Vec2[] {
   // Each corner moves toward the middle by `by` along both of the rectangle's edge directions.
   const ex = { x: (ring[1]!.x - ring[0]!.x) / u, y: (ring[1]!.y - ring[0]!.y) / u }
   const ey = { x: (ring[2]!.x - ring[1]!.x) / v, y: (ring[2]!.y - ring[1]!.y) / v }
-  const cu = Math.min(by, u / 2 - 1e-9)
-  const cv = Math.min(by, v / 2 - 1e-9)
+  const cu = Math.min(by, u / 4)
+  const cv = Math.min(by, v / 4)
   return ring.map((p) => {
     const su = Math.sign((p.x - centre.x) * ex.x + (p.y - centre.y) * ex.y)
     const sv = Math.sign((p.x - centre.x) * ey.x + (p.y - centre.y) * ey.y)
