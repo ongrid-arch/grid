@@ -193,6 +193,58 @@ interface Seen {
   readonly order: number
 }
 
+/**
+ * VEW-47: the stretches of a wall that rises through floors (C19), one per floor, joined into one
+ * face from the lowest floor's bottom to the top floor's top. The parts of an opening that crosses
+ * a slab join by id into one opening; a slab's edge band that lies inside the joined face is left
+ * out, so no line crosses the wall.
+ */
+function joinThroughWalls(seen: readonly Seen[], plan: FloorPlan, across: Vec2): Seen[] {
+  const through = new Set(plan.walls.filter((w) => w.through !== undefined).map((w) => w.id))
+  if (through.size === 0) return [...seen]
+  const key = (s: Seen): string => `${s.wall}|${s.points[0]!.p.x.toFixed(4)},${s.points[0]!.p.y.toFixed(4)}|${s.points[1]!.p.x.toFixed(4)},${s.points[1]!.p.y.toFixed(4)}`
+  const groups = new Map<string, Seen[]>()
+  for (const s of seen) {
+    if (s.kind !== 'wall' || s.wall === null || !through.has(s.wall) || s.points.length < 4) continue
+    groups.set(key(s), [...(groups.get(key(s)) ?? []), s])
+  }
+  const joined = new Map<Seen, Seen | null>()
+  for (const group of groups.values()) {
+    if (group.length < 2) continue
+    const byLevel = [...group].sort((x, y) => Math.min(...x.points.map((q) => q.z)) - Math.min(...y.points.map((q) => q.z)))
+    const lowest = byLevel[0]!
+    const highest = byLevel[byLevel.length - 1]!
+    const parts = new Map<string, FacadeOpening>()
+    for (const piece of byLevel) {
+      for (const o of piece.openings) {
+        const seenBefore = parts.get(o.id)
+        parts.set(o.id, seenBefore === undefined ? o : { ...o, bottom: Math.min(seenBefore.bottom, o.bottom), top: Math.max(seenBefore.top, o.top) })
+      }
+    }
+    const one: Seen = { ...lowest, points: [...lowest.points.slice(0, 2), ...highest.points.slice(2)], openings: [...parts.values()] }
+    for (const piece of byLevel) joined.set(piece, piece === lowest ? one : null)
+  }
+  if (joined.size === 0) return [...seen]
+  const faces = [...joined.values()].filter((s): s is Seen => s !== null)
+  const inside = (s: Seen): boolean => {
+    const us = s.points.map(({ p }) => dot(p, across))
+    const zs = s.points.map(({ z }) => z)
+    const near = tolerance('facadeOnFace')
+    return faces.some((f) => {
+      const fu = f.points.map(({ p }) => dot(p, across))
+      const fz = f.points.map(({ z }) => z)
+      return Math.min(...us) >= Math.min(...fu) - near && Math.max(...us) <= Math.max(...fu) + near && Math.min(...zs) >= Math.min(...fz) - near && Math.max(...zs) <= Math.max(...fz) + near
+    })
+  }
+  return seen.flatMap((s) => {
+    if (joined.has(s)) {
+      const one = joined.get(s)
+      return one === null || one === undefined ? [] : [one]
+    }
+    return s.kind === 'slab' && inside(s) ? [] : [s]
+  })
+}
+
 /** A band along an edge, from `bottom` to `top` over each end (a sloped roof's edge rises with it). */
 const band = (a: Vec2, b: Vec2, bottomA: number, bottomB: number, thickness: number): Seen['points'] => [
   { p: a, z: bottomA },
@@ -673,6 +725,11 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
       }
     }
   }
+  // VEW-47: a wall rising through floors (C19) is one face with one window: its stretch on each
+  // floor is joined, the window's parts are one opening, and no slab band crosses it.
+  const joined = joinThroughWalls(seen, plan, across)
+  seen.length = 0
+  seen.push(...joined)
   if (seen.length === 0) return empty
 
   // The nearest point of the facade stands furthest the side's way.

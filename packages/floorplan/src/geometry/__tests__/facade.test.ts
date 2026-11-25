@@ -477,3 +477,45 @@ describe('a building with curved corners (VEW-36)', () => {
     expect(planFacade(plan, 'south').openings).toEqual(['band'])
   })
 })
+
+describe('a window through two floors', () => {
+  const tall = (floorExtra: Record<string, unknown> = {}): FloorPlan => {
+    const w = (id: string, start: [number, number], end: [number, number], extra: Record<string, unknown> = {}) => ({ id, start, end, thickness: 0.3, height: 2.7, floor: 'ground', ...extra })
+    return parseFloorPlan({
+      version: '1',
+      floors: [{ id: 'ground', name: 'Ground floor', level: 0 }, { id: 'first', name: 'First floor', level: 3, ...floorExtra }],
+      walls: [
+        w('s', [0, 0], [10, 0], { through: 'first' }),
+        w('e', [10, 0], [10, 8]),
+        w('n', [10, 8], [0, 8]),
+        w('wst', [0, 8], [0, 0]),
+        w('fe', [10, 0], [10, 8], { floor: 'first' }),
+        w('fn', [10, 8], [0, 8], { floor: 'first' }),
+        w('fw', [0, 8], [0, 0], { floor: 'first' }),
+      ],
+      rooms: [
+        { id: 'g', name: 'Hall', boundary: ['s', 'e', 'n', 'wst'], floor: 'ground' },
+        { id: 'f', name: 'Bedroom', boundary: ['s', 'fe', 'fn', 'fw'], floor: 'first' },
+      ],
+      openings: [{ id: 'stair-window', wall: 's', type: 'window', offset: 2, width: 2, sill: 0.5, height: 4.5 }],
+    })
+  }
+
+  it('is one face with one window, from the sill to the head', () => {
+    const facade = planFacade(tall(), 'south')
+    const walls = facade.faces.filter((f) => f.kind === 'wall' && f.wall === 's')
+    expect(walls).toHaveLength(1)
+    expect(walls[0]!.bottom).toBe(0)
+    expect(walls[0]!.openings).toHaveLength(1)
+    expect(walls[0]!.openings[0]).toMatchObject({ id: 'stair-window', bottom: 0.5, top: 5 })
+    expect(facade.openings).toEqual(['stair-window'])
+  })
+
+  it('has no slab band across it where the slab states its thickness', () => {
+    const facade = planFacade(tall({ slab: 0.25 }), 'south')
+    const wall = facade.faces.find((f) => f.kind === 'wall' && f.wall === 's')!
+    const across = facade.faces.filter((f) => f.kind === 'slab' && f.u0 >= wall.u0 && f.u1 <= wall.u1 && f.bottom >= wall.bottom && f.top <= wall.top)
+    expect(across).toEqual([])
+    expect(facade.faces.filter((f) => f.kind === 'wall' && f.wall === 's')).toHaveLength(1)
+  })
+})
