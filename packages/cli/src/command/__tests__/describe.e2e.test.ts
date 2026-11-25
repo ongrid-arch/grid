@@ -102,8 +102,8 @@ describe('grid describe', () => {
     expect(grid(['describe', '--project', project, '--length', 'line']).out).toBe(run.out)
   })
 
-  it('needs a plan outside a project', () => {
-    expectRefusal(grid(['describe']), 2, 'describe needs a plan file')
+  it('says where it looked when the folder holds no plan.json (CMD-18)', () => {
+    expectRefusal(grid(['describe']), 1, 'holds no plan.json')
   })
 
   it('refuses a length or an audience it does not know, by name', () => {

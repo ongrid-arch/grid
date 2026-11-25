@@ -45,7 +45,7 @@ import { checkDrawRequest, DRAW_OPTIONS, drawFile, undecidedNote } from './draw'
 import { approximatedText, checkExportRequest, dxfProfileLine, EXPORT_OPTIONS, exportFile, exportIntoProject, ExportWriteFailed, leftOutText } from './export'
 import { DxfProfileRefused } from '../export/dxfProfile'
 import type { LeftOutPart } from '@ongrid/floorplan/export'
-import { INIT_OPTIONS, initFolder, initProject, InitRefused, initText, PROJECT_FILE, PROJECT_PLAN, projectPlanFile } from './init'
+import { INIT_OPTIONS, initFolder, initProject, InitRefused, initText, PROJECT_FILE, PROJECT_PLAN, projectPlanFile, missingDefaultPlan } from './init'
 import { helpText, onePlanFile, parseOptions, PROJECT_OPTION, textOf, UsageError, type OptionSpecs } from './options'
 import { floorOption, loadPlan, PlanRefused, type LoadedPlan } from './plan'
 import { SHEET_OPTIONS } from './sheet'
@@ -178,7 +178,7 @@ const OVERVIEW = [
   'network paths and names Windows keeps for devices, such as CON or NUL. A relative path',
   'starts from the folder Grid runs in; for the tools of grid serve, from the project folder.',
   '',
-  `A project folder that holds ${PROJECT_FILE}, as grid init makes it, is a Grid project. There,`,
+  `With no plan file named, every command uses ${PROJECT_PLAN} in the folder it runs in; a folder that holds ${PROJECT_FILE}, as grid init makes it, is a Grid project. There,`,
   `write writes ${PROJECT_PLAN}, and check, describe, draw, export, sheet, tidy, occupancy, mark and diff read it when no plan file is named, and export`,
   'writes into exports/. grid init never replaces a file: it refuses a folder that already holds',
   `${PROJECT_FILE} or ${PROJECT_PLAN}.`,
@@ -330,7 +330,6 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     if (parsed.positionals.length > 0) throw new UsageError(`write --scan reads the scan in place of rooms text: name one or the other, not both.`)
     const project = openProject(projectOption, io.cwd)
     const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
-    if (target === null) throw new UsageError(`write needs a plan to write: --plan <plan.json>, or run it in a project folder grid init made, which holds ${PROJECT_FILE}.`)
     const done = writeScanIntoProject(project, textOf(parsed, '--scan')!, target, { replace: parsed.values.has('--replace') })
     if (parsed.values.has('--json')) {
       const c = done.conversion
@@ -350,7 +349,6 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     if (roomsFile?.toLowerCase().endsWith('.json')) throw new UsageError(`write reads rooms text, not a plan: ${JSON.stringify(roomsFile)} ends in .json. Name the plan to write with --plan.`)
     const project = openProject(projectOption, io.cwd)
     const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
-    if (target === null) throw new UsageError(`write needs a plan to write: --plan <plan.json>, or run it in a project folder grid init made, which holds ${PROJECT_FILE}.`)
     const options = { replace: parsed.values.has('--replace') }
     const laid = shape === undefined ? null : writeLayout(project, target, shape as LayoutShape, options)
     const done = laid?.done ?? writeRoomsIntoProject(project, readRoomsFile(project, roomsFile!), target, options)
@@ -367,7 +365,6 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     if (marker !== undefined && marker.toLowerCase().endsWith('.json')) throw new UsageError(`mark takes a marker name, not a plan: ${JSON.stringify(marker)} ends in .json. Name the plan with --plan.`)
     const project = openProject(projectOption, io.cwd)
     const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
-    if (target === null) throw new UsageError(`mark needs a plan: --plan <plan.json>, or run it in a project folder grid init made, which holds ${PROJECT_FILE}.`)
     io.stdout(runMark(project, target, marker, parsed.values.has('--remove')))
     return EXIT_OK
   }
@@ -377,11 +374,10 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   if (parsed.positionals.length > 0) {
     planFile = onePlanFile(name, parsed.positionals)
   } else {
-    const found = projectPlanFile(openProject(projectOption, io.cwd))
-    if (found === null) {
-      throw new UsageError(`${name} needs a plan file: grid ${name} <plan.json>, or run it in a project folder grid init made, which holds ${PROJECT_FILE}.`)
-    }
-    planFile = found
+    const project = openProject(projectOption, io.cwd)
+    planFile = projectPlanFile(project)
+    // CMD-18: no plan named and no plan.json there: say where Grid looked.
+    if (!project.exists(planFile)) throw new PlanRefused(missingDefaultPlan(project, planFile))
   }
 
   if (name === 'check') {
