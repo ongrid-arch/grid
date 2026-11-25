@@ -13,7 +13,8 @@ import { matchById } from './match'
 import type { Matched } from './match'
 import { ENTITY_ORDER, compareIssues, compareText } from './order'
 import { wallMotion } from './motion'
-import { floorProps, openingProps, roomProps, wallProps } from './props'
+import { floorProps, openingProps, phaseProp, roomProps, wallProps } from './props'
+import { phaseReading } from '../phases'
 import { roomAreas } from './rooms'
 import { assess, assessmentIssues, without } from './validity'
 import { makeSummarizer } from './summary'
@@ -125,11 +126,15 @@ export function diffPlans(
     head: indexPlan(head)
   }
 
+  // MSG-25: each part's phase as each version reads it, from the whole plans: an opening on a
+  // skipped wall still follows that wall.
+  const readings = options.phases === false ? null : { base: phaseReading(earlier), head: phaseReading(later) }
+
   const walls = compare({
     type: 'wall',
     matched: matchById(base.walls, head.walls),
     floorOf: (wall) => floorOf(wall),
-    props: (before, after) => wallProps(before, after, epsilon),
+    props: (before, after) => [...wallProps(before, after, epsilon), ...phaseProp(before, after, readings && [readings.base.wall, readings.head.wall])],
     motion: (before, after) => wallMotion(before, after, epsilon)
   })
   const roomPairs = matchById(base.rooms, head.rooms)
@@ -137,7 +142,7 @@ export function diffPlans(
     type: 'room',
     matched: roomPairs,
     floorOf: (room) => floorOf(room),
-    props: (before, after) => roomProps(before, after, epsilon)
+    props: (before, after) => [...roomProps(before, after, epsilon), ...phaseProp(before, after, readings && [readings.base.room, readings.head.room])]
   })
   const wallChanges = new Map(walls.map((c) => [c.entity.id, c] as const))
   const roomChanges = new Map(rooms.map((c) => [c.entity.id, c] as const))
@@ -146,7 +151,7 @@ export function diffPlans(
   // that have no change of their own.
   const openingPairs = matchById(base.openings, head.openings)
   const openingChanges = new Map(
-    openingPairs.both.map(([before, after]) => [after.id, openingProps(before, after, epsilon)])
+    openingPairs.both.map(([before, after]) => [after.id, [...openingProps(before, after, epsilon), ...phaseProp(before, after, readings && [readings.base.opening, readings.head.opening])]])
   )
   const unchangedOpenings = openingPairs.both.filter(
     ([, after]) => openingChanges.get(after.id)!.length === 0

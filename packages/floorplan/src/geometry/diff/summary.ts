@@ -12,6 +12,14 @@ import { planFloors } from '../floors'
 import { fixedText, metresText } from '../rounding'
 import { quoted } from '../../types/planText'
 import type { PlanChange, PropChange, WallMotion } from './types'
+import type { Phase } from '../../types/floorplan'
+import { PHASE_WORDS } from '../phases'
+import { english, said } from '../../messages/say'
+
+/** MSG-25: a part's phase change in words, "now to be demolished (was existing)". */
+export function phaseWords(before: Phase, after: Phase): string {
+  return english(said('diff.phase.changed', { phase: said(PHASE_WORDS[after]), before: said(PHASE_WORDS[before]) }))
+}
 
 function metres(value: number): string {
   // A distance, so without its sign; the rounding is the core's one way (ARE-7).
@@ -92,6 +100,8 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
     // CNT-18: a wall made curved, made straight, or curved another way.
     const arc = prop(change, 'arc')
     if (arc) parts.push(arc.before === null ? 'made curved' : arc.after === null ? 'made straight' : 'curve changed')
+    const phase = prop(change, 'phase')
+    if (phase) parts.push(phaseWords(phase.before as Phase, phase.after as Phase))
     return `Wall ${parts.join('; ')}`
   }
 
@@ -117,6 +127,8 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
     if (sill) parts.push(`sill ${range(sill)}`)
     const height = prop(change, 'height')
     if (height) parts.push(`height ${range(height)}`)
+    const phase = prop(change, 'phase')
+    if (phase) parts.push(phaseWords(phase.before as Phase, phase.after as Phase))
     return `${noun} ${parts.join('; ')}`
   }
 
@@ -143,6 +155,8 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
     // LVL-7: how far its floor stands off its storey's, 0 when unstated.
     const floorOffset = prop(change, 'floorOffset')
     if (floorOffset) parts.push(`floor offset ${metres(Number(floorOffset.before))} → ${metres(Number(floorOffset.after))} m`)
+    const phase = prop(change, 'phase')
+    if (phase) parts.push(phaseWords(phase.before as Phase, phase.after as Phase))
     return `${subject} ${parts.join('; ')}`
   }
 

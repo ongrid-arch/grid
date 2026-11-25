@@ -8,6 +8,7 @@
  */
 
 import type { Floor, Opening, Room, Wall } from '../plan'
+import type { Phase } from '../../types/floorplan'
 import { floorOf } from '../floors'
 import type { PropChange } from './types'
 import { tolerance } from '../tolerances'
@@ -159,4 +160,16 @@ export function openingProps(before: Opening, after: Opening, epsilon: number): 
     number('sill', before.sill, after.sill, epsilon),
     number('height', before.height, after.height, epsilon)
   ])
+}
+
+/**
+ * MSG-25: a part's phase (C16) as each version reads it (`read`, the earlier's and the later's
+ * `phaseReading`), compared only where one of the two states a phase on the part: a part that
+ * states none on either side takes it from its wall or the plan's base, which their own lines
+ * say. None when the comparison leaves phases out (`read` null).
+ */
+export function phaseProp<T extends { readonly phase?: Phase }>(before: T, after: T, read: readonly [(part: T) => Phase, (part: T) => Phase] | null): PropChange[] {
+  if (read === null || (before.phase === undefined && after.phase === undefined)) return []
+  const [was, is] = [read[0](before), read[1](after)]
+  return was === is ? [] : [{ key: 'phase', before: was, after: is }]
 }

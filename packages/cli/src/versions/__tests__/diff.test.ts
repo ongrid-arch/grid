@@ -337,3 +337,32 @@ describe('openings on a wall that moved (WRT-12)', () => {
     }
   })
 })
+
+describe('a part whose phase changed between two versions (MSG-25)', () => {
+  /** The flat with the phases named set on its parts, as its file. */
+  const phased = (phases: Record<string, string>): string => {
+    const plan = JSON.parse(flat) as { walls: { id: string }[]; openings: { id: string }[]; rooms: { id: string }[] }
+    const set = <T extends { id: string }>(part: T): T => (phases[part.id] === undefined ? part : { ...part, phase: phases[part.id] })
+    return JSON.stringify({ ...plan, walls: plan.walls.map(set), openings: plan.openings.map(set), rooms: plan.rooms.map(set) }, null, 2)
+  }
+
+  it('names a window blocked up since the marker, with its phase before and after', async () => {
+    const dir = project({ 'plan.json': phased({ 'win-bath': 'demolished' }) })
+    expect((await grid(dir, 'mark', 'start')).status).toBe(0)
+    writeFileSync(join(dir, 'plan.json'), phased({ 'win-bath': 'demolished', 'win-bed1': 'demolished' }))
+    const after = await grid(dir, 'diff', '--since', 'start')
+    expect(after.status, after.err).toBe(0)
+    expect(after.out).toContain('Changes (1):\n  1. Window "win-bed1" now to be demolished (was existing), in "Bedroom 1"')
+    const json = JSON.parse((await grid(dir, 'diff', '--since', 'start', '--json')).out) as { sameBuilding: boolean; changes: { text: string; entities: unknown[] }[] }
+    expect(json.sameBuilding).toBe(false)
+    expect(json.changes).toEqual([{ text: 'Window "win-bed1" now to be demolished (was existing), in "Bedroom 1"', entities: [{ type: 'opening', id: 'win-bed1' }], rooms: ['bed1'] }])
+  })
+
+  it('compares the plan with itself by phase as before: the window to be demolished is removed', async () => {
+    const dir = project({ 'plan.json': phased({ 'win-bed1': 'demolished' }) })
+    const byPhase = await grid(dir, 'diff', '--since', 'phase')
+    expect(byPhase.status, byPhase.err).toBe(0)
+    expect(byPhase.out).toContain('Window removed: "win-bed1", 1.40 m wide, in "Bedroom 1"')
+    expect(byPhase.out).not.toContain('now to be demolished')
+  })
+})

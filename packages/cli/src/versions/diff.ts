@@ -6,7 +6,8 @@
  * project's own git folder (`git.ts`). Named nothing, it is the marker `start` when the plan has
  * one, else the last commit. The comparison is the core's (`compareBuildings`), with the notes
  * of the drawing check on each version (`inspectPlan`), so the notes that came and went are
- * among the issues. Nothing here measures or pairs anything itself.
+ * among the issues. MSG-25: between two versions, a part whose phase changed is a change. Nothing
+ * here measures or pairs anything itself.
  */
 import path from 'path'
 import { compareBuildings, planHasPhases, planInState, type BuildingComparison } from '@ongrid/floorplan/geometry'
@@ -80,7 +81,9 @@ function diffByPhase(loaded: LoadedPlan, rooms?: readonly string[]): PlanDiffRun
   const after = planInState(loaded.plan, 'after')
   // WRT-15: a room an edit reshaped, kept as it stood, is read as the room it became.
   const before = roomsAsTheyStood(planInState(loaded.plan, 'before'), after)
-  const comparison = compareBuildings(before, after, rooms === undefined ? {} : { rooms })
+  // MSG-25: a pair here is one part before and after its work (a widened door, a room kept as it
+  // stood), so its phase is the work, not a change of phase.
+  const comparison = compareBuildings(before, after, { ...(rooms === undefined ? {} : { rooms }), phases: false })
   return { comparison, earlier: { ...loaded, plan: before }, later: { ...loaded, plan: after }, since: { kind: 'phase' } }
 }
 

@@ -133,6 +133,11 @@ export interface DiffOptions {
   readonly areaEpsilon?: number
   /** Default true. Only the issues change; the changes themselves never do. */
   readonly detectIdChurn?: boolean
+  /**
+   * MSG-25: whether a part whose phase changed is a change (a `phase` property). Default true;
+   * false for a plan compared with itself by phase, whose pairs are one part in two states.
+   */
+  readonly phases?: boolean
 }
 
 /** What the assistant said it was editing. */
