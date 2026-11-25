@@ -94,7 +94,8 @@ agent's, not a reviewed translation: they are the person's plan's, like its room
   means one use and nothing else; a word that means two things (`sala`, `entrée`) is left out.
   These words are Grid's own choice, not reviewed by a speaker of each language.
 - An id is plain letters, digits, `-`, `_` and `.`: rooms text takes the accents off one, and a
-  tool reads an id given with accents the same way (`plainId` in `types/planText.ts`).
+  tool reads an id given with accents the same way (`plainId` in `types/planText.ts`). One rule,
+  `readPlainId`, checks an id in rooms text, every tool argument and every option (CMD-24).
 
 ## Adding or changing a sentence
 

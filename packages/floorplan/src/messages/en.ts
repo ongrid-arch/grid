@@ -1966,9 +1966,10 @@ export const en = {
   'rooms.idFolded.many': 'Ids are written in plain letters, so every tool and edit takes them: {list}. Use these ids in later calls.',
   'rooms.idFolded.id': "'{written}' is '{id}'",
   'rooms.badId.raw':
-    "The id '{id}' holds a letter with no plain form. An id holds plain letters, digits, '-', '_' and '.', so every tool and edit takes it: write it in plain letters.",
+    "The id '{id}' holds a letter with no plain form. An id holds plain letters, digits, '-', '_' and '.', so every tool and edit takes it: write it in plain letters, such as '{plain}'.",
   'rooms.badId':
-    "line {line}: the id '{id}' holds a letter with no plain form. An id holds plain letters, digits, '-', '_' and '.', so every tool and edit takes it: write it in plain letters ('salon', 'kuche', 'keting'). The room's name, in quotes, keeps the person's own words.",
+    "line {line}: the id '{id}' holds a letter with no plain form. An id holds plain letters, digits, '-', '_' and '.', so every tool and edit takes it: write it in plain letters, such as '{plain}'.{name}",
+  'rooms.badId.name': " The name, in quotes, keeps the person's own words: {example}.",
   'rooms.answer.raw':
     'Written raw and kept as written: walls {walls}, rooms {rooms}, openings {openings}. Grid measures the raw rooms as it measures every room, and counts them in the rooms and the area above.',
   'rooms.answer.rawPart': 'written raw',
@@ -2052,6 +2053,7 @@ export const en = {
   'describe.room.outdoor': ' (outdoor space: {kind}, in no total)',
 
   // ── After merging main at 8b599e9: LVL-8's opening patterns in rooms text ───────────────────
+  'describe.rooms.plainIds': 'Ids written in plain letters, so every tool and edit takes them; writing this text back gives the plan these ids: {list}.',
   'describe.rooms.patterns.one': "The plan's opening pattern is not rooms text: grid write keeps it as the file has it, and its openings are not written here.",
   'describe.rooms.patterns.many': "The plan's {count} opening patterns are not rooms text: grid write keeps them as the file has them, and their openings are not written here.",
 

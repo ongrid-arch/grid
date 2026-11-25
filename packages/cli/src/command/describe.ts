@@ -15,8 +15,8 @@
  * of codes and ids that stays as it is; only its label is in the language.
  */
 import { isOwnItemKind, itemKinds, itemKindWord, type ItemGroup } from '@ongrid/floorplan/geometry'
-import { DEFAULT_LANGUAGE, say, type Language, type MessageKey } from '@ongrid/floorplan/messages'
-import { readRoomsText } from '@ongrid/floorplan/rooms'
+import { DEFAULT_LANGUAGE, joined, said, say, type Language, type MessageKey } from '@ongrid/floorplan/messages'
+import { planRevision, readRoomsText, withPlainIds } from '@ongrid/floorplan/rooms'
 import { DESCRIBE_AUDIENCES, DESCRIBE_LENGTHS, describeText, type DescribeAudience, type DescribeLength, type Words } from '../describe/card'
 import { planFacts } from '../describe/facts'
 import { personFacing } from '../describe/facing'
@@ -106,7 +106,14 @@ export function describeRooms(loaded: LoadedPlan, options: DescribeOptions = {})
   const patterns = plan.patterns?.length ?? 0
   const language = options.language ?? DEFAULT_LANGUAGE
   const kept = patterns === 0 ? '' : `# ${say(language, patterns === 1 ? 'describe.rooms.patterns.one' : 'describe.rooms.patterns.many', { count: patterns })}\n`
-  return `# ${say(language, 'label')}\n${kept}${readRoomsText(plan, plan.name === undefined ? {} : { name: plan.name }).text}`
+  // CMD-24: ids with no plain form (written before ids were plain) are read back plain, names as
+  // written, and the text stays based on the plan as the file holds it, so it writes back over it.
+  const plain = withPlainIds(plan)
+  const read = readRoomsText(plain.plan, plan.name === undefined ? {} : { name: plan.name }).text
+  if (plain.renamed.length === 0) return `# ${say(language, 'label')}\n${kept}${read}`
+  const list = joined(plain.renamed.map(([written, id]) => said('rooms.idFolded.id', { written, id })), 'join.comma', 'join.and')
+  const based = read.replace(`based on ${planRevision(plain.plan)}`, `based on ${planRevision(plan)}`)
+  return `# ${say(language, 'label')}\n${kept}# ${say(language, 'describe.rooms.plainIds', { list })}\n${based}`
 }
 
 /** The description, in the language of `options` (MSG-11; English when left out), ending in a new line. */

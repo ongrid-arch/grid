@@ -37,8 +37,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - An id is written in plain letters, so every tool and edit takes it (MSG-22): a word outside
   quotes has its accents taken off, so `room baño "Baño" baño 2 x 2` writes the id `bano`, and
   `north of baño` names it. The answer names each id written so (`rooms/id-folded`). An id with a
-  letter that has no plain form (`客厅`) is refused on its line (`rooms/bad-id`): write it in plain
-  letters (`keting`). A name in quotes keeps the person's own words, accents and all.
+  letter that has no plain form (`客厅`) is refused on its line (`rooms/bad-id`), which offers a plain
+  id made from what the part is (`room living "客厅"`). A name in quotes keeps the person's own
+  words, accents and all. A plan whose file already holds such ids reads back with plain ones in
+  their place (CMD-24): the read-back names each in a comment, and writing it back gives the plan
+  those ids. Every tool and option reads an id by this one rule (`readPlainId`).
 - In a text read in feet (`display ft-in`, or `numbers ft`), `12-6` is refused as `rooms/units`:
   it reads as 12 minus 6. Write `12'6"` or `12ft6in` for twelve feet six inches, or `(12-6)` in
   brackets for the difference. A sum such as `3.0+0.3` is read as before.

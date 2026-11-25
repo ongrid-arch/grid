@@ -8,6 +8,7 @@
  * stands where: issues first, then the verdict room by room, then the changes one line each.
  * `--rooms` names the rooms meant to be edited, and `--picture` writes the comparison's picture.
  */
+import { readPlainId } from '@ongrid/floorplan/types/floorplan'
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { DIFF_SHOWS, diffData, diffSince, diffText, type DiffShow } from '../versions/diff'
@@ -45,9 +46,12 @@ export function checkDiffRequest(request: DiffRequest): { show: DiffShow; rooms:
   if (request.floor !== undefined && request.picture === undefined) throw new UsageError('--floor goes with --picture: it is the floor the picture draws.')
   let rooms: string[] | undefined
   if (request.rooms !== undefined) {
-    rooms = request.rooms.split(',').map((id) => id.trim()).filter((id) => id !== '')
-    if (rooms.length === 0) throw new UsageError('--rooms takes room ids separated by commas, such as kitchen,hall.')
-    if (rooms.some((id) => !/^[A-Za-z0-9._-]{1,64}$/.test(id))) throw new UsageError('--rooms takes room ids: letters, digits, dots, dashes and underscores, separated by commas.')
+    const given = request.rooms.split(',').map((id) => id.trim()).filter((id) => id !== '')
+    if (given.length === 0) throw new UsageError('--rooms takes room ids separated by commas, such as kitchen,hall.')
+    // CMD-24: the one id rule every tool reads ids by: `baño` is `bano`.
+    const plain = given.map(readPlainId)
+    if (plain.some((id) => id === null)) throw new UsageError('--rooms takes room ids: letters, digits, dots, dashes and underscores, separated by commas.')
+    rooms = plain as string[]
   }
   return { show: (request.show as DiffShow | undefined) ?? 'all', rooms }
 }

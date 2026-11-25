@@ -37,6 +37,7 @@ import {
   type Point3,
   type Vec2,
 } from '@ongrid/floorplan/geometry'
+import { planIdText } from '@ongrid/floorplan/types/floorplan'
 import { buildingFrame } from '@ongrid/viewer/src/canvas3d/building'
 import type { Survey } from '../quantities/survey'
 import type { Side } from './viewNames'
@@ -262,7 +263,8 @@ export function settingOfCamera(raw: Record<string, unknown>): CameraSetting {
   }
   const text = (value: unknown, where: string): string | null => {
     if (value === undefined || value === null) return null
-    if (typeof value !== 'string' || !/^[A-Za-z0-9._-]{1,64}$/.test(value)) throw new CameraRefused(`camera.${where} takes an id of the plan, or null.`)
+    // CMD-24: the plan's own id, as the plan holds it and grid_view returned it.
+    if (!planIdText(value)) throw new CameraRefused(`camera.${where} takes an id of the plan, or null.`)
     return value
   }
   const object = (value: unknown, where: string): Record<string, unknown> => {
