@@ -105,7 +105,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   beside a room goes against it when every room on its facing side is opened to that room. Rooms
   placed by their corner (`at x,y`) or as polygons stay where they are written: a dividing line
   in a gap between them lies in its middle, and the answer says the rooms came out larger
-  (`rooms/area-differs`).
+  (`rooms/area-differs`). A side shared at an angle works as a square one does (CNT-36): a
+  polygon room written to the centimetre against the angled side of another, a few millimetres
+  off it, still shares that side, and the two get a dividing line, or a wall, along it and no
+  outside wall across it. Two rooms opened to each other that share no side are refused,
+  naming both and the rooms each shares a side with (`rooms/no-shared-wall`).
 - A door or window line may say its kind (CNT-14): `sliding`, `double`, `folding`, `pocket`,
   `roller`, `garage` or `single` for a door, `single`, `double`, `sliding`, `fixed` or
   `high-level` for a window; `part 0.9` (or `part 0.6 x 1.0`) for the part that opens. A door
