@@ -47,7 +47,11 @@ here too, as by every tool, and no brief is written.
 - **The footprint** gives the outside sizes (`width` and `depth`, either way round) or the area
   it covers (`area`), or both.
 - **Rooms that touch**: two rooms' names that must share a wall (`must`, `should`) or must not
-  (`avoid`).
+  (`avoid`). Rooms kept apart are judged by the ways between them too: a door straight between
+  them, or a way through other rooms by open gaps only (doorless openings and open edges), joins
+  them, and the line names the rooms and gaps that do ("joined through "Reception" by two open
+  gaps"). A door anywhere on the way keeps them apart, and the line says so; the outside is never
+  a room between.
 - **Every wish has a level**: `must`, `should`, or `avoid`, a wish for the drawing not to hold
   it (no garage; the bathroom not next to the kitchen). The footprint and the figures take
   `must` or `should`.
