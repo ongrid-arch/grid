@@ -76,8 +76,8 @@ or room the plan does not have is refused with the ones it has, a room, wall, do
 with the nearest id the plan has, and the word sent is never repeated back. A request line over 1 MiB and an id over 64 characters are refused, naming the
 limit. A change that would leave the drawing with a new problem is refused and nothing is
 written: a problem of any severity that the drawing did not have, matched by its code and part,
-so one that only changes its figures is not new; a fixture's fit is answered, not refused
-(WRT-18). The refusal names up to three of the problems; otherwise only the change is written back, and keys Grid does not know stay. The
+so one that only changes its figures is not new; a fixture's fit, a floor set back from the one
+below and a wall's stated kind read otherwise are answered, not refused (WRT-18). The refusal names up to three of the problems; otherwise only the change is written back, and keys Grid does not know stay. The
 answer to a change also names every door or doorless opening that now joins other rooms, read
 from where it stands: `bath-door joined bath and lounge; it now joins kitchen and lounge.`
 

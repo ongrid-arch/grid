@@ -13,8 +13,10 @@
 
 - `writeChange`, behind every tool that changes the plan, refuses a change whose drawing has a
   problem the plan did not have, of any severity, matched by code and part (`validatePlan`); a
-  problem that only changes its figures is not new, and a fixture's fit (`item/` warnings) is
-  still answered by `grid_place_item`, not refused. The refusal names up to three problems in
+  problem that only changes its figures is not new. Still written: a fixture's fit (`item/`
+  warnings, answered by `grid_place_item`), a floor that sits back from the one below
+  (`floor/out-of-line`, as an extension does), a wall's stated kind read otherwise
+  (`wall/kind-differs`), and a warning left on a part whose error the change clears. The refusal names up to three problems in
   their own words and how many more.
 - `grid_move_room_side` refused says `The largest move that fits is by <m> m, to <m> m inside.`
   (or `No move that way fits.`): call it again with that `by`. A move that would leave a room on
