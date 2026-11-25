@@ -10,7 +10,7 @@
  * here measures or pairs anything itself.
  */
 import path from 'path'
-import { compareBuildings, planHasPhases, planInState, type BuildingComparison } from '@ongrid/floorplan/geometry'
+import { compareBuildings, floorOf, planHasPhases, planInState, wallFloorIds, type BuildingComparison, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { english } from '@ongrid/floorplan/messages'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
@@ -101,9 +101,51 @@ export function sinceWords(since: EarlierVersion): string {
   return `the plan as last committed${since.branch === null ? '' : ` on ${since.branch.replace(/^refs\/heads\//, '')}`} (${since.commit.slice(0, 7)})`
 }
 
-/** The answer in words: issues first, then the verdict and the rooms, then the changes. */
-export function diffText(run: PlanDiffRun, show: DiffShow): string {
+/**
+ * CMD-32: the comparison's lines narrowed to one floor: the change lines, the rooms and the
+ * openings that moved with their wall or stayed. A line is on the floor when any part it is about
+ * stands on it, in the later plan or in the earlier one laid on it (where the removed parts are),
+ * so a room moved between floors is on both; a line about no floor (the site) is left out. The
+ * issues, the verdict and the scope check stay whole: an issue elsewhere is still one.
+ */
+export interface FloorLines {
+  /** The floor asked for; null for the whole building. */
+  readonly floor: string | null
+  readonly changes: BuildingComparison['changes']
+  readonly rooms: BuildingComparison['rooms']
+  readonly stayed: BuildingComparison['stayed']
+  readonly movedWith: BuildingComparison['movedWith']
+  /** The change lines left out. */
+  readonly otherFloors: number
+}
+
+export function diffOnFloor(run: PlanDiffRun, floor: string | undefined): FloorLines {
   const c = run.comparison
+  if (floor === undefined) return { floor: null, changes: c.changes, rooms: c.rooms, stayed: c.stayed, movedWith: c.movedWith, otherFloors: 0 }
+  const on = new Set<string>()
+  const add = (plan: FloorPlan): void => {
+    on.add(`floor:${floor}`)
+    const walls = new Map(plan.walls.map((wall) => [wall.id, wallFloorIds(plan, wall)]))
+    for (const [id, floors] of walls) if (floors.includes(floor)) on.add(`wall:${id}`)
+    for (const opening of plan.openings) if (walls.get(opening.wall)?.includes(floor)) on.add(`opening:${opening.id}`)
+    for (const room of plan.rooms) if (floorOf(room) === floor) on.add(`room:${room.id}`)
+  }
+  add(run.later.plan)
+  add(c.aligned)
+  const changes = c.changes.filter((line) => line.entities.some((e) => on.has(`${e.type}:${e.id}`)))
+  return {
+    floor,
+    changes,
+    rooms: c.rooms.filter((r) => on.has(`room:${r.room}`)),
+    stayed: c.stayed.filter((s) => on.has(`opening:${s.opening}`)),
+    movedWith: c.movedWith.filter((m) => on.has(`opening:${m.opening}`)),
+    otherFloors: c.changes.length - changes.length,
+  }
+}
+
+/** The answer in words: issues first, then the verdict and the rooms, then the changes. */
+export function diffText(run: PlanDiffRun, show: DiffShow, floor?: string): string {
+  const c = { ...run.comparison, ...diffOnFloor(run, floor) }
   const lines: string[] = [`Compared with ${sinceWords(run.since)}.`]
   // WRT-4: a plan mirrored or turned is said so first (lab Y-5).
   if (c.turnLine !== null) lines.push(c.turnLine)
@@ -132,9 +174,11 @@ export function diffText(run: PlanDiffRun, show: DiffShow): string {
     }
   }
   const changes = (): void => {
-    if (c.changes.length === 0) lines.push('Changes: none.')
+    const where = c.floor === null ? '' : ` on floor ${JSON.stringify(c.floor)}`
+    const leftOut = `${c.otherFloors} on other floors or about none, left out`
+    if (c.changes.length === 0) lines.push(`Changes${where}: none${c.otherFloors === 0 ? '' : `; ${leftOut}`}.`)
     else {
-      lines.push(`Changes (${c.changes.length}):`)
+      lines.push(`Changes${where} (${c.floor === null ? c.changes.length : `${c.changes.length} of ${c.changes.length + c.otherFloors}; ${leftOut}`}):`)
       c.changes.slice(0, DIFF_LINES_SHOWN).forEach((line, i) => lines.push(`  ${i + 1}. ${line.text}`))
       if (c.changes.length > DIFF_LINES_SHOWN) lines.push(`  … ${c.changes.length - DIFF_LINES_SHOWN} more, in the data.`)
     }
@@ -161,8 +205,8 @@ export function diffText(run: PlanDiffRun, show: DiffShow): string {
 }
 
 /** The answer as data: everything but the plans themselves. */
-export function diffData(run: PlanDiffRun, show: DiffShow): Record<string, unknown> {
-  const c = run.comparison
+export function diffData(run: PlanDiffRun, show: DiffShow, floor?: string): Record<string, unknown> {
+  const c = { ...run.comparison, ...diffOnFloor(run, floor) }
   const since = run.since.kind === 'marker'
     ? { kind: 'marker', name: run.since.name, at: run.since.at, commit: null }
     : run.since.kind === 'phase' ? { kind: 'phase', name: null, at: null, commit: null } : { kind: 'git', name: null, at: null, commit: run.since.commit }
@@ -184,6 +228,9 @@ export function diffData(run: PlanDiffRun, show: DiffShow): Record<string, unkno
     stayed: show === 'issues' || show === 'summary' ? [] : c.stayed.map((s) => ({ opening: s.opening, text: s.text })),
     movedWith: show === 'issues' || show === 'summary' ? [] : c.movedWith.map((m) => ({ opening: m.opening, with: m.with, by: [...m.by], text: m.text })),
     scope: { checked: c.scope.checked, rooms: [...c.scope.rooms], outside: c.scope.outside.map((l) => l.text) },
+    // CMD-32: the floor the lists are narrowed to, and how many change lines that left out.
+    floor: c.floor,
+    otherFloors: c.otherFloors,
     seenNew: seenNewData(run.seenNew),
   }
 }

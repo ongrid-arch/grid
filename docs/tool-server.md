@@ -393,7 +393,9 @@ It pairs the two versions by what stands where before it trusts an id, as
 [`grid diff`](commands.md#what-a-change-did-grid-mark-and-grid-diff) says, and answers issues
 first, then a verdict room by room, then the changes one line each. `show` chooses how much:
 `summary`, `changes`, `issues` or `all` (the default). Pass `rooms`, the rooms you meant to edit,
-and every change outside them is named. A plan that is the earlier one mirrored or turned a
+and every change outside them is named. Pass `floor` to narrow the rooms, changes and openings to
+that floor, as `grid diff --floor` does; the data says it in `floor` and the change lines left
+out in `otherFloors`, and a floor the plan does not have is refused (CMD-32). A plan that is the earlier one mirrored or turned a
 quarter or half round is said to be so first, in `turn` and in the line after "Compared with"
 (`The plan is mirrored left to right (east and west swap), and every room keeps its size.`), and
 compared from there, so a flipped flat is not every wall moved. Unless `picture: false`, and when something changed, it

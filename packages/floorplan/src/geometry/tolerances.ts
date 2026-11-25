@@ -563,6 +563,24 @@ export const TOLERANCES = {
       'The most rooms in a row of a first layout whose every order is tried; a longer row keeps the brief\'s order.',
     basis: own
   },
+  layoutNarrowest: {
+    kind: 'limit',
+    value: 1.2,
+    unit: 'm',
+    decides:
+      'Grid\'s own size, not a code figure. No side of a room a first layout draws from its area ' +
+      'alone is narrower than this, or than the room\'s own square when it is smaller (WRT-61).',
+    basis: own
+  },
+  layoutLongest: {
+    kind: 'limit',
+    value: 2,
+    unit: 'ratio',
+    decides:
+      'A room a first layout draws from its area alone, keeping its area, is at most this many ' +
+      'times as long as it is wide (WRT-61).',
+    basis: own
+  },
 
   // ── A survey drawn from its own numbers (HND-11) ──────────────────────────────────────────
   tapedAgree: {
@@ -905,6 +923,16 @@ export const TOLERANCES = {
       'How a stair that states no number of risers is laid out: Grid takes the number that brings ' +
       'twice the riser plus the going nearest this length, the stride of a person on a stair. It ' +
       'only lays the stair out; it judges no riser and no going.',
+    basis: own
+  },
+  stairSnap: {
+    kind: 'tolerance',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'A flight or landing drawn in a section within this of a wall or a slab it faces is drawn ' +
+      'touching it, so the cut is one outline with no sliver of white between them (VEW-57). It ' +
+      'only draws the stair; it judges nothing.',
     basis: own
   },
   stairWaist: {
@@ -1460,6 +1488,15 @@ export const TOLERANCES = {
     value: 1e-15,
     unit: 'ratio',
     decides: 'A slope below this is none when a segment is clipped.',
+    basis: own
+  },
+  sliverArea: {
+    kind: 'arithmetic',
+    value: 1e-5,
+    unit: 'm²',
+    decides:
+      'A hole in the joined cut of a section smaller than this is a hair left where two parts ' +
+      'almost meet, not a room (VEW-57), and is not drawn.',
     basis: own
   },
   shellGrid: {

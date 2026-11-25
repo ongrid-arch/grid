@@ -183,6 +183,30 @@ describe('WR-19: the estate agent\'s five rooms', () => {
   })
 })
 
+describe('a room asked for by its area alone', () => {
+  it('is drawn at a shape a person can use beside deep rooms, and its area met', async () => {
+    b = bench({})
+    const brief = {
+      rooms: [
+        { name: 'Primary bedroom', quote: 'primary bedroom 13 x 14 ft', use: 'bedroom', inside: [3.96, 4.27], level: 'must', source: 'given' },
+        { name: 'Bedroom', quote: 'bedroom 10 x 11 ft', use: 'bedroom', inside: [3.05, 3.35], level: 'must', source: 'given' },
+        { name: 'Kitchen', quote: 'kitchen 10 x 12 ft', use: 'kitchen', inside: [3.05, 3.66], level: 'must', source: 'given' },
+        { name: 'Living room', quote: 'living room 16 x 13 ft', use: 'living', inside: [4.88, 3.96], level: 'must', source: 'given' },
+        { name: 'Half bath', use: 'bathroom', area: 2.79, level: 'must', source: 'given', quote: 'a half bath, about 30 square feet' },
+      ],
+    }
+    expect((await b.call('grid_write_brief', { plan: 'plan.json', brief })).text).not.toContain('left out')
+    const done = await b.call('grid_write_rooms', { plan: 'plan.json', layout: 'sizes' })
+    expect(done.isError, done.text).toBe(false)
+    const layout = done.data?.['layout'] as { rooms: string; notKept: unknown[] }
+    expect(layout.notKept).toEqual([])
+    expect(layout.rooms).toContain('room half-bath "Half bath" bathroom 1.2 x 2.325 ')
+    const drawn = compileRoomsText(layout.rooms).rooms.find((r) => r.id === 'half-bath')!
+    expect(Math.min(drawn.width, drawn.depth)).toBeGreaterThanOrEqual(1.2 - 1e-9)
+    expect(missed(linesOf({ lines: (done.data?.['brief'] as { lines: BriefLine[] }).lines }))).toEqual([])
+  })
+})
+
 describe('AB-11: a door between two rooms that do not touch', () => {
   it('is refused with the alignment that would make them touch, as the line to write', async () => {
     b = bench({})
