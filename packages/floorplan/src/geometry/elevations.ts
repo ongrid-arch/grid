@@ -13,6 +13,7 @@ import { validatePlan } from './validate'
 import { wallPeak } from './roofs'
 import { buildingOfFloor } from './buildings'
 import { outdoorOnlyWalls } from './outdoor'
+import { tolerancesAsStated } from './tolerances'
 import { landscapeWalls } from './landscape'
 
 /** What a storey with no drawn wall counts as: the plan's default wall height. */
@@ -199,6 +200,22 @@ function floorsOf(plan: FloorPlan): Floor[] {
  * one with no walls.
  */
 export function floorElevations(plan: FloorPlan): BuildingElevations {
+  // CNT-25: worked out once per plan, since every floor's drawing, 3D shell and stairs ask the
+  // whole plan's levels, and working them out validates every floor. A plan is never changed in
+  // place once read; nothing is kept while `withTolerances` is in force. Each caller gets its own map.
+  const stated = tolerancesAsStated()
+  let found = stated ? elevationsOf.get(plan) : undefined
+  if (found === undefined) {
+    found = workOutElevations(plan)
+    if (stated) elevationsOf.set(plan, found)
+  }
+  return { floors: new Map(found.floors), roof: found.roof }
+}
+
+/** Each plan's levels, as `floorElevations` works them out (CNT-25). */
+const elevationsOf = new WeakMap<FloorPlan, BuildingElevations>()
+
+function workOutElevations(plan: FloorPlan): BuildingElevations {
   const floors = floorsOf(plan)
   const entries = floors.map((floor) => ({ floor, tallest: tallestDrawnWall(plan, floor) }))
   // CNT-6 (C23): each building the plan names stacks its own floors; the floors no building names

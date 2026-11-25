@@ -268,18 +268,36 @@ function inRow(a: Piece, b: Piece): boolean {
 /**
  * The first pair of edges of a closed polygon that properly cross, or null.
  * Edges that only touch, or share a corner, do not count.
+ *
+ * CNT-25: a curved wall makes an outline of hundreds of edges, so a pair whose boxes do not
+ * overlap is passed over before any cross product. Two edges that properly cross always have
+ * overlapping boxes, so the pair found is the same.
  */
 function selfCrossing(points: readonly Vec2[]): [number, number] | null {
   const n = points.length
+  const onLine = tolerance('onLine')
   const side = (a: Vec2, b: Vec2, c: Vec2): number => {
-    const value = cross(sub(b, a), sub(c, a))
-    return Math.abs(value) < tolerance('onLine') ? 0 : Math.sign(value)
+    const value = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+    return Math.abs(value) < onLine ? 0 : Math.sign(value)
+  }
+  const minX = new Float64Array(n)
+  const maxX = new Float64Array(n)
+  const minY = new Float64Array(n)
+  const maxY = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    const a = points[i]!
+    const b = points[(i + 1) % n]!
+    minX[i] = Math.min(a.x, b.x)
+    maxX[i] = Math.max(a.x, b.x)
+    minY[i] = Math.min(a.y, b.y)
+    maxY[i] = Math.max(a.y, b.y)
   }
   for (let i = 0; i < n; i++) {
     const a = points[i]!
     const b = points[(i + 1) % n]!
     for (let j = i + 2; j < n; j++) {
       if (i === 0 && j === n - 1) continue // neighbours across the end of the list
+      if (minX[j]! > maxX[i]! || maxX[j]! < minX[i]! || minY[j]! > maxY[i]! || maxY[j]! < minY[i]!) continue
       const c = points[j]!
       const d = points[(j + 1) % n]!
       if (side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0) return [i, j]
@@ -434,6 +452,46 @@ interface TracedRing {
   readonly fault: RoomOutlineError | null
 }
 
+/** What tracing one ring came to: its outline, or what it threw. */
+type TraceOutcome = { readonly ring: TracedRing } | { readonly thrown: unknown }
+
+/**
+ * CNT-25: each room's traced rings, by ring (0 its outline, n its hole n), with the walls they
+ * were traced from. A plan is never changed in place once read, so while the room and every wall
+ * it lists are the very same objects the tracing is the same; a curved wall's hundreds of pieces
+ * are then traced once, not once for every reader that indexes the plan afresh. Nothing is kept
+ * while `withTolerances` is in force (as `roomNesting`).
+ */
+const traced = new WeakMap<Room, Map<number, { readonly walls: readonly Wall[]; readonly outcome: TraceOutcome }>>()
+
+function sameWalls(a: readonly Wall[], b: readonly Wall[]): boolean {
+  return a.length === b.length && a.every((wall, i) => wall === b[i])
+}
+
+/** `traceRing` for a ring of `room`, kept as `traced` says. Each caller gets its own lists. */
+function tracedRing(room: Room, ring: Ring, index: PlanIndex): TracedRing {
+  const walls = resolveWalls(ring, index)
+  const stated = tolerancesAsStated()
+  const slot = ring.hole ?? 0
+  const kept = stated ? traced.get(room)?.get(slot) : undefined
+  let outcome: TraceOutcome | undefined = kept !== undefined && sameWalls(kept.walls, walls) ? kept.outcome : undefined
+  if (outcome === undefined) {
+    try {
+      outcome = { ring: traceRing(ring, walls, index) }
+    } catch (error) {
+      outcome = { thrown: error }
+    }
+    if (stated) {
+      const rings = traced.get(room) ?? new Map<number, { readonly walls: readonly Wall[]; readonly outcome: TraceOutcome }>()
+      rings.set(slot, { walls, outcome })
+      traced.set(room, rings)
+    }
+  }
+  if ('thrown' in outcome) throw outcome.thrown
+  const { polygon, sides, corners, fault } = outcome.ring
+  return { polygon: [...polygon], sides: [...sides], corners: [...corners], fault }
+}
+
 /**
  * One ring of walls along the faces that look into the room: the room's outline, or one of its
  * holes. Throws `RoomOutlineError` when the list cannot be closed at all.
@@ -442,10 +500,9 @@ interface TracedRing {
  * corner that points out of the room is one where the ring turns the other way. Everything
  * else is the same tracing.
  */
-function traceRing(ring: Ring, index: PlanIndex): TracedRing {
+function traceRing(ring: Ring, walls: readonly Wall[], index: PlanIndex): TracedRing {
   const refuse = (code: RoomFaultCode, sentence: Said): RoomOutlineError => new RoomOutlineError(code, sentence, ring.hole)
   const outside = ring.floor === 'outside'
-  const walls = resolveWalls(ring, index)
   // A curved wall is traced as its straight pieces (CNT-18): a whole circle closes on its own.
   const listed = ringPieces(walls)
   const pieces: Piece[] = listed.flatMap(({ pieces: axes, of }) =>
@@ -762,7 +819,8 @@ function withHoleHint(room: Room, index: PlanIndex, error: unknown): unknown {
   const slice = (from: number, count: number): string[] => Array.from({ length: count }, (_, k) => ids[(from + k) % n]!)
   const closes = (list: readonly string[]): Vec2[] | null => {
     try {
-      const ring = traceRing({ ...outlineRing(room), ids: list }, index)
+      const hinted = { ...outlineRing(room), ids: list }
+      const ring = traceRing(hinted, resolveWalls(hinted, index), index)
       return ring.fault === null ? ring.polygon : null
     } catch {
       return null
@@ -801,11 +859,11 @@ function withHoleHint(room: Room, index: PlanIndex, error: unknown): unknown {
 export function roomOutline(room: Room, index: PlanIndex): RoomOutline {
   let outline: TracedRing
   try {
-    outline = traceRing(outlineRing(room), index)
+    outline = tracedRing(room, outlineRing(room), index)
   } catch (error) {
     throw withHoleHint(room, index, error)
   }
-  const holes = (room.holes ?? []).map((ids, h) => traceRing(holeRing(room, ids, h + 1), index))
+  const holes = (room.holes ?? []).map((ids, h) => tracedRing(room, holeRing(room, ids, h + 1), index))
   const fault =
     outline.fault ??
     holes.find((hole) => hole.fault !== null)?.fault ??
