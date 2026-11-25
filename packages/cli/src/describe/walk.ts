@@ -311,9 +311,9 @@ function stopAt(survey: Survey, ways: Ways, room: SurveyRoom, from: string | nul
   const l = leftOf(f)
   // ARE-23: the room is sized in its own frame. A doorway in a wall at an angle to the room's
   // sides is crossed square to that wall, and the room's extent along that skewed line is not
-  // a side of it; the size is then taken along the room's own side nearest to the way you face.
+  // a side of it; the size is then taken along the room's own side nearest to the way you face. A room with a curved wall has no sides of its own: it keeps the way you face.
   const own = squareFacing(room, f)
-  const skewed = Math.abs(own.x * f.y - own.y * f.x) > tolerance('squareCorner')
+  const skewed = !room.edges.some((e) => e.wall?.arc !== undefined) && Math.abs(own.x * f.y - own.y * f.x) > tolerance('squareCorner')
   const sized = skewed ? own : f
   const sizedLeft = leftOf(sized)
   const ahead = room.polygon.map((p) => dot(sub(p, stand), sized))
