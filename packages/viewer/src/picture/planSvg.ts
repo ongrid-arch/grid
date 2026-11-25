@@ -41,7 +41,8 @@ import { drawnHanding, planScene, roomKeyOf } from './scene'
 import type { FaultLine, PictureKey } from './faults'
 import { faultKey, faultsOnFloor } from './faults'
 import { keyEntries, northArrowNode, numberedNotes, roomKeyBand, stackBands, writingBand } from './writing'
-import { drawingMarkNodes } from './drawingMarks'
+import { clearElevationMarks, drawingMarkNodes } from './drawingMarks'
+import { framedByLayout, layoutMarks, markObstacles } from './markLayout'
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
 import type { SvgNode } from './svgNode'
 import { el, toSvg } from './svgNode'
@@ -249,7 +250,9 @@ export function undecidedDoorsOf(plan: FloorPlan, floor?: string | null): string
 
 /** What a plan view frames: the drawing and its dimensions, which sit outside the walls. */
 export function framingOf(drawing: PlanDrawing, dimensions: readonly Dimension[]): Bounds {
-  return boundsWithDimensions(drawing, dimensions)
+  // VEW-31: the dimensions as they are drawn, with the grids' names past the chains in their way.
+  const layout = layoutMarks(drawing, dimensions)
+  return framedByLayout(drawing, boundsWithDimensions(drawing, layout.dimensions), layout)
 }
 
 /**
@@ -300,11 +303,31 @@ function framePicture(plan: FloorPlan, options: PictureOptions) {
   const dimensions = options.showDimensions === false ? [] : buildDimensions(drawing, { rooms: options.roomSizes !== false })
   const around = framingOf(drawing, dimensions)
   // LVL-9: the marks stand outside the drawing and its dimensions, and the view frames them too.
-  const marks = marksOf(plan, floor, drawing, around, options.marks)
+  const asked = marksOf(plan, floor, drawing, around, options.marks)
   // HND-10: the trace image under this floor, framed with the drawing so a floor not yet traced shows it whole.
   const trace = traceOf(plan, floor, options.trace)
-  const drawn = marks === null ? around : withMarks(around, marks)
-  const framed = options.frame ?? (trace === null ? drawn : withTrace(drawn, trace.placement, drawing.walls.length + drawing.rooms.length > 0))
+  const frameWith = (marks: DrawingMarks | null): Bounds => {
+    const drawn = marks === null ? around : withMarks(around, marks)
+    return options.frame ?? (trace === null ? drawn : withTrace(drawn, trace.placement, drawing.walls.length + drawing.rooms.length > 0))
+  }
+  // VEW-31: an elevation mark stands clear of the chains and the grids' bubbles, which are drawn in
+  // pixels: how far apart is in metres at the scale the picture ends up at, which the frame sets.
+  // Cleared at the scale before the marks, then again at the scale they gave it.
+  let marks = asked
+  if (asked !== null && asked.elevations.length > 0) {
+    const layout = layoutMarks(drawing, dimensions)
+    const drafted = lookOf(options.look).draftedDimensions
+    const sizeAt = (framed: Bounds): { width: number; height: number; scale: number } => {
+      const size = sizeOf(framed, options)
+      return { ...size, scale: fitTo(framed, size.width / size.height).width / size.width }
+    }
+    let scale = sizeAt(frameWith(asked)).scale
+    for (let pass = 0; pass < 2; pass++) {
+      marks = clearElevationMarks(asked, markObstacles(drawing, layout, scale, drafted), scale)
+      scale = Math.max(scale, sizeAt(frameWith(marks)).scale)
+    }
+  }
+  const framed = frameWith(marks)
   const { width, height } = sizeOf(framed, options)
   return { floor, slice, drawing, dimensions, marks, trace, width, height, view: fitTo(framed, width / height) }
 }
@@ -474,7 +497,7 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
     }
   })
   // CNT-3: a plan that states its north gets a north arrow in the corner of the view.
-  const withMarkNodes = marks === null ? scene : [...scene, ...drawingMarkNodes(marks, look, view.width / width, options.paperScale, words)]
+  const withMarkNodes = marks === null ? scene : [...scene, ...drawingMarkNodes(marks, look, view.width / width, options.paperScale, words, markObstacles(drawing, layoutMarks(drawing, dimensions), view.width / width, look.draftedDimensions))]
   const withNorth = drawing.north === null ? withMarkNodes : [...withMarkNodes, northArrowNode(drawing.north, view, view.width / width, look.colors)]
   // HND-10: the trace image over the rooms' fills, which would hide it, and under every line the
   // plan draws: walls, openings, dimensions and labels.

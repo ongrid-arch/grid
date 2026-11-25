@@ -56,6 +56,7 @@ import type { NumberedFault } from './faults'
 import { faultMarks, undrawnRoomText } from './faults'
 import { noteNodes, sketchNodes } from './writing'
 import { scheduleMarkNodes } from './drawingMarks'
+import { dimensionClutter, layoutMarks } from './markLayout'
 import { drawingText } from './words'
 import { num } from '@ongrid/floorplan/messages'
 import { siteNodes, sitePaints } from './site'
@@ -748,7 +749,10 @@ export function planScene(input: SceneInput): SvgNode[] {
 }
 
 function planSceneIn(input: SceneInput): SvgNode[] {
-  const { drawing, handings, doorWarnings, dimensions, metersPerPixel: mpp } = input
+  const { drawing, handings, doorWarnings, metersPerPixel: mpp } = input
+  // VEW-31: the dimensions as they are drawn, the chains clear of each other and the grids' names past them.
+  const layout = layoutMarks(drawing, input.dimensions)
+  const dimensions = layout.dimensions
   const look = toLook(input.look)
   const style = input.labels ?? {}
   const decimals = style.areaDecimals ?? 2
@@ -874,12 +878,16 @@ function planSceneIn(input: SceneInput): SvgNode[] {
         'g',
         { 'data-part': 'grid', 'data-id': grid.id, 'data-name': grid.name ?? undefined, 'pointer-events': 'none', 'aria-hidden': 'true' },
         grid.lines.flatMap((line, index) => {
+          // VEW-31: a name's circle stands past the chains in its way; the line runs on to it.
+          const reach = { from: layout.gridReach(grid.id, line.set, 'from'), to: layout.gridReach(grid.id, line.set, 'to') }
+          const starts = { x: line.from.x + line.along.x * reach.from, y: line.from.y + line.along.y * reach.from }
+          const finish = { x: line.to.x - line.along.x * reach.to, y: line.to.y - line.along.y * reach.to }
           const ends = [
-            { x: line.from.x + line.along.x * r, y: line.from.y + line.along.y * r },
-            { x: line.to.x - line.along.x * r, y: line.to.y - line.along.y * r }
+            { x: starts.x + line.along.x * r, y: starts.y + line.along.y * r },
+            { x: finish.x - line.along.x * r, y: finish.y - line.along.y * r }
           ]
           return [
-            el('path', { 'data-part': 'grid-line', 'data-line': line.name, d: virtualPath([line.from, line.to]), ...paint.gridLine }, [], `l${index}`),
+            el('path', { 'data-part': 'grid-line', 'data-line': line.name, d: virtualPath([starts, finish]), ...paint.gridLine }, [], `l${index}`),
             ...ends.flatMap((at, end) => [
               el('circle', { 'data-part': 'grid-bubble', cx: at.x, cy: -at.y, r, ...paint.gridBubble }, [], `b${index}-${end}`),
               el('g', { transform: labelTransform(at, mpp) }, [el('text', { 'data-part': 'grid-name', dy: String(DIMENSION_DY), ...paint.gridName }, [line.name])], `n${index}-${end}`)
@@ -1386,6 +1394,8 @@ function planSceneIn(input: SceneInput): SvgNode[] {
 
   // A number outside the plan keeps off the room labels and the numbers already placed on its
   // chain and the next: one that has no room between its ticks waits for the user to zoom in.
+  // VEW-31: nor on a tick across a chain's ends or an extension line, its own or a neighbour's.
+  const clutter = dimensionClutter(dimensions, mpp, look.draftedDimensions)
   const placedNumbers: Box[] = []
   for (const dim of dimensions) {
     const shown = live.dimensionShown(dim)
@@ -1393,7 +1403,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     const labelAt =
       dim.kind === 'room'
         ? placeDimensionLabel(dim, blocksNear(dim, labelBlocks, mpp), mpp)
-        : placeDimensionLabel(dim, [...blocksNear(dim, labelBlocks, mpp), ...blocksNear(dim, placedNumbers, mpp)], mpp)
+        : placeDimensionLabel(dim, [...blocksNear(dim, labelBlocks, mpp), ...blocksNear(dim, placedNumbers, mpp), ...blocksNear(dim, clutter, mpp)], mpp)
     if (labelAt && dim.kind !== 'room') placedNumbers.push(dimensionTextBox(labelAt, dim, mpp))
     out.push(dimensionMark(dim, mpp, labelAt, shown < 1 ? shown : undefined, paint, look.draftedDimensions))
   }

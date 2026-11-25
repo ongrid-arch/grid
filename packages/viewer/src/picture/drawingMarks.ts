@@ -9,7 +9,7 @@
  */
 import type { CompassPoint, DrawingMarks, ScheduleMark, Vec2 } from '@ongrid/floorplan/geometry'
 import { levelText } from '@ongrid/floorplan/geometry'
-import { estimateTextWidth } from '../canvas2d/labelPlacement'
+import { estimateTextWidth, overlaps, type Box } from '../canvas2d/labelPlacement'
 import type { Look } from './look'
 import { TEXT_PX, lengthText, lineMetres } from './look'
 import type { Attrs, SvgNode } from './svgNode'
@@ -35,6 +35,39 @@ const OPENING_MARK_PX = 14
 const TAG_HEIGHT_PX = 17
 const TAG_PAD_PX = 10
 
+/** VEW-31: how far a mark is slid out a step at a time to clear what is in its way, in pixels, and the most steps. */
+const NUDGE_PX = 4
+const NUDGE_MAX = 400
+/** VEW-31: how far an elevation mark's disc, arrow and letters reach round its point, in pixels. */
+const ELEVATION_REACH_PX = DISC_PX + 11
+/** VEW-31: a section head's box: its arrow and name, from the end of the cut, in pixels. */
+const HEAD_REACH_PX = NAME_PX + 8
+
+const squareAt = (at: Vec2, half: number): Box => ({ minX: at.x - half, maxX: at.x + half, minY: at.y - half, maxY: at.y + half })
+
+/**
+ * VEW-31: the point `at` slid out along `out`, a few pixels at a time, until a box of `half`
+ * pixels round it meets none of `avoid`: the point itself when it is clear already.
+ */
+function clearOf(at: Vec2, out: Vec2, half: number, avoid: readonly Box[], mpp: number, centre: Vec2 = { x: 0, y: 0 }): Vec2 {
+  let moved = at
+  for (let step = 0; step <= NUDGE_MAX; step++) {
+    moved = { x: at.x + out.x * NUDGE_PX * mpp * step, y: at.y + out.y * NUDGE_PX * mpp * step }
+    const box = squareAt({ x: moved.x + centre.x * mpp, y: moved.y + centre.y * mpp }, half * mpp)
+    if (!avoid.some((other) => overlaps(box, other))) return moved
+  }
+  return at
+}
+
+/**
+ * VEW-31: the elevation marks slid out from the building until they touch no chain, figure or grid
+ * bubble. `mpp` is metres per pixel. The marks given are not changed.
+ */
+export function clearElevationMarks(marks: DrawingMarks, avoid: readonly Box[], mpp: number): DrawingMarks {
+  if (avoid.length === 0 || marks.elevations.length === 0) return marks
+  return { ...marks, elevations: marks.elevations.map((mark) => ({ ...mark, at: clearOf(mark.at, { x: -mark.look.x, y: -mark.look.y }, ELEVATION_REACH_PX, avoid, mpp) })) }
+}
+
 /** MSG-11: the letters of the way a side faces, in the drawing's language (`drawing.mark.faces.*`). */
 const short = (faces: CompassPoint, words: DrawingWords): string => drawingText(words, `drawing.mark.faces.${faces}`)
 
@@ -47,7 +80,7 @@ function arrow(dir: Vec2, from: number, to: number, half: number): string {
 }
 
 /** The marks' elements, over the drawing and under the north arrow. `mpp` is metres per pixel. */
-export function drawingMarkNodes(marks: DrawingMarks, look: Look, mpp: number, paperScale?: number, words: DrawingWords = ENGLISH_WORDS): SvgNode[] {
+export function drawingMarkNodes(marks: DrawingMarks, look: Look, mpp: number, paperScale?: number, words: DrawingWords = ENGLISH_WORDS, avoid: readonly Box[] = []): SvgNode[] {
   const lines = lineMetres(look, mpp, paperScale)
   const ink = look.ink
   const nodes: SvgNode[] = []
@@ -63,18 +96,26 @@ export function drawingMarkNodes(marks: DrawingMarks, look: Look, mpp: number, p
       const end = { x: at.x + inward.x * END_PX * mpp, y: at.y + inward.y * END_PX * mpp }
       return el('path', { 'data-part': 'section-mark-end', d: `M${n(at.x)},${n(-at.y)}L${n(end.x)},${n(-end.y)}`, fill: 'none', stroke: ink, 'stroke-width': n(heavy) })
     }
-    const head = (at: Vec2): SvgNode =>
-      el('g', { 'data-part': 'section-mark-head', transform: pixelGroup(at, mpp) }, [
-        el('path', { d: arrow(cut.look, 2, ARROW_PX + 2, 6), fill: ink }),
-        el('text', { x: n(cut.look.x * NAME_PX), y: n(-cut.look.y * NAME_PX + 5), ...name }, [cut.label])
-      ])
+    // VEW-31: a head that would stand on a chain or a bubble slides out along the cut's line, which runs on to it.
+    const headAt = (at: Vec2, out: Vec2): Vec2 => clearOf(at, out, HEAD_REACH_PX, avoid, mpp, { x: cut.look.x * (NAME_PX / 2), y: cut.look.y * (NAME_PX / 2) })
+    const head = (at: Vec2, out: Vec2): SvgNode[] => {
+      const stands = headAt(at, out)
+      const lead = stands === at ? [] : [el('path', { 'data-part': 'section-mark-lead', d: `M${n(at.x)},${n(-at.y)}L${n(stands.x)},${n(-stands.y)}`, fill: 'none', stroke: ink, 'stroke-width': n(lines.width('mark')), 'stroke-dasharray': lines.dash('chain').map(n).join(' ') })]
+      return [
+        ...lead,
+        el('g', { 'data-part': 'section-mark-head', transform: pixelGroup(stands, mpp) }, [
+          el('path', { d: arrow(cut.look, 2, ARROW_PX + 2, 6), fill: ink }),
+          el('text', { x: n(cut.look.x * NAME_PX), y: n(-cut.look.y * NAME_PX + 5), ...name }, [cut.label])
+        ])
+      ]
+    }
     nodes.push(
       el('g', { 'data-part': 'section-mark', 'data-label': cut.label }, [
         el('path', { 'data-part': 'section-mark-line', d: `M${n(cut.from.x)},${n(-cut.from.y)}L${n(cut.to.x)},${n(-cut.to.y)}`, fill: 'none', stroke: ink, 'stroke-width': n(lines.width('mark')), 'stroke-dasharray': lines.dash('chain').map(n).join(' ') }),
         endBit(cut.from, along),
         endBit(cut.to, { x: -along.x, y: -along.y }),
-        head(cut.from),
-        head(cut.to)
+        ...head(cut.from, { x: -along.x, y: -along.y }),
+        ...head(cut.to, along)
       ])
     )
   }
