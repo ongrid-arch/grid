@@ -507,7 +507,12 @@ plan is laid on the later one, moved to its origin when that lines up more walls
 paired with the wall standing in its place, either way round, its ends within `diffPlace`
 (5 cm) of each other ([tolerances](tolerances.md)), each opening with the opening at its place (or, its wall moved, with the opening of its
 kind at its place along the paired wall) and
-each room with the room on the same walls or the same floor; what is left is paired by id. A
+each room with the room on the same walls or the same floor; what is left is paired by id, and
+then two rooms on one floor that share at least three quarters of the larger one's floor
+(`diffRoomOverlapShare`) are one room reshaped, whatever their ids. A plan written rooms first in
+both versions is paired the same way, with the room's name last (MSG-23); there an id or a name is
+kept only by a room that shares at least half of the smaller one's floor (`diffRoomKeptShare`), so
+a rewrite that gives a room's number to a room across the building pairs neither with the other. A
 point that slipped by less than a centimetre has not moved. A room's walls are compared as a
 ring: the same walls from another wall, or the other way round, are the same room. A plan
 written rooms first in both versions is compared by its rooms and openings, whose names you

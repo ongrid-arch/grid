@@ -440,6 +440,26 @@ export const TOLERANCES = {
     decides: 'And a removed room and an added one whose centres are closer than this may be the same.',
     basis: own
   },
+  diffRoomKeptShare: {
+    kind: 'tolerance',
+    value: 0.5,
+    unit: 'ratio',
+    decides:
+      'When two versions of a plan written rooms first are compared (MSG-23): a room that kept its ' +
+      'id or its name is the same room only when the floor the two share is at least this share of ' +
+      'the smaller of them; one that shares less is another room that took the id or the name.',
+    basis: own
+  },
+  diffRoomOverlapShare: {
+    kind: 'tolerance',
+    value: 0.75,
+    unit: 'ratio',
+    decides:
+      'When two versions are compared (MSG-23): two rooms on one floor, under any ids, are the same ' +
+      'room reshaped when the floor they share is at least this share of the larger of them. Two ' +
+      'rooms knocked into one stay a merge: neither is this much of the room they became.',
+    basis: own
+  },
   diffPlace: {
     kind: 'tolerance',
     value: 0.05,

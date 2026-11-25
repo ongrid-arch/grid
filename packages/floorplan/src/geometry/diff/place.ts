@@ -9,8 +9,11 @@
  * `diffPlace` either way round, each opening with the opening at its place (or, its wall moved,
  * at its place along the paired wall: WRT-12), and each room with
  * the room that has the same walls or the same floor in the same place. What is left is paired
- * by id. A plan written rooms first names its rooms and openings itself, so there those are
- * paired by id first and by place after (lab RT-8), and a room left over by its name (WRT-32).
+ * by id, and a room then with the room that shares most of its floor, under any id (MSG-23: one
+ * room reshaped, as a comparison by phase reads one). A plan written rooms first names its rooms
+ * and openings itself, so there openings are paired by id first and by place after (lab RT-8);
+ * its rooms by place first too, then by id, by the floor they share and by name (WRT-32), an id or
+ * a name kept only by a room that shares its floor: a rewrite may give either to a room elsewhere.
  *
  * The result is the earlier plan moved and written under the later plan's ids: what the id diff
  * (`diffPlans`) then compares, so a wall that only got a new name is no change at all.
@@ -22,6 +25,7 @@ import type { FloorPlan, Opening, Room, Wall } from '../plan'
 import { indexPlan } from '../plan'
 import { floorOf } from '../floors'
 import { tryRoomPolygon } from '../room'
+import { cutOutline, multiArea, ringOf } from '../polygons'
 import { area, centroid, distance } from '../vec2'
 import type { Vec2 } from '../vec2'
 import { compareText } from './order'
@@ -254,22 +258,82 @@ function openingsAlongWalls(
 interface Footprint {
   readonly area: number
   readonly centre: Vec2
+  readonly outline: readonly Vec2[]
 }
 
-function footprints(plan: FloorPlan): Map<string, Footprint> {
+function footprints(plan: FloorPlan, shift: Point = [0, 0]): Map<string, Footprint> {
   const index = indexPlan(plan)
   const found = new Map<string, Footprint>()
   for (const room of plan.rooms) {
     const polygon = tryRoomPolygon(room, index)
-    if (polygon !== null) found.set(room.id, { area: area(polygon), centre: centroid(polygon) })
+    if (polygon === null) continue
+    const outline = polygon.map((p) => ({ x: p.x + shift[0], y: p.y + shift[1] }))
+    found.set(room.id, { area: area(polygon), centre: centroid(outline), outline })
   }
   return found
+}
+
+/** The floor two rooms share, in m²: 0 when their boxes do not meet or the cut fails. */
+function sharedFloor(a: Footprint, b: Footprint): number {
+  const box = (o: readonly Vec2[]): [number, number, number, number] => [Math.min(...o.map((p) => p.x)), Math.min(...o.map((p) => p.y)), Math.max(...o.map((p) => p.x)), Math.max(...o.map((p) => p.y))]
+  const [ax0, ay0, ax1, ay1] = box(a.outline)
+  const [bx0, by0, bx1, by1] = box(b.outline)
+  if (ax1 <= bx0 || bx1 <= ax0 || ay1 <= by0 || by1 <= ay0) return 0
+  const cut = cutOutline('intersection', [ringOf(a.outline)], [[ringOf(b.outline)]])
+  return cut === null ? 0 : multiArea(cut)
+}
+
+/**
+ * MSG-23: of the pairs `candidates` holds, the ones whose two rooms share at least `share` of
+ * the smaller one's floor; a pair with a room that does not close is kept, as nothing says
+ * otherwise. Rooms written rooms first keep their ids and names through a rewrite that gives them
+ * to a room elsewhere: that is another room.
+ */
+function sharingFloor(candidates: Candidate[], was: ReadonlyMap<string, Footprint>, is: ReadonlyMap<string, Footprint>): Candidate[] {
+  const share = tolerance('diffRoomKeptShare')
+  return candidates.filter((c) => {
+    const a = was.get(c.before)
+    const b = is.get(c.after)
+    if (a === undefined || b === undefined) return true
+    const smaller = Math.min(a.area, b.area)
+    return smaller > 0 && sharedFloor(a, b) >= share * smaller
+  })
+}
+
+/**
+ * MSG-23: rooms left unpaired on the same floor, under any ids, that share most of the larger
+ * one's floor: one room reshaped, as a comparison by phase reads a room taken down and built
+ * again a little otherwise. Cheapest the one that shares most.
+ */
+function roomsByOverlap(
+  earlier: FloorPlan,
+  later: FloorPlan,
+  was: ReadonlyMap<string, Footprint>,
+  is: ReadonlyMap<string, Footprint>,
+  taken: { before: Set<string>; after: Set<string> }
+): Candidate[] {
+  const share = tolerance('diffRoomOverlapShare')
+  const candidates: Candidate[] = []
+  for (const room of earlier.rooms) {
+    const a = was.get(room.id)
+    if (taken.before.has(room.id) || a === undefined) continue
+    for (const other of later.rooms) {
+      const b = is.get(other.id)
+      if (taken.after.has(other.id) || b === undefined || floorOf(other) !== floorOf(room)) continue
+      const larger = Math.max(a.area, b.area)
+      if (larger <= 0) continue
+      const part = sharedFloor(a, b) / larger
+      if (part >= share) candidates.push({ before: room.id, after: other.id, cost: 1 - part, reversed: false })
+    }
+  }
+  return candidates
 }
 
 function roomsByPlace(
   earlier: FloorPlan,
   later: FloorPlan,
-  shift: Point,
+  was: ReadonlyMap<string, Footprint>,
+  is: ReadonlyMap<string, Footprint>,
   wallPairs: ReadonlyMap<string, string>,
   taken: { before: Set<string>; after: Set<string> }
 ): Candidate[] {
@@ -283,8 +347,6 @@ function roomsByPlace(
     if (list) list.push(room)
     else laterByWalls.set(key, [room])
   }
-  const was = footprints(earlier)
-  const is = footprints(later)
   for (const room of earlier.rooms) {
     if (taken.before.has(room.id)) continue
     // The same walls, as paired: the surest sign of the same room.
@@ -294,10 +356,10 @@ function roomsByPlace(
         candidates.push({ before: room.id, after: other.id, cost: 0, reversed: false })
       }
     }
-    // Or the same size in the same place.
+    // Or the same size in the same place (the earlier footprints already moved by the shift).
     const before = was.get(room.id)
     if (before === undefined) continue
-    const centre = { x: before.centre.x + shift[0], y: before.centre.y + shift[1] }
+    const centre = before.centre
     for (const other of later.rooms) {
       if (taken.after.has(other.id) || floorOf(other) !== floorOf(room)) continue
       const after = is.get(other.id)
@@ -496,16 +558,23 @@ export function alignPlans(earlier: FloorPlan, later: FloorPlan, options: AlignO
       ]
   const openingPairs = pairsOf(openings)
 
+  // MSG-23: rooms by where they stand first, then by id, then by the floor they share. Rooms
+  // written rooms first keep an id or a name only for a room that shares its floor (WRT-32's name
+  // last), since a rewrite may give either to a room elsewhere.
   const roomTaken = { before: new Set<string>(), after: new Set<string>() }
+  const roomsWere = footprints(earlier, shift)
+  const roomsAre = footprints(later)
   const rooms = options.idsFirst
     ? [
-        ...assign(byId(earlier.rooms, later.rooms, roomTaken), roomTaken),
-        ...assign(roomsByPlace(earlier, later, shift, wallPairs, roomTaken), roomTaken),
-        ...assign(roomsByName(earlier, later, roomTaken), roomTaken)
+        ...assign(roomsByPlace(earlier, later, roomsWere, roomsAre, wallPairs, roomTaken), roomTaken),
+        ...assign(sharingFloor(byId(earlier.rooms, later.rooms, roomTaken), roomsWere, roomsAre), roomTaken),
+        ...assign(roomsByOverlap(earlier, later, roomsWere, roomsAre, roomTaken), roomTaken),
+        ...assign(sharingFloor(roomsByName(earlier, later, roomTaken), roomsWere, roomsAre), roomTaken)
       ]
     : [
-        ...assign(roomsByPlace(earlier, later, shift, wallPairs, roomTaken), roomTaken),
-        ...assign(byId(earlier.rooms, later.rooms, roomTaken), roomTaken)
+        ...assign(roomsByPlace(earlier, later, roomsWere, roomsAre, wallPairs, roomTaken), roomTaken),
+        ...assign(byId(earlier.rooms, later.rooms, roomTaken), roomTaken),
+        ...assign(roomsByOverlap(earlier, later, roomsWere, roomsAre, roomTaken), roomTaken)
       ]
   const roomPairs = pairsOf(rooms)
 
