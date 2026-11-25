@@ -81,14 +81,15 @@ function grid(args: readonly string[], cwd = project): Run {
   return result(spawnSync(process.execPath, [bundle, ...args], { cwd, timeout: 30_000 }))
 }
 
-/** One line on standard error that names the path and the project folder. Nothing on standard output. */
+/** One line on standard error that names the path, never the project folder's place. Nothing on standard output. */
 function expectPathRefused(run: Run, given: string, ...words: string[]): void {
   expect(run.out).toBe('')
   expect(run.status).toBe(1)
   expect(run.err.trimEnd().split('\n')).toHaveLength(1)
   expect(run.err.startsWith('grid: ')).toBe(true)
   expect(run.err).toContain(JSON.stringify(given))
-  expect(run.err).toContain(JSON.stringify(real))
+  // A refusal never says where the project folder is on the disk.
+  expect(run.err).not.toContain(real)
   for (const word of words) expect(run.err).toContain(word)
 }
 
@@ -138,7 +139,8 @@ function serve(calls: ReadonlyArray<Record<string, unknown>>, options: { cwd?: s
 function expectToolRefused(answer: ToolAnswer, given: string, ...words: string[]): void {
   expect(answer.isError).toBe(true)
   expect(answer.text).toContain(JSON.stringify(given))
-  expect(answer.text).toContain(JSON.stringify(real))
+  // A refusal never says where the project folder is on the disk.
+  expect(answer.text).not.toContain(real)
   for (const word of words) expect(answer.text).toContain(word)
 }
 
@@ -158,7 +160,7 @@ describe('the six T-5 paths are refused by the command', () => {
 })
 
 describe('the six T-5 paths are refused by the tool server', () => {
-  it('as the plan of grid_export, naming the path and the project folder', async () => {
+  it('as the plan of grid_export, naming the path', async () => {
     const answers = await serve(T5_TRACE_IMAGE_PATHS.map(([given]) => ({ plan: given, format: 'dxf' })))
     T5_TRACE_IMAGE_PATHS.forEach(([given, why], i) => expectToolRefused(answers[i]!, given, why))
     expectNothingWritten()
