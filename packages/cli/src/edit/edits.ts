@@ -75,6 +75,11 @@ export interface Patch {
    * start and end, so its places along the wall and its floors hold through a mirror or a turn.
    */
   readonly swingPatterns?: ReadonlySet<string>
+  /**
+   * WRT-24: other parts changed, by the list they are in and their id: each field given is set in
+   * the file's own record (`null` takes it out), so the rest of the record stays as written.
+   */
+  readonly parts?: ReadonlyMap<PartList, ReadonlyMap<string, Readonly<Record<string, unknown>>>>
   /** One line per thing changed, in Grid's words. */
   readonly said: readonly string[]
   /** Walls taken out; walls added go where the first one taken out was, or at the end. */
@@ -121,6 +126,9 @@ export function refuseCurved(walls: Iterable<{ readonly id: string; readonly arc
     throw new EditRefused(english(sentence('edit.curved.refused', { wall: name(wall.id), doing: sentence(`edit.curved.doing.${doing}`) })))
   }
 }
+
+/** WRT-24: the lists of parts a patch's `parts` may change; `site.things` is the site's things. */
+export type PartList = 'columns' | 'grids' | 'bays' | 'stairs' | 'ramps' | 'patterns' | 'site.things'
 
 export function emptyPatch(said: string[]): Patch {
   return { walls: new Map(), openings: new Map(), removeOpenings: new Set(), rooms: new Map(), said }
@@ -239,7 +247,23 @@ export function applyPatch<T extends RawRecord>(raw: T, patch: Patch): T {
         }),
       }
   const top = (patch.plan === undefined ? raw : merged(raw, patch.plan)) as T
-  return { ...top, walls, openings, rooms, ...items, ...library, ...patterns }
+  // WRT-24: other parts' fields, merged into their records by id; a list the plan lacks stays out.
+  const parts: RawRecord = {}
+  for (const [key, changes] of patch.parts ?? []) {
+    const records = (from: unknown): RawRecord[] | null => (Array.isArray(from) ? (from as RawRecord[]).map((part) => {
+      const change = changes.get(part['id'] as string)
+      return change === undefined ? part : merged(part, change)
+    }) : null)
+    if (key === 'site.things') {
+      const site = (parts['site'] ?? top['site']) as RawRecord | undefined
+      const things = records(site?.['things'])
+      if (site !== undefined && things !== null) parts['site'] = { ...site, things }
+      continue
+    }
+    const list = records(key === 'patterns' ? ((patterns as RawRecord)['patterns'] ?? top[key]) : top[key])
+    if (list !== null) parts[key] = list
+  }
+  return { ...top, walls, openings, rooms, ...items, ...library, ...patterns, ...parts }
 }
 
 /** The free stretches of a wall, measured from its start, between the other openings in it. */
