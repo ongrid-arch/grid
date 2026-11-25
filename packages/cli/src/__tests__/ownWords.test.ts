@@ -341,7 +341,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-31 3: the estimate's roof edges' rule and line, and why a roof is left out (estimate.ts).
     // and WRT-38 4: one wall's thickness, its receipt and refusals (edit/edits.ts).
     // and CNT-34 4: the estimate's gable lines and their rules (estimate.ts).
-    expect(left).toBeLessThanOrEqual(1621)
+    // and ARE-44 3: the step line's floor-level and ground-step lines (brief/lines.ts).
+    expect(left).toBeLessThanOrEqual(1624)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
