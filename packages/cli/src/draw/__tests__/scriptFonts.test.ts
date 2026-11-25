@@ -76,6 +76,27 @@ describe('withScriptFonts', () => {
   })
 })
 
+describe('Simplified Chinese names (VEW-21)', () => {
+  const installed = (family: string) => family === 'Hiragino Sans' || family === 'Hiragino Sans GB'
+  it('draws Han text with no kana in a Chinese face, not the Japanese one first', () => {
+    const out = toSvg(withScriptFonts([el('text', {}, ['厅卫间储'])], installed))
+    expect(out).toBe('<text><tspan font-family="Hiragino Sans GB">厅卫间储</tspan></text>')
+  })
+  it('keeps the Japanese face for a text with kana, kanji included', () => {
+    expect(toSvg(withScriptFonts([el('text', {}, ['台所 キッチン'])], installed))).toBe(
+      '<text><tspan font-family="Hiragino Sans">台所</tspan> <tspan font-family="Hiragino Sans">キッチン</tspan></text>'
+    )
+  })
+  const png = async (name: string) => Buffer.from(await drawPlan(named(name), { format: 'png' }))
+  const han = SCRIPT_FONTS.han.some((family) => GlobalFonts.has(family))
+  it.skipIf(!han)('draws the characters as glyphs, not the box (skipped when the machine has no Chinese face)', async () => {
+    const box = await png('')
+    expect((await png('厅卫间储')).equals(box)).toBe(false)
+    // Each character alone is a glyph too: none falls back to the box.
+    for (const char of '厅卫间储') expect((await png(char)).equals(box)).toBe(false)
+  })
+})
+
 describe('drawPlan with names in other scripts (VEW-7)', () => {
   it('keeps the SVG file as it was', async () => {
     const plan = named('台所')
