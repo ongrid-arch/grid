@@ -630,6 +630,19 @@ export interface RoomsResult {
 // ---------------------------------------------------------------------------------------------
 // The compiler
 
+/**
+ * A stretch of a room's face that another room's face looks onto, `d` apart at its middle. A face
+ * turned further out of parallel than `roomsFaceSkew` allows (WRT-56) carries how the gap changes
+ * along it: `slope` per metre from `mid`, the station where the gap is `d`.
+ */
+interface Facing {
+  s0: number
+  s1: number
+  d: number
+  f: Edge
+  turn?: { slope: number; mid: number; beyond: boolean }
+}
+
 interface Edge {
   room: RoomDraft
   i: number
@@ -638,8 +651,8 @@ interface Edge {
   u: P
   n: P
   L: number
-  cands: Array<{ s0: number; s1: number; d: number; f: Edge }>
-  cover: Array<{ s0: number; s1: number; d: number; f: Edge }>
+  cands: Array<Facing>
+  cover: Array<Facing>
   idx: number
 }
 
@@ -670,6 +683,8 @@ interface RawWall {
   sides: Array<[number, number, number]>
   ext: boolean
   handles: string[]
+  /** WRT-56: a piece of the wall between two rooms whose sides are out of parallel. */
+  turned?: boolean
   d?: P
   lo?: number
   hi?: number
@@ -741,6 +756,8 @@ class Compiler {
   private readonly statedT = new Set<number>()
   /** WRT-17: the pairs of rooms whose wall's thickness, from their gap, has been said. */
   private readonly fromGap = new Set<string>()
+  /** WRT-56: per floor, the pairs of rooms whose wall lies between faces out of parallel. */
+  private readonly turned = new Map<string, Map<string, { a: string; b: string; sine: number; off: number }>>()
   /** WRT-17: the line each opening was written on, for a refusal that names it. */
   private readonly openingLines = new Map<string, number>()
   /**
@@ -2311,16 +2328,25 @@ class Compiler {
         // centimetre on an angled side are never parallel to the arithmetic's own precision.
         const sine = Math.abs(cross(e.u, f.u))
         const skewed = sine > tolerance('parallel')
-        if (skewed && sine * Math.min(e.L, f.L) > tolerance('roomsFaceSkew')) continue
+        // WRT-56: faces further out of parallel, up to `roomsFaceTurn`, are one wall's two faces
+        // when they are no further apart than a wall all along what they share, as a scanned
+        // room's are: a surveyed partition is never two outside walls laid over each other.
+        const turned = skewed && sine * Math.min(e.L, f.L) > tolerance('roomsFaceSkew')
+        if (turned && sine > tolerance('roomsFaceTurn')) continue
         const sa = dot(sub(f.q, e.p), e.u)
         const sb = dot(sub(f.p, e.p), e.u)
         const s0 = Math.max(0, Math.min(sa, sb))
         const s1 = Math.min(e.L, Math.max(sa, sb))
         // The distance apart at the middle of the stretch they share: the wall between lies there.
         const slope = skewed ? dot(f.u, e.n) / dot(f.u, e.u) : 0
-        const d = dot(sub(f.p, e.p), e.n) + ((s0 + s1) / 2 - sb) * slope
+        const mid = (s0 + s1) / 2
+        const d = dot(sub(f.p, e.p), e.n) + (mid - sb) * slope
         if (d < -eps() || d > FACING_REACH) continue
-        if (s1 - s0 > eps()) e.cands.push({ s0, s1, d: Math.max(d, 0), f })
+        if (turned) {
+          const ends = [d + (s0 - mid) * slope, d + (s1 - mid) * slope]
+          if (Math.min(...ends) < -eps() || Math.max(...ends) > maxT + eps()) continue
+        }
+        if (s1 - s0 > eps()) e.cands.push({ s0, s1, d: Math.max(d, 0), f, ...(skewed ? { turn: { slope, mid, beyond: turned } } : {}) })
       }
     }
     let junc = fl.rule.outside
@@ -2371,7 +2397,7 @@ class Compiler {
             continue
           }
           if (c.d <= maxT + eps()) {
-            e.cover.push({ s0: x, s1: y, d: c.d, f: c.f })
+            e.cover.push({ s0: x, s1: y, d: c.d, f: c.f, ...(c.turn ? { turn: c.turn } : {}) })
             // WRT-17: a wall the text states may be seen end on across an outside face; a wall
             // only as thick as an odd gap between two rooms does not make every such stretch one.
             if (thicknessStated(c.d)) junc = Math.max(junc, c.d)
@@ -2396,13 +2422,44 @@ class Compiler {
     const height = fl.height !== null ? null : fl.rule.height
     const raws: RawWall[] = []
     const pt = (e: Edge, s: number, off: number): P => [e.p[0] + e.u[0] * s + e.n[0] * off, e.p[1] + e.u[1] * s + e.n[1] * off]
+    // WRT-56: the walls between two rooms whose sides are out of parallel are one thickness, the
+    // gap the rooms leave there on average, so the pieces along sides written as facets of a curve
+    // meet face to face.
+    // Every stretch out of parallel between two such rooms is drawn so, the short ones too. A
+    // thickness the text states that the gap passes through is the wall meant there: a 115 mm
+    // partition between sides surveyed a little out of parallel stays 115 mm.
+    const turnedT = new Map<string, number>()
+    {
+      const sums = new Map<string, { sum: number; len: number; lo: number; hi: number }>()
+      const beyond = new Set<string>()
+      for (const e of edges) {
+        for (const c of e.cover) {
+          if (!c.turn || order.get(e.room.id)! > order.get(c.f.room.id)!) continue
+          const key = pairKey(e.room.id, c.f.room.id)
+          const was = sums.get(key) ?? { sum: 0, len: 0, lo: Infinity, hi: -Infinity }
+          const ends = [c.s0, c.s1].map((s) => c.d + (s - c.turn!.mid) * c.turn!.slope)
+          sums.set(key, { sum: was.sum + c.d * (c.s1 - c.s0), len: was.len + (c.s1 - c.s0), lo: Math.min(was.lo, ...ends), hi: Math.max(was.hi, ...ends) })
+          if (c.turn.beyond) beyond.add(key)
+        }
+      }
+      for (const [key, { sum, len, lo, hi }] of sums) {
+        if (!beyond.has(key)) continue
+        const mean = sum / len
+        const said = fl.between.get(key)?.t ?? null
+        const stated = [...(said !== null ? [said] : []), fl.rule.inside, ...this.statedT, ...[...this.tkinds.keys()].map((k) => k / 1000)]
+        const within = stated.filter((t) => t >= lo - tolerance('diffLength') && t <= hi + tolerance('diffLength'))
+        const meant = said !== null && within.includes(said) ? said : within.sort((x, y) => Math.abs(x - mean) - Math.abs(y - mean))[0]
+        turnedT.set(key, meant ?? mean)
+      }
+    }
     for (const e of edges) {
       const A = e.room
       for (const c of e.cover) {
         const B = c.f.room
         if (order.get(A.id)! > order.get(B.id)!) continue
         const key = pairKey(A.id, B.id)
-        let d = c.d
+        const turn = turnedT.has(key) ? c.turn : undefined
+        let d = turn ? turnedT.get(key)! : c.d
         const spec =
           fl.betweenSide.get(`${key}\u0000${A.id}\u0000${compassOf(e.n)}`) ??
           fl.betweenSide.get(`${key}\u0000${B.id}\u0000${compassOf(c.f.n)}`) ??
@@ -2461,10 +2518,21 @@ class Compiler {
             this.warn('rooms/wall-from-gap', B.line, english(said('rooms.wallFromGap.outdoor', values)))
           }
         }
-        const off = c.d / 2
         const f = c.f
-        const a = pt(e, c.s0, off)
-        const b = pt(e, c.s1, off)
+        // WRT-56: between faces out of parallel the wall runs midway between them. Each end is
+        // midway between a corner and the other face: the corner of the other face where its
+        // stretch ends there, else the point on this face, so the pieces between two sides
+        // written as facets of one curve meet end to end.
+        const gapAt = (s: number): number => (turn ? c.d + (s - turn.mid) * turn.slope : c.d)
+        const fEnds = [dot(sub(f.p, e.p), e.u), dot(sub(f.q, e.p), e.u)]
+        const end = (s: number): P => {
+          if (!turn || fEnds.some((x) => Math.abs(x - s) <= eps())) return pt(e, s, gapAt(s) / 2)
+          const on = pt(e, s, 0)
+          return sub(on, mul(f.n, dot(sub(on, f.p), f.n) / 2))
+        }
+        const a = end(c.s0)
+        const b = end(c.s1)
+        if (turn && !virtual) this.noteTurned(fl, A, B, turn.beyond ? Math.abs(cross(e.u, f.u)) : 0, Math.max(...[c.s0, c.s1].map((s) => Math.abs(gapAt(s) - d))) / 2)
         const fs = [dot(sub(a, f.p), f.u), dot(sub(b, f.p), f.u)].sort((x, y) => x - y) as [number, number]
         raws.push({
           a,
@@ -2478,6 +2546,7 @@ class Compiler {
           rooms: [A, B],
           sides: [[e.idx, c.s0, c.s1], [f.idx, fs[0], fs[1]]],
           ext: false,
+          ...(turn ? { turned: true } : {}),
           handles: [`wall between ${A.id} and ${B.id}`],
         })
       }
@@ -2528,7 +2597,37 @@ class Compiler {
     this.checkSteps(edges)
     this.checkOpenedShare(fl, edges)
     this.sideThicknesses(fl, edges, raws)
+    this.warnTurned(fl)
     return { edges, raws }
+  }
+
+  /** WRT-56: a wall between faces out of parallel, the most they turn and how far its face is off them. */
+  private noteTurned(fl: FloorDraft, A: RoomDraft, B: RoomDraft, sine: number, off: number): void {
+    const pairs = this.turned.get(fl.id) ?? new Map<string, { a: string; b: string; sine: number; off: number }>()
+    this.turned.set(fl.id, pairs)
+    const key = pairKey(A.id, B.id)
+    const had = pairs.get(key)
+    pairs.set(key, { a: A.id, b: B.id, sine: Math.max(sine, had?.sine ?? 0), off: Math.max(off, had?.off ?? 0) })
+  }
+
+  /**
+   * WRT-56: once a floor, the rooms whose sides are out of parallel and got one wall between
+   * them, drawn along their middle line: the rooms keep their corners as written.
+   */
+  private warnTurned(fl: FloorDraft): void {
+    const SHOWN = 6
+    const pairs = [...(this.turned.get(fl.id)?.values() ?? [])]
+    if (pairs.length === 0) return
+    const names = pairs.slice(0, SHOWN).map((p) => said('rooms.facesTurned.pair', { a: p.a, b: p.b }))
+    const shown = joined(names, 'join.comma', 'join.and')
+    const list = pairs.length > SHOWN ? said('rooms.facesTurned.more', { list: shown, count: pairs.length - SHOWN }) : shown
+    const degrees = (Math.asin(Math.min(1, Math.max(...pairs.map((p) => p.sine)))) * 180) / Math.PI
+    const off = Math.max(...pairs.map((p) => p.off))
+    this.warn(
+      'rooms/faces-turned',
+      null,
+      english(said('rooms.facesTurned', { floor: fl.id, list, degrees: num(degrees.toFixed(1)), off: num(((off * 1000)).toFixed(0)) }))
+    )
   }
 
   /**
@@ -2768,6 +2867,10 @@ class Compiler {
     }
     // Each end reaches the centre line of the wall it meets.
     const roomsOf = (w: DerivedWall): Set<string> => new Set(w.raws.flatMap((r) => r.rooms.map((room) => room.id)))
+    // WRT-56: the pieces of one wall between sides out of parallel meet end to end as worked out:
+    // nearly in line, neither is a wall the other's end stands in.
+    const pieceKey = (w: DerivedWall): string | null => (w.raws.every((r) => r.turned === true) ? pairKey(w.raws[0]!.rooms[0]!.id, w.raws[0]!.rooms[1]!.id) : null)
+    const pieces = (w: DerivedWall, o: DerivedWall): boolean => pieceKey(w) !== null && pieceKey(w) === pieceKey(o)
     for (const w of walls) {
       const ends: P[] = []
       const mine = roomsOf(w)
@@ -2778,11 +2881,16 @@ class Compiler {
           ends.push(end)
           continue
         }
+        // WRT-56: an end shared with the next piece of the same wall stays where the two meet.
+        if (walls.some((o) => o !== w && pieces(w, o) && [o.a, o.b].some((x) => norm(sub(x, end)) <= eps()))) {
+          ends.push(end)
+          continue
+        }
         const ray = mul(w.d, sign)
         let best: { tau: number; x: P; o: DerivedWall; half: number } | null = null
         const met: Array<{ tau: number; x: P; o: DerivedWall; half: number }> = []
         for (const o of walls) {
-          if (o === w || Math.abs(cross(o.d, w.d)) < eps()) continue
+          if (o === w || Math.abs(cross(o.d, w.d)) < eps() || pieces(w, o)) continue
           const x = intersectLines(end, ray, o.a, o.d)
           if (x === null) continue
           const tau = dot(sub(x, end), ray)

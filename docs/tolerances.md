@@ -65,6 +65,7 @@ is not asked whether it was typed in feet.
 | `roomsWallWidest` | tolerance | 0.6 m | The widest gap between two rooms written rooms first that is still one wall between them; a wider gap that is not a room is refused |
 | `roomsTouch` | tolerance | 0.02 m | Rooms written rooms first closer than this touch with no wall between them, refused unless they are open to each other |
 | `roomsFaceSkew` | tolerance | 0.02 m | Faces of rooms written rooms first that run the opposite way and whose distance apart changes by no more than this along the shorter face each other, as on an angled side written to the centimetre |
+| `roomsFaceTurn` | tolerance | 0.0872 sine | Faces of rooms written rooms first that run the opposite way within about 5 degrees of parallel, and no further apart than a wall at both ends of what they share, are one wall's two faces, drawn along their middle line (WRT-56) |
 | `roomsFaceStep` | tolerance | 0.002 m | Faces of rooms written rooms first further out of line than this are named as sizes that do not add up |
 | `scanFaceTurn` | tolerance | 0.0872 sine | Two scanned wall faces, or a scanned floor outline's edge and a face, within about 5 degrees of each other may be one wall's two faces, or the same face (HND-12) |
 | `scanFaceReach` | tolerance | 0.05 m | An edge of a scanned floor outline this close to a scanned wall face lies on that face (HND-12) |

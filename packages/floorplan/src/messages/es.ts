@@ -2000,6 +2000,11 @@ export const es: Messages = {
   'rooms.openNotShared':
     "Línea {line}: '{a}' y '{b}' se abren una a otra, pero no comparten ningún lado, así que no hay dónde poner la línea divisoria. '{a}' comparte lados con: {aNear}; '{b}' con: {bNear}. Coloque las dos estancias cara a cara, en contacto, o quite la línea.",
   'rooms.openNotShared.none': 'ninguna estancia',
+  // WRT-56
+  'rooms.facesTurned':
+    "En la planta '{floor}', los lados enfrentados de {list} no son paralelos, hasta {degrees} grados: cada par de estancias tiene un muro entre ellos, trazado por la línea media entre los dos lados. Tiene el grueso de un muro que el texto indica cuando el hueco entre los lados pasa por ese grueso, y si no, el grueso medio del hueco. Las estancias conservan sus esquinas como se escribieron, así que la cara de un muro queda hasta {off} mm del lado de una estancia. Si los lados deben ser paralelos, escriba las esquinas sobre líneas paralelas.",
+  'rooms.facesTurned.pair': "'{a}' con '{b}'",
+  'rooms.facesTurned.more': '{list} y {count} pares más',
   'rooms.checkError': "La comprobación encuentra esto en el plano tal como se escribe, y dejaría fuera una parte ({code}): {message}",
   'rooms.checkNote': "La comprobación señala esto en el plano tal como se escribe ({code}): {message}",
   'rooms.raw.unknownFloor':
