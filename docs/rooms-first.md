@@ -46,6 +46,10 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - In a text read in feet (`display ft-in`, or `numbers ft`), `12-6` is refused as `rooms/units`:
   it reads as 12 minus 6. Write `12'6"` or `12ft6in` for twelve feet six inches, or `(12-6)` in
   brackets for the difference. A sum such as `3.0+0.3` is read as before.
+- A polygon's points take lengths with their unit, as a size does: `polygon 0,0 40ft,0 40ft,25ft
+  0,25ft` (WRT-62). A point whose length Grid cannot read is refused naming that word, and a
+  polygon with a unit in its points is taken as meant, at any size. A long polygon reads back with
+  `m` on its points.
 - A length written with its unit is taken as meant, at any size: `250m x 160m`, `250000mm`,
   `0.5km`. A room side written as a bare number, stretched with `*` or drawn as a polygon that is
   longer than a building's is still written, in metres, and the answer asks about it
