@@ -12,7 +12,10 @@
  * among them; otherwise those for any building.
  */
 
-import type { FloorPlan, Opening, PlanIndex, Wall } from './plan'
+import type { FloorPlan, Opening, PlanIndex, Room, Wall } from './plan'
+import { roomWallIds } from './plan'
+import { outdoorOnlyWalls } from './outdoor'
+import { landscapeWalls } from './landscape'
 import { sharedPart, storeyFloorOf } from './through'
 import { area } from './vec2'
 import { tryRoomPolygon } from './room'
@@ -181,7 +184,7 @@ function wallQuestions(wall: Wall, typicalHeight: number | null, building: Build
   return asked
 }
 
-function openingQuestions(opening: Opening, building: BuildingKind): Said[] {
+function openingQuestions(opening: Opening, building: BuildingKind, climb: Room | undefined): Said[] {
   const asked: Said[] = []
   const noun = said(`issue.part.Named.${opening.type}`, { id: name(opening.id) })
   const narrowest = limit('openingNarrowest', building)
@@ -192,8 +195,56 @@ function openingQuestions(opening: Opening, building: BuildingKind): Said[] {
   const lowest = limit('openingLowest', building)
   if (opening.height < lowest) {
     asked.push(said('issue.opening/size-question.lower', { opening: noun, height: sized(opening.height), limit: sized(lowest) }))
+  } else if (climb !== undefined && opening.type !== 'window' && opening.height < limit('stairDoorLowest', building)) {
+    // LVL-18: a door onto a stair or a lift lower than a person walks through upright.
+    const key = climb.use === 'lift' ? 'issue.opening/size-question.lift' : 'issue.opening/size-question.stair'
+    asked.push(said(key, { opening: noun, room: name(climb.id), height: sized(opening.height), limit: sized(limit('stairDoorLowest', building)) }))
   }
   return asked
+}
+
+/** LVL-18: the room used as a stair or a lift on each wall, the first one listing it. */
+function climbsByWall(plan: FloorPlan, broken: ReadonlySet<string>): Map<string, Room> {
+  const climbs = new Map<string, Room>()
+  for (const room of plan.rooms) {
+    if ((room.use !== 'stair' && room.use !== 'lift') || broken.has(room.id)) continue
+    for (const wall of roomWallIds(room)) if (!climbs.has(wall)) climbs.set(wall, room)
+  }
+  return climbs
+}
+
+/**
+ * LVL-18: a storey too low to stand in, set by its walls. A floor with another floor over it that
+ * states no height and no roof of its own stands as high as its tallest wall; when that is lower
+ * than `storeyLowest` it is asked about. The top floor is not: its low walls may be a loft's. Fences, parapets round outdoor space and garden
+ * walls are no part of the storey, as `tallestDrawnWall` leaves them out. A stated height is asked
+ * about in `levels.ts`.
+ */
+function lowStoreyQuestions(
+  plan: FloorPlan,
+  index: PlanIndex,
+  byFloor: ReadonlyMap<string, readonly Wall[]>,
+  building: BuildingKind,
+  ask: (entity: Issue['entity'], id: string, code: string, question: Said) => void
+): void {
+  const floors = plan.floors ?? []
+  if (new Set(floors.map((floor) => floor.id)).size < 2) return
+  // Only a storey with a floor over it: the top floor's low walls may be a loft's knee walls.
+  const top = Math.max(...floors.map((floor) => floor.level))
+  const outdoor = outdoorOnlyWalls(index)
+  const landscape = landscapeWalls(plan, index)
+  const lowest = limit('storeyLowest', building)
+  const seen = new Set<string>()
+  for (const floor of floors) {
+    if (seen.has(floor.id)) continue
+    seen.add(floor.id)
+    if (floor.roof !== undefined || (floor.height !== undefined && Number.isFinite(floor.height)) || !(floor.level < top)) continue
+    const walls = (byFloor.get(floor.id) ?? []).filter((wall) => !outdoor.has(wall.id) && !landscape.has(wall.id) && Number.isFinite(wall.height))
+    if (walls.length === 0) continue
+    const tallest = Math.max(...walls.map((wall) => wall.height))
+    if (!(tallest > 0) || tallest >= lowest) continue
+    ask('floor', floor.id, 'floor/size-question', said('issue.floor/size-question.walls', { floor: name(floor.id), height: sized(tallest), limit: sized(lowest) }))
+  }
 }
 
 /**
@@ -262,9 +313,12 @@ export function validatePlausibility(
     for (const message of wallQuestions(wall, typicalHeight, building, storey)) ask('wall', wall.id, 'wall/size-question', message)
   }
 
+  lowStoreyQuestions(plan, index, byFloor, building, ask)
+
+  const climbs = climbsByWall(plan, broken)
   for (const opening of plan.openings) {
     if (broken.has(opening.id)) continue
-    for (const message of openingQuestions(opening, building)) ask('opening', opening.id, 'opening/size-question', message)
+    for (const message of openingQuestions(opening, building, climbs.get(opening.wall))) ask('opening', opening.id, 'opening/size-question', message)
   }
 
   const largest = limit('roomLargest', building)
