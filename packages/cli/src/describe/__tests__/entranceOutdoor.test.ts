@@ -32,7 +32,7 @@ describe('the entrance through an outdoor space (ARE-36)', () => {
     const walk = first(s)
     expect(walk.start).toBe('way in')
     expect(walk.stops[0]!.via).toBe('d-front')
-    expect(entranceOf(s)!.doors.sort()).toEqual(['d-back', 'd-front'])
+    expect([...entranceOf(s)!.doors].sort()).toEqual(['d-back', 'd-front'])
   })
 
   it('a front the plan names through the terrace is honoured', () => {
