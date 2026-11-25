@@ -20,7 +20,7 @@
       "id": "open-living-dining",
       "start": [
         5.15,
-        0
+        0.15
       ],
       "end": [
         5.15,
@@ -34,11 +34,11 @@
     {
       "id": "open-living-kitchen",
       "start": [
-        0,
+        0.15,
         4.65
       ],
       "end": [
-        8.8,
+        8.65,
         4.65
       ],
       "thickness": 0,

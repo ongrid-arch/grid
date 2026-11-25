@@ -148,6 +148,23 @@ describe('grid_measure what=route (ARE-18)', () => {
     expect(answer.floors).toEqual(['first', 'first', 'ground'])
   })
 
+  it('from a floor above the ground with no stair: says there is no way out from that floor, and why (ARE-28)', async () => {
+    b = bench({ 'house.json': edit(stairHouse(), (copy) => { copy.stairs = [] }) })
+    const reply = await b.call('grid_measure', { plan: 'house.json', what: 'route', room: 'study', to: 'outside' })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.text).toContain('There is no way from "Study" to the outside')
+    expect(reply.text).toMatch(/There is no way out from "First floor": it stands above the ground and nothing joins it to the ground floor.*\(grid check: floor\/no-stair\)\./)
+    expect(reply.data!['answer']).toEqual({ found: false, noStair: { floor: 'first', from: 'ground' } })
+    // With its stair, the same room has its way out, and no such line.
+    const joined = bench({ 'house.json': stairHouse() })
+    try {
+      const out = await joined.call('grid_measure', { plan: 'house.json', what: 'route', room: 'study', to: 'outside' })
+      expect(out.text).not.toContain('There is no way out from')
+    } finally {
+      joined.close()
+    }
+  })
+
   it('walks out of the nook past the curved wall, with the length', async () => {
     b = bench({ 'bay.json': BAY })
     const reply = await b.call('grid_measure', { plan: 'bay.json', what: 'route', room: 'nook', to: 'outside' })

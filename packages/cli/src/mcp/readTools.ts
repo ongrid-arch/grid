@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
@@ -1687,7 +1687,11 @@ const measureTool: GridTool = {
       }
       const route = routeBetween(survey, room.facts.id, to)
       if (route === null) {
-        return { text: [...said, `There is no way from ${q(room.facts.name)} to ${to === 'outside' ? 'the outside' : q(survey.byId.get(to)!.facts.name)} through the plan's doors and openings.`, EMPTY_ROOM_RULE].join('\n'), data: { what, answer: { found: false, ...zones }, rule: EMPTY_ROOM_RULE } }
+        // ARE-28: from a floor above the ground that nothing joins to the ground floor, the answer says why.
+        const noStair = to === 'outside' ? floorsWithNoStair(survey.plan).find((f) => f.floor === room.facts.floor) : undefined
+        const floorName = planFloors(survey.plan).find((f) => f.id === noStair?.floor)?.name ?? noStair?.floor ?? ''
+        const why = noStair === undefined ? [] : [english({ key: 'check.noStair.route', values: { floor: { name: floorName }, room: { name: room.facts.name } } })]
+        return { text: [...said, `There is no way from ${q(room.facts.name)} to ${to === 'outside' ? 'the outside' : q(survey.byId.get(to)!.facts.name)} through the plan's doors and openings.`, ...why, EMPTY_ROOM_RULE].join('\n'), data: { what, answer: { found: false, ...(noStair === undefined ? {} : { noStair }), ...zones }, rule: EMPTY_ROOM_RULE } }
       }
       const name = (id: string): string => (id === 'outside' ? 'outside' : q(survey.byId.get(id)?.facts.name ?? id))
       const steps = route.steps.map((s) => `${s.type} ${q(s.via)}${s.width === null ? '' : ` ${L(s.width)}`} into ${name(s.into)}`).join(', then ')

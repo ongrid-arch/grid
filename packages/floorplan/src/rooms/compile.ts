@@ -1942,6 +1942,12 @@ class Compiler {
       const ends: P[] = []
       const mine = roomsOf(w)
       for (const [end, sign] of [[w.a, -1], [w.b, 1]] as const) {
+        // ARE-28: a dividing line ends where the two rooms it separates stop sharing an edge,
+        // never carried on into the walls it meets: past there it would lie beside one room only.
+        if (w.virtual) {
+          ends.push(end)
+          continue
+        }
         const ray = mul(w.d, sign)
         let best: { tau: number; x: P; o: DerivedWall; half: number } | null = null
         const met: Array<{ tau: number; x: P; o: DerivedWall; half: number }> = []
@@ -2037,6 +2043,8 @@ class Compiler {
       for (let k = 0; k + 1 < on.length; k++) {
         const [A, B] = [on[k]!, on[k + 1]!]
         if (A.w === B.w || B.s0 - A.s1 > maxT + eps()) continue
+        // ARE-28: a dividing line keeps the ends of the edge its rooms share.
+        if (A.w.virtual || B.w.virtual) continue
         const aEnd = station(A.w.a2) >= station(A.w.b2) ? 'a2' : 'b2'
         const bEnd = station(B.w.a2) <= station(B.w.b2) ? 'a2' : 'b2'
         const [sa, sb] = [station(A.w[aEnd]), station(B.w[bEnd])]

@@ -745,7 +745,12 @@ a common part, a space not drawn or the outside (`flat/no-front-door`).
 
 **Open edges.** A virtual wall with a room on one side only is an open edge, never a door. Its
 `beyond` says where it leads; unstated, it leads where the drawing says, to the outside (a way out,
-as a terrace's edge is) or into floor no room claims (a way on, with no note).
+as a terrace's edge is) or into floor no room claims (a way on, with no note). A dividing line,
+a virtual wall with two rooms on its sides along any stretch of it, joins those two rooms and
+nothing else (ARE-28): where it runs on beside one room only (into the body of a wall it meets,
+past the end of a narrower room, or along a row of lines that meet end to end) it leads nowhere,
+never outside, unless its `beyond` says so. Rooms text ends a dividing line where its two rooms
+stop sharing an edge.
 
 **Above and below.** A floor with more of the building above it (`common` or `neighbour`) has no
 roof in any take-off, the 3D view or the IFC; one with more of it below has no ground slab, and is
