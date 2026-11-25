@@ -142,7 +142,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/sheet/fonts.ts': [1, 'developer'],
   // SHT-6: nine more, the drawing's refusals, its answer line and its file note.
   'packages/cli/src/sheet/sheetFile.ts': [16, 'command'],
-  'packages/cli/src/versions/diff.ts': [10, 'notYet'],
+  // WRT-12: one more, the heading of the openings that moved with their wall or room.
+  'packages/cli/src/versions/diff.ts': [11, 'notYet'],
   'packages/cli/src/versions/git.ts': [19, 'notYet'],
   'packages/cli/src/versions/markers.ts': [19, 'notYet'],
   'packages/floorplan/src/geometry/areas.ts': [37, 'notYet'],
@@ -300,8 +301,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-20 32: the place tool's receipts (edit/place.ts 11), the library's answer and its
     // rule (library/answer.ts 9), the office folder's problems (library/office.ts 6), the
     // library's refusals (library/index.ts 4), the schema's library mark (floorplan.ts 1) and
-    // describe's furniture heading (1) (reviews/CNT-20.md).
-    expect(left).toBeLessThanOrEqual(1586)
+    // describe's furniture heading (1) (reviews/CNT-20.md); and WRT-12 1: grid diff's heading for
+    // the openings that moved with their wall or room (versions/diff.ts).
+    expect(left).toBeLessThanOrEqual(1587)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

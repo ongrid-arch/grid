@@ -493,13 +493,22 @@ names. A repository whose `.git` is above the project folder is outside it, and 
 The two versions are compared by what stands where in the building, not by ids. The earlier
 plan is laid on the later one, moved to its origin when that lines up more walls; each wall is
 paired with the wall standing in its place, either way round, its ends within `diffPlace`
-(5 cm) of each other ([tolerances](tolerances.md)), each opening with the opening at its place and
+(5 cm) of each other ([tolerances](tolerances.md)), each opening with the opening at its place (or, its wall moved, with the opening of its
+kind at its place along the paired wall) and
 each room with the room on the same walls or the same floor; what is left is paired by id. A
 point that slipped by less than a centimetre has not moved. A room's walls are compared as a
 ring: the same walls from another wall, or the other way round, are the same room. A plan
 written rooms first in both versions is compared by its rooms and openings, whose names you
-chose: a room that kept its size and moved is said to have moved, and an opening that kept its
-place along its wall in one of its rooms is said to have stayed where it was.
+chose: a room that kept its size and moved is said to have moved.
+
+A door or window with no change of its own is said by where it went in the building. One that
+moved with its wall, or with a room that moved as it was, is said to have moved with it, how far
+and which way on the drawing: after `grid edit move-side --room bed1 --side east --by 0.5` on the
+two-bedroom flat, `Window "win-bath" moved with its wall, 0.50 m east on the drawing, in
+"Bathroom"`. One whose wall moved or was replaced while it kept its place in the building (one of
+its faces where it was) is said to have stayed where it was. Neither is a change line: they follow
+from the wall or room, and the verdict counts the ones that moved (`2 openings moved with their
+walls`).
 
 Before anything is paired, the later plan is tried as the earlier one mirrored left to right or
 top to bottom, turned a quarter either way or half round, or mirrored across a diagonal. When
@@ -521,13 +530,14 @@ The answer, in this order:
   renamed (9 walls, 13 openings, 6 rooms): every room, wall and opening stands where it stood.`
 - **Rooms** that changed, moved, came or went, with their old and new net area.
 - **Changes**, one line each; walls changed the same way are one line
-  (`9 walls height 2.60 → 2.70 m: …`). Then the openings that kept their place though their
-  wall changed or their room moved.
+  (`9 walls height 2.60 → 2.70 m: …`). Then the openings that moved with their wall or room,
+  and the openings that stayed where they were though their wall moved or was replaced.
 
 `--show summary` stops after the rooms, `--show issues` gives the issues alone, and `--json` the
 same as data. `--picture d.png` writes the comparison as a picture of one floor (the first with
-a change, or `--floor`): what was removed in red, what was added in green, the rooms that
-changed in amber with their old and new area, and the rest pale. When nothing changed it draws
+a change, or `--floor`): what was removed in red, what was added in green, what changed in
+amber (a wall that moved or an opening that changed at its new place, with its old place outlined;
+a room with its old and new area), and the rest pale. A wall that moved is never drawn as added. When nothing changed it draws
 nothing and says so.
 
 ## Walls that do not meet: `grid tidy`
