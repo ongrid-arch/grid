@@ -40,7 +40,7 @@ import { LOOKS, detailShown, fileLook, lengthText, toLook } from './look'
 import { planScene, roomKeyOf } from './scene'
 import type { FaultLine, PictureKey } from './faults'
 import { faultKey, faultsOnFloor } from './faults'
-import { keyEntries, northArrowNode, roomKeyBand, stackBands, writingBand } from './writing'
+import { keyEntries, northArrowNode, numberedNotes, roomKeyBand, stackBands, writingBand } from './writing'
 import { drawingMarkNodes } from './drawingMarks'
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
 import type { SvgNode } from './svgNode'
@@ -463,7 +463,9 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
   const keyed = show.key === true || (show.key !== false && (painted.length > 0 || drawing.notes.some((note) => note.kind === 'key') || drawing.walls.some((wall) => wall.phase !== undefined) || shownUses.length > 0 || shownFinishes.length > 0 || shownMaterials.length > 0))
   const marked = on('warnings') && faults.length > 0
   const entries = keyed ? keyEntries(drawing, look.colors, { swings: on('swings'), sketch: on('sketch'), uses: shownUses, marks: marked, above: (above?.lines.length ?? 0) > 0, painted, phases: look.phases, walls: look.walls.fill, useFills: look.tints.uses, finishes: shownFinishes, materials: shownMaterials }, words) : []
-  const writing = writingBand(title, entries, width, look.colors, words)
+  // VEW-17: a note's words are in the band, numbered; its mark on the plan carries the number.
+  const noteWords = on('notes') ? numberedNotes(drawing.notes).map((note) => note.text ?? '') : []
+  const writing = writingBand(title, entries, width, look.colors, words, noteWords)
   const listed = options.faults === undefined || !on('warnings') ? null : faultKey(faults, all.length - faults.length, width, look.colors, words)
   // VEW-13: the rooms written as their numbers, and their names, unless the key is turned off.
   const rooms = show.key === false ? null : roomKeyBand(roomKeyOf(scene), width, look.colors, words)
@@ -486,30 +488,38 @@ export interface PictureFileOptions {
 const LABEL_PX = 11
 
 /**
- * The label on a paper-coloured strip in the top-left corner, in pixels like every label, so it
- * reads the same at any zoom. Its width is estimated, never measured, as room labels are.
+ * VEW-17: the height of the caption band the label is written in, under the drawing and its key,
+ * in pixels. A picture's file is this much taller than `fullHeight` when it carries the label.
  */
-function labelNode(look: Look, x: number, y: number, unitsPerPixel: number, language: Language): SvgNode {
-  const label = say(language, 'label')
-  const width = label.length * LABEL_PX * 0.56 + 12
-  return el('g', { 'data-part': 'guidance-label', transform: `translate(${lengthText(x)} ${lengthText(y)}) scale(${lengthText(unitsPerPixel)})` }, [
-    el('rect', { x: 0, y: 0, width: lengthText(width), height: LABEL_PX + 10, fill: look.colors.paper, opacity: 0.9 }),
-    el('text', { x: 6, y: LABEL_PX + 3, fill: look.colors.labelSoft, 'font-family': look.colors.font, 'font-size': LABEL_PX }, [label])
+export const CAPTION_PX = LABEL_PX + 15
+
+/** The picture's file height in pixels: the drawing, its key and, with the label (the default), the caption band. */
+export function fileHeight(picture: Pick<Picture, 'height' | 'key'>, label = true): number {
+  return fullHeight(picture) + (label ? CAPTION_PX : 0)
+}
+
+/**
+ * The label in a caption band of its own under everything else, in pixels from the band's
+ * top-left corner, so it never covers a drawn part. The paper is the band's own.
+ */
+function captionNode(look: Look, language: Language, y: number): SvgNode {
+  return el('g', { 'data-part': 'guidance-label', transform: `translate(0 ${lengthText(y)})` }, [
+    el('text', { x: 16, y: LABEL_PX + 8, fill: look.colors.labelSoft, 'font-family': look.colors.font, 'font-size': LABEL_PX }, [say(language, 'label')])
   ])
 }
 
 /**
  * The picture as an SVG file. `scale` multiplies its size in pixels and nothing else: the
- * drawing is the same, only finer. It carries the label in its top-left corner (MSG-3).
+ * drawing is the same, only finer. It carries the label in a caption band under the drawing (MSG-3, VEW-17).
  */
 export function pictureToSvg(picture: Picture, scale = 1, options: PictureFileOptions = {}): string {
   const { view, look, key } = picture
   const stamp = options.label !== false
   const language = picture.language ?? 'en'
   const words = { ...ENGLISH_WORDS, language }
-  if (key) {
-    // The plan in its own frame at the top, in plan metres; the key under it, in pixels.
-    const total = fullHeight(picture)
+  if (key || stamp) {
+    // The plan in its own frame at the top, in plan metres; the key under it, then the caption, in pixels.
+    const total = fileHeight(picture, stamp)
     const plan = el(
       'svg',
       { x: 0, y: 0, width: picture.width, height: picture.height, viewBox: viewBoxOf(view), preserveAspectRatio: 'xMidYMid meet' },
@@ -523,14 +533,18 @@ export function pictureToSvg(picture: Picture, scale = 1, options: PictureFileOp
         height: Math.round(total * scale),
         viewBox: `0 0 ${picture.width} ${total}`,
         role: 'img',
-        'aria-label': picture.title === undefined ? drawingText(words, 'drawing.picture.keyed', { count: picture.rooms }) : drawingText(words, 'drawing.picture.titled.keyed', { title: picture.title })
+        'aria-label': key
+          ? picture.title === undefined
+            ? drawingText(words, 'drawing.picture.keyed', { count: picture.rooms })
+            : drawingText(words, 'drawing.picture.titled.keyed', { title: picture.title })
+          : (picture.title ?? drawingText(words, 'drawing.picture', { count: picture.rooms }))
       },
       [
         el('rect', { 'data-part': 'paper', x: 0, y: 0, width: picture.width, height: total, fill: look.colors.paper }),
         plan,
-        el('g', { 'data-part': 'key', transform: `translate(0 ${picture.height})` }, key.nodes),
+        ...(key ? [el('g', { 'data-part': 'key', transform: `translate(0 ${picture.height})` }, key.nodes)] : []),
         // In this frame a unit is a pixel already.
-        ...(stamp ? [labelNode(look, 0, 0, 1, language)] : [])
+        ...(stamp ? [captionNode(look, language, fullHeight(picture))] : [])
       ]
     )
     return `${toSvg(root)}\n`
@@ -554,7 +568,7 @@ export function pictureToSvg(picture: Picture, scale = 1, options: PictureFileOp
       role: 'img',
       'aria-label': picture.title ?? drawingText(words, 'drawing.picture', { count: picture.rooms })
     },
-    [paper, ...picture.nodes, ...(stamp ? [labelNode(look, view.x, view.y, view.width / picture.width, language)] : [])]
+    [paper, ...picture.nodes]
   )
   return `${toSvg(root)}\n`
 }

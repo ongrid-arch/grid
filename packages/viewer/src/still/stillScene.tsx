@@ -25,6 +25,8 @@ export interface StillSceneOptions {
   readonly height: number
   /** VEW-3: the camera to take it with, as the app opens at it. The app's opening camera when left out. */
   readonly camera?: CameraRecord
+  /** VEW-19: whether the roof is drawn. The app's own rule when left out: only for the whole of several floors. */
+  readonly roof?: boolean
 }
 
 export interface StillScene {
@@ -59,8 +61,8 @@ export function stillScene(plan: FloorPlan, options: StillSceneOptions): StillSc
   }
   const focus = options.focus ?? null
   const elevations = floorElevations(plan)
-  const layout = buildingLayout(plan, focus, elevations)
-  const frame = buildingFrame(plan, elevations, focus)
+  const layout = buildingLayout(plan, focus, elevations, options.roof)
+  const frame = buildingFrame(plan, elevations, focus, options.roof)
 
   // Fiber keeps one root per canvas: any object will do as the key.
   const canvas = {}
