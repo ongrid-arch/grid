@@ -65,8 +65,12 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   `unroofed` after it says whether a roof covers it; unstated, a porch and a carport are roofed.
   Its walls are written as any room's are, so give its open sides with `open` or a `virtual` wall
   ([outdoor space](plan-file.md#outdoor-space-roofed-or-open)). The wall between it and a room is
-  an outside wall: `exterior`, and a room placed beside it (or it beside a room) is set off by the
-  outside thickness, unless a `wall between` line or the room's own `walls` says otherwise (LVL-12).
+  an outside wall: `exterior`, and a room placed beside it (or it beside a room, a unit's rooms
+  or a room's corner) is set off by the outside thickness, unless a `wall between` line or the
+  building room's own `walls` says otherwise (LVL-12). The outdoor space's own `walls` never
+  thins the building's wall: they are its edges, a railing or a fence. A window onto it is in an
+  outside wall. Rooms placed by hand that leave another gap there are said once
+  (`rooms/wall-from-gap`), with the `wall between` line that keeps it (WRT-31).
 - `*` stretches a side as far as the room named after `until`. `inside <room> corner ne` cuts a
   room out of another's corner. `unit`, `place`, `repeat` and `mirror` write a group of rooms
   once; `copy <floor>` starts a floor from another, and `through <floor>` stands a room on the

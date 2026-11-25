@@ -61,8 +61,9 @@ describe('the facade of a side', () => {
     const facade = planFacade(steppedHouse(), 'south')
     const of = (kind: string, floor: string) => facade.faces.filter((f) => f.kind === kind && f.floor === floor).map((f) => [f.bottom, f.top])
     expect(of('wall', 'ground')).toEqual([[0, 2.7]])
-    expect(of('wall', 'first')).toEqual([[2.95, 5.65]])
-    expect(of('slab', 'first')).toEqual([[2.7, 2.95]])
+    // VEW-29: the slab's thickness is not stated, so no band: the wall stands down over the edge.
+    expect(of('wall', 'first')).toEqual([[2.7, 5.65]])
+    expect(of('slab', 'first')).toEqual([])
     expect(of('roof', 'ground')).toEqual([[2.7, 2.95]])
     expect(of('roof', 'first')).toEqual([[5.65, 5.9]])
     expect(facade.levels.map((l) => [l.floor, l.name, l.level])).toEqual([
@@ -112,8 +113,10 @@ describe('the facade of a side', () => {
     expect(facade.outline).toHaveLength(1)
     const ring = facade.outline[0]!
     const area = Math.abs(ring.slice(0, -1).reduce((sum, [u, z], i) => sum + u * ring[i + 1]![1] - ring[i + 1]![0] * z, 0)) / 2
-    expect(area).toBeCloseTo(10.3 * (2.95 + 0.15) + 6.3 * (5.9 - 2.95), 6)
-    expect(facade.extent).toEqual({ u0: -0.15, u1: 10.15, bottom: -0.25, top: 5.9 })
+    // VEW-29: with no band between the floors the first floor's walls stand down to the ground floor's roof,
+    // and the silhouette is the walls' own width there, not the band's.
+    expect(area).toBeCloseTo(10.3 * (2.95 + 0.15) + 6.3 * (5.9 - 2.95) - 1.545, 6)
+    expect(facade.extent).toEqual({ u0: -0.15, u1: 10.15, bottom: -0.15, top: 5.9 })
     // With no ground stated, the ground floor's floor level, 0, as LVL-4 reads it.
     const { site: _site, ...rest } = steppedHouse()
     void _site
@@ -182,7 +185,7 @@ describe('on the plans Grid already knows', () => {
     expect(lower!.level).toBe(0)
     expect(upper!.level).toBeCloseTo(2.95, 9)
     expect(Math.max(...facade.faces.filter((f) => f.kind === 'wall' && f.floor === lower!.floor).map((f) => f.top))).toBeCloseTo(2.7, 9)
-    expect(Math.min(...facade.faces.filter((f) => f.kind === 'wall' && f.floor === upper!.floor).map((f) => f.bottom))).toBeCloseTo(2.95, 9)
+    expect(Math.min(...facade.faces.filter((f) => f.kind === 'wall' && f.floor === upper!.floor).map((f) => f.bottom))).toBeCloseTo(2.7, 9)
     expect(facade.faces.filter((f) => f.kind === 'roof').map((f) => f.floor).sort()).toEqual([...new Set(facade.faces.filter((f) => f.kind === 'roof').map((f) => f.floor))].sort())
   })
 })
@@ -323,9 +326,9 @@ describe('every wall that faces the viewer, outdoor space and all (VEW-25)', () 
     })
     const facade = planFacade(plan, 'south')
     const parapet = facade.faces.find((f) => f.wall === 'rs')!
-    expect([parapet.u0, parapet.u1, parapet.bottom, parapet.top, parapet.tier]).toEqual([-0.15, 10.15, 2.95, 4.05, 0])
+    expect([parapet.u0, parapet.u1, parapet.bottom, parapet.top, parapet.tier]).toEqual([-0.15, 10.15, 2.7, 4.05, 0])
     const enclosure = facade.faces.find((f) => f.wall === 'ss')!
-    expect([enclosure.u0, enclosure.u1, enclosure.bottom, enclosure.top, enclosure.depth]).toEqual([3.85, 7.15, 2.95, 5.65, 3])
+    expect([enclosure.u0, enclosure.u1, enclosure.bottom, enclosure.top, enclosure.depth]).toEqual([3.85, 7.15, 2.7, 5.65, 3])
     expect(enclosure.openings.map((o) => o.id)).toEqual(['stair-door'])
     // Its roof stands on its walls, not in the sky.
     expect(facade.faces.some((f) => f.kind === 'roof' && f.floor === 'r' && f.bottom === enclosure.top && f.u0 === enclosure.u0)).toBe(true)
@@ -357,10 +360,10 @@ describe('every wall that faces the viewer, outdoor space and all (VEW-25)', () 
     const facade = planFacade(plan, 'south')
     // The flat's front, whole and once, 3 m back.
     const fronts = facade.faces.filter((f) => f.wall === 'fs')
-    expect(fronts.map((f) => [f.u0, f.u1, f.bottom, f.top, f.depth, f.tier])).toEqual([[-0.15, 10.15, 2.95, 5.65, 3, 2]])
+    expect(fronts.map((f) => [f.u0, f.u1, f.bottom, f.top, f.depth, f.tier])).toEqual([[-0.15, 10.15, 2.7, 5.65, 3, 1]])
     expect(fronts[0]!.openings.map((o) => o.id)).toEqual(['flat-window', 'flat-door'])
     const parapet = facade.faces.find((f) => f.wall === 'ts')!
-    expect([parapet.bottom, parapet.top, parapet.depth]).toEqual([2.95, 4.05, 0])
+    expect([parapet.bottom, parapet.top, parapet.depth]).toEqual([2.7, 4.05, 0])
     expect(facade.walls).toEqual(['gs1', 'gs2', 'gs3', 'fs', 'ts'])
     expect(facade.openings).toEqual(['flat-window', 'flat-door'])
   })

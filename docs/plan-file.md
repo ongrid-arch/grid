@@ -11,7 +11,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `room/stair-shifted`, `room/lift-shifted`
-- [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`
+- [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
 - [Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground): `opening/below-ground`
 - [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `opening/missing-wall`
 - [A floor outline before the walls](#a-floor-outline-before-the-walls): `floor/past-outline`; massing, storeys, homes and parking spaces
@@ -379,7 +379,11 @@ draw them; where both floors have stair rooms and none lies over another, they a
 of line (`stair_out_of_line`), and so are lift shafts (rooms used as a `lift`,
 `lift_out_of_line`). A lift shaft is drawn with a cross in it, corner to corner, on every floor
 (SHT-11). A lift is never taken as a way out. A floor no stair joins to the ground floor
-is said not to be checked. A stair that cannot be laid out is said and left out
+is said not to be checked. A floor above the ground with nothing on it to reach it by (no room
+used as a stair or a lift, and no stair or ramp stated from or to it) is a finding,
+`floor/no-stair`, when the plan draws a ground floor; its fix is the rooms-text line that adds a
+stair room on the ground floor rising `through` it, and `grid write` says it as soon as the plan
+is written. A stair that cannot be laid out is said and left out
 (`stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`,
 `stair/too-few-risers`, `stair/duplicate-id`), and one whose end stands in no room joins nothing
 (`stair/end-in-no-room`, a warning).
@@ -399,9 +403,13 @@ and no roof, and a garden wall standing apart carries neither.
   shaft is open over the floor its rooms share. A room set below its storey (LVL-7) is cut out of it
   and has its own piece, lower down. The lowest level's slabs are base slabs. The floor inside a
   hole in a room that no room fills, a courtyard, is open: no slab and no roof.
-- **A roof over every part with nothing above**: the floor's outline less the outlines of the
-  floors on the next level up, flat, on the floor's walls, 0.25 m thick, with no overhang. So a
-  single-storey wing is roofed where the floor above does not reach. A roof that would lie at or
+- **A roof over every part with nothing above**: the floor's outline less the outlines of every
+  floor whose floor stands higher, at any height, flat, on the floor's walls, 0.25 m thick, with no
+  overhang. So a single-storey wing is roofed where the floor above does not reach. What stands
+  above is read from the floors' elevations, not the order of `level`: the half-levels of a
+  split-level house or car park are floors, with a roof over the top one of each part only
+  (LVL-15). A floor that shares its `level` with another but stands at its own elevation, a step
+  of a stepped house, is roofed on its own tallest wall unless it states its `height`. A roof that would lie at or
   under the ground (`site.ground`, else 0) is not laid: the ground covers a crypt or a basement
   where the floor above does not. On a floor with open outdoor space, the walls that bound it and
   no room (a terrace's parapet, a balcony's edge) have no roof over them, even where the same wall

@@ -27,6 +27,7 @@ import {
   planFloors,
   planOrientation,
   poleOfInaccessibility,
+  roomFloorOffset,
   wrapDegrees,
   floorElevations,
   type CameraBox,
@@ -231,8 +232,10 @@ export function eyeCamera(
   options: { room: string; polygon: readonly Vec2[]; stand: Vec2; height: number; toward: Vec2 | number },
 ): CameraRecord {
   const orientation = planOrientation(plan)
-  const floor = floorOf(plan.rooms.find((r) => r.id === options.room)!)
-  const eye = (modelFloorLevels(plan).get(floor)?.base ?? 0) + options.height
+  const room = plan.rooms.find((r) => r.id === options.room)!
+  const floor = floorOf(room)
+  // VEW-30: the eye is measured from the room's own floor: its storey's level and its floor offset.
+  const eye = (modelFloorLevels(plan).get(floor)?.base ?? 0) + roomFloorOffset(room) + options.height
   const heading = typeof options.toward === 'number'
     ? options.toward
     : wrapDegrees(Math.atan2(options.toward.x - options.stand.x, options.toward.y - options.stand.y) / DEG)

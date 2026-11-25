@@ -13,7 +13,8 @@
  *
  * The tool server's `grid_write_rooms` does the same through `writeRoomsIntoProject`.
  */
-import { expandPatterns, planHasPhases, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
+import { expandPatterns, floorsWithNoStair, planFloors, planHasPhases, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
+import { english, name, said } from '@ongrid/floorplan/messages'
 import { carryFacts, compileRoomsText, planRevision, problemLines, roomsAnswer, stampFor, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
 import type { Project } from '../fs/projectFiles'
@@ -89,6 +90,15 @@ function patternsKept(before: FloorPlan, after: FloorPlan): string {
   const kept = `Kept the plan's ${n === 1 ? 'opening pattern' : `${n} opening patterns`} as the file has ${n === 1 ? 'it' : 'them'}: rooms text does not write ${n === 1 ? 'it' : 'them'}.`
   if (fresh.length === 0) return kept
   return `${kept} With the walls written now: ${fresh[0]!.message}${fresh.length > 1 ? ` (and ${fresh.length - 1} more)` : ''}.`
+}
+
+/**
+ * LVL-14: a floor above the ground that nothing joins to the ground floor, said at once, with the
+ * rooms-text line that adds a stair. The check names it too (`floor/no-stair`).
+ */
+function noStairLines(plan: FloorPlan): string[] {
+  const names = new Map(planFloors(plan).map((f) => [f.id, f.name || f.id] as const))
+  return floorsWithNoStair(plan).map(({ floor, from }) => english(said('check.noStair.write', { floor: name(names.get(floor) ?? floor), floorId: floor, belowId: from })))
 }
 
 export function oneLine(text: string): string {
@@ -250,6 +260,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(before === null || patterns.length === 0 ? [] : [patternsKept(before, kept)]),
     ...(plan.flats !== undefined || (before?.flats ?? []).length === 0 ? [] : [`Kept the plan's ${before!.flats!.length === 1 ? 'flat' : `${before!.flats!.length} flats`} as the file has ${before!.flats!.length === 1 ? 'it' : 'them'}: this rooms text places no flat type. grid check names a room a flat lists that the text no longer has.`]),
     `Problems in the drawing: ${drawingProblems.before} → ${drawingProblems.after}. Run grid check for the notes.`,
+    ...noStairLines(plan),
     ...brief.text,
     ...(reminder === null ? [] : [reminder]),
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),

@@ -46,6 +46,11 @@ export interface Rule {
 export type FindingCode =
   /** The floor has no door or opening to the outside, and no door to a space left undrawn. */
   | 'no_exit'
+  /**
+   * LVL-14: a floor above the ground that nothing joins to the ground floor: no room on it is used
+   * as a stair or a lift, and the plan states no stair or ramp to it (`floorsWithNoStair`).
+   */
+  | 'no_stair'
   /** A room has no door, opening or open side to another space. */
   | 'room_without_door'
   /** A room has a way out of itself but none that leads to an exit. */
@@ -136,6 +141,8 @@ export interface RuleFinding {
   readonly through?: readonly RouteStep[]
   /** CNT-6: only on `flat_without_front_door`, the flat's id (CNT-4); MSG-17: on `let_through_another_let` when the let is a flat. */
   readonly flat?: string
+  /** LVL-14, only on `no_stair`: the ground floor a stair to the floor would rise from, by id. Optional, like `through`. */
+  readonly stairFrom?: string
   /**
    * MSG-17, only on `let_through_another_let`: the let's rooms, and the rooms of other lets on its
    * nearest way out, in the order the way passes them, by id. Optional, like `through`.

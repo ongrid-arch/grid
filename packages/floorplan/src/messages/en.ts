@@ -487,6 +487,9 @@ export const en = {
   'check.noRoute': '{room} has no route to a door to the outside',
   'check.noRouteToAnyDoorOut': '{room} has no route to a door to the outside, nor to a door into a space that is not drawn',
   'check.noStairs': 'The way out of {floor} was not checked: no stair joins it to the ground floor',
+  // LVL-14: a floor above the ground that nothing joins to the ground floor, and the write answer's line on it.
+  'check.noStair': '{floor} stands above the ground, and nothing joins it to the ground floor: no room on it is used as a stair or a lift, and the plan states no stair to it',
+  'check.noStair.write': 'Floor {floor} stands above the ground, and nothing joins it to the ground floor: no room on it is used as a stair or a lift, and no stair is stated to it (grid check: floor/no-stair). To add one, write under the line that starts "floor {belowId}": room stair "Stair" stair 1 x 3 <where> through {floorId}',
   'check.outOfLine.stair': 'The stair {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so it does not join the two floors',
   'check.outOfLine.lift': 'The lift shaft {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so the shaft is out of line',
   'check.wayOutNotDrawn': 'The way out of {floor} was not checked: its only door out leads to a space that is not drawn',
@@ -508,6 +511,7 @@ export const en = {
   'check.letThroughAnotherLet': 'The only way out of {let} goes through {through}, private to another let',
   'check.letThroughAnotherLet.flat': 'The only way out of the flat {let} goes through {through}, private to another let',
   'check.detail.letThroughAnotherLet': 'A let is left through its own rooms and the common parts only. Give it a door onto a hall, a landing or a stair no let holds, or mark the room it goes through common or shared if everyone may use it.',
+  'check.detail.noStair': 'Its rooms cannot be reached, so their way out is not followed. Draw a room used as a stair (or a lift) on it and on each floor below, one over the other, or state the stair in the plan\'s stairs.',
   'check.belowGround.wholly': '{what} lies wholly below the ground: its {end} is {depth} m under the ground level the site states',
   'check.belowGround.partly': '{what} lies partly below the ground: its {end} is {depth} m under the ground level the site states',
   'check.below.door.wall': 'The door in wall {wall}',
@@ -1103,6 +1107,9 @@ export const en = {
   'line.floor/no-exit.found': 'no door or opening on this floor leads outside',
   'line.floor/no-exit.needed': 'at least one door to the outside',
   'line.floor/no-exit.fix': 'Add a door in an outside wall, or mark the wall a door is in as exterior if it leads outside.',
+  'line.floor/no-stair.found': 'a floor above the ground with no stair or lift room on it, and no stair stated to it',
+  'line.floor/no-stair.needed': 'a stair joining it, through the floors between, to the ground floor',
+  'line.floor/no-stair.fix': 'Add a stair. In rooms text, under the line that starts "floor {belowId}": room stair "Stair" stair 1 x 3 <where> through {floorId}, which stands on every floor up to this one. Or state it in the plan\'s stairs, from "{belowId}" to "{floorId}".',
   'line.room/no-door.found': 'no door, opening or open side',
   'line.room/no-door.needed': 'a door, an opening or an open side to another space',
   'line.room/no-door.fix': 'Add a door or an opening in a wall it shares with another room, or make an open side a virtual wall.',
@@ -1371,6 +1378,7 @@ export const en = {
   'line.floor/spaces-unknown.says': 'The spaces the walls enclose on floor {name} could not be worked out',
   'line.floor/overlaps-unknown.says': 'The rooms on floor {name} were not all compared to see whether they overlap',
   'line.floor/no-exit.says': '{wording}',
+  'line.floor/no-stair.says': '{wording}',
   'line.room/no-door.says': '{wording}',
   'line.room/no-route-out.says': '{wording}',
   'line.room/no-route-to-door-out.says': '{wording}',
@@ -1855,6 +1863,9 @@ export const en = {
     "The rooms on floor '{floor}' close round {area} m² of floor that no room claims, around {at}, between {rooms}. Write it as a room: a core, a shaft or a light well inside ('-' for no use), or 'outdoor courtyard' for open ground. It is written as it is, and the check notes it as floor no room claims.",
   'rooms.wallFromGap':
     "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) is {thickness} m thick, the gap the rooms leave, which no line of the text states (inside walls {inside} m, outside walls {outside} m). If that is meant, say it with 'walls {thickness}' on a room line or a wall line; if not, move a room.",
+  // WRT-31: a wall between a room and outdoor space is an outside wall, whatever gap the rooms leave.
+  'rooms.wallFromGap.outdoor':
+    "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) faces outdoor space, so it is an outside wall, but the rooms leave {thickness} m for it, not the outside walls' {outside} m. If that is meant, keep it with 'wall between {a} and {b} {thickness}'; if not, move a room.",
   'rooms.checkError': "The check finds this in the plan as written, and would leave a part out ({code}): {message}",
   'rooms.checkNote': "The check notes this in the plan as written ({code}): {message}",
   // WRT-27: raw lines are on the floor they are written under, and counted in the answer.
@@ -2714,6 +2725,11 @@ export const en = {
   'areas.flat.outdoorCounted': '; outdoor space {area}, of which your rules count {counted}: {withIt} with it',
   'areas.free.total': 'Free floor: {free}, the net less the {taken} its fixtures stand on. {rule}',
   'areas.free.floor': ', free floor {area}',
+  'measure.fixturesLeftOut': 'Left out of this measure, so the floor they stand on is not taken off: {items}. grid_check says why; state what is missing and they count.',
+  'measure.fixtureLeftOut.field': '{item}: its {field} is {found}',
+  'measure.fixtureLeftOut.plain': '{item}: grid_check says why',
+  'measure.fixtureLeftOut.unnamed': 'the item at position {index}',
+  'measure.noneMeasured': 'none of its fixtures could be measured',
   'areas.outdoor.leftOut': 'No rule you stated counts any of it, so it is left out of every total.',
   'areas.outdoor.counted': 'Your rule counts {share}% of each {kind}, and Grid has not checked it ({rule}): {area}.',
   'areas.outdoor.notCounted': 'No rule you stated counts any {kinds}, so that space is left out of every total.',

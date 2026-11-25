@@ -10,7 +10,11 @@
  *   lies lower. The lowest level's slabs are base slabs.
  * - **a roof over every part with nothing above**: the floor's outline less the outlines of the
  *   floors on the next level up, flat, on the floor's walls (its floor level plus its clear height),
- *   as thick as `SLAB_THICKNESS`. With a `parapet` stated on the floor, the outside walls under the
+ *   as thick as `SLAB_THICKNESS`. LVL-15: "above" is read from the floors' elevations, not the
+ *   order of `level`: every floor whose floor stands higher, at any height, is taken off, so the
+ *   slab a half level of a split-level house or car park stands on is a floor, never a roof. A
+ *   floor of its own elevation that shares its level with others (a step of a stepped house) is
+ *   roofed on its own tallest wall, not the level's, unless it states its height. With a `parapet` stated on the floor, the outside walls under the
  *   roof's edge rise that far above it. LVL-13: none is laid where it would lie at or under the
  *   ground (`site.ground`, else 0): the ground covers a crypt or a basement past the floor above.
  * - **a ceiling** in each room that states one: at the room's height, less its lowered zones, each
@@ -49,14 +53,15 @@
 
 import { planInState } from './phases'
 import type { MultiPolygon, Polygon } from 'polygon-clipping'
-import { floorOf, planFloors, planForFloor } from './floors'
+import { floorOf, planFloors, planForFloor, wallsOnFloor } from './floors'
 import type { BuildingElevations } from './elevations'
-import { SLAB_THICKNESS, floorElevations } from './elevations'
+import { SLAB_THICKNESS, floorElevations, tallestDrawnWall } from './elevations'
+import { boxOfPoints } from './boxIndex'
 import type { Floor, FloorPlan, PlanIndex, Room } from './plan'
 import { indexPlan, roomWallIds } from './plan'
 import { floorJoins, roomOutlinesByFloor, type OutlinesByFloor } from './floorJoins'
 import { outlineKnown, slabOutline, type FloorOutline, type FloorOutlineUnknown } from './outline'
-import { boxOfRings, cutOutline, inRing, multiArea, pointInside, ringOf, union } from './polygons'
+import { boxOfRings, cutOutline, inRing, multiArea, overlaps, pointInside, ringOf, union, type Box } from './polygons'
 import { outerWallBand, floorWalls } from './areas'
 import { planWallSides } from './exposure'
 import { tryRoomShape } from './room'
@@ -242,6 +247,8 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
   const wanted = floors.filter((f) => options.floors === undefined || options.floors.includes(f.id))
   const levels = [...new Set(floors.map(levelOf))].sort((a, b) => a - b)
   const lowest = levels[0] ?? 0
+  // LVL-15: where a floor's floor stands, which decides what stands over what.
+  const floorLevelOf = (f: Floor): number => elevations.floors.get(f.id)?.floorLevel ?? 0
   // LVL-13: the ground's level, in the floors' own datum: as the site states it, else 0.
   const ground = statedGround(plan) ?? 0
 
@@ -316,26 +323,40 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
       return { floor: floor.id, outline: own.pieces, outlineArea: own.area, slab, roof: null, roofKnown: true, why: null, above: floor.above }
     }
 
-    // The roof: the outline less every floor on the next level up.
-    const next = levels.find((level) => level > levelOf(floor))
-    const above = next === undefined ? [] : floors.filter((f) => levelOf(f) === next)
-    const aboveOutlines = above.map((f) => outlineOf(f.id))
-    const unknown = above.filter((_, i) => !outlineKnown(aboveOutlines[i]!))
-    if (unknown.length > 0) {
-      return { floor: floor.id, outline: own.pieces, outlineArea: own.area, slab, roof: null, roofKnown: false, why: `the roof is not known: the outline of ${unknown.map((f) => JSON.stringify(f.name || f.id)).join(', ')} above it could not be worked out` }
+    // LVL-15: the roof is the outline less every floor whose floor stands higher, at any height,
+    // the lowest first, until nothing is left: a half level's slab is a floor, not a roof.
+    let pieces: MultiPolygon = roofs.get(floor.id) ?? own.pieces
+    const under: string[] = []
+    const unknown: Floor[] = []
+    const reach = boxOfRings(pieces.flatMap((polygon) => polygon))
+    const higher = floors
+      .filter((f) => f.id !== floor.id && floorLevelOf(f) > storey.floorLevel + tolerance('sameFloorLevel'))
+      .sort((a, b) => floorLevelOf(a) - floorLevelOf(b))
+    for (const f of higher) {
+      if (pieces.length === 0) break
+      const above = outlineOf(f.id)
+      if (!outlineKnown(above)) {
+        // A floor whose outline is not known puts the roof in doubt only where its walls stand.
+        if (overlaps(wallsBox(plan, f.id), reach)) unknown.push(f)
+        continue
+      }
+      if (above.pieces.length === 0 || !overlaps(boxOfRings(above.pieces.flatMap((polygon) => polygon)), reach)) continue
+      const left = cutOutline('difference', pieces, [above.pieces])
+      if (left === null) {
+        return { floor: floor.id, outline: own.pieces, outlineArea: own.area, slab, roof: null, roofKnown: false, why: 'the floors above could not be cut from its outline' }
+      }
+      if (multiArea(pieces) - multiArea(left) > tolerance('noArea')) under.push(f.id)
+      pieces = left
     }
-    const covers = aboveOutlines.flatMap((o) => (outlineKnown(o) ? o.pieces : []))
-    const roofed = roofs.get(floor.id) ?? own.pieces
-    const pieces = covers.length === 0 ? roofed : cutOutline('difference', roofed, [covers])
-    if (pieces === null) {
-      return { floor: floor.id, outline: own.pieces, outlineArea: own.area, slab, roof: null, roofKnown: false, why: 'the floors above could not be cut from its outline' }
+    if (unknown.length > 0 && pieces.length > 0) {
+      return { floor: floor.id, outline: own.pieces, outlineArea: own.area, slab, roof: null, roofKnown: false, why: `the roof is not known: the outline of ${unknown.map((f) => JSON.stringify(f.name || f.id)).join(', ')} above it could not be worked out` }
     }
     let roof: FloorRoof | null = null
     const shape = pieces.length > 0 ? floorRoofShape(plan, floor.id) : null
     // LVL-13: a roof Grid would lay at or under the ground (a crypt, a basement past the floor
     // above) is not laid: the ground covers that part of the floor. LVL-12: a roof over roofed
     // outdoor space alone stands as high as that space does.
-    const clear = canopy && shape === null ? canopyHeight(plan, sliceOf(floor.id), floor.id, storey.clearHeight) : storey.clearHeight
+    const clear = canopy && shape === null ? canopyHeight(plan, sliceOf(floor.id), floor.id, storey.clearHeight) : onOwnWalls(plan, floor, floors, storey.clearHeight)
     const buried = shape === null && storey.floorLevel + clear + SLAB_THICKNESS <= ground + tolerance('sameFloorLevel')
     if (pieces.length > 0 && !buried) {
       const sloped = shape !== null && shape.planes.length > 0
@@ -353,7 +374,7 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
         area: multiArea(pieces),
         bottom: storey.floorLevel + (shape === null ? clear : shape.roof.eaves),
         thickness: SLAB_THICKNESS,
-        under: above.map((f) => f.id),
+        under,
         parapet,
         shape: shape === null ? null : shape.roof.shape,
         pitch: shape === null ? 0 : shape.pitch,
@@ -371,6 +392,34 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
     roofArea: result.every((f) => f.roofKnown) ? sum((f) => f.roof?.area ?? 0) : null,
     slabArea: result.every((f) => f.outline !== null) ? sum((f) => f.slab?.area ?? 0) : null
   }
+}
+
+/**
+ * LVL-15: how high a floor's flat roof stands on its walls. Floors sharing a level share its clear
+ * height (`stackFloors`), the tallest wall of them all; a floor of its own elevation on that level
+ * (a step of a stepped house) is roofed on its own tallest wall instead, so its roof meets the tops
+ * of its walls. A floor that states its height, or stands alone on its level, keeps the clear height.
+ */
+function onOwnWalls(plan: FloorPlan, floor: Floor, floors: readonly Floor[], clearHeight: number): number {
+  if (floor.height !== undefined && Number.isFinite(floor.height) && floor.height > 0) return clearHeight
+  if (!floors.some((f) => f.id !== floor.id && levelOf(f) === levelOf(floor))) return clearHeight
+  const tallest = tallestDrawnWall(plan, floor)
+  return Number.isFinite(tallest) && tallest > 0 ? tallest : clearHeight
+}
+
+/** LVL-15: the box round a floor's walls, each widened by its thickness, its curve's circle and all. */
+function wallsBox(plan: FloorPlan, floor: string): Box {
+  const points: Vec2[] = []
+  for (const wall of wallsOnFloor(plan, floor)) {
+    const grow = Number.isFinite(wall.thickness) ? Math.max(0, wall.thickness) : 0
+    const ends: [number, number][] = [wall.start, wall.end]
+    if (wall.arc !== undefined) {
+      const radius = Math.hypot(wall.start[0] - wall.arc.centre[0], wall.start[1] - wall.arc.centre[1])
+      ends.push([wall.arc.centre[0] - radius, wall.arc.centre[1] - radius], [wall.arc.centre[0] + radius, wall.arc.centre[1] + radius])
+    }
+    for (const [x, y] of ends) points.push({ x: x - grow, y: y - grow }, { x: x + grow, y: y + grow })
+  }
+  return boxOfPoints(points)
 }
 
 /** A convex ring with each corner moved toward its middle by `noLength`. */
