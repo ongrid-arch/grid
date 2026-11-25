@@ -72,6 +72,8 @@ export interface ItemKindDefinition {
   /** The kind as a plan writes it: `bed`. */
   readonly kind: string
   readonly group: ItemGroup
+  /** CNT-37: whether the kind keeps clear floor at its sides (default true). A kitchen run or a shower is set against its neighbours and needs none. */
+  readonly sides?: boolean
   /** What a person calls it in a sentence, in English, and its label when the item states none. */
   readonly word: string
   /** What an agent is told of it: what it is and how its size is read. A key's sentence for Grid's own. */
@@ -121,6 +123,7 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   {
     kind: 'shower',
     group: 'fixture',
+    sides: false,
     word: 'shower',
     about: about('shower'),
     symbol: (p) => ({
@@ -146,6 +149,7 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   {
     kind: 'kitchen-run',
     group: 'fixture',
+    sides: false,
     word: 'kitchen run',
     about: about('kitchen-run'),
     symbol: (p) => ({ rings: [outline(p)], lines: [] }),

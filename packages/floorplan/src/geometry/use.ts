@@ -16,6 +16,7 @@
 import { floorOf } from './floors'
 import type { Holes } from './innerPoint'
 import { pointInPolygon, poleOfInaccessibility } from './innerPoint'
+import { itemKindDefinition } from './itemKinds'
 import { isItemKind, itemFootprint, itemName, itemNounSaid, type Item } from './items'
 import type { FloorPlan, Opening, PlanIndex, Wall } from './plan'
 import type { Said, Value } from '../messages/say'
@@ -469,16 +470,26 @@ function boxOfPoints(points: readonly Vec2[]): IndexBox {
 
 export interface FixtureSpace {
   readonly fixture: string
-  /** The clear floor straight out from its front, and from its left and right as seen from its front, in metres; null when nothing bounds it there. */
+  /** The clear floor straight out from its front, and from its left and right as seen from its front, in metres; null when nothing bounds it there, or the side does not count (`sides`, `joined`). */
   readonly front: number | null
   readonly left: number | null
   readonly right: number | null
+  /** What stops the front, when another fixture does (the run it faces: the clear floor between them is an aisle); null for a wall, a hole or nothing. */
+  readonly frontBy: string | null
+  /** False for a kind that needs no clear floor beside it: both sides answer null. */
+  readonly sides: boolean
+  /** CNT-37: the fixtures flush against its left and right sides, end to end with it: one run. A joined side is not measured; the run's ends are. */
+  readonly joined: { readonly left: readonly string[]; readonly right: readonly string[] }
 }
 
 /**
  * The clear floor in front of and beside a fixture (`use/space-by-fixture`): from each face, the
  * least distance straight out to the room's outline (a wall face, or the line across a
  * doorway), a hole or another fixture, tried at points along the face `useRaster` apart.
+ *
+ * CNT-37: fixtures standing flush against a side, end to end, are one run: that side is joined,
+ * not measured, and the ray goes on past the run, so the end piece's side is read from the end
+ * of the run. A kind that keeps no clear floor beside it (`sides` false) has no sides.
  */
 export function fixtureSpace(item: Item, polygon: readonly Vec2[], holes: Holes, others: readonly Obstacle[]): FixtureSpace {
   const [backLeft, backRight, frontRight, frontLeft] = itemFootprint(item)
@@ -486,19 +497,34 @@ export function fixtureSpace(item: Item, polygon: readonly Vec2[], holes: Holes,
   // meets the ray as far as the nearest edge so far; the least is the same as trying them all.
   const walls: Segment[] = [...edgesOf(polygon), ...holes.flatMap(edgesOf)]
   const { boxes, edges, index, ids } = preparedOthers(others)
+  const contact = tolerance('wallContact')
   const unit = (v: Vec2): Vec2 => scale(v, 1 / length(v))
-  const clear = (a: Vec2, b: Vec2, out: Vec2): number | null => {
+  interface Clear {
+    readonly least: number | null
+    /** The fixture the least distance meets, or null for the room's own edges. */
+    readonly by: string | null
+    /** The one fixture every point along the face meets within contact, or null. */
+    readonly flush: string | null
+  }
+  const clear = (a: Vec2, b: Vec2, out: Vec2): Clear => {
     const pieces = Math.max(1, Math.min(200, Math.ceil(length(sub(b, a)) / tolerance('useRaster'))))
     let least = Infinity
-    const hit = (wall: Segment, origin: Vec2): void => {
-      const t = rayHits(origin, out, wall)
-      if (t !== null && t < least) least = t
-    }
+    let by: string | null = null
+    let flush: string | null | undefined
     for (let i = 0; i < pieces; i++) {
       const origin = lerp(a, b, (i + 0.5) / pieces)
-      for (const wall of walls) hit(wall, origin)
+      let ray = Infinity
+      let rayBy: string | null = null
+      const hit = (wall: Segment, owner: string | null): void => {
+        const t = rayHits(origin, out, wall)
+        if (t !== null && t < ray) {
+          ray = t
+          rayBy = owner
+        }
+      }
+      for (const wall of walls) hit(wall, null)
       // A ray the room's edges do not stop is followed as far as any plan goes.
-      const reach = least === Infinity ? RAY_FAR : least + RAY_SLACK
+      const reach = Math.min(ray, least) === Infinity ? RAY_FAR : Math.min(ray, least) + RAY_SLACK
       const endX = origin.x + out.x * reach
       const endY = origin.y + out.y * reach
       const lowX = Math.min(origin.x, endX) - RAY_SLACK
@@ -509,20 +535,50 @@ export function fixtureSpace(item: Item, polygon: readonly Vec2[], holes: Holes,
         const box = boxes[k]!
         if (ids[k] === item.id) return
         if ((box.maxX < lowX || box.minX > highX || box.maxY < lowY || box.minY > highY)) return
-        for (const wall of edges[k]!) hit(wall, origin)
+        for (const wall of edges[k]!) hit(wall, ids[k]!)
       }
       if (index !== null) index.range(lowX, lowY, highX, highY, tryOther)
       else for (let k = 0; k < boxes.length; k++) tryOther(k)
+      if (ray < least) {
+        least = ray
+        by = rayBy
+      }
+      const touching = ray <= contact && rayBy !== null ? rayBy : null
+      flush = flush === undefined ? touching : flush === touching ? flush : null
     }
-    return least === Infinity ? null : least
+    return { least: least === Infinity ? null : least, by, flush: flush ?? null }
   }
   const front = unit(sub(frontLeft!, backLeft!))
   const across = unit(sub(backRight!, backLeft!))
+  const needs = itemKindDefinition(item.kind)?.sides !== false
+  const measured = clear(frontLeft!, frontRight!, front)
+  // A side, followed past every fixture flush against it.
+  const side = (a: Vec2, b: Vec2, out: Vec2): { readonly least: number | null; readonly joined: string[] } => {
+    const joined: string[] = []
+    let from = a
+    let to = b
+    for (let step = 0; step <= others.length; step++) {
+      const found = clear(from, to, out)
+      if (found.flush === null || joined.includes(found.flush)) return { least: found.least, joined }
+      joined.push(found.flush)
+      const own = dot(from, out)
+      const neighbour = others[ids.indexOf(found.flush)]!
+      const shift = Math.max(...neighbour.outline.map((p) => dot(p, out))) - own + 2 * contact
+      from = add(from, scale(out, shift))
+      to = add(to, scale(out, shift))
+    }
+    return { least: null, joined }
+  }
+  const left = needs ? side(backLeft!, frontLeft!, scale(across, -1)) : null
+  const right = needs ? side(backRight!, frontRight!, across) : null
   return {
     fixture: item.id,
-    front: clear(frontLeft!, frontRight!, front),
-    left: clear(backLeft!, frontLeft!, scale(across, -1)),
-    right: clear(backRight!, frontRight!, across)
+    front: measured.least,
+    frontBy: measured.by,
+    left: left !== null && left.joined.length === 0 ? left.least : null,
+    right: right !== null && right.joined.length === 0 ? right.least : null,
+    sides: needs,
+    joined: { left: left?.joined ?? [], right: right?.joined ?? [] }
   }
 }
 

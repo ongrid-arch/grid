@@ -296,12 +296,18 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
   for (const row of own) {
     const item = itemById.get(row.id)!
     const found = fixtureSpace(item, room.polygon, room.holes, everyFixture)
-    const sides = [['in front', found.front], ['to its left', found.left], ['to its right', found.right]] as const
-    const said = sides.map(([where, v]) => `${where} ${v === null ? 'open' : L(v)}`).join(', ')
-    const bounded = sides.flatMap(([where, v]) => (v === null ? [] : [{ where, v }]))
+    const sides = [['in front', found.front], ...(found.sides ? ([['to its left', found.left], ['to its right', found.right]] as const) : [])] as readonly (readonly [string, number | null])[]
+    const joinedTo = (ids: readonly string[]): string => namesOf(items, ids)
+    const said = [
+      ...sides.map(([where, v]) => `${where} ${v === null ? 'open' : L(v)}${where === 'in front' && found.frontBy !== null && v !== null ? `, an aisle to ${joinedTo([found.frontBy])}` : ''}`),
+      ...(found.joined.left.length > 0 ? [`to its left it is joined end to end with ${joinedTo(found.joined.left)}`] : []),
+      ...(found.joined.right.length > 0 ? [`to its right it is joined end to end with ${joinedTo(found.joined.right)}`] : []),
+    ].join(', ')
+    const measuredSides = sides.filter(([where]) => !(where === 'to its left' && found.joined.left.length > 0) && !(where === 'to its right' && found.joined.right.length > 0))
+    const bounded = measuredSides.flatMap(([where, v]) => (v === null ? [] : [{ where, v }]))
     const least = bounded.length === 0 ? null : bounded.reduce((a, b) => (b.v < a.v ? b : a))
     add(
-      { code: 'use/space-by-fixture', about: row.id, measured: least?.v ?? null, figure: space, under: least !== null && isUnder(least.v, space), detail: { front: found.front, left: found.left, right: found.right } },
+      { code: 'use/space-by-fixture', about: row.id, measured: least?.v ?? null, figure: space, under: least !== null && isUnder(least.v, space), detail: { front: found.front, left: found.left, right: found.right, frontBy: found.frontBy, joined: found.joined } },
       `${itemName(item)} has clear floor ${said}, as seen from its front, to the nearest wall face, doorway or fixture; ${least === null ? 'nothing bounds it' : `the least, ${least.where}, is ${against(least.v, space, L)}`}`
     )
   }
