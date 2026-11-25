@@ -172,8 +172,8 @@ describe('the six T-5 cases a plan from someone else may name (HND-10)', () => {
     expect(lines[0]).toMatchObject({ kind: 'left-out', thing: { kind: 'plan', id: '' } })
     expect(lines[0]!.message).toContain(JSON.stringify(path))
     expect(lines[0]!.message).toContain(why)
-    if (why.startsWith('does not end')) expect(lines[0]!.message).not.toContain(dir)
-    else expect(lines[0]!.message).toContain(JSON.stringify(dir))
+    // A refusal never says where the project folder is on the disk.
+    expect(lines[0]!.message).not.toContain(dir)
     const drawn = readTrace(p, loaded.plan, 'ground')
     expect(drawn.picture).toBeNull()
     expect(drawn.line).toContain(why)
