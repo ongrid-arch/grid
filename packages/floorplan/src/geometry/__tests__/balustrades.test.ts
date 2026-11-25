@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { edit, flat, wall } from '../../test-support/plans'
 import { validatePlan } from '../validate'
-import type { FloorPlan } from '../floorplan'
+import type { FloorPlan } from '../plan'
 
 const questions = (plan: FloorPlan): string[] => validatePlan(plan).issues.filter((i) => i.code === 'wall/size-question').map((i) => i.id)
 
@@ -14,7 +14,7 @@ const tall = (floorHeight?: number): FloorPlan =>
   edit(flat(), (copy) => {
     for (const wall of copy.walls) wall.height = 5
     for (let i = 0; i < 20; i++) copy.walls.push(wall(`rail${i}`, [20 + i, 20], [20.8 + i, 20], { height: 1.1 }))
-    if (floorHeight !== undefined) copy.floors = [{ ...(copy.floors?.[0] ?? { id: 'ground', name: 'Ground floor' }), height: floorHeight }]
+    if (floorHeight !== undefined) copy.floors = [{ id: 'ground', name: 'Ground floor', level: 0, height: floorHeight }]
   })
 
 describe('wall heights', () => {

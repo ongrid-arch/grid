@@ -199,7 +199,7 @@ describe('the code figures, with and without the firm\'s file', () => {
   it('run with no place stated, and say they are tied to no place', async () => {
     b = bench({ 'flat.json': flat(), [FIRM_FILE]: FIRM })
     const check = await b.call('grid_check', { plan: 'flat.json' })
-    expect(check.text).toContain('No place is stated, so no figure was applied')
+    expect(check.text).toContain('No place is stated, so no code figure was applied')
     expect(linesOf(check.data).filter(isFirmLine)).toHaveLength(1)
     expect(check.text).toContain('not tied to a place, so they are set against the plan wherever that file is')
   })
