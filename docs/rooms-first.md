@@ -267,7 +267,17 @@ the plan's own terms. Whatever comes in the plan's own terms is named in a comme
 with why (WRT-42): a floor's names the wall or room that stops rooms text (`wall 'ext-south'
 stands elsewhere`), and an opening rooms text cannot write as it is (one drawn across the corner
 of two rooms) comes as a `raw opening` on its own, so the rooms, walls and other openings of its
-floor stay rooms text. The walls line's height is one the walls state themselves (WRT-40): a wall
+floor stay rooms text. What any plan reads back as, copied floors included, writing takes
+(WRT-44): a door as wide as its room's side, which the file can hold a tenth of a millimetre wider
+than the side, is written to fit it; rooms are placed to the hundredth of a millimetre a wall's
+half thickness can fall on (a 4.5 in wall's); a dividing line along a row of open rooms is said
+once for each two rooms across it; and a floor after one given in the plan's own terms writes its
+ids whole. A wall with no length (its two ends one point), which an older writer could leave in a
+plan, is left out of the read-back as the check leaves it out, named in a comment line at the
+top. The writer itself never writes one: where two outside walls stand closer than their own
+thickness (the notch between two flats of a row) the wall between them is left out, and an
+opening put there is refused with its line; a `raw wall` whose two ends are one point is refused
+with its line (`rooms/raw`). The walls line's height is one the walls state themselves (WRT-40): a wall
 that takes its height from its floor, or rises to its floor's roof, gets it again from the floor
 line, never the roof's ridge written as a wall height. So that nothing is lost unseen, `grid write` refuses, with the difference,
 rooms text read from an earlier version of the plan (its `based on` line) and rooms text written

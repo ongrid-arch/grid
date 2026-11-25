@@ -1901,6 +1901,9 @@ export const en = {
   'describe.rooms.rawOpening.unplaced': 'rooms text has no line that places it as it is',
   'describe.rooms.rawOpening.changes': 'written as rooms text, it {what}',
   'describe.rooms.unsettled': 'its rooms text could not be checked against the plan in {rounds} writings',
+  // WRT-44: what the read-back leaves out, as the check leaves it out of the plan.
+  'describe.rooms.leftOut': 'Left out: wall {wall} has no length, its two ends being one point, so the check leaves it out of the plan too, and writing this text gives the plan without it.',
+  'describe.rooms.leftOut.opening': 'Left out: opening {opening} stands in wall {wall}, which has no length, so the check leaves it out of the plan too.',
   // WRT-14: the floor line of rooms text, and its refusals, each followed by how it is written.
   'rooms.floor.form': 'floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]',
   'rooms.floor.how':
@@ -1965,6 +1968,11 @@ export const en = {
   'rooms.raw.openingFloor':
     "Line {line}: raw opening '{id}' is written under floor '{under}', but its wall '{wall}' is on floor '{floor}', and an opening is on its wall's floor. Write it under floor '{floor}', or name a wall of floor '{under}'.",
   'rooms.raw.openingFact': '{id}: {type} {width} m in {wall}, written raw',
+  // WRT-44: a wall with no length is refused with its line, never thrown on.
+  'rooms.raw.zeroLength':
+    "Line {line}: raw wall '{id}' starts and ends at the same point, ({x}, {y}), so it has no length. Give it a start and an end at different points, or leave it out and take its id out of the boundary of any room that names it.",
+  'rooms.opening.noLength':
+    "Line {line}: '{id}' would stand in wall '{wall}', which has no length here: the walls on either side stand closer together than their own thickness, so nothing is left between them to hold it. Put it in another side of the room, or move the rooms apart.",
   'rooms.copyNoOpenings': '{list}',
   'rooms.copyNoOpenings.one':
     "Floor {floors} copies the rooms of floor '{from}' but none of its doors and windows, and writes none of its own, so it has none: write 'copy {from} with openings' to take them, or write its doors and windows.",

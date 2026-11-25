@@ -75,6 +75,8 @@ export interface RoomsReading {
   readonly rawOpenings: readonly string[]
   /** With `prefer: 'rooms'`: what writing the text again changes, one line each. */
   readonly changes: readonly string[]
+  /** WRT-44: what is left out as the check leaves it out (a wall with no length, an opening in one), one sentence each, as the comment lines at the top say it. */
+  readonly leftOut: readonly string[]
 }
 
 export interface ReadOptions {
@@ -87,10 +89,17 @@ export interface ReadOptions {
 // ---------------------------------------------------------------------------------------------
 // Comparing parts
 
-function sameNumber(a: number | undefined, b: number | undefined): boolean {
+function sameNumber(a: number | undefined, b: number | undefined, within = SAME): boolean {
   if (a === undefined || b === undefined) return a === b
-  return Math.abs(a - b) <= SAME
+  return Math.abs(a - b) <= within
 }
+
+/**
+ * WRT-44: how far an opening may run past an end of its room's side, as rooms text writes the
+ * side, and still be written to fit it: the plan file holds each wall to a tenth of a millimetre,
+ * so a door as wide as its side can come back that much wider than the side on each end.
+ */
+const FIT = 2 * SAME
 
 function samePoint(a: readonly [number, number], b: readonly [number, number]): boolean {
   return sameNumber(a[0], b[0]) && sameNumber(a[1], b[1])
@@ -140,10 +149,12 @@ function otherKeys(a: object, b: object, said: readonly string[]): string | null
   return null
 }
 
-function openingDiffers(a: Opening, b: Opening): string | null {
+/** WRT-44: `fitted` for an opening the read-back wrote to fit its side: its ends may move by `FIT`. */
+function openingDiffers(a: Opening, b: Opening, fitted = false): string | null {
   if (a.wall !== b.wall) return 'is in another wall'
   if (a.type !== b.type) return 'is of another type'
-  if (!sameNumber(a.offset, b.offset) || !sameNumber(a.width, b.width)) return 'stands elsewhere along its wall'
+  const along = fitted ? FIT + SAME : SAME
+  if (!sameNumber(a.offset, b.offset, along) || !sameNumber(a.width, b.width, along)) return 'stands elsewhere along its wall'
   if (!sameNumber(a.sill, b.sill) || !sameNumber(a.height, b.height)) return 'has another sill or height'
   if (a.hinge !== b.hinge || a.swing !== b.swing) return 'hangs or swings another way'
   if (a.kind !== b.kind) return 'is of another kind'
@@ -176,7 +187,7 @@ function differences<T extends { id: string }>(kind: Difference['kind'], before:
   return out
 }
 
-function floorDifferences(original: FloorPlan, written: FloorPlan, floor: string): Difference[] {
+function floorDifferences(original: FloorPlan, written: FloorPlan, floor: string, fitted: ReadonlySet<string>): Difference[] {
   const on = <T extends { floor?: string | undefined }>(list: readonly T[]): T[] => list.filter((x) => floorOf(x) === floor)
   const wallFloor = new Map(original.walls.map((w) => [w.id, floorOf(w)]))
   const writtenWallFloor = new Map(written.walls.map((w) => [w.id, floorOf(w)]))
@@ -184,7 +195,7 @@ function floorDifferences(original: FloorPlan, written: FloorPlan, floor: string
   return [
     ...differences('wall', on(original.walls), on(written.walls), (a, b) => wallDiffers(a, b, (w) => heightByDefault(w === a ? original : written, w))),
     ...differences('room', on(original.rooms), on(written.rooms), roomDiffers),
-    ...differences('opening', openingsOn(original, wallFloor), openingsOn(written, writtenWallFloor), openingDiffers),
+    ...differences('opening', openingsOn(original, wallFloor), openingsOn(written, writtenWallFloor), (a, b) => openingDiffers(a, b, fitted.has(a.id))),
   ]
 }
 
@@ -212,6 +223,8 @@ interface Rule {
   doorH: number
   winSill: number
   winH: number
+  /** The revision the `based on` line names: the file's own (WRT-44: before any part is left out). */
+  basedOn: string
 }
 
 function ruleOf(plan: FloorPlan): Rule {
@@ -240,6 +253,7 @@ function ruleOf(plan: FloorPlan): Rule {
     doorH: mostCommon(doors.map((o) => o.height), 2.1),
     winSill: mostCommon(windows.map((o) => o.sill), 0.9),
     winH: mostCommon(windows.map((o) => o.height), 1.2),
+    basedOn: planRevision(plan),
   }
 }
 
@@ -251,11 +265,13 @@ interface FloorDraft {
   readonly openings: Map<string, string>
   /** WRT-42: why an opening is given raw, by its id, said in a comment line above it. */
   readonly why: Map<string, string>
+  /** WRT-44: the openings written to fit their room's side as the text writes it. */
+  readonly fitted: Set<string>
   readonly raw: string[]
 }
 
 /** The local id rooms text gives a part on a floor, so the writing gives back the plan's id. */
-function localIds(plan: FloorPlan, floors: readonly string[], multi: boolean): Map<string, string> {
+function localIds(plan: FloorPlan, floors: readonly string[], multi: boolean, raw: ReadonlySet<string>): Map<string, string> {
   const wallFloor = new Map(plan.walls.map((w) => [w.id, floorOf(w)]))
   const parts = [
     ...plan.rooms.map((r) => ({ id: r.id, floor: floorOf(r) })),
@@ -275,10 +291,23 @@ function localIds(plan: FloorPlan, floors: readonly string[], multi: boolean): M
   for (const p of parts) {
     const local = p.id.startsWith(`${p.floor}-`) ? p.id.slice(p.floor.length + 1) : null
     const owner = local === null ? undefined : floorOfId.get(local)
-    const kept = owner !== undefined && (order.get(owner) ?? Infinity) < (order.get(p.floor) ?? -Infinity)
+    // WRT-44: not when the earlier floor is given raw: the writing puts no floor in front then.
+    const kept = owner !== undefined && !raw.has(owner) && (order.get(owner) ?? Infinity) < (order.get(p.floor) ?? -Infinity)
     out.set(p.id, kept ? local! : p.id)
   }
   return out
+}
+
+/**
+ * WRT-44: a room's place and size, and an opening's along its side, to a hundredth of a
+ * millimetre. A plan file holds its walls to a tenth, so a face half a wall's thickness from one
+ * (a 4.5 in wall's) falls on a hundredth, and a tenth would move the wall when the text is written
+ * again. A figure whole to a tenth is written as `metres` writes it.
+ */
+const PLACES = 100000
+function placed(v: number): string {
+  const r = Math.round(v * PLACES) / PLACES
+  return String(Object.is(r, -0) ? 0 : r)
 }
 
 function roomLine(room: Room, poly: P[], local: string): string {
@@ -293,8 +322,8 @@ function roomLine(room: Room, poly: P[], local: string): string {
   for (let i = 0; i < poly.length; i++) area += cross(poly[i]!, poly[(i + 1) % poly.length]!) / 2
   const rect = poly.length === 4 && Math.abs(Math.abs(area) - w * d) < tolerance('areaEqual')
   // WRT-22: a side past the lowest figure Grid asks at (a home's) is written with its unit, so the reading asks nothing of it.
-  const side = (v: number): string => (v > limit('roomsSideAsked', 'home') ? `${metres(v)}m` : metres(v))
-  const where = rect ? `${side(w)} x ${side(d)} at ${metres(x0)},${metres(y0)}` : `polygon ${poly.map((p) => `${metres(p[0])},${metres(p[1])}`).join(' ')}`
+  const side = (v: number): string => (v > limit('roomsSideAsked', 'home') ? `${placed(v)}m` : placed(v))
+  const where = rect ? `${side(w)} x ${side(d)} at ${placed(x0)},${placed(y0)}` : `polygon ${poly.map((p) => `${placed(p[0])},${placed(p[1])}`).join(' ')}`
   const height = room.height !== undefined ? ` height ${metres(room.height)}` : ''
   const step = room.floorOffset !== undefined ? ` floor ${metres(room.floorOffset)}` : ''
   const tenure = room.tenure !== undefined ? ` tenure ${room.tenure}` : ''
@@ -302,6 +331,25 @@ function roomLine(room: Room, poly: P[], local: string): string {
   // CNT-7 (C26): `outdoor: true` has no word of its own, so such a room's floor is given raw.
   const outdoor = typeof room.outdoor === 'string' ? ` outdoor ${room.outdoor}${room.roofed === undefined ? '' : room.roofed ? ' roofed' : ' unroofed'}` : ''
   return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}`
+}
+
+/**
+ * WRT-44: a room's corners as its line writes them, in the polygon's order: a rectangle by its
+ * rounded corner and its rounded size, any other shape corner by corner, each rounded as
+ * `placed` writes it. So a side is measured as the writing of the text will measure it.
+ */
+function writtenCorners(poly: readonly P[]): P[] {
+  const num = (v: number): number => Number(placed(v))
+  const xs = poly.map((p) => p[0])
+  const ys = poly.map((p) => p[1])
+  const [x0, y0] = [Math.min(...xs), Math.min(...ys)]
+  const [w, d] = [Math.max(...xs) - x0, Math.max(...ys) - y0]
+  let area = 0
+  for (let i = 0; i < poly.length; i++) area += cross(poly[i]!, poly[(i + 1) % poly.length]!) / 2
+  const rect = poly.length === 4 && Math.abs(Math.abs(area) - w * d) < tolerance('areaEqual')
+  if (!rect) return poly.map((p) => [num(p[0]), num(p[1])])
+  const [rx, ry, rw, rd] = [num(x0), num(y0), num(w), num(d)]
+  return poly.map((p) => [p[0] - x0 < w / 2 ? rx : rx + rw, p[1] - y0 < d / 2 ? ry : ry + rd])
 }
 
 /** The rooms on the two sides of an opening's middle: [left, right] of its wall. */
@@ -341,7 +389,7 @@ function contains(poly: readonly P[], pt: P): boolean {
   return inside
 }
 
-function openingLine(o: Opening, wall: Wall, plan: FloorPlan, polys: Map<string, P[]>, rule: Rule, local: Map<string, string>): string | null {
+function openingLine(o: Opening, wall: Wall, plan: FloorPlan, polys: Map<string, P[]>, rule: Rule, local: Map<string, string>, fitted: Set<string>): string | null {
   const [left, right] = roomsAtOpening(o, wall, plan, polys)
   const host = left ?? right
   if (host === null) return null
@@ -350,7 +398,7 @@ function openingLine(o: Opening, wall: Wall, plan: FloorPlan, polys: Map<string,
   const a: P = [wall.start[0] + dir[0] * o.offset, wall.start[1] + dir[1] * o.offset]
   const b: P = [wall.start[0] + dir[0] * (o.offset + o.width), wall.start[1] + dir[1] * (o.offset + o.width)]
   const mid: P = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-  let best: { d: number; p0: P; u: P; L: number; n: P } | null = null
+  let best: { d: number; p0: P; u: P; L: number; n: P; k: number } | null = null
   const edges: Array<{ p0: P; p1: P; u: P; n: P }> = []
   for (let i = 0; i < poly.length; i++) {
     const p0 = poly[i]!
@@ -363,19 +411,34 @@ function openingLine(o: Opening, wall: Wall, plan: FloorPlan, polys: Map<string,
     const L = norm(sub(p1, p0))
     const t = dot(sub(mid, p0), u)
     const d = Math.abs(cross(u, sub(mid, p0))) + Math.max(0, -t, t - L)
-    if (best === null || d < best.d) best = { d, p0, u, L, n: [u[1], -u[0]] }
+    if (best === null || d < best.d) best = { d, p0, u, L, n: [u[1], -u[0]], k: i }
   }
   if (best === null) return null
-  const s0 = Math.min(dot(sub(a, best.p0), best.u), dot(sub(b, best.p0), best.u))
-  let side = compassOf(best.n)
-  const facing = edges.filter((e) => dot(e.n, COMPASS[side]!) > 0.9)
+  let s0 = Number(placed(Math.min(dot(sub(a, best.p0), best.u), dot(sub(b, best.p0), best.u))))
+  let width = Number(placed(o.width))
+  // WRT-44: an opening that runs past an end of its side by no more than the file's rounding (a
+  // door as wide as its corridor) is written to fit the side as the text writes it, so the
+  // writing takes it; the rounds check it gave back the same opening.
+  const corners = writtenCorners(poly)
+  const side = norm(sub(corners[(best.k + 1) % corners.length]!, corners[best.k]!))
+  if (s0 < 0 && s0 >= -FIT) {
+    width = Number(placed(width + s0))
+    s0 = 0
+    fitted.add(o.id)
+  }
+  if (s0 + width > side && s0 + width - side <= FIT) {
+    width = Number(placed(side - s0))
+    fitted.add(o.id)
+  }
+  let where = compassOf(best.n)
+  const facing = edges.filter((e) => dot(e.n, COMPASS[where]!) > 0.9)
   if (facing.length > 1) {
     facing.sort((x, y) => x.p0[0] + x.p1[0] - (y.p0[0] + y.p1[0]) || x.p0[1] + x.p1[1] - (y.p0[1] + y.p1[1]))
     const k = facing.findIndex((e) => samePoint(e.p0, best!.p0))
-    side = `${side}.${k + 1}`
+    where = `${where}.${k + 1}`
   }
   const from = compassOf([-best.u[0], -best.u[1]], DIRS)
-  let line = `${o.type} ${local.get(o.id) ?? o.id} in ${local.get(host) ?? host} ${side}, ${metres(s0)} from ${from}, ${metres(o.width)} wide`
+  let line = `${o.type} ${local.get(o.id) ?? o.id} in ${local.get(host) ?? host} ${where}, ${placed(s0)} from ${from}, ${placed(width)} wide`
   if (o.type === 'window') {
     if (!sameNumber(o.sill, rule.winSill)) line += `, sill ${metres(o.sill)}`
     if (!sameNumber(o.height, rule.winH)) line += `, height ${metres(o.height)}`
@@ -416,7 +479,7 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
     const poly = tryRoomPolygon(r, index)
     if (poly) polys.set(r.id, poly.map((p) => [p.x, p.y] as P))
   }
-  const draft: FloorDraft = { id: floor, header: [], rooms: [], walls: new Map(), openings: new Map(), why: new Map(), raw: [] }
+  const draft: FloorDraft = { id: floor, header: [], rooms: [], walls: new Map(), openings: new Map(), why: new Map(), fitted: new Set(), raw: [] }
   for (const room of plan.rooms.filter((r) => floorOf(r) === floor)) {
     const poly = polys.get(room.id)
     if (!poly) {
@@ -429,9 +492,12 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
   const onFloor = plan.rooms.filter((r) => floorOf(r) === floor)
   for (const wall of plan.walls.filter((w) => floorOf(w) === floor)) {
     const rooms = index.roomsByWall.get(wall.id) ?? []
-    if (wall.virtual === true && rooms.length === 2) {
-      const [a, b] = rooms.map((r) => local.get(r.id) ?? r.id) as [string, string]
-      addWallSay(draft, `wall between ${a} and ${b}`, ['virtual', ...(wall.thickness !== 0 ? [metres(wall.thickness)] : []), ...(wall.height !== 0 ? ['height', metres(wall.height)] : [])])
+    if (wall.virtual === true && rooms.length >= 2) {
+      // WRT-44: a dividing line along a row of open rooms (a kitchen open to its living room in
+      // each of a row of houses) is said once for each two rooms across it that face each other.
+      for (const [a, b] of facingAcross(wall, rooms, polys)) {
+        addWallSay(draft, `wall between ${local.get(a) ?? a} and ${local.get(b) ?? b}`, ['virtual', ...(wall.thickness !== 0 ? [metres(wall.thickness)] : []), ...(wall.height !== 0 ? ['height', metres(wall.height)] : [])])
+      }
       continue
     }
     if (wall.virtual === true || (wall.thickness === rule.outside && wall.kind === 'exterior')) continue
@@ -454,12 +520,35 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
       continue
     }
     if (floorOf(wall) !== floor) continue
-    const line = openingLine(o, wall, plan, polys, rule, local)
+    const line = openingLine(o, wall, plan, polys, rule, local, draft.fitted)
     draft.openings.set(o.id, line ?? rawLine('opening', o))
     if (line === null) draft.why.set(o.id, english(said('describe.rooms.rawOpening.unplaced')))
   }
   for (const wall of plan.walls.filter((w) => floorOf(w) === floor && (index.roomsByWall.get(w.id)?.length ?? 0) === 0)) draft.raw.push(rawLine('wall', wall))
   return draft
+}
+
+/**
+ * WRT-44: the rooms on the two sides of a dividing line, two by two, each pair facing each other
+ * across it for more than a tenth of a millimetre. Two rooms are the pair as before.
+ */
+function facingAcross(wall: Wall, rooms: readonly Room[], polys: Map<string, P[]>): Array<[string, string]> {
+  if (rooms.length === 2) return [[rooms[0]!.id, rooms[1]!.id]]
+  const dir = unit(sub(wall.end, wall.start))
+  const reach = wall.thickness / 2 + SAME * 10
+  const sides = rooms.flatMap((room) => {
+    const on = (polys.get(room.id) ?? []).filter((p) => Math.abs(cross(dir, sub(p, wall.start))) <= reach)
+    if (on.length < 2) return []
+    const at = on.map((p) => dot(sub(p, wall.start), dir))
+    const poly = polys.get(room.id)!
+    const middle: P = [poly.reduce((s, p) => s + p[0], 0) / poly.length, poly.reduce((s, p) => s + p[1], 0) / poly.length]
+    return [{ id: room.id, left: cross(dir, sub(middle, wall.start)) > 0, lo: Math.min(...at), hi: Math.max(...at) }]
+  })
+  const pairs: Array<[string, string]> = []
+  for (const a of sides.filter((x) => x.left)) {
+    for (const b of sides.filter((x) => !x.left)) if (Math.min(a.hi, b.hi) - Math.max(a.lo, b.lo) > SAME) pairs.push([a.id, b.id])
+  }
+  return pairs
 }
 
 /**
@@ -513,7 +602,7 @@ function sayWords(handle: string, words: string[], word: string, value?: string)
 function headerLines(plan: FloorPlan, rule: Rule, name: string | undefined): string[] {
   const lines: string[] = []
   if (name !== undefined) lines.push(`plan ${quote(name)}`)
-  lines.push(`based on ${planRevision(plan)}`)
+  lines.push(`based on ${rule.basedOn}`)
   if (plan.building !== undefined) lines.push(`building ${plan.building}`)
   // WRT-7: how the person reads lengths, so writing the text again keeps it.
   // WRT-34: the reading writes its lengths in metres, so a display that is not metres says so.
@@ -590,6 +679,10 @@ function reconcileWalls(original: FloorPlan, written: ReadBack, drafts: FloorDra
   if (plan === null) return false
   let said = false
   const byFloor = new Map(drafts.map((d) => [d.id, d]))
+  // WRT-44: an id the written plan already gives a wall, or one already said, is given to no
+  // other stretch, so the writing never names two walls by one id.
+  const named = new Set(plan.walls.map((x) => x.id))
+  for (const d of drafts) for (const words of d.walls.values()) words.forEach((w, k) => w === 'id' && words[k + 1] !== undefined && named.add(words[k + 1]!))
   for (const facts of written.walls) {
     const w = plan.walls.find((x) => x.id === facts.id)
     if (!w) continue
@@ -622,9 +715,10 @@ function reconcileWalls(original: FloorPlan, written: ReadBack, drafts: FloorDra
     // No wall stands there whole: each stretch takes the id of the original wall it lies on.
     for (const { handle, start, end } of facts.stretches) {
       const covering = original.walls.filter((o) => floorOf(o) === floorOf(w) && onWall(o, start, end, w.thickness))
-      if (covering.length !== 1) continue
+      if (covering.length !== 1 || named.has(covering[0]!.id)) continue
       const words = draft.walls.get(handle) ?? []
       if (words.includes('id')) continue
+      named.add(covering[0]!.id)
       sayWords(handle, words, 'id', covering[0]!.id)
       if ((!sameNumber(covering[0]!.height, w.height) || !heightStated(w)) && heightStated(covering[0]!)) sayWords(handle, words, 'height', metres(covering[0]!.height))
       if (covering[0]!.kind !== w.kind) sayWords(handle, words, covering[0]!.kind)
@@ -686,20 +780,36 @@ const SETTLE_ROUNDS = 8
  * The plan as rooms text. By default it loses nothing: writing it again with
  * `compileRoomsText` gives back the same walls, rooms, openings and floors.
  */
-export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): RoomsReading {
-  const rule = ruleOf(plan)
+export function readRoomsText(file: FloorPlan, options: ReadOptions = {}): RoomsReading {
+  // WRT-44: a wall with no length is read back as the check reads it: left out, and said so.
+  const { plan, leftOut } = buildable(file)
+  const rule: Rule = { ...ruleOf(plan), basedOn: planRevision(file) }
   const floors = planFloors(plan).map((f) => f.id)
   if (floors.length === 0) floors.push('ground')
   const multi = floors.length > 1 || (plan.floors?.length ?? 0) > 0
-  const local = localIds(plan, floors, floors.length > 1)
-  const drafts = floors.map((f) => draftFloor(plan, f, rule, local))
   const raw = new Set<string>()
+  let local = localIds(plan, floors, floors.length > 1, raw)
+  const drafts = floors.map((f) => draftFloor(plan, f, rule, local))
   const rawOpenings: string[] = []
   const why = new Map<string, string>()
   let changes: string[] = []
   if (plan.walls.length + plan.rooms.length + plan.openings.length === 0) {
-    return { text: textOf(plan, rule, options.name, drafts, raw, why), rawFloors: [], rawOpenings: [], changes: [] }
+    return { text: textOf(plan, rule, options.name, drafts, raw, why), rawFloors: [], rawOpenings: [], changes: [], leftOut }
   }
+  // WRT-44: an id is written short on a later floor only while the floor that first holds it is
+  // rooms text; once that floor is given raw, the later floors write it whole, as the plan has it.
+  const relocal = (): void => {
+    const next = localIds(plan, floors, floors.length > 1, raw)
+    const moved = new Set<string>()
+    const wallFloor = new Map(plan.walls.map((w) => [w.id, floorOf(w)]))
+    for (const r of plan.rooms) if (next.get(r.id) !== local.get(r.id)) moved.add(floorOf(r))
+    for (const o of plan.openings) if (next.get(o.id) !== local.get(o.id)) moved.add(wallFloor.get(o.wall) ?? 'ground')
+    local = next
+    floors.forEach((f, i) => {
+      if (moved.has(f) && !raw.has(f)) drafts[i] = draftFloor(plan, f, rule, local)
+    })
+  }
+  const fitted = (): Set<string> => new Set(drafts.flatMap((d) => [...d.fitted]))
   // CNT-18: rooms text writes straight walls. A floor with a curved wall is given in Grid's own
   // terms, which keep the curve, whatever was asked for, so writing it again loses nothing.
   for (const wall of plan.walls) {
@@ -708,6 +818,7 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
     raw.add(floor)
     why.set(floor, english(said('describe.rooms.curved', { wall: quote(wall.id) })))
   }
+  relocal()
   // WRT-42: whether the rounds ended on a decision, not by running out.
   let decided = false
   for (let round = 0; round < SETTLE_ROUNDS; round++) {
@@ -741,6 +852,13 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
         const floor = floorAtLine(text, problem.line, floors)
         if (floor !== null && !raw.has(floor) && !refused.has(floor)) refused.set(floor, problem.message)
       }
+      // WRT-44: a refusal with no line that names a part of the plan (an id given twice) is on
+      // that part's floor, not on the first floor still in rooms text.
+      for (const problem of written.problems) {
+        if (problem.line !== null) continue
+        const floor = floorNamed(plan, problem.message)
+        if (floor !== null && floors.includes(floor) && !raw.has(floor) && !refused.has(floor)) refused.set(floor, problem.message)
+      }
       if (refused.size === 0) {
         const floor = drafts.find((d) => !raw.has(d.id))?.id
         if (floor === undefined || written.problems.some((p) => p.line !== null)) {
@@ -753,6 +871,7 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
         raw.add(floor)
         why.set(floor, withoutLines(message))
       }
+      relocal()
       continue
     }
     const saidWalls = reconcileWalls(plan, written, drafts)
@@ -766,7 +885,7 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
         if (line.startsWith('raw ')) continue
         const a = plan.openings.find((o) => o.id === id)!
         const b = written.plan.openings.find((o) => o.id === id)
-        const what = b === undefined ? NOT_THERE : openingDiffers(a, b)
+        const what = b === undefined ? NOT_THERE : openingDiffers(a, b, d.fitted.has(id))
         if (what !== null) {
           d.openings.set(id, rawLine('opening', a))
           d.why.set(id, english(said('describe.rooms.rawOpening.changes', { what })))
@@ -776,7 +895,7 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
       }
     }
     if (moved) continue
-    const left = drafts.filter((d) => !raw.has(d.id)).map((d) => ({ d, diff: floorDifferences(plan, written.plan!, d.id) }))
+    const left = drafts.filter((d) => !raw.has(d.id)).map((d) => ({ d, diff: floorDifferences(plan, written.plan!, d.id, fitted()) }))
     const wrong = left.filter((x) => x.diff.length > 0)
     if (floorsDiffer(plan, written.plan) && !multi) {
       decided = true
@@ -795,25 +914,46 @@ export function readRoomsText(plan: FloorPlan, options: ReadOptions = {}): Rooms
       raw.add(d.id)
       why.set(d.id, diff.slice(0, 3).map((x) => `${x.kind} '${x.id}' ${x.what}`).join('; '))
     }
+    relocal()
   }
   // WRT-42: a draft the rounds did not settle is not given unchecked: each floor it would change,
   // or every floor still in rooms text when its writing is refused, is given in Grid's own terms.
   // Asked for rooms, the reading stays rooms first.
-  if (!decided && options.prefer !== 'rooms') unsettled(plan, rule, options.name, drafts, raw, why)
+  if (!decided && options.prefer !== 'rooms') unsettled(plan, rule, options.name, drafts, raw, why, fitted())
   let text = textOf(plan, rule, options.name, drafts, raw, why)
+  if (leftOut.length > 0) text = `${leftOut.map((line) => `# ${line}`).join('\n')}\n${text}`
   if (changes.length > 0) {
     const note = [`# Written rooms first as asked: writing this text again changes ${changes.length} part${changes.length === 1 ? '' : 's'} of the plan:`, ...changes.slice(0, 20).map((c) => `#   ${c}`), ...(changes.length > 20 ? [`#   and ${changes.length - 20} more`] : [])]
     text = `${note.join('\n')}\n${text}`
   }
-  return { text, rawFloors: [...raw].map((floor) => ({ floor, why: why.get(floor) ?? '' })), rawOpenings, changes }
+  return { text, rawFloors: [...raw].map((floor) => ({ floor, why: why.get(floor) ?? '' })), rawOpenings: [...new Set(rawOpenings)], changes, leftOut }
+}
+
+/**
+ * WRT-44: the plan as it can be built: a straight wall whose two ends are one point (written by a
+ * Grid before this one) is left out, as the check leaves it out, with its id out of every room's
+ * boundary and the openings in it, so the read-back neither writes a part the writing refuses nor
+ * compares against one. The walls left out are named.
+ */
+function buildable(file: FloorPlan): { plan: FloorPlan; leftOut: readonly string[] } {
+  const gone = new Set(file.walls.filter((w) => w.arc === undefined && w.start[0] === w.end[0] && w.start[1] === w.end[1]).map((w) => w.id))
+  if (gone.size === 0) return { plan: file, leftOut: [] }
+  const plan: FloorPlan = {
+    ...file,
+    walls: file.walls.filter((w) => !gone.has(w.id)),
+    rooms: file.rooms.map((r) => (r.boundary.some((id) => gone.has(id)) ? { ...r, boundary: r.boundary.filter((id) => !gone.has(id)) } : r)),
+    openings: file.openings.filter((o) => !gone.has(o.wall)),
+  }
+  const openings = file.openings.filter((o) => gone.has(o.wall)).map((o) => english(said('describe.rooms.leftOut.opening', { opening: quote(o.id), wall: quote(o.wall) })))
+  return { plan, leftOut: [...[...gone].map((id) => english(said('describe.rooms.leftOut', { wall: quote(id) }))), ...openings] }
 }
 
 /** WRT-42: the floors a draft left unsettled would change, given in Grid's own terms. */
-function unsettled(plan: FloorPlan, rule: Rule, name: string | undefined, drafts: readonly FloorDraft[], raw: Set<string>, why: Map<string, string>): void {
+function unsettled(plan: FloorPlan, rule: Rule, name: string | undefined, drafts: readonly FloorDraft[], raw: Set<string>, why: Map<string, string>, fitted: ReadonlySet<string>): void {
   const compiled = writtenAgain(textOf(plan, rule, name, drafts, raw, why))
   const written = compiled === null || compiled.plan === null ? null : safeParseFloorPlan(compiled.plan)
   for (const d of drafts) {
-    if (raw.has(d.id) || (written !== null && floorDifferences(plan, written, d.id).length === 0)) continue
+    if (raw.has(d.id) || (written !== null && floorDifferences(plan, written, d.id, fitted).length === 0)) continue
     raw.add(d.id)
     why.set(d.id, english(said('describe.rooms.unsettled', { rounds: String(SETTLE_ROUNDS) })))
   }
@@ -847,6 +987,19 @@ function openingOfLine(drafts: readonly FloorDraft[], raw: ReadonlySet<string>, 
     for (const [id, text] of draft.openings) if (text === line && !text.startsWith('raw ')) return { draft, id }
   }
   return undefined
+}
+
+/** WRT-44: the floor of the first part of the plan a refusal names by its quoted id (the writing quotes with ', the check with "), or null. */
+function floorNamed(plan: FloorPlan, message: string): string | null {
+  const wallFloor = new Map(plan.walls.map((w) => [w.id, floorOf(w)]))
+  for (const [, single, double] of message.matchAll(/'([^']+)'|"([^"]+)"/g)) {
+    const id = single ?? double!
+    const part = plan.walls.find((w) => w.id === id) ?? plan.rooms.find((r) => r.id === id)
+    if (part !== undefined) return floorOf(part)
+    const opening = plan.openings.find((o) => o.id === id)
+    if (opening !== undefined) return wallFloor.get(opening.wall) ?? 'ground'
+  }
+  return null
 }
 
 /** The floor a line of the text is on. */
