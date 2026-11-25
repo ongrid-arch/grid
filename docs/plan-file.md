@@ -399,9 +399,13 @@ and no roof, and a garden wall standing apart carries neither.
   shaft is open over the floor its rooms share. A room set below its storey (LVL-7) is cut out of it
   and has its own piece, lower down. The lowest level's slabs are base slabs. The floor inside a
   hole in a room that no room fills, a courtyard, is open: no slab and no roof.
-- **A roof over every part with nothing above**: the floor's outline less the outlines of the
-  floors on the next level up, flat, on the floor's walls, 0.25 m thick, with no overhang. So a
-  single-storey wing is roofed where the floor above does not reach. A roof that would lie at or
+- **A roof over every part with nothing above**: the floor's outline less the outlines of every
+  floor whose floor stands higher, at any height, flat, on the floor's walls, 0.25 m thick, with no
+  overhang. So a single-storey wing is roofed where the floor above does not reach. What stands
+  above is read from the floors' elevations, not the order of `level`: the half-levels of a
+  split-level house or car park are floors, with a roof over the top one of each part only
+  (LVL-15). A floor that shares its `level` with another but stands at its own elevation, a step
+  of a stepped house, is roofed on its own tallest wall unless it states its `height`. A roof that would lie at or
   under the ground (`site.ground`, else 0) is not laid: the ground covers a crypt or a basement
   where the floor above does not. On a floor with open outdoor space, the walls that bound it and
   no room (a terrace's parapet, a balcony's edge) have no roof over them, even where the same wall

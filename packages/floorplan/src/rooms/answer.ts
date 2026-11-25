@@ -3,6 +3,8 @@
  * size on its line measured to, the walls Grid worked out, the openings it placed, what it
  * guessed and what it warns about. The command and the tool server give the same lines.
  */
+import { floorOf } from '../geometry/floors'
+import { english, said } from '../messages/say'
 import type { RoomFacts, RoomsResult, SizeBasis } from './compile'
 import { f2 } from './words'
 
@@ -13,7 +15,10 @@ const TO: Readonly<Record<SizeBasis, string>> = {
 }
 
 function sizeOf(room: RoomFacts): string {
+  // WRT-27: a raw room is measured as every room is; one Grid cannot draw has no size to give.
+  if (room.raw === true && room.corners === 0) return english(said('rooms.answer.rawNotDrawn'))
   const inside = `${f2(room.width)} x ${f2(room.depth)} m${room.corners === 4 ? '' : ` overall, ${room.corners} corners`}, ${room.area.toFixed(2)} m² inside`
+  if (room.raw === true) return `${inside}, ${english(said('rooms.answer.rawPart'))}`
   if (room.basis === null || room.written === null) return inside
   const w = room.written.width === null ? 'stretched' : f2(room.written.width)
   const d = room.written.depth === null ? 'stretched' : f2(room.written.depth)
@@ -29,15 +34,18 @@ export function problemLines(result: RoomsResult): string[] {
 /** The answer to a write, without the comparison with the plan before. */
 export function roomsAnswer(result: RoomsResult, full = true): string[] {
   const lines: string[] = []
-  const floors = new Set(result.rooms.map((r) => r.floor)).size
+  // WRT-27: every floor that holds a part, raw or worked out.
+  const floors = new Set([...result.rooms.map((r) => r.floor), ...(result.plan?.walls ?? []).map((w) => floorOf(w))]).size
   // ARE-16: outdoor space and voids are no floor inside the building: listed, but not in the total.
   const total = result.rooms.reduce((sum, r) => sum + (r.apart === undefined ? r.area : 0), 0)
   const apart = result.rooms.filter((r) => r.apart !== undefined)
   const apartArea = apart.reduce((sum, r) => sum + r.area, 0)
-  const derived = result.walls.length
+  const derived = result.walls.filter((w) => w.raw !== true).length
+  const placed = result.openings.length - (result.raw?.openings ?? 0)
   lines.push(
-    `${floors} floor${floors === 1 ? '' : 's'}, ${result.rooms.length} room${result.rooms.length === 1 ? '' : 's'}; ${derived} wall${derived === 1 ? '' : 's'} and their kinds worked out; ${result.openings.length} opening${result.openings.length === 1 ? '' : 's'} placed; ${total.toFixed(2)} m² inside in all${apart.length === 0 ? '' : ` (not counting ${apart.length} outdoor or void room${apart.length === 1 ? '' : 's'}, ${apartArea.toFixed(2)} m²)`}.`
+    `${floors} floor${floors === 1 ? '' : 's'}, ${result.rooms.length} room${result.rooms.length === 1 ? '' : 's'}; ${derived} wall${derived === 1 ? '' : 's'} and their kinds worked out; ${placed} opening${placed === 1 ? '' : 's'} placed; ${total.toFixed(2)} m² inside in all${apart.length === 0 ? '' : ` (not counting ${apart.length} outdoor or void room${apart.length === 1 ? '' : 's'}, ${apartArea.toFixed(2)} m²)`}.`
   )
+  if (result.raw !== undefined) lines.push(english(said('rooms.answer.raw', result.raw)))
   lines.push(`Sizes are to the ${TO[result.sizes.basis]}${result.sizes.stated ? '' : ' unless a room says otherwise (the default)'}.`)
   if (full) {
     lines.push('Rooms, inside faces east-west by north-south:')
@@ -45,7 +53,9 @@ export function roomsAnswer(result: RoomsResult, full = true): string[] {
     lines.push('Walls worked out (Grid derives these; change the rooms, not the walls):')
     for (const w of result.walls) {
       const what = w.virtual ? 'dividing line' : `${w.kind} ${w.thickness} m`
-      lines.push(`  ${w.id}: ${what}, ${w.length.toFixed(2)} m, ${w.rooms.length === 1 ? `outside wall of ${w.rooms[0]}` : w.rooms.join(' | ')}`)
+      const raw = w.raw === true ? `, ${english(said('rooms.answer.rawPart'))}` : ''
+      const by = w.rooms.length === 1 ? `, ${english(said('rooms.answer.outsideWallOf', { room: w.rooms[0]! }))}` : w.rooms.length === 0 ? '' : `, ${w.rooms.join(' | ')}`
+      lines.push(`  ${w.id}: ${what}${raw}, ${w.length.toFixed(2)} m${by}`)
     }
     lines.push('Openings:')
     if (result.openings.length === 0) lines.push('  none')
