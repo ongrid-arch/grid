@@ -26,6 +26,7 @@ let b: Bench
 beforeAll(() => {
   b = bench({
     'flat.json': TWO_BED,
+    'inside.json': { ...TWO_BED, walls: TWO_BED.walls.map((w) => ({ ...w, kind: 'interior' as const })) },
     'finished.json': finished(),
     'misnamed.json': { ...TWO_BED, types: { walls: [{ id: 'stud-100', name: 'Stud partition 100', thickness: 0.1 }] }, walls: TWO_BED.walls.map((w) => (w.id === 'spine' ? { ...w, wallType: 'stud-10' } : w)) },
   })
@@ -68,6 +69,14 @@ describe('CNT-15 one change to a type changes every part of it (done when 1)', (
     // The rooms measure the thicker walls: the living room is smaller than before.
     const areas = async (plan: string): Promise<number> => ((await ok('grid_measure', { plan, what: 'room', room: 'living' })).data!['answer'] as { area: number }).area
     expect(await areas('thicker.json')).toBeLessThan(await areas('typed.json'))
+  })
+
+  it('says how many walls take a new default type, and offers the other kind when none do', async () => {
+    const some = await ok('grid_change_type', { plan: 'flat.json', out: 'some.json', of: 'wall', type: 'stud-100', name: 'Stud partition 100', thickness: 0.1, kind: 'interior', default: true })
+    expect(some.text).toMatch(/\d+ walls take it/)
+    const none = await ok('grid_change_type', { plan: 'inside.json', out: 'none.json', of: 'wall', type: 'ext-300', name: 'Outer 300', thickness: 0.3, kind: 'exterior', default: true })
+    expect(none.text).toContain('No wall takes it')
+    expect(none.text).toContain('Change its kind to interior')
   })
 
   it('makes it the default for inside walls, raises them, and refuses a field the type does not have', async () => {

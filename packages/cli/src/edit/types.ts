@@ -147,11 +147,25 @@ export function changeType(survey: Survey, change: TypeChange): Patch {
   const of_ = of === 'wall'
     ? plan.walls.filter((w) => wallTypeOf(plan, w)?.id === id).map((w) => w.id)
     : plan.openings.filter((o) => openingTypeOf(plan, o)?.id === id).map((o) => o.id)
-  const reached = [...new Set([...of_, ...(change.parts ?? [])])]
+  // A new default also reaches the parts that name no type of their own (the plan is read before it).
+  const ownType = (typed: readonly string[] | undefined, field: string, value: unknown): boolean => value !== undefined && !(typed ?? []).includes(field)
+  const byDefault = change.makeDefault !== true
+    ? []
+    : of === 'wall'
+      ? plan.walls.filter((w) => w.virtual !== true && w.kind === next['kind'] && !ownType(w.typed, 'wallType', w.wallType)).map((w) => w.id)
+      : plan.openings.filter((o) => o.type === of && !ownType(o.typed, of === 'door' ? 'doorType' : 'windowType', of === 'door' ? o.doorType : o.windowType)).map((o) => o.id)
+  const reached = [...new Set([...of_, ...byDefault, ...(change.parts ?? [])])]
   const overriding = of === 'wall'
     ? plan.walls.filter((w) => reached.includes(w.id) && !walls.has(w.id) && w.thickness !== undefined && !(w.typed ?? []).includes('thickness') && !(w.unstated ?? []).includes('thickness') && next['thickness'] !== undefined).map((w) => quoted(w.id))
     : []
-  if (said.length > 0 || given.length > 0) lines.push(`${reached.length} ${of}${reached.length === 1 ? '' : 's'} take${reached.length === 1 ? 's' : ''} it${reached.length === 0 ? '' : `: ${listed(reached.map(quoted), 6)}`}.`)
+  if (change.makeDefault === true && reached.length === 0) {
+    if (of === 'wall') {
+      const solid = plan.walls.filter((w) => w.virtual !== true)
+      const count = (kind: string): number => solid.filter((w) => w.kind === kind && !ownType(w.typed, 'wallType', w.wallType)).length
+      const other = next['kind'] === 'interior' ? 'exterior' : 'interior'
+      lines.push(`No wall takes it: the plan has no ${next['kind'] as string} wall that names no type (${count('interior')} interior, ${count('exterior')} exterior).${count(other) > 0 ? ` Change its kind to ${other} to reach the ${count(other)} ${other} wall${count(other) === 1 ? '' : 's'}, or give it walls with parts.` : ' Give it walls with parts.'}`)
+    } else lines.push(`No ${of} takes it: the plan has no ${of} that names no type. Give it ${of}s with parts.`)
+  } else if (said.length > 0 || given.length > 0 || change.makeDefault === true) lines.push(`${reached.length} ${of}${reached.length === 1 ? '' : 's'} take${reached.length === 1 ? 's' : ''} it${reached.length === 0 ? '' : `: ${listed(reached.map(quoted), 6)}`}.`)
   if (overriding.length > 0) lines.push(`${listed(overriding, 4)} state${overriding.length === 1 ? 's' : ''} a thickness of its own, which wins over the type's; give it the type with parts to read the type's.`)
   const patch = emptyPatch(lines)
   return { ...patch, walls, openings, plan: { types } }
