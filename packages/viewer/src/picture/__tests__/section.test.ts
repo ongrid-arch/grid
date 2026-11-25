@@ -63,14 +63,18 @@ describe('a section in the technical look', () => {
     for (const tag of beyond) expect(Number(attr(tag, 'stroke-width'))).toBe(metres(PAPER_PENS[100].finest))
   })
 
-  it('hatches each slab and the roof the plan does not state, and lists them with what else it took', () => {
-    const hatch = tagsOf(svg, 'section-hatch')
+  it('marks each slab and the roof the plan does not state, and lists them with what else it took', () => {
+    const hatch = tagsOf(svg, 'section-assumed')
     expect(hatch.map((tag) => `${attr(tag, 'data-kind')}:${attr(tag, 'data-ids')}`)).toEqual(['slab:ground', 'slab:first', 'slab:second', 'roof:second'])
-    for (const tag of hatch) expect(attr(tag, 'fill')).toBe('url(#section-hatch)')
-    expect(svg).toContain('<pattern id="section-hatch" patternUnits="userSpaceOnUse"')
+    // A dashed outline and a flat tint: nothing a material's hatch could be mistaken for.
+    for (const tag of hatch) {
+      expect(attr(tag, 'stroke-dasharray')).toMatch(/^[\d.]+ [\d.]+$/)
+      expect(attr(tag, 'fill')).not.toMatch(/^url\(/)
+    }
+    expect(svg).not.toContain('<pattern')
     const listed = textsOf(svg, 'section-taken').join(' ')
     for (const taken of picture.section.assumed) expect(listed.replace(/\s+/g, ' ')).toContain(taken.words.split(' ').slice(0, 6).join(' '))
-    expect(svg).toContain('Hatched: taken by Grid, not stated in the plan')
+    expect(svg).toContain('Dashed outline: taken by Grid, not stated in the plan')
   })
 
   it('marks every floor\'s level, the roof and the ground beside the drawing', () => {
@@ -115,8 +119,8 @@ describe('levels a plan states', () => {
     const svg = pictureToSvg(sectionPicture(plan, { from: { x: 2, y: -2 }, to: { x: 2, y: 10 }, toward: 'left' }, { look: 'technical' }))
     expect(textsOf(svg, 'section-level')).toEqual([`${levelText(0.15)} Ground floor`, `${levelText(3.2)} First floor`])
     expect(textsOf(svg, 'section-level')).toEqual(['+0.150 Ground floor', '+3.200 First floor'])
-    // The slabs are stated: only the roof is hatched.
-    expect(tagsOf(svg, 'section-hatch').map((tag) => attr(tag, 'data-kind'))).toEqual(['roof'])
+    // The slabs are stated: only the roof is marked.
+    expect(tagsOf(svg, 'section-assumed').map((tag) => attr(tag, 'data-kind'))).toEqual(['roof'])
   })
 })
 
