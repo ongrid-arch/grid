@@ -37,6 +37,7 @@ import { likelyId } from '../types/nearest'
 import { validatePlausibility } from './plausible'
 import { wallFaults } from './wallFaults'
 import { kindDisagreements } from './exposure'
+import { inOpenSky } from './openSky'
 import { levelIssues, unknownFloorIssues } from './levels'
 import { buildingKind } from './plausible'
 import { planStairs } from './stairs'
@@ -915,7 +916,7 @@ function validateSpaces(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<s
       )
       continue
     }
-    reportSpaces(plan, result, broken, issues, leftOut)
+    reportSpaces(plan, index, result, broken, issues, leftOut)
   }
   return floors.filter(spacesKnown)
 }
@@ -944,7 +945,7 @@ function traceItemRooms(plan: FloorPlan, spaces: readonly FloorSpaces[], broken:
   }
 }
 
-function reportSpaces(plan: FloorPlan, result: FloorSpaces, broken: ReadonlySet<string>, issues: Issue[], leftOut: readonly LeftOutPart[]): void {
+function reportSpaces(plan: FloorPlan, index: PlanIndex, result: FloorSpaces, broken: ReadonlySet<string>, issues: Issue[], leftOut: readonly LeftOutPart[]): void {
   // BRF-4 (C17): a floor with an outline and no walls is massing: all of it is floor no room
   // claims yet, and saying so would be the whole floor, every time. Its areas say it is massing.
   // LVL-5: a wall that rises through the floor from below stands on it, so it is not massing.
@@ -962,6 +963,9 @@ function reportSpaces(plan: FloorPlan, result: FloorSpaces, broken: ReadonlySet<
   }
   for (const piece of massing ? [] : result.unclaimed) {
     if (refusedRoomFor(result.floor, piece, plan, broken)) continue
+    // LVL-12: floor open to the sky (a window looks into it, or it lies over open sky) is the
+    // outside, not floor a room has been left out of.
+    if (inOpenSky(index, result.floor, piece.at)) continue
     const found = issue('floor', result.floor, 'floor/unclaimed', unclaimedMessage(result.floor, piece), 'warning')
     issues.push(followOn(found, unclaimedCause(piece, plan, broken, leftOut)))
   }

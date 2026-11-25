@@ -159,7 +159,7 @@ const stretchTool: GridTool = {
   hint: 'change-plan',
   description:
     'Use this when the person asks for the whole building, flat or house wider, longer or deeper: "the flat 30 cm wider", "the house 1 m longer to the north, through the kitchen". '
-    + 'Everything beyond a line across the building moves out by the distance: the line is just inside the outside wall on that side, or through the middle of a room with through. Walls across the line get longer and the rooms they bound grow; every floor moves together unless floor names one. Doors and windows keep their anchor or their place in the building, so one in a wall that grows at its start does not slide. '
+    + 'Everything beyond a line across the building moves out by the distance: the line is just inside the outside wall on that side, or through the middle of a room with through. Walls across the line get longer and the rooms they bound grow, and the columns, parking bays, stairs, ramps, structural grids and site things beyond it move with them, an opening pattern keeping its pitch (what stays behind is named); every floor moves together unless floor names one. Doors and windows keep their anchor or their place in the building, so one in a wall that grows at its start does not slide. '
     + 'Do not use for one room (grid_move_room_side). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,

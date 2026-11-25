@@ -37,7 +37,7 @@ import type { Viewport } from '../canvas2d/viewport'
 import { fitTo, viewBoxOf } from '../canvas2d/viewport'
 import type { Look, LookName, PlanLook } from './look'
 import { LOOKS, detailShown, fileLook, lengthText, toLook } from './look'
-import { planScene, roomKeyOf } from './scene'
+import { drawnHanding, planScene, roomKeyOf } from './scene'
 import type { FaultLine, PictureKey } from './faults'
 import { faultKey, faultsOnFloor } from './faults'
 import { keyEntries, northArrowNode, numberedNotes, roomKeyBand, stackBands, writingBand } from './writing'
@@ -234,7 +234,7 @@ export function warningMessages(
 
 function undecidedIn(drawing: PlanDrawing, handings: ReadonlyMap<string, DoorHanding>): string[] {
   // CNT-14: a door whose kind slides, rolls or lifts is drawn from its kind and is never undecided.
-  return drawing.openings.filter((o) => o.type === 'door' && openingSymbol(o, handings.get(o.id)) === null).map((o) => o.id)
+  return drawing.openings.filter((o) => o.type === 'door' && openingSymbol(o, drawnHanding(o, handings.get(o.id))) === null).map((o) => o.id)
 }
 
 /**
