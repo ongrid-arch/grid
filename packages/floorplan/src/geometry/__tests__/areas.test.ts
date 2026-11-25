@@ -3,7 +3,7 @@ import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseFloorPlan, type FloorPlan } from '../../types/floorplan'
 import { MEASURES, planAreaFigures, usualGross, type FloorAreaFigures } from '../areas'
-import { edit, madeVirtual, stairRoomHouse } from '../../test-support/plans'
+import { edit, flat, madeVirtual, stairRoomHouse } from '../../test-support/plans'
 
 /**
  * ARE-9: net, gross internal and gross external area from the spaces, each saying what it
@@ -286,5 +286,14 @@ describe('SHT-11, lab DR-5: a stair drawn as a room on floor after floor is coun
       expect(sum(Object.values(f.byUse))).toBeCloseTo(f.net, 9)
       expect(Math.abs(externalGap(f))).toBeLessThan(1e-6)
     }
+  })
+})
+
+describe('ARE-39 gross internal follows the rooms beside each wall, not the kind it was built as', () => {
+  it('counts a wall stated exterior that now has rooms on both faces as floor, like a partition', () => {
+    const asPartition = planAreaFigures(flat())
+    const builtOutside = planAreaFigures(edit(flat(), (p) => { p.walls.find((w) => w.id === 'hk')!.kind = 'exterior' }))
+    expect(builtOutside.grossInternal.area).toBeCloseTo(asPartition.grossInternal.area!, 6)
+    expect(builtOutside.grossExternal.area).toBeCloseTo(asPartition.grossExternal.area!, 6)
   })
 })

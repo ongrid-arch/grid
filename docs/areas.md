@@ -38,9 +38,14 @@ how much and why. In the library: each floor's `doubts` and each gross total's `
 
 An outdoor space inside the walls, such as a courtyard, a cloister's garth or a light well marked
 as outdoor space, is out of both gross figures, whatever bounds it: walls Grid works out as facing
-it, walls stated exterior, or an open side drawn as a virtual wall, such as an arcade. Floor no
+it, or an open side drawn as a virtual wall, such as an arcade. Floor no
 room claims still counts in both, since Grid cannot tell whether it is covered: mark an open
 courtyard as outdoor space to take it out.
+
+Gross internal area takes off the walls that face outside now, worked out from the rooms beside
+each wall (ARE-39). A wall built as an outside wall (stated `exterior`) stays one as a fact of the
+wall, but it faces outside only where it has no room on one face: where rooms stand on both faces,
+as the old end wall of a building does once it is extended, its floor counts in gross internal area.
 
 ### One building measured apart
 
