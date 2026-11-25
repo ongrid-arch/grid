@@ -2069,6 +2069,45 @@ export const en = {
   'rooms.side.beyond': 'the wall to {list}',
   'rooms.side.other': "'{word}' for {beyond}",
   'rooms.side.unitGuess': "Line {line}: room '{room}' has {count} sides facing {side}; '{word}', {beyond}, was used, the only one onto something outside unit '{unit}'. Write {others} to choose another.",
+  // WRT-55: a room line read as written, or refused for what is really wrong.
+  'rooms.room.placedTwice': "Line {line}: room '{room}' is placed twice, by '{first}' and by '{second}'. A room goes in one place: keep the one meant and take the other out.",
+  'rooms.room.sizedTwice': "Line {line}: room '{room}' is sized twice, '{first}' and '{second}'. A room has one size: keep the one meant and take the other out.",
+  'rooms.room.floorNamed':
+    "Line {line}: 'floor {floor}' is not read on a room line. A room stands on the storey whose floor line comes above it: write 'floor {floor}' on a line of its own, then that floor's rooms under it, and the next floor line starts the next storey. On a room line, 'floor <m>' is a number: how far the room's own floor stands above or below its storey's (a minus for below).",
+  'rooms.room.openUnit': "Line {line}: 'open' needs one room to be open to, and '{ref}' is a unit. Name the room: {rooms}.",
+  'rooms.room.openWhich': "Line {line}: 'open' on room '{room}' does not say which room it is open to: the room is not placed beside another. Write 'open <room>' with the room it touches.",
+  'rooms.room.openUnknown': "Line {line}: room '{room}' is written open to '{to}', which is no room written above this line. Rooms so far: {rooms}.",
+  'rooms.room.openBeside': "Line {line}: '{room}' is open to '{to}', the room it is placed beside: a dividing line between them, no wall. To open it to another room, write 'open <room>'.",
+  'rooms.room.openHost': "Line {line}: '{room}' is open to '{to}', the room it is cut out of: a dividing line between them, no wall. To open it to another room, write 'open <room>'.",
+  'rooms.room.starExtent': "Line {line}: room '{room}' has '*' for its {side} and no 'until', so it takes the {side} of '{ref}', the room it is placed beside: {length} m.",
+  'rooms.room.outdoorUse':
+    "Line {line}: '{word}' is not a room use. Outdoor space is a room whose use is '-' (or a use, such as 'parking' for a carport), with 'outdoor <kind>' after its size and place: one of {kinds}.{offer}",
+  'rooms.room.outdoorUse.offer': " Write '{written}'.",
+  'rooms.repeat.fill':
+    "Line {line}: 'fill <length>' makes a row that long by working out one of the unit's settings, written '*' on the repeat line: one of {settings}. Write the length after 'fill' and that one setting as name=*, and leave the others as they are.",
+  'rooms.repeat.fillNone': "Line {line}: {count} units cannot fill {length} m by '{key}': it would leave nothing of them. Fill a longer length, or repeat the unit fewer times.",
+  'rooms.repeat.fillMissed': "Line {line}: the row comes out {length} m, not the {fill} m it is to fill, whatever the setting written '*' is. Check that the setting sizes the unit along the row.",
+  'rooms.row.overrun':
+    "Line {line}: the row of {count} '{unit}' runs {by} m past the {end} end of '{street}', the room it is placed {side} of, so the front steps there. To end the row with '{street}', make each unit {each} m narrower, write 'fill {length}' on the repeat line with the setting that sizes the unit written name=*, or make '{street}' {by} m longer.",
+  'rooms.gap':
+    "Rooms '{a}' (line {aLine}) and '{b}' (line {bLine}) leave a gap of {gap} m between them, along {along} m: wider than one wall (walls here are up to {widest} m) and too narrow for an outside wall on each.{closes} If it is a duct or a cupboard, write it as a room.",
+  'rooms.gap.close': ' If it is one wall, close the gap to its thickness.',
+  'rooms.gap.closes': ' To close it to a {wall} m wall, make one of them {by} m larger toward the other: {sizes}.',
+  'rooms.gap.size': "'{size}' for '{room}'",
+  'rooms.door.inOutBetween': "Line {line}: door '{id}' joins '{a}' and '{b}', so 'opens {how}' does not say which way it opens: neither room is the outside. Write 'opens into {a}' or 'opens into {b}'.",
+  'rooms.door.alongShared': "Line {line}: '{id}' is measured from the {comp} end of the {length} m of wall '{a}' and '{b}' share: measured from the {comp} end of the room's side, it would not stand in that wall.",
+  'rooms.window.outsideStretch': "Line {line}: window '{id}' goes in the outside stretch of {room}'s {side} side ({length} m), placed along that stretch: the rest of that side is the wall to {rooms}.",
+  'rooms.wall.unknownWord': "Line {line}: '{word}' is not understood on a wall line. Known: the thickness as a bare number, such as 0.2 (or with its unit, 200mm); {kinds}; height <m>; id <id>; reversed.",
+  'rooms.wallOnLine': "Line {line}: the wall between '{a}' and '{b}' stands on the line where the two rooms touch, {thickness} m thick, so each is {half} m smaller there than written. To keep both sizes, leave {thickness} m between the rooms.",
+  'rooms.touching':
+    "Rooms '{a}' (line {aLine}) and '{b}' (line {bLine}) touch along {along} m with no wall between them (the gap is {gap} mm). If the space is open-plan, {open}. If there is a wall, leave its thickness between the rooms, or write 'wall between {a} and {b}' to stand one on the line they share.",
+  'rooms.touching.openBeside': "add 'open' to the room line of '{b}' or write 'wall between {a} and {b} virtual'",
+  'rooms.touching.openNamed': "add 'open {a}' to the room line of '{b}' or write 'wall between {a} and {b} virtual'",
+  'rooms.overlap':
+    "Rooms '{a}' (line {aLine}) and '{b}' (line {bLine}) overlap: they share an area about {ox} m east-west by {oy} m north-south. To clear it, {move}, or make one of them smaller by that much plus the wall between them.{corner}",
+  'rooms.overlap.eastWest': "move '{room}' {by} m east or west",
+  'rooms.overlap.northSouth': "move '{room}' {by} m north or south",
+  'rooms.overlap.corner': " If '{b}' is meant to sit in a corner of '{a}', write 'inside {a} corner <ne|nw|se|sw>'.",
   'rooms.side.offer': "'{text}' for {beyond}",
   'rooms.side.offers': 'To place it, write line {line} as {offers}.',
   'rooms.copyNoOpenings': '{list}',

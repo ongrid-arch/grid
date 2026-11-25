@@ -2077,6 +2077,45 @@ export const es: Messages = {
   'rooms.side.beyond': 'el muro hacia {list}',
   'rooms.side.other': "'{word}' para {beyond}",
   'rooms.side.unitGuess': "Línea {line}: la estancia '{room}' tiene {count} lados que miran al {side}; se usó '{word}', {beyond}, el único hacia algo fuera de la unidad '{unit}'. Escribe {others} para elegir otro.",
+  // WRT-55: a room line read as written, or refused for what is really wrong.
+  'rooms.room.placedTwice': "Línea {line}: la estancia '{room}' se sitúa dos veces, con '{first}' y con '{second}'. Una estancia va en un solo sitio: deja el que quieres y quita el otro.",
+  'rooms.room.sizedTwice': "Línea {line}: la estancia '{room}' tiene dos tamaños, '{first}' y '{second}'. Una estancia tiene un tamaño: deja el que quieres y quita el otro.",
+  'rooms.room.floorNamed':
+    "Línea {line}: 'floor {floor}' no se lee en una línea de estancia. Una estancia está en la planta cuya línea floor va encima de ella: escribe 'floor {floor}' en una línea propia y debajo las estancias de esa planta; la siguiente línea floor empieza la planta siguiente. En una línea de estancia, 'floor <m>' es un número: cuánto sube o baja el suelo de la estancia respecto al de su planta (con un menos si baja).",
+  'rooms.room.openUnit': "Línea {line}: 'open' necesita una estancia a la que abrirse, y '{ref}' es una unidad. Nombra la estancia: {rooms}.",
+  'rooms.room.openWhich': "Línea {line}: 'open' en la estancia '{room}' no dice a qué estancia se abre: no está situada junto a otra. Escribe 'open <estancia>' con la estancia que toca.",
+  'rooms.room.openUnknown': "Línea {line}: la estancia '{room}' se abre a '{to}', que no es ninguna estancia escrita antes de esta línea. Estancias hasta aquí: {rooms}.",
+  'rooms.room.openBeside': "Línea {line}: '{room}' está abierta a '{to}', la estancia junto a la que se sitúa: una línea divisoria entre ellas, sin muro. Para abrirla a otra estancia, escribe 'open <estancia>'.",
+  'rooms.room.openHost': "Línea {line}: '{room}' está abierta a '{to}', la estancia de la que se recorta: una línea divisoria entre ellas, sin muro. Para abrirla a otra estancia, escribe 'open <estancia>'.",
+  'rooms.room.starExtent': "Línea {line}: la estancia '{room}' tiene '*' en lugar de su {side} y ningún 'until', así que toma esa medida de '{ref}', la estancia junto a la que se sitúa: {length} m.",
+  'rooms.room.outdoorUse':
+    "Línea {line}: '{word}' no es un uso de estancia. Un espacio exterior es una estancia de uso '-' (o un uso, como 'parking' para una cochera), con 'outdoor <tipo>' después de su tamaño y su sitio: uno de {kinds}.{offer}",
+  'rooms.room.outdoorUse.offer': " Escribe '{written}'.",
+  'rooms.repeat.fill':
+    "Línea {line}: 'fill <longitud>' hace una fila de esa longitud calculando uno de los ajustes de la unidad, escrito '*' en la línea repeat: uno de {settings}. Escribe la longitud después de 'fill' y ese ajuste como nombre=*, y deja los demás como están.",
+  'rooms.repeat.fillNone': "Línea {line}: {count} unidades no pueden llenar {length} m con '{key}': no quedaría nada de ellas. Llena una longitud mayor, o repite la unidad menos veces.",
+  'rooms.repeat.fillMissed': "Línea {line}: la fila sale de {length} m, no de los {fill} m que debe llenar, sea cual sea el ajuste escrito '*'. Comprueba que ese ajuste dimensiona la unidad a lo largo de la fila.",
+  'rooms.row.overrun':
+    "Línea {line}: la fila de {count} '{unit}' sobresale {by} m del extremo {end} de '{street}', la estancia al {side} de la que se sitúa, así que la fachada hace un escalón ahí. Para terminar la fila con '{street}', haz cada unidad {each} m más estrecha, escribe 'fill {length}' en la línea repeat con el ajuste que dimensiona la unidad escrito nombre=*, o alarga '{street}' {by} m.",
+  'rooms.gap':
+    "Las estancias '{a}' (línea {aLine}) y '{b}' (línea {bLine}) dejan un hueco de {gap} m entre ellas, a lo largo de {along} m: más ancho que un muro (aquí los muros llegan a {widest} m) y demasiado estrecho para un muro exterior en cada una.{closes} Si es un conducto o un armario, escríbelo como una estancia.",
+  'rooms.gap.close': ' Si es un muro, cierra el hueco a su grosor.',
+  'rooms.gap.closes': ' Para cerrarlo a un muro de {wall} m, haz una de ellas {by} m mayor hacia la otra: {sizes}.',
+  'rooms.gap.size': "'{size}' para '{room}'",
+  'rooms.door.inOutBetween': "Línea {line}: la puerta '{id}' une '{a}' y '{b}', así que 'opens {how}' no dice hacia dónde abre: ninguna de las dos es el exterior. Escribe 'opens into {a}' u 'opens into {b}'.",
+  'rooms.door.alongShared': "Línea {line}: '{id}' se mide desde el extremo {comp} de los {length} m de muro que comparten '{a}' y '{b}': medida desde el extremo {comp} del lado de la estancia, no quedaría en ese muro.",
+  'rooms.window.outsideStretch': "Línea {line}: la ventana '{id}' va en el tramo exterior del lado {side} de {room} ({length} m), situada a lo largo de ese tramo: el resto de ese lado es el muro con {rooms}.",
+  'rooms.wall.unknownWord': "Línea {line}: '{word}' no se entiende en una línea de muro. Se conocen: el grosor como número sin más, como 0.2 (o con su unidad, 200mm); {kinds}; height <m>; id <id>; reversed.",
+  'rooms.wallOnLine': "Línea {line}: el muro entre '{a}' y '{b}' se levanta sobre la línea donde se tocan las dos estancias, de {thickness} m, así que cada una queda {half} m más pequeña ahí de lo escrito. Para conservar los dos tamaños, deja {thickness} m entre las estancias.",
+  'rooms.touching':
+    "Las estancias '{a}' (línea {aLine}) y '{b}' (línea {bLine}) se tocan a lo largo de {along} m sin muro entre ellas (el hueco es de {gap} mm). Si el espacio es abierto, {open}. Si hay un muro, deja su grosor entre las estancias, o escribe 'wall between {a} and {b}' para levantarlo sobre la línea que comparten.",
+  'rooms.touching.openBeside': "añade 'open' a la línea de '{b}' o escribe 'wall between {a} and {b} virtual'",
+  'rooms.touching.openNamed': "añade 'open {a}' a la línea de '{b}' o escribe 'wall between {a} and {b} virtual'",
+  'rooms.overlap':
+    "Las estancias '{a}' (línea {aLine}) y '{b}' (línea {bLine}) se solapan: comparten un área de unos {ox} m de este a oeste por {oy} m de norte a sur. Para despejarla, {move}, o haz una de ellas más pequeña en esa medida más el muro entre ellas.{corner}",
+  'rooms.overlap.eastWest': "mueve '{room}' {by} m al este o al oeste",
+  'rooms.overlap.northSouth': "mueve '{room}' {by} m al norte o al sur",
+  'rooms.overlap.corner': " Si '{b}' debe quedar en una esquina de '{a}', escribe 'inside {a} corner <ne|nw|se|sw>'.",
   'rooms.side.offer': "'{text}' para {beyond}",
   'rooms.side.offers': 'Para colocarla, escribe la línea {line} como {offers}.',
   'rooms.copyNoOpenings': '{list}',

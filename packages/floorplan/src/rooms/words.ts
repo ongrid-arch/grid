@@ -1,7 +1,8 @@
 /**
  * Reading a line of rooms text into words, and a word into a number or a point.
  *
- * A line is split at spaces; a word in double or single quotes may hold spaces; `#` starts a
+ * A line is split at spaces; a word in double or single quotes may hold spaces, and a quote mark
+ * inside them with a backslash before it (`\"`, `\'`) is the mark itself (WRT-55); `#` starts a
  * comment outside quotes; a comma at the end of a word is dropped, so a line may read like a
  * sentence. A plain number is metres. A length may instead carry its unit in one word, with no
  * space (`readLength` in `types/units.ts` reads it): `381cm`, `3810mm`, `3.81m`, `0.5km`, `12ft`,
@@ -57,7 +58,11 @@ export function quotedWordsOf(line: string, at: number, asWritten = false): Line
   for (let i = 0; i < line.length; i++) {
     const c = line[i]!
     if (quote !== null) {
-      if (c === quote) quote = null
+      // WRT-55: a quote mark written with a backslash before it is the mark itself: "The \"den\"".
+      if (c === '\\' && (line[i + 1] === '"' || line[i + 1] === "'")) {
+        word += line[i + 1]
+        i++
+      } else if (c === quote) quote = null
       else word += c
       continue
     }
