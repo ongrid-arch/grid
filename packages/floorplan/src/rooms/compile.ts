@@ -905,10 +905,16 @@ class Compiler {
       const say = fl.between.get(key)
       if (say && say.t !== null) return say.t
     }
-    const ts = [room, ...others].map((r) => r.wallsT).filter((t): t is number => t !== null)
+    // LVL-12, WRT-31: a room beside outdoor space (a courtyard, a terrace), or a unit's rooms
+    // beside one, is set off by the building's outside wall. A building room's own walls may set
+    // it; an outdoor space's own walls are its edges (a railing, a fence), never the building's.
+    const outdoorPair = others.length > 0 && others.every((other) => facesOutdoor(room, other))
+    const ts = [room, ...others]
+      .filter((r) => !outdoorPair || r.outdoor === null)
+      .map((r) => r.wallsT)
+      .filter((t): t is number => t !== null)
     if (ts.length > 0) return Math.max(...ts)
-    // LVL-12: a room beside outdoor space (a courtyard, a terrace) is set off by an outside wall.
-    return others.length === 1 && facesOutdoor(room, others[0]!) ? this.rule.outside : this.rule.inside
+    return outdoorPair ? this.rule.outside : this.rule.inside
   }
 
   private readRoom(t: string[], at: number, ctx: PlaceCtx | null): RoomDraft {
@@ -1192,7 +1198,11 @@ class Compiler {
     const c = place.corner!
     if (!Object.hasOwn(DIAG, c)) this.stop('rooms/syntax', at, `line ${at}: the corner is one of ne, nw, se, sw, not '${c}'.`)
     const hb = host.box
-    const T = place.wallT ?? room.wallsT ?? this.rule.inside
+    // WRT-31: outdoor space cut out of a room's corner (a recessed balcony) is set off by the
+    // building's outside wall, as one placed beside a room is.
+    const outdoorPair = facesOutdoor(room, host)
+    const ownT = outdoorPair ? (room.outdoor === null ? room.wallsT : host.wallsT) : room.wallsT
+    const T = place.wallT ?? ownT ?? (outdoorPair ? this.rule.outside : this.rule.inside)
     const cx = c.includes('e') ? hb[2] : hb[0]
     const cy = c.includes('n') ? hb[3] : hb[1]
     const sx = c.includes('e') ? -1 : 1
@@ -1221,7 +1231,7 @@ class Compiler {
     host.poly = cleanPoly([...host.poly.slice(0, k), Ca, Q, Cb, ...host.poly.slice(k + 1)])
     room.box = box
     room.poly = [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]]
-    const kind = place.wallKind ?? room.wallsKind
+    const kind = place.wallKind ?? (outdoorPair ? null : room.wallsKind)
     if (kind) this.floor().between.set(pairKey(room.id, host.id), { t: T, kind, height: null, id: null, reversed: false, line: at })
     return room
   }
@@ -1577,6 +1587,8 @@ class Compiler {
     let junc = this.rule.outside
     const thicknessStated = (t: number): boolean =>
       [this.rule.inside, this.rule.outside, ...this.statedT, ...[...this.tkinds.keys()].map((k) => k / 1000)].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
+    // WRT-31: what a wall between a room and outdoor space may be without a word: the outside thickness, or one a line states.
+    const outsideStated = (t: number): boolean => [this.rule.outside, ...this.statedT].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
     const reported = new Set<string>()
     for (const e of edges) {
       const taken: Array<[number, number]> = []
@@ -1692,13 +1704,14 @@ class Compiler {
         }
         // WRT-17: the wall takes the gap the rooms leave; a gap no line states is said, once a pair.
         if (!virtual && !(spec && spec.t !== null) && !this.fromGap.has(key)) {
+          const values = { a: A.id, aLine: String(A.line), b: B.id, bLine: String(B.line), thickness: f2(d), inside: f2(this.rule.inside), outside: f2(this.rule.outside) }
           if (!thicknessStated(d)) {
             this.fromGap.add(key)
-            this.warn(
-              'rooms/wall-from-gap',
-              B.line,
-              english(said('rooms.wallFromGap', { a: A.id, aLine: String(A.line), b: B.id, bLine: String(B.line), thickness: f2(d), inside: f2(this.rule.inside), outside: f2(this.rule.outside) }))
-            )
+            this.warn('rooms/wall-from-gap', B.line, english(said('rooms.wallFromGap', values)))
+          } else if (facesOutdoor(A, B) && !outsideStated(d)) {
+            // WRT-31: the inside thickness is no outside wall's: rooms placed by hand left it.
+            this.fromGap.add(key)
+            this.warn('rooms/wall-from-gap', B.line, english(said('rooms.wallFromGap.outdoor', values)))
           }
         }
         const off = c.d / 2
@@ -2292,7 +2305,8 @@ class Compiler {
     if (kind === 'window') {
       openingSill = r4(sill ?? this.dflt.winSill)
       openingHeight = r4(height ?? this.dflt.winH)
-      if (other.length > 0) this.warn('rooms/inside-window', at, `Line ${at}: window '${oid}' is in the wall between '${e.room.id}' and '${other[0]!.id}', not in an outside wall.`)
+      // WRT-31: a window onto outdoor space is in an outside wall.
+      if (other.length > 0 && !facesOutdoor(e.room, other[0]!)) this.warn('rooms/inside-window', at, `Line ${at}: window '${oid}' is in the wall between '${e.room.id}' and '${other[0]!.id}', not in an outside wall.`)
     } else {
       openingSill = r4(sill ?? 0)
       openingHeight = r4(height ?? this.dflt.doorH)
