@@ -15,10 +15,11 @@
  *
  * Pure: a plan and a brief in, lines out. Nothing here reads a file.
  */
-import { floorOf, MEASURES, planFloors, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
+import { floorElevations, floorOf, groundLevel, MEASURES, planFloors, planForFloor, planSteps, roomFloorOffset, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import { planAreas, type RoomArea } from '../quantities/areas'
 import { measureRoom, roomHeight } from '../quantities/measure'
-import { corridorNarrowestOf } from '../quantities/access'
+import { corridorNarrowestOf, entranceOf } from '../quantities/access'
+import { entryWays, wayGraph } from '../quantities/measure'
 import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, DOOR_MEASURE_RULES } from '../quantities/doorWidth'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { METRES } from '@ongrid/floorplan/types/units'
@@ -288,10 +289,39 @@ function figureLines(c: Context, wish: FigureWish): BriefLine[] {
       short.push(line('missed', wish, wish.figure, `${opening.type} ${q(opening.id)} (${between[0]} to ${between[1]}) ${width} ${asked}, drawn ${n2(drawn)} m${hole}${leaves === '' ? '' : `; ${leaves}`}.`, { asked: limit, drawn: n2(drawn), unit: 'm', parts: [{ kind: 'opening', id: opening.id }] }))
     }
   } else if (wish.figure === 'step') {
+    // ARE-44: every change of level `what=access` reads: a door's sill, a raised floor between
+    // rooms (their floor offsets) and the ground outside the entrance (site.ground).
+    const miss = (body: string, drawn: number, part: BriefPart): void => {
+      short.push(line('missed', wish, wish.figure, body, { asked: limit, drawn: n2(drawn), unit: 'm', parts: [part] }))
+    }
     for (const floor of c.survey.facts.floors) {
       for (const opening of floor.openings) {
         if (opening.type === 'window' || opening.sill <= wish.value + eps) continue
-        short.push(line('missed', wish, wish.figure, `${opening.type} ${q(opening.id)} step ${asked}, drawn ${n2(opening.sill)} m above its floor.`, { asked: limit, drawn: n2(opening.sill), unit: 'm', parts: [{ kind: 'opening', id: opening.id }] }))
+        miss(`${opening.type} ${q(opening.id)} step ${asked}, drawn ${n2(opening.sill)} m above its floor.`, opening.sill, { kind: 'opening', id: opening.id })
+      }
+    }
+    for (const floor of c.survey.facts.floors) {
+      for (const step of planSteps(planForFloor(c.plan, floor.id))) {
+        if (step.rise <= wish.value + eps) continue
+        const between = [step.lower, step.upper].map(roomName)
+        const at = step.openingId === null ? 'along the line between them' : `at ${c.survey.facts.openings.get(step.openingId)?.type ?? 'door'} ${q(step.openingId)}`
+        const part: BriefPart = step.openingId === null ? { kind: 'room', id: step.upper } : { kind: 'opening', id: step.openingId }
+        miss(`floor ${between[0]} to ${between[1]} step ${asked}, drawn ${n2(step.rise)} m, ${at}, the floor of ${between[1]} standing higher.`, step.rise, part)
+      }
+    }
+    // The ground outside: only when the plan states it, as access does.
+    const ground = groundLevel(c.plan, floorElevations(c.plan))
+    const entrance = ground.stated ? entranceOf(c.survey) : null
+    if (entrance !== null) {
+      const inside = entryWays(c.survey, wayGraph(c.survey, entrance.floor).next).filter((e) => entrance.doors.includes(e.via))
+      const seen = new Set<string>()
+      for (const e of inside) {
+        if (seen.has(e.via)) continue
+        seen.add(e.via)
+        const room = c.plan.rooms.find((r) => r.id === (e.through ?? e.room))
+        const above = (ground.above.get(entrance.floor) ?? 0) + (room === undefined ? 0 : roomFloorOffset(room))
+        if (Math.abs(above) <= wish.value + eps) continue
+        miss(`${c.survey.facts.openings.get(e.via)?.type ?? 'door'} ${q(e.via)} step ${asked}, drawn ${n2(Math.abs(above))} m ${above > 0 ? 'up' : 'down'} from the ground outside to the floor inside.`, Math.abs(above), { kind: 'opening', id: e.via })
       }
     }
   } else if (wish.figure === 'ceiling_height') {
