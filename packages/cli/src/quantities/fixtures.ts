@@ -22,6 +22,8 @@ import {
   type Item,
   type ItemGroup,
 } from '@ongrid/floorplan/geometry'
+import { english, joined, name, said, type Value } from '@ongrid/floorplan/messages'
+import type { ReadFault } from '@ongrid/floorplan/types/readParts'
 
 export const FIXTURE_RULES = {
   count: 'Fixtures and furniture are the plan\'s items, counted by kind; the room each is in is the one that holds the middle of its footprint. Furniture takes no free floor: it can be moved. Points and seats come later.',
@@ -112,4 +114,45 @@ export function fixtureCountText(counts: Readonly<Record<string, number>>): stri
     return `${counts[kind]} ${word}${counts[kind] === 1 ? '' : 's'}`
   })
   return parts.length === 0 ? 'no fixtures' : parts.join(', ')
+}
+
+/** ARE-26: a fixture a measure left out, and why. */
+export interface FixtureLeftOut {
+  /** Its id, null when the file gives it none that can be read. */
+  readonly id: string | null
+  /** Where it is in the plan's items, from 0, when the reader set it aside; else null. */
+  readonly index: number | null
+  /** The field that kept it out and what was found there ("height", "missing"), else null: grid_check says why. */
+  readonly field: string | null
+  readonly found: string | null
+}
+
+/**
+ * ARE-26: every fixture a measure leaves out: the items the reader set aside for a value they
+ * cannot do without (a toilet with no height), which are not in the plan at all, and the items
+ * the checks hold back (`planFixtures`). A measure that depends on fixtures names them, so a
+ * room does not read as holding none.
+ */
+export function fixturesLeftOut(plan: FloorPlan, faults: readonly ReadFault[] = []): FixtureLeftOut[] {
+  const byIndex = new Map<number, { id: string | null; field: string | null; found: string | null }>()
+  for (const fault of faults) {
+    if (fault.kind !== 'part-left-out' || fault.part.list !== 'items') continue
+    // The first fault of an item says why; the field is the last step of its path, when the path goes into the item.
+    if (byIndex.has(fault.part.index)) continue
+    const field = fault.path.length > 2 ? String(fault.path[fault.path.length - 1]) : null
+    byIndex.set(fault.part.index, { id: fault.part.id, field, found: field === null ? null : fault.found })
+  }
+  const out: FixtureLeftOut[] = [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([index, why]) => ({ ...why, index }))
+  for (const id of planFixtures(plan).leftOut) out.push({ id, index: null, field: null, found: null })
+  return out
+}
+
+/** ARE-26: the one sentence that names the fixtures a measure left out, or null when none was. */
+export function fixturesLeftOutLine(left: readonly FixtureLeftOut[]): string | null {
+  if (left.length === 0) return null
+  const items: Value[] = left.map((one) => {
+    const item: Value = one.id !== null ? name(one.id) : said('measure.fixtureLeftOut.unnamed', { index: one.index === null ? 0 : one.index })
+    return one.field === null || one.found === null ? said('measure.fixtureLeftOut.plain', { item }) : said('measure.fixtureLeftOut.field', { item, field: one.field, found: one.found })
+  })
+  return english(said('measure.fixturesLeftOut', { items: joined(items, 'join.semicolon') }))
 }

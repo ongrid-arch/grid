@@ -9,6 +9,7 @@
  * mouths, the fixtures and the figures, and words the answer. Pure: a survey in, lines and data
  * out.
  */
+import { english, said } from '@ongrid/floorplan/messages'
 import {
   doorwayClearance,
   fixtureSpace,
@@ -221,7 +222,7 @@ export function waysOf(survey: Survey, room: SurveyRoom): { via: string; opening
  * through it between its doorways (or from its one doorway to its widest point), the floor in
  * front of and beside each of its fixtures, and each window a fixture stands in front of.
  */
-export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?: unknown; diameter?: unknown; clearance?: unknown }, L: Length): IndicatorAnswer {
+export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?: unknown; diameter?: unknown; clearance?: unknown }, L: Length, leftOut = 0): IndicatorAnswer {
   const lines: string[] = []
   const indicators: Indicator[] = []
   const { rows, items, near, obstacles: onFloor, itemById, rowById } = fixturesOf(survey)
@@ -244,7 +245,8 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
   // Turning space.
   const turning = figureOf(given.diameter, 'useTurningCircle')
   const circle = turningSpace(room.polygon, room.holes, obstacles)
-  const clearOf = own.length === 0 ? 'the room holds no fixtures' : `clear of ${own.length === 1 ? 'its fixture' : `its ${own.length} fixtures`}`
+  // ARE-26: with fixtures left out, an empty room is not said to hold none: they could not be measured.
+  const clearOf = own.length === 0 ? (leftOut > 0 ? english(said('measure.noneMeasured')) : 'the room holds no fixtures') : `clear of ${own.length === 1 ? 'its fixture' : `its ${own.length} fixtures`}`
   add(
     { code: 'use/turning-space', about: room.facts.id, measured: circle.diameter, figure: turning, under: isUnder(circle.diameter, turning), at: circle.at },
     `the widest circle the free floor of ${name} holds is ${L(circle.diameter)} across, centred at ${at(circle.at)}, ${clearOf}; ${against(circle.diameter, turning, L)}`
