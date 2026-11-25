@@ -34,7 +34,7 @@ function cleanly(text: string): FloorPlan {
   expect(result.problems).toEqual([])
   expect(result.warnings.map((w) => `${w.code}: ${w.message}`)).toEqual([])
   const plan = parseFloorPlan(result.plan)
-  expect(validatePlan(plan).issues.filter((i) => i.severity !== 'info').map((i) => `${i.code}: ${i.message}`)).toEqual([])
+  expect(validatePlan(plan).issues.map((i) => `${i.code}: ${i.message}`)).toEqual([])
   // No wall is thicker than a line states: the corner's depth is never taken for a wall.
   for (const w of plan.walls) expect([0.1, 0.3]).toContain(Number(w.thickness.toFixed(3)))
   return plan
