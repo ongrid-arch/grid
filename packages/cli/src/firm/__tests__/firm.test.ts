@@ -85,11 +85,11 @@ describe('a corridor narrower than the firm\'s 1.5 m', () => {
     expect(check.isError, check.text).toBe(false)
     const lines = linesOf(check.data)
     const firm = lines.filter(isFirmLine)
-    // The hall is 1.15 m between its faces: the way through it, measured on CNT-13's grid, is 1.14 m.
+    // The hall is 1.15 m between its faces, and the way through it is measured to them (ARE-25).
     expect(firm.map((l) => l.code)).toEqual(['firm/corridor-width'])
     const corridor = firm[0]!
     expect(corridor).toMatchObject({ kind: 'finding', thing: { kind: 'room', id: 'hall' }, floor: 'ground' })
-    expect(corridor.message).toBe('Room "Hall": the way through is 1.14 m wide at its narrowest, under the firm\'s own figure of 1.5 m for corridor width ("Corridors")')
+    expect(corridor.message).toBe('Room "Hall": the way through is 1.15 m wide at its narrowest, under the firm\'s own figure of 1.5 m for corridor width ("Corridors")')
     expect(corridor.needed).toBe('at least 1.5 m: the firm\'s figure used here ("Corridors"), from "firm-standards.json", the firm\'s own and not from any code or standard')
     expect(corridor.firm).toEqual({ standard: 0, measure: 'corridor_width', value: 1.5, unit: 'm', name: 'Corridors', file: 'firm-standards.json' })
     // Apart from the code figures: a firm's line carries no code figure, and the figures list holds none of the firm's.
@@ -100,7 +100,7 @@ describe('a corridor narrower than the firm\'s 1.5 m', () => {
     const text = check.text.split('\n')
     const heading = text.findIndex((t) => t.startsWith(FIRM_HEADING))
     expect(text[heading]).toBe('The firm\'s own standards (1), from "firm-standards.json": the firm\'s own figures, from its file beside the plan: not from any code or standard, and not tied to a place, so they are set against the plan wherever that file is.')
-    expect(text[heading + 1]).toMatch(/^ {2}\d+\. finding, room "hall": Room "Hall": the way through is 1\.14 m/)
+    expect(text[heading + 1]).toMatch(/^ {2}\d+\. finding, room "hall": Room "Hall": the way through is 1\.15 m/)
     expect(text.filter((t) => t.startsWith(FIRM_HEADING))).toHaveLength(1)
     for (const t of text.slice(0, heading)) expect(t).not.toContain('[firm/')
 
@@ -140,7 +140,7 @@ describe('a corridor narrower than the firm\'s 1.5 m', () => {
       ['firm/room-width', 'hall'],
     ])
     // The cupboard leaves 0.65 m beside it, and the line says so.
-    expect(lines[0]!.message).toBe('Room "Hall": the way through is 0.64 m wide at its narrowest, under the firm\'s own figure of 1 m for corridor width')
+    expect(lines[0]!.message).toBe('Room "Hall": the way through is 0.65 m wide at its narrowest, under the firm\'s own figure of 1 m for corridor width')
     expect(lines[0]!.found).toContain('"Cupboard" (kitchen run "store") and a wall')
     expect(lines[0]!.also).toEqual(['store'])
     expect(lines[1]!.message).toBe('Door "door-bath": it leaves 0.75 m clear, under the firm\'s own figure of 0.8 m for clear width of a doorway')

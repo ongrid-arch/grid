@@ -1857,6 +1857,17 @@ export const en = {
     "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) is {thickness} m thick, the gap the rooms leave, which no line of the text states (inside walls {inside} m, outside walls {outside} m). If that is meant, say it with 'walls {thickness}' on a room line or a wall line; if not, move a room.",
   'rooms.checkError': "The check finds this in the plan as written, and would leave a part out ({code}): {message}",
   'rooms.checkNote': "The check notes this in the plan as written ({code}): {message}",
+  // WRT-27: raw lines are on the floor they are written under, and counted in the answer.
+  'rooms.raw.unknownFloor':
+    "line {line}: raw {kind} '{id}' names floor '{floor}', which this text does not write. Floors written: {floors}. Write the part under its floor's line with no \"floor\", or write a line for that floor.",
+  'rooms.raw.openingFloor':
+    "Line {line}: raw opening '{id}' is written under floor '{under}', but its wall '{wall}' is on floor '{floor}', and an opening is on its wall's floor. Write it under floor '{floor}', or name a wall of floor '{under}'.",
+  'rooms.raw.openingFact': '{id}: {type} {width} m in {wall}, written raw',
+  'rooms.answer.raw':
+    'Written raw and kept as written: walls {walls}, rooms {rooms}, openings {openings}. Grid measures the raw rooms as it measures every room, and counts them in the rooms and the area above.',
+  'rooms.answer.rawPart': 'written raw',
+  'rooms.answer.rawNotDrawn': 'written raw; Grid cannot draw it from its walls, so its floor is not in the area',
+  'rooms.answer.outsideWallOf': 'outside wall of {room}',
   'describe.close': 'This describes the plan and checks nothing: grid check runs the checks.',
   'describe.fixtures': 'Fixtures: {list}.',
   'describe.fixture.toilet.one': '{count} toilet',
@@ -2021,7 +2032,7 @@ export const en = {
   'drawing.section.point': '({x}, {y})',
   'drawing.section.line.left': "Cut from {from} to {to}, looking to the left of the line. Heights in metres from the ground floor's floor level.",
   'drawing.section.line.right': "Cut from {from} to {to}, looking to the right of the line. Heights in metres from the ground floor's floor level.",
-  'drawing.section.hatched': 'Hatched: taken by Grid, not stated in the plan',
+  'drawing.section.hatched': 'Dashed outline: taken by Grid, not stated in the plan',
   'drawing.section.listed': 'Also taken, not stated in the plan',
   'drawing.section.roof': '{level} Roof',
   // ── After merging main at 90a933b1: HND-11's survey origin in a GLB file ────────────────────
@@ -2100,8 +2111,8 @@ export const en = {
   'drawing.section.taken.risers': 'The risers of {ids} are worked out by Grid: the plan states no number of risers.',
   'drawing.section.taken.waist': 'The flights of {ids} are drawn {waist} m thick under their steps, and their landings as slabs: the plan states no waist.',
   'drawing.section.note': 'The section {what} that the plan does not state: each is listed under the drawing.',
-  'drawing.section.note.hatched.one': 'hatched one part',
-  'drawing.section.note.hatched.many': 'hatched {count} parts',
+  'drawing.section.note.hatched.one': 'marked one part with a dashed outline',
+  'drawing.section.note.hatched.many': 'marked {count} parts with a dashed outline',
   'drawing.section.note.listed.one': 'listed one thing',
   'drawing.section.note.listed.many': 'listed {count} things',
   'drawing.mark.faces.north': 'N',

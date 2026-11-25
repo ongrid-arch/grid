@@ -28,7 +28,7 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
       : `It cuts ${count(walls, 'wall')}${stairs > 0 ? `, ${count(stairs, 'stair')}` : ''} and ${count(section.rooms.length, 'room')}; the cut parts join into ${count(section.cut.length, 'shape')}.`,
     `Levels: ${section.levels.map((l) => `${q(l.name || l.floor)} ${levelText(l.level, display)}${l.source === 'worked-out' ? ' (worked out)' : ''}`).join(', ')}${section.roofs.length === 0 ? '' : `; roof ${section.roofs.map((r) => levelText(r.level, display)).join(', ')}`}; ground ${levelText(section.ground.level, display)}${section.ground.stated ? '' : ' (not stated)'}.`,
     ...(section.rooms.length === 0 ? [] : [`Rooms cut, floor to ceiling: ${section.rooms.map((r) => `${q(r.name || r.room)} ${m(r.height)} m${r.heightStated ? '' : ' (not stated)'}`).join(', ')}.`]),
-    ...(section.assumed.length === 0 ? [] : ['Taken by Grid, not stated in the plan (hatched on the drawing where marked so, and listed under it):', ...section.assumed.map((a) => `  ${a.hatched ? 'hatched' : 'listed'}: ${a.words}`)]),
+    ...(section.assumed.length === 0 ? [] : ['Taken by Grid, not stated in the plan (dashed on the drawing where marked so, and listed under it):', ...section.assumed.map((a) => `  ${a.hatched ? 'dashed' : 'listed'}: ${a.words}`)]),
   ]
   return {
     text: lines.join('\n'),

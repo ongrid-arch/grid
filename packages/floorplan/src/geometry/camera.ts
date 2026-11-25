@@ -29,6 +29,7 @@ import { roomShapes } from './items'
 import { directionOfTurn, planOrientation, wrapDegrees, type PlanOrientation } from './orientation'
 import { indexPlan, type FloorPlan } from './plan'
 import { area } from './vec2'
+import { limit } from './tolerances'
 
 export type Point3 = readonly [number, number, number]
 
@@ -255,6 +256,118 @@ export function cameraRecord(plan: FloorPlan, setting: CameraSetting, levels = m
     fieldOfView: cameraRound(fieldOfViewOf(focalLength)),
     aspectRatio,
   }
+}
+
+/** VEW-26: a box in the plan's metres, z up as the 3D model stands its floors. */
+export interface CameraBox {
+  readonly min: Point3
+  readonly max: Point3
+}
+
+/** VEW-26: where a camera fitted to a box points, and how far it stands. */
+export interface CameraFit {
+  readonly target: Point3
+  readonly distance: number
+}
+
+/** The frames a fitted still is taken in: landscape, as the sensor, or portrait for a tall box. */
+export const LANDSCAPE_ASPECT = CAMERA_SENSOR.width / CAMERA_SENSOR.height
+export const PORTRAIT_ASPECT = CAMERA_SENSOR.height / CAMERA_SENSOR.width
+/** How much of the frame's width or height a fitted box takes at most: the rest is its margin. */
+const FIT_FILL = 0.88
+/** A portrait frame is taken only when it shows the box this many times larger than a landscape one. */
+const PORTRAIT_GAIN = 1.25
+/** How many times the target is moved to the middle of what the camera sees. */
+const FIT_PASSES = 6
+
+type Vec3 = readonly [number, number, number]
+const dot3 = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+/** The camera's own axes for a setting: to its right, its up and the way it looks, in plan metres. */
+function cameraAxes(plan: FloorPlan, setting: CameraSetting): { right: Vec3; up: Vec3; along: Vec3 } {
+  const orientation = planOrientation(plan)
+  const from = setting.north === undefined ? orientation.north : setting.north
+  const u = drawingDirection(drawingBearing(wrapDegrees(setting.bearing), orientation, from))
+  const cos = Math.cos(setting.tilt * DEG)
+  const sin = Math.sin(setting.tilt * DEG)
+  const along: Vec3 = [-cos * u.x, -cos * u.y, -sin]
+  const up: Vec3 = [-sin * u.x, -sin * u.y, cos]
+  // Along the line of sight crossed with up: the camera's right.
+  const right: Vec3 = [along[1] * up[2] - along[2] * up[1], along[2] * up[0] - along[0] * up[2], along[0] * up[1] - along[1] * up[0]]
+  return { right, up, along }
+}
+
+/** The box's eight corners, each side at least a metre, so a plan with nothing drawn has a frame. */
+function boxCorners(box: CameraBox): Vec3[] {
+  const lo: number[] = []
+  const hi: number[] = []
+  for (let i = 0; i < 3; i++) {
+    const [a, b] = [box.min[i]!, box.max[i]!]
+    const pad = Math.max(0, 1 - (b - a)) / 2
+    lo.push(a - pad)
+    hi.push(b + pad)
+  }
+  const out: Vec3[] = []
+  for (const x of [lo[0]!, hi[0]!]) for (const y of [lo[1]!, hi[1]!]) for (const z of [lo[2]!, hi[2]!]) out.push([x, y, z])
+  return out
+}
+
+/**
+ * VEW-26: the target and the distance at which a camera, at the setting's bearing, tilt, lens
+ * and aspect, sees all of `box` and fills its frame with it: every corner inside the frame with
+ * a margin, one of them near an edge, and what it sees centred. With `level`, the target keeps
+ * the setting's height (an eye-level camera that looks level, its upright lines upright), and is
+ * moved across only.
+ */
+export function fitCamera(plan: FloorPlan, setting: CameraSetting, box: CameraBox, options: { readonly level?: boolean } = {}): CameraFit {
+  const { right, up, along } = cameraAxes(plan, setting)
+  const aspect = setting.aspectRatio ?? LANDSCAPE_ASPECT
+  const high = Math.tan((fieldOfViewOf(setting.focalLength) * DEG) / 2) * FIT_FILL
+  const wide = high * aspect
+  const corners = boxCorners(box)
+  const middle = corners.reduce<[number, number, number]>((sum, c) => [sum[0] + c[0] / 8, sum[1] + c[1] / 8, sum[2] + c[2] / 8], [0, 0, 0])
+  let target: [number, number, number] = options.level ? [middle[0], middle[1], setting.target.point[2]] : middle
+  const distanceFor = (t: Vec3): number => {
+    let most = limit('cameraClosest')
+    for (const c of corners) {
+      const d: Vec3 = [c[0] - t[0], c[1] - t[1], c[2] - t[2]]
+      most = Math.max(most, Math.abs(dot3(d, right)) / wide - dot3(d, along), Math.abs(dot3(d, up)) / high - dot3(d, along))
+    }
+    return most
+  }
+  let distance = distanceFor(target)
+  for (let pass = 0; pass < FIT_PASSES; pass++) {
+    // Where the corners fall on the picture, as a share of the distance: move the target to their middle.
+    let [left, rightMost, low, top] = [Infinity, -Infinity, Infinity, -Infinity]
+    for (const c of corners) {
+      const d: Vec3 = [c[0] - target[0], c[1] - target[1], c[2] - target[2]]
+      const depth = distance + dot3(d, along)
+      const x = dot3(d, right) / depth
+      const y = dot3(d, up) / depth
+      left = Math.min(left, x)
+      rightMost = Math.max(rightMost, x)
+      low = Math.min(low, y)
+      top = Math.max(top, y)
+    }
+    const across = ((left + rightMost) / 2) * distance
+    const upward = options.level ? 0 : ((low + top) / 2) * distance
+    target = [target[0] + right[0] * across + up[0] * upward, target[1] + right[1] * across + up[1] * upward, target[2] + right[2] * across + up[2] * upward]
+    distance = distanceFor(target)
+  }
+  return { target: round3(target), distance: cameraRound(distance) }
+}
+
+/**
+ * VEW-26: the frame a fitted still is taken in: portrait (2 by 3) when the box fills it clearly
+ * more than a landscape frame (3 by 2), as a tower does, else landscape.
+ */
+export function fitAspect(plan: FloorPlan, setting: CameraSetting, box: CameraBox, options: { readonly level?: boolean } = {}): number {
+  // What the box fills of a frame goes as one over its distance squared and its width.
+  const shown = (aspect: number): number => {
+    const { distance } = fitCamera(plan, { ...setting, aspectRatio: aspect }, box, options)
+    return 1 / (distance * distance * aspect)
+  }
+  return shown(PORTRAIT_ASPECT) > PORTRAIT_GAIN * shown(LANDSCAPE_ASPECT) ? cameraRound(PORTRAIT_ASPECT) : cameraRound(LANDSCAPE_ASPECT)
 }
 
 /** What a record is set by, to send it back or save it. */

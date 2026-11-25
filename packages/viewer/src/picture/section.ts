@@ -10,7 +10,8 @@
  * - the cut parts solid, in the walls' tone, under the heavy outline the plan's cut walls have
  *   (written twice the `cut` pen, its inner half under the fill), or solid with no outline in a
  *   screen look;
- * - what the section takes that the plan does not state, hatched over the cut;
+ * - what the section takes that the plan does not state, over the cut in a light tint and a dashed
+ *   outline, never a hatch (a hatch reads as a material);
  * - the ground line, twice as heavy as the cut, running past the building;
  * - each room's name and height, and the level of every floor, roof and the ground beside the
  *   drawing;
@@ -59,10 +60,10 @@ export interface SectionPicture extends Picture {
 
 const MIN_SHAPE = 0.4
 const MAX_SHAPE = 2.5
-/** The id of the hatch pattern: one per picture, which holds one section. */
-const HATCH_ID = 'section-hatch'
-/** How far apart the hatch lines are, in pixels. */
-const HATCH_PX = 6
+/** How opaque the tint over an assumed part is: light enough to leave the cut's outline readable. */
+const ASSUMED_TINT = 0.22
+/** A dash and its gap, in pixels, in the key's swatch. */
+const ASSUMED_DASH_PX = [4, 3] as const
 /** The level marks: the tick's length, the gap to the drawing and the room their words take, in pixels. */
 const TICK_PX = 36
 const GAP_PX = 14
@@ -148,7 +149,7 @@ function levelMark(label: LevelLabel, x: number, side: 'left' | 'right', mpp: nu
   ])
 }
 
-/** The band under the drawing: the section's name and line, then what was taken, hatched first. */
+/** The band under the drawing: the section's name and line, then what was taken, marked first. */
 function sectionKey(section: PlanSection, label: string, width: number, look: Look, tongue: DrawingWords): PictureKey {
   const nodes: SvgNode[] = []
   const text = (y: number, words: string, x = KEY_MARGIN_PX, size: number = TEXT_PX.warning): SvgNode => el('text', { x, y: n(y), fill: look.colors.label, 'font-family': look.colors.font, 'font-size': size }, [words])
@@ -158,7 +159,7 @@ function sectionKey(section: PlanSection, label: string, width: number, look: Lo
   nodes.push(el('text', { 'data-part': 'title', x: KEY_MARGIN_PX, y: n(y), fill: look.colors.label, 'font-family': look.colors.font, 'font-size': TEXT_PX.title }, [drawingText(tongue, 'drawing.section.name', { label })]))
   y += KEY_LINE_PX
   nodes.push(el('g', { 'data-part': 'section-line' }, [text(y, drawingText(tongue, `drawing.section.line.${toward}`, { from: point(from), to: point(to) }))]))
-  const hatched = section.assumed.filter((a) => a.hatched)
+  const marked = section.assumed.filter((a) => a.hatched)
   const listed = section.assumed.filter((a) => !a.hatched)
   const inner = Math.max(width - 2 * KEY_MARGIN_PX - 30, 80)
   const entry = (words: string, swatch: SvgNode | null): void => {
@@ -170,27 +171,17 @@ function sectionKey(section: PlanSection, label: string, width: number, look: Lo
     ]))
     y += KEY_LINE_PX * lines.length
   }
-  if (hatched.length > 0) {
+  if (marked.length > 0) {
     y += KEY_LINE_PX
     nodes.push(text(y, drawingText(tongue, 'drawing.section.hatched')))
-    for (const a of hatched) entry(saidText(tongue, a.words, a.said), el('rect', { 'data-part': 'key-swatch', x: 0, y: 0, width: 22, height: 10, fill: `url(#${HATCH_ID}-key)`, stroke: look.colors.labelSoft, 'stroke-width': 0.5 }))
+    for (const a of marked) entry(saidText(tongue, a.words, a.said), el('rect', { 'data-part': 'key-swatch', x: 0, y: 0, width: 22, height: 10, fill: look.colors.dimension, 'fill-opacity': ASSUMED_TINT, stroke: look.colors.label, 'stroke-width': 1, 'stroke-dasharray': ASSUMED_DASH_PX.join(' ') }))
   }
   if (listed.length > 0) {
     y += KEY_LINE_PX
     nodes.push(text(y, drawingText(tongue, 'drawing.section.listed')))
     for (const a of listed) entry(saidText(tongue, a.words, a.said), null)
   }
-  // The key's own hatch, in pixels: the drawing's is in metres.
-  nodes.unshift(hatchDefs(`${HATCH_ID}-key`, HATCH_PX, 1, look.colors.label))
   return { height: Math.ceil(y + KEY_MARGIN_PX), nodes }
-}
-
-function hatchDefs(id: string, spacing: number, stroke: number, colour: string): SvgNode {
-  return el('defs', {}, [
-    el('pattern', { id, patternUnits: 'userSpaceOnUse', width: n(spacing), height: n(spacing), patternTransform: 'rotate(45)' }, [
-      el('line', { x1: 0, y1: 0, x2: 0, y2: n(spacing), stroke: colour, 'stroke-width': n(stroke) })
-    ])
-  ])
 }
 
 /**
@@ -211,8 +202,6 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   const lines = lineMetres(look, mpp, options.paperScale)
   const paper = look.colors.paper
   const nodes: SvgNode[] = []
-
-  nodes.push(hatchDefs(HATCH_ID, HATCH_PX * mpp, lines.width('hatch'), look.lines.unit === 'mm' ? look.ink : paper))
 
   // What lies beyond, farthest first: each face hides what is behind it.
   const beyond: SvgNode[] = section.beyond.map((face) =>
@@ -254,10 +243,12 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
     nodes.push(el('g', { 'data-part': 'section-glass-group' }, glassNodes))
   }
 
-  // What was taken, hatched over the cut.
-  const hatched = section.assumed.filter((a) => a.hatched && a.pieces.length > 0)
-  if (hatched.length > 0) {
-    nodes.push(el('g', { 'data-part': 'section-hatch-group' }, hatched.map((a) => el('path', { 'data-part': 'section-hatch', 'data-kind': a.kind, 'data-ids': a.ids.join(' '), d: piecesPath(a.pieces), fill: `url(#${HATCH_ID})`, 'fill-rule': 'evenodd' }))))
+  // What was taken, over the cut: a light tint and a dashed outline, which no material has.
+  const marked = section.assumed.filter((a) => a.hatched && a.pieces.length > 0)
+  if (marked.length > 0) {
+    const pen = lines.width('hatch')
+    const outline = look.lines.unit === 'mm' ? look.ink : look.colors.label
+    nodes.push(el('g', { 'data-part': 'section-assumed-group' }, marked.map((a) => el('path', { 'data-part': 'section-assumed', 'data-kind': a.kind, 'data-ids': a.ids.join(' '), d: piecesPath(a.pieces), fill: look.colors.dimension, 'fill-opacity': ASSUMED_TINT, 'fill-rule': 'evenodd', stroke: outline, 'stroke-width': n(pen), 'stroke-dasharray': `${n(pen * 6)} ${n(pen * 4)}`, 'stroke-linejoin': 'round' }))))
   }
 
   // The ground outside the building, in a facade's ground line (LVL-8), so the two drawings match.
