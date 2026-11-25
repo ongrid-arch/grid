@@ -590,6 +590,8 @@ export const CODES = {
   'floor/out-of-line': {},
   // LVL-10: a floor wholly inside the floor below it, a part floor set back from it.
   'floor/set-back': {},
+  // LVL-11: the plan's split levels, said once: each floor a half level up beside another of its building.
+  'floor/split-level': {},
   'floor/past-outline': {},
   'floor/empty-top': {},
   'floor/rooflight-misplaced': {},

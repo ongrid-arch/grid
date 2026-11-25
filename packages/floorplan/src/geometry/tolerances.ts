@@ -715,7 +715,8 @@ export const TOLERANCES = {
     unit: 'm',
     decides:
       'Two rooms side by side whose floors stand closer than this in height share a level: no step ' +
-      'is drawn between them.',
+      'is drawn between them. So do two floors that state their elevations (LVL-11): neither is ' +
+      'set against the other as a floor below it.',
     basis: own
   },
   floorOffsetLargest: {
@@ -750,7 +751,9 @@ export const TOLERANCES = {
       'back from it, by more than this and half the thickest wall that stretch runs along is said ' +
       'not to line up (walls of different thickness on one axis have their faces apart by up to ' +
       'that), and so is a stair room or a shaft moved by more than this from the one it lies ' +
-      'over, unless the plan marks it as meant.',
+      'over, unless the plan marks it as meant. A lower floor lies under a floor only where their ' +
+      'outlines share more than this and the whole of the thickest wall along that share (LVL-11): ' +
+      'two halves of a split level overlap by the wall between them, and neither is under the other.',
     basis: own
   },
   stairStepLength: {
