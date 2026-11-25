@@ -111,3 +111,23 @@ export function closestId(id: string, known: readonly string[]): string | null {
   }
   return best
 }
+
+/**
+ * The known ids nearest to `id`, best first, at most `count` (CMD-21): for a plan with many
+ * rooms, where the first few in the plan's order say nothing about the one meant. An id that
+ * holds the other once both are folded (`f3-room-310` holds `room-310`, as a floor prefix or a
+ * suffix is added or left off) comes before any other, the nearer in length first; the rest come
+ * by edits between their folded forms. A tie keeps the plan's order. Never `id` itself.
+ */
+export function nearestIds(id: string, known: readonly string[], count = 5): string[] {
+  const f = fold(id)
+  const ranked = known
+    .map((candidate, order) => {
+      const k = fold(candidate)
+      const holds = f.length >= 3 && k.length >= 3 && (f.includes(k) || k.includes(f))
+      return { candidate, order, holds, score: holds ? Math.abs(f.length - k.length) : idEdits(f, k) }
+    })
+    .filter((entry) => entry.candidate !== id)
+    .sort((a, b) => Number(b.holds) - Number(a.holds) || a.score - b.score || a.order - b.order)
+  return ranked.slice(0, count).map((entry) => entry.candidate)
+}
