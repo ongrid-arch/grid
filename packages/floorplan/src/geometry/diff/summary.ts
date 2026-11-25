@@ -83,10 +83,21 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
   const baseFloors = new Map(planFloors(base).map((f) => [f.id, f.name] as const))
   const headFloors = new Map(planFloors(head).map((f) => [f.id, f.name] as const))
 
+  // MSG-26: a curved wall's radius, from its ends and its centre, in each version.
+  const radiusOf = (plan: FloorPlan): Map<string, number> =>
+    new Map(plan.walls.flatMap((w) => (w.arc === undefined ? [] : [[w.id, Math.hypot(w.start[0] - w.arc.centre[0], w.start[1] - w.arc.centre[1])] as const])))
+  const radiusBefore = radiusOf(base)
+  const radiusAfter = radiusOf(head)
+
   const wallSummary = (change: PlanChange): string => {
     if (change.kind !== 'modified') return `Wall ${change.kind}`
     const parts: string[] = []
-    if (change.motion) parts.push(motionPart(change.motion))
+    const was = radiusBefore.get(change.entity.id)
+    const is = radiusAfter.get(change.entity.id)
+    const radius = was !== undefined && is !== undefined && metresText(was) !== metresText(is) ? { key: 'radius', before: was, after: is } : null
+    // A curve whose radius changed is said by its radius, not as reshaped.
+    if (change.motion && !(radius !== null && change.motion.kind === 'reshaped')) parts.push(motionPart(change.motion))
+    if (radius) parts.push(`radius ${range(radius)}`)
     const thickness = prop(change, 'thickness')
     if (thickness) parts.push(`thickness ${range(thickness)}`)
     const height = prop(change, 'height')

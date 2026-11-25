@@ -2069,6 +2069,7 @@ export const es: Messages = {
   'diff.cause': 'porque {walls}',
   'diff.cause.thickness.one': 'el muro {wall} pasó de {before} a {after} m de espesor',
   'diff.cause.thickness.many': 'los muros {walls} pasaron de {before} a {after} m de espesor',
+  'diff.cause.radius': 'el radio del muro curvo {wall} pasó de {before} a {after} m',
   'diff.cause.moved': 'el muro {wall} se movió {by} m',
 
   // --- Comparing two versions: a part whose phase changed (MSG-25, `diff/building.ts`, `diff/summary.ts`)

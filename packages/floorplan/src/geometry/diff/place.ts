@@ -27,6 +27,7 @@ import { floorOf } from '../floors'
 import { tryRoomPolygon } from '../room'
 import { cutOutline, multiArea, ringOf } from '../polygons'
 import { area, centroid, distance } from '../vec2'
+import { curveExtremes, wallCurve } from '../arc'
 import type { Vec2 } from '../vec2'
 import { compareText } from './order'
 import { tolerance } from '../tolerances'
@@ -71,7 +72,10 @@ type Point = readonly [number, number]
 const moved = (p: Point, shift: Point): [number, number] => [p[0] + shift[0], p[1] + shift[1]]
 const vec = (p: Point): Vec2 => ({ x: p[0], y: p[1] })
 
-/** The corner of the box round a plan's solid walls, the lowest x and y; null with none. */
+/**
+ * The corner of the box round a plan's solid walls, the lowest x and y; null with none. MSG-26: a
+ * curved wall's box is its curve's, so a round room's one end says nothing of where it reaches.
+ */
 function lowCorner(plan: FloorPlan): Point | null {
   let x = Infinity
   let y = Infinity
@@ -79,6 +83,11 @@ function lowCorner(plan: FloorPlan): Point | null {
     if (wall.virtual === true) continue
     x = Math.min(x, wall.start[0], wall.end[0])
     y = Math.min(y, wall.start[1], wall.end[1])
+    const curve = wallCurve(wall)
+    for (const p of curve === null ? [] : curveExtremes(curve)) {
+      x = Math.min(x, p.x)
+      y = Math.min(y, p.y)
+    }
   }
   return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null
 }
@@ -144,6 +153,8 @@ function wallsByPlace(earlier: readonly Wall[], later: readonly Wall[], shift: P
       if (seen.has(other.id)) continue
       seen.add(other.id)
       if (floorOf(other) !== floorOf(wall) || (other.virtual === true) !== (wall.virtual === true)) continue
+      // MSG-26: two curves stand in one place only round one centre: the ends and the centre give the radius.
+      if (wall.arc !== undefined && other.arc !== undefined && distance(vec(moved(wall.arc.centre, shift)), vec(other.arc.centre)) > near) continue
       const along = Math.max(distance(vec(s), vec(other.start)), distance(vec(e), vec(other.end)))
       const back = Math.max(distance(vec(s), vec(other.end)), distance(vec(e), vec(other.start)))
       const cost = Math.min(along, back)
@@ -449,6 +460,8 @@ function alike(a: Wall, b: Wall): boolean {
  * it; null unless there are two or more and they cover it from end to end with no gap.
  */
 function piecesOf(target: Wall, targetShift: Point, others: readonly Wall[], othersShift: Point): Piece[] | null {
+  // MSG-26: a curved wall is no piece of a line, and a line none of a curve.
+  if (target.arc !== undefined) return null
   const s = moved(target.start, targetShift)
   const e = moved(target.end, targetShift)
   const length = Math.hypot(e[0] - s[0], e[1] - s[1])
@@ -458,7 +471,7 @@ function piecesOf(target: Wall, targetShift: Point, others: readonly Wall[], oth
   const line = tolerance('diffSameLine')
   const found: Piece[] = []
   for (const other of others) {
-    if (!alike(target, other)) continue
+    if (!alike(target, other) || other.arc !== undefined) continue
     const a = moved(other.start, othersShift)
     const b = moved(other.end, othersShift)
     const off = (p: Point): number => Math.abs(dir.x * (p[1] - s[1]) - dir.y * (p[0] - s[0]))
@@ -617,8 +630,10 @@ export function alignPlans(earlier: FloorPlan, later: FloorPlan, options: AlignO
       const end = moved(wall.end, shift)
       const pair = laterWalls.get(wallName(wall.id))
       const [from, to] = reversed.has(wall.id) ? [end, start] : [start, end]
+      // MSG-26: a curve's centre moves with its ends, and a curve drawn the other way round turns the other way.
+      const arc = wall.arc === undefined ? {} : { arc: { centre: pair?.arc ? slipped(moved(wall.arc.centre, shift), pair.arc.centre) : moved(wall.arc.centre, shift), sweep: reversed.has(wall.id) ? -wall.arc.sweep : wall.arc.sweep } }
       // A point that slipped by less than a centimetre has not moved (`diffMovement`).
-      return { ...wall, id: wallName(wall.id), start: pair ? slipped(from, pair.start) : from, end: pair ? slipped(to, pair.end) : to }
+      return { ...wall, id: wallName(wall.id), start: pair ? slipped(from, pair.start) : from, end: pair ? slipped(to, pair.end) : to, ...arc }
     }),
     openings: earlier.openings.map((opening): Opening => {
       const next: Opening = { ...opening, id: openingNames.get(opening.id) ?? opening.id, wall: wallName(opening.wall) }

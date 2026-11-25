@@ -6,6 +6,9 @@
  * wall's centre line and thickness in both versions, under the same id once the earlier plan is
  * laid on the later one, and from the side of the wall the room is on in the later plan.
  *
+ * MSG-26: a curved wall on its outline whose radius changed is said with its radius before and
+ * after, from its ends and its centre in both versions.
+ *
  * Pure: plans in, the walls and the words for them out.
  */
 
@@ -69,12 +72,19 @@ export function roomWallCauses(
   if (polygon === null) return { walls: [], said: null }
   const thinner = new Map<string, string[]>()
   const moved: { wall: string; by: number }[] = []
+  const radii: { wall: string; before: number; after: number }[] = []
   // The walls round its holes are left out: both their sides are on the room's outline.
   for (const id of [...new Set(room.boundary)].sort(compareText)) {
     const change = changes.get(id)
     const was = before.wallsById.get(id)
     const is = after.wallsById.get(id)
     if (change === undefined || change.kind !== 'modified' || was === undefined || is === undefined || is.virtual === true) continue
+    // MSG-26: a curved wall whose radius changed, in both versions curved.
+    if (was.arc !== undefined && is.arc !== undefined) {
+      const radius = (w: Wall): number => Math.hypot(w.start[0] - w.arc!.centre[0], w.start[1] - w.arc!.centre[1])
+      if (Math.abs(radius(is) - radius(was)) > tolerance('diffLength')) radii.push({ wall: id, before: radius(was), after: radius(is) })
+      continue
+    }
     const thickness = change.props.some((p) => p.key === 'thickness')
     if (!thickness && (options.thicknessOnly || change.motion === undefined)) continue
     const f = frame(is)
@@ -103,6 +113,10 @@ export function roomWallCauses(
         ? said('diff.cause.thickness.one', { wall: name(ids[0]!), before: num(was), after: num(is) })
         : said('diff.cause.thickness.many', { walls: joined(ids.map(name), 'join.comma', 'join.and'), before: num(was), after: num(is) })
     )
+  }
+  for (const r of radii) {
+    walls.push(r.wall)
+    parts.push(said('diff.cause.radius', { wall: name(r.wall), before: num(metresText(r.before)), after: num(metresText(r.after)) }))
   }
   for (const m of moved) {
     walls.push(m.wall)
