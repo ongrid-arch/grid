@@ -193,6 +193,17 @@ export const TOLERANCES = {
       'off another wall\'s. Faces further apart are joined by a step.',
     basis: own
   },
+  // CNT-36: and so the walls of one straight side written at an angle are a hair off parallel.
+  writtenParallel: {
+    kind: 'tolerance',
+    value: 0.001,
+    unit: 'sine',
+    decides:
+      'Two walls in a row along one side of a room whose directions differ by less than this (the ' +
+      'sine of about a twentieth of a degree) are parallel when the room\'s outline is traced: ' +
+      'ends held to a tenth of a millimetre in the file leave an angled side that far off.',
+    basis: own
+  },
   mitreReach: {
     kind: 'tolerance',
     value: 4,
@@ -355,6 +366,17 @@ export const TOLERANCES = {
     decides:
       'Two rooms written rooms first that are closer than this touch, with no wall between them: ' +
       'refused unless the rooms are said to be open to each other.',
+    basis: own
+  },
+  roomsFaceSkew: {
+    kind: 'tolerance',
+    value: 0.02,
+    unit: 'm',
+    decides:
+      'Two faces of rooms written rooms first that run the opposite way, and whose distance apart ' +
+      'changes by no more than this along the shorter of them, face each other: a wall, a dividing ' +
+      'line or an open side lies between them. Corners written to the centimetre on an angled side ' +
+      'leave a few millimetres (CNT-36).',
     basis: own
   },
   roomsFaceStep: {

@@ -1772,14 +1772,21 @@ class Compiler {
     const maxT = tolerance('roomsWallWidest')
     for (const e of edges) {
       for (const f of edges) {
-        if (e.room === f.room) continue
-        if (Math.abs(cross(e.u, f.u)) > tolerance('parallel') || dot(e.u, f.u) > 0) continue
-        const d = dot(sub(f.p, e.p), e.n)
-        if (d < -eps() || d > FACING_REACH) continue
+        if (e.room === f.room || dot(e.u, f.u) > 0) continue
+        // CNT-36: faces that run the opposite way face each other when their distance apart
+        // changes by no more than `roomsFaceSkew` along the shorter: corners written to the
+        // centimetre on an angled side are never parallel to the arithmetic's own precision.
+        const sine = Math.abs(cross(e.u, f.u))
+        const skewed = sine > tolerance('parallel')
+        if (skewed && sine * Math.min(e.L, f.L) > tolerance('roomsFaceSkew')) continue
         const sa = dot(sub(f.q, e.p), e.u)
         const sb = dot(sub(f.p, e.p), e.u)
         const s0 = Math.max(0, Math.min(sa, sb))
         const s1 = Math.min(e.L, Math.max(sa, sb))
+        // The distance apart at the middle of the stretch they share: the wall between lies there.
+        const slope = skewed ? dot(f.u, e.n) / dot(f.u, e.u) : 0
+        const d = dot(sub(f.p, e.p), e.n) + ((s0 + s1) / 2 - sb) * slope
+        if (d < -eps() || d > FACING_REACH) continue
         if (s1 - s0 > eps()) e.cands.push({ s0, s1, d: Math.max(d, 0), f })
       }
     }
@@ -1978,8 +1985,29 @@ class Compiler {
       r.handles = [`wall between ${r.rooms[0]!.id} and ${r.rooms[1]!.id} ${compassOf(edges[r.sides[0]![0]]!.n)}`]
     }
     this.checkSteps(edges)
+    this.checkOpenedShare(fl, edges)
     this.sideThicknesses(fl, edges, raws)
     return { edges, raws }
+  }
+
+  /**
+   * CNT-36: two rooms opened to each other (`open` on a room line, or a `virtual` wall line) share
+   * a side, square or at an angle, or the line is refused by name: the rooms are never given an
+   * outside wall each across the side the text opened.
+   */
+  private checkOpenedShare(fl: FloorDraft, edges: Edge[]): void {
+    const near = (id: string): string[] => [...new Set(edges.filter((e) => e.room.id === id).flatMap((e) => e.cover.map((c) => c.f.room.id)))].sort()
+    for (const key of [...fl.open].sort()) {
+      const [one, two] = key.split('\u0000') as [string, string]
+      if (!fl.rooms.has(one) || !fl.rooms.has(two) || near(one).includes(two)) continue
+      const [A, B] = [fl.rooms.get(one)!, fl.rooms.get(two)!].sort((x, y) => x.line - y.line) as [RoomDraft, RoomDraft]
+      const [a, b] = [A.id, B.id]
+      const spec = fl.between.get(key) ?? [...fl.betweenSide].find(([k]) => k.startsWith(`${key}\u0000`))?.[1]
+      const line = spec?.line ?? Math.max(A.line, B.line)
+      const none = english(said('rooms.openNotShared.none'))
+      const list = (id: string): string => near(id).map((x) => `'${x}'`).join(', ') || none
+      this.problem('rooms/no-shared-wall', line, english(said('rooms.openNotShared', { line: String(line), a, b, aNear: list(a), bNear: list(b) })))
+    }
   }
 
   /** What each side of a room sized to centre lines or outside faces turned out to have. */
@@ -3060,6 +3088,8 @@ function alignmentFix(text: string, at: number, had: ReadonlySet<string>): Rooms
   } catch {
     return null
   }
+  // CNT-36: a dividing line between rooms that share no side is refused too; only a door, window or opening line is fixed here.
+  if (!['door', 'window', 'opening'].includes(door[0] ?? '')) return null
   const rooms = [door[3], door[5]].filter((id): id is string => id !== undefined)
   const lineOf = (id: string): number => lines.slice(0, at - 1).findIndex((line) => /^\s*room\s/.test(line) && wordsOf(line, 0)[1] === id)
   const order = rooms.map(lineOf).filter((i) => i >= 0).sort((a, b) => b - a)

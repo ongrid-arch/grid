@@ -1953,6 +1953,10 @@ export const en = {
   // WRT-31: a wall between a room and outdoor space is an outside wall, whatever gap the rooms leave.
   'rooms.wallFromGap.outdoor':
     "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) faces outdoor space, so it is an outside wall, but the rooms leave {thickness} m for it, not the outside walls' {outside} m. If that is meant, keep it with 'wall between {a} and {b} {thickness}'; if not, move a room.",
+  // CNT-36: a dividing line or an open side needs a side the two rooms share.
+  'rooms.openNotShared':
+    "Line {line}: '{a}' and '{b}' are opened to each other, but they share no side, so there is nowhere for the dividing line. '{a}' shares sides with: {aNear}; '{b}' with: {bNear}. Place the two rooms face to face, touching, or leave the line out.",
+  'rooms.openNotShared.none': 'no room',
   'rooms.checkError': "The check finds this in the plan as written, and would leave a part out ({code}): {message}",
   'rooms.checkNote': "The check notes this in the plan as written ({code}): {message}",
   // WRT-27: raw lines are on the floor they are written under, and counted in the answer.

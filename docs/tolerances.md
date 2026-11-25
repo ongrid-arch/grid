@@ -44,6 +44,7 @@ is not asked whether it was typed in feet.
 | `squareWithin` | tolerance | 0.0523 sine | When a scan is squared, a wall within about 3 degrees of a main direction of the plan is turned onto it; one further off is left and named |
 | `sameFace` | tolerance | 0.000001 m | Two faces in a row this close are one face; further apart they are joined by a step |
 | `flushFaces` | tolerance | 0.0002 m | Two walls in a row along a side of a room whose inner faces are this close show the room one face, since a file holds centre lines to a tenth of a millimetre; further apart they are joined by a step |
+| `writtenParallel` | tolerance | 0.001 sine | Two walls in a row along a side of a room whose directions differ by less than this are parallel when its outline is traced, since a file holds an angled side's ends to a tenth of a millimetre |
 | `mitreReach` | tolerance | 4 ratio | How far a joined corner may reach along a wall, in half thicknesses of the thicker wall; sharper corners are left cut square, and are not tested against openings |
 | `swingContact` | tolerance | 0.01 m | How far a wall must reach into a door's swing, or two swings overlap, to be in the way |
 | `stepPastFace` | tolerance | 0.05 m | How far past a wall's face the route check steps through a door |
@@ -61,6 +62,7 @@ is not asked whether it was typed in feet.
 | `wingShare` | tolerance | 0.25 ratio | Outside walls running one way that hold this share of the outside length, in three walls or more, are a wing dimensioned square to itself; half or more is the plan's main directions (VEW-22) |
 | `roomsWallWidest` | tolerance | 0.6 m | The widest gap between two rooms written rooms first that is still one wall between them; a wider gap that is not a room is refused |
 | `roomsTouch` | tolerance | 0.02 m | Rooms written rooms first closer than this touch with no wall between them, refused unless they are open to each other |
+| `roomsFaceSkew` | tolerance | 0.02 m | Faces of rooms written rooms first that run the opposite way and whose distance apart changes by no more than this along the shorter face each other, as on an angled side written to the centimetre |
 | `roomsFaceStep` | tolerance | 0.002 m | Faces of rooms written rooms first further out of line than this are named as sizes that do not add up |
 | `scanFaceTurn` | tolerance | 0.0872 sine | Two scanned wall faces, or a scanned floor outline's edge and a face, within about 5 degrees of each other may be one wall's two faces, or the same face (HND-12) |
 | `scanFaceReach` | tolerance | 0.05 m | An edge of a scanned floor outline this close to a scanned wall face lies on that face (HND-12) |
