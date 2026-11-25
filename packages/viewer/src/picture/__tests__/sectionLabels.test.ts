@@ -20,7 +20,7 @@ describe('placing a room label', () => {
     const stair = [rect(2, 0, 4, 3)]
     const door = segmentsOf([rect(4.5, 0, 5.2, 2.1)])
     const slab = segmentsOf([rect(0, 2.6, 6, 3)])
-    const obstacles = { solids: [stair], lines: [...segmentsOf(stair[0]!), ...door, ...slab] }
+    const obstacles = { solids: [stair], lines: [...segmentsOf(stair), ...door, ...slab] }
     const at = placeLabel(room, size, obstacles)!
     expect(at).not.toBeNull()
     expect(boxIsClear(at, obstacles)).toBe(true)
@@ -29,13 +29,13 @@ describe('placing a room label', () => {
 
   it('goes in the largest empty part, not the middle, when a solid takes the middle', () => {
     const solid = [rect(1, 0, 3, 3)]
-    const at = placeLabel(room, size, { solids: [solid], lines: segmentsOf(solid[0]!) })!
+    const at = placeLabel(room, size, { solids: [solid], lines: segmentsOf(solid) })!
     expect(at.x).toBeGreaterThan(3.5)
   })
 
   it('gives none when the room has no clear place', () => {
     const solid = [rect(-1, -1, 7, 4)]
-    expect(placeLabel(room, size, { solids: [solid], lines: segmentsOf(solid[0]!) })).toBeNull()
+    expect(placeLabel(room, size, { solids: [solid], lines: segmentsOf(solid) })).toBeNull()
   })
 })
 
