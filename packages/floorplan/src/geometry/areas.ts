@@ -36,15 +36,15 @@ import { floorSpaces, spacesKnown, type FloorSpaces, type Space } from './spaces
 import { planWallSides, type WallSides } from './exposure'
 import { validatePlan } from './validate'
 import { floorJoins } from './floorJoins'
-import { cornerFills, inPolygon, polygonArea, strip, union } from './polygons'
+import { cornerFills, inPolygon, polygonArea, strip, union, type WallRun } from './polygons'
 import { roomZones } from './zones'
 import { planFlats } from './flats'
 import { planBuildings } from './buildings'
 import { statedOutline } from './massing'
 import { TOLERANCES, tolerance } from './tolerances'
 import type { Vec2 } from './vec2'
-import { wallLength, wallSegments } from './wall'
-import { curveFault } from './arc'
+import { wallLength, wallPointAt, wallSegments, wallSlicePolygon, type WallEnds } from './wall'
+import { curveFault, curveTangentAt, wallCurve } from './arc'
 import { buildingPlan, outdoorIds, outdoorKind, outdoorRoofed, planHasOutdoor } from './outdoor'
 import type { OutdoorKind } from '../types/floorplan'
 import { roomColumnArea, roomColumns } from './columns'
@@ -451,11 +451,6 @@ function outerStretches(sides: WallSides | undefined, length: number, thickness:
 }
 
 
-/**
- * The floor inside the inside face of the walls that face outside, inner walls counted: the
- * floor's outline, as `spaces.ts` joins it, less the outer stretches of wall, keeping the parts
- * that hold enclosed floor. Null with a reason when no wall on the floor faces outside.
- */
 interface Run {
   readonly wall: Wall
   readonly start: Vec2
@@ -473,33 +468,73 @@ const runsOf = (walls: readonly Wall[]): Run[] =>
   )
 
 /**
+ * CNT-22: a stretch of a curved wall, from `from` to `to` along its curve, as bands that follow it:
+ * its two faces `half` either side of the curve, by the curve's stations, lengthened by `ends`
+ * along the tangent where the stretch reaches an end of the wall. One band, so no sliver lies
+ * between two pieces of one curve for the polygon library to trip on; a stretch longer than half
+ * a whole circle is two, overlapping by `ends`, since one ring cannot go round and back on itself.
+ */
+function curveBands(wall: Wall, from: number, to: number, half: number, ends: number, snap: (v: number) => number): Polygon[] {
+  const curve = wallCurve(wall)!
+  const shaped: Wall = { ...wall, thickness: 2 * half }
+  const reach: WallEnds = { start: { left: ends, right: ends }, end: { left: ends, right: ends } }
+  const band = (a: number, b: number): Polygon => [wallSlicePolygon(shaped, a, b, reach).map((p): [number, number] => [snap(p.x), snap(p.y)])]
+  if (!curve.closed || to - from <= curve.length / 2) return [band(from, to)]
+  const middle = (from + to) / 2
+  return [band(from, middle + ends), band(middle, to + ends)]
+}
+
+/**
+ * CNT-22: what the corners are made good between (`cornerFills`): a straight wall's run, and at
+ * each end of a curved stretch a short run along the curve's tangent there, ending at the wall's
+ * own end point where the stretch reaches it. So a curve is made good to the walls it meets, and
+ * never between two of its own pieces.
+ */
+function jointRuns(wall: Wall, from: number, to: number): WallRun[] {
+  const curve = wallCurve(wall)
+  if (curve === null) {
+    const axis = wallSegments(wall)[0]!
+    return [{ wall, start: { x: axis.start.x + axis.dir.x * from, y: axis.start.y + axis.dir.y * from }, dir: axis.dir, length: to - from }]
+  }
+  const short = (to - from) / 4
+  const none = tolerance('noLength')
+  const point = (s: number, end: readonly [number, number] | null): Vec2 => (end === null ? wallPointAt(wall, s) : { x: end[0], y: end[1] })
+  const first = point(from, !curve.closed && from <= none ? wall.start : null)
+  const last = point(to, !curve.closed && to >= curve.length - none ? wall.end : null)
+  const lastDir = curveTangentAt(curve, to)
+  return [
+    { wall, start: first, dir: curveTangentAt(curve, from), length: short },
+    { wall, start: { x: last.x - lastDir.x * short, y: last.y - lastDir.y * short }, dir: lastDir, length: short }
+  ]
+}
+
+/** The stretches of the solid walls that face outside, wall by wall: where each lies along its wall's axis. */
+function outerSpans(walls: readonly Wall[], sides: ReadonlyMap<string, WallSides>): { readonly wall: Wall; readonly from: number; readonly to: number }[] {
+  return walls
+    .filter((wall) => wall.virtual !== true)
+    .flatMap((wall) => outerStretches(sides.get(wall.id), wallLength(wall), wall.thickness).map(([from, to]) => ({ wall, from, to })))
+}
+
+/**
  * The stretches of the solid walls that face outside, as strips, with the corners made good
  * between two of them (MSG-13): what gross internal takes off the outline, and what a parapet
- * stands on (LVL-4). Empty when no wall faces outside. A curved wall's stretches, along its
- * curve, are cut by its chords, each strip along its own chord.
+ * stands on (LVL-4). Empty when no wall faces outside. A curved wall's stretch is a band along
+ * its curve (CNT-22).
  */
-function outerStrips(runs: readonly Run[], sides: ReadonlyMap<string, WallSides>, lineHalf: number, snap: (v: number) => number): Polygon[] {
+function outerStrips(walls: readonly Wall[], sides: ReadonlyMap<string, WallSides>, lineHalf: number, snap: (v: number) => number): Polygon[] {
   const join = tolerance('gap')
-  const outer = runs
-    .filter((r) => r.wall.virtual !== true)
-    .flatMap((r) => {
-      const whole = r.wall.arc === undefined ? r.length : wallLength(r.wall)
-      const scale = r.to - r.from === 0 ? 1 : r.length / (r.to - r.from)
-      return outerStretches(sides.get(r.wall.id), whole, r.wall.thickness).flatMap(([from, to]): { run: Run; s: readonly [number, number] }[] => {
-        const a = Math.max(from, r.from)
-        const b = Math.min(to, r.to)
-        return b - a > tolerance('noLength') ? [{ run: r, s: [(a - r.from) * scale, (b - r.from) * scale] as const }] : []
-      })
-    })
-  const cuts: Polygon[] = outer.map(({ run, s: [from, to] }) => {
+  const outer = outerSpans(walls, sides)
+  const cuts: Polygon[] = outer.flatMap(({ wall, from, to }) => {
+    const whole = wallLength(wall)
+    if (wall.arc !== undefined) return curveBands(wall, from, to, wall.thickness / 2, join, snap)
+    const axis = wallSegments(wall)[0]!
     const a = from <= tolerance('noLength') ? -join : from
-    const b = to >= run.length - tolerance('noLength') ? run.length + join : to
-    const at = { x: run.start.x + run.dir.x * a, y: run.start.y + run.dir.y * a }
-    return strip(at, run.dir, b - a, run.wall.thickness / 2, 0, snap)
+    const b = to >= whole - tolerance('noLength') ? whole + join : to
+    const at = { x: axis.start.x + axis.dir.x * a, y: axis.start.y + axis.dir.y * a }
+    return [strip(at, axis.dir, b - a, wall.thickness / 2, 0, snap)]
   })
   // The corners made good between two outer stretches go with them.
-  const outerRuns = outer.map(({ run, s: [from, to] }) => ({ wall: run.wall, start: { x: run.start.x + run.dir.x * from, y: run.start.y + run.dir.y * from }, dir: run.dir, length: to - from }))
-  cuts.push(...cornerFills(outerRuns, lineHalf, snap))
+  cuts.push(...cornerFills(outer.flatMap(({ wall, from, to }) => jointRuns(wall, from, to)), lineHalf, snap))
   return cuts
 }
 
@@ -519,17 +554,22 @@ function insideFace(walls: readonly Wall[], spaces: FloorSpaces, sides: Readonly
   if (spaces.spaces.length === 0) return 0
   const join = tolerance('gap')
   const reach = reachOf(walls)
-  const runs = runsOf(walls)
-  const solid = runs.filter((r) => r.wall.virtual !== true)
-  if (outerStrips(solid, sides, 0, (v) => v).length === 0) return 'no wall on this floor faces outside, so the inside face of the outer walls is not known'
-  let failure: unknown = null
+  const solid = walls.filter((wall) => wall.virtual !== true)
+  if (outerSpans(solid, sides).length === 0) return 'no wall on this floor faces outside, so the inside face of the outer walls is not known'
   for (const grid of TOLERANCES.joinGrids.values) {
     try {
       const steps = grid === 0 ? 0 : Math.round(1 / grid)
       const snap = grid === 0 ? (v: number) => v : (v: number) => Math.round(v * steps) / steps
       const lineHalf = Math.max(TOLERANCES.lineHalfWidth.value, 5 * grid, reach * TOLERANCES.farNoise.value)
-      const bodies: Polygon[] = runs.map((r) => strip(r.start, r.dir, r.length, r.wall.virtual === true ? lineHalf : r.wall.thickness / 2, join, snap))
-      const frame = union([...bodies, ...cornerFills(solid, lineHalf, snap)])
+      // CNT-22: a curved wall's body is a band along its curve, a straight wall's a strip.
+      const bodies: Polygon[] = walls.flatMap((wall) => {
+        const half = wall.virtual === true ? lineHalf : wall.thickness / 2
+        if (wall.arc !== undefined) return curveBands(wall, 0, wallLength(wall), half, join, snap)
+        const axis = wallSegments(wall)[0]!
+        return [strip(axis.start, axis.dir, axis.length, half, join, snap)]
+      })
+      const joints = solid.flatMap((wall) => jointRuns(wall, 0, wallLength(wall)))
+      const frame = union([...bodies, ...cornerFills(joints, lineHalf, snap)])
       const filled = union(frame.map((polygon) => [polygon[0]!]))
       const rest: MultiPolygon = polygonClipping.difference(filled, ...outerStrips(solid, sides, lineHalf, snap))
       // CNT-7: a piece that holds only outdoor space (a courtyard inside its walls) is no floor.
@@ -538,11 +578,12 @@ function insideFace(walls: readonly Wall[], spaces: FloorSpaces, sides: Readonly
       // arcade, drawn as a virtual wall) is taken off it, as gross external takes it off.
       const open = spaces.spaces.filter((space) => !indoor(space) && kept.some((piece) => inPolygon(space.at, piece)))
       return Math.max(0, sum(kept.map(polygonArea)) - sum(open.map((space) => space.area)))
-    } catch (error) {
-      failure = error
+    } catch {
+      // The polygon library could not join the walls on this grid: the next, coarser one is tried.
     }
   }
-  return `the outer walls could not be cut from the floor (${failure instanceof Error ? failure.message : String(failure)})`
+  // CNT-22: in Grid's own words; the library's message is never passed on.
+  return 'the outer walls could not be cut from the floor: their shapes are too close to tell apart'
 }
 
 /**
@@ -551,9 +592,8 @@ function insideFace(walls: readonly Wall[], spaces: FloorSpaces, sides: Readonly
  * joins them. Empty when none faces outside.
  */
 export function outerWallBand(walls: readonly Wall[], sides: ReadonlyMap<string, WallSides>): Polygon[] {
-  const solid = runsOf(walls).filter((r) => r.wall.virtual !== true)
   const lineHalf = Math.max(TOLERANCES.lineHalfWidth.value, reachOf(walls) * TOLERANCES.farNoise.value)
-  return outerStrips(solid, sides, lineHalf, (v) => v)
+  return outerStrips(walls, sides, lineHalf, (v) => v)
 }
 
 /**

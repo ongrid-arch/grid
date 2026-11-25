@@ -95,9 +95,12 @@ describe('a curved wall through the tool server (CNT-18)', () => {
   })
 
   it('refuses an edit that would move or cut a curved wall, and changes nothing', async () => {
-    const merge = await b.call('grid_merge_rooms', { plan: 'plan.json', room: 'living', with: 'kitchen', out: 'merged.json' })
-    expect(merge).toMatchObject({ isError: true })
-    expect(merge.text).toContain('Wall "bay" is curved, and merging rooms changes straight walls only.')
+    // CNT-22: the merge cuts the straight wall the two rooms share and leaves the bay as it is.
+    const merge = await b.call('grid_merge_rooms', { plan: 'plan.json', room: 'living', with: 'kitchen', use: 'living', out: 'merged.json' })
+    expect(merge.isError, merge.text).toBe(false)
+    const merged = parseFloorPlan(JSON.parse(readFileSync(join(b.folder, 'merged.json'), 'utf8')))
+    expect(merged.walls.find((w) => w.id === 'bay')).toEqual(parseFloorPlan(plan).walls.find((w) => w.id === 'bay'))
+    expect(merged.rooms.find((r) => r.id === 'living')!.boundary).toContain('bay')
     const move = await b.call('grid_move_room_side', { plan: 'plan.json', room: 'living', side: 'north', by: 1, out: 'moved.json' })
     expect(move.isError).toBe(true)
     expect(move.text).toContain('Wall "bay" is curved')
