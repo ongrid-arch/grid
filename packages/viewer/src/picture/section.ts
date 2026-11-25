@@ -172,10 +172,10 @@ function sectionKey(section: PlanSection, label: string, width: number, look: Lo
     y += KEY_LINE_PX * lines.length
   }
   // VEW-38: where the line stands against the building, first: a line that misses it, or stops inside it.
-  const reach = [
-    ...(section.reach.missesBuilding ? ['misses'] : []),
-    ...(section.reach.startInside ? ['startInside'] : []),
-    ...(section.reach.endInside ? ['endInside'] : [])
+  const reach: Array<'misses' | 'startInside' | 'endInside'> = [
+    ...(section.reach.missesBuilding ? (['misses'] as const) : []),
+    ...(section.reach.startInside ? (['startInside'] as const) : []),
+    ...(section.reach.endInside ? (['endInside'] as const) : [])
   ]
   for (const key of reach) {
     const lines = wrapText(drawingText(tongue, `drawing.section.reach.${key}`), TEXT_PX.warning, inner)

@@ -12,7 +12,7 @@ import { gunzipSync } from 'zlib'
 import { afterEach, describe, expect, it } from 'vitest'
 import { approvalWords } from '@ongrid/rules'
 import { bench, type Bench } from '../../mcp/__tests__/replay/harness'
-import { MARK_SOURCES } from '@ongrid/floorplan/types/floorplan'
+import { MARK_SOURCES, parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
 import { SOURCES, parseBrief, briefJson, BriefRefused } from '../brief'
 import { namedSize, type BriefLine } from '../lines'
@@ -393,7 +393,7 @@ describe('ARE-49: no reminder on a survey', () => {
   const built = (): FloorPlan => {
     const result = compileRoomsText(rooms)
     if (result.plan === null) throw new Error('the rooms did not compile')
-    return result.plan
+    return parseFloorPlan(result.plan)
   }
   const folder = mkdtempSync(join(tmpdir(), 'brief-'))
   const project: Project = openProject(folder, process.cwd())
