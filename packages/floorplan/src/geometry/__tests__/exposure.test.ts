@@ -77,9 +77,9 @@ describe('MS-11 a plan that states no wall kind', () => {
 
   it('gets the same answer from the drawing, the DXF and the IFC', () => {
     expect(buildFloorPlan(plan).walls.map((w) => w.exposure)).toEqual(['exterior', 'exterior', 'exterior', 'exterior'])
-    // The door and the window cut their walls into pieces: every piece is on the outside layer.
+    // The door and the window cut the ring of walls into two outlines (VEW-54): both on the outside layer.
     expect(dxfLayers(plan).interior).toBe(0)
-    expect(dxfLayers(plan).exterior).toBeGreaterThanOrEqual(4)
+    expect(dxfLayers(plan).exterior).toBe(2)
     // Four walls, and the door and window in the south and north walls (CMD-26) share their wall's exposure.
     expect(ifcExternal(plan)).toEqual({ external: 6, not: 0 })
   })
@@ -124,7 +124,8 @@ describe('AU1-1 partitions beside an L-shaped room', () => {
   })
 
   it('puts them on the DXF\'s inside layer and marks them not external in the IFC', () => {
-    expect(dxfLayers(plan)).toEqual({ exterior: 6, interior: 2 })
+    // VEW-54: the six outside walls are one ring (its outline and its hole), the two partitions one outline.
+    expect(dxfLayers(plan)).toEqual({ exterior: 2, interior: 1 })
     expect(ifcExternal(plan)).toEqual({ external: 6, not: 2 })
     expect(validatePlan(plan).issues).toEqual([])
   })
