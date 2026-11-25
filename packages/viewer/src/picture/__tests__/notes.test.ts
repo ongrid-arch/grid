@@ -68,3 +68,34 @@ describe('the label on the 2D picture', () => {
     expect(fileHeight(planPicture(flat(), {}), false)).toBe(planPicture(flat(), {}).height)
   })
 })
+
+describe('several notes in one room', () => {
+  const marks = (plan: FloorPlan): { number: string; transform: string; cy: number }[] =>
+    planPicture(plan, {}).nodes.flatMap((node) =>
+      node.attrs['data-part'] === 'note-note' || node.attrs['data-part'] === 'note-tag'
+        ? [{ number: String(node.attrs['data-number']), transform: String(node.attrs.transform), cy: Number((node.children[0] as { attrs: Record<string, unknown> }).attrs.cy) }]
+        : []
+    )
+
+  it('stack under the room label, each in its own row', () => {
+    const found = marks({
+      ...flat(),
+      annotations: [
+        { id: 'a', kind: 'note', text: 'One', room: 'kitchen' },
+        { id: 'b', kind: 'note', text: 'Two', room: 'kitchen' },
+        { id: 'c', kind: 'tag', text: 'Three', room: 'kitchen' },
+        { id: 'd', kind: 'note', text: 'Elsewhere', room: 'hall' }
+      ]
+    })
+    expect(found).toHaveLength(4)
+    const kitchen = found.filter((m) => m.number !== '4')
+    expect(new Set(kitchen.map((m) => m.transform)).size).toBe(1)
+    const rows = kitchen.map((m) => m.cy)
+    expect(new Set(rows).size).toBe(3)
+    expect(rows).toEqual([...rows].sort((x, y) => x - y))
+    // The row step clears a mark's own diameter.
+    expect(rows[1]! - rows[0]!).toBeGreaterThanOrEqual(16)
+    // A note in another room starts its own first row.
+    expect(found.find((m) => m.number === '4')!.cy).toBe(rows[0])
+  })
+})
