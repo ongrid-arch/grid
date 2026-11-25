@@ -2616,6 +2616,8 @@ export const en = {
   // SHT-10: the key of a drawing whose walls read by kind, whose walls of a material are hatched
   // and whose rooms are tinted by their floor finish.
   'drawing.key.partition': 'Partition',
+  // CNT-26: a wall standing apart from the building, drawn and keyed apart.
+  'drawing.key.gardenWall': 'Garden or boundary wall',
   'drawing.key.material': 'Wall: {material}',
   'drawing.key.finish': 'Floor: {finish}',
 

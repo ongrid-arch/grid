@@ -31,6 +31,7 @@ import {
   soundColumns,
   planBayCounts,
   planRamps,
+  landscapeWalls,
   type FloorEnvelope,
   type FloorPlan,
   type RoofShape,
@@ -49,7 +50,8 @@ export const TAKEOFF_RULES = {
 } as const
 
 export interface WallRun {
-  readonly kind: Wall['kind']
+  /** CNT-26: `garden` for the garden and boundary walls, taken off apart whatever kind they state. */
+  readonly kind: Wall['kind'] | 'garden'
   readonly count: number
   /** Centre-line metres. */
   readonly gross: number
@@ -311,8 +313,10 @@ export function planTakeoff(survey: Survey, floors?: readonly string[], rooms?: 
   const walls = survey.plan.walls.filter((wall) => wall.virtual !== true && wallFloor.has(wall.id) && onFloor(wallFloor.get(wall.id)!))
   const openingWidth = new Map<string, number>()
   for (const o of survey.plan.openings) openingWidth.set(o.wall, (openingWidth.get(o.wall) ?? 0) + o.width)
-  const runs: WallRun[] = KINDS.map((kind) => {
-    const of = walls.filter((wall) => wall.kind === kind)
+  // CNT-26: a garden or boundary wall, standing apart from the building, is taken off on its own run.
+  const landscape = landscapeWalls(survey.plan)
+  const runs: WallRun[] = [...KINDS, 'garden' as const].map((kind) => {
+    const of = walls.filter((wall) => (landscape.has(wall.id) ? kind === 'garden' : wall.kind === kind))
     // Along a curved wall's curve (CNT-18).
     const lengthOf = (wall: Wall): number => (wall.arc !== undefined ? (curveFault(wall) === null ? wallLength(wall) : 0) : wallAxis(wall).length)
     const gross = of.reduce((sum, wall) => sum + lengthOf(wall), 0)
