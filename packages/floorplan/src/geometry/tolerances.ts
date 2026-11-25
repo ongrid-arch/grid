@@ -686,6 +686,17 @@ export const TOLERANCES = {
       '(`item/blocks-window`).',
     basis: own
   },
+  windowGlassKept: {
+    kind: 'limit',
+    value: 1.0,
+    unit: 'm',
+    decides:
+      'Grid\'s own size, not a code figure. How much of a window\'s height must stay clear above ' +
+      'a fixture standing in front of it for the window not to count as blocked: a fixture ' +
+      'higher than the sill that leaves less than this of the glass clear blocks it ' +
+      '(`item/blocks-window`).',
+    basis: own
+  },
   useDoorwayClear: {
     kind: 'limit',
     value: 0.8,

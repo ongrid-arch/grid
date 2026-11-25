@@ -339,11 +339,15 @@ export interface WindowCover {
 
 /**
  * How much of a window fixtures block (`use/window-blocked`): those standing within
- * `useApproachDepth` of its hole on either face that are higher than its sill.
+ * `useApproachDepth` of its hole on either face that are higher than its sill and leave less than
+ * `windowGlassKept` of its glass clear above them (CNT-29).
  */
 export function windowCover(wall: Wall, opening: Opening, fixtures: readonly (Obstacle & { readonly height: number })[]): WindowCover {
   const frame = frameOf(wall, opening)
-  const higher = fixtures.filter((f) => f.height > opening.sill + tolerance('itemAboveRoom'))
+  // Judged against the glass left clear above the fixture, not the sill alone: a low seat before
+  // glazing that runs to the floor leaves most of the glass clear.
+  const top = opening.sill + opening.height
+  const higher = fixtures.filter((f) => f.height > opening.sill + tolerance('itemAboveRoom') && top - f.height < limit('windowGlassKept'))
   const spans = frame === null ? [] : coveredSpans(frame, opening, higher)
   const by = higher.flatMap((f) => {
     const own = spans.filter((s) => s.id === f.id)

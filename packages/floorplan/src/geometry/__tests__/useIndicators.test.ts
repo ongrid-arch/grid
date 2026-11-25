@@ -126,6 +126,16 @@ describe('a window blocked by a fixture (use/window-blocked)', () => {
     expect(cover.covered).toBe(0)
     expect(cover.by).toEqual([])
   })
+
+  it('does not call a low seat in front of glazing to the floor a blocked window', () => {
+    const glass: Opening = { ...window_(0), height: 2.4 }
+    const plan = room([run], [door(), glass])
+    const at = (height: number) =>
+      windowCover(plan.walls[2]!, plan.openings[1]!, fixtureObstacles(plan.items!, 'ground').map((o) => ({ ...o, height })))
+    expect(at(0.8).by).toEqual([])
+    expect(at(0.8).covered).toBe(0)
+    expect(at(1.6).by.map((b) => b.id)).toEqual(['run'])
+  })
 })
 
 describe('the turning space a room\'s free floor holds (use/turning-space)', () => {

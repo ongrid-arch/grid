@@ -96,6 +96,7 @@ is not asked whether it was typed in feet.
 | `itemAboveRoom` | tolerance | 0.001 m | How far a fixture may rise past the height of its room; past it, `item/too-tall` names both heights |
 | `useOpenLeaf` | limit | 0.05 m | Grid's own size, not a code figure: what an open door leaf and its stop take of a doorway; the clear width a door leaves is its hole less this (CNT-13) |
 | `useApproachDepth` | limit | 0.3 m | Grid's own size, not a code figure: a fixture within this of a doorway's or a window's hole, across its width, stands in front of it (`item/blocks-doorway`, `item/blocks-window`) |
+| `windowGlassKept` | limit | 1 m | Grid's own size, not a code figure: how much of a window's height must stay clear above a fixture in front of it; a fixture higher than the sill leaving less than this blocks it (`item/blocks-window`, CNT-29) |
 | `useDoorwayClear` | limit | 0.8 m | Grid's own size, not a code figure: Grid's own indicator for the clear width a doorway leaves, when the person gives none |
 | `usePassageWidth` | limit | 0.9 m | Grid's own size, not a code figure: Grid's own indicator for the way through a room, clear of its fixtures, when the person gives no body or trolley width |
 | `useTurningCircle` | limit | 1.5 m | Grid's own size, not a code figure: Grid's own indicator for the turning circle tried in a room's free floor, when the person gives none |
