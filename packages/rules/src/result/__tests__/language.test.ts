@@ -411,6 +411,40 @@ describe('walls through floors and floors that line up, in Spanish (LVL-5, after
     )
   })
 
+  it('says a split level once in main\'s English and in Spanish', () => {
+    // LVL-11: a living level 1.5 m up beside the bedroom level, north of it, with nothing under it.
+    const box = (floor: string, y0: number, y1: number) => [
+      { id: `${floor}-s`, start: [0, y0], end: [10, y0], thickness: 0.3, kind: 'exterior', height: 2.5, floor },
+      { id: `${floor}-e`, start: [10, y0], end: [10, y1], thickness: 0.3, kind: 'exterior', height: 2.5, floor },
+      { id: `${floor}-n`, start: [10, y1], end: [0, y1], thickness: 0.3, kind: 'exterior', height: 2.5, floor },
+      { id: `${floor}-w`, start: [0, y1], end: [0, y0], thickness: 0.3, kind: 'exterior', height: 2.5, floor }
+    ]
+    const plan = {
+      version: '1',
+      units: 'm',
+      floors: [
+        { id: 'low', name: 'Bedroom level', level: 0, elevation: 0, height: 2.6 },
+        { id: 'high', name: 'Living level', level: 1, elevation: 1.5, height: 2.6 }
+      ],
+      walls: [...box('low', 0, 7), ...box('high', 7, 15)],
+      rooms: [
+        { id: 'low-r', name: 'Bedroom', floor: 'low', boundary: ['low-s', 'low-e', 'low-n', 'low-w'], use: 'bedroom' },
+        { id: 'high-r', name: 'Living', floor: 'high', boundary: ['high-s', 'high-e', 'high-n', 'high-w'], use: 'living' }
+      ],
+      openings: [{ id: 'door', wall: 'low-s', type: 'door', offset: 1, width: 0.9, height: 2.1 }]
+    }
+    const { en, es } = both(plan, 'floor/split-level', 'high')
+    expect(en.kind).toBe('worth-a-look')
+    expect(en.message).toBe('Floor "Living level" is a half level up beside the floor it steps from: a split level')
+    expect(en.found).toBe(
+      'The plan has split levels, each floor a half level up beside the floor it steps from, with no floor under it: "Living level" stands 1.50 m above "Bedroom level", on its north side. ' +
+        'Each floor is set only against the floors under it. If a step is not meant, change that floor\'s elevation; if it is, mark the floor with overhang "meant".'
+    )
+    expect(es.message).toBe('Planta "Living level" está medio nivel más arriba junto a la planta de la que parte: un medio nivel')
+    expect(es.found).toContain('"Living level" está 1,50 m por encima de "Bedroom level", por su lado norte.')
+    expect(inspectPlan(plan).lines.filter((l) => l.code === 'floor/out-of-line' || l.code === 'floor/set-back')).toEqual([])
+  })
+
   it('says a wall that rises through a floor the plan does not have in main\'s English and in Spanish', () => {
     const raw = JSON.parse(JSON.stringify(stairWindowThrough())) as FloorPlan
     const plan = parseFloorPlan({ ...raw, walls: raw.walls.map((w) => (w.id === 'g-n' ? { ...w, through: 'roof' } : w)) })
