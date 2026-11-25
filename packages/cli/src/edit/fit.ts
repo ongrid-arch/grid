@@ -6,7 +6,7 @@
  *
  * Pure: plans and patches in, problems and figures out.
  */
-import { dot, sub, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { dot, sub, tolerance, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { insideAcross, moveRoomSide, type Direction, type Patch } from './edits'
 import { EditRefused } from './refused'
 import { COMPASS } from './seat'
@@ -72,7 +72,7 @@ export function largestFit(asked: number, fits: (by: number) => boolean): number
     if (fits(sign * mid)) lo = mid
     else hi = mid
   }
-  for (let best = Math.floor(lo / STEP + 1e-9) * STEP; best >= STEP - 1e-9; best -= STEP) {
+  for (let best = Math.floor(lo / STEP + tolerance('noLength')) * STEP; best >= STEP - tolerance('noLength'); best -= STEP) {
     const by = sign * Math.round(best * 100) / 100
     if (fits(by)) return by
     if (best < lo - 3 * STEP) break
@@ -96,7 +96,7 @@ export function sideMoveThatFits(survey: Survey, roomId: string, side: Direction
     }
   }
   const [least, most] = roomsAcross(survey, roomId, side)
-  const leavesRoom = (distance: number): boolean => distance >= least - 1e-9 && distance <= most + 1e-9
+  const leavesRoom = (distance: number): boolean => distance >= least - tolerance('noLength') && distance <= most + tolerance('noLength')
   const asked = move(by)
   if ('patch' in asked && asked.problems.length === 0 && leavesRoom(by)) return asked.patch
   const why = 'refused' in asked ? asked.refused : asked.problems.length === 0 ? `Moving it ${by.toFixed(2)} m would leave a room on that wall less than ${NARROWEST_ACROSS.toFixed(2)} m across.` : `Moving it ${by.toFixed(2)} m would leave the drawing with problems it does not have: ${problemsText(asked.problems)}`
@@ -121,7 +121,8 @@ function roomsAcross(survey: Survey, roomId: string, side: Direction): [number, 
     const d = sub(edge.to, edge.from)
     return dot({ x: d.y / edge.length, y: -d.x / edge.length }, out)
   }
-  const walls = new Set(survey.byId.get(roomId)!.edges.filter((edge) => edge.wall !== null && Math.abs(facing(edge) - 1) < 1e-3).map((edge) => edge.wall!.id))
+  const square = (cosine: number, to: 1 | -1): boolean => Math.abs(cosine - to) < 1e-3
+  const walls = new Set(survey.byId.get(roomId)!.edges.filter((edge) => edge.wall !== null && square(facing(edge), 1)).map((edge) => edge.wall!.id))
   let least = -Infinity
   let most = Infinity
   for (const room of survey.rooms) {
@@ -130,8 +131,8 @@ function roomsAcross(survey: Survey, roomId: string, side: Direction): [number, 
     for (const edge of room.edges) {
       if (edge.wall === null || !walls.has(edge.wall.id)) continue
       const f = facing(edge)
-      if (f > 1 - 1e-3) least = Math.max(least, NARROWEST_ACROSS - across)
-      else if (f < -1 + 1e-3) most = Math.min(most, across - NARROWEST_ACROSS)
+      if (square(f, 1)) least = Math.max(least, NARROWEST_ACROSS - across)
+      else if (square(f, -1)) most = Math.min(most, across - NARROWEST_ACROSS)
     }
   }
   return [least, most]
