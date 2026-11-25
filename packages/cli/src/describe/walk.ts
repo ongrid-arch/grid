@@ -309,8 +309,15 @@ function stopAt(survey: Survey, ways: Ways, room: SurveyRoom, from: string | nul
   }
   const things = thingsIn(survey, ways, room, stand, f, via, mirror, fixtures)
   const l = leftOf(f)
-  const ahead = room.polygon.map((p) => dot(sub(p, stand), f))
-  const across = room.polygon.map((p) => dot(sub(p, stand), l))
+  // ARE-23: the room is sized in its own frame. A doorway in a wall at an angle to the room's
+  // sides is crossed square to that wall, and the room's extent along that skewed line is not
+  // a side of it; the size is then taken along the room's own side nearest to the way you face.
+  const own = squareFacing(room, f)
+  const skewed = Math.abs(own.x * f.y - own.y * f.x) > tolerance('squareCorner')
+  const sized = skewed ? own : f
+  const sizedLeft = leftOf(sized)
+  const ahead = room.polygon.map((p) => dot(sub(p, stand), sized))
+  const across = room.polygon.map((p) => dot(sub(p, stand), sizedLeft))
   const inside = { x: stand.x + f.x * tolerance('joint') * 2, y: stand.y + f.y * tolerance('joint') * 2 }
   const reachLeft = rayReach(room, inside, l)
   const reachRight = rayReach(room, inside, { x: -l.x, y: -l.y })
