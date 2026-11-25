@@ -35,6 +35,7 @@ import { stateText } from '../quantities/state'
 import { comparePlans, optionRow, type Comparison, type OptionRow } from '../quantities/compare'
 import {
   distanceBetween,
+  wallsCrossed,
   EMPTY_ROOM_RULE,
   FACES_RULE,
   fitInRoom,
@@ -1609,9 +1610,19 @@ const measureTool: GridTool = {
         throw new ToolRefusal('Both things of a measure must be on the same floor: the plan says nothing of the height between floors.')
       }
       const found = distanceBetween(first.thing, second.thing)
+      // ARE-53: the walls the line passes through, other than the things' own.
+      const leave = new Set<string>()
+      for (const named of [thingArg(survey.plan, args['from'], 'from'), ...(hasPoint ? [] : [thingArg(survey.plan, args['to'], 'to')])]) {
+        if (named.kind === 'wall') leave.add(named.id)
+        if (named.kind === 'opening') leave.add(survey.plan.openings.find((o) => o.id === named.id)?.wall ?? '')
+      }
+      const through = found.distance === 0 ? [] : wallsCrossed(survey.plan, first.thing.floor ?? second.thing.floor, found.at[0], found.at[1], leave)
+      const where = `from (${m(found.at[0].x)}, ${m(found.at[0].y)}) to (${m(found.at[1].x)}, ${m(found.at[1].y)})`
       const said = found.distance === 0
         ? `${first.label} and ${second.label} touch or overlap: 0 m between them.`
-        : `From ${first.label} to ${second.label}: ${L(found.distance)} clear, ${found.toward} on the drawing, from (${m(found.at[0].x)}, ${m(found.at[0].y)}) to (${m(found.at[1].x)}, ${m(found.at[1].y)}).`
+        : through.length > 0
+          ? `From ${first.label} to ${second.label}: ${L(found.distance)} overall, ${found.toward} on the drawing, ${where}, through ${through.length === 1 ? 'wall' : 'walls'} ${through.map(q).join(', ')}: it is not a clear stretch.`
+          : `From ${first.label} to ${second.label}: ${L(found.distance)} clear, ${found.toward} on the drawing, ${where}.`
       return {
         text: `${said.charAt(0).toUpperCase()}${said.slice(1)}\n${FACES_RULE}\n${EMPTY_ROOM_RULE}`,
         data: {
@@ -1623,6 +1634,8 @@ const measureTool: GridTool = {
             distance: found.distance,
             at: found.at,
             toward: found.toward,
+            clear: through.length === 0,
+            through,
           },
           rule: `${FACES_RULE} ${EMPTY_ROOM_RULE}`,
         },

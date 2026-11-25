@@ -601,3 +601,40 @@ export function distanceBetween(first: Thing, second: Thing): Distance {
   if (found.distance < tolerance('joint')) return touching(found.at[0])
   return { ...found, toward: compassOf(sub(found.at[1], found.at[0])) }
 }
+
+/**
+ * ARE-53: the solid walls a straight measure from `from` to `to` passes through, in order along
+ * it. A wall in `leave` (a thing measured, or the wall an opening stands in) is not counted, nor
+ * is a dividing line, nor a wall the line crosses inside the hole of one of its openings.
+ */
+export function wallsCrossed(plan: FloorPlan, floor: string | null, from: Vec2, to: Vec2, leave: ReadonlySet<string>): string[] {
+  const length = Math.hypot(to.x - from.x, to.y - from.y)
+  if (length < tolerance('joint') * 2) return []
+  const along = (t: number): Vec2 => ({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t })
+  const margin = tolerance('joint') / length
+  const a = along(margin)
+  const b = along(1 - margin)
+  const found: Array<{ id: string; t: number }> = []
+  for (const wall of plan.walls) {
+    if (wall.virtual === true || leave.has(wall.id)) continue
+    if (floor !== null && floorOf(wall) !== floor) continue
+    const shape = wallThing(wall).shape
+    if (shape.length < 3) continue
+    const ts: number[] = []
+    for (const edge of segmentsOf(shape)) {
+      const met = crossing([a, b], edge)
+      if (met !== null) ts.push(Math.hypot(met.x - a.x, met.y - a.y))
+    }
+    // A segment that starts or ends inside the wall passes through it from or to that end.
+    const segment = Math.hypot(b.x - a.x, b.y - a.y)
+    if (holds(shape, a)) ts.push(0)
+    if (holds(shape, b)) ts.push(segment)
+    if (ts.length === 0) continue
+    const near = Math.min(...ts)
+    const far = Math.max(...ts)
+    const mid = along(margin + ((near + far) / 2 / length))
+    const inHole = plan.openings.some((o) => o.wall === wall.id && holds(openingThing(o, wall).shape, mid))
+    if (!inHole) found.push({ id: wall.id, t: near })
+  }
+  return found.sort((x, y) => x.t - y.t).map((f) => f.id)
+}
