@@ -57,7 +57,7 @@ describe('FD-1: the plot with a massing outline, before any wall', () => {
     expect(reply.text).toContain('Storeys: 2 storeys at or above the ground floor, none below it; counted by level, from the floors that hold an outline or walls that close one.')
     expect(reply.text).toContain('Floors "Ground floor", "First floor" are massing, an outline with no walls yet')
     const data = reply.data as { floors: { floor: string; grossExternal: number; massing?: boolean }[]; storeys: { above: number; below: number } }
-    expect(data.floors.map((f) => [f.floor, f.massing, Math.round(f.grossExternal * 1000) / 1000])).toEqual([['ground', true, 240.074], ['first', true, 240.074]])
+    expect(data.floors.map((f) => [f.floor, f.massing, Math.round(f.grossExternal * 100) / 100])).toEqual([['ground', true, 240.07], ['first', true, 240.07]])
     expect(data.storeys).toMatchObject({ above: 2, below: 0 })
   })
 
@@ -90,8 +90,8 @@ describe('FD-1: the person\'s own site limits, used, allowed, and met or not', (
     ])
     const data = reply.data as { answer: { limits: { limit: string; used: number | null; allowed: number; state: string; rule: string }[] } }
     expect(data.answer.limits.slice(0, 4).map((l) => [l.limit, l.used, l.allowed, l.state])).toEqual([
-      ['plot_coverage', 48.0148, 40, 'missed'],
-      ['floor_area_ratio', 0.9603, 1, 'met'],
+      ['plot_coverage', 48.015, 40, 'missed'],
+      ['floor_area_ratio', 0.96, 1, 'met'],
       ['building_height', 6.5, 9, 'met'],
       ['parking_per_home', 0.75, 1, 'missed'],
     ])

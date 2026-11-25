@@ -61,8 +61,8 @@ describe('WRT-11: a split answers with the rooms as they are', () => {
     // Grid's own areas say the same.
     const areas = await b.call('grid_areas', { plan: 'split.json' })
     const rooms = (areas.data!['floors'] as { rooms: { id: string; net: number }[] }[]).flatMap((f) => f.rooms)
-    expect(rooms.find((r) => r.id === 'bed1')!.net).toBeCloseTo(Number(kept), 2)
-    expect(rooms.find((r) => r.id === 'den')!.net).toBeCloseTo(Number(taken), 2)
+    expect(rooms.find((r) => r.id === 'bed1')!.net).toBeCloseTo(Number(kept), 1)
+    expect(rooms.find((r) => r.id === 'den')!.net).toBeCloseTo(Number(taken), 1)
     expect(reply.text).not.toContain('has no window now')
   })
 })

@@ -31,11 +31,11 @@ const PLACE_KEY = /^(lat|lon)/i
 const EXACT_KEYS = new Set(['camera'])
 /** Under this a figure is a tolerance or a ratio, kept as it is. */
 const SMALL = 0.001
-/** Under this a figure is the arithmetic's noise round zero (3.9e-15 of floor no room covers). */
-const NOISE = 1e-9
+/** A figure that is zero to this many decimals is the arithmetic's noise round zero (3.9e-15 of floor no room covers). */
+const NOISE_DECIMALS = 9
 
 function figure(value: number, area: boolean): number {
-  if (Math.abs(value) < NOISE) return 0
+  if (rounded(value, NOISE_DECIMALS) === 0) return 0
   if (Math.abs(value) < SMALL) return Number(value.toPrecision(12))
   return rounded(value, area ? AREA_DECIMALS : LENGTH_DECIMALS)
 }

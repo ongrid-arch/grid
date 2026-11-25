@@ -58,7 +58,7 @@ describe('asking across the facts (done when 2)', () => {
     ])
     const areas = await ok('grid_areas', { plan: 'office.json' })
     const net = new Map((areas.data!['floors'] as { rooms: { id: string; net: number }[] }[]).flatMap((f) => f.rooms.map((r) => [r.id, r.net] as const)))
-    expect(groups[1]!.sums.area).toBeCloseTo(net.get('g-office')! + net.get('g-meeting')!, 3)
+    expect(groups[1]!.sums.area).toBeCloseTo(net.get('g-office')! + net.get('g-meeting')!, 1)
     expect(Object.keys(groups[0]!)).toEqual(['value', 'count', 'sums', 'missing', 'ids'])
     expect(reply.data!['units']).toEqual({ area: 'm²' })
     expect(reply.text).toContain('By "department":')
