@@ -37,9 +37,34 @@ export function displayFor(units: unknown, decimal: unknown, plan?: { readonly d
   return withLanguage(displayOf(length, mark, undefined, own?.length === length ? own.precision : undefined))
 }
 
+/** A length under this many metres is a step, a sill or a tolerance: two decimals could change its verdict. */
+const SMALL = 0.1
+
+/** `0.015`, not `0.02` or `0.015000`: three decimals when two would change the figure, never fewer than two. */
+export function smallMetres(metres: number): string {
+  const two = metres.toFixed(2)
+  if (Math.abs(Number(two) - metres) < 1e-9) return two
+  return Math.abs(metres) < SMALL ? metres.toFixed(3) : two
+}
+
 /** A length as the person reads it; `height` is a sill, written in inches in feet and inches. */
 export function lengthText(metres: number, display: Display, kind: LengthKind = 'length'): string {
+  if (display.length === 'm' && display.precision === undefined && Math.abs(metres) < SMALL) {
+    const text = smallMetres(metres)
+    return `${display.decimal === 'comma' ? text.replace('.', ',') : text} m`
+  }
   return showLength(metres, display, { kind })
+}
+
+/**
+ * A length the person gave, written back as given in the display's unit: as many decimals as the
+ * figure has (up to four), never rounded to the display's usual precision.
+ */
+export function ownLengthText(metres: number, display: Display, kind: LengthKind = 'length'): string {
+  if (display.length === 'ft-in' || display.precision !== undefined) return showLength(metres, display, { kind })
+  const per = { m: 1, cm: 100, mm: 1000 }[display.length]
+  const text = String(Math.round(metres * per * 1e4) / 1e4)
+  return `${display.decimal === 'comma' ? text.replace('.', ',') : text} ${display.length}`
 }
 
 /** An area as the person reads it: square feet keep the square metres beside them, as before. */

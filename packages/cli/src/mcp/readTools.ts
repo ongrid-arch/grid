@@ -87,7 +87,7 @@ import {
   type PartKind,
   type Value,
 } from '../quantities/query'
-import { areaText, csv, DISPLAY_UNITS, displayFor, lengthText, sqFt } from '../quantities/units'
+import { areaText, csv, DISPLAY_UNITS, displayFor, lengthText, ownLengthText, sqFt } from '../quantities/units'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { PLACE_TEXT_MAX } from '@ongrid/floorplan/types/places'
 import { GROUP_COLOURS, HIGHLIGHT_COLOUR } from '@ongrid/viewer/src/picture/look'
@@ -1487,7 +1487,7 @@ const measureTool: GridTool = {
     const { survey, file } = load(context, args['plan'])
     const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library'
     const units = displayFor(args['units'], args['decimal'], survey.plan)
-    const L = (v: number): string => lengthText(v, units)
+    const L = (v: number, own?: boolean): string => (own === true ? ownLengthText(v, units) : lengthText(v, units))
     const allowed: Record<string, readonly string[]> = {
       room: ['room'],
       between: ['from', 'to', 'x', 'y'],

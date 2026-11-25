@@ -52,7 +52,8 @@ import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, type
 
 const q = (text: string): string => JSON.stringify(text)
 
-type Length = (metres: number) => string
+/** `own`: the person's own figure, written back as given. */
+type Length = (metres: number, own?: boolean) => string
 
 /** How every comparison with the person's own figure is labelled, in the text and in the data. */
 export const YOUR_FIGURE = 'your figure'
@@ -150,7 +151,7 @@ function most(measured: number | null, figure: AccessFigure | null): Against[] {
 function againstText(against: readonly Against[], L: Length, words: { short: string; enough: string }): string {
   return against
     .map((a) => {
-      const whose = a.figure.from === 'yours' ? `${YOUR_FIGURE} of ${L(a.figure.value)}` : `the ${L(a.figure.value)} of ${a.figure.label}`
+      const whose = a.figure.from === 'yours' ? `${YOUR_FIGURE} of ${L(a.figure.value, true)}` : `the ${L(a.figure.value)} of ${a.figure.label}`
       // ARE-27: a door figure says which width it was set against.
       const by = a.measure === undefined ? '' : ` for its ${DOOR_MEASURE_NAMES[a.measure]}`
       return `; ${a.short ? words.short : words.enough} ${whose}${by}`
@@ -693,7 +694,7 @@ export function accessAnswer(survey: Survey, figures: AccessFigures, L: Length, 
   lines.push(
     yours.length === 0
       ? `Set against none of your own figures: ${brief === null ? 'no brief is kept beside the plan' : `the brief ${q(brief)} gives none`} (door_width, corridor_width, turning_circle, step; grid_write_brief keeps them).`
-      : `Set against ${YOUR_FIGURE}s, from the brief ${q(brief ?? '')}: ${yours.map((w) => `${w.figure} ${L(w.value)}`).join(', ')}. They are yours, not a code's.`
+      : `Set against ${YOUR_FIGURE}s, from the brief ${q(brief ?? '')}: ${yours.map((w) => `${w.figure} ${L(w.value, true)}`).join(', ')}. They are yours, not a code's.`
   )
   lines.push(
     codeUsed.length === 0
