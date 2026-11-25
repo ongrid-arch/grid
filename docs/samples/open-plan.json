@@ -32,7 +32,7 @@
       "virtual": true
     },
     {
-      "id": "open-living-kitchen",
+      "id": "open-kitchen-living",
       "start": [
         0.15,
         4.65
@@ -166,7 +166,7 @@
       "boundary": [
         "ext-south",
         "open-living-dining",
-        "open-living-kitchen",
+        "open-kitchen-living",
         "ext-west"
       ],
       "use": "living"
@@ -177,7 +177,7 @@
       "boundary": [
         "ext-south",
         "ext-east",
-        "open-living-kitchen",
+        "open-kitchen-living",
         "open-living-dining"
       ],
       "use": "dining"
@@ -186,7 +186,7 @@
       "id": "kitchen",
       "name": "Kitchen",
       "boundary": [
-        "open-living-kitchen",
+        "open-kitchen-living",
         "ext-east",
         "w-kitchen-north",
         "ext-west"
@@ -379,11 +379,11 @@
   ],
   "written": {
     "from": "rooms",
-    "revision": "c7f49b4ea1c032d4",
+    "revision": "77f329019e40f08b",
     "boundaries": {
-      "living": "7f42fa08",
-      "dining": "1a562a00",
-      "kitchen": "a5cc3126",
+      "living": "6e762882",
+      "dining": "b88877ba",
+      "kitchen": "9b3a34cc",
       "bath": "963db7ff",
       "hall": "c8fbd20e",
       "utility": "a0d4b0a8",
