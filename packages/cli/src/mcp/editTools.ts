@@ -39,7 +39,7 @@ const mergeTool: GridTool = {
     with: { type: 'string', id: true, required: true, description: 'The room it takes in, which is gone after; with zones, the second zone.', examples: ['kitchen'] },
     name: NAME('The merged room\'s name. The first room\'s when left out.', 'Kitchen and living'),
     use: USE('The merged room\'s use. The first room\'s when left out; needed when the two rooms have different uses, unless zones is true.'),
-    type: { type: 'string', description: 'The merged room\'s type, the value of the type fact its rooms carry (a fact named "type" when they carry none). Left out, the merged room keeps the first room\'s type, and the answer says it may no longer fit.', examples: ['3x3'] },
+    type: { type: 'string', maxLength: NAME_MAX, description: 'The merged room\'s type, the value of the type fact its rooms carry (a fact named "type" when they carry none). Left out, the merged room keeps the first room\'s type, and the answer says it may no longer fit.', examples: ['3x3'] },
     zones: { type: 'boolean', description: 'true to keep both rooms as zones of the merged room, each with its id, name and use: an open-plan room. The merged room is a new room.', examples: [true] },
     new_room: { type: 'string', id: true, description: 'With zones: the merged room\'s id. Made from the two rooms\' ids when left out.', examples: ['kitchen-living'] },
     out: OUT_ARG,
