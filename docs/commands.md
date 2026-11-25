@@ -853,11 +853,17 @@ on the front plane, and lighter again the faces set back from it (by more than `
 [tolerances.md](tolerances.md)); doors, windows and the floor marks are the finest. A nearer face
 hides what stands behind it.
 
+Every wall that turns toward the side and that no nearer face hides is drawn, with its doors and
+windows (VEW-25): the building's own outside walls, and on a floor with outdoor space the walls
+round it too: a porch's front under the porch's roof, a terrace's parapet, a stair enclosure
+standing on a roof terrace, and the front of a floor set back behind a terrace. A wall, or a door
+or window, that nearer faces hide whole is left out of the drawing and of the facade's lists.
+
 It takes `--png`, `--out`, `--look` and `--scale` (PNG only), as a plan does, and the label in its
 corner. It refuses `--3d`, `--view`, `--section` and `--floor` (a facade shows every floor) and
 what belongs to a floor plan (`--ids`, `--hide`, `--colour`, `--key`, `--units`, `--decimal`,
 `--marks`), by name. Stairs
-stand inside and are not seen; a garden wall with no room behind it is not drawn. Under a roof a
+stand inside and are not seen; a garden wall that bounds no room or outdoor space is not drawn. Under a roof a
 floor states (LVL-6), each wall is drawn to the top the roof leaves it, so a gable end is a
 gable, the roof's edges follow its slope, and each plane of it that comes down toward the side is
 drawn as a surface.

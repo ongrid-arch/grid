@@ -19,6 +19,11 @@
  *   doors and windows, at their sills and heads. A short stretch with no wall on it (a corner, a
  *   wall end) is part of the wall beside it; a long one (a dividing line on the outline, an open
  *   side) is open, and drawn as nothing;
+ * - **on a floor with outdoor space** (C26, VEW-25), whose slab's outline leaves out the walls round
+ *   outdoor space alone and takes a terrace in, the walls along two more outlines too, both the
+ *   core's (`slabOutline`): the floor with every wall, and the building alone (`buildingPlan`). So a
+ *   porch's front, a terrace's parapet, a stair enclosure on a roof terrace and a front set back
+ *   behind a terrace are seen. A wall found along two of them is drawn once, whole;
  * - **each floor's slab edge**, the band it stands on, under its walls; **each roof's edge** over
  *   the parts with nothing above, and **each parapet** on it (LVL-4);
  * - **the plinth** under a floor on the ground whose slab stands clear of the ground (VEW-16,
@@ -29,7 +34,9 @@
  *
  * Every face carries how far it stands behind the nearest (`depth`) and its plane (`tier`: 0 the
  * front, 1 the next set back, 2 anything further), for its line weight, and the faces come
- * farthest first, the order they are drawn in, so a nearer face hides what stands behind it.
+ * farthest first, the order they are drawn in, so a nearer face hides what stands behind it. A
+ * wall's face the nearer faces hide whole is left out, and so is a door or window they hide whole
+ * (VEW-25), so `walls` and `openings` list what is seen.
  * `outline` is the facade's silhouette above the ground. Stairs stand inside the building and are
  * not seen.
  *
@@ -54,6 +61,8 @@ import { planeAt, topAt, wallTopProfile, type RoofPlane } from './roofs'
 import type { Vec2 } from './vec2'
 import { straightPieces, wallPointAt } from './wall'
 import { curveFault, wallCurve } from './arc'
+import { outlineKnown, slabOutline } from './outline'
+import { buildingPlan, isOutdoor } from './outdoor'
 
 /** The sides a facade is drawn for: the drawing's four (C4). */
 export const FACADE_SIDES = COMPASS_SIDES
@@ -460,6 +469,44 @@ function tiersOf(depths: readonly number[]): Map<number, 0 | 1 | 2> {
   return tiers
 }
 
+type Ring = [number, number][]
+const closedRing = (outline: FacadeFace['outline']): Ring => [...outline.map(([u, z]): [number, number] => [u, z]), [outline[0]![0], outline[0]![1]]]
+const boxRing = (u0: number, u1: number, bottom: number, top: number): Ring => [[u0, bottom], [u1, bottom], [u1, top], [u0, top], [u0, bottom]]
+const ringsArea = (pieces: MultiPolygon): number =>
+  pieces.reduce((sum, polygon) => sum + polygon.reduce((s, ring, i) => s + (i === 0 ? 1 : -1) * Math.abs(ring.slice(0, -1).reduce((a, [u, z], j) => a + u * ring[j + 1]![1] - ring[j + 1]![0] * z, 0)) / 2, 0), 0)
+
+/** Whether the shape is hidden whole by the faces in front of it: nothing of it is left above `areaReported`. */
+function hiddenBy(shape: Ring, box: { u0: number; u1: number; bottom: number; top: number }, nearer: readonly FacadeFace[]): boolean {
+  const over = nearer.filter((f) => f.u0 < box.u1 && f.u1 > box.u0 && f.bottom < box.top && f.top > box.bottom && f.outline.length >= 3)
+  if (over.length === 0) return false
+  try {
+    const left = polygonClipping.difference([shape], ...over.map((f): Polygon => [closedRing(f.outline)]))
+    return ringsArea(left) <= tolerance('areaReported')
+  } catch {
+    return false
+  }
+}
+
+/**
+ * VEW-25: the faces in drawing order, with each wall's face that is not seen null: one lying within
+ * another face of the same wall, floor and depth (found along two outlines), or one the faces in
+ * front of it hide whole. A wall's face left in loses the openings hidden whole. Every other face
+ * is kept as it is.
+ */
+function seenWalls(faces: readonly FacadeFace[]): (FacadeFace | null)[] {
+  const near = tolerance('facadeOnFace')
+  const within = (a: FacadeFace, b: FacadeFace): boolean => b.u0 <= a.u0 + near && a.u1 <= b.u1 + near && b.bottom <= a.bottom + near && a.top <= b.top + near
+  return faces.map((face, i) => {
+    if (face.kind !== 'wall') return face
+    const twin = faces.find((other, j) => j !== i && other.kind === 'wall' && other.wall === face.wall && other.floor === face.floor && Math.abs(other.depth - face.depth) <= near && within(face, other) && (!within(other, face) || j < i))
+    if (twin !== undefined) return null
+    const nearer = faces.filter((other) => other.depth < face.depth - tolerance('facadeSameDepth'))
+    if (hiddenBy(closedRing(face.outline), face, nearer)) return null
+    const openings = face.openings.filter((o) => !hiddenBy(boxRing(o.u0, o.u1, o.bottom, o.top), o, nearer))
+    return openings.length === face.openings.length ? face : { ...face, openings }
+  })
+}
+
 const KIND_ORDER: Readonly<Record<FacadeFaceKind, number>> = { plinth: 0, slab: 1, wall: 2, roof: 3, 'roof-plane': 4, parapet: 5 }
 
 /** The facade of one side of the building. See the module's header. */
@@ -519,15 +566,27 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
       openingsOf.set(opening.wall, [...(openingsOf.get(opening.wall) ?? []), opening])
     }
     const edges = edgesFacing(env.outline, direction)
-    for (const edge of edges) {
-      for (const stretch of stretchesOf(edge, coversOf(edge, faces, owners), thickest)) {
-        add({
-          kind: 'wall',
-          floor: floor.id,
-          wall: stretch.wall.id,
-          points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel),
-          openings: openingsIn(stretch.wall, openingsOf.get(stretch.wall.id) ?? [], edge, stretch, across, storey.floorLevel)
-        })
+    // VEW-25: on a floor with outdoor space (C26), the slab's outline leaves out the walls round
+    // outdoor space alone (a porch's front, a terrace's parapet) and takes a terrace in, so the
+    // building's own front behind it lies inside. The walls are also read along the floor's
+    // outline with every wall, and along the building's alone.
+    const outlines = [env.outline]
+    if (slice.rooms.some(isOutdoor)) {
+      for (const found of [slabOutline(slice, floor.id, broken), slabOutline(buildingPlan(slice), floor.id, broken)]) {
+        if (outlineKnown(found) && found.pieces.length > 0) outlines.push(found.pieces)
+      }
+    }
+    for (const outline of outlines) {
+      for (const edge of outline === env.outline ? edges : edgesFacing(outline, direction)) {
+        for (const stretch of stretchesOf(edge, coversOf(edge, faces, owners), thickest)) {
+          add({
+            kind: 'wall',
+            floor: floor.id,
+            wall: stretch.wall.id,
+            points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel),
+            openings: openingsIn(stretch.wall, openingsOf.get(stretch.wall.id) ?? [], edge, stretch, across, storey.floorLevel)
+          })
+        }
       }
     }
     if (env.slab !== null) {
@@ -581,8 +640,7 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
     const ds = s.points.map(({ p }) => dot(p, direction))
     return front - (Math.min(...ds) + Math.max(...ds)) / 2
   }
-  const tiers = tiersOf(seen.map(depthOf))
-  const faces: FacadeFace[] = seen
+  const drawn = seen
     .map((s) => {
       const outline = s.points.map(({ p, z }) => [fine(dot(p, across)), fine(z)] as const)
       const us = outline.map(([u]) => u)
@@ -602,16 +660,22 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
         top: Math.max(...zs),
         outline,
         depth: fine(depth),
-        tier: tiers.get(depth)!,
+        tier: 0,
         openings: s.openings,
         edge: s.edge ?? null,
         roofLines
       }
-      return { s, face }
+      return { s, face, depth }
     })
     .filter(({ face }) => face.u1 - face.u0 > tolerance('noLength'))
     .sort((x, y) => y.face.depth - x.face.depth || KIND_ORDER[x.face.kind] - KIND_ORDER[y.face.kind] || x.s.order - y.s.order)
-    .map(({ face }) => face)
+  const kept = seenWalls(drawn.map(({ face }) => face))
+  const shown = drawn.filter((_, i) => kept[i] !== null)
+  const tiers = tiersOf(shown.map(({ depth }) => depth))
+  const faces: FacadeFace[] = drawn.flatMap(({ depth }, i) => {
+    const face = kept[i]
+    return face === null || face === undefined ? [] : [{ ...face, tier: tiers.get(depth)! }]
+  })
 
   const levels: FacadeLevel[] = floors
     .filter((f) => faces.some((face) => face.floor === f.id))
