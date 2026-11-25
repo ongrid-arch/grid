@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { FloorPlan } from '@ongrid/floorplan'
+import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import '../serveTools'
 import { floorArg, roomArg, wallArg } from '../toolkit'
 
