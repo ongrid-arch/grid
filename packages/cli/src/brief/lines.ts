@@ -83,6 +83,19 @@ function roomsNamed(plan: FloorPlan, name: string): FloorPlan['rooms'] {
   return byName.length > 0 ? byName : plan.rooms.filter((room) => room.id === name)
 }
 
+/**
+ * ARE-56: the rooms a wish means. A wish with a name and a use finds a room by name first; when
+ * none carries the name it takes the rooms of that use, and says so (`byUse`), so a "Utility"
+ * wish meets a room drawn as "Utility / laundry".
+ */
+function wishRooms(plan: FloorPlan, wish: { readonly name: string | null; readonly use: string | null }): { rooms: FloorPlan['rooms']; byUse: boolean } {
+  if (wish.name === null) return { rooms: plan.rooms.filter((room) => room.use === wish.use), byUse: false }
+  const byName = roomsNamed(plan, wish.name)
+  if (byName.length > 0 || wish.use === null) return { rooms: byName, byUse: false }
+  const byUse = plan.rooms.filter((room) => room.use === wish.use)
+  return { rooms: byUse, byUse: byUse.length > 0 }
+}
+
 function prefix(state: BriefState, level: Level | null, source: Source | null): string {
   if (level === null) return `${state}:`
   return `${state} (${level}${source === 'assumed' ? ', assumed' : ''}):`
@@ -146,11 +159,13 @@ const stateOf = (holds: boolean, level: Level): BriefState => ((level === 'avoid
 function roomLines(c: Context, brief: Brief): BriefLine[] {
   const out: BriefLine[] = []
   for (const wish of brief.rooms) {
-    const all = wish.name !== null ? roomsNamed(c.plan, wish.name) : c.plan.rooms.filter((room) => room.use === wish.use)
+    const { rooms: all, byUse } = wishRooms(c.plan, wish)
     // CNT-27: a stair or lift drawn on floor after floor is one shaft, counted once, as grid_areas counts it.
     const named = all.filter((room) => areaOf(c, room)?.countedWith === undefined)
     const once = named.length < all.length ? ', each stair or lift shaft counted once' : ''
     const what = wish.name !== null ? q(wish.name) : `rooms used as ${wish.use}`
+    // ARE-56: no room carries the name, so the rooms of its use are taken for it; the line says which, for the person to confirm.
+    const taken = byUse ? ` (no room is named so; taken the room${all.length > 1 ? 's' : ''} used as ${wish.use}: ${all.map((r) => q(r.name.trim() === '' ? r.id : r.name.trim())).join(', ')})` : ''
     const avoid = wish.level === 'avoid'
     const word = avoid ? `${askedWord(wish.source)} to avoid` : askedWord(wish.source)
     if (c.empty) {
@@ -164,11 +179,11 @@ function roomLines(c: Context, brief: Brief): BriefLine[] {
       const most = wish.countAtMost
       const holds = wish.count !== null ? named.length === wish.count : (least === null || named.length >= least) && (most === null || named.length <= most)
       const asked = wish.count !== null ? String(wish.count) : least !== null && most !== null ? `${least} to ${most}` : least !== null ? `at least ${least}` : `at most ${most}`
-      out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}: ${word} ${asked}, drawn ${named.length}${counted(named)}${once}.`, { asked, drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
+      out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}${taken}: ${word} ${asked}, drawn ${named.length}${counted(named)}${once}.`, { asked, drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
     } else if (!sized || named.length === 0) {
       const holds = named.length > 0
       const drawn = holds ? `drawn${named.length > 1 ? ` ${named.length} times` : ''}` : 'not drawn'
-      out.push(line(stateOf(holds, wish.level), wish, 'room', `${what}: ${avoid ? `${word}, ` : `${word} for, `}${drawn}.`, { parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
+      out.push(line(stateOf(holds, wish.level), wish, 'room', `${what}${taken}: ${avoid ? `${word}, ` : `${word} for, `}${drawn}.`, { parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
       if (!holds) continue
     }
     if (!sized) continue
@@ -469,7 +484,7 @@ function nameLines(c: Context, brief: Brief | null): BriefLine[] {
   const sizedByBrief = new Set<string>()
   for (const wish of brief?.rooms ?? []) {
     if (wish.name === null || (wish.area === null && wish.atLeast === null && wish.atMost === null && wish.inside === null)) continue
-    for (const room of roomsNamed(c.plan, wish.name)) sizedByBrief.add(room.id)
+    for (const room of wishRooms(c.plan, wish).rooms) sizedByBrief.add(room.id)
   }
   const out: BriefLine[] = []
   const none = { level: null, source: null, quote: null }
