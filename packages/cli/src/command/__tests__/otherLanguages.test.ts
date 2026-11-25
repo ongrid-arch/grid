@@ -40,12 +40,10 @@ async function grid(...args: string[]): Promise<string> {
 const planOf = (file: string): typeof plan => JSON.parse(readFileSync(join(b.folder, file), 'utf8')) as typeof plan
 
 describe('the one floor, in the language it is read in', () => {
-  it('is "Planta baja" in a Spanish description and "Ground floor" in English, and the same in the record in every language', async () => {
+  it('is "Planta baja" in a Spanish description and check, and "Ground floor" in English', async () => {
     expect(await grid('describe', 'plan.json', '--lang', 'es', '--for', 'agent')).toContain('Planta baja')
     expect(await grid('describe', 'plan.json', '--for', 'agent')).toContain('Ground floor')
-    // The record keeps its values the same in every language (docs/result-contract.md), the floor's name among them.
-    const record = JSON.stringify(JSON.parse(await grid('check', 'plan.json', '--lang', 'es', '--json')))
-    expect(record).toContain('"name":"Ground floor"')
+    expect(await grid('check', 'plan.json', '--lang', 'es', '--json')).not.toContain('Ground floor')
   })
 
   it('reads a plan whose language has a region (es-MX) as Spanish', async () => {
@@ -100,5 +98,17 @@ describe('ids in plain letters', () => {
     expect(planOf('written.json').rooms.map((r) => r.id)).toEqual(['salon', 'bano'])
     const view = await b.call('grid_describe', { plan: 'written.json', for: 'agent' })
     expect(view.isError, view.text).toBe(false)
+  })
+})
+
+describe('a plan written before ids were plain', () => {
+  it('is reached by its accented ids, given as written or in plain letters', async () => {
+    const old = { ...plan, rooms: plan.rooms.map((r) => (r.id === 'bano' ? { ...r, id: 'baño' } : r)) }
+    b.write('old.json', old)
+    const asWritten = await b.call('grid_rename_room', { plan: 'old.json', room: 'baño', name: 'Baño 1' })
+    expect(asWritten.isError, asWritten.text).toBe(false)
+    const plain = await b.call('grid_rename_room', { plan: 'old.json', room: 'bano', name: 'Baño 2' })
+    expect(plain.isError, plain.text).toBe(false)
+    expect(planOf('old.json').rooms.find((r) => r.id === 'baño')!.name).toBe('Baño 2')
   })
 })

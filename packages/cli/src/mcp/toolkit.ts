@@ -370,10 +370,23 @@ function floorList(plan: FloorPlan): string {
  * The floor a call asked for, checked against the plan. An unknown floor is refused with the
  * floors the plan has, and without the word that was sent (MS-19).
  */
+/**
+ * MSG-22: the plan's own id an id argument names. An id argument is read in plain letters
+ * (`plainId`), so a plan whose file holds an id with accents (`baño`, written before rooms text
+ * wrote ids plain) is still reached by it: the one id of the plan that reads as the one sent.
+ */
+export function idInPlan(ids: readonly string[], sent: unknown): string | undefined {
+  if (typeof sent !== 'string') return undefined
+  if (ids.includes(sent)) return sent
+  const plain = ids.filter((id) => plainId(id) === sent)
+  return plain.length === 1 ? plain[0] : undefined
+}
+
 export function floorArg(plan: FloorPlan, floor: unknown): string | undefined {
   if (floor === undefined) return undefined
   const floors = planFloors(plan)
-  if (floors.some((f) => f.id === floor)) return floor as string
+  const found = idInPlan(floors.map((f) => f.id), floor)
+  if (found !== undefined) return found
   const nearest = nearestIdText(floor, floors.map((f) => f.id))
   throw new ToolRefusal(`That floor is not in this plan.${nearest} Its floors: ${floorList(plan)}.`)
 }
@@ -405,7 +418,8 @@ export function nearestList(sent: unknown, known: readonly { id: string; note: s
 
 /** A room the call named, checked against the plan, with the nearest ids when it is not there. */
 export function roomArg(plan: FloorPlan, room: unknown, argument = 'room'): string {
-  if (plan.rooms.some((r) => r.id === room)) return room as string
+  const found = idInPlan(plan.rooms.map((r) => r.id), room)
+  if (found !== undefined) return found
   const nearest = nearestIdText(room, plan.rooms.map((r) => r.id))
   const list = plan.rooms.length === 0 ? 'none' : nearestList(room, plan.rooms.map((r) => ({ id: r.id, note: ` (${quoted(r.name)})` })))
   throw new ToolRefusal(`The ${argument} named is not a room of this plan.${nearest} Its nearest rooms: ${list}.`)
@@ -413,7 +427,8 @@ export function roomArg(plan: FloorPlan, room: unknown, argument = 'room'): stri
 
 /** An opening the call named, checked against the plan, with the nearest ids when it is not there. */
 export function openingArg(plan: FloorPlan, opening: unknown): string {
-  if (plan.openings.some((o) => o.id === opening)) return opening as string
+  const found = idInPlan(plan.openings.map((o) => o.id), opening)
+  if (found !== undefined) return found
   const nearest = nearestIdText(opening, plan.openings.map((o) => o.id))
   const list = plan.openings.length === 0 ? 'none' : nearestList(opening, plan.openings.map((o) => ({ id: o.id, note: ` (${o.type})` })))
   throw new ToolRefusal(`The opening named is not in this plan.${nearest} Its nearest doors, windows and openings: ${list}.`)
@@ -421,8 +436,9 @@ export function openingArg(plan: FloorPlan, opening: unknown): string {
 
 /** A wall the call named, checked against the plan, with the nearest wall ids when it is not there. */
 export function wallArg(plan: FloorPlan, wall: unknown): string {
-  if (plan.walls.some((w) => w.id === wall)) return wall as string
   const ids = plan.walls.map((w) => w.id)
+  const found = idInPlan(ids, wall)
+  if (found !== undefined) return found
   // No single near id: the nearest walls, so the agent can choose (MSG-7, CMD-21).
   const listed = ids.length === 0 ? ' It has no walls.' : ` Its nearest walls: ${nearestList(wall, ids.map((id) => ({ id, note: '' })))}.`
   throw new ToolRefusal(`The wall named is not in this plan.${nearestIdText(wall, ids) || listed}`)
@@ -437,10 +453,12 @@ export type ThingKind = 'wall' | 'opening' | 'room' | 'item'
  * nearest id of any kind.
  */
 export function thingArg(plan: FloorPlan, thing: unknown, argument: string): { kind: ThingKind; id: string } {
-  if (plan.walls.some((w) => w.id === thing)) return { kind: 'wall', id: thing as string }
-  if (plan.openings.some((o) => o.id === thing)) return { kind: 'opening', id: thing as string }
-  if (plan.rooms.some((r) => r.id === thing)) return { kind: 'room', id: thing as string }
-  if ((plan.items ?? []).some((i) => i.id === thing)) return { kind: 'item', id: thing as string }
+  const kinds: ReadonlyArray<[ThingKind, readonly string[]]> = [['wall', plan.walls.map((w) => w.id)], ['opening', plan.openings.map((o) => o.id)], ['room', plan.rooms.map((r) => r.id)], ['item', (plan.items ?? []).map((i) => i.id)]]
+  for (const [kind, ids] of kinds) if (ids.includes(thing as string)) return { kind, id: thing as string }
+  for (const [kind, ids] of kinds) {
+    const found = idInPlan(ids, thing)
+    if (found !== undefined) return { kind, id: found }
+  }
   const known = [...plan.walls.map((w) => w.id), ...plan.openings.map((o) => o.id), ...plan.rooms.map((r) => r.id), ...(plan.items ?? []).map((i) => i.id)]
   throw new ToolRefusal(`What ${argument} names is no wall, door, window, opening${plan.items?.length ? ', room or fixture' : ' or room'} of this plan.${nearestIdText(thing, known) || ' The plan has none.'}`)
 }

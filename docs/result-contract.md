@@ -76,7 +76,7 @@ default, and the whole one on request (MSG-10, see "The short report, and seen n
 | `needed` | What would be right. |
 | `fix` | What to change. A suggestion: the plan is the author's. |
 | `figures` | Only on a finding that compared the plan with a figure: those figures, as in `figures` above. |
-| `values` | Only when the line's words name a figure, a name, an id or a place (MSG-11): those values, by the names its wording gives them, the same in every language. A figure is a number, rounded as the words give it. |
+| `values` | Only when the line's words name a figure, a name, an id or a place (MSG-11): those values, by the names its wording gives them, the same in every language, but for the name Grid gives the floor of a plan with no floor list, which is Grid's own word in the record's language ("Planta baja", MSG-22). A figure is a number, rounded as the words give it. |
 | `causedBy` | Only on a line that follows from another (MSG-5): that line, as `{ code, id }`, the id of the part it is about (`""` for the plan; for `plan/duplicate-id`, the id it names). The line is listed under it and goes away when it is fixed. |
 | `each` | Only on a line that stands for the same note on several parts (MSG-5): each of them, `{ kind, id }`, `thing` first. Its message lists their names. |
 | `held` | Only on `floor/not-checked-rooms-not-drawn` and `floor/not-checked-doors-not-drawn` (MSG-5): the notes held back because they rest on what the line names, each `{ code, thing, floor, also, waitsFor }`. `waitsFor` holds the ids of the rooms and openings that could not be drawn. |

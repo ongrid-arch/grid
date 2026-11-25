@@ -91,10 +91,7 @@ export interface WallFix {
   /** MSG-11: the fix by its key and values. */
   readonly said: Said
   readonly edits: readonly WallEdit[]
-  /**
-   * WRT-36: the rooms the fix would leave with no way in. `tidyPlan` makes such a fix only when
-   * its fault is named.
-   */
+  /** WRT-36: the rooms the fix would leave with no way in; its sentence says so too. */
   readonly seals?: readonly string[]
 }
 
@@ -945,8 +942,8 @@ interface CornerCut {
   readonly met: readonly string[]
   /** The walls wholly beyond it, taken out. */
   readonly gone: readonly string[]
-  /** The opening moved onto it from the corner, if one was. */
-  readonly moved: string | null
+  /** The openings moved onto it from the corner, in their order along it. */
+  readonly moved: readonly string[]
 }
 
 /**
@@ -974,7 +971,8 @@ function cornerCut(ctx: Context, room: Room, s: Seg, split: Split): CornerCut | 
   const side = Math.sign(across(s, middleOf(small.polygon)))
   if (side === 0) return null
   const edits: WallEdit[] = []
-  const toMove: { id: string; width: number }[] = []
+  // Each opening on the corner, with the wall it stood on and its middle there.
+  const toMove: { o: { id: string; width: number; hinge?: 'start' | 'end'; swing?: 'left' | 'right' }; from: Seg; at: Vec2 }[] = []
   for (const m of segs.filter((seg) => met.includes(seg.wall.id))) {
     // At an angle to the wall it meets: a wall square to it divides the room, as before.
     if (Math.abs(dot(s.dir, m.dir)) <= square || Math.abs(cross(s.dir, m.dir)) <= square) return null
@@ -992,31 +990,44 @@ function cornerCut(ctx: Context, room: Room, s: Seg, split: Split): CornerCut | 
       if (o0 >= from - overrun && o1 <= to + overrun) {
         if (from !== 0) edits.push({ op: 'move-opening', opening: o.id, wall: m.wall.id, offset: tidy(Math.max(0, o0 - from)) })
       } else if (o1 <= from + overrun || o0 >= to - overrun) {
-        toMove.push({ id: o.id, width: o.width })
+        toMove.push({ o, from: m, at: at(m, o.offset + o.width / 2) })
       } else {
         return null
       }
     }
   }
   for (const id of gone) {
-    for (const o of openingsOf(ctx.index, id)) toMove.push({ id: o.id, width: o.width })
+    const g = ctx.segs.get(id)!
+    for (const o of openingsOf(ctx.index, id)) toMove.push({ o, from: g, at: at(g, o.offset + o.width / 2) })
     const facts = ctx.segs.get(id)!.wall.properties
     edits.push({ op: 'remove-wall', wall: id, ...(facts !== undefined && Object.keys(facts).length > 0 ? { factsTo: s.wall.id } : {}) })
   }
-  // An opening on the corner keeps the way in: onto the cut, in its middle, clear of the walls it meets.
-  if (toMove.length > 1) return null
-  const moved = toMove[0]
-  if (moved !== undefined) {
-    const clear = s.length - Math.max(...segs.filter((seg) => met.includes(seg.wall.id)).map((seg) => seg.t))
-    if (openingsOf(ctx.index, s.wall.id).length > 0 || moved.width > clear) return null
-    edits.push({ op: 'move-opening', opening: moved.id, wall: s.wall.id, offset: tidy((s.length - moved.width) / 2) })
+  // The openings on the corner keep the way in: onto the cut, in the order they stood round the
+  // corner, spaced evenly along its stretch clear of the walls it meets. One goes in its middle.
+  if (toMove.length > 0) {
+    const margin = Math.max(...segs.filter((seg) => met.includes(seg.wall.id)).map((seg) => seg.t)) / 2
+    const widths = toMove.reduce((sum, m) => sum + m.o.width, 0)
+    const spare = s.length - 2 * margin - widths
+    if (openingsOf(ctx.index, s.wall.id).length > 0 || spare < 0) return null
+    toMove.sort((p, q) => along(s, p.at) - along(s, q.at))
+    const gap = spare / (toMove.length + 1)
+    let offset = margin + gap
+    for (const { o, from } of toMove) {
+      // Hinge and swing are read along the wall: a wall running the other way turns them.
+      const reversed = dot(from.dir, s.dir) < 0
+      const flipped: { hinge?: 'start' | 'end'; swing?: 'left' | 'right' } = {}
+      if (reversed && o.hinge !== undefined) flipped.hinge = o.hinge === 'start' ? 'end' : 'start'
+      if (reversed && o.swing !== undefined) flipped.swing = o.swing === 'left' ? 'right' : 'left'
+      edits.push({ op: 'move-opening', opening: o.id, wall: s.wall.id, offset: tidy(offset), ...flipped })
+      offset += o.width + gap
+    }
   }
   edits.push({ op: 'set-boundary', room: room.id, boundary: [...big.boundary] })
-  return { edits, met, gone, moved: moved?.id ?? null }
+  return { edits, met, gone, moved: toMove.map((m) => m.o.id) }
 }
 
 /**
- * WRT-36: the parts of a split left with no way in, when the room had one: a part with no door,
+ * WRT-36: the parts of a split left with no way in: a part with no door,
  * opening or open side on any of its walls, or both parts when their only ones are on the wall
  * between them. An opening on a wall both parts list counts for the part it stands in.
  */
@@ -1039,8 +1050,6 @@ function sealedBy(ctx: Context, s: Seg, split: Split): string[] {
   const [big, small] = split.parts
   const a = ways(big, small)
   const b = ways(small, big)
-  // A room with no way in before is still being drawn: its split seals nothing new.
-  if (!a.any && !b.any) return []
   const sealed = [...(a.any ? [] : [split.ids[0]]), ...(b.any ? [] : [split.ids[1]])]
   if (sealed.length > 0) return sealed
   return a.out || b.out ? [] : [...split.ids]
@@ -1111,7 +1120,10 @@ function crossingFaults(ctx: Context, out: Map<string, WallFault>): void {
                 area: num(areaText(split.areas[0])),
                 walls: list(cut.met.map(name)),
                 gone: cut.gone.length === 0 ? '' : said('issue.wall/crosses-room.corner.gone', { walls: list(cut.gone.map(name)) }),
-                moved: cut.moved === null ? '' : said('issue.wall/crosses-room.corner.moved', { opening: name(cut.moved) })
+                moved:
+                  cut.moved.length === 0
+                    ? ''
+                    : said(cut.moved.length === 1 ? 'issue.wall/crosses-room.corner.moved' : 'issue.wall/crosses-room.corner.movedMany', { openings: list(cut.moved.map(name)) })
               }),
               cut.edits
             )
@@ -1128,7 +1140,11 @@ function crossingFaults(ctx: Context, out: Map<string, WallFault>): void {
             ? ''
             : seals.length === 1
               ? said('issue.wall/crosses-room.seals.one', { room: name(seals[0]!) })
-              : said('issue.wall/crosses-room.seals.between', { a: name(seals[0]!), b: name(seals[1]!) })
+              : said(
+                  // Through each other only when the wall between them carries a way through.
+                  s.wall.virtual === true || openingsOf(ctx.index, s.wall.id).length > 0 ? 'issue.wall/crosses-room.seals.between' : 'issue.wall/crosses-room.seals.both',
+                  { a: name(seals[0]!), b: name(seals[1]!) }
+                )
       })
       const splitFix = cutFix === null ? fixOf(ctx, splitSaid, split.edits) : null
       const fix = cutFix ?? (splitFix === null ? null : seals.length === 0 ? splitFix : { ...splitFix, seals })
@@ -1249,15 +1265,9 @@ export function tidyPlan<P extends EditablePlan>(
 ): TidyResult<P> {
   const find = (p: FloorPlan): readonly WallFault[] => wallFaults(p)
   let current = plan
-  const offered = ids === undefined ? find(parse(plan)).filter((f) => f.fix !== null) : []
-  // WRT-36: a fix that would seal a room in is made only when named.
-  const sealing = offered.filter((f) => (f.fix!.seals?.length ?? 0) > 0)
-  const wanted = ids ?? offered.filter((f) => !sealing.includes(f)).map((f) => f.id)
+  const wanted = ids ?? find(parse(plan)).filter((f) => f.fix !== null).map((f) => f.id)
   const applied: WallFault[] = []
-  const skipped: { id: string; why: string }[] = sealing.map((f) => ({
-    id: f.id,
-    why: english(said('issue.wall/fault.sealsSkipped', { rooms: list(f.fix!.seals!.map(name)), id: name(f.id) }))
-  }))
+  const skipped: { id: string; why: string }[] = []
   for (const id of wanted) {
     const fault = find(parse(current)).find((f) => f.id === id)
     if (fault === undefined) {

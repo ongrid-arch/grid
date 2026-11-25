@@ -12,7 +12,21 @@ import { loadLanguage, say } from '@ongrid/floorplan/messages'
 import { labPlan } from '@ongrid/floorplan/test-support/lab'
 import { stairWindowAsWritten, stairWindowThrough } from '@ongrid/floorplan/test-support/through'
 import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
-import { approvalWords, GENERAL_GUIDANCE_LABEL, inspectPlan, type GridResult } from '../..'
+import { approvalWords, GENERAL_GUIDANCE_LABEL, inspectPlan as inspectInLanguage, type GridResult } from '../..'
+import { GROUND_FLOOR_NAME } from '@ongrid/floorplan/messages'
+
+/**
+ * MSG-22: the record as these tests compare it. Every value is the same in every language but one:
+ * the name Grid gives the floor a plan names in no list, which is Grid's own word, in the record's
+ * language. It is read back as the English name, so the rest is held to be the same.
+ */
+function inspectPlan(...args: Parameters<typeof inspectInLanguage>): GridResult {
+  const result = inspectInLanguage(...args)
+  const language = args[1]?.language
+  if (language === undefined || language === 'en') return result
+  const named = JSON.stringify(GROUND_FLOOR_NAME[language])
+  return JSON.parse(JSON.stringify(result).split(named).join(JSON.stringify(GROUND_FLOOR_NAME.en))) as GridResult
+}
 
 const fixtures = resolve(__dirname, '../../../../floorplan/fixtures')
 const fixturePlans = readdirSync(fixtures)
