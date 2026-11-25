@@ -119,6 +119,9 @@ export interface PhaseClash {
   readonly code: 'opening/phase-wall' | 'room/phase-wall'
   readonly id: string
   readonly wall: string
+  /** The phase the part is read in, and its wall's. */
+  readonly phase: Phase
+  readonly wallPhase: Phase
   /** In English, as every drawing issue's message is; `said` is the sentence by key (MSG-11). */
   readonly message: string
   readonly said: Said
@@ -153,7 +156,7 @@ export function phaseClashes(plan: FloorPlan): PhaseClash[] {
     const phase = read.opening(opening)
     if (!missing(phase, wall)) continue
     const sentence = clashSaid('opening/phase-wall', opening.id, phase, wall.id, read.wall(wall))
-    clashes.push({ code: 'opening/phase-wall', id: opening.id, wall: wall.id, message: english(sentence), said: sentence })
+    clashes.push({ code: 'opening/phase-wall', id: opening.id, wall: wall.id, phase, wallPhase: read.wall(wall), message: english(sentence), said: sentence })
   }
   for (const room of plan.rooms) {
     const phase = read.room(room)
@@ -161,7 +164,7 @@ export function phaseClashes(plan: FloorPlan): PhaseClash[] {
     const wall = ids.map((id) => walls.get(id)).find((w): w is Wall => w !== undefined && missing(phase, w))
     if (wall === undefined) continue
     const sentence = clashSaid('room/phase-wall', room.id, phase, wall.id, read.wall(wall))
-    clashes.push({ code: 'room/phase-wall', id: room.id, wall: wall.id, message: english(sentence), said: sentence })
+    clashes.push({ code: 'room/phase-wall', id: room.id, wall: wall.id, phase, wallPhase: read.wall(wall), message: english(sentence), said: sentence })
   }
   return clashes
 }

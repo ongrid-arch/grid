@@ -3109,6 +3109,8 @@ export const es: Messages = {
   'areas.partial.one': 'La {measure} del edificio entero no se conoce. La otra planta suma {area} m²; sin medir: {left}.',
   'areas.partial.many': 'La {measure} del edificio entero no se conoce. Las otras {count} plantas suman {area} m²; sin medir: {left}.',
   'areas.partial.line.one': 'no se conoce para el edificio entero; la otra planta suma {area}; sin medir: {left}',
+  'areas.phase.leftOut': 'Las fases dejan {rooms} fuera de todos los totales: {parts}. Grid lee el edificio después de la obra, y una estancia no puede existir allí cuando falta uno de sus muros. Cuando se demuelen los muros entre estancias, dé a cada una la fase a demoler y a la estancia que resulta la fase nueva.',
+  'areas.phase.leftOut.part': 'la estancia {room} es de la fase {phase} pero su muro {wall} es de la fase {wallPhase}',
   'areas.partial.line.many': 'no se conoce para el edificio entero; las otras {count} plantas suman {area}; sin medir: {left}',
   'areas.apart.notCounted': 'Fuera de los locales medidos aparte, por no ser un local que la superficie útil cuente en las plantas dadas: {ids}.',
   // HND-10 (C31): the trace image under the plan.
