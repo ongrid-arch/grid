@@ -36,7 +36,7 @@ import { ROOM_USES, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { AREA_RULES, planAreas } from './areas'
 import { finishShares, type FinishSurface } from './finishes'
 import type { Survey } from './survey'
-import { roomTakeoff } from './takeoff'
+import { roomTakeoff, wallFaceOver } from './takeoff'
 
 export type QuantityUnit = 'm2' | 'm' | 'nr'
 
@@ -47,11 +47,13 @@ export const ESTIMATE_RULES = {
   wallFinish: 'Each inside side of the rooms of this use times the height of the wall it is on, less every door, window and opening in it at its full size; both faces of an inside wall are counted, dividing lines are not.',
   skirting: 'Each room\'s inside perimeter less the width of every door and doorless opening on it; dividing lines take none.',
   reveals: 'Round each door and window, its two sides and its head, and its sill when it has one, times the thickness of its wall; doorless openings are left out.',
-  walls: 'The length of each solid wall of this kind and thickness between the faces of the walls it meets (its centre line where it turns a corner), each wall counted once, times its height, less every opening in it; the kind is the one the plan states.',
-  wallType: 'The length of each solid wall of this type the plan names, at this thickness, between the faces of the walls it meets (its centre line where it turns a corner), each wall counted once, times its height, less every opening in it.',
+  walls: 'The length of each solid wall of this kind and thickness between the faces of the walls it meets (its centre line where it turns a corner), each wall counted once, times its height (under the roof its floor states, the face the roof leaves it, less the gable part, which is a line of its own), less every opening in it; the kind is the one the plan states.',
+  wallType: 'The length of each solid wall of this type the plan names, at this thickness, between the faces of the walls it meets (its centre line where it turns a corner), each wall counted once, times its height (under the roof its floor states, the face the roof leaves it, less the gable part, which is a line of its own), less every opening in it.',
   finish: 'The rooms and zones that name this finish: floor and ceiling by their net area, wall faces by each inside side times its wall\'s height less every opening, skirting by the inside perimeter less doorways; a zone\'s finish is its part of its room.',
   openingType: 'Counted once per opening of this type the plan names; one that states a size of its own is still of its type.',
   externalFinish: 'The outer edge of each floor\'s outline, corners included, times the height of the wall it runs along, less every opening in those walls.',
+  wallGable: 'The part of the walls\' faces that the walls of the kinds above leave out because it stands above the lowest their tops reach under the roof their floor states (a gable end\'s triangle), each wall\'s face taken under that roof, less every opening in it.',
+  externalGable: 'The part of the outside face that the line above leaves out because it stands above the lowest the outer walls\' tops reach under the roof their floor states (a gable end\'s triangle).',
   openings: 'Counted once per opening, not once per room, by the size of its hole in the wall, width by height; the plan holds no frames, leaves or types.',
   slab: 'Assumed: a slab under the lowest floor\'s outline, to the outside face of its walls, less its openings and any open outdoor space on the ground, because the plan holds no slab.',
   upperFloor: 'Assumed: the gross internal area of each upper floor, less every opening its floor has over a stair, a stair room, a lift or a ramp, a void being out of that area already, because the plan holds no floor structure.',
@@ -230,6 +232,7 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
   // Each face's reach past the wall's axis ends once the corners are joined: a wall that butts into
   // another stops at its face, and at a corner one face gains what the other loses.
   const joints = wallJoints(survey.plan.walls)
+  let gableWalls = 0
   for (const floor of survey.facts.floors) {
     if (!onFloor(floor.id)) continue
     for (const wall of floor.walls) {
@@ -244,7 +247,12 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
       const named = own === undefined ? null : wallTypeOf(survey.plan, own)
       const key = named === null ? `wall:${wall.kind}:${size(wall.thickness)}` : `wall-type:${named.id}:${size(wall.thickness)}`
       const run = byKind.get(key) ?? { kind: wall.kind, thickness: wall.thickness, area: 0, ...(named === null ? {} : { name: named.name, order: typeOrder.get(named.id) ?? 0 }) }
-      byKind.set(key, { ...run, area: run.area + Math.max(0, length * wall.height - (holes.get(wallKey(floor.id, wall.id)) ?? 0)) })
+      // CNT-34: under the roof the floor states, the face is what the roof leaves; its gable part is a line apart.
+      const cut = own === undefined ? { face: length * wall.height, gable: 0 } : wallFaceOver(survey.plan, own, length)
+      const net = Math.max(0, cut.face - (holes.get(wallKey(floor.id, wall.id)) ?? 0))
+      const gable = Math.min(cut.gable, net)
+      gableWalls += gable
+      byKind.set(key, { ...run, area: run.area + net - gable })
     }
   }
   // CNT-15: the plan's named types first, in the order it lists them, then Grid's by kind.
@@ -255,10 +263,13 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
     else add({ key, what: `${kind} walls ${metres(run.thickness)} m thick`, quantity: run.area, unit: 'm2', rule: ESTIMATE_RULES.walls, assumed: false })
   }
 
+  add({ key: 'wall_gable', what: 'Gable parts of the walls, above the lowest their tops stand under the roof', quantity: gableWalls, unit: 'm2', rule: ESTIMATE_RULES.wallGable, assumed: false })
+
   // The outside: the outline's edge, then what stands on and over the outlines.
   const shells = planShell(survey.plan)
   const built = shells.filter((shell) => !shellKnown(shell) || shell.area > tolerance('areaEqual'))
   let outside = 0
+  let outsideGable = 0
   for (const shell of built) {
     if (!onFloor(shell.floor)) continue
     if (!shellKnown(shell)) {
@@ -266,10 +277,17 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
       continue
     }
     const faced = new Set(shell.faces.map((face) => face.wall))
-    outside += shell.faces.reduce((sum, face) => sum + face.length * face.height, 0)
+    for (const face of shell.faces) {
+      const own = statedWalls.get(face.wall)
+      const cut = own === undefined ? { face: face.length * face.height, gable: 0 } : wallFaceOver(survey.plan, own, face.length)
+      outside += cut.face
+      outsideGable += cut.gable
+    }
     for (const wall of faced) outside -= holes.get(wallKey(shell.floor, wall)) ?? 0
   }
-  add({ key: 'external_finish', what: 'Outside face of the outer walls', quantity: Math.max(0, outside), unit: 'm2', rule: ESTIMATE_RULES.externalFinish, assumed: false })
+  const outsideNet = Math.max(0, outside)
+  add({ key: 'external_finish', what: 'Outside face of the outer walls', quantity: outsideNet - Math.min(outsideGable, outsideNet), unit: 'm2', rule: ESTIMATE_RULES.externalFinish, assumed: false })
+  add({ key: 'external_finish_gable', what: 'Gable parts of the outside face, above the lowest the walls\' tops stand under the roof', quantity: Math.min(outsideGable, outsideNet), unit: 'm2', rule: ESTIMATE_RULES.externalGable, assumed: false })
   const namedFirst = (a: string | undefined, b: string | undefined): number => ((a === undefined) === (b === undefined) ? 0 : a === undefined ? 1 : -1)
   for (const [key, c] of [...counts.entries()].sort(([, a], [, b]) => (a.type === b.type ? 0 : a.type === 'door' ? -1 : 1) || namedFirst(a.name, b.name) || a.width - b.width || a.height - b.height)) {
     const what = c.name === undefined ? `${c.type === 'door' ? 'Door' : 'Window'} ${metres(c.width)} × ${metres(c.height)} m` : `${c.type === 'door' ? 'Door' : 'Window'}, ${c.name}`

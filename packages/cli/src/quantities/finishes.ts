@@ -12,7 +12,7 @@
  */
 import { FINISH_SURFACES, curveFault, roomFinishes, wallAxis, wallLength, wallTypeOf, type FinishSurface, type Wall } from '@ongrid/floorplan/geometry'
 import type { Survey, SurveyRoom } from './survey'
-import { roomTakeoff, type RoomTakeoff } from './takeoff'
+import { roomTakeoff, wallFaceCut, type RoomTakeoff } from './takeoff'
 
 export { FINISH_SURFACES, type FinishSurface }
 
@@ -23,7 +23,7 @@ export const FINISH_RULE =
   "A room's finish covers the room, less each of its zones that names its own finish for that surface: that part is the zone's. Floor and ceiling are the net area, walls the inside wall face less openings, skirting the inside perimeter less doorways, as grid_takeoff measures them. A surface no room or zone names a finish for is not stated."
 
 export const WALL_TYPE_RULE =
-  "Walls of a type the plan names, each counted once: length along the centre line, gross with openings and net less their widths, and the wall's face on one side, its length times its height less every opening in it."
+  "Walls of a type the plan names, each counted once: length along the centre line, gross with openings and net less their widths, and the wall's face on one side, its length times its height (under the roof its floor states, the face the roof leaves it, its gable part given apart) less every opening in it."
 
 /** One room's or zone's part of one surface, with the finish it names (null: none stated). */
 export interface FinishShare {
@@ -149,6 +149,8 @@ export interface WallTypeRun {
   readonly net: number
   /** The face on one side, its length times its height, less every opening in it. */
   readonly face: number
+  /** CNT-34: the part of `face` above the lowest the roof leaves the walls' tops: the gable part, inside `face`. */
+  readonly gable: number
 }
 
 /** The walls of each named wall type on the floors given, in the order the plan lists its types. */
@@ -162,15 +164,17 @@ export function wallTypeRuns(survey: Survey, floors?: readonly string[]): WallTy
     const hole = holes.get(o.wall) ?? { width: 0, area: 0 }
     holes.set(o.wall, { width: hole.width + o.width, area: hole.area + o.width * height })
   }
-  const runs = new Map<string, { count: number; gross: number; net: number; face: number }>()
+  const runs = new Map<string, { count: number; gross: number; net: number; face: number; gable: number }>()
   for (const wall of survey.plan.walls) {
     if (wall.virtual === true || !wallFloor.has(wall.id) || !onFloor(wallFloor.get(wall.id)!)) continue
     const type = wallTypeOf(survey.plan, wall)
     if (type === null) continue
     const length = wall.arc !== undefined ? (curveFault(wall) === null ? wallLength(wall) : 0) : wallAxis(wall).length
     const hole = holes.get(wall.id) ?? { width: 0, area: 0 }
-    const run = runs.get(type.id) ?? { count: 0, gross: 0, net: 0, face: 0 }
-    runs.set(type.id, { count: run.count + 1, gross: run.gross + length, net: run.net + Math.max(0, length - hole.width), face: run.face + Math.max(0, length * wall.height - hole.area) })
+    // CNT-34: under the roof the floor states, the face is what the roof leaves the wall.
+    const cut = wall.arc !== undefined ? { face: length * wall.height, gable: 0 } : wallFaceCut(survey.plan, wall, 0, length)
+    const run = runs.get(type.id) ?? { count: 0, gross: 0, net: 0, face: 0, gable: 0 }
+    runs.set(type.id, { count: run.count + 1, gross: run.gross + length, net: run.net + Math.max(0, length - hole.width), face: run.face + Math.max(0, cut.face - hole.area), gable: run.gable + cut.gable })
   }
   return (survey.plan.types?.walls ?? [])
     .filter((type, i, all) => runs.has(type.id) && all.findIndex((t) => t.id === type.id) === i)

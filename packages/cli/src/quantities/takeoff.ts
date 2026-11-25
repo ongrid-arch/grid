@@ -24,6 +24,7 @@ import {
   wallAxis,
   wallLength,
   faceUnderTop,
+  topBetween,
   wallTopProfile,
   columnArea,
   columnDepth,
@@ -67,6 +68,8 @@ export interface RoomTakeoff {
   readonly perimeter: number
   readonly skirting: number
   readonly wallFace: number
+  /** CNT-34: the part of the wall face above the lowest the roof leaves the walls' tops: the gable part, inside `wallFace`. */
+  readonly gable: number
   readonly openingsOff: number
   /** ARE-16: the room is a void (LVL-4): no floor, ceiling or skirting; its wall faces are still taken off. */
   readonly void?: true
@@ -189,6 +192,29 @@ export interface Takeoff {
 // CNT-6: a separating wall (a party wall, or one to the common parts) is taken off as its own kind.
 const KINDS: readonly Wall['kind'][] = ['exterior', 'separating', 'interior', 'partition']
 
+/**
+ * CNT-34: the face of `wall` between `from` and `to` metres along its centre line, under the top the
+ * floor's roof leaves it (a rectangle at its height where the roof cuts nothing), and the gable part
+ * of it, the face above the lowest the top stands over that stretch. A curved wall is taken as its
+ * stated height.
+ */
+export function wallFaceCut(plan: FloorPlan, wall: Wall, from: number, to: number): { readonly face: number; readonly gable: number } {
+  const span = Math.max(0, to - from)
+  const top = wallTopProfile(plan, wall)
+  if (top === null) return { face: span * wall.height, gable: 0 }
+  const face = faceUnderTop(top, from, to)
+  return { face, gable: Math.max(0, face - span * topBetween(top, from, to).low) }
+}
+
+/** The same for a length of the wall that is not its axis (joined at corners): the mean height over the axis, taken on that length. */
+export function wallFaceOver(plan: FloorPlan, wall: Wall, length: number): { readonly face: number; readonly gable: number } {
+  if (wall.arc !== undefined || wall.virtual === true) return { face: length * wall.height, gable: 0 }
+  const axis = wallAxis(wall).length
+  if (!(axis > 0)) return { face: length * wall.height, gable: 0 }
+  const whole = wallFaceCut(plan, wall, 0, axis)
+  return { face: (whole.face / axis) * length, gable: (whole.gable / axis) * length }
+}
+
 /** One room's take-off; `ceiling` gives its stated ceiling height and lowered zones (none stated when left out). */
 export function roomTakeoff(
   room: SurveyRoom,
@@ -197,21 +223,23 @@ export function roomTakeoff(
 ): RoomTakeoff {
   const perimeter = room.edges.reduce((sum, edge) => sum + edge.length, 0)
   let face = 0
+  let gable = 0
   const heights: number[] = []
   for (const edge of room.edges) {
     if (edge.wall === null || edge.wall.virtual === true) continue
     // LVL-6: a wall the floor's roof cuts has its face under the top the roof leaves it.
     const top = plan === undefined ? null : wallTopProfile(plan, edge.wall)
-    if (top === null) {
+    if (top === null || plan === undefined) {
       face += edge.length * edge.wall.height
       heights.push(edge.wall.height)
       continue
     }
     const axis = wallAxis(edge.wall)
     const along = (p: { x: number; y: number }): number => (p.x - axis.start.x) * axis.dir.x + (p.y - axis.start.y) * axis.dir.y
-    const under = faceUnderTop(top, along(edge.from), along(edge.to))
-    face += under
-    heights.push(edge.length > 0 ? under / edge.length : edge.wall.height)
+    const cut = wallFaceCut(plan, edge.wall, Math.min(along(edge.from), along(edge.to)), Math.max(along(edge.from), along(edge.to)))
+    face += cut.face
+    gable += cut.gable
+    heights.push(edge.length > 0 ? cut.face / edge.length : edge.wall.height)
   }
   // Openings in this room's sides: in a dividing line there is nothing to take off.
   let openingsOff = 0
@@ -240,6 +268,7 @@ export function roomTakeoff(
     perimeter,
     skirting: isVoid ? 0 : Math.max(0, perimeter - passages),
     wallFace: Math.max(0, face - openingsOff),
+    gable,
     openingsOff,
     ...(isVoid ? { void: true as const, guard } : {}),
     height,

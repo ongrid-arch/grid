@@ -138,7 +138,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/change.ts': [18, 'notYet'],
   'packages/cli/src/quantities/compare.ts': [25, 'notYet'],
   // CNT-31: three more, the roof edges' rule and line and why a roof is left out.
-  'packages/cli/src/quantities/estimate.ts': [36, 'notYet'],
+  'packages/cli/src/quantities/estimate.ts': [40, 'notYet'],
   'packages/cli/src/quantities/finishes.ts': [2, 'notYet'],
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
   // ARE-14: the free floor rule is one of the area measures now, in the message files.
@@ -340,7 +340,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-27 2: a shaft counted once in the brief, the schedule CSV's column for rows in no total.
     // and CNT-31 3: the estimate's roof edges' rule and line, and why a roof is left out (estimate.ts).
     // and WRT-38 4: one wall's thickness, its receipt and refusals (edit/edits.ts).
-    expect(left).toBeLessThanOrEqual(1617)
+    // and CNT-34 4: the estimate's gable lines and their rules (estimate.ts).
+    expect(left).toBeLessThanOrEqual(1621)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

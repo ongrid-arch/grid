@@ -319,6 +319,7 @@ area, each opening once as the schedule counts it, and each floor's outline.
 | `reveals` | Round each door and window, its sides and head, and its sill when it has one, times its wall's thickness | no |
 | `wall-type:<id>:<thickness>` | CNT-15: the walls of one of the plan's named types at one thickness, by the type, so a party wall is never priced as a partition (lab AC-5) | no |
 | `wall:<kind>:<thickness>` | The other walls, by the kind the plan states and their thickness: the length between the faces of the walls each one meets (its centre line where it turns a corner, CNT-31) times its height, less openings | no |
+| `wall_gable`, `external_finish_gable` | CNT-34: under a roof the floor states, the part of the walls' faces (and of the outside face) above the lowest their tops stand, a gable end's triangle, apart from the lines above, which take the rest; none where no roof cuts a wall | no |
 | `external_finish` | The outer edge of each floor's outline, corners in, times the height of the wall it runs along, less openings | no |
 | `door-type:<id>`, `window-type:<id>` | CNT-15: the doors and windows of one of the plan's named types, each counted once | no |
 | `door:<w>x<h>`, `window:<w>x<h>` | The other doors and windows, by the size of their hole in the wall, each counted once | no |
