@@ -136,6 +136,16 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   door d-patio in living south, centred, 2.4 wide, sliding
   door d-bed   between hall and bedroom, 0.1 from west, 0.8 wide, opens into bedroom, hinged left
   ```
+- A room whose outline steps (a corner cut out for a WC, an L) can have more than one side
+  facing one way. `in <room> east.1`, `east.2` picks one, counted from the west, then the south
+  (WRT-51). A line that says only `east` there is refused with each of those sides by its word,
+  its length and what lies beyond it (a room, or the outside), and with the line written each
+  way that writes (`rooms/no-side`, the lines in `fixes`). In a unit, the one side that looks
+  onto something outside the unit's own rooms (the corridor, the outside) is taken, and the
+  answer says so with the word for each other side: a cabin door written `in cabin north` goes
+  to the corridor, not into the cabin's own bath partition. Two rooms that share more than one
+  wall (`rooms/two-shared-walls`) are offered the same way, the line with `in <room> <side>` in
+  place of `between`, for each shared wall that writes.
 - What Grid writes passes its own check (WRT-17). It reads the plan back as `grid check` will
   before writing it, so the walls it works out close every corner and join only where walls meet.
   Each wall end reaches the centre line of the wall it meets however thick the two are (a 1.8 m

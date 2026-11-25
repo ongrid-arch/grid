@@ -208,7 +208,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/rooms/answer.ts': [6, 'notYet'],
   // WRT-14: four fewer, the floor line's refusals moved into the message files.
   // LVL-16: one fewer, the warning of ids changed on several floors moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [116, 'notYet'],
+  // WRT-51: two fewer, the sides facing one way moved into the message files.
+  'packages/floorplan/src/rooms/compile.ts': [114, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   'packages/floorplan/src/rooms/read.ts': [22, 'notYet'],
