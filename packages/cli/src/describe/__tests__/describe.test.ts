@@ -218,6 +218,20 @@ describe('what a card says and never says', () => {
     expect(card(plans.block!, 'rooms', 'agent')).toContain('STAIRS stair rooms ground->L1->L2->L3->L4->L5')
   })
 
+  it('leaves out the unsaid line when nothing is unsaid, in every length (VEW-40)', () => {
+    const said: FloorPlan = { ...plans.flat!, north: 0, building: 'home' }
+    expect(planFacts(said).northStated).toBe(true)
+    for (const audience of ['person', 'agent'] as const) {
+      for (const length of DESCRIBE_LENGTHS) {
+        const text = card(said, length, audience)
+        expect(text).not.toMatch(/not in the plan|NOT IN PLAN/i)
+        expect(text).not.toMatch(/: \.$/m)
+      }
+    }
+    expect(card(plans.flat!, 'rooms', 'person')).toContain('Not in the plan:')
+    expect(card(plans.flat!, 'rooms', 'agent')).toContain('NOT IN PLAN')
+  })
+
   it('says the stairs a plan states, with what Grid works out, and the floors no stair joins (LVL-3)', () => {
     expect(card(twoFloorHouse(), 'rooms', 'person')).toContain('how its floors connect (no stair joins them)')
     expect(card(twoFloorHouse(), 'rooms', 'agent')).toContain('how floors connect (no stair joins ground first)')

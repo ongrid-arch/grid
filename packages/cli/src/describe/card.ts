@@ -668,10 +668,11 @@ function agentParking(floor: FloorFacts): string[] {
 
 function personCard(facts: PlanFacts, withWalls: boolean, w: Words): string[] {
   const names = new PersonNames(facts, w)
+  const left = unsaid(facts, names, w).person
   const lines = [
     personLine(facts, names, w),
     t(w, 'describe.key'),
-    t(w, 'describe.unsaid', { items: listed(w, unsaid(facts, names, w).person) }),
+    ...(left.length === 0 ? [] : [t(w, 'describe.unsaid', { items: listed(w, left) })]),
     personHeights(facts, names, w),
     ...personStairs(facts, names, w),
   ]
@@ -693,7 +694,8 @@ function personCard(facts: PlanFacts, withWalls: boolean, w: Words): string[] {
 }
 
 function agentCard(facts: PlanFacts, withWalls: boolean): string[] {
-  const lines = [agentLine(facts), withWalls ? AGENT_KEY_WALLS : AGENT_KEY_ROOMS, `NOT IN PLAN ${unsaid(facts, new PersonNames(facts, ENGLISH), ENGLISH).agent.join('; ')}`, agentHeights(facts), ...agentStairs(facts)]
+  const left = unsaid(facts, new PersonNames(facts, ENGLISH), ENGLISH).agent
+  const lines = [agentLine(facts), withWalls ? AGENT_KEY_WALLS : AGENT_KEY_ROOMS, ...(left.length === 0 ? [] : [`NOT IN PLAN ${left.join('; ')}`]), agentHeights(facts), ...agentStairs(facts)]
   const groups = repeatGroups(facts)
   for (const floor of facts.floors) {
     const repeat = floor.repeats
