@@ -1,5 +1,5 @@
 import { spawnSync } from 'child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -181,21 +181,29 @@ describe('grid sheet --scale --paper (SHT-6)', () => {
     writeFileSync(join(dir, 'wall.json'), JSON.stringify(oneWall))
     const run = grid(['sheet', 'wall.json', '--scale', '1:100', '--paper', 'A4'])
     expect(run.status).toBe(0)
-    expect(run.out).toBe('Ground floor plan at 1:100 on A4 landscape.\nWrote exports/wall-drawing.pdf, exports/wall-drawing.svg and exports/wall-drawing.png\n')
-    const page = readPdf(readFileSync(join(dir, 'exports', 'wall-drawing.pdf')))
+    expect(run.out).toBe('Ground floor plan at 1:100 on A4 landscape.\nWrote exports/wall-drawing-1-100-A4.pdf, exports/wall-drawing-1-100-A4.svg and exports/wall-drawing-1-100-A4.png\n')
+    const page = readPdf(readFileSync(join(dir, 'exports', 'wall-drawing-1-100-A4.pdf')))
     expect(page.hasImage).toBe(false)
     expect([Math.round(page.width), Math.round(page.height)]).toEqual([297, 210])
     const wall = extentOf(page.paths.filter((p) => p.paint.startsWith('f') && p.fill === '0.349 0.349 0.349'))
     expect(wall.width).toBeCloseTo(100, 2)
     const texts = page.texts.map((t) => t.text)
     for (const words of ['Floor plan of Ground floor, drawn at 1:100 on A4.', 'PROJECT', 'wall', 'Ground floor plan', '1:100 on A4', 'Draft', 'General guidance, not your local rules']) expect(texts).toContain(words)
-    expect(readFileSync(join(dir, 'exports', 'wall-drawing.svg'), 'utf8')).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="297mm" height="210mm"/)
-    expect(readFileSync(join(dir, 'exports', 'wall-drawing.png')).subarray(1, 4).toString('latin1')).toBe('PNG')
+    expect(readFileSync(join(dir, 'exports', 'wall-drawing-1-100-A4.svg'), 'utf8')).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="297mm" height="210mm"/)
+    expect(readFileSync(join(dir, 'exports', 'wall-drawing-1-100-A4.png')).subarray(1, 4).toString('latin1')).toBe('PNG')
+  })
+
+  it('carries the scale and paper in the default name, so drawings at other scales do not replace each other', () => {
+    writeFileSync(join(dir, 'wall.json'), JSON.stringify(oneWall))
+    expect(grid(['sheet', 'wall.json', '--scale', '1:100', '--paper', 'A3']).status).toBe(0)
+    expect(grid(['sheet', 'wall.json', '--scale', '1:50', '--paper', 'A2']).status).toBe(0)
+    expect(grid(['sheet', 'wall.json', '--scale', '1:100', '--paper', 'A3']).status).toBe(0)
+    expect(readdirSync(join(dir, 'exports')).filter((f) => f.endsWith('.pdf')).sort()).toEqual(['wall-drawing-1-100-A3.pdf', 'wall-drawing-1-50-A2.pdf'])
   })
 
   it('names each floor of a plan with several by its place, and writes beside --out', () => {
     expect(grid(['sheet', 'two-floor-house.json', '--layout', 'drawing', '--floor', 'first']).status).toBe(0)
-    expect(existsSync(join(dir, 'exports', 'two-floor-house-floor-2-drawing.pdf'))).toBe(true)
+    expect(readdirSync(join(dir, 'exports')).filter((f) => /^two-floor-house-floor-2-drawing-1-\d+-A\d\.pdf$/.test(f))).toHaveLength(1)
     mkdirSync(join(dir, 'print'))
     const run = grid(['sheet', 'two-floor-house.json', '--scale', '50', '--out', 'print/ground.pdf'])
     expect(run.status).toBe(0)

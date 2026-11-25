@@ -964,7 +964,8 @@ Open Font Licence 1.1, which ship with Grid in `fonts/`. A sheet needs the canva
 
 `grid sheet [plan.json] --scale 1:100 --paper A4` (or `--layout drawing`) writes one floor as a
 drawing to print and measure: a vector PDF, an SVG and a PNG to share, into `exports/` beside the
-plan (`<name>-drawing.pdf`, `.svg` and `.png`; `<name>-floor-2-drawing` for the second floor of a
+plan (`<name>-drawing-1-100-A3.pdf`, `.svg` and `.png`, the scale and paper in the name so
+drawings at other scales sit beside it; `<name>-floor-2-drawing-1-100-A3` for the second floor of a
 plan with several), or beside the `.pdf` that `--out` names.
 
 - `--scale 1:N` (or `N`), a whole N from 1 to 1000. Printed at 100%, not fitted to the page, a
