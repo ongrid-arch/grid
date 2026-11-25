@@ -1912,6 +1912,8 @@ export const es: Messages = {
   'describe.rooms.rawOpening.unplaced': 'el texto de estancias no tiene una línea que lo sitúe tal como es',
   'describe.rooms.rawOpening.changes': 'escrito como texto de estancias, {what}',
   'describe.rooms.unsettled': 'su texto de estancias no pudo comprobarse frente al plano en {rounds} escrituras',
+  'describe.rooms.leftOut': 'Se deja fuera: el muro {wall} no tiene longitud, pues sus dos extremos son un mismo punto, así que la comprobación también lo deja fuera del plano, y escribir este texto da el plano sin él.',
+  'describe.rooms.leftOut.opening': 'Se deja fuera: el hueco {opening} está en el muro {wall}, que no tiene longitud, así que la comprobación también lo deja fuera del plano.',
   // WRT-14: la línea de planta del texto de estancias y sus rechazos, cada uno seguido de cómo se escribe.
   'rooms.floor.form': 'floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]',
   'rooms.floor.how':
@@ -1969,6 +1971,10 @@ export const es: Messages = {
   'rooms.raw.openingFloor':
     "Línea {line}: el raw opening '{id}' está escrito bajo la planta '{under}', pero su muro '{wall}' está en la planta '{floor}', y una abertura está en la planta de su muro. Escríbala bajo la planta '{floor}', o nombre un muro de la planta '{under}'.",
   'rooms.raw.openingFact': '{id}: {type} de {width} m en {wall}, escrita en crudo',
+  'rooms.raw.zeroLength':
+    "Línea {line}: el raw wall '{id}' empieza y termina en el mismo punto, ({x}, {y}), así que no tiene longitud. Dele un principio y un final en puntos distintos, o quítelo y quite su id del contorno de toda estancia que lo nombre.",
+  'rooms.opening.noLength':
+    "Línea {line}: '{id}' quedaría en el muro '{wall}', que aquí no tiene longitud: los muros de uno y otro lado están más cerca que su propio grosor, así que no queda nada entre ellos que lo sostenga. Póngalo en otro lado de la estancia, o separe las estancias.",
   'rooms.copyNoOpenings': '{list}',
   'rooms.copyNoOpenings.one':
     "La planta {floors} copia los recintos de la planta '{from}' pero ninguna de sus puertas y ventanas, y no escribe ninguna propia, así que no tiene ninguna: escriba 'copy {from} with openings' para tomarlas, o escriba sus puertas y ventanas.",

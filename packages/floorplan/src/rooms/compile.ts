@@ -242,6 +242,14 @@ const r4 = (v: number): number => {
   return Object.is(r, -0) || r === 0 ? 0 : r
 }
 const eps = (): number => tolerance('joint')
+/**
+ * WRT-44: a straight wall whose two ends, as the plan file holds them, are one point: the check
+ * reads it so (`wall/zero-length`) and leaves it out. A curve is read by its own checks.
+ */
+function noLength(start: unknown, end: unknown, arc?: unknown): boolean {
+  if (arc !== undefined || !Array.isArray(start) || !Array.isArray(end)) return false
+  return typeof start[0] === 'number' && typeof start[1] === 'number' && start[0] === end[0] && start[1] === end[1]
+}
 /** How far inside a room's edge a point is taken to stand in it, when two rooms are tested for overlap. */
 const probe = (): number => tolerance('roomsTouch') / 4
 
@@ -725,6 +733,12 @@ class Compiler {
     // WRT-27: a raw wall or room with no floor is on the floor of the floor line above it, as a
     // room line is. An opening is on its wall's floor and states none.
     if (kind !== 'opening' && this.explicitFloors && part['floor'] === undefined) part = { ...part, floor: fl.id }
+    // WRT-44: a raw wall whose two ends are one point has no length: refused with its line, never
+    // left for a later step to throw on.
+    if (kind === 'wall' && noLength(part['start'], part['end'], part['arc'])) {
+      const at0 = part['start'] as [number, number]
+      this.problem('rooms/raw', at, english(said('rooms.raw.zeroLength', { line: at, id: String(part['id']), x: metres(at0[0]), y: metres(at0[1]) })))
+    }
     const list = kind === 'wall' ? fl.raw.walls : kind === 'room' ? fl.raw.rooms : fl.raw.openings
     list.push(part)
     this.rawIds.add(part['id'] as string)
@@ -2718,13 +2732,19 @@ class Compiler {
       } else {
         const { edges, raws } = this.derive(fl)
         if (this.problems.length > 0) continue
-        const walls = this.buildWalls(fl, edges, raws, wallPrefix)
+        const built = this.buildWalls(fl, edges, raws, wallPrefix)
+        // WRT-44: a wall worked out with its two ends at one point, as the file holds them, has
+        // no length: two outside walls closer than their own thickness (the notch between two
+        // flats of a row) cover its place. It is left out, so the plan never holds a wall the check
+        // would leave out; the other walls keep their ids, as a plan written before has them.
+        const gone = new Set(built.filter((w) => noLength(w.json.start, w.json.end)).map((w) => w.json.id))
+        const walls = built.filter((w) => !gone.has(w.json.id))
         plan.walls.push(...walls.map((w) => w.json))
         for (const room of fl.rooms.values()) {
           let boundary: string[] = []
           for (const e of edges.filter((x) => x.room === room)) {
             const parts: Array<[number, string]> = []
-            for (const r of raws) for (const sd of r.sides) if (sd[0] === e.idx) parts.push([sd[1], r.wall!.id])
+            for (const r of raws) for (const sd of r.sides) if (sd[0] === e.idx && !gone.has(r.wall!.id)) parts.push([sd[1], r.wall!.id])
             parts.sort((a, b) => a[0] - b[0])
             for (const [, wid] of parts) if (boundary.length === 0 || boundary[boundary.length - 1] !== wid) boundary.push(wid)
           }
@@ -2793,7 +2813,9 @@ class Compiler {
           seen.add(local)
           try {
             const item = this.resolveOpening(fl, edges, raws, o.words, o.line, idOf(fl, local), height)
-            if (item) {
+            // WRT-44: an opening that lands in a wall left out for having no length has no wall.
+            if (item && gone.has(item.wall)) this.problem('rooms/opening-fit', o.line, english(said('rooms.opening.noLength', { line: o.line, id: local, wall: item.wall })))
+            else if (item) {
               plan.openings.push(item)
               this.openingLines.set(item.id, o.line)
             }
@@ -2883,7 +2905,8 @@ class Compiler {
           kind: wall?.kind ?? 'exterior',
           virtual: wall?.virtual === true,
           thickness: wall?.thickness ?? 0,
-          length: wall === undefined ? 0 : wallLength(wall),
+          // WRT-44: measured without throwing: a straight wall of no length is 0 long.
+          length: wall === undefined ? 0 : wall.arc === undefined ? norm(sub([wall.end[0], wall.end[1]], [wall.start[0], wall.start[1]])) : wallLength(wall),
           rooms: (index?.roomsByWall.get(id) ?? []).map((r) => r.id),
           handles: [],
           stretches: [],
