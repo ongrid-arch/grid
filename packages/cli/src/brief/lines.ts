@@ -277,11 +277,8 @@ function figureLines(c: Context, wish: FigureWish): BriefLine[] {
       const found = corridor ? corridorNarrowestOf(c.survey, room) : null
       const drawn = found === null ? measureRoom(room).widestCircle : (found.narrowest ?? found.widest)
       if (drawn >= wish.value - tolerance('noLength')) continue
-      const body = !corridor
-        ? `${q(room.facts.name)} turning circle ${asked}, drawn ${n2(drawn)} m, the widest circle it holds.`
-        : found!.narrowest === null
-          ? `${q(room.facts.name)} corridor width ${asked}, drawn ${n2(drawn)} m, the widest circle it holds (Grid finds no two ends to measure between).`
-          : `${q(room.facts.name)} corridor width ${asked}, drawn ${n2(drawn)} m at its narrowest, at (${found!.at!.x.toFixed(2)}, ${found!.at!.y.toFixed(2)}).`
+      const place = found === null ? null : found.narrowest === null ? ', the widest circle it holds, for Grid finds no two ends' : `, at its narrowest, at (${found.at!.x.toFixed(2)}, ${found.at!.y.toFixed(2)})`
+      const body = `${q(room.facts.name)} ${corridor ? 'corridor width' : 'turning circle'} ${asked}, drawn ${n2(drawn)} m${place ?? ', the widest circle it holds'}.`
       short.push(line('missed', wish, wish.figure, body, { asked: limit, drawn: n2(drawn), unit: 'm', parts: [{ kind: 'room', id: room.facts.id }] }))
     }
   }
