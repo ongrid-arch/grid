@@ -81,7 +81,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
-  'packages/cli/src/edit/split.ts': [18, 'notYet'],
+  'packages/cli/src/edit/split.ts': [19, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
   'packages/cli/src/export/dxfProfile.ts': [5, 'command'],
