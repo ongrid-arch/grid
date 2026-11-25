@@ -57,6 +57,12 @@ describe('MSG-9 the schema limits the text of a plan', () => {
     expect(refusal(withRoomName('Kitchen \ud800'))).toBe('rooms.0.name: holds half of a character pair, which is no character')
   })
 
+  it('refuses a character that shows nothing, and keeps the joiners scripts need (CMD-30)', () => {
+    expect(refusal(withRoomName('Be\u200bd'))).toBe('rooms.0.name: holds an invisible character (U+200B), which can hide text or make one name look like another')
+    expect(refusal(withRoomName('Note\udb40\udc41'))).toBe('rooms.0.name: holds an invisible character (U+E0041), which can hide text or make one name look like another')
+    expect(refusal(withRoomName('\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645'))).toBeNull()
+  })
+
   it('looks at every id a part names, a floor name and the trace image path', () => {
     const plan = structuredClone(flat()) as FloorPlan
     plan.rooms[1]!.boundary[0] = 'w\r'

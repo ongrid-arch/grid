@@ -248,7 +248,9 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
         throw new ToolRefusal(spec.enum ? `${name} takes one of ${spec.enum.join(', ')}.` : `${name} takes text, for example ${quoted(spec.examples[0] ?? '')}.`)
       }
       // MSG-22: an id with accents is read in plain letters, as rooms text writes it: `baño` is `bano`.
-      const text = spec.id ? plainId(value) : value
+      // CMD-30: other text in one form (NFC), so a name or a search typed with `n` and a combining
+      // tilde is the same `ñ` the plan holds.
+      const text = spec.id ? plainId(value) : value.normalize('NFC')
       if (spec.id) {
         if (text.length > ID_MAX) throw new ToolRefusal(`${name} is longer than ${ID_MAX} characters, the most an id may have.`)
         // CMD-24: the plan's own ids may hold letters with no plain form, written before ids were plain.
@@ -257,7 +259,7 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
       const max = spec.use === true ? USE_WORD_MAX : spec.maxLength
       if (max !== undefined && text.length > max) throw new ToolRefusal(`${name} is longer than ${max} characters.`)
       const checked = spec.lines === true ? text.replace(/\r\n|\r|\n|\t/g, ' ') : text
-      if (CONTROL.test(checked)) throw new ToolRefusal(`${name} holds a control or direction character${spec.lines === true ? ' other than a line break or a tab' : ''}.`)
+      if (CONTROL.test(checked)) throw new ToolRefusal(`${name} holds a control, direction or invisible character${spec.lines === true ? ' other than a line break or a tab' : ''}.`)
       if (spec.use === true) {
         if (spec.enum?.includes(text)) return text
         const use = readUse(text)

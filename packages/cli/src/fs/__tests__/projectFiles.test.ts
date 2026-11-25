@@ -1,4 +1,4 @@
-import { linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'fs'
+import { chmodSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'fs'
 import { homedir, tmpdir } from 'os'
 import { join, parse, resolve } from 'path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -237,9 +237,29 @@ describe('paths inside the project', () => {
     expect(readdirSync(root)).toEqual([name])
   })
 
-  it.skipIf(windows)('writes files only its owner can read', () => {
-    project.writeFile('plan.svg', 'x')
-    expect(statSync(join(root, 'plan.svg')).mode & 0o777).toBe(0o600)
+  // CMD-30: a teammate in the same group, or a web server, can read what Grid writes.
+  it.skipIf(windows)('writes files with the mode the umask gives, and keeps a replaced file\'s', () => {
+    const umask = process.umask(0o022)
+    try {
+      project.writeFile('plan.svg', 'x')
+      expect(statSync(join(root, 'plan.svg')).mode & 0o777).toBe(0o644)
+      project.createFile('new.txt', 'x')
+      expect(statSync(join(root, 'new.txt')).mode & 0o777).toBe(0o644)
+      chmodSync(join(root, 'plan.svg'), 0o640)
+      project.writeFile('plan.svg', 'y')
+      expect(statSync(join(root, 'plan.svg')).mode & 0o777).toBe(0o640)
+    } finally {
+      process.umask(umask)
+    }
+  })
+
+  it('refuses a read-only file before writing, and leaves it as it was', () => {
+    writeFileSync(join(root, 'plan.json'), 'old')
+    chmodSync(join(root, 'plan.json'), 0o444)
+    expect(() => project.writable('plan.json')).toThrow(expect.objectContaining({ code: 'EACCES', message: expect.stringContaining('read-only') }))
+    expect(() => project.writeFile('plan.json', 'new')).toThrow(expect.objectContaining({ code: 'EACCES' }))
+    expect(readFileSync(join(root, 'plan.json'), 'utf8')).toBe('old')
+    chmodSync(join(root, 'plan.json'), 0o644)
   })
 
   it('reads only plain files', () => {

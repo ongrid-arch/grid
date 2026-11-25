@@ -8,6 +8,8 @@
  * Only the strings the schema keeps are looked at; everything else is the schema's to refuse.
  */
 
+import { name as nameOf, said, type Said } from '@ongrid/floorplan/messages'
+
 /** The most characters a name may have. */
 export const NAME_MAX = 120
 /** The most characters an id may have: the same as the tool server takes. */
@@ -31,15 +33,24 @@ const LINE_BREAK = /[\n\r\u0085\u2028\u2029]/
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
 /** Characters that change the direction text is shown in, so a name can read backwards. */
 const DIRECTION = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/
+/**
+ * CMD-30: characters that show nothing, so a name can hide a word or look like another name: the
+ * zero-width space, the word joiner and the invisible operators, the soft hyphen, the combining
+ * grapheme joiner, the byte-order mark inside text, the Hangul fillers, the Mongolian vowel
+ * separator, the Khmer inherent vowels, the old format characters, the interlinear annotation
+ * marks and the tag characters, which can spell hidden text. The zero-width joiner and non-joiner
+ * (U+200C, U+200D) are kept: Persian, the Indic scripts and emoji need them.
+ */
+const INVISIBLE = /[\u00ad\u034f\u115f\u1160\u17b4\u17b5\u180e\u200b\u2060-\u2064\u206a-\u206f\u3164\ufeff\uffa0\ufff9-\ufffb]|\udb40[\udc00-\udc7f]/
 /** Half of a UTF-16 pair with no other half: no character at all. */
 const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/
 
 /** Every character the tool server refuses in an argument, too. */
-export const UNSAFE_TEXT = new RegExp(`${LINE_BREAK.source}|${CONTROL.source}|${DIRECTION.source}|${LONE_SURROGATE.source}`)
+export const UNSAFE_TEXT = new RegExp(`${LINE_BREAK.source}|${CONTROL.source}|${DIRECTION.source}|${INVISIBLE.source}|${LONE_SURROGATE.source}`)
 
 function codePoint(text: string, pattern: RegExp): string {
   const found = pattern.exec(text)![0]
-  return `U+${found.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`
+  return `U+${found.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`
 }
 
 /** What is wrong with one piece of text, or null. Never quotes the text. */
@@ -47,6 +58,7 @@ export function textProblem(text: string, kind: 'name' | 'id' | 'path'): string 
   if (LINE_BREAK.test(text)) return `holds a line break (${codePoint(text, LINE_BREAK)}); it must be one line`
   if (CONTROL.test(text)) return `holds a control character (${codePoint(text, CONTROL)})`
   if (DIRECTION.test(text)) return `holds a direction character (${codePoint(text, DIRECTION)}), which can show text backwards`
+  if (INVISIBLE.test(text)) return `holds an invisible character (${codePoint(text, INVISIBLE)}), which can hide text or make one name look like another`
   if (LONE_SURROGATE.test(text)) return 'holds half of a character pair, which is no character'
   const max = kind === 'name' ? NAME_MAX : kind === 'id' ? ID_MAX : IMAGE_PATH_MAX
   if (text.length > max) return `is ${text.length.toLocaleString('en-US')} characters long; ${kind === 'id' ? 'an id' : `a ${kind}`} may have at most ${max}`
@@ -284,4 +296,91 @@ export function planTextProblem(raw: Record<string, unknown>, options: PlanTextO
     if (problem) return `base ${problem}`
   }
   return null
+}
+
+/**
+ * CMD-30: words that address an agent, or claim a verdict on the plan, in a name. Export file
+ * names keep out a longer list (`command/export.ts`); a room may well be the legal office, the
+ * system room or a pass-through, so those words are not here. Compared in small letters with
+ * the accents taken off.
+ */
+const ADDRESSED = new Set([
+  'ignore', 'disregard', 'forget', 'override', 'obey', 'instruction', 'instructions', 'prompt', 'assistant', 'execute', 'delete',
+  'approved', 'certified', 'compliant', 'complies',
+  'ignora', 'ignorar', 'olvida', 'instruccion', 'instrucciones', 'borra', 'elimina', 'aprobado', 'aprobada',
+])
+
+/** A title said before a person's name: `Mr Smith`, `Dra. Ruiz`. */
+const TITLE = /(?:^|[\s(])(?:Mr|Mrs|Ms|Mx|Miss|Dr|Dra|Prof|Sr|Sra|Srta|Dña|Doña)\.?\s+\p{Lu}/u
+/** A capitalised word said as whose: `Ana's room`. */
+const POSSESSIVE = /(?:^|[\s(])(\p{Lu}[\p{L}-]*)['’]s(?=[\s),.]|$)/gu
+/** `de` and a capitalised word: `Dormitorio de Lucía`. */
+const OF_SOMEONE = /(?:^|\s)(?:de|del|da|do|di|du)\s+(\p{Lu}\p{Ll}+)/gu
+/** Words that are said as whose, or after `de`, and are no one's name. Small letters, no accents. */
+const NO_ONE = new Set([
+  'children', 'child', 'kids', 'boys', 'girls', 'men', 'women', 'ladies', 'gents', 'gentlemen', 'people', 'baby',
+  'guest', 'guests', 'owner', 'owners', 'master', 'parent', 'parents', 'family', 'staff', 'visitor', 'visitors',
+  'teacher', 'teachers', 'doctor', 'doctors', 'nurse', 'nurses', 'patient', 'patients', 'student', 'students',
+  'resident', 'residents', 'tenant', 'tenants', 'client', 'clients', 'customer', 'customers', 'member', 'members',
+  'manager', 'director', 'caretaker', 'porter', 'chef', 'cook', 'nanny', 'driver', 'team', 'user', 'users',
+  'estar', 'bano', 'banho', 'aseo', 'servicio', 'invitados', 'huespedes', 'hospedes', 'visitas', 'juegos', 'trabajo',
+  'estudio', 'lavado', 'plancha', 'planta', 'dia', 'noche', 'matrimonio', 'maquinas', 'reuniones', 'espera', 'entrada',
+  'recepcion', 'comedor', 'cocina', 'musica', 'lectura', 'instalaciones', 'jantar', 'servico', 'limpieza', 'almacen', 'arriba', 'abajo', 'calle', 'acceso',
+])
+
+const folded = (text: string): string => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+/** What a name seems to hold, or null: an instruction or a claim, else a person's name. */
+export function nameConcern(name: string): 'instruction' | 'person' | null {
+  const text = name.normalize('NFC')
+  if (folded(text).split(/[^\p{L}\p{N}]+/u).some((word) => ADDRESSED.has(word))) return 'instruction'
+  if (TITLE.test(text)) return 'person'
+  for (const pattern of [POSSESSIVE, OF_SOMEONE]) {
+    for (const found of text.matchAll(pattern)) if (!NO_ONE.has(folded(found[1]!))) return 'person'
+  }
+  return null
+}
+
+type NamedPart = 'room' | 'floor' | 'flat' | 'plan'
+
+/** The names that go into every export and sheet: the rooms', the floors', the flats' and the plan's. */
+function exportedNames(raw: Readonly<Record<string, unknown>> | null): { part: NamedPart; name: string }[] {
+  if (raw === null) return []
+  const out: { part: NamedPart; name: string }[] = []
+  for (const [list, part] of [['rooms', 'room'], ['floors', 'floor'], ['flats', 'flat']] as const) {
+    const parts = raw[list]
+    if (!Array.isArray(parts)) continue
+    for (const one of parts) if (isObject(one) && typeof one['name'] === 'string') out.push({ part, name: one['name'] })
+  }
+  if (typeof raw['name'] === 'string') out.push({ part: 'plan', name: raw['name'] })
+  return out
+}
+
+/** The most names one answer notes; a plan written by a script may hold many. */
+export const NAME_NOTES_MAX = 3
+
+/**
+ * CMD-30: one gentle line for each name the plan now has, and did not have `before`, that reads
+ * as an instruction or a claim, or looks like it holds a person's name. The name is kept as
+ * written: Grid always quotes it, and the line says why the person may want another. A person's
+ * name points at the occupancy file beside the plan (`occupancyFile`), where who uses a room is
+ * kept out of the exports.
+ */
+export function nameNotes(after: Readonly<Record<string, unknown>>, before: Readonly<Record<string, unknown>> | null, occupancyFile: string): Said[] {
+  const had = new Set(exportedNames(before).map((one) => `${one.part}\u0000${one.name.normalize('NFC')}`))
+  const seen = new Set<string>()
+  const notes: Said[] = []
+  for (const one of exportedNames(after)) {
+    const key = `${one.part}\u0000${one.name.normalize('NFC')}`
+    if (had.has(key) || seen.has(key)) continue
+    seen.add(key)
+    const concern = nameConcern(one.name)
+    if (concern === null) continue
+    const part = said(`name.part.${one.part}`)
+    notes.push(concern === 'instruction'
+      ? said('name.note.instruction', { part, name: nameOf(one.name) })
+      : said('name.note.person', { part, name: nameOf(one.name), file: nameOf(occupancyFile) }))
+    if (notes.length === NAME_NOTES_MAX) break
+  }
+  return notes
 }

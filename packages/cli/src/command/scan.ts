@@ -26,7 +26,7 @@ import { surveyPlan } from '../quantities/survey'
 import { loadPlan } from './plan'
 import { refuseGridFile } from './planFile'
 import { PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
-import { differenceLine, nothingToLose, oneLine, RoomsRefused } from './write'
+import { differenceLine, nothingToLose, oneLine, refuseReadOnly, RoomsRefused } from './write'
 import type { TapedRow } from '@ongrid/floorplan/geometry'
 import { TAPED_ROWS_IN_AN_EDIT, tapedRows, tapedTable } from '../taped/table'
 
@@ -102,6 +102,7 @@ const m2 = (area: number): string => (Number.isFinite(area) ? `${area.toFixed(2)
 export function writeScanIntoProject(project: Project, scanFile: string, planFile: string, options: { readonly replace?: boolean } = {}): ScanWriteDone {
   if (!planFile.toLowerCase().endsWith('.json')) throw new RoomsRefused('rooms/plan-file', `The plan to write must be a .json file: got ${JSON.stringify(planFile)}.`)
   refuseGridFile(project.shown(project.resolve(planFile)), planFile)
+  refuseReadOnly(project, planFile)
   const evidenceFile = scanFileOf(planFile)
   const same = (a: string, b: string): boolean => project.resolve(a) === project.resolve(b)
   if (same(scanFile, planFile)) throw new RoomsRefused('scan/same-file', 'The scan and the plan are one file: name the plan to write with --plan (plan in a tool call), another file.')

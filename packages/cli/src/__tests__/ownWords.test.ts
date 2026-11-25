@@ -50,14 +50,16 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/main.ts': [58, 'command'],
   'packages/cli/src/command/options.ts': [9, 'command'],
   'packages/cli/src/command/plan.ts': [27, 'command'],
-  'packages/cli/src/command/planText.ts': [19, 'command'],
+  // CMD-30: one more, the refusal of an invisible character.
+  'packages/cli/src/command/planText.ts': [20, 'command'],
   'packages/cli/src/command/scan.ts': [22, 'command'],
   'packages/cli/src/command/section.ts': [6, 'command'],
   // SHT-6: four more, the help of --scale, --paper, --floor and --room-sizes.
   'packages/cli/src/command/sheet.ts': [8, 'command'],
   'packages/cli/src/command/tidy.ts': [12, 'command'],
   // WRT-57: one less, the count of problems now said from the messages.
-  'packages/cli/src/command/write.ts': [34, 'command'],
+  // CMD-30: one more, the refusal of a read-only plan.
+  'packages/cli/src/command/write.ts': [35, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
@@ -91,7 +93,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/export/dxfProfile.ts': [5, 'command'],
   'packages/cli/src/export/projectExports.ts': [2, 'command'],
   'packages/cli/src/firm/standards.ts': [18, 'command'],
-  'packages/cli/src/fs/projectFiles.ts': [49, 'command'],
+  // CMD-30: one more, the refusal of a read-only file.
+  'packages/cli/src/fs/projectFiles.ts': [50, 'command'],
   'packages/cli/src/library/answer.ts': [9, 'notYet'],
   'packages/cli/src/library/office.ts': [6, 'notYet'],
   'packages/cli/src/fs/textEncoding.ts': [5, 'command'],
@@ -227,7 +230,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/types/places.ts': [7, 'notYet'],
   // CMD-7: the plan JSON Schema's title, its description, and the error for a schema part it cannot write.
   'packages/floorplan/src/types/planSchema.ts': [3, 'developer'],
-  'packages/floorplan/src/types/planText.ts': [5, 'notYet'],
+  // CMD-30: one more, the refusal of an invisible character.
+  'packages/floorplan/src/types/planText.ts': [6, 'notYet'],
   'packages/floorplan/src/types/sheet.ts': [16, 'notYet'],
   'packages/floorplan/src/types/units.ts': [7, 'notYet'],
   'packages/rules/src/checks/figures.ts': [7, 'provenance'],
@@ -236,6 +240,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/rules/src/notes/notes.ts': [6, 'notYet'],
   'packages/rules/src/result/plurals.ts': [6, 'developer'],
   'packages/rules/src/sheet/rulesSheet.ts': [9, 'notYet'],
+  // CMD-30: the atomic writer's refusal of a read-only file.
+  'packages/rules/src/store/atomicWrite.ts': [1, 'notYet'],
   'packages/rules/src/store/store.ts': [1, 'developer'],
   'packages/viewer/src/canvas2d/Canvas2D.tsx': [1, 'notWords'],
   'packages/viewer/src/page/previewPage.ts': [5, 'notYet'],

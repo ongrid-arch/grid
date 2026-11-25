@@ -82,18 +82,27 @@ const LINE_BREAK = /[\n\r\u0085\u2028\u2029]/
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
 /** Characters that change the direction text is shown in, so a name can read backwards. */
 const DIRECTION = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/
+/**
+ * CMD-30: characters that show nothing, so a name can hide a word or look like another name: the
+ * zero-width space, the word joiner and the invisible operators, the soft hyphen, the combining
+ * grapheme joiner, the byte-order mark inside text, the Hangul fillers, the Mongolian vowel
+ * separator, the Khmer inherent vowels, the old format characters, the interlinear annotation
+ * marks and the tag characters, which can spell hidden text. The zero-width joiner and non-joiner
+ * (U+200C, U+200D) are kept: Persian, the Indic scripts and emoji need them.
+ */
+const INVISIBLE = /[\u00ad\u034f\u115f\u1160\u17b4\u17b5\u180e\u200b\u2060-\u2064\u206a-\u206f\u3164\ufeff\uffa0\ufff9-\ufffb]|\udb40[\udc00-\udc7f]/
 /** Half of a UTF-16 pair with no other half: no character at all. */
 const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/
 
 /** Every character a name, an id or a path may not hold. */
-export const UNSAFE_TEXT = new RegExp(`${LINE_BREAK.source}|${CONTROL.source}|${DIRECTION.source}|${LONE_SURROGATE.source}`)
+export const UNSAFE_TEXT = new RegExp(`${LINE_BREAK.source}|${CONTROL.source}|${DIRECTION.source}|${INVISIBLE.source}|${LONE_SURROGATE.source}`)
 
 /** What a piece of text is, for its limit. */
 export type TextKind = 'name' | 'id' | 'path' | 'word'
 
 function codePoint(text: string, pattern: RegExp): string {
   const found = pattern.exec(text)![0]
-  return `U+${found.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`
+  return `U+${found.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`
 }
 
 /**
@@ -105,6 +114,7 @@ export function textProblem(text: string, kind: TextKind): string | null {
   if (LINE_BREAK.test(text)) return `holds a line break (${codePoint(text, LINE_BREAK)}); it must be one line`
   if (CONTROL.test(text)) return `holds a control character (${codePoint(text, CONTROL)})`
   if (DIRECTION.test(text)) return `holds a direction character (${codePoint(text, DIRECTION)}), which can show text backwards`
+  if (INVISIBLE.test(text)) return `holds an invisible character (${codePoint(text, INVISIBLE)}), which can hide text or make one name look like another`
   if (LONE_SURROGATE.test(text)) return 'holds half of a character pair, which is no character'
   const max = kind === 'name' ? NAME_MAX : kind === 'id' ? ID_MAX : kind === 'word' ? WORD_MAX : IMAGE_PATH_MAX
   if (text.length > max) {

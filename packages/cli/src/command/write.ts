@@ -22,12 +22,13 @@ import type { Project } from '../fs/projectFiles'
 import { briefAnswer, briefReminder, type BriefData } from '../brief/answer'
 import { TAPED_ROWS_IN_AN_EDIT, tapedRows, tapedTable } from '../taped/table'
 import { TextNotDecoded } from '../fs/textEncoding'
+import { occupancyFileOf } from '../occupancy/occupancy'
 import { comparePlans } from '../quantities/compare'
 import { surveyPlan } from '../quantities/survey'
 import starterPlan from './starter-plan.json'
 import { loadPlan, PlanRefused } from './plan'
 import { refuseGridFile } from './planFile'
-import { PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
+import { nameNotes, PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
 import { PROJECT_OPTION, type OptionSpecs } from './options'
 import { droppedWords, floorsDropped, type DroppedFloor } from './writeLoss'
 
@@ -185,6 +186,17 @@ export function readRoomsFile(project: Project, file: string): string {
   }
 }
 
+/** CMD-30: a plan the person made read-only is refused before anything is worked out, and left as it is. */
+export function refuseReadOnly(project: Project, planFile: string): void {
+  try {
+    project.writable(planFile)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== 'EACCES' && code !== 'EPERM') return
+    throw new RoomsRefused('rooms/plan-file', `${project.shown(project.resolve(planFile))} was not written: ${oneLine((error as Error).message)}.`)
+  }
+}
+
 /** What writing would change, in a sentence, for a refusal. */
 export function differenceLine(before: FloorPlan, after: FloorPlan): string {
   return comparePlans(surveyPlan(before), surveyPlan(after), ['the plan now', 'the plan this text writes']).verdict
@@ -202,7 +214,9 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   if (!planFile.toLowerCase().endsWith('.json')) throw new RoomsRefused('rooms/plan-file', `The plan to write must be a .json file: got ${JSON.stringify(planFile)}.`)
   // WRT-13: grid.json and the files kept beside a plan are never written as a plan.
   refuseGridFile(project.shown(project.resolve(planFile)), planFile)
-  const result = compileRoomsText(text)
+  refuseReadOnly(project, planFile)
+  // CMD-30: names in one form (NFC), so a letter typed with a combining accent is the one the plan holds.
+  const result = compileRoomsText(text.normalize('NFC'))
   if (result.plan === null) {
     const lines = problemLines(result)
     const more = lines.length > 1 ? ` (${lines.length - 1} more: ${lines.slice(1).join(' | ')})` : ''
@@ -318,6 +332,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const lines = [
     `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
     ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX),
+    // CMD-30: a new name that reads as an instruction or holds a person's name, said gently.
+    ...nameNotes(next, before === null ? null : raw, occupancyFileOf(written)).map(english),
     ...(verdict === null ? [] : [verdict]),
     ...(dropped.length === 0 ? [] : [`Floors dropped, as asked: ${dropped.slice(0, 10).map(droppedWords).join('; ')}${dropped.length > 10 ? ` and ${dropped.length - 10} more` : ''}.`]),
     ...(carried === null || carried.kept === 0 ? [] : [`Facts of your own and room numbers kept by id on ${carried.kept} part${carried.kept === 1 ? '' : 's'}.`]),

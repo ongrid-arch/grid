@@ -43,7 +43,8 @@ const LINKS_MAX = 40
 export const NAME_MAX_BYTES = 255
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/
-const INVISIBLE = /[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/
+// CMD-30: the zero-width space, the word joiner and the soft hyphen too, which hide in a file name.
+const INVISIBLE = /[\u00ad\u200b\u200e\u200f\u2060\u202a-\u202e\u2066-\u2069\ufeff]/
 const DEVICE_PATH = /^[\\/]{2}[?.][\\/]|^[\\/]\?\?[\\/]/
 const NETWORK_PATH = /^[\\/]{2}/
 // Two letters or more, so `C:` stays a drive. No dot, so `plan.json:x` reads as a data stream.
@@ -357,8 +358,9 @@ export class Project {
   /**
    * Writes a file atomically: readers see the old contents or all of the new. The folders above
    * it that don't exist are made first, inside the project (CMD-19); a name on the way that is a
-   * file refuses with `ENOTDIR`. An existing link inside the project is followed: its target is replaced. Written
-   * files can be read only by their owner. Returns the real path written.
+   * file refuses with `ENOTDIR`. An existing link inside the project is followed: its target is replaced. A new
+   * file gets the mode the umask gives (0644 under the usual 022), a replaced one keeps its own, and a
+   * read-only one is refused with `EACCES` (CMD-30). Returns the real path written.
    */
   writeFile(given: string, data: string | Uint8Array): string {
     const real = this.writable(given)
@@ -369,7 +371,7 @@ export class Project {
 
   /**
    * Checks, writing nothing, what `writeFile` checks before it writes: no name on the way is a
-   * file and the name is not a folder. Folders that are not there are made by `writeFile`, not
+   * file, the name is not a folder and not a read-only file. Folders that are not there are made by `writeFile`, not
    * here. Throws as `writeFile` does; returns the real path.
    */
   writable(given: string): string {
@@ -380,7 +382,13 @@ export class Project {
       for (let i = 0; i < missing; i++) above = path.dirname(above)
       if (!fs.statSync(above).isDirectory()) throw errno('ENOTDIR', `a name on the way to ${quoted(given)} is a file, not a folder`)
     }
-    if (missing === 0 && fs.statSync(real).isDirectory()) throw errno('EISDIR', `${quoted(given)} is a folder`)
+    if (missing === 0) {
+      const entry = fs.statSync(real)
+      if (entry.isDirectory()) throw errno('EISDIR', `${quoted(given)} is a folder`)
+      // CMD-30: a file the person made read-only is theirs to keep; the atomic writer refuses it too.
+      // Its message follows "Can't write <file>: ", so it names neither the file nor the code.
+      if (entry.isFile() && (entry.mode & 0o200) === 0) throw Object.assign(new Error('it is read-only, so Grid leaves it as it is'), { code: 'EACCES' })
+    }
     return real
   }
 
@@ -403,14 +411,14 @@ export class Project {
 
   /**
    * Writes a new file, and never replaces one: errors with `EEXIST` as `code` when the name is
-   * taken, even by a file made a moment ago. Its folder must exist. Readable by its owner only.
+   * taken, even by a file made a moment ago. Its folder must exist. Its mode is the umask's.
    * Returns the real path written.
    */
   createFile(given: string, data: string | Uint8Array): string {
     const { real, missing } = this.locate(given)
     if (missing > 1) throw errno('ENOENT', `the folder of ${quoted(given)} does not exist`)
     if (missing === 0) throw errno('EEXIST', `${quoted(given)} is already there`)
-    const fd = fs.openSync(real, 'wx', 0o600)
+    const fd = fs.openSync(real, 'wx', 0o666)
     try {
       fs.writeFileSync(fd, data)
       fs.fsyncSync(fd)

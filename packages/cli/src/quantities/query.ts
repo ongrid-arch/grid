@@ -339,7 +339,8 @@ export function readCondition(asked: Asked, text: string, place: string): Condit
   return { field, test, value: compared[3]!.trim() }
 }
 
-const fold = (text: string): string => text.trim().toLowerCase()
+// CMD-30: in one form (NFC) on both sides, so a name written before with a combining accent is still found.
+const fold = (text: string): string => text.normalize('NFC').trim().toLowerCase()
 
 /** A number the person typed for a field: a length may carry its unit (`900 mm`, `3'`). */
 function numberOf(field: Field, text: string): number | null {
