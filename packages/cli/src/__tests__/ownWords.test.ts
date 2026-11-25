@@ -107,7 +107,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-20: two more, the place tool and the library in the tools' descriptions.
   // ARE-18: two more, why a route's walked length is not given.
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
-  'packages/cli/src/mcp/readTools.ts': [341, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [345, 'tools'],
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
   // ARE-27: one more, grid_check's word on the brief's missed figures.

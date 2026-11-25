@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, planHasFinishes, planHasTypes, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX } from '../fs/projectFiles'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
@@ -1919,6 +1919,16 @@ function cutArg(value: unknown): CutArg {
   return { from: point('from'), to: point('to') }
 }
 
+/** VEW-30: the point kind=eye stands on, as [x, y]. */
+function standAtArg(value: unknown): [number, number] {
+  const given = value as Record<string, unknown>
+  const extra = Object.keys(given).filter((key) => key !== 'x' && key !== 'y')
+  if (extra.length > 0) throw new ToolRefusal(`stand_at takes x and y, not ${extra.length > 3 ? 'others' : extra.map((key) => (key.length <= 64 && /^[A-Za-z0-9._-]+$/.test(key) ? q(key) : 'others')).join(', ')}.`)
+  const { x, y } = given
+  if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y)) throw new ToolRefusal('stand_at takes x and y as numbers in metres, for example { x: 3.2, y: 4.1 }.')
+  return [x, y]
+}
+
 /** A refusal a command option gives, as the tool's own, its option names as the tool's arguments. */
 function asToolArg<T>(read: () => T): T {
   try {
@@ -1991,7 +2001,7 @@ const viewTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks to see the plan: "can I see it", a floor plan, a 3D view from the garden side or from above, the front of the house as an elevation, a section through the stair, "the living room from the south-west, from higher up", "a bit lower and more from the left", a view saved by name, "stand me in the kitchen looking at the garden", "can I see out sitting down", or a black and white drawing. '
-    + 'kind=plan draws one floor from above with its sizes; kind=facade draws one side of the drawing (side: north, east, south or west; north is the top of the drawing) in elevation, every floor at its level, its doors and windows, the ground line heaviest and faces set back lighter; kind=3d draws the model through a camera: from a side or corner of the drawing (from), or a compass bearing from the plan\'s stated north (bearing), with tilt, distance, eye_height, lens, a room to point at and a floor cut away; kind=eye stands in a room at eye_height and looks level toward an opening or a direction, and lists the window sills against that eye height; kind=section cuts every floor along a line (cut) and looks to one side of it (toward), with the levels, the room heights, and what Grid takes that the plan does not state dashed and listed. '
+    + 'kind=plan draws one floor from above with its sizes; kind=facade draws one side of the drawing (side: north, east, south or west; north is the top of the drawing) in elevation, every floor at its level, its doors and windows, the ground line heaviest and faces set back lighter; kind=3d draws the model through a camera: from a side or corner of the drawing (from), or a compass bearing from the plan\'s stated north (bearing), with tilt, distance, eye_height, lens, a room to point at and a floor cut away; kind=eye stands in a room, on its middle line or at stand_at, with the eye eye_height above that room\'s own floor, and looks level toward an opening or a direction, and lists the window sills against that eye height; kind=section cuts every floor along a line (cut) and looks to one side of it (toward), with the levels, the room heights, and what Grid takes that the plan does not state dashed and listed. '
     + 'Every 3d and eye picture comes back with its camera record (camera: target, bearing, tilt, distance, eye height, lens in mm on a 36 × 24 mm sensor, cut, floors, where it stands, and position, direction, up and field of view as the BCF format writes them). To change the view, send camera back with turn, tilt_by or changed numbers; view calls up one saved with grid_save_view. '
     + 'It returns the picture with the numbers that made it; look at the picture before you describe it. It changes nothing and writes no file. Do not use for a file to hand on (grid_export), to move the person\'s live preview (grid_preview) or to save a view (grid_save_view). The 3d model is drawn with its roof from outside, or when a floor states one: the roof the plan states, and a flat one over every other part with nothing above; a floor cut away is drawn open, and roof shows or hides it. It has no furniture, glass or door leaves. The drawing\'s figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
@@ -2014,7 +2024,7 @@ const viewTool: GridTool = {
     tilt_by: { type: 'number', description: 'For 3d: degrees to add to the tilt: below 0 the camera comes lower and looks less steeply down, above 0 higher.', examples: [-10, 15], minimum: -178, maximum: 178 },
     room: { type: 'string', id: true, description: 'For eye: the room to stand in. For 3d: the room to point the camera at, the middle of its floor half way up its storey.', examples: ['kitchen', 'living'] },
     toward: { type: 'string', maxLength: 64, description: 'For eye: an opening id to look at, or a direction (north, north-east, east, south-east, south, south-west, west, north-west). The room\'s first window when left out. For section, and for plan with marks section: left or right, the side of the cut the section looks toward, walking from its from point to its to point; left when left out.', examples: ['back-door', 'north', 'left'] },
-    eye_height: { type: 'number', length: true, description: 'For eye: metres above the floor, 0.3 to 3; 1.6 standing when left out; about 1.2 seated. For 3d: metres from the floor of the room pointed at (or the floor cut away, or the ground floor) up to the camera: with a tilt the camera stands back until it is that high; level, or with a distance, the point it looks at moves to meet it.', examples: [1.6, 1.2], minimum: 0, maximum: 10000 },
+    eye_height: { type: 'number', length: true, description: 'For eye: metres above the room\'s own floor (its storey and its floor offset), 0.3 to 3; 1.6 standing when left out; about 1.2 seated. For 3d: metres from the floor of the room pointed at (or the floor cut away, or the ground floor) up to the camera: with a tilt the camera stands back until it is that high; level, or with a distance, the point it looks at moves to meet it.', examples: [1.6, 1.2], minimum: 0, maximum: 10000 },
     look: { type: 'string', enum: LOOKS, description: 'For plan and facade: working (the default: clear labels and strong contrast), technical for black on white as on a sheet, with lines in millimetres at the scale and doors with no stated swing marked "?". A picture is always on light paper, so dark, the app\'s screen theme, draws working. light and mono are older names for working and technical.', examples: ['working', 'technical'] },
     dimensions: { type: 'boolean', description: 'For plan: false to leave the sizes off, for a clean drawing. true when left out.', examples: [true, false] },
     tile: { type: 'number', description: 'For plan: on a floor far longer than it is wide, which the answer says is drawn in pieces, the piece to draw, from 1 at its left (or top) end; each overlaps the next and is drawn large enough to read. The whole floor when left out. Not with crop.', examples: [1, 2], minimum: 1, maximum: 1000 },
@@ -2025,6 +2035,13 @@ const viewTool: GridTool = {
     highlight: { type: 'array', description: 'For plan: rooms, walls, doors, windows or openings to pick out, by id, in one colour with a key: grid_find\'s view passes its ids here. Nothing picked out when left out.', examples: [['d1', 'd4'], ['office-2']], items: { id: true }, minItems: 1, maxItems: 2000 },
     key: { type: 'boolean', description: 'For plan: true to add a key under the drawing, even where the plan asks for none.', examples: [true] },
     language: LANGUAGE_ARG,
+    stand_at: {
+      type: 'object',
+      description: 'For eye: the point to stand on, x and y in metres on the plan; it must be on the room\'s floor. On the room\'s middle line, back from the middle away from what is looked at, when left out.',
+      examples: [{ x: 3.2, y: 4.1 }],
+      schema: objectSchema({ x: { type: 'number' }, y: { type: 'number' } }),
+      read: (value) => standAtArg(value),
+    },
     cut: {
       type: 'object',
       description: 'For section, and for plan with marks section: the line to cut along, from one point of the plan to another, in metres. Every floor is cut along it.',
@@ -2044,10 +2061,10 @@ const viewTool: GridTool = {
       plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
       facade: ['side', 'look'],
       '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit'],
-      eye: ['room', 'toward', 'eye_height'],
+      eye: ['room', 'toward', 'eye_height', 'stand_at'],
       section: ['cut', 'toward', 'look'],
     }
-    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
+    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
     const plan = survey.plan
     // MSG-11: the drawing's own words in the language asked for, else the plan's own.
@@ -2220,7 +2237,11 @@ const viewTool: GridTool = {
       looking = `${facts.type} ${q(target)}`
     }
     const { cameraView, eyeStand } = await import('../draw/views')
-    const camera = eyeCamera(plan, { room: id, polygon: room.polygon, stand: eyeStand(room.polygon, toward), height, toward })
+    // VEW-30: stands where the person says, inside the room's floor, else on its middle line.
+    const standAt = args['stand_at'] as [number, number] | undefined
+    if (standAt !== undefined && !pointInPolygon({ x: standAt[0], y: standAt[1] }, room.polygon, room.holes)) throw new ToolRefusal(`stand_at (${m(standAt[0])}, ${m(standAt[1])}) is not on the floor of ${q(room.facts.name)}: pass a point inside the room.`)
+    const stand = standAt !== undefined ? { x: standAt[0], y: standAt[1] } : eyeStand(room.polygon, toward, room.holes)
+    const camera = eyeCamera(plan, { room: id, polygon: room.polygon, stand, height, toward })
     const view = await cameraView(plan, camera, language)
     const heading = wrapDegrees(drawingBearing(camera.bearing, planOrientation(plan)) + 180)
     const sills = windows.map((w) => ({ id: w.id, sill: w.sill, top: w.sill + w.height, seenOver: w.sill < height }))
@@ -2229,7 +2250,7 @@ const viewTool: GridTool = {
       : `Windows in the room, sill and top against the eye at ${m(height)} m: ${sills.map((s) => `${q(s.id)} sill ${m(s.sill)}, top ${m(s.top)} (${s.sill < height ? 'the eye is above the sill' : 'the sill is at or above the eye'})`).join('; ')}.`
     return {
       text: [
-        `Standing in ${q(room.facts.name)} at (${m(camera.position[0])}, ${m(camera.position[1])}), eye ${m(height)} m above the floor, looking level toward ${looking} (heading ${heading.toFixed(0)}° from the top of the drawing), 90° across. ${sillText} The model has no ceiling, glass, furniture or anything outside. Look at the picture before you describe it.`,
+        `Standing in ${q(room.facts.name)} at (${m(camera.position[0])}, ${m(camera.position[1])}), eye ${m(height)} m above the room's own floor, looking level toward ${looking} (heading ${heading.toFixed(0)}° from the top of the drawing), 90° across. ${sillText} The model has no ceiling, glass, furniture or anything outside. Look at the picture before you describe it.`,
         ...cameraLines(plan, camera),
       ].join('\n'),
       data: { kind, floor: room.facts.floor, camera, view: null, pxPerMetre: null, sills, ids: [], boxes: [] },

@@ -418,8 +418,11 @@ describe('small things a sheet says (VEW-7)', () => {
 
   it('says a floor with no findings found nothing, even with notices, and so does the summary', () => {
     // LVL-1 (lab VE-8): the house's balcony door upstairs, with nothing drawn outside it, is now
-    // a finding, so this case takes the house without it.
-    const quiet = { ...house, plan: { ...house.plan, openings: house.plan.openings.filter((o) => o.id !== 'balcony') } }
+    // a finding, so this case takes the house without it. LVL-14: a floor no stair reaches is a
+    // finding too, so its landing is a stair room, with none below it: the way out upstairs is
+    // still not checked, and nothing is found.
+    const rooms = house.plan.rooms.map((r) => (r.id === 'landing' ? { ...r, use: 'stair' as const } : r))
+    const quiet = { ...house, plan: { ...house.plan, rooms, openings: house.plan.openings.filter((o) => o.id !== 'balcony') } }
     const sheet = sheetPages(quiet, null, 'check', { name: 'x', date })
     expect(checkPlan(quiet, {}).report.findings).toEqual([])
     expect(sheet.pages[0]!.notes).toContain(`Findings: none. ${NOTHING_FOUND}`)

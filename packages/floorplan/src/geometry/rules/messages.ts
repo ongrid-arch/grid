@@ -73,6 +73,7 @@ export const saids = {
   noRoute: (room: string): Said => said('check.noRoute', { room: name(room) }),
   noRouteToAnyDoorOut: (room: string): Said => said('check.noRouteToAnyDoorOut', { room: name(room) }),
   noStairs: (floor: string): Said => said('check.noStairs', { floor: name(floor) }),
+  noStair: (floor: string): Said => said('check.noStair', { floor: name(floor) }),
   /**
    * LVL-3: rooms used as a stair (or a lift) on one level that lie over none on the level below.
    * `upper` and `lower` hold at least one name each; floors likewise.
@@ -157,6 +158,7 @@ export const wordings = {
   noRoute: (room: string): WordingPart[] => parts(saids.noRoute(room)),
   noRouteToAnyDoorOut: (room: string): WordingPart[] => parts(saids.noRouteToAnyDoorOut(room)),
   noStairs: (floor: string): WordingPart[] => parts(saids.noStairs(floor)),
+  noStair: (floor: string): WordingPart[] => parts(saids.noStair(floor)),
   outOfLine: (...args: Parameters<typeof saids.outOfLine>): WordingPart[] => parts(saids.outOfLine(...args)),
   shifted: (...args: Parameters<typeof saids.shifted>): WordingPart[] => parts(saids.shifted(...args)),
   wayOutNotDrawn: (floor: string): WordingPart[] => parts(saids.wayOutNotDrawn(floor)),
@@ -243,6 +245,7 @@ export const messages = {
   noRoute: (room: string): string => english(saids.noRoute(room)),
   noRouteToAnyDoorOut: (room: string): string => english(saids.noRouteToAnyDoorOut(room)),
   noStairs: (floor: string): string => english(saids.noStairs(floor)),
+  noStair: (floor: string): string => english(saids.noStair(floor)),
   outOfLine: (...args: Parameters<typeof saids.outOfLine>): string => english(saids.outOfLine(...args)),
   shifted: (...args: Parameters<typeof saids.shifted>): string => english(saids.shifted(...args)),
   wayOutNotDrawn: (floor: string): string => english(saids.wayOutNotDrawn(floor)),

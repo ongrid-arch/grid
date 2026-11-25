@@ -374,7 +374,8 @@ describe('LVL-1 a door to the outside above the ground (VE-8)', () => {
       ]
     })
     const report = checkPlanSanity(plan)
-    expect(report.findings.map((f) => [f.code, f.floor, f.openings])).toEqual([['door_to_outside_above_ground', 'first', ['balcony']]])
+    // LVL-14: and the upper floor, which no stair reaches, is a finding of its own.
+    expect(report.findings.map((f) => [f.code, f.floor, f.openings])).toEqual([['door_to_outside_above_ground', 'first', ['balcony']], ['no_stair', 'first', []]])
     expect(report.findings[0]!.message).toBe('Where a door from "b" leads, 2.95 m above the ground, was not checked: it is not taken as a way out')
   })
 })

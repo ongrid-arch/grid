@@ -607,6 +607,10 @@ export const CODES = {
   'floor/no-exit': {
     values: (s): Values => ({ wording: planCheckSaids.noExit(s.floorName) })
   },
+  // LVL-14: the floor's id and the ground floor's, for the rooms-text line that adds a stair.
+  'floor/no-stair': {
+    values: (s): Values => ({ wording: planCheckSaids.noStair(s.floorName), floorId: s.finding?.floor ?? '', belowId: s.finding?.stairFrom ?? '' })
+  },
   'room/no-door': {
     values: (s): Values => ({ wording: grouped(s, planCheckSaids.roomWithoutDoor(s.name)) })
   },

@@ -68,7 +68,7 @@ export function planNotes(plan: FloorPlan, report: RulesReport): PlanNotesView {
       id,
       floor: finding.floor,
       room: finding.code === 'no_exit' ? null : room,
-      floorName: finding.code !== 'no_exit' && floors.length > 1 ? floorName(finding.floor) : null,
+      floorName: finding.code !== 'no_exit' && finding.code !== 'no_stair' && floors.length > 1 ? floorName(finding.floor) : null,
       tag: finding.code === 'setback_short' || finding.code === 'over_boundary' ? ('Site' as const) : ('Exit' as const)
     }
     switch (finding.code) {
@@ -98,6 +98,13 @@ export function planNotes(plan: FloorPlan, report: RulesReport): PlanNotesView {
           ...base,
           title: wordings.noExit(floorName(finding.floor)),
           detail: [words('No door leads outside.')]
+        }
+      // LVL-14: a floor above the ground that nothing joins to the ground floor.
+      case 'no_stair':
+        return {
+          ...base,
+          title: wordings.noStair(floorName(finding.floor)),
+          detail: [words(english(said('check.detail.noStair')))]
         }
       case 'door_to_undrawn_space':
         return {

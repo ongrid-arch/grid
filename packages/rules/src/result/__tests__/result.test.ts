@@ -274,13 +274,18 @@ describe('every line', () => {
       // MSG-17: a door to the outside above the ground is one of the report's findings, listed as not checked.
       const outAbove = (l: { code: string }): boolean => l.code === 'opening/door-out-above-ground'
       const findings = result.lines.filter((l) => l.kind === 'finding' || outAbove(l))
-      expect(findings.map((l) => l.message), name).toEqual(report.findings.map((f) => f.message))
+      // LVL-14: the findings first, then the doors out above the ground, each in the report's order.
+      const isOutAbove = (f: { code: string }): boolean => f.code === 'door_to_outside_above_ground'
+      expect(findings.map((l) => l.message), name).toEqual([...report.findings.filter((f) => !isOutAbove(f)), ...report.findings.filter(isOutAbove)].map((f) => f.message))
       expect(result.lines.filter(outAbove).every((l) => l.kind === 'not-checked'), name).toBe(true)
-      // CNT-14: the doors with no swing stated come from the door check, not the report.
-      expect(result.lines.filter((l) => l.kind === 'not-checked' && l.code !== 'floor/not-checked-door-swings' && !outAbove(l)).map((l) => l.message), name).toEqual(report.notChecked.map((n) => n.message))
+      // CNT-14: the doors with no swing stated come from the door check, not the report. LVL-14: a
+      // floor with no stair at all is said by its finding, not by its notice too.
+      const noStair = new Set(report.findings.filter((f) => f.code === 'no_stair').map((f) => f.floor))
+      const notices = report.notChecked.filter((n) => !(n.reason === 'no_stairs' && noStair.has(n.floor)))
+      expect(result.lines.filter((l) => l.kind === 'not-checked' && l.code !== 'floor/not-checked-door-swings' && !outAbove(l)).map((l) => l.message), name).toEqual(notices.map((n) => n.message))
       // The notes a person reads: the same wording, the names set apart instead of quoted.
       const notes = planNotes(FloorPlanSchema.parse(plan), report).notes
-      expect(notes.map((n) => geometry.wordingText(n.title)), name).toEqual(findings.map((l) => l.message))
+      expect(notes.map((n) => geometry.wordingText(n.title)), name).toEqual(report.findings.map((f) => f.message))
     }
   })
 

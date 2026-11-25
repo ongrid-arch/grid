@@ -164,6 +164,7 @@ describe('a door into a space not drawn, off the ground floor', () => {
     const house = twoFloorHouse()
     const noLanding = { ...house, rooms: house.rooms.filter((r) => r.id !== 'landing') }
     // LVL-1: with the balcony door, 2.95 m up, named too (lab VE-8).
-    expect(summary(noLanding)).toEqual(['door_to_outside_above_ground first study', 'door_to_undrawn_space first study'])
+    // LVL-14: and the first floor, which no stair reaches, is named.
+    expect(summary(noLanding)).toEqual(['door_to_outside_above_ground first study', 'door_to_undrawn_space first study', 'no_stair first '])
   })
 })
