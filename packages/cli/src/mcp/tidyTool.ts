@@ -9,7 +9,7 @@
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { tidyFile, tidyList, type TidyFault } from '../command/tidy'
-import { asRefusal, BOOLEAN, listSchema, NULLABLE_STRING, objectSchema, PLAN_ARG, readPlan, STRING, ToolRefusal, type GridTool } from './toolkit'
+import { asRefusal, listSchema, NULLABLE_STRING, objectSchema, PLAN_ARG, readPlan, STRING, ToolRefusal, type GridTool } from './toolkit'
 
 export const TIDY_TOOL_NAME = 'grid_tidy'
 
