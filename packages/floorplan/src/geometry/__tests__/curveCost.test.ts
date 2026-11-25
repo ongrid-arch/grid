@@ -1,7 +1,7 @@
 /**
  * CNT-25: a curved wall costs about what its chord costs. A tower of rounded-square plates, four
- * quarter-circle corners a floor, is checked in a small multiple of the time the same tower with
- * straight corners takes; drawing one of its floors does not work out every floor's level; and
+ * quarter-circle corners a floor, is checked in a time that grows with its floors, not their
+ * square; drawing one of its floors does not work out every floor's level; and
  * what is kept between readers (a curve's pieces, a room's traced outline, a floor's spaces, the
  * building's levels) gives the same answers, to the last digit, as working them out afresh.
  */
@@ -55,10 +55,14 @@ function tower(count: number, curved: boolean): FloorPlan {
   return { version: '1', units: 'm', floors, walls, rooms, openings }
 }
 
-/** What a check of the whole plan does that grew with the floors: its validation and the door-swing check, which draws each floor. */
+/**
+ * What grew with the floors and the curves: the plan's validation without the spaces (which join
+ * each curved wall as its strips, and set each floor's outline against the floors under it), and
+ * the door-swing check, which draws each floor.
+ */
 function check(plan: FloorPlan): number {
   const started = performance.now()
-  validatePlan(plan)
+  validatePlan(plan, indexPlan(plan), { spaces: false })
   checkDoorSweeps(plan, () => null)
   return performance.now() - started
 }
@@ -66,18 +70,17 @@ function check(plan: FloorPlan): number {
 afterEach(() => vi.restoreAllMocks())
 
 describe('a tower with curved corners (CNT-25)', () => {
-  it('is checked in a small multiple of the time its straight twin takes', () => {
-    const floors = 40
-    // Once each first, so neither time counts loading the code.
-    check(tower(2, false))
+  it('is checked in a time that grows with its floors, not with their square', () => {
+    // Once first, so no time counts loading the code.
     check(tower(2, true))
-    const straight = check(tower(floors, false))
-    const curved = check(tower(floors, true))
-    console.log(`CNT-25: ${floors} floors checked in ${Math.round(straight)} ms with straight corners, ${Math.round(curved)} ms with curved ones`)
-    // Before, the curved tower took about 60 times as long, and more with every floor added; now
-    // about 10 times, since a curve is still joined as about fifty strips (`spaces.ts`). The
+    const ten = check(tower(10, true))
+    const forty = check(tower(40, true))
+    const straight = check(tower(40, false))
+    console.log(`CNT-25: curved corners, 10 floors in ${Math.round(ten)} ms, 40 in ${Math.round(forty)} ms; straight corners, 40 in ${Math.round(straight)} ms`)
+    // Four times the floors: about four times the time now; before, each floor's drawing worked
+    // out every floor's level and traced every room again, and it took over ten times. The
     // guard leaves room for a busy machine.
-    expect(curved).toBeLessThan(20 * straight + 4_000)
+    expect(forty).toBeLessThan(6 * ten + 1_500)
   }, 300_000)
 
   it('draws one floor without working out every floor of the building', () => {

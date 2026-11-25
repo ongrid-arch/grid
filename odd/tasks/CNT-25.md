@@ -69,9 +69,13 @@ Decisions:
 ## Done
 
 - `packages/floorplan/src/geometry/__tests__/curveCost.test.ts`:
-  - the forty-floor curved tower is checked (`validatePlan` and the door-swing check, the two
-    readers that grew with floors) within a small multiple of the straight tower's time; it fails
-    before the change (about 25 times slower);
+  - the curved tower is checked (`validatePlan` without the spaces, and the door-swing check,
+    which draws each floor) on forty floors in less than six times its time on ten; before the
+    change it took over ten times as long (6.9 s against 73.6 s here), and the test fails there.
+    The spaces are left out of the timing: each floor's join of a curved wall's strips is one
+    polygon union that costs what its pieces cost, and since LVL-11 each floor's outline is
+    also cut against every floor under it, which grows with the square of the floors (left for
+    a change of its own);
   - a floor's drawing of a plan with no site does not work out the building's levels (counted
     through `floorElevations`'s own validation of the floors);
   - the same room traced twice gives equal outlines, a list a caller changes does not change the

@@ -1,12 +1,11 @@
-# 2026-11-25: a building with curved walls is checked and drawn about ten times faster (CNT-25)
+# 2026-11-25: a building with curved walls is checked and drawn much faster (CNT-25)
 
 ## For people
 
 - `grid check`, `grid draw`, the 3D view and `grid sheet` of a tall building with curved walls
-  are much faster: a forty-floor tower whose floors each have four rounded corners is checked in
-  a few seconds instead of over a minute, and drawing or raising one of its floors no longer works
-  out every floor of the building again. Every figure, line and drawing is the same as before
-  (CNT-25).
+  are much faster: a curved wall's pieces and each room's outline are worked out once, not once
+  for every check that reads them, and drawing or raising one floor no longer works out every
+  floor of the building again. Every figure, line and drawing is the same as before (CNT-25).
 
 ## For agents
 
