@@ -52,7 +52,7 @@ import {
 } from '../quantities/measure'
 import { WALKED_RULE, type WalkGap } from '../quantities/walked'
 import { factsText, flatSchedule, flatScheduleCsv, openingSchedule, openingScheduleCsv, openingTypeSchedule, openingTypeScheduleCsv, planSchedule, roomSchedule, roomScheduleCsv, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
-import { fixtureCountText, FIXTURE_RULES, planFixtures } from '../quantities/fixtures'
+import { fixtureCountText, fixturesLeftOut, fixturesLeftOutLine, FIXTURE_RULES, planFixtures } from '../quantities/fixtures'
 import { FACING_RULE, facingAnswer, northWords } from '../quantities/facing'
 import { SUN_RULE, sunAnswer } from '../quantities/sun'
 import { SITE_RULE, siteAnswer } from '../quantities/site'
@@ -1463,7 +1463,7 @@ const measureTool: GridTool = {
       // CNT-13: the room's use indicators, each set against the person's figure or Grid's own.
       const asked = roomOf()
       const { room, said } = wholeOf(asked)
-      const found = roomIndicators(survey, room, { width: args['width'], diameter: args['diameter'], clearance: args['clearance'] }, L)
+      const found = roomIndicators(survey, room, { width: args['width'], diameter: args['diameter'], clearance: args['clearance'] }, L, fixturesLeftOut(survey.plan, readPlan(context, args['plan']).loaded.faults ?? []).length)
       return {
         text: [...(said === null ? [] : [said]), ...found.lines, USE_RULE].join('\n'),
         data: { what, answer: { room: room.facts.id, ...(said === null ? {} : { zone: asked.facts.id }), indicators: found.indicators }, rule: USE_RULE },
@@ -2545,7 +2545,34 @@ function withFixCalls(line: ResultLine, plan: unknown): ResultLine & { readonly 
   return calls.length > 0 ? { ...line, calls } : line
 }
 
-export const READ_TOOLS: readonly GridTool[] = [compareTool, areasTool, takeoffTool, scheduleTool, fieldsTool, findTool, countTool, measureTool, viewTool, describeTool, checkTool]
+/**
+ * ARE-26: a measure that depends on fixtures names the ones it left out and why, in its text and
+ * in its data (`fixturesLeftOut`), so a room is never read as holding none because its toilet
+ * was set aside. Only the answers that take fixtures into account are noted.
+ */
+function noting(tool: GridTool, applies: (args: Record<string, unknown>) => boolean): GridTool {
+  const run = tool.run
+  return {
+    ...tool,
+    run(args, context) {
+      const note = (answer: Answer): Answer => {
+        const { loaded } = readPlan(context, args['plan'])
+        const left = fixturesLeftOut(loaded.plan, loaded.faults ?? [])
+        const line = fixturesLeftOutLine(left)
+        if (line === null) return answer
+        const data = { ...answer.data, fixturesLeftOut: left.map((one) => ({ id: one.id, field: one.field, found: one.found })) }
+        const where = typeof answer.data['rule'] === 'string' && answer.text.endsWith(answer.data['rule']) ? answer.text.length - answer.data['rule'].length : answer.text.length
+        const text = where === answer.text.length ? `${answer.text}\n${line}` : `${answer.text.slice(0, where)}${line}\n${answer.text.slice(where)}`
+        return { ...answer, text, data }
+      }
+      if (!applies(args)) return run.call(tool, args, context)
+      const answer = run.call(tool, args, context)
+      return answer instanceof Promise ? answer.then(note) : note(answer)
+    },
+  }
+}
+
+export const READ_TOOLS: readonly GridTool[] = [compareTool, noting(areasTool, (args) => args['format'] !== 'csv'), takeoffTool, scheduleTool, fieldsTool, findTool, countTool, noting(measureTool, (args) => ['use', 'fit', 'access'].includes(args['what'] as string) || (args['what'] === 'route' && args['width'] !== undefined)), viewTool, describeTool, checkTool]
 
 /** What the sides of an opening are called in an answer. Exported for the edit tools. */
 export function openingBetween(survey: Survey, id: string): string {
