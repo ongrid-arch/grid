@@ -2556,7 +2556,15 @@ export const en = {
   'trace.otherFloor': 'The trace image {path} lies under floor {floor}, so it is not drawn on this one.',
   'read.trace.samePoint': 'is the same point as from: a scale needs two points apart',
   'read.trace.scaleAndCalibration': 'is stated beside calibration: give the scale or the two points and their length, not both',
-  'trace.refused.ending': "{file} can't be used: its trace image, referenceImage.path, is refused. {path} does not end in .png, .jpg or .jpeg, so it is not a picture Grid draws. Name a PNG or JPEG picture inside the project folder {folder}, or take referenceImage out of the plan."
+  'trace.refused.ending': "{file} can't be used: its trace image, referenceImage.path, is refused. {path} does not end in .png, .jpg or .jpeg, so it is not a picture Grid draws. Name a PNG or JPEG picture inside the project folder {folder}, or take referenceImage out of the plan.",
+  'plan.notAPlan.gridFile': '{file} is not a plan file: it is {kind}, and a plan is never written into it. Name another .json file for the plan; replace does not change this.',
+  'plan.notAPlan.noParts': '{file} is not a Grid plan: it holds no walls, rooms or openings.',
+  'plan.fileKind.project': 'the file that marks the folder as a Grid project',
+  'plan.fileKind.markers': 'a file Grid keeps beside a plan (start markers)',
+  'plan.fileKind.seen': 'a file Grid keeps beside a plan (the notes set aside as seen)',
+  'plan.fileKind.brief': 'a file Grid keeps beside a plan (the brief)',
+  'plan.fileKind.preview': 'a file Grid keeps beside a plan (the preview record)',
+  'plan.fileKind.scan': 'a file Grid keeps beside a plan (the room scan)'
 } as const satisfies Record<string, string>
 
 export type MessageKey = keyof typeof en

@@ -46,6 +46,11 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid serve` | Starts the tool server on standard input and output, with the 33 tools in [the tool server](tool-server.md) |
 | `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`) |
 
+A plan is told by what it holds: a list of walls, rooms or openings, or the stamp Grid writes. `grid write` never
+writes a plan into `grid.json`, into a file Grid keeps beside a plan (`<plan>.markers.json`, `.seen.json`,
+`.brief.json`, `.preview.json`, `.scan.json`) or into a JSON file that holds none of those, and `--replace` does not
+change that; every command that reads a plan refuses such a file in one line.
+
 ## Options and exit codes
 
 Every command also takes `--project <folder>` (see below). An unknown, repeated or

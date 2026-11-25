@@ -24,6 +24,7 @@ import { comparePlans } from '../quantities/compare'
 import { surveyPlan } from '../quantities/survey'
 import starterPlan from './starter-plan.json'
 import { loadPlan, PlanRefused } from './plan'
+import { refuseGridFile } from './planFile'
 import { PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
 import { PROJECT_OPTION, type OptionSpecs } from './options'
 
@@ -131,6 +132,8 @@ export const ROOMS_LISTED_MAX = 12
 
 export function writeRoomsIntoProject(project: Project, text: string, planFile: string, options: { readonly replace?: boolean; readonly brief?: boolean } = {}): WriteDone {
   if (!planFile.toLowerCase().endsWith('.json')) throw new RoomsRefused('rooms/plan-file', `The plan to write must be a .json file: got ${JSON.stringify(planFile)}.`)
+  // WRT-13: grid.json and the files kept beside a plan are never written as a plan.
+  refuseGridFile(project.shown(project.resolve(planFile)), planFile)
   const result = compileRoomsText(text)
   if (result.plan === null) {
     const lines = problemLines(result)
