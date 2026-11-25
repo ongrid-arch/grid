@@ -120,6 +120,8 @@ export interface PlanRoom {
   readonly area: number
   /** Where to place the name label. In a room with holes, a point on its floor, never in a hole. */
   readonly labelAt: Vec2
+  /** VEW-13: the room's own number, as the plan states it (CNT-9). Left out when it states none. */
+  readonly number?: string
   /** WRT-6: the plan marks the room, or a value of it, assumed. Left out when it does not. */
   readonly assumed?: true
   /** CNT-10: what the work does to it, in a plan with phases. Only rooms that stand after the work are drawn. */
@@ -581,6 +583,7 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
       // The middle of the corners of a ring lies in its hole: there, the point of its floor
       // farthest from every edge.
       labelAt: holes.length === 0 ? centroid(polygon) : poleOfInaccessibility(polygon, undefined, holes).point,
+      ...(room.number === undefined ? {} : { number: room.number }),
       ...assumed('room', room.id),
       ...phaseOf(room.id)
     })

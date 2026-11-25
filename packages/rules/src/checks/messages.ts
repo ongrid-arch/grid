@@ -28,6 +28,7 @@ const parts = (sentence: Said): WordingPart[] => sayParts('en', sentence.key, se
 export const saids = {
   roomTooSmall: (room: string, minimum: number): Said => said('check.roomTooSmall', { room: name(room), minimum: num(figureText(minimum)) }),
   noEscapeOpening: (room: string): Said => said('check.noEscapeOpening', { room: name(room) }),
+  noEscapeOpeningBelowGround: (room: string): Said => said('check.noEscapeOpening.belowGround', { room: name(room) }),
   escapeWindowTooSmall: (room: string): Said => said('check.escapeWindowTooSmall', { room: name(room) }),
   escapeWindowTooHigh: (room: string): Said => said('check.escapeWindowTooHigh', { room: name(room) }),
   /** One wording for one room or many, on one floor or several (MSG-1). */
@@ -51,6 +52,7 @@ export const saids = {
 export const wordings = {
   roomTooSmall: (room: string, minimum: number): WordingPart[] => parts(saids.roomTooSmall(room, minimum)),
   noEscapeOpening: (room: string): WordingPart[] => parts(saids.noEscapeOpening(room)),
+  noEscapeOpeningBelowGround: (room: string): WordingPart[] => parts(saids.noEscapeOpeningBelowGround(room)),
   escapeWindowTooSmall: (room: string): WordingPart[] => parts(saids.escapeWindowTooSmall(room)),
   escapeWindowTooHigh: (room: string): WordingPart[] => parts(saids.escapeWindowTooHigh(room)),
   noUse: (floor: string, count: number): WordingPart[] => parts(saids.noUse(floor, count)),
@@ -66,6 +68,7 @@ export const wordings = {
 export const messages = {
   roomTooSmall: (room: string, minimum: number): string => english(saids.roomTooSmall(room, minimum)),
   noEscapeOpening: (room: string): string => english(saids.noEscapeOpening(room)),
+  noEscapeOpeningBelowGround: (room: string): string => english(saids.noEscapeOpeningBelowGround(room)),
   escapeWindowTooSmall: (room: string): string => english(saids.escapeWindowTooSmall(room)),
   escapeWindowTooHigh: (room: string): string => english(saids.escapeWindowTooHigh(room)),
   noUse: (floor: string, count: number): string => english(saids.noUse(floor, count)),

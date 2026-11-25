@@ -312,16 +312,61 @@ function intoA(a: Survey, id: string): string {
   return before === null ? '' : ` (it opened into ${JSON.stringify(before)})`
 }
 
+/** WRT-11: each room's net area as grid_areas gives it (columns off), by floor and id; one measure for both plans. */
+function netsOf(s: Survey): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const floor of planAreas(s).floors) for (const room of floor.rooms) out.set(`${floor.floor}\u0000${room.id}`, room.net ?? 0)
+  return out
+}
+
 function roomDeltas(a: Survey, b: Survey): RoomDelta[] {
   const byName = (s: Survey): Map<string, number> => {
+    const nets = netsOf(s)
     const map = new Map<string, number>()
-    for (const room of s.rooms) map.set(room.facts.name, (map.get(room.facts.name) ?? 0) + (room.facts.shape?.area ?? 0))
+    for (const room of s.rooms) map.set(room.facts.name, (map.get(room.facts.name) ?? 0) + (nets.get(`${room.facts.floor}\u0000${room.facts.id}`) ?? 0))
     return map
   }
   const before = byName(a)
   const after = byName(b)
   const names = [...new Set([...before.keys(), ...after.keys()])]
   return names.map((name) => ({ name, before: before.get(name) ?? null, after: after.get(name) ?? null }))
+}
+
+/** WRT-11: how rooms changed between a plan and the same plan changed in place, paired by floor and id. */
+type RoomKind = 'renamed' | 'used differently' | 'differ in size' | 'added' | 'taken out'
+function roomChanges(a: Survey, b: Survey): Map<RoomKind, string[]> {
+  const nets = { a: netsOf(a), b: netsOf(b) }
+  const key = (room: Survey['rooms'][number]): string => `${room.facts.floor}\u0000${room.facts.id}`
+  const was = new Map(a.rooms.map((room) => [key(room), room] as const))
+  const now = new Map(b.rooms.map((room) => [key(room), room] as const))
+  const out = new Map<RoomKind, string[]>()
+  const add = (kind: RoomKind, room: Survey['rooms'][number]): void => void out.set(kind, [...(out.get(kind) ?? []), room.facts.floor])
+  for (const [k, room] of now) {
+    const old = was.get(k)
+    if (old === undefined) {
+      add('added', room)
+      continue
+    }
+    if (old.facts.name !== room.facts.name) add('renamed', room)
+    if (old.facts.use !== room.facts.use) add('used differently', room)
+    if (Math.abs((nets.a.get(k) ?? 0) - (nets.b.get(k) ?? 0)) >= 0.01) add('differ in size', room)
+  }
+  for (const [k, room] of was) if (!now.has(k)) add('taken out', room)
+  return out
+}
+
+/**
+ * WRT-11: "2 rooms renamed", and on a building of several floors "92 rooms (2 on each of 46
+ * floors) differ in size": the count of rooms, never of names.
+ */
+function roomCountWords(kind: RoomKind, floors: readonly string[]): string {
+  const n = floors.length
+  const perFloor = new Map<string, number>()
+  for (const floor of floors) perFloor.set(floor, (perFloor.get(floor) ?? 0) + 1)
+  const counts = [...new Set(perFloor.values())]
+  const where = perFloor.size <= 1 ? '' : counts.length === 1 ? ` (${counts[0]} on each of ${perFloor.size} floors)` : ` (on ${perFloor.size} floors)`
+  const verb = kind === 'differ in size' && n === 1 ? 'differs in size' : kind
+  return `${n} room${n === 1 ? '' : 's'}${where} ${verb}`
 }
 
 const sum = (values: readonly number[]): number => values.reduce((x, y) => x + y, 0)
@@ -334,13 +379,16 @@ function areaWord(value: number): string {
 }
 
 /** What differs between two plans, `a` before and `b` after. */
-export function comparePlans(a: Survey, b: Survey, labels: readonly [string, string] = ['before', 'after']): Comparison {
+export function comparePlans(a: Survey, b: Survey, labels: readonly [string, string] = ['before', 'after'], options: { readonly inPlace?: boolean } = {}): Comparison {
+  // WRT-11: `inPlace` is a plan and the same plan after a change: it stands where it stood, rooms pair
+  // by floor and id, and it is never read as the plan mirrored or turned.
+  const inPlace = options.inPlace === true
   const boxA = boxOf(a.plan)
   const boxB = boxOf(b.plan)
   // The first likeness under which every wall and opening has its place.
   let likeness: Likeness = null
   let map: Transform = (p) => p
-  for (const t of transforms(boxA, boxB)) {
+  for (const t of inPlace ? transforms(boxA, boxB).slice(0, 1) : transforms(boxA, boxB)) {
     if (a.plan.walls.length !== b.plan.walls.length || a.plan.openings.length !== b.plan.openings.length) break
     if (wallsMissing(a.plan, b.plan, t.map).length > 0) continue
     const o = pairOpenings(a.plan, b.plan, t.map)
@@ -354,6 +402,7 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
       return sized && (!plain || (oa.swing === ob.swing && oa.hinge === ob.hinge) || !sameDirection(a.plan, b.plan, oa.wall, ob.wall, t.map))
     })
     if (!alike) continue
+    if (inPlace && roomChanges(a, b).size > 0) continue
     if (roomDeltas(a, b).some((r) => r.before === null || r.after === null || Math.abs(r.before - r.after) >= 0.01)) continue
     likeness = t.likeness
     map = t.map
@@ -363,12 +412,13 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   if (likeness === null) {
     // Not the same building: compare in place, allowing a shifted origin when the boxes agree in size.
     const sameBox = Math.abs(boxA.maxX - boxA.minX - (boxB.maxX - boxB.minX)) < NEAR_M && Math.abs(boxA.maxY - boxA.minY - (boxB.maxY - boxB.minY)) < NEAR_M
-    map = sameBox ? transforms(boxA, boxB)[1]!.map : (p) => p
+    map = sameBox && !inPlace ? transforms(boxA, boxB)[1]!.map : (p) => p
   }
 
   const rooms = roomDeltas(a, b)
   // A zone's floor is its room's (CNT-8): counted once.
-  const netOf = (s: Survey): number => sum(s.rooms.filter((r) => r.facts.zoneOf === undefined && r.facts.outdoor === undefined).map((r) => r.facts.shape?.area ?? 0))
+  // WRT-11: grid_areas' net, the same rule on both plans.
+  const netOf = (s: Survey): number => planAreas(s).net
   const netBefore = netOf(a)
   const netAfter = netOf(b)
   const inverse = (wall: Wall): boolean => !a.plan.walls.some((other) => sameWall(other, wall, map))
@@ -427,11 +477,17 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   else {
     const changed = rooms.filter((r) => r.before === null || r.after === null || Math.abs(r.before - r.after) >= 0.01)
     const parts = [`net ${areaWord(netBefore)} → ${areaWord(netAfter)} (${netAfter - netBefore >= 0 ? '+' : ''}${(netAfter - netBefore).toFixed(2)})`]
-    if (changed.length > 0) parts.push(`${changed.length} room${changed.length === 1 ? ' differs' : 's differ'} by name or size`)
+    if (inPlace) for (const [kind, floors] of roomChanges(a, b)) parts.push(roomCountWords(kind, floors))
+    else if (changed.length > 0) parts.push(`${changed.length} room${changed.length === 1 ? ' differs' : 's differ'} by name or size`)
     if (wallsOut.length + wallsNew.length > 0) parts.push(`walls: ${wallsOut.length} out (${sum(wallsOut.map((w) => w.length)).toFixed(2)} m), ${wallsNew.length} new (${sum(wallsNew.map((w) => w.length)).toFixed(2)} m)`)
     if (wallsChanged.length > 0) parts.push(`${wallsChanged.length} wall${wallsChanged.length === 1 ? '' : 's'} moved or changed length`)
     parts.push(...resizedParts)
-    if (openingsOut.length + openingsNew.length + openingsChanged.length > 0) parts.push(`openings: ${openingsOut.length} out, ${openingsNew.length} new, ${openingsChanged.length} changed`)
+    const openingWords = (n: number, what: string): string => `${n} ${n === 1 ? 'opening' : 'openings'} ${what}`
+    if (inPlace) {
+      if (openingsChanged.length > 0) parts.push(openingWords(openingsChanged.length, 'changed'))
+      if (openingsOut.length > 0) parts.push(openingWords(openingsOut.length, 'taken out'))
+      if (openingsNew.length > 0) parts.push(openingWords(openingsNew.length, 'new'))
+    } else if (openingsOut.length + openingsNew.length + openingsChanged.length > 0) parts.push(`openings: ${openingsOut.length} out, ${openingsNew.length} new, ${openingsChanged.length} changed`)
     verdict = `${before} → ${after}: ${parts.join('; ')}.`
   }
   // CNT-8 (lab AB-9): a use no room or zone has any more is named, never lost in silence.

@@ -346,7 +346,8 @@ export function wideRoute(survey: Survey, from: string, to: string, width: numbe
   }
   const wide = (w: number | null): boolean => w !== null && w + tolerance('joint') >= width
 
-  const base = routeBetween(survey, from, to)
+  // A body this wide is followed on its floor only: the stairs' widths are not measured here.
+  const base = routeBetween(survey, from, to, false)
   if (base === null) return null
   const shortest = measure(base.rooms, base.steps.map((s) => s.via), base.steps.map((s) => s.into))
   const narrower = [

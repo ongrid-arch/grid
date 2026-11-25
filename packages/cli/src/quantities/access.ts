@@ -516,6 +516,15 @@ function corridorNarrowest(room: SurveyRoom, obstacles: ReturnType<ReturnType<ty
   return way === null ? { narrowest: null, at: null, widest } : { narrowest: way.width, at: way.at, widest }
 }
 
+/**
+ * A corridor's narrowest point from end to end, clear of the fixtures on its floor: the figure
+ * `grid_measure what=access` gives and the brief's `corridor_width` is judged by (ARE-17).
+ * `narrowest` is null when Grid finds no two ends; `widest` is then the figure to fall back on.
+ */
+export function corridorNarrowestOf(survey: Survey, room: SurveyRoom): { narrowest: number | null; at: Vec2 | null; widest: number } {
+  return corridorNarrowest(room, fixturesOf(survey).obstacles(room.facts.floor))
+}
+
 const at = (p: Vec2): string => `(${p.x.toFixed(2)}, ${p.y.toFixed(2)})`
 
 /** The text cap on each list; the data holds every entry. */

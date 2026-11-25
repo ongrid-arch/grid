@@ -21,6 +21,7 @@ import { say } from '@ongrid/floorplan/messages'
 import { TextNotDecoded } from '../fs/textEncoding'
 import { PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
 import { UsageError } from './options'
+import { holdsAPlan } from './planFile'
 
 /** Why a plan was refused. The message is one line. */
 export class PlanRefused extends Error {
@@ -248,6 +249,8 @@ export function loadPlanText(project: Project, file: string, text: string, real:
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new PlanRefused(`${file} is not a Grid plan: it must be a JSON object with walls, rooms and openings.`)
   }
+  // WRT-13: the schema defaults every list, so an object that is no plan would read as an empty one.
+  if (!holdsAPlan(raw as Record<string, unknown>)) throw new PlanRefused(say('en', 'plan.notAPlan.noParts', { file }))
   // MSG-9: names and ids are limited and cleaned before the schema reads them.
   const textProblem = planTextProblem(raw as Record<string, unknown>)
   if (textProblem !== null) throw new PlanRefused(`${file} is not a Grid plan: ${textProblem}.`)

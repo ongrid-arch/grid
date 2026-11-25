@@ -284,6 +284,62 @@ function swatchOf(entry: KeyEntry, look: PlanLook): SvgNode {
   }
 }
 
+/**
+ * VEW-13: the room key, for the rooms whose labels are their numbers: rooms of one name
+ * together, their numbers in runs ("1–24 Stall"), side by side and wrapping under the heading
+ * in `words`' language. Null when no room is keyed.
+ */
+export function roomKeyBand(keyed: readonly { readonly number: string; readonly name: string }[], width: number, look: PlanLook, words: DrawingWords = ENGLISH_WORDS): PictureKey | null {
+  if (keyed.length === 0) return null
+  const byName = new Map<string, string[]>()
+  for (const room of keyed) {
+    const list = byName.get(room.name)
+    if (list) list.push(room.number)
+    else byName.set(room.name, [room.number])
+  }
+  const nodes: SvgNode[] = []
+  let y = MARGIN_PX
+  const heading = drawingText(words, 'drawing.key.rooms')
+  nodes.push(el('text', { 'data-part': 'room-key-title', x: MARGIN_PX, y: n(y + 9), fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.warning }, [heading]))
+  const indent = Math.max(40, Math.ceil(estimateTextWidth(heading, TEXT_PX.warning) + 12))
+  let x = MARGIN_PX + indent
+  for (const [name, list] of byName) {
+    const entry = `${numberRuns(list)} ${name}`
+    const span = estimateTextWidth(entry, TEXT_PX.warning) + 18
+    if (x + span > width - MARGIN_PX && x > MARGIN_PX + indent) {
+      x = MARGIN_PX + indent
+      y += LINE_PX_KEY
+    }
+    nodes.push(el('text', { 'data-part': 'room-key-entry', x: n(x), y: n(y + 9), fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.warning }, [entry]))
+    x += span
+  }
+  y += LINE_PX_KEY
+  return { height: Math.ceil(y + MARGIN_PX / 2), nodes }
+}
+
+/** Room numbers in runs: whole numbers one after another as "3–7", the rest as written, by commas. */
+export function numberRuns(numbers: readonly string[]): string {
+  const parts: string[] = []
+  let run: [number, number] | null = null
+  const close = () => {
+    if (run === null) return
+    parts.push(run[0] === run[1] ? String(run[0]) : run[1] === run[0] + 1 ? `${run[0]}, ${run[1]}` : `${run[0]}–${run[1]}`)
+    run = null
+  }
+  for (const number of numbers) {
+    const whole = /^[1-9][0-9]{0,8}$/.test(number) ? Number(number) : null
+    if (whole !== null && run !== null && whole === run[1] + 1) {
+      run = [run[0], whole]
+      continue
+    }
+    close()
+    if (whole !== null) run = [whole, whole]
+    else parts.push(number)
+  }
+  close()
+  return parts.join(', ')
+}
+
 /** Two bands one over the other: `top`, then `below` moved down by its height. */
 export function stackBands(top: PictureKey | null, below: PictureKey | null): PictureKey | null {
   if (top === null) return below

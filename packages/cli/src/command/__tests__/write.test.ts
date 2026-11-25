@@ -124,6 +124,80 @@ describe('grid write', () => {
     expect(ran.out).toContain('but 9 walls another height (2.60 → 2.70 m)')
   })
 
+  describe('floors the rooms text does not mention', () => {
+    const OUTLINE = '[[0,0],[6,0],[6,5],[0,5]]'
+    const THREE = [
+      'plan "Block"',
+      'walls outside 0.3 inside 0.1 height 2.7',
+      'floor ground "Ground floor" level 0',
+      `raw floor {"homes": 4, "parking": 2, "outline": ${OUTLINE}}`,
+      'room living "Living" living 4 x 4 at 0.15,0.15',
+      'floor first "First floor" level 1',
+      `raw floor {"homes": 6, "outline": ${OUTLINE}}`,
+      'room bed "Bed" bedroom 4 x 4 at 0.15,0.15',
+      'floor second "Second floor" level 2',
+      'room study "Study" office 4 x 4 at 0.15,0.15',
+      '',
+    ].join('\n')
+    const ONE = 'plan "Block"\nwalls outside 0.3 inside 0.1 height 2.7\nfloor ground "Ground floor" level 0\nroom living "Living" living 4 x 4 at 0.15,0.15\n'
+
+    async function block(): Promise<string> {
+      const dir = await project()
+      writeFileSync(join(dir, 'block.rooms'), THREE)
+      writeFileSync(join(dir, 'one.rooms'), ONE)
+      const wrote = await grid(dir, 'write', 'block.rooms')
+      expect(wrote.err).toBe('')
+      expect(wrote.status).toBe(0)
+      return dir
+    }
+
+    it('refuses to drop floors, naming each with what stands on it, and writes nothing', async () => {
+      const dir = await block()
+      const before = readFileSync(join(dir, 'plan.json'), 'utf8')
+      const ran = await grid(dir, 'write', 'one.rooms')
+      expect(ran.status).toBe(1)
+      expect(ran.out).toBe('')
+      expect(ran.err.trim().split('\n')).toHaveLength(1)
+      expect(ran.err).toContain('has 2 floors this rooms text does not mention')
+      expect(ran.err).toContain('First floor (first): 1 room, an outline, 6 homes')
+      expect(ran.err).toContain('Second floor (second): 1 room')
+      expect(ran.err).toContain('--replace')
+      expect(ran.err).not.toContain('Ground floor')
+      expect(readFileSync(join(dir, 'plan.json'), 'utf8')).toBe(before)
+    })
+
+    it('drops them with --replace and says which, in the answer', async () => {
+      const dir = await block()
+      const ran = await grid(dir, 'write', 'one.rooms', '--replace')
+      expect(ran.status).toBe(0)
+      expect(ran.out).toContain('Floors dropped, as asked: First floor (first)')
+      expect(ran.out).toContain('Second floor (second)')
+    })
+
+    it('writes the whole plan read back, which keeps every floor', async () => {
+      const dir = await block()
+      const back = await grid(dir, 'describe', '--as', 'rooms')
+      writeFileSync(join(dir, 'back.rooms'), back.out)
+      const ran = await grid(dir, 'write', 'back.rooms')
+      expect(ran.err).toBe('')
+      expect(ran.status).toBe(0)
+      expect(ran.out).not.toContain('Floors dropped')
+    })
+
+    it('refuses rooms text with no rooms, with and without --replace', async () => {
+      const dir = await project()
+      await grid(dir, 'write', 'plan.rooms')
+      writeFileSync(join(dir, 'empty.rooms'), 'plan "Nothing"\nwalls outside 0.3 inside 0.1 height 2.7\n')
+      const before = readFileSync(join(dir, 'plan.json'), 'utf8')
+      for (const extra of [[], ['--replace']]) {
+        const ran = await grid(dir, 'write', 'empty.rooms', ...extra)
+        expect(ran.status).toBe(1)
+        expect(ran.err).toContain('it has no rooms, so it would write an empty plan')
+        expect(readFileSync(join(dir, 'plan.json'), 'utf8')).toBe(before)
+      }
+    })
+  })
+
   it('refuses rooms that overlap in one line naming both, and leaves the plan as it was', async () => {
     const dir = await project()
     const before = readFileSync(join(dir, 'plan.json'), 'utf8')

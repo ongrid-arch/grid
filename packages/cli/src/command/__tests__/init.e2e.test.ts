@@ -188,7 +188,7 @@ describe('grid init <folder>', () => {
     expect(run.status).toBe(0)
     expect(run.out.startsWith('Usage: grid init [<folder>]')).toBe(true)
     expect(grid(['--help'], base).out).toContain('init    Starts a project folder')
-    expect(grid(['--help'], base).out).toContain('A project folder that holds grid.json')
+    expect(grid(['--help'], base).out).toContain('a folder that holds grid.json')
   })
 })
 
@@ -289,18 +289,23 @@ describe('inside a project grid init made', () => {
 
   it('says so when plan.json was removed', () => {
     rmSync(join(demo, 'plan.json'))
-    expectRefusal(grid(['check'], demo), 1, 'There is no file')
+    expectRefusal(grid(['check'], demo), 1, 'holds no plan.json', 'the project\'s plan is plan.json')
   })
 })
 
-describe('outside a project', () => {
-  it.each([
-    [['check'], 'check needs a plan file'],
-    [['draw'], 'draw needs a plan file'],
-    [['export', '--format', 'dxf'], 'export needs a plan file'],
-  ])('%j needs a plan file, and says how to start a project', (args, reason) => {
+describe('outside a project (CMD-18)', () => {
+  it.each([[['check']], [['describe']], [['export', '--format', 'dxf']]])('%j reads plan.json in the folder, with no grid.json', (args) => {
     writeFileSync(join(base, 'plan.json'), starterPlanText())
-    expectRefusal(grid(args, base), 2, reason, 'grid init', 'grid.json')
-    expect(tree(base)).toEqual(['plan.json'])
+    expect(grid(args, base).status).toBe(0)
+    expect(tree(base)).not.toContain('grid.json')
+  })
+
+  it('says where it looked when the folder holds no plan.json', () => {
+    const run = grid(['check'], base)
+    expect(run.status).toBe(1)
+    expect(run.err).toContain('holds no plan.json')
+    expect(run.err).toContain('no grid.json')
+    expect(run.err).toContain('grid init')
+    expect(tree(base)).toEqual([])
   })
 })

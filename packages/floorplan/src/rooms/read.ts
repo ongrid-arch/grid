@@ -506,17 +506,22 @@ function headerLines(plan: FloorPlan, rule: Rule, name: string | undefined): str
   return lines
 }
 
+/** WRT-14: a level rooms text writes on the floor line: a whole number or a half. */
+const storeyLevel = (level: number): boolean => Number.isInteger(level * 2)
+
 function floorLine(plan: FloorPlan, floor: string): string | null {
   const f = (plan.floors ?? []).find((x) => x.id === floor)
   if (!f) return null
+  // WRT-14: rooms text writes a level as a storey number, whole or a half; any other is the plan
+  // file's own, given in `raw floor` (`rawFloorOf`).
   const extra = [
-    `level ${metres(f.level)}`,
+    ...(storeyLevel(f.level) ? [`level ${metres(f.level)}`] : []),
     ...(f.height !== undefined ? [`height ${metres(f.height)}`] : []),
     ...(f.elevation !== undefined ? [`elevation ${metres(f.elevation)}`] : []),
     ...(f.slab !== undefined ? [`slab ${metres(f.slab)}`] : []),
     ...(f.building !== undefined ? [`building ${f.building}`] : []),
   ]
-  return `floor ${f.id} ${quote(f.name)} ${extra.join(' ')}`
+  return [`floor ${f.id}`, quote(f.name), ...extra].join(' ')
 }
 
 function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: readonly FloorDraft[], raw: ReadonlySet<string>): string {
@@ -528,7 +533,7 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
     // LVL-6: the floor's roof and parapet, which rooms text has no words for, as the plan holds
     // them; BRF-4: its outline and the homes and parking spaces it states.
     const f = (plan.floors ?? []).find((x) => x.id === d.id)
-    const extra = f === undefined ? {} : Object.fromEntries(RAW_FLOOR_KEYS.flatMap((key) => (f[key as keyof typeof f] === undefined ? [] : [[key, f[key as keyof typeof f]]])))
+    const extra = f === undefined ? {} : { ...(storeyLevel(f.level) ? {} : { level: f.level }), ...Object.fromEntries(RAW_FLOOR_KEYS.flatMap((key) => (f[key as keyof typeof f] === undefined ? [] : [[key, f[key as keyof typeof f]]]))) }
     if (Object.keys(extra).length > 0) lines.push(`raw floor ${JSON.stringify(extra)}`)
     if (raw.has(d.id)) {
       lines.push(`# Written in Grid's own terms: rooms text does not give back this floor's walls as they are.`)

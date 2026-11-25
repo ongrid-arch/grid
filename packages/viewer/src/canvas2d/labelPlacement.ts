@@ -4,8 +4,10 @@
  * Each room's name and area sit at a spot inside the room where the whole label fits, clear
  * of door swings, walls, other labels and, when there is room, dimension lines. The spots come
  * from the geometry core (`spotsInside`): the room's pole of inaccessibility first, then the
- * rest of the room, deepest first. A label that fits nowhere in its room moves out, to the
- * nearest clear spot, and a leader line ties it to the room's pole (`placeRoomLabels`).
+ * rest of the room, deepest first. VEW-13: a label that does not fit is turned, made smaller,
+ * wrapped, shortened to the name, then to the room's number (`labelForms`), still in its room.
+ * Only a room none of whose forms fits moves its label out, a short way, off every room, and
+ * a leader line that crosses no other room ties it to the room's pole (`placeRoomLabels`).
  *
  * Dimension lines live in metres, but every label is drawn at a fixed size in screen pixels,
  * so whether a number lands on a room's name or area depends on the zoom. This works it out
@@ -16,7 +18,7 @@
  * Pure: no DOM measuring, so it runs in tests and on every render without layout reads.
  */
 import type { Dimension, PlanOpening, Rect, Vec2 } from '@ongrid/floorplan/geometry'
-import { areaText, doorSwing, metresText, openingSymbol, poleOfInaccessibility, rectOf, rectTouchesPolygon, spotsInside, symbolPoints, tolerance } from '@ongrid/floorplan/geometry'
+import { areaText, doorSwing, metresText, openingSymbol, pointInPolygon, poleOfInaccessibility, rectOf, rectTouchesPolygon, spotsInside, symbolPoints, tolerance } from '@ongrid/floorplan/geometry'
 import { TEXT_PX } from '../picture/look'
 import { showArea, showLength, type Display } from '@ongrid/floorplan/types/units'
 import type { DoorHanding } from './doorHanding'
@@ -226,6 +228,30 @@ export function lineBox(a: Vec2, b: Vec2, metersPerPixel: number): Box {
   return grow(rectOf([a, b]), PADDING_PX * metersPerPixel)
 }
 
+/** VEW-13: a line as a thin outline a label keeps off, a pixel wide: a lift's cross. */
+export function lineOutline(a: Vec2, b: Vec2, metersPerPixel: number): Vec2[] {
+  const length = Math.hypot(b.x - a.x, b.y - a.y)
+  const half = (PADDING_PX * metersPerPixel) / 2
+  if (!(length > 0)) return [{ x: a.x - half, y: a.y - half }, { x: a.x + half, y: a.y - half }, { x: a.x + half, y: a.y + half }, { x: a.x - half, y: a.y + half }]
+  const n = { x: (-(b.y - a.y) / length) * half, y: ((b.x - a.x) / length) * half }
+  return [{ x: a.x + n.x, y: a.y + n.y }, { x: b.x + n.x, y: b.y + n.y }, { x: b.x - n.x, y: b.y - n.y }, { x: a.x - n.x, y: a.y - n.y }]
+}
+
+/**
+ * VEW-13: each room's number for its keyed label: its own when the plan states one, else its
+ * place on the floor, 1, 2, 3, passing over the numbers other rooms state.
+ */
+export function roomNumbers(rooms: readonly { readonly number?: string }[]): string[] {
+  const stated = new Set(rooms.flatMap((room) => (room.number === undefined || room.number === '' ? [] : [room.number])))
+  let next = 0
+  return rooms.map((room) => {
+    if (room.number !== undefined && room.number !== '') return room.number
+    do next++
+    while (stated.has(String(next)))
+    return String(next)
+  })
+}
+
 const grow = (box: Rect, by: number): Box => ({
   minX: box.minX - by,
   minY: box.minY - by,
@@ -241,16 +267,105 @@ export interface LabelRoom {
   readonly holes?: readonly (readonly Vec2[])[]
   readonly name: string
   readonly areaText: string
+  /**
+   * VEW-13: the room's number, its last form when nothing longer fits in it: drawn alone in the
+   * room, its name then listed in the room key under the drawing. Left out, the room has none.
+   */
+  readonly number?: string
 }
 
 /** What a label keeps off, in plan metres. */
 export interface LabelObstacles {
   /** Door swings. A label never covers one. */
   readonly swings: readonly Box[]
-  /** The solid walls, one outline per piece. */
+  /** The solid walls, one outline per piece, and whatever else a label never sits on: fixtures, a stair's flights, a lift's cross. */
   readonly walls: readonly (readonly Vec2[])[]
   /** Dimension lines and the numbers that stay put. Kept clear when there is room. */
   readonly dimensions: readonly Box[]
+}
+
+/**
+ * VEW-13: one way of writing a room's label. Its lines top first: the name, on one line or two,
+ * then the area unless it is left out. `scale` multiplies the label's text sizes; `turned` is a
+ * quarter turn, so it reads from the bottom up, along a long narrow room; `keyed` is the room's
+ * number alone, its name in the room key.
+ */
+export interface LabelForm {
+  readonly names: readonly string[]
+  /** The area line, or null when the form leaves it out. */
+  readonly area: string | null
+  readonly scale: number
+  readonly turned: boolean
+  readonly keyed: boolean
+}
+
+/** How much smaller the smaller forms are: 13 px names become 10 px. */
+export const SMALL_LABEL = 0.77
+/** How far apart two lines of one wrapped name are, in name heights. */
+const NAME_LINE = 1.15
+
+/** Where each line's baseline is, in pixels below the first's, at the form's own size. */
+export function formLines(form: LabelForm): { names: number[]; area: number | null } {
+  const step = NAME_LINE * ROOM_NAME_PX * form.scale
+  const names = form.names.map((_, i) => i * step)
+  const last = names[names.length - 1] ?? 0
+  return { names, area: form.area === null ? null : last + ROOM_AREA_DY * form.scale }
+}
+
+/**
+ * A form's box drawn at `at`, the centre of the first line's baseline, in plan metres (y up).
+ * The plain form's box is `roomLabelBox`'s. A turned form turns the box a quarter round `at`.
+ */
+export function formBox(form: LabelForm, at: Vec2, metersPerPixel: number): Box {
+  const namePx = ROOM_NAME_PX * form.scale
+  const areaPx = ROOM_AREA_PX * form.scale
+  const lines = formLines(form)
+  const width = Math.max(...form.names.map((name) => estimateTextWidth(name, namePx)), form.area === null ? 0 : estimateTextWidth(form.area, areaPx))
+  const top = ASCENT * namePx + PADDING_PX
+  const bottom = (lines.area ?? lines.names[lines.names.length - 1] ?? 0) + DESCENT * (lines.area === null ? namePx : areaPx) + PADDING_PX
+  const half = width / 2 + PADDING_PX
+  const m = metersPerPixel
+  // Turned a quarter anticlockwise: the text's up is the plan's -x, its right the plan's +y.
+  if (form.turned) return { minX: at.x - top * m, maxX: at.x + bottom * m, minY: at.y - half * m, maxY: at.y + half * m }
+  return { minX: at.x - half * m, maxX: at.x + half * m, minY: at.y - bottom * m, maxY: at.y + top * m }
+}
+
+/**
+ * The forms a room's label is tried in, in order: whole and upright, turned, smaller, the name
+ * wrapped on two lines, the name without its area, and last the room's number.
+ */
+export function labelForms(name: string, areaText: string, number?: string): LabelForm[] {
+  const area = areaText === '' ? null : areaText
+  // The plain form keeps an area line even when it is empty, as it always has.
+  const forms: LabelForm[] = [{ names: [name], area: areaText, scale: 1, turned: false, keyed: false }]
+  const both = (names: readonly string[], withArea: string | null, scale: number) => {
+    for (const turned of [false, true]) forms.push({ names, area: withArea, scale, turned, keyed: false })
+  }
+  forms.push({ names: [name], area: areaText, scale: 1, turned: true, keyed: false })
+  both([name], area, SMALL_LABEL)
+  const wrapped = wrapName(name)
+  if (wrapped !== null) both(wrapped, area, SMALL_LABEL)
+  if (area !== null) {
+    both([name], null, SMALL_LABEL)
+    if (wrapped !== null) both(wrapped, null, SMALL_LABEL)
+  }
+  if (number !== undefined && number !== '') {
+    forms.push({ names: [number], area: null, scale: 1, turned: false, keyed: true })
+    forms.push({ names: [number], area: null, scale: SMALL_LABEL, turned: false, keyed: true })
+  }
+  return forms
+}
+
+/** A name of more than one word in two lines of about one length; null for one word. */
+function wrapName(name: string): [string, string] | null {
+  const words = name.split(' ')
+  if (words.length < 2) return null
+  let best: [string, string] | null = null
+  for (let i = 1; i < words.length; i++) {
+    const pair: [string, string] = [words.slice(0, i).join(' '), words.slice(i).join(' ')]
+    if (best === null || Math.max(pair[0].length, pair[1].length) < Math.max(best[0].length, best[1].length)) best = pair
+  }
+  return best
 }
 
 export interface PlacedLabel {
@@ -263,26 +378,32 @@ export interface PlacedLabel {
   readonly box: Box
   /** From the anchor to the moved label's edge, when the label did not fit in its room. */
   readonly leader: readonly [Vec2, Vec2] | null
+  /** VEW-13: how the label is written. */
+  readonly form: LabelForm
 }
 
 /** How much air a label keeps round it, from other labels and door swings, in pixels. */
 const CLEARANCE_PX = 1
 /** How far a moved label keeps from its room, in pixels. */
 const LEADER_GAP_PX = 10
+/** VEW-13: how far from its room's box a moved label may go, at most, in pixels: a short leader. */
+export const LEADER_REACH_PX = 48
 /** How many rings of spots round a room a moved label tries, at most. */
 const MAX_RINGS = 48
 /** How many spots each ring has, at most. */
-const RING_SPOTS = 64
+const RING_SPOTS = 256
 
 /**
  * Where every room's label goes, in the order of `rooms`: `null` for a room whose label has
  * nowhere clear to go at this zoom, which is then not drawn, like a dimension number with no
  * clear spot. Zooming in gives it room.
  *
- * Labels that fit in their room are placed first, each clear of the ones before it. The rest
- * then move out, nearest spot first and never past `within`, preferring in turn: clear of every room and dimension,
- * clear of every room, clear of the walls, and clear of door swings and labels only. No label
- * is ever put on a door swing or on another label.
+ * VEW-13: a label stays in its room. Each room tries its forms in turn (`labelForms`), each
+ * clear of the labels before it, door swings and walls, and of dimensions when it can. Only a
+ * room none of whose forms fits moves its label out, whole or as its number: to a spot off
+ * every room and every wall, at most `LEADER_REACH_PX` from the room and never past `within`,
+ * on a leader from the room's pole that crosses no other room. No label is ever put on a door
+ * swing, another label or another room.
  */
 export function placeRoomLabels(
   rooms: readonly LabelRoom[],
@@ -292,12 +413,13 @@ export function placeRoomLabels(
   within?: Box
 ): (PlacedLabel | null)[] {
   const mpp = metersPerPixel
-  const sizes = rooms.map((room) => labelSize(room.name, room.areaText, mpp))
+  const forms = rooms.map((room) => labelForms(room.name, room.areaText, room.number))
   const extent = rectOf(rooms.flatMap((room) => room.polygon))
+  const first = forms.map((list) => formShape(list[0]!, mpp))
   const cell = Math.max(
     (extent.maxX - extent.minX) / 128,
     (extent.maxY - extent.minY) / 128,
-    ...sizes.map((size) => 2 * size.halfHeight),
+    ...first.map((size) => 2 * size.halfHeight),
     tolerance('joint')
   )
 
@@ -308,8 +430,8 @@ export function placeRoomLabels(
   obstacles.dimensions.forEach((box) => dimensions.add(box, box))
   const walls = new BoxIndex<readonly Vec2[]>(cell)
   obstacles.walls.forEach((outline) => walls.add(rectOf(outline), outline))
-  const outlines = new BoxIndex<readonly Vec2[]>(cell)
-  rooms.forEach((room) => outlines.add(rectOf(room.polygon), room.polygon))
+  const outlines = new BoxIndex<{ readonly index: number; readonly polygon: readonly Vec2[] }>(cell)
+  rooms.forEach((room, index) => outlines.add(rectOf(room.polygon), { index, polygon: room.polygon }))
 
   const boxHit = (box: Box) => (other: Box) => overlaps(box, other)
   const shapeHit = (box: Box) => (outline: readonly Vec2[]) => rectTouchesPolygon(box, outline)
@@ -320,20 +442,31 @@ export function placeRoomLabels(
     return !taken.some(wide, boxHit(wide)) && !swings.some(wide, boxHit(wide))
   }
   const offWalls = (box: Box): boolean => !walls.some(box, shapeHit(box))
-  const offRooms = (box: Box): boolean => !outlines.some(box, shapeHit(box))
+  const offRooms = (box: Box): boolean => !outlines.some(box, (room) => rectTouchesPolygon(box, room.polygon))
   const offDimensions = (box: Box): boolean => !dimensions.some(box, boxHit(box))
+  /** Whether a leader from `a` to `b` runs through, or touches, a room other than room `own`. */
+  const crossesRoom = (a: Vec2, b: Vec2, own: number): boolean =>
+    outlines.some(rectOf([a, b]), (room) => room.index !== own && segmentTouchesPolygon(a, b, room.polygon))
 
   const placed: (PlacedLabel | null)[] = rooms.map(() => null)
   const late: number[] = []
 
   rooms.forEach((room, i) => {
-    const size = sizes[i]!
-    const spots = spotsInside(room.polygon, size.halfWidth, size.halfHeight, room.holes)
-    for (const ok of [(box: Box) => free(box) && offWalls(box) && offDimensions(box), (box: Box) => free(box) && offWalls(box)]) {
-      const centre = spots.find((spot) => ok(size.boxAt(spot)))
+    const box0 = rectOf(room.polygon)
+    for (const form of forms[i]!) {
+      const size = formShape(form, mpp)
+      // A form wider or taller than the room's own box fits nowhere in it.
+      if (2 * size.halfWidth > box0.maxX - box0.minX || 2 * size.halfHeight > box0.maxY - box0.minY) continue
+      const spots = spotsInside(room.polygon, size.halfWidth, size.halfHeight, room.holes)
+      if (spots.length === 0) continue
+      let centre: Vec2 | undefined
+      for (const ok of [(box: Box) => free(box) && offWalls(box) && offDimensions(box), (box: Box) => free(box) && offWalls(box)]) {
+        centre = spots.find((spot) => ok(size.boxAt(spot)))
+        if (centre) break
+      }
       if (!centre) continue
       const box = size.boxAt(centre)
-      placed[i] = { id: room.id, anchor: size.atOf(centre), at: size.atOf(centre), box, leader: null }
+      placed[i] = { id: room.id, anchor: size.atOf(centre), at: size.atOf(centre), box, leader: null, form }
       taken.add(box, box)
       return
     }
@@ -342,25 +475,33 @@ export function placeRoomLabels(
 
   for (const i of late) {
     const room = rooms[i]!
-    const size = sizes[i]!
     const anchor = poleOfInaccessibility(room.polygon, undefined, room.holes).point
-    const spots = spotsAround(rectOf(room.polygon), extent, anchor, size, LEADER_GAP_PX * mpp, 2 * air).filter(
-      (spot) => !within || contains(within, size.boxAt(spot))
-    )
-    let centre: Vec2 | undefined
-    for (const ok of [
-      (box: Box) => free(box) && offRooms(box) && offWalls(box) && offDimensions(box),
-      (box: Box) => free(box) && offRooms(box) && offWalls(box),
-      (box: Box) => free(box) && offWalls(box),
-      free
-    ]) {
-      centre = spots.find((spot) => ok(size.boxAt(spot)))
-      if (centre) break
+    const own = rectOf(room.polygon)
+    const reach = LEADER_REACH_PX * mpp
+    const moved = [forms[i]![0]!, ...forms[i]!.filter((form) => form.keyed).slice(0, 1)]
+    for (const form of moved) {
+      const size = formShape(form, mpp)
+      const spots = spotsAround(own, extent, anchor, size, LEADER_GAP_PX * mpp, 2 * air, reach).filter(
+        (spot) => !within || contains(within, size.boxAt(spot))
+      )
+      const fine = (spot: Vec2, ok: (box: Box) => boolean): boolean => {
+        const box = size.boxAt(spot)
+        return ok(box) && !crossesRoom(anchor, nearestOnBox(anchor, box), i)
+      }
+      let centre: Vec2 | undefined
+      for (const ok of [
+        (box: Box) => free(box) && offRooms(box) && offWalls(box) && offDimensions(box),
+        (box: Box) => free(box) && offRooms(box) && offWalls(box)
+      ]) {
+        centre = spots.find((spot) => fine(spot, ok))
+        if (centre) break
+      }
+      if (!centre) continue
+      const box = size.boxAt(centre)
+      placed[i] = { id: room.id, anchor, at: size.atOf(centre), box, leader: [anchor, nearestOnBox(anchor, box)], form }
+      taken.add(box, box)
+      break
     }
-    if (!centre) continue
-    const box = size.boxAt(centre)
-    placed[i] = { id: room.id, anchor, at: size.atOf(centre), box, leader: [anchor, nearestOnBox(anchor, box)] }
-    taken.add(box, box)
   }
 
   return placed
@@ -417,17 +558,17 @@ class BoxIndex<T> {
   }
 }
 
-/** A label's size in metres, and the way between its box's centre and where its text goes. */
-function labelSize(name: string, areaText: string, mpp: number) {
-  const box = roomLabelBox({ name, area: 0, areaText, labelAt: { x: 0, y: 0 } }, mpp)
+/** A form's size in metres, and the way between its box's centre and where its text goes. */
+function formShape(form: LabelForm, mpp: number) {
+  const box = formBox(form, { x: 0, y: 0 }, mpp)
   const halfWidth = (box.maxX - box.minX) / 2
   const halfHeight = (box.maxY - box.minY) / 2
-  // The text's baseline sits this far below the box's centre.
-  const lift = (box.maxY + box.minY) / 2
+  // The text's first baseline sits this far from the box's centre.
+  const shift = { x: (box.maxX + box.minX) / 2, y: (box.maxY + box.minY) / 2 }
   return {
     halfWidth,
     halfHeight,
-    atOf: (centre: Vec2): Vec2 => ({ x: centre.x, y: centre.y - lift }),
+    atOf: (centre: Vec2): Vec2 => ({ x: centre.x - shift.x, y: centre.y - shift.y }),
     boxAt: (centre: Vec2): Box => ({
       minX: centre.x - halfWidth,
       maxX: centre.x + halfWidth,
@@ -440,7 +581,7 @@ function labelSize(name: string, areaText: string, mpp: number) {
 /**
  * Spots for a label's centre on rings round the room's box, the nearest to `anchor` first.
  * The first rings are one label height apart and later ones farther, until they clear the
- * whole drawing (`extent`) or `MAX_RINGS` is reached.
+ * whole drawing (`extent`), go past `reach` or `MAX_RINGS` is reached.
  */
 function spotsAround(
   room: Rect,
@@ -448,7 +589,9 @@ function spotsAround(
   anchor: Vec2,
   size: { halfWidth: number; halfHeight: number },
   gap: number,
-  air: number
+  air: number,
+  /** VEW-13: how far out the rings may go, at most. */
+  reach: number
 ): Vec2[] {
   const step = Math.max(2 * size.halfHeight + air, gap)
   if (!(step > 0) || !Number.isFinite(step)) return []
@@ -456,7 +599,7 @@ function spotsAround(
   const clear = Math.max(room.minX - extent.minX, extent.maxX - room.maxX, room.minY - extent.minY, extent.maxY - room.maxY, 0)
   const spots: { at: Vec2; far: number }[] = []
   let out = gap
-  for (let k = 0; k < MAX_RINGS; k++) {
+  for (let k = 0; k < MAX_RINGS && out <= reach; k++) {
     const minX = room.minX - size.halfWidth - out
     const maxX = room.maxX + size.halfWidth + out
     const minY = room.minY - size.halfHeight - out
@@ -480,6 +623,25 @@ function spotsAround(
   }
   spots.sort((a, b) => a.far - b.far)
   return spots.map((spot) => spot.at)
+}
+
+/** Whether the segment from `a` to `b` has a point in the outline or on its edge. */
+function segmentTouchesPolygon(a: Vec2, b: Vec2, polygon: readonly Vec2[]): boolean {
+  if (pointInPolygon(a, polygon) || pointInPolygon(b, polygon)) return true
+  const side = (p: Vec2, q: Vec2, r: Vec2): number => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+  const within = (p: Vec2, q: Vec2, r: Vec2): boolean =>
+    Math.min(p.x, q.x) <= r.x && r.x <= Math.max(p.x, q.x) && Math.min(p.y, q.y) <= r.y && r.y <= Math.max(p.y, q.y)
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const c = polygon[j]!
+    const d = polygon[i]!
+    const d1 = side(c, d, a)
+    const d2 = side(c, d, b)
+    const d3 = side(a, b, c)
+    const d4 = side(a, b, d)
+    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true
+    if ((d1 === 0 && within(c, d, a)) || (d2 === 0 && within(c, d, b)) || (d3 === 0 && within(a, b, c)) || (d4 === 0 && within(a, b, d))) return true
+  }
+  return false
 }
 
 const contains = (outer: Box, inner: Box): boolean =>

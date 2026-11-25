@@ -37,10 +37,10 @@ import type { Viewport } from '../canvas2d/viewport'
 import { fitTo, viewBoxOf } from '../canvas2d/viewport'
 import type { Look, LookName, PlanLook } from './look'
 import { LOOKS, detailShown, fileLook, lengthText, toLook } from './look'
-import { planScene } from './scene'
+import { planScene, roomKeyOf } from './scene'
 import type { FaultLine, PictureKey } from './faults'
 import { faultKey, faultsOnFloor } from './faults'
-import { keyEntries, northArrowNode, numberedNotes, stackBands, writingBand } from './writing'
+import { keyEntries, northArrowNode, numberedNotes, roomKeyBand, stackBands, writingBand } from './writing'
 import { drawingMarkNodes } from './drawingMarks'
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
 import type { SvgNode } from './svgNode'
@@ -467,7 +467,9 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
   const noteWords = on('notes') ? numberedNotes(drawing.notes).map((note) => note.text ?? '') : []
   const writing = writingBand(title, entries, width, look.colors, words, noteWords)
   const listed = options.faults === undefined || !on('warnings') ? null : faultKey(faults, all.length - faults.length, width, look.colors, words)
-  const key = stackBands(writing, listed)
+  // VEW-13: the rooms written as their numbers, and their names, unless the key is turned off.
+  const rooms = show.key === false ? null : roomKeyBand(roomKeyOf(scene), width, look.colors, words)
+  const key = stackBands(stackBands(writing, rooms), listed)
   const undecidedDoors = look.undecidedDoors ? undecidedIn(drawing, handings) : []
   const picture: Picture = { width, height, view, look, rooms: drawing.rooms.length, undecidedDoors, nodes, key }
   return words.language === 'en' ? picture : { ...picture, language: words.language }

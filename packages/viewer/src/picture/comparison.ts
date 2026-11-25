@@ -1,7 +1,8 @@
 /**
  * WRT-8: a picture of a comparison. The later plan in pale, what was removed in one colour, what
  * was added in another, and the rooms that changed tinted and labelled with their old and new
- * area.
+ * area. WRT-12: a wall that moved or an opening that changed is drawn as changed, at its new place
+ * in the changed colour with its old place outlined, never as removed under added.
  *
  * Nothing here works out what changed: the core does (`compareBuildings` and its `marks`), and
  * gives the earlier plan laid on the later one. This draws the later plan with the comparison
@@ -68,8 +69,8 @@ function pointsOf(drawing: PlanDrawing): Vec2[] {
   return [...drawing.walls.flatMap((w) => [...w.slices.flat(), ...w.centerline]), ...drawing.rooms.flatMap((r) => r.polygon)]
 }
 
-/** The parts the marks name, in one plan's own drawing, filled and outlined in one colour. */
-function markNodes(drawing: PlanDrawing, ids: { walls: readonly string[]; openings: readonly string[]; rooms: readonly string[] }, colour: string, fill: string, mpp: number, part: string): SvgNode[] {
+/** The parts the marks name, in one plan's own drawing, filled and outlined in one colour; with `outline`, outlined only, dashed. */
+function markNodes(drawing: PlanDrawing, ids: { walls: readonly string[]; openings: readonly string[]; rooms: readonly string[] }, colour: string, fill: string, mpp: number, part: string, outline = false): SvgNode[] {
   const walls = new Set(ids.walls)
   const openings = new Set(ids.openings)
   const rooms = new Set(ids.rooms)
@@ -84,7 +85,10 @@ function markNodes(drawing: PlanDrawing, ids: { walls: readonly string[]; openin
       nodes.push(el('path', { 'data-part': `${part}-wall`, 'data-id': wall.id, d: pathOf(wall.centerline).replace(/Z$/, ''), fill: 'none', stroke: colour, 'stroke-width': lengthText(2 * mpp) }))
       continue
     }
-    for (const slice of wall.slices) nodes.push(el('path', { 'data-part': `${part}-wall`, 'data-id': wall.id, d: pathOf(slice), fill: colour, 'fill-opacity': 0.8, stroke: colour, 'stroke-width': lengthText(mpp) }))
+    for (const slice of wall.slices) {
+      const paint = outline ? { fill: 'none', 'stroke-dasharray': `${lengthText(4 * mpp)} ${lengthText(3 * mpp)}`, 'stroke-width': lengthText(1.5 * mpp) } : { fill: colour, 'fill-opacity': 0.8, 'stroke-width': lengthText(mpp) }
+      nodes.push(el('path', { 'data-part': `${part}-wall`, 'data-id': wall.id, d: pathOf(slice), stroke: colour, ...paint }))
+    }
   }
   for (const opening of drawing.openings) {
     if (!openings.has(opening.id)) continue
@@ -96,7 +100,8 @@ function markNodes(drawing: PlanDrawing, ids: { walls: readonly string[]; openin
       { x: opening.to.x - side.x, y: opening.to.y - side.y },
       { x: opening.from.x - side.x, y: opening.from.y - side.y }
     ]
-    nodes.push(el('path', { 'data-part': `${part}-opening`, 'data-id': opening.id, d: pathOf(corners), fill, stroke: colour, 'stroke-width': lengthText(2 * mpp) }))
+    const paint = outline ? { fill: 'none', 'stroke-dasharray': `${lengthText(4 * mpp)} ${lengthText(3 * mpp)}` } : { fill }
+    nodes.push(el('path', { 'data-part': `${part}-opening`, 'data-id': opening.id, d: pathOf(corners), ...paint, stroke: colour, 'stroke-width': lengthText(2 * mpp) }))
   }
   return nodes
 }
@@ -152,6 +157,9 @@ export function comparisonPicture(earlier: FloorPlan, later: FloorPlan, marks: C
   const nodes: SvgNode[] = [
     ...base.nodes,
     ...markNodes(after, { walls: [], openings: [], rooms: [...changed.keys()] }, COMPARISON_COLORS.changed, COMPARISON_COLORS.changedFill, mpp, 'changed'),
+    // What changed in both versions: where it was, outlined, under where it is now.
+    ...markNodes(before, { ...marks.changed, rooms: [] }, COMPARISON_COLORS.changed, COMPARISON_COLORS.changedFill, mpp, 'changed-was', true),
+    ...markNodes(after, { ...marks.changed, rooms: [] }, COMPARISON_COLORS.changed, COMPARISON_COLORS.changedFill, mpp, 'changed'),
     ...markNodes(before, marks.removed, COMPARISON_COLORS.removed, COMPARISON_COLORS.removedFill, mpp, 'removed'),
     ...markNodes(after, marks.added, COMPARISON_COLORS.added, COMPARISON_COLORS.addedFill, mpp, 'added')
   ]

@@ -16,6 +16,7 @@ export {
   type ComparisonIssueCode,
   type ComparisonMarks,
   type NoteLike,
+  type OpeningMovedWith,
   type RoomStatus,
   type RoomVerdict
 } from './building'
