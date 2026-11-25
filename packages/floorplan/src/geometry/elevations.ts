@@ -6,7 +6,7 @@
  * stands at the same height in both.
  */
 
-import { DEFAULT_FLOOR, planFloors, storeySlice } from './floors'
+import { groundFloor, planFloors, storeySlice } from './floors'
 import type { Floor, FloorPlan, Wall } from './plan'
 import { indexPlan } from './plan'
 import { validatePlan } from './validate'
@@ -193,7 +193,7 @@ function floorsOf(plan: FloorPlan): Floor[] {
   try {
     return planFloors(plan)
   } catch {
-    return [DEFAULT_FLOOR]
+    return [groundFloor(plan)]
   }
 }
 

@@ -17,6 +17,29 @@
 export const NAME_MAX = 120
 /** The most characters an id may have: the same as the tool server takes. */
 export const ID_MAX = 64
+/**
+ * MSG-22: what an id may hold for every tool and edit to take it: plain letters, digits, dash,
+ * underscore and dot (the tool server's own rule). A plan file may hold any id; rooms text
+ * writes only these (`plainId`).
+ */
+export const PLAIN_ID = /^[A-Za-z0-9._-]+$/
+
+/** Letters with no accent to take off, written in plain letters as they are usually spelt out. */
+const SPELT: Readonly<Record<string, string>> = { ß: 'ss', ẞ: 'SS', æ: 'ae', Æ: 'AE', œ: 'oe', Œ: 'OE', ø: 'o', Ø: 'O', ł: 'l', Ł: 'L', đ: 'd', Đ: 'D', ð: 'd', Ð: 'D', þ: 'th', Þ: 'Th', ı: 'i' }
+
+/**
+ * MSG-22: an id in plain letters, its accents taken off: `baño` is `bano`, `küche` is `kuche`,
+ * `straße` is `strasse`. A letter with no plain form (`客厅`) is left as it is, and the id stays
+ * one `PLAIN_ID` refuses.
+ */
+export function plainId(id: string): string {
+  return id
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[ßẞæÆœŒøØłŁđĐðÐþÞı]/g, (c) => SPELT[c] ?? c)
+    .normalize('NFC')
+}
+
 /** The most characters the trace image's path may have. */
 export const IMAGE_PATH_MAX = 1024
 /** The most walls, rooms, openings, floors, items or stairs a plan may have, each. */

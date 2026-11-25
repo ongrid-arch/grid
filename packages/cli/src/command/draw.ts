@@ -19,7 +19,7 @@ import { planPicture } from '@ongrid/viewer/src/picture'
 import { drawShowOf } from './drawShow'
 import { floorOption, type LoadedPlan } from './plan'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
-import { askedLanguage, LANG_OPTION, languageFor } from './language'
+import { askedLanguage, LANG_OPTION, languageFor, spokenPlan } from './language'
 import type { SectionLine } from '@ongrid/floorplan/geometry/section'
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
 import { marksAsked, readMarks, readSectionOption, towardOf } from './section'
@@ -199,10 +199,12 @@ function checkFacadeRequest(request: DrawRequest): void {
  * The picture `grid draw` writes. HND-10: with the project the plan was read from, a floor plan
  * draws the plan's trace image under it, read from the project folder (`readTrace`).
  */
-export async function drawFile(loaded: LoadedPlan, request: DrawRequest, scale: number, look: LookName = DRAW_LOOK, project?: Project): Promise<DrawnFile> {
+export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: number, look: LookName = DRAW_LOOK, project?: Project): Promise<DrawnFile> {
   // MSG-11: the language asked for, else the plan's own, else English, with its messages loaded.
   const asked = askedLanguage(request.lang)
-  const language = await languageFor(asked, loaded.plan)
+  const language = await languageFor(asked, read.plan)
+  // MSG-22: the floor the plan names in no list, named in the drawing's language.
+  const loaded = spokenPlan(read, language)
   if (request.facade !== undefined) {
     const side = request.facade as FacadeSide
     const tongue = language === 'en' && asked === undefined ? {} : { language }

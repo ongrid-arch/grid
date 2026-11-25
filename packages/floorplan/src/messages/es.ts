@@ -1950,6 +1950,13 @@ export const es: Messages = {
   'rooms.idChanged.on': "'{id}' en la planta '{floor}'",
   'rooms.idChanged.moreFloors': '{list}, y así para {count} más',
   'rooms.idChanged.moreIds': '{list}; y así para {count} más',
+  'rooms.idFolded.one': 'Un identificador se escribe en letras simples, para que toda herramienta y edición lo acepte: {list}. Úselo en las llamadas siguientes.',
+  'rooms.idFolded.many': 'Los identificadores se escriben en letras simples, para que toda herramienta y edición los acepte: {list}. Use estos identificadores en las llamadas siguientes.',
+  'rooms.idFolded.id': "'{written}' es '{id}'",
+  'rooms.badId.raw':
+    "El identificador '{id}' tiene una letra sin forma simple. Un identificador lleva letras simples, cifras, '-', '_' y '.', para que toda herramienta y edición lo acepte: escríbalo en letras simples.",
+  'rooms.badId':
+    "línea {line}: el identificador '{id}' tiene una letra sin forma simple. Un identificador lleva letras simples, cifras, '-', '_' y '.', para que toda herramienta y edición lo acepte: escríbalo en letras simples ('salon', 'kuche', 'keting'). El nombre del local, entre comillas, conserva las palabras de la persona.",
   'rooms.answer.raw':
     'Escrito en crudo y guardado tal como se escribe: muros {walls}, estancias {rooms}, aberturas {openings}. Grid mide las estancias en crudo como mide toda estancia, y las cuenta en las estancias y la superficie de arriba.',
   'rooms.answer.rawPart': 'en crudo',

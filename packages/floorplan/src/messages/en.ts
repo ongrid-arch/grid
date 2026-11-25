@@ -1941,6 +1941,13 @@ export const en = {
   'rooms.idChanged.on': "'{id}' on floor '{floor}'",
   'rooms.idChanged.moreFloors': '{list}, and so on for {count} more',
   'rooms.idChanged.moreIds': '{list}; and so on for {count} more',
+  'rooms.idFolded.one': 'An id is written in plain letters, so every tool and edit takes it: {list}. Use it in later calls.',
+  'rooms.idFolded.many': 'Ids are written in plain letters, so every tool and edit takes them: {list}. Use these ids in later calls.',
+  'rooms.idFolded.id': "'{written}' is '{id}'",
+  'rooms.badId.raw':
+    "The id '{id}' holds a letter with no plain form. An id holds plain letters, digits, '-', '_' and '.', so every tool and edit takes it: write it in plain letters.",
+  'rooms.badId':
+    "line {line}: the id '{id}' holds a letter with no plain form. An id holds plain letters, digits, '-', '_' and '.', so every tool and edit takes it: write it in plain letters ('salon', 'kuche', 'keting'). The room's name, in quotes, keeps the person's own words.",
   'rooms.answer.raw':
     'Written raw and kept as written: walls {walls}, rooms {rooms}, openings {openings}. Grid measures the raw rooms as it measures every room, and counts them in the rooms and the area above.',
   'rooms.answer.rawPart': 'written raw',

@@ -11,7 +11,7 @@ import { parseSheetWordsChecked } from './claims'
 import { exportBaseOf, writeBesidePlan } from '../command/export'
 import { loadPlan, PlanRefused, type LoadedPlan } from '../command/plan'
 import { UsageError } from '../command/options'
-import { askedLanguage, languageFor } from '../command/language'
+import { askedLanguage, languageFor, spokenPlan } from '../command/language'
 import type { Language } from '@ongrid/floorplan/messages'
 import { quoted, type Project } from '../fs/projectFiles'
 import { sheetPages, SHEET_LAYOUTS, type SheetLayout } from './pages'
@@ -172,10 +172,13 @@ export interface MadeSheet {
  * English.
  */
 export async function makeSheet(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language): Promise<MadeSheet> {
-  const loaded = loadPlan(project, planFile)
+  const read = loadPlan(project, planFile)
+  const lang = await languageFor(language, read.plan)
+  // MSG-22: the floor the plan names in no list, named in the sheet's language.
+  const loaded = spokenPlan(read, lang)
   const { base, note } = exportBaseOf(planFile)
   const notes = layout === 'client' ? accessNotes(project, planFile, loaded) : []
-  const sheet = sheetPages(loaded, words, layout, { name: base, date: new Date(), accessNotes: notes, language: await languageFor(language, loaded.plan) })
+  const sheet = sheetPages(loaded, words, layout, { name: base, date: new Date(), accessNotes: notes, language: lang })
   // The laid-out sheet is the one written: text that did not fit flows onto continuation pages.
   const { pdf, sheet: laidOut } = await sheetPdf(loaded.plan, sheet)
   const pages = laidOut.pages.map((page) => (page.floor === null ? { kind: page.kind, title: page.title } : { kind: page.kind, title: page.title, floor: page.floor }))
@@ -228,9 +231,11 @@ function drawingStem(planFile: string, loaded: LoadedPlan, floor: string): { ste
  * words' name (`sheet.json`), else the plan's title, else the export name of the plan's file.
  */
 export async function makeDrawing(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language): Promise<MadeDrawing> {
-  const loaded = loadPlan(project, planFile)
+  const read = loadPlan(project, planFile)
+  const lang = await languageFor(language, read.plan)
+  // MSG-22: the floor the plan names in no list, named in the drawing's language.
+  const loaded = spokenPlan(read, lang)
   const floor = floorOption(loaded.plan, request.floor)
-  const lang = await languageFor(language, loaded.plan)
   const named = drawingStem(planFile, loaded, floor ?? planFloors(loaded.plan)[0]?.id ?? '')
   const projectName = words?.name ?? loaded.plan.title ?? exportBaseOf(planFile).base
   const { DrawingDoesNotFit, drawingSheet } = await import('./drawingSheet')
