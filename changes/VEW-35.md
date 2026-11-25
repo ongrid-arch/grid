@@ -8,5 +8,5 @@
 
 ## For agents
 
-- `grid_elevation` and the facade views: walls that bound outdoor space and no room keep their
+- The facade of a side of the building: walls that bound outdoor space and no room keep their
   own top instead of rising to the slab or roof over them. No new code in the record.
