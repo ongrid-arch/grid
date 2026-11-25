@@ -1918,6 +1918,12 @@ export const es: Messages = {
   'describe.rooms.patterns.one': 'El patrón de huecos del plano no es texto de estancias: grid write lo conserva como lo tiene el archivo, y sus huecos no se escriben aquí.',
   'describe.rooms.patterns.many': 'Los {count} patrones de huecos del plano no son texto de estancias: grid write los conserva como los tiene el archivo, y sus huecos no se escriben aquí.',
 
+  // --- Comparing two versions: the walls a room grew or shrank by (WRT-19, `diff/causes.ts`)
+  'diff.cause': 'porque {walls}',
+  'diff.cause.thickness.one': 'el muro {wall} pasó de {before} a {after} m de espesor',
+  'diff.cause.thickness.many': 'los muros {walls} pasaron de {before} a {after} m de espesor',
+  'diff.cause.moved': 'el muro {wall} se movió {by} m',
+
   // --- The drawings and the sheet (`drawing.*`, `sheet.*`)
   'drawing.picture': 'Plano con {count} estancias',
   'drawing.picture.keyed': 'Plano con {count} estancias y una leyenda de lo que conviene revisar',

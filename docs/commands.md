@@ -506,7 +506,16 @@ each room with the room on the same walls or the same floor; what is left is pai
 point that slipped by less than a centimetre has not moved. A room's walls are compared as a
 ring: the same walls from another wall, or the other way round, are the same room. A plan
 written rooms first in both versions is compared by its rooms and openings, whose names you
-chose: a room that kept its size and moved is said to have moved.
+chose: a room that kept its size and moved is said to have moved. Its walls follow its rooms, so
+a wall is listed there only when its own figures changed: its thickness, height or kind, or
+whether it is a dividing line, curved or on another floor (`Wall "ext-north" thickness 0.34 →
+0.30 m, by "Kitchen", "Hall" and "Bedroom 2"`). A plan drawn wall by wall lists every wall that
+changed.
+
+A room that grew or shrank names the walls on its outline whose face on its side moved: one made
+thinner or thicker, or, in a plan drawn wall by wall, one that moved (`"Kitchen" 13.20 m² →
+13.29 m² (…), because wall "ext-north" went from 0.34 to 0.30 m thick`). In the data, each room's
+`walls` lists them by id.
 
 A door or window with no change of its own is said by where it went in the building. One that
 moved with its wall, or with a room that moved as it was, is said to have moved with it, how far
