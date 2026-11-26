@@ -119,7 +119,7 @@ type Box = readonly [number, number, number, number]
 function wayOf(a: P, b: P): StairWay | null {
   const dx = b[0] - a[0]
   const dy = b[1] - a[1]
-  const near = 1e-6
+  const near = tolerance('sameFace')
   if (Math.abs(dx) <= near && Math.abs(dy) > near) return dy > 0 ? 'north' : 'south'
   if (Math.abs(dy) <= near && Math.abs(dx) > near) return dx > 0 ? 'east' : 'west'
   return null
@@ -188,9 +188,9 @@ function roomLine(plan: FloorPlan, words: StairWords, ends: readonly string[], f
   return { line, room: room.id, poly, guessed: words.room === undefined ? `the stair ${words.id} goes in room ${room.id}, the room ${fallback?.which ?? 'from'} names.` : null }
 }
 
-/** Whether the flights and landings lie in the room: a point a millimetre in from each corner. */
+/** Whether the flights and landings lie in the room: a point a step in from each corner (`stepPastFace`), so one that only touches a wall's face still does. */
 function inRoom(layout: StairLayout, poly: readonly { x: number; y: number }[]): boolean {
-  const step = 0.001
+  const step = tolerance('stepPastFace')
   const outlines = [...layout.flights.map((f) => f.outline), ...layout.landings.map((l) => l.outline)]
   return outlines.every((outline) => {
     const cx = outline.reduce((s, p) => s + p.x, 0) / outline.length
@@ -290,7 +290,7 @@ export function stairWordsOf(plan: FloorPlan, stair: Stair): StairWords | null {
       } catch {
         continue
       }
-      const same = line.length === run.length && line.every((p, i) => Math.abs(p[0] - run[i]![0]) <= 1e-6 && Math.abs(p[1] - run[i]![1]) <= 1e-6)
+      const same = line.length === run.length && line.every((p, i) => Math.abs(p[0] - run[i]![0]) <= tolerance('sameFace') && Math.abs(p[1] - run[i]![1]) <= tolerance('sameFace'))
       if (!same) continue
       return {
         id: stair.id,
