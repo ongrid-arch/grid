@@ -10,6 +10,7 @@ import { parseFloorPlan } from '../../types/floorplan'
 import type { FloorPlan } from '../plan'
 import { indexPlan } from '../plan'
 import { planEnvelope } from '../envelope'
+import { inPieces } from '../polygons'
 import { planWallSides } from '../exposure'
 import { validatePlan } from '../validate'
 import { openSky } from '../openSky'
@@ -121,8 +122,9 @@ describe('a courtyard through two floors', () => {
       ].join('\n')
     )
     const first = envelopeOf(plan, 'first')
-    // The courtyard stands over the kitchen, not over open sky: it stands on a slab.
-    expect(first.slab!.area).toBeGreaterThan(envelopeOf(plan, 'ground').slab!.area - 1)
+    // The slab reaches the terrace's open sides, including the edge over the kitchen wall.
+    expect(inPieces(first.slab!.pieces, { x: 3, y: 7.2 })).toBe(true)
+    expect(inPieces(first.roof!.pieces, { x: 3, y: 7.2 })).toBe(false)
   })
 })
 
