@@ -70,11 +70,11 @@ export interface Patch {
   readonly rooms: ReadonlyMap<string, RoomChange>
   /** CNT-3: the plan's own fields set (`north`, `site`). `null` takes a key out. Left out by a change that sets none. */
   readonly plan?: Readonly<Record<string, unknown>>
-  /** CNT-12: fixtures moved or turned, by id. Left out by a change that moves none. */
-  readonly items?: ReadonlyMap<string, { at: Pair; turn: number }>
+  /** CNT-12: fixtures moved or turned, by id. Left out by a change that moves none. CNT-45: onto another floor, or to a new size (a full-width item). */
+  readonly items?: ReadonlyMap<string, { at: Pair; turn: number; floor?: string; size?: Pair }>
   /** CNT-20: items added at the end of the list, as their file will hold them (placed from the library by name). */
   readonly addItems?: readonly RawRecord[]
-  /** CNT-44: items taken out, by id (a group filled again). Left out by a change that takes none out. */
+  /** CNT-44: items taken out, by id (a group filled again; CNT-45, grid_remove_item). Left out by a change that takes none out. */
   readonly removeItems?: ReadonlySet<string>
   /** CNT-20 (C30): library entries the plan takes in, at the end of its `library`. */
   readonly addLibrary?: readonly RawRecord[]

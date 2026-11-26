@@ -53,17 +53,17 @@ describe('grid write --scan (lab AE-2)', () => {
     const run = await grid(dir, 'write', '--scan', 'flat.json')
     expect(run.err).toBe('')
     expect(run.status).toBe(0)
-    expect(run.out).toContain('Wrote plan.json from the scan flat.json: 4 rooms, 7 walls (3 between two scanned faces, 4 scanned from one side), 6 doors and windows, 2 fixtures.')
+    expect(run.out).toContain('Wrote plan.json from the scan flat.json: 4 rooms, 7 walls (3 between two scanned faces, 4 scanned from one side), 6 doors and windows, 4 fixtures.')
     expect(run.out).toContain('"Living room" 16.00 m² (the scan\'s floor outline 16.00 m², 0.0000% apart)')
     expect(run.out).toContain('Assumed, to confirm with the person (5):')
     expect(run.out).toContain('Kept the scan beside the plan as plan.scan.json, keyed by its own ids')
     expect(run.out).toContain('Problems in the drawing: 0 → 0.')
 
     const result = inspectPlan(readFileSync(join(dir, 'plan.json'), 'utf8'))
-    // Nothing refused, left out, worth a look or found: the six values the scan does not give, to
-    // confirm with the person, and (CNT-14) the four doors whose swing the scan does not say, as
+    // Nothing refused, left out, worth a look or found: the eight values the scan does not give, to
+    // confirm with the person (CNT-45: the bed's and the sofa's turns among them), and (CNT-14) the four doors whose swing the scan does not say, as
     // not checked. A scan states no kind and no part that opens: each door is one leaf.
-    expect(result.counts).toEqual({ refused: 0, 'left-out': 0, 'worth-a-look': 0, finding: 0, 'not-checked': 1, 'to-confirm': 6 })
+    expect(result.counts).toEqual({ refused: 0, 'left-out': 0, 'worth-a-look': 0, finding: 0, 'not-checked': 1, 'to-confirm': 8 })
     expect(result.lines.filter((l) => l.code !== 'plan/value-assumed').map((l) => [l.code, l.also])).toEqual([['floor/not-checked-door-swings', ['door-1', 'door-2', 'door-3', 'door-4']]])
     const written = read(dir, 'plan.json') as { openings: Array<Record<string, unknown>> }
     expect(written.openings.filter((o) => 'kind' in o || 'opens' in o)).toEqual([])
@@ -74,7 +74,7 @@ describe('grid write --scan (lab AE-2)', () => {
     expect(Object.keys(surfaces)).toHaveLength(Object.keys(SCAN.ids).length - 1)
     expect(surfaces[SCAN.ids['living-floor']!]).toMatchObject({ list: 'floors', drawnAs: { part: 'room', id: 'living' } })
     expect(surfaces[SCAN.ids['front-door']!]).toMatchObject({ list: 'doors', drawnAs: { part: 'opening', id: 'door-1' } })
-    expect(surfaces[SCAN.ids['bed']!]).toMatchObject({ list: 'objects', category: 'bed', drawnAs: null })
+    expect(surfaces[SCAN.ids['bed']!]).toMatchObject({ list: 'objects', category: 'bed', drawnAs: { part: 'item', id: 'bed-1' } })
   })
 
   it('matches a re-scan to the scan kept before: the same ids keep the same parts', async () => {
@@ -83,7 +83,7 @@ describe('grid write --scan (lab AE-2)', () => {
     const before = readFileSync(join(dir, 'plan.json'), 'utf8')
     const again = await grid(dir, 'write', '--scan', 'flat.json')
     expect(again.err).toBe('')
-    expect(again.out).toContain('Matched to the scan kept before by its ids: 19 parts kept their ids, 0 new; nothing the scan before had is missing.')
+    expect(again.out).toContain('Matched to the scan kept before by its ids: 21 parts kept their ids, 0 new; nothing the scan before had is missing.')
     expect(readFileSync(join(dir, 'plan.json'), 'utf8')).toBe(before)
   })
 
