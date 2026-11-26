@@ -23,6 +23,7 @@ import { said } from '../messages/say'
 import type { FloorPlan, Room } from './plan'
 import type { Vec2 } from './vec2'
 import type { Severity } from './validate'
+import { EQUIPMENT_KIND_DEFINITIONS } from './equipmentKinds'
 
 /** A fixture takes the floor it stands on from its room's free floor; furniture can be moved and takes none. */
 export type ItemGroup = 'fixture' | 'furniture'
@@ -322,6 +323,8 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
     }),
     solid: (p, h) => [block(p.ellipse(0, 0, 0.2, 0.2), 0, h * 0.35), block(p.ellipse(0, 0, 0.5, 0.5), h * 0.35, h)],
   },
+  // CNT-47: the equipment, after the furniture (`equipmentKinds.ts`).
+  ...EQUIPMENT_KIND_DEFINITIONS,
 ]
 
 // ── The registry ─────────────────────────────────────────────────────────────────────────────

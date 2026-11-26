@@ -16,7 +16,7 @@ import {
   columnsOnFloor,
   convexPenetration,
   floorOf,
-  itemClearanceZone,
+  itemClearanceZones,
   itemFootprint,
   rectInsidePolygon,
   tolerance,
@@ -150,7 +150,7 @@ function standing(plan: FloorPlan, floor: string, leaving: ReadonlySet<string>):
   }
   for (const item of plan.items ?? []) {
     if (floorOf(item) !== floor || leaving.has(item.id) || liesUnderfoot(item.kind)) continue
-    for (const outline of [itemFootprint(item), itemClearanceZone(item)]) {
+    for (const outline of [itemFootprint(item), ...itemClearanceZones(item).map((z) => z.zone)]) {
       if (outline.length >= 3) out.push({ what: 'item', id: item.id, outline, box: boxOf(outline) })
     }
   }

@@ -515,19 +515,21 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
       issues.push(hitIssue(a.item.id, 'item/overlap', said('issue.item/overlap', { item: itemNounSaid(a.item), other: itemNameSaid(b.item), depth: m(depth) }), [b.item.id]))
     }
   }
+  // CNT-47: and behind it and at its sides, each zone said by its own side.
   for (const { item } of footprints) {
-    if (!(item.clearance !== undefined && item.clearance > 0)) continue
-    const zone = itemClearanceZone(item)
-    const zoneBox = boundsOf(zone)
-    const walls = wallsRunInto(zone, wallsByFloor.get(floorOf(item)) ?? [])
-    const others = footprints.filter((o) => o.item.id !== item.id && !liesUnderfoot(o.item.kind) && floorOf(o.item) === floorOf(item) && meet(zoneBox, o.box) && convexPenetration(zone, o.footprint) > tolerance('itemOverlap'))
-    if (walls.length === 0 && others.length === 0) continue
-    const what = joined(
-      [...others.map((o) => itemNameSaid(o.item)), ...walls.map((w) => said('issue.item/clearance-blocked.wall', { wall: name(w.wall) }))],
-      'join.comma'
-    )
-    const hits = [...others.map((o) => o.item.id), ...walls.map((w) => w.wall)]
-    issues.push(hitIssue(item.id, 'item/clearance-blocked', said('issue.item/clearance-blocked', { item: itemNounSaid(item), clearance: m(item.clearance), what }), hits))
+    for (const { side, zone, clearance } of itemClearanceZones(item)) {
+      const zoneBox = boundsOf(zone)
+      const walls = wallsRunInto(zone, wallsByFloor.get(floorOf(item)) ?? [])
+      const others = footprints.filter((o) => o.item.id !== item.id && !liesUnderfoot(o.item.kind) && floorOf(o.item) === floorOf(item) && meet(zoneBox, o.box) && convexPenetration(zone, o.footprint) > tolerance('itemOverlap'))
+      if (walls.length === 0 && others.length === 0) continue
+      const what = joined(
+        [...others.map((o) => itemNameSaid(o.item)), ...walls.map((w) => said('issue.item/clearance-blocked.wall', { wall: name(w.wall) }))],
+        'join.comma'
+      )
+      const hits = [...others.map((o) => o.item.id), ...walls.map((w) => w.wall)]
+      const key = side === 'front' ? 'issue.item/clearance-blocked' : (`issue.item/clearance-blocked.${side}` as const)
+      issues.push(hitIssue(item.id, 'item/clearance-blocked', said(key, { item: itemNounSaid(item), clearance: m(clearance), what }), hits))
+    }
   }
 
   // CNT-20: each kind's own checks (the registry), on the items Grid can draw.
@@ -557,4 +559,34 @@ export function itemClearanceZone(item: Item): Vec2[] {
   const f = frameOf(item)
   const out = 0.5 + item.clearance / f.depth
   return [point(f, -0.5, 0.5), point(f, 0.5, 0.5), point(f, 0.5, out), point(f, -0.5, out)]
+}
+
+/** CNT-47: a side of an item that keeps clear floor. */
+export type ClearSide = 'front' | 'back' | 'left' | 'right'
+
+/**
+ * CNT-47: every zone of clear floor an item keeps: in front of it (`clearance`), as wide as it is;
+ * behind it (`clearSides.back`), as wide as it is; at its left and right (`clearSides.left`,
+ * `right`), as deep as it is, its left the side its width starts from. Each counter-clockwise;
+ * a side that keeps none has no zone.
+ */
+export function itemClearanceZones(item: Item): { side: ClearSide; zone: Vec2[]; clearance: number }[] {
+  const f = frameOf(item)
+  const out: { side: ClearSide; zone: Vec2[]; clearance: number }[] = []
+  const front = itemClearanceZone(item)
+  if (front.length > 0) out.push({ side: 'front', zone: front, clearance: item.clearance! })
+  const sides = item.clearSides ?? {}
+  if (sides.back !== undefined && sides.back > 0) {
+    const v = -0.5 - sides.back / f.depth
+    out.push({ side: 'back', zone: [point(f, -0.5, v), point(f, 0.5, v), point(f, 0.5, -0.5), point(f, -0.5, -0.5)], clearance: sides.back })
+  }
+  if (sides.left !== undefined && sides.left > 0) {
+    const u = -0.5 - sides.left / f.width
+    out.push({ side: 'left', zone: [point(f, u, -0.5), point(f, -0.5, -0.5), point(f, -0.5, 0.5), point(f, u, 0.5)], clearance: sides.left })
+  }
+  if (sides.right !== undefined && sides.right > 0) {
+    const u = 0.5 + sides.right / f.width
+    out.push({ side: 'right', zone: [point(f, 0.5, -0.5), point(f, u, -0.5), point(f, u, 0.5), point(f, 0.5, 0.5)], clearance: sides.right })
+  }
+  return out
 }

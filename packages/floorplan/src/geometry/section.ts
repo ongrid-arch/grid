@@ -1056,8 +1056,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
 
   /**
-   * A flight's faces beyond the cut (VEW-11): its two sides, each its profile; the risers seen head-on, one face
-   * at its foot (VEW-41); its upper end, from the soffit to its last tread, which also stands for the soffit
+   * A flight's faces beyond the cut (VEW-11): its two sides, each its profile; its risers, one face (VEW-41)
+   * of each riser in its place (VEW-69); its upper end, from the soffit to its last tread, which also stands for the soffit
    * seen from above the flight.
    */
   function flightFaces(stair: (typeof laid)[number], flight: (typeof laid)[number]['flights'][number], profile: FlightProfile, along: Vec2): void {
@@ -1071,9 +1071,42 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     const [lTop, rTop] = ends(profile.length)
     sideFace(stair, profile, lFoot, lTop, perp(along))
     sideFace(stair, profile, rFoot, rTop, scale(perp(along), -1))
-    // VEW-41: the risers seen head-on are one face at the foot, as tall as the flight, not one column each.
-    face('stair', stair.id, stair.lower.floor, lFoot, rFoot, scale(along, -1), profile.lower, profile.topAt(profile.length))
+    riserFace(stair, flight, profile, along)
     face('stair', stair.id, stair.lower.floor, lTop, rTop, along, profile.bottomAt(profile.length), profile.topAt(profile.length))
+  }
+
+  /**
+   * VEW-69: a flight's risers beyond the cut, as one face (VEW-41): each riser one riser tall, at its
+   * own riser line and the height it rises from, joined. Seen head-on they make one rectangle, at an
+   * angle they step up and away; seen edge-on they add nothing, since the flight's side shows them.
+   * Never a face from the floor at the foot up to the top, which closed off the room under the stair.
+   */
+  function riserFace(stair: (typeof laid)[number], flight: (typeof laid)[number]['flights'][number], profile: FlightProfile, along: Vec2): void {
+    const facing = dot(scale(along, -1), frame.look)
+    if (facing >= -squareFace) return
+    const rings: Vec2[][] = []
+    let depth = Infinity
+    // The last riser line rises to the landing or floor above, which draws its own face.
+    for (let k = 0; k + 1 < flight.riserLines.length; k++) {
+      const [a, b] = flight.riserLines[k]!
+      let da = beyondOf(frame, a)
+      let db = beyondOf(frame, b)
+      if (da <= none && db <= none) continue
+      let pa = a
+      let pb = b
+      if (da < 0 || db < 0) {
+        const cut = add(a, scale(sub(b, a), da / (da - db)))
+        if (da < 0) [pa, da] = [cut, 0]
+        else [pb, db] = [cut, 0]
+      }
+      const x0 = Math.max(0, Math.min(across(frame, pa), across(frame, pb)))
+      const x1 = Math.min(frame.length, Math.max(across(frame, pa), across(frame, pb)))
+      if (!(x1 - x0 > none)) continue
+      rings.push(rect(snap, x0, x1, profile.lower + k * stair.riserHeight, profile.lower + (k + 1) * stair.riserHeight))
+      depth = Math.min(depth, (da + db) / 2)
+    }
+    const pieces = joined(rings)
+    if (pieces.length > 0) faces.push({ kind: 'stair', id: stair.id, floor: stair.lower.floor, depth, pieces, edge: null })
   }
 
   /** A side of a flight, from its foot `a` to its top `b`, facing `outward`: the flight's profile. */
