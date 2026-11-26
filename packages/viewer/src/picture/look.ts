@@ -128,8 +128,7 @@ export const LINE_PX = {
   doorArc: 0.75,
   dimension: 1,
   extension: 0.75,
-  /** The line from a label moved out of its room back to the room. */
-  leader: 0.75,
+  /** The dash of a room's dimension line. */
   roomDimensionDash: [3, 3],
   /** The warning dot's ring. Drawn inside a group already scaled to pixels. */
   warningRing: 1.5,
@@ -333,7 +332,6 @@ export type LinePart =
   /** The 45-degree tick at each end of a dimension line, in a look that draws one (SHT-4). */
   | 'tick'
   | 'extension'
-  | 'leader'
   | 'windowFace'
   | 'glass'
   | 'undecided'
@@ -588,7 +586,6 @@ const SCREEN_LINES: ScreenLines = {
     dimension: LINE_PX.dimension,
     tick: LINE_PX.dimension,
     extension: LINE_PX.extension,
-    leader: LINE_PX.leader,
     windowFace: LINE_PX.opening,
     glass: LINE_PX.opening,
     undecided: LINE_PX.opening,
@@ -646,7 +643,6 @@ const PAPER_LINES: PaperLines = {
     dimension: 'finest',
     tick: 'fine',
     extension: 'finest',
-    leader: 'finest',
     windowFace: 'fine',
     glass: 'fine',
     undecided: 'fine',

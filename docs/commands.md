@@ -859,6 +859,14 @@ a sheet of paper (a test holds this for the lab's eight buildings, in each look)
 command adds on top, the marks of what went wrong and the key under them, is in
 [What went wrong, on the drawing](#what-went-wrong-on-the-drawing-grid-draw).
 
+Room names and areas fit inside the visible room floor. Grid can turn a label along a
+room, use smaller text, wrap the name or show just the name. Repeated names carry a number,
+from the plan when stated or from their order on the floor. The drawing adds a suffix to
+duplicate stated numbers to keep them distinct. When a name cannot fit, the room number
+can stand in for it, with the name in the key. A room with no clear place even for its
+number can be labelled at a closer zoom. Crops and tiles lay out their own labels and
+keep the same room numbers.
+
 The PNG is that SVG drawn by Skia, through `@napi-rs/canvas` (MIT). It ships a ready-built
 binary for Linux, macOS and Windows, so nothing is compiled when Grid is installed. It is an
 optional package: where its binary did not come along, `grid draw --png` says so in one line,
