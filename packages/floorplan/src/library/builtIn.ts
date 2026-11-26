@@ -154,6 +154,37 @@ export const BUILT_IN_ROOMS: readonly TypicalRoom[] = [
     ],
     source: BUILT_IN_SOURCE,
   },
+  // CNT-44: sets of a table and its chairs, which `grid_fill_room` repeats through a café or a
+  // meeting room. The chairs face the table from its long sides, set out clear of it; the set's
+  // size is the table and its chairs, with no floor round them (the fill's aisle is that).
+  {
+    name: 'table-4-chairs',
+    label: '4-seat table',
+    size: [1.2, 1.8],
+    items: [
+      { library: 'chair', at: [0.3, 0.25] },
+      { library: 'chair', at: [0.9, 0.25] },
+      { library: 'dining-table-4', at: [0.6, 0.9] },
+      { library: 'chair', at: [0.3, 1.55], turn: 180 },
+      { library: 'chair', at: [0.9, 1.55], turn: 180 },
+    ],
+    source: BUILT_IN_SOURCE,
+  },
+  {
+    name: 'table-6-chairs',
+    label: '6-seat table',
+    size: [1.8, 1.9],
+    items: [
+      { library: 'chair', at: [0.3, 0.25] },
+      { library: 'chair', at: [0.9, 0.25] },
+      { library: 'chair', at: [1.5, 0.25] },
+      { library: 'dining-table-6', at: [0.9, 0.95] },
+      { library: 'chair', at: [0.3, 1.65], turn: 180 },
+      { library: 'chair', at: [0.9, 1.65], turn: 180 },
+      { library: 'chair', at: [1.5, 1.65], turn: 180 },
+    ],
+    source: BUILT_IN_SOURCE,
+  },
 ]
 
 const ITEMS_BY_NAME = new Map(BUILT_IN_ITEMS.map((item) => [item.name, item]))

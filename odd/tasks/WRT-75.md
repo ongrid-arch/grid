@@ -58,7 +58,7 @@ write over a fit-out, and no tool started one. When this is done:
   phases rooms text cannot hold and for a base the text does not name.
 - `packages/cli/src/command/describe.ts`: a fit-out is read back from its own parts with its base.
 - `packages/cli/src/edit/fitOut.ts` (new) builds the started fit-out; `packages/cli/src/mcp/fitOutTool.ts`
-  (new) is `grid_start_fit_out`, registered after the phase tools (48 tools).
+  (new) is `grid_start_fit_out`, registered after the phase tools (49 tools).
 - Words: every new sentence an answer says is a message in `en.ts` and `es.ts`; the tool's own
   description stays English, as every tool's does.
 - The grammar gains a `fit-out` topic (`roomsGrammar.ts`), its example written against a small

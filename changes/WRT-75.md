@@ -23,6 +23,6 @@
   same base is an ordinary rewrite, and one naming another base or none is refused with
   `rooms/phases` unless `replace`. The plan's own phases still refuse rooms text, as before.
 - `grid_describe as=rooms` on a fit-out writes the `base` line and only the fit-out's own parts.
-- New tool `grid_start_fit_out` (`base`, `plan`, `name`, `replace`), after `grid_phase_from`: 48
+- New tool `grid_start_fit_out` (`base`, `plan`, `name`, `replace`), after `grid_phase_from`: 49
   tools. Answers `written`, `base`, `rooms`, `changed` and `toLookAt`.
 - The rooms grammar has a `fit-out` topic. No new code in the result record.

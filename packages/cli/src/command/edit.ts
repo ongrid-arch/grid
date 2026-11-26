@@ -36,6 +36,8 @@ export const EDIT_VERBS = {
   square: 'grid_square_scan',
   // CNT-20: a library item or typical room placed by name.
   place: 'grid_place_item',
+  // CNT-44: a room or zone filled with desks or seats at a pitch.
+  fill: 'grid_fill_room',
   // WRT-72: a door, window or opening added to the plan.
   'add-opening': 'grid_add_opening',
   // WRT-73: phases set without hand-editing the file.
@@ -60,7 +62,7 @@ function verbOptions(tool: GridTool): OptionSpecs {
   return { ...specs, '--json': { takesValue: false, help: 'Print the answer as JSON.' }, ...PROJECT_OPTION, '--help': { takesValue: false, help: 'Show this help.' } }
 }
 
-export const EDIT_SUMMARY = 'Changes the plan: one sentence of request is one command. Verbs: opening, type, move-side, merge, split, add-room, stretch, rename, mirror, square, place, add-opening, phase, start-works, phase-from, fit-out.'
+export const EDIT_SUMMARY = 'Changes the plan: one sentence of request is one command. Verbs: opening, type, move-side, merge, split, add-room, stretch, rename, mirror, square, place, fill, add-opening, phase, start-works, phase-from, fit-out.'
 export const EDIT_USAGE = 'grid edit <verb> [<plan.json>] [options] [--json] [--project <folder>]'
 
 function editHelp(): string {
