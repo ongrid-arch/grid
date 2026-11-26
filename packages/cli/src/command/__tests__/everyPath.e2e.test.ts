@@ -292,6 +292,10 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_add_room', { plan: '@', room: 'porch', name: 'Porch', against: 'lounge', side: 'north', width: 3, depth: 2, in_the_way: 'remove' }), given: asIs },
     { arg: 'out', call: tool('grid_add_room', { plan: PLAN, room: 'porch', name: 'Porch', against: 'lounge', side: 'north', width: 3, depth: 2, in_the_way: 'remove', out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  grid_add_opening: [
+    { arg: 'plan', call: tool('grid_add_opening', { plan: '@', type: 'window', room: 'kitchen', side: 'east' }), given: asIs },
+    { arg: 'out', call: tool('grid_add_opening', { plan: PLAN, type: 'window', room: 'kitchen', side: 'east', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   grid_stretch: [
     { arg: 'plan', call: tool('grid_stretch', { plan: '@', side: 'east', by: 0.3 }), given: asIs },
     { arg: 'out', call: tool('grid_stretch', { plan: PLAN, side: 'east', by: 0.3, out: '@.json' }), given: (p) => `${p}.json` },
