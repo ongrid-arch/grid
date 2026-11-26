@@ -48,7 +48,7 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   },
   {
     topic: 'floors',
-    says: 'floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [copy <floor> [with openings]] starts a floor; every room after it is on it. level is the storey number (0, 1, 0.5), elevation the metres from the ground floor\'s level up to this one, height to its ceiling, slab the floor under it. copy takes another floor\'s rooms (with openings: its doors and windows too). through <floor> on a room line stands the room and its walls on every floor up to that one, in the same place: a stair, a lift, a shaft. All floors are written in one rooms text, never one plan per floor.',
+    says: 'floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [copy <floor> [with openings]] starts a floor; every room after it is on it. level is the storey number (0, 1, 0.5), elevation the metres from the ground floor\'s level up to this one, height to its ceiling, slab the floor under it. copy takes another floor\'s rooms (with openings: its doors and windows too), turned, moved or scaled when it says (see turned floors). through <floor> on a room line stands the room and its walls on every floor up to that one, in the same place: a stair, a lift, a shaft. All floors are written in one rooms text, never one plan per floor.',
     example: [
       'floor ground "Ground floor" level 0 elevation 0 height 2.75',
       'room hall "Hall" corridor 2.0 x 4.0 at 0,0',
@@ -150,6 +150,20 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
     ],
   },
   {
+    topic: 'turned floors',
+    says: 'copy <floor> [with openings] [turn <deg> [clockwise]] [about x,y] [move dx,dy] [scale <s>] copies a floor turned (degrees counter-clockwise, or clockwise with the word), about a point (left out, the middle of its rooms), scaled about it (rooms smaller or larger, walls as thick) and then moved; on its own line or at the end of a floor line. repeat floors <n> from <floor> [as <first id>] [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>] [rise <m>] writes n floors after it, each a copy turned, moved and scaled once more than the one below and rise metres higher: a twisting, stepping or tapering tower in one line, never corner points worked out by hand. The ids count up from the floor\'s digits (f00: f01, f02 ...) or from as. A room written with through stays where it is on every floor. Doors and windows keep their sizes and the sides of their rooms.',
+    example: [
+      'walls outside 0.3 inside 0.1 height 2.8',
+      'floor f00 "Typical floor" level 0 elevation 0 slab 0.2',
+      'room east "East flat" living 3.95 x 8 at 0,0',
+      'room west "West flat" living 3.95 x 8 east of east',
+      'door d1 between east and west, centred, 0.9 wide',
+      'window w1 in east south, centred, 1.8 wide',
+      'repeat floors 3 from f00 with openings turn 90 rise 3',
+      'floor top "Top floor" level 4 elevation 12 slab 0.2 copy f00 with openings turn 90 clockwise about 4,4',
+    ],
+  },
+  {
     topic: 'stairs',
     says: 'stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <width> wide, straight|L|U, runs <north|south|east|west> [then <side>] [along <side>] [risers <n>] lays the plan\'s own stair in the room, after the rooms: the drawing\'s treads and break line, the sections, the 3D model, the IFC export and the way-out check read it. A room after from or to stands for its floor, and with no in the stair goes in that room. runs is the way the walking line goes from the from floor; each end keeps a landing as deep as the stair is wide inside the room. L turns on a square landing in the far corner (then: the way it turns, clockwise when left out); U goes up one side and down the other, a short flight across the well, in a room wider than twice the stair; along puts a straight one against that side. ..., <width> wide, run x,y x,y ... gives the walking line itself. Never draw treads as walls. grid_add_stair and grid_change_stair write the same.',
     example: [
@@ -159,6 +173,19 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
       'floor first "First floor" level 1',
       'room landing "Landing" corridor 2.4 x 5 at 0,0',
       'stair st "Main stair" from ground to first in hall, 1 wide, U, runs north',
+    ],
+  },
+  {
+    topic: 'items',
+    says: 'item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side\'s inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant). item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid\'s own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.',
+    example: [
+      'room bath "Bathroom" bathroom 2.4 x 2 at 0,0',
+      'room bed "Bedroom" bedroom 3.5 x 4 east of bath',
+      'door d1 between bath and bed, centred, 0.8 wide',
+      'item tub "Bath 1700" bath 1.7 x 0.7 in bath against north, at west',
+      'item wc1 wc in bath against east, 0.1 from south',
+      'item robe "Built-in wardrobe" wardrobe in bed against east, full width',
+      'item bed1 double-bed in bed against north, at west',
     ],
   },
   {
@@ -190,7 +217,7 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   },
   {
     topic: 'other lines',
-    says: 'One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual|railing] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind|virtual|railing] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings].',
+    says: 'One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual|railing] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind|virtual|railing] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>]; repeat floors <n> from <floor> [...] [rise <m>].',
     example: [
       'plan "Corner shop"',
       'building shop',

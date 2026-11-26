@@ -15,8 +15,8 @@
  */
 import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planFloors, roomShapes, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
 import { english, name, said, type Said } from '@ongrid/floorplan/messages'
-import { baseNamedIn, carryFacts, compileRoomsText, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
-import { FloorPlanSchema, safeParseFloorPlan, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
+import { baseNamedIn, carryFacts, compileRoomsText, itemsFollowWalls, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
+import { FloorPlanSchema, safeParseFloorPlan, statedItem, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { briefAnswer, briefReminder, type BriefData } from '../brief/answer'
@@ -135,7 +135,7 @@ function keptItems(plan: FloorPlan): { readonly items: KeptItem[]; readonly prob
 }
 
 /** WRT-46: the lines on the items kept: how many and which, then each one the new walls put in the way. */
-function keptItemLines(items: readonly KeptItem[]): string[] {
+function keptItemLines(items: readonly KeptItem[], written = false): string[] {
   if (items.length === 0) return []
   const one = (item: KeptItem): Said =>
     item.room === null ? said('write.items.item.noRoom', { kind: itemKindWord(item.kind), id: name(item.id) }) : said('write.items.item.room', { kind: itemKindWord(item.kind), id: name(item.id), room: name(item.room) })
@@ -143,8 +143,10 @@ function keptItemLines(items: readonly KeptItem[]): string[] {
   const more = items.length > ITEMS_LISTED_MAX ? said('write.items.more', { n: items.length - ITEMS_LISTED_MAX }) : ''
   const head = items.length === 1 ? said('write.items.kept.one', { items: listed[0]! }) : said('write.items.kept.many', { n: items.length, items: listed.join('; '), more })
   const looks = items.flatMap((item) => item.worthALook)
+  // CNT-45: the text's own item lines place them, so they are not kept from the file.
+  const placed = `The text's item lines place ${items.length === 1 ? 'one item' : `${items.length} items`}: ${listed.join('; ')}${items.length > ITEMS_LISTED_MAX ? ` and ${items.length - ITEMS_LISTED_MAX} more` : ''}.`
   return [
-    english(head),
+    written ? placed : english(head),
     ...looks.slice(0, ITEM_LOOKS_MAX).map((message) => english(said('write.items.look', { message }))),
     ...(looks.length > ITEM_LOOKS_MAX ? [english(said('write.items.looksMore', { n: looks.length - ITEM_LOOKS_MAX }))] : []),
   ]
@@ -368,6 +370,15 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   if (plan.north !== undefined) next['north'] = plan.north
   // LVL-21: the stair lines replace the file's stairs; a text that writes none keeps the file's.
   if (plan.stairs !== undefined) next['stairs'] = plan.stairs
+  // CNT-45: the item lines replace the file's items; a text that writes none keeps the file's,
+  // each that stood against a wall moved with it (walls by id).
+  let itemsFollowed = 0
+  if (plan.items !== undefined) next['items'] = plan.items.map((item) => statedItem(item))
+  else if (before !== null && Array.isArray(raw['items'])) {
+    const moved = itemsFollowWalls(before, plan)
+    itemsFollowed = moved.size
+    if (moved.size > 0) next['items'] = (raw['items'] as Record<string, unknown>[]).map((item) => (moved.has(item['id'] as string) ? { ...item, ...moved.get(item['id'] as string) } : item))
+  }
   // WRT-75: the base the text names; a text with none, written over a fit-out as asked, takes it off.
   if (plan.base !== undefined) next['base'] = plan.base
   else delete next['base']
@@ -408,7 +419,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(carried === null || carried.kept === 0 ? [] : [`Facts of your own and room numbers kept by id on ${carried.kept} part${carried.kept === 1 ? '' : 's'}.`]),
     ...(carried === null || carried.lost.length === 0 ? [] : [`Not in the text, so their facts and numbers are gone with them: ${carried.lost.slice(0, 10).join(', ')}${carried.lost.length > 10 ? ` and ${carried.lost.length - 10} more` : ''}.`]),
     ...(before === null || patterns.length === 0 ? [] : [patternsKept(before, kept)]),
-    ...keptItemLines(items.items),
+    ...keptItemLines(items.items, plan.items !== undefined),
+    ...(itemsFollowed === 0 ? [] : [`${itemsFollowed === 1 ? 'One kept item stands' : `${itemsFollowed} kept items stand`} against a wall that moved, and moved with it.`]),
     // CNT-41: the plot in a line or two when the text wrote any of the site.
     ...(plan.site === undefined ? [] : siteDescription(nextPlan, 'agent')),
     ...(plan.stairs !== undefined || (before?.stairs ?? []).length === 0 ? [] : [`Kept the plan's ${before!.stairs!.length === 1 ? 'stair' : `${before!.stairs!.length} stairs`} as the file has ${before!.stairs!.length === 1 ? 'it' : 'them'}: this rooms text writes no stair line. grid describe --as rooms writes ${before!.stairs!.length === 1 ? 'it' : 'them'} as stair lines.`]),

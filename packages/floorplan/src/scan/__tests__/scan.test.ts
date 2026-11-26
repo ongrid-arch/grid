@@ -61,7 +61,7 @@ describe('a scan shaped like Apple\'s room model (lab AE-2)', () => {
       ['use', 1],
       ['thickness', 4],
       ['hinge', 4],
-      ['turn', 2],
+      ['turn', 4],
     ])
     expect(done.assumed[0]!.text).toContain('turned 31.70° clockwise')
     expect(done.assumed[2]!.text).toContain('0.2 m thick')
@@ -73,6 +73,8 @@ describe('a scan shaped like Apple\'s room model (lab AE-2)', () => {
       'wall ext-north thickness',
       'item toilet-1 turn',
       'item bath-1 turn',
+      'item bed-1 turn',
+      'item sofa-1 turn',
     ])
     expect(marks.filter((m) => m.source === 'scanned')).toHaveLength(done.plan.walls.length + done.plan.rooms.length + done.plan.openings.length + (done.plan.items?.length ?? 0))
   })
@@ -89,8 +91,13 @@ describe('a scan shaped like Apple\'s room model (lab AE-2)', () => {
     expect(done.plan.items?.map((i) => [i.id, i.kind, i.size])).toEqual([
       ['toilet-1', 'toilet', [0.38, 0.68]],
       ['bath-1', 'bath', [1.7, 0.75]],
+      // CNT-45: the bed and the sofa are brought in too, as the obstacles they are.
+      ['bed-1', 'bed', [1.6, 2]],
+      ['sofa-1', 'sofa', [2, 0.9]],
     ])
-    expect(done.leftOut).toEqual(['Objects that are not fixtures Grid draws, kept in the scan beside the plan: 1 bed, 1 sofa.'])
+    expect(done.leftOut).toEqual([])
+    // CNT-45: each door keeps whether the capture saw it open.
+    expect(done.plan.openings.filter((o) => o.type === 'door').every((o) => typeof o.properties?.['scannedOpen'] === 'boolean')).toBe(true)
   })
 
   it('reads a transform written as four columns of four as it reads sixteen numbers', () => {
@@ -231,7 +238,7 @@ describe('a re-scan, matched by the scan\'s own ids', () => {
     expect(evidence.plan).toBe('0123456789abcdef')
     const again = convert(INVENTED_FLAT, evidence.ids)
     expect(again.plan).toEqual(first.plan)
-    expect(again.match).toEqual({ kept: 19, fresh: 0, gone: [] })
+    expect(again.match).toEqual({ kept: 21, fresh: 0, gone: [] })
   })
 
   it('keeps the plan\'s own ids for the parts it finds again, even ones Grid would name otherwise', () => {
@@ -260,7 +267,7 @@ describe('a re-scan, matched by the scan\'s own ids', () => {
       { scanId: scan.ids['bedroom-window'], part: 'opening', id: 'window-2' },
     ])
     expect(again.plan.openings.map((o) => o.id)).toEqual(['door-1', 'door-2', 'door-3', 'window-1', 'window-3'])
-    expect(again.match.kept).toBe(17)
+    expect(again.match.kept).toBe(19)
     expect(again.match.fresh).toBe(1)
   })
 })

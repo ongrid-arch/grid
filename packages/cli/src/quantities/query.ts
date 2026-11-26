@@ -3,7 +3,8 @@
  * rooms beside a wall) or a fact of the person's own (a fire rating, a department, a head count).
  * The three tools `grid_fields`, `grid_find` and `grid_count` are written on this file.
  *
- * A part is a wall, a door, a window, a doorless opening, a room or a floor. A condition is one
+ * A part is a wall, a door, a window, a doorless opening, a room or a floor, and (CNT-45) a fixture
+ * or a piece of furniture, asked of only when a tool asks for them (`askPlan`). A condition is one
  * line, `<field> <test>`: `fire rating is missing`, `department = Sales`, `area >= 20`,
  * `width < 900 mm`, `name contains office`. A part with no value for a field meets only `is
  * missing`; every other test needs a value. Text is matched whatever its capitals. A fact is
@@ -14,7 +15,7 @@
  *
  * Pure: a survey in, plain data out.
  */
-import { compareIds, flatOfRoom, floorOf, planFlats, planFloors, planForFloor, tolerance, wallLength } from '@ongrid/floorplan/geometry'
+import { compareIds, flatOfRoom, floorOf, indexPlan, itemKindDefinition, itemRoom, planFlats, planFloors, planForFloor, roomShapes, tolerance, wallLength } from '@ongrid/floorplan/geometry'
 import { factKey, factOf, factText, type FactValue } from '@ongrid/floorplan/types/floorplan'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
@@ -22,8 +23,12 @@ import { notCountedRooms, planAreas, roomKey, type RoomNotCounted } from './area
 import { roomHeight } from './measure'
 import type { Survey } from './survey'
 
-export const PART_KINDS = ['wall', 'door', 'window', 'opening', 'room', 'floor'] as const
+/** The parts that carry facts of the person's own (`grid_set_facts`). */
+export const FACT_PART_KINDS = ['wall', 'door', 'window', 'opening', 'room', 'floor'] as const
+/** CNT-45: and the plan's fixtures and furniture, which the query tools ask of too. */
+export const PART_KINDS = [...FACT_PART_KINDS, 'fixture', 'furniture'] as const
 export type PartKind = (typeof PART_KINDS)[number]
+const ITEMS: readonly PartKind[] = ['fixture', 'furniture']
 
 export type FieldType = 'text' | 'number' | 'yes-no' | 'list'
 export type Value = string | number | boolean | readonly string[] | null
@@ -59,7 +64,7 @@ const ALL: readonly PartKind[] = PART_KINDS
 /** The fields Grid states or works out, in the order `grid_fields` lists them. */
 export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'id', type: 'text', unit: null, kinds: ALL, from: 'grid', about: 'Its id in the plan.' },
-  { name: 'kind', type: 'text', unit: null, kinds: ALL, from: 'grid', about: 'wall, door, window, opening (doorless), room or floor.' },
+  { name: 'kind', type: 'text', unit: null, kinds: ALL, from: 'grid', about: 'wall, door, window, opening (doorless), room, floor, fixture (it takes floor: a toilet, a bath) or furniture (it can be moved: a bed, a sofa).' },
   { name: 'floor', type: 'text', unit: null, kinds: ALL, from: 'grid', about: 'The id of the floor it is on; a floor\'s own id.' },
   { name: 'name', type: 'text', unit: null, kinds: ['room', 'floor'], from: 'grid', about: 'Its name in the plan.' },
   { name: 'number', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The room number the plan states, if any.' },
@@ -69,16 +74,24 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'flat', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The id of the flat the room is in, from the plan\'s flats list; none for a room in no flat.' },
   { name: 'flat type', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The type of the flat the room is in: its name, else its id.' },
   { name: 'area', type: 'number', unit: 'm²', kinds: ['room', 'floor'], from: 'grid', about: 'Net floor area, as grid_areas measures it; none for a room Grid could not draw.' },
-  { name: 'height', type: 'number', unit: 'm', kinds: ['wall', ...OPENINGS, 'room', 'floor'], from: 'grid', about: 'A wall\'s or opening\'s height; a room\'s as grid_measure gives it; a floor\'s stated clear height.' },
-  { name: 'width', type: 'number', unit: 'm', kinds: OPENINGS, from: 'grid', about: 'The opening in the wall, as the plan states it.' },
+  { name: 'height', type: 'number', unit: 'm', kinds: ['wall', ...OPENINGS, 'room', 'floor', ...ITEMS], from: 'grid', about: 'A wall\'s or opening\'s height; a room\'s as grid_measure gives it; a floor\'s stated clear height; an item\'s from the floor to its top.' },
+  { name: 'width', type: 'number', unit: 'm', kinds: [...OPENINGS, ...ITEMS], from: 'grid', about: 'The opening in the wall, as the plan states it; an item\'s width along its back.' },
   { name: 'sill', type: 'number', unit: 'm', kinds: OPENINGS, from: 'grid', about: 'Height of the opening\'s bottom above the floor.' },
   { name: 'length', type: 'number', unit: 'm', kinds: ['wall'], from: 'grid', about: 'Along its centre line, end to end.' },
   { name: 'thickness', type: 'number', unit: 'm', kinds: ['wall'], from: 'grid', about: 'As the plan states it.' },
   { name: 'wall kind', type: 'text', unit: null, kinds: ['wall'], from: 'grid', about: 'exterior, interior or partition, as the plan states it.' },
   { name: 'virtual', type: 'yes-no', unit: null, kinds: ['wall'], from: 'grid', about: 'yes for a dividing line, which has no material.' },
   { name: 'wall', type: 'text', unit: null, kinds: OPENINGS, from: 'grid', about: 'The id of the wall it is in.' },
-  { name: 'rooms', type: 'list', unit: null, kinds: ['wall', ...OPENINGS], from: 'grid', about: 'The ids of the rooms beside it; an opening\'s two sides, "outside" where no room is.' },
+  { name: 'rooms', type: 'list', unit: null, kinds: ['wall', ...OPENINGS, ...ITEMS], from: 'grid', about: 'The ids of the rooms beside it; an opening\'s two sides, "outside" where no room is; the room an item stands in.' },
   { name: 'level', type: 'number', unit: null, kinds: ['floor'], from: 'grid', about: 'The floor\'s place in the stack: 0 the ground floor, 1 the floor above.' },
+  // CNT-45: the plan's fixtures and furniture.
+  { name: 'item kind', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the item is: toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug or plant.' },
+  { name: 'label', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the drawing calls the item, its own or its library entry\'s.' },
+  { name: 'library', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'The library entry it was placed from, by name.' },
+  { name: 'room', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'The id of the room it stands in: the one that holds the middle of its footprint.' },
+  { name: 'depth', type: 'number', unit: 'm', kinds: ITEMS, from: 'grid', about: 'From its back to its front.' },
+  { name: 'turn', type: 'number', unit: null, kinds: ITEMS, from: 'grid', about: 'Degrees counter-clockwise; 0 puts its back to -y.' },
+  { name: 'clearance', type: 'number', unit: 'm', kinds: ITEMS, from: 'grid', about: 'The clear floor it keeps in front of it.' },
 ]
 
 /** One part of the plan, as the query tools see it. */
@@ -116,8 +129,11 @@ function openingKind(type: 'door' | 'window' | 'opening'): PartKind {
   return type
 }
 
-/** Every part of the plan, in one order whatever the file's: floors, then each kind by id. */
-export function askPlan(survey: Survey): Asked {
+/**
+ * Every part of the plan, in one order whatever the file's: floors, then each kind by id. CNT-45:
+ * with `items`, its fixtures and furniture last; a change of facts leaves them out, as they carry none.
+ */
+export function askPlan(survey: Survey, options: { readonly items?: boolean } = {}): Asked {
   const plan = survey.plan
   const wallFloor = new Map(plan.walls.map((w) => [w.id, floorOf(w)] as const))
   const parts: Part[] = []
@@ -130,6 +146,13 @@ export function askPlan(survey: Survey): Asked {
   }
   for (const wall of byId(plan.walls)) parts.push({ kind: 'wall', id: wall.id, floor: floorOf(wall), facts: wall.properties ?? {} })
   for (const opening of byId(plan.openings)) parts.push({ kind: openingKind(opening.type), id: opening.id, floor: wallFloor.get(opening.wall) ?? 'ground', facts: opening.properties ?? {} })
+  const items = new Map((options.items === true ? plan.items ?? [] : []).map((item) => [item.id, item] as const))
+  for (const item of byId([...items.values()])) parts.push({ kind: itemKindDefinition(item.kind)?.group === 'furniture' ? 'furniture' : 'fixture', id: item.id, floor: floorOf(item), facts: {} })
+  let shapes: ReturnType<typeof roomShapes> | null = null
+  const roomOfItem = (id: string): string | null => {
+    shapes ??= roomShapes(indexPlan(plan))
+    return itemRoom(items.get(id)!, shapes)?.id ?? null
+  }
 
   const walls = new Map(plan.walls.map((w) => [w.id, w] as const))
   const rooms = new Map(plan.rooms.map((r) => [r.id, r] as const))
@@ -223,6 +246,20 @@ export function askPlan(survey: Survey): Asked {
       if (name === 'wall kind') return wall.kind
       if (name === 'virtual') return wall.virtual === true
       if (name === 'rooms') return roomsBeside(wall.id)
+      return null
+    }
+    if (part.kind === 'fixture' || part.kind === 'furniture') {
+      const item = items.get(part.id)!
+      if (name === 'item kind') return item.kind
+      if (name === 'label') return item.label ?? null
+      if (name === 'library') return item.library ?? null
+      if (name === 'room') return roomOfItem(item.id)
+      if (name === 'rooms') return roomOfItem(item.id) === null ? [] : [roomOfItem(item.id)!]
+      if (name === 'width') return item.size[0]
+      if (name === 'depth') return item.size[1]
+      if (name === 'height') return item.height
+      if (name === 'turn') return item.turn ?? 0
+      if (name === 'clearance') return item.clearance ?? null
       return null
     }
     const opening = openings.get(part.id)!
