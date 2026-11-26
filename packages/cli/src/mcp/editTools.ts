@@ -6,8 +6,9 @@
  * and written back with only that change in the file's own JSON. Each answer says what changed,
  * what was guessed and what could not be kept, and names the file as a path in the project.
  */
-import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
+import { OPENING_KINDS, ROOM_USES } from '@ongrid/floorplan/types/floorplan'
 import { NAME_MAX } from '../command/planText'
+import { addOpening } from '../edit/addOpening'
 import { addRoom, IN_THE_WAY, SIZE_BASES } from '../edit/addRoom'
 import { DIRECTIONS, type Direction } from '../edit/edits'
 import { mergeRooms } from '../edit/merge'
@@ -292,5 +293,61 @@ const placeTool: GridTool = {
   },
 }
 
+// WRT-72: a door, window or opening added to a plan that already has its walls.
+const addOpeningTool: GridTool = {
+  name: 'grid_add_opening',
+  title: 'Add a door, window or opening',
+  hint: 'change-plan',
+  description:
+    'Use this when the person asks to put a door, window or doorless opening in a wall that has none there: "a door in the bathroom\'s north wall", "a window in the kitchen, 0.6 from the east side", "a door between the hall and the living room", "a 2.4 m opening into the garden room", "a sliding door to the terrace". '
+    + 'It adds one opening to the plan as it is, with nothing else rewritten (so it works over a plan with phases, where it is new work, or one with parts written by hand). Say where: room with side (that side of the room\'s wall) or room with between (the wall the two rooms share). Centred unless from and distance place it, as rooms text does: "0.25 from west" is from and distance, from a side of room. '
+    + 'width, height and sill default to rooms text\'s own (a door 0.9 × 2.1 m; a window 1.2 m wide, sill 0.9 m, 1.2 m high). A door opens into a room or "outside" with opens_into and is hinged on the left or right as seen from a room with hinged; given neither it has no swing drawn, and the answer says so. A width that does not fit is refused with the wall\'s free stretches, as grid_change_opening refuses one, and nothing is written. '
+    + 'Do not use to change, move or take out an opening already there (grid_change_opening), or to build a room (grid_add_room). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+  args: {
+    plan: PLAN_ARG,
+    decimal: DECIMAL_IN_ARG,
+    type: { type: 'string', enum: ['door', 'window', 'opening'], required: true, description: 'A door, a window or a doorless opening.', examples: ['door', 'window', 'opening'] },
+    room: { type: 'string', id: true, required: true, description: 'The room whose side it goes in; with between, the first of the two rooms.', examples: ['bath', 'hall'] },
+    side: { type: 'string', enum: DIRECTIONS, description: 'The side of room whose wall it goes in. Give this or between.', examples: ['north'] },
+    between: { type: 'string', id: true, description: 'A second room: it goes in the wall the two rooms share. Give this or side.', examples: ['living'] },
+    from: { type: 'string', enum: DIRECTIONS, description: 'With distance: the side of room (its inside face) its place is measured from, as rooms text says "0.25 from west".', examples: ['west'] },
+    distance: { type: 'number', length: true, description: 'With from: metres from that side to the opening\'s nearer edge. Left out with from, it is centred.', examples: [0.25], minimum: 0, maximum: 100 },
+    width: { type: 'number', length: true, description: 'The width of the hole in the wall, in metres. 0.9 for a door or opening, 1.2 for a window when left out.', examples: [0.9, 1.5], minimum: 0.3, maximum: limit('openingWidest') },
+    height: { type: 'number', length: true, description: 'Its height, in metres. 2.1 for a door or opening, 1.2 for a window when left out.', examples: [2.1, 1.2], minimum: 0.2, maximum: 10 },
+    sill: { type: 'number', length: true, description: 'The height of its lower edge above the floor, in metres. 0.9 for a window, 0 otherwise when left out.', examples: [0.9, 0], minimum: 0, maximum: 5 },
+    kind: { type: 'string', enum: [...OPENING_KINDS], description: 'Its kind. A door: single, double, sliding, pocket, folding, roller or garage. A window: single, double, sliding, fixed or high-level.', examples: ['sliding', 'double'] },
+    opens_into: { type: 'string', id: true, description: 'Doors: the room id it opens into, or "outside": one of the two sides of its wall.', examples: ['hall', 'outside'] },
+    hinged: { type: 'string', enum: ['left', 'right'], description: 'Doors, with opens_into: the side it is hinged on as seen from seen_from, else from the room it opens into.', examples: ['left'] },
+    seen_from: { type: 'string', id: true, description: 'Doors, with hinged: the room id it is seen from, or "outside". The room it opens into when left out.', examples: ['bedroom'] },
+    id: { type: 'string', id: true, description: 'Its id. Unstated, made from its type, room and side, and unique.', examples: ['door-bath'] },
+    out: OUT_ARG,
+  },
+  outputSchema: EDIT_OUTPUT,
+  run(args, context) {
+    return writeChange(context, args, (survey) => {
+      const room = roomArg(survey.plan, args['room'])
+      const between = args['between'] !== undefined ? roomArg(survey.plan, args['between'], 'between room') : undefined
+      if (args['opens_into'] !== undefined && args['opens_into'] !== 'outside') roomArg(survey.plan, args['opens_into'], 'opens_into room')
+      if (args['seen_from'] !== undefined && args['seen_from'] !== 'outside') roomArg(survey.plan, args['seen_from'], 'seen_from room')
+      return addOpening(survey, {
+        type: args['type'] as 'door' | 'window' | 'opening',
+        room,
+        ...(args['side'] !== undefined ? { side: args['side'] as Direction } : {}),
+        ...(between !== undefined ? { between } : {}),
+        ...(args['from'] !== undefined ? { from: args['from'] as Direction } : {}),
+        ...(args['distance'] !== undefined ? { distance: args['distance'] as number } : {}),
+        ...(args['width'] !== undefined ? { width: args['width'] as number } : {}),
+        ...(args['height'] !== undefined ? { height: args['height'] as number } : {}),
+        ...(args['sill'] !== undefined ? { sill: args['sill'] as number } : {}),
+        ...(args['kind'] !== undefined ? { kind: args['kind'] as (typeof OPENING_KINDS)[number] } : {}),
+        ...(args['opens_into'] !== undefined ? { opensInto: args['opens_into'] as string } : {}),
+        ...(args['hinged'] !== undefined ? { hinged: args['hinged'] as 'left' | 'right' } : {}),
+        ...(args['seen_from'] !== undefined ? { seenFrom: args['seen_from'] as string } : {}),
+        ...(args['id'] !== undefined ? { id: args['id'] as string } : {}),
+      })
+    })
+  },
+}
+
 /** In the order `tools/list` gives them, after the other changes to the plan. */
-export const EDIT_TOOLS: readonly GridTool[] = [mergeTool, splitTool, addRoomTool, stretchTool, renameTool, squareTool, placeTool]
+export const EDIT_TOOLS: readonly GridTool[] = [mergeTool, splitTool, addRoomTool, stretchTool, renameTool, squareTool, placeTool, addOpeningTool]

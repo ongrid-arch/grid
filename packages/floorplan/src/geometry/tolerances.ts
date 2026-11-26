@@ -1092,6 +1092,25 @@ export const TOLERANCES = {
       'plane, with one line weight; a face set back further is drawn lighter.',
     basis: own
   },
+  facadeSillDepth: {
+    kind: 'limit',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'How deep a window\'s sill is drawn on a facade, under its hole, running past each side of ' +
+      'it as far as the sill stands out on a plan drawn in detail (VEW-63). The plan holds no sill: ' +
+      'it only draws the facade.',
+    basis: own
+  },
+  facadeHeadDepth: {
+    kind: 'limit',
+    value: 0.15,
+    unit: 'm',
+    decides:
+      'How deep a window\'s head is drawn on a facade, over its hole and as wide as it, and no ' +
+      'higher than the wall it is in (VEW-63). The plan holds no head: it only draws the facade.',
+    basis: own
+  },
 
   // ── Columns and structural grids (CNT-16) ─────────────────────────────────────────────────
   columnRoundPieces: {

@@ -73,7 +73,7 @@ export type BuildingKind = (typeof BUILDING_KINDS)[number]
  * the figures were read for homes.
  */
 export const READ_FOR_BUILDINGS: Readonly<Record<BuildingKind, readonly BuildingType[]>> = {
-  homes: ['home']
+  homes: ['home', 'flats']
 }
 
 /** Whether figures read for these kinds apply to a building of this kind: always when it is not stated. */

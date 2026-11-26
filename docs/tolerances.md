@@ -138,6 +138,8 @@ is not asked whether it was typed in feet.
 | `facadeFacing` | tolerance | 0.0175 sine | A face of the building is drawn on a facade when it turns at least this much (about one degree) toward the side the facade is seen from (LVL-8) |
 | `facadeOnFace` | tolerance | 0.01 m | A wall whose outside face lies within this of a stretch of the floor's outline is the wall that stretch of a facade shows, with its height and openings (LVL-8) |
 | `facadeSameDepth` | tolerance | 0.05 m | Faces of a facade within this of each other, front to back, are one plane, drawn with one line weight; a face set back further is drawn lighter (LVL-8) |
+| `facadeSillDepth` | limit | 0.05 m | How deep a window's sill is drawn on a facade, under its hole and running past each side as far as a sill stands out on a plan drawn in detail (VEW-63) |
+| `facadeHeadDepth` | limit | 0.15 m | How deep a window's head is drawn on a facade, over its hole and as wide as it, no higher than its wall (VEW-63) |
 | `columnRoundPieces` | limit | 32 count | How many straight sides a round column is drawn and exported with, and cut to its room with; its own area, and what it takes off a room it stands wholly in, is the true circle's (CNT-16) |
 | `gridLinesMost` | limit | 100 count | The most lines one set of a structural grid may have; a set with more is refused (CNT-16) |
 | `gridOverrun` | limit | 1.5 m | How far a structural grid's lines are drawn past the outermost line across them, where their names are written and their spacing is dimensioned (CNT-16) |

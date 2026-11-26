@@ -149,7 +149,7 @@ describe('zones with CNT-5\'s uses and kinds of building (after merging main)', 
     const report = checkLocalRules(withUses(['bedroom', 'study', 'kitchen'], { use: 'office' }))
     const sizes = coverage(report, 'habitable-room-area')
     expect(sizes.uses).toEqual(['bedroom', 'living', 'dining'])
-    expect(sizes.buildings).toEqual(['home'])
+    expect(sizes.buildings).toEqual(['home', 'flats'])
     expect(sizes.wholeRooms).toEqual([{ floor: 'ground', room: 'studio', use: 'bedroom', zone: 'sleep' }])
     expect(coverage(report, 'escape-opening').uses).toEqual(['bedroom'])
     expect(coverage(report, 'escape-opening').wholeRooms).toEqual([{ floor: 'ground', room: 'studio', use: 'bedroom', zone: 'sleep' }])

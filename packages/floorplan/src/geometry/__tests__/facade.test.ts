@@ -88,7 +88,7 @@ describe('the facade of a side', () => {
   it('puts each opening at its sill and its head, from its floor\'s level', () => {
     const facade = planFacade(steppedHouse(), 'south')
     const openings = facade.faces.flatMap((f) => f.openings).sort((a, b) => a.bottom - b.bottom)
-    expect(openings).toEqual([
+    expect(openings).toMatchObject([
       { id: 'front', type: 'door', wall: 'gs', u0: 4.5, u1: 5.5, bottom: 0, top: 2.1, reveal: 0.3 },
       { id: 'w-first', type: 'window', wall: 'fs', u0: 2, u1: 3.2, bottom: 3.85, top: 5.05, reveal: 0.3 },
     ])

@@ -42,8 +42,11 @@ export function roomsAnswer(result: RoomsResult, full = true): string[] {
   const apartArea = apart.reduce((sum, r) => sum + r.area, 0)
   const derived = result.walls.filter((w) => w.raw !== true).length
   const placed = result.openings.length - (result.raw?.openings ?? 0)
+  // WRT-71: the rooms written raw, said on the count, so the zeros worked out after it read right.
+  const rawRooms = result.rooms.filter((r) => r.raw === true).length
+  const marked = rawRooms === 0 ? '' : english(rawRooms === result.rooms.length ? said('rooms.answer.rawRooms.all') : said('rooms.answer.rawRooms.some', { count: rawRooms }))
   lines.push(
-    `${floors} floor${floors === 1 ? '' : 's'}, ${result.rooms.length} room${result.rooms.length === 1 ? '' : 's'}; ${derived} wall${derived === 1 ? '' : 's'} and their kinds worked out; ${placed} opening${placed === 1 ? '' : 's'} placed; ${total.toFixed(2)} m² inside${apart.length === 0 ? ' in all' : `, plus ${apartArea.toFixed(2)} m² outdoor or void in ${apart.length} room${apart.length === 1 ? '' : 's'} (not in the inside figure)`}.`
+    `${floors} floor${floors === 1 ? '' : 's'}, ${result.rooms.length} room${result.rooms.length === 1 ? '' : 's'}${marked}; ${derived} wall${derived === 1 ? '' : 's'} and their kinds worked out; ${placed} opening${placed === 1 ? '' : 's'} placed; ${total.toFixed(2)} m² inside${apart.length === 0 ? ' in all' : `, plus ${apartArea.toFixed(2)} m² outdoor or void in ${apart.length} room${apart.length === 1 ? '' : 's'} (not in the inside figure)`}.`
   )
   if (result.raw !== undefined) lines.push(english(said('rooms.answer.raw', result.raw)))
   lines.push(`Sizes are to the ${TO[result.sizes.basis]}${result.sizes.stated ? '' : ' unless a room says otherwise (the default)'}.`)

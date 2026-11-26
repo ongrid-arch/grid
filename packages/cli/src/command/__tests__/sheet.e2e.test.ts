@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { extentOf, readPdf } from '../../sheet/__tests__/readPdf'
+import { extentOf, pdfPageCount, readPdf } from '../../sheet/__tests__/readPdf'
 
 /** VEW-7: `grid sheet`, run as a person runs it: the built file, in a temporary folder. */
 
@@ -222,13 +222,36 @@ describe('grid sheet --scale --paper (SHT-6)', () => {
     expect(grid(['sheet', 'two-floor-house.json', '--layout', 'drawing', '--floor', 'first']).status).toBe(0)
     expect(readdirSync(join(dir, 'exports')).filter((f) => /^two-floor-house-floor-2-drawing-1-\d+-A\d\.pdf$/.test(f))).toHaveLength(1)
     mkdirSync(join(dir, 'print'))
-    const run = grid(['sheet', 'two-floor-house.json', '--scale', '50', '--out', 'print/ground.pdf'])
+    const run = grid(['sheet', 'two-floor-house.json', '--scale', '50', '--floor', 'ground', '--out', 'print/ground.pdf'])
     expect(run.status).toBe(0)
     for (const ext of ['pdf', 'svg', 'png']) expect(existsSync(join(dir, 'print', `ground.${ext}`))).toBe(true)
   })
 
+  it('draws every floor at one scale when none is named: one PDF of a page each, and each page\'s SVG and PNG (SHT-20)', () => {
+    const run = grid(['sheet', 'two-floor-house.json', '--scale', '1:100', '--paper', 'A4'])
+    expect(run.status).toBe(0)
+    const stem = 'exports/two-floor-house-drawing-1-100-A4'
+    expect(run.out).toBe(`2 floors at 1:100 on A4, 2 pages.\nWrote ${stem}.pdf, ${stem}-page-1.svg, ${stem}-page-1.png, ${stem}-page-2.svg and ${stem}-page-2.png\n`)
+    const pdf = readFileSync(join(dir, `${stem}.pdf`))
+    expect(pdfPageCount(pdf)).toBe(2)
+    expect(readPdf(pdf, 1).texts.map((t) => t.text).join(' ')).toContain('First floor plan')
+  })
+
+  it('cuts a long floor over pages at the scale with --split (SHT-20)', () => {
+    const long = { ...oneWall, walls: [{ ...oneWall.walls[0], end: [60, 0] }] }
+    writeFileSync(join(dir, 'platform.json'), JSON.stringify(long))
+    const refused = grid(['sheet', 'platform.json', '--scale', '1:100', '--paper', 'A4'])
+    expect(refused.status).toBe(1)
+    expect(refused.err).toMatch(/--split prints it at 1:100 over 3 pages of A4\.\n$/)
+    const run = grid(['sheet', 'platform.json', '--scale', '1:100', '--paper', 'A4', '--split'])
+    expect(run.status).toBe(0)
+    expect(run.out.split('\n')[0]).toBe('Ground floor plan at 1:100 on A4, over 3 pages.')
+    expect(pdfPageCount(readFileSync(join(dir, 'exports', 'platform-drawing-1-100-A4.pdf')))).toBe(3)
+  })
+
   it.each([
-    [['--scale', '1:20', '--paper', 'A4'], 1, /^grid: At 1:20 the floor's drawing is \d+ x \d+ mm, larger than the \d+ x \d+ mm A4 leaves for it after its margins and title block: A\d fits it, or 1:\d+ fits A4\.\n$/],
+    [['--scale', '1:20', '--paper', 'A4'], 1, /^grid: At 1:20 the drawing of Ground floor is \d+ x \d+ mm, larger than the \d+ x \d+ mm A4 leaves for it after its margins and title block: A\d fits it, or 1:\d+ fits A4, or --split prints it at 1:20 over \d+ pages of A4\.\n$/],
+    [['--layout', 'check', '--split'], 2, /^grid: --split is for a drawing at a scale \(--layout drawing\), not a check sheet: leave it out\.\n$/],
     [['--layout', 'check', '--paper', 'A4'], 2, /^grid: --paper is for a drawing at a scale \(--layout drawing\), not a check sheet: leave it out\.\n$/],
     [['--scale', '1:0'], 2, /^grid: --scale takes 1:N, N a whole number from 1 to 1000/],
     [['--paper', 'letter'], 2, /^grid: --paper takes A4, A3, A2, A1 or A0\.\n$/],

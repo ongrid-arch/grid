@@ -56,7 +56,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/scan.ts': [22, 'command'],
   'packages/cli/src/command/section.ts': [6, 'command'],
   // SHT-6: four more, the help of --scale, --paper, --floor and --room-sizes.
-  'packages/cli/src/command/sheet.ts': [8, 'command'],
+  'packages/cli/src/command/sheet.ts': [9, 'command'],
   'packages/cli/src/command/tidy.ts': [12, 'command'],
   // WRT-57: one less, the count of problems now said from the messages.
   // CMD-30: one more, the refusal of a read-only plan.
@@ -74,6 +74,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/draw/drawPlan.ts': [2, 'developer'],
   'packages/cli/src/draw/drawStill.ts': [2, 'developer'],
   'packages/cli/src/draw/stamp.ts': [1, 'notWords'],
+  'packages/cli/src/edit/addOpening.ts': [26, 'notYet'],
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
@@ -107,7 +108,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
-  'packages/cli/src/mcp/editTools.ts': [86, 'tools'],
+  'packages/cli/src/mcp/editTools.ts': [105, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -130,7 +131,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
-  'packages/cli/src/mcp/serveTools.ts': [1, 'tools'],
+  // CMD-38: two more, the rooms grammar resource's title and description.
+  'packages/cli/src/mcp/serveTools.ts': [3, 'tools'],
+  // CMD-38: the whole rooms grammar, by topic, for the agent.
+  'packages/cli/src/mcp/roomsGrammar.ts': [51, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -141,7 +145,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
-  'packages/cli/src/mcp/writeTools.ts': [139, 'tools'],
+  // CMD-38: three more, roomsFile's description and refusal, and what rooms text writes.
+  // SHT-20: two more.
+  'packages/cli/src/mcp/writeTools.ts': [144, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -150,7 +156,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/change.ts': [18, 'notYet'],
   'packages/cli/src/quantities/compare.ts': [25, 'notYet'],
   // CNT-31: three more, the roof edges' rule and line and why a roof is left out.
-  'packages/cli/src/quantities/estimate.ts': [40, 'notYet'],
+  'packages/cli/src/quantities/estimate.ts': [41, 'notYet'],
   'packages/cli/src/quantities/finishes.ts': [2, 'notYet'],
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
   // ARE-14: the free floor rule is one of the area measures now, in the message files.
@@ -173,7 +179,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-16: +1, the columns' place on the sheet ("drawn and tabled").
   'packages/cli/src/sheet/coverage.ts': [30, 'developer'],
   // SHT-6: the refusal of a floor too large for the paper.
-  'packages/cli/src/sheet/drawingSheet.ts': [2, 'command'],
+  'packages/cli/src/sheet/drawingSheet.ts': [3, 'command'],
   'packages/cli/src/sheet/fonts.ts': [1, 'developer'],
   // SHT-6: nine more, the drawing's refusals, its answer line and its file note.
   'packages/cli/src/sheet/sheetFile.ts': [15, 'command'],
@@ -207,7 +213,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [336, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [341, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   'packages/floorplan/src/library/index.ts': [4, 'notYet'],
@@ -361,6 +367,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and WRT-50 1: the merge refuses rooms that meet in more than one outline (edit/merge.ts).
     // and CNT-27 2: a shaft counted once in the brief, the schedule CSV's column for rows in no total.
     // and CNT-31 3: the estimate's roof edges' rule and line, and why a roof is left out (estimate.ts).
+    // and WRT-72 22: the add-opening change's receipts and refusals (edit/addOpening.ts) and its tool's help (mcp/editTools.ts).
     // and WRT-38 4: one wall's thickness, its receipt and refusals (edit/edits.ts).
     // and CNT-34 4: the estimate's gable lines and their rules (estimate.ts).
     // and ARE-44 3: the step line's floor-level and ground-step lines (brief/lines.ts).
@@ -369,7 +376,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and 3 more from the same merge (CMD-25, CNT-37 and CMD-26 each raised the cap on their own).
     // and CMD-35 2: diff's --out refusal and help line, and the drawing refusal's reason (the sheet
     // refusal for no layout is gone).
-    expect(left).toBeLessThanOrEqual(1637)
+    // and SHT-20 2: printing a sheet at a stated scale and paper size (it used the cap's slack on its own).
+    // and CNT-40 1: the estimate's plural words for the new room uses (quantities/estimate.ts).
+    expect(left).toBeLessThanOrEqual(1662)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

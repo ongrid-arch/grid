@@ -26,6 +26,7 @@ import { checkPage, PageRefused, PAGE_ARG_NAME, WHOLE_ARG_NAME, withinBudget } f
 import { labelled, LABEL_SILENT_TOOLS, readArgs, toolDefinition, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
 import { WRITE_TOOLS } from './writeTools'
 import { guideResources } from '../guide/resources'
+import { roomsGrammarMarkdown, ROOMS_GRAMMAR_URI } from './roomsGrammar'
 import { EDIT_TOOLS } from './editTools'
 import { projectTool } from './projectTool'
 import { saveViewTool } from './viewTool'
@@ -125,5 +126,16 @@ export function projectResources(): ServerResource[] {
     },
     // CMD-7: the guide for agents and the plan's JSON Schema.
     ...guideResources(),
+    // CMD-38: the whole rooms grammar, each topic with an example.
+    {
+      definition: {
+        uri: ROOMS_GRAMMAR_URI,
+        name: 'grid-rooms-grammar',
+        title: 'Rooms text: the whole grammar',
+        description: 'Every line rooms text takes, by topic, with an example each: floors, copies and through, polygons, curved walls, raw parts, outdoor rooms, heights, open sides, roofs and repeated units. grid_write_rooms carries the same in its rooms argument.',
+        mimeType: 'text/markdown',
+      },
+      read: async () => ({ text: roomsGrammarMarkdown() }),
+    },
   ]
 }
