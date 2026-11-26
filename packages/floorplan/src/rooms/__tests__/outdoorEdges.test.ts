@@ -51,6 +51,18 @@ describe('outdoor space is open where no room faces it (WRT-76)', () => {
     expect(readsBack(plan)).not.toContain('wall terrace')
   })
 
+  it('keeps a stated wide wall between the house and terrace', () => {
+    const { plan } = write([
+      'wall between house and terrace north 0.9',
+      'room house "House" living 6 x 5 at 0,0',
+      'room terrace "Terrace" - 6 x 4 north of house outdoor terrace',
+    ])
+    const shared = indexPlan(plan).roomsByWall
+    expect(plan.walls.find((wall) => shared.get(wall.id)?.length === 2)?.thickness).toBe(0.9)
+    expect(edgesOf(plan, 'terrace')).toEqual(['open', 'open', 'open'])
+    readsBack(plan)
+  })
+
   it('opens two outdoor spaces that touch to each other, with no word on either', () => {
     const { plan } = write(['room lane1 "Lane 1" - 30 x 3 at 0,0 outdoor other', 'room lane2 "Lane 2" - 30 x 3 at 0,3 outdoor other', 'room lane3 "Lane 3" - 30 x 3 at 0,6 outdoor other'])
     expect(plan.walls.every((w) => w.virtual === true)).toBe(true)

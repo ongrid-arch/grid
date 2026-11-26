@@ -164,6 +164,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   fit is refused with the sizes that do (WRT-66). `unit`, `place`, `repeat` and `mirror` write a group of rooms
   once; `copy <floor>` starts a floor from another, and `through <floor>` stands a room on the
   floors above its own ([many of one room](#many-of-one-room-floors-copied-and-walls-through-floors)).
+- Grid infers one wall from a gap up to 0.6 m. For a thicker wall, give its thickness with
+  `walls <t>` on a room, `walls inside <t>` for the floor, or `wall between <a> and <b> <t>`
+  for that pair. Write the wall line before the room it places. Rooms placed by their own
+  coordinates keep those positions, so the wall takes the measured gap up to the stated
+  thickness (WRT-77).
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),
   or that leave a gap between indoor rooms are refused in plain words naming both
   rooms. Every refusal has a code, such as `rooms/overlap`. Each gives the advice that applies

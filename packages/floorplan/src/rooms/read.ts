@@ -552,10 +552,19 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
       }
       continue
     }
+    const wide = wall.arc === undefined && wall.thickness > tolerance('roomsWallWidest')
+    if (wall.virtual !== true && wide && rooms.length >= 2) {
+      for (const [a, b] of facingAcross(wall, rooms, polys)) {
+        const poly = polys.get(a)
+        const side = poly === undefined ? null : outsideSide(poly, wall, [])
+        const handle = `wall between ${local.get(a) ?? a} and ${local.get(b) ?? b}${side === null ? '' : ` ${side}`}`
+        addWallSay(draft, handle, [metres(wall.thickness), ...(wall.railing === true ? ['railing'] : [])])
+      }
+    }
     // WRT-76: outdoor space is open where no room faces it, and every other room walled: the
     // other way round is said, and so is a railing.
     const outdoorOnly = rooms.length === 1 && isOutdoor(rooms[0]!)
-    if (wall.virtual !== true && rooms.length >= 2 && (wall.railing === true || rooms.some(isOutdoor))) {
+    if (wall.virtual !== true && !wide && rooms.length >= 2 && (wall.railing === true || rooms.some(isOutdoor))) {
       const outdoor = new Set(rooms.filter(isOutdoor).map((room) => room.id))
       for (const stretch of wallSides(index, wall.id)?.stretches ?? []) {
         for (const a of stretch.left) for (const b of stretch.right) {
