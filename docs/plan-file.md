@@ -1048,8 +1048,9 @@ What a pattern cannot place is said, never dropped in silence. Each is left out,
 ## Fixtures
 
 A plan may list its fixtures and furniture in `items`: a toilet, a basin, a shower, a bath or a
-kitchen run (base units with their worktop), and a bed, a table, a chair, a sofa or storage (a
-wardrobe, a cupboard, shelves). Each has a `kind`, `at` (the middle of its footprint), a
+kitchen run (base units with their worktop), and a bed, a table, a chair, a sofa, storage (a
+wardrobe, a cupboard, shelves, a TV unit), an armchair, a stool, a desk, a rug or a plant
+(CNT-42). Each has a `kind`, `at` (the middle of its footprint), a
 `size` (its width along its back and its depth to its front), a `height`, and may have a `turn`
 (degrees, counter-clockwise; unturned, its back faces down the drawing), a `label`, a
 `floor` and a `clearance` (metres of clear floor kept in front of it). An item may instead name
@@ -1063,7 +1064,11 @@ Every other figure is the author's.
 A fixture is never a wall and never a room: it adds no floor area and no finding, and the room
 it stands in is the one that holds its middle. The 2D drawing, the sheet and the DXF (layer
 `GRID-FIXTURES`) draw its symbol to scale inside its footprint; the IFC file holds it as an
-`IfcFurnishingElement` on its storey. `grid_schedule` counts the fixtures by kind with their
+`IfcFurnishingElement` on its storey. The 3D view, the stills and eye views, the OBJ and the GLB
+(`item_<id>`) raise it as a few plain blocks its kind gives, inside its footprint and up to its
+height, on the floor of its room: a table and a desk a top on four legs, a chair a seat and a back,
+a sofa and an armchair a seat, a back and two arms, a plant its pot and leaves, any other its
+footprint to its height (CNT-42). `grid_schedule` counts the fixtures by kind with their
 rooms, `grid_areas` gives each room with fixtures its free floor (its net area less the floor
 they stand on), and each zone, flat and floor and the plan theirs ([areas.md](areas.md#free-floor)), `grid_measure` measures between fixtures and fits a box clear of them, and
 `grid check` names a fixture that runs into a wall or is taller than its room. A fixture is an
@@ -1072,6 +1077,9 @@ obstacle (CNT-13): a door whose leaf swings into it names it, and `grid_measure 
 fixture clear of them ([use indicators](tool-server.md#use-indicators-will-it-fit-can-you-turn-is-the-window-blocked)). Furniture is drawn,
 exported, measured and checked as a fixture is, and takes no free floor: it can be moved. The DXF
 writes each item as a block ([library.md](library.md#the-dxf-each-door-and-fixture-a-block)).
+A rug lies on the floor (CNT-42): other items stand on it without standing in each other, and it
+is in no item's clear floor, no doorway, no way through and no fixture's space; it is still
+drawn, exported and counted.
 Points (a hydrant, a camera) and seats come later, in the same shape. A kind Grid does not hold
 is left out with a note, and the rest of the plan is drawn; a kind is added through the kinds
 registry ([library.md](library.md#adding-a-kind-of-thing)).

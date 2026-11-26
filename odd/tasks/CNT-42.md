@@ -31,9 +31,11 @@ double beds, a side table, a desk and dining tables (as `table`), a chair and an
 - The built-in `armchair` and `desk` entries move to their own kinds. Nothing has been released,
   so no plan read by a released version changes.
 - New built-in entries, Grid's own sizes: `coffee-table`, `bedside-table`, `stool`, `bar-stool`,
-  `king-bed`, `tv-unit`, `rug`, `rug-large` and `plant`.
+  `king-bed`, `tv-unit`, `desk-1400`, `rug`, `rug-large` and `plant`.
 - `underfoot` on a kind (the rug's): it lies flat on the floor, so the overlap check, another
-  item's clear floor, a fixture's space (`use.ts`) and the doorway check pass over it.
+  item's clear floor, a fixture's space (`use.ts`), the doorway check and the doorways a route
+  finds closed (`rules/graph.ts`, one filter) pass over it. `grid_measure what=fit` still keeps a
+  box clear of it, as of every item in the room.
 - `solid` on a kind: the blocks it is raised as in 3D, from its own pen and height; unstated, its
   footprint from the floor to its height. A table and a desk are a top on four legs, a chair a
   seat and a back, an armchair and a sofa a seat with a back and arms, a plant a pot and leaves, a
