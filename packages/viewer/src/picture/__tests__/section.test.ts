@@ -52,12 +52,14 @@ describe('a section in the technical look', () => {
     expect(Number(attr(outline[0]!, 'stroke-width'))).toBe(metres(2 * PAPER_PENS[100].cut))
   })
 
-  it('runs a heavy ground line past the building, and draws what lies beyond lighter', () => {
+  it('runs a heavy ground line out to the picture\'s edges, and draws what lies beyond lighter', () => {
     const ground = tagsOf(svg, 'section-ground')
     expect(ground).toHaveLength(1)
     // A facade's ground line (LVL-8): the cut pen, none of it under a fill.
     expect(Number(attr(ground[0]!, 'stroke-width'))).toBe(metres(PAPER_PENS[100].cut))
-    expect(attr(ground[0]!, 'd')).toBe('M0.0000,0.0000L1.8500,0.0000M13.1500,0.0000L15.0000,0.0000')
+    // VEW-65: from the picture's left edge to the house, and from it to the right edge.
+    const [left, right] = [picture.view.x, picture.view.x + picture.view.width].map((x) => x.toFixed(4))
+    expect(attr(ground[0]!, 'd')).toBe(`M${left},0.0000L1.8500,0.0000M13.1500,0.0000L${right},0.0000`)
     const beyond = tagsOf(svg, 'section-beyond')
     expect(beyond.length).toBeGreaterThan(0)
     for (const tag of beyond) expect(Number(attr(tag, 'stroke-width'))).toBe(metres(PAPER_PENS[100].finest))
@@ -263,5 +265,69 @@ describe('a section under a sloped roof (LVL-20)', () => {
     const drawn = svg()
     expect(tagsOf(drawn, 'section-headroom').map((tag) => attr(tag, 'data-height'))).toEqual(['1.5', '2.2'])
     expect(textsOf(drawn, 'section-headroom')).toEqual(['1.50 m headroom', '2.20 m headroom'])
+  })
+})
+
+describe('the earth under the ground line (VEW-65)', () => {
+  const plan = parseFloorPlan({
+    version: '1',
+    units: 'm',
+    floors: [
+      { id: 'basement', name: 'Basement', level: -1 },
+      { id: 'ground', name: 'Ground floor', level: 0 }
+    ],
+    site: { ground: 0 },
+    walls: [
+      { id: 's', start: [0, 0], end: [8, 0], thickness: 0.3, height: 2.7, kind: 'exterior' },
+      { id: 'e', start: [8, 0], end: [8, 6], thickness: 0.3, height: 2.7, kind: 'exterior' },
+      { id: 'n', start: [8, 6], end: [0, 6], thickness: 0.3, height: 2.7, kind: 'exterior' },
+      { id: 'w', start: [0, 6], end: [0, 0], thickness: 0.3, height: 2.7, kind: 'exterior' },
+      { id: 'bs', start: [0, 0], end: [8, 0], thickness: 0.3, height: 2.7, kind: 'exterior', floor: 'basement' },
+      { id: 'be', start: [8, 0], end: [8, 6], thickness: 0.3, height: 2.7, kind: 'exterior', floor: 'basement' },
+      { id: 'bn', start: [8, 6], end: [0, 6], thickness: 0.3, height: 2.7, kind: 'exterior', floor: 'basement' },
+      { id: 'bw', start: [0, 6], end: [0, 0], thickness: 0.3, height: 2.7, kind: 'exterior', floor: 'basement' }
+    ],
+    rooms: [
+      { id: 'living', name: 'Living', boundary: ['s', 'e', 'n', 'w'] },
+      { id: 'cellar', name: 'Cellar', boundary: ['bs', 'be', 'bn', 'bw'], floor: 'basement' }
+    ],
+    openings: []
+  })
+  const line: SectionLine = { from: { x: 4, y: -2 }, to: { x: 4, y: 8 }, toward: 'left' }
+  const picture = sectionPicture(plan, line, { look: 'technical', paperScale: 100 })
+  const svg = pictureToSvg(picture)
+
+  it('fills the earth with paper and hatches it, between what lies beyond and the cut', () => {
+    const earth = tagsOf(svg, 'section-earth')
+    expect(earth).toHaveLength(1)
+    expect(attr(earth[0]!, 'fill')).toBe('#ffffff')
+    const hatch = tagsOf(svg, 'section-earth-hatch')
+    expect(hatch).toHaveLength(1)
+    expect(Number(attr(hatch[0]!, 'stroke-width'))).toBe(Number(lengthText((PAPER_PENS[100].finest * 100) / 1000)))
+    expect(svg.indexOf('data-part="section-beyond-group"')).toBeLessThan(svg.indexOf('data-part="section-earth-group"'))
+    expect(svg.indexOf('data-part="section-earth-group"')).toBeLessThan(svg.indexOf('data-part="section-cut-group"'))
+  })
+
+  it('keeps the hatch out of the basement and inside the picture, down to a metre under its slab', () => {
+    const d = attr(tagsOf(svg, 'section-earth-hatch')[0]!, 'd')!
+    const points = [...d.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map((m) => ({ x: Number(m[1]), y: -Number(m[2]) }))
+    expect(points.length).toBeGreaterThan(20)
+    const { x, width } = picture.view
+    for (const p of points) {
+      expect(p.x).toBeGreaterThanOrEqual(x - 1e-3)
+      expect(p.x).toBeLessThanOrEqual(x + width + 1e-3)
+      expect(p.y).toBeLessThanOrEqual(1e-3)
+      expect(p.y).toBeGreaterThanOrEqual(picture.section.ground.earth.bottom - 1e-3)
+    }
+    // The basement stands from x 1.85 to 8.15 on the line: no hatch line crosses its inside.
+    const segments = d.split('M').filter(Boolean).map((seg) => seg.split('L').map((xy) => { const [a, b] = xy.split(',').map(Number); return { x: a!, y: -b! } }))
+    for (const [a, b] of segments) {
+      const mid = { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 }
+      expect(mid.x > 1.9 && mid.x < 8.1 && mid.y > -3.15 && mid.y < -0.05).toBe(false)
+    }
+  })
+
+  it('stands the level marks\' words on paper over the earth', () => {
+    expect(tagsOf(svg, 'section-level-backing').length).toBe(picture.section.levels.length + picture.section.roofs.length + 1)
   })
 })

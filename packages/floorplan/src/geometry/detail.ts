@@ -54,26 +54,39 @@ type Segment = readonly [Vec2, Vec2]
  * so the hatch of two walls that meet runs on across the joint.
  */
 export function hatchLines(ring: readonly Vec2[], spacing: number, angle: number): Segment[] {
-  if (ring.length < 3 || !(spacing > 0)) return []
+  return hatchRings([ring], spacing, angle)
+}
+
+/**
+ * VEW-65: `hatchLines` over several rings at once, even-odd: an outline and its holes, so the hatch
+ * keeps out of the holes.
+ */
+export function hatchRings(rings: readonly (readonly Vec2[])[], spacing: number, angle: number): Segment[] {
+  const live = rings.filter((ring) => ring.length >= 3)
+  if (live.length === 0 || !(spacing > 0)) return []
   const along = { x: Math.cos(angle), y: Math.sin(angle) }
   const across = { x: -along.y, y: along.x }
-  const levels = ring.map((p) => dot(p, across))
-  const first = Math.ceil(Math.min(...levels) / spacing)
-  const last = Math.floor(Math.max(...levels) / spacing)
+  const levelsOf = live.map((ring) => ring.map((p) => dot(p, across)))
+  const all = levelsOf.flat()
+  const first = Math.ceil(Math.min(...all) / spacing)
+  const last = Math.floor(Math.max(...all) / spacing)
   const out: Segment[] = []
   for (let step = first; step <= last; step++) {
     const level = step * spacing
     const crossings: number[] = []
-    for (let i = 0; i < ring.length; i++) {
-      const a = levels[i]! - level
-      const b = levels[(i + 1) % ring.length]! - level
-      // Half-open, so a line through a corner meets it once.
-      if (a > 0 === b > 0) continue
-      const p = ring[i]!
-      const q = ring[(i + 1) % ring.length]!
-      const t = a / (a - b)
-      crossings.push(dot({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t }, along))
-    }
+    live.forEach((ring, r) => {
+      const levels = levelsOf[r]!
+      for (let i = 0; i < ring.length; i++) {
+        const a = levels[i]! - level
+        const b = levels[(i + 1) % ring.length]! - level
+        // Half-open, so a line through a corner meets it once.
+        if (a > 0 === b > 0) continue
+        const p = ring[i]!
+        const q = ring[(i + 1) % ring.length]!
+        const t = a / (a - b)
+        crossings.push(dot({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t }, along))
+      }
+    })
     crossings.sort((m, n) => m - n)
     const base = scale(across, level)
     for (let i = 0; i + 1 < crossings.length; i += 2) {

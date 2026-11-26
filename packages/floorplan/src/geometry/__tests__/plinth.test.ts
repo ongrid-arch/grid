@@ -70,7 +70,9 @@ describe('the plinth under a floor that stands clear of the ground (VEW-16)', ()
     expect(section.beyond.some((f) => f.kind === 'plinth' && f.pieces.length > 0)).toBe(true)
     // The ground runs on under the house, so the plinths stand on it.
     expect(section.ground.segments).toEqual([[0, 12]])
-    expect(section.bounds.min.y).toBe(-0.45)
+    // VEW-65: the drawing takes in the earth, a metre under the ground the plinths stand on.
+    expect(section.ground.earth.dug).toEqual([])
+    expect(section.bounds.min.y).toBe(-1.45)
   })
 
   it('leaves a floor at the ground as it was: no ground stated, or the ground at the slab\'s foot', () => {
