@@ -200,7 +200,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-45: seven more, the items' topic.
   // CNT-46: eight more, the parking topic. CNT-47: three more, the rows topic and the item kinds.
   // SHT-22: eight more, the topic of writing on the drawing.
-  'packages/cli/src/mcp/roomsGrammar.ts': [94, 'tools'],
+  'packages/cli/src/mcp/roomsGrammar.ts': [99, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.

@@ -73,11 +73,16 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   },
   {
     topic: 'curves',
-    says: 'A curved wall is written raw, as Grid\'s own JSON: raw wall {"id", "start", "end", "thickness", "kind", "arc": {"centre": [x, y], "sweep": <degrees>}}. The wall turns sweep degrees round the centre from start to end, counter-clockwise positive; its radius is the distance from the centre to start, and end lies on that circle; 360 is a whole circle with start and end one point. It is a true arc, never a polyline. A raw room names curved walls in its boundary as it names straight ones.',
+    says: 'room <id> "<name>" <use|-> circle <across> | circle radius <r> | oval <w> x <d> at x,y draws a round or oval room by its centre, to its inside faces (an oval is four arcs that meet without a kink). band <r1> to <r2> [from <degrees>] [sweep <degrees>] at x,y is the floor between two radii round that centre, from (east is 0, counter-clockwise) turning sweep degrees, less than a whole turn. arc <degrees> [<chord>] <side> of <room> is a round end on that side of a room: its chord along that side (as long as it unless written) and its curve turning that many degrees out. wall <room> <side> curve radius <r> [inward] bows a straight outside side. Grid writes true curved walls, one wall where two rooms share a curve, and doors and windows go on them like any other: centred on the curve\'s point facing the side, or <m> from <side> along the curve. A curved wall may also be written raw: raw wall {..., "arc": {"centre": [x, y], "sweep": <degrees>}}, counter-clockwise positive, 360 a whole circle.',
     example: [
-      'raw wall {"id": "apse", "start": [4, 0], "end": [-4, 0], "thickness": 0.3, "height": 4, "kind": "exterior", "arc": {"centre": [0, 0], "sweep": 180}}',
-      'raw wall {"id": "chord", "start": [-4, 0], "end": [4, 0], "thickness": 0.3, "height": 4, "kind": "exterior"}',
-      'raw room {"id": "apse-room", "name": "Apse", "use": "assembly", "boundary": ["apse", "chord"]}',
+      'room nave "Nave" assembly 20 x 10 at 0,0',
+      'room apse "Apse" assembly arc 180 east of nave',
+      'wall nave south curve radius 14',
+      'room pav "Pavilion" assembly circle 12 at 40,5',
+      'room ring "Ring" corridor band 6.1 to 9 from 0 sweep 180 at 40,5',
+      'door d1 between nave and apse, centred, 2 wide',
+      'door d2 between pav and ring, centred, 1.2 wide',
+      'window w1 in apse east, centred, 1.5 wide',
     ],
   },
   {
