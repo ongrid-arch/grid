@@ -31,7 +31,7 @@ const BASE = [
 
 const text = (...more: string[]): string => [...BASE, ...more].join('\n')
 
-const onFloor = <T extends { floor?: string }>(parts: readonly T[], floor: string): T[] => parts.filter((p) => floorOf(p as never) === floor)
+const onFloor = <T,>(parts: readonly T[], floor: string): T[] => parts.filter((p) => floorOf(p as never) === floor)
 
 function areas(plan: FloorPlan, floor: string): Record<string, number> {
   const index = indexPlan(plan)
