@@ -169,6 +169,19 @@ const FACT_WORDS = new Set(['facts', 'fact', 'attributes', 'attrs', 'props', 'me
 /** WRT-14: the words a floor line knows after its id, `name` among them. */
 const FLOOR_KEYS: readonly string[] = ['name', 'level', 'elevation', 'height', 'slab', 'building', 'copy']
 
+/** WRT-69: what each word of a floor line takes, said when it has nothing after it. */
+const FLOOR_TAKES: Readonly<Record<string, MessageKey>> = {
+  name: 'rooms.floor.takes.name',
+  level: 'rooms.floor.takes.level',
+  elevation: 'rooms.floor.takes.elevation',
+  height: 'rooms.floor.takes.height',
+  slab: 'rooms.floor.takes.slab',
+  building: 'rooms.floor.takes.building',
+}
+
+/** WRT-69: the floor's own words an agent writes on a walls, doors or windows line, with what they take. */
+const FLOOR_ONLY: Readonly<Record<string, string>> = { level: '<n>', elevation: '<m>', slab: '<m>' }
+
 /** A word of a floor line as it is written back in a refusal's offered line. */
 const lineWord = (w: LineWord): string => (w.quoted ? quoteWords(w.text) : w.text)
 
@@ -1150,6 +1163,8 @@ class Compiler {
   }
 
   private readPairs(t: string[], at: number, keys: Record<string, string>, target: Record<string, unknown>, kinds: boolean): void {
+    const known = joined([...Object.keys(keys), ...(kinds ? ['interior', 'partition'] : [])], 'join.comma')
+    const refuse = (key: MessageKey, values: Values): never => this.stop('rooms/syntax', at, `line ${at}: ${english(said(key, values))}`)
     let i = 0
     while (i < t.length) {
       const w = t[i]!
@@ -1159,8 +1174,13 @@ class Compiler {
       } else if (kinds && KINDS.includes(w as WallKind)) {
         target['kind'] = w
         i++
+      } else if (Object.hasOwn(keys, w)) {
+        // WRT-69: a known word with nothing after it needs its value, not "is not understood".
+        refuse('rooms.pairs.noValue', { word: w, known })
+      } else if (Object.hasOwn(FLOOR_ONLY, w)) {
+        refuse('rooms.pairs.floorWord', { word: w, value: FLOOR_ONLY[w]!, known })
       } else {
-        this.stop('rooms/syntax', at, `line ${at}: '${w}' is not understood here. Known words: ${Object.keys(keys).join(', ')}${kinds ? ', interior, partition' : ''}.`)
+        refuse('rooms.pairs.unknown', { word: w, known })
       }
     }
   }
@@ -1203,7 +1223,16 @@ class Compiler {
         refuse(say('rooms.floor.settingName', { name: sayName(name), setting: `${setting[1]!.toLowerCase()} ${setting[2]}`.trim(), line: fixed }))
       }
     } else if (words[0] !== undefined && isNumberWord(words[0].text)) {
-      refuse(say('rooms.floor.unknown', { word: words[0].text }))
+      // WRT-69: a number in the name's place; offered as the level when it can be the storey number.
+      const word = words[0].text
+      const rest = words.slice(1)
+      const storey = Number(word)
+      if (Number.isInteger(storey * 2) && !rest.some((w) => !w.quoted && w.text === 'level')) {
+        const named = rest[0]?.quoted === true ? [lineWord(rest[0])] : []
+        const fixed = [`floor ${id.text}`, ...named, `level ${word}`, ...rest.slice(named.length).map(lineWord)].join(' ')
+        refuse(say('rooms.floor.numberName.level', { word, line: fixed }))
+      }
+      refuse(say('rooms.floor.numberName', { word }))
     } else if (words[0] !== undefined && !FLOOR_KEYS.includes(words[0].text)) {
       // An unquoted name: the words up to the first setting, offered back in quotes.
       let end = 0
@@ -1218,6 +1247,11 @@ class Compiler {
     while (i < words.length) {
       const w = words[i]!
       const key = w.quoted ? '' : w.text
+      if (w.quoted && name === null) {
+        // WRT-69: the name written after the settings goes right after the id.
+        const fixed = [`floor ${id.text}`, lineWord(w), ...words.filter((x) => x !== w).map(lineWord)].join(' ')
+        refuse(say('rooms.floor.nameLate', { name: sayName(w.text), line: fixed }))
+      }
       if (!FLOOR_KEYS.includes(key)) refuse(say('rooms.floor.unknown', { word: w.text }))
       if (key === 'copy') {
         // WRT-4: 'floor l4 "Fourth floor" level 4 copy l3', the floor and its copy on one line.
@@ -1227,7 +1261,9 @@ class Compiler {
       if (seen.has(key) || (key === 'name' && name !== null)) refuse(say('rooms.floor.twice', { word: key }))
       seen.add(key)
       const value = words[i + 1]
-      if (value === undefined || (!value.quoted && FLOOR_KEYS.includes(value.text))) refuse(say('rooms.floor.noValue', { word: key }))
+      if (value === undefined || (!value.quoted && FLOOR_KEYS.includes(value.text))) {
+        refuse(say('rooms.floor.noValue', { word: key, takes: said(FLOOR_TAKES[key]!, { kinds: BUILDINGS.join(', ') }) }))
+      }
       i += 2
       if (key === 'name') {
         name = value.text

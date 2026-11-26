@@ -141,3 +141,53 @@ describe('the read-back', () => {
     expect(parseFloorPlan(again.plan).floors).toEqual(plan.floors)
   })
 })
+
+/** WRT-69: a refusal names the real fault: a number or a name in the wrong place, a word with no value. */
+describe('the fault a floor-line refusal names', () => {
+  /** The line the refusal offers, read with the room under it. */
+  function offered(message: string): string {
+    const line = /Write it: '([^']+)'/.exec(message)?.[1]
+    expect(line, message).toBeDefined()
+    expect(compileRoomsText(`${line!}\n${ROOM}`).problems).toEqual([])
+    return line!
+  }
+
+  it('says a number after the id stands where the quoted name goes, and offers it as the level', () => {
+    const p = refusal('floor g 0')
+    expect(p.code).toBe('rooms/syntax')
+    expect(p.message).toContain("'0' stands where the floor's name goes, right after its id")
+    expect(p.message).toContain('in quotes')
+    expect(offered(p.message)).toBe('floor g level 0')
+    expect(p.message).toContain(FORM)
+    expect(offered(refusal('floor l1 1 "First" height 3').message)).toBe('floor l1 "First" level 1 height 3')
+  })
+
+  it('offers no level for a number that is no storey number, or on a line that has one', () => {
+    for (const line of ['floor a 3.2', 'floor a 2 level 2']) {
+      const p = refusal(line)
+      expect(p.message, line).toContain("stands where the floor's name goes, right after its id")
+      expect(p.message, line).not.toContain('Write it')
+    }
+  })
+
+  it('says a quoted name written after the settings goes right after the id', () => {
+    const p = refusal('floor g level 0 "Ground" height 3')
+    expect(p.code).toBe('rooms/syntax')
+    expect(p.message).toContain('right after its id, before the settings')
+    expect(offered(p.message)).toBe('floor g "Ground" level 0 height 3')
+    // A second name is still a word the line does not know.
+    expect(refusal('floor g "Ground" level 0 "Other"').message).toContain("'Other' is not a word a floor line knows")
+  })
+
+  it('says what a known word with no value after it takes', () => {
+    const slab = refusal('floor g level 0 slab')
+    expect(slab.code).toBe('rooms/syntax')
+    expect(slab.message).toContain("'slab' needs its value after it: slab <m>, the thickness of the floor it stands on")
+    expect(refusal('floor g slab height 3').message).toContain("'slab' needs its value after it: slab <m>")
+    expect(refusal('floor g "G" level').message).toContain("'level' needs its value after it: level <n>, the storey number")
+    expect(refusal('floor g "G" elevation').message).toContain("'elevation' needs its value after it: elevation <m>")
+    expect(refusal('floor g "G" height').message).toContain("'height' needs its value after it: height <m>")
+    expect(refusal('floor g name').message).toContain(`'name' needs its value after it: name "<name>"`)
+    expect(refusal('floor g "G" building').message).toContain("'building' needs its value after it: building <kind>, one of: ")
+  })
+})

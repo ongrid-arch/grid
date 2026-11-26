@@ -146,3 +146,31 @@ describe('a walls line written between floors', () => {
     expect(codes(result)).not.toContain('rooms/walls-late')
   })
 })
+
+/** WRT-69: a walls, doors or windows line names the real fault of a word it cannot read. */
+describe('a word the walls line cannot read', () => {
+  function refused(line: string): string {
+    const result = compileRoomsText(`${line}\nroom a "A" living 3 x 3 at 0,0\n`)
+    expect(result.plan).toBeNull()
+    expect(result.problems).toHaveLength(1)
+    expect(result.problems[0]!.code).toBe('rooms/syntax')
+    return result.problems[0]!.message
+  }
+
+  it('says a known word with nothing after it needs its value', () => {
+    const message = refused('walls outside 0.3 height')
+    expect(message).toContain("'height' needs its value after it")
+    expect(message).not.toContain('not understood')
+    expect(refused('windows sill')).toContain("'sill' needs its value after it")
+  })
+
+  it('says a floor word is written on the floor line', () => {
+    const message = refused('walls outside 0.3 slab 0.2')
+    expect(message).toContain("'slab' is written on the floor line")
+    expect(message).toContain('floor <id> slab <m>')
+  })
+
+  it('still names every known word for a word it does not know', () => {
+    expect(refused('walls outside 0.3 thick 0.2')).toContain("'thick' is not understood here. Known words: outside, inside, height, interior, partition.")
+  })
+})

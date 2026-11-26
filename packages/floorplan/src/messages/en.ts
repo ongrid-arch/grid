@@ -1936,13 +1936,28 @@ export const en = {
   'rooms.floor.unquoted': "'{word}' is not a word a floor line knows, and a floor's name is written in quotes. Write it: '{line}'.",
   'rooms.floor.settingName': "The name {name} reads as the setting '{setting}', which is written after the name with no = or :. Write it: '{line}'.",
   'rooms.floor.unknown': "'{word}' is not a word a floor line knows.",
-  'rooms.floor.noValue': "'{word}' needs its value after it.",
+  'rooms.floor.noValue': "'{word}' needs its value after it: {takes}.",
+  // WRT-69: what each word of a floor line takes, said when it has nothing after it.
+  'rooms.floor.takes.name': 'name "<name>", the floor\'s name in quotes',
+  'rooms.floor.takes.level': 'level <n>, the storey number (0 the ground floor, 1 the floor above, -1 a basement)',
+  'rooms.floor.takes.elevation': "elevation <m>, the metres from the ground floor's level up to this floor's",
+  'rooms.floor.takes.height': 'height <m>, the metres from this floor up to its ceiling',
+  'rooms.floor.takes.slab': "slab <m>, the thickness of the floor it stands on, as 'slab 0.25'",
+  'rooms.floor.takes.building': 'building <kind>, one of: {kinds}',
+  // WRT-69: a number, or a quoted name, where the floor line does not take it.
+  'rooms.floor.numberName': "'{word}' stands where the floor's name goes, right after its id, and a floor's name is written in quotes; every figure after it follows its word (level, elevation, height or slab).",
+  'rooms.floor.numberName.level': "'{word}' stands where the floor's name goes, right after its id, and a floor's name is written in quotes. If {word} is the storey number, it follows the word level. Write it: '{line}'.",
+  'rooms.floor.nameLate': "The floor's name {name} is written right after its id, before the settings. Write it: '{line}'.",
   'rooms.floor.twice': "'{word}' is written twice on the floor line.",
   'rooms.floor.levelLength': "'level {value}' is a length, and level is the storey number. For how high this floor stands above the ground floor, write 'elevation {value}'.",
   'rooms.floor.levelFraction': "'level {value}' is not a storey number: a level is a whole number, or a half (0.5) for a half level. For how high this floor stands above the ground floor, write 'elevation {value}'.",
   'rooms.floor.building': "'{word}' is not a kind of building Grid knows. Use one of: {kinds}.",
   'rooms.floor.duplicate': "Floor '{id}' is already written.",
   'rooms.floor.roomsFirst': "Rooms were written before the first floor line. Put the floor line first.",
+  // WRT-69: a word the walls, doors or windows line cannot read, and why.
+  'rooms.pairs.unknown': "'{word}' is not understood here. Known words: {known}.",
+  'rooms.pairs.noValue': "'{word}' needs its value after it. Known words: {known}.",
+  'rooms.pairs.floorWord': "'{word}' is written on the floor line, not here: floor <id> {word} {value}. Known words here: {known}.",
   // WRT-35: a word a room line does not take, every word it does take and the one most likely meant.
   'rooms.room.unknown':
     "Line {line}: '{word}' is not understood on a room line.{meant} After the use, write a size ('3.0 x 4.4' = east-west by north-south, inside faces; add 'centre' or 'outside' to measure to the walls' centre lines or outside faces) or 'polygon x,y x,y ...', then where it goes: 'at x,y', '<north|south|east|west> of <room>' with optional 'align', 'shift', 'until', 'open', or 'inside <room> corner <ne|nw|se|sw>' with optional 'wall <t> [kind]'. Then any of: 'walls <t> [kind]' sets this room's own wall thickness; 'height <m>' its own ceiling height; 'floor <m>' stands its floor that many metres above its storey's floor (a minus for below), for a raised or sunken room; 'first-wall <wall id>' starts its boundary at that wall; 'through <floor>' stands it on every floor after this one up to that floor; 'tenure <{tenures}>' and 'type \"<text>\"' say who it is for and the firm's own room type; 'outdoor <{outdoor}>', then 'roofed' or 'unroofed', marks it as outdoor space.",
