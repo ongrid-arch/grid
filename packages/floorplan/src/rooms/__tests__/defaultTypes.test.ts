@@ -27,15 +27,8 @@ function typedFile(): Record<string, unknown> {
       windows: [{ id: 'casement', name: 'Casement', height: 1.2 }],
       defaults: { walls: { interior: 'stud', exterior: 'block' }, window: 'casement' },
     },
-    walls: TWO_BED.walls.map((w) => {
-      const { thickness: _t, ...rest } = w
-      return w.id === 'spine' ? { ...rest, wallType: 'thick-stud' } : rest
-    }),
-    openings: TWO_BED.openings.map((o) => {
-      if (o.type !== 'window') return o
-      const { height: _h, ...rest } = o
-      return rest
-    }),
+    walls: TWO_BED.walls.map((w) => ({ ...w, thickness: undefined, ...(w.id === 'spine' ? { wallType: 'thick-stud' } : {}) })),
+    openings: TWO_BED.openings.map((o) => (o.type === 'window' ? { ...o, height: undefined } : o)),
   }
 }
 

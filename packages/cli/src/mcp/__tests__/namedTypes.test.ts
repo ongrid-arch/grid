@@ -35,7 +35,7 @@ beforeAll(() => {
         windows: [{ id: 'casement', name: 'Casement', height: 1.2 }],
         defaults: { walls: { interior: 'stud-100', exterior: 'block-300' }, window: 'casement' },
       },
-      walls: TWO_BED.walls.map(({ thickness: _t, ...w }) => (w.id === 'spine' ? { ...w, wallType: 'stud-100' } : w)),
+      walls: TWO_BED.walls.map((w) => ({ ...w, thickness: undefined, ...(w.id === 'spine' ? { wallType: 'stud-100' } : {}) })),
       openings: TWO_BED.openings.map((o) => (o.type === 'window' ? { ...o, height: undefined } : o)),
     },
     'misnamed.json': { ...TWO_BED, types: { walls: [{ id: 'stud-100', name: 'Stud partition 100', thickness: 0.1 }] }, walls: TWO_BED.walls.map((w) => (w.id === 'spine' ? { ...w, wallType: 'stud-10' } : w)) },
