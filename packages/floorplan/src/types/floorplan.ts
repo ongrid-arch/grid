@@ -2249,6 +2249,9 @@ export function withTypes(raw: unknown): unknown {
     const id = named ?? (door ? defaults.door : defaults.window)
     const type = id === undefined ? undefined : door ? doors.get(id) : windows.get(id)
     if (type === undefined) return opening
+    // CNT-39: a part that names no type and states every size its default type would fill is not
+    // of that type: it stays as it is, so a schedule never lists it as one.
+    if (named === undefined && ['width', 'height', 'sill'].every((size) => !(size in type) || type[size as 'width'] === undefined || opening[size] !== undefined)) return opening
     const filled: TypedValue[] = []
     const next: Record<string | symbol, unknown> = { ...opening }
     const fill = (key: TypedValue, value: unknown): void => {
