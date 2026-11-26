@@ -85,7 +85,7 @@ describe('EL-15: the narrow flat, measured as numbers', () => {
     expect(text).toContain('door "door-entrance" (the entrance), "Bedroom 2" to outside: 0.55 m hole, 0.50 m clear past the open leaf; its sill stands 0.18 m above the floor.')
     expect(text).toContain('to "Bathroom": door "door-entrance" into "Bedroom 2", door "door-bed2" into "Hall", door "door-bath" into "Bathroom"; 1 step: 0.18 m at door "door-entrance", its sill;')
     // What it could not tell and what it did not look at, plainly.
-    expect(text).toContain('Grid cannot tell whether there is a step between the ground outside and the floor inside door "door-entrance": the plan states no ground level for the site (site.ground).')
+    expect(text).toContain('Grid cannot tell whether there is a step between the ground outside and the floor inside door "door-entrance": the plan states no ground level for the site (a \'ground <m>\' line in rooms text, or grid_set_site ground, states it).')
     expect(text).toContain('Not looked at:\n  - the swing and weight of a door leaf')
     expect(text).toContain('  - ramps: a ramp the plan states between two floors is for vehicles and is not measured here, and one within a floor cannot be stated, so no slope, length or landing is measured;')
     expect(data.notLookedAt.length).toBeGreaterThan(5)

@@ -407,7 +407,7 @@ function wayTo(c: WayContext, route: AccessRoute): AccessWay {
       const facts = survey.facts.openings.get(v.via)
       if (leg.fromOutside && vi === 0) {
         const above = (c.ground.above.get(leg.floor) ?? 0) + offsetOf(v.into)
-        if (!c.ground.stated) cannotTell.push(`whether there is a step between the ground outside and the floor inside ${facts?.type ?? 'door'} ${q(v.via)}: the plan states no ground level for the site (site.ground)`)
+        if (!c.ground.stated) cannotTell.push(`whether there is a step between the ground outside and the floor inside ${facts?.type ?? 'door'} ${q(v.via)}: the plan states no ground level for the site (a 'ground <m>' line in rooms text, or grid_set_site ground, states it)`)
         else if (Math.abs(above) > same) steps.push({ kind: 'ground', at: v.via, height: Math.abs(above), count: 1, up: above > 0 })
       }
       if (facts !== undefined && facts.type !== 'window' && facts.sill > same) steps.push({ kind: 'sill', at: v.via, height: facts.sill, count: 1, up: null })

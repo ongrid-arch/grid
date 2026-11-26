@@ -485,7 +485,7 @@ and no roof, and a garden wall standing apart carries neither.
 
 | Field | What it states |
 |---|---|
-| `site.ground` | The level of the ground outside, in metres from the ground floor's floor level, the datum of a floor's `elevation`: `-0.15` for a floor 15 cm above the ground. One level for the whole site. It sits in the plan's one `site`, beside where the building is ([north, front and where the building is](#north-front-and-where-the-building-is)), and needs no `origin`; it is not `site.elevation`, which is metres above sea level |
+| `site.ground` | The level of the ground outside, in metres from the ground floor's floor level, the datum of a floor's `elevation`: `-0.15` for a floor 15 cm above the ground. One level for the whole site. It sits in the plan's one `site`, beside where the building is ([north, front and where the building is](#north-front-and-where-the-building-is)), and needs no `origin`; it is not `site.elevation`, which is metres above sea level. Rooms text writes it `ground -0.15` (or `ground 0.15 below`), and `grid_set_site` takes it as `ground` (ARE-62) |
 | floor `parapet` | Metres the floor's outside walls rise above its roof. Unstated, no parapet |
 | room `void` | The room is open to the floor below: no floor of its own |
 | room `ceiling` | The room has a ceiling, at its `height` (else its storey's). `lowered` lists the zones lower than the rest, each with `points` (its outline, three or more) and `height` (from the room's floor), and an optional `name`. A zone is clipped to its room |
