@@ -21,7 +21,9 @@ import { LANGUAGES, english, joined, name, num, said, say, type Language, type M
 import { readSeen, type SeenState } from '../seen/marks'
 import { firmForCheck } from '../firm/measure'
 import { briefMissedText } from '../brief/answer'
-import { describePlan, describeRooms, describeWalk, walkOf } from '../command/describe'
+import { describePlan, describeRooms, describeWalk, walkOf, type DescribeOptions } from '../command/describe'
+import { buildingReading } from '../edit/buildingEdits'
+import { EditRefused } from '../edit/refused'
 import { walkPictures } from '../describe/walkPictures'
 import { WALK_EYE_HEIGHT, WALK_PICTURES_MAX } from '../describe/walk'
 import { drawShowOf } from '../command/drawShow'
@@ -2585,6 +2587,18 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
 // ---------------------------------------------------------------------------------------------
 // grid_describe
 
+/** CMD-47: one building of the plan read back as rooms text of its own, based on that building's fingerprint. */
+function describeBuilding(loaded: LoadedPlan, id: string, language: DescribeOptions['language']): string {
+  if (loaded.base !== undefined) throw new ToolRefusal('A fit-out is read back whole: leave building out.')
+  try {
+    const alone = buildingReading(loaded.stated ?? loaded.plan, id).plan
+    return describeRooms({ ...loaded, plan: alone, stated: alone }, { language })
+  } catch (error) {
+    if (error instanceof EditRefused) throw new ToolRefusal(error.message)
+    throw error
+  }
+}
+
 const describeTool: GridTool = {
   name: 'grid_describe',
   title: 'Read the plan in room terms',
@@ -2594,12 +2608,14 @@ const describeTool: GridTool = {
     + 'It gives the plan in rooms: each room with its inside size and area, the rooms next to it, and each door and window with the side it is on, its distance from the corners and the two rooms it joins. '
     + 'length=line is one line, rooms (the default) each room, walls also every wall. for=person never shows an id; for=agent is terse and gives the ids to edit with. '
     + 'length=walk is the long form, for "walk me through it" or "what do I see when I come in": the plan walked room by room from its way in, standing in the doorway of each room, with what is ahead, on the left, on the right and in the wall you stand in, and how far; floor walks one floor, and pictures=true adds a picture at eye height from each doorway, looking ahead (at most ' + String(WALK_PICTURES_MAX) + '). '
-    + 'as=rooms reads the plan back as rooms text instead, the way plans are written: change it and pass it to grid_write_rooms, which writes it back losing nothing. Do not use for an area table (grid_areas) or a picture (grid_view). Units are metres.',
+    + 'as=rooms reads the plan back as rooms text instead (building=<id>: one building of a plan of many, which grid_write_building writes back), the way plans are written: change it and pass it to grid_write_rooms, which writes it back losing nothing. Do not use for an area table (grid_areas) or a picture (grid_view). Units are metres.',
   args: {
     plan: PLAN_ARG,
     length: { type: 'string', enum: DESCRIBE_LENGTHS, description: 'line, rooms, walls or walk. rooms when left out.', examples: ['rooms', 'line', 'walk'] },
     for: { type: 'string', enum: DESCRIBE_AUDIENCES, description: 'person (names only, no ids) or agent (terse, with ids). agent when left out.', examples: ['agent', 'person'] },
     as: { type: 'string', enum: ['rooms'], description: 'rooms: the plan as rooms text, to change and write again with grid_write_rooms. Takes no length or for.', examples: ['rooms'] },
+    // CMD-47: one building of a plan of many, as rooms text of its own.
+    building: { type: 'string', id: true, description: 'With as=rooms: one building of the plan, by id: its floors and parts only, as rooms text to change and write again with grid_write_building. The whole plan when left out.', examples: ['villa-3'] },
     floor: { ...FLOOR_ARG, description: 'For length=walk: the floor to walk. Every floor when left out, a floor laid out like an earlier one said once.' },
     pictures: { type: 'boolean', description: 'For length=walk: true to add a picture at eye height from each doorway, looking ahead, in the order of the walk. false when left out.', examples: [true, false] },
     language: LANGUAGE_ARG,
@@ -2614,8 +2630,9 @@ const describeTool: GridTool = {
     const language = await languageFor(askedLanguage(args['language'], 'language'), read.plan)
     // MSG-22: the floor the plan names in no list, named in that language.
     const loaded = spokenPlan(read, language)
+    if (args['building'] !== undefined && args['as'] !== 'rooms') throw new ToolRefusal('building goes with as=rooms: it reads one building back as rooms text.')
     if (args['as'] === 'rooms') {
-      const text = describeRooms(loaded, { language })
+      const text = args['building'] === undefined ? describeRooms(loaded, { language }) : describeBuilding(loaded, args['building'] as string, language)
       return { text, data: { length: null, for: null, as: 'rooms', text } }
     }
     const length = (args['length'] as (typeof DESCRIBE_LENGTHS)[number] | undefined) ?? 'rooms'

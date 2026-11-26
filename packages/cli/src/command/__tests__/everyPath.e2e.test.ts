@@ -378,6 +378,24 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_set_building', { plan: '@', id: 'house', floors: ['ground'] }), given: asIs },
     { arg: 'out', call: tool('grid_set_building', { plan: PLAN, id: 'house', floors: ['ground'], out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CMD-47: one building written back, a storey added, a building taken out and one placed again.
+  grid_write_building: [
+    { arg: 'plan', call: tool('grid_write_building', { plan: '@', building: 'house', rooms: 'floor ground "Ground"\nroom lounge "Lounge" living 4 x 4 at 0,0' }), given: asIs },
+    { arg: 'roomsFile', call: tool('grid_write_building', { plan: PLAN, building: 'house', roomsFile: '@' }), given: asIs },
+    { arg: 'out', call: tool('grid_write_building', { plan: PLAN, building: 'house', rooms: 'floor ground "Ground"\nroom lounge "Lounge" living 4 x 4 at 0,0', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_add_storey: [
+    { arg: 'plan', call: tool('grid_add_storey', { plan: '@', building: 'house' }), given: asIs },
+    { arg: 'out', call: tool('grid_add_storey', { plan: PLAN, building: 'house', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_remove_building: [
+    { arg: 'plan', call: tool('grid_remove_building', { plan: '@', id: 'house' }), given: asIs },
+    { arg: 'out', call: tool('grid_remove_building', { plan: PLAN, id: 'house', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_place_building: [
+    { arg: 'plan', call: tool('grid_place_building', { plan: '@', from: 'house', id: 'house-2', move: '20,0' }), given: asIs },
+    { arg: 'out', call: tool('grid_place_building', { plan: PLAN, from: 'house', id: 'house-2', move: '20,0', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-45: an item added, moved and taken out, written into the plan.
   grid_add_item: [
     { arg: 'plan', call: tool('grid_add_item', { plan: '@', name: 'wc', room: 'lounge', against: 'north' }), given: asIs },

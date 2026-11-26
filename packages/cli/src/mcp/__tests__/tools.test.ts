@@ -63,6 +63,10 @@ const ORDER = [
   'grid_add_stair',
   'grid_change_stair',
   'grid_set_building',
+  'grid_write_building',
+  'grid_add_storey',
+  'grid_remove_building',
+  'grid_place_building',
   'grid_add_item',
   'grid_move_item',
   'grid_remove_item',
@@ -76,7 +80,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_write_building', 'grid_add_storey', 'grid_remove_building', 'grid_place_building', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -170,7 +174,9 @@ describe('tools/list', () => {
     // a script reading the markers file, or by asking the person to paste the plan back.
     // 59 since LVL-23: which floors are each building's and the pad it stands on, which agents
     // could only write as the plan file's JSON (every building shared one ground floor).
-    expect((await listed()).length).toBeLessThanOrEqual(59)
+    // 63 since CMD-47: one building of a site of many written back, a storey added, a building
+    // taken out and one placed again, which agents did by retyping hundreds of lines of the file.
+    expect((await listed()).length).toBeLessThanOrEqual(63)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -207,7 +213,7 @@ describe('tools/list', () => {
 
   it('says the units are metres wherever a tool takes or gives a length', async () => {
     for (const tool of await listed()) {
-      if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room', 'grid_project', 'grid_words', 'grid_remove_item'].includes(tool.name)) continue
+      if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room', 'grid_project', 'grid_words', 'grid_remove_item', 'grid_add_storey', 'grid_remove_building'].includes(tool.name)) continue
       expect(tool.description, tool.name).toMatch(/metres/)
     }
   })
@@ -314,6 +320,10 @@ describe('the tools on a two-bedroom flat', () => {
     grid_add_stair: { plan: 'house.json', id: 'st', from: 'ground', to: 'first', room: 'hall', width: 1, shape: 'U', runs: 'north', out: 'stair.json' },
     grid_change_stair: { plan: 'stair.json', id: 'st', width: 0.9, out: 'narrower.json' },
     grid_set_building: { plan: 'house.json', id: 'house', name: 'House', pad: 0.3, floors: ['ground', 'first'], out: 'built.json' },
+    grid_write_building: { plan: 'built.json', building: 'garage', rooms: 'walls outside 0.2 inside 0.1 height 2.4\nfloor gar "Garage" level 0\nroom garage "Garage" - 6 x 3 at 40,0\ndoor gd in garage south, centred, 2.4 wide\n', out: 'garaged.json' },
+    grid_add_storey: { plan: 'built.json', building: 'house', out: 'taller.json' },
+    grid_remove_building: { plan: 'garaged.json', id: 'garage', out: 'ungaraged.json' },
+    grid_place_building: { plan: 'built.json', from: 'house', id: 'house-2', move: '40,0', out: 'twin.json' },
     grid_add_item: { name: 'wardrobe', id: 'robe', room: 'bed2', against: 'north', end: 'west', out: 'robe.json' },
     grid_move_item: { plan: 'robe.json', id: 'robe', against: 'north', end: 'east', out: 'robe-moved.json' },
     grid_remove_item: { plan: 'robe.json', ids: ['robe'], out: 'robe-gone.json' },
