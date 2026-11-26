@@ -208,6 +208,6 @@ door entry in b1 south, centred, 0.9 wide, opens in, hinged west
 
   it('says its one rounding rule once, on the cover', () => {
     const { page } = cover(load(OFFICE))
-    expect(page.notes.filter((n) => n.startsWith('Rounding: '))).toEqual(['Rounding: areas to 0.1 m², lengths to the centimetre, ratios to two places, counts whole. The rows of a table add up to its total.'])
+    expect(page.notes.filter((n) => n.startsWith('Rounding: '))).toEqual(['Rounding: areas to 0.1 m², or to more places where the rows of a table need them to add up to its total; lengths to the centimetre, ratios to two places, counts whole.'])
   })
 })

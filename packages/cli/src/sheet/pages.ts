@@ -26,6 +26,7 @@ import type { ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks
 import { surveyPlan } from '../quantities/survey'
 import { notShownNote } from './limits'
 import { coverFigures, roundingNote } from './coverFigures'
+import { groupRooms } from './roomGroups'
 import { displayFor, sqFt } from '../quantities/units'
 import { showLength, type Display } from '@ongrid/floorplan/types/units'
 
@@ -287,14 +288,21 @@ function areaTable(floor: FloorAreas, withUse: boolean, units: SheetUnits, w: Wo
   const places = floor.rooms.filter((r) => r.zoneOf === undefined)
   // SHT-11: a stair room over the stair below is counted there, so it is in no part of the sum.
   // CNT-7: an outdoor space is listed with its area, apart from the sum.
-  const counted = places.filter((r) => r.countedWith === undefined && r.outdoor === undefined && r.void !== true)
-  const shown = units.sum(counted.map((r) => r.net ?? 0), floor.net)
-  const parts = new Map(counted.map((room, i) => [room, shown.parts[i]!] as const))
+  const isCounted = (r: FloorAreas['rooms'][number]): boolean => r.countedWith === undefined && r.outdoor === undefined && r.void !== true
+  // SHT-21: on a client sheet, rooms alike are one row ("60 × Bedroom"); the check sheet keeps each.
+  const groups = withUse ? places.map((room) => ({ rooms: [room], name: room.name })) : groupRooms(places, isCounted)
+  const counted = groups.filter((g) => isCounted(g.rooms[0]!))
+  const shown = units.sum(counted.map((g) => g.rooms.reduce((sum, r) => sum + (r.net ?? 0), 0)), floor.net)
+  const parts = new Map(counted.map((group, i) => [group, shown.parts[i]!] as const))
   return {
     heading: w.say('sheet.rooms', { unit: units.areaUnit }),
     // MSG-2: a room that could not be measured has no area, never 0.
-    rows: places.map((room) => {
-      const part = parts.get(room)
+    rows: groups.map((group) => {
+      const room = group.rooms[0]!
+      const part = parts.get(group)
+      if (group.rooms.length > 1) {
+        return { name: w.say('sheet.group', { count: group.rooms.length, name: group.name }), detail: w.say('sheet.group.each', { area: `${units.area(room.net!)} ${units.areaUnit}` }), area: part! }
+      }
       return {
         name: room.name,
         detail: withUse && room.use !== null ? w.use(room.use) : null,
