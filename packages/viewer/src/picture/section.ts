@@ -12,7 +12,9 @@
  *   screen look;
  * - what the section takes that the plan does not state, over the cut in a light tint and a dashed
  *   outline, never a hatch (a hatch reads as a material);
- * - the ground line, twice as heavy as the cut, running past the building;
+ * - VEW-65: the earth under the ground, in the cut, filled with paper and hatched as a material, the
+ *   building's part below the ground left out of it, over the picture's whole width (`sectionEarth`);
+ * - the ground line, twice as heavy as the cut, out to the picture's edges;
  * - each room's name and height, and the level of every floor, roof and the ground beside the
  *   drawing; LVL-20: a sloped roof's eaves and ridge, and under it each room's headroom bands, a
  *   dashed line at each band's height where the room has that much over its floor;
@@ -22,13 +24,13 @@
  */
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { Bounds, PlanSection, SectionLine, SectionPiece, Vec2 } from '@ongrid/floorplan/geometry'
-import { levelText, metresText, planSection } from '@ongrid/floorplan/geometry'
+import { hatchRings, levelText, metresText, planSection, sectionEarth } from '@ongrid/floorplan/geometry'
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import { fitTo, pathOf } from '../canvas2d/viewport'
 import { labelObstacles, placeLabel } from './sectionLabels'
 import type { PictureKey } from './faults'
 import { wrapText } from './faults'
-import { TEXT_PX, lengthText, lineMetres } from './look'
+import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
 import type { Look } from './look'
 import type { Picture, PictureOptions } from './planSvg'
 import { DEFAULT_WIDTH, displayOfPicture, lookOf } from './planSvg'
@@ -71,6 +73,9 @@ const TICK_PX = 36
 const GAP_PX = 14
 const KEY_MARGIN_PX = 16
 const KEY_LINE_PX = 17
+/** VEW-65: how far apart the earth's hatch lines are: in millimetres on paper, in pixels on screen. */
+const EARTH_MM = 2
+const EARTH_PX = 9
 
 const n = (value: number): string => lengthText(value)
 const pixelGroup = (at: Vec2, mpp: number): string => `translate(${n(at.x)} ${n(-at.y)}) scale(${n(mpp)})`
@@ -152,7 +157,11 @@ function levelMark(label: LevelLabel, x: number, side: 'left' | 'right', mpp: nu
   const at = { x, y: label.level }
   const tick = `M0,0L${sign * TICK_PX},0`
   const triangle = `M${sign * 8},0L${sign * 8 - 4},-6L${sign * 8 + 4},-6Z`
+  // VEW-65: the words stand on paper, so they read over the earth's hatch and the ground line.
+  const wide = estimateTextWidth(label.words, TEXT_PX.dimension) + 4
+  const backing = el('rect', { 'data-part': 'section-level-backing', x: n(side === 'left' ? -(TICK_PX + 6) - wide : TICK_PX + 2), y: n(2 - TEXT_PX.dimension), width: n(wide + 4), height: n(TEXT_PX.dimension + 4), fill: look.colors.paper })
   return el('g', { 'data-part': label.part, transform: pixelGroup(at, mpp) }, [
+    backing,
     el('path', { d: tick, fill: 'none', stroke: look.colors.dimension, 'stroke-width': n(stroke / mpp) }),
     el('path', { d: triangle, fill: look.colors.dimension }),
     el('text', { x: sign * (TICK_PX + 4), y: '4', 'text-anchor': side === 'left' ? 'end' : 'start', fill: look.colors.dimensionText, 'font-family': look.colors.font, 'font-size': TEXT_PX.dimension }, [label.words])
@@ -233,6 +242,20 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   )
   nodes.push(el('g', { 'data-part': 'section-beyond-group' }, beyond))
 
+  // VEW-65: the earth, in the cut over the picture's whole width: paper, so it hides what lies beyond
+  // it, hatched at 45 degrees as a material is, the building's part below the ground left out.
+  const earth = sectionEarth(section, view.x, view.x + view.width)
+  if (earth.pieces.length > 0) {
+    const spacing = look.lines.unit === 'mm' ? (EARTH_MM * (options.paperScale ?? paperScaleOf(mpp))) / 1000 : EARTH_PX * mpp
+    const hatch = earth.pieces.flatMap((piece) => hatchRings([piece.outline, ...piece.holes], spacing, Math.PI / 4)).map(([a, b]) => lineOf(a, b)).join('')
+    nodes.push(
+      el('g', { 'data-part': 'section-earth-group' }, [
+        el('path', { 'data-part': 'section-earth', d: piecesPath(earth.pieces), fill: paper, 'fill-rule': 'evenodd', stroke: 'none' }),
+        ...(hatch === '' ? [] : [el('path', { 'data-part': 'section-earth-hatch', d: hatch, fill: 'none', stroke: look.lines.unit === 'mm' ? look.ink : look.colors.dimension, 'stroke-width': n(lines.width('hatch')) })])
+      ])
+    )
+  }
+
   // The cut: solid, under the heavy outline in a paper look.
   const cutPath = piecesPath(section.cut)
   if (cutPath !== '') {
@@ -273,10 +296,11 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
     nodes.push(el('g', { 'data-part': 'section-assumed-group' }, marked.map((a) => el('path', { 'data-part': 'section-assumed', 'data-kind': a.kind, 'data-ids': a.ids.join(' '), d: piecesPath(a.pieces), fill: look.colors.dimension, 'fill-opacity': ASSUMED_TINT, 'fill-rule': 'evenodd', stroke: outline, 'stroke-width': n(pen), 'stroke-dasharray': `${n(pen * 6)} ${n(pen * 4)}`, 'stroke-linejoin': 'round' }))))
   }
 
-  // The ground outside the building, in a facade's ground line (LVL-8), so the two drawings match.
+  // The ground outside the building, in a facade's ground line (LVL-8), so the two drawings match;
+  // VEW-65: out to the picture's edges with the earth.
   const g = section.ground
-  if (g.segments.length > 0) {
-    const d = g.segments.map(([a, b]) => lineOf({ x: a, y: g.level }, { x: b, y: g.level })).join('')
+  if (earth.segments.length > 0) {
+    const d = earth.segments.map(([a, b]) => lineOf({ x: a, y: g.level }, { x: b, y: g.level })).join('')
     nodes.push(el('path', { 'data-part': 'section-ground', 'data-stated': String(g.stated), d, fill: 'none', stroke: look.ink, 'stroke-width': n(lines.width('elevationGround')), 'stroke-linecap': 'butt' }))
   }
 

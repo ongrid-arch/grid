@@ -26,6 +26,9 @@ const ACROSS: SectionLine = { from: { x: 5, y: -2 }, to: { x: 5, y: 10 }, toward
 const tagsOf = (svg: string, part: string): string[] => [...svg.matchAll(new RegExp(`<[a-z]+ [^>]*data-part="${part}"[^>]*>`, 'g'))].map((m) => m[0])
 const attr = (tag: string, name: string): string | undefined => tag.match(new RegExp(` ${name}="([^"]*)"`))?.[1]
 
+/** VEW-65: the picture's left and right edges, where the ground line runs out to. */
+const edges = (picture: { readonly view: { readonly x: number; readonly width: number } }): string[] => [picture.view.x, picture.view.x + picture.view.width].map((x) => x.toFixed(4))
+
 describe('a house on a plinth (VEW-16)', () => {
   it('paints the plinth in its facade, down to the ground line', () => {
     const svg = facadeToSvg(house(-0.45), { side: 'south' })
@@ -37,17 +40,21 @@ describe('a house on a plinth (VEW-16)', () => {
   })
 
   it('cuts the plinth in its section, standing on a ground line that runs under the house', () => {
-    const svg = pictureToSvg(sectionPicture(house(-0.45), ACROSS))
+    const picture = sectionPicture(house(-0.45), ACROSS)
+    const svg = pictureToSvg(picture)
     const ground = tagsOf(svg, 'section-ground')
     expect(ground).toHaveLength(1)
-    expect(attr(ground[0]!, 'd')).toBe('M0.0000,0.4500L12.0000,0.4500')
+    // VEW-65: out to the picture's edges.
+    const [left, right] = edges(picture)
+    expect(attr(ground[0]!, 'd')).toBe(`M${left},0.4500L${right},0.4500`)
     expect(attr(tagsOf(svg, 'section-cut')[0]!, 'd')).toContain(',0.4500')
     expect(tagsOf(svg, 'section-beyond').some((tag) => attr(tag, 'data-kind') === 'plinth')).toBe(true)
   })
 
   it('draws a house at the ground as before: no plinth, the ground line stopping at it', () => {
     expect(tagsOf(facadeToSvg(house(-0.25), { side: 'south' }), 'facade-face').some((tag) => attr(tag, 'data-kind') === 'plinth')).toBe(false)
-    const svg = pictureToSvg(sectionPicture(house(-0.25), ACROSS))
-    expect(attr(tagsOf(svg, 'section-ground')[0]!, 'd')).toBe('M0.0000,0.2500L1.8500,0.2500M10.1500,0.2500L12.0000,0.2500')
+    const picture = sectionPicture(house(-0.25), ACROSS)
+    const [left, right] = edges(picture)
+    expect(attr(tagsOf(pictureToSvg(picture), 'section-ground')[0]!, 'd')).toBe(`M${left},0.2500L1.8500,0.2500M10.1500,0.2500L${right},0.2500`)
   })
 })

@@ -40,7 +40,8 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
         line: { from: [line.from.x, line.from.y], to: [line.to.x, line.to.y], toward: line.toward },
         levels: section.levels,
         roofs: section.roofs,
-        ground: { level: section.ground.level, stated: section.ground.stated },
+        // VEW-65: how deep the earth is drawn, and the walls cut below the ground that hold it back.
+        ground: { level: section.ground.level, stated: section.ground.stated, earthBottom: section.ground.earth.bottom, retaining: section.parts.filter((p) => p.retaining === true).map((p) => p.id) },
         rooms: section.rooms.map((r) => ({ room: r.room, floor: r.floor, name: r.name, floorLevel: r.floorLevel, height: r.height, heightStated: r.heightStated })),
         cut: section.parts.map((p) => ({ kind: p.kind, id: p.id, floor: p.floor })),
         shapes: section.cut.length,

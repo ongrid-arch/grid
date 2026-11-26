@@ -898,9 +898,18 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
 - **What lies beyond the cut** is drawn in a lighter line, the one a facade draws its faces set
   back in: the faces of walls, slab and roof edges and stairs that face you, with their doors and
   windows open, each hiding what is behind it.
-- **The ground** is a facade's ground line, the heaviest pen, outside the building, running 1 m
-  past it on each side (`sectionGroundRun` in [tolerances.md](tolerances.md)), at the site's
-  ground level, or at the ground floor's level when the site states none.
+- **The ground** is a facade's ground line, the heaviest pen, at the site's ground level, or at
+  the ground floor's level when the site states none. It runs out to the picture's edges, and
+  stops only where the building stands through the ground: it runs on under a house on its plinth
+  and over a basement that reaches under the garden.
+- **The earth** under it is cut too (VEW-65): hatched as a material, over the picture's width,
+  down to a metre under the lowest thing cut below the ground (`sectionEarthBelow` in
+  [tolerances.md](tolerances.md)). The building's part below the ground is dug out of it, from the
+  outside face of its walls and the underside of its lowest slab, so a basement, a car park's
+  levels or a sunken room stands in its hole; the walls cut below the ground with the outside on
+  one face hold the earth back (`grid_view kind=section` lists them as `retaining`). Where the line
+  ends inside that part, the earth and the ground line stop at the cut's end. One ground level is
+  taken for the whole site: a ground that slopes is not drawn yet.
 - **The levels** stand beside the drawing, in a facade's level-mark line: each floor's on the
   left, each roof's and the ground's on the right, in metres from the ground floor's floor level,
   as `±0.000`, `+2.950`.
