@@ -166,7 +166,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-74: one more, the example of a room line with its number and facts.
   // CNT-41: four more, the site's lines.
   // LVL-21: three more, the stairs' topic.
-  'packages/cli/src/mcp/roomsGrammar.ts': [59, 'tools'],
+  'packages/cli/src/mcp/roomsGrammar.ts': [65, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
@@ -273,7 +273,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-55: nine fewer, the gap, touching, overlap and wall-line refusals moved too.
   // WRT-66: one fewer, the corner cut's refusal that does not fit moved too.
   // WRT-69: one fewer, the walls line's word it cannot read moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [103, 'notYet'],
+  'packages/floorplan/src/rooms/compile.ts': [102, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   'packages/floorplan/src/rooms/read.ts': [22, 'notYet'],
