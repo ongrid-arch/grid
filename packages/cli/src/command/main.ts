@@ -49,6 +49,7 @@ import type { LeftOutPart } from '@ongrid/floorplan/export'
 import { INIT_OPTIONS, initFolder, initProject, InitRefused, initText, PROJECT_FILE, PROJECT_PLAN, projectPlanFile, missingDefaultPlan } from './init'
 import { helpText, onePlanFile, parseOptions, PROJECT_OPTION, textOf, UsageError, type OptionSpecs } from './options'
 import { floorOption, loadPlan, PlanRefused, type LoadedPlan } from './plan'
+import { refusePlanTarget } from './planFile'
 import { SHEET_OPTIONS } from './sheet'
 import { checkTidyRequest, TIDY_OPTIONS, tidyAppliedText, tidyFile, tidyList, tidyListText } from './tidy'
 import { readRoomsFile, RoomsRefused, WRITE_OPTIONS, writeRoomsIntoProject } from './write'
@@ -535,6 +536,8 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       io.stdout(json ? `${JSON.stringify(list, null, 2)}\n` : tidyListText(list))
       return EXIT_OK
     }
+    // CMD-45: --out is never one of Grid's own files, nor a file there already that holds no plan.
+    if (out !== undefined) refusePlanTarget(project, out)
     const done = tidyFile(project, planFile, ids)
     const written = done.text === null ? null : project.shown(write(project, out ?? planFile, done.text))
     const result = { label: GENERAL_GUIDANCE_LABEL, applied: done.applied, skipped: done.skipped, left: done.left, written }

@@ -3572,6 +3572,8 @@ export const en = {
   'trace.pdfPictureKind': 'Page {page} of the trace image {path} holds its picture as {kind}, which Grid does not read yet, so it is not drawn. Save the page as a PNG to trace it.',
   'plan.notAPlan.gridFile': '{file} is not a plan file: it is {kind}, and a plan is never written into it. Name another .json file for the plan; replace does not change this.',
   'plan.notAPlan.noParts': '{file} is not a Grid plan: it holds no walls, rooms or openings.',
+  'plan.notAPlan.target': '{file} is not a Grid plan: it holds no walls, rooms or openings, so a plan is never written over it. Name a new .json file, or a plan file, to write to; replace does not change this. Nothing was written.',
+  'plan.notAPlan.nothingToDraw': '{file} holds nothing to draw: no walls, rooms, openings or items. Write its rooms first (grid write, grid_write_rooms), or name the plan file that holds them.',
   'plan.foreign.dxf': '{file} is a DXF drawing, not a plan. Read it into rooms text and a plan with grid write --from {file} (grid_write_rooms from), then check the rooms text it writes beside the plan.',
   'plan.foreign.dwg': '{file} is a DWG drawing, and Grid does not read DWG. Save it as a DXF and read that with grid write --from (grid_write_rooms from).',
   'plan.foreign.ifc': '{file} is an IFC model, not a plan. Read it into rooms text and a plan with grid write --from {file} (grid_write_rooms from), then check the rooms text it writes beside the plan.',
@@ -3583,7 +3585,10 @@ export const en = {
   'plan.fileKind.seen': 'a file Grid keeps beside a plan (the notes set aside as seen)',
   'plan.fileKind.brief': 'a file Grid keeps beside a plan (the brief)',
   'plan.fileKind.preview': 'a file Grid keeps beside a plan (the preview record)',
-  'plan.fileKind.scan': 'a file Grid keeps beside a plan (the room scan)'
+  'plan.fileKind.scan': 'a file Grid keeps beside a plan (the room scan)',
+  'plan.fileKind.occupancy': 'a file Grid keeps beside a plan (the occupancy figures)',
+  'plan.fileKind.sheet': 'a file Grid keeps beside a plan (the sheet\'s words)',
+  'plan.fileKind.firm': 'the file that holds the firm\'s own standards',
 } as const satisfies Record<string, string>
 
 export type MessageKey = keyof typeof en

@@ -27,6 +27,7 @@ import { WALK_EYE_HEIGHT, WALK_PICTURES_MAX } from '../describe/walk'
 import { drawShowOf } from '../command/drawShow'
 import { UsageError } from '../command/options'
 import { faultText, type LoadedPlan } from '../command/plan'
+import { nothingToDraw } from '../command/planFile'
 import { cropFrame, partBounds, type PartBounds } from '../draw/partBoxes'
 import { DESCRIBE_AUDIENCES, DESCRIBE_LENGTHS } from '../describe/card'
 import { LOOKS, SIDES, pictureLook, type LookName, type Side } from '../draw/viewNames'
@@ -2389,6 +2390,8 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       // What went wrong, numbered as grid_check numbers it, marked on the drawing (MSG-8).
       // VEW-15: from the file's text and its base, as grid_check reads them, so the fields the reading adds are no notes.
       const faults = inspectPlan(loaded.text ?? plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
+      // CMD-45: a plan with nothing in it is refused, not drawn as a blank page.
+      if (nothingToDraw(stated, faults)) throw new ToolRefusal(say('en', 'plan.notAPlan.nothingToDraw', { file: project.relative(read.file) }))
       const display = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
       // SHT-7: what the picture shows, read as grid draw reads --hide, --colour and --key.
       let shownParts

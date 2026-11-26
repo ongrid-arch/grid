@@ -3560,6 +3560,8 @@ export const es: Messages = {
   'trace.pdfPictureKind': 'La página {page} de la imagen de calco {path} guarda su imagen como {kind}, que Grid aún no lee, así que no se dibuja. Guarda la página como PNG para calcarla.',
   'plan.notAPlan.gridFile': '{file} no es un archivo de plano: es {kind}, y nunca se escribe un plano en él. Indica otro archivo .json para el plano; replace no cambia esto.',
   'plan.notAPlan.noParts': '{file} no es un plano de Grid: no contiene muros, estancias ni huecos.',
+  'plan.notAPlan.target': '{file} no es un plano de Grid: no contiene muros, estancias ni huecos, así que nunca se escribe un plano encima. Indica un archivo .json nuevo, o un archivo de plano, donde escribir; replace no cambia esto. No se escribió nada.',
+  'plan.notAPlan.nothingToDraw': '{file} no contiene nada que dibujar: ningún muro, estancia, hueco ni elemento. Escribe primero sus estancias (grid write, grid_write_rooms), o indica el archivo de plano que las contiene.',
   'plan.foreign.dxf': '{file} es un dibujo DXF, no un plano. Léelo como texto de estancias y plano con grid write --from {file} (grid_write_rooms from), y revisa el texto de estancias que escribe junto al plano.',
   'plan.foreign.dwg': '{file} es un dibujo DWG, y Grid no lee DWG. Guárdalo como DXF y léelo con grid write --from (grid_write_rooms from).',
   'plan.foreign.ifc': '{file} es un modelo IFC, no un plano. Léelo como texto de estancias y plano con grid write --from {file} (grid_write_rooms from), y revisa el texto de estancias que escribe junto al plano.',
@@ -3571,5 +3573,8 @@ export const es: Messages = {
   'plan.fileKind.seen': 'un archivo que Grid guarda junto a un plano (las notas dadas por vistas)',
   'plan.fileKind.brief': 'un archivo que Grid guarda junto a un plano (el encargo)',
   'plan.fileKind.preview': 'un archivo que Grid guarda junto a un plano (el registro de la vista previa)',
-  'plan.fileKind.scan': 'un archivo que Grid guarda junto a un plano (el escaneo de estancias)'
+  'plan.fileKind.scan': 'un archivo que Grid guarda junto a un plano (el escaneo de estancias)',
+  'plan.fileKind.occupancy': 'un archivo que Grid guarda junto a un plano (las cifras de ocupación)',
+  'plan.fileKind.sheet': 'un archivo que Grid guarda junto a un plano (los textos de la lámina)',
+  'plan.fileKind.firm': 'el archivo con las normas propias del estudio',
 }

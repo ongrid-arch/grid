@@ -9,6 +9,7 @@
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { tidyFile, tidyList, type TidyFault } from '../command/tidy'
+import { refusePlanTarget } from '../command/planFile'
 import { asRefusal, listSchema, NULLABLE_STRING, objectSchema, PLAN_ARG, readPlan, STRING, ToolRefusal, type GridTool } from './toolkit'
 
 export const TIDY_TOOL_NAME = 'grid_tidy'
@@ -67,6 +68,8 @@ export const tidyTool: GridTool = {
     const { project, file, loaded } = readPlan(context, args['plan'], { whole: true })
     try {
       if (out !== undefined) project.resolve(out)
+      // CMD-45: out is never one of Grid's own files, nor a file there already that holds no plan.
+      if (out !== undefined && (ids !== undefined || all)) refusePlanTarget(project, out)
       if (ids === undefined && !all) {
         const list = tidyList(loaded)
         const fixable = list.faults.filter((f) => f.fix !== null)
