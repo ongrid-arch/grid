@@ -118,6 +118,20 @@ export const BUILT_IN_ROOMS: readonly TypicalRoom[] = [
     ],
     source: BUILT_IN_SOURCE,
   },
+  // CNT-48: a shower room and a kitchen, so a room's usual fixtures are one call
+  // (`grid_add_item` with the typical room's name and a room).
+  {
+    name: 'shower-room',
+    label: 'Shower room',
+    use: 'bathroom',
+    size: [2.1, 1.8],
+    items: [
+      { library: 'shower-900', at: [0.45, 0.45] },
+      { library: 'wc', at: [1.25, 0.325] },
+      { library: 'basin', at: [1.75, 1.575], turn: 180 },
+    ],
+    source: BUILT_IN_SOURCE,
+  },
   {
     name: 'cloakroom',
     label: 'Cloakroom',
@@ -127,6 +141,14 @@ export const BUILT_IN_ROOMS: readonly TypicalRoom[] = [
       { library: 'wc', at: [0.4, 0.325] },
       { library: 'basin-small', at: [0.825, 1.2], turn: 90 },
     ],
+    source: BUILT_IN_SOURCE,
+  },
+  {
+    name: 'kitchen',
+    label: 'Kitchen',
+    use: 'kitchen',
+    size: [3, 2.4],
+    items: [{ library: 'kitchen-run-3000', at: [1.5, 0.3] }],
     source: BUILT_IN_SOURCE,
   },
   {

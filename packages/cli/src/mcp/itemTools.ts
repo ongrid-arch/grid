@@ -10,6 +10,7 @@ import { ITEM_SIDES, type ItemSide } from '@ongrid/floorplan/rooms'
 import { NAME_MAX } from '../command/planText'
 import { PathRefused } from '../fs/projectFiles'
 import { addItem, moveItem, removeItems, type ItemPlace } from '../edit/items'
+import { addFixtureSet, typicalRoomOf } from '../edit/fixtureSets'
 import { libraryFor } from '../library/office'
 import { BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, objectSchema, PLAN_ARG, planFileOf, projectOf, STRING, ToolRefusal, type ArgSpecs, type GridTool, type ToolContext } from './toolkit'
 import { EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
@@ -29,7 +30,7 @@ const PLACE_ARGS: ArgSpecs = {
 
 const ITEM_OUTPUT = {
   ...EDIT_OUTPUT,
-  properties: { ...(EDIT_OUTPUT['properties'] as Record<string, unknown>), item: STRING, fits: BOOLEAN, worthALook: listSchema(objectSchema({ code: STRING, id: STRING, message: STRING })) },
+  properties: { ...(EDIT_OUTPUT['properties'] as Record<string, unknown>), item: STRING, fits: BOOLEAN, notPlaced: listSchema(STRING), worthALook: listSchema(objectSchema({ code: STRING, id: STRING, message: STRING })) },
 }
 
 /** An out path outside the project is refused before the item is placed, whatever the plan holds. */
@@ -71,11 +72,12 @@ export const addItemTool: GridTool = {
     'Use this when the person asks for a fixture or a piece of furniture against a wall of a room: "a bath along the north wall of the bathroom, in the west corner", "a WC 0.3 m from the west end of the south wall", "a built-in wardrobe the full width of the bedroom\'s east wall", "a sofa against the living room\'s west wall". '
     + 'Give name (a library entry such as bath, wc, double-bed, wardrobe, sofa-3; grid_measure what=library lists them; or a kind: toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant), room and against: its back goes on that side\'s inside face and its turn is worked out, so it faces into the room. end puts it in a corner, from and distance that far from one, full_width makes it the length of the side; centred otherwise. Or give x and y (its middle) and turn. '
     + 'width, depth, height, clearance and label are its own figures in place of the entry\'s; a kind with no size is Grid\'s first entry of that kind. It answers with the room it stands in and whether it fits (a wall it runs into, an item it stands in, the clear floor kept in front of one that something blocks). Rooms text writes the same: item tub bath in bathroom against north, at west. '
-    + 'Do not use for a typical room\'s worth of items at once (grid_place_item), or to move or take out an item already placed (grid_move_item, grid_remove_item). It replaces the plan file unless out is given. Lengths are metres, or text with their unit.',
+    + 'A room\'s usual fixtures in one call: name a typical room (kitchen, bathroom, shower-room, cloakroom, or the office\'s own) with room and no against, x or y, and each of its items is set out against a side of that room where Grid\'s checks find it clear of the walls, the doors and the other fixtures, a smaller one of the same thing (a shower for a bath, a 2.4 m kitchen run for a 3 m one) when it fits nowhere; a kind the room holds already is not added again, and notPlaced lists what fits nowhere. '
+    + 'Do not use to set a typical room out at a point as it is drawn (grid_place_item), or to move or take out an item already placed (grid_move_item, grid_remove_item). It replaces the plan file unless out is given. Lengths are metres, or text with their unit.',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
-    name: { type: 'string', id: true, required: true, description: 'A library entry (bath, wc, double-bed, wardrobe) or a kind (toilet, storage).', examples: ['bath', 'wardrobe', 'toilet'] },
+    name: { type: 'string', id: true, required: true, description: 'A library entry (bath, wc, double-bed, wardrobe), a kind (toilet, storage), or with room alone a typical room (kitchen, bathroom) whose usual fixtures are set out in it.', examples: ['bath', 'wardrobe', 'toilet', 'kitchen'] },
     id: { type: 'string', id: true, description: 'Its id. Unstated, its name, made unique.', examples: ['tub', 'robe-1'] },
     label: { type: 'string', maxLength: NAME_MAX, description: 'What the drawing calls it, in place of the entry\'s label.', examples: ['Bath 1700', 'Built-in wardrobe'] },
     ...PLACE_ARGS,
@@ -95,6 +97,13 @@ export const addItemTool: GridTool = {
     if (width !== undefined && depth === undefined) throw new ToolRefusal("Give width with depth: the item's own size is both.")
     return writeChange(context, args, (survey) => {
       const { library } = libraryFor(project, file, survey.plan)
+      // CNT-48: a typical room named with a room and no place: its usual fixtures, each where it fits.
+      const set = args['room'] !== undefined && args['against'] === undefined && args['x'] === undefined && args['y'] === undefined ? typicalRoomOf(library, args['name'] as string) : undefined
+      if (set !== undefined) {
+        const own = ['id', 'label', 'width', 'depth', 'height', 'clearance', 'end', 'from', 'distance', 'full_width', 'turn', 'floor'].filter((key) => args[key] !== undefined)
+        if (own.length > 0) throw new ToolRefusal(`${JSON.stringify(args['name'])} is a typical room of several items, each set out where it fits, so it takes no ${own.join(', ')}: give name and room alone, or add its items one by one.`)
+        return addFixtureSet(survey, library, { name: args['name'] as string, room: args['room'] as string })
+      }
       const floor = floorArg(survey.plan, args['floor'])
       return addItem(survey, library, {
         name: args['name'] as string,
