@@ -3398,7 +3398,7 @@ export const es: Messages = {
   'trace.drawnTurned': 'La imagen de calco {path}, de {width} × {height} px, se dibuja bajo el plano, {scale}, girada {degrees}° en sentido antihorario alrededor de su esquina superior izquierda, en ({x}, {y}) m.',
   'trace.scale.calibration': '1 px = {metres} m, fijada con dos puntos de la imagen a {pixels} px que en el edificio distan {length} m',
   'trace.scale.stated': '1 px = {metres} m, la escala que indica el plano',
-  'trace.scale.none': 'todavía sin escala, así que a 1 px = {metres} m: no está a escala hasta que su escala se fije con dos puntos de la imagen y la longitud entre ellos (referenceImage.calibration)',
+  'trace.scale.none': 'todavía sin escala, así que a 1 px = {metres} m: no está a escala hasta que su escala se fije con dos puntos de la imagen y la longitud entre ellos (grid_place_trace, o referenceImage.calibration)',
   'trace.missing': 'La imagen de calco {path} aún no está en la carpeta del proyecto, así que no se dibuja.',
   'trace.notPicture': 'La imagen de calco {path} no es una imagen PNG ni JPEG, así que no se dibuja.',
   'trace.tooLarge': 'La imagen de calco {path} ocupa más de {megabytes} MB, así que no se dibuja.',

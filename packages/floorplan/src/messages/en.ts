@@ -3408,7 +3408,7 @@ export const en = {
   'trace.drawnTurned': 'The trace image {path}, {width} × {height} px, is drawn under the plan, {scale}, turned {degrees}° counter-clockwise about its top-left corner at ({x}, {y}) m.',
   'trace.scale.calibration': '1 px = {metres} m, set from two points on it {pixels} px apart that are {length} m apart on the building',
   'trace.scale.stated': '1 px = {metres} m, the scale the plan states',
-  'trace.scale.none': 'with no scale yet, so at 1 px = {metres} m: it is not to scale until its scale is set from two points on it and the length between them (referenceImage.calibration)',
+  'trace.scale.none': 'with no scale yet, so at 1 px = {metres} m: it is not to scale until its scale is set from two points on it and the length between them (grid_place_trace, or referenceImage.calibration)',
   'trace.missing': 'The trace image {path} is not in the project folder yet, so it is not drawn.',
   'trace.notPicture': 'The trace image {path} is not a PNG or a JPEG picture, so it is not drawn.',
   'trace.tooLarge': 'The trace image {path} is larger than {megabytes} MB, so it is not drawn.',
