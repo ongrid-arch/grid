@@ -34,6 +34,8 @@ function rule(selector: string): Map<string, string> {
 const TOKEN_OF: Record<Exclude<keyof PlanLook, 'font'>, string> = {
   paper: '--plan-paper',
   room: '--plan-room',
+  outdoorRoom: '--plan-outdoor-room',
+  edge: '--plan-edge',
   wall: '--plan-wall',
   wallExterior: '--plan-wall-exterior',
   // SHT-10: the inside walls' and the partitions' fills.
@@ -67,6 +69,9 @@ describe('the picture look', () => {
     const at = (part: string, extra = '') => rule(`.canvas ${extra}[data-part='${part}']`)
     expect(number(at('virtual').get('stroke-width'))).toBe(LINE_PX.virtual)
     expect(at('virtual').get('stroke-dasharray')).toBe(LINE_PX.virtualDash.join(' '))
+    const edges = rule(".canvas :is([data-part='open-edge'], [data-part='railing'], [data-part='low-wall'])")
+    expect(number(edges.get('stroke-width'))).toBe(LINE_PX.edge)
+    expect(edges.get('vector-effect')).toBe('non-scaling-stroke')
     expect(number(at('opening').get('stroke-width'))).toBe(LINE_PX.opening)
     expect(number(at('jamb').get('stroke-width'))).toBe(LINE_PX.jamb)
     expect(number(at('step').get('stroke-width'))).toBe(LINE_PX.step)
