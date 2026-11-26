@@ -44,6 +44,14 @@ describe('grid_view kind=section', () => {
     expect(answer.text).toContain('  dashed: The roof over "Second floor" is taken as flat and 0.25 m thick, on its walls: the plan states no roof.')
   })
 
+  it('gives how deep the earth is drawn and the walls that hold it back (VEW-65)', async () => {
+    const answer = await call({ kind: 'section', cut: THROUGH_STAIR })
+    const ground = (answer.data as { section: { ground: { level: number; earthBottom: number; retaining: string[] } } }).section.ground
+    // A metre under the ground floor's 0.25 m slab; no wall of the townhouse is cut below the ground.
+    expect(ground.earthBottom).toBeCloseTo(-1.25, 6)
+    expect(ground.retaining).toEqual([])
+  })
+
   it('draws in the technical look unless the working look is asked for, and says so in its schema', async () => {
     const asked = await call({ kind: 'section', cut: THROUGH_STAIR, look: 'working' })
     expect(asked.text).toContain('looking to the left of the line, working')

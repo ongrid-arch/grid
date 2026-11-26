@@ -18,6 +18,9 @@
  *   solid down to the floor the stair leaves;
  * - the floor of each raised room (LVL-7), solid from its storey's floor up;
  * - the ground the site states (LVL-4), and which side of each cut wall is outside (MSG-13, CNT-3);
+ * - VEW-65: the earth under the ground, in the cut, less the building's part below the ground, so a
+ *   basement stands in its hole, the walls cut below the ground with the outside on one face holding
+ *   it back (`retaining`); `sectionEarth` runs it, and the ground line, out to a picture's edges;
  * - the plinth under a floor on the ground whose slab stands clear of that ground (VEW-16,
  *   `plinthUnder`): its outside walls carried down to the ground, the band they stand on
  *   (`outerWallBand`) from the ground up to the slab, cut and seen beyond. The ground line runs on
@@ -110,6 +113,27 @@ export interface SectionPart {
   readonly outside?: 'left' | 'right' | null
   /** VEW-23: for a wall: its type is glazed, so it is cut as glass in a frame, not as solid. */
   readonly glazed?: true
+  /** VEW-65: for a wall: it is cut below the ground with the outside on one face, so it holds the earth back. */
+  readonly retaining?: true
+}
+
+/**
+ * VEW-65: the earth in the cut, under the ground line. The building's own part below the ground
+ * (`dug`) is left out of it: a basement stands in its hole.
+ */
+export interface SectionEarth {
+  /** Its lowest level: `sectionEarthBelow` under the lowest thing cut under the ground, or under the ground. */
+  readonly bottom: number
+  /** The earth from x = 0 to the line's length, from `bottom` up to the ground, less `dug`. */
+  readonly pieces: readonly SectionPiece[]
+  /**
+   * The building below the ground: along the line, from the lowest foot of the floors standing
+   * there (a slab's underside, a sunken room's) up to the highest top of their storeys, cut off at
+   * the ground, with every cut part below it.
+   */
+  readonly dug: readonly SectionPiece[]
+  /** Whether each end of the line is clear of `dug`, so the earth and the ground line may run on past it. */
+  readonly open: { readonly start: boolean; readonly end: boolean }
 }
 
 export type SectionFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'plinth'
@@ -233,10 +257,12 @@ export interface PlanSection {
   /** What lies beyond the cut, farthest first. */
   readonly beyond: readonly SectionFace[]
   /**
-   * The ground: its level, whether the site states it, and the stretches of its line: outside the
-   * building, and under a floor that stands clear of it on its plinth (VEW-16).
+   * The ground: its level, whether the site states it, and the stretches of its line from x = 0 to
+   * the line's length (VEW-65): wherever no floor stands through the ground, so under a floor that
+   * stands clear of it on its plinth (VEW-16) and over a basement that lies under it. `earth` is
+   * the earth below it.
    */
-  readonly ground: { readonly level: number; readonly stated: boolean; readonly segments: readonly (readonly [number, number])[] }
+  readonly ground: { readonly level: number; readonly stated: boolean; readonly segments: readonly (readonly [number, number])[]; readonly earth: SectionEarth }
   /** Every floor's level, lowest first. */
   readonly levels: readonly SectionLevel[]
   /** The top of each roof the line cuts, by the floor it covers. */
@@ -782,7 +808,6 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   // The slabs, roofs and parapets (LVL-4).
   const roofs: SectionRoof[] = []
   const unstatedSlabs: { floor: Floor; rings: Vec2[][] }[] = []
-  const onPlinths = new Set<string>()
   const roofRings: { floor: Floor; rings: Vec2[][]; thickness: number; shape: RoofShape | null }[] = []
   for (const floor of floors) {
     const shell = envelope.floors.find((f) => f.floor === floor.id)
@@ -808,7 +833,6 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     // VEW-16: the outside walls carried down to the ground, under a floor whose slab stands clear of it.
     const plinth = plinthUnder(shell.slab, ground.level)
     if (plinth !== null) {
-      onPlinths.add(floor.id)
       const band = plinthBand(floor.id)
       const rings = inside(frame, ringsOf(band)).map(([x0, x1]) => rect(snap, x0, x1, plinth.bottom, plinth.top))
       if (rings.length > 0) parts.push({ kind: 'plinth', id: floor.id, floor: floor.id, rings })
@@ -1070,32 +1094,68 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     faces.push({ kind: 'stair', id: stair.id, floor: stair.lower.floor, depth: (da + db) / 2, pieces: [{ outline: ring, holes: [] }], edge: null })
   }
 
-  // The ground: outside the floors that meet it, where the line crosses them, run past the building
-  // on both sides. VEW-16: a floor on its plinth stands clear of the ground, which runs on under it.
-  const meets = floors.filter((floor) => {
+  // VEW-65: each floor's body along the line: from its foot (its slab's underside, a sunken room's
+  // lower) up to its storey's top, where its outline is.
+  const bodies: { from: number; to: number; foot: number; top: number }[] = []
+  for (const floor of floors) {
     const shell = envelope.floors.find((f) => f.floor === floor.id)
-    const level = elevations.floors.get(floor.id)?.floorLevel ?? 0
-    return levelOf(floor) === Math.min(...floors.map(levelOf)) || level - (shell?.slab?.thickness ?? 0) <= ground.level
-  })
-  const stretchesOf = (list: readonly Floor[]): [number, number][] =>
-    mergeStretches(
-      list.flatMap((floor) => {
-        const outline = envelope.floors.find((f) => f.floor === floor.id)?.outline
-        return outline == null ? [] : inside(frame, ringsOf(outline), false)
-      }).filter(([a, b]) => b > 0 && a < lineLength)
-    )
-  const building = stretchesOf(meets)
-  const reaching = stretchesOf(meets.filter((floor) => !onPlinths.has(floor.id)))
-  const run = limit('sectionGroundRun')
-  const groundFrom = building.length === 0 ? 0 : Math.min(0, building[0]![0] - run)
-  const groundTo = building.length === 0 ? lineLength : Math.max(lineLength, building[building.length - 1]![1] + run)
+    const storey = elevations.floors.get(floor.id)
+    if (shell?.outline == null || shell.slab === null || storey === undefined) continue
+    // A roof over it, such as a basement's that stands out of the ground, is its top too.
+    const top = Math.max(storey.floorLevel + storey.clearHeight, shell.roof === null ? -Infinity : shell.roof.bottom + shell.roof.thickness)
+    const foot = shell.slab.top - Math.max(0, shell.slab.thickness)
+    for (const [from, to] of inside(frame, ringsOf(shell.outline))) bodies.push({ from, to, foot, top })
+    for (const sunk of shell.slab.sunken) {
+      for (const [from, to] of inside(frame, ringsOf(sunk.pieces))) bodies.push({ from, to, foot: foot + Math.min(0, sunk.offset), top })
+    }
+  }
+
+  // The ground line, from x = 0 to the line's length, the cut's own extent: wherever no floor stands
+  // through the ground, its foot at or under it (no plinth, VEW-16) and its top over it. So it runs on
+  // under a floor on its plinth, and over a basement under a garden.
+  const through = mergeStretches(
+    bodies.filter((b) => !(b.foot - ground.level > tolerance('plinthLeast')) && b.top - ground.level > tolerance('sameFloorLevel')).map((b) => [b.from, b.to] as const)
+  )
   const segments: [number, number][] = []
-  let cursor = groundFrom
-  for (const [a, b] of reaching) {
+  let cursor = 0
+  for (const [a, b] of through) {
     if (a - cursor > none) segments.push([snap(cursor), snap(a)])
     cursor = Math.max(cursor, b)
   }
-  if (groundTo - cursor > none) segments.push([snap(cursor), snap(groundTo)])
+  if (lineLength - cursor > none) segments.push([snap(cursor), snap(lineLength)])
+
+  // VEW-65: the building below the ground: along the line, the lowest foot to the highest top of the
+  // floors standing there, cut off at the ground, with every cut part below it.
+  const dugRings: Vec2[][] = []
+  const breaks = [...new Set(bodies.flatMap((b) => [b.from, b.to]))].sort((a, b) => a - b)
+  for (let i = 0; i + 1 < breaks.length; i++) {
+    const [x0, x1] = [breaks[i]!, breaks[i + 1]!]
+    if (!(x1 - x0 > none)) continue
+    const mid = (x0 + x1) / 2
+    const standing = bodies.filter((b) => b.from <= mid && b.to >= mid)
+    if (standing.length === 0) continue
+    const foot = Math.min(...standing.map((b) => b.foot))
+    const top = Math.min(ground.level, Math.max(...standing.map((b) => b.top)))
+    if (top - foot > none) dugRings.push(rect(snap, x0, x1, foot, top))
+  }
+  const cutRings = parts.flatMap((p) => p.rings).filter((ring) => ring.some((p) => p.y < ground.level - none))
+  const lowest = Math.min(ground.level, ...dugRings.flat().map((p) => p.y), ...cutRings.flat().map((p) => p.y))
+  const below = [[ringOf(rect(snap, -1, lineLength + 1, lowest - 1, ground.level))]]
+  const dugAll = [...dugRings, ...cutRings].filter((ring) => Math.abs(signedArea(ring)) > 0)
+  const dug: MultiPolygon = dugAll.length === 0 ? [] : (cutOutline('intersection', union(dugAll.map((ring) => [ringOf(ring)])), below) ?? [])
+  const earthBottom = snap(lowest - limit('sectionEarthBelow'))
+  const touches = (x: number): boolean => piecesAsRings(dug).some((piece) => piece.outline.some((p) => Math.abs(p.x - x) <= tolerance('shellGrid')))
+  const earth: SectionEarth = {
+    bottom: earthBottom,
+    pieces: earthBetween(dug, 0, lineLength, earthBottom, ground.level, snap),
+    dug: piecesAsRings(dug).map((piece) => ({ outline: piece.outline.map((p) => ({ x: snap(p.x), y: snap(p.y) })), holes: piece.holes.map((h) => h.map((p) => ({ x: snap(p.x), y: snap(p.y) }))) })),
+    open: { start: !touches(0), end: !touches(lineLength) }
+  }
+  // A wall cut below the ground with the outside on one face holds the earth back.
+  parts.forEach((part, i) => {
+    if (part.kind !== 'wall' || part.outside == null) return
+    if (part.rings.some((ring) => ring.some((p) => p.y < ground.level - tolerance('sameFloorLevel')))) parts[i] = { ...part, retaining: true }
+  })
 
   // What is taken, in the order it is listed. MSG-11: each sentence by key (`drawing.section.taken.*`),
   // carried as `said`; `words` is its English.
@@ -1197,7 +1257,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     ...faces.flatMap((f) => (f.edge === null ? f.pieces.flatMap((p) => p.outline) : [...f.edge])),
     ...segments.flatMap(([a, b]) => [{ x: a, y: ground.level }, { x: b, y: ground.level }]),
     { x: 0, y: ground.level },
-    { x: lineLength, y: ground.level }
+    { x: lineLength, y: ground.level },
+    { x: 0, y: earth.bottom }
   ]
   return {
     line,
@@ -1209,7 +1270,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     parts,
     glass,
     beyond: faces,
-    ground: { level: ground.level, stated: ground.stated, segments },
+    ground: { level: ground.level, stated: ground.stated, segments, earth },
     levels: levels.sort((a, b) => a.level - b.level),
     roofs,
     rooms: shownRooms,
@@ -1217,6 +1278,34 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     assumed: notes,
     bounds: boundsOf(points)
   }
+}
+
+/** VEW-65: the earth from `x0` to `x1`, from `bottom` up to the ground, less the building below the ground. */
+function earthBetween(dug: MultiPolygon, x0: number, x1: number, bottom: number, level: number, snap: (v: number) => number): SectionPiece[] {
+  if (!(x1 - x0 > tolerance('noLength')) || !(level - bottom > tolerance('noLength'))) return []
+  const band = [ringOf(rect(snap, x0, x1, bottom, level))]
+  const left = dug.length === 0 ? [band] : cutOutline('difference', band, [dug])
+  if (left === null) return []
+  const snapped = (ring: readonly Vec2[]): Vec2[] => ring.map((p) => ({ x: snap(p.x), y: snap(p.y) }))
+  return piecesAsRings(left).map((piece) => ({ outline: snapped(piece.outline), holes: piece.holes.map(snapped) }))
+}
+
+/**
+ * VEW-65: a section's earth and ground line run out to `from` and `to` across the section (`from`
+ * at or left of 0, `to` at or right of its length), for a picture to reach its edges: at each end of
+ * the line clear of the building below the ground (`earth.open`), and only there. At an end the
+ * line stops in the building's part below the ground, both stop at the cut's end, as the cut does.
+ */
+export function sectionEarth(section: PlanSection, from: number, to: number): { readonly pieces: readonly SectionPiece[]; readonly segments: readonly (readonly [number, number])[] } {
+  const snap = snapper()
+  const { earth, segments, level } = section.ground
+  const left = earth.open.start ? Math.min(0, from) : 0
+  const right = earth.open.end ? Math.max(section.length, to) : section.length
+  const dug: MultiPolygon = earth.dug.map((piece) => [ringOf(piece.outline), ...piece.holes.map(ringOf)])
+  const pieces = earthBetween(dug, left, right, earth.bottom, level, snap)
+  const near = tolerance('shellGrid')
+  const out = segments.map(([a, b]): [number, number] => [a <= near ? snap(left) : a, b >= section.length - near ? snap(right) : b])
+  return { pieces, segments: out }
 }
 
 /** Farthest first; of two as far, a face before a line, so the corner shows. */

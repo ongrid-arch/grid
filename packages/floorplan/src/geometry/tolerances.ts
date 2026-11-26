@@ -967,13 +967,13 @@ export const TOLERANCES = {
       'on a plinth (VEW-16). It only draws; it judges nothing.',
     basis: own
   },
-  sectionGroundRun: {
+  sectionEarthBelow: {
     kind: 'limit',
     value: 1,
     unit: 'm',
     decides:
-      'How far the ground line of a section runs past the building on each side (LVL-9). It only ' +
-      'draws the section; it judges nothing.',
+      'How far below the lowest thing a section cuts under the ground, or below the ground where ' +
+      'it cuts nothing there, the earth is drawn (VEW-65). It only draws the section; it judges nothing.',
     basis: own
   },
   elevationMarkOffset: {
