@@ -375,7 +375,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CMD-35 2: diff's --out refusal and help line, and the drawing refusal's reason (the sheet
     // refusal for no layout is gone).
     // and SHT-20 2: printing a sheet at a stated scale and paper size (it used the cap's slack on its own).
-    expect(left).toBeLessThanOrEqual(1661)
+    // and CNT-40 1: the estimate's plural words for the new room uses (quantities/estimate.ts).
+    expect(left).toBeLessThanOrEqual(1662)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
