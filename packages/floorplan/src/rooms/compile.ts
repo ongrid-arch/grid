@@ -31,7 +31,9 @@
  *       `elevation=0`, `level: 1` and `Height = 2.7` are read as `elevation 0` and so on (WRT-14)
  *   room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where> [...]
  *   room <id> "<name>" <use|-> polygon x,y x,y x,y ...                 inside faces; a point's
- *       lengths may carry their unit, as a size's do: 10ft,0ft (WRT-62)
+ *       lengths may carry their unit, as a size's do: 10ft,0ft (WRT-62). The points are the room's
+ *       place, from the drawing's origin (the unit's, in a unit): 'at', a side or a corner on the
+ *       same line is refused, never read as a move (WRT-63)
  *       <where>: at x,y (the south-west corner the size measures to: inside, unless centre or outside)
  *                <north|south|east|west> of <room or unit> [align <side|centre>] [shift <m>] [until [near] <room>] [open [<room>]]
  *                inside <room> corner <ne|nw|se|sw> [wall <t> [kind]] [open]  cuts that corner out of the room
@@ -1545,12 +1547,20 @@ class Compiler {
       }
     }
     if (poly !== null) {
-      let origin: P = place.at ?? [0, 0]
+      // WRT-63: a polygon's points are its place, from the drawing's origin or the unit's; a place
+      // written beside them is refused, never read as a move or dropped.
+      if (placedBy.length > 0) {
+        const from = place.at
+        if (from !== undefined) {
+          const points = `polygon ${poly.map((p) => `${metres(p[0] + from[0])},${metres(p[1] + from[1])}`).join(' ')}`
+          this.stop('rooms/syntax', at, english(said('rooms.room.polygonAt', { line: at, room: id, at: placedBy[0]!, points })))
+        }
+        this.stop('rooms/syntax', at, english(said('rooms.room.polygonPlaced', { line: at, room: id, place: placedBy[0]! })))
+      }
       let pts = poly
       if (mx) pts = pts.map((p) => [-p[0], p[1]] as P)
       if (my) pts = pts.map((p) => [p[0], -p[1]] as P)
-      if (ctx !== null && place.at) origin = [mx ? -origin[0] : origin[0], my ? -origin[1] : origin[1]]
-      room.poly = cleanPoly(pts.map((p) => [p[0] + origin[0], p[1] + origin[1]] as P))
+      room.poly = cleanPoly(pts)
       room.box = boxOf([room.poly])
       if (!polyMeant) {
         this.side(at, id, 'width', room.box[2] - room.box[0], 'polygon')

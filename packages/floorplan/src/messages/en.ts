@@ -2077,6 +2077,9 @@ export const en = {
   // WRT-55: a room line read as written, or refused for what is really wrong.
   'rooms.room.placedTwice': "Line {line}: room '{room}' is placed twice, by '{first}' and by '{second}'. A room goes in one place: keep the one meant and take the other out.",
   'rooms.room.sizedTwice': "Line {line}: room '{room}' is sized twice, '{first}' and '{second}'. A room has one size: keep the one meant and take the other out.",
+  // WRT-63: a place written on a polygon room, whose points are its place.
+  'rooms.room.polygonAt': "Line {line}: room '{room}' is a polygon, and its points are its place, measured from the drawing's origin (the unit's, in a unit), so '{at}' is not read as a move. To move the room, write its points moved: '{points}'.",
+  'rooms.room.polygonPlaced': "Line {line}: room '{room}' is a polygon, and its points are its place, so '{place}' cannot place it as well. Write the points where the room stands, or give it a size in place of the polygon: '<width> x <depth> {place}'.",
   'rooms.room.floorNamed':
     "Line {line}: 'floor {floor}' is not read on a room line. A room stands on the storey whose floor line comes above it: write 'floor {floor}' on a line of its own, then that floor's rooms under it, and the next floor line starts the next storey. On a room line, 'floor <m>' is a number: how far the room's own floor stands above or below its storey's (a minus for below).",
   'rooms.room.openUnit': "Line {line}: 'open' needs one room to be open to, and '{ref}' is a unit. Name the room: {rooms}.",

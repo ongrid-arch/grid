@@ -30,6 +30,47 @@ describe('a room placed or sized twice', () => {
   })
 })
 
+describe('a polygon room is placed by its points (WRT-63)', () => {
+  it('refuses at after the points, offering the points moved', () => {
+    const result = write('room a "A" living polygon 0,0 4,0 4,3 0,3 at 1,1\n')
+    expect(result.plan).toBeNull()
+    expect(codes(result)).toEqual(['rooms/syntax'])
+    const message = result.problems[0]!.message
+    expect(message).toContain("'at 1,1'")
+    expect(message).toContain('polygon 1,1 5,1 5,4 1,4')
+  })
+
+  it('refuses at before the points too, and in feet', () => {
+    const result = write('room a "A" living at 2,0 polygon 0,0 10ft,0 10ft,10ft 0,10ft\n')
+    expect(codes(result)).toEqual(['rooms/syntax'])
+    expect(result.problems[0]!.message).toContain('polygon 2,0 5.048,0 5.048,3.048 2,3.048')
+  })
+
+  it('refuses a side or a corner on a polygon, which was dropped', () => {
+    const beside = write('room a "A" living 4 x 4 at 0,0\nroom b "B" bedroom polygon 0,0 3,0 3,3 0,3 north of a\n')
+    expect(codes(beside)).toEqual(['rooms/syntax'])
+    expect(beside.problems[0]!.message).toContain("'north of a'")
+    const cut = write('room a "A" living 4 x 4 at 0,0\nroom b "B" store polygon 0,0 1,0 1,1 0,1 inside a corner ne\n')
+    expect(codes(cut)).toEqual(['rooms/syntax'])
+  })
+
+  it('refuses at on a polygon in a unit', () => {
+    const result = write('unit cabin\nroom c "Cabin" bedroom polygon 0,0 4,0 4,3 0,3 at 1,0\nend\nplace cabin as 301 at 0,0\n')
+    expect(codes(result)).toEqual(['rooms/syntax'])
+    expect(result.problems[0]!.message).toContain('polygon 1,0 5,0 5,3 1,3')
+  })
+
+  it('writes a polygon with no place where its points say', () => {
+    const result = write('room a "A" living polygon 1,1 5,1 5,4 1,4\n')
+    expect(result.problems).toEqual([])
+    // The outside walls' centre lines, 0.15 m out from the points written.
+    const ends = result.walls.flatMap((w) => w.stretches.flatMap((s) => [s.start, s.end]))
+    const xs = ends.map((p) => p[0])
+    const ys = ends.map((p) => p[1])
+    expect([Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)].map((v) => Math.round(v * 1000) / 1000)).toEqual([0.85, 5.15, 0.85, 4.15])
+  })
+})
+
 describe('until and a stretched side', () => {
   it('stops at the near face of the room it names when that room is in the way', () => {
     const result = write('room a "A" living 4 x 4\nroom x "X" living 2 x 4 east of a\nroom b "B" bedroom 3 x 6 east of x\nroom c "C" corridor * x 1.5 north of a until b\n')
