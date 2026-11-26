@@ -109,7 +109,7 @@
  *
  * Pure: text in, a plan and a report out. Nothing here reads or writes a file.
  */
-import { BUILDING_TYPES, DEFAULT_FLOOR_ID, DOOR_KINDS, OPENING_KINDS, OUTDOOR_KINDS, ROOM_TENURES, ROOM_USES, WALL_DEFAULTS, WINDOW_KINDS, WallKindSchema, readUse, type BuildingType, type FloorPlan, type Opening, type OpeningKind, type Room, type OutdoorKind, type RoomTenure, type RoomUse, type Wall, type WallKind, safeParseFloorPlan } from '../types/floorplan'
+import { BUILDING_TYPES, DEFAULT_FLOOR_ID, DOOR_KINDS, OPENING_KINDS, OUTDOOR_KINDS, ROOM_TENURES, ROOM_USES, WALL_DEFAULTS, WINDOW_KINDS, WallKindSchema, readBuilding, readUse, type BuildingType, type FloorPlan, type Opening, type OpeningKind, type Room, type OutdoorKind, type RoomTenure, type RoomUse, type Wall, type WallKind, safeParseFloorPlan } from '../types/floorplan'
 import { doorKindOf, kindFits, sweepsFloor } from '../geometry/openingKinds'
 import { hingeSeenFrom } from '../geometry/handing'
 import { indexPlan } from '../geometry/plan'
@@ -1056,8 +1056,8 @@ class Compiler {
         if (t.length > 2) this.planWords(t, at)
         return
       case 'building':
-        if (t.length !== 2 || !BUILDINGS.includes(t[1]!)) this.stop('rooms/syntax', at, `line ${at}: write 'building <kind>': one of ${BUILDINGS.join(', ')}.`)
-        this.building = t[1] as BuildingType
+        if (t.length !== 2 || !BUILDINGS.includes(readBuilding(t[1]) as string)) this.stop('rooms/syntax', at, `line ${at}: write 'building <kind>': one of ${BUILDINGS.join(', ')}.`)
+        this.building = readBuilding(t[1]) as BuildingType
         return
       case 'display':
         this.display = displayOfWords(t, at).display
@@ -1281,8 +1281,9 @@ class Compiler {
         name = value.text
         fl.name = name
       } else if (key === 'building') {
-        if (!BUILDINGS.includes(value.text)) refuse(say('rooms.floor.building', { word: value.text, kinds: BUILDINGS.join(', ') }))
-        fl.building = value.text as BuildingType
+        const kind = readBuilding(value.text) as string
+        if (!BUILDINGS.includes(kind)) refuse(say('rooms.floor.building', { word: value.text, kinds: BUILDINGS.join(', ') }))
+        fl.building = kind as BuildingType
       } else if (key === 'level') {
         fl.level = this.storeyNumber(value.text, at, refuse)
       } else {

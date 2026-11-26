@@ -203,7 +203,11 @@ describe('a room’s use', () => {
       // LVL-3 added `lift`; CNT-5 the uses past homes.
       'bedroom', 'living', 'dining', 'kitchen', 'bathroom', 'toilet', 'utility', 'study',
       'office', 'meeting', 'reception', 'retail', 'classroom', 'treatment', 'waiting', 'sport', 'changing', 'staff', 'worship', 'assembly',
-      'corridor', 'stair', 'lift', 'storage', 'plant', 'parking', 'other'
+      'corridor', 'stair', 'lift', 'storage', 'plant', 'parking',
+      // CNT-40: stations, wards, culture, the open-plan workplace, labs, cells and back of house.
+      'platform', 'concourse', 'ticketing', 'checkin', 'security', 'gate', 'ward', 'operating', 'anteroom', 'gallery', 'auditorium',
+      'stage', 'foyer', 'library', 'cafe', 'bar', 'breakout', 'print', 'comms', 'phonebooth', 'focus', 'wellbeing', 'training', 'lab',
+      'cleanroom', 'cell', 'prep', 'other'
     ])
   })
 

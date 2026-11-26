@@ -3,7 +3,7 @@
  * knows, instead of being dropped in silence (lab MS-1, AU3-3).
  */
 import { describe, expect, it } from 'vitest'
-import { FloorPlanSchema, USE_WORDS } from '../floorplan'
+import { FloorPlanSchema, OLD_USE_WORDS, USE_WORDS } from '../floorplan'
 import { nearestUse, nearestWord, readingNotes, type ReadingNote } from '../reading'
 import { flat } from '../../test-support/plans'
 
@@ -180,7 +180,8 @@ describe('a room use Grid does not know', () => {
     expect(read('Staff room')).toBe('staff')
     expect(read('plant_room')).toBe('plant')
     for (const word of ['bed', 'lounge', 'Living room', 'dining room', 'hall', 'studio']) expect(read(word), word).toBeUndefined()
-    for (const use of Object.values(USE_WORDS)) expect(['bedroom', 'living', 'dining']).not.toContain(use)
+    // CNT-40: only the old and regional words (`OLD_USE_WORDS`) are read as one of those uses.
+    for (const [word, use] of Object.entries(USE_WORDS)) if (['bedroom', 'living', 'dining'].includes(use)) expect(OLD_USE_WORDS).toContain(word)
   })
 
   it('reads a use whatever its capitals', () => {
