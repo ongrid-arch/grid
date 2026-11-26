@@ -312,6 +312,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   if (plan.north !== undefined) next['north'] = plan.north
   // LVL-21: the stair lines replace the file's stairs; a text that writes none keeps the file's.
   if (plan.stairs !== undefined) next['stairs'] = plan.stairs
+  // LVL-23: the building lines replace the file's buildings; a text that writes none keeps the file's.
+  if (plan.buildings !== undefined) next['buildings'] = plan.buildings
   // SHT-14: the `plan` line's name stays in the plan; without one, the file's name stays.
   if (result.name !== null && result.name !== '') next['name'] = result.name
   next['written'] = stampFor(plan)
