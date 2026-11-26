@@ -40,7 +40,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/check.ts': [10, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
   // CMD-32: one fewer, --floor no longer needs --picture.
-  'packages/cli/src/command/diff.ts': [13, 'command'],
+  // CMD-44: three more, the help of --to, --who and --note.
+  'packages/cli/src/command/diff.ts': [16, 'command'],
   // SHT-10: one more, the refusal of --look dark for a file.
   'packages/cli/src/command/draw.ts': [46, 'command'],
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
@@ -68,7 +69,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-46: four more, the file's bays and ramps kept when the text writes none.
   'packages/cli/src/command/write.ts': [46, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
-  'packages/cli/src/describe/card.ts': [14, 'agentForm'],
+  'packages/cli/src/describe/card.ts': [15, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
   'packages/cli/src/describe/walk.ts': [4, 'agentForm'],
   // CMD-7: three of its skill's paragraphs are in guide/paragraphs.ts now.
@@ -119,8 +120,14 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/split.ts': [19, 'notYet'],
   // LVL-21: a stair's receipts and refusals.
   'packages/cli/src/edit/stairs.ts': [15, 'notYet'],
-  // CNT-45: the items' receipts and refusals.
-  'packages/cli/src/edit/items.ts': [20, 'notYet'],
+  // LVL-23: a building's receipts and refusals.
+  'packages/cli/src/edit/buildings.ts': [9, 'notYet'],
+  // CNT-48: a typical room's usual fixtures set out in a room, its receipts and refusals.
+  'packages/cli/src/edit/fixtureSets.ts': [10, 'notYet'],
+  // CNT-45: the items' receipts and refusals. CNT-47: two more, a row's receipt and its taken id.
+  'packages/cli/src/edit/items.ts': [22, 'notYet'],
+  // SHT-22: the receipts and refusals of placing writing on the drawing.
+  'packages/cli/src/edit/annotate.ts': [7, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
   'packages/cli/src/export/dxfProfile.ts': [5, 'command'],
@@ -142,7 +149,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
-  'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
+  // CMD-44: five more, the descriptions of since, to, show, who and note and the change log.
+  'packages/cli/src/mcp/diffTools.ts': [25, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
   // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
   // CNT-44: 23 more, grid_fill_room's help.
@@ -178,7 +186,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   // CMD-41: based_on's description and planRevision's.
-  'packages/cli/src/mcp/revisions.ts': [2, 'tools'],
+  // CMD-44: one more, the description of who.
+  'packages/cli/src/mcp/revisions.ts': [3, 'tools'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   // CMD-38: two more, the rooms grammar resource's title and description.
@@ -189,16 +198,21 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-21: three more, the stairs' topic.
   // WRT-75: three more, the fit-out's topic; LVL-22: six more, the turned floors topic.
   // CNT-45: seven more, the items' topic.
-  // CNT-46: eight more, the parking topic.
-  'packages/cli/src/mcp/roomsGrammar.ts': [83, 'tools'],
+  // CNT-46: eight more, the parking topic. CNT-47: three more, the rows topic and the item kinds.
+  // SHT-22: eight more, the topic of writing on the drawing.
+  'packages/cli/src/mcp/roomsGrammar.ts': [94, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
-  // CNT-45: the item tools' help and refusals.
-  'packages/cli/src/mcp/itemTools.ts': [39, 'tools'],
+  // LVL-23: grid_set_building, its description, arguments and answer.
+  'packages/cli/src/mcp/buildingTools.ts': [14, 'tools'],
+  // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
+  'packages/cli/src/mcp/itemTools.ts': [53, 'tools'],
+  // SHT-22: grid_annotate, its description, arguments and refusals.
+  'packages/cli/src/mcp/annotateTool.ts': [23, 'tools'],
   // VEW-67: the trace image's tool.
   'packages/cli/src/mcp/traceTool.ts': [26, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
@@ -210,6 +224,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
   // WRT-73: the three phase tools, their arguments and refusals.
   'packages/cli/src/mcp/phaseTools.ts': [26, 'tools'],
+  // CMD-44: grid_undo and grid_restore, their descriptions and argument schemas.
+  'packages/cli/src/mcp/versionTools.ts': [13, 'tools'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
@@ -260,9 +276,15 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/sheet/sheetFile.ts': [15, 'command'],
   // WRT-12: one more, the heading of the openings that moved with their wall or room.
   // CMD-32: one more, what a floor's change heading left out.
-  'packages/cli/src/versions/diff.ts': [12, 'notYet'],
-  'packages/cli/src/versions/git.ts': [19, 'notYet'],
-  'packages/cli/src/versions/markers.ts': [19, 'notYet'],
+  // CMD-44: one fewer, the versions' names said from the message files.
+  'packages/cli/src/versions/diff.ts': [11, 'notYet'],
+  // CMD-44: three more, the refusals of an earlier commit not found and of git~N past the first.
+  'packages/cli/src/versions/git.ts': [22, 'notYet'],
+  // CMD-44: one fewer, the refusal of a marker past the limit: markers roll now.
+  'packages/cli/src/versions/markers.ts': [18, 'notYet'],
+  // CMD-44: the change log's, undo's and restore's answers and refusals, kept out of en.ts while
+  // one more block of keys there takes the message key type past what the type checker compares.
+  'packages/cli/src/versions/words.ts': [40, 'notYet'],
   'packages/floorplan/src/geometry/areas.ts': [36, 'notYet'],
   'packages/floorplan/src/geometry/camera.ts': [1, 'agent'],
   'packages/floorplan/src/geometry/diff/building.ts': [28, 'notYet'],
@@ -315,8 +337,12 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/rooms/site.ts': [30, 'notYet'],
   // LVL-21: the stair lines' refusals, the stair's summary and the read-back's note.
   'packages/floorplan/src/rooms/stairs.ts': [39, 'notYet'],
-  // CNT-45: the item lines' refusals and guesses.
-  'packages/floorplan/src/rooms/items.ts': [45, 'notYet'],
+  // CNT-45: the item lines' refusals and guesses. CNT-47: five more, the clear floor at a side.
+  'packages/floorplan/src/rooms/items.ts': [50, 'notYet'],
+  // CNT-47: the row lines' refusals.
+  'packages/floorplan/src/rooms/rows.ts': [18, 'notYet'],
+  // SHT-22: the note and sketch lines' refusals, what they placed and the drawing's count by floor.
+  'packages/floorplan/src/rooms/notes.ts': [33, 'notYet'],
   'packages/floorplan/src/rooms/words.ts': [4, 'notYet'],
   'packages/floorplan/src/scan/evidence.ts': [2, 'notYet'],
   'packages/floorplan/src/scan/roomModel.ts': [22, 'notYet'],
@@ -484,7 +510,13 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // changes (edit/parking.ts 10), their tools (mcp/parkingTools.ts 46), the grammar's parking topic
     // (8), the guide's car park (10) and the file's bays and ramps kept by grid write
     // (command/write.ts 4) (odd/tasks/CNT-46.md).
-    expect(left).toBeLessThanOrEqual(2326)
+    // and CNT-47 25: the row lines in rooms text (rooms/rows.ts 18), the clear floor at an item's
+    // sides (rooms/items.ts 5) and a row's receipt and taken id (edit/items.ts 2) (odd/tasks/CNT-47.md).
+    // and SHT-22 40: the note and sketch lines in rooms text (rooms/notes.ts 33) and placing them
+    // (edit/annotate.ts 7) (odd/tasks/SHT-22.md).
+    // and CNT-48 10: a typical room's usual fixtures set out in a room (edit/fixtureSets.ts).
+    // and LVL-23 23: a building's changes (edit/buildings.ts 9) and its tool (mcp/buildingTools.ts 14).
+    expect(left).toBeLessThanOrEqual(2424)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

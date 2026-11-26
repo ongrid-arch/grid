@@ -46,13 +46,14 @@ const fileOf = (name: string): Record<string, unknown> => JSON.parse(readFileSyn
 
 describe('the library', () => {
   it('lists Grid\'s entries, the office\'s and what it left out, each with where its size comes from', async () => {
-    const reply = await ok('grid_measure', { plan: 'plan.json', what: 'library' })
+    // CNT-47: with the equipment, Grid's library is longer than one page of the answer.
+    const reply = await ok('grid_measure', { plan: 'plan.json', what: 'library', whole: true })
     expect(reply.text).toContain('"double-bed": bed "Double bed", 1.40 × 2.00 m, 0.50 m high, 0.60 m clear in front (Grid\'s own size, not a code figure)')
     expect(reply.text).toContain('"our-bed": bed "King", 1.50 × 2.00 m, 0.45 m high, 0.70 m clear in front (from library/ours.json; Office standard, sheet 3)')
     expect(reply.text).toContain('Left out of the library: library/broken.json is not JSON.')
     const answer = (reply.data as { answer: { items: { name: string }[]; rooms: { name: string }[] } }).answer
     expect(answer.items.map((i) => i.name)).toContain('wardrobe')
-    expect(answer.rooms.map((r) => r.name)).toEqual(['our-bedroom', 'bathroom', 'cloakroom', 'double-bedroom', 'single-bedroom', 'table-4-chairs', 'table-6-chairs'])
+    expect(answer.rooms.map((r) => r.name)).toEqual(['our-bedroom', 'bathroom', 'shower-room', 'cloakroom', 'kitchen', 'double-bedroom', 'single-bedroom', 'table-4-chairs', 'table-6-chairs'])
     const one = await ok('grid_measure', { plan: 'plan.json', what: 'library', name: 'double-bed' })
     expect(one.text).toContain('its back is its head')
   })

@@ -9,14 +9,19 @@
  * `drawStill`, never drawn here.
  */
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
-import { DEFAULT_LANGUAGE, say, type Language } from '@ongrid/floorplan/messages'
+import { decimalFor, DEFAULT_LANGUAGE, say, type Language } from '@ongrid/floorplan/messages'
 import type { SKRSContext2D } from '@napi-rs/canvas'
 import { loadCanvas } from '../draw/canvas'
 import { drawPlan } from '../draw/drawPlan'
 import { drawStill } from '../draw/drawStill'
 import { trueCodePoints } from './pdfText'
 import { SANS, SERIF, registerSheetFonts, sheetFont } from './fonts'
-import { PLAN_BOX, planPictureOptions, type Sheet, type SheetPage, type SheetRow, type SheetTable } from './pages'
+import { PLAN_BOX, planPictureOptions, SHEET_LOOK, type Sheet, type SheetPage, type SheetPicture, type SheetRow, type SheetTable } from './pages'
+import { DRAWING_PIXEL_PT, DRAWINGS_BOX, pointsPerMetre, SECTION_NAME_PT, type PlacedDrawing } from './sideDrawings'
+import { scaleBarMetres } from './drawingSheet'
+import { pictureToPng } from '../draw/drawPlan'
+import { facadePicture } from '@ongrid/viewer/src/picture/facade'
+import { sectionPicture } from '@ongrid/viewer/src/picture/section'
 
 export const A3 = { width: 1191, height: 842 } as const
 const MARGIN = 48
@@ -32,6 +37,9 @@ const LIMIT = A3.height - MARGIN - 6
 const COVER_IMAGE = { min: 220, max: 430 } as const
 const AREA_COLUMN = 64
 const PLAN_SCALE = 4
+/** SHT-23: an elevations or sections page's title block, its width and its rows' heights, and the scale bar's row, in points. */
+const BLOCK = { width: 330, rows: [34, 28, 30] } as const
+const BLOCK_HEIGHT = BLOCK.rows.reduce((a, b) => a + b, 0)
 
 type Ctx = SKRSContext2D
 type Canvas = typeof import('@napi-rs/canvas')
@@ -173,6 +181,8 @@ function region(ctx: Ctx, page: SheetPage, imageHeight: number): { x: number; wi
   const head = header(ctx, page, false)
   if (page.kind === 'cover' && page.picture) return { x: MARGIN, width: TEXT_WIDTH, y: head + 16 + imageHeight + 100 }
   if (page.picture?.kind === 'plan') return { x: SIDE_X, width: SIDE_WIDTH, y: head + 20 }
+  // SHT-23: under the drawings and their scale bar, beside the title block.
+  if (page.picture?.kind === 'drawings') return { x: MARGIN, width: TEXT_WIDTH - BLOCK.width - 24, y: head + 10 + DRAWINGS_BOX.height + 18 }
   return { x: MARGIN, width: TEXT_WIDTH, y: head + (page.figures.length > 0 ? 90 : 20) }
 }
 
@@ -354,12 +364,88 @@ function drawSummaryFigures(ctx: Ctx, page: SheetPage, y: number): void {
   })
 }
 
+/**
+ * SHT-23: an elevations or sections page's drawings, each the viewer's picture at the page's one
+ * scale, as `sideDrawings` placed it in the box under the header; under them on the right, the
+ * scale bar and the title block, the notes flowing beside them.
+ */
+async function drawSideDrawings(ctx: Ctx, canvas: Canvas, plan: FloorPlan, picture: Extract<SheetPicture, { kind: 'drawings' }>, top: number, language: Language): Promise<void> {
+  const asked = language === DEFAULT_LANGUAGE ? {} : { language }
+  const pictureOf = (drawing: PlacedDrawing) => drawing.of === 'facade'
+    ? facadePicture(plan, { side: drawing.side, width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, ...asked })
+    : sectionPicture(plan, drawing.cut.line, { width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, label: drawing.cut.label, ...asked })
+  for (const drawing of picture.drawings) {
+    // A section without the band under it: its name is written under it here, what it took in the notes.
+    const drawn = pictureOf(drawing)
+    const png = await pictureToPng(drawing.of === 'section' ? { ...drawn, key: null } : drawn, { scale: PLAN_SCALE * DRAWING_PIXEL_PT, label: false })
+    const height = drawing.of === 'section' ? drawing.drawn.height - SECTION_NAME_PT : drawing.drawn.height
+    ctx.drawImage(await canvas.loadImage(Buffer.from(png)), MARGIN + drawing.x, top + drawing.y, drawing.drawn.width, height)
+    if (drawing.of === 'section') {
+      font(ctx, SANS, 10, 600); ctx.fillStyle = INK
+      ctx.fillText(say(language, 'drawing.section.name', { label: drawing.cut.label }), MARGIN + drawing.x, top + drawing.y + height + 12)
+    }
+  }
+  // The scale bar: 1, 2 or 5 times a power of ten metres, in parts, as on a drawing at a scale.
+  const metres = scaleBarMetres(picture.scale)
+  const parts = Number(String(metres)[0]) === 2 ? 4 : 5
+  const length = metres * pointsPerMetre(picture.scale)
+  const x0 = A3.width - MARGIN - BLOCK.width
+  const y = top + DRAWINGS_BOX.height + 8
+  ctx.strokeStyle = INK
+  ctx.lineWidth = 0.5
+  for (let i = 0; i < parts; i++) {
+    ctx.fillStyle = i % 2 === 0 ? INK : PAPER
+    ctx.fillRect(x0 + (i * length) / parts, y, length / parts, 5)
+    ctx.strokeRect(x0 + (i * length) / parts, y, length / parts, 5)
+  }
+  font(ctx, SANS, 8)
+  ctx.fillStyle = INK
+  for (let i = 0; i <= parts; i++) {
+    const point = String(Math.round(((metres / parts) * i) * 1000) / 1000)
+    const value = decimalFor(language) === 'comma' ? point.replace('.', ',') : point
+    const shown = i === parts ? say(language, 'sheet.scaleBar.metres', { length: value }) : value
+    ctx.textAlign = i === parts ? 'left' : 'center'
+    ctx.fillText(shown, x0 + (i * length) / parts - (i === parts ? 2 : 0), y + 15)
+  }
+  ctx.textAlign = 'left'
+  drawTitleBlock(ctx, picture.block)
+}
+
+/** SHT-23: the title block at the foot of the page's right side: project, drawing, then scale, date and status. */
+function drawTitleBlock(ctx: Ctx, block: Extract<SheetPicture, { kind: 'drawings' }>['block']): void {
+  const x = A3.width - MARGIN - BLOCK.width
+  const y = LIMIT - BLOCK_HEIGHT
+  const [first, second] = BLOCK.rows
+  ctx.strokeStyle = INK
+  ctx.lineWidth = 0.8
+  ctx.strokeRect(x, y, BLOCK.width, BLOCK_HEIGHT)
+  ctx.lineWidth = 0.4
+  const rule = (x1: number, y1: number, x2: number, y2: number): void => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke() }
+  rule(x, y + first, x + BLOCK.width, y + first)
+  rule(x, y + first + second, x + BLOCK.width, y + first + second)
+  const third3 = BLOCK.width / 3
+  rule(x + third3, y + first + second, x + third3, y + BLOCK_HEIGHT)
+  rule(x + 2 * third3, y + first + second, x + 2 * third3, y + BLOCK_HEIGHT)
+  const cell = (label: string, value: string, cx: number, cy: number, width: number, size: number, weight: 400 | 600 = 400): void => {
+    font(ctx, SANS, 7); ctx.fillStyle = QUIET; ctx.fillText(label.toUpperCase(), cx + 5, cy + 10)
+    font(ctx, SANS, size, weight); ctx.fillStyle = INK
+    ctx.fillText(wrapLines(ctx, value, width - 10)[0] ?? '', cx + 5, cy + 12 + size)
+  }
+  cell(block.labels.project, block.project, x, y, BLOCK.width, 13, 600)
+  cell(block.labels.drawing, block.drawing, x, y + first, BLOCK.width, 11)
+  const row = y + first + second
+  cell(block.labels.scale, block.scale, x, row, third3, 9)
+  cell(block.labels.date, block.date, x + third3, row, third3, 9)
+  cell(block.labels.status, block.status, x + 2 * third3, row, third3, 9)
+}
+
 async function drawPage(ctx: Ctx, canvas: Canvas, plan: FloorPlan, page: SheetPage, box: { top: number; width: number; height: number }, language: Language): Promise<void> {
   const flowing = piecesOf(page)
   if (page.kind === 'cover' && page.picture) return drawCover(ctx, canvas, plan, page, flowing)
   const head = header(ctx, page, true)
   const at = region(ctx, page, 0)
   if (page.picture?.kind === 'plan') await drawFloorPicture(ctx, canvas, plan, page, box, language)
+  else if (page.picture?.kind === 'drawings') await drawSideDrawings(ctx, canvas, plan, page.picture, head + 10, language)
   else if (page.figures.length > 0) drawSummaryFigures(ctx, page, head + 30)
   flow(ctx, flowing, at.x, at.width, at.y)
 }

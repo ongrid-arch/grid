@@ -40,6 +40,7 @@ import { checkDescribeRequest, DESCRIBE_OPTIONS, describePlan, describeRooms, de
 import { walkPictures } from '../describe/walkPictures'
 import type { WalkStop } from '../describe/walk'
 import { DIFF_OPTIONS, MARK_OPTIONS, runDiff, runMark } from './diff'
+import { recorded } from '../versions/history'
 import { MARKERS_MAX, MarkerRefused } from '../versions/markers'
 import { GitUnread } from '../versions/git'
 import { checkDrawRequest, DRAW_OPTIONS, drawFormat, drawFile, drawsPng, PNG_TO_TERMINAL, undecidedNote } from './draw'
@@ -49,6 +50,7 @@ import type { LeftOutPart } from '@ongrid/floorplan/export'
 import { INIT_OPTIONS, initFolder, initProject, InitRefused, initText, PROJECT_FILE, PROJECT_PLAN, projectPlanFile, missingDefaultPlan } from './init'
 import { helpText, onePlanFile, parseOptions, PROJECT_OPTION, textOf, UsageError, type OptionSpecs } from './options'
 import { floorOption, loadPlan, PlanRefused, type LoadedPlan } from './plan'
+import { refusePlanTarget } from './planFile'
 import { SHEET_OPTIONS } from './sheet'
 import { checkTidyRequest, TIDY_OPTIONS, tidyAppliedText, tidyFile, tidyList, tidyListText } from './tidy'
 import { readRoomsFile, RoomsRefused, WRITE_OPTIONS, writeRoomsIntoProject } from './write'
@@ -344,7 +346,8 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
     const layers = textOf(parsed, '--layers')
     const units = textOf(parsed, '--units')
-    const done = writeDrawingIntoProject(project, textOf(parsed, '--from')!, target, { replace: parsed.values.has('--replace'), ...(layers === undefined ? {} : { layers }), ...(units === undefined ? {} : { units }) })
+    // CMD-44: every write is logged beside the plan, with the plan it replaced kept.
+    const done = await recorded(project, target, { tool: 'write --from', via: 'grid write' }, () => writeDrawingIntoProject(project, textOf(parsed, '--from')!, target, { replace: parsed.values.has('--replace'), ...(layers === undefined ? {} : { layers }), ...(units === undefined ? {} : { units }) }))
     if (parsed.values.has('--json')) {
       const r = done.reading
       io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.done.written, roomsFile: done.roomsFile, format: done.drawing.format, unit: done.drawing.unit, layers: done.drawing.layers, rooms: r.rooms, openings: r.openings, factName: r.factName, assumed: r.assumed, leftOut: r.leftOut, verdict: done.done.verdict, drawingProblems: done.done.drawingProblems, toLookAt: done.done.toLookAt }, null, 2)}\n`)
@@ -358,7 +361,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     if (parsed.positionals.length > 0) throw new UsageError(`write --scan reads the scan in place of rooms text: name one or the other, not both.`)
     const project = openProject(projectOption, io.cwd)
     const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
-    const done = writeScanIntoProject(project, textOf(parsed, '--scan')!, target, { replace: parsed.values.has('--replace') })
+    const done = await recorded(project, target, { tool: 'write --scan', via: 'grid write' }, () => writeScanIntoProject(project, textOf(parsed, '--scan')!, target, { replace: parsed.values.has('--replace') }))
     if (parsed.values.has('--json')) {
       const c = done.conversion
       io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, evidence: done.evidence, rooms: c.rooms, paired: c.paired, oneSided: c.oneSided, openings: c.plan.openings.length, items: c.plan.items?.length ?? 0, assumed: c.assumed, leftOut: c.leftOut, match: c.match, frame: c.frame, verdict: done.verdict, drawingProblems: done.drawingProblems }, null, 2)}\n`)
@@ -378,8 +381,10 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const project = openProject(projectOption, io.cwd)
     const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
     const options = { replace: parsed.values.has('--replace') }
-    const laid = shape === undefined ? null : writeLayout(project, target, shape as LayoutShape, options)
-    const done = laid?.done ?? writeRoomsIntoProject(project, readRoomsFile(project, roomsFile!), target, options)
+    const { laid, done } = await recorded(project, target, { tool: shape === undefined ? 'write' : 'write --layout', via: 'grid write' }, () => {
+      const laid = shape === undefined ? null : writeLayout(project, target, shape as LayoutShape, options)
+      return { laid, done: laid?.done ?? writeRoomsIntoProject(project, readRoomsFile(project, roomsFile!), target, options) }
+    })
     if (parsed.values.has('--json')) {
       const r = done.result
       io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, toLookAt: done.toLookAt, doors: done.doors, itemsKept: done.itemsKept, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
@@ -397,7 +402,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const marker = names[0]
     const project = openProject(projectOption, io.cwd)
     const target = planWords[0] ?? textOf(parsed, '--plan') ?? projectPlanFile(project)
-    io.stdout(runMark(project, target, marker, parsed.values.has('--remove')))
+    io.stdout(runMark(project, target, marker, parsed.values.has('--remove'), { by: textOf(parsed, '--who'), note: textOf(parsed, '--note') }))
     return EXIT_OK
   }
 
@@ -444,7 +449,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const project = openProject(projectOption, io.cwd)
     // CMD-35: --out is --picture under the name draw and sheet use; both at once is refused.
     if (parsed.values.has('--out') && parsed.values.has('--picture')) throw new UsageError('--out and --picture are the same file: leave one out.')
-    const request = { since: textOf(parsed, '--since'), rooms: textOf(parsed, '--rooms'), show: textOf(parsed, '--show'), picture: textOf(parsed, '--out') ?? textOf(parsed, '--picture'), floor: textOf(parsed, '--floor') }
+    const request = { since: textOf(parsed, '--since'), to: textOf(parsed, '--to'), rooms: textOf(parsed, '--rooms'), show: textOf(parsed, '--show'), picture: textOf(parsed, '--out') ?? textOf(parsed, '--picture'), floor: textOf(parsed, '--floor') }
     const done = await runDiff(project, planFile, request)
     if (done.png !== null && request.picture !== undefined) {
       const written = project.shown(write(project, request.picture, done.png))
@@ -535,8 +540,10 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       io.stdout(json ? `${JSON.stringify(list, null, 2)}\n` : tidyListText(list))
       return EXIT_OK
     }
+    // CMD-45: --out is never one of Grid's own files, nor a file there already that holds no plan.
+    if (out !== undefined) refusePlanTarget(project, out)
     const done = tidyFile(project, planFile, ids)
-    const written = done.text === null ? null : project.shown(write(project, out ?? planFile, done.text))
+    const written = done.text === null ? null : project.shown(await recorded(project, planFile, { tool: 'tidy', via: 'grid tidy' }, () => write(project, out ?? planFile, done.text!)))
     const result = { label: GENERAL_GUIDANCE_LABEL, applied: done.applied, skipped: done.skipped, left: done.left, written }
     io.stdout(json ? `${JSON.stringify(result, null, 2)}\n` : tidyAppliedText(result))
     return EXIT_OK

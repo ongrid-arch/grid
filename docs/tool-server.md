@@ -20,14 +20,14 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 
 `grid serve` is an MCP server over standard input and output, for an agent's host to start.
 Its tools are listed in a fixed order: first those that read the plan, in the order of the
-requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the twenty-three that
+requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, undo and restore, and last the twenty-three that
 change the plan, writing it rooms first leading, then the facts, the stair's two, the parking two, the site's two after them, the trace image and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
 and the allowed values of each argument, and an output schema. Each answer is short text with
 the same facts as data; a view also returns its picture. A length argument is metres, or text with its unit (`12'6"`, `360 cm`); the measuring tools, the views and the sheet write in `units` and `decimal`, or the plan's `display`, the person's own units, and in metres when neither says (see [Units](plan-file.md#units)). The check and the edit answers are in metres.
 
 | Tool | Answers |
 |---|---|
-| `grid_project` | What the project folder holds, for the first call (CMD-18): the plan files in it, the plan Grid uses when none is named (`plan.json` in the folder, with or without `grid.json`) and whether it is there, and beside each plan its brief, markers, seen marks, preview record, scan and occupancy files. Reads names only, writes nothing |
+| `grid_project` | What the project folder holds, for the first call (CMD-18): the plan files in it, the plan Grid uses when none is named (`plan.json` in the folder, with or without `grid.json`) and whether it is there, and beside each plan its brief, markers, change log and checkpoints, seen marks, preview record, scan and occupancy files. Reads names only, writes nothing |
 | `grid_compare` | Options side by side (net, gross internal, gross external, circulation, area by use, and by room type and tenure where the plan states them), and what differs by room name, walls and openings; a plan mirrored or moved is said to be so. With `picture`, one sheet at one scale |
 | `grid_diff` | What changed since the start marker or the last commit, by what stands where, not by ids: issues first (a door that now joins other rooms, a wall that now meets an opening, notes that came and went), the verdict room by room with how many ids were only renamed, then the changes one line each; with `rooms`, the changes outside them; with a picture unless `picture: false` (see below) |
 | `grid_areas` | Each room's size and net area, totals by floor and by use (and by room type and tenure where a room states one), gross internal and gross external area (the one usual in the plan's `site.country`, or in `country` which overrides it, first, or as `gross` asks; see [areas.md](areas.md)), each flat's area from the plan's flats list and the rooms in no flat, each to the middle of its party walls too (ARE-14), the outdoor space listed apart by kind, roofed or open (CNT-7), left out of every total unless `outdoor_rules` states a rule that counts part of it, the free floor beside the floor area where fixtures stand, the rooms in `apart_rooms` measured apart as one building from another (ARE-20), and under a roof the floor states the floor by headroom band, in metres or feet, as text or CSV, each figure with its rule stated |
@@ -45,10 +45,12 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_preview_sync` | The preview page's own call, which a host that shows MCP Apps lists for the page only: the drawing, the shared record, and what the person did there. Not for an agent |
 | `grid_export` | Writes DXF, IFC, GLB or OBJ into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)) |
 | `grid_sheet` | Writes the plan as an A3 PDF into `exports/`, a client or check sheet answering with a small picture of each page (VEW-62): layout `client` (cover, a page per floor, the words as `sheet`) or `check` (every id, use and finding); or layout `drawing`, every floor (or the `floor` asked for) at one true scale (`scale`, `paper`, `split`, `roomSizes`) as a vector PDF of a page each and an SVG and a PNG of each page, with the PNGs in the answer |
-| `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with; or takes one off. At most 5 |
+| `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with, with `who` set it and a `note`; or takes one off. The latest 20, the oldest rolling off |
 | `grid_mark_seen` | Sets a note of `grid_check` aside as seen, with the person's reason and the name or role they give, in `plan.seen.json` beside the plan; or takes the mark off (see below) |
 | `grid_write_brief` | Writes the brief beside the plan from the person's words, before the first room: room areas and counts, inside sizes, the footprint, rooms that must or must not touch, and the person's own figures, each with its level, its quote and whether it was given or assumed, and what is still open; answers with each line met or missed ([brief.md](brief.md)). A brief already there is kept: the call is refused unless `replace` is true |
 | `grid_words` | Grid's words in the person's language, for a language Grid ships none for (MSG-24): with `output` (drawing, sheet, check or describe), the keys that output prints for this plan, each with its English, its placeholders and the word the language has now, writing nothing; with `words`, the agent's translations, each checked against the English key's placeholders and refused by name, written into the plan's `display.words` ([languages.md](languages.md#words-the-plan-keeps-for-a-language)). `plan_language` makes the language the plan's own, `decimal` sets its decimal mark |
+| `grid_undo` | Takes back the last change in the plan's change log not undone yet, writing the plan back exactly as it was; again, one change further back. Refused when the plan changed outside the log (CMD-44) |
+| `grid_restore` | Puts back an earlier version of the plan by `since`: a marker, `last`, a revision, a date, `git~1` or a commit; refused when the plan changed outside the log unless `force` (CMD-44) |
 | `grid_write_rooms` | Writes the plan from rooms text, as `grid write`: the walls, their kinds, the room boundaries and the openings' places worked out. With `layout` (`tidy` or `sizes`) in place of `rooms`, a first layout from the brief beside the plan, with each size not kept and by how much ([brief.md](brief.md#a-first-layout-from-the-brief)); with `scan`, from a phone room scan, as `grid write --scan`, with what was assumed and the scan kept beside the plan ([commands.md](commands.md#a-plan-from-a-phone-room-scan-grid-write---scan)). It takes one of `rooms`, `layout` and `scan` |
 | `grid_change_opening` | Changes a door or window (width, height, sill, type, which room it opens into, which side it is hinged on as seen from a room, its kind), moves it to a side of a room, places it from a room's side or an end of its wall and keeps it there (its anchor), or removes it |
 | `grid_change_wall` | Sets one wall's thickness: a wall placed by its face keeps that face and grows or shrinks on its other side, any other wall keeps its centre line, and a wall that ended in a thinner wall is carried to its new centre line ([plan-file.md](plan-file.md)) |
@@ -73,7 +75,8 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_set_facts` | Sets facts of the person's own (`set`), takes them out (`unset`) or gives one room its number (`number`, `none` to leave it to Grid's count), on parts named by id (`parts`) or picked as `grid_find` picks them (`kind`, `floor`, `room`, `where`), and says what changed on which parts and what was so already ([below](#asking-across-the-parts-fields-find-and-count)) |
 | `grid_add_stair` | Adds a stair between two floors (`from`, `to`: floors, or rooms that stand for their floors; `width`), laid in a room by the same words as a rooms text `stair` line (`room`, `shape` straight, L or U, `runs`, `then`, `along`) or along its own walking line (`run`); answers with the risers, their height, the going, the pitch and the rooms at its ends, and refuses a stair that does not fit its room, naming the room's size ([plan-file.md](plan-file.md#stairs-that-join-two-floors)) |
 | `grid_change_stair` | Changes a stair by id: its floors, width, room, shape, way, risers (0 leaves them to Grid), name or walking line, laying a stair laid in a room out again with the new words; or `remove` takes it out |
-| `grid_add_item` | Adds a fixture or a piece of furniture (`name`: a library entry or a kind) with its back against a side of a room (`room`, `against`), its turn worked out so it faces into the room: centred, in a corner (`end`), a distance from one (`from`, `distance`) or the full width of the side (`full_width`, a built-in wardrobe); or at a point (`x`, `y`, `turn`). The same words as a rooms text `item` line. It says the room it stands in and whether it fits |
+| `grid_set_building` | Adds a building of the plan by `id` with its `floors`, or changes its `name`, `pad` (the level of its own ground, from the plan's datum) or `floors`, or `remove` takes it out (its floors stay, in no building); a floor is in one building at most. Each building stacks its floors from its pad and has its own ground floor, way out, height, storeys, distances to the plot's edges and IFC building. Answers with its ground floor and its height, from what it is measured |
+| `grid_add_item` | Adds a fixture or a piece of furniture (`name`: a library entry or a kind) with its back against a side of a room (`room`, `against`), its turn worked out so it faces into the room: centred, in a corner (`end`), a distance from one (`from`, `distance`) or the full width of the side (`full_width`, a built-in wardrobe); or at a point (`x`, `y`, `turn`). The same words as a rooms text `item` line. It says the room it stands in and whether it fits; with `name` a typical room (`kitchen`, `bathroom`, `shower-room`, `cloakroom`) and `room` alone, sets out that room's usual fixtures, each against a side where it fits, and lists what fits nowhere (`notPlaced`, CNT-48) |
 | `grid_move_item` | Moves or turns an item by id: against another side or into another room, to a point, by a distance (`dx`, `dy`) or turned where it stands, keeping its kind and size, and says whether it fits |
 | `grid_remove_item` | Takes items out by id (`ids`), or every item standing in a room (`room`) |
 | `grid_place_bays` | Places a group of parking bays in a room (`group`, `room`), by the same words as a rooms text `bays` line: one row against a side (`along`, `count`, `offset`, `inset`, `from`), or the room filled with rows and the aisles between them (`aisle`, `rows`, `from`), the module `width` and `length` or a `kind` (Grid's own starting sizes); numbers them on from the floor's highest number unless `numbered` gives the first, replaces the group's bays when placed again, and answers with how many it placed, their ids and numbers ([plan-file.md](plan-file.md#parking-bays-and-ramps)) |
@@ -81,6 +84,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_set_site` | Sets the plot's boundary (its corners, or a width and depth, centred on the building when not placed, and said), the edges on a street (by the side of the drawing they face, or by number), the person's own set-backs, north (degrees, or where the arrow points) and where the building is on the earth, each only when given, `remove` taking one out; answers with the plot as `grid_measure what=site` gives it: its area (in acres too on a plan in feet and inches), the coverage and what it counts, and each edge's distance against its set-back ([below](#the-plot-distances-to-the-boundary-and-the-coverage)) |
 | `grid_change_site` | Adds, moves (`by` or `to`), resizes or removes one of the site's things, a tree, a path, paving, a pool, a fence or a gate, keeping the rest of it as written, and says when it stands outside the plot's boundary. Things are drawn only ([below](#the-plot-distances-to-the-boundary-and-the-coverage)) |
 | `grid_place_trace` | Sets the plan's trace image (`image`, a `.png`, `.jpg`, `.jpeg` or a `.pdf` with its `pdf_page`, inside the project folder), the floor it lies under and its `opacity`, and places, scales and turns it: `at` and `rotation`; `scale` in metres per pixel, or `calibrate_from`, `calibrate_to` and `length` (two pixels on it, such as a scale bar's ends, and how far apart they are on the building), or `pin_pixels` with `pin_points` (two of its pixels and the two points of the plan they show, which set its corner, turn and scale together); keeps what a call does not give, `remove` takes it out, and answers with where it now lies, as `grid_view` says it ([a trace image under the plan](plan-file.md#a-trace-image-under-the-plan)) |
+| `grid_annotate` | Places notes, tags, symbols, the key, routes drawn as arrows and sketch items on the drawing, by floor, in a room or at a point: one from its own arguments (`kind`, `text`, `at`, `room`, `points`, `category`, ...) or many as rooms text lines (`lines`), and takes them out by id (`remove`); answers with each entry placed, its id, what it is, where and on which floor, and what each floor carries. Drawn and exported only ([plan-file.md](plan-file.md#writing-on-the-drawing-and-the-sketch-layer)) |
 | `grid_save_view` | Saves a camera record `grid_view` returned under a name, with the plan, in its `views`, as Grid's setting and as BCF's camera; with `replace` over a view of that name, with `remove` takes one out ([below](#a-camera-you-can-set-and-saved-views)) |
 
 In a plan that states a phase, an edit is building work. `correction` on `grid_change_opening`, `grid_change_wall`, `grid_move_room_side`, `grid_mirror`, `grid_merge_rooms`, `grid_split_room`, `grid_add_room`, `grid_stretch`, `grid_square_scan` and `grid_add_opening` makes the change a correction of the survey instead: it is made in place and no part's phase changes ("the hall is on the right, actually"; [plan-file.md](plan-file.md#existing-demolished-and-new)).
@@ -438,6 +442,9 @@ it. The climb is never in the length. With `width` the way keeps to its floor. A
 only when it cannot be walked, and `gap` says where and why: the room and `no outline` (it
 cannot be drawn), `doorway` (the doorway `via` is not found on its side) or `no line` (no line
 keeps to its floor). A door in a curved wall is walked from either side of the curve.
+ARE-63: from a floor whose way out the check does not follow, because no stair joins it to the
+ground floor (its `no_stairs` note), the answer says so, found or not, and carries the note as
+`notChecked` (`reason`, `floor`): a basement car park left by a ramp for cars is such a floor.
 
 With `to=outside` (ARE-21) the route is walked to every way out on the floor, each by the way
 with the fewest rooms to its door, and the shortest by walked length is the answer. It names the
@@ -448,7 +455,9 @@ then to the smaller id.
 `grid_describe length=walk` is the long form of the description: the plan walked room by room.
 Each floor starts at its way in: the front door the plan names, else the widest door from outside
 into a corridor, else the widest door from outside; a floor with no door from outside starts in
-its stair room. The walk takes the ways on from each room from left to right as you stand in its
+its stair room. ARE-63: what no door in reaches is walked next from an open side onto the
+outside (a carport, the bays past a car park's open ramp), then from each room a stair reaches
+from another floor, so only a room the check finds cut off is left not reached. The walk takes the ways on from each room from left to right as you stand in its
 doorway, goes as deep as it can and comes back, so a room off a room comes straight after it. In
 each room you stand in the doorway you came in by, at its middle, facing in square to the wall,
 and what is in the room is said by the wall it is on: ahead (from left to right, each so far to
@@ -456,8 +465,9 @@ your left or right), on your left and on your right (each so far ahead), and in 
 stand in. A fixture is on the wall nearest its middle; one that stands more than 0.3 m clear of
 every wall, an island or a table, is said where it stands (`inRoom`; `F` for an agent): how far
 ahead its near side is and whether it is across your way or to one side. Where a floor's walk
-starts with no doorway you stand in the room's middle facing square to its longest side, and the
-room is said by its whole depth. Every way the way-out check reads is a way on, an open side as
+starts with no doorway you stand in the room's middle facing square to its own sides (ARE-63:
+the way its straight sides run for the most length, even with one wall curved), and the room is
+said by its whole depth. Every way the way-out check reads is a way on, an open side as
 much as a door, round a well in the floor too (ARE-18). Each wall comes with how far it is,
 straight out from where you stand. A plan whose y runs down the page is the building mirrored,
 and left and right are read the right way round. A floor laid out like an earlier one is said
@@ -472,13 +482,28 @@ step into the room, looking ahead: VEW-3's eye camera, in the walk's order, at m
 ## What a change did
 
 Call `grid_mark_start` before an edit and `grid_diff` after every save. `grid_mark_start` copies
-the plan as it is into `plan.markers.json` beside it, under `name` (`start` unless named); a plan
-keeps at most 5 markers, and `remove: true` takes one off. `grid_diff` takes no plans to compare:
+the plan as it is into `plan.markers.json` beside it, under `name` (`start` unless named), with
+`who` and `note` when given; a plan keeps the latest 20 markers, a new one past that rolling the
+oldest off, and `remove: true` takes one off. `grid_diff` takes no plans to compare:
 it reads the plan and the earlier version itself, the marker `since` names, or with
 `since: "git"` the version last committed in the project's own `.git` folder, read from git's
 files without running git. With neither, it uses the marker `start` when there is one, else git.
 With `since: "phase"`, a plan with existing, demolished and new parts is compared with itself,
 before its work against after it (CNT-10).
+
+Every change also keeps the plan it replaced, with no marker set: each tool that changes the plan
+adds a line to the plan's change log, `plan.history.jsonl`, and keeps the plan before it in
+`plan.checkpoints/` (CMD-44). Every such tool takes `who`, your name as an agent or a person's
+initials, kept in the entry. So `since` also takes `last`, a revision, a date or date and time,
+`git~1` or a commit ([the names](commands.md#the-change-log-and-the-versions-it-keeps-cmd-44)),
+and `to` compares two earlier versions. `show: "facts"` lists every field that changed, facts and
+room numbers included, and `show: "history"` the log's entries since then: who changed what,
+when, with which tool. `grid_undo` takes the last change back, and again the one before;
+`grid_restore` puts back any of those versions. Both write the plan back exactly as it was and
+log it, so each can be taken back in turn, and both are refused with nothing written when the
+plan is not at the revision the log last wrote, because it changed by hand or in another program:
+`grid_diff since=<that revision>` says what changed, and `grid_restore` with `force: true` puts a
+version back all the same, keeping the plan as it was as a checkpoint first.
 
 It pairs the two versions by what stands where before it trusts an id, as
 [`grid diff`](commands.md#what-a-change-did-grid-mark-and-grid-diff) says, and answers issues
@@ -781,7 +806,10 @@ The guide and the schema are made from the code when they are read, so they say 
 reads; the pages are the ones the package ships in its `docs/` folder. A host that lists
 resources shows them all; a host that has none can still read the same files in the package. The
 server's instructions, which carry the guide's first paragraphs word for word and point to the
-guide and the schema, are sent on `initialize` as well as on `server/discover`.
+guide and the schema, are sent on `initialize` as well as on `server/discover`. Some hosts show
+only their first 2,048 characters, so those open with what Grid makes, the brief, the label and
+retelling rule, room names and the guide; rooms first, units, the source of truth and the first
+questions follow, and are in the guide and in `grid_write_rooms` too.
 
 ## Protocol versions
 

@@ -121,18 +121,23 @@ export function heard(language: Language, key: MessageKey): void {
   listening.set(language, keys)
 }
 
+/** The keys said in each language other than English, as `listenForKeys` gives them. */
+export type HeardKeys = ReadonlyMap<Language, ReadonlySet<MessageKey>>
+
 /**
  * Runs `make` and gives the keys it said in each language other than English, so a tool lists
  * the words an output prints for this plan, and says when some of them were in English. The tool
  * server runs one call at a time, so the keys are the call's own.
  */
-export async function listenForKeys<T>(make: () => T | Promise<T>): Promise<{ readonly result: T; readonly keys: ReadonlyMap<Language, ReadonlySet<MessageKey>> }> {
+export async function listenForKeys<T>(make: () => T | Promise<T>): Promise<{ readonly result: T; readonly keys: HeardKeys }> {
   const before = listening
   const keys = new Map<Language, Set<MessageKey>>()
   listening = keys
   try {
     const result = await make()
-    return { result, keys }
+    // CNT-47: handed out as read-only without TypeScript comparing a Set of every key with a
+    // ReadonlySet of them, which grows past its limit as the keys grow.
+    return { result, keys: keys as unknown as HeardKeys }
   } finally {
     listening = before
     if (before !== null) for (const [language, said] of keys) for (const key of said) heard(language, key)

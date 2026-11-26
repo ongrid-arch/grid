@@ -117,6 +117,11 @@
  *   item <id> ["<label>"] <name> [<w> x <d>] [<h> high] in <room> against <side> [, at <end> | , <n> from <end> | , full width]
  *        or ... at x,y [turn <deg>] [on <floor>]        raw item|fixture|furniture { ...JSON... }
  *                                                     the plan's fixtures and furniture (CNT-45): `items.ts`
+ *   row <id> <item words> repeat <n> [every <m>] [, <k> rows [every <m>] [behind]]
+ *                                                     items laid out in rows (CNT-47): `rows.ts`
+ *   note|tag "<text>" at x,y | in <room>   symbol north|entrance ...   key [at x,y]
+ *   route [<category>] x,y x,y ...   sketch line|shape|rect|arc|text <category> ...   [on <floor>] [id <id>]
+ *   raw note|sketch { ...Grid's own JSON... }           writing on the drawing and the sketch (SHT-22): `notes.ts`
  *   base <plan file>                   a fit-out on that base plan (WRT-75): the rooms rest on its walls, `base.ts`
  *   bay <id> at x,y, <w> x <l> [turn <deg>] [number <n>] [on <floor>]
  *   bays <group> in <room> along <side> | fill, <w> x <l> ...   or   bays <group> at x,y, <w> x <l>, count <n>, runs <way> ...
@@ -153,7 +158,10 @@ import { factValueOf, f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUn
 import { checkWritten } from './selfCheck'
 import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
+import { BuildingLines, isKindLine } from './buildings'
 import { ITEM_LINE_WORDS, ItemLines, RAW_ITEM_KINDS } from './items'
+import { readRowLine, ROW_LINE_WORDS } from './rows'
+import { NOTE_LINE_WORDS, NoteLines } from './notes'
 import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
 import { edgeWords, mirroredSide, OPEN_SIDES, outdoorWordKind, outsideEdge, type EdgeWord } from './edges'
 import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
@@ -169,7 +177,7 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
 
 /** WRT-68: the kinds a `raw` line takes, written after it in small letters. */
-const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS, 'bay', 'ramp']
+const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS, 'bay', 'ramp', 'note', 'sketch']
 
 /**
  * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
@@ -891,8 +899,12 @@ class Compiler {
   private readonly siteLines = new SiteLines()
   /** LVL-21: the stairs, from their own lines and `raw stair`. */
   private readonly stairLines = new StairLines()
+  /** LVL-23: the building lines (`buildings.ts`). */
+  private readonly buildingLines = new BuildingLines()
   /** CNT-45: the fixtures and furniture, from their own lines and `raw item`. */
   private readonly itemLines = new ItemLines()
+  /** SHT-22: writing on the drawing and the sketch, from their own lines and `raw note|sketch`. */
+  private readonly noteLines = new NoteLines()
   /** WRT-75: the base plan a fit-out names (`base.ts`). */
   readonly baseLine = new BaseLine()
   /** CNT-46: the parking bays and ramps, from their own lines and `raw bay`, `raw ramp`. */
@@ -941,6 +953,7 @@ class Compiler {
         else if (kind === 'stair') this.stairLines.raw(rest, at)
         else if (RAW_ITEM_KINDS.includes(kind)) this.itemLines.raw(rest, at)
         else if (kind === 'bay' || kind === 'ramp') this.parkingLines.raw(kind, rest, at)
+        else if (kind === 'note' || kind === 'sketch') this.noteLines.raw(kind, rest, at)
         else this.rawKind(kind, at)
         continue
       }
@@ -1137,6 +1150,10 @@ class Compiler {
     if (STAIR_LINE_WORDS.includes(kw)) return this.stairLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     // CNT-45: a fixture or a piece of furniture (`items.ts`), placed once the rooms are drawn.
     if (ITEM_LINE_WORDS.includes(kw)) return this.itemLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    // CNT-47: items laid out in rows (`rows.ts`), placed with the item lines.
+    if (ROW_LINE_WORDS.includes(kw)) return readRowLine(this.itemLines, t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    // SHT-22: writing on the drawing and the sketch (`notes.ts`), on the floor of the block it is under.
+    if (NOTE_LINE_WORDS.includes(kw)) return this.noteLines.read(quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
     // WRT-75: the base plan a fit-out is written on (`base.ts`).
     if (BASE_LINE_WORDS.includes(kw)) return this.baseLine.read(this.lines[at - 1] ?? '', at)
     // CNT-46: a bay, a row of bays or a ramp (`parking.ts`), laid out once the rooms are drawn.
@@ -1147,6 +1164,8 @@ class Compiler {
         if (t.length > 2) this.planWords(t, at)
         return
       case 'building':
+        // LVL-23: a building of the plan and the floors that are its own (`buildings.ts`).
+        if (!isKindLine(t) && t.length > 1) return this.buildingLines.read(quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
         if (t.length !== 2 || !BUILDINGS.includes(readBuilding(t[1]) as string)) this.stop('rooms/syntax', at, `line ${at}: write 'building <kind>': one of ${BUILDINGS.join(', ')}.`)
         this.building = readBuilding(t[1]) as BuildingType
         return
@@ -1216,11 +1235,13 @@ class Compiler {
         return
       case 'pattern':
         return this.stop('rooms/syntax', at, patternLine(at, false))
+      case 'end':
+        return this.buildingLines.end(at)
       default:
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, item, base, bay, bays, ramp.`
+          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, item, row, base, bay, bays, ramp, note, tag, symbol, key, route, sketch.`
         )
     }
   }
@@ -1345,7 +1366,8 @@ class Compiler {
       const fixed = [`floor ${id.text}`, quoteWords(words.slice(0, end).map((w) => w.text).join(' ')), ...words.slice(end).map(lineWord)].join(' ')
       refuse(say('rooms.floor.unquoted', { word: words[0].text, line: fixed }))
     }
-    const fl = newFloor(id.text, name ?? id.text, this.floors.length === 0 ? 0 : this.floors.length, this.rule)
+    // LVL-23: under a building line, the next level of that building's own.
+    const fl = newFloor(id.text, name ?? id.text, this.buildingLines.levelFor(this.floors.length), this.rule)
     fl.ahead = this.openedAhead(this.lines.slice(at).map((text, i) => ({ line: at + i + 1, text })))
     let copy: string[] | null = null
     const seen = new Set<string>()
@@ -1396,6 +1418,7 @@ class Compiler {
     if (!this.explicitFloors && this.floors.length > 0) refuse(say('rooms.floor.roomsFirst'))
     this.explicitFloors = true
     this.floors.push(fl)
+    this.buildingLines.floor(fl.id, fl.level)
     this.cur = fl
     this.riseInto(fl)
     if (copy !== null) this.stCopy(copy, at)
@@ -4364,10 +4387,12 @@ class Compiler {
     const twice = [...new Set(all.filter((x, k) => all.indexOf(x) !== k))].sort()
     for (const id of twice) this.problem('rooms/duplicate-id', null, `The id '${id}' would name two things in the plan (walls, rooms and openings share one set of ids). Rename one.`)
     this.rawOpeningFloors(plan.walls)
+    this.emitBuildings(plan)
     this.emitSite(plan)
     this.emitStairs(plan)
     this.emitItems(plan)
     this.emitParking(plan)
+    this.emitNotes(plan)
     if (this.problems.length > 0) return null
     this.askSizes(plan)
     const wallIds = new Set(plan.walls.map((w) => w.id))
@@ -4401,6 +4426,14 @@ class Compiler {
     if (made.north !== undefined) plan.north = made.north
   }
 
+  /** LVL-23: the building lines into the plan's `buildings`. */
+  private emitBuildings(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.buildingLines.written) return
+    const made = this.buildingLines.finish(this.floors.map((f) => f.id))
+    this.problems.push(...made.problems.map((note) => ({ ...note, message: note.message.charAt(0).toUpperCase() + note.message.slice(1) })))
+    if (made.buildings !== undefined) plan.buildings = made.buildings
+  }
+
   /** LVL-21: the stair lines into the plan's `stairs`, laid out in the rooms as drawn. */
   private emitStairs(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
     if (!this.stairLines.written) return
@@ -4432,6 +4465,17 @@ class Compiler {
     if (made.bays !== undefined) plan.bays = made.bays
     if (made.ramps !== undefined) plan.ramps = made.ramps
     for (const id of this.parkingLines.rawIds()) this.rawIds.add(id)
+  }
+
+  /** SHT-22: the note and sketch lines into the plan's `annotations` and `sketch`, on the rooms as drawn. */
+  private emitNotes(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.noteLines.written) return
+    const made = this.noteLines.finish(this.problems.length > 0 ? null : (plan as unknown as FloorPlan))
+    const capital = (note: { code: string; line: number | null; message: string }): RoomsProblem => ({ ...note, message: note.message.charAt(0).toUpperCase() + note.message.slice(1) })
+    this.problems.push(...made.problems.map(capital))
+    this.guesses.push(...made.guesses)
+    if (made.annotations !== undefined) plan.annotations = made.annotations
+    if (made.sketch !== undefined) plan.sketch = made.sketch
   }
 
   /**

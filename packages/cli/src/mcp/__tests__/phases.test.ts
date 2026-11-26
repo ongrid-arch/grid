@@ -14,6 +14,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { refurbishmentRaw } from '@ongrid/floorplan/test-support/phases'
 import { bench, type Bench, type Reply } from './replay/harness'
+import { drawFile, type DrawRequest } from '../../command/draw'
+import { loadPlan } from '../../command/plan'
+import { openProject } from '../../fs/projectFiles'
+
+/** A plan from the lab's rooms fixtures, as its file holds it. */
+const fixturePlan = (name: string): unknown => JSON.parse(readFileSync(join(__dirname, '../../../../floorplan/fixtures/rooms', name), 'utf8'))
 
 const SHELL = {
   version: '1',
@@ -69,7 +75,7 @@ describe('a plan with existing, demolished and new parts (CNT-10, EL-10)', () =>
     expect(changes).toContain('Room added: "Kitchen and dining", 27.36 m²')
     // The widened door: its old opening and the new one, paired by place.
     expect(changes).toContain('Door "d-bath" width 0.70 → 0.90 m, in "Bathroom" and "Living room"')
-    expect(reply.data!['since']).toEqual({ kind: 'phase', name: null, at: null, commit: null })
+    expect(reply.data!['since']).toEqual({ kind: 'phase', name: null, at: null, commit: null, revision: null, by: null, note: null })
     const rooms = reply.data!['rooms'] as { room: string; status: string }[]
     expect(rooms.find((r) => r.room === 'bath')?.status).toBe('unchanged')
   })
@@ -112,6 +118,44 @@ describe('a plan with existing, demolished and new parts (CNT-10, EL-10)', () =>
     // A demolished id can be picked out.
     const picked = await ok('grid_view', { plan: 'refurb.json', kind: 'plan', highlight: ['wk', 'd-kitchen'] })
     expect(picked.text).toContain('Picked out 2 of the 2 asked for on this floor')
+  })
+
+  it('draws a school phased through the tools as grid draw does, with grid_check\'s count (VEW-70)', async () => {
+    b.write('school.json', fixturePlan('school.plan.json'))
+    await ok('grid_start_works', { plan: 'school.json' })
+    await ok('grid_merge_rooms', { plan: 'school.json', room: 'c1', with: 'c2' })
+    await ok('grid_set_phase', { plan: 'school.json', phase: 'demolished', parts: ['d-c3'] })
+    const check = await ok('grid_check', { plan: 'school.json', full: true })
+    expect(check.text).toContain('4 to be demolished')
+    const view = await ok('grid_view', { plan: 'school.json', kind: 'plan', out: 'school.svg' })
+    expect(view.text).toContain('4 to be demolished (1 walls, 1 openings, 2 rooms)')
+    // One floor: no line about other floors.
+    expect(view.text).not.toContain('on this floor')
+    const dashed = (svg: string): string[] => [...svg.matchAll(/data-part="(demolished-[a-z]+)"[^>]*data-id="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`).sort()
+    const viewed = readFileSync(join(b.folder, 'exports', 'school.svg'), 'utf8')
+    expect(dashed(viewed)).toEqual(['demolished-opening:d-c3', 'demolished-wall:w-c1-c2'])
+    expect(viewed).toContain('to be demolished')
+    // grid draw draws the same dashed parts and key.
+    const drawn = await drawFile(loadPlan(openProject(b.folder, b.folder, 'project'), join(b.folder, 'school.json')), { look: 'working' } as DrawRequest, 1, 'working')
+    const drawnSvg = String(drawn.file)
+    expect(dashed(drawnSvg)).toEqual(dashed(viewed))
+    expect(drawnSvg).toContain('to be demolished')
+    const picked = await ok('grid_view', { plan: 'school.json', kind: 'plan', highlight: ['w-c1-c2', 'd-c3', 'c2'] })
+    expect(picked.text).toContain('Picked out 3 of the 3 asked for on this floor')
+  })
+
+  it('says which parts to be demolished are on the floor drawn, and where the others are (VEW-70)', async () => {
+    b.write('house.json', fixturePlan('two-storey.plan.json'))
+    await ok('grid_start_works', { plan: 'house.json' })
+    await ok('grid_merge_rooms', { plan: 'house.json', room: 'f-bed', with: 'f-bath' })
+    const check = await ok('grid_check', { plan: 'house.json', full: true })
+    const total = /(\d+) to be demolished/.exec(check.text)![1]
+    const ground = await ok('grid_view', { plan: 'house.json', kind: 'plan', floor: 'ground' })
+    expect(ground.text).toContain(`${total} to be demolished`)
+    expect(ground.text).toContain(`None of the ${total} to be demolished is on this floor: floor "first" has ${total}.`)
+    const first = await ok('grid_view', { plan: 'house.json', kind: 'plan', floor: 'first' })
+    expect(first.text).toContain(`All ${total} to be demolished are on this floor`)
+    expect(first.text).toContain('"f-mid"')
   })
 
   it('draws a plan with no phases as before, with no line about demolition (VEW-14)', async () => {

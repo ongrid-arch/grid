@@ -20,15 +20,14 @@ import { groundLevel } from '../ground'
 export interface FloorWithNoStair {
   /** The floor's id. */
   readonly floor: string
-  /** The ground floor's id: the first of the plan's ground floors. */
+  /** The ground floor's id: the first of the plan's ground floors (LVL-23: of its own building's). */
   readonly from: string
 }
 
 /** Every floor above the ground with no stair or lift room and no stated stair or ramp to it, in floor order. */
 export function floorsWithNoStair(plan: FloorPlan): FloorWithNoStair[] {
   const site = groundLevel(plan, floorElevations(plan))
-  const from = site.groundFloors[0]?.id
-  if (from === undefined) return []
+  if (site.groundFloors.length === 0) return []
   const joined = new Set([...(plan.stairs ?? []), ...(plan.ramps ?? [])].flatMap((way) => [way.from, way.to]))
   const rooms = new Set<string>()
   const shafts = new Set<string>()
@@ -37,7 +36,11 @@ export function floorsWithNoStair(plan: FloorPlan): FloorWithNoStair[] {
     if (room.use === 'stair' || room.use === 'lift') shafts.add(floor)
     if (room.void !== true) rooms.add(floor)
   }
+  // LVL-23: from its own building's ground floor; a building that draws none has nothing to join to.
   return planFloors(plan)
     .filter((floor) => site.aboveGround(floor.id) && rooms.has(floor.id) && !shafts.has(floor.id) && !joined.has(floor.id))
-    .map((floor) => ({ floor: floor.id, from }))
+    .flatMap((floor) => {
+      const from = site.groundFloorOf(floor.id)?.id
+      return from === undefined ? [] : [{ floor: floor.id, from }]
+    })
 }

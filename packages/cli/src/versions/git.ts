@@ -259,11 +259,26 @@ function gitFolder(project: Project): string | null {
   }
 }
 
+/** How far back a commit is looked for by its first digits, along the first parents of `HEAD`. */
+export const COMMITS_WALKED_MAX = 1000
+
+/** CMD-44: an earlier commit, named `git~N` (N first parents back) or by 7 to 40 of its hex digits. */
+export const GIT_BACK = /^git~([0-9]{1,4})$/
+export const COMMIT_DIGITS = /^[0-9a-f]{7,40}$/
+
 /**
  * The plan file as last committed. `planFile` is a path inside the project; the repository must
  * be the project folder's own. Throws `GitUnread` with the reason when it cannot be read.
  */
 export function lastCommitted(project: Project, planFile: string): CommittedVersion {
+  return committedVersion(project, planFile, 'git')
+}
+
+/**
+ * CMD-44: the plan file as committed at `ref`: `git` (the last commit), `git~N` (N first parents
+ * back from it) or a commit by its first hex digits, found among the first parents of `HEAD`.
+ */
+export function committedVersion(project: Project, planFile: string, ref: string): CommittedVersion {
   const folder = gitFolder(project)
   if (folder === null) throw new GitUnread('The project folder holds no git repository of its own (.git), so there is no last committed version to read.')
   const repo = new Repository(project, folder)
@@ -283,23 +298,49 @@ export function lastCommitted(project: Project, planFile: string): CommittedVers
     if (commit === null) throw new GitUnread(/^[0-9a-f]{64}$/.test(head) ? 'The project\'s git repository uses SHA-256, which Grid does not read.' : 'The project\'s git HEAD is not one Grid reads.')
   }
 
-  const commitObject = objects.object(commit)
-  if (commitObject.type !== 'commit') throw new GitUnread('The project\'s git HEAD does not name a commit.')
-  const treeSha = /^tree ([0-9a-f]{40})$/m.exec(decoder.decode(commitObject.data))?.[1]
+  const commitData = (sha: string): string => {
+    const object = objects.object(sha)
+    if (object.type !== 'commit') throw new GitUnread('The project\'s git HEAD does not name a commit.')
+    return decoder.decode(object.data)
+  }
+  const parentOf = (sha: string): string | null => /^parent ([0-9a-f]{40})$/m.exec(commitData(sha))?.[1] ?? null
+  const back = GIT_BACK.exec(ref)
+  if (back !== null) {
+    for (let i = 0; i < Number(back[1]); i++) {
+      const parent = parentOf(commit)
+      if (parent === null) throw new GitUnread(`${ref} goes back further than the first commit, ${i} back.`)
+      commit = parent
+    }
+  } else if (ref !== 'git') {
+    let found: string | null = null
+    let at: string | null = commit
+    for (let i = 0; at !== null && i < COMMITS_WALKED_MAX; i++) {
+      if (at.startsWith(ref)) {
+        found = at
+        break
+      }
+      at = parentOf(at)
+    }
+    if (found === null) throw new GitUnread(`No commit starting ${ref} is among the last ${COMMITS_WALKED_MAX} first parents of HEAD.`)
+    commit = found
+  }
+
+  const where = ref === 'git' ? 'the last commit' : `commit ${commit.slice(0, 7)}`
+  const treeSha = /^tree ([0-9a-f]{40})$/m.exec(commitData(commit))?.[1]
   if (treeSha === undefined) throw new GitUnread('The last commit names no tree.')
   const path = project.relative(project.resolve(planFile))
   let sha = treeSha
   const parts = path.split('/')
   for (const [i, part] of parts.entries()) {
     const tree = objects.object(sha)
-    if (tree.type !== 'tree') throw new GitUnread(`${JSON.stringify(path)} is not in the last commit.`)
+    if (tree.type !== 'tree') throw new GitUnread(`${JSON.stringify(path)} is not in ${where}.`)
     const entry = treeEntry(tree.data, part)
-    if (entry === null) throw new GitUnread(`${JSON.stringify(path)} is not in the last commit.`)
-    if (i < parts.length - 1 && entry.mode !== '40000') throw new GitUnread(`${JSON.stringify(path)} is not in the last commit.`)
+    if (entry === null) throw new GitUnread(`${JSON.stringify(path)} is not in ${where}.`)
+    if (i < parts.length - 1 && entry.mode !== '40000') throw new GitUnread(`${JSON.stringify(path)} is not in ${where}.`)
     sha = entry.sha
   }
   const blob = objects.object(sha)
-  if (blob.type !== 'blob') throw new GitUnread(`${JSON.stringify(path)} is not a file in the last commit.`)
+  if (blob.type !== 'blob') throw new GitUnread(`${JSON.stringify(path)} is not a file in ${where}.`)
   // The one way a plan's bytes become text (MSG-9).
   return { text: decodeText(blob.data).text, commit, branch }
 }

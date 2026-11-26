@@ -43,13 +43,21 @@ version; a new size is a new name.
 | rug | `rug` 2.00 × 1.40, `rug-large` 3.00 × 2.00 |
 | plant | `plant` 0.50 × 0.50 (1.20 high) |
 
+Equipment (CNT-47), each a fixture that takes the floor it stands on, one entry of each kind by
+its kind's name: `rack` 0.60 × 1.20 (2.00 high, 1.00 clear in front), `generator` 3.00 × 1.20,
+`pump` 0.60 × 0.60, `tank` 1.50 × 1.50, `seat` 0.50 × 0.60, `pew` 3.00 × 0.60, `altar` 2.00 ×
+1.00, `fume-cupboard` 1.50 × 0.90 (2.40 high), `lab-bench` 3.00 × 0.75, `safety-shower` 1.00 ×
+1.00, `kennel` 0.90 × 0.90, `exam-table` 1.20 × 0.60 and `clinical-sink` 0.90 × 0.60. Any other
+thing is the kind `equipment`, which has no entry: give it its size, height and label.
+
 Child-size entries, for a nursery or a school: `wc-child` (a toilet, 0.32 × 0.50, 0.35 high),
 `basin-low` (a basin, 0.45 × 0.35, 0.55 high), `cot` (a bed, 0.66 × 1.26, 0.95 high), `nap-cot`
 (a bed, 0.60 × 1.30, 0.15 high), `changing-table` (a table, 0.90 × 0.70, 0.90 high), and
 `coat-rail` (1.20 × 0.40, 1.70 high) and `coat-rail-low` (1.20 × 0.30, 1.10 high), both storage.
 
-The typical rooms are `bathroom` (a bath, a WC and a basin in 2.40 × 1.90 m), `cloakroom` (a WC
-and a small basin in 1.00 × 1.60 m), `double-bedroom` (a double bed, two side tables and a
+The typical rooms are `bathroom` (a bath, a WC and a basin in 2.40 × 1.90 m), `shower-room` (a
+shower, a WC and a basin in 2.10 × 1.80 m, CNT-48), `cloakroom` (a WC and a small basin in
+1.00 × 1.60 m), `kitchen` (a 3.00 m kitchen run in 3.00 × 2.40 m, CNT-48), `double-bedroom` (a double bed, two side tables and a
 wardrobe in 3.20 × 3.40 m) and `single-bedroom` (a single bed, a side table and a wardrobe in
 2.40 × 3.00 m). In each, every item and the clear floor each keeps are clear of the others. Two
 sets are for filling a café or a meeting room (CNT-44): `table-4-chairs` (a table for four with
@@ -61,6 +69,20 @@ floor is at its foot. Fixtures take the floor they stand on from a room's free f
 ([areas.md](areas.md#free-floor)); furniture can be moved and takes none.
 
 ## Placing by name
+
+`grid_add_item` with a typical room's name and a room, and no side or point, sets out that room's
+usual fixtures in it in one call (CNT-48): each item against a side of the room, longest side
+first, in a corner and then centred, where Grid's checks find it clear of the walls, the doors'
+swings and ways through, the other fixtures and the clear floor each keeps. Where the typical
+room's own size fits nowhere, a smaller one of the same thing is tried (a 2.40 m kitchen run for a
+3.00 m one, a 1.50 m bath, then a shower, for a bath; a small basin, a compact WC), and the answer
+says so. A kind the room already holds is not added again, and `notPlaced` lists what fits
+nowhere. It is a first set-out to move from, not a layout rule.
+
+```text
+grid_add_item name=bathroom room=bath
+grid_add_item name=kitchen room=kitchen
+```
 
 `grid_place_item` (`grid edit place`) puts an entry in the plan by name, at `x` and `y`: an
 item's middle, or a typical room's inside back-left corner, whose items are set out from there.
@@ -168,7 +190,9 @@ written back, so a plan written back keeps only what it stated.
 ]
 ```
 
-Any item may state `clearance` itself, with or without a library entry. Every other field is
+Any item may state `clearance` itself, with or without a library entry, and (CNT-47)
+`clearSides`, the clear floor it keeps behind it (`back`, as wide as it is) and at its own left
+and right (`left`, `right`, as deep as it is), facing out of its front. Every other field is
 in [plan-file.md](plan-file.md#fixtures).
 
 ## What Grid checks
@@ -180,7 +204,7 @@ Each is worth a look; the item is drawn and measured either way.
 | `item/unknown-library` | The item names an entry no library holds. It is drawn from what it states; one that states no size is left out by the reading |
 | `item/overlap` | It stands in another item by more than 5 mm (`itemOverlap`) |
 | `item/leaves-room` | More than 0.005 m² of its footprint lies past its room's edge where no wall stands (`itemLeavesRoom`) |
-| `item/clearance-blocked` | A wall, or another item, stands in the clear floor it keeps in front of it |
+| `item/clearance-blocked` | A wall, or another item, stands in the clear floor it keeps in front of it, or behind it or at a side (CNT-47) |
 
 These come with the checks every item has, in [plan-file.md](plan-file.md#fixtures).
 

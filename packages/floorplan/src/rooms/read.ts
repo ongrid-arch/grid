@@ -29,8 +29,10 @@ import { planRevision } from './stamp'
 import { factValueOf, metres, quotedWordsOf } from './words'
 import { siteLines } from './site'
 import { stairLines } from './stairs'
-import { itemLines } from './items'
+import { buildingLines } from './buildings'
+import { itemAndRowLines } from './rows'
 import { parkingLines } from './parking'
+import { noteLines } from './notes'
 import { fitOutReading, type BasePlan } from './base'
 
 type P = readonly [number, number]
@@ -766,12 +768,18 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
   // LVL-21: the stairs, after every floor, so each room a stair line names is written above it.
   const stairs = stairLines(plan)
   if (stairs.length > 0) lines.push('', ...stairs)
+  // LVL-23: the buildings, after every floor, each naming its own floors.
+  const buildings = buildingLines(plan)
+  if (buildings.length > 0) lines.push('', ...buildings)
   // CNT-45: the fixtures and furniture, after the stairs, so each room an item line names is written above it.
-  const items = itemLines(plan)
+  const items = itemAndRowLines(plan)
   if (items.length > 0) lines.push('', ...items)
   // CNT-46: the bays and ramps, after every floor, so each room a line names is written above it.
   const parking = parkingLines(plan)
   if (parking.length > 0) lines.push('', ...parking)
+  // SHT-22: writing on the drawing and the sketch, last, on the floor of the last block unless they say another.
+  const notes = noteLines(plan, floors.at(-1)?.id)
+  if (notes.length > 0) lines.push('', ...notes)
   return `${lines.join('\n')}\n`
 }
 

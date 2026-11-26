@@ -253,6 +253,9 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_write_brief: [{ arg: 'plan', call: tool('grid_write_brief', { plan: '@', brief: { rooms: [{ name: 'Lounge', area: 20, level: 'must', source: 'assumed' }] } }), given: asIs }],
   // MSG-24: its words go into the plan's own display, never a file of their own.
   grid_words: [{ arg: 'plan', call: tool('grid_words', { plan: '@', language: 'de', words: { 'join.and': ' und ' } }), given: asIs }],
+  // CMD-44: the plan put back as it was; its log and checkpoints are the plan's name beside it, never paths of their own.
+  grid_undo: [{ arg: 'plan', call: tool('grid_undo', { plan: '@' }), given: asIs }],
+  grid_restore: [{ arg: 'plan', call: tool('grid_restore', { plan: '@', since: 'last' }), given: asIs }],
   grid_write_rooms: [
     { arg: 'plan', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: `${p}.json`, rooms: roomsText } }), given: (p) => `${p}.json` },
     // BRF-6: a first layout reads the brief beside the plan, and writes the plan.
@@ -370,6 +373,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_change_stair', { plan: '@', id: 'st', width: 1 }), given: asIs },
     { arg: 'out', call: tool('grid_change_stair', { plan: PLAN, id: 'st', width: 1, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // LVL-23: a building of the plan, written into the plan.
+  grid_set_building: [
+    { arg: 'plan', call: tool('grid_set_building', { plan: '@', id: 'house', floors: ['ground'] }), given: asIs },
+    { arg: 'out', call: tool('grid_set_building', { plan: PLAN, id: 'house', floors: ['ground'], out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-45: an item added, moved and taken out, written into the plan.
   grid_add_item: [
     { arg: 'plan', call: tool('grid_add_item', { plan: '@', name: 'wc', room: 'lounge', against: 'north' }), given: asIs },
@@ -408,6 +416,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'image', call: (p) => ({ name: 'grid_place_trace', arguments: { plan: PLAN, image: `${p}.png` } }), given: (p) => `${p}.png` },
     { arg: 'out', call: tool('grid_place_trace', { plan: PLAN, image: 'scan.png', out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // SHT-22: notes, tags and sketch lines written into the plan's drawing.
+  grid_annotate: [
+    { arg: 'plan', call: tool('grid_annotate', { plan: '@', kind: 'tag', text: 'Exit', at: '1,1' }), given: asIs },
+    { arg: 'out', call: tool('grid_annotate', { plan: PLAN, kind: 'tag', text: 'Exit', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // VEW-3: a camera saved by name, written into the plan.
   grid_save_view: [
     { arg: 'plan', call: tool('grid_save_view', { plan: '@', name: 'Corner', camera: CAMERA }), given: asIs },
@@ -418,10 +431,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
 /**
  * The plan-reading call of every tool that reads one and would follow its trace image. CMD-13's
  * grid_report_problem never follows it: the draft leaves it out (reportProblem.test.ts holds
- * that the path is not in the draft).
+ * that the path is not in the draft). CMD-44's grid_undo and grid_restore read no plan: they put
+ * back a text Grid kept, and a plan put back is read by the next call.
  */
 const PLAN_TOOLS: ReadonlyArray<readonly [name: string, call: (plan: string) => Call]> = Object.entries(TOOL_SLOTS)
-  .filter(([name]) => name !== 'grid_write_rooms' && name !== 'grid_report_problem')
+  .filter(([name]) => name !== 'grid_write_rooms' && name !== 'grid_report_problem' && name !== 'grid_undo' && name !== 'grid_restore')
   .map(([name, slots]) => [name, slots[0]!.call] as const)
 
 // ---------------------------------------------------------------------------------------------
@@ -596,7 +610,8 @@ describe('the trace image a plan names (T-5)', () => {
     })
     expectOutsideUntouched()
     // Six plans times every tool that reads one: it grows with each tool and runs long on a busy machine.
-  }, 300_000)
+    // SHT-23: the check sheet draws its elevations and sections too.
+  }, 480_000)
 
   it('HND-10: is never followed when it does not end as a picture, by any command or tool', async () => {
     const path = 'notes/plan.sh'
@@ -733,6 +748,8 @@ describe('every file Grid writes lands under the project folder', () => {
       'plans/exports/flat.dxf', 'plans/exports/flat.glb', 'plans/exports/flat.ifc', 'plans/exports/flat.obj', `plans/exports/${sheets[0]}`,
       'plans/flat.json', 'plans/flat.png', 'plans/flat.svg',
       'plans/hinged.json', 'plans/mirrored.json', 'plans/tool.json', 'plans/wider.json', 'plans/written.json',
+      // CMD-44: each plan Grid wrote has its change log beside it; a change written to out logs nothing.
+      'plans/tool.history.jsonl', 'plans/written.history.jsonl',
     ].sort())
     // The original is left as it was: each change went to its out.
     expect(readFileSync(join(project, 'plans', 'flat.json'), 'utf8')).toBe(sample)

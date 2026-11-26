@@ -1,0 +1,13 @@
+# 2026-11-26: buildings stacked on their own ground floors (LVL-23)
+
+## For people
+
+- A site of several buildings (a housing estate, a campus, a row of terrace houses up a street) no longer needs its buildings added by hand to the plan file. Rooms text writes `building row-a "Row A" pad 2.5ft`, then the floor lines that are that building's own, up to `end` or the next building line; or `building row-a floors ag a1` names floors written anywhere. Each building counts its levels from its own ground floor and stacks its floors from its `pad`, the level of its own ground. `grid describe --as rooms` reads every building back as a line, and `grid write` keeps the file's buildings when the text writes none (LVL-23).
+- Each building is read on its own ground: its own ground floor, so its way out is checked; a door to the outside opens in mid-air only above its own ground; a floor with no stair names its own building's ground floor; its height is measured from its own pad (or the site's ground, or its ground floor) and its storeys are its own, so two identical rows on different pads are the same height and six two-storey houses are six of two storeys. The site measures give each building's footprint and the edge of the plot it comes nearest, and the IFC export writes one building for each, holding its own storeys. A plan that names no building reads exactly as before.
+
+## For agents
+
+- New tool `grid_set_building`: `id`, then `floors` to add a building, `name`, `pad` (a length) or `floors` to change one, or `remove` (its floors stay, in no building). A floor the plan does not have, or one another building holds, is refused with nothing written. It answers as every change does, then with the building's ground floor, its storeys and its height and what it is measured from, and `building` and `buildings` in the data. The tool server lists 59 tools; it comes after `grid_change_stair` and before `grid_add_item`.
+- The plan file: `buildings[].pad`, the level of the building's own ground in metres from the plan's datum (C23 widened; optional, never defaulted).
+- `grid_areas`: each building in `buildings` gains `ground` (its level), `from` (`pad`, `site` or `floor`) and `storeys` (`above`, `below`), and its line says how many storeys and what its height is measured from. `grid_measure what=site` gains `buildings`, only on a plan that names some: each one's `footprint`, `why` when it has none, and its `edges`; its text lists each building and the edge it comes nearest.
+- Rooms text: the building lines, refused with their line for a floor in two buildings, a floor the text does not write, a building with no floor, a word the line does not take, an `end` with nothing open, and a lone word near a kind of building. No new code in the record.

@@ -3,7 +3,7 @@
  * plan first, ordered by the requests they answer most often (lab entry Y-2), with the problem
  * report last of them (CMD-13), then the preview and the preview page's own call (VEW-4), the export, the sheet, the start marker
  * (WRT-8), the seen mark (MSG-10), the brief (BRF-1), Grid's words in the person's language (MSG-24),
- * and last the tools that change the plan, the site's two (CNT-41) and then the saved views last
+ * undo and restore (CMD-44), and last the tools that change the plan, the site's two (CNT-41) and then the saved views last
  * of them (VEW-3).
  *
  * Every path an agent passes goes through the project's resolver (`fs/projectFiles.ts`):
@@ -40,9 +40,12 @@ import { setFactsTool } from './factsTool'
 import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
 import { STAIR_TOOLS } from './stairTools'
+import { BUILDING_TOOLS } from './buildingTools'
 import { ITEM_TOOLS } from './itemTools'
 import { PARKING_TOOLS } from './parkingTools'
 import { placeTraceTool } from './traceTool'
+import { annotateTool } from './annotateTool'
+import { VERSION_TOOLS } from './versionTools'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -69,6 +72,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   writeBriefTool,
   // MSG-24: writes Grid's words in the person's language into the plan's display, never the building.
   wordsTool,
+  // CMD-44: the plan put back as it was, the last change undone or an earlier version restored, before the changes that make one.
+  ...VERSION_TOOLS,
   ...WRITE_TOOLS.filter((tool) => tool.hint === 'change-plan'),
   ...EDIT_TOOLS,
   // WRT-73: phases set without hand-editing: the plan as it stands as existing, parts by id or room, one plan from two.
@@ -83,6 +88,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   setFactsTool,
   // LVL-21: a stair between two floors, added, changed or removed: the last of the building's changes.
   ...STAIR_TOOLS,
+  // LVL-23: which floors are each building's, and the ground each stands on.
+  ...BUILDING_TOOLS,
   // CNT-45: fixtures and furniture added against a wall, moved and taken out.
   ...ITEM_TOOLS,
   // CNT-46: rows of parking bays placed and a ramp added between two floors, after the stairs.
@@ -91,6 +98,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...SITE_TOOLS,
   // VEW-67: the trace image under the plan, drawn only: no part of the building.
   placeTraceTool,
+  // SHT-22: writing on the drawing and its sketch, never the building or the ground.
+  annotateTool,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
   saveViewTool,
 ]

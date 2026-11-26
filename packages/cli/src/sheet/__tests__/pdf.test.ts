@@ -40,7 +40,10 @@ describe('the sheet as a PDF (VEW-7)', () => {
 
   it('writes one PDF page for each page of the check sheet', async () => {
     const sheet = checkSheet()
-    expect(pageCount((await sheetPdf(plan, sheet)).pdf)).toBe(sheet.pages.length)
+    // SHT-23: what the sections took may run onto a continuation page of the sections page.
+    const result = await sheetPdf(plan, sheet)
+    expect(pageCount(result.pdf)).toBe(result.sheet.pages.length)
+    expect(result.sheet.pages.length).toBeGreaterThanOrEqual(sheet.pages.length)
   }, 30_000)
 
   it('moves what does not fit onto continuation pages, with every note once', async () => {
@@ -50,7 +53,7 @@ describe('the sheet as a PDF (VEW-7)', () => {
     expect(pageCount(result.pdf)).toBe(result.sheet.pages.length)
     const shown = result.sheet.pages.flatMap((p) => p.notes)
     for (const note of notes) expect(shown.filter((n) => n === note)).toHaveLength(1)
-    const more = result.sheet.pages.filter((p) => p.title?.endsWith('(continued)'))
+    const more = result.sheet.pages.filter((p) => p.title === `${sheet.pages[1]!.title} (continued)`)
     expect(more.length).toBeGreaterThan(0)
     for (const page of more) { expect(page.picture).toBeNull(); expect(page.figures).toEqual([]) }
     expect(more.every((page) => page.floor === sheet.pages[1]!.floor && page.floor !== null)).toBe(true)
@@ -101,8 +104,9 @@ describe('the sheet as a PDF (VEW-7)', () => {
     const note = words.join(' ')
     const sheet = { ...base, pages: base.pages.map((p, i) => (i === 0 ? { ...p, notes: [note] } : p)) }
     const laid = await layoutSheet(sheet)
-    expect(laid.pages.length).toBeGreaterThan(base.pages.length + 1)
-    const shown = laid.pages.slice(0, laid.pages.length - (base.pages.length - 1)).flatMap((p) => p.notes)
+    const plain = (await layoutSheet(base)).pages.length
+    expect(laid.pages.length).toBeGreaterThan(plain + 1)
+    const shown = laid.pages.slice(0, laid.pages.length - (plain - 1)).flatMap((p) => p.notes)
     expect(shown.length).toBeGreaterThan(2)
     expect(shown.join(' ')).toBe(note)
     expect(pageCount((await sheetPdf(plan, sheet)).pdf)).toBe(laid.pages.length)

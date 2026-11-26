@@ -222,7 +222,9 @@
  *   no roof, and one with more of it below has no ground slab and is not a ground floor.
  *   A plan MAY name several `buildings`, each an id, a name and the floors that are its own, each
  *   floor in one building at most; each building stacks its own floors and has its own areas and
- *   height. A plan MAY draw `context`: shapes round it (a neighbour's house, the hall a stand stands
+ *   height. A building MAY state its `pad` (LVL-23): the level of its own ground, in metres from the
+ *   plan's datum (the 0 a floor's `elevation` is measured from). Its floors that state no elevation
+ *   stack from it, and its ground floor, way out and height are read against it. A plan MAY draw `context`: shapes round it (a neighbour's house, the hall a stand stands
  *   in), each an outline on a floor, with a name and a height. A context shape is never a wall, a
  *   room or a part of any building: it is drawn and is in no measure, check or count. All optional
  *   and never defaulted (version 1): a plan that states none reads exactly as before.
@@ -310,8 +312,9 @@
  *   (`library/builtIn.ts`), whose sizes never change once released. An office's entry is copied
  *   into the plan's `library` when an item is placed from it, so the plan reads the same without
  *   the office's folder. An item MAY state `clearance`: metres of clear floor it keeps in front of
- *   it, as wide as it is. A name no entry has fills nothing and is said, never refused. Optional
- *   and never defaulted: a plan with none reads exactly as before (version 1).
+ *   it, as wide as it is, and (CNT-47) `clearSides`, the same behind it and at its left and
+ *   right. A name no entry has fills nothing and is said, never refused. Optional and never
+ *   defaulted: a plan with none reads exactly as before (version 1).
  *
  * C31 · A trace image under the plan (HND-10, lab AU2, WR-13, T-5, AE-11)
  *   `referenceImage` is a scan, photo or sketch to trace over. Its `path` starts from the project
@@ -1661,10 +1664,18 @@ export const FIXTURE_KINDS = ['toilet', 'basin', 'shower', 'bath', 'kitchen-run'
 export const FURNITURE_KINDS = ['bed', 'table', 'chair', 'sofa', 'storage', 'armchair', 'stool', 'desk', 'rug', 'plant'] as const
 
 /**
+ * CNT-47 (C30): the equipment an item may be: a server rack, a generator, a pump, a tank, a fixed
+ * seat, a pew, an altar, a fume cupboard, a lab bench, a safety shower, a kennel, an exam table, a
+ * clinical sink, and `equipment`, any other thing, drawn as a plain box at the size and height it
+ * is given and called by its label. Equipment is a fixture: it takes the floor it stands on.
+ */
+export const EQUIPMENT_KINDS = ['rack', 'generator', 'pump', 'tank', 'seat', 'pew', 'altar', 'fume-cupboard', 'lab-bench', 'safety-shower', 'kennel', 'exam-table', 'clinical-sink', 'equipment'] as const
+
+/**
  * The kinds Grid holds itself, fixtures first. Another kind is added through the kinds registry
  * (`registerItemKind` in `geometry/itemKinds.ts`), never by adding to this list alone.
  */
-export const ITEM_KINDS = [...FIXTURE_KINDS, ...FURNITURE_KINDS] as const
+export const ITEM_KINDS = [...FIXTURE_KINDS, ...FURNITURE_KINDS, ...EQUIPMENT_KINDS] as const
 
 export type ItemKind = (typeof ITEM_KINDS)[number]
 
@@ -1737,6 +1748,13 @@ export const ItemSchema = z.preprocess(
     // CNT-20 (C30): metres of clear floor kept in front of it, as wide as it is. Optional and
     // never defaulted: unstated, nothing is kept clear and nothing checks it.
     clearance: finite().nonnegative().optional(),
+    // CNT-47 (C30): metres of clear floor kept behind it (as wide as it is) and at its left and
+    // right (as deep as it is): its own left, facing out of its front, the side its width starts from. Each optional and never
+    // defaulted: unstated, nothing is kept clear there.
+    clearSides: z
+      .object({ back: finite().nonnegative().optional(), left: finite().nonnegative().optional(), right: finite().nonnegative().optional() })
+      .strict()
+      .optional(),
     // CNT-20: what its library entry filled in (`withLibrary`). Grid's reading only, never written back.
     fromLibrary: z.array(z.enum(LIBRARY_VALUES)).optional(),
   })
@@ -2316,13 +2334,17 @@ export function withTypes(raw: unknown): unknown {
 /**
  * CNT-6 (C23): a building of the plan: an id, a name, and the floors that are its own, by id. A
  * floor is in one building at most; a floor no building names is in none. A named group of
- * floors, never a floor: each building stacks its own floors and has its own areas and height
- * (`geometry/buildings.ts`). Ids that are no floor are named and left out, never refused.
+ * floors, never a floor: each building stacks its own floors, from its `pad` when it states one
+ * (LVL-23), and has its own areas, ground floor and height (`geometry/buildings.ts`). Ids that are
+ * no floor are named and left out, never refused.
  */
 export const PlanBuildingSchema = z.object({
   id: text('id').pipe(z.string().min(1)),
   name: text('name').optional(),
   floors: parts(text('id').pipe(z.string().min(1)), 'floors').pipe(z.array(z.string()).min(1, { message: english(said('read.building.floors')) })),
+  // LVL-23: the level of the building's own ground, in metres from the plan's datum (0). Optional
+  // and never defaulted: unstated, its ground is the site's, else its own ground floor's level.
+  pad: finite().optional(),
 })
 
 /**

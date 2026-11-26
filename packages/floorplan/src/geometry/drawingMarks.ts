@@ -90,14 +90,24 @@ export interface ScheduleMarkLabels {
 
 export interface DrawingMarks {
   readonly section: SectionMark | null
+  /** SHT-23: further sections, each with its own name, as a sheet marks them. Empty when none is asked for. */
+  readonly sections: readonly SectionMark[]
   readonly elevations: readonly ElevationMark[]
   readonly levels: readonly LevelMark[]
   /** ARE-15: one per drawn room and opening the schedules give a mark. */
   readonly schedule: readonly ScheduleMark[]
 }
 
+/** SHT-23: a section line with the name the section is drawn under. */
+export interface NamedSectionLine {
+  readonly line: SectionLine
+  readonly label: string
+}
+
 export interface DrawingMarksAsked {
   readonly section?: SectionLine | null
+  /** SHT-23: more section lines, each marked with its own name. */
+  readonly sections?: readonly NamedSectionLine[]
   readonly elevations?: boolean
   readonly levels?: boolean
   /** ARE-15: the schedules' marks, by part id. */
@@ -113,6 +123,7 @@ export function drawingMarks(plan: FloorPlan, floor: string, drawing: PlanDrawin
   if (asked.section != null) {
     section = { from: asked.section.from, to: asked.section.to, look: sectionFrame(asked.section).look, label: 'A' }
   }
+  const sections: SectionMark[] = (asked.sections ?? []).map(({ line, label }) => ({ from: line.from, to: line.to, look: sectionFrame(line).look, label }))
 
   const elevations: ElevationMark[] = []
   if (asked.elevations === true && drawing.walls.length > 0) {
@@ -140,7 +151,7 @@ export function drawingMarks(plan: FloorPlan, floor: string, drawing: PlanDrawin
     }
   }
 
-  return { section, elevations, levels, schedule: asked.schedule == null ? [] : scheduleMarks(drawing, asked.schedule) }
+  return { section, sections, elevations, levels, schedule: asked.schedule == null ? [] : scheduleMarks(drawing, asked.schedule) }
 }
 
 /** ARE-15: each drawn room's and opening's mark, in the drawing's order. */
@@ -185,5 +196,5 @@ function facadeSideOf(out: Vec2): FacadeSide {
 
 /** The points the marks reach on the plan, for the picture to frame them too. */
 export function marksExtent(marks: DrawingMarks): Vec2[] {
-  return [...(marks.section === null ? [] : [marks.section.from, marks.section.to]), ...marks.elevations.map((m) => m.at)]
+  return [...(marks.section === null ? [] : [marks.section.from, marks.section.to]), ...marks.sections.flatMap((m) => [m.from, m.to]), ...marks.elevations.map((m) => m.at)]
 }

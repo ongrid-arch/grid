@@ -81,6 +81,15 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   walls it started with, and the answer says so (`rooms/walls-late`); a copied floor keeps the
   walls of the floor it copies. A floor that states its `height` gives its walls that height;
   where the walls line says another, the answer says which won (`rooms/walls-height`).
+- A building line says which floors are a building's own, on a site of several (LVL-23):
+  `building <id> ["<name>"] [pad <length>]`, then the floor lines that are its own, up to `end`
+  or the next building line; or `building <id> ["<name>"] [pad <length>] floors <floor> ...`,
+  naming floors written anywhere, which is how the read-back writes it. A floor line under a
+  building line with no `level` takes the next of that building's levels, its first being 0.
+  `pad` is the level of the building's own ground from the plan's datum: its floors stack from
+  it, and its ground floor, way out and height are read against it. A floor is in one building
+  at most. `building <kind>` alone still says what kind of building the plan is; a lone word
+  near a kind (`building offce`) is refused as a misspelt kind.
 - A floor line starts each storey (WRT-14):
   `floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]`.
   The name is in quotes, or left out and the id names the floor (`floor ground`). `level` is the
@@ -305,6 +314,20 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   its walking line otherwise, and raw when Grid cannot lay it out. `grid write` keeps the file's
   stairs when the text writes no stair line, and says so; `grid_add_stair` and
   `grid_change_stair` write and change the same stairs on the tool server.
+- Writing on the drawing and its sketch are lines of their own (SHT-22): `note "<text>"` and
+  `tag "<text>"` at a point (`at x,y`) or in a room (`in <room>`, under its name, on its floor),
+  `symbol north|entrance` (with `turn <degrees>` and a label in quotes), `key` (under the drawing
+  with no `at`), `route [<category>] x,y x,y ...` (a line with an arrowhead at its last point, the
+  way out), and `sketch line|shape|rect|arc|text <category> ...`. Each may end with `on <floor>`
+  and `id <id>`: with no `on`, a line under a `floor` line is on that floor; with no `id`, Grid
+  gives `tag-1`, `route-1`, `sketch-1` and so on. They write the plan's own `annotations` and
+  `sketch`, which the drawing, the sheet and the DXF export show, and the answer lists what each
+  floor now carries; a line Grid cannot place is refused naming what to write (`rooms/note`).
+  A route is a sketch line whose last three points draw its head, so every drawing shows the
+  arrow; the read-back finds it again and writes it as a `route` line, and writes the rest as
+  their lines, or `raw note {...}` and `raw sketch {...}` for one a line cannot give back. `grid
+  write` keeps the file's annotations, and its sketch, when the text writes none of them;
+  `grid_annotate` places and takes out the same on the tool server.
 - A door, window or opening line may name a raw room (WRT-45). `between <a> and <b>` goes in
   the one wall both rooms' boundaries name, and `in <room> <side>` in the one wall of the room
   whose outside face looks that way, a curved wall too. The place is `centred` or
@@ -453,7 +476,10 @@ stay taken. `grid write` and `grid_write_rooms` say how many they kept, each one
 stands in now, and name at once one the new walls run into or that now stands in no room
 (`itemsKept` in the tool's answer, WRT-46). `grid_add_item`, `grid_move_item` and
 `grid_remove_item` add, move and take out one without rewriting the plan. A refusal of a taken id
-names the part that holds it and where it is.
+names the part that holds it and where it is. A `row` line lays one item out many times, in rows
+(CNT-47, [Rows](#rows)): racks in a data hall, seats in a cinema, pews, a bank of kennels. Each
+is a plain item of the plan, and the read-back writes a run of them that is exactly a row as one
+row line again, at its first item's point.
 
 The walls Grid works out are named by what they are: `ext-south` for an outside wall facing south,
 `w-hall-kitchen` for one between two rooms, `w-hall-south` for one with a room on one side only,
@@ -670,7 +696,7 @@ stair st "Main stair" from ground to first in hall, 1 wide, U, runs north
 
 ### Items
 
-item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side's inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant). item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid's own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.
+item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side's inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant; the equipment rack, generator, pump, tank, seat, pew, altar, fume-cupboard, lab-bench, safety-shower, kennel, exam-table, clinical-sink, and equipment for any other thing, given its size, height and label). clear back|left|right <m> keeps clear floor on that side too. item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid's own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.
 
 ```rooms
 room bath "Bathroom" bathroom 2.4 x 2 at 0,0
@@ -680,6 +706,17 @@ item tub "Bath 1700" bath 1.7 x 0.7 in bath against north, at west
 item wc1 wc in bath against east, 0.1 from south
 item robe "Built-in wardrobe" wardrobe in bed against east, full width
 item bed1 double-bed in bed against north, at west
+```
+
+### Rows
+
+row <id> <the words of an item line> repeat <n> [every <m>] [, <k> rows [every <m>] [behind]] lays the item out n times side by side along their backs, every metres from middle to middle (their width, so they touch, when left out), and k rows of them, each in front of the last (behind it with behind, for a row at a point), every metres apart (their depth and the clear floor in front when left out). Against a side, the first row is centred on it or set at or from one end. The items are <id>-<n>, or <id>-<row>-<n> in several rows, each a plain item, counted and checked: racks in a data hall, seats in a cinema, pews, kennels. grid_add_item with repeat and rows writes the same.
+
+```rooms
+room hall "Data hall" plant 12 x 8 at 0,0
+door d1 in hall south, centred, 1.2 wide
+row r rack in hall against north, at west, repeat 15, 3 rows every 2.4
+row ups "UPS" equipment 1.2 x 0.8 1.9 high at 9.5,0.5 repeat 2 every 1.5
 ```
 
 ### Parking
@@ -715,6 +752,22 @@ north 30 clockwise
 ground -0.15
 site tree oak at 9,15 canopy 5 "Old oak"
 site pool pool 0,12 3,12 3,18 0,18
+```
+
+### Writing on the drawing
+
+note "<text>" or tag "<text>" (short words in a box: you are here, FE), then at x,y or in <room> (under its name, on its floor); symbol north|entrance at x,y | in <room> [turn <degrees>] ["<label>"]; key [at x,y] (under the drawing with no at); route [<category>] x,y x,y ... draws a line with an arrowhead at its last point, the way out; sketch line|shape|rect <category> x,y ..., sketch arc <category> at x,y radius <m> start <degrees> end <degrees> and sketch text <category> at x,y "<text>" draw the sketch layer, its category the author's word for it (garden, street, fence). Each may end on <floor> and id <id>: with no on, a line under a floor line is on that floor; with no id, Grid gives tag-1, route-1, sketch-1. Drawn and exported only, never measured or checked; raw note|sketch {...} takes Grid's own JSON. Never draw your own map to add them. grid_annotate writes the same.
+
+```rooms
+room office "Office" office 5.0 x 4.0 at 0,0
+room hall "Hall" corridor 2.0 x 4.0 east of office
+door d1 between office and hall, centred, 0.9 wide, opens into hall
+door exit in hall south, centred, 1.0 wide, opens out
+tag "You are here" at 2.5,2
+tag "FE" in hall
+symbol entrance at 6.1,-0.6 "Way out"
+route exit 2.5,2 6.1,2 6.1,-1
+sketch shape garden -1,-1.5 9,-1.5 9,-4 -1,-4
 ```
 
 ### Fit-out

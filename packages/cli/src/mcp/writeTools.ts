@@ -46,6 +46,7 @@ import { renameInBrief } from '../brief/rename'
 import { causedText, newLines } from '../edit/caused'
 import { followWalls } from '../edit/items'
 import { faultText } from '../command/plan'
+import { refusePlanTarget } from '../command/planFile'
 import { SEEN_NEW_OUTPUT, seenBefore as seenMarksBefore, seenMadeNew, seenNewData, seenNewLines } from '../edit/seen'
 import { BRIEF_OUTPUT } from './briefTool'
 import { writeLayout } from '../brief/layout'
@@ -179,7 +180,7 @@ const sheetTool: GridTool = {
   title: 'Make a PDF sheet',
   hint: 'write-file',
   description:
-    'Use this when the person wants the plan as a PDF to read, print or send: layout client for the person the house is for (a cover with the 3D model and key figures, then a page per floor with its drawing and room areas), or layout check for whoever checks the plan (every id, every room\'s use, and what grid check finds on each floor). '
+    'Use this when the person wants the plan as a PDF to read, print or send: layout client for the person the house is for (a cover with the 3D model and key figures, then a page per floor with its drawing and room areas), or layout check for whoever checks the plan (every id, every room\'s use, and what grid check finds on each floor). Both then have an elevations page (every side) and a sections page (A along the building, B across it, cut where Grid chooses and marked on every floor plan), all at one true scale on A3 with a scale bar and a title block; the check sheet lists what the sections took that the plan does not state. '
     + 'The words of a client sheet (name, headline, intro, a few paragraphs per floor) are yours to write: pass them as sheet, or Grid reads <plan>.sheet.json beside the plan. The name is the one the person gave the building, else the plan\'s; never a name from an example. A drawing reads the same words: name is the project in its title block, and drawing is its title there (Grid\'s own, such as "Ground floor plan", when left out). Grid draws only what the plan holds: no furniture or landscape. Every page carries "General guidance, not your local rules". '
     + 'It writes the PDF into the exports folder beside the plan, replacing an earlier sheet of the same name and layout, and answers with the path and what is on each page. It never changes the plan. '
     + `${ROOM_NAMES_TRAVEL} `
@@ -356,6 +357,13 @@ function writeChangeHeld(context: ToolContext, args: Record<string, unknown>, ma
   const { project, file, loaded } = readPlan(context, args['plan'], { whole: true, leftOutKept: true })
   const out = (args['out'] as string | undefined) ?? file
   if (!out.toLowerCase().endsWith('.json')) throw new ToolRefusal('out must name a .json file.')
+  // CMD-45: out is never one of Grid's own files, nor a file there already that holds no plan.
+  try {
+    refusePlanTarget(project, out)
+  } catch (error) {
+    if (error instanceof PlanRefused || error instanceof PathRefused) throw new ToolRefusal(error.message)
+    throw error
+  }
   const before = surveyPlan(loaded.plan)
   // A plan written rooms first keeps its derived boundaries derived through Grid's own edits (WRT-2).
   const planAfter = (patch: Patch): FloorPlan => keptDerived(loaded.plan.rooms, readingAfter(loaded.plan, patch) as unknown as Record<string, unknown>) as unknown as FloorPlan

@@ -75,6 +75,20 @@ export const BUILT_IN_ITEMS: readonly LibraryItem[] = [
   entry('changing-table', 'table', 'Changing table', [0.9, 0.7], 0.9, 0.7),
   entry('coat-rail', 'storage', 'Coat rail', [1.2, 0.4], 1.7, 0.6),
   entry('coat-rail-low', 'storage', 'Coat rail', [1.2, 0.3], 1.1, 0.6),
+  // CNT-47: equipment, one plain size of each kind; any other thing is `equipment`, given its own size.
+  entry('rack', 'rack', 'Rack', [0.6, 1.2], 2, 1),
+  entry('generator', 'generator', 'Generator', [3, 1.2], 2, 1),
+  entry('pump', 'pump', 'Pump', [0.6, 0.6], 0.8, 0.6),
+  entry('tank', 'tank', 'Tank', [1.5, 1.5], 2),
+  entry('seat', 'seat', 'Seat', [0.5, 0.6], 0.9),
+  entry('pew', 'pew', 'Pew', [3, 0.6], 0.9),
+  entry('altar', 'altar', 'Altar', [2, 1], 1, 1),
+  entry('fume-cupboard', 'fume-cupboard', 'Fume cupboard', [1.5, 0.9], 2.4, 1),
+  entry('lab-bench', 'lab-bench', 'Lab bench', [3, 0.75], 0.9, 1),
+  entry('safety-shower', 'safety-shower', 'Safety shower', [1, 1], 2.3),
+  entry('kennel', 'kennel', 'Kennel', [0.9, 0.9], 0.9),
+  entry('exam-table', 'exam-table', 'Exam table', [1.2, 0.6], 0.9, 0.8),
+  entry('clinical-sink', 'clinical-sink', 'Clinical sink', [0.9, 0.6], 0.9, 0.6),
 ]
 
 /** One item of a typical room: a library item by name, where it stands in the room and its turn. */
@@ -118,6 +132,20 @@ export const BUILT_IN_ROOMS: readonly TypicalRoom[] = [
     ],
     source: BUILT_IN_SOURCE,
   },
+  // CNT-48: a shower room and a kitchen, so a room's usual fixtures are one call
+  // (`grid_add_item` with the typical room's name and a room).
+  {
+    name: 'shower-room',
+    label: 'Shower room',
+    use: 'bathroom',
+    size: [2.1, 1.8],
+    items: [
+      { library: 'shower-900', at: [0.45, 0.45] },
+      { library: 'wc', at: [1.25, 0.325] },
+      { library: 'basin', at: [1.75, 1.575], turn: 180 },
+    ],
+    source: BUILT_IN_SOURCE,
+  },
   {
     name: 'cloakroom',
     label: 'Cloakroom',
@@ -127,6 +155,14 @@ export const BUILT_IN_ROOMS: readonly TypicalRoom[] = [
       { library: 'wc', at: [0.4, 0.325] },
       { library: 'basin-small', at: [0.825, 1.2], turn: 90 },
     ],
+    source: BUILT_IN_SOURCE,
+  },
+  {
+    name: 'kitchen',
+    label: 'Kitchen',
+    use: 'kitchen',
+    size: [3, 2.4],
+    items: [{ library: 'kitchen-run-3000', at: [1.5, 0.3] }],
     source: BUILT_IN_SOURCE,
   },
   {

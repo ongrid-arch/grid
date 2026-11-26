@@ -780,6 +780,7 @@ what it is, with no false alarms.
 | a floor's `above` | What lies above it: `outside`, `common` or `neighbour` |
 | a floor's `below` | What lies below it: `ground`, `outside`, `common` or `neighbour` |
 | `buildings[].id`, `name`, `floors` | A building of the plan and the floors that are its own, by id, at least one; a floor in one building at most |
+| `buildings[].pad` | The level of the building's own ground, in metres from the plan's datum (the 0 a floor's `elevation` is measured from), LVL-23. Its lowest floor at or above level 0 that states no elevation stands on it and its other floors stack from there. Its ground floor, way out, height and storeys are read against it; unstated, a building's ground is the site's stated `ground`, else its own ground floor's floor level |
 | `context[].id`, `name`, `floor`, `points`, `height` | A shape drawn round the plan for context: its outline, either way round, on a floor (unstated, the ground floor), with a name and a height |
 
 **Separating walls and what lies beyond.** `beyond` holds along every stretch of the wall that has
@@ -1070,10 +1071,15 @@ What a pattern cannot place is said, never dropped in silence. Each is left out,
 A plan may list its fixtures and furniture in `items`: a toilet, a basin, a shower, a bath or a
 kitchen run (base units with their worktop), and a bed, a table, a chair, a sofa, storage (a
 wardrobe, a cupboard, shelves, a TV unit), an armchair, a stool, a desk, a rug or a plant
-(CNT-42). Each has a `kind`, `at` (the middle of its footprint), a
+(CNT-42), or equipment: a rack, a generator, a pump, a tank, a fixed seat, a pew, an altar, a
+fume cupboard, a lab bench, a safety shower, a kennel, an exam table, a clinical sink, and
+`equipment` for any other thing, a plain box called by its label (CNT-47). Equipment is a
+fixture: it takes the floor it stands on. Each has a `kind`, `at` (the middle of its footprint), a
 `size` (its width along its back and its depth to its front), a `height`, and may have a `turn`
 (degrees, counter-clockwise; unturned, its back faces down the drawing), a `label`, a
-`floor` and a `clearance` (metres of clear floor kept in front of it). An item may instead name
+`floor`, a `clearance` (metres of clear floor kept in front of it) and `clearSides` (CNT-47:
+`back`, `left` and `right`, the same behind it and at its own left and right, facing out of its
+front). An item may instead name
 a library entry in `library`, which gives what it leaves out (CNT-20, C30: [library.md](library.md)).
 Every other figure is the author's.
 
@@ -1297,6 +1303,13 @@ of it changes an area, a check or a wall count.
 
 A field the format does not have, on a note or a sketch item, is named like any other
 (`plan/unknown-field`). The 3D views do not show the sketch yet.
+
+Rooms text writes both in lines of their own, and `grid_annotate` places and takes out the same
+on the tool server (SHT-22): `tag "You are here" at 3,4`, `tag "FE" in kitchen`,
+`symbol entrance at 2,-0.5`, `route exit 2,5 2,1 6,1 on first`, `sketch shape garden ...`
+([rooms text](rooms-first.md#writing-on-the-drawing)). A route is a sketch `line` whose last
+three points draw an arrowhead at its end, a V back up its last leg, at most 0.4 m long, so
+every drawing and the DXF show the arrow; the read-back writes such a line as a `route` again.
 
 ## Facts of your own, and room numbers
 

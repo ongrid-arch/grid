@@ -14,9 +14,11 @@
  *   }
  *
  * A plan keeps at most `MARKERS_MAX` markers: setting a marker under a name it has replaces
- * that one; a new name past the limit is refused with the names there are. `text` is the plan
- * file's own text, read later as the plan file is read. The plan knows nothing of its markers,
- * and no export, sheet or drawing reads them.
+ * that one; CMD-44: a new name past the limit rolls the oldest marker off, and the answer names
+ * it. A marker may say who set it (`by`) and why (`note`). `text` is the plan file's own text,
+ * read later as the plan file is read. The plan knows nothing of its markers, and no export,
+ * sheet or drawing reads them. Every change keeps the plan it replaced as well, without a marker
+ * (`history.ts`).
  */
 import path from 'path'
 import { PathRefused, type Project } from '../fs/projectFiles'
@@ -26,7 +28,10 @@ import { PLAN_FILE_MAX_BYTES } from '../command/planText'
 /** What the file name adds to the plan's name. */
 export const MARKERS_SUFFIX = '.markers.json'
 /** The most markers a plan keeps. */
-export const MARKERS_MAX = 5
+export const MARKERS_MAX = 20
+/** CMD-44: the longest note and name of who set a marker. */
+export const MARKER_NOTE_MAX = 200
+export const MARKER_BY_MAX = 60
 /** The marker set when none is named, and read when none is named. */
 export const DEFAULT_MARKER = 'start'
 /** The name that means the last committed version, never a marker's. */
@@ -49,6 +54,9 @@ export interface Marker {
   readonly at: string
   /** The plan file's text when it was set. */
   readonly text: string
+  /** CMD-44: who set it, as they named themselves, and why. */
+  readonly by?: string
+  readonly note?: string
 }
 
 /** The markers file of a plan file: beside it, its name without `.json` and `.markers.json` after. */
@@ -80,7 +88,7 @@ function parseMarkers(raw: unknown, shown: string): Marker[] {
     if (typeof m['at'] !== 'string' || Number.isNaN(Date.parse(m['at']))) throw bad(`marker ${m['name']} has no time`)
     if (typeof m['text'] !== 'string') throw bad(`marker ${m['name']} holds no plan`)
     if (markers.some((x) => x.name === m['name'])) throw bad(`it names ${m['name']} twice`)
-    markers.push({ name: m['name'], at: m['at'], text: m['text'] })
+    markers.push({ name: m['name'], at: m['at'], text: m['text'], ...(typeof m['by'] === 'string' ? { by: m['by'] } : {}), ...(typeof m['note'] === 'string' ? { note: m['note'] } : {}) })
   }
   return markers
 }
@@ -124,19 +132,26 @@ export interface MarkerSet {
   /** Whether a marker of that name was there and was replaced. */
   readonly replaced: boolean
   readonly names: readonly string[]
+  /** CMD-44: the oldest marker, rolled off to make room; null when none was. */
+  readonly rolled: Marker | null
 }
 
-/** Sets a marker to the plan file's text now. */
-export function setMarker(project: Project, planFile: string, name: string, text: string, at: string = new Date().toISOString()): MarkerSet {
+/** Who set a marker and why, both optional. */
+export interface MarkerWords {
+  readonly by?: string | undefined
+  readonly note?: string | undefined
+}
+
+/** Sets a marker to the plan file's text now. CMD-44: past `MARKERS_MAX`, the oldest rolls off. */
+export function setMarker(project: Project, planFile: string, name: string, text: string, at: string = new Date().toISOString(), words: MarkerWords = {}): MarkerSet {
   markerName(name)
   const markers = readMarkers(project, planFile)
   const replaced = markers.some((m) => m.name === name)
-  if (!replaced && markers.length >= MARKERS_MAX) {
-    throw new MarkerRefused(`The plan keeps at most ${MARKERS_MAX} markers and has ${markers.map((m) => m.name).join(', ')}: set one of those again, or remove one first.`)
-  }
-  const marker: Marker = { name, at, text }
-  const next = replaced ? markers.map((m) => (m.name === name ? marker : m)) : [...markers, marker]
-  return { file: writeMarkers(project, planFile, next), marker, replaced, names: next.map((m) => m.name) }
+  const rolled = !replaced && markers.length >= MARKERS_MAX ? markers[0]! : null
+  const marker: Marker = { name, at, text, ...(words.by === undefined ? {} : { by: words.by.slice(0, MARKER_BY_MAX) }), ...(words.note === undefined ? {} : { note: words.note.slice(0, MARKER_NOTE_MAX) }) }
+  const kept = rolled === null ? markers : markers.slice(1)
+  const next = replaced ? kept.map((m) => (m.name === name ? marker : m)) : [...kept, marker]
+  return { file: writeMarkers(project, planFile, next), marker, replaced, names: next.map((m) => m.name), rolled }
 }
 
 /** Takes a marker off. Refused when there is none of that name. */

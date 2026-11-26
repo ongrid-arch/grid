@@ -370,6 +370,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   if (plan.north !== undefined) next['north'] = plan.north
   // LVL-21: the stair lines replace the file's stairs; a text that writes none keeps the file's.
   if (plan.stairs !== undefined) next['stairs'] = plan.stairs
+  // LVL-23: the building lines replace the file's buildings; a text that writes none keeps the file's.
+  if (plan.buildings !== undefined) next['buildings'] = plan.buildings
   // CNT-45: the item lines replace the file's items; a text that writes none keeps the file's,
   // each that stood against a wall moved with it (walls by id).
   let itemsFollowed = 0
@@ -382,6 +384,9 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // CNT-46: the bay and ramp lines replace the file's bays and ramps; a text that writes none keeps the file's.
   if (plan.bays !== undefined) next['bays'] = plan.bays
   if (plan.ramps !== undefined) next['ramps'] = plan.ramps
+  // SHT-22: the note lines replace the file's annotations, the sketch lines its sketch; a text that writes none keeps the file's.
+  if (plan.annotations !== undefined) next['annotations'] = plan.annotations
+  if (plan.sketch !== undefined) next['sketch'] = plan.sketch
   // WRT-75: the base the text names; a text with none, written over a fit-out as asked, takes it off.
   if (plan.base !== undefined) next['base'] = plan.base
   else delete next['base']
