@@ -119,6 +119,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/split.ts': [19, 'notYet'],
   // LVL-21: a stair's receipts and refusals.
   'packages/cli/src/edit/stairs.ts': [15, 'notYet'],
+  // CNT-48: a typical room's usual fixtures set out in a room, its receipts and refusals.
+  'packages/cli/src/edit/fixtureSets.ts': [10, 'notYet'],
   // CNT-45: the items' receipts and refusals. CNT-47: two more, a row's receipt and its taken id.
   'packages/cli/src/edit/items.ts': [22, 'notYet'],
   // SHT-22: the receipts and refusals of placing writing on the drawing.
@@ -200,8 +202,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
-  // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments.
-  'packages/cli/src/mcp/itemTools.ts': [51, 'tools'],
+  // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
+  'packages/cli/src/mcp/itemTools.ts': [53, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
   'packages/cli/src/mcp/annotateTool.ts': [23, 'tools'],
   // VEW-67: the trace image's tool.
@@ -497,7 +499,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // sides (rooms/items.ts 5) and a row's receipt and taken id (edit/items.ts 2) (odd/tasks/CNT-47.md).
     // and SHT-22 40: the note and sketch lines in rooms text (rooms/notes.ts 33) and placing them
     // (edit/annotate.ts 7) (odd/tasks/SHT-22.md).
-    expect(left).toBeLessThanOrEqual(2391)
+    // and CNT-48 10: a typical room's usual fixtures set out in a room (edit/fixtureSets.ts).
+    expect(left).toBeLessThanOrEqual(2401)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

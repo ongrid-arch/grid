@@ -18,6 +18,7 @@ import { planFloors, planForFloor } from '../geometry/floors'
 import { validatePlan, type Issue } from '../geometry/validate'
 import type { ApproximatedPart, LeftOutKind, LeftOutPart } from '../geometry/export/leftOut'
 import { roomWallIds } from '../geometry/plan'
+import { itemSolid } from '../geometry/items'
 
 export interface ExportContents {
   /** What the file leaves out, in the order: read, then by floor, walls, rooms, openings, fixtures. */
@@ -96,7 +97,12 @@ export function exportContents(plan: FloorPlan, floorIds: readonly string[], fau
     for (const wall of slice.walls) add('wall', wall.id, true)
     for (const room of slice.rooms) add('room', room.id, true)
     for (const opening of slice.openings) add('opening', opening.id, false)
-    for (const item of slice.items ?? []) add('item', item.id, true)
+    // CNT-48: an item the checks pass but Grid has no solid for is left out of the GLB and the
+    // OBJ, so it is counted here as a broken one is, and no file holds fewer than it says.
+    for (const item of slice.items ?? []) {
+      if (!broken.has(item.id) && itemSolid(item).length === 0) leftOut.push({ kind: 'item', id: item.id, place: null, floor: floor.id, code: null })
+      else add('item', item.id, true)
+    }
     const floorName = floor.id
     const curved = new Set(slice.walls.filter((wall) => wall.arc !== undefined && !broken.has(wall.id)).map((wall) => wall.id))
     for (const wall of slice.walls) if (curved.has(wall.id) && wall.virtual !== true) curvedWalls.push({ kind: 'wall', id: wall.id, floor: floorName })

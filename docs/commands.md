@@ -916,6 +916,11 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   windows open, each hiding what is behind it. A stair beyond the cut shows its sides as its
   profile and its risers each at its own place and height (VEW-69), so seen at an angle they step
   up and away, and seen along the flight they leave the room under it open.
+- **Fixtures and furniture** (CNT-48) are cut where the line crosses them and seen beyond it, as
+  the plain blocks the 3D view stands them up as, on the floor of their room: a kitchen island
+  cut across shows its height, with the run against the far wall beyond it. A cut item is drawn
+  in paper with a light outline, over the cut and never joined to it, so it never reads as
+  structure.
 - **The ground** is a facade's ground line, the heaviest pen, at the site's ground level, or at
   the ground floor's level when the site states none. It runs out to the picture's edges, and
   stops only where the building stands through the ground: it runs on under a house on its plinth
