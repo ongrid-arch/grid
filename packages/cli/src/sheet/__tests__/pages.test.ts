@@ -45,16 +45,16 @@ describe('the plan name on the sheet (SHT-14)', () => {
 describe('the client layout (VEW-7)', () => {
   const sheet = sheetPages(house, words, 'client', { name: 'two-floor-house', date })
 
-  it('is a cover, then one page per floor, lowest first', () => {
-    expect(sheet.pages.map((p) => p.kind)).toEqual(['cover', 'floor', 'floor'])
-    expect(sheet.pages.map((p) => p.picture && p.picture.kind === 'plan' ? p.picture.floor : null)).toEqual([null, 'ground', 'first'])
+  it('is a cover, then one page per floor, lowest first, then the elevations and the sections (SHT-23)', () => {
+    expect(sheet.pages.map((p) => p.kind)).toEqual(['cover', 'floor', 'floor', 'elevations', 'sections'])
+    expect(sheet.pages.map((p) => p.picture && p.picture.kind === 'plan' ? p.picture.floor : null)).toEqual([null, 'ground', 'first', null, null])
   })
 
   it('puts the label, the page number and the date on every page', () => {
     sheet.pages.forEach((page, i) => {
       expect(page.footer.label).toBe(GENERAL_GUIDANCE_LABEL)
       expect(page.footer.page).toBe(i + 1)
-      expect(page.footer.pages).toBe(3)
+      expect(page.footer.pages).toBe(5)
       expect(page.footer.date).toBe('21 NOV 2026')
     })
   })
@@ -171,9 +171,9 @@ describe('one scale for every floor (VEW-7)', () => {
 describe('the check layout (VEW-7)', () => {
   const sheet = sheetPages(house, words, 'check', { name: 'two-floor-house', date })
 
-  it('is a summary, then one page per floor, then the room schedule, the door and window schedule (ARE-12) and their types (ARE-15)', () => {
-    expect(sheet.pages.map((p) => p.kind)).toEqual(['summary', 'floor', 'floor', 'summary', 'summary', 'summary'])
-    expect(sheet.pages.slice(3).map((p) => p.title)).toEqual(['Room schedule', 'Door and window schedule', 'Door and window types'])
+  it('is a summary, then one page per floor, the elevations and sections (SHT-23), then the room schedule, the door and window schedule (ARE-12) and their types (ARE-15)', () => {
+    expect(sheet.pages.map((p) => p.kind)).toEqual(['summary', 'floor', 'floor', 'elevations', 'sections', 'summary', 'summary', 'summary'])
+    expect(sheet.pages.slice(5).map((p) => p.title)).toEqual(['Room schedule', 'Door and window schedule', 'Door and window types'])
   })
 
   it('takes nothing from sheet.json', () => {
@@ -583,8 +583,8 @@ describe('floors with the same name (VEW-7)', () => {
 
   it.each(['client', 'check'] as const)('says which floor a floor page is, continued or not (%s)', (layout) => {
     const sheet = sheetPages(sameNames(false), null, layout, { name: 'x', date })
-    // The check set ends with its two schedules (ARE-12), which belong to no floor.
-    expect(sheet.pages.map((p) => p.floor)).toEqual(layout === 'check' ? [null, 'ground', 'first', null, null, null] : [null, 'ground', 'first'])
+    // The elevations and sections (SHT-23) and the check set's schedules (ARE-12) belong to no floor.
+    expect(sheet.pages.map((p) => p.floor)).toEqual(layout === 'check' ? [null, 'ground', 'first', null, null, null, null, null] : [null, 'ground', 'first', null, null])
   })
 })
 

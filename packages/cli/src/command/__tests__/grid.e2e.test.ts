@@ -602,6 +602,7 @@ describe('the built file', () => {
     // 850 kB still with LVL-23: its buildings on their own pads (the building lines, the tool, each
     // building's ground, height, site measures and IFC building) with main's parking, items and
     // rows at 7f41cfdf made it 806,092 bytes, again with no new dependency.
+    // SHT-23's elevations and sections pages stay under the same cap.
     expect(statSync(bundle).size).toBeLessThan(850_000)
   })
 })

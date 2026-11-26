@@ -74,8 +74,11 @@ const GROUND_RUN_LEAST = 0.5
 const BELOW = 0.6
 const ABOVE = 0.4
 
-/** The parts of the drawing a facade frames, in plan screen terms (`u` across, `z` up). */
-function framingOf(facade: Facade): Bounds {
+/**
+ * The parts of the drawing a facade frames, in plan screen terms (`u` across, `z` up). SHT-23: a
+ * sheet reads it to draw every side at one scale.
+ */
+export function facadeFraming(facade: Facade): Bounds {
   const extent = facade.extent ?? { u0: 0, u1: 10, bottom: facade.ground.level, top: facade.ground.level + 3 }
   const span = Math.max(extent.u1 - extent.u0, 1)
   const run = Math.max(span * GROUND_RUN, GROUND_RUN_LEAST)
@@ -109,7 +112,7 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
   const lines = lineMetres(look, metresPerPixel, paperScale)
   const width = (part: LinePart): string => lengthText(lines.width(part))
   const nodes: SvgNode[] = []
-  const frame = framingOf(facade)
+  const frame = facadeFraming(facade)
   const extent = facade.extent
   if (extent === null) {
     nodes.push(textNode(look, frame.min.x + frame.width / 2, -(facade.ground.level + 1.5), metresPerPixel, drawingText(words, 'drawing.facade.empty', { side: said(`drawing.facade.side.${facade.side}`) }), 'facade-empty', 'start'))
@@ -301,7 +304,7 @@ function pixels(name: string, value: number): number {
 export function facadePicture(plan: Parameters<typeof planFacade>[0], options: FacadePictureOptions): FacadePicture {
   const facade = planFacade(plan, options.side)
   const look = lookOf(options.look)
-  const framed = framingOf(facade)
+  const framed = facadeFraming(facade)
   const width = pixels('width', options.width ?? DEFAULT_WIDTH)
   const shape = Math.min(Math.max(framed.height / framed.width, 0.4), 2.5)
   const height = options.height === undefined ? Math.max(1, Math.round(width * shape)) : pixels('height', options.height)

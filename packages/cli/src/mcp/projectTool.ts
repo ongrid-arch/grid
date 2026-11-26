@@ -12,6 +12,7 @@ import { OCCUPANCY_SUFFIX } from '../occupancy/occupancy'
 import { PREVIEW_SUFFIX } from '../preview/record'
 import { SEEN_SUFFIX } from '../seen/marks'
 import { MARKERS_SUFFIX } from '../versions/markers'
+import { CHECKPOINTS_SUFFIX, HISTORY_SUFFIX } from '../versions/history'
 import { PathRefused } from '../fs/projectFiles'
 import { BOOLEAN, listSchema, NULLABLE_STRING, objectSchema, projectOf, STRING, ToolRefusal, type GridTool } from './toolkit'
 
@@ -21,6 +22,9 @@ export const PROJECT_TOOL_NAME = 'grid_project'
 const SIDECARS: ReadonlyArray<readonly [string, string]> = [
   ['brief', BRIEF_SUFFIX],
   ['markers', MARKERS_SUFFIX],
+  // CMD-44: the change log and the folder of the plans each change replaced.
+  ['history', HISTORY_SUFFIX],
+  ['checkpoints', CHECKPOINTS_SUFFIX],
   ['seen', SEEN_SUFFIX],
   ['preview', PREVIEW_SUFFIX],
   ['scan', SCAN_SUFFIX],
@@ -54,7 +58,7 @@ export const projectTool: GridTool = {
   title: 'List what the project folder holds',
   hint: 'read',
   description:
-    'Use this when you start, and do not know which plan to work on or whether the folder has one: it lists the plan files in the project folder, the plan Grid uses when you name none (plan.json in the folder, with or without grid.json) and whether that file is there, and beside each plan the files Grid keeps for it (brief, markers, seen marks, preview record, scan, occupancy). '
+    'Use this when you start, and do not know which plan to work on or whether the folder has one: it lists the plan files in the project folder, the plan Grid uses when you name none (plan.json in the folder, with or without grid.json) and whether that file is there, and beside each plan the files Grid keeps for it (brief, markers, change log and checkpoints, seen marks, preview record, scan, occupancy). '
     + 'It reads the folder\'s own names only, writes nothing and does not look in folders below it. '
     + 'Do not use to read a plan (grid_describe), to check it (grid_check), or to find files elsewhere on the computer.',
   args: {},

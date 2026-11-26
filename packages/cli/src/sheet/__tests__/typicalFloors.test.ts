@@ -42,9 +42,9 @@ describe('a tower of alike floors on a client sheet (SHT-21)', () => {
   const loaded = tower(9)
   const sheet = client(loaded)
 
-  it('is a cover, the ground floor, one typical floor and the area schedule', () => {
-    expect(sheet.pages.map((p) => p.kind)).toEqual(['cover', 'floor', 'floor', 'summary', 'summary'])
-    expect(sheet.pages.map((p) => p.title)).toEqual(['tower', 'Ground', 'Typical floor', 'Area schedule', 'Area schedule'])
+  it('is a cover, the ground floor, one typical floor, the elevations and sections (SHT-23) and the area schedule', () => {
+    expect(sheet.pages.map((p) => p.kind)).toEqual(['cover', 'floor', 'floor', 'elevations', 'sections', 'summary', 'summary'])
+    expect(sheet.pages.map((p) => p.title)).toEqual(['tower', 'Ground', 'Typical floor', 'Elevations', 'Sections', 'Area schedule', 'Area schedule'])
   })
 
   it('names the nine floors the typical floor stands for', () => {
@@ -61,7 +61,7 @@ describe('a tower of alike floors on a client sheet (SHT-21)', () => {
 
   it('gives the area by floor page and by use, each adding up to the net area', () => {
     const net = planAreas(surveyPlan(loaded.plan)).net
-    const [byFloor, byUse] = [sheet.pages[3]!.table!, sheet.pages[4]!.table!]
+    const [byFloor, byUse] = sheet.pages.filter((p) => p.title === 'Area schedule').map((p) => p.table!)
     expect(byFloor.rows.map((r) => r.name)).toEqual(['Ground', 'Typical floor × 9'])
     expect(byUse.rows.map((r) => r.name)).toEqual(['foyer', 'lift', 'office'])
     for (const table of [byFloor, byUse]) {
@@ -87,7 +87,7 @@ describe('a tower of alike floors on a client sheet (SHT-21)', () => {
 
   it('folds nothing, and adds no schedule, when no two floors are alike', () => {
     const two = client(tower(1))
-    expect(two.pages.map((p) => p.kind)).toEqual(['cover', 'floor', 'floor'])
+    expect(two.pages.map((p) => p.kind)).toEqual(['cover', 'floor', 'floor', 'elevations', 'sections'])
     expect(two.pages.every((p) => p.stands === undefined)).toBe(true)
   })
 

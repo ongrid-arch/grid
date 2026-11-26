@@ -40,7 +40,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/check.ts': [10, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
   // CMD-32: one fewer, --floor no longer needs --picture.
-  'packages/cli/src/command/diff.ts': [13, 'command'],
+  // CMD-44: three more, the help of --to, --who and --note.
+  'packages/cli/src/command/diff.ts': [16, 'command'],
   // SHT-10: one more, the refusal of --look dark for a file.
   'packages/cli/src/command/draw.ts': [46, 'command'],
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
@@ -148,7 +149,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
-  'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
+  // CMD-44: five more, the descriptions of since, to, show, who and note and the change log.
+  'packages/cli/src/mcp/diffTools.ts': [25, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
   // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
   // CNT-44: 23 more, grid_fill_room's help.
@@ -184,7 +186,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   // CMD-41: based_on's description and planRevision's.
-  'packages/cli/src/mcp/revisions.ts': [2, 'tools'],
+  // CMD-44: one more, the description of who.
+  'packages/cli/src/mcp/revisions.ts': [3, 'tools'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   // CMD-38: two more, the rooms grammar resource's title and description.
@@ -221,6 +224,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
   // WRT-73: the three phase tools, their arguments and refusals.
   'packages/cli/src/mcp/phaseTools.ts': [26, 'tools'],
+  // CMD-44: grid_undo and grid_restore, their descriptions and argument schemas.
+  'packages/cli/src/mcp/versionTools.ts': [13, 'tools'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
@@ -271,9 +276,15 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/sheet/sheetFile.ts': [15, 'command'],
   // WRT-12: one more, the heading of the openings that moved with their wall or room.
   // CMD-32: one more, what a floor's change heading left out.
-  'packages/cli/src/versions/diff.ts': [12, 'notYet'],
-  'packages/cli/src/versions/git.ts': [19, 'notYet'],
-  'packages/cli/src/versions/markers.ts': [19, 'notYet'],
+  // CMD-44: one fewer, the versions' names said from the message files.
+  'packages/cli/src/versions/diff.ts': [11, 'notYet'],
+  // CMD-44: three more, the refusals of an earlier commit not found and of git~N past the first.
+  'packages/cli/src/versions/git.ts': [22, 'notYet'],
+  // CMD-44: one fewer, the refusal of a marker past the limit: markers roll now.
+  'packages/cli/src/versions/markers.ts': [18, 'notYet'],
+  // CMD-44: the change log's, undo's and restore's answers and refusals, kept out of en.ts while
+  // one more block of keys there takes the message key type past what the type checker compares.
+  'packages/cli/src/versions/words.ts': [40, 'notYet'],
   'packages/floorplan/src/geometry/areas.ts': [36, 'notYet'],
   'packages/floorplan/src/geometry/camera.ts': [1, 'agent'],
   'packages/floorplan/src/geometry/diff/building.ts': [28, 'notYet'],

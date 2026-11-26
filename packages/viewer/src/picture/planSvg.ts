@@ -365,7 +365,7 @@ function traceNode(trace: { placement: TracePlacement; picture: TracePicture; op
 }
 
 function marksOf(plan: FloorPlan, floor: string, drawing: PlanDrawing, around: Bounds, asked: DrawingMarksAsked | undefined): DrawingMarks | null {
-  if (asked === undefined || (asked.section == null && asked.elevations !== true && asked.levels !== true && asked.schedule == null)) return null
+  if (asked === undefined || (asked.section == null && (asked.sections ?? []).length === 0 && asked.elevations !== true && asked.levels !== true && asked.schedule == null)) return null
   return drawingMarks(plan, floor, drawing, around, asked)
 }
 

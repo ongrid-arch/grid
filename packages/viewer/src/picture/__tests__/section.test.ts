@@ -134,6 +134,13 @@ describe('the marks on a plan', () => {
     for (const part of ['section-mark', 'elevation-mark', 'level-mark']) expect(tagsOf(plain, part)).toEqual([])
   })
 
+  it('draw more sections, each under its own name (SHT-23)', () => {
+    const across = { from: THROUGH_STAIR.to, to: THROUGH_STAIR.from, toward: 'right' as const }
+    const svg = pictureToSvg(planPicture(townhouse(), { floor: 'first', look: 'technical', marks: { sections: [{ line: THROUGH_STAIR, label: 'A' }, { line: across, label: 'B' }] } }))
+    expect(tagsOf(svg, 'section-mark').map((tag) => attr(tag, 'data-label'))).toEqual(['A', 'B'])
+    expect(tagsOf(svg, 'section-mark-head')).toHaveLength(4)
+  })
+
   it('draw the section\'s line, an elevation mark on each side and each room\'s level', () => {
     const picture = planPicture(townhouse(), { floor: 'first', look: 'technical', marks: { section: THROUGH_STAIR, elevations: true, levels: true } })
     const svg = pictureToSvg(picture)

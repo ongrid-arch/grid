@@ -28,6 +28,9 @@ import { notShownNote } from './limits'
 import { coverFigures, roundingNote } from './coverFigures'
 import { groupRooms } from './roomGroups'
 import { typicalFloors } from './typicalFloors'
+import { sideDrawings, type PlacedDrawing } from './sideDrawings'
+import { scaleText } from './drawingPapers'
+import type { NamedSectionLine } from '@ongrid/floorplan/geometry/drawingMarks'
 import { displayFor, sqFt } from '../quantities/units'
 import { showLength, type Display } from '@ongrid/floorplan/types/units'
 
@@ -92,8 +95,11 @@ export function planPictureOptions(picture: Extract<SheetPicture, { kind: 'plan'
       look: SHEET_LOOK,
       paperScale: (shown.width * 1000) / (PLAN_BOX.width * POINT_MM),
       ...(picture.ids ? { labels: { ids: true } } : {}),
-      // ARE-15: the schedules' marks, tied to the rows on the schedule pages.
-      ...(picture.marks === undefined ? {} : { marks: { schedule: picture.marks } }),
+      // ARE-15: the schedules' marks, tied to the rows on the schedule pages; SHT-23: the lines
+      // of the sections on the sheet's sections page.
+      ...(picture.marks === undefined && picture.sections === undefined ? {} : {
+        marks: { ...(picture.marks === undefined ? {} : { schedule: picture.marks }), ...(picture.sections === undefined ? {} : { sections: picture.sections }) },
+      }),
       // MSG-11: the drawing's words in the sheet's language; English leaves the plan's own.
       ...(language === DEFAULT_LANGUAGE ? {} : { language }),
     },
@@ -118,10 +124,28 @@ export type SheetPicture =
       readonly kind: 'plan'; readonly floor: string; readonly frame: Bounds; readonly metresPerPixel: number; readonly ids: boolean
       /** ARE-15: on the check set, each room's and opening's mark in its schedules, by id. */
       readonly marks?: ScheduleMarkLabels
+      /** SHT-23: the lines of the sections on the sheet's sections page, marked on the plan. */
+      readonly sections?: readonly NamedSectionLine[]
     }
   | { readonly kind: 'model' }
+  /**
+   * SHT-23: an elevations or sections page's drawings, at one scale (N in 1:N) on A3, each placed
+   * in `DRAWINGS_BOX` (`sideDrawings.ts`), and the words of the page's title block.
+   */
+  | { readonly kind: 'drawings'; readonly scale: number; readonly drawings: readonly PlacedDrawing[]; readonly block: TitleBlockWords }
+
+/** SHT-23: the cells of a page's title block, as a drawing at a scale has them (SHT-6). */
+export interface TitleBlockWords {
+  readonly project: string
+  readonly drawing: string
+  readonly scale: string
+  readonly date: string
+  readonly status: string
+  /** The field names, in the sheet's language. */
+  readonly labels: { readonly project: string; readonly drawing: string; readonly scale: string; readonly date: string; readonly status: string }
+}
 export interface SheetPage {
-  readonly kind: 'cover' | 'floor' | 'summary'
+  readonly kind: 'cover' | 'floor' | 'summary' | 'elevations' | 'sections'
   /** The floor a floor page, or its continuation, is about; null on the cover and the summary. */
   readonly floor: string | null
   /** SHT-21: on a typical floor's page, every floor it stands for, lowest first; `floor` is the first. */
@@ -213,14 +237,14 @@ export function floorFrames(loaded: LoadedPlan): ReadonlyMap<string, Bounds> {
 }
 
 /** A floor page's picture, with the zoom of `grid draw`'s picture of that floor. */
-function floorPicture(loaded: LoadedPlan, frames: ReadonlyMap<string, Bounds>, floor: string, ids: boolean, marks?: ScheduleMarkLabels): SheetPicture {
+function floorPicture(loaded: LoadedPlan, frames: ReadonlyMap<string, Bounds>, floor: string, ids: boolean, marks?: ScheduleMarkLabels, sections: readonly NamedSectionLine[] = []): SheetPicture {
   const frame = frames.get(floor)!
   const drawn = pictureView(loaded.plan, { floor })
   // The zoom at which a room name is MIN_LABEL_PT on paper: pixels of a name, times metres per
   // pixel, times points per metre of the box. `grid draw`'s zoom stands unless it is smaller.
   const shown = fitTo(frame, PLAN_BOX.width / PLAN_BOX.height)
   const readable = (MIN_LABEL_PT * shown.width) / (TEXT_PX.roomName * PLAN_BOX.width)
-  return { kind: 'plan', floor, frame, metresPerPixel: Math.max(drawn.view.width / drawn.width, readable), ids, ...(marks === undefined ? {} : { marks }) }
+  return { kind: 'plan', floor, frame, metresPerPixel: Math.max(drawn.view.width / drawn.width, readable), ids, ...(marks === undefined ? {} : { marks }), ...(sections.length === 0 ? {} : { sections }) }
 }
 
 function undecidedNote(loaded: LoadedPlan, floor: string, w: Words): string[] {
@@ -334,8 +358,9 @@ function accessLines(notes: readonly AccessNote[], units: SheetUnits, w: Words):
   return [...notes.slice(0, ACCESS_NOTES_MAX).map(line), ...(notes.length > ACCESS_NOTES_MAX ? [w.say('sheet.access.more')] : [])]
 }
 
-function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string, w: Words, accessNotes: readonly AccessNote[] = []): Body[] {
+function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string, w: Words, date: Date, accessNotes: readonly AccessNote[] = []): Body[] {
   const survey = surveyPlan(loaded.plan)
+  const sides = sidesOf(loaded, w)
   const areas = planAreas(survey)
   const floors = planFloors(loaded.plan)
   const frames = floorFrames(loaded)
@@ -389,7 +414,7 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
       ...(set.length === 1 ? {} : { stands: set }),
       paragraphs: words?.floors?.[id] ?? [], figures: [],
       table: floorAreas ? areaTable(floorAreas, false, units, w) : null,
-      picture: floorPicture(loaded, frames, id, false),
+      picture: floorPicture(loaded, frames, id, false, undefined, sides?.cuts),
       notes: [
         ...(set.length === 1 ? [] : [w.say('sheet.typicalFloor.each', { count: set.length, area: units.sum(nets, nets.reduce((a, b) => a + b, 0)).total, unit: units.areaUnit })]),
         notShownNote(loaded.plan, id, stairsDrawn, w.language), ...limits, ...(leftOut.has(id) ? [w.say('sheet.leftOutLimit')] : []), ...undecidedNote(loaded, id, w),
@@ -397,7 +422,7 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
     }
   })
   // When floors were folded, the area by floor and by use, so nothing a page stands for is lost.
-  return [cover, ...pages, ...(typical.length === 0 ? [] : areaScheduleBodies(sets, setTitle, areas, units, w, title))]
+  return [cover, ...pages, ...sideBodies(sides, title, date, w, 'client'), ...(typical.length === 0 ? [] : areaScheduleBodies(sets, setTitle, areas, units, w, title))]
 }
 
 /**
@@ -436,6 +461,47 @@ function areaScheduleBodies(sets: readonly string[][], setTitle: (set: readonly 
   ]
 }
 
+/**
+ * SHT-23: the elevations page and the sections page, both at one scale, each with its title block;
+ * none when the plan has nothing to draw, and a page only for what it has. The check sheet lists
+ * what the sections took that the plan does not state; the client sheet says in one line that
+ * they took some, and that the check sheet lists it.
+ */
+function sideBodies(sides: ReturnType<typeof sideDrawings>, title: string, date: Date, w: Words, layout: SheetLayout): Body[] {
+  if (sides === null) return []
+  const scale = scaleText(sides.scale)
+  const block = (drawing: string): TitleBlockWords => ({
+    project: title,
+    drawing,
+    scale: w.say('sheet.block.scaleOn', { scale, paper: 'A3' }),
+    date: dateText(date, w),
+    status: w.say('sheet.status.draft'),
+    labels: {
+      project: w.say('sheet.block.project'), drawing: w.say('sheet.block.drawing'), scale: w.say('sheet.block.scale'),
+      date: w.say('sheet.block.date'), status: w.say('sheet.block.status'),
+    },
+  })
+  const page = (kind: 'elevations' | 'sections', pageTitle: string, subtitle: string, drawings: readonly PlacedDrawing[], notes: readonly string[]): Body => ({
+    kind, floor: null, topLine: `${title} / ${pageTitle}`, title: pageTitle, subtitle,
+    paragraphs: [], figures: [], table: null,
+    picture: { kind: 'drawings', scale: sides.scale, drawings, block: block(pageTitle) },
+    notes: [w.say('sheet.sides.trueScale', { scale }), ...notes],
+  })
+  return [
+    ...(sides.elevations.length === 0 ? [] : [page('elevations', w.say('sheet.elevations'), w.say('sheet.elevations.subtitle', { scale }), sides.elevations, [])]),
+    ...(sides.sections.length === 0 ? [] : [page('sections', w.say('sheet.sections'), w.say('sheet.sections.subtitle', { scale, labels: sides.cuts.map((cut) => cut.label).join(w.say('join.and')) }), sides.sections, [
+      w.say('sheet.sections.marked'),
+      // What the sections took, said under the drawings as the band under a section picture says it.
+      ...(sides.taken.some((t) => t.assumed.hatched) ? [w.say('drawing.section.hatched')] : []),
+      ...(layout === 'client' ? (sides.taken.length === 0 ? [] : [w.say('sheet.sections.takenShort')]) : sides.taken.map((t) => w.say(t.labels.length === 1 ? 'sheet.sections.taken' : 'sheet.sections.takenMany', { sections: t.labels.join(w.say('join.and')), what: w.said(t.assumed.words, t.assumed.said) }))),
+    ])]),
+  ]
+}
+
+/** SHT-23: the sheet's elevations and sections, in its language. */
+const sidesOf = (loaded: LoadedPlan, w: Words): ReturnType<typeof sideDrawings> =>
+  sideDrawings(loaded.plan, { look: SHEET_LOOK, ...(w.language === DEFAULT_LANGUAGE ? {} : { language: w.language }) })
+
 const ENTITY_KEYS: Readonly<Record<string, MessageKey>> = {
   wall: 'sheet.entity.wall', room: 'sheet.entity.room', opening: 'sheet.entity.opening', plan: 'sheet.entity.plan',
   floor: 'sheet.entity.floor', item: 'sheet.entity.item', stair: 'sheet.entity.stair',
@@ -466,8 +532,9 @@ function noticeLine(notice: { message: string; said?: Said }, w: Words = ENGLISH
   return w.say('sheet.notChecked', { message: w.said(notice.message, notice.said) })
 }
 
-function checkBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
+function checkBodies(loaded: LoadedPlan, name: string, w: Words, date: Date): Body[] {
   const areas = planAreas(surveyPlan(loaded.plan))
+  const sides = sidesOf(loaded, w)
   const floors = planFloors(loaded.plan)
   const frames = floorFrames(loaded)
   const whole = checkPlan(loaded, {})
@@ -515,11 +582,11 @@ function checkBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
       kind: 'floor', floor: floor.id, topLine: `${name} / ${floorTitle}`, title: floorTitle, subtitle: null,
       paragraphs: [], figures: [],
       table: floorAreas ? areaTable(floorAreas, true, units, w) : null,
-      picture: floorPicture(loaded, frames, floor.id, true, marks),
+      picture: floorPicture(loaded, frames, floor.id, true, marks, sides?.cuts),
       notes: shown,
     }
   })
-  return [summary, ...pages, ...scheduleBodies(loaded, name, w)]
+  return [summary, ...pages, ...sideBodies(sides, name, date, w, 'check'), ...scheduleBodies(loaded, name, w)]
 }
 
 /**
@@ -637,7 +704,7 @@ export function sheetPages(loaded: LoadedPlan, words: SheetWords | null, layout:
   // A check sheet takes nothing from sheet.json, not even its name.
   const name = layout === 'client' ? words?.name ?? loaded.plan.name ?? options.name : loaded.plan.name ?? options.name
   const w = wordsIn(options.language ?? DEFAULT_LANGUAGE)
-  const bodies = layout === 'client' ? clientBodies(loaded, words, loaded.plan.name ?? options.name, w, options.accessNotes) : checkBodies(loaded, loaded.plan.name ?? options.name, w)
+  const bodies = layout === 'client' ? clientBodies(loaded, words, loaded.plan.name ?? options.name, w, options.date, options.accessNotes) : checkBodies(loaded, loaded.plan.name ?? options.name, w, options.date)
   const date = dateText(options.date, w)
   const label = w.say('label')
   const pages = bodies.map((body, i): SheetPage => ({

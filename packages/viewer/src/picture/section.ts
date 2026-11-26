@@ -27,7 +27,7 @@ import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { Bounds, PlanSection, SectionLine, SectionPiece, Vec2 } from '@ongrid/floorplan/geometry'
 import { hatchRings, levelText, metresText, planSection, sectionEarth } from '@ongrid/floorplan/geometry'
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
-import { fitTo, pathOf } from '../canvas2d/viewport'
+import { FRAME_MARGIN, fitTo, pathOf } from '../canvas2d/viewport'
 import { labelObstacles, placeLabel } from './sectionLabels'
 import type { PictureKey } from './faults'
 import { wrapText } from './faults'
@@ -138,13 +138,26 @@ function frameOf(section: PlanSection, width: number, height: number | undefined
   const tall = height ?? Math.max(1, Math.round(width * Math.min(Math.max(shape, MIN_SHAPE), MAX_SHAPE)))
   let framed = base
   // The labels are in pixels and the frame in metres: a few rounds settle how many metres they take.
-  for (let round = 0; round < 4; round++) {
-    const mpp = fitTo(framed, width / tall).width / width
-    const min = { x: base.min.x - leftPx * mpp, y: base.min.y - TEXT_PX.dimension * 2 * mpp }
-    const max = { x: base.max.x + rightPx * mpp, y: base.max.y + TEXT_PX.dimension * 2 * mpp }
-    framed = { min, max, width: max.x - min.x, height: max.y - min.y }
-  }
+  for (let round = 0; round < 4; round++) framed = aroundSection(base, leftPx, rightPx, fitTo(framed, width / tall).width / width)
   return { framed, width, height: tall }
+}
+
+/** The section's bounds with room for the level marks beside it, `leftPx` and `rightPx` wide, at `mpp` metres a pixel. */
+function aroundSection(base: Bounds, leftPx: number, rightPx: number, mpp: number): Bounds {
+  const min = { x: base.min.x - leftPx * mpp, y: base.min.y - TEXT_PX.dimension * 2 * mpp }
+  const max = { x: base.max.x + rightPx * mpp, y: base.max.y + TEXT_PX.dimension * 2 * mpp }
+  return { min, max, width: max.x - min.x, height: max.y - min.y }
+}
+
+/**
+ * SHT-23: what a section frames when one pixel is `metresPerPixel` metres, its level marks beside
+ * it, in metres with y up: a sheet that draws several sections at one scale sizes each picture to it.
+ */
+export function sectionFraming(plan: FloorPlan, section: PlanSection, metresPerPixel: number, options: Pick<SectionPictureOptions, 'language' | 'display'> = {}): Bounds {
+  const tongue = sectionWords(plan, options.language)
+  const { left, right } = levelLabels(section, tongue, unitsOf(plan, options, tongue))
+  // `frameOf` sizes the marks at the zoom `fitTo` frames with its margin round the frame.
+  return aroundSection(section.bounds, widest(left) + TICK_PX + GAP_PX, widest(right) + TICK_PX + GAP_PX, metresPerPixel * (1 + 2 * FRAME_MARGIN))
 }
 
 /** Words at a point of the section, in pixels: centred, upright. */

@@ -11,7 +11,8 @@
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import { openProject } from '../fs/projectFiles'
 import { GRID_TOOLS } from '../mcp/serveTools'
-import { readArgs, ToolRefusal, type ArgSpec, type GridTool } from '../mcp/toolkit'
+import { planFileOf, readArgs, ToolRefusal, type ArgSpec, type GridTool } from '../mcp/toolkit'
+import { recorded } from '../versions/history'
 import { helpText, parseOptions, PROJECT_OPTION, textOf, UsageError, type OptionSpecs } from './options'
 
 /** A change the tool refused: one line, nothing written. */
@@ -157,7 +158,8 @@ export async function runEdit(args: readonly string[], cwd: string, stdout: (tex
   const project = openProject(textOf(parsed, '--project'), cwd, 'project')
   let answer
   try {
-    answer = await tool.run(checked, { project })
+    // CMD-44: the change logged beside the plan, with the plan it replaced kept.
+    answer = await recorded(project, planFileOf(project, checked['plan']), { tool: tool.name, via: 'grid edit' }, () => tool.run(checked, { project }))
   } catch (error) {
     if (error instanceof ToolRefusal) throw new EditCommandRefused(asOptions(error.message, tool).replace(/\s+/g, ' ').trim())
     throw error

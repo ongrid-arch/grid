@@ -42,13 +42,14 @@ describe('grid sheet (VEW-7)', () => {
   it.each(['client', 'check'])('writes the expected pages, the same twice (%s)', (layout) => {
     // A cover or a summary, then one page per floor: the house has two floors and short words.
     // The check set ends with the room schedule and the door and window schedule (ARE-12), then
-    // the door and window types (ARE-15).
+    // the door and window types (ARE-15). SHT-23: both have an elevations and a sections page after
+    // the floors; on the check set, what the sections took runs onto a continuation page.
     const file = join(dir, 'exports', `two-floor-house-${layout}.pdf`)
     const counts = [1, 2].map(() => {
       expect(grid(['sheet', 'two-floor-house.json', '--layout', layout]).status).toBe(0)
       return pageCount(file)
     })
-    expect(counts).toEqual(layout === 'check' ? [6, 6] : [3, 3])
+    expect(counts).toEqual(layout === 'check' ? [9, 9] : [5, 5])
   })
 
   it('writes a client sheet into exports/ beside the plan', () => {

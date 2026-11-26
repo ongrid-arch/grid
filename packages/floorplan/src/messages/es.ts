@@ -3316,6 +3316,16 @@ export const es: Messages = {
   'sheet.status.draft': 'Borrador',
   'sheet.north.letter': 'N',
   'sheet.north.notStated': 'El plano no indica el norte.',
+  // SHT-23: the elevations and sections pages of a client or check sheet.
+  'sheet.elevations': 'Alzados',
+  'sheet.elevations.subtitle': 'Cada lado del edificio visto desde fuera, a {scale}',
+  'sheet.sections': 'Secciones',
+  'sheet.sections.subtitle': 'Secciones {labels} a {scale}, cortadas donde las marca cada planta',
+  'sheet.sides.trueScale': 'Cada dibujo de esta página está a {scale} en A3: impreso a tamaño real, mide de verdad.',
+  'sheet.sections.marked': 'Cada sección se corta por la línea de su letra en las plantas y mira hacia donde apuntan sus flechas.',
+  'sheet.sections.taken': 'Sección {sections}, no indicado en el plano: {what}',
+  'sheet.sections.takenMany': 'Secciones {sections}, no indicado en el plano: {what}',
+  'sheet.sections.takenShort': 'Algunos niveles y espesores de las secciones los toma Grid, no los indica el plano: el juego de comprobación los enumera.',
   'sheet.scaleBar.metres': '{length} m',
   // --- Columns and structural grids (CNT-16) ---
   'read.column.roundDepth': 'Un pilar redondo tiene un ancho, su diámetro, y ninguna profundidad',
