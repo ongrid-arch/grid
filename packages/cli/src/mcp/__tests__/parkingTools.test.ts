@@ -95,3 +95,19 @@ describe('grid_add_ramp', () => {
     expect(await refused('grid_add_ramp', { plan: 'park.json', from: 'b1', to: 'g', room: 'spiral', width: 3, shape: 'helix', starts: 'up', out: 'no.json' })).toMatch(/starts takes a side/)
   })
 })
+
+describe('grid_write_rooms with bay and ramp lines', () => {
+  it('writes them, reads them back, and keeps the file\'s bays and ramps when the text writes none', async () => {
+    const reply = await ok('grid_write_rooms', { plan: 'lined.json', rooms: [...PARK, 'bays f in deck fill, car, numbered 1, on b1', 'ramp h from b1 to g in spiral, 3.5 wide, helix'].join('\n') })
+    expect(field('lined.json', 'bays')).toHaveLength(24)
+    expect(field('lined.json', 'ramps')).toHaveLength(1)
+    expect(reply.text).toContain('24 2.5 x 5 m bays in room deck on floor b1, f-1 to f-24, numbered 1 to 24.')
+    const described = await ok('grid_describe', { plan: 'lined.json', as: 'rooms' })
+    expect(described.text).toContain('bays f at 1.25,2.5, 2.5 x 5, count 12, runs east, numbered 1, on b1')
+    expect(described.text).toMatch(/ramp h from b1 to g, 3\.5 wide, helix at [0-9.]+,[0-9.]+ radius [0-9.]+ turns 1 starts south/)
+    const again = await ok('grid_write_rooms', { plan: 'lined.json', rooms: [...PARK, `based on ${/based on ([0-9a-f]+)/.exec(described.text)![1]}`].join('\n') })
+    expect(field('lined.json', 'bays')).toHaveLength(24)
+    expect(again.text).toContain("Kept the plan's 24 parking bays as the file has them: this rooms text writes no bay line.")
+    expect(again.text).toContain("Kept the plan's ramp as the file has it: this rooms text writes no ramp line.")
+  })
+})
