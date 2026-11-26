@@ -207,7 +207,13 @@ function optionLine(row: OptionRow, units: Display): string {
   // ARE-60: a US option leads with its living area under air and its total under roof.
   const unknown = english(said('sheet.notKnown'))
   const air = row.underAirFirst ? `${english(said('areas.compare.underAir', { conditioned: row.conditioned === null ? unknown : areaText(row.conditioned, units), underRoof: row.underRoof === null ? unknown : areaText(row.underRoof, units) }))}; ` : ''
-  return `${row.label}: ${air}net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.`
+  return `${row.label}: ${air}net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.${groupLine('room type', row.byRoomType)}${groupLine('tenure', row.byTenure)}`
+}
+
+/** ARE-61: an option's net floor by the firm's room type or by tenure, largest first; nothing when the plan states none. */
+function groupLine(title: string, groups: Readonly<Record<string, number>> | undefined): string {
+  if (groups === undefined) return ''
+  return ` By ${title}, m²: ${Object.entries(groups).sort((a, b) => b[1] - a[1]).map(([group, value]) => `${group} ${value.toFixed(2)}`).join(', ')}.`
 }
 
 /** At most `max` items, then how many more there are in the data. */
@@ -281,7 +287,7 @@ const compareTool: GridTool = {
     picture: { type: 'boolean', description: 'true to return one sheet with the plans side by side at one scale. false when left out.', examples: [true, false] },
   },
   outputSchema: objectSchema({
-    options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, underAirFirst: { type: 'boolean' }, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' } })),
+    options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, underAirFirst: { type: 'boolean' }, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' }, byRoomType: { type: 'object' }, byTenure: { type: 'object' } }, ['label', 'net', 'grossInternal', 'grossExternal', 'conditioned', 'underRoof', 'underAirFirst', 'circulation', 'circulationShare', 'netToGross', 'rooms', 'bedrooms', 'byUse'])),
     comparisons: listSchema(objectSchema({ before: STRING, after: STRING, likeness: { type: ['string', 'null'] }, verdict: STRING, rooms: { type: 'array' }, wallsOut: { type: 'array' }, wallsNew: { type: 'array' }, wallsChanged: { type: 'array' }, openingsOut: { type: 'array' }, openingsNew: { type: 'array' }, openingsChanged: { type: 'array' }, massing: { type: 'object' } })),
     rules: listSchema(STRING),
   }),
@@ -361,7 +367,7 @@ const areasTool: GridTool = {
     data: DATA_ARG,
   },
   outputSchema: withOptional(objectSchema({
-    floors: listSchema(objectSchema({ floor: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, circulation: NUMBER, rooms: { type: 'array' }, leftOut: { type: 'array' }, byUse: { type: 'object' } }, ['floor', 'net', 'rooms', 'leftOut'])),
+    floors: listSchema(objectSchema({ floor: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, circulation: NUMBER, rooms: { type: 'array' }, leftOut: { type: 'array' }, byUse: { type: 'object' }, byRoomType: { type: 'object' }, byTenure: { type: 'object' } }, ['floor', 'net', 'rooms', 'leftOut'])),
     net: NUMBER,
     grossInternal: NULLABLE_NUMBER,
     grossExternal: NULLABLE_NUMBER,
@@ -372,6 +378,9 @@ const areasTool: GridTool = {
     // ARE-42: a gross total the whole building lacks, from the floors that have it, with the floors left out named; only then.
     partial: { type: 'object' },
     byUse: { type: 'object' },
+    // ARE-61: the net floor by the firm's room type and by tenure; only on a plan where a room states one.
+    byRoomType: { type: 'object' },
+    byTenure: { type: 'object' },
     circulationShare: NULLABLE_NUMBER,
     netToGross: NULLABLE_NUMBER,
     leftOut: { type: 'array' },
@@ -401,7 +410,7 @@ const areasTool: GridTool = {
     buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER }, ['id', 'name', 'floors', 'net'])),
     // ARE-20, only when apart_rooms is given: those rooms' net and their area to the middle of the walls they share.
     apart: objectSchema({ rooms: listSchema(STRING), net: NUMBER, byFloor: { type: 'object' }, toPartyWalls: { type: ['object', 'null'], properties: { grossInternal: NUMBER, grossExternal: NUMBER } }, notCounted: listSchema(STRING), state: { type: 'object' } }, ['rooms', 'net', 'toPartyWalls']),
-  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial']),
+  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial', 'byRoomType', 'byTenure']),
   run(args, context) {
     const { survey, floor } = load(context, args['plan'], args['floor'])
     const outside = (args['outside_rooms'] as string[] | undefined) ?? []
@@ -435,6 +444,8 @@ const areasTool: GridTool = {
       notUnderAir: areas.notUnderAir,
       ...(areas.partial === undefined ? {} : { partial: areas.partial }),
       byUse: areas.byUse,
+      ...(areas.byRoomType === undefined ? {} : { byRoomType: areas.byRoomType }),
+      ...(areas.byTenure === undefined ? {} : { byTenure: areas.byTenure }),
       circulationShare: areas.circulationShare,
       netToGross: areas.netToGross,
       leftOut: areas.leftOut,
@@ -535,6 +546,10 @@ const areasTool: GridTool = {
     }
     const uses = Object.entries(areas.byUse)
     if (uses.length > 1) lines.push(`Net by use: ${uses.map(([use, area]) => `${use} ${areaText(area, units)}`).join(', ')}.`)
+    // ARE-61: by the firm's room type and by tenure, on a plan where a room states one.
+    for (const [title, groups] of [['room type', areas.byRoomType], ['tenure', areas.byTenure]] as const) {
+      if (groups !== undefined) lines.push(`Net by ${title}: ${Object.entries(groups).map(([group, area]) => `${group} ${areaText(area, units)}`).join(', ')}.`)
+    }
     // ARE-60: the living area under air and the total under roof, each with its rule; first for a US plan.
     const airLines = !areas.underAir.shown ? [] : (['conditioned', 'underRoof'] as const).map((m) => {
       const value = areas[m]
