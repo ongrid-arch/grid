@@ -276,7 +276,9 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   floor is refused with the nearest room (`rooms/unknown-room`).
 - The answer counts and measures every part written, raw or not: the floors that hold a part,
   every room with its inside area by Grid's own measure (a raw room too, marked "written raw"),
-  and the area in all. When parts were written raw, a line says how many walls, rooms and
+  and the area in all. The count of rooms says how many were written raw: "(all written raw)"
+  for a text of raw lines only, such as the read-back of a floor rooms text cannot give back, or
+  "(2 written raw)" (WRT-71). When parts were written raw, a line says how many walls, rooms and
   openings were, kept as written; the walls "worked out" and the openings "placed" are the ones
   Grid worked out.
 - A room's name and its id go into every export and sheet, and travel with the plan file: name

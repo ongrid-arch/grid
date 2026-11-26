@@ -2181,6 +2181,8 @@ export const en = {
   'rooms.answer.raw':
     'Written raw and kept as written: walls {walls}, rooms {rooms}, openings {openings}. Grid measures the raw rooms as it measures every room, and counts them in the rooms and the area above.',
   'rooms.answer.rawPart': 'written raw',
+  'rooms.answer.rawRooms.all': ' (all written raw)',
+  'rooms.answer.rawRooms.some': ' ({count} written raw)',
   'rooms.answer.rawNotDrawn': 'written raw; Grid cannot draw it from its walls, so its floor is not in the area',
   'rooms.answer.outsideWallOf': 'outside wall of {room}',
   'describe.close': 'This describes the plan and checks nothing: grid check runs the checks.',

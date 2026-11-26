@@ -2185,6 +2185,8 @@ export const es: Messages = {
   'rooms.answer.raw':
     'Escrito en crudo y guardado tal como se escribe: muros {walls}, estancias {rooms}, aberturas {openings}. Grid mide las estancias en crudo como mide toda estancia, y las cuenta en las estancias y la superficie de arriba.',
   'rooms.answer.rawPart': 'en crudo',
+  'rooms.answer.rawRooms.all': ' (todas escritas en crudo)',
+  'rooms.answer.rawRooms.some': ' ({count} escritas en crudo)',
   'rooms.answer.rawNotDrawn': 'escrita en crudo; Grid no puede dibujarla con sus muros, así que su suelo no está en la superficie',
   'rooms.answer.outsideWallOf': 'muro exterior de {room}',
   'describe.close': 'Esto describe el plano y no comprueba nada: grid check hace las comprobaciones.',
