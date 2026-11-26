@@ -597,8 +597,8 @@ describe('the built file', () => {
     // the plan's JSON Schema writer take it to 717,520 bytes, with no new dependency.
     // 800 kB since CMD-43: its DXF and IFC readers on main at 7e8093e9 take it to 752,603 bytes,
     // again with no new dependency.
-    // 820 kB since CMD-44: the change log, undo and restore and their words take it past 806,000
-    // bytes on a busy main, again with no new dependency.
-    expect(statSync(bundle).size).toBeLessThan(820_000)
+    // 850 kB since SHT-22: its note, tag, symbol, route and sketch lines and grid_annotate, on main
+    // at bd9d0a9b, take it to 803,004 bytes, again with no new dependency.
+    expect(statSync(bundle).size).toBeLessThan(850_000)
   })
 })

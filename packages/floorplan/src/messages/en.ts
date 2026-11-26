@@ -557,6 +557,8 @@ export const en = {
   'check.noStair': '{floor} stands above the ground, and nothing joins it to the ground floor: no room on it is used as a stair or a lift, and the plan states no stair to it',
   'check.noStair.write': 'Floor {floor} stands above the ground, and nothing joins it to the ground floor: no room on it is used as a stair or a lift, and no stair is stated to it (grid check: floor/no-stair). To add one, write under the line that starts "floor {belowId}": room stair "Stair" stair 1 x 3 <where> through {floorId}',
   // ARE-28: the route out from a floor above the ground that nothing joins to the ground floor.
+  'route.notChecked.none': 'grid_check does not follow the way out of {floor} either: no stair joins it to the ground floor (a stair the plan states, or stair rooms one over the other), and its notes say so (no_stairs).',
+  'route.notChecked.found': 'grid_check does not follow this way out: no stair joins {floor} to the ground floor (a stair the plan states, or stair rooms one over the other), and its notes say so (no_stairs).',
   'route.blockedDoorway': 'The {kind} {via} between {rooms} is closed: {items} leaves none of it clear.',
   'check.noStair.route': 'There is no way out from {floor}: it stands above the ground and nothing joins it to the ground floor, no room on it is used as a stair or a lift and no stair or ramp is stated to it, so no route from {room} goes down to a door out (grid check: floor/no-stair).',
   'check.outOfLine.stair': 'The stair {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so it does not join the two floors',
@@ -1871,6 +1873,7 @@ export const en = {
   'describe.repeat.one': '{floors} is laid out like {of}',
   'describe.repeat.many': '{floors} are laid out like {of}',
   'describe.entered': 'from outside, {ways} into {rooms}',
+  'describe.entered.common': 'from the building\'s common parts, which the plan does not draw, {ways} into {rooms}',
   'describe.entered.none': 'no door leads in from outside',
   'describe.entered.openSide': 'from outside, no door but an open side leads into {rooms}',
   'describe.ways.door': 'a door leads',
@@ -2191,7 +2194,7 @@ export const en = {
     "Line {line}: a raw floor holds the floor's {known}, as Grid's plan file holds them, and {field} is none of them. {fix}",
   'rooms.raw.floorField.line': "The floor's {field} is written on its floor line: floor <id> {field} <value>.",
   'rooms.raw.kind':
-    "Line {line}: raw takes wall, room, opening, floor, stair, item, bay or ramp, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
+    "Line {line}: raw takes wall, room, opening, floor, stair, item, bay, ramp, note or sketch, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
   'rooms.raw.kind.opening': 'A door or a window is written raw opening {"id": "<id>", "type": "{type}", "wall": "<wall id>", "offset": <m>, "width": <m>, "height": <m>}.',
   'rooms.raw.kind.floor': 'A floor\'s {list} is written raw floor {"{list}": ...}, under its floor line.',
   'rooms.raw.kind.list': 'Rooms text has no line for it: Grid\'s plan file holds it in "{list}", changed in the file once the plan is written.',
@@ -2221,7 +2224,7 @@ export const en = {
   'rooms.raw.smallLetters':
     "Line {line}: rooms text is read in small letters, and '{written}' is not; write '{offered}'.",
   'rooms.raw.kind.item': 'A fixture or a piece of furniture is written raw item {"id": "<id>", "kind": "<kind>", "at": [x, y], "size": [w, d], "height": <m>}, or in a line of its own: item <id> <name> in <room> against <side>.',
-  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor, stair, item, bay or ramp, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
+  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor, stair, item, bay, ramp, note or sketch, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
   'rooms.plan.oneName': 'Line {line}: the plan line takes one name, in quotes when it has spaces, and {extra} after it would not be read. Write {offered}.',
   'rooms.wall.unknownRoom':
     "Line {line}: the wall line names '{room}', which is no room written on floor '{floor}'.{nearest} Rooms there: {rooms}.",
@@ -2984,6 +2987,10 @@ export const en = {
   'drawing.key.newWall': 'New wall',
   'drawing.key.demolished': 'To be demolished',
   'view.phases.work': 'The plan marks its work: {total} to be demolished ({walls} walls, {openings} openings, {rooms} rooms), drawn dashed and in the key as "to be demolished", the same count grid_check gives; {new} new. Measures and checks read the building after the work.',
+  'view.phases.here.all': 'All {total} to be demolished are on this floor: {parts}.',
+  'view.phases.here.some': '{here} of the {total} to be demolished are on this floor: {parts}; {elsewhere}.',
+  'view.phases.here.none': 'None of the {total} to be demolished is on this floor: {elsewhere}.',
+  'view.phases.elsewhere': 'floor {floor} has {count}',
   'describe.count.opening.one': '{count} opening',
   'describe.count.opening.many': '{count} openings',
   'describe.work': 'It holds work: to be demolished {demolished}; new {new}; the sizes here are after the work.',
@@ -2995,6 +3002,7 @@ export const en = {
   'describe.walk.floor.many': '{floor}: {count} rooms walked. {start}',
   'describe.walk.start.front': 'It starts at the front door the plan names.',
   'describe.walk.start.wayIn': 'The plan names no front door: it starts at the widest door from outside into a corridor, or the widest door from outside when none leads into one.',
+  'describe.walk.start.openSide': 'No door leads in from outside on this floor: it starts across an open side onto the outside.',
   'describe.walk.start.stair': 'No door leads in from outside on this floor: it starts in the stair room, where the stairs arrive.',
   'describe.walk.start.firstRoom': 'No door leads in from outside and no room is a stair: it starts in the first room of the floor.',
   'describe.walk.start.none': 'It has no room to walk.',
@@ -3568,6 +3576,8 @@ export const en = {
   'trace.pdfPictureKind': 'Page {page} of the trace image {path} holds its picture as {kind}, which Grid does not read yet, so it is not drawn. Save the page as a PNG to trace it.',
   'plan.notAPlan.gridFile': '{file} is not a plan file: it is {kind}, and a plan is never written into it. Name another .json file for the plan; replace does not change this.',
   'plan.notAPlan.noParts': '{file} is not a Grid plan: it holds no walls, rooms or openings.',
+  'plan.notAPlan.target': '{file} is not a Grid plan: it holds no walls, rooms or openings, so a plan is never written over it. Name a new .json file, or a plan file, to write to; replace does not change this. Nothing was written.',
+  'plan.notAPlan.nothingToDraw': '{file} holds nothing to draw: no walls, rooms, openings or items. Write its rooms first (grid write, grid_write_rooms), or name the plan file that holds them.',
   'plan.foreign.dxf': '{file} is a DXF drawing, not a plan. Read it into rooms text and a plan with grid write --from {file} (grid_write_rooms from), then check the rooms text it writes beside the plan.',
   'plan.foreign.dwg': '{file} is a DWG drawing, and Grid does not read DWG. Save it as a DXF and read that with grid write --from (grid_write_rooms from).',
   'plan.foreign.ifc': '{file} is an IFC model, not a plan. Read it into rooms text and a plan with grid write --from {file} (grid_write_rooms from), then check the rooms text it writes beside the plan.',
@@ -3579,7 +3589,10 @@ export const en = {
   'plan.fileKind.seen': 'a file Grid keeps beside a plan (the notes set aside as seen)',
   'plan.fileKind.brief': 'a file Grid keeps beside a plan (the brief)',
   'plan.fileKind.preview': 'a file Grid keeps beside a plan (the preview record)',
-  'plan.fileKind.scan': 'a file Grid keeps beside a plan (the room scan)'
+  'plan.fileKind.scan': 'a file Grid keeps beside a plan (the room scan)',
+  'plan.fileKind.occupancy': 'a file Grid keeps beside a plan (the occupancy figures)',
+  'plan.fileKind.sheet': 'a file Grid keeps beside a plan (the sheet\'s words)',
+  'plan.fileKind.firm': 'the file that holds the firm\'s own standards',
 } as const satisfies Record<string, string>
 
 export type MessageKey = keyof typeof en

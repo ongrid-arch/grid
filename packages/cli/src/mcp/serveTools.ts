@@ -43,6 +43,7 @@ import { STAIR_TOOLS } from './stairTools'
 import { ITEM_TOOLS } from './itemTools'
 import { PARKING_TOOLS } from './parkingTools'
 import { placeTraceTool } from './traceTool'
+import { annotateTool } from './annotateTool'
 import { VERSION_TOOLS } from './versionTools'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
@@ -94,6 +95,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...SITE_TOOLS,
   // VEW-67: the trace image under the plan, drawn only: no part of the building.
   placeTraceTool,
+  // SHT-22: writing on the drawing and its sketch, never the building or the ground.
+  annotateTool,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
   saveViewTool,
 ]

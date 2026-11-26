@@ -119,6 +119,9 @@
  *                                                     the plan's fixtures and furniture (CNT-45): `items.ts`
  *   row <id> <item words> repeat <n> [every <m>] [, <k> rows [every <m>] [behind]]
  *                                                     items laid out in rows (CNT-47): `rows.ts`
+ *   note|tag "<text>" at x,y | in <room>   symbol north|entrance ...   key [at x,y]
+ *   route [<category>] x,y x,y ...   sketch line|shape|rect|arc|text <category> ...   [on <floor>] [id <id>]
+ *   raw note|sketch { ...Grid's own JSON... }           writing on the drawing and the sketch (SHT-22): `notes.ts`
  *   base <plan file>                   a fit-out on that base plan (WRT-75): the rooms rest on its walls, `base.ts`
  *   bay <id> at x,y, <w> x <l> [turn <deg>] [number <n>] [on <floor>]
  *   bays <group> in <room> along <side> | fill, <w> x <l> ...   or   bays <group> at x,y, <w> x <l>, count <n>, runs <way> ...
@@ -157,6 +160,7 @@ import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
 import { ITEM_LINE_WORDS, ItemLines, RAW_ITEM_KINDS } from './items'
 import { readRowLine, ROW_LINE_WORDS } from './rows'
+import { NOTE_LINE_WORDS, NoteLines } from './notes'
 import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
 import { edgeWords, mirroredSide, OPEN_SIDES, outdoorWordKind, outsideEdge, type EdgeWord } from './edges'
 import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
@@ -172,7 +176,7 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
 
 /** WRT-68: the kinds a `raw` line takes, written after it in small letters. */
-const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS, 'bay', 'ramp']
+const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS, 'bay', 'ramp', 'note', 'sketch']
 
 /**
  * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
@@ -896,6 +900,8 @@ class Compiler {
   private readonly stairLines = new StairLines()
   /** CNT-45: the fixtures and furniture, from their own lines and `raw item`. */
   private readonly itemLines = new ItemLines()
+  /** SHT-22: writing on the drawing and the sketch, from their own lines and `raw note|sketch`. */
+  private readonly noteLines = new NoteLines()
   /** WRT-75: the base plan a fit-out names (`base.ts`). */
   readonly baseLine = new BaseLine()
   /** CNT-46: the parking bays and ramps, from their own lines and `raw bay`, `raw ramp`. */
@@ -944,6 +950,7 @@ class Compiler {
         else if (kind === 'stair') this.stairLines.raw(rest, at)
         else if (RAW_ITEM_KINDS.includes(kind)) this.itemLines.raw(rest, at)
         else if (kind === 'bay' || kind === 'ramp') this.parkingLines.raw(kind, rest, at)
+        else if (kind === 'note' || kind === 'sketch') this.noteLines.raw(kind, rest, at)
         else this.rawKind(kind, at)
         continue
       }
@@ -1142,6 +1149,8 @@ class Compiler {
     if (ITEM_LINE_WORDS.includes(kw)) return this.itemLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     // CNT-47: items laid out in rows (`rows.ts`), placed with the item lines.
     if (ROW_LINE_WORDS.includes(kw)) return readRowLine(this.itemLines, t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    // SHT-22: writing on the drawing and the sketch (`notes.ts`), on the floor of the block it is under.
+    if (NOTE_LINE_WORDS.includes(kw)) return this.noteLines.read(quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
     // WRT-75: the base plan a fit-out is written on (`base.ts`).
     if (BASE_LINE_WORDS.includes(kw)) return this.baseLine.read(this.lines[at - 1] ?? '', at)
     // CNT-46: a bay, a row of bays or a ramp (`parking.ts`), laid out once the rooms are drawn.
@@ -1225,7 +1234,7 @@ class Compiler {
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, item, row, base, bay, bays, ramp.`
+          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, item, row, base, bay, bays, ramp, note, tag, symbol, key, route, sketch.`
         )
     }
   }
@@ -4373,6 +4382,7 @@ class Compiler {
     this.emitStairs(plan)
     this.emitItems(plan)
     this.emitParking(plan)
+    this.emitNotes(plan)
     if (this.problems.length > 0) return null
     this.askSizes(plan)
     const wallIds = new Set(plan.walls.map((w) => w.id))
@@ -4437,6 +4447,17 @@ class Compiler {
     if (made.bays !== undefined) plan.bays = made.bays
     if (made.ramps !== undefined) plan.ramps = made.ramps
     for (const id of this.parkingLines.rawIds()) this.rawIds.add(id)
+  }
+
+  /** SHT-22: the note and sketch lines into the plan's `annotations` and `sketch`, on the rooms as drawn. */
+  private emitNotes(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.noteLines.written) return
+    const made = this.noteLines.finish(this.problems.length > 0 ? null : (plan as unknown as FloorPlan))
+    const capital = (note: { code: string; line: number | null; message: string }): RoomsProblem => ({ ...note, message: note.message.charAt(0).toUpperCase() + note.message.slice(1) })
+    this.problems.push(...made.problems.map(capital))
+    this.guesses.push(...made.guesses)
+    if (made.annotations !== undefined) plan.annotations = made.annotations
+    if (made.sketch !== undefined) plan.sketch = made.sketch
   }
 
   /**

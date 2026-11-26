@@ -17,7 +17,9 @@ import { FACADE_SIDES, cameraRecord, findView, resolveFloor, viewSetting, type F
 import { drawFacade, drawPlan } from '../draw/drawPlan'
 import { planPicture } from '@ongrid/viewer/src/picture'
 import { drawShowOf } from './drawShow'
-import { floorOption, type LoadedPlan } from './plan'
+import { floorOption, PlanRefused, type LoadedPlan } from './plan'
+import { nothingToDraw } from './planFile'
+import { say } from '@ongrid/floorplan/messages'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 import { askedLanguage, LANG_OPTION, languageFor, spokenPlan } from './language'
 import type { SectionLine } from '@ongrid/floorplan/geometry/section'
@@ -259,6 +261,8 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
   // What went wrong, numbered as `grid check` numbers it, marked on the drawing (MSG-8).
   // VEW-15: from the file's text and its base, as `grid check` reads them, so the fields the reading adds are no notes.
   const faults = inspectPlan(loaded.text ?? loaded.plan, { ...(language === 'en' ? {} : { language, ...(loaded.plan.display?.decimal ? { decimal: loaded.plan.display.decimal } : {}) }), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
+  // CMD-45: a plan with nothing in it is refused, not drawn as a blank page.
+  if (nothingToDraw(loaded.plan, faults)) throw new PlanRefused(say('en', 'plan.notAPlan.nothingToDraw', { file: project?.shown(read.file) ?? read.file }))
   const undecidedDoors = planPicture(loaded.plan, { floor, look, ...labels }).undecidedDoors
   // HND-10: the trace image under the floor drawn, and its line for standard error.
   const trace = project === undefined ? null : readTrace(project, loaded.plan, resolveFloor(loaded.plan, floor), language)
