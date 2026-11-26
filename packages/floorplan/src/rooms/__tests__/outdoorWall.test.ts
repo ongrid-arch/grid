@@ -63,7 +63,8 @@ function oneAnswer(plan: FloorPlan): void {
   for (const wall of plan.walls) {
     const exposure = wallExposure(index, wall.id)
     expect([wall.id, wall.kind === 'exterior'], `${wall.id}: ${wall.kind} in the file, ${exposure} worked out`).toEqual([wall.id, exposure === 'exterior'])
-    expect([wall.id, ifc.get(wall.id)]).toEqual([wall.id, exposure === 'exterior'])
+    // WRT-76: an outdoor space's open edge is a dividing line, which the IFC holds no wall for.
+    if (wall.virtual !== true) expect([wall.id, ifc.get(wall.id)]).toEqual([wall.id, exposure === 'exterior'])
   }
   const codes = validatePlan(plan).issues.map((issue) => issue.code)
   expect(codes).not.toContain('wall/kind-differs')
@@ -90,7 +91,8 @@ describe('the wall between a room and outdoor space (WRT-31)', () => {
       ].join('\n')
     )
     expect(between(plan, 'ldk', 'bal')).toEqual([['exterior', 0.18]])
-    expect(warnings.map((w) => w.code)).toEqual([])
+    // WRT-76: the balcony is open where no room faces it, so its own walls set nothing, and the answer says so.
+    expect(warnings.map((w) => w.code)).toEqual(['rooms/walls-unused'])
     oneAnswer(plan)
     readsBack(plan)
   })

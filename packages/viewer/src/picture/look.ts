@@ -37,6 +37,8 @@ import { relativeLuminance } from './contrast'
 export interface PlanLook {
   readonly paper: string
   readonly room: string
+  readonly outdoorRoom?: string
+  readonly edge?: string
   readonly wall: string
   readonly wallExterior: string
   /** SHT-10: an inside wall's fill, where it differs from `wall` (the ink); `wall` when left out. */
@@ -66,6 +68,8 @@ export const PICTURE_FONT = "Helvetica, Arial, 'Liberation Sans', 'DejaVu Sans',
 export const LIGHT_LOOK: PlanLook = {
   paper: '#ffffff',
   room: '#f2efe7',
+  outdoorRoom: '#e6eee1',
+  edge: '#657363',
   wall: '#232320',
   wallExterior: '#121210',
   // SHT-10: the inside walls a mid grey and the partitions lighter, so the outside walls read
@@ -88,6 +92,8 @@ export const LIGHT_LOOK: PlanLook = {
 export const DARK_LOOK: PlanLook = {
   paper: '#15150f',
   room: '#23201a',
+  outdoorRoom: '#263027',
+  edge: '#a1b39b',
   wall: '#ddd8cc',
   wallExterior: '#f3f1ec',
   wallInside: '#aea9a2',
@@ -111,6 +117,7 @@ export const DARK_LOOK: PlanLook = {
  */
 export const LINE_PX = {
   virtual: 1.5,
+  edge: 1,
   virtualDash: [7, 5],
   opening: 1,
   jamb: 1,
@@ -318,6 +325,7 @@ export function lengthText(value: number): string {
 export type LinePart =
   | 'wallOutline'
   | 'virtual'
+  | 'edge'
   | 'opening'
   | 'jamb'
   | 'step'
@@ -575,6 +583,7 @@ const SCREEN_LINES: ScreenLines = {
   widths: {
     wallOutline: 0,
     virtual: LINE_PX.virtual,
+    edge: LINE_PX.edge,
     opening: LINE_PX.opening,
     jamb: LINE_PX.jamb,
     step: LINE_PX.step,
@@ -632,6 +641,7 @@ const PAPER_LINES: PaperLines = {
   pen: {
     wallOutline: 'cut',
     virtual: 'fine',
+    edge: 'finest',
     opening: 'fine',
     jamb: 'fine',
     step: 'medium',
@@ -676,6 +686,8 @@ const PAPER_LINES: PaperLines = {
 export const TECHNICAL_COLORS: PlanLook = {
   paper: '#ffffff',
   room: '#ffffff',
+  outdoorRoom: '#f2f2f2',
+  edge: '#595959',
   wall: '#8c8c8c',
   // SHT-10: the outside walls a darker tone than the inside ones, a partition the palest.
   wallExterior: '#595959',

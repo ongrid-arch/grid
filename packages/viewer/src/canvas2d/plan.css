@@ -18,6 +18,17 @@
   stroke: none;
 }
 
+.canvas [data-part='room']:where([data-outdoor='true']) {
+  fill: var(--plan-outdoor-room, #e6eee1);
+}
+
+.canvas :is([data-part='open-edge'], [data-part='railing'], [data-part='low-wall']) {
+  fill: none;
+  stroke: var(--plan-edge, #657363);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
 .canvas [data-part='wall'] {
   fill: var(--plan-wall, #232320);
   stroke: none;
@@ -315,6 +326,11 @@
 
 .canvas [data-selected='true'] {
   fill: var(--plan-selected, #2f6f78);
+}
+
+.canvas :is([data-part='railing'], [data-part='low-wall'])[data-selected='true'] {
+  fill: none;
+  stroke: var(--plan-selected, #2f6f78);
 }
 
 .canvas [data-part='room'][data-selected='true'] {
