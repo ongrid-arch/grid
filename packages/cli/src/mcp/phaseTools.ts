@@ -8,6 +8,7 @@ import { validatePlan } from '@ongrid/floorplan/geometry'
 import { FloorPlanSchema } from '@ongrid/floorplan/types/floorplan'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { PlanRefused } from '../command/plan'
+import { refusePlanTarget } from '../command/planFile'
 import { PHASES, phasedPlanFrom, setPhase, startWorks } from '../edit/phaseMarks'
 import { EditRefused } from '../edit/refused'
 import { PATH_MAX, PathRefused } from '../fs/projectFiles'
@@ -125,9 +126,11 @@ const PHASE_FROM_TOOL: GridTool = {
     }
     let written: string
     try {
+      // CMD-45: out is never one of Grid's own files, nor a file there already that holds no plan.
+      refusePlanTarget(project, out)
       written = project.relative(project.writeFile(out, `${JSON.stringify(made.plan, null, 2)}\n`))
     } catch (error) {
-      if (error instanceof PathRefused) throw new ToolRefusal(error.message)
+      if (error instanceof PathRefused || error instanceof PlanRefused) throw new ToolRefusal(error.message)
       throw error
     }
     return { text: [...made.said, `Wrote ${JSON.stringify(written)}.`].join('\n'), data: { written, changed: made.said, counts: made.counts, kept: made.kept, drawingProblems: problems.length } }

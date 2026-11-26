@@ -6,6 +6,7 @@
  */
 import { inspectPlan } from '@ongrid/rules'
 import { loadBase, PlanRefused } from '../command/plan'
+import { refusePlanTarget } from '../command/planFile'
 import { nothingToLose } from '../command/write'
 import { startFitOut } from '../edit/fitOut'
 import { EditRefused } from '../edit/refused'
@@ -42,6 +43,14 @@ const START_FIT_OUT_TOOL: GridTool = {
     if (!file.toLowerCase().endsWith('.json')) throw new ToolRefusal('plan must name a .json file.')
     try {
       if (project.resolve(named, 'project') === project.resolve(file)) throw new ToolRefusal('plan is the base plan, which is never changed: name another file for the fit-out. Nothing was written.')
+      // CMD-45: replace or not, never one of Grid's own files, nor a file there already that holds no plan.
+      try {
+        refusePlanTarget(project, file)
+      } catch (error) {
+        // Its words say nothing was written already.
+        if (error instanceof PlanRefused) throw new ToolRefusal(error.message)
+        throw error
+      }
       if (args['replace'] !== true && project.exists(file)) {
         const { loaded } = readPlan(context, file, { whole: true, leftOutKept: true })
         if (!nothingToLose(loaded.base === undefined ? loaded.plan : { ...loaded.plan, walls: [], openings: [] })) throw new ToolRefusal(`${JSON.stringify(file)} holds a plan already: pass replace=true to write the fit-out over it, or name another file. Nothing was written.`)
