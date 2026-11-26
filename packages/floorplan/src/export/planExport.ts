@@ -2,8 +2,10 @@
  * Turns a saved plan into the bytes of an export file. The caller names a format and a
  * floor, and gets the file's bytes back.
  *
- * DXF, OBJ and GLB are what the 2D and 3D views draw, one floor at a time, so they export the
- * floor the user is looking at. IFC is the whole building, one storey per floor.
+ * DXF is what the 2D view draws, one floor at a time, so it exports the floor the user is looking
+ * at. IFC is the whole building, one storey per floor. OBJ and GLB (VEW-64) are the whole building
+ * as the 3D view stacks it when no floor is named, each floor at its elevation, and one floor at
+ * its elevation when one is.
  *
  * Every format writes the plan's parts in id order (QAR-5), so the same building gives the
  * same bytes whatever order its file lists them in.
@@ -16,7 +18,8 @@
  */
 import type { FloorPlan } from '../types/floorplan'
 import type { ReadFault } from '../types/readParts'
-import { buildFloorPlan, buildScene, dxfFactsOf, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toDxf, toGlb, toIfc, toObj, withPatterns } from '../geometry'
+import { buildFloorPlan, buildScene, dxfFactsOf, floorElevations, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toBuildingGlb, toBuildingObj, toDxf, toIfc, withPatterns } from '../geometry'
+import type { StoreyScene } from '../geometry/export/obj'
 import type { DxfProfile } from '../geometry/export/dxfProfile'
 import type { ApproximatedPart, Approximations, LeftOutPart } from '../geometry/export/leftOut'
 import { curveDeviation } from '../geometry/arc'
@@ -45,7 +48,11 @@ export interface PlanExportOptions {
   /** The IFC's project identity when the plan stores none (`FloorPlan.projectId` wins). */
   readonly projectId: string
   readonly projectName: string
-  /** The floor shown in the views; a missing or stale id falls back to the ground floor. */
+  /**
+   * The floor to export. DXF: the floor shown in the views, the ground floor when missing. OBJ and
+   * GLB (VEW-64): every floor when missing, that floor alone when given. A stale id falls back to
+   * the ground floor in every format.
+   */
   readonly floorId?: string | null
   readonly now: Date
   /** What the reader did with the plan file (MSG-6): the parts it left out are named too. */
@@ -67,6 +74,16 @@ export interface PlanExport {
    * beside what it leaves out. Empty for a plan with no curved wall.
    */
   readonly approximated: readonly ApproximatedPart[]
+  /** VEW-64: the floors the file holds, lowest level first, each with its elevation in metres. */
+  readonly floors: readonly HeldFloor[]
+  /** VEW-64: the ids of the plan's floors the file does not hold, lowest level first. */
+  readonly floorsLeftOut: readonly string[]
+}
+
+/** VEW-64: a floor an export holds, and where its floor level stands above the ground floor's. */
+export interface HeldFloor {
+  readonly id: string
+  readonly elevation: number
 }
 
 /**
@@ -101,15 +118,28 @@ export function exportFileName(projectName: string, format: ExportFormat, floorN
   return `${floor ? `${base}-${floor}` : base}.${format}`
 }
 
+/** The plan's floors, lowest level first; floors sharing a level keep the plan's order, as the 3D view stacks them. */
+function floorsUp(plan: FloorPlan): string[] {
+  return planFloors(plan)
+    .map((floor, order) => ({ floor, order }))
+    .sort((a, b) => a.floor.level - b.floor.level || a.order - b.order)
+    .map(({ floor }) => floor.id)
+}
+
 /**
- * HND-11 (lab MS-12): the GLB of one floor. A 32-bit point holds about seven digits, so a floor at
- * survey coordinates is built near zero, from the site's origin when the plan states one, and
- * the file's one node is moved back by that offset (`nearOrigin`, `GlbOptions.origin`). DXF, IFC
- * and OBJ write their numbers as text and keep them as they are.
+ * VEW-64: the floors of a 3D file, each built at its own floor level and placed at its elevation
+ * (`floorElevations`, the rule the 3D view and the IFC stack by). HND-11 (lab MS-12): a 32-bit
+ * point holds about seven digits, so for the GLB a plan at survey coordinates is moved near zero
+ * once, on the whole plan, from the site's origin when the plan states one, and each floor is cut
+ * from the moved plan, so every slice still reads its shell and stairs from the whole; the file's
+ * root node moves it back (`nearOrigin`, `GlbOptions.origin`). The OBJ writes its numbers as
+ * text and keeps them as they are.
  */
-function glbOf(storey: FloorPlan, note: { readonly leftOut: readonly LeftOutPart[] }): Uint8Array {
-  const near = nearOrigin(storey)
-  return toGlb(buildScene(near.plan), { ...note, origin: near.at })
+function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean): { storeys: StoreyScene[]; origin: readonly [number, number] } {
+  const moved = near ? nearOrigin(plan) : { plan, at: [0, 0] as const }
+  const levels = floorElevations(moved.plan).floors
+  const storeys = floorIds.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0, scene: buildScene(planForFloor(moved.plan, id)) }))
+  return { storeys, origin: moved.at }
 }
 
 export function exportPlan(stated: FloorPlan, format: ExportFormat, options: PlanExportOptions): PlanExport {
@@ -122,24 +152,40 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
     const contents = exportContents(ordered, planFloors(ordered).map((floor) => floor.id), options.faults)
     const approximations = approximationsOf(ordered, format, contents)
     const data = toIfc(plan, { projectId: options.projectId, projectName: plan.name ?? plan.title ?? options.projectName, timestamp: options.now, leftOut: contents.leftOut, approximations })
-    return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts }
+    const levels = floorElevations(ordered).floors
+    const floors = floorsUp(ordered).map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
+    return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut: [] }
   }
 
+  // VEW-64: OBJ and GLB hold every floor unless one is named; DXF holds one, the ground floor's
+  // when none is named. A stale id falls back to the ground floor.
+  const whole = format !== 'dxf' && (options.floorId === undefined || options.floorId === null)
   const floorId = resolveFloor(plan, options.floorId)
-  const contents = exportContents(ordered, [floorId], options.faults)
-  const storey = planForFloor(ordered, floorId)
+  const allFloors = floorsUp(ordered)
+  const held = whole ? allFloors : [floorId]
+  const contents = exportContents(ordered, held, options.faults)
   const approximations = approximationsOf(ordered, format, contents)
   const note = { leftOut: contents.leftOut, approximations }
-  // CNT-9: the DXF writes the facts of the floor's parts and of the floor itself.
-  const facts = dxfFactsOf(storey, planFloors(ordered).find((f) => f.id === floorId) ?? null)
-  // HND-1: each room's tag carries its number, counted across the whole building (ARE-12).
-  const numbers = (): Map<string, string> => new Map(roomNumbers(ordered).filter((n) => n.floor === floorId).map((n) => [n.id, shownRoomNumber(n)]))
-  const profile = options.dxfProfile === undefined ? {} : { profile: options.dxfProfile }
-  const data = format === 'dxf' ? toDxf(buildFloorPlan(storey), { ...note, facts, roomNumbers: numbers(), ...profile })
-    : format === 'obj' ? toObj(buildScene(storey), note)
-    : glbOf(storey, note)
-  const floors = planFloors(plan)
-  const floor = floors.find((f) => f.id === floorId)
-  const floorName = floors.length > 1 ? (floor?.name || floorId) : null
-  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts }
+  let data: string | Uint8Array
+  let floors: HeldFloor[]
+  if (format === 'dxf') {
+    const storey = planForFloor(ordered, floorId)
+    // CNT-9: the DXF writes the facts of the floor's parts and of the floor itself.
+    const facts = dxfFactsOf(storey, planFloors(ordered).find((f) => f.id === floorId) ?? null)
+    // HND-1: each room's tag carries its number, counted across the whole building (ARE-12).
+    const numbers = new Map(roomNumbers(ordered).filter((n) => n.floor === floorId).map((n) => [n.id, shownRoomNumber(n)]))
+    const profile = options.dxfProfile === undefined ? {} : { profile: options.dxfProfile }
+    data = toDxf(buildFloorPlan(storey), { ...note, facts, roomNumbers: numbers, ...profile })
+    floors = [{ id: floorId, elevation: floorElevations(ordered).floors.get(floorId)?.floorLevel ?? 0 }]
+  } else {
+    const { storeys, origin } = storeysOf(ordered, held, format === 'glb')
+    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor' })
+    floors = storeys.map(({ id, elevation }) => ({ id, elevation }))
+  }
+  const heldIds = new Set(held)
+  const floorsLeftOut = allFloors.filter((id) => !heldIds.has(id))
+  const planFloorList = planFloors(plan)
+  const floor = planFloorList.find((f) => f.id === floorId)
+  const floorName = !whole && planFloorList.length > 1 ? (floor?.name || floorId) : null
+  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut }
 }
