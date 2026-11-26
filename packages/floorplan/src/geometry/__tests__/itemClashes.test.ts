@@ -62,6 +62,7 @@ describe('a rug, which lies on the floor (CNT-42)', () => {
     ])
     expect(issues.filter((i) => i.code === 'item/clearance-blocked').map((i) => [i.id, i.hits])).toEqual([['bed', ['wardrobe']]])
     expect(issues.filter((i) => i.code === 'item/overlap').map((i) => [i.id, i.hits])).toEqual([['d2', ['d1']]])
+    expect(issues.find((i) => i.code === 'item/overlap')!.message).toMatch(/^Desk "d2" stands in desk "d1"/)
   })
 })
 
