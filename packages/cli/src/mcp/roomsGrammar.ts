@@ -162,6 +162,19 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
     ],
   },
   {
+    topic: 'items',
+    says: 'item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side\'s inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant). item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid\'s own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.',
+    example: [
+      'room bath "Bathroom" bathroom 2.4 x 2 at 0,0',
+      'room bed "Bedroom" bedroom 3.5 x 4 east of bath',
+      'door d1 between bath and bed, centred, 0.8 wide',
+      'item tub "Bath 1700" bath 1.7 x 0.7 in bath against north, at west',
+      'item wc1 wc in bath against east, 0.1 from south',
+      'item robe "Built-in wardrobe" wardrobe in bed against east, full width',
+      'item bed1 double-bed in bed against north, at west',
+    ],
+  },
+  {
     topic: 'site',
     says: 'plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person\'s own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m>, site ground <m> and site country <name> say where it is. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site\'s things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.',
     example: [

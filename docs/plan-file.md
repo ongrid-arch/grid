@@ -1096,6 +1096,15 @@ writes each item as a block ([library.md](library.md#the-dxf-each-door-and-fixtu
 A rug lies on the floor (CNT-42): other items stand on it without standing in each other, and it
 is in no item's clear floor, no doorway, no way through and no fixture's space; it is still
 drawn, exported and counted.
+Rooms text writes an item in an `item` line, against a side of a room with its turn worked out or
+at a point (CNT-45, [rooms-first.md](rooms-first.md#items)), and `grid_add_item`, `grid_move_item`
+and `grid_remove_item` add, move and take one out. An item whose back stands against a wall's
+face (to within `itemIntoWall`) moves with that wall when a change or a rewrite moves it, and
+one in a corner keeps to both walls. `grid_find` and `grid_count` take `fixture` and `furniture`
+as kinds of part, `grid_view` gives each item's box, and `grid_schedule of=fixtures` lists them.
+A phone scan's furniture and appliances come in as items too (a fridge or a stove as storage,
+labelled with what the scan calls it), and each scanned door keeps whether the scan saw it open
+as the fact `scannedOpen`.
 Points (a hydrant, a camera) and seats come later, in the same shape. A kind Grid does not hold
 is left out with a note, and the rest of the plan is drawn; a kind is added through the kinds
 registry ([library.md](library.md#adding-a-kind-of-thing)).
