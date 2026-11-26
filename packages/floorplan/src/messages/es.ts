@@ -1988,7 +1988,12 @@ export const es: Messages = {
   'rooms.hole':
     "Las estancias de la planta '{floor}' encierran {area} m² de suelo que ninguna estancia reclama, hacia {at}, entre {rooms}. Escríbalo como estancia: un núcleo, un patinillo o un patio interior ('-' si no tiene uso), u 'outdoor courtyard' para terreno abierto. Se escribe tal cual, y la comprobación lo señala como suelo que ninguna estancia reclama.",
   'rooms.wallFromGap':
-    "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) tiene {thickness} m de grueso, el hueco que dejan las estancias, y ninguna línea del texto lo indica (muros interiores {inside} m, exteriores {outside} m). Si es lo que se quiere, dígalo con 'walls {thickness}' en una línea de estancia o de muro; si no, mueva una estancia.",
+    "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) tiene {thickness} m de grueso, el hueco que dejan las estancias, y ninguna línea del texto lo indica para él (muros interiores {inside} m, exteriores {outside} m).{floor} Si es lo que se quiere, dígalo con 'walls {thickness}' en una línea de estancia o de muro; si no, {fix}",
+  // WRT-67
+  'rooms.wallFromGap.floor': ' Tiene {more} m más que el muro de {wall} m entre ellas, a lo largo de {along} m, así que {area} m² de suelo quedan en el muro y no en una estancia.',
+  'rooms.wallFromGap.closes': 'agrande una de ellas {by} m hacia la otra: {sizes}.',
+  'rooms.wallFromGap.moveBy': 'mueva una de ellas {by} m hacia la otra.',
+  'rooms.wallFromGap.move': 'mueva una estancia.',
   'rooms.wallFromGap.outdoor':
     "El muro entre '{a}' (línea {aLine}) y '{b}' (línea {bLine}) da a un espacio exterior, así que es un muro exterior, pero las estancias le dejan {thickness} m, no los {outside} m de los muros exteriores. Si es lo que se quiere, manténgalo con 'wall between {a} and {b} {thickness}'; si no, mueva una estancia.",
   // WRT-47

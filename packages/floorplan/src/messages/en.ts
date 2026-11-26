@@ -1976,7 +1976,12 @@ export const en = {
   'rooms.hole':
     "The rooms on floor '{floor}' close round {area} m² of floor that no room claims, around {at}, between {rooms}. Write it as a room: a core, a shaft or a light well inside ('-' for no use), or 'outdoor courtyard' for open ground. It is written as it is, and the check notes it as floor no room claims.",
   'rooms.wallFromGap':
-    "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) is {thickness} m thick, the gap the rooms leave, which no line of the text states (inside walls {inside} m, outside walls {outside} m). If that is meant, say it with 'walls {thickness}' on a room line or a wall line; if not, move a room.",
+    "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) is {thickness} m thick, the gap the rooms leave, which no line of the text states for it (inside walls {inside} m, outside walls {outside} m).{floor} If that is meant, say it with 'walls {thickness}' on a room line or a wall line; if not, {fix}",
+  // WRT-67: the floor a wall from a gap takes past the wall the rooms would have, and the fix.
+  'rooms.wallFromGap.floor': ' It is {more} m thicker than the {wall} m wall between them, along {along} m, so {area} m² of floor is in the wall, not in a room.',
+  'rooms.wallFromGap.closes': 'make one of them {by} m larger toward the other: {sizes}.',
+  'rooms.wallFromGap.moveBy': 'move one of them {by} m toward the other.',
+  'rooms.wallFromGap.move': 'move a room.',
   // WRT-31: a wall between a room and outdoor space is an outside wall, whatever gap the rooms leave.
   'rooms.wallFromGap.outdoor':
     "The wall between '{a}' (line {aLine}) and '{b}' (line {bLine}) faces outdoor space, so it is an outside wall, but the rooms leave {thickness} m for it, not the outside walls' {outside} m. If that is meant, keep it with 'wall between {a} and {b} {thickness}'; if not, move a room.",
