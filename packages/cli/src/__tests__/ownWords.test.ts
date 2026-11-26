@@ -82,6 +82,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/phaseMarks.ts': [18, 'notYet'],
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
+  // CNT-44: the fill's receipts and refusals.
+  'packages/cli/src/edit/fill.ts': [28, 'notYet'],
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
@@ -120,7 +122,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
-  'packages/cli/src/mcp/editTools.ts': [107, 'tools'],
+  // CNT-44: 23 more, grid_fill_room's help.
+  'packages/cli/src/mcp/editTools.ts': [130, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // CMD-42: grid_set, its help and its argument checks.
@@ -420,7 +423,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-41 116: the site lines in rooms text (rooms/site.ts 30), the site's changes
     // (edit/site.ts 35), their tools (mcp/siteTools.ts 45), the grammar's site topic (4) and what
     // the coverage counts (quantities/site.ts 2) (odd/tasks/CNT-41.md).
-    expect(left).toBeLessThanOrEqual(1831)
+    // and CNT-44 28: the fill's receipts and refusals (edit/fill.ts).
+    expect(left).toBeLessThanOrEqual(1859)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

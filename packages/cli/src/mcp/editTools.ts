@@ -18,8 +18,11 @@ import { squarePlan } from '../edit/square'
 import { stretchPlan } from '../edit/stretch'
 import { limit } from '@ongrid/floorplan/geometry'
 import { placeItems } from '../edit/place'
+import { FILL_AISLE, FILL_DOOR_CLEARANCE, FILL_MOST, fillRoom, type FillRequest } from '../edit/fill'
+import { surveyPlan } from '../quantities/survey'
 import { libraryFor } from '../library/office'
-import { DECIMAL_IN_ARG, floorArg, listSchema, NUMBER, objectSchema, PLAN_ARG, planFileOf, projectOf, roomArg, STRING, ToolRefusal, type GridTool } from './toolkit'
+import { BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, NULLABLE_NUMBER, NUMBER, objectSchema, PLAN_ARG, planFileOf, projectOf, readPlan, roomArg, STRING, ToolRefusal, type GridTool } from './toolkit'
+import { EditRefused } from '../edit/refused'
 import { CORRECTION_ARG, EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 
 const NAME = (description: string, example: string, required = false): { type: 'string'; maxLength: number; description: string; examples: string[]; required: boolean } => ({ type: 'string', maxLength: NAME_MAX, description, examples: [example], required })
@@ -300,6 +303,106 @@ const placeTool: GridTool = {
   },
 }
 
+// CNT-44: a room or a zone filled with desks, seats or tables at a pitch, as one group, in one call.
+const FILL_FIELDS = {
+  group: STRING,
+  count: NUMBER,
+  items: NUMBER,
+  placed: listSchema(STRING),
+  asked: NUMBER,
+  rows: NUMBER,
+  perRow: NUMBER,
+  turn: NUMBER,
+  pitch: NUMBER,
+  rowPitch: NUMBER,
+  aisle: NUMBER,
+  backToBack: BOOLEAN,
+  wallClearance: NUMBER,
+  doorClearance: NUMBER,
+  area: NUMBER,
+  perModule: NULLABLE_NUMBER,
+  leftOver: objectSchema({ alongRows: NUMBER, acrossRows: NUMBER }),
+  givenUp: objectSchema({ door: NUMBER, column: NUMBER, item: NUMBER, shape: NUMBER, checks: NUMBER }),
+  removed: NUMBER,
+  dryRun: BOOLEAN,
+}
+
+const fillTool: GridTool = {
+  name: 'grid_fill_room',
+  title: 'Fill a room or zone with desks, seats or tables at a pitch',
+  hint: 'change-plan',
+  description:
+    'Use this when the person asks how many desks, seats or tables fit in a room or zone, or to fill one with them: "how many desks fit in the hot-desk zone at 1.6 m", "fill the open office with bench desks back to back", "set out the café with tables for four". '
+    + 'It repeats one library entry (a desk, a chair, a bench, or a set such as table-4-chairs; grid_measure what=library lists them) on a grid over the room\'s inside outline: pitch apart along each row, rows a module deep (two with back_to_back) plus the aisle apart, wall_clearance from the walls and door_clearance clear in front of every door, clear of the columns and of the items already there; Grid\'s own fit checks then take out any module they name. '
+    + `Figures left out are Grid's own and the answer says so: the pitch is the module's width, the aisle ${FILL_AISLE} m, 0 m from the walls and ${FILL_DOOR_CLEARANCE} m in front of a door. With no turn it tries the rows square to the drawing and to the room's longest side and keeps the one that fits most. `
+    + 'It writes the modules as one group, ids group-1, group-2 (a set\'s items group-1-1, group-1-2), and answers how many fit, against count if given, the rows, the floor each module has (the room\'s area over the count), what is left over along and across the rows, and how many places a door, a column, an item, the room\'s shape or Grid\'s checks took. dry_run true gives the same answer and writes nothing; replace true takes the group\'s earlier items out first, to fill again at another pitch. '
+    + 'Do not use to place one item at a point (grid_place_item). In a plan with phases the change is building work; pass correction to fix the survey instead. It replaces the plan file unless out is given. Lengths are metres, or text with their unit; angles are degrees.',
+  args: {
+    plan: PLAN_ARG,
+    decimal: DECIMAL_IN_ARG,
+    room: { type: 'string', id: true, required: true, description: 'The room or zone to fill.', examples: ['open-office', 'hot-desks'] },
+    name: { type: 'string', id: true, required: true, description: 'The library entry repeated: an item (desk, desk-1400, chair, sofa-2) or a set (table-4-chairs, table-6-chairs), or an office\'s own.', examples: ['desk', 'table-4-chairs'] },
+    pitch: { type: 'number', length: true, description: 'Metres from one module\'s middle to the next along a row; at least the module\'s width. Its width when left out.', examples: [1.6], minimum: 0.1, maximum: 100 },
+    aisle: { type: 'number', length: true, description: `The clear way between one row's modules (with the floor they keep in front) and the next row, in metres. ${FILL_AISLE} when left out.`, examples: [1.2], minimum: 0, maximum: 100 },
+    back_to_back: { type: 'boolean', description: 'true to set the rows in pairs, back to back, as bench desks are, with the aisle between the pairs. false when left out.', examples: [true] },
+    turn: { type: 'number', description: 'Degrees counter-clockwise the rows are turned: 0 runs them along x with the modules\' backs to -y, 90 along y with their backs to +x. Left out, Grid tries 0, 90, 180, 270 and square to the room\'s longest side, and keeps the one that fits most.', examples: [0, 90], minimum: -360, maximum: 360 },
+    wall_clearance: { type: 'number', length: true, description: 'Metres kept clear between the modules and the room\'s walls and edges. 0 when left out.', examples: [0.9], minimum: 0, maximum: 100 },
+    door_clearance: { type: 'number', length: true, description: `Metres kept clear in front of each door and doorless opening, on both sides of its wall. ${FILL_DOOR_CLEARANCE} when left out.`, examples: [1.5], minimum: 0, maximum: 100 },
+    count: { type: 'number', description: `How many modules are wanted: at most this many are placed, and the answer says how many short. As many as fit (at most ${FILL_MOST}) when left out.`, examples: [40], minimum: 1, maximum: FILL_MOST },
+    group: { type: 'string', id: true, description: 'The group\'s name, which its ids are made from (group-1, group-2). The entry\'s name when left out.', examples: ['hot-desk'] },
+    label: { type: 'string', maxLength: NAME_MAX, description: 'For an item: what the drawing calls each one. Its library label when left out.', examples: ['Hot desk'] },
+    replace: { type: 'boolean', description: 'true to take out the group\'s items placed before (ids group-1, group-2 …) and fill again. false when left out: a taken id is refused.', examples: [true] },
+    dry_run: { type: 'boolean', description: 'true to answer how many fit and how, and write nothing. false when left out.', examples: [true] },
+    correction: CORRECTION_ARG,
+    out: OUT_ARG,
+  },
+  outputSchema: {
+    ...objectSchema({ ...(EDIT_OUTPUT['properties'] as Record<string, unknown>), ...FILL_FIELDS }, ['group', 'count', 'items', 'placed', 'rows', 'perRow', 'turn', 'pitch', 'rowPitch', 'aisle', 'backToBack', 'wallClearance', 'doorClearance', 'area', 'perModule', 'leftOver', 'givenUp', 'removed', 'dryRun']),
+  },
+  run(args, context) {
+    const project = projectOf(context)
+    const file = planFileOf(project, args['plan'])
+    if (args['count'] !== undefined && !Number.isInteger(args['count'])) throw new ToolRefusal('count must be a whole number of modules.')
+    const make = (survey: Parameters<typeof fillRoom>[0]) => {
+      const { library, problems } = libraryFor(project, file, survey.plan)
+      const request: FillRequest = {
+        room: roomArg(survey.plan, args['room']),
+        name: args['name'] as string,
+        ...(args['pitch'] !== undefined ? { pitch: args['pitch'] as number } : {}),
+        ...(args['aisle'] !== undefined ? { aisle: args['aisle'] as number } : {}),
+        ...(args['back_to_back'] === true ? { backToBack: true } : {}),
+        ...(args['turn'] !== undefined ? { turn: args['turn'] as number } : {}),
+        ...(args['wall_clearance'] !== undefined ? { wallClearance: args['wall_clearance'] as number } : {}),
+        ...(args['door_clearance'] !== undefined ? { doorClearance: args['door_clearance'] as number } : {}),
+        ...(args['count'] !== undefined ? { count: args['count'] as number } : {}),
+        ...(args['group'] !== undefined ? { group: args['group'] as string } : {}),
+        ...(args['label'] !== undefined ? { label: args['label'] as string } : {}),
+        ...(args['replace'] === true ? { replace: true } : {}),
+      }
+      return fillRoom(survey, library, request, problems)
+    }
+    if (args['dry_run'] !== true) {
+      const answer = writeChange(context, args, (survey) => {
+        const patch = make(survey)
+        if ((patch.extra?.['count'] as number) === 0) throw new EditRefused(`${patch.said.join(' ')} Nothing fits, so nothing was placed: try a smaller pitch or aisle, another turn, or dry_run to try set-outs.`)
+        return patch
+      })
+      return { text: answer.text, data: { ...answer.data, dryRun: false } }
+    }
+    // A dry run: the same fill on the plan as it is, and nothing written.
+    const { loaded } = readPlan(context, args['plan'], { whole: true, leftOutKept: true })
+    let patch: ReturnType<typeof make>
+    try {
+      patch = make(surveyPlan(loaded.plan))
+    } catch (error) {
+      if (error instanceof EditRefused) throw new ToolRefusal(`${error.message} Nothing was written.`)
+      throw error
+    }
+    const text = [...patch.said, ...(patch.guessed ?? []).map((line) => `Guessed: ${line}`), 'Dry run: nothing was written. Call again without dry_run to place them.'].join('\n')
+    return { text, data: { ...(patch.extra ?? {}), changed: [...patch.said], guessed: [...(patch.guessed ?? [])], dryRun: true } }
+  },
+}
+
 // WRT-72: a door, window or opening added to a plan that already has its walls.
 const addOpeningTool: GridTool = {
   name: 'grid_add_opening',
@@ -358,4 +461,4 @@ const addOpeningTool: GridTool = {
 }
 
 /** In the order `tools/list` gives them, after the other changes to the plan. */
-export const EDIT_TOOLS: readonly GridTool[] = [mergeTool, splitTool, addRoomTool, stretchTool, renameTool, squareTool, placeTool, addOpeningTool]
+export const EDIT_TOOLS: readonly GridTool[] = [mergeTool, splitTool, addRoomTool, stretchTool, renameTool, squareTool, placeTool, fillTool, addOpeningTool]

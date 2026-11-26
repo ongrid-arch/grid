@@ -318,6 +318,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_place_item', { plan: '@', name: 'wc', x: 1, y: 1 }), given: asIs },
     { arg: 'out', call: tool('grid_place_item', { plan: PLAN, name: 'wc', x: 1, y: 1, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CNT-44: a room filled with desks reads the plan (and the library folder beside it) and writes it, or another file.
+  grid_fill_room: [
+    { arg: 'plan', call: tool('grid_fill_room', { plan: '@', room: 'lounge', name: 'chair' }), given: asIs },
+    { arg: 'out', call: tool('grid_fill_room', { plan: PLAN, room: 'lounge', name: 'chair', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // WRT-73: phases set on the plan, and one plan with phases written from a before and an after.
   grid_set_phase: [
     { arg: 'plan', call: tool('grid_set_phase', { plan: '@', phase: 'new', parts: ['bed2-door'] }), given: asIs },
