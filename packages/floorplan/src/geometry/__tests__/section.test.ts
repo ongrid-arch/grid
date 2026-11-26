@@ -11,7 +11,7 @@ import { brokenOnFloor } from '../validate'
 import { parseFloorPlan } from '../../types/floorplan'
 import type { FloorPlan } from '../plan'
 import { levelText, planSection, sectionFrame, type PlanSection, type SectionLine } from '../section'
-import { drawingMarks } from '../drawingMarks'
+import { drawingMarks, marksExtent } from '../drawingMarks'
 import { planFacade } from '../facade'
 import { buildFloorPlan } from '../floorplan'
 import { planForFloor } from '../floors'
@@ -303,6 +303,17 @@ describe('the marks on a plan', () => {
     expect(marks.section).toEqual({ from: THROUGH_STAIR.from, to: THROUGH_STAIR.to, look: sectionFrame(THROUGH_STAIR).look, label: 'A' })
     expect(marks.elevations).toEqual([])
     expect(marks.levels).toEqual([])
+  })
+
+  it('marks more sections, each under its own name (SHT-23)', () => {
+    const across = { from: THROUGH_STAIR.to, to: THROUGH_STAIR.from, toward: 'right' as const }
+    const marks = drawingMarks(plan, 'first', drawing, around, { sections: [{ line: THROUGH_STAIR, label: 'A' }, { line: across, label: 'B' }] })
+    expect(marks.section).toBeNull()
+    expect(marks.sections).toEqual([
+      { from: THROUGH_STAIR.from, to: THROUGH_STAIR.to, look: sectionFrame(THROUGH_STAIR).look, label: 'A' },
+      { from: across.from, to: across.to, look: sectionFrame(across).look, label: 'B' },
+    ])
+    expect(marksExtent(marks)).toEqual([THROUGH_STAIR.from, THROUGH_STAIR.to, across.from, across.to])
   })
 
   it('stands an elevation mark outside each side, named by the way it faces', () => {

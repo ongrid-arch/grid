@@ -3217,6 +3217,16 @@ export const en = {
   'sheet.status.draft': 'Draft',
   'sheet.north.letter': 'N',
   'sheet.north.notStated': 'North is not stated in the plan.',
+  // SHT-23: the elevations and sections pages of a client or check sheet.
+  'sheet.elevations': 'Elevations',
+  'sheet.elevations.subtitle': 'Every side of the building as seen from outside, at {scale}',
+  'sheet.sections': 'Sections',
+  'sheet.sections.subtitle': 'Sections {labels} at {scale}, cut where each floor plan marks them',
+  'sheet.sides.trueScale': 'Every drawing on this page is at {scale} on A3: printed at full size, it measures true.',
+  'sheet.sections.marked': 'Each section is cut along the line of its letter on the floor plans, and looks the way its arrows point.',
+  'sheet.sections.taken': 'Section {sections}, not stated in the plan: {what}',
+  'sheet.sections.takenMany': 'Sections {sections}, not stated in the plan: {what}',
+  'sheet.sections.takenShort': 'Some levels and thicknesses in the sections are taken by Grid, not stated in the plan: the check sheet lists them.',
   'sheet.scaleBar.metres': '{length} m',
   // --- Columns and structural grids (CNT-16) ---
   'read.column.roundDepth': 'A round column has a width, its diameter, and no depth',
