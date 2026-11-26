@@ -81,8 +81,8 @@ describe('a picture\'s kind and size, from its header', () => {
   })
 
   it('knows a picture by its ending, in any capitals', () => {
-    expect(['a.png', 'b.JPG', 'scans/c.jpeg'].every(hasPictureEnding)).toBe(true)
-    expect(['a.svg', 'b.png.js', 'c.txt', 'd', 'e.pdf', 'f.heic'].some(hasPictureEnding)).toBe(false)
+    expect(['a.png', 'b.JPG', 'scans/c.jpeg', 'sheets/d.PDF'].every(hasPictureEnding)).toBe(true)
+    expect(['a.svg', 'b.png.js', 'c.txt', 'd', 'e.pdf.js', 'f.heic'].some(hasPictureEnding)).toBe(false)
   })
 })
 
@@ -158,7 +158,7 @@ describe('the six T-5 cases a plan from someone else may name (HND-10)', () => {
     ['a web address', 'https://example.invalid/scan.png', 'an address (https:)'],
     ['a script', 'javascript:alert(1)', 'an address (javascript:)'],
     ['an absolute path', '/etc/scan.png', 'outside the project folder'],
-    ['an ending that is not a picture', 'assets/run.sh', 'does not end in .png, .jpg or .jpeg'],
+    ['an ending that is not a picture', 'assets/run.sh', 'does not end in .png, .jpg, .jpeg or .pdf'],
   ]
 
   // MSG-20: the plan is read without it, in one line, and the file is never read.
@@ -207,7 +207,7 @@ describe('the six T-5 cases a plan from someone else may name (HND-10)', () => {
       const { project: p } = project({ path }, { [path]: 'not a picture' })
       const loaded = loadPlan(p, 'plan.json')
       expect(loaded.trace, path).toEqual({ path, why: 'ending' })
-      expect(readTrace(p, loaded.plan, 'ground').line, path).toBe(`The trace image ${JSON.stringify(path)} does not end in .png, .jpg or .jpeg, so it is not drawn.`)
+      expect(readTrace(p, loaded.plan, 'ground').line, path).toBe(`The trace image ${JSON.stringify(path)} does not end in .png, .jpg, .jpeg or .pdf, so it is not drawn.`)
     }
     const { project: p } = project({ path: 'Scans/Ground.JPEG' })
     expect(loadPlan(p, 'plan.json').trace?.why).toBe('missing')

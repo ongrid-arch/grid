@@ -10,9 +10,10 @@ import { tracePlacement, traceFloor, type FloorPlan } from '@ongrid/floorplan/ge
 import { name, said, say, type Language, type Values } from '@ongrid/floorplan/messages'
 import type { TracePicture } from '@ongrid/viewer/src/picture'
 import { PathRefused, type Project } from '../fs/projectFiles'
+import { pdfPagePicture } from './pdfImage'
 
-/** The endings a trace image may have: the pictures every viewer and Skia draw. */
-export const TRACE_ENDINGS = ['.png', '.jpg', '.jpeg'] as const
+/** The endings a trace image may have: the pictures every viewer and Skia draw, and a PDF, one of whose pages is traced (VEW-67). */
+export const TRACE_ENDINGS = ['.png', '.jpg', '.jpeg', '.pdf'] as const
 
 /** The largest trace image Grid reads, in bytes: a phone's photo or a scanned sheet is far less. */
 export const TRACE_MAX_BYTES = 32 * 1024 * 1024
@@ -153,7 +154,21 @@ export function readTrace(project: Project, plan: FloorPlan, floor: string, lang
     if (code === 'ENOENT' || code === 'EISDIR') return { picture: null, line: say(language, 'trace.missing', { path }) }
     throw error
   }
-  const header = pictureHeader(bytes)
+  // VEW-67: a PDF's page is traced by the largest picture on it, a scanned sheet's scan.
+  let header = pictureHeader(bytes)
+  const pdf = image.path.toLowerCase().endsWith('.pdf')
+  const page = image.page ?? 1
+  if (pdf) {
+    const read = pdfPagePicture(bytes, page)
+    if ('problem' in read) {
+      if (read.problem === 'noPage') return { picture: null, line: say(language, 'trace.pdfNoPage', { path, page, pages: read.pages }) }
+      if (read.problem === 'noPicture') return { picture: null, line: say(language, 'trace.pdfNoPicture', { path, page }) }
+      if (read.problem === 'pictureKind') return { picture: null, line: say(language, 'trace.pdfPictureKind', { path, page, kind: read.kind }) }
+      return { picture: null, line: say(language, 'trace.notPdf', { path }) }
+    }
+    bytes = read.picture.bytes
+    header = { kind: read.picture.kind, width: read.picture.width, height: read.picture.height }
+  }
   if (header === null) return { picture: null, line: say(language, 'trace.notPicture', { path }) }
   if (header.width > TRACE_MAX_SIDE || header.height > TRACE_MAX_SIDE) {
     return { picture: null, line: say(language, 'trace.tooManyPixels', { path, width: header.width, height: header.height, most: TRACE_MAX_SIDE }) }
@@ -167,7 +182,7 @@ export function readTrace(project: Project, plan: FloorPlan, floor: string, lang
   const scale = placement.scale
   const metres = figure(scale.metresPerPixel)
   const values: Values = {
-    path,
+    path: pdf ? said('trace.pdfPage', { path, page }) : path,
     width: header.width,
     height: header.height,
     x: figure(placement.at.x),
