@@ -23,6 +23,7 @@ import { PlanRefused } from '../command/plan'
 import { nameNotes } from '../command/planText'
 import { occupancyFileOf } from '../occupancy/occupancy'
 import { keepRoomNumbers } from '../edit/numbers'
+import { PlanBusy, withPlanLock } from '../edit/revision'
 import { changeOpening, changeWallThickness, listed, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
 import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
 import { parseSheetWordsChecked } from '../sheet/claims'
@@ -319,8 +320,22 @@ function renamesIn(plan: FloorPlan, patch: Patch): [string, string][] {
   return out
 }
 
-/** Applies a patch to the plan file, or refuses it with nothing written. */
+/**
+ * Applies a patch to the plan file, or refuses it with nothing written. CMD-41: it holds the plan's
+ * lock from reading the plan to writing it back, so no other change, in this process or another,
+ * comes between; `grid edit` gets it here too, the server already holds it (`revisions.ts`).
+ */
 export function writeChange(context: ToolContext, args: Record<string, unknown>, make: (survey: Survey, problemsOf: ProblemsOf) => Patch): { text: string; data: Record<string, unknown> } {
+  const project = projectOf(context)
+  try {
+    return withPlanLock(project, planFileOf(project, args['plan']), () => writeChangeHeld(context, args, make))
+  } catch (error) {
+    if (error instanceof PlanBusy) throw new ToolRefusal(error.message)
+    throw error
+  }
+}
+
+function writeChangeHeld(context: ToolContext, args: Record<string, unknown>, make: (survey: Survey, problemsOf: ProblemsOf) => Patch): { text: string; data: Record<string, unknown> } {
   const { project, file, loaded } = readPlan(context, args['plan'], { whole: true, leftOutKept: true })
   const out = (args['out'] as string | undefined) ?? file
   if (!out.toLowerCase().endsWith('.json')) throw new ToolRefusal('out must name a .json file.')

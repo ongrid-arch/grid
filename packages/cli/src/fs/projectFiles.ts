@@ -431,6 +431,23 @@ export class Project {
     return real
   }
 
+  /**
+   * CMD-41: takes a file out of the project, such as a lock beside the plan; nothing when it is
+   * not there. A link is removed itself, never what it leads to. Refused for a folder.
+   */
+  removeFile(given: string): void {
+    const { real: folder, missing } = this.locate(path.dirname(separated(given)))
+    if (missing > 0) return
+    const entry = path.join(folder, path.basename(separated(given)))
+    try {
+      if (fs.lstatSync(entry).isDirectory()) throw errno('EISDIR', `${quoted(given)} is a folder`)
+      fs.unlinkSync(entry)
+    } catch (error) {
+      if (codeOf(error) === 'ENOENT') return
+      throw error
+    }
+  }
+
   /** Makes one folder when it isn't there; its parent must exist. Returns its real path. */
   makeFolder(given: string): string {
     const { real, missing } = this.locate(given)
