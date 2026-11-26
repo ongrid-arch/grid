@@ -1422,7 +1422,9 @@ different finishes for one surface are merged (`grid_merge_rooms`) only as zones
 open-plan room (`zones: true`), each keeping its own, so a kitchen's tiled floor stays the
 kitchen's after a knock-through (lab AC-4); the merged room names the finishes the two share. A
 plan read back as rooms text and written again keeps every part's type and every room's
-finishes, and leaves to a part's type each value the text writes that the type gives the same.
+finishes, and leaves to a part's type each value the text writes that the type gives the same. A
+part typed by a default stays typed by it: the read-back and the writing name a type only on the
+parts that named one, so a later change of the default still reaches every other part (WRT-70).
 
 To change a type, give a part a type or make a type the default, use `grid_change_type` (`grid
 edit type`); to set a room's finishes, `grid_rename_room` with `floor_finish`, `wall_finish`,

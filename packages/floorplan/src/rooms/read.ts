@@ -59,7 +59,16 @@ function mostCommon<T>(values: readonly T[], fallback: T): T {
 // A wall is written as its file states it: a value the reading filled in is left out (WRT-6).
 // CNT-15: a raw line keeps the values a part's type gave it, so it is read the same with no types to
 // read them from; writing it again leaves to the type what it gives the same (`carryFacts`).
-const rawLine = (kind: 'wall' | 'room' | 'opening', part: unknown): string => `raw ${kind} ${JSON.stringify(kind === 'wall' ? statedWall({ ...(part as Wall), typed: undefined }) : { ...(part as Record<string, unknown>), typed: undefined })}`
+// WRT-70: it names the type only when the part names it, so a part typed by the plan's default
+// stays typed by it.
+const TYPE_FIELDS = ['wallType', 'doorType', 'windowType'] as const
+function ownType(part: Record<string, unknown>): Record<string, unknown> {
+  const typed = Array.isArray(part['typed']) ? (part['typed'] as readonly string[]) : []
+  const out: Record<string, unknown> = { ...part, typed: undefined }
+  for (const field of TYPE_FIELDS) if (typed.includes(field)) delete out[field]
+  return out
+}
+const rawLine = (kind: 'wall' | 'room' | 'opening', part: unknown): string => `raw ${kind} ${JSON.stringify(kind === 'wall' ? statedWall(ownType(part as Record<string, unknown>) as unknown as Wall) : ownType(part as Record<string, unknown>))}`
 
 /** The read-back as rooms text writes it again, read as Grid reads a plan file (WRT-6). */
 type ReadBack = Omit<RoomsResult, 'plan'> & { readonly plan: FloorPlan | null }

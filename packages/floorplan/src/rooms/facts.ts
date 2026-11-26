@@ -14,8 +14,12 @@
  * rooms text does not hold either. A value the text writes that its type gives the same is left to
  * the type (`typed`), so a change to the type still reaches the part; one it gives otherwise is
  * the part's own.
+ *
+ * WRT-70: a type the part took from the plan's defaults (`types.defaults`) is not its own, so it is
+ * not carried; a part the text writes with no type of its own takes the default as the reading
+ * does, recorded in `typed`, so the file names a type only on the parts that named one.
  */
-import type { FloorPlan, TypedValue } from '../types/floorplan'
+import { WallKindSchema, type FloorPlan, type TypedValue, type WallKind } from '../types/floorplan'
 import { planDoorTypes, planWallTypes, planWindowTypes } from '../geometry/partTypes'
 
 type Part = {
@@ -26,6 +30,7 @@ type Part = {
   readonly wallType?: string | undefined
   readonly doorType?: string | undefined
   readonly windowType?: string | undefined
+  readonly typed?: readonly TypedValue[] | undefined
 }
 
 export interface FactsCarried {
@@ -37,8 +42,11 @@ export interface FactsCarried {
   readonly lost: readonly string[]
 }
 
+/** A type the part names itself, not one the reading gave it from the plan's defaults. */
+const named = (part: Part, field: 'wallType' | 'doorType' | 'windowType'): string | undefined => (part.typed?.includes(field) === true ? undefined : part[field])
+
 const carries = (part: Part): boolean =>
-  part.number !== undefined || Object.keys(part.properties ?? {}).length > 0 || part.finishes !== undefined || part.wallType !== undefined || part.doorType !== undefined || part.windowType !== undefined
+  part.number !== undefined || Object.keys(part.properties ?? {}).length > 0 || part.finishes !== undefined || named(part, 'wallType') !== undefined || named(part, 'doorType') !== undefined || named(part, 'windowType') !== undefined
 
 /** The values of a part its type gives the same, which the type is left to give. */
 function sameAsType(part: Record<string, unknown>, type: Readonly<Record<string, unknown>> | undefined, fields: readonly TypedValue[]): TypedValue[] {
@@ -46,12 +54,15 @@ function sameAsType(part: Record<string, unknown>, type: Readonly<Record<string,
   return fields.filter((field) => type[field] !== undefined && JSON.stringify(type[field]) === JSON.stringify(part[field]))
 }
 
+const withTyped = <T>(part: T, typed: readonly TypedValue[]): T => (typed.length === 0 ? part : ({ ...part, typed } as T))
+
 export function carryFacts(before: FloorPlan, written: FloorPlan): FactsCarried {
   let kept = 0
   const lost: string[] = []
   const walls = planWallTypes(before)
   const doors = planDoorTypes(before)
   const windows = planWindowTypes(before)
+  const defaults = before.types?.defaults
   const carry = <T extends Part>(kind: string, old: readonly Part[], now: readonly T[]): T[] => {
     const byId = new Map(old.filter(carries).map((part) => [part.id, part] as const))
     const ids = new Set(now.map((part) => part.id))
@@ -66,15 +77,17 @@ export function carryFacts(before: FloorPlan, written: FloorPlan): FactsCarried 
       if (kind === 'room' && part.finishes === undefined && was.finishes !== undefined) { next['finishes'] = was.finishes; changed = true }
       // CNT-15: the type, and what the text writes that the type gives the same.
       const typed: TypedValue[] = []
-      if (kind === 'wall' && part.wallType === undefined && was.wallType !== undefined) {
-        next['wallType'] = was.wallType
-        typed.push(...sameAsType(next, walls.get(was.wallType), ['thickness', 'height', 'kind']))
+      const wallType = named(was, 'wallType')
+      if (kind === 'wall' && part.wallType === undefined && wallType !== undefined) {
+        next['wallType'] = wallType
+        typed.push(...sameAsType(next, walls.get(wallType), ['thickness', 'height', 'kind']))
         changed = true
       }
       const field = kind !== 'opening' ? null : (next['type'] === 'door' ? 'doorType' : next['type'] === 'window' ? 'windowType' : null)
-      if (field !== null && part[field] === undefined && was[field] !== undefined) {
-        next[field] = was[field]
-        typed.push(...sameAsType(next, (field === 'doorType' ? doors : windows).get(was[field]!), ['width', 'height', 'sill', 'kind', 'opens']))
+      const openingType = field === null ? undefined : named(was, field)
+      if (field !== null && part[field] === undefined && openingType !== undefined) {
+        next[field] = openingType
+        typed.push(...sameAsType(next, (field === 'doorType' ? doors : windows).get(openingType), ['width', 'height', 'sill', 'kind', 'opens']))
         changed = true
       }
       if (typed.length > 0) next['typed'] = typed
@@ -84,25 +97,35 @@ export function carryFacts(before: FloorPlan, written: FloorPlan): FactsCarried 
     })
   }
   // A part the text writes with its type (a raw line) leaves to the type what it gives the same.
-  const leftToType = <T extends Part & { readonly typed?: readonly TypedValue[] | undefined }>(parts: readonly T[]): T[] =>
+  // WRT-70: one that names none takes the default its kind takes, as the reading gives it.
+  const wallKind = (record: Record<string, unknown>): WallKind =>
+    typeof record['kind'] === 'string' && (WallKindSchema.options as readonly string[]).includes(record['kind']) ? (record['kind'] as WallKind) : 'interior'
+  const leftToType = <T extends Part & { readonly typed?: readonly TypedValue[] | undefined }>(kind: 'wall' | 'opening', parts: readonly T[]): T[] =>
     parts.map((part) => {
       if (part.typed !== undefined) return part
       const record = part as unknown as Record<string, unknown>
-      const typed =
-        part.wallType !== undefined
-          ? sameAsType(record, walls.get(part.wallType), ['thickness', 'height', 'kind'])
-          : part.doorType !== undefined && record['type'] === 'door'
-            ? sameAsType(record, doors.get(part.doorType), ['width', 'height', 'kind', 'opens'])
-            : part.windowType !== undefined && record['type'] === 'window'
-              ? sameAsType(record, windows.get(part.windowType), ['width', 'height', 'sill', 'kind', 'opens'])
-              : []
-      return typed.length === 0 ? part : ({ ...part, typed } as T)
+      if (kind === 'wall') {
+        if (part.wallType !== undefined) return withTyped(part, sameAsType(record, walls.get(part.wallType), ['thickness', 'height', 'kind']))
+        const id = record['virtual'] === true ? undefined : defaults?.walls?.[wallKind(record)]
+        const type = id === undefined ? undefined : walls.get(id)
+        return type === undefined ? part : withTyped({ ...part, wallType: type.id }, ['wallType', ...sameAsType(record, type, ['thickness', 'height', 'kind'])])
+      }
+      const door = record['type'] === 'door'
+      if (!door && record['type'] !== 'window') return part
+      const field = door ? 'doorType' : 'windowType'
+      const fields: TypedValue[] = door ? ['width', 'height', 'kind', 'opens'] : ['width', 'height', 'sill', 'kind', 'opens']
+      const list = door ? doors : windows
+      const own = part[field]
+      if (own !== undefined) return withTyped(part, sameAsType(record, list.get(own), fields))
+      const id = door ? defaults?.door : defaults?.window
+      const type = id === undefined ? undefined : list.get(id)
+      return type === undefined ? part : withTyped({ ...part, [field]: type.id }, [field, ...sameAsType(record, type, fields)])
     })
   const plan: FloorPlan = {
     ...written,
     ...(written.types === undefined && before.types !== undefined ? { types: before.types } : {}),
-    walls: leftToType(carry('wall', before.walls, written.walls)),
-    openings: leftToType(carry('opening', before.openings, written.openings)),
+    walls: leftToType('wall', carry('wall', before.walls, written.walls)),
+    openings: leftToType('opening', carry('opening', before.openings, written.openings)),
     rooms: carry('room', before.rooms, written.rooms),
     ...(written.floors === undefined ? {} : { floors: carry('floor', before.floors ?? [], written.floors) }),
   }
