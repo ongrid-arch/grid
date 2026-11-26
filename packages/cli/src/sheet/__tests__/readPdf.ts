@@ -114,11 +114,16 @@ function tokens(content: string): Token[] {
   return out
 }
 
-/** Reads the first page of a PDF Skia wrote. */
-export function readPdf(pdf: Uint8Array): PdfPage {
+/** SHT-20: how many pages a PDF Skia wrote has. */
+export function pdfPageCount(pdf: Uint8Array): number {
+  return [...objects(pdf).values()].filter((o) => /\/Type\s*\/Page(?![s\w])/.test(o.dict)).length
+}
+
+/** Reads a page of a PDF Skia wrote: the first, else the one at `index` (SHT-20), in the order written. */
+export function readPdf(pdf: Uint8Array, index = 0): PdfPage {
   const all = objects(pdf)
   const file = Buffer.from(pdf).toString('latin1')
-  const page = [...all.values()].find((o) => /\/Type\s*\/Page(?![s\w])/.test(o.dict))
+  const page = [...all.values()].filter((o) => /\/Type\s*\/Page(?![s\w])/.test(o.dict))[index]
   if (!page) throw new Error('no page in the PDF')
   const box = /\/MediaBox\s*\[\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\]/.exec(page.dict)!
   const widthPt = Number(box[3]) - Number(box[1])

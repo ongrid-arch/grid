@@ -155,7 +155,7 @@ describe('grid_sheet (VEW-7)', () => {
     expect(pages[0]).not.toHaveProperty('floor')
     expect(pages.filter((p) => p.kind === 'floor').map((p) => p.floor)).toEqual(['ground'])
     const schema = tool.outputSchema as { properties: { pages: { items: { properties: Record<string, unknown>; required: string[] } } } }
-    expect(Object.keys(schema.properties.pages.items.properties).sort()).toEqual(['floor', 'kind', 'title'])
+    expect(Object.keys(schema.properties.pages.items.properties).sort()).toEqual(['floor', 'kind', 'part', 'parts', 'title'])
     expect(schema.properties.pages.items.required.sort()).toEqual(['kind', 'title'])
   }, 60_000)
 
@@ -207,7 +207,45 @@ describe('grid_sheet layout drawing (SHT-6)', () => {
   })
 
   it('refuses a floor too large for the paper, saying what fits', async () => {
-    await expect(call({ plan: 'plan.json', layout: 'drawing', scale: 20, paper: 'A4' })).rejects.toThrow(/^At 1:20 the floor's drawing is \d+ x \d+ mm, larger than the \d+ x \d+ mm A4 leaves for it after its margins and title block: A\d fits it, or 1:\d+ fits A4\.$/)
+    await expect(call({ plan: 'plan.json', layout: 'drawing', scale: 20, paper: 'A4' })).rejects.toThrow(/^At 1:20 the floor's drawing is \d+ x \d+ mm, larger than the \d+ x \d+ mm A4 leaves for it after its margins and title block: A\d fits it, or 1:\d+ fits A4, or split true prints it at 1:20 over \d+ pages of A4\.$/)
+  })
+})
+
+describe('grid_sheet layout drawing of a building (SHT-20)', () => {
+  const twoFloors = resolve(__dirname, '../../../fixtures/two-floor-house.json')
+  const contextOf = (file: string) => {
+    const ctx = context()
+    writeFileSync(join(ctx.dir, 'plan.json'), readFileSync(file))
+    return ctx
+  }
+
+  it('draws every floor at one scale on one paper, one page each, and returns each page to look at', async () => {
+    const ctx = contextOf(twoFloors)
+    const reply = (await tool.run(readArgs(tool, { plan: 'plan.json', layout: 'drawing', scale: 100, paper: 'A4' }), ctx.context)) as { text: string; data: Record<string, unknown>; images?: unknown[] }
+    expect(reply.data).toMatchObject({
+      written: 'exports/plan-drawing-1-100-A4.pdf',
+      scale: 100,
+      paper: 'A4',
+      pages: [{ kind: 'drawing', floor: 'ground' }, { kind: 'drawing', floor: 'first' }],
+      svgs: ['exports/plan-drawing-1-100-A4-page-1.svg', 'exports/plan-drawing-1-100-A4-page-2.svg'],
+      pngs: ['exports/plan-drawing-1-100-A4-page-1.png', 'exports/plan-drawing-1-100-A4-page-2.png'],
+    })
+    expect(reply.images).toHaveLength(1)
+    expect(reply.text.split('\n')[0]).toBe('2 floors at 1:100 on A4, 2 pages.')
+    expect(readdirSync(join(ctx.dir, 'exports')).sort()).toHaveLength(5)
+  }, 60_000)
+
+  it('cuts a floor over pages with split true, each page saying which part it is', async () => {
+    const reply = await call({ plan: 'plan.json', layout: 'drawing', scale: 20, paper: 'A4', split: true })
+    const pages = reply.data['pages'] as { part?: number; parts?: number }[]
+    expect(pages.length).toBeGreaterThan(1)
+    expect(pages.map((p) => p.part)).toEqual(pages.map((_, i) => i + 1))
+    expect(new Set(pages.map((p) => p.parts))).toEqual(new Set([pages.length]))
+    expect(reply.text.split('\n')[0]).toMatch(new RegExp(`^.+ plan at 1:20 on A4, over ${pages.length} pages\\.$`))
+  }, 60_000)
+
+  it('refuses split with a client sheet', async () => {
+    await expect(call({ plan: 'plan.json', layout: 'client', split: true })).rejects.toThrow('split is for layout drawing, not client: leave it out.')
   })
 })
 

@@ -29,21 +29,24 @@ export async function sheetMeasure(): Promise<MeasureText> {
   }
 }
 
+/** SHT-20: one PDF of every page, and an SVG and a PNG of each page, in order. */
 export interface DrawingFiles {
-  readonly svg: string
   readonly pdf: Uint8Array
-  readonly png: Uint8Array
+  readonly svgs: readonly string[]
+  readonly pngs: readonly Uint8Array[]
 }
 
-/** The sheet's PDF: one page of the paper's size, every line and letter vector. */
-export async function drawingSheetPdf(sheet: DrawingSheet, title: string): Promise<Uint8Array> {
+/** The sheet's PDF: one page of the paper's size for each sheet (SHT-20), every line and letter vector. */
+export async function drawingSheetPdf(sheet: DrawingSheet | readonly DrawingSheet[], title: string): Promise<Uint8Array> {
   const canvas = await loadCanvas()
   registerSheetFonts(canvas)
   const doc = new canvas.PDFDocument({ title, creator: 'Grid', producer: 'Grid' })
-  const ctx = doc.beginPage(sheet.paper.width * POINTS_PER_MM, sheet.paper.height * POINTS_PER_MM) as SKRSContext2D
-  ctx.scale(POINTS_PER_MM, POINTS_PER_MM)
-  drawVector(ctx, canvas, sheet.nodes)
-  doc.endPage()
+  for (const page of Array.isArray(sheet) ? sheet : [sheet as DrawingSheet]) {
+    const ctx = doc.beginPage(page.paper.width * POINTS_PER_MM, page.paper.height * POINTS_PER_MM) as SKRSContext2D
+    ctx.scale(POINTS_PER_MM, POINTS_PER_MM)
+    drawVector(ctx, canvas, page.nodes)
+    doc.endPage()
+  }
   return new Uint8Array(doc.close())
 }
 
@@ -67,6 +70,8 @@ export async function drawingSheetPng(sheet: DrawingSheet): Promise<Uint8Array> 
   return new Uint8Array(await surface.encode('png'))
 }
 
-export async function drawingSheetFiles(sheet: DrawingSheet, title: string): Promise<DrawingFiles> {
-  return { svg: drawingSheetSvg(sheet), pdf: await drawingSheetPdf(sheet, title), png: await drawingSheetPng(sheet) }
+export async function drawingSheetFiles(sheets: readonly DrawingSheet[], title: string): Promise<DrawingFiles> {
+  const pngs: Uint8Array[] = []
+  for (const sheet of sheets) pngs.push(await drawingSheetPng(sheet))
+  return { pdf: await drawingSheetPdf(sheets, title), svgs: sheets.map(drawingSheetSvg), pngs }
 }

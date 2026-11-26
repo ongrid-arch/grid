@@ -16,7 +16,8 @@
  *   its edge is every wall's outside face;
  * - **the wall behind each stretch of that edge** is the solid wall whose outside face lies on it
  *   (within `facadeOnFace`): its height, from its floor's level (`floorElevations`, LVL-1), and its
- *   doors and windows, at their sills and heads. Under another floor a storey's top is that
+ *   doors and windows, at their sills and heads, each window with its frame, sashes, lights, sill
+ *   and head (VEW-63, `windowSeen`). Under another floor a storey's top is that
  *   floor's slab: a full-height wall that stops short of it rises to it (`wallTopsUnder`, VEW-33).
  *   Under a roof the floor states (LVL-6) it rises to the roof whatever height it states, so a
  *   gable end is drawn whole from the eaves to the verge (VEW-61). A short stretch with no wall on it (a corner, a
@@ -52,7 +53,7 @@ import { planInState } from './phases'
 import type { MultiPolygon, Polygon } from 'polygon-clipping'
 import polygonClipping from 'polygon-clipping'
 import type { FloorPlan, Opening, Wall } from './plan'
-import { COMPASS_SIDES } from '../types/floorplan'
+import { COMPASS_SIDES, type WindowKind } from '../types/floorplan'
 import { floorElevations, isFiniteWall, wallTopsUnder } from './elevations'
 import { planEnvelope } from './envelope'
 import { floorOf, planFloors, planForFloor } from './floors'
@@ -60,11 +61,13 @@ import { indexPlan } from './plan'
 import { groundLevel, plinthUnder } from './ground'
 import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './orientation'
 import { withPatterns } from './patterns'
-import { tolerance } from './tolerances'
+import { limit, tolerance } from './tolerances'
 import { brokenOnFloor } from './validate'
 import { floorRoofShape, planeAt, topAt, wallTopProfile, type RoofPlane } from './roofs'
 import type { Vec2 } from './vec2'
-import { straightPieces, wallPointAt } from './wall'
+import { straightPieces, wallFrameAt, wallPointAt } from './wall'
+import { openingParts } from './openingParts'
+import { windowKindOf } from './openingKinds'
 import { curveFault, wallCurve } from './arc'
 import { outlineKnown, slabOutline } from './outline'
 import { buildingPlan, isOutdoor, outdoorOnlyWalls } from './outdoor'
@@ -116,6 +119,32 @@ export interface FacadeOpening {
   readonly top: number
   /** The thickness of the wall it is cut in, in metres: how deep its reveals are (VEW-49). */
   readonly reveal: number
+  /** VEW-63: for a window, its parts as seen; a door and a doorless opening have none. */
+  readonly window?: FacadeWindow
+}
+
+/** VEW-63: a rectangle across a facade: `u0` to `u1` left to right, `bottom` to `top` up. */
+export interface FacadeRect {
+  readonly u0: number
+  readonly u1: number
+  readonly bottom: number
+  readonly top: number
+}
+
+/**
+ * VEW-63: a window as a facade sees it, from the parts the 3D view and the exports hold
+ * (`openingParts`, CNT-14): its kind, as it states it or its window type (C24) fills it, the
+ * members of its frame and of each sash, farthest first (so where two lights meet a bar stands
+ * between them: a mullion or a transom), its lights (the glass), and the sill under its hole and
+ * the head over it, each null where its wall has no room for it. Grid's own drawing sizes: the
+ * plan holds no frame, sill or head.
+ */
+export interface FacadeWindow {
+  readonly kind: WindowKind
+  readonly members: readonly FacadeRect[]
+  readonly lights: readonly FacadeRect[]
+  readonly sill: FacadeRect | null
+  readonly head: FacadeRect | null
 }
 
 /**
@@ -601,6 +630,49 @@ function seenWalls(faces: readonly FacadeFace[]): (FacadeFace | null)[] {
   })
 }
 
+/**
+ * VEW-63: a window's parts as the facade sees it: each box of `openingParts` taken onto the
+ * facade, along its wall to `u` between the ends it is seen at and up to `z` between its sill and
+ * head as seen (so a window through floors, VEW-47, is worked out whole), and its sill and head,
+ * kept inside the face it is in (`bottom` to `top`).
+ */
+function windowSeen(seen: FacadeOpening, opening: Opening, wall: Wall, direction: Vec2, across: Vec2, bottom: number, top: number): FacadeWindow {
+  const from = opening.offset
+  const to = opening.offset + opening.width
+  // Which end of the opening is seen on the left: its start end where the wall runs the facade's way.
+  const forward = dot(wallPointAt(wall, to), across) - dot(wallPointAt(wall, from), across) >= 0
+  const uAt = (s: number): number => {
+    const t = (s - from) / opening.width
+    return forward ? seen.u0 + t * (seen.u1 - seen.u0) : seen.u1 - t * (seen.u1 - seen.u0)
+  }
+  const zAt = (up: number): number => seen.bottom + ((up - opening.sill) / opening.height) * (seen.top - seen.bottom)
+  // The side of the wall the facade looks at: the left face (`across` above 0) when its normal turns that way.
+  const outside = dot(wallFrameAt(wall, from + opening.width / 2).normal, direction) >= 0 ? 1 : -1
+  const rect = (along: readonly [number, number], up: readonly [number, number]): FacadeRect => {
+    const [a, b] = [uAt(along[0]), uAt(along[1])]
+    return { u0: fine(Math.min(a, b)), u1: fine(Math.max(a, b)), bottom: fine(zAt(up[0])), top: fine(zAt(up[1])) }
+  }
+  const parts = openingParts(opening, wall)
+  const members = parts
+    .map((part, order) => ({ part, order, near: ((part.across[0] + part.across[1]) / 2) * outside }))
+    .filter(({ part }) => part.part !== 'glass')
+    .sort((x, y) => x.near - y.near || x.order - y.order)
+    .map(({ part }) => rect(part.along, part.up))
+  const lights = parts.filter((part) => part.part === 'glass').map((part) => rect(part.along, part.up))
+  const past = limit('sillProjection')
+  const sillTop = seen.bottom
+  const sillBottom = Math.max(bottom, sillTop - limit('facadeSillDepth'))
+  const headTop = Math.min(top, seen.top + limit('facadeHeadDepth'))
+  const room = tolerance('noLength')
+  return {
+    kind: windowKindOf(opening.kind),
+    members,
+    lights,
+    sill: sillTop - sillBottom > room ? { u0: fine(seen.u0 - past), u1: fine(seen.u1 + past), bottom: fine(sillBottom), top: fine(sillTop) } : null,
+    head: headTop - seen.top > room ? { u0: seen.u0, u1: seen.u1, bottom: seen.top, top: fine(headTop) } : null
+  }
+}
+
 const KIND_ORDER: Readonly<Record<FacadeFaceKind, number>> = { plinth: 0, slab: 1, wall: 2, roof: 3, 'roof-plane': 4, parapet: 5 }
 
 /** The facade of one side of the building. See the module's header. */
@@ -755,11 +827,20 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
     const ds = s.points.map(({ p }) => dot(p, direction))
     return front - (Math.min(...ds) + Math.max(...ds)) / 2
   }
+  // VEW-63: each window seen gets its parts, from the whole opening and its wall.
+  const openingById = new Map(plan.openings.map((o) => [o.id, o]))
+  const wallById = new Map(plan.walls.map((w) => [w.id, w]))
   const drawn = seen
     .map((s) => {
       const outline = s.points.map(({ p, z }) => [fine(dot(p, across)), fine(z)] as const)
       const us = outline.map(([u]) => u)
       const zs = outline.map(([, z]) => z)
+      const openings = s.openings.map((o) => {
+        const opening = openingById.get(o.id)
+        const owner = wallById.get(o.wall)
+        if (o.type !== 'window' || opening === undefined || owner === undefined || !(opening.height > 0) || !(opening.width > 0)) return o
+        return { ...o, window: windowSeen(o, opening, owner, direction, across, Math.min(...zs), Math.max(...zs)) }
+      })
       const depth = depthOf(s)
       const seenAt = ({ p, z }: { readonly p: Vec2; readonly z: number }): Pair => [fine(dot(p, across)), fine(z)]
       const roofLines = (s.roofLines ?? [])
@@ -776,7 +857,7 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
         outline,
         depth: fine(depth),
         tier: 0,
-        openings: s.openings,
+        openings,
         edge: s.edge ?? null,
         roofLines
       }

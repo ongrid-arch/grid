@@ -198,6 +198,25 @@ describe('grid write', () => {
     })
   })
 
+  it('counts the floors, rooms and area of a text written wholly raw, and says they are all raw (WRT-71)', async () => {
+    const dir = await project()
+    // Two floors of one 6 x 4 m room each, every part in Grid's own JSON, as a read-back gives a floor it cannot write as rooms.
+    const floor = (id: string): string[] => [
+      `raw wall {"id": "${id}-s", "start": [-0.1, -0.1], "end": [6.1, -0.1], "thickness": 0.2, "height": 2.4, "kind": "exterior", "floor": "${id}"}`,
+      `raw wall {"id": "${id}-e", "start": [6.1, -0.1], "end": [6.1, 4.1], "thickness": 0.2, "height": 2.4, "kind": "exterior", "floor": "${id}"}`,
+      `raw wall {"id": "${id}-n", "start": [6.1, 4.1], "end": [-0.1, 4.1], "thickness": 0.2, "height": 2.4, "kind": "exterior", "floor": "${id}"}`,
+      `raw wall {"id": "${id}-w", "start": [-0.1, 4.1], "end": [-0.1, -0.1], "thickness": 0.2, "height": 2.4, "kind": "exterior", "floor": "${id}"}`,
+      `raw room {"id": "${id}-room", "name": "Room", "boundary": ["${id}-s", "${id}-e", "${id}-n", "${id}-w"], "floor": "${id}", "use": "living"}`,
+    ]
+    writeFileSync(join(dir, 'raw.rooms'), ['walls outside 0.2 inside 0.1 height 2.4', 'floor ground "Ground floor" level 0', ...floor('ground'), 'floor upper "Upper floor" level 1 elevation 2.4', ...floor('upper'), ''].join('\n'))
+    const ran = await grid(dir, 'write', 'raw.rooms')
+    expect(ran.err).toBe('')
+    expect(ran.status).toBe(0)
+    expect(ran.out).toContain('2 floors, 2 rooms (all written raw); 0 walls and their kinds worked out; 0 openings placed; 48.00 m² inside in all.')
+    expect(ran.out).toContain('Written raw and kept as written: walls 8, rooms 2, openings 0.')
+    expect(planOf(dir).rooms.map((r) => r.id)).toEqual(['ground-room', 'upper-room'])
+  })
+
   it('refuses rooms that overlap in one line naming both, and leaves the plan as it was', async () => {
     const dir = await project()
     const before = readFileSync(join(dir, 'plan.json'), 'utf8')

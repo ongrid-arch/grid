@@ -1396,7 +1396,9 @@ type changes every part of it: "make every partition 120 mm" is one change, to t
   type that states no height leaves its walls' heights as they are.
 - **`defaults`** names the type a part takes when it names none: `walls` by the wall's kind (a
   wall that states no kind is read as `interior`), `door` and `window`. A part given its type by a
-  default is written back naming none. The `types` block, defaults and all, is the template an
+  default is written back naming none. A door or window that names no type and states every size
+  its default type would fill (width, height and the sill when the type has one) takes no default
+  type, so a schedule never lists it as one; one that names the type is of it, whatever it states. The `types` block, defaults and all, is the template an
   office keeps: copy it into a new plan, and every wall, door and window drawn takes the office's
   types.
 - **Materials.** A type's `material` is the person's own word for what it is made of. Grid checks

@@ -73,7 +73,7 @@ describe('the tool server', () => {
     // this server is bundled alone, without the canvas a PNG needs, so it says so and still moves.
     expect(replies[2]).toMatchObject({ result: { content: [{ type: 'text', text: expect.stringMatching(/^General guidance, not your local rules\nShowing floor "ground" in 3d\. [^]*@napi-rs\/canvas/) }] } })
     expect(replies[3]).toMatchObject({ result: { isError: true, content: [{ type: 'text', text: 'That floor is not in this plan. Its floors: "ground".' }] } })
-    expect((replies[4] as { result: { tools: unknown[] } }).result.tools).toHaveLength(37)
+    expect((replies[4] as { result: { tools: unknown[] } }).result.tools).toHaveLength(38)
   }, 30_000)
 
   // npm test builds the command first; the picture needs the native canvas from node_modules.

@@ -185,3 +185,19 @@ describe('a part floor wholly inside the floor below', () => {
     expect(notes[0]!.message).not.toContain('all round')
   })
 })
+
+describe('floors below ground (CNT-40)', () => {
+  const basement = (box: readonly [number, number, number, number], upper: readonly [number, number, number, number], level: number): FloorPlan => {
+    const plan = twoBoxes(box, upper)
+    return parseFloorPlan({ ...plan, floors: [{ id: 'g', name: 'Ground floor', level }, { id: 'f', name: 'First floor', level: level + 1 }] })
+  }
+
+  it('is not said when the floor above is wider or narrower than a basement under it', () => {
+    expect(floorNotes(basement([0, 0, 6, 6], [0, 0, 10, 10], -1))).toEqual([])
+    expect(floorNotes(basement([0, 0, 10, 10], [0, 0, 6, 6], -1))).toEqual([])
+  })
+
+  it('is still said of floors above ground that are shaped the same', () => {
+    expect(floorNotes(basement([0, 0, 6, 6], [0, 0, 10, 10], 0)).length).toBeGreaterThan(0)
+  })
+})
