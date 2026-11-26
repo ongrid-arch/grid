@@ -2,6 +2,7 @@
  * ARE-61: a room's type, tenure and flat are fields of the query tools, and its floor is totalled
  * by type and by tenure in the areas and the comparison.
  */
+import Ajv from 'ajv'
 import { describe, expect, it } from 'vitest'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
 import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
@@ -9,6 +10,9 @@ import { planAreas } from '../areas'
 import { optionRow } from '../compare'
 import { askPlan, fieldOf, groupParts, select, GRID_FIELDS } from '../query'
 import { surveyPlan } from '../survey'
+import { GRID_TOOLS } from '../../mcp/serveTools'
+import { toolDefinition } from '../../mcp/toolkit'
+import { bench } from '../../mcp/__tests__/replay/harness'
 
 const text = `plan "Block"
 walls outside 0.2 inside 0.1 height 2.7
@@ -90,5 +94,33 @@ describe('areas and compare by type and tenure', () => {
     const row = optionRow('A', surveyPlan(plan(true)))
     expect(row.byTenure!['commercial']).toBeCloseTo(area('shop'), 3)
     expect(optionRow('B', surveyPlan(plan(false))).byTenure).toBeUndefined()
+  })
+})
+
+describe('the tools answer it within their output schemas', () => {
+  const ajv = new Ajv({ allErrors: true, schemaId: 'auto' })
+  const problems = (tool: string, data: unknown): string[] => {
+    const validate = ajv.compile(toolDefinition(GRID_TOOLS.find((t) => t.name === tool)!)['outputSchema'] as Record<string, unknown>)
+    return validate(data) ? [] : (validate.errors ?? []).map((e) => `${e.dataPath || '/'} ${e.message}`)
+  }
+
+  it('grid_areas and grid_compare, on a plan with types and tenures and one with none', async () => {
+    const b = bench({ 'stated.json': plan(true), 'none.json': plan(false) })
+    try {
+      for (const file of ['stated.json', 'none.json']) {
+        const areas = await b.call('grid_areas', { plan: file })
+        expect(areas.isError, areas.text).toBe(false)
+        expect(problems('grid_areas', areas.data)).toEqual([])
+      }
+      const stated = await b.call('grid_areas', { plan: 'stated.json' })
+      expect(stated.data!['byTenure']).toBeDefined()
+      expect(stated.text).toContain('Net by tenure')
+      const compared = await b.call('grid_compare', { plans: ['stated.json', 'none.json'] })
+      expect(compared.isError, compared.text).toBe(false)
+      expect(problems('grid_compare', compared.data)).toEqual([])
+      expect(compared.text).toContain('By tenure')
+    } finally {
+      b.close()
+    }
   })
 })
