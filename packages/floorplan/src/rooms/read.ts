@@ -24,7 +24,7 @@ import { limit, tolerance } from '../geometry/tolerances'
 import { doorKindOf, kindFits, sweepsFloor, swingNeeds } from '../geometry/openingKinds'
 import { compileRoomsText, RAW_FLOOR_KEYS, type RoomsResult } from './compile'
 import { planRevision } from './stamp'
-import { metres } from './words'
+import { factValueOf, metres, quotedWordsOf } from './words'
 
 type P = readonly [number, number]
 
@@ -344,7 +344,36 @@ function roomLine(room: Room, poly: P[], local: string): string {
   const outdoor = typeof room.outdoor === 'string' ? ` outdoor ${room.outdoor}${room.roofed === undefined ? '' : room.roofed ? ' roofed' : ' unroofed'}` : ''
   // ARE-60: whether it is heated or cooled, when it states it.
   const air = room.conditioned === undefined ? '' : room.conditioned ? ' conditioned' : ' unconditioned'
-  return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}${air}`
+  return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}${air}${factWords(room)}`
+}
+
+/**
+ * WRT-74: a room's stated number and its facts on its line, `number "2.03"` and `facts
+ * department=Sales capacity=4`, each written so that it reads back as the same value. A number or
+ * a fact that would not (a quote mark of both kinds in it) leaves the room's number or facts off
+ * the line; they are kept by id when the text is written again (`carryFacts`), as before.
+ */
+function factWords(room: Room): string {
+  const number = room.number === undefined ? null : writtenWord(room.number)
+  const facts = Object.entries(room.properties ?? {}).map(([name, value]) => {
+    const n = /^[A-Za-z0-9._-]+$/.test(name) ? name : writtenWord(name)
+    const v = typeof value === 'boolean' ? (value ? 'yes' : 'no') : typeof value === 'number' ? String(value) : factValueOf(value, false) === value && /^[^\s"'#=,\\]+$/.test(value) ? value : writtenWord(value)
+    if (n === null || v === null) return null
+    const word = `${n}=${v}`
+    const [read] = quotedWordsOf(word, 0, true)
+    const same = read !== undefined && read.pair !== undefined && read.pair.name === name && factValueOf(read.pair.value, read.pair.valueQuoted) === value
+    return same ? word : null
+  })
+  const all = facts.length > 0 && facts.every((word) => word !== null)
+  return `${number === null ? '' : ` number ${number}`}${all ? ` facts ${facts.join(' ')}` : ''}`
+}
+
+/** Text in quotes as the reading takes it back: in double quotes, else single, else none. */
+function writtenWord(text: string): string | null {
+  const word = !text.includes('"') ? `"${text}"` : !text.includes("'") ? `'${text}'` : null
+  if (word === null || /[\r\n]/.test(text)) return null
+  const read = quotedWordsOf(word, 0, true)
+  return read.length === 1 && read[0]!.text === text ? word : null
 }
 
 /**

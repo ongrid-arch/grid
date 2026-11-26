@@ -111,7 +111,7 @@
  *
  * Pure: text in, a plan and a report out. Nothing here reads or writes a file.
  */
-import { BUILDING_TYPES, DEFAULT_FLOOR_ID, DOOR_KINDS, OPENING_KINDS, OUTDOOR_KINDS, ROOM_TENURES, ROOM_USES, WALL_DEFAULTS, WINDOW_KINDS, WallKindSchema, readBuilding, readUse, type BuildingType, type FloorPlan, type Opening, type OpeningKind, type Room, type OutdoorKind, type RoomTenure, type RoomUse, type Wall, type WallKind, safeParseFloorPlan } from '../types/floorplan'
+import { BUILDING_TYPES, DEFAULT_FLOOR_ID, DOOR_KINDS, OPENING_KINDS, OUTDOOR_KINDS, ROOM_TENURES, ROOM_USES, WALL_DEFAULTS, WINDOW_KINDS, WallKindSchema, readBuilding, readUse, type BuildingType, type FloorPlan, type Opening, type OpeningKind, type Room, type OutdoorKind, type RoomTenure, type RoomUse, type Wall, type WallKind, factKey, safeParseFloorPlan } from '../types/floorplan'
 import { doorKindOf, kindFits, sweepsFloor } from '../geometry/openingKinds'
 import { hingeSeenFrom } from '../geometry/handing'
 import { indexPlan } from '../geometry/plan'
@@ -127,7 +127,7 @@ import { buildingKind } from '../geometry/plausible'
 import { AREA_UNITS, DECIMAL_MARKS, LENGTH_UNITS, type AreaUnit, type DecimalMark } from '../types/units'
 import { english, joined, name as sayName, num, said, type MessageKey, type Said, type Values } from '../messages/say'
 import { idsOfText } from './ids'
-import { f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUnit, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
+import { factValueOf, f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUnit, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
 import { likelyMeant } from '../types/nearest'
 import { readingNotes } from '../types/reading'
@@ -273,6 +273,9 @@ const ROOM_LINE_WORDS: Readonly<Record<string, readonly string[]>> = {
   unroofed: [],
   conditioned: [],
   unconditioned: [],
+  number: ['"<text>"'],
+  dept: ['"<text>"'],
+  facts: ['<name>=<value>'],
 }
 /** The words agents write for a room line's own: a room's level above its storey is its `floor`. */
 const ROOM_LINE_MEANS: Readonly<Record<string, string>> = { level: 'floor', elevation: 'floor', offset: 'floor', ceiling: 'height', headroom: 'height', thickness: 'walls' }
@@ -495,6 +498,9 @@ interface RoomDraft {
   roofed: boolean | null
   /** ARE-60: heated or cooled, when the line says. */
   conditioned: boolean | null
+  /** WRT-74: the room's stated number, and its facts of the person's own, when the line says. */
+  number: string | null
+  facts: Record<string, string | number | boolean> | null
   /** The size as written and what it measures to, for the answer. */
   size: { w: number | null; d: number | null; basis: SizeBasis } | null
   /** WRT-4: the last floor the room rises through, when it stands on the floors after its own too. */
@@ -1332,7 +1338,8 @@ class Compiler {
       const src = this.floors.find((f) => f.id === riser.from)!
       const room = src.rooms.get(riser.room)
       if (room === undefined) continue
-      this.addRoom({ ...room, poly: [...room.poly], through: null, risenFrom: src.id }, null)
+      // WRT-74: a number is one room's; the room it is on the floors above has none of its own.
+      this.addRoom({ ...room, poly: [...room.poly], through: null, risenFrom: src.id, number: null }, null)
       if (riser.through === fl.id) riser.done = true
     }
     const risen = new Set(rising.map((r) => `${r.from}\u0000${r.room}`))
@@ -1455,6 +1462,46 @@ class Compiler {
     return outdoorPair ? fl.rule.outside : fl.rule.inside
   }
 
+  /**
+   * WRT-74: a room line's number and facts: `number <text>`, `dept <text>` (the fact
+   * `department`) and `facts <name>=<value> ...`, each value typed as `factValueOf` reads it.
+   * Refused in a unit, which is placed many times: each placed room is given its own with
+   * grid_set_facts, by its id. Returns the index of the word after them.
+   */
+  private readRoomFacts(room: RoomDraft, t: readonly string[], i: number, at: number, ctx: PlaceCtx | null): number {
+    const w = t[i]!
+    if (ctx !== null) this.stop('rooms/syntax', at, english(said('rooms.room.factsInUnit', { line: at, word: w })))
+    const facts = room.facts ?? {}
+    const add = (name: string, value: string | number | boolean): void => {
+      const first = Object.keys(facts).find((own) => factKey(own) === factKey(name))
+      if (first !== undefined) this.stop('rooms/syntax', at, english(said('rooms.room.factTwice', { line: at, room: room.id, first, second: name })))
+      facts[name] = value
+      room.facts = facts
+    }
+    if (w === 'number') {
+      if (room.number !== null) this.stop('rooms/syntax', at, english(said('rooms.room.factTwice', { line: at, room: room.id, first: 'number', second: 'number' })))
+      room.number = t[i + 1]!
+      return i + 2
+    }
+    if (w === 'dept') {
+      add('department', t[i + 1]!)
+      return i + 2
+    }
+    // The words as written, so a value keeps its accents and which half was in quotes is known.
+    const written = quotedWordsOf(this.lines[at - 1] ?? '', at, true)
+    const aligned = written.length === t.length
+    let k = i + 1
+    while (k < t.length && aligned && written[k]!.pair !== undefined) {
+      const { name, value, valueQuoted } = written[k]!.pair!
+      if (name.trim() === '') this.stop('rooms/syntax', at, english(said('rooms.room.factsForm', { line: at })))
+      if (value.trim() === '') this.stop('rooms/syntax', at, english(said('rooms.room.factEmpty', { line: at, fact: name })))
+      add(name, factValueOf(value, valueQuoted))
+      k++
+    }
+    if (k === i + 1) this.stop('rooms/syntax', at, english(said('rooms.room.factsForm', { line: at })))
+    return k
+  }
+
   private readRoom(t: string[], at: number, ctx: PlaceCtx | null): RoomDraft {
     if (t.length < 4) this.stop('rooms/syntax', at, `line ${at}: write 'room <id> "<name>" <use> <width> x <depth> <where>'.`)
     const [, id, name, useWord] = t as [string, string, string, string]
@@ -1466,7 +1513,7 @@ class Compiler {
       this.stop('rooms/unknown-use', at, `line ${at}: '${useWord}' is not a room use Grid knows. Use one of: ${USES.join(', ')}; or '-' for none. The room's name keeps the person's own word: "Pooja room", "Bryggers".`)
     }
     const fl = this.floor()
-    const room: RoomDraft = { id, name, use, line: at, poly: [], box: [0, 0, 0, 0], wallsT: null, wallsKind: null, height: null, floorOffset: null, firstWall: null, tenure: null, roomType: null, outdoor: null, roofed: null, conditioned: null, size: null, through: null, risenFrom: null }
+    const room: RoomDraft = { id, name, use, line: at, poly: [], box: [0, 0, 0, 0], wallsT: null, wallsKind: null, height: null, floorOffset: null, firstWall: null, tenure: null, roomType: null, outdoor: null, roofed: null, conditioned: null, number: null, facts: null, size: null, through: null, risenFrom: null }
     const mx = ctx?.mx === true
     const my = ctx?.my === true
     let W: string | null = null
@@ -1575,6 +1622,8 @@ class Compiler {
       } else if (w === 'type' && i + 1 < t.length) {
         room.roomType = t[i + 1]!
         i += 2
+      } else if ((w === 'number' || w === 'dept' || w === 'facts') && (i + 1 < t.length || w === 'facts')) {
+        i = this.readRoomFacts(room, t, i, at, ctx)
       } else if (w === 'through' && i + 1 < t.length) {
         if (ctx !== null) this.stop('rooms/syntax', at, `line ${at}: 'through <floor>' is written on a room line of its own, not inside a unit.`)
         room.through = t[i + 1]!
@@ -2363,7 +2412,7 @@ class Compiler {
     // WRT-47: a floor copied before it has rooms of its own is written by the walls its rooms were placed by.
     if (!started(fl)) fl.rule = { ...src.rule }
     // A room that rose through to this floor is here already (WRT-4).
-    for (const r of src.rooms.values()) if (!(fl.rooms.get(r.id)?.risenFrom === (r.risenFrom ?? src.id))) this.addRoom({ ...r, poly: [...r.poly], through: null, risenFrom: r.risenFrom }, null)
+    for (const r of src.rooms.values()) if (!(fl.rooms.get(r.id)?.risenFrom === (r.risenFrom ?? src.id))) this.addRoom({ ...r, poly: [...r.poly], through: null, risenFrom: r.risenFrom, number: null }, null)
     // LVL-16: the floor's outline, roof, parapet, homes and parking too, unless this floor set its own.
     for (const key of RAW_FLOOR_KEYS) if (src.extra[key] !== undefined && !(key in fl.extra)) fl.extra[key] = structuredClone(src.extra[key])
     for (const [k, v] of src.inst) fl.inst.set(k, [...v])
@@ -3972,6 +4021,8 @@ class Compiler {
             ...(room.outdoor !== null ? { outdoor: room.outdoor } : {}),
             ...(room.roofed !== null ? { roofed: room.roofed } : {}),
             ...(room.conditioned !== null ? { conditioned: room.conditioned } : {}),
+            ...(room.number !== null ? { number: room.number } : {}),
+            ...(room.facts !== null ? { properties: room.facts } : {}),
           }
           plan.rooms.push(item)
           const area = Math.abs(signedArea(room.poly))
