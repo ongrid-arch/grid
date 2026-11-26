@@ -1581,6 +1581,16 @@ written into it: a change that would move, cut or take out a base wall or openin
 opening in a base wall, is refused, naming them, and nothing is written. To change the shell,
 change the base plan, and every fit-out on it reads the change.
 
+A fit-out is written in rooms text by its first line, `base <plan>` (WRT-75): the rooms are
+written by their inside faces as always, and a wall Grid works out whose room faces lie on the
+faces of a base wall is not written: the room names the base's wall in its boundary instead, by
+the base's id. `grid write` and `grid_write_rooms` read the base through the same resolver and
+write `base` into the plan with only the fit-out's own walls, rooms and openings; a door or window
+the text puts in a base wall is refused. `grid describe --as rooms` reads a fit-out back with its
+`base` line, and that text writes the same fit-out again; rooms text that names another base, or
+none, over a fit-out is refused unless `--replace` is given. `grid_start_fit_out` (`grid edit
+fit-out --base <plan>`) starts one: a new plan naming the base, with the base's rooms as its own.
+
 ## Wall faults, each with its fix
 
 A room's outline is made by crossing the lines of its walls, so where a wall ends does not
