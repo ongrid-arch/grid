@@ -296,7 +296,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/geometry/envelope.ts': [4, 'notYet'],
   'packages/floorplan/src/geometry/handing.ts': [6, 'notYet'],
   'packages/floorplan/src/geometry/export/dxfProfile.ts': [8, 'command'],
-  'packages/floorplan/src/geometry/export/ifc.ts': [38, 'notYet'],
+  // VEW-72: two fewer, a folding door's words are its hand now.
+  'packages/floorplan/src/geometry/export/ifc.ts': [36, 'notYet'],
   'packages/floorplan/src/geometry/export/leftOut.ts': [2, 'notYet'],
   'packages/floorplan/src/geometry/export/obj.ts': [2, 'notYet'],
   'packages/floorplan/src/geometry/outline.ts': [1, 'notYet'],
