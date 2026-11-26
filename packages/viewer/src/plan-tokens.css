@@ -2,6 +2,8 @@
 :root {
   --plan-paper: #ffffff;
   --plan-room: #f2efe7;
+  --plan-outdoor-room: #e6eee1;
+  --plan-edge: #657363;
   --plan-wall: #232320;
   --plan-wall-exterior: #121210;
   /* SHT-10: inside walls and partitions read apart from the outside walls. */
@@ -32,6 +34,8 @@
 .dark {
   --plan-paper: #15150f;
   --plan-room: #23201a;
+  --plan-outdoor-room: #263027;
+  --plan-edge: #a1b39b;
   --plan-wall: #ddd8cc;
   --plan-wall-exterior: #f3f1ec;
   --plan-wall-inside: #aea9a2;

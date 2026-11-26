@@ -278,6 +278,9 @@
  *   outside. An outdoor space on the lowest level stands on the ground, with no slab, and only a
  *   roofed one has a roof. Its `use`, when stated, is kept, and no check reads it. Optional and
  *   never defaulted: a plan with none reads exactly as before (version 1).
+ *   WRT-76: an outdoor space's edges are its own walls. A virtual wall with outdoor space on its
+ *   one side is an open edge. A wall MAY state `railing` to draw it as a line in plan. A solid
+ *   wall below the plan cut is drawn in outline.
 
  *
  * C29 · Parking bays and ramps (CNT-19, lab EL-11)
@@ -963,6 +966,8 @@ export const WallSchema = z.preprocess(
       kind: WallKindSchema.default('interior'),
       // Boundary wall with no physical material (open-plan room contour, e.g. kitchen open to dining)
       virtual: z.boolean().optional(),
+      // WRT-76 (C26): the wall is a railing or balustrade, drawn as a line in plan.
+      railing: z.boolean().optional(),
       // C5: unstated means the ground floor. Optional, not defaulted — a plan written
       // before floors existed must round-trip with no key added to it.
       floor: text('id').pipe(z.string().min(1)).optional(),
