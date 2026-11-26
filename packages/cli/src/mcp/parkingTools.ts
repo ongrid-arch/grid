@@ -16,7 +16,7 @@ import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
 import { addRamp, placeBays, type BaysRequest, type RampRequest } from '../edit/parking'
 import { NAME_MAX } from '../command/planText'
 import { PathRefused } from '../fs/projectFiles'
-import { DECIMAL_IN_ARG, FLOOR_ARG, floorArg, PLAN_ARG, projectOf, STRING, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
+import { DECIMAL_IN_ARG, floorArg, PLAN_ARG, projectOf, STRING, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
 import { EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 
 type Pair = [number, number]
@@ -86,7 +86,7 @@ export const placeBaysTool: GridTool = {
     offset: { type: 'number', length: true, description: 'For a row along a side: its distance from the face. 0 when left out.', examples: [0.5], minimum: 0, maximum: 100 },
     inset: { type: 'number', length: true, description: 'For a row along a side: its distance from the end it starts at. 0 when left out.', examples: [1], minimum: 0, maximum: 1000 },
     numbered: { type: 'string', maxLength: 40, description: 'The first bay\'s number, a number or text ending in one; the others count on, keeping its digits (B1-007, B1-008). Left out, on from the floor\'s highest number, or 1.', examples: ['B1-001', '1'] },
-    floor: { ...FLOOR_ARG, description: 'The floor of the room, when rooms on several floors share its id. The room\'s own floor when left out.', examples: ['b1'] },
+    floor: { type: 'string', id: true, description: 'The floor of the room, when rooms on several floors share its id. The room\'s own floor when left out.', examples: ['b1'] },
     out: OUT_ARG,
   },
   outputSchema: { ...EDIT_OUTPUT, properties: { ...(EDIT_OUTPUT['properties'] as Record<string, unknown>), bays: NUMBER, group: STRING, first: STRING, last: STRING } },
