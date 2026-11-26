@@ -2131,6 +2131,10 @@ export const en = {
   'rooms.copyNoOpenings.many':
     "Floors {floors} copy the rooms of floor '{from}' but none of its doors and windows, and write none of their own, so they have none: write 'copy {from} with openings' on each to take them, or write their doors and windows.",
   'rooms.copyNoOpenings.more': '{list} and {count} more',
+  // LVL-19: a stair or lift that rises to a floor where no door was written into it takes its doors up.
+  'rooms.doorCarried':
+    "A stair or lift that rises to a floor where no door is written into it takes up its doors from the floor it is written on, in the same place, where its wall there is shared with a room of that floor: {list}. To give it another way in, write a door into it on that floor.",
+  'rooms.doorCarried.one': "'{source}' of '{shaft}' on floor '{from}' is '{id}' on floor '{floor}', into '{room}'",
   'rooms.idChanged.one':
     "Ids are unique across the whole plan, and this one was written on more than one floor, so the first floor that writes it keeps it and every other floor takes its floor's id in front: {list}. Every other id is kept as written. Use these ids in later calls.",
   'rooms.idChanged.many':
