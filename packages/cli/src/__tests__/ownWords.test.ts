@@ -120,6 +120,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-21: a stair's receipts and refusals.
   'packages/cli/src/edit/stairs.ts': [15, 'notYet'],
   // CNT-45: the items' receipts and refusals.
+  // CNT-48: a typical room's usual fixtures set out in a room, its receipts and refusals.
+  'packages/cli/src/edit/fixtureSets.ts': [10, 'notYet'],
   'packages/cli/src/edit/items.ts': [20, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
@@ -198,7 +200,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // CNT-45: the item tools' help and refusals.
-  'packages/cli/src/mcp/itemTools.ts': [39, 'tools'],
+  // CNT-48: two more, a typical room's usual fixtures in grid_add_item's help and its refusal.
+  'packages/cli/src/mcp/itemTools.ts': [41, 'tools'],
   // VEW-67: the trace image's tool.
   'packages/cli/src/mcp/traceTool.ts': [26, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
@@ -484,6 +487,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // changes (edit/parking.ts 10), their tools (mcp/parkingTools.ts 46), the grammar's parking topic
     // (8), the guide's car park (10) and the file's bays and ramps kept by grid write
     // (command/write.ts 4) (odd/tasks/CNT-46.md).
+    // and CNT-48 10: a typical room's usual fixtures set out in a room (edit/fixtureSets.ts).
     expect(left).toBeLessThanOrEqual(2326)
   })
 
