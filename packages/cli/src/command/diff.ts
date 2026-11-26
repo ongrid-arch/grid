@@ -28,7 +28,7 @@ export const DIFF_OPTIONS: OptionSpecs = {
 }
 
 export const MARK_OPTIONS: OptionSpecs = {
-  '--plan': { takesValue: true, help: 'The plan file to mark. The project\'s plan.json when left out, in a folder grid init made.' },
+  '--plan': { takesValue: true, help: 'The plan file to mark, the same as naming it after the marker: grid mark <name> <plan.json>. The project\'s plan.json when left out, in a folder grid init made.' },
   '--remove': { takesValue: false, help: 'Take the marker off.' },
   ...PROJECT_OPTION,
 }
