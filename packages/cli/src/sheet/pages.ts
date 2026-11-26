@@ -382,12 +382,12 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
     kind: 'cover', floor: null, topLine: title, title, subtitle: words?.headline ?? null,
     paragraphs: words?.intro ?? [], figures, table: null, picture: { kind: 'model' },
     notes: [
+      ...accessLines(accessNotes, units, w),
       ...(first
         ? (['conditioned', 'underRoof'] as const).flatMap((m) => (areas[m] === null && areas.underAirWhy[m] !== null ? [areas.underAirWhy[m]!] : []))
         : areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : []),
       ...(more === null ? [] : [more]),
       roundingNote(units, w),
-      ...accessLines(accessNotes, units, w),
     ],
   }
   // Never an id here: floors that share a name are told apart by their place in the plan.
