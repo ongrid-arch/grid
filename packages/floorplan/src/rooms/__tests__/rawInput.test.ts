@@ -102,6 +102,33 @@ describe('raw takes wall, room, opening or floor (WRT-48)', () => {
     }
   })
 
+  it('refuses a raw stair by its kind, never as a word rooms text does not know (WRT-68)', () => {
+    const stair = 'raw stair {"id": "s1", "from": "ground", "to": "first", "width": 0.9, "start": [5.36, 0.3], "end": [5.36, 3.9]}'
+    for (const line of [stair, stair.replace('raw stair', 'Raw stair'), stair.replace('raw stair', 'RAW STAIR')]) {
+      const result = compileRoomsText(`${HALL}${line}\n`)
+      expect(result.plan).toBeNull()
+      expect(result.problems.map((p) => [p.code, p.line])).toEqual([['rooms/raw', 4]])
+      const message = result.problems[0]!.message
+      expect(message.toLowerCase()).toContain('raw stair')
+      expect(message).toContain('wall, room, opening or floor')
+      expect(message).toContain('"stairs"')
+      expect(message).not.toContain('is not a word')
+      expect(message).not.toContain('A line starts with one of')
+    }
+  })
+
+  it('refuses a kind raw takes written with capitals, offering it in small letters (WRT-68)', () => {
+    for (const written of ['Raw wall', 'RAW WALL', 'raw Wall']) {
+      const result = compileRoomsText(`${HALL}${wall('').replace('raw wall', written)}\n`)
+      expect(result.plan).toBeNull()
+      expect(result.problems.map((p) => [p.code, p.line])).toEqual([['rooms/raw', 4]])
+      const message = result.problems[0]!.message
+      expect(message).toContain(`'${written}'`)
+      expect(message).toContain("'raw wall'")
+      expect(message).not.toContain('is not a word')
+    }
+  })
+
   it('refuses a raw line with no JSON after its kind the same way', () => {
     const result = compileRoomsText(`${HALL}raw wall\n`)
     expect(result.problems.map((p) => [p.code, p.line])).toEqual([['rooms/raw', 4]])

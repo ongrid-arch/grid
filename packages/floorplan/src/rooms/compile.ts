@@ -137,6 +137,9 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 /** The floor's fields a `raw floor` line may hold: LVL-6's roof and parapet, BRF-4's outline, homes and parking. */
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
 
+/** WRT-68: the kinds a `raw` line takes, written after it in small letters. */
+const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor']
+
 /**
  * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
  * an opening's type, a floor's own field, or one of the plan file's lists.
@@ -840,10 +843,15 @@ class Compiler {
       const text = this.lines[i]!
       i++
       // WRT-48: every line starting `raw` is read here, so a kind raw does not take is named as such.
-      const raw = /^\s*raw\b\s*([^\s{]*)\s*(.*)$/.exec(text)
+      // WRT-68: in any letter case, so `Raw stair` is refused for its kind and `Raw wall` for its capitals.
+      const raw = /^\s*(raw)\b\s*([^\s{]*)\s*(.*)$/i.exec(text)
       if (raw) {
-        const [, kind, rest] = raw as unknown as [string, string, string]
-        if (kind === 'floor') this.rawFloor(rest, at)
+        const [, word, kind, rest] = raw as unknown as [string, string, string, string]
+        const small = `raw ${kind.toLowerCase()}`
+        if (RAW_KINDS.includes(kind.toLowerCase()) && `${word} ${kind}` !== small) {
+          this.problem('rooms/raw', at, english(said('rooms.raw.smallLetters', { line: at, written: `${word} ${kind}`, offered: small })))
+        } else if (word !== 'raw') this.rawKind(kind, at)
+        else if (kind === 'floor') this.rawFloor(rest, at)
         else if (kind === 'pattern') this.stop('rooms/syntax', at, patternLine(at, false))
         else if (kind === 'wall' || kind === 'room' || kind === 'opening') this.rawPart(kind, rest, at)
         else this.rawKind(kind, at)

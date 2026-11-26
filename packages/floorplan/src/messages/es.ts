@@ -2041,6 +2041,8 @@ export const es: Messages = {
   'rooms.raw.kind.floor': 'El {list} de una planta se escribe raw floor {"{list}": ...}, bajo su línea de planta.',
   'rooms.raw.kind.list': 'El texto de estancias no tiene línea para ello: el archivo de plano de Grid lo guarda en "{list}", que se cambia en el archivo una vez escrito el plano.',
   'rooms.raw.kind.none': 'El texto de estancias no tiene línea para ello, en crudo o no.',
+  'rooms.raw.smallLetters':
+    "Línea {line}: el texto de estancias se lee en minúsculas, y '{written}' no lo está; escriba '{offered}'.",
   'rooms.raw.kind.nothing': "Línea {line}: raw admite wall, room, opening o floor, y luego un objeto JSON como lo guarda el archivo de plano de Grid: raw wall {\"id\": ...}.",
   'rooms.plan.oneName': 'Línea {line}: la línea plan admite un nombre, entre comillas si tiene espacios, y {extra} tras él no se leería. Escriba {offered}.',
   'rooms.wall.unknownRoom':

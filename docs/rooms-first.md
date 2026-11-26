@@ -264,7 +264,9 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   own go in `"properties"`. A `raw floor` field the floor does not take is named too (a height is
   written on the floor line). Raw takes `wall`, `room`, `opening` or `floor`: `raw door` is told
   it is a raw opening, `raw stair`, `raw column`, `raw fixture` and `raw site` that the plan file
-  holds them in its own lists (`rooms/raw`). A `plan` line takes one name, in quotes when it has
+  holds them in its own lists (`rooms/raw`), however `raw` is written: `Raw stair` is told the
+  same, and `Raw wall {...}` is refused offering `raw wall`, as rooms text is read in small
+  letters (WRT-68). A `plan` line takes one name, in quotes when it has
   spaces, and words after it are refused (`rooms/syntax`); a wall line naming no room of its
   floor is refused with the nearest room (`rooms/unknown-room`).
 - The answer counts and measures every part written, raw or not: the floors that hold a part,
