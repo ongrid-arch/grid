@@ -36,6 +36,35 @@ describe('items that stand in each other', () => {
   })
 })
 
+describe('a rug, which lies on the floor (CNT-42)', () => {
+  it('lets a sofa and a coffee table stand on it, and blocks no one\'s clear floor', () => {
+    const clashes = (items: Item[]): unknown[] => found(items).filter((i) => i.code === 'item/overlap' || i.code === 'item/clearance-blocked')
+    const rug = at('rug', 'rug', 2, 6, [3, 2], { height: 0.01 })
+    expect(clashes([rug, at('sofa', 'sofa', 2, 5.1, [2, 0.8]), at('coffee', 'table', 2, 6.2, [1.1, 0.6], { height: 0.4 })])).toEqual([])
+    const bed = at('bed', 'bed', 2, 5.2, [1.4, 2], { height: 0.5, clearance: 0.6 })
+    expect(clashes([bed, at('mat', 'rug', 2, 6.6, [1.6, 0.6], { height: 0.01 })])).toEqual([])
+    // As a chest of drawers, the same footprint blocks it.
+    expect(clashes([bed, at('chest', 'storage', 2, 6.6, [1.6, 0.6])]).length).toBe(1)
+  })
+
+  it('lies in a doorway without narrowing it, where a chest of drawers does', () => {
+    const codes = (kind: Item['kind']): string[] => found([at('x', kind, 1.6, 0.45, [1, 0.6], { height: kind === 'rug' ? 0.01 : 0.8 })]).map((i) => i.code)
+    expect(codes('storage')).toContain('item/blocks-doorway')
+    expect(codes('rug')).not.toContain('item/blocks-doorway')
+  })
+
+  it('still names a wardrobe in a bed\'s clear floor, and a desk in another desk', () => {
+    const issues = found([
+      at('bed', 'bed', 2, 5.5, [1.4, 2], { height: 0.5, clearance: 0.6 }),
+      at('wardrobe', 'storage', 2, 6.8, [1, 0.6], { height: 2 }),
+      at('d1', 'desk', 7, 6, [1.2, 0.6], { height: 0.75 }),
+      at('d2', 'desk', 7.5, 6, [1.2, 0.6], { height: 0.75 }),
+    ])
+    expect(issues.filter((i) => i.code === 'item/clearance-blocked').map((i) => [i.id, i.hits])).toEqual([['bed', ['wardrobe']]])
+    expect(issues.filter((i) => i.code === 'item/overlap').map((i) => [i.id, i.hits])).toEqual([['d2', ['d1']]])
+  })
+})
+
 describe('an item that hangs out of its room', () => {
   it('names an item reaching through a doorway, and not one well inside', () => {
     // The hall's door in the wall x = 4 stands at 1.5 along it.
