@@ -551,3 +551,50 @@ describe('a doorless opening and a recessed door', () => {
     expect(opening(shop('door'), 'shop-door')).toBeUndefined()
   })
 })
+
+describe('a gable drawn whole (VEW-61)', () => {
+  const w = (id: string, start: [number, number], end: [number, number], floor: string, height: number) => ({ id, start, end, thickness: 0.3, height, floor })
+  /** A house 10 m by 7 m with a loft whose walls state 2.60 m, under a gable at 40 degrees from eaves at 2.60 m. */
+  const loftHouse = (): FloorPlan =>
+    parseFloorPlan({
+      version: '1',
+      floors: [
+        { id: 'g', name: 'Ground floor', level: 0 },
+        { id: 'l', name: 'Loft', level: 1, roof: { shape: 'gable', eaves: 2.6, pitch: 40, ridgeRuns: 'east-west' } },
+      ],
+      walls: [
+        w('gs', [0, 0], [10, 0], 'g', 2.7), w('ge', [10, 0], [10, 7], 'g', 2.7), w('gn', [10, 7], [0, 7], 'g', 2.7), w('gw', [0, 7], [0, 0], 'g', 2.7),
+        w('ls', [0, 0], [10, 0], 'l', 2.6), w('le', [10, 0], [10, 7], 'l', 2.6), w('ln', [10, 7], [0, 7], 'l', 2.6), w('lw', [0, 7], [0, 0], 'l', 2.6),
+      ],
+      rooms: [
+        { id: 'a', name: 'Living', boundary: ['gs', 'ge', 'gn', 'gw'], floor: 'g' },
+        { id: 'b', name: 'Loft', boundary: ['ls', 'le', 'ln', 'lw'], floor: 'l' },
+      ],
+      openings: [],
+    })
+
+  it('draws a gable end from the eaves to the verge, with no line at the walls\' stated height', () => {
+    const plan = loftHouse()
+    const facade = planFacade(plan, 'east')
+    const loft = floorElevations(plan).floors.get('l')!.floorLevel
+    const gable = facade.faces.find((f) => f.wall === 'le')!
+    // Nothing of the gable stops at the stated 2.60 m: its corners are the eaves and the ridge.
+    const eaves = loft + 2.6
+    expect(gable.outline.filter(([, z]) => z > eaves + 1e-6 && z < gable.top - 1e-6)).toEqual([])
+    expect(gable.top).toBeGreaterThan(eaves + 2.5)
+    // It meets the verge bands at the ridge, under them, so no sky shows through it.
+    const verges = facade.faces.filter((f) => f.kind === 'roof' && f.edge === 'verge')
+    expect(verges).toHaveLength(2)
+    expect(Math.min(...verges.map((v) => v.bottom))).toBeLessThan(gable.top)
+    expect(gable.outline).toContainEqual([3.5, gable.top])
+    expect(Math.max(...verges.flatMap((v) => v.outline.filter(([u]) => u === 3.5).map(([, z]) => z)))).toBeGreaterThan(gable.top)
+    expect(facade.outline).toHaveLength(1)
+  })
+
+  it('still cuts the side walls at the eaves', () => {
+    const plan = loftHouse()
+    const loft = floorElevations(plan).floors.get('l')!.floorLevel
+    const side = planFacade(plan, 'south').faces.find((f) => f.wall === 'ls')!
+    expect(side.top).toBeCloseTo(loft + 2.6, 6)
+  })
+})

@@ -180,6 +180,16 @@ describe('a sloped roof drawn as a roof (VEW-12)', () => {
     })
   }
 
+  it('draws the gable end whole, from the eaves to the verge, with no edge at the walls\' 2.70 m (VEW-61)', () => {
+    const svg = facadeToSvg(gableHouse(), { side: 'east', look: 'technical' })
+    const gable = [...svg.matchAll(/<g data-part="facade-face"[^>]*data-wall="fe"[^>]*><path d="([^"]+)"/g)].map((m) => m[1]!)
+    expect(gable).toHaveLength(1)
+    const heights = [...gable[0]!.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map((m) => -Number(m[2]))
+    // The first floor stands at 2.95 m: its walls' stated top would be 5.65 m, its eaves are at 5.55 m.
+    expect(heights.some((z) => Math.abs(z - 5.65) < 1e-6)).toBe(false)
+    expect(Math.max(...heights)).toBeGreaterThan(8)
+  })
+
   it('draws a flat roof as before: no covering, no roof lines and no gutter', () => {
     const svg = facadeToSvg(house(), { side: 'south', look: 'technical' })
     for (const part of ['facade-roof-course', 'facade-roof-ridge', 'facade-roof-eaves', 'facade-gutter']) expect(tags(svg, part)).toEqual([])
