@@ -195,15 +195,18 @@ export function itemBlockSymbol(item: Item): ItemSymbol | null {
  * CNT-42: the blocks an item is raised as in 3D, by its kind's entry in the registry: each inside
  * its footprint, between the floor it stands on (0) and its height. Unless the kind says how,
  * its footprint, solid from the floor to its height. Empty for a kind Grid does not hold.
+ * CNT-48: when the kind's blocks are all cut away (a registered kind whose blocks all stand above the item's height), its footprint
+ * box, so an item the checks pass is never left out of a picture or a file.
  */
 export function itemSolid(item: Item): ItemBlock[] {
   const definition = itemKindDefinition(item.kind)
   if (definition === undefined) return []
   const pen = penOf(frameOf(item))
-  const blocks = definition.solid?.(pen, item.height) ?? [{ outline: itemFootprint(item), bottom: 0, top: item.height }]
-  return blocks
+  const box = (): ItemBlock[] => [{ outline: itemFootprint(item), bottom: 0, top: item.height }]
+  const blocks = (definition.solid?.(pen, item.height) ?? box())
     .map((b) => ({ outline: b.outline, bottom: Math.max(0, b.bottom), top: Math.min(item.height, b.top) }))
     .filter((b) => b.top > b.bottom && b.outline.length >= 3)
+  return blocks.length > 0 || !(item.height > 0) ? blocks : box()
 }
 
 // ── The floor it takes ───────────────────────────────────────────────────────────────────────

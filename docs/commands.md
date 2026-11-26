@@ -914,6 +914,11 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
 - **What lies beyond the cut** is drawn in a lighter line, the one a facade draws its faces set
   back in: the faces of walls, slab and roof edges and stairs that face you, with their doors and
   windows open, each hiding what is behind it.
+- **Fixtures and furniture** (CNT-48) are cut where the line crosses them and seen beyond it, as
+  the plain blocks the 3D view stands them up as, on the floor of their room: a kitchen island
+  cut across shows its height, with the run against the far wall beyond it. A cut item is drawn
+  in paper with a light outline, over the cut and never joined to it, so it never reads as
+  structure.
 - **The ground** is a facade's ground line, the heaviest pen, at the site's ground level, or at
   the ground floor's level when the site states none. It runs out to the picture's edges, and
   stops only where the building stands through the ground: it runs on under a house on its plinth

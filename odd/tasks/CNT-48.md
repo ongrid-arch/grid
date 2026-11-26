@@ -12,7 +12,7 @@ person hands on, or the answer says which did not:
 - The GLB and the OBJ hold one object per item, named `item_<id>`, on every floor; an item Grid
   cannot draw is counted in the file's `leftOut` and named in its note, so a file never holds
   fewer items than it says without saying which. An item whose kind's blocks come out empty
-  (a table lower than its own legs) stands as its plain footprint box instead of vanishing.
+  (a registered kind whose blocks all stand above the item's height) stands as its plain footprint box instead of vanishing.
 - The 3D and eye answers of `grid_view` no longer say the model has no furniture: they say it
   stands fixtures and furniture as plain blocks, so an agent does not stop furnishing because it
   believes nothing reaches the picture or the headset.
