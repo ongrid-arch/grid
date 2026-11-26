@@ -115,7 +115,7 @@ const WAY_WORDS: Readonly<Record<string, string>> = {
 /** North in words, for an answer: where the arrow points on the drawing, and the figure it is. */
 export function northWordsOf(north: number): string {
   const turn = turnOf(north)
-  const way = Object.entries(NORTH_WAYS).find(([, d]) => Math.abs(turnOf(d - turn)) < 1e-6)?.[0]
+  const way = Object.entries(NORTH_WAYS).find(([, d]) => turnOf(d) === turn)?.[0]
   const angle = `${metres(Math.abs(turn))}° ${turn >= 0 ? 'counter-clockwise' : 'clockwise'} from up`
   return way === undefined ? `north ${metres(turn)}: the arrow turned ${angle} the drawing` : `north ${metres(turn)}: the arrow points ${WAY_WORDS[way]}${turn === 0 ? '' : ` (${angle})`}`
 }
