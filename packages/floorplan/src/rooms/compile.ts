@@ -105,6 +105,7 @@
  *   plot <w> x <d> [at x,y]   site boundary x,y ...   street <side|edge n>   setback <from> <m>
  *   north <degrees> [clockwise] | north <up|left|...>   site origin|location|elevation|ground|country ...
  *   site <fence|gate|path|paving|tree|pool> ...         the plot, north and the site (CNT-41): `site.ts`
+ *   ground <m> [below|above]                            the ground outside (ARE-62): `ground.ts`
  *   stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <w> wide, straight|L|U, runs <side>
  *         [then <side>] [along <side>] [risers <n>]   or   ..., <w> wide, run x,y x,y ...
  *   raw stair { ...Grid's own JSON for a stair... }     the plan's stairs (LVL-21): `stairs.ts`

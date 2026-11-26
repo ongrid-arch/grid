@@ -624,7 +624,7 @@ stair st "Main stair" from ground to first in hall, 1 wide, U, runs north
 
 ### Site
 
-plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m>, site ground <m> and site country <name> say where it is. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
+plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m> and site country <name> say where it is. ground <m> (or ground <m> below|above) is the ground outside, in metres from the ground floor's floor level, the level the sections, the 3D ground and the below-ground check read: ground -0.15 for a floor 15 cm above the ground. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
 
 ```rooms
 room house "House" living 8.0 x 9.0 at 0,0
@@ -634,6 +634,7 @@ street south
 setback street 5
 setback all 2
 north 30 clockwise
+ground -0.15
 site tree oak at 9,15 canopy 5 "Old oak"
 site pool pool 0,12 3,12 3,18 0,18
 ```
