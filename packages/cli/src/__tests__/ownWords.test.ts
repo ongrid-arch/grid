@@ -253,7 +253,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/scan/evidence.ts': [2, 'notYet'],
   'packages/floorplan/src/scan/roomModel.ts': [22, 'notYet'],
   'packages/floorplan/src/scan/toPlan.ts': [30, 'notYet'],
-  'packages/floorplan/src/types/floorplan.ts': [60, 'notYet'],
+  // LVL-20: one more, the most dormers one roof lists, as the rooflights' is worded.
+  'packages/floorplan/src/types/floorplan.ts': [61, 'notYet'],
   'packages/floorplan/src/types/places.ts': [7, 'notYet'],
   // CMD-7: the plan JSON Schema's title, its description, and the error for a schema part it cannot write.
   'packages/floorplan/src/types/planSchema.ts': [3, 'developer'],
@@ -397,7 +398,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CMD-41 1: the refusal of a plan lock that is a folder (fs/projectFiles.ts).
     // and WRT-73 51: setting phases, its receipts and refusals (edit/phaseMarks.ts 18), its tools
     // (mcp/phaseTools.ts 26), the correction and keep_north words (mcp/writeTools.ts 6, edit/edits.ts 1).
-    expect(left).toBeLessThanOrEqual(1714)
+    // and LVL-20 1: the most dormers one roof lists (types/floorplan.ts).
+    expect(left).toBeLessThanOrEqual(1715)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

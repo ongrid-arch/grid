@@ -13,7 +13,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `floor/gap-under-slab`, `floor/walls-past-floor`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
 - [Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground): `opening/below-ground`
-- [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `opening/missing-wall`
+- [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `floor/dormer-misplaced`, `wall/under-roof`, `opening/missing-wall`
 - [A floor outline before the walls](#a-floor-outline-before-the-walls): `floor/past-outline`; massing, storeys, homes and parking spaces
 - [Floor no room claims](#floor-no-room-claims): `floor/unclaimed`, `room/space-mismatch`, `room/not-enclosed`, `floor/spaces-unknown`
 - [Rooms that overlap, and rooms inside rooms](#rooms-that-overlap-and-rooms-inside-rooms): `room/overlap`, `room/inside-no-host`, `room/overlap-unknown`, `floor/overlaps-unknown`
@@ -523,7 +523,7 @@ flat on the floor's walls, as above.
 | `roof.ridgeRuns` | A gable's only: `east-west` or `north-south`, along the drawing's sides. Unstated, along the longer sides |
 | `roof.highSide` | A mono-pitch roof's, and needed there: the side it rises to, `north`, `east`, `south` or `west` |
 | `roof.rooflights` | Windows in the slope: each an `id`, `at` (its middle on the plan), `width` along the slope's eaves and `length` up the slope, both measured on the slope |
-| `roof.dormers` | Not supported yet: a roof that lists any is drawn and measured without them (`floor/dormers-not-drawn`) |
+| `roof.dormers` | Dormers standing out of a slope (LVL-20): each an `id`, `shape` (`box` or `gable`), `at` (the middle of its front on the plan), `width` (its front's), `height` (above the floor's level: a box dormer's flat ceiling, the top of a gable dormer's sides) and, optionally, `depth` (on plan, up the slope from its front; unstated, until it meets the roof) and `pitch` (a gable dormer's own; unstated, the roof's). Sections draw them and the headroom counts the floor under them; the 3D model, elevations, exports and take-off do not show them yet (`floor/dormers-not-drawn`) |
 
 Where the roof stands: its eaves run round the smallest rectangle that holds the lines of the
 floor's outside walls (every solid wall when none is stated `exterior`), turned to the longest of
@@ -537,6 +537,12 @@ What it cuts:
 - **Walls.** A wall standing inside the roof's rectangle is no higher, along its line, than the
   roof's underside over it: a gable is a gable, and a partition under the slope follows it. A wall
   that states no height, on a floor that states its roof, rises to the roof's top and is cut to it.
+  So does a wall stated `exterior` whatever height it states (LVL-20), unless it stands round
+  outdoor space alone or rises through floors: an outside wall meets the roof, so a gable end is
+  closed and a mono-pitch extension's walls reach their roof; its stated height stays in the file.
+  A wall on the building's outside that is not stated exterior keeps its height, and the check
+  names the gap over it (`wall/under-roof`). `grid_measure what=wall` gives a wall's top along its
+  length.
   A door or window whose top lies above the roof over its stretch of wall is refused, with the
   height that fits at its sill (`opening/above-roof`): the views, the exports and the checks read
   the cut top, and a floor's height (when it states none) is its tallest wall as cut.
@@ -548,6 +554,13 @@ What it cuts:
   crosses a ridge or a hip is left out (`floor/rooflight-misplaced`). An opening sits in a wall:
   an opening whose `wall` names the roof, a room or a floor is told that a window in the roof is a
   rooflight (`opening/missing-wall`).
+- **Dormers** (LVL-20). Each stands on the slope its front is on: a box dormer's underside is level
+  at its `height`, a gable dormer's rises from its sides at its pitch to a ridge over its middle,
+  and it runs back up the slope by its `depth`, or until it meets the roof. It raises the roof's
+  underside where it stands: the section cuts it, and a room's headroom bands count the floor under
+  it. One whose front is not inside the roof on one slope, higher than the roof there, or that runs
+  past a ridge or a hip or off the roof, is left out (`floor/dormer-misplaced`). Dormers do not
+  raise or cut walls yet.
 
 The roof is drawn in the 3D view and the OBJ and glTF files on its slopes, open at its rooflights;
 in the IFC it is an `IfcRoof` of its type (`FLAT_ROOF`, `SHED_ROOF`, `GABLE_ROOF`, `HIP_ROOF`) over

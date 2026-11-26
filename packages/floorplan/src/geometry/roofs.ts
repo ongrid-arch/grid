@@ -23,16 +23,23 @@
  *   its floor area is reported by headroom band (`roomHeadroom`): the floor with at least
  *   `headroomLow` and at least `headroomFull` of height over it, both Grid's own figures.
  *
+ * LVL-20: the roof's dormers raise its underside where they stand (`roofUnderside`,
+ * `undersideAlong`): sections and the headroom bands read them. And a wall stated `exterior`
+ * (on its own floor, not round outdoor space alone) rises to the roof whatever height it states: its
+ * top is the roof's underside over its line (`wallTopProfile`), so a gable end is closed and a
+ * mono-pitch extension's walls meet their roof.
+ *
  * Pure, and never throws on a plan the schema read.
  */
 
-import type { FloorPlan, PlanIndex, Roof, Rooflight, Room, Wall } from './plan'
+import type { Dormer, FloorPlan, PlanIndex, Roof, Rooflight, Room, Wall } from './plan'
 import { indexPlan } from './plan'
+import { outdoorOnlyWalls, planHasOutdoor } from './outdoor'
 import { floorOf, planForFloor, wallsOnFloor } from './floors'
 import { floorElevations, DEFAULT_STOREY_HEIGHT } from './elevations'
 import { tryRoomShape } from './room'
 import { roomFloorOffset } from './steps'
-import { cutOutline, multiArea, ringOf } from './polygons'
+import { cutOutline, inPieces, multiArea, ringOf, union } from './polygons'
 import { limit, tolerance } from './tolerances'
 import { wallAxis } from './wall'
 import type { Vec2 } from './vec2'
@@ -63,6 +70,8 @@ export interface RoofShapeOverFloor {
   /** Rise per metre on plan, and the pitch in degrees; both 0 on a flat roof. */
   readonly slope: number
   readonly pitch: number
+  /** LVL-20: the dormers that have a place on it, in the roof's order; one that has none is left out (the check names it). */
+  readonly dormers: readonly DormerPlace[]
 }
 
 /** Every plane that bounds the underside: the sloped ones, then the top as a level plane. */
@@ -124,7 +133,7 @@ function shapeOf(plan: FloorPlan, floor: string): RoofShapeOverFloor | null {
     planes = [{ north: southSide, south: northSide, east: westSide, west: eastSide }[roof.highSide ?? 'north']]
   }
   if (!(slope > 0)) planes = []
-  return {
+  const bare: RoofShapeOverFloor = {
     floor,
     roof,
     frame,
@@ -132,8 +141,14 @@ function shapeOf(plan: FloorPlan, floor: string): RoofShapeOverFloor | null {
     planes,
     top: roofTop(roof, frame),
     slope: planes.length === 0 ? 0 : slope,
-    pitch: planes.length === 0 ? 0 : (Math.atan(slope) * 180) / Math.PI
+    pitch: planes.length === 0 ? 0 : (Math.atan(slope) * 180) / Math.PI,
+    dormers: []
   }
+  const dormers = (roof.dormers ?? []).flatMap((dormer) => {
+    const place = dormerPlace(bare, dormer)
+    return 'problem' in place ? [] : [place]
+  })
+  return dormers.length === 0 ? bare : { ...bare, dormers }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -240,10 +255,45 @@ function underRoof(shape: RoofShapeOverFloor, p: Vec2): boolean {
 }
 
 /**
+ * LVL-20: whether a wall rises to the roof over it whatever height it states: a solid wall stated
+ * `exterior`, standing on its own floor (not through floors, LVL-5), and not round outdoor space
+ * alone (VEW-35: a parapet on a terrace keeps its own top). By the stated kind, as the roof's own
+ * frame stands on the walls stated exterior; a wall left `interior` on the building's outside keeps
+ * its height, and the check names the gap over it (`wall/under-roof`).
+ */
+export function risesToRoof(plan: FloorPlan, wall: Wall): boolean {
+  if (wall.virtual === true || wall.kind !== 'exterior' || wall.through !== undefined) return false
+  if (!planHasOutdoor(plan)) return true
+  return !fencedOn(plan, floorOf(wall)).has(wall.id)
+}
+
+const fencedWalls = new WeakMap<FloorPlan, Map<string, ReadonlySet<string>>>()
+
+function fencedOn(plan: FloorPlan, floor: string): ReadonlySet<string> {
+  let byFloor = fencedWalls.get(plan)
+  if (byFloor === undefined) {
+    byFloor = new Map()
+    fencedWalls.set(plan, byFloor)
+  }
+  let found = byFloor.get(floor)
+  if (found === undefined) {
+    try {
+      found = outdoorOnlyWalls(indexPlan(planForFloor(plan, floor)))
+    } catch {
+      found = new Set()
+    }
+    byFloor.set(floor, found)
+  }
+  return found
+}
+
+/**
  * The top of a wall the floor's roof cuts, along its line from its start: the lower of the wall's
  * height and the underside over its line, as the points where it turns, first at 0 and last at the
- * wall's length. Null when the roof cuts nothing off it: no roof stated, a dividing line, a wall
- * standing outside the roof's rectangle, or one no higher anywhere than the roof over it.
+ * wall's length. LVL-20: a wall that rises to the roof (`risesToRoof`) is cut from the roof's top,
+ * so its top is the underside over its line wherever that stands above its stated height. Null when
+ * the roof neither cuts nor raises it: no roof stated, a dividing line, a wall standing outside the
+ * roof's rectangle, or one as high everywhere as the roof over it, and no higher.
  */
 export function wallTopProfile(plan: FloorPlan, wall: Wall): readonly WallTopPoint[] | null {
   if (wall.virtual === true || !(wall.height > 0)) return null
@@ -251,12 +301,12 @@ export function wallTopProfile(plan: FloorPlan, wall: Wall): readonly WallTopPoi
   if (shape === null) return null
   const cached = profiles.get(wall)
   if (cached !== undefined && cached.shape === shape) return cached.profile
-  const profile = profileOf(shape, wall)
+  const profile = profileOf(shape, wall, risesToRoof(plan, wall) ? Math.max(wall.height, shape.top) : wall.height)
   profiles.set(wall, { shape, profile })
   return profile
 }
 
-function profileOf(shape: RoofShapeOverFloor, wall: Wall): readonly WallTopPoint[] | null {
+function profileOf(shape: RoofShapeOverFloor, wall: Wall, height: number): readonly WallTopPoint[] | null {
   let axis: ReturnType<typeof wallAxis>
   try {
     axis = wallAxis(wall)
@@ -266,7 +316,7 @@ function profileOf(shape: RoofShapeOverFloor, wall: Wall): readonly WallTopPoint
   if (!underRoof(shape, axis.start) || !underRoof(shape, axis.end)) return null
   const length = axis.length
   // Each bound as a line along the wall: a + b·u.
-  const lines = [...boundingPlanes(shape).map((plane) => ({ a: planeAt(plane, axis.start), b: plane.gx * axis.dir.x + plane.gy * axis.dir.y })), { a: wall.height, b: 0 }]
+  const lines = [...boundingPlanes(shape).map((plane) => ({ a: planeAt(plane, axis.start), b: plane.gx * axis.dir.x + plane.gy * axis.dir.y })), { a: height, b: 0 }]
   const at = (u: number): number => Math.min(...lines.map((l) => l.a + l.b * u))
   const cuts = new Set<number>([0, length])
   for (let i = 0; i < lines.length; i++) {
@@ -285,7 +335,7 @@ function profileOf(shape: RoofShapeOverFloor, wall: Wall): readonly WallTopPoint
     places.push(u)
   }
   const points = places.map((u) => ({ u, z: at(u) }))
-  if (points.every((p) => p.z >= wall.height - tolerance('joint'))) return null
+  if (points.every((p) => Math.abs(p.z - wall.height) <= tolerance('joint'))) return null
   // Only the points where the top turns: each kept point is checked against the last one kept.
   const turns: WallTopPoint[] = [points[0]!]
   for (let i = 1; i < points.length - 1; i++) {
@@ -297,6 +347,15 @@ function profileOf(shape: RoofShapeOverFloor, wall: Wall): readonly WallTopPoint
   }
   turns.push(points[points.length - 1]!)
   return turns
+}
+
+/**
+ * LVL-20: the roof's underside over a wall's line, as `wallTopProfile` gives a top: the points where
+ * it turns, from 0 to the wall's length, whatever the wall's height. Null when the wall is curved or
+ * stands outside the roof's rectangle. What the check of a gap over a wall reads.
+ */
+export function roofOverWall(shape: RoofShapeOverFloor, wall: Wall): readonly WallTopPoint[] | null {
+  return profileOf(shape, { ...wall, height: shape.top + 1 }, shape.top + 1)
 }
 
 /** The wall's top at `u` along it, on a profile. */
@@ -420,6 +479,185 @@ export function rooflightPlace(shape: RoofShapeOverFloor, rooflight: Rooflight):
 }
 
 // ---------------------------------------------------------------------------------------------
+// Dormers (LVL-20)
+
+/** Where a dormer stands: on one sloped plane of the roof, running up it from its front. */
+export interface DormerPlace {
+  readonly dormer: Dormer
+  /** The plane of the roof its front stands on. */
+  readonly plane: RoofPlane
+  /** Its rectangle on the plan, from its front up the slope, counter-clockwise. */
+  readonly outline: readonly Vec2[]
+  /** Unit directions on the plan: along its front, and up the slope. */
+  readonly across: Vec2
+  readonly up: Vec2
+  /** Metres on plan from its front to its back: as stated, else to where it meets the roof. */
+  readonly depth: number
+  /** Its underside: a box dormer's one level plane, a gable dormer's two slopes; the lowest of them. */
+  readonly planes: readonly RoofPlane[]
+  /** Its underside's highest point: a box dormer's ceiling, a gable dormer's ridge. */
+  readonly top: number
+}
+
+/** Whether a point lies in a convex polygon, counter-clockwise, give or take `noLength`. */
+function inConvex(polygon: readonly Vec2[], p: Vec2): boolean {
+  const slack = tolerance('noLength')
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i]!
+    const b = polygon[(i + 1) % polygon.length]!
+    const ex = b.x - a.x
+    const ey = b.y - a.y
+    const len = Math.hypot(ex, ey)
+    if (len === 0) continue
+    if ((ex * (p.y - a.y) - ey * (p.x - a.x)) / len < -slack) return false
+  }
+  return true
+}
+
+/**
+ * A dormer's place on the roof, or why it has none: its front must stand inside the roof's
+ * rectangle on one sloped plane, higher than the roof there, and the dormer must run back up that
+ * plane without leaving it (across a ridge or a hip) or the rectangle.
+ */
+export function dormerPlace(shape: RoofShapeOverFloor, dormer: Dormer): DormerPlace | { readonly problem: Said } {
+  const at = { x: dormer.at[0], y: dormer.at[1] }
+  const bounding = boundingPlanes(shape)
+  let plane = bounding[bounding.length - 1]!
+  for (const candidate of bounding) if (planeAt(candidate, at) < planeAt(plane, at) - tolerance('joint')) plane = candidate
+  const rise = Math.hypot(plane.gx, plane.gy)
+  if (rise < tolerance('noSlope')) return { problem: said('issue.floor/dormer-misplaced.flat') }
+  const up = { x: plane.gx / rise, y: plane.gy / rise }
+  const across = { x: up.y, y: -up.x }
+  const half = dormer.width / 2
+  const corner = (c: number, s: number): Vec2 => ({ x: at.x + across.x * c + up.x * s, y: at.y + across.y * c + up.y * s })
+  const onPlane = (p: Vec2): boolean => bounding.every((other) => planeAt(plane, p) <= planeAt(other, p) + tolerance('joint'))
+  const front = [corner(-half, 0), corner(half, 0)]
+  if (!front.every((p) => underRoof(shape, p))) return { problem: said('issue.floor/dormer-misplaced.outside') }
+  if (!front.every(onPlane)) return { problem: said('issue.floor/dormer-misplaced.acrossSlopes') }
+  const foot = planeAt(plane, at)
+  if (!(dormer.height > foot + tolerance('joint'))) return { problem: said('issue.floor/dormer-misplaced.low') }
+  const own = dormer.shape === 'gable' ? Math.tan(((dormer.pitch ?? shape.pitch) * Math.PI) / 180) : 0
+  const top = dormer.height + own * half
+  const depth = dormer.depth ?? (top - foot) / rise
+  const back = [corner(half, depth), corner(-half, depth)]
+  if (!back.every((p) => underRoof(shape, p))) return { problem: said('issue.floor/dormer-misplaced.outside') }
+  // Its back may reach the ridge, never past it onto another slope.
+  if (!back.every(onPlane)) return { problem: said('issue.floor/dormer-misplaced.acrossSlopes') }
+  let outline = [front[0]!, front[1]!, back[0]!, back[1]!]
+  if (ringArea(outline) < 0) outline = outline.reverse()
+  const c0 = across.x * at.x + across.y * at.y
+  const planes: RoofPlane[] =
+    dormer.shape === 'box'
+      ? [{ z0: dormer.height, gx: 0, gy: 0 }]
+      : [
+          // From each side, rising inward to the ridge over its middle.
+          { z0: dormer.height + own * half - own * c0, gx: own * across.x, gy: own * across.y },
+          { z0: dormer.height + own * half + own * c0, gx: -own * across.x, gy: -own * across.y }
+        ]
+  return { dormer, plane, outline, across, up, depth, planes, top }
+}
+
+/** A dormer's underside over a point, or null when the point is not under it. */
+function dormerAt(place: DormerPlace, p: Vec2): { readonly z: number; readonly plane: RoofPlane } | null {
+  if (!inConvex(place.outline, p)) return null
+  let best = place.planes[0]!
+  for (const plane of place.planes) if (planeAt(plane, p) < planeAt(best, p)) best = plane
+  return { z: planeAt(best, p), plane: best }
+}
+
+/** The roof's underside over a point and the plane it lies in there, a dormer raising it where it stands. */
+function undersideOf(shape: RoofShapeOverFloor, p: Vec2): { readonly z: number; readonly plane: RoofPlane } {
+  const bounding = boundingPlanes(shape)
+  let plane = bounding[bounding.length - 1]!
+  for (const candidate of bounding) if (planeAt(candidate, p) < planeAt(plane, p)) plane = candidate
+  let found = { z: planeAt(plane, p), plane }
+  for (const place of shape.dormers) {
+    const raised = dormerAt(place, p)
+    if (raised !== null && raised.z > found.z) found = raised
+  }
+  return found
+}
+
+/** LVL-20: the roof's underside over a point, above the floor's level: `roofHeightAt` raised by the dormers. */
+export function roofUnderside(shape: RoofShapeOverFloor, p: Vec2): number {
+  return undersideOf(shape, p).z
+}
+
+/** A straight piece of the underside along a line: `from` to `to` metres along it, under one plane. */
+export interface UndersidePiece {
+  readonly from: number
+  readonly to: number
+  readonly plane: RoofPlane
+}
+
+/**
+ * LVL-20: the roof's underside along the line from `a` to `b`, as straight pieces, each under one
+ * plane (of the roof, its level top or a dormer), from 0 to the line's length. Where two pieces meet
+ * at different heights a dormer's front or side rises from the slope.
+ */
+export function undersideAlong(shape: RoofShapeOverFloor, a: Vec2, b: Vec2): UndersidePiece[] {
+  const total = Math.hypot(b.x - a.x, b.y - a.y)
+  if (!(total > tolerance('noLength'))) return []
+  const dir = { x: (b.x - a.x) / total, y: (b.y - a.y) / total }
+  const planes = [...boundingPlanes(shape), ...shape.dormers.flatMap((d) => d.planes)]
+  const lines = planes.map((plane) => ({ a: planeAt(plane, a), b: plane.gx * dir.x + plane.gy * dir.y }))
+  const breaks = [0, total]
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = i + 1; j < lines.length; j++) {
+      const db = lines[i]!.b - lines[j]!.b
+      if (Math.abs(db) < tolerance('noSlope')) continue
+      breaks.push((lines[j]!.a - lines[i]!.a) / db)
+    }
+  }
+  // Where the line crosses a dormer's sides.
+  for (const place of shape.dormers) {
+    place.outline.forEach((p, i) => {
+      const q = place.outline[(i + 1) % place.outline.length]!
+      const ex = q.x - p.x
+      const ey = q.y - p.y
+      const denominator = dir.x * ey - dir.y * ex
+      if (Math.abs(denominator) < tolerance('noSlope')) return
+      const t = ((p.x - a.x) * ey - (p.y - a.y) * ex) / denominator
+      const s = ((p.x - a.x) * dir.y - (p.y - a.y) * dir.x) / denominator
+      if (s >= -tolerance('noLength') && s <= 1 + tolerance('noLength')) breaks.push(t)
+    })
+  }
+  const places = [...new Set(breaks.filter((t) => t >= 0 && t <= total))].sort((x, y) => x - y)
+  const pieces: UndersidePiece[] = []
+  for (let i = 0; i + 1 < places.length; i++) {
+    const from = places[i]!
+    const to = places[i + 1]!
+    if (!(to - from > tolerance('noLength'))) continue
+    const middle = (from + to) / 2
+    const { plane } = undersideOf(shape, { x: a.x + dir.x * middle, y: a.y + dir.y * middle })
+    const last = pieces[pieces.length - 1]
+    if (last !== undefined && last.plane.z0 === plane.z0 && last.plane.gx === plane.gx && last.plane.gy === plane.gy) pieces[pieces.length - 1] = { ...last, to }
+    else pieces.push({ from, to, plane })
+  }
+  return pieces
+}
+
+/**
+ * LVL-20: the parts of the plan with at least `height` under the roof: `regionAtLeast`, and the
+ * floor under each dormer with that much over it. Convex pieces, possibly overlapping; none when
+ * there is no such part.
+ */
+export function regionsAtLeast(shape: RoofShapeOverFloor, height: number): Vec2[][] {
+  const pieces: Vec2[][] = []
+  const main = regionAtLeast(shape, height)
+  if (main.length >= 3) pieces.push(main)
+  for (const place of shape.dormers) {
+    let polygon: Vec2[] = [...place.outline]
+    for (const plane of place.planes) {
+      if (polygon.length < 3) break
+      polygon = clipConvex(polygon, (p) => planeAt(plane, p) - height)
+    }
+    if (polygon.length >= 3 && ringArea(polygon) > tolerance('noArea')) pieces.push(polygon)
+  }
+  return pieces
+}
+
+// ---------------------------------------------------------------------------------------------
 // Headroom
 
 /** The floor of a room with at least `height` over it. */
@@ -472,8 +710,9 @@ export function roomHeadroom(plan: FloorPlan, which: string | Room, index?: Plan
     if (cap < height - tolerance('lengthEqual')) return { height, area: 0 }
     let region: MultiPolygon | null = pieces
     if (roof !== null) {
-      const enough = regionAtLeast(roof, height + offset)
-      region = enough.length < 3 ? [] : cutOutline('intersection', pieces, [[[ringOf(enough)]]])
+      // LVL-20: the floor under a dormer counts where the dormer gives it the height.
+      const enough = regionsAtLeast(roof, height + offset)
+      region = enough.length === 0 ? [] : cutOutline('intersection', pieces, [union(enough.map((piece): MultiPolygon => [[ringOf(piece)]]))])
     }
     const low = zones.filter((z) => z.height < height - tolerance('lengthEqual')).map((z) => z.pieces)
     if (region !== null && region.length > 0 && low.length > 0) region = cutOutline('difference', region, low)
@@ -485,10 +724,20 @@ export function roomHeadroom(plan: FloorPlan, which: string | Room, index?: Plan
   const heights: number[] = []
   const facets = roof === null ? [] : roofFacets(roof)
   if (facets.length === 0) heights.push(cap)
+  // LVL-20: a dormer's floor, its corners and the ends of its ridge, under its own underside.
+  const dormerPieces = (roof?.dormers ?? []).flatMap((place) => {
+    const ends = [0, place.depth].map((s): [number, number] => {
+      const front = { x: place.dormer.at[0] + place.up.x * s, y: place.dormer.at[1] + place.up.y * s }
+      return [front.x, front.y]
+    })
+    const under = cutOutline('intersection', pieces, [[[ringOf(place.outline)]]]) ?? []
+    return [...under, ...ends.filter(([x, y]) => inPieces(pieces, { x, y })).map((end): [number, number][][] => [[end]])]
+  })
   for (const facet of facets) {
     const under = cutOutline('intersection', pieces, [[[ringOf(facet.polygon)]]]) ?? []
-    for (const polygon of under) for (const ring of polygon) for (const [x, y] of ring) heights.push(Math.min(cap, planeAt(facet.plane, { x, y }) - offset))
+    for (const polygon of under) for (const ring of polygon) for (const [x, y] of ring) heights.push(Math.min(cap, roofUnderside(roof!, { x, y }) - offset))
   }
+  for (const polygon of dormerPieces) for (const ring of polygon) for (const [x, y] of ring) heights.push(Math.min(cap, roofUnderside(roof!, { x, y }) - offset))
   const lowest = Math.min(...heights, ...zones.map((z) => z.height))
   const highest = Math.max(...heights)
   return { room: room.id, floor, area, bands, lowest, highest, underRoof: roof !== null }

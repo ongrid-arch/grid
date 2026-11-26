@@ -474,7 +474,7 @@ export const es: Messages = {
   'issue.plan/no-walls.opening.one': '{n} hueco',
   'issue.plan/no-walls.opening.many': '{n} huecos',
   'issue.opening/missing-wall.roof':
-    'El hueco {opening} apunta al muro {wall}, que no está en el plano. Un hueco está en un muro; una ventana en la cubierta es un lucernario, indicado en la cubierta de su planta (floors[].roof.rooflights). Las buhardas aún no se admiten',
+    'El hueco {opening} apunta al muro {wall}, que no está en el plano. Un hueco está en un muro; una ventana en la cubierta es un lucernario, indicado en la cubierta de su planta (floors[].roof.rooflights), y una buharda se indica allí también (floors[].roof.dormers)',
   'issue.opening/above-roof': 'El hueco {opening} llega a {head} m en el muro {wall}, donde la cubierta sobre la planta {floor} corta el muro a {range}: {where}{fits}',
   'issue.opening/above-roof.range': '{low} a {high} m',
   'issue.opening/above-roof.at': '{low} m',
@@ -485,9 +485,19 @@ export const es: Messages = {
   'issue.floor/rooflight-misplaced.outside': 'queda fuera de la cubierta',
   'issue.floor/rooflight-misplaced.acrossSlopes': 'cruza una línea donde se encuentran dos faldones de la cubierta, así que quedaría en los dos',
   'issue.floor/dormers-not-drawn.one':
-    'La cubierta sobre la planta {floor} incluye una buharda: las buhardas aún no se admiten, así que la cubierta se dibuja y se mide sin ellas, y la altura libre bajo una es la de la cubierta',
+    'La cubierta sobre la planta {floor} incluye una buharda: las secciones la dibujan y la altura libre cuenta el suelo bajo ella, pero el modelo 3D, los alzados, las exportaciones y las mediciones aún no la muestran',
   'issue.floor/dormers-not-drawn.many':
-    'La cubierta sobre la planta {floor} incluye {n} buhardas: las buhardas aún no se admiten, así que la cubierta se dibuja y se mide sin ellas, y la altura libre bajo una es la de la cubierta',
+    'La cubierta sobre la planta {floor} incluye {n} buhardas: las secciones las dibujan y la altura libre cuenta el suelo bajo ellas, pero el modelo 3D, los alzados, las exportaciones y las mediciones aún no las muestran',
+  'issue.floor/dormer-misplaced': 'La buharda {dormer} de la cubierta sobre la planta {floor} {problem}: se excluye',
+  'issue.floor/dormer-misplaced.outside': 'no queda entera dentro de la cubierta',
+  'issue.floor/dormer-misplaced.acrossSlopes': 'no está en un solo faldón de la cubierta: cruza una línea donde se encuentran dos faldones',
+  'issue.floor/dormer-misplaced.flat': 'está en una parte horizontal de la cubierta, y una buharda sale de un faldón',
+  'issue.floor/dormer-misplaced.low': 'no es más alta que la cubierta en su frente, así que no saldría del faldón',
+  'issue.wall/under-roof':
+    'El muro {wall} se queda por debajo de la cubierta sobre la planta {floor}: tiene {height} m de altura y la cara inferior de la cubierta sobre él está a {range}, así que deja un hueco de hasta {gap} m encima. Un muro indicado como exterior sube hasta la cubierta: indique su tipo exterior (exterior), o dele la altura que llega a la cubierta',
+  'line.wall/under-roof.says': '{label} se queda por debajo de la cubierta que tiene encima',
+  'line.wall/under-roof.needed': 'un muro exterior que llegue a la cubierta que tiene encima',
+  'line.wall/under-roof.fix': 'Indique el tipo del muro como exterior (exterior), para que suba hasta la cubierta, o dele la altura que llega a la cubierta.',
   'issue.room/zone-not-in-room':
     'La estancia {zone} está marcada como zona de la estancia {room}, pero {why}. Se cuenta como una estancia propia. Dibújela dentro de la estancia de la que forma parte, en la misma planta, o quite {partOf}.',
   'issue.room/zone-not-in-room.itself': 'una estancia no puede ser zona de sí misma',
@@ -1605,10 +1615,14 @@ export const es: Messages = {
   'line.floor/rooflight-misplaced.needed': 'un lucernario entero dentro de la cubierta y en uno de sus faldones, lejos de la cumbrera y de las limatesas',
   'line.floor/rooflight-misplaced.fix':
     'Mueva el centro del lucernario (at) a un faldón, o hágalo más pequeño, para que no salga de la cubierta ni cruce donde se encuentran dos faldones. Hasta entonces se excluye.',
-  'line.floor/dormers-not-drawn.says': '{label} incluye buhardas, que aún no se admiten',
-  'line.floor/dormers-not-drawn.needed': 'una cubierta que Grid pueda dibujar: las buhardas aún no se admiten',
+  'line.floor/dormers-not-drawn.says': '{label} incluye buhardas que por ahora solo muestran las secciones y la altura libre',
+  'line.floor/dormers-not-drawn.needed': 'buhardas en todas las vistas: el modelo 3D, los alzados, las exportaciones y las mediciones aún no las muestran',
   'line.floor/dormers-not-drawn.fix':
-    'Grid dibuja y mide la cubierta sin sus buhardas. Una ventana en el frente de una buharda se puede dibujar en un muro exterior elevado hasta ella; una ventana en el faldón es un lucernario.',
+    'Las secciones y la altura libre leen las buhardas. Hasta que las demás vistas lo hagan, una ventana en el frente de una buharda se puede dibujar en un muro exterior elevado hasta ella; una ventana en el faldón es un lucernario.',
+  'line.floor/dormer-misplaced.says': '{label} tiene una buharda que no está en un solo faldón de su cubierta',
+  'line.floor/dormer-misplaced.needed': 'una buharda cuyo frente esté en un faldón de la cubierta, más alta que la cubierta allí, y que suba por ese faldón dentro de la cubierta',
+  'line.floor/dormer-misplaced.fix':
+    'Mueva el frente de la buharda (at) a un faldón, hágala más estrecha o menos profunda, o dele una altura por encima de la cubierta en su frente. Hasta entonces se excluye.',
 
   // ── Tras fusionar main en 8b599e9: los patrones de huecos (LVL-8) ───────────────────────────
   'thing.pattern': 'Patrón de huecos {id}',
@@ -2519,7 +2533,12 @@ export const es: Messages = {
   'drawing.section.taken.slab': 'El forjado bajo {floor} se toma de {thickness} m de espesor: la planta no indica forjado.',
   'drawing.section.taken.roof.none': 'La cubierta sobre {floor} se toma plana y de {thickness} m de espesor, sobre sus muros: el plano no indica cubierta.',
   'drawing.section.taken.roof.flat': 'La cubierta sobre {floor} se dibuja plana a la altura del alero, como la indica la planta, y se toma de {thickness} m de espesor.',
-  'drawing.section.taken.roof.sloped': 'La cubierta sobre {floor} se indica {shape}, pero una sección aún no dibuja su pendiente: se dibuja plana a la altura del alero, de {thickness} m de espesor, y los muros bajo ella no se cortan a su forma.',
+  'drawing.section.taken.roof.sloped': 'La cubierta sobre {floor} se dibuja en sus faldones, como la indica la planta (una cubierta {shape}), y se toma de {thickness} m de espesor.',
+  'drawing.section.taken.wallRoof.one': 'Un muro cortado en {floor} sube hasta la cubierta que tiene encima, por encima de los {height} m que indica, como lo hace un muro exterior bajo una cubierta indicada ({ids}).',
+  'drawing.section.taken.wallRoof.many': '{count} muros cortados en {floor} suben hasta la cubierta que tienen encima, por encima de las alturas que indican, como lo hacen los muros exteriores bajo una cubierta indicada ({ids}).',
+  'drawing.section.eaves': '{level} Alero',
+  'drawing.section.ridge': '{level} Cumbrera',
+  'drawing.section.headroom': '{height} m de altura libre',
   'drawing.section.roofShape.mono-pitch': 'de una vertiente',
   'drawing.section.roofShape.gable': 'a dos aguas',
   'drawing.section.roofShape.hip': 'a cuatro aguas',
@@ -3282,6 +3301,9 @@ export const es: Messages = {
   'areas.flat.outdoorCounted': '; espacio exterior {area}, del que tus reglas cuentan {counted}: {withIt} con él',
   'areas.free.total': 'Suelo libre: {free}, la superficie útil menos los {taken} que ocupan sus aparatos fijos. {rule}',
   'areas.free.floor': ', suelo libre {area}',
+  'measure.wall.top.cut': 'La cubierta que tiene encima corta su coronación: {low} m en su punto más bajo, {high} m en el más alto; a lo largo de él desde su inicio, {points}.',
+  'measure.wall.top.raised': 'Sube hasta la cubierta que tiene encima, por encima de los {height} m que indica: {low} m en su punto más bajo, {high} m en el más alto; a lo largo de él desde su inicio, {points}.',
+  'measure.wall.top.point': '{height} m a {at} m',
   'measure.fixturesLeftOut': 'Quedan fuera de esta medición, así que no se descuenta el suelo que ocupan: {items}. grid_check dice por qué; indica lo que falta y cuentan.',
   'measure.fixtureLeftOut.field': '{item}: su {field} es {found}',
   'measure.fixtureLeftOut.plain': '{item}: grid_check dice por qué',

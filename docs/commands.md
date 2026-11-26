@@ -913,9 +913,15 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   a stair room with no stated stair, a stair's worked-out risers and the waist its flights are
   drawn with are listed, not hatched.
   `grid draw` says on standard error how many it hatched and listed.
-- **A roof the floor states** (`floors[].roof`, LVL-6) stands at its eaves. A section does not
-  draw a sloped roof's slope yet, nor cut the walls under it to the roof: it draws the roof flat
-  at its eaves, hatched, and says so in the list.
+- **A roof the floor states** (`floors[].roof`, LVL-6): a flat one stands at its eaves. A sloped
+  one (LVL-20) is cut along its slopes from the eaves to the ridge, and up over its dormers, a band
+  as thick as Grid takes a roof (0.25 m, square to the slope), hatched; its edges beyond are drawn
+  along the slope, and its eaves and ridge are marked on the right instead of one roof level. The
+  walls under it are cut, and seen, up to the roof's underside over their line: an outside wall
+  rises to it whatever height it states, so a gable end is closed, and the walls raised past their
+  stated height are listed. A room under it that states no height is as high as the roof leaves it
+  at its highest (the height `grid_measure what=room` gives), and its headroom bands, 1.5 m and
+  2.2 m, are dashed lines over its floor where it has that much height.
 
 A section cuts every floor and writes its levels in metres, so `--floor`, `--hide`, `--colour`,
 `--key`, `--ids`, `--units` and `--decimal` are refused with it, by name; so are `--3d`,

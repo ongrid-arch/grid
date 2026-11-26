@@ -402,6 +402,8 @@ export const CODES = {
   'wall/arc-too-tight': {},
   'wall/no-thickness': {},
   'wall/no-height': {},
+  // LVL-20: a wall on the outside, not stated exterior, that stops under the roof over it.
+  'wall/under-roof': {},
   // LVL-5 (C19): a wall through floors that names no floor above its own.
   'wall/through-floor': {},
   'wall/unknown-floor': {},
@@ -605,6 +607,8 @@ export const CODES = {
   'floor/empty-top': {},
   'floor/rooflight-misplaced': {},
   'floor/dormers-not-drawn': {},
+  // LVL-20: a dormer with no place on one slope of its roof.
+  'floor/dormer-misplaced': {},
   'floor/size-question': {},
   'floor/spaces-unknown': {},
   'floor/overlaps-unknown': {},

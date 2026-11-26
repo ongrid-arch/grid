@@ -282,13 +282,13 @@ describe('the roof itself', () => {
         { id: 'ridge', at: [2, 3], width: 0.78, length: 1.18 },
         { id: 'off', at: [9, 3], width: 0.78, length: 1.18 }
       ],
-      dormers: [{ at: [6, 0.6], width: 1.8 }]
+      dormers: [{ id: 'd', shape: 'box', at: [6, 0.6], width: 1.8, height: 2.2 }]
     })
     const issues = validatePlan(plan).issues.filter((i) => i.code.startsWith('floor/rooflight') || i.code.startsWith('floor/dormers'))
     expect(issues.map((i) => [i.code, i.severity, i.message])).toEqual([
       ['floor/rooflight-misplaced', 'error', 'Rooflight "ridge" in the roof over floor "Ground" crosses a line where two slopes of the roof meet, so it would lie in both: it is left out'],
       ['floor/rooflight-misplaced', 'error', 'Rooflight "off" in the roof over floor "Ground" lies outside the roof: it is left out'],
-      ['floor/dormers-not-drawn', 'warning', 'The roof over floor "Ground" lists a dormer: dormers are not supported yet, so the roof is drawn and measured without them, and the headroom under one is the roof\'s']
+      ['floor/dormers-not-drawn', 'warning', 'The roof over floor "Ground" lists a dormer: sections draw it and the headroom counts the floor under it, but the 3D model, elevations, exports and take-off do not show it yet']
     ])
     expect(planEnvelope(plan).floors[0]!.roof!.rooflights).toEqual([])
   })
@@ -297,7 +297,7 @@ describe('the roof itself', () => {
     const plan = box({ shape: 'gable', eaves: 1, ridge: 3.6 }, { openings: [{ id: 'sky', wall: 'roof', type: 'window', offset: 1, width: 0.8, height: 1.2 }] })
     const [line] = validatePlan(plan).issues.filter((i) => i.code === 'opening/missing-wall')
     expect(line!.message).toBe(
-      'Opening "sky" points at wall "roof", which is not in the plan. An opening sits in a wall; a window in the roof is a rooflight, stated in its floor\'s roof (floors[].roof.rooflights). Dormers are not supported yet'
+      'Opening "sky" points at wall "roof", which is not in the plan. An opening sits in a wall; a window in the roof is a rooflight, stated in its floor\'s roof (floors[].roof.rooflights), and a dormer is stated there too (floors[].roof.dormers)'
     )
   })
 })
