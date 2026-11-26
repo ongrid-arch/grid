@@ -35,6 +35,8 @@ export type OpeningChange = Partial<{ [K in 'offset' | 'type' | 'hinge' | 'swing
   /** CNT-15: the door or window type it takes; null takes it out. */
   doorType?: string | null
   windowType?: string | null
+  /** WRT-74: its facts of the person's own, all of them; null takes them out. */
+  properties?: Readonly<Record<string, string | number | boolean>> | null
 }
 
 /** A change to one room. `null` takes a key out. `partOf` makes it a zone of that room (CNT-8). */
@@ -43,7 +45,10 @@ export type RoomChange = {
   name?: string
   use?: string | null
   partOf?: string | null
-  properties?: Readonly<Record<string, string | number | boolean>>
+  /** WRT-74: null takes every fact out. */
+  properties?: Readonly<Record<string, string | number | boolean>> | null
+  /** WRT-74: its stated room number; null leaves it to Grid's count. */
+  number?: string | null
   /** CNT-10: a room taken out of a plan with phases stays, to be demolished. */
   phase?: Room['phase']
   /** CNT-15: its finishes, by surface; null takes them all out. */
@@ -59,7 +64,7 @@ export interface Patch {
    * HND-11: `mirrored` turns a wall placed by its face over to its other face, as a mirror does.
    * CNT-18: `arc`, a curved wall's new centre and sweep.
    */
-  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null }>
+  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null; properties?: Readonly<Record<string, string | number | boolean>> | null }>
   readonly openings: ReadonlyMap<string, OpeningChange>
   readonly removeOpenings: ReadonlySet<string>
   readonly rooms: ReadonlyMap<string, RoomChange>
@@ -129,8 +134,11 @@ export function refuseCurved(walls: Iterable<{ readonly id: string; readonly arc
   }
 }
 
-/** WRT-24: the lists of parts a patch's `parts` may change; `site.things` is the site's things. */
-export type PartList = 'columns' | 'grids' | 'bays' | 'stairs' | 'ramps' | 'patterns' | 'site.things'
+/**
+ * WRT-24: the lists of parts a patch's `parts` may change; `site.things` is the site's things.
+ * WRT-74: `floors`, whose facts a change sets.
+ */
+export type PartList = 'columns' | 'grids' | 'bays' | 'stairs' | 'ramps' | 'patterns' | 'site.things' | 'floors'
 
 export function emptyPatch(said: string[]): Patch {
   return { walls: new Map(), openings: new Map(), removeOpenings: new Set(), rooms: new Map(), said }
@@ -759,7 +767,7 @@ const MIRRORED: Record<string, string> = { north: 'south', south: 'north', east:
  * y direction is kept: the result is a new design, still drawn as the plan says its y runs, and
  * the front stays the part it names, which is mirrored with the rest.
  */
-export function mirrorPlan(survey: Survey, how: Mirror): Patch {
+export function mirrorPlan(survey: Survey, how: Mirror, options: { keepNorth?: boolean } = {}): Patch {
   const plan = survey.plan
   const { xs, ys } = extentPoints(plan, 'mirror')
   // VEW-22: cleaned of floating noise only, never rounded to millimetres, so every length holds.
@@ -790,7 +798,8 @@ export function mirrorPlan(survey: Survey, how: Mirror): Patch {
     return [item.id, { at: flip(item.at), turn: r3(((mirrored % 360) + 360) % 360) }]
   }))
   const top: Record<string, unknown> = {}
-  if (plan.north !== undefined) top['north'] = wrapDegrees(r3(-plan.north))
+  // WRT-73: "I drew it the wrong way round": the building is mirrored, and the north it states stays where it was.
+  if (plan.north !== undefined && options.keepNorth !== true) top['north'] = wrapDegrees(r3(-plan.north))
   // BRF-3: the plot's boundary and the site's things are mirrored with the walls. Each edge keeps
   // its number, so the streets and set-backs still name the same edges.
   const site = plan.site
@@ -808,7 +817,7 @@ export function mirrorPlan(survey: Survey, how: Mirror): Patch {
   // VEW-3: each saved view is mirrored with the building, so it still frames what it framed.
   const views = mirroredViews(plan, how, flip, top['north'] as number | undefined)
   if (views !== null) top['views'] = views
-  const north = plan.north === undefined ? '' : ` The plan's north is mirrored with it: ${wrapDegrees(r3(plan.north))}° → ${top['north'] as number}° counter-clockwise from the top of the drawing.`
+  const north = plan.north === undefined ? '' : options.keepNorth === true ? ` The plan's north stays at ${wrapDegrees(r3(plan.north))}°, so the building is mirrored on its site and what faced one way now faces the other.` : ` The plan's north is mirrored with it: ${wrapDegrees(r3(plan.north))}° → ${top['north'] as number}° counter-clockwise from the top of the drawing.`
   return {
     walls,
     openings,

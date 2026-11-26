@@ -29,7 +29,7 @@ export function northLine(facing: PlanFacing): string {
   const y = orientation.yAxis === 'down' ? ' The plan says its y runs down the page, so the drawing is the building\'s mirror image; the directions are read the right way round.' : ''
   if (facing.northStated) return `North, as the plan states it: ${northWords(orientation.north!)} (north ${deg(orientation.north!)}).${y}`
   const top = orientation.yAxis === 'down' ? 'the top of the page it was drawn on (-y)' : 'the top of the drawing (+y)'
-  return `The plan states no north, so these directions take north as ${top}, which is not known to be north: ask the person, and set north in the plan file (degrees counter-clockwise from the top of the drawing).${y}`
+  return `The plan states no north, so these directions take north as ${top}, which is not known to be north: ask the person, and set it with grid_set_site (north, or north_points: where the arrow points) or a 'north <degrees>' line in rooms text.${y}`
 }
 
 /** The north an answer's directions are from, and which way the plan's y runs, as data (BRF-5 shares it). */

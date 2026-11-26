@@ -84,17 +84,34 @@ describe('Grid\'s built-in library', () => {
       'single-bed': ['bed', 0.9, 2, 0.5, 0.6],
       'double-bed': ['bed', 1.4, 2, 0.5, 0.6],
       'large-double-bed': ['bed', 1.6, 2, 0.5, 0.6],
+      'king-bed': ['bed', 1.8, 2, 0.5, 0.6],
       'side-table': ['table', 0.45, 0.4, 0.55, 0],
-      desk: ['table', 1.2, 0.6, 0.75, 0.75],
+      'bedside-table': ['table', 0.4, 0.35, 0.5, 0],
+      'coffee-table': ['table', 1.1, 0.6, 0.4, 0],
       'dining-table-4': ['table', 1.2, 0.8, 0.75, 0],
       'dining-table-6': ['table', 1.8, 0.9, 0.75, 0],
       chair: ['chair', 0.45, 0.5, 0.9, 0],
-      armchair: ['chair', 0.8, 0.85, 0.85, 0],
+      stool: ['stool', 0.35, 0.35, 0.45, 0],
+      'bar-stool': ['stool', 0.4, 0.4, 0.75, 0],
+      armchair: ['armchair', 0.8, 0.85, 0.85, 0],
       'sofa-2': ['sofa', 1.6, 0.9, 0.85, 0],
       'sofa-3': ['sofa', 2.1, 0.9, 0.85, 0],
       wardrobe: ['storage', 1, 0.6, 2, 0.6],
       'chest-of-drawers': ['storage', 0.8, 0.45, 0.8, 0.5],
+      'tv-unit': ['storage', 1.6, 0.45, 0.5, 0.5],
+      desk: ['desk', 1.2, 0.6, 0.75, 0.75],
+      'desk-1400': ['desk', 1.4, 0.7, 0.75, 0.75],
+      rug: ['rug', 2, 1.4, 0.01, 0],
+      'rug-large': ['rug', 3, 2, 0.01, 0],
+      plant: ['plant', 0.5, 0.5, 1.2, 0],
     })
+  })
+
+  it('holds the starter furniture, each counted by its own kind (CNT-42)', () => {
+    const kindOf = (name: string): string | undefined => BUILT_IN_ITEMS.find((e) => e.name === name)?.kind
+    expect(['sofa-2', 'armchair', 'coffee-table', 'dining-table-4', 'chair', 'stool', 'single-bed', 'double-bed', 'king-bed', 'bedside-table', 'wardrobe', 'desk', 'rug', 'tv-unit', 'plant'].map(kindOf)).toEqual(
+      ['sofa', 'armchair', 'table', 'table', 'chair', 'stool', 'bed', 'bed', 'bed', 'table', 'storage', 'desk', 'rug', 'storage', 'plant']
+    )
   })
 
   it('sets out each typical room inside its size, every item clear of the others and of the clear floor each keeps', () => {

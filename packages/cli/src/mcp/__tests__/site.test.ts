@@ -40,10 +40,12 @@ describe('the plot (grid_measure what=site)', () => {
     expect(reply.text).toContain('1.00 m from the east boundary; you asked for 3.00 m')
     const lines = reply.text.split('\n')
     expect(lines[0]).toBe(GENERAL_GUIDANCE_LABEL)
-    expect(lines.slice(1, 11)).toEqual([
+    expect(lines.slice(1, 12)).toEqual([
       'North, as the plan states it: up the drawing (+y) (north 0).',
       'The plot: 450.00 m² inside a boundary of 4 edges; on the street: edge 1 (the south boundary).',
       "Plot coverage: 20%, the building's 90.00 m² on the 450.00 m² plot.",
+      // CNT-41: what the coverage counts, said on every plot.
+      'The coverage counts the enclosed building; a roofed porch or carport would count with it, and a deck or terrace open to the sky would not. The plan has neither.',
       "The person's own figures: theirs, not from any code or standard.",
       'From each edge of the boundary, the least distance to the building:',
       '  Edge 1, on the street: 10.00 m from the south boundary; you asked for 3.00 m.',
@@ -70,7 +72,12 @@ describe('the plot (grid_measure what=site)', () => {
     expect(at.text).toContain("Plot coverage: 20%, the building's 90.00 m² on the 450.00 m² plot.")
     expect(things.text.split('\n').filter((l) => !l.startsWith("The site's things"))).toEqual(at.text.split('\n'))
     expect(things.text).toContain("The site's things, drawn only and never measured: 1 fence, 3 trees and 1 pool.")
-    const areas = async (plan: string): Promise<Record<string, unknown>> => (await b.call('grid_areas', { plan })).data!
+    // CMD-41: each file has its own revision; the areas are what must match.
+    const areas = async (plan: string): Promise<Record<string, unknown>> => {
+      const data = { ...(await b.call('grid_areas', { plan })).data! }
+      delete data['planRevision']
+      return data
+    }
     expect(await areas('things.json')).toEqual(await areas('at.json'))
   })
 

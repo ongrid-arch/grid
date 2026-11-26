@@ -276,7 +276,8 @@ export function createSceneMemo(): (slice: FloorPlan) => Scene3D {
     const stairs = (slice.stairs ?? []).length === 0 ? [] : planStairs(slice, brokenOnFloor).stairs
     // LVL-4: the slab and roof come from this floor's outline and the floors' next to it.
     const shell = sceneShell(slice)
-    const key = JSON.stringify([slice.walls, slice.rooms, slice.openings, stairs, shell])
+    // CNT-42: and the items, so a moved chair is raised where it now stands.
+    const key = JSON.stringify([slice.walls, slice.rooms, slice.openings, stairs, shell, slice.items ?? []])
     if (last?.key !== key) last = { key, scene: buildScene(slice, { shell }) }
     return last.scene
   }

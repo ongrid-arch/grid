@@ -45,12 +45,18 @@ const ORDER = [
   'grid_square_scan',
   'grid_place_item',
   'grid_add_opening',
+  'grid_set_phase',
+  'grid_start_works',
+  'grid_phase_from',
   'grid_tidy',
+  'grid_set_facts',
+  'grid_set_site',
+  'grid_change_site',
   'grid_save_view',
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_add_opening', 'grid_tidy', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set_facts', 'grid_set_site', 'grid_change_site', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -117,7 +123,14 @@ describe('tools/list', () => {
     // so no translation file is written for each language.
     // 38 since WRT-72: a door or window added to a plan that has its walls, which no tool did
     // (agents rewrote the whole rooms text, or removed doors they could not place).
-    expect((await listed()).length).toBeLessThanOrEqual(38)
+    // 41 since WRT-73: phases, which every renovation set by editing the file by hand: parts marked
+    // by id or room, the plan as it stands marked existing, and one plan from a before and an after.
+    // 42 since WRT-74: facts of the person's own and a room's number, which no tool wrote (agents
+    // hand-edited the JSON or rewrote the whole plan to mark one lot sold).
+    // 44 since CNT-41: the plot, its streets, set-backs and north, and the site's things, which
+    // agents on the tool server could write only as the plan file's JSON (they gave up, or
+    // invented the figures).
+    expect((await listed()).length).toBeLessThanOrEqual(44)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -245,7 +258,13 @@ describe('the tools on a two-bedroom flat', () => {
     grid_square_scan: { all: true, out: 'squared.json' },
     grid_place_item: { name: 'double-bed', x: 2, y: 1.5, turn: 90, out: 'placed.json' },
     grid_add_opening: { type: 'window', room: 'bed2', side: 'north', out: 'opened.json' },
+    grid_set_phase: { phase: 'demolished', parts: ['door-bed2'], out: 'phased.json' },
+    grid_start_works: { out: 'surveyed.json' },
+    grid_phase_from: { before: 'plan.json', after: 'wider.json', out: 'works.json' },
     grid_tidy: { all: true, out: 'tidied.json' },
+    grid_set_facts: { parts: ['bed2'], set: { department: 'Sales' }, out: 'facts.json' },
+    grid_set_site: { plot_width: 15, plot_depth: 20, streets: ['south'], setbacks: ['all 2'], north: 30, out: 'sited.json' },
+    grid_change_site: { action: 'add', kind: 'tree', at: '1,-2', canopy: 4, out: 'treed.json' },
     grid_save_view: { name: 'Garden corner', camera: { target: { room: null, point: [5, 4, 1] }, bearing: 135, tilt: 30, distance: 20, lens: { focalLength: 35 }, cut: null }, out: 'viewed.json' },
   }
 

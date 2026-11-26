@@ -318,10 +318,38 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_place_item', { plan: '@', name: 'wc', x: 1, y: 1 }), given: asIs },
     { arg: 'out', call: tool('grid_place_item', { plan: PLAN, name: 'wc', x: 1, y: 1, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // WRT-73: phases set on the plan, and one plan with phases written from a before and an after.
+  grid_set_phase: [
+    { arg: 'plan', call: tool('grid_set_phase', { plan: '@', phase: 'new', parts: ['bed2-door'] }), given: asIs },
+    { arg: 'out', call: tool('grid_set_phase', { plan: PLAN, phase: 'new', parts: ['bed2-door'], out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_start_works: [
+    { arg: 'plan', call: tool('grid_start_works', { plan: '@' }), given: asIs },
+    { arg: 'out', call: tool('grid_start_works', { plan: PLAN, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_phase_from: [
+    { arg: 'before', call: tool('grid_phase_from', { before: '@', after: PLAN, out: 'works.json' }), given: asIs },
+    { arg: 'after', call: tool('grid_phase_from', { before: PLAN, after: '@', out: 'works.json' }), given: asIs },
+    { arg: 'out', call: tool('grid_phase_from', { before: PLAN, after: PLAN, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // WRT-36: grid tidy on the tool server.
   grid_tidy: [
     { arg: 'plan', call: tool('grid_tidy', { plan: '@' }), given: asIs },
     { arg: 'out', call: tool('grid_tidy', { plan: PLAN, all: true, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  // WRT-74: facts and a room's number, written into the plan.
+  grid_set_facts: [
+    { arg: 'plan', call: tool('grid_set_facts', { plan: '@', parts: ['lounge'], set: { department: 'Sales' } }), given: asIs },
+    { arg: 'out', call: tool('grid_set_facts', { plan: PLAN, parts: ['lounge'], set: { department: 'Sales' }, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  // CNT-41: the plot and the site's things, written into the plan.
+  grid_set_site: [
+    { arg: 'plan', call: tool('grid_set_site', { plan: '@', north: 30 }), given: asIs },
+    { arg: 'out', call: tool('grid_set_site', { plan: PLAN, north: 30, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_change_site: [
+    { arg: 'plan', call: tool('grid_change_site', { plan: '@', action: 'add', kind: 'tree', at: '1,1' }), given: asIs },
+    { arg: 'out', call: tool('grid_change_site', { plan: PLAN, action: 'add', kind: 'tree', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
   ],
   // VEW-3: a camera saved by name, written into the plan.
   grid_save_view: [
@@ -409,7 +437,7 @@ describe('the slots this file lists', () => {
   })
 
   it('cover every tool argument that is a path, and no other', async () => {
-    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile']
+    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after']
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
       .filter((arg) => PATH_ARGS.includes(arg))

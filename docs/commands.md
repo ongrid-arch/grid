@@ -33,17 +33,17 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid write <plan.rooms> \| --layout tidy\|sizes [--plan <plan.json>] [--replace] [--json]` | Writes a plan from rooms text, the main way to write one: Grid works out the walls (see [Writing a plan rooms first](rooms-first.md)). With a brief beside the plan, it says each line met or missed ([the brief](brief.md)). `--layout`, in place of the rooms file, writes a first layout from the brief, in a rectangle (`tidy`) or keeping every size (`sizes`), with each size not kept and by how much ([A first layout from the brief](brief.md#a-first-layout-from-the-brief)) |
 | `grid write --scan <scan.json> [--plan <plan.json>] [--replace] [--json]` | Writes a plan from a phone room scan, and keeps the scan beside it as `<plan>.scan.json` (see below) |
 | `grid check [<plan>] [--floor <id>] [--country <place>] [--full] [--json] [--seen <n> --reason <text> --by <name> \| --unseen <n>]` | Prints the report, short and about this plan unless `--full`. Every report is labelled "General guidance, not your local rules". `--country` names the place for this check, in place of the plan's `site.country`. `--seen` sets a note aside as seen (see below). With `firm-standards.json` beside the plan, the firm's own standards are set against it too, under their own heading ([a firm's own standards](firm-standards.md)) |
-| `grid describe [<plan>] [--length line\|rooms\|walls\|walk] [--for person\|agent] [--as rooms] [--floor <id>] [--pictures <folder>]` | Describes the plan in a few lines: its rooms, which rooms each opening joins, with `--length walls` its walls, and with `--length walk` the plan walked room by room, with `--pictures` a picture from each doorway (see below). `--as rooms` reads it back as rooms text |
+| `grid describe [<plan>] [--length line\|rooms\|walls\|walk] [--for person\|agent] [--as rooms] [--floor <id>] [--pictures <folder>]` | Describes the plan in a few lines: its rooms, which rooms each opening joins, with `--length walls` its walls, and with `--length walk` the plan walked room by room, with `--pictures` a picture from each doorway (see below). `--as rooms` reads it back as rooms text, each room's number and facts on its line (WRT-74) |
 | `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor; to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section and schedule marks to a plan (see below) |
 | `grid export [<plan>] --format dxf\|ifc\|glb\|obj [--floor <id>] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
 | `grid sheet [<plan>] [--layout client\|check] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
 | `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--split] [--room-sizes on\|off] [--out <file.pdf>]` | Writes every floor (or one) at one true scale as a vector PDF of a page each, and an SVG and a PNG of each page, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
-| `grid edit <verb> [<plan>] [options]` | Changes the plan, one sentence of request a command: `opening`, `wall` (one wall's thickness), `type` (one named wall, door or window type, which every part of it takes; a list option such as `--parts` takes its items split at commas), `move-side`, `merge`, `split`, `add-room`, `stretch`, `rename`, `mirror` (`--how left-right`, or `--turn 90` to turn the plan a quarter, counter-clockwise as Grid draws it), `square` (squares a scanned plan and says how far each wall moved), `place` (a fixture, furniture or a typical room from the library by name, [library.md](library.md)), `add-opening` (a door, window or doorless opening in a side of a room or the wall between two rooms), each the tool of that name in [the tool server](tool-server.md) with the same options (`grid edit <verb> --help`), and the same lines of [the brief](brief.md) |
+| `grid edit <verb> [<plan>] [options]` | Changes the plan, one sentence of request a command: `opening`, `wall` (one wall's thickness), `type` (one named wall, door or window type, which every part of it takes; a list option such as `--parts` takes its items split at commas), `move-side`, `merge`, `split`, `add-room`, `stretch`, `rename`, `mirror` (`--how left-right`, or `--turn 90` to turn the plan a quarter, counter-clockwise as Grid draws it), `square` (squares a scanned plan and says how far each wall moved), `place` (a fixture, furniture or a typical room from the library by name, [library.md](library.md)), `add-opening` (a door, window or doorless opening in a side of a room or the wall between two rooms), `phase` (walls, doors, windows and rooms marked existing, demolished or new), `start-works` (the plan as it stands marked existing) and `phase-from` (one plan with phases from `--before` and `--after`), each the tool of that name in [the tool server](tool-server.md) with the same options (`grid edit <verb> --help`), and the same lines of [the brief](brief.md) |
 | `grid mark [<name>] [<plan.json>] [--plan <plan.json>] [--remove]` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside it, for `grid diff` to compare with: no git needed. At most 5 (see below) |
 | `grid diff [<plan>] [--since <name>\|git\|phase] [--rooms <ids>] [--show all\|summary\|changes\|issues] [--picture\|--out <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
 | `grid occupancy [<plan>]` | Lists who sits where, by room, from the occupancy file beside the plan; no export carries it (see below) |
 | `grid preview [<plan>] [--port <n>]` | Serves the preview as a page on this computer only: the plan in 2D and 3D, the part you click shared with the agent, the room it frames and the parts it picks out; it draws again within 2 s of the plan changing (see below) |
-| `grid serve` | Starts the tool server on standard input and output, with the 38 tools in [the tool server](tool-server.md) |
+| `grid serve` | Starts the tool server on standard input and output, with the 44 tools in [the tool server](tool-server.md) |
 | `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`) |
 
 A plan is told by what it holds: a list of walls, rooms or openings, or the stamp Grid writes. `grid write` never
@@ -138,7 +138,8 @@ An export's file name comes from the plan file's name, never from text inside th
 Grid sanitises it rather than refusing it, and says so on standard error: a name Windows
 keeps for a device gets `plan-` in front (`plan-con.dxf`); a name longer than five words or
 40 characters, or one that reads as a claim about the plan or an instruction, becomes
-`floor-plan`; one floor of several is named by its place in the plan (`house-floor-2.dxf`).
+`floor-plan`; one floor of several is named by its place in the plan (`house-floor-2.dxf`), and
+a GLB or OBJ of the whole building by the plan alone (`house.glb`).
 
 Every export writes the plan's walls, rooms and openings in id order (`w2` before `w10`), so the
 same building gives the same bytes whatever order its file lists them in, and two exports can be
@@ -179,9 +180,30 @@ the file says so beside what it leaves out, with how far off the pieces are at m
 set `Grid_Approximated` in an IFC, the `GRID-LEFT-OUT` layer in a DXF, comment lines in an OBJ and
 `asset.extras.gridApproximated` in a GLB. A plan with no curved wall gets none of it.
 
-DXF, OBJ and GLB hold one floor: they name what is left out of that floor, every opening no
-floor holds, and every part the reader left out, which Grid cannot place on a floor. The IFC
-names what is left out of every floor.
+A DXF holds one floor, and so do an OBJ and a GLB when `--floor` names one: they name what is left
+out of that floor, every opening no floor holds, and every part the reader left out, which Grid
+cannot place on a floor. The IFC, and an OBJ or GLB of the whole building, name what is left out of
+every floor.
+
+### Every floor in one 3D file (VEW-64)
+
+With no `--floor`, a GLB or an OBJ holds the whole building, as the 3D view stacks it: every floor
+with its walls, rooms, openings, stairs, slab, roof and parapet, each floor at its elevation (its
+floor level above the ground floor's, the same levels the 3D view and the IFC use).
+
+- GLB: one root node, `building`, with one child node per floor, lowest first, named by the
+  floor's id and moved up to its elevation (`translation` `[0, elevation, 0]`), its parts below it,
+  and `extras.gridFloor` and `extras.gridElevation` on it. A plan at survey coordinates keeps its
+  site offset on the root node (HND-11).
+- OBJ: OBJ has no nodes, so every point is written at its height in the building (Z), and each
+  floor's objects follow a comment line `# grid-floor "<id>" elevation=<metres>`. No `g` lines.
+- `--floor <id>` writes that floor alone, still at its elevation: in a GLB its node is the root and
+  carries the elevation (and the site offset), in an OBJ the points do. Files of single floors
+  dropped into one scene land where they belong.
+
+For a plan of several floors the command says on standard error, in one line, which floors the
+file holds and at what height, and how many of the plan's floors it does not hold, so a file of
+one floor never reads as the whole building. A DXF says the same of its one floor.
 
 The views validate each floor on its own, so a wall id written on two floors is drawn and
 exported on each, while `grid check`, which validates the whole plan, says the id is used twice
@@ -891,9 +913,15 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   a stair room with no stated stair, a stair's worked-out risers and the waist its flights are
   drawn with are listed, not hatched.
   `grid draw` says on standard error how many it hatched and listed.
-- **A roof the floor states** (`floors[].roof`, LVL-6) stands at its eaves. A section does not
-  draw a sloped roof's slope yet, nor cut the walls under it to the roof: it draws the roof flat
-  at its eaves, hatched, and says so in the list.
+- **A roof the floor states** (`floors[].roof`, LVL-6): a flat one stands at its eaves. A sloped
+  one (LVL-20) is cut along its slopes from the eaves to the ridge, and up over its dormers, a band
+  as thick as Grid takes a roof (0.25 m, square to the slope), hatched; its edges beyond are drawn
+  along the slope, and its eaves and ridge are marked on the right instead of one roof level. The
+  walls under it are cut, and seen, up to the roof's underside over their line: an outside wall
+  rises to it whatever height it states, so a gable end is closed, and the walls raised past their
+  stated height are listed. A room under it that states no height is as high as the roof leaves it
+  at its highest (the height `grid_measure what=room` gives), and its headroom bands, 1.5 m and
+  2.2 m, are dashed lines over its floor where it has that much height.
 
 A section cuts every floor and writes its levels in metres, so `--floor`, `--hide`, `--colour`,
 `--key`, `--ids`, `--units` and `--decimal` are refused with it, by name; so are `--3d`,
@@ -982,9 +1010,26 @@ outside face of its walls, as in the 3D model and the section: the plan states n
 `exports/` beside the plan (`<name>-client.pdf` or `<name>-check.pdf`), or to the `.pdf` that
 `--out` names.
 
-- `client` is a presentation for the person the house is for: a cover with the name, a headline,
-  a few paragraphs, the 3D picture and four figures (gross area, floors, bedrooms, floor-to-floor
-  height), then a page per floor with its drawing, its room areas and its own paragraphs.
+- `client` is a presentation for the person the building is for: a cover with the name, a
+  headline, a few paragraphs, the 3D picture and up to six figures, then a page per floor with its
+  drawing, its room areas and its own paragraphs (SHT-21):
+  - The cover's figures start with the gross area and go on with the figures of the plan's kind
+    of building (`building`, and each floor's own): homes and bedrooms for a home or a block of
+    flats, guest rooms for a hotel, beds and operating theatres for health, platforms and gates
+    for transport, classrooms for a school, seats and the clear height of the hall for culture and
+    assembly, loading doors (a roller or garage door in an outside wall) and the clear height of
+    the tallest room for a warehouse or industry, cells for custody, parking spaces for a car park.
+    A plan that states no kind shows each count only where there is one. Then the floors, the
+    floor to floor and the height to the roof, the gross external area and, with a site boundary,
+    the floor area ratio (gross external area over the site's). Floors are counted, and floor to
+    floor taken, by whole storeys: a mezzanine or a terrace inside a taller storey is set aside.
+    Figures past six are one line under them, and the rounding rule is said once.
+  - Three or more rooms of one use, of one net area, whose names differ only by a number at the
+    end are one row of the floor's table: `60 × Bedroom`, the area of each and their sum.
+  - Floors that are alike (the same walls, openings, items, stairs and rooms at the same places,
+    ids and numbers aside) are printed once as a typical floor, whose subtitle names the floors it
+    stands for; a floor with its own words in sheet.json, or with a part left out, keeps its page.
+    When floors were folded, an area schedule by floor page and by use follows them.
 - `check` is a working set for the person checking the plan: a summary in plain words with the
   number of findings and the three areas, then a page per floor with every room, door and window
   id on the drawing, the area of each room with its use, and every finding on that floor.

@@ -32,12 +32,12 @@ import { wallPlanSlices } from './wall'
 import { nearestFloorId } from './levels'
 import { metresText } from './rounding'
 import type { Issue } from './validate'
-import { ITEM_KIND_DEFINITIONS, isItemKind, isOwnItemKind, itemKindDefinition, itemKinds, takesFloor, type ItemSymbol, type SymbolPen } from './itemKinds'
+import { ITEM_KIND_DEFINITIONS, isItemKind, isOwnItemKind, itemKindDefinition, itemKinds, liesUnderfoot, takesFloor, type ItemBlock, type ItemSymbol, type SymbolPen } from './itemKinds'
 import { BUILT_IN_ITEMS, builtInItem } from '../library/builtIn'
 import { likelyId } from '../types/nearest'
 
 export { ITEM_KINDS, type Item, type ItemKind } from '../types/floorplan'
-export { isItemKind, type ItemSymbol } from './itemKinds'
+export { isItemKind, type ItemBlock, type ItemSymbol } from './itemKinds'
 
 /** What a person calls each of Grid's own kinds, in a sentence (`itemKindWord` for any kind). */
 export const ITEM_KIND_WORDS: Readonly<Record<ItemKind, string>> = Object.fromEntries(ITEM_KIND_DEFINITIONS.map((d) => [d.kind, d.word])) as Record<ItemKind, string>
@@ -189,6 +189,21 @@ export function itemSymbol(item: Item): ItemSymbol | null {
  */
 export function itemBlockSymbol(item: Item): ItemSymbol | null {
   return itemSymbol({ ...item, at: [0, 0], turn: 0 })
+}
+
+/**
+ * CNT-42: the blocks an item is raised as in 3D, by its kind's entry in the registry: each inside
+ * its footprint, between the floor it stands on (0) and its height. Unless the kind says how,
+ * its footprint, solid from the floor to its height. Empty for a kind Grid does not hold.
+ */
+export function itemSolid(item: Item): ItemBlock[] {
+  const definition = itemKindDefinition(item.kind)
+  if (definition === undefined) return []
+  const pen = penOf(frameOf(item))
+  const blocks = definition.solid?.(pen, item.height) ?? [{ outline: itemFootprint(item), bottom: 0, top: item.height }]
+  return blocks
+    .map((b) => ({ outline: b.outline, bottom: Math.max(0, b.bottom), top: Math.min(item.height, b.top) }))
+    .filter((b) => b.top > b.bottom && b.outline.length >= 3)
 }
 
 // ── The floor it takes ───────────────────────────────────────────────────────────────────────
@@ -490,6 +505,8 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
     for (let j = 0; j < i; j++) {
       const b = footprints[j]!
       if (floorOf(a.item) !== floorOf(b.item) || !meet(a.box, b.box)) continue
+      // CNT-42: a rug lies on the floor, so what stands on it is not standing in it.
+      if (liesUnderfoot(a.item.kind) || liesUnderfoot(b.item.kind)) continue
       const depth = convexPenetration(a.footprint, b.footprint)
       if (depth <= tolerance('itemOverlap')) continue
       issues.push(hitIssue(a.item.id, 'item/overlap', said('issue.item/overlap', { item: itemNounSaid(a.item), other: itemNameSaid(b.item), depth: m(depth) }), [b.item.id]))
@@ -500,7 +517,7 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
     const zone = itemClearanceZone(item)
     const zoneBox = boundsOf(zone)
     const walls = wallsRunInto(zone, wallsByFloor.get(floorOf(item)) ?? [])
-    const others = footprints.filter((o) => o.item.id !== item.id && floorOf(o.item) === floorOf(item) && meet(zoneBox, o.box) && convexPenetration(zone, o.footprint) > tolerance('itemOverlap'))
+    const others = footprints.filter((o) => o.item.id !== item.id && !liesUnderfoot(o.item.kind) && floorOf(o.item) === floorOf(item) && meet(zoneBox, o.box) && convexPenetration(zone, o.footprint) > tolerance('itemOverlap'))
     if (walls.length === 0 && others.length === 0) continue
     const what = joined(
       [...others.map((o) => itemNameSaid(o.item)), ...walls.map((w) => said('issue.item/clearance-blocked.wall', { wall: name(w.wall) }))],

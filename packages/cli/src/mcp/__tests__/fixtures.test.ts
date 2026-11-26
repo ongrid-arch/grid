@@ -49,6 +49,15 @@ beforeAll(() => {
     'clash.json': plan([{ ...FIXTURES[0], at: [3, 0.3] }, { ...FIXTURES[1], height: 3 }]),
     // CNT-20: a table is furniture now; a piano is a kind Grid does not hold.
     'table.json': plan([{ id: 't1', kind: 'piano', at: [3, 2], size: [1.6, 0.9], height: 0.75 }]),
+    // CNT-42: a fit-out's desks, counted as desks, and a rug and a chest of drawers in the front doorway.
+    'office.json': plan([
+      { id: 'desk1', library: 'desk', at: [2, 3.6] },
+      { id: 'desk2', library: 'desk', at: [3.4, 3.6] },
+      { id: 'stool', library: 'stool', at: [4.6, 2] },
+      { id: 'mat', library: 'rug', at: [1, 1] },
+    ]),
+    'chest.json': plan([{ id: 'chest', kind: 'storage', at: [0.95, 0.45], size: [0.9, 0.5], height: 0.8 }]),
+    'mat.json': plan([{ id: 'mat', kind: 'rug', at: [0.95, 0.45], size: [0.9, 0.5], height: 0.01 }]),
   })
 })
 afterAll(() => b.close())
@@ -66,9 +75,14 @@ describe('count by kind (grid_schedule)', () => {
     expect(reply.text).toContain('Island "island" (kitchen-run), in "Kitchen"')
     expect(reply.text).not.toContain('In all:')
     // CNT-20: every kind the registry holds is counted, furniture too.
-    expect(reply.data!['fixtureCounts']).toEqual({ toilet: 1, basin: 1, shower: 0, bath: 0, 'kitchen-run': 2, bed: 0, table: 0, chair: 0, sofa: 0, storage: 0 })
+    expect(reply.data!['fixtureCounts']).toEqual({ toilet: 1, basin: 1, shower: 0, bath: 0, 'kitchen-run': 2, bed: 0, table: 0, chair: 0, sofa: 0, storage: 0, armchair: 0, stool: 0, desk: 0, rug: 0, plant: 0 })
     const rooms = (reply.data!['fixtures'] as { id: string; room: string }[]).map((f) => [f.id, f.room])
     expect(rooms).toEqual([['run', 'kitchen'], ['island', 'kitchen'], ['wc', 'bath'], ['basin', 'bath']])
+  })
+
+  it('counts desks, a stool and a rug each as its own kind (CNT-42)', async () => {
+    const reply = await ok('grid_schedule', { plan: 'office.json', types: ['fixture'] })
+    expect(reply.data!['fixtureCounts']).toMatchObject({ table: 0, chair: 0, desk: 2, stool: 1, rug: 1 })
   })
 
   it('keeps the doors and windows schedule as it was for a plan with no fixtures', async () => {
@@ -130,6 +144,12 @@ describe('the gap between fixtures (grid_measure)', () => {
     expect(gap.text).toContain('From kitchen run "run" to Island "island": 1.35 m clear')
     const wall = await ok('grid_measure', { plan: 'fitted.json', what: 'between', from: 'island', to: 'n1' })
     expect((wall.data!['answer'] as { distance: number }).distance).toBeCloseTo(3.9 - 2.95, 9)
+  })
+
+  it('measures a way through a doorway a rug lies in as if it were bare, and not one a chest stands in (CNT-42)', async () => {
+    const route = async (file: string): Promise<unknown> => (await ok('grid_measure', { plan: file, what: 'route', room: 'kitchen', to: 'outside', width: 0.7 })).data!['answer']
+    expect(await route('mat.json')).toEqual(await route('empty.json'))
+    expect(await route('chest.json')).not.toEqual(await route('empty.json'))
   })
 
   it('fits a box clear of the room\'s fixtures', async () => {

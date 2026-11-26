@@ -56,3 +56,59 @@ describe('grid_export says what the file leaves out (HND-6)', () => {
     expect(existsSync(join(b.folder, 'exports', 'empty.glb'))).toBe(false)
   })
 })
+
+/** A GLB's JSON chunk, the first after its 12-byte header. */
+function glbJson(bytes: Buffer): { scenes: { nodes: number[] }[]; nodes: { name?: string; children?: number[]; translation?: number[] }[] } {
+  return JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString('utf8')) as ReturnType<typeof glbJson>
+}
+
+const house = JSON.parse(readFileSync(resolve(__dirname, '../../../fixtures/two-floor-house.json'), 'utf8')) as Record<string, unknown>
+
+describe('grid_export holds the whole building in a glb or obj (VEW-64)', () => {
+  const b = bench({ 'house.json': house })
+  afterAll(() => b.close())
+
+  it('writes every floor under one root and says so, leaving no floor out', async () => {
+    const reply = await b.call('grid_export', { plan: 'house.json', format: 'glb' })
+    expect(reply.isError).toBe(false)
+    const floors = reply.data!['floors'] as { id: string; elevation: number }[]
+    expect(floors.map((floor) => floor.id)).toEqual(['ground', 'first'])
+    expect(floors[0]!.elevation).toBe(0)
+    expect(floors[1]!.elevation).toBeGreaterThan(2)
+    expect(reply.data!['floorsLeftOut']).toEqual([])
+    expect(reply.data!['written']).toBe('exports/house.glb')
+    expect(reply.text).toContain('Holds all 2 floors of the plan, each a node named by its id and raised to its elevation, under one root node, "building".')
+    const glb = glbJson(readFileSync(join(b.folder, 'exports', 'house.glb')))
+    const nodes = glb.nodes
+    const root = nodes[glb.scenes[0]!.nodes[0]!]!
+    expect(root.name).toBe('building')
+    expect(root.children!.map((i) => nodes[i]!.name)).toEqual(['ground', 'first'])
+    expect(nodes.find((node) => node.name === 'first')!.translation).toEqual([0, floors[1]!.elevation, 0])
+  })
+
+  it('writes one floor at its elevation when one is named, and names the floor it leaves out', async () => {
+    const reply = await b.call('grid_export', { plan: 'house.json', format: 'obj', floor: 'first' })
+    expect(reply.isError).toBe(false)
+    expect(reply.data!['floorsLeftOut']).toEqual(['ground'])
+    expect(reply.data!['written']).toBe('exports/house-floor-2.obj')
+    expect(reply.text).toMatch(/^Holds floor "first" only, written at its elevation, \d+\.\d\d m; the other floor is not in this file: leave the floor out to export the whole building\.$/m)
+  })
+
+  it('says a dxf holds one floor, the ground floor when none is named', async () => {
+    const reply = await b.call('grid_export', { plan: 'house.json', format: 'dxf' })
+    expect(reply.data!['floors']).toEqual([{ id: 'ground', elevation: 0 }])
+    expect(reply.data!['floorsLeftOut']).toEqual(['first'])
+    expect(reply.text).toContain('Holds floor "ground" only, as a DXF holds one floor; the other floor is not in this file: export each one with its floor.')
+  })
+
+  it('says nothing of floors for a plan of one floor', async () => {
+    const flat = bench({ 'plan.json': sample })
+    try {
+      const reply = await flat.call('grid_export', { plan: 'plan.json', format: 'glb' })
+      expect(reply.data!['floors']).toEqual([{ id: 'ground', elevation: 0 }])
+      expect(reply.text).not.toContain('Holds')
+    } finally {
+      flat.close()
+    }
+  })
+})

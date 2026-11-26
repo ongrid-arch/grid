@@ -121,6 +121,15 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   `room s "Store" storage 2 x 2 east of k unconditioned` takes an unheated store out. Unstated, a
   parking room is not under air and every other room is. Outdoor space never is: either word on
   its line is read as nothing, and the answer says so (`rooms/conditioned-outdoor`).
+- `number "2.03"` on a room line states its room number, `dept "ED"` its department (the fact
+  `department`) and `facts department=Sales capacity=4 "head count"=8` facts of the person's own
+  (WRT-74, [the plan file](plan-file.md#facts-of-your-own-and-room-numbers)). A value in quotes is
+  text; one out of quotes is a number when it reads as one (`4`, not `007`), yes or no for `yes`,
+  `no`, `true` or `false`, and text otherwise. A fact given twice, under any spelling, or with no
+  value is refused, and so are the three words in a unit, which is placed many times: give each
+  placed room its own with `grid_set_facts`, by its id. `grid describe --as rooms` writes a room's
+  number and facts on its line; one it could not write so that it reads back the same is kept by
+  id when the text is written again, as before.
 - `outdoor terrace` on a room line marks it as outdoor space (CNT-7), one of `garden`,
   `courtyard`, `terrace`, `balcony`, `light-well`, `porch`, `carport` or `other`, and `roofed` or
   `unroofed` after it says whether a roof covers it; unstated, a porch and a carport are roofed.
@@ -274,8 +283,8 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   `"arc": {"centre": [x, y], "sweep": <degrees>}`, never `bulge` or `spline`, and facts of your
   own go in `"properties"`. A `raw floor` field the floor does not take is named too (a height is
   written on the floor line). Raw takes `wall`, `room`, `opening` or `floor`: `raw door` is told
-  it is a raw opening, `raw stair`, `raw column`, `raw fixture` and `raw site` that the plan file
-  holds them in its own lists (`rooms/raw`), however `raw` is written: `Raw stair` is told the
+  it is a raw opening, `raw stair`, `raw column` and `raw fixture` that the plan file
+  holds them in its own lists, and `raw site` that the site has lines of its own (`rooms/raw`), however `raw` is written: `Raw stair` is told the
   same, and `Raw wall {...}` is refused offering `raw wall`, as rooms text is read in small
   letters (WRT-68). A `plan` line takes one name, in quotes when it has
   spaces, and words after it are refused (`rooms/syntax`); a wall line naming no room of its
@@ -443,13 +452,14 @@ Every line rooms text takes, by topic, each with one example Grid writes with no
 
 ### Rooms
 
-room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room's south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls.
+room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room's south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls. number "<text>", dept <text> and facts <name>=<value> ... give it its room number, its department and facts of the person's own.
 
 ```rooms
 walls outside 0.3 inside 0.1 height 2.7
 room living "Living room" living 5.0 x 4.0 at 0,0
 room kitchen "Kitchen" kitchen 3.0 x 4.0 east of living
 room hall "Hall" corridor * x 1.2 north of living until kitchen
+room office "Office" office 3.0 x 3.0 west of living number "2.03" facts department=Sales capacity=4
 ```
 
 ### Openings
@@ -504,7 +514,7 @@ raw room {"id": "apse-room", "name": "Apse", "use": "assembly", "boundary": ["ap
 
 ### Raw parts
 
-raw wall|room|opening {...} writes one part as Grid's own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms' boundaries name, or the one facing <side>). Stairs, columns, fixtures, site things, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text.
+raw wall|room|opening {...} writes one part as Grid's own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms' boundaries name, or the one facing <side>). Stairs, columns, fixtures, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text; the site has lines of its own (below).
 
 ```rooms
 raw wall {"id": "s", "start": [0, 0], "end": [4, 0], "thickness": 0.2, "height": 3, "kind": "exterior"}
@@ -575,6 +585,22 @@ end
 repeat cell 4 east as 101 at 0,0
 room corridor "Corridor" corridor * x 1.5 north of 101 until 104
 repeat cell 4 east as 105 north of corridor mirror north-south
+```
+
+### Site
+
+plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m>, site ground <m> and site country <name> say where it is. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
+
+```rooms
+room house "House" living 8.0 x 9.0 at 0,0
+door front in house south, centred, 0.9 wide, opens in
+plot 15 x 30 at -3.5,-10
+street south
+setback street 5
+setback all 2
+north 30 clockwise
+site tree oak at 9,15 canopy 5 "Old oak"
+site pool pool 0,12 3,12 3,18 0,18
 ```
 
 ### Other lines

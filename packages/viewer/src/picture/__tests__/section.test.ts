@@ -240,3 +240,28 @@ describe('a section line that misses the building or ends inside it (VEW-38)', (
     expect(textsOf(svg, 'section-reach').join(' ')).toContain('cuts nothing of the building')
   })
 })
+
+describe('a section under a sloped roof (LVL-20)', () => {
+  const wall = (id: string, start: number[], end: number[]) => ({ id, start, end, thickness: 0.3, kind: 'exterior', height: 1 })
+  const loft = () =>
+    parseFloorPlan({
+      floors: [{ id: 'ground', name: 'Loft', level: 0, roof: { shape: 'gable', eaves: 1, ridge: 3, ridgeRuns: 'east-west' } }],
+      walls: [wall('s', [0, 0], [8, 0]), wall('e', [8, 0], [8, 6]), wall('n', [8, 6], [0, 6]), wall('w', [0, 6], [0, 0])],
+      rooms: [{ id: 'r', name: 'Loft room', boundary: ['s', 'e', 'n', 'w'], use: 'bedroom' }],
+      openings: []
+    })
+  const svg = () => pictureToSvg(sectionPicture(loft(), { from: { x: 4, y: -2 }, to: { x: 4, y: 8 }, toward: 'left' }))
+
+  it('marks the eaves and the ridge instead of one roof level', () => {
+    const drawn = svg()
+    expect(textsOf(drawn, 'section-eaves-level')).toEqual([`${levelText(1)} Eaves`])
+    expect(textsOf(drawn, 'section-ridge-level')).toEqual([`${levelText(3)} Ridge`])
+    expect(tagsOf(drawn, 'section-roof-level')).toEqual([])
+  })
+
+  it('draws each headroom band over the room, with its figure', () => {
+    const drawn = svg()
+    expect(tagsOf(drawn, 'section-headroom').map((tag) => attr(tag, 'data-height'))).toEqual(['1.5', '2.2'])
+    expect(textsOf(drawn, 'section-headroom')).toEqual(['1.50 m headroom', '2.20 m headroom'])
+  })
+})

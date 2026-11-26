@@ -10,9 +10,9 @@ import { flat } from '../../test-support/plans'
 import type { FloorPlan } from '../plan'
 import { validatePlan } from '../validate'
 import { buildFloorPlan } from '../floorplan'
-import { itemFloorTaken, itemFootprint, itemSymbol, roomShapes } from '../items'
+import { itemFloorTaken, itemFootprint, itemSolid, itemSymbol, roomShapes } from '../items'
 import { indexPlan } from '../plan'
-import { ITEM_KIND_DEFINITIONS, ItemKindRefused, isItemKind, itemKinds, registerItemKind, takesFloor, type ItemKindDefinition } from '../itemKinds'
+import { ITEM_KIND_DEFINITIONS, ItemKindRefused, isItemKind, itemKinds, liesUnderfoot, registerItemKind, takesFloor, type ItemKindDefinition } from '../itemKinds'
 import { toDxf } from '../export/dxf'
 import { toIfc } from '../export/ifc'
 
@@ -59,7 +59,10 @@ describe('the kinds registry', () => {
   it('holds Grid\'s own kinds, fixtures first, in ITEM_KINDS order', () => {
     expect(ITEM_KIND_DEFINITIONS.map((d) => d.kind)).toEqual([...ITEM_KINDS])
     expect(itemKinds('fixture')).toEqual(['toilet', 'basin', 'shower', 'bath', 'kitchen-run'])
-    expect(itemKinds('furniture')).toEqual(['bed', 'table', 'chair', 'sofa', 'storage'])
+    expect(itemKinds('furniture')).toEqual(['bed', 'table', 'chair', 'sofa', 'storage', 'armchair', 'stool', 'desk', 'rug', 'plant'])
+    expect(takesFloor('desk')).toBe(false)
+    expect(liesUnderfoot('rug')).toBe(true)
+    expect(ITEM_KINDS.filter(liesUnderfoot)).toEqual(['rug'])
     expect(takesFloor('bath')).toBe(true)
     expect(takesFloor('bed')).toBe(false)
   })
@@ -78,6 +81,35 @@ describe('the kinds registry', () => {
         expect(p.y, kind).toBeLessThanOrEqual(Math.max(...ys) + 1e-9)
       }
     }
+  })
+
+  it('raises every one of Grid\'s kinds in 3D inside its footprint, from its floor to no higher than its height (CNT-42)', () => {
+    for (const kind of ITEM_KINDS) {
+      const item: Item = { id: kind, kind, at: [3, 4], size: [1.2, 0.8], height: 0.8, turn: 30 }
+      const blocks = itemSolid(item)
+      expect(blocks.length, kind).toBeGreaterThan(0)
+      const foot = itemFootprint(item)
+      const xs = foot.map((p) => p.x)
+      const ys = foot.map((p) => p.y)
+      for (const block of blocks) {
+        expect(block.bottom, kind).toBeGreaterThanOrEqual(0)
+        expect(block.top, kind).toBeLessThanOrEqual(item.height + 1e-12)
+        expect(block.top, kind).toBeGreaterThan(block.bottom)
+        // Counter-clockwise, so the faces of its solid point out.
+        const area = block.outline.reduce((sum, p, i) => { const q = block.outline[(i + 1) % block.outline.length]!; return sum + p.x * q.y - q.x * p.y }, 0)
+        expect(area, kind).toBeGreaterThan(0)
+        for (const p of block.outline) {
+          expect(p.x, kind).toBeGreaterThanOrEqual(Math.min(...xs) - 1e-9)
+          expect(p.x, kind).toBeLessThanOrEqual(Math.max(...xs) + 1e-9)
+          expect(p.y, kind).toBeGreaterThanOrEqual(Math.min(...ys) - 1e-9)
+          expect(p.y, kind).toBeLessThanOrEqual(Math.max(...ys) + 1e-9)
+        }
+      }
+      expect(Math.max(...blocks.map((b) => b.top)), kind).toBeGreaterThan(0)
+    }
+    // A kind that says nothing of its solid is its footprint, from the floor to its height.
+    expect(itemSolid({ id: 'w', kind: 'storage', at: [1, 1], size: [1, 0.6], height: 2 })).toEqual([{ outline: itemFootprint({ id: 'w', kind: 'storage', at: [1, 1], size: [1, 0.6], height: 2 }), bottom: 0, top: 2 }])
+    expect(itemSolid({ id: 'x', kind: 'piano', at: [1, 1], size: [1, 0.6], height: 2 })).toEqual([])
   })
 
   it('takes a new kind in one call, and it reaches the drawing, the DXF, the IFC and the checks', () => {

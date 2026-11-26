@@ -16,10 +16,11 @@
  */
 
 import type { Scene3D } from '../scene3d'
-import { OPENING_PART_KINDS, columnMesh, floorMesh, makeNamer, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
+import { OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
 import type { Mesh } from './mesh'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { approximationLines, leftOutLines, leftOutSummary, type Approximations, type LeftOutPart } from './leftOut'
+import { english, said } from '../../messages/say'
 
 /** Avoids `-0.000000`, which readers parse and nobody wants to read. */
 function num(value: number): string {
@@ -42,28 +43,13 @@ function objComment(text: string): string {
   return `# ${text.replace(/[\p{Cc}\u2028\u2029]/gu, '')}`
 }
 
-/**
- * The scene as an OBJ document, one object per wall and per room, then the stairs, the columns (CNT-16), each door's
- * and window's frame, leaves and glass (CNT-14), and the floor's slab, roof and parapet (LVL-4).
- *
- * Pure and total: it never throws and never reads the filesystem. Whatever the
- * scene could not build is already absent from it, so a broken plan exports the
- * part that is sound — the same graceful degradation the canvases apply.
- */
-export function toObj(scene: Scene3D, options: ObjOptions = {}): string {
-  const lines = [`# ${GENERAL_GUIDANCE_LABEL}`, '# Grid floor plan', '# Units: metres. X and Y are the plan, Z is up.']
-  // HND-6: what the file leaves out, as comments after the header. Only when something is.
-  const leftOut = options.leftOut ?? []
-  if (leftOut.length > 0) lines.push(...[leftOutSummary(leftOut), ...leftOutLines(leftOut)].map(objComment))
-  if (options.approximations !== undefined) lines.push(...approximationLines(options.approximations).map(objComment))
-  const nameOf = makeNamer()
-  let offset = 0
-
+/** The objects of one scene, appended to `lines`: its points raised by `lift`, its faces after `offset` points. */
+function writeScene(scene: Scene3D, lines: string[], nameOf: (prefix: string, id: string) => string, offset: number, lift: number): number {
   const write = (prefix: string, id: string, mesh: Mesh | null): void => {
     if (!mesh) return
 
     lines.push(`o ${nameOf(prefix, id)}`)
-    for (const p of mesh.points) lines.push(`v ${num(p.x)} ${num(p.y)} ${num(p.z)}`)
+    for (const p of mesh.points) lines.push(`v ${num(p.x)} ${num(p.y)} ${num(p.z + lift)}`)
     // OBJ indices are 1-based and global across the whole file.
     for (const [a, b, c] of mesh.faces) {
       lines.push(`f ${offset + a + 1} ${offset + b + 1} ${offset + c + 1}`)
@@ -80,6 +66,8 @@ export function toObj(scene: Scene3D, options: ObjOptions = {}): string {
   for (const stair of scene.stairs) write('stair', stair.id, stairMesh(stair))
   // CNT-16: each column, once, whole.
   for (const column of scene.columns ?? []) write('column', column.id, columnMesh(column))
+  // CNT-42: each fixture and piece of furniture, as its kind's blocks.
+  for (const item of scene.items ?? []) write('item', item.id, itemMesh(item))
   // CNT-14: each door's and window's frame, leaves and glass.
   for (const opening of scene.openings) for (const part of OPENING_PART_KINDS) write(part, opening.id, openingPartMesh(opening, part))
   // LVL-4: the slab the floor stands on, its roof and its parapet.
@@ -89,6 +77,58 @@ export function toObj(scene: Scene3D, options: ObjOptions = {}): string {
     if (shell.roof) write('roof', shell.floor, shellMesh([shell.roof]))
     if (shell.parapet) write('parapet', shell.floor, shellMesh([shell.parapet]))
   }
+  return offset
+}
 
+/** The header, and what the file leaves out and writes as pieces, as comments. */
+function headerOf(options: ObjOptions): string[] {
+  const lines = [`# ${GENERAL_GUIDANCE_LABEL}`, '# Grid floor plan', '# Units: metres. X and Y are the plan, Z is up.']
+  // HND-6: what the file leaves out, as comments after the header. Only when something is.
+  const leftOut = options.leftOut ?? []
+  if (leftOut.length > 0) lines.push(...[leftOutSummary(leftOut), ...leftOutLines(leftOut)].map(objComment))
+  if (options.approximations !== undefined) lines.push(...approximationLines(options.approximations).map(objComment))
+  return lines
+}
+
+/**
+ * The scene as an OBJ document, one object per wall and per room, then the stairs, the columns (CNT-16), each door's
+ * and window's frame, leaves and glass (CNT-14), and the floor's slab, roof and parapet (LVL-4).
+ *
+ * Pure and total: it never throws and never reads the filesystem. Whatever the
+ * scene could not build is already absent from it, so a broken plan exports the
+ * part that is sound — the same graceful degradation the canvases apply.
+ */
+export function toObj(scene: Scene3D, options: ObjOptions = {}): string {
+  const lines = headerOf(options)
+  writeScene(scene, lines, makeNamer(), 0, 0)
+  return `${lines.join('\n')}\n`
+}
+
+/** VEW-64: one floor of a building: its id, where its floor level stands, and its scene. The GLB takes the same. */
+export interface StoreyScene {
+  readonly id: string
+  /** Metres: its floor level above the ground floor's (`floorElevations`). */
+  readonly elevation: number
+  /** The floor's scene, built at its own floor level (z = 0). */
+  readonly scene: Scene3D
+}
+
+/**
+ * VEW-64: floors stacked into one OBJ. OBJ has no nodes and no transforms, so each floor's points
+ * are written at its height in the building, and each floor's objects follow a comment line
+ * `# grid-floor "<id>" elevation=<metres>`. No `g` line groups them: some readers make one object
+ * of a group, which would melt a floor's walls into one. The header says the heights are the
+ * building's. One namer serves the file, so the parts of every floor keep names of their own.
+ */
+export function toBuildingObj(storeys: readonly StoreyScene[], options: ObjOptions = {}): string {
+  const lines = headerOf(options)
+  // MSG-11: a file's own words are the English of their keys.
+  lines.push(objComment(english(said('drawing.obj.stacked'))))
+  const nameOf = makeNamer()
+  let offset = 0
+  for (const storey of storeys) {
+    lines.push(objComment(`grid-floor ${JSON.stringify(storey.id)} elevation=${num(storey.elevation)}`))
+    offset = writeScene(storey.scene, lines, nameOf, offset, storey.elevation)
+  }
   return `${lines.join('\n')}\n`
 }

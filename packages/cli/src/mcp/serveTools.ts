@@ -3,7 +3,8 @@
  * plan first, ordered by the requests they answer most often (lab entry Y-2), with the problem
  * report last of them (CMD-13), then the preview and the preview page's own call (VEW-4), the export, the sheet, the start marker
  * (WRT-8), the seen mark (MSG-10), the brief (BRF-1), Grid's words in the person's language (MSG-24),
- * and last the tools that change the plan, the saved views last of them (VEW-3).
+ * and last the tools that change the plan, the site's two (CNT-41) and then the saved views last
+ * of them (VEW-3).
  *
  * Every path an agent passes goes through the project's resolver (`fs/projectFiles.ts`):
  * inside the project folder or refused, with a message naming the path and the folder. The
@@ -28,10 +29,14 @@ import { WRITE_TOOLS } from './writeTools'
 import { guideResources } from '../guide/resources'
 import { roomsGrammarMarkdown, ROOMS_GRAMMAR_URI } from './roomsGrammar'
 import { EDIT_TOOLS } from './editTools'
+import { PHASE_TOOLS } from './phaseTools'
 import { projectTool } from './projectTool'
+import { guardedRun, revisionLine, RevisionRefused, REVISION_DATA_NAME } from './revisions'
 import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
 import { tidyTool } from './tidyTool'
+import { setFactsTool } from './factsTool'
+import { SITE_TOOLS } from './siteTools'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -60,8 +65,14 @@ export const GRID_TOOLS: readonly GridTool[] = [
   wordsTool,
   ...WRITE_TOOLS.filter((tool) => tool.hint === 'change-plan'),
   ...EDIT_TOOLS,
+  // WRT-73: phases set without hand-editing: the plan as it stands as existing, parts by id or room, one plan from two.
+  ...PHASE_TOOLS,
   // WRT-36: grid tidy's fixes where walls meet, the last of the changes to the building.
   tidyTool,
+  // WRT-74: facts of the person's own and a room's number, which change no part of the building.
+  setFactsTool,
+  // CNT-41: the plot, north and the site's things: the ground, never the building.
+  ...SITE_TOOLS,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
   saveViewTool,
 ]
@@ -76,17 +87,28 @@ async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promi
     if (!Object.hasOwn(tool.args, PAGE_ARG_NAME)) delete args[PAGE_ARG_NAME]
     // MSG-24: no call says another plan's words: the plan a call reads hands its own (`languageFor`).
     setPlanWords(undefined)
+    // CMD-41: the plan's revision on every answer about it; a change queued, locked and held to based_on.
+    // The words tool writes the plan's display, so it is a change here too.
+    const writes = tool.hint === 'change-plan' || tool.name === WORDS_TOOL_NAME
     // MSG-24: the keys Grid said in a language with no word for them are said once, at the end.
-    const { result: made, keys } = await listenForKeys(() => tool.run(args, context))
+    const guarded = await guardedRun(tool, args, context, writes, () => listenForKeys(() => tool.run(args, context)))
+    const { result: made, keys } = guarded.answer
     const hint = tool.name === WORDS_TOOL_NAME ? null : wordsHint(keys, hasWording)
     const result = labelled(hint === null ? made : { ...made, text: `${made.text}\n${hint}` }, !LABEL_SILENT_TOOLS.has(tool.name))
     // CMD-22: the figures in the data are written as the text writes them, once, here.
     const shaped = shapedData(tool, args, result.data)
     // CMD-39: kept to the size an agent's host takes, unless asked for whole.
     const bounded = whole ? { text: result.text, data: shaped } : withinBudget(tool, args, result.text, shaped, page)
-    return { text: bounded.text, data: bounded.data, ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
+    const revised = guarded.revision === null || guarded.file === null ? null : { revision: guarded.revision, footnote: revisionLine(guarded.file, guarded.revision) }
+    return {
+      text: bounded.text,
+      data: revised === null ? bounded.data : { ...bounded.data, [REVISION_DATA_NAME]: revised.revision },
+      ...(result.image ? { image: result.image } : {}),
+      ...(result.images ? { images: result.images } : {}),
+      ...(revised === null ? {} : { footnote: revised.footnote }),
+    }
   } catch (error) {
-    if (error instanceof ToolRefusal || error instanceof PageRefused || error instanceof CanvasMissing || error instanceof FontsMissing) return { text: error.message, isError: true }
+    if (error instanceof ToolRefusal || error instanceof RevisionRefused || error instanceof PageRefused || error instanceof CanvasMissing || error instanceof FontsMissing) return { text: error.message, isError: true }
     throw error
   }
 }

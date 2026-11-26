@@ -44,6 +44,26 @@ export function wordsOf(line: string, at: number): string[] {
 export interface LineWord {
   readonly text: string
   readonly quoted: boolean
+  /**
+   * WRT-74: a word written `<name>=<value>` (a room line's facts): its two halves, split at the
+   * first `=` written outside quotes, and whether the value was written in quotes, so
+   * `code="007"` is text and `"head count"=8` a number.
+   */
+  readonly pair?: { readonly name: string; readonly value: string; readonly valueQuoted: boolean }
+}
+
+/**
+ * WRT-74: a fact's value as a room line writes it. In quotes it is text; out of quotes it is a
+ * number when it reads as one (`4`, `-0.5`; not `007`, which keeps its zeros as text), yes or no
+ * for `yes`, `no`, `true` or `false` in any capitals, and text otherwise.
+ */
+export function factValueOf(value: string, quoted: boolean): string | number | boolean {
+  if (quoted) return value
+  if (/^-?(0|[1-9][0-9]*)(\.[0-9]+)?$/.test(value)) return Number(value)
+  const small = value.toLowerCase()
+  if (small === 'yes' || small === 'true') return true
+  if (small === 'no' || small === 'false') return false
+  return value
 }
 
 /**
@@ -51,11 +71,17 @@ export interface LineWord {
  * outside quotes is in plain letters (MSG-22) unless `asWritten`.
  */
 export function quotedWordsOf(line: string, at: number, asWritten = false): LineWord[] {
-  const out: LineWord[] = []
+  const out: Array<LineWord & { eq?: number }> = []
   let word = ''
   let started = false
   let quoted = false
   let quote: string | null = null
+  // WRT-74: where the word's first `=` outside quotes is, and whether a quote opened after it.
+  let eq = -1
+  let valueQuoted = false
+  const push = (): void => {
+    out.push({ text: word, quoted, ...(eq < 0 ? {} : { eq, pair: { name: '', value: '', valueQuoted } }) })
+  }
   for (let i = 0; i < line.length; i++) {
     const c = line[i]!
     if (quote !== null) {
@@ -76,25 +102,35 @@ export function quotedWordsOf(line: string, at: number, asWritten = false): Line
       quote = c
       started = true
       quoted = true
+      if (eq >= 0) valueQuoted = true
       continue
     }
     if (c === '#') break
     if (c === ' ' || c === '\t') {
-      if (started) out.push({ text: word, quoted })
+      if (started) push()
       word = ''
       started = false
       quoted = false
+      eq = -1
+      valueQuoted = false
       continue
     }
+    if (c === '=' && eq < 0) eq = word.length
     word += c
     started = true
   }
   if (quote !== null) throw new RoomsStop('rooms/syntax', `line ${at}: a quote is opened and never closed.`, at)
-  if (started) out.push({ text: word, quoted })
+  if (started) push()
   return out
     .map((w) => (w.text.endsWith(',') ? { ...w, text: w.text.slice(0, -1) } : w))
     .map((w) => (asWritten || w.quoted ? w : { ...w, text: plainId(w.text) }))
     .filter((w) => w.text !== '')
+    .map(({ eq: at, ...w }) => {
+      if (at === undefined || w.pair === undefined) return w
+      // A word with no quotes is in plain letters now, so its `=` is found again.
+      const split = w.quoted ? at : w.text.indexOf('=')
+      return { ...w, pair: { name: w.text.slice(0, split), value: w.text.slice(split + 1), valueQuoted: w.pair.valueQuoted } }
+    })
 }
 
 /** A sum of numbers: digits, a point, + - * / and brackets. Anything else is not read. */

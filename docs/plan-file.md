@@ -13,7 +13,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `floor/gap-under-slab`, `floor/walls-past-floor`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
 - [Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground): `opening/below-ground`
-- [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `opening/missing-wall`
+- [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `floor/dormer-misplaced`, `wall/under-roof`, `opening/missing-wall`
 - [A floor outline before the walls](#a-floor-outline-before-the-walls): `floor/past-outline`; massing, storeys, homes and parking spaces
 - [Floor no room claims](#floor-no-room-claims): `floor/unclaimed`, `room/space-mismatch`, `room/not-enclosed`, `floor/spaces-unknown`
 - [Rooms that overlap, and rooms inside rooms](#rooms-that-overlap-and-rooms-inside-rooms): `room/overlap`, `room/inside-no-host`, `room/overlap-unknown`, `floor/overlaps-unknown`
@@ -523,7 +523,7 @@ flat on the floor's walls, as above.
 | `roof.ridgeRuns` | A gable's only: `east-west` or `north-south`, along the drawing's sides. Unstated, along the longer sides |
 | `roof.highSide` | A mono-pitch roof's, and needed there: the side it rises to, `north`, `east`, `south` or `west` |
 | `roof.rooflights` | Windows in the slope: each an `id`, `at` (its middle on the plan), `width` along the slope's eaves and `length` up the slope, both measured on the slope |
-| `roof.dormers` | Not supported yet: a roof that lists any is drawn and measured without them (`floor/dormers-not-drawn`) |
+| `roof.dormers` | Dormers standing out of a slope (LVL-20): each an `id`, `shape` (`box` or `gable`), `at` (the middle of its front on the plan), `width` (its front's), `height` (above the floor's level: a box dormer's flat ceiling, the top of a gable dormer's sides) and, optionally, `depth` (on plan, up the slope from its front; unstated, until it meets the roof) and `pitch` (a gable dormer's own; unstated, the roof's). Sections draw them and the headroom counts the floor under them; the 3D model, elevations, exports and take-off do not show them yet (`floor/dormers-not-drawn`) |
 
 Where the roof stands: its eaves run round the smallest rectangle that holds the lines of the
 floor's outside walls (every solid wall when none is stated `exterior`), turned to the longest of
@@ -537,6 +537,12 @@ What it cuts:
 - **Walls.** A wall standing inside the roof's rectangle is no higher, along its line, than the
   roof's underside over it: a gable is a gable, and a partition under the slope follows it. A wall
   that states no height, on a floor that states its roof, rises to the roof's top and is cut to it.
+  So does a wall stated `exterior` whatever height it states (LVL-20), unless it stands round
+  outdoor space alone or rises through floors: an outside wall meets the roof, so a gable end is
+  closed and a mono-pitch extension's walls reach their roof; its stated height stays in the file.
+  A wall on the building's outside that is not stated exterior keeps its height, and the check
+  names the gap over it (`wall/under-roof`). `grid_measure what=wall` gives a wall's top along its
+  length.
   A door or window whose top lies above the roof over its stretch of wall is refused, with the
   height that fits at its sill (`opening/above-roof`): the views, the exports and the checks read
   the cut top, and a floor's height (when it states none) is its tallest wall as cut.
@@ -548,6 +554,13 @@ What it cuts:
   crosses a ridge or a hip is left out (`floor/rooflight-misplaced`). An opening sits in a wall:
   an opening whose `wall` names the roof, a room or a floor is told that a window in the roof is a
   rooflight (`opening/missing-wall`).
+- **Dormers** (LVL-20). Each stands on the slope its front is on: a box dormer's underside is level
+  at its `height`, a gable dormer's rises from its sides at its pitch to a ridge over its middle,
+  and it runs back up the slope by its `depth`, or until it meets the roof. It raises the roof's
+  underside where it stands: the section cuts it, and a room's headroom bands count the floor under
+  it. One whose front is not inside the roof on one slope, higher than the roof there, or that runs
+  past a ridge or a hip or off the roof, is left out (`floor/dormer-misplaced`). Dormers do not
+  raise or cut walls yet.
 
 The roof is drawn in the 3D view and the OBJ and glTF files on its slopes, open at its rooflights;
 in the IFC it is an `IfcRoof` of its type (`FLAT_ROOF`, `SHED_ROOF`, `GABLE_ROOF`, `HIP_ROOF`) over
@@ -1048,8 +1061,9 @@ What a pattern cannot place is said, never dropped in silence. Each is left out,
 ## Fixtures
 
 A plan may list its fixtures and furniture in `items`: a toilet, a basin, a shower, a bath or a
-kitchen run (base units with their worktop), and a bed, a table, a chair, a sofa or storage (a
-wardrobe, a cupboard, shelves). Each has a `kind`, `at` (the middle of its footprint), a
+kitchen run (base units with their worktop), and a bed, a table, a chair, a sofa, storage (a
+wardrobe, a cupboard, shelves, a TV unit), an armchair, a stool, a desk, a rug or a plant
+(CNT-42). Each has a `kind`, `at` (the middle of its footprint), a
 `size` (its width along its back and its depth to its front), a `height`, and may have a `turn`
 (degrees, counter-clockwise; unturned, its back faces down the drawing), a `label`, a
 `floor` and a `clearance` (metres of clear floor kept in front of it). An item may instead name
@@ -1063,7 +1077,11 @@ Every other figure is the author's.
 A fixture is never a wall and never a room: it adds no floor area and no finding, and the room
 it stands in is the one that holds its middle. The 2D drawing, the sheet and the DXF (layer
 `GRID-FIXTURES`) draw its symbol to scale inside its footprint; the IFC file holds it as an
-`IfcFurnishingElement` on its storey. `grid_schedule` counts the fixtures by kind with their
+`IfcFurnishingElement` on its storey. The 3D view, the stills and eye views, the OBJ and the GLB
+(`item_<id>`) raise it as a few plain blocks its kind gives, inside its footprint and up to its
+height, on the floor of its room: a table and a desk a top on four legs, a chair a seat and a back,
+a sofa and an armchair a seat, a back and two arms, a plant its pot and leaves, any other its
+footprint to its height (CNT-42). `grid_schedule` counts the fixtures by kind with their
 rooms, `grid_areas` gives each room with fixtures its free floor (its net area less the floor
 they stand on), and each zone, flat and floor and the plan theirs ([areas.md](areas.md#free-floor)), `grid_measure` measures between fixtures and fits a box clear of them, and
 `grid check` names a fixture that runs into a wall or is taller than its room. A fixture is an
@@ -1072,6 +1090,9 @@ obstacle (CNT-13): a door whose leaf swings into it names it, and `grid_measure 
 fixture clear of them ([use indicators](tool-server.md#use-indicators-will-it-fit-can-you-turn-is-the-window-blocked)). Furniture is drawn,
 exported, measured and checked as a fixture is, and takes no free floor: it can be moved. The DXF
 writes each item as a block ([library.md](library.md#the-dxf-each-door-and-fixture-a-block)).
+A rug lies on the floor (CNT-42): other items stand on it without standing in each other, and it
+is in no item's clear floor, no doorway, no way through and no fixture's space; it is still
+drawn, exported and counted.
 Points (a hydrant, a camera) and seats come later, in the same shape. A kind Grid does not hold
 is left out with a note, and the rest of the plan is drawn; a kind is added through the kinds
 registry ([library.md](library.md#adding-a-kind-of-thing)).
@@ -1300,6 +1321,10 @@ or a wall meets one, and no check reads one. What Grid does with them:
   drawing's upper left corner, above its dimensions). A plan with no facts writes none.
 - **The tool server asks across them**: `grid_fields`, `grid_find` and `grid_count`
   ([tool-server.md](tool-server.md#asking-across-the-parts-fields-find-and-count)).
+- **A tool and a room line write them** (WRT-74): `grid_set_facts` sets and takes out facts and
+  a room's number on parts by id, or on every part a `where` picks; rooms text writes a room's on
+  its line, `number "2.03"`, `dept "ED"` (the fact `department`) and `facts department=Sales
+  capacity=4`, and `grid describe --as rooms` writes them back there ([rooms-first.md](rooms-first.md)).
 
 A fact travels with the plan into every export, like a room's name: keep people's names out of
 facts too ([People are kept out of the plan](#people-are-kept-out-of-the-plan)).
@@ -1499,6 +1524,21 @@ What Grid does with each state:
   doors and windows, the new rooms' floor by use). Each line has a key a rates file prices,
   `demolish:wall:interior:0.1`, `make_good:infill:exterior:0.3`, `new:door:0.9x2.1`; a shorter key
   covers longer ones, so `demolish` prices every demolition line.
+- **Setting them.** No file needs editing by hand. `grid_start_works` (`grid edit start-works`)
+  marks every wall, door, window and room that states no phase as `existing`; a door or window
+  with none on a wall that is demolished or new is left to go with its wall. `grid_set_phase`
+  (`grid edit phase`) marks parts by id, or rooms, each with the walls only it uses and the doors
+  and windows in them; a wall another room still stands against is left, and named.
+  `grid_phase_from` (`grid edit phase-from`) writes one plan from two plans with no phases, the
+  building `before` and `after` the work, pairing parts by id: only in the first is demolished,
+  only in the second new, the same in both existing, and a part that changed is new beside
+  `<id>-before`, demolished. Fixtures, stairs and everything else are the second plan's.
+- **Corrections.** To fix the survey rather than make work, pass `correction` (`--correction`) to
+  a change of an opening or a wall, a side moved, a stretch, a mirror or turn, a merge, a split, a
+  room or opening added, or a scan squared. The change is made in place and no part's phase
+  changes; a part it adds states none, so it is existing (new on a wall that is new). A mirror or
+  turn takes the whole plan, what is to be demolished too. Any other correction is worked out on
+  the building after the work, leaves what is only to be demolished as it was, and says so.
 - **Edits.** In a plan with phases a change is the work: what it adds is new; a door, window,
   wall or room it takes out of what stood before stays, demolished; a door or window it changes
   keeps its old self beside it as `<id>-before`, demolished, so widening a door is an old opening
@@ -1769,7 +1809,7 @@ before, with no north and y up the page.
 
 | Field | What it states |
 |---|---|
-| `north` | Where north lies on the drawing, in degrees counter-clockwise from its top (+y), as a north symbol's `turn` is: 0 is up the drawing, 90 to the left (-x), -90 or 270 to the right (+x) |
+| `north` | Where north lies on the drawing, in degrees counter-clockwise from its top (+y), as a north symbol's `turn` is: 0 is up the drawing, 90 to the left (-x), -90 or 270 to the right (+x). Rooms text writes it as `north 30`, `north 30 clockwise` or `north up-left`, and `grid_set_site` as `north` or `north_points` (CNT-41) |
 | `yAxis` | Which way +y runs on the page with +x to the right: `up`, as Grid draws every plan, or `down`, as a screen or an image's pixels run. Unstated, it is `up` |
 | `front` | The part whose outside face is the front of the building: `wall`, a wall's id, or `opening`, an opening's id such as the front door, by the wall it is in. One of the two |
 | `site` | Where the building sits: `origin`, a point of the plan in metres, and, if known, where that point is on the earth: `latitude` and `longitude` in degrees (north and east positive, given together) and `elevation`, metres above sea level. Each is optional, but nothing is placed on the earth without `origin`; a field Grid does not hold is named and read without. A plan kept at survey coordinates states a point near the building as `origin`, and is measured and exported from it ([survey coordinates at a stored origin](#survey-coordinates-at-a-stored-origin)). `site` also holds `ground`, the level of the ground outside ([slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground)), which needs no `origin`. `country` is [the place](#the-place) the figure checks are for, and `boundary`, `streets`, `setbacks` and `things` are [the plot](#the-plot-its-boundary-set-backs-and-what-is-on-it) |
@@ -1854,9 +1894,9 @@ them as they are and state a point near the building as `site.origin` (HND-11, l
   than 500 m from (0, 0) is written from `site.origin`, or, with none stated, from the middle of
   its walls in whole steps of 500 m (HND-2). The IFC puts its site on that point and its elements
   from it, so a BIM tool reads small numbers and places them where they are. A GLB holds its
-  points as 32-bit numbers, about seven digits, so the floor is built near zero and the file holds
-  the model in one node, `origin`, moved by the offset, with `asset.extras.gridOrigin`: every
-  point within 1 mm of the plan. The DXF and OBJ write their numbers as text, to the micrometre,
+  points as 32-bit numbers, about seven digits, so the building is built near zero and the file's
+  root node (`building`, or the one floor asked for, VEW-64) is moved by the offset, with
+  `asset.extras.gridOrigin`: every point within 1 mm of the plan. The DXF and OBJ write their numbers as text, to the micrometre,
   and keep the survey coordinates as they are. A plan near (0, 0) exports as before.
 
 Survey coordinates still cost the drawing digits: every check and measure runs on the plan's own
@@ -1895,6 +1935,12 @@ The set-backs are the person's own figures, never a code's: Grid compares the dr
 applies no figure of its own, and never says a distance is enough. A street or a set-back that
 names an edge the boundary does not have, a second set-back from the same edge, or one from the
 street with no street edge, is left out alone, and `grid check` says so (`plan/value-left-out`).
+
+None of it needs the file written by hand (CNT-41). Rooms text writes the plot in lines of its own
+(`plot 15 x 30 at 0,0`, `street south`, `setback all 3`, `site tree oak at 3,4 canopy 5`; see
+[rooms first](rooms-first.md#site)); `grid_set_site` sets the boundary, streets, set-backs, north
+and where the building is, and `grid_change_site` adds, moves, resizes and removes the site's
+things ([the tool server](tool-server.md#the-plot-distances-to-the-boundary-and-the-coverage)).
 
 Each of the site's things has a kind of its own: never a wall, a room or a fixture, so it adds no
 wall, no area, no note and no storey height, and the roof stays where the walls put it.
