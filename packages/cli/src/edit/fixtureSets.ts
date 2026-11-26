@@ -36,6 +36,15 @@ interface Try {
   readonly size?: readonly [number, number]
 }
 
+/** One place tried for an item, and what Grid's checks say of it there. */
+interface Trial {
+  readonly made: ItemMade
+  readonly plan: FloorPlan
+  readonly notes: Issue[]
+  readonly where: string
+  readonly tried: Try
+}
+
 /**
  * The smaller entries of the same thing, tried in order when an entry fits nowhere. Grid's own
  * choice of what stands in for what, said in the answer when used.
