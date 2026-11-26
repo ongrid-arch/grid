@@ -3,12 +3,13 @@
  * through the core's exporters.
  *
  * Written into the `exports/` folder beside the plan, as the app's "Open in" does, or to
- * `--out`. DXF, OBJ and GLB hold one floor; IFC holds the whole building. The tool server's
- * `grid_export` runs the same code, without `--out`.
+ * `--out`. DXF holds one floor; IFC holds the whole building; OBJ and GLB hold the whole building,
+ * each floor at its elevation, unless a floor is named (VEW-64). The tool server's `grid_export`
+ * runs the same code, without `--out`.
  */
 import path from 'path'
-import { planFloors, resolveFloor } from '@ongrid/floorplan/geometry'
-import { english, joined, said, type Said } from '@ongrid/floorplan/messages'
+import { GLB_BUILDING_NODE, metresText, planFloors, resolveFloor } from '@ongrid/floorplan/geometry'
+import { english, joined, name, num, said, type Said } from '@ongrid/floorplan/messages'
 import {
   EXPORT_FORMATS,
   exportFileName,
@@ -29,7 +30,7 @@ import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 
 export const EXPORT_OPTIONS: OptionSpecs = {
   '--format': { takesValue: true, help: `The file format: ${EXPORT_FORMATS.join(', ')}.` },
-  '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export (a floor id from the plan). The ground floor when left out.' },
+  '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export (a floor id from the plan). Left out, OBJ and GLB hold every floor at its elevation, and DXF the ground floor.' },
   '--date': { takesValue: true, help: 'IFC: the time stamp to write, a date (2026-01-31) or a time (2026-01-31T09:00:00Z). SOURCE_DATE_EPOCH when left out, else now. The same date gives the same file.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in the format\'s extension. exports/ beside the plan when left out.' },
   ...PROJECT_OPTION,
@@ -161,6 +162,8 @@ export function exportNameOf(planFile: string, format: ExportFormat, floorNumber
 /** The floor's place in the plan, from 1, when an export holds one floor of several. */
 function floorNumberOf(loaded: LoadedPlan, format: ExportFormat, floorId: string | undefined): number | null {
   if (format === 'ifc') return null
+  // VEW-64: an OBJ or GLB with no floor named holds the whole building.
+  if (floorId === undefined && format !== 'dxf') return null
   const floors = planFloors(loaded.plan)
   if (floors.length <= 1) return null
   const id = resolveFloor(loaded.plan, floorId)
@@ -216,11 +219,33 @@ export function approximatedText(approximated: readonly ApproximatedPart[]): str
 }
 
 /**
+ * VEW-64: the line that says which floors an export holds, at what height, and which floors of
+ * the plan it does not hold; null for a plan of one floor. The same line goes to standard error
+ * from `grid export` and into `grid_export`'s answer.
+ */
+export function floorsText(made: Pick<PlanExport, 'floors' | 'floorsLeftOut'>, format: ExportFormat): string | null {
+  const all = made.floors.length + made.floorsLeftOut.length
+  if (all <= 1) return null
+  // MSG-11: the words are keys of the message files (`drawing.export.floors.*`), said in English.
+  if (made.floorsLeftOut.length === 0) {
+    return english(format === 'glb'
+      ? said('drawing.export.floors.building.glb', { n: all, root: name(GLB_BUILDING_NODE) })
+      : said(`drawing.export.floors.building.${format === 'obj' ? 'obj' : 'ifc'}`, { n: all }))
+  }
+  const held = made.floors[0]!
+  const left = made.floorsLeftOut.length
+  const others = left === 1 ? said('drawing.export.floors.others.one') : said('drawing.export.floors.others.many', { n: left })
+  const one = format === 'glb' ? 'glb' : format === 'obj' ? 'obj' : 'dxf'
+  return english(said(`drawing.export.floors.one.${one}`, { floor: name(held.id), elevation: num(metresText(held.elevation)), others }))
+}
+
+/**
  * HND-6: an export that would hold nothing of the plan is refused, so an empty file that looks
  * whole is never written. Says which floor, when the plan has several, and what is left out.
  */
 function nothingToExport(loaded: LoadedPlan, planFile: string, format: ExportFormat, made: PlanExport, floorId: string | undefined): string {
-  const several = format !== 'ifc' && planFloors(loaded.plan).length > 1
+  // VEW-64: a file of the whole building names no floor.
+  const several = format !== 'ifc' && made.floors.length === 1 && planFloors(loaded.plan).length > 1
   // Quoted: a floor id is text from the plan file.
   const where = several ? ` on floor ${JSON.stringify(resolveFloor(loaded.plan, floorId))}` : ''
   const left = made.leftOut.length > 0
@@ -265,6 +290,9 @@ export interface ExportDone {
   readonly approximated: readonly ApproximatedPart[]
   /** HND-1: the project's DXF profile file the export used, or null for Grid's own layers. */
   readonly dxfProfile: string | null
+  /** VEW-64: the floors the file holds, with their elevations, and the plan's floors it does not hold. */
+  readonly floors: PlanExport['floors']
+  readonly floorsLeftOut: PlanExport['floorsLeftOut']
   readonly note?: string
 }
 
@@ -280,7 +308,7 @@ export function exportIntoProject(project: Project, planFile: string, format: Ex
   const loaded = loadPlan(project, planFile)
   const made = exportFile(project, loaded, planFile, format, request)
   const written = writeBesidePlan(project, planFile, made.name.fileName, made.data)
-  const done = { loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile }
+  const done = { loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut }
   return made.name.note === undefined ? done : { ...done, note: made.name.note }
 }
 

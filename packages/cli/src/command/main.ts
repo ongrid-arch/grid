@@ -43,7 +43,7 @@ import { DIFF_OPTIONS, MARK_OPTIONS, runDiff, runMark } from './diff'
 import { MARKERS_MAX, MarkerRefused } from '../versions/markers'
 import { GitUnread } from '../versions/git'
 import { checkDrawRequest, DRAW_OPTIONS, drawFormat, drawFile, drawsPng, PNG_TO_TERMINAL, undecidedNote } from './draw'
-import { approximatedText, checkExportRequest, dxfProfileLine, EXPORT_OPTIONS, exportFile, exportIntoProject, ExportWriteFailed, leftOutText } from './export'
+import { approximatedText, checkExportRequest, dxfProfileLine, EXPORT_OPTIONS, exportFile, exportIntoProject, ExportWriteFailed, floorsText, leftOutText } from './export'
 import { DxfProfileRefused } from '../export/dxfProfile'
 import type { LeftOutPart } from '@ongrid/floorplan/export'
 import { INIT_OPTIONS, initFolder, initProject, InitRefused, initText, PROJECT_FILE, PROJECT_PLAN, projectPlanFile, missingDefaultPlan } from './init'
@@ -582,6 +582,9 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   if (request.out === undefined) {
     const done = exportIntoProject(project, planFile, format, request)
     warnLeftOut(io, done.loaded, done.leftOut)
+    // VEW-64: which floors the file holds, and which it does not.
+    const held = floorsText(done, format)
+    if (held !== null) io.stderr(`${held}\n`)
     const curves = approximatedText(done.approximated)
     if (curves !== null) io.stderr(`${curves}\n`)
     if (done.note) io.stderr(`${done.note}\n`)
@@ -592,6 +595,8 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   const loaded = loadPlan(project, planFile)
   const made = exportFile(project, loaded, planFile, format, request)
   warnLeftOut(io, loaded, made.leftOut)
+  const held = floorsText(made, format)
+  if (held !== null) io.stderr(`${held}\n`)
   const curves = approximatedText(made.approximated)
   if (curves !== null) io.stderr(`${curves}\n`)
   if (made.dxfProfile !== null) io.stderr(`${dxfProfileLine(made.dxfProfile)}\n`)

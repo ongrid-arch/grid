@@ -332,8 +332,15 @@ describe('export names from the plan file (T-4) and from inside the plan (T-1)',
     const run = grid(['export', 'house.json', '--format', 'dxf', '--floor', 'first'])
     expect(run.status).toBe(0)
     expect(run.out).toBe(`Wrote ${join('exports', 'house-floor-2.dxf')}\n`)
-    const [answer] = await serve([{ plan: 'house.json', format: 'obj' }])
-    expect(answer).toEqual({ text: 'General guidance, not your local rules\nWrote "exports/house-floor-1.obj" in the project folder.', isError: false })
+    const [answer] = await serve([{ plan: 'house.json', format: 'obj', floor: 'ground' }])
+    expect(answer).toEqual({
+      text: 'General guidance, not your local rules\nWrote "exports/house-floor-1.obj" in the project folder.\n'
+        + 'Holds floor "ground" only, written at its elevation, 0.00 m; the other floor is not in this file: leave the floor out to export the whole building.',
+      isError: false
+    })
+    // VEW-64: the whole building names no floor.
+    const [whole] = await serve([{ plan: 'house.json', format: 'obj' }])
+    expect(whole!.text).toContain('Wrote "exports/house.obj" in the project folder.')
     writeFileSync(join(project, 'lines.json'), JSON.stringify({ ...plan, floors: [{ id: 'ground', name: T1_PLAN_TEXT[0], level: 0 }] }))
     const refused = grid(['export', 'lines.json', '--format', 'dxf'])
     expect(refused.status).toBe(1)

@@ -138,7 +138,8 @@ An export's file name comes from the plan file's name, never from text inside th
 Grid sanitises it rather than refusing it, and says so on standard error: a name Windows
 keeps for a device gets `plan-` in front (`plan-con.dxf`); a name longer than five words or
 40 characters, or one that reads as a claim about the plan or an instruction, becomes
-`floor-plan`; one floor of several is named by its place in the plan (`house-floor-2.dxf`).
+`floor-plan`; one floor of several is named by its place in the plan (`house-floor-2.dxf`), and
+a GLB or OBJ of the whole building by the plan alone (`house.glb`).
 
 Every export writes the plan's walls, rooms and openings in id order (`w2` before `w10`), so the
 same building gives the same bytes whatever order its file lists them in, and two exports can be
@@ -179,9 +180,30 @@ the file says so beside what it leaves out, with how far off the pieces are at m
 set `Grid_Approximated` in an IFC, the `GRID-LEFT-OUT` layer in a DXF, comment lines in an OBJ and
 `asset.extras.gridApproximated` in a GLB. A plan with no curved wall gets none of it.
 
-DXF, OBJ and GLB hold one floor: they name what is left out of that floor, every opening no
-floor holds, and every part the reader left out, which Grid cannot place on a floor. The IFC
-names what is left out of every floor.
+A DXF holds one floor, and so do an OBJ and a GLB when `--floor` names one: they name what is left
+out of that floor, every opening no floor holds, and every part the reader left out, which Grid
+cannot place on a floor. The IFC, and an OBJ or GLB of the whole building, name what is left out of
+every floor.
+
+### Every floor in one 3D file (VEW-64)
+
+With no `--floor`, a GLB or an OBJ holds the whole building, as the 3D view stacks it: every floor
+with its walls, rooms, openings, stairs, slab, roof and parapet, each floor at its elevation (its
+floor level above the ground floor's, the same levels the 3D view and the IFC use).
+
+- GLB: one root node, `building`, with one child node per floor, lowest first, named by the
+  floor's id and moved up to its elevation (`translation` `[0, elevation, 0]`), its parts below it,
+  and `extras.gridFloor` and `extras.gridElevation` on it. A plan at survey coordinates keeps its
+  site offset on the root node (HND-11).
+- OBJ: OBJ has no nodes, so every point is written at its height in the building (Z), and each
+  floor's objects follow a comment line `# grid-floor "<id>" elevation=<metres>`. No `g` lines.
+- `--floor <id>` writes that floor alone, still at its elevation: in a GLB its node is the root and
+  carries the elevation (and the site offset), in an OBJ the points do. Files of single floors
+  dropped into one scene land where they belong.
+
+For a plan of several floors the command says on standard error, in one line, which floors the
+file holds and at what height, and how many of the plan's floors it does not hold, so a file of
+one floor never reads as the whole building. A DXF says the same of its one floor.
 
 The views validate each floor on its own, so a wall id written on two floors is drawn and
 exported on each, while `grid check`, which validates the whole plan, says the id is used twice

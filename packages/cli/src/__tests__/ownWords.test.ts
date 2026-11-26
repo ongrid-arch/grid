@@ -153,7 +153,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-38: three more, roomsFile's description and refusal, and what rooms text writes.
   // SHT-20: two more.
   // VEW-62: one more, grid_sheet's pictures of the pages.
-  'packages/cli/src/mcp/writeTools.ts': [145, 'tools'],
+  'packages/cli/src/mcp/writeTools.ts': [146, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
