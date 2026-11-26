@@ -122,6 +122,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/stairs.ts': [15, 'notYet'],
   // LVL-23: a building's receipts and refusals.
   'packages/cli/src/edit/buildings.ts': [9, 'notYet'],
+  'packages/cli/src/edit/buildingEdits.ts': [31, 'notYet'],
+  'packages/cli/src/edit/buildingParts.ts': [2, 'notYet'],
   // CNT-48: a typical room's usual fixtures set out in a room, its receipts and refusals.
   'packages/cli/src/edit/fixtureSets.ts': [10, 'notYet'],
   // CNT-45: the items' receipts and refusals. CNT-47: two more, a row's receipt and its taken id.
@@ -177,7 +179,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-60: one more, grid_areas' area under air.
   // WRT-74: one more, grid_fields' line on how facts are set.
   // CNT-45: five more, the kinds fixture and furniture, the items grid_view draws and of=fixtures.
-  'packages/cli/src/mcp/readTools.ts': [388, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [391, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -208,7 +210,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // LVL-23: grid_set_building, its description, arguments and answer.
-  'packages/cli/src/mcp/buildingTools.ts': [14, 'tools'],
+  'packages/cli/src/mcp/buildingTools.ts': [54, 'tools'],
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
   'packages/cli/src/mcp/itemTools.ts': [53, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
@@ -517,7 +519,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // (edit/annotate.ts 7) (odd/tasks/SHT-22.md).
     // and CNT-48 10: a typical room's usual fixtures set out in a room (edit/fixtureSets.ts).
     // and LVL-23 23: a building's changes (edit/buildings.ts 9) and its tool (mcp/buildingTools.ts 14).
-    expect(left).toBeLessThanOrEqual(2424)
+    // and CMD-47 76: one building's changes (edit/buildingEdits.ts 31, edit/buildingParts.ts 2), their
+    // tools (mcp/buildingTools.ts 40) and describe's building (mcp/readTools.ts 3) (odd/tasks/CMD-47.md).
+    expect(left).toBeLessThanOrEqual(2500)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

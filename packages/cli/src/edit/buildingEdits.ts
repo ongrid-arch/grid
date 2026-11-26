@@ -420,7 +420,7 @@ export function placeBuilding(survey: Survey, request: PlaceRequest): Patch {
   const moved = box === null ? null : { x0: box.x0 + by[0], y0: box.y0 + by[1], x1: box.x1 + by[0], y1: box.y1 + by[1] }
   const over = moved === null ? [] : planBuildings(plan).filter((b) => {
     const other = wallsBox(plan, buildingParts(plan, b.id).walls)
-    return other !== null && other.x0 < moved.x1 - 1e-6 && moved.x0 < other.x1 - 1e-6 && other.y0 < moved.y1 - 1e-6 && moved.y0 < other.y1 - 1e-6
+    return other !== null && other.x0 < moved.x1 && moved.x0 < other.x1 && other.y0 < moved.y1 && moved.y0 < other.y1
   }).map((b) => b.id)
   const walls = listOf(copy, 'walls')
   const items = listOf(copy, 'items')
