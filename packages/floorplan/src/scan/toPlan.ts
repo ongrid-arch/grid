@@ -20,7 +20,7 @@
  *    drawn along the edge. The corners are where neighbouring faces' lines cross, as every room
  *    in Grid is measured (C3).
  * 3. Faces of two rooms that face each other across a gap no wider than a wall
- *    (`roomsWallWidest`) are one wall's two faces. Two such faces a little out of parallel are
+ *    (`scanWallWidest` with a scanned face on each side) are one wall's two faces. Two such faces a little out of parallel are
  *    turned onto one direction about their middles, and the answer says by how much.
  * 4. The rooms are written as rooms text, polygons of their inside faces (WRT-2), and the walls
  *    worked out from them: a wall between two faces is as thick as the gap, and one with a face
@@ -366,7 +366,7 @@ export function planFromScan(scan: RoomScan, previous: ScanIds | null = null): S
   if (unjoined.length > 0) leftOut.push(`${plural(unjoined.length, 'wall face')} that close round no room: kept in the scan beside the plan, not drawn (${idList(unjoined)}).`)
 
   // 3. Two faces of one wall a little out of parallel are turned onto one direction.
-  const turned = pairFaces(drafts)
+  const { turned, wide } = pairFaces(drafts)
   for (const t of turned) {
     assumed.push({ text: `The two faces ${quoted(t.faces[0])} and ${quoted(t.faces[1])} of one wall are ${t.degrees.toFixed(2)}° out of parallel: both are turned onto one direction about their middles.`, parts: [], value: null })
   }
@@ -459,6 +459,13 @@ export function planFromScan(scan: RoomScan, previous: ScanIds | null = null): S
       const name = story === 0 ? 'Ground floor' : `Storey ${story}`
       lines.push(`floor ${floorIds.get(story)!} "${name}" level ${story} elevation ${written(levelOf.get(story)! - ground)}`)
     }
+    const widths = new Map<string, number>()
+    for (const { a, b, gap } of wide) {
+      if (a.story !== story) continue
+      const key = `wall between ${a.id} and ${b.id}`
+      widths.set(key, Math.max(gap, widths.get(key) ?? 0))
+    }
+    for (const [wall, gap] of widths) lines.push(`${wall} ${written(gap)}`)
     for (const d of drafts.filter((r) => r.story === story)) {
       lines.push(`room ${d.id} "${d.name}" ${d.use ?? '-'} polygon ${d.corners.map((c) => `${written(c[0])},${written(c[1])}`).join(' ')}`)
     }
@@ -863,11 +870,17 @@ function contains(poly: readonly P[], pt: P): boolean {
  * a side already turned for another wall turns the next one onto itself. Longest shared stretch
  * first. Returns the pairs that were turned and by how much.
  */
-function pairFaces(rooms: RoomDraft[]): { faces: [string, string]; degrees: number }[] {
+function pairFaces(rooms: RoomDraft[]): {
+  turned: { faces: [string, string]; degrees: number }[]
+  wide: { a: RoomDraft; b: RoomDraft; gap: number }[]
+} {
   interface Pair {
+    a: RoomDraft
+    b: RoomDraft
     s: Side
     t: Side
     overlap: number
+    gap: number
     pivotS: P
     pivotT: P
   }
@@ -890,8 +903,9 @@ function pairFaces(rooms: RoomDraft[]): { faces: [string, string]; degrees: numb
           const pivotS = add(s0, mul(s.u, (o0 + o1) / 2))
           const pivotT = add(t.p, mul(t.u, dot(sub(pivotS, t.p), t.u)))
           const gap = dot(sub(mid(t0, t1), s0), n)
-          if (gap <= 0 || gap > tolerance('roomsWallWidest')) continue
-          pairs.push({ s, t, overlap: o1 - o0, pivotS, pivotT })
+          const widest = s.faces.length > 0 && t.faces.length > 0 ? tolerance('scanWallWidest') : tolerance('roomsWallWidest')
+          if (gap <= 0 || gap > widest + tolerance('scanWritten')) continue
+          pairs.push({ a, b, s, t, gap, overlap: o1 - o0, pivotS, pivotT })
         }
       }
     }
@@ -899,7 +913,18 @@ function pairFaces(rooms: RoomDraft[]): { faces: [string, string]; degrees: numb
   pairs.sort((x, y) => y.overlap - x.overlap)
   const fixed = new Set<Side>()
   const turned: { faces: [string, string]; degrees: number }[] = []
+  const wide: Pair[] = []
   for (const pair of pairs) {
+    if (pair.gap > tolerance('roomsWallWidest')) {
+      // A nearer face across the same stretch separates these rooms.
+      const blocked = (side: Side, pivot: P): boolean => pairs.some((other) => {
+        if (other.gap >= pair.gap) return false
+        const middle = other.s === side ? other.pivotS : other.t === side ? other.pivotT : null
+        return middle !== null && Math.abs(dot(sub(middle, pivot), side.u)) < other.overlap / 2
+      })
+      if (blocked(pair.s, pair.pivotS) || blocked(pair.t, pair.pivotT)) continue
+      wide.push(pair)
+    }
     const { s, t } = pair
     const off = Math.abs(cross(s.u, t.u))
     if (off <= tolerance('parallel')) {
@@ -920,5 +945,11 @@ function pairFaces(rooms: RoomDraft[]): { faces: [string, string]; degrees: numb
     fixed.add(t)
     turned.push({ faces: [s.faces[0] ?? 'the floor outline', t.faces[0] ?? 'the floor outline'], degrees: deg(Math.asin(Math.min(1, off))) })
   }
-  return turned
+  return {
+    turned,
+    wide: wide.map(({ a, b, s, t, pivotS }) => {
+      const onS = add(s.p, mul(s.u, dot(sub(pivotS, s.p), s.u)))
+      return { a, b, gap: Math.abs(cross(t.u, sub(onS, t.p))) + tolerance('scanWritten') }
+    }),
+  }
 }
