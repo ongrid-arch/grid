@@ -48,7 +48,7 @@ export function sceneGround(plan: FloorPlan, reach: number, elevations: Building
   let level = 0
   let stated = false
   let tilt: SceneGround['tilt']
-  let highUnder = (_floor: string): number => level
+  let highUnder: (floor: string) => number = () => level
   try {
     const ground = groundLevel(plan, elevations)
     level = ground.level
