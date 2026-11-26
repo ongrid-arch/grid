@@ -830,6 +830,14 @@ graphics card: the scene is drawn in software, each face lit flat, without shado
 (`planCutHeight`) whether the building has one storey or several; without it, the whole building.
 The PNG is 1200 by 800 pixels, times `--scale` (up to 4).
 
+The ground (VEW-66) lies at the level the site states (`site.ground`), else at the ground floor's
+floor level: the grid's lines, and under them a sheet in the background's colour that hides most
+of what lies below it. A basement, a car park's levels or the slab under a garden shows through it
+faded, as buried, while what stands above the ground is drawn as before. The sheet is cut away over
+every floor whose slab's underside lies below the ground, so the building stands in its hole; with a
+floor below the ground shown as a cutaway, only the grid's lines are drawn, over it, so the floor
+is seen whole. One level for the whole site: a slope is not drawn.
+
 `grid draw --view <name>` draws a view saved with the plan (VEW-3, `grid_save_view`): the 3D
 model through that view's camera, with the floor it was saved with cut away, the same picture
 `grid_view view=<name>` gives an agent. The name is matched whatever its capitals; a name the
