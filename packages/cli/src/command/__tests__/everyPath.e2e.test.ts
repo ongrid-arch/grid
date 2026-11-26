@@ -253,6 +253,9 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_write_brief: [{ arg: 'plan', call: tool('grid_write_brief', { plan: '@', brief: { rooms: [{ name: 'Lounge', area: 20, level: 'must', source: 'assumed' }] } }), given: asIs }],
   // MSG-24: its words go into the plan's own display, never a file of their own.
   grid_words: [{ arg: 'plan', call: tool('grid_words', { plan: '@', language: 'de', words: { 'join.and': ' und ' } }), given: asIs }],
+  // CMD-44: the plan put back as it was; its log and checkpoints are the plan's name beside it, never paths of their own.
+  grid_undo: [{ arg: 'plan', call: tool('grid_undo', { plan: '@' }), given: asIs }],
+  grid_restore: [{ arg: 'plan', call: tool('grid_restore', { plan: '@', since: 'last' }), given: asIs }],
   grid_write_rooms: [
     { arg: 'plan', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: `${p}.json`, rooms: roomsText } }), given: (p) => `${p}.json` },
     // BRF-6: a first layout reads the brief beside the plan, and writes the plan.
@@ -418,10 +421,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
 /**
  * The plan-reading call of every tool that reads one and would follow its trace image. CMD-13's
  * grid_report_problem never follows it: the draft leaves it out (reportProblem.test.ts holds
- * that the path is not in the draft).
+ * that the path is not in the draft). CMD-44's grid_undo and grid_restore read no plan: they put
+ * back a text Grid kept, and a plan put back is read by the next call.
  */
 const PLAN_TOOLS: ReadonlyArray<readonly [name: string, call: (plan: string) => Call]> = Object.entries(TOOL_SLOTS)
-  .filter(([name]) => name !== 'grid_write_rooms' && name !== 'grid_report_problem')
+  .filter(([name]) => name !== 'grid_write_rooms' && name !== 'grid_report_problem' && name !== 'grid_undo' && name !== 'grid_restore')
   .map(([name, slots]) => [name, slots[0]!.call] as const)
 
 // ---------------------------------------------------------------------------------------------

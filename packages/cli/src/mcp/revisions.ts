@@ -10,6 +10,10 @@
  *   the same plan in this process, and is refused with nothing written when the plan is no longer
  *   at that revision: the refusal says so, gives the revision it is at now and, when this server
  *   still holds the version read, what changed (`compareBuildings`, as `grid_diff` says it).
+ * - CMD-44: every call that writes the plan file is recorded in the plan's change log, with the
+ *   plan it replaced kept as a checkpoint (`versions/history.ts`), while the lock is still held.
+ *   `who`, beside `based_on`, names who made the change in the log. Undo and restore record
+ *   their own entries (`versions/restore.ts`).
  *
  * It imports nothing of the toolkit at run time; the server turns its refusal into a tool's.
  */
@@ -20,9 +24,24 @@ import { PathRefused, type Project } from '../fs/projectFiles'
 import { projectPlanFile } from '../command/init'
 import { loadPlanText } from '../command/plan'
 import { heldText, lockFileOf, PlanBusy, readRevision, REVISION_DIGITS, withPlanLockAsync } from '../edit/revision'
+import { BY_MAX, recordChange } from '../versions/history'
+import { RECORDS_ITSELF } from '../versions/restore'
 import type { ArgSpec, GridTool, ToolContext } from './toolkit'
 
 export const BASED_ON_ARG_NAME = 'based_on'
+
+/** CMD-44: who makes a change, for the plan's change log. */
+export const WHO_ARG_NAME = 'who'
+
+/** What made a change on the tool server, in the change log. */
+export const VIA_SERVER = 'grid serve'
+
+export const WHO_ARG: ArgSpec = {
+  type: 'string',
+  maxLength: BY_MAX,
+  description: 'Who is making this change, as you name yourself (an agent\'s role or a person\'s initials, never a full name): kept in the plan\'s change log beside the plan, which grid_diff show=history lists. Every change is logged with the plan it replaced, so grid_undo can take it back; left out, the entry names no one.',
+  examples: ['reviewer-2', 'layout agent'],
+}
 
 /** The data key every answer about a plan carries its revision under. */
 export const REVISION_DATA_NAME = 'planRevision'
@@ -48,7 +67,7 @@ export const REVISION_SCHEMA = {
 /** `based_on`, on every tool that changes the plan. */
 export function revisionArgs(tool: Pick<GridTool, 'hint' | 'args'>): Readonly<Record<string, ArgSpec>> {
   if (tool.hint !== 'change-plan' || !Object.hasOwn(tool.args, 'plan') || Object.hasOwn(tool.args, BASED_ON_ARG_NAME)) return {}
-  return { [BASED_ON_ARG_NAME]: BASED_ON_ARG }
+  return { [BASED_ON_ARG_NAME]: BASED_ON_ARG, ...(Object.hasOwn(tool.args, WHO_ARG_NAME) ? {} : { [WHO_ARG_NAME]: WHO_ARG }) }
 }
 
 /** A change refused because the plan is not at the revision it was based on, or is held too long. */
@@ -136,9 +155,12 @@ function checkBasedOn(project: Project, file: string, basedOn: string): void {
  * Runs one call with the plan's revision. `writes` says whether the call may write the plan
  * file: then it is queued, locked and checked against `based_on` as a change.
  */
-export async function guardedRun<T>(tool: Pick<GridTool, 'args'>, args: Record<string, unknown>, context: ToolContext, writes: boolean, run: () => Promise<T>): Promise<Guarded<T>> {
+export async function guardedRun<T>(tool: Pick<GridTool, 'args' | 'name'>, args: Record<string, unknown>, context: ToolContext, writes: boolean, run: () => Promise<T>): Promise<Guarded<T>> {
   const basedOn = args[BASED_ON_ARG_NAME]
   delete args[BASED_ON_ARG_NAME]
+  // CMD-44: the tool's own `who`, when it takes one (undo, restore), stays its own.
+  const who = args[WHO_ARG_NAME]
+  if (!Object.hasOwn(tool.args, WHO_ARG_NAME)) delete args[WHO_ARG_NAME]
   const call = planFileOfCall(tool, args, context)
   if (call === null) return { answer: await run(), revision: null, file: null }
   const { project, file } = call
@@ -150,7 +172,10 @@ export async function guardedRun<T>(tool: Pick<GridTool, 'args'>, args: Record<s
     try {
       return await withPlanLockAsync(project, file, async () => {
         if (typeof basedOn === 'string') checkBasedOn(project, file, basedOn)
+        const before = readRevision(project, file)
         const answer = await run()
+        // CMD-44: the change in the plan's log, with the plan it replaced, before the lock is let go.
+        if (!RECORDS_ITSELF.has(tool.name)) recordChange(project, file, before, { tool: tool.name, via: VIA_SERVER, by: typeof who === 'string' ? who : null })
         return { answer, revision: readRevision(project, file)?.revision ?? null, file }
       })
     } catch (error) {

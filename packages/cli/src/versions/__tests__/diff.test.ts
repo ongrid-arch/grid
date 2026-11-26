@@ -256,18 +256,19 @@ describe('a mezzanine written again lower down (WRT-25)', () => {
 })
 
 describe('the markers', () => {
-  it('keeps at most a few, replaces one set again, takes one off, and names them when one is missing', async () => {
+  it('keeps the latest few, rolling the oldest off, replaces one set again, takes one off, and names them when one is missing', async () => {
     const dir = project()
     for (let i = 1; i <= MARKERS_MAX; i++) expect((await grid(dir, 'mark', `m${i}`)).status).toBe(0)
-    const sixth = await grid(dir, 'mark', 'm6')
-    expect(sixth.status).toBe(1)
-    expect(sixth.err).toContain(`at most ${MARKERS_MAX} markers`)
-    expect(await grid(dir, 'mark', 'm1')).toMatchObject({ status: 0, out: expect.stringContaining('Set marker "m1"') })
-    expect((await grid(dir, 'mark', 'm2', '--remove')).status).toBe(0)
-    expect(readMarkers(openProject(dir, dir), 'plan.json').map((m) => m.name)).toEqual(['m1', 'm3', 'm4', 'm5'])
+    // CMD-44: one past the limit rolls the oldest off, and says so, where it used to be refused.
+    const past = await grid(dir, 'mark', `m${MARKERS_MAX + 1}`)
+    expect(past).toMatchObject({ status: 0, out: expect.stringContaining(`Marker "m1", the oldest, rolled off: a plan keeps the latest ${MARKERS_MAX}.`) })
+    expect(await grid(dir, 'mark', 'm2')).toMatchObject({ status: 0, out: expect.stringContaining('Set marker "m2"') })
+    expect((await grid(dir, 'mark', 'm3', '--remove')).status).toBe(0)
+    const left = ['m2', ...Array.from({ length: MARKERS_MAX - 2 }, (_, i) => `m${i + 4}`)]
+    expect(readMarkers(openProject(dir, dir), 'plan.json').map((m) => m.name)).toEqual(left)
     const missing = await grid(dir, 'diff', '--since', 'start')
     expect(missing).toMatchObject({ status: 1 })
-    expect(missing.err).toContain('The plan has no marker "start": it has m1, m3, m4, m5.')
+    expect(missing.err).toContain(`The plan has no marker "start": it has ${left.join(', ')}.`)
     expect((await grid(dir, 'mark', 'git')).err).toContain('names the last committed version')
     expect((await grid(dir, 'diff', '--show', 'everything')).status).toBe(2)
   })

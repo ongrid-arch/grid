@@ -64,8 +64,12 @@ All in `packages/cli/src`.
   `command/diff.ts`: `--to`, `grid mark --by --note`. No `grid undo` command line in this change:
   the tools are the ask, and the command line can follow from them.
 - `mcp/projectTool.ts`: the log and the checkpoints folder are listed among the files beside a plan.
-- Grid's words for the answers and refusals go in `messages/en.ts` (`tool.history.*`) with their
-  draft Spanish; tool descriptions stay in the tool files, in English by design.
+- Grid's words for the answers and refusals are keyed in `versions/words.ts` (`tool.history.*`),
+  filled as `say` fills them, and counted by `ownWords.test.ts`. Decided while building: in
+  `messages/en.ts` they took the message key type (`keyof typeof en`, some 3,270 keys) past what
+  the type checker compares, and every package's type check failed with TS2859 ("excessive
+  complexity"); main's file type-checks, so the limit is near for every change that adds keys.
+  Tool descriptions stay in the tool files, in English by design.
 - Decided: checkpoints are whole texts, not differences, so a person can put one back by copying
   a file; the log holds only revisions and lines, so it stays small. A date names the plan as it
   stood at that moment by the log, never a marker's time. The change lines kept in an entry are

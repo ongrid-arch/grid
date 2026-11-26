@@ -36,6 +36,8 @@ const ORDER = [
   'grid_mark_seen',
   'grid_write_brief',
   'grid_words',
+  'grid_undo',
+  'grid_restore',
   'grid_write_rooms',
   'grid_change_opening',
   'grid_change_wall',
@@ -72,7 +74,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -160,7 +162,9 @@ describe('tools/list', () => {
     // (agents said Grid holds no fixtures, edited the JSON, or moved a door to clear a desk).
     // 55 since CNT-46: rows of parking bays placed and a ramp added, which agents could only write as
     // the plan file's JSON (they hand-wrote hundreds of bays, or drew a helix ramp as a room).
-    expect((await listed()).length).toBeLessThanOrEqual(55)
+    // 57 since CMD-44: the last change undone and an earlier version put back, which agents did with
+    // a script reading the markers file, or by asking the person to paste the plan back.
+    expect((await listed()).length).toBeLessThanOrEqual(57)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -243,10 +247,12 @@ describe('lengths typed with their unit (WRT-7)', () => {
 
 describe('the tools on a two-bedroom flat', () => {
   let b: Bench
-  beforeAll(() => {
+  beforeAll(async () => {
     // MSG-10: noted.json has one note to mark, a field Grid does not read.
     // WRT-8: plan.markers.json holds a start marker, the plan as it is.
-    b = bench({ 'plan.json': twoBedFlat(), 'flat.json': agentFlat(), 'house.json': twoFloorHouse(), 'noted.json': { ...twoBedFlat(), colour: 'red' }, 'plan.markers.json': { version: '1', markers: [{ name: 'start', at: '2026-11-22T10:00:00.000Z', text: JSON.stringify(twoBedFlat()) }] } })
+    b = bench({ 'undo.json': twoBedFlat(), 'plan.json': twoBedFlat(), 'flat.json': agentFlat(), 'house.json': twoFloorHouse(), 'noted.json': { ...twoBedFlat(), colour: 'red' }, 'plan.markers.json': { version: '1', markers: [{ name: 'start', at: '2026-11-22T10:00:00.000Z', text: JSON.stringify(twoBedFlat()) }] } })
+    // CMD-44: one change in undo.json's log, for grid_undo to take back.
+    expect((await b.call('grid_rename_room', { plan: 'undo.json', room: 'bed2', name: 'Study' })).isError).toBe(false)
   })
   afterAll(() => b.close())
 
@@ -274,6 +280,9 @@ describe('the tools on a two-bedroom flat', () => {
     grid_mark_seen: { plan: 'noted.json', line: 1, code: 'plan/unknown-field', reason: 'Kept for our own tool', by: 'Owner' },
     grid_write_brief: { plan: 'plan.json', brief: { rooms: [{ name: 'Bathroom', area: 4.5, level: 'must', source: 'given', quote: 'a bathroom of 4.5 square metres' }], figures: { door_width: { value: 0.8, level: 'must', source: 'given', quote: 'doors of 80 cm' } } } },
     grid_words: { plan: 'plan.json', language: 'de', output: 'describe' },
+    // CMD-44: the change made to undo.json before these calls, and plan.json back at its start marker.
+    grid_undo: { plan: 'undo.json' },
+    grid_restore: { since: 'start' },
     grid_write_rooms: { plan: 'written.json', rooms: 'walls outside 0.3 inside 0.1 height 2.6\nroom living "Living" living 4 x 4\nroom bed "Bed" bedroom 3 x 4 east of living\ndoor d1 between living and bed, centred, 0.8 wide, opens into bed\ndoor front in living south, centred, 0.9 wide, opens in\n' },
     grid_change_opening: { opening: 'door-bath', width: 0.8, out: 'changed.json' },
     grid_change_wall: { wall: 'bed1-north', thickness: 0.12, out: 'thinner.json' },
