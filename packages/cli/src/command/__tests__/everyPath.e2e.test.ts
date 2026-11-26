@@ -234,7 +234,7 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_view: [
     { arg: 'plan', call: tool('grid_view', { plan: '@', kind: 'plan' }), given: asIs },
     // VEW-62: the picture's own path, written inside the project only.
-    { arg: 'out', call: tool('grid_view', { plan: PLAN, kind: 'plan', out: '@.png' }), given: (p) => `${p}.png` },
+    { arg: 'out', call: (p) => ({ name: 'grid_view', arguments: { plan: PLAN, kind: 'plan', out: `${p}.png` } }), given: (p) => `${p}.png` },
   ],
   grid_describe: [{ arg: 'plan', call: tool('grid_describe', { plan: '@' }), given: asIs }],
   grid_check: [{ arg: 'plan', call: tool('grid_check', { plan: '@' }), given: asIs }],

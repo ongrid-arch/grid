@@ -252,7 +252,7 @@ describe('grid_sheet words reach a drawing (SHT-18)', () => {
 
 describe('a picture of each page (VEW-62)', () => {
   it('a client sheet comes back with one small png per page, in order', async () => {
-    const answer = (await tool.run(readArgs(tool, { plan: 'plan.json', layout: 'client', date: '2026-01-31' }), context().context)) as { data: { pages: unknown[] }; images?: { data: Uint8Array; mimeType: string }[] }
+    const answer = (await tool.run(readArgs(tool, { plan: 'plan.json', layout: 'client', date: '2026-01-31' }), context().context)) as unknown as { data: { pages: unknown[] }; images?: { data: Uint8Array; mimeType: string }[] }
     expect(answer.images?.length).toBe(answer.data.pages.length)
     for (const image of answer.images ?? []) {
       expect(image.mimeType).toBe('image/png')
