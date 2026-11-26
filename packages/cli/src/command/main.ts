@@ -97,7 +97,7 @@ const COMMANDS = {
     options: {},
   },
   mark: {
-    usage: 'grid mark [<name>] [--plan <plan.json>] [--remove] [--project <folder>]',
+    usage: 'grid mark [<name>] [<plan.json>] [--plan <plan.json>] [--remove] [--project <folder>]',
     summary: `Keeps the plan as it is now under a name (start unless named), beside it, for grid diff --since <name> to compare with: no git needed. At most ${MARKERS_MAX}.`,
     options: MARK_OPTIONS,
   },
@@ -361,11 +361,15 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   }
 
   if (name === 'mark') {
-    if (parsed.positionals.length > 1) throw new UsageError(`mark takes one marker name: grid mark [<name>], but was given ${parsed.positionals.length}.`)
-    const marker = parsed.positionals[0]
-    if (marker !== undefined && marker.toLowerCase().endsWith('.json')) throw new UsageError(`mark takes a marker name, not a plan: ${JSON.stringify(marker)} ends in .json. Name the plan with --plan.`)
+    // CMD-36: the plan is taken as in every other command, as a positional (a name ending in .json), with --plan as its alias.
+    const isPlan = (word: string): boolean => word.toLowerCase().endsWith('.json')
+    const planWords = parsed.positionals.filter(isPlan)
+    const names = parsed.positionals.filter((word) => !isPlan(word))
+    if (names.length > 1) throw new UsageError(`mark takes one marker name: grid mark [<name>] [<plan.json>], but was given ${names.length}.`)
+    if (planWords.length > 1 || (planWords.length === 1 && parsed.values.has('--plan'))) throw new UsageError('mark takes one plan: name it once, as grid mark [<name>] <plan.json> or with --plan.')
+    const marker = names[0]
     const project = openProject(projectOption, io.cwd)
-    const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
+    const target = planWords[0] ?? textOf(parsed, '--plan') ?? projectPlanFile(project)
     io.stdout(runMark(project, target, marker, parsed.values.has('--remove')))
     return EXIT_OK
   }
