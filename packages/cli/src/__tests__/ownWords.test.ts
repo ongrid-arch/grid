@@ -130,7 +130,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
-  'packages/cli/src/mcp/serveTools.ts': [1, 'tools'],
+  // CMD-38: two more, the rooms grammar resource's title and description.
+  'packages/cli/src/mcp/serveTools.ts': [3, 'tools'],
+  // CMD-38: the whole rooms grammar, by topic, for the agent.
+  'packages/cli/src/mcp/roomsGrammar.ts': [51, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -139,7 +142,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
-  'packages/cli/src/mcp/writeTools.ts': [139, 'tools'],
+  // CMD-38: three more, roomsFile's description and refusal, and what rooms text writes.
+  'packages/cli/src/mcp/writeTools.ts': [142, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],

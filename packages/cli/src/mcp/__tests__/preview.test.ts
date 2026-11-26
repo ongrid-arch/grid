@@ -164,7 +164,7 @@ describe('the preview page as an MCP App (VEW-4)', () => {
     const listed = (await rpc('resources/list'))['result'] as { resources: Array<Record<string, unknown>> }
     // CMD-7: the guide for agents and the plan's JSON Schema follow the page.
     expect(listed.resources[0]).toEqual(expect.objectContaining({ uri: 'ui://grid/preview', mimeType: 'text/html;profile=mcp-app' }))
-    expect(listed.resources.map((r) => r['uri'])).toEqual(['ui://grid/preview', 'grid://guide', 'grid://schema/plan'])
+    expect(listed.resources.map((r) => r['uri'])).toEqual(['ui://grid/preview', 'grid://guide', 'grid://schema/plan', 'grid://guide/rooms'])
     const read = (await rpc('resources/read', { uri: 'ui://grid/preview' }))['result'] as { contents: Array<{ uri: string; mimeType: string; text: string; _meta: unknown }> }
     expect(read.contents).toHaveLength(1)
     const page = read.contents[0]!

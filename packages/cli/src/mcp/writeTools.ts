@@ -30,7 +30,8 @@ import { SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ong
 import { checkSheetRequest, drawingIntoProject, drawingLine, readSheetWords, sheetIntoProject, type SheetKind } from '../sheet/sheetFile'
 import { PAPER_NAMES, SCALE_MAX } from '../sheet/drawingPapers'
 import { askedLanguage } from '../command/language'
-import { RoomsRefused, writeRoomsIntoProject } from '../command/write'
+import { readRoomsFile, RoomsRefused, writeRoomsIntoProject } from '../command/write'
+import { roomsGrammarText } from './roomsGrammar'
 import { writeScanIntoProject } from '../command/scan'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { ROOM_NAMES_TRAVEL } from './protocol'
@@ -639,8 +640,10 @@ const ROOMS_EXAMPLE = [
  * the brief and a phone room scan. Refused, naming them, when none or more than one is given.
  */
 function refuseWaysIn(args: Readonly<Record<string, unknown>>): void {
-  const given = (['rooms', 'layout', 'scan'] as const).filter((name) => args[name] !== undefined)
-  if (given.length === 0) throw new ToolRefusal('Pass rooms (the rooms text to write), layout (tidy or sizes, a first layout from the brief beside the plan) or scan (a phone room scan file in the project): one of the three.')
+  // CMD-38: roomsFile is rooms text too, read from the project.
+  const given = (['rooms', 'roomsFile', 'layout', 'scan'] as const).filter((name) => args[name] !== undefined)
+  if (given.length === 0) throw new ToolRefusal('Pass rooms (the rooms text to write), roomsFile (a rooms text file in the project), layout (tidy or sizes, a first layout from the brief beside the plan) or scan (a phone room scan file in the project): one of the four.')
+  if (given.includes('roomsFile') && given.length > 1) throw new ToolRefusal(`Pass roomsFile or ${given.find((name) => name !== 'roomsFile')}, not both: roomsFile is the rooms text to write, read from the project.`)
   if (given.length === 3) throw new ToolRefusal('Pass one of rooms, layout and scan, not all three: each writes the plan in place of the others.')
   if (given.length === 2) {
     const [first, second] = given
@@ -662,7 +665,8 @@ const writeRoomsTool: GridTool = {
     + 'In place of rooms, layout=tidy writes a first layout from the brief (grid_write_brief) in a rectangle, naming each size not kept and by how much; layout=sizes keeps every size. '
     + 'A plain number is metres; a length may carry its unit in one word (360cm, 3600mm, 12ft, 12ft6in, 12\'6"). A display line (display ft-in, display mm, display m decimal comma) records how the person reads lengths: drawings, figures and sheets follow it, and the plan file stays in metres. Under a display that is not metres, say what a plain number is on that line (display ft-in numbers ft, display mm numbers mm), or write every length with its unit: a plain number is refused there. '
     + 'From a phone room scan: pass scan, the scan file in the project (Apple\'s room model, as JSON), in place of rooms. Grid pairs each wall\'s two faces into one wall as thick as the gap between them, takes a wall seen from one side as an outside wall of its usual thickness, places the doors and windows on their walls, keeps the scan beside the plan as <plan>.scan.json keyed by its ids, and lists everything it assumed to confirm with the person. A re-scan keeps the plan\'s ids for the parts it finds again. '
-    + 'Pass one of rooms, layout and scan. '
+    + 'Rooms text writes far more than rectangles (the rooms argument holds its whole grammar, each topic with an example, and grid://guide/rooms serves it): floors with their level, elevation and height, a floor copied from another and a stair or shaft standing through floors; rooms drawn as a polygon at any angle and corners cut out; a curved wall written raw with its arc\'s centre and sweep in degrees; a raw room bounded by its own walls; outdoor rooms (garden, terrace, balcony); a room\'s own height and its floor set lower or higher; rooms open to each other; a floor\'s roof written raw (gable, hip); and a room type written once as a unit and placed many times by place and repeat, mirrored. Write a whole building, every floor, in one rooms text: a long one goes in a file in the project, passed as roomsFile. '
+    + 'Pass one of rooms, roomsFile, layout and scan. '
     + 'Fixtures and furniture are not rooms text: a rewrite keeps them where they stood, with their ids, and lists them with their rooms and any a new wall runs into (itemsKept). '
     + 'Do not use for one door or window (grid_change_opening) or one wall moved (grid_move_room_side). It replaces the plan file. Rooms text that names fewer floors than the plan holds is refused, naming the floors it would drop (replace=true drops them); rooms text with no rooms is always refused.',
   args: {
@@ -671,9 +675,12 @@ const writeRoomsTool: GridTool = {
       type: 'string',
       lines: true,
       maxLength: ROOMS_TEXT_MAX,
-      description: 'The rooms text, one statement a line; pass it, layout or scan. A room: room <id> "<name>" <use or -> <width> x <depth> [inside|centre|outside] <at x,y | north|south|east|west of <room> [align ...] [until <room>]>. An opening: door|window|opening <id> between <room> and <room> | in <room> <side>, <m> from <side> | centred, <m> wide [, sill <m>, height <m>, opens into <room>|in|out, hinged <direction>]. The first line sets the walls: walls outside <t> inside <t> height <h>.',
+      // CMD-38: the whole grammar, by topic, each with one example (roomsGrammar.ts).
+      description: `The rooms text, one statement a line; pass it, roomsFile, layout or scan. The whole grammar, by topic:\n\n${roomsGrammarText()}`,
       examples: [ROOMS_EXAMPLE],
     },
+    // CMD-38: rooms text from a file in the project, so a long building is not pasted into the call.
+    roomsFile: { type: 'string', maxLength: PATH_MAX, description: 'In place of rooms: a file of rooms text, as a path inside the project folder (such as building.rooms). Written as if its text were passed as rooms.', examples: ['building.rooms'] },
     scan: { type: 'string', maxLength: PATH_MAX, description: 'In place of rooms: a phone room scan, as a path inside the project folder (Apple\'s room model saved as JSON). The plan is written from it, and the scan kept beside the plan.', examples: ['scans/flat.json'] },
     replace: { type: 'boolean', description: 'true to write over a plan that was not written from this text or scan, or was changed since. Refused with the difference when left out.', examples: [true] },
     // BRF-6: a first layout from the brief, in place of rooms text.
@@ -757,7 +764,8 @@ const writeRoomsTool: GridTool = {
       }
       const options = { replace: args['replace'] === true, brief: true }
       const laid = shape === undefined ? null : writeLayout(project, file, shape, options)
-      const done = laid?.done ?? writeRoomsIntoProject(project, args['rooms'] as string, file, options)
+      const text = args['roomsFile'] === undefined ? (args['rooms'] as string) : readRoomsFile(project, args['roomsFile'] as string)
+      const done = laid?.done ?? writeRoomsIntoProject(project, text, file, options)
       const r = done.result
       return {
         text: (laid?.lines ?? done.lines).join('\n'),
