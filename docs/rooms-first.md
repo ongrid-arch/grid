@@ -111,7 +111,8 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   type. `building office` says what kind of building the plan is, and `building shop` on a
   `floor` line what that floor is ([the plan file](plan-file.md#what-kind-of-building-it-is-and-what-each-room-is-for)).
   `outdoor` or an outdoor kind (`terrace`) written as the use is refused with the line written
-  the way that writes: `-` for the use and `outdoor terrace` after the size (WRT-55, in `fixes`).
+  the way that writes: `-` for the use and `outdoor terrace` after the size (in `fixes`).
+  Outdoor words such as `patio` and `deck` offer the same correction (WRT-76).
 - A room stands on the floor whose floor line comes above it. `floor first` on a room line is
   refused with that (WRT-55): write the floor line, then its rooms under it. On a room line,
   `floor <m>` is a number, its own floor raised or sunk.
@@ -133,14 +134,21 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - `outdoor terrace` on a room line marks it as outdoor space (CNT-7), one of `garden`,
   `courtyard`, `terrace`, `balcony`, `light-well`, `porch`, `carport` or `other`, and `roofed` or
   `unroofed` after it says whether a roof covers it; unstated, a porch and a carport are roofed.
-  Its walls are written as any room's are, so give its open sides with `open` or a `virtual` wall
-  ([outdoor space](plan-file.md#outdoor-space-roofed-or-open)). The wall between it and a room is
+  Its exposed sides and shared edges with other outdoor rooms are open by default
+  ([outdoor space](plan-file.md#outdoor-space-roofed-or-open)). The wall between it and an indoor room is
   an outside wall: `exterior`, and a room placed beside it (or it beside a room, a unit's rooms
   or a room's corner) is set off by the outside thickness, unless a `wall between` line or the
   building room's own `walls` says otherwise (LVL-12). The outdoor space's own `walls` never
   thins the building's wall: they are its edges, a railing or a fence. A window onto it is in an
-  outside wall. Rooms placed by hand that leave another gap there are said once
-  (`rooms/wall-from-gap`), with the `wall between` line that keeps it (WRT-31).
+  outside wall. An outdoor room can stand apart from other rooms with unfilled ground between.
+- On any room, `edge railing 1.1` draws a railing 1.1 m high along the sides that face no room.
+  Its thickness comes from the room's `walls`, or the floor's inside thickness. `edge wall 0.45`
+  draws a 0.45 m parapet, using the room's `walls` or the floor's outside thickness. With
+  `edge wall` alone, the edge takes the floor's wall height. Use `wall <room> <side> virtual` to
+  open one outside side, or `wall <room> <side> railing height 1.1` for a railing on one side.
+  On an outdoor room, `height` sets headroom. Put a parapet or railing height after `edge` (WRT-76).
+  Write an access gallery as `corridor … outdoor other` or an outside stair room as
+  `stair … outdoor other` to use the same open edges.
 - `*` stretches a side as far as the room named after `until`: to that room's far face, or to its
   near face less the wall between when that room stands in the way of the stretch, or the line
   says `until near <room>` (WRT-55). A `*` along the room it is placed beside, with no `until`
@@ -162,7 +170,7 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   coordinates keep those positions, so the wall takes the measured gap up to the stated
   thickness (WRT-77).
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),
-  or that leave a gap that is neither a wall nor a room are refused in plain words naming both
+  or that leave a gap between indoor rooms are refused in plain words naming both
   rooms. Every refusal has a code, such as `rooms/overlap`. Each gives the advice that applies
   (WRT-55): a gap too wide for a wall is refused with the size of each room that closes it to the
   wall between them; `open` is offered to a room placed beside the other, `open <room>` to one
@@ -497,7 +505,7 @@ Every line rooms text takes, by topic, each with one example Grid writes with no
 
 ### Rooms
 
-room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room's south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls. number "<text>", dept <text> and facts <name>=<value> ... give it its room number, its department and facts of the person's own.
+room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room's south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place sets the thickness between this room and other indoor rooms. Use edge wall to set the exposed sides to this thickness. number "<text>", dept <text> and facts <name>=<value> ... give it its room number, its department and facts of the person's own.
 
 ```rooms
 walls outside 0.3 inside 0.1 height 2.7
@@ -572,12 +580,12 @@ door d1 in kiosk south, centred, 0.9 wide, opens in
 
 ### Outdoor
 
-outdoor <garden|courtyard|terrace|balcony|light-well|porch|carport|other> [roofed|unroofed] on a room line makes it outdoor space: a garden, a terrace, a balcony off a room, a courtyard. It is drawn and measured apart from the rooms inside.
+outdoor <garden|courtyard|terrace|balcony|light-well|porch|carport|other> [roofed|unroofed] on a room line makes it outdoor space: a garden, a terrace, a balcony off a room, a courtyard. Its outside edges and the sides it shares with other outdoor rooms are open by default. Set the sides facing no room with edge open, edge railing <h> or edge wall [<h>].
 
 ```rooms
 room living "Living room" living 5.0 x 4.0 at 0,0
 room garden "Garden" - 5.0 x 6.0 south of living outdoor garden unroofed
-room terrace "Terrace" - 3.0 x 4.0 east of living outdoor terrace roofed
+room terrace "Terrace" - 3.0 x 4.0 east of living outdoor terrace roofed edge railing 1.1
 door d-garden between living and garden, centred, 1.8 wide, sliding
 door d-terrace between living and terrace, centred, 0.9 wide, opens into terrace
 ```
@@ -598,7 +606,7 @@ opening proscenium between living and stage, centred, 3.6 wide
 
 ### Open sides
 
-open [<room>] after a room's place leaves no wall between it and the room it is placed beside (or the room named): one space in two rooms, a kitchen open to a living room, a stage open to its hall. wall between <room> and <room> virtual writes a dividing line with no wall. An opening line makes a gap of a given width in a wall.
+open [<room>] after a room's place leaves no wall between it and the room it is placed beside (or the room named): one space in two rooms, a kitchen open to a living room, a stage open to its hall. wall between <room> and <room> virtual writes a dividing line with no wall. Use open <north|south|east|west> on a room, unit or unit placement to open that side, including where it faces no room. Use wall <room> <side> virtual to set a single outside edge. An opening line makes a gap of a given width in a wall.
 
 ```rooms
 room living "Living room" living 5.0 x 4.0 at 0,0
@@ -723,7 +731,7 @@ door d1 between front and back, centred, 0.9 wide, opens into back
 
 ### Other lines
 
-One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>]; repeat floors <n> from <floor> [...] [rise <m>].
+One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual|railing] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind|virtual|railing] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>]; repeat floors <n> from <floor> [...] [rise <m>].
 
 ```rooms
 plan "Corner shop"
@@ -736,3 +744,4 @@ room store "Store" storage 2.0 x 5.0 east of shop
 door front in shop south, centred, 1.2 wide, opens in
 door d1 between shop and store, 0.5 from north, 0.9 wide, opens into store
 ```
+

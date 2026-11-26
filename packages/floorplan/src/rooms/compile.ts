@@ -44,7 +44,11 @@
  *       then:    walls <t> [kind]  height <h>  floor <m> (its floor above or below the storey's)  first-wall <wall id>
  *                tenure <private|shared|common|commercial>  type "<the firm's own room type>"
  *                outdoor <garden|courtyard|terrace|balcony|light-well|porch|carport|other> [roofed|unroofed]
- *                                 the room is outdoor space (CNT-7, C26), roofed or not
+ *                                 the room is outdoor space (CNT-7, C26), roofed or not; open where
+ *                                 no room faces it, and open to the outdoor space it touches (WRT-76)
+ *                edge open|railing <h>|wall [<h>]  the sides no room faces: open, a railing, or a
+ *                                 wall of the room's own `walls <t>` (WRT-76, `edges.ts`)
+ *                open <north|south|east|west>  that side open onto whatever room is there, or none
  *                conditioned|unconditioned  heated or cooled or not, so in the living area under air
  *                                 or out of it (ARE-60); unstated, a parking room is not
  *                number "<text>"  dept <text>  facts <name>=<value> ...  its stated room number, its
@@ -58,8 +62,9 @@
  *       or to its near face less the wall between when that room stands in the way or the line says
  *       'until near' (WRT-55); a '*' along the room it is placed beside, with no 'until', takes that
  *       room's extent
- *   wall between <room> and <room> [<side>] [<t>] [kind|virtual] [height <h>] [id <id>] [reversed]
- *   wall <room> <side> [<t>] [kind] [height <h>] [id <id>] [reversed]  an outside wall
+ *   wall between <room> and <room> [<side>] [<t>] [kind|virtual|railing] [height <h>] [id <id>] [reversed]
+ *   wall <room> <side> [<t>] [kind|virtual|railing] [height <h>] [id <id>] [reversed]  an outside wall,
+ *       an open edge or a railing (WRT-76)
  *   door|window|opening <id> ["<name>"] between <room> and <room>, <place>, <w> wide [...]
  *   door|window|opening <id> ["<name>"] in <room> <side>, <place>, <w> wide [...]
  *       the name is kept in the opening's facts (`properties.name`, WRT-55). Between two rooms a
@@ -78,7 +83,7 @@
  *                part <w> [x <h>], the part that opens
  *       a raw room may be named too (WRT-45): the wall both rooms' boundaries name, or the one
  *       of its walls whose outside face looks to <side>, measured from that wall's own ends
- *   unit <name> [setting=default ...] ... end      rooms and openings written once
+ *   unit <name> [open <side>] [setting=default ...] ... end      rooms and openings written once
  *   unit <name> flat "<type name>" ["<flat name>"] [setting=default ...] ... end
  *       a flat type (CNT-4): every placement of it is a flat of that type in the plan's flats,
  *       with its label as id, the flat name with {n} as the label, its rooms, and mirrored
@@ -150,6 +155,7 @@ import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
 import { ITEM_LINE_WORDS, ItemLines, RAW_ITEM_KINDS } from './items'
 import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
+import { edgeWords, mirroredSide, OPEN_SIDES, outdoorWordKind, outsideEdge, type EdgeWord } from './edges'
 import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
 import { PARKING_LINE_WORDS, ParkingLines } from './parking'
 import { likelyMeant } from '../types/nearest'
@@ -264,6 +270,7 @@ const S2 = Math.sqrt(0.5)
 const DIRS: Readonly<Record<string, P>> = { north: [0, 1], south: [0, -1], east: [1, 0], west: [-1, 0] }
 const DIAG: Readonly<Record<string, P>> = { ne: [S2, S2], nw: [-S2, S2], se: [S2, -S2], sw: [-S2, -S2] }
 const COMPASS: Readonly<Record<string, P>> = { ...DIRS, ...DIAG }
+const OPPOSITE_SIDE: Readonly<Record<string, string>> = { north: 'south', south: 'north', east: 'west', west: 'east' }
 const MIRROR_X: Readonly<Record<string, string>> = { east: 'west', west: 'east', ne: 'nw', nw: 'ne', se: 'sw', sw: 'se' }
 const MIRROR_Y: Readonly<Record<string, string>> = { north: 'south', south: 'north', ne: 'se', se: 'ne', nw: 'sw', sw: 'nw' }
 export const SIZE_BASES = ['inside', 'centre', 'outside'] as const
@@ -296,6 +303,7 @@ const ROOM_LINE_WORDS: Readonly<Record<string, readonly string[]>> = {
   type: ['"<text>"'],
   through: ['<floor>'],
   outdoor: ['<kind>'],
+  edge: ['<open|railing|wall>'],
   roofed: [],
   unroofed: [],
   conditioned: [],
@@ -501,6 +509,8 @@ interface WallSay {
   height: number | null
   id: string | null
   reversed: boolean
+  /** WRT-76: the wall is a railing. */
+  railing?: boolean
   line: number
 }
 
@@ -534,6 +544,9 @@ interface RoomDraft {
   through: string | null
   /** WRT-4: the floor whose room this one is, standing here because that one rises through. */
   risenFrom: string | null
+  /** WRT-76: what its line's `edge` says about the sides no room faces, and the sides `open <side>` opens. */
+  edge?: EdgeWord
+  openSides?: string[]
   /** WRT-47: for a room sized to centre lines or outside faces and placed by its corner, the box its size measures to. */
   drawn?: Box
   /** WRT-52: for a room sized to centre lines or outside faces, what its size took off each side for the walls round it. */
@@ -604,6 +617,7 @@ interface WallsRule {
 }
 
 interface Unit {
+  openSides: string[]
   params: Map<string, string>
   body: Array<{ line: number; text: string }>
 }
@@ -739,6 +753,8 @@ interface RawWall {
   virtual: boolean
   /** Null when the text states none: the file gets no height, and the reading fills it (WRT-6). */
   height: number | null
+  /** WRT-76: a railing. */
+  railing?: boolean
   wantId: string | null
   reversed: boolean
   rooms: RoomDraft[]
@@ -762,6 +778,7 @@ interface DerivedWall {
   kind: WallKind
   virtual: boolean
   height: number | null
+  railing?: boolean
   base: P
   a: P
   b: P
@@ -841,6 +858,8 @@ class Compiler {
   private readonly overrunSaid = new Set<number>()
   /** WRT-55: the lines whose bare `open` the answer has said the room of. */
   private readonly openSaid = new Set<number>()
+  /** WRT-76: the room lines whose `walls` or `height` the answer has said something about. */
+  private readonly edgeSaid = new Set<string>()
   /** WRT-51: the room beyond the wall each opening line was placed in, by its line; null for the outside. */
   readonly placedAt = new Map<number, string | null>()
   /** The wall thickness each side of a sized room was taken to have, keyed floor|room|side. */
@@ -935,11 +954,18 @@ class Compiler {
           // CNT-4: `unit <name> flat "<type name>" ["<flat name>"]`: the unit is a flat type.
           const typeName = settings[1]
           if (typeName === undefined || typeName.includes('=')) this.stop('rooms/syntax', at, `line ${at}: a flat type is written 'unit <name> flat "<type name>" ["<flat name>"] [setting=default ...]'.`)
-          const flatName = settings[2] !== undefined && !settings[2].includes('=') ? settings[2] : null
+          const sideFollows = settings[2] === 'open' && OPEN_SIDES.includes(settings[3] ?? '')
+          const flatName = settings[2] !== undefined && !settings[2].includes('=') && !sideFollows ? settings[2] : null
           this.flatTypes.set(t[1]!, { name: typeName, flatName })
           settings = settings.slice(flatName === null ? 2 : 3)
         }
-        for (const p of settings) {
+        const openSides: string[] = []
+        for (let j = 0; j < settings.length; j++) {
+          const p = settings[j]!
+          if (p === 'open' && OPEN_SIDES.includes(settings[j + 1] ?? '')) {
+            openSides.push(settings[++j]!)
+            continue
+          }
           const eq = p.indexOf('=')
           if (eq < 0) this.stop('rooms/syntax', at, `line ${at}: a unit's settings are written name=value, found '${p}'.`)
           params.set(p.slice(0, eq), p.slice(eq + 1))
@@ -952,7 +978,7 @@ class Compiler {
         }
         if (i >= this.lines.length) this.stop('rooms/syntax', at, `line ${at}: unit '${t[1]}' has no closing 'end' line.`)
         i++
-        this.units.set(t[1]!, { params, body })
+        this.units.set(t[1]!, { openSides, params, body })
       } else {
         this.statement(t, at)
       }
@@ -1506,6 +1532,8 @@ class Compiler {
         ? fl.between.get(key)
         : this.wallSayAt(fl, others[0]!.id, room.id, dir, compassOf(mul(DIRS[dir]!, -1)))
       if (say && say.t !== null) return say.t
+      if (dir !== undefined && say === undefined &&
+          (room.openSides?.includes(OPPOSITE_SIDE[dir]!) === true || others[0]!.openSides?.includes(dir) === true)) return 0
     }
     return this.roomGap(room, others, fl)
   }
@@ -1514,6 +1542,7 @@ class Compiler {
     // LVL-12, WRT-31: a room beside outdoor space (a courtyard, a terrace), or a unit's rooms
     // beside one, is set off by the building's outside wall. A building room's own walls may set
     // it; an outdoor space's own walls are its edges (a railing, a fence), never the building's.
+    if (room.outdoor !== null && others.length > 0 && others.every((other) => other.outdoor !== null)) return 0
     const outdoorPair = others.length > 0 && others.every((other) => facesOutdoor(room, other))
     const ts = [room, ...others]
       .filter((r) => !outdoorPair || r.outdoor === null)
@@ -1569,7 +1598,7 @@ class Compiler {
     let use: RoomUse | undefined
     if (useWord === '-') use = undefined
     else if (roomUseOf(useWord) !== null) use = roomUseOf(useWord)!
-    else if (useWord === 'outdoor' || (OUTDOOR_KINDS as readonly string[]).includes(useWord)) this.outdoorUse(t, at, useWord)
+    else if (outdoorWordKind(useWord) !== null) this.outdoorUse(t, at, useWord)
     else {
       this.stop('rooms/unknown-use', at, `line ${at}: '${useWord}' is not a room use Grid knows. Use one of: ${USES.join(', ')}; or '-' for none. The room's name keeps the person's own word: "Pooja room", "Bryggers".`)
     }
@@ -1647,6 +1676,14 @@ class Compiler {
         place.inside = t[i + 1]!
         place.corner = t[i + 3]!
         i += 4
+      } else if (w === 'open' && OPEN_SIDES.includes(t[i + 1] ?? '') && t[i + 2] !== 'of' && !(ctx?.local.has(t[i + 1]!) || fl.rooms.has(t[i + 1]!))) {
+        // WRT-76: unit expansion has already mirrored the side word.
+        room.openSides = [...(room.openSides ?? []), t[i + 1]!]
+        i += 2
+      } else if (w === 'edge') {
+        const read = edgeWords(t, i, at, this.plain)
+        room.edge = read.edge
+        i = read.next
       } else if (w === 'open') {
         place.open = true
         i++
@@ -1761,7 +1798,13 @@ class Compiler {
     if (used !== 'inside') {
       // The size runs to the walls' centre lines or outside faces: take off the walls round it.
       const share = used === 'centre' ? 0.5 : 1
-      const side = (s: string): number => (this.assumed.get(`${fl.id}|${id}|${s}`) ?? (room.wallsT ?? fl.rule.outside)) * share
+      const side = (s: string): number => {
+        const known = this.assumed.get(`${fl.id}|${id}|${s}`)
+        if (known !== undefined) return known * share
+        const openSide = room.openSides?.includes(s) === true
+        if (room.outdoor === null && room.edge === undefined && !openSide) return (room.wallsT ?? fl.rule.outside) * share
+        return outsideEdge({ outdoor: room.outdoor !== null, edge: room.edge ?? null, wallsT: room.wallsT, say: null, openSide, rule: fl.rule, height: null }).t * share
+      }
       off.west = side('west')
       off.east = side('east')
       off.south = side('south')
@@ -1860,7 +1903,9 @@ class Compiler {
    */
   private outdoorUse(t: readonly string[], at: number, word: string): never {
     const fromName = t[2]!.toLowerCase().split(/[^a-z-]+/).find((x) => (OUTDOOR_KINDS as readonly string[]).includes(x))
-    const kind = (OUTDOOR_KINDS as readonly string[]).includes(word) ? word : (fromName ?? 'other')
+    // WRT-76: an outdoor word Grid has no kind for (patio, deck, veranda) is the kind it means.
+    const meant = outdoorWordKind(word)
+    const kind = meant?.kind ?? fromName ?? 'other'
     const source = this.lines[at - 1]
     let written: string | null = null
     if (source !== undefined) {
@@ -1868,7 +1913,7 @@ class Compiler {
       if (m !== null && m[2]!.toLowerCase() === word) {
         const rest = source.slice(m[0].length)
         const hash = unquoted(rest, /#/)
-        written = `${m[1]}-${(hash === null ? rest : rest.slice(0, hash.index)).trimEnd()} outdoor ${kind}`.trim()
+        written = `${m[1]}${meant?.use ?? '-'}${(hash === null ? rest : rest.slice(0, hash.index)).trimEnd()} outdoor ${kind}`.trim()
         this.stopFixes.set(at, [{ line: at, text: written }])
       }
     }
@@ -2079,13 +2124,16 @@ class Compiler {
   // ------------------------------------------------------------------------------------------
   // What the text says about a wall
 
-  private wallSay(words: string[], at: number, allowVirtual: boolean): WallSay {
+  private wallSay(words: string[], at: number): WallSay {
     const say: WallSay = { t: null, kind: null, height: null, id: null, reversed: false, line: at }
     let i = 0
     while (i < words.length) {
       const w = words[i]!
-      if (KINDS.includes(w as WallKind) || (allowVirtual && w === 'virtual')) {
+      if (KINDS.includes(w as WallKind) || w === 'virtual') {
         say.kind = w as WallKind | 'virtual'
+        i++
+      } else if (w === 'railing') {
+        say.railing = true
         i++
       } else if (w === 'height' && i + 1 < words.length) {
         say.height = numberOf(words[i + 1]!, at, this.plain)
@@ -2101,7 +2149,7 @@ class Compiler {
         this.statedT.add(say.t)
         i++
       } else {
-        this.stop('rooms/syntax', at, english(said('rooms.wall.unknownWord', { line: at, word: w, kinds: `${KINDS.join(', ')}${allowVirtual ? ', virtual' : ''}` })))
+        this.stop('rooms/syntax', at, english(said('rooms.wall.unknownWord', { line: at, word: w, kinds: `${KINDS.join(', ')}, virtual, railing` })))
       }
     }
     return say
@@ -2115,17 +2163,17 @@ class Compiler {
     if (t.length >= 4 && t[1] === 'between' && t[3] === 'and') {
       // 'wall between a and b east': the wall on a's east side, where a and b share more than one.
       const side = t[5] !== undefined && Object.hasOwn(COMPASS, t[5]) ? t[5] : null
-      const say = this.wallSay(t.slice(side === null ? 5 : 6), at, true)
+      const say = this.wallSay(t.slice(side === null ? 5 : 6), at)
       if (side !== null) fl.betweenSide.set(`${pairKey(t[2]!, t[4]!)}\u0000${t[2]}\u0000${side}`, say)
       else fl.between.set(pairKey(t[2]!, t[4]!), say)
       if (say.kind === 'virtual') fl.open.add(pairKey(t[2]!, t[4]!))
     } else if (t.length >= 3 && Object.hasOwn(COMPASS, t[2]!)) {
-      fl.extover.push({ room: t[1]!, side: t[2]!, say: this.wallSay(t.slice(3), at, false) })
+      fl.extover.push({ room: t[1]!, side: t[2]!, say: this.wallSay(t.slice(3), at) })
     } else {
       this.stop(
         'rooms/syntax',
         at,
-        `line ${at}: write 'wall between <room> and <room> [<thickness>] [interior|partition|virtual]' or 'wall <room> <north|south|east|west> [<thickness>] [exterior|interior]' for an outside wall; either may add 'height <m>', 'id <id>' or 'reversed'.`
+        `line ${at}: write 'wall between <room> and <room> [<thickness>] [interior|partition|virtual]' or 'wall <room> <north|south|east|west> [<thickness>] [exterior|interior]' for an outside wall (or 'virtual', an open edge, or 'railing'); either may add 'height <m>', 'id <id>' or 'reversed'.`
       )
     }
   }
@@ -2202,6 +2250,14 @@ class Compiler {
     const rooms = [...ctx.local.values()]
     if (rooms.length === 0) this.stop('rooms/syntax', at, `line ${at}: unit '${name}' has no rooms.`)
     const ub = boxOf(rooms.map((r) => [[r.box[0], r.box[1]], [r.box[2], r.box[3]]] as P[]))
+    const sideAt: Readonly<Record<string, number>> = { west: 0, south: 1, east: 2, north: 3 }
+    const declaredSides = this.units.get(name)!.openSides.map((side) => mirroredSide(side, mx, my))
+    for (const side of [...declaredSides, ...(place.openSides ?? [])]) {
+      const k = sideAt[side]!
+      for (const room of rooms) {
+        if (Math.abs(room.box[k]! - ub[k]!) < eps()) room.openSides = [...(room.openSides ?? []), side]
+      }
+    }
     const W = ub[2] - ub[0]
     const D = ub[3] - ub[1]
     let box: Box
@@ -2305,6 +2361,9 @@ class Compiler {
         place.dir = w
         place.ref = t[i + 2]!
         i += 3
+      } else if (w === 'open' && OPEN_SIDES.includes(t[i + 1] ?? '')) {
+        place.openSides = [...(place.openSides ?? []), t[i + 1]!]
+        i += 2
       } else if (w === 'align' && i + 1 < t.length) {
         place.align = t[i + 1]!
         i += 2
@@ -2387,7 +2446,7 @@ class Compiler {
       const settings = new Map(params)
       if (k === 0) for (const [key, value] of ends.first) settings.set(key, value)
       if (k === n - 1) for (const [key, value] of ends.last) settings.set(key, value)
-      const where: UnitPlace = named ? { ...place, dir: d, ref: ref! } : k === 0 ? place : { dir: d, ref: ref!, ...(place.gap === undefined ? {} : { gap: place.gap }) }
+      const where: UnitPlace = named ? { ...place, dir: d, ref: ref! } : k === 0 ? place : { dir: d, ref: ref!, ...(place.gap === undefined ? {} : { gap: place.gap }), ...(place.openSides === undefined ? {} : { openSides: place.openSides }) }
       this.placeUnit(t[1]!, lab, where, settings, mx, my, at)
       labels.push(lab)
       ref = lab
@@ -2707,13 +2766,18 @@ class Compiler {
             taken.push([x, y])
             continue
           }
+          const spec = wallSayAt(e, c.f)
+          const outdoor = e.room.outdoor !== null || c.f.room.outdoor !== null
+          // WRT-76: ground between outdoor space and another room can be left open.
+          if (outdoor && spec === undefined && c.d >= tolerance('roomsTouch') &&
+              (!facesOutdoor(e.room, c.f.room) || !thicknessStated(c.d))) continue
           const max = widest(e, c.f)
           if (c.d <= max + eps()) {
             e.cover.push({ s0: x, s1: y, d: c.d, f: c.f, ...(c.turn ? { turn: c.turn } : {}) })
             // WRT-17: a wall the text states may be seen end on across an outside face; a wall
             // only as thick as an odd gap between two rooms does not make every such stretch one.
             if (c.d <= maxT + eps() && thicknessStated(c.d)) junc = Math.max(junc, c.d)
-          } else if (c.d < 2 * fl.rule.outside + max) {
+          } else if (c.d < 2 * fl.rule.outside + max && (!outdoor || spec !== undefined)) {
             const key = pairKey(e.room.id, c.f.room.id)
             if (!reported.has(key)) {
               reported.add(key)
@@ -2783,7 +2847,7 @@ class Compiler {
           fl.rule.kind
         let virtual = false
         // WRT-55: a wall line between two rooms placed touching stands its wall on the line they share.
-        const walling = spec !== undefined && spec.kind !== 'virtual' && (!fl.open.has(key) || spec.t !== null || spec.kind !== null)
+        const walling = spec !== undefined && spec.kind !== 'virtual' && (!fl.open.has(key) || spec.t !== null || spec.kind !== null || spec.railing === true)
         if (d < tolerance('roomsTouch') && walling) {
           d = spec.t ?? (facesOutdoor(A, B) ? fl.rule.outside : fl.rule.inside)
           if (!this.fromGap.has(`on|${key}`)) {
@@ -2791,7 +2855,9 @@ class Compiler {
             this.warn('rooms/wall-on-line', spec.line, english(said('rooms.wallOnLine', { line: spec.line, a: A.id, b: B.id, thickness: num(f2(d)), half: num(f2(d / 2)) })))
           }
         } else if (d < tolerance('roomsTouch')) {
-          if (fl.open.has(key)) {
+          // WRT-76: two outdoor spaces that touch are open to each other, and so is a side 'open <side>' opens.
+          const opened = (A.outdoor !== null && B.outdoor !== null) || (A.openSides ?? []).includes(compassOf(e.n)) || (B.openSides ?? []).includes(compassOf(c.f.n))
+          if (fl.open.has(key) || opened) {
             virtual = true
             d = 0
             kind = 'interior'
@@ -2852,6 +2918,7 @@ class Compiler {
           kind,
           virtual,
           height: virtual ? (spec?.height ?? 0) : (spec?.height ?? height),
+          ...(spec?.railing === true && !virtual ? { railing: true } : {}),
           wantId: spec?.id ?? null,
           reversed: spec?.reversed ?? false,
           rooms: [A, B],
@@ -2869,26 +2936,30 @@ class Compiler {
         cur = Math.max(cur, c.s1)
       }
       if (e.L - cur > eps()) gaps.push([cur, e.L])
-      let T = fl.rule.outside
-      let kind: WallKind = 'exterior'
       let say: WallSay | null = null
-      for (const x of fl.extover) {
-        if (x.room === A.id && dot(e.n, COMPASS[x.side]!) > 0.9) {
-          T = x.say.t ?? T
-          kind = x.say.kind !== null && x.say.kind !== 'virtual' ? x.say.kind : kind
-          say = x.say
-        }
-      }
+      for (const x of fl.extover) if (x.room === A.id && dot(e.n, COMPASS[x.side]!) > 0.9) say = x.say
+      // WRT-76: open, a railing or a wall, by the wall line, 'open <side>', 'edge' and whether it is outdoor space.
+      const side = outsideEdge({
+        outdoor: A.outdoor !== null,
+        edge: A.edge ?? null,
+        wallsT: A.wallsT,
+        say: say === null ? null : { t: say.t, kind: say.kind, height: say.height, railing: say.railing === true },
+        openSide: (A.openSides ?? []).includes(compassOf(e.n)),
+        rule: fl.rule,
+        height,
+      })
+      const T = side.t
       for (const [a0, b0] of gaps) {
         const whole = a0 < eps() && b0 > e.L - eps()
         if (b0 - a0 <= junc && !whole) continue // the end of a wall that meets this face
         raws.push({
-          a: pt(e, a0, T / 2),
-          b: pt(e, b0, T / 2),
+          a: pt(e, a0, side.virtual ? 0 : T / 2),
+          b: pt(e, b0, side.virtual ? 0 : T / 2),
           t: T,
-          kind,
-          virtual: false,
-          height: say?.height ?? height,
+          kind: side.kind,
+          virtual: side.virtual,
+          height: side.height,
+          ...(side.railing ? { railing: true } : {}),
           wantId: say?.id ?? null,
           reversed: say?.reversed ?? false,
           rooms: [A],
@@ -2910,6 +2981,35 @@ class Compiler {
     this.sideThicknesses(fl, edges, raws)
     this.warnTurned(fl)
     return { edges, raws }
+  }
+
+  /**
+   * WRT-76: what `walls` and `height` on a room line set, where that may not be what was meant:
+   * `walls` that set none of the room's walls, and an outdoor space's `height`, which is its
+   * headroom and not its edges'. Said once a line, so a unit's line is said once.
+   */
+  private edgeNotes(fl: FloorDraft, raws: readonly RawWall[]): void {
+    for (const room of fl.rooms.values()) {
+      if (room.risenFrom !== null) continue
+      const values = { line: room.line, room: sayName(room.id) }
+      const wallsNote = `walls|${room.line}`
+      const heightNote = `height|${room.line}`
+      if (room.wallsT !== null && !this.edgeSaid.has(wallsNote)) {
+        const T = room.wallsT
+        const used = raws.some((r) => !r.virtual && r.rooms.includes(room) &&
+          (room.outdoor !== null ? r.ext : !r.ext || room.edge?.kind === 'wall' || room.edge?.kind === 'railing') &&
+          Math.abs(r.t - T) <= tolerance('diffLength'))
+        if (!used) {
+          this.edgeSaid.add(wallsNote)
+          const key = room.outdoor !== null ? 'rooms.walls.unused.outdoor' : 'rooms.walls.unused'
+          this.warn('rooms/walls-unused', room.line, english(said(key, { ...values, thickness: num(f2(T)), outside: num(f2(fl.rule.outside)) })))
+        }
+      }
+      if (room.outdoor !== null && room.height !== null && !this.edgeSaid.has(heightNote)) {
+        this.edgeSaid.add(heightNote)
+        this.warn('rooms/outdoor-height', room.line, english(said('rooms.outdoor.height', { ...values, height: num(f2(room.height)) })))
+      }
+    }
   }
 
   /** WRT-56: a wall between faces out of parallel, the most they turn and how far its face is off them. */
@@ -3132,7 +3232,7 @@ class Compiler {
       if (d[0] < -tolerance('noLength') || (Math.abs(d[0]) < tolerance('noLength') && d[1] < 0)) d = [-d[0], -d[1]]
       r.d = d
       const off = cross(d, r.a)
-      const key = [Math.atan2(d[1], d[0]).toFixed(6), off.toFixed(4), r.t.toFixed(4), r.kind, r.virtual, r.height === null ? '-' : r.height.toFixed(4)].join('|')
+      const key = [Math.atan2(d[1], d[0]).toFixed(6), off.toFixed(4), r.t.toFixed(4), r.kind, r.virtual, r.railing === true, r.height === null ? '-' : r.height.toFixed(4)].join('|')
       const list = groups.get(key)
       if (list) list.push(r)
       else groups.set(key, [r])
@@ -3194,7 +3294,7 @@ class Compiler {
           curId = curId ?? r.wantId
         } else {
           curId = r.wantId
-          cur = { lo: r.lo!, hi: r.hi!, raws: [r], d, t: r.t, kind: r.kind, virtual: r.virtual, height: r.height, base: rs[0]!.a } as DerivedWall
+          cur = { lo: r.lo!, hi: r.hi!, raws: [r], d, t: r.t, kind: r.kind, virtual: r.virtual, height: r.height, ...(r.railing === true ? { railing: true } : {}), base: rs[0]!.a } as DerivedWall
           walls.push(cur)
         }
       }
@@ -3323,6 +3423,7 @@ class Compiler {
         ...(w.height !== null ? { height: fix(w.height) } : {}),
         kind: w.kind,
         ...(w.virtual ? { virtual: true } : {}),
+        ...(w.railing === true ? { railing: true } : {}),
         ...(this.explicitFloors ? { floor: fl.id } : {}),
       }
       w.json = json
@@ -4126,6 +4227,7 @@ class Compiler {
         const { edges, raws } = this.derive(fl)
         if (this.problems.length > 0) continue
         const built = this.buildWalls(fl, edges, raws, wallPrefix)
+        this.edgeNotes(fl, raws)
         // WRT-44: a wall worked out with its two ends at one point, as the file holds them, has
         // no length: two outside walls closer than their own thickness (the notch between two
         // flats of a row) cover its place. It is left out, so the plan never holds a wall the check
@@ -4611,6 +4713,7 @@ interface UnitPlace {
   align?: string
   shift?: number
   gap?: number
+  openSides?: string[]
 }
 
 /**

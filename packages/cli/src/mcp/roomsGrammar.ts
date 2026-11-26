@@ -25,7 +25,7 @@ export interface GrammarTopic {
 export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   {
     topic: 'rooms',
-    says: 'room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room\'s south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls. number "<text>", dept <text> and facts <name>=<value> ... give it its room number, its department and facts of the person\'s own.',
+    says: 'room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room\'s south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place sets the thickness between this room and other indoor rooms. Use edge wall to set the exposed sides to this thickness. number "<text>", dept <text> and facts <name>=<value> ... give it its room number, its department and facts of the person\'s own.',
     example: [
       'walls outside 0.3 inside 0.1 height 2.7',
       'room living "Living room" living 5.0 x 4.0 at 0,0',
@@ -94,11 +94,11 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   },
   {
     topic: 'outdoor',
-    says: 'outdoor <garden|courtyard|terrace|balcony|light-well|porch|carport|other> [roofed|unroofed] on a room line makes it outdoor space: a garden, a terrace, a balcony off a room, a courtyard. It is drawn and measured apart from the rooms inside.',
+    says: 'outdoor <garden|courtyard|terrace|balcony|light-well|porch|carport|other> [roofed|unroofed] on a room line makes it outdoor space: a garden, a terrace, a balcony off a room, a courtyard. Its outside edges and the sides it shares with other outdoor rooms are open by default. Set the sides facing no room with edge open, edge railing <h> or edge wall [<h>].',
     example: [
       'room living "Living room" living 5.0 x 4.0 at 0,0',
       'room garden "Garden" - 5.0 x 6.0 south of living outdoor garden unroofed',
-      'room terrace "Terrace" - 3.0 x 4.0 east of living outdoor terrace roofed',
+      'room terrace "Terrace" - 3.0 x 4.0 east of living outdoor terrace roofed edge railing 1.1',
       'door d-garden between living and garden, centred, 1.8 wide, sliding',
       'door d-terrace between living and terrace, centred, 0.9 wide, opens into terrace',
     ],
@@ -118,7 +118,7 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   },
   {
     topic: 'open sides',
-    says: 'open [<room>] after a room\'s place leaves no wall between it and the room it is placed beside (or the room named): one space in two rooms, a kitchen open to a living room, a stage open to its hall. wall between <room> and <room> virtual writes a dividing line with no wall. An opening line makes a gap of a given width in a wall.',
+    says: 'open [<room>] after a room\'s place leaves no wall between it and the room it is placed beside (or the room named): one space in two rooms, a kitchen open to a living room, a stage open to its hall. wall between <room> and <room> virtual writes a dividing line with no wall. Use open <north|south|east|west> on a room, unit or unit placement to open that side, including where it faces no room. Use wall <room> <side> virtual to set a single outside edge. An opening line makes a gap of a given width in a wall.',
     example: [
       'room living "Living room" living 5.0 x 4.0 at 0,0',
       'room kitchen "Kitchen" kitchen 3.0 x 4.0 east of living open',
@@ -234,7 +234,7 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   },
   {
     topic: 'other lines',
-    says: 'One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>]; repeat floors <n> from <floor> [...] [rise <m>].',
+    says: 'One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual|railing] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind|virtual|railing] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>]; repeat floors <n> from <floor> [...] [rise <m>].',
     example: [
       'plan "Corner shop"',
       'building shop',
