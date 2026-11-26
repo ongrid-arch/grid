@@ -461,7 +461,7 @@ describe('the slots this file lists', () => {
   })
 
   it('cover every tool argument that is a path, and no other', async () => {
-    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after']
+    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after', 'base']
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
       .filter((arg) => PATH_ARGS.includes(arg))
@@ -637,8 +637,12 @@ describe('the base plan a fit-out names (CNT-10)', () => {
     const calls = plans.flatMap((plan) => PLAN_TOOLS.map(([, call]) => call(plan)))
     const answers = await callTools(calls)
     answers.forEach((answer, i) => {
-      const [path, why] = T5_TRACE_IMAGE_PATHS[Math.floor(i / PLAN_TOOLS.length)]!
-      expectToolRefused(answer, path, 'base plan', why)
+      const at = Math.floor(i / PLAN_TOOLS.length)
+      const [path, why] = T5_TRACE_IMAGE_PATHS[at]!
+      // WRT-75: grid_start_fit_out takes the fitted plan as its base, and refuses it as a base that
+      // names a base of its own before it follows that path.
+      if (PLAN_TOOLS[i % PLAN_TOOLS.length]![0] === 'grid_start_fit_out') expectToolRefused(answer, plans[at]!, 'names a base of its own')
+      else expectToolRefused(answer, path, 'base plan', why)
     })
     expect(tree(project)).toEqual([ROOMS, PLAN, ...plans].sort())
     expectOutsideUntouched()
