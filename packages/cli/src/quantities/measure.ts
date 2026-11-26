@@ -40,7 +40,7 @@ import {
   type Vec2,
   type Wall,
 } from '@ongrid/floorplan/geometry'
-import { drawable } from '@ongrid/floorplan/geometry/rules/check'
+import { checkPlanSanity, drawable } from '@ongrid/floorplan/geometry/rules/check'
 import { floorGraph, roomOutlines, type BlockedBy } from '@ongrid/floorplan/geometry/rules/graph'
 import { compassOf, type Compass } from '../describe/facts'
 import { roomCalled, type Survey, type SurveyRoom } from './survey'
@@ -259,6 +259,15 @@ export function routeBetween(survey: Survey, from: string, to: string, acrossFlo
   }
 }
 
+/**
+ * ARE-63: the floors whose way out the way-out check does not follow, because no stair joins them
+ * to the ground floor: the floors of its `no_stairs` notes. A route out from one is said beside
+ * them, found or not, so it never reads as the check's.
+ */
+export function floorsNotChecked(survey: Survey): ReadonlySet<string> {
+  return new Set(checkPlanSanity(survey.plan).notChecked.filter((n) => n.reason === 'no_stairs').map((n) => n.floor))
+}
+
 /** One search; `onlyExit` limits the way out to that doorway (ARE-21). */
 function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}): Route | null {
   const fromFloor = survey.byId.get(from)!.facts.floor
@@ -366,10 +375,10 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
   }
 }
 
-type Joins = Pick<ReturnType<typeof floorJoins>, 'joins' | 'stairs'>
+export type Joins = Pick<ReturnType<typeof floorJoins>, 'joins' | 'stairs'>
 
-/** The stairs between floors as the way-out check reads them: its outlines, a lift left out. */
-function stairJoins(plan: FloorPlan): Joins {
+/** The stairs between floors as the way-out check reads them: its outlines, a lift left out. ARE-63: the walk reads them too. */
+export function stairJoins(plan: FloorPlan): Joins {
   const outlines = new Map<string, Map<string, readonly Vec2[]>>()
   const leftOutOn = new Map<string, ReadonlySet<string>>()
   for (const floor of planFloors(plan)) {

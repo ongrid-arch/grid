@@ -147,8 +147,10 @@ interface Way {
 function waysIn(facts: PlanFacts): Way[] {
   const ways: Way[] = []
   for (const floor of facts.floors) {
+    // ARE-63: a door onto the common parts is no way in from outside, as the check reads it.
+    const common = new Set((floor.commonIn ?? []).map((c) => c.opening))
     for (const opening of floor.openings) {
-      if (opening.type === 'window') continue
+      if (opening.type === 'window' || common.has(opening.id)) continue
       const [a, b] = opening.sides
       if (isSide(a) && b === 'outside') ways.push({ room: a.room, opening })
       else if (isSide(b) && a === 'outside') ways.push({ room: b.room, opening })
@@ -191,6 +193,14 @@ function totalArea(facts: PlanFacts): number {
   return facts.floors.reduce((sum, floor) => sum + floor.area, 0)
 }
 
+/** ARE-63: the doors and doorless openings onto the common parts, by the room each leads into. */
+function waysFromCommon(facts: PlanFacts): Way[] {
+  return facts.floors.flatMap((floor) => (floor.commonIn ?? []).flatMap((c) => {
+    const opening = floor.openings.find((o) => o.id === c.opening)
+    return opening === undefined ? [] : [{ room: c.room, opening }]
+  }))
+}
+
 /** `a door leads`, `3 doors lead`, `2 doors and 1 doorless opening lead`. */
 function waysText(ways: readonly Way[], w: Words): string {
   const doors = ways.filter((way) => way.opening.type === 'door').length
@@ -209,9 +219,13 @@ function personLine(facts: PlanFacts, names: PersonNames, w: Words): string {
   const into = [...new Set(ways.map((way) => names.room(way.room)))]
   // ARE-18: with no door in, an open side to the outside is the way in, as the check reads it.
   const open = [...new Set(facts.floors.flatMap((floor) => floor.edgesOut.map((e) => names.room(e.room))))]
+  const common = waysFromCommon(facts)
+  const fromCommon = [...new Set(common.map((way) => names.room(way.room)))]
   const entered = into.length > 0
     ? t(w, 'describe.entered', { ways: waysText(ways, w), rooms: listed(w, capped(w, into, 5)) })
-    : open.length > 0 ? t(w, 'describe.entered.openSide', { rooms: listed(w, capped(w, open, 5)) }) : t(w, 'describe.entered.none')
+    : open.length > 0
+      ? t(w, 'describe.entered.openSide', { rooms: listed(w, capped(w, open, 5)) })
+      : fromCommon.length > 0 ? t(w, 'describe.entered.common', { ways: waysText(common, w), rooms: listed(w, capped(w, fromCommon, 5)) }) : t(w, 'describe.entered.none')
   const line = t(w, 'describe.line', { floors: floorText, rooms: countOf(w, 'describe.count.room', facts.rooms.size), uses: usesText(facts, w), area: area(w, totalArea(facts)), entered })
   return `${line}${personBuilding(facts, names, w)}${personWork(facts, w)}`
 }
@@ -253,9 +267,12 @@ function agentBuilding(facts: PlanFacts): string {
 function agentLine(facts: PlanFacts): string {
   const ways = waysIn(facts)
   const open = [...new Set(facts.floors.flatMap((floor) => floor.edgesOut.map((e) => e.room)))]
+  const common = [...new Set(waysFromCommon(facts).map((way) => way.room))]
   const into = ways.length > 0
     ? `from outside into ${capped(ENGLISH, [...new Set(ways.map((way) => way.room))], 8).join(', ')}`
-    : open.length > 0 ? `from outside across open sides into ${capped(ENGLISH, open, 8).join(', ')}` : 'no way in from outside'
+    : open.length > 0
+      ? `from outside across open sides into ${capped(ENGLISH, open, 8).join(', ')}`
+      : common.length > 0 ? `from the common parts into ${capped(ENGLISH, common, 8).join(', ')}` : 'no way in from outside'
   return `PLAN ${plural(facts.floors.length, 'floor')}, ${plural(facts.rooms.size, 'room')}${usesText(facts, ENGLISH)}, ${m(totalArea(facts))} m2 inside, ${plural(facts.wallCount, 'wall')}, ${plural(facts.openingCount, 'opening')}; ${into}.${agentBuilding(facts)}${agentWork(facts)}`
 }
 
