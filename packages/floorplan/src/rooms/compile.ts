@@ -4029,7 +4029,9 @@ class Compiler {
             if (ids.has(newId)) continue
             if (on(fl).some((x) => x.wall === target.id && x.offset < offset + o.width && offset < x.offset + x.width)) continue
             const flip = <T extends string>(v: T | undefined, a: T, b: T): T | undefined => (v === undefined || same ? v : v === a ? b : a)
-            const { anchor: _anchor, ...kept } = o
+            // Its anchor names the rooms of the floor it is written on, so it stays there.
+            const kept: Opening = { ...o }
+            delete kept.anchor
             const swing = flip(o.swing, 'left', 'right')
             const hinge = flip(o.hinge, 'start', 'end')
             const item: Opening = { ...kept, id: newId, wall: target.id, offset: r4(offset), ...(swing === undefined ? {} : { swing }), ...(hinge === undefined ? {} : { hinge }) }
