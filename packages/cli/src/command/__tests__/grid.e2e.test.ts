@@ -599,6 +599,7 @@ describe('the built file', () => {
     // again with no new dependency.
     // 850 kB since SHT-22: its note, tag, symbol, route and sketch lines and grid_annotate, on main
     // at bd9d0a9b, take it to 803,004 bytes, again with no new dependency.
+    // SHT-23's elevations and sections pages stay under the same cap.
     expect(statSync(bundle).size).toBeLessThan(850_000)
   })
 })

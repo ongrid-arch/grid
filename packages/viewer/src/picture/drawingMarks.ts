@@ -86,8 +86,8 @@ export function drawingMarkNodes(marks: DrawingMarks, look: Look, mpp: number, p
   const nodes: SvgNode[] = []
   const name: Attrs = { 'text-anchor': 'middle', fill: look.colors.label, 'font-family': look.colors.font, 'font-size': TEXT_PX.note, 'font-weight': 'bold' }
 
-  const cut = marks.section
-  if (cut !== null) {
+  // SHT-23: the section named A, then any further ones, each drawn the same way under its own name.
+  for (const cut of [...(marks.section === null ? [] : [marks.section]), ...marks.sections]) {
     const heavy = Math.max(lines.width('elevationGround'), lines.width('mark'))
     const span = { x: cut.to.x - cut.from.x, y: cut.to.y - cut.from.y }
     const length = Math.hypot(span.x, span.y)

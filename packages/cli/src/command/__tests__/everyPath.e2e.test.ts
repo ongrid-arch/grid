@@ -605,7 +605,8 @@ describe('the trace image a plan names (T-5)', () => {
     })
     expectOutsideUntouched()
     // Six plans times every tool that reads one: it grows with each tool and runs long on a busy machine.
-  }, 300_000)
+    // SHT-23: the check sheet draws its elevations and sections too.
+  }, 480_000)
 
   it('HND-10: is never followed when it does not end as a picture, by any command or tool', async () => {
     const path = 'notes/plan.sh'

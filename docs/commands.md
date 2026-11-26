@@ -1096,6 +1096,16 @@ outside face of its walls, as in the 3D model and the section: the plan states n
 - `check` is a working set for the person checking the plan: a summary in plain words with the
   number of findings and the three areas, then a page per floor with every room, door and window
   id on the drawing, the area of each room with its use, and every finding on that floor.
+- Both layouts follow the floor pages with an elevations page and a sections page (SHT-23). The
+  elevations are every side of the building, as `grid draw --facade` draws them; the sections are
+  A, along the building's longer side, and B, across it, each cut through the largest room of the
+  lowest floor, off any wall that runs along the line, from outside the building to outside it.
+  Both lines are marked on every floor plan of the sheet. Every drawing on the two pages is at one
+  scale, the largest of 1:50, 1:100, 1:200, 1:250, 1:500 and 1:1000 at which all of them fit, so
+  printed at full size on A3 they measure true; each page has a scale bar and a title block
+  (project, drawing, scale, date and status). The check sheet lists what the sections took that the
+  plan does not state; the client sheet says in one line that they took some. A plan with no walls
+  has neither page.
 
 Its figures, tables and drawings are in the plan's `display`, the person's own units (feet and
 inches with square feet, millimetres, a decimal comma), and in metres when the plan has none

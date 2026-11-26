@@ -69,7 +69,8 @@ describe('grid_words (MSG-24)', () => {
   it('writes German words into the plan\'s display, and the drawing, the sheet and the check print them', async () => {
     const listed = new Set<MessageKey>()
     for (const output of ['drawing', 'sheet', 'check']) {
-      const reply = await b.call('grid_words', { plan: 'plan.json', language: 'de', output })
+      // SHT-23: the sheet's keys, with its elevations and sections, pass the 20 KB an answer is kept to.
+      const reply = await b.call('grid_words', { plan: 'plan.json', language: 'de', output, whole: true })
       expect(reply.isError, reply.text).toBe(false)
       for (const row of (reply.data as unknown as KeysData).keys) listed.add(row.key)
     }
