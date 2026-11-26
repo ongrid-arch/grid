@@ -129,7 +129,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   room out of another's corner and closes it with its own walls, in a corner against the outside
   walls or against a neighbouring room, however small: the end of its wall, seen across the corner
   from the room next door, is never read as a gap or a wall between that room and the host
-  (WRT-53). `unit`, `place`, `repeat` and `mirror` write a group of rooms
+  (WRT-53). A room cut from a corner may be exactly as wide or as deep as the host's side there
+  (a cupboard under a stair, a sleeping loft across a cabin): it is cut across the host as a strip,
+  with one dividing wall (or line, with `open`), and the host keeps the rest. A size that with its
+  wall comes to the whole side takes the whole side, and the answer says so; a cut that does not
+  fit is refused with the sizes that do (WRT-66). `unit`, `place`, `repeat` and `mirror` write a group of rooms
   once; `copy <floor>` starts a floor from another, and `through <floor>` stands a room on the
   floors above its own ([many of one room](#many-of-one-room-floors-copied-and-walls-through-floors)).
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),
@@ -138,7 +142,7 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   (WRT-55): a gap too wide for a wall is refused with the size of each room that closes it to the
   wall between them; `open` is offered to a room placed beside the other, `open <room>` to one
   placed by its corner, and a corner (`inside <room> corner`) only to a room that fits inside the
-  other. A `wall between` line for two rooms placed touching stands its wall on the line they
+  other, or is as wide or as deep as it and smaller the other way. A `wall between` line for two rooms placed touching stands its wall on the line they
   share, each room giving up half of it, and the answer says so (`rooms/wall-on-line`).
 - `open` on a room line and `wall between <a> and <b> virtual` anywhere on the floor (or in the
   unit) say the same thing: a room placed beside the other is placed against it, with a dividing
