@@ -267,7 +267,7 @@ describe('what kind of building it is (CNT-5)', () => {
       expect(check.lookedAtCount, ruleId).toBe(0)
       expect(check.skipped.map((s) => [s.reason, s.ids.length]), ruleId).toEqual([['not_for_building', 7]])
       expect(check.readFor, ruleId).toBeUndefined()
-      expect(check.buildings, ruleId).toEqual(['home'])
+      expect(check.buildings, ruleId).toEqual(['home', 'flats'])
     }
     expect(result.report.figures).toEqual([])
     expect(result.report.rules.map((r) => r.id)).not.toContain('habitable-room-area')

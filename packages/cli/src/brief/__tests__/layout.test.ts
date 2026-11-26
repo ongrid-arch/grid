@@ -171,7 +171,7 @@ describe('WR-19: the estate agent\'s five rooms', () => {
     expect(both.text).toContain('Pass rooms or layout, not both')
     const neither = await b.call('grid_write_rooms', { plan: 'plan.json' })
     expect(neither.isError).toBe(true)
-    expect(neither.text).toContain('Pass rooms (the rooms text to write), layout (tidy or sizes, a first layout from the brief beside the plan) or scan')
+    expect(neither.text).toContain('Pass rooms (the rooms text to write), roomsFile (a rooms text file in the project), layout (tidy or sizes, a first layout from the brief beside the plan) or scan')
     // HND-12: a scan is the third way in, and the answer carries it, null for a layout.
     expect(done.data?.['scan']).toBeNull()
     const withScan = await b.call('grid_write_rooms', { plan: 'plan.json', layout: 'tidy', scan: 'scans/flat.json' })
