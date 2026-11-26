@@ -17,7 +17,7 @@ import { idHolder } from './holder'
 import { EditRefused } from './refused'
 
 /** The checks on an item that say whether it fits where it was put. */
-const FIT_CODES = new Set(['item/outside-rooms', 'item/into-wall', 'item/overlap', 'item/clearance-blocked', 'item/too-tall', 'item/blocks-doorway', 'item/blocks-window', 'opening/door-hits-item'])
+export const FIT_CODES = new Set(['item/outside-rooms', 'item/into-wall', 'item/overlap', 'item/clearance-blocked', 'item/too-tall', 'item/blocks-doorway', 'item/blocks-window', 'opening/door-hits-item'])
 
 const n2 = (value: number): string => value.toFixed(2)
 
