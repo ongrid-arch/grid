@@ -982,9 +982,26 @@ outside face of its walls, as in the 3D model and the section: the plan states n
 `exports/` beside the plan (`<name>-client.pdf` or `<name>-check.pdf`), or to the `.pdf` that
 `--out` names.
 
-- `client` is a presentation for the person the house is for: a cover with the name, a headline,
-  a few paragraphs, the 3D picture and four figures (gross area, floors, bedrooms, floor-to-floor
-  height), then a page per floor with its drawing, its room areas and its own paragraphs.
+- `client` is a presentation for the person the building is for: a cover with the name, a
+  headline, a few paragraphs, the 3D picture and up to six figures, then a page per floor with its
+  drawing, its room areas and its own paragraphs (SHT-21):
+  - The cover's figures start with the gross area and go on with the figures of the plan's kind
+    of building (`building`, and each floor's own): homes and bedrooms for a home or a block of
+    flats, guest rooms for a hotel, beds and operating theatres for health, platforms and gates
+    for transport, classrooms for a school, seats and the clear height of the hall for culture and
+    assembly, loading doors (a roller or garage door in an outside wall) and the clear height of
+    the tallest room for a warehouse or industry, cells for custody, parking spaces for a car park.
+    A plan that states no kind shows each count only where there is one. Then the floors, the
+    floor to floor and the height to the roof, the gross external area and, with a site boundary,
+    the floor area ratio (gross external area over the site's). Floors are counted, and floor to
+    floor taken, by whole storeys: a mezzanine or a terrace inside a taller storey is set aside.
+    Figures past six are one line under them, and the rounding rule is said once.
+  - Three or more rooms of one use, of one net area, whose names differ only by a number at the
+    end are one row of the floor's table: `60 × Bedroom`, the area of each and their sum.
+  - Floors that are alike (the same walls, openings, items, stairs and rooms at the same places,
+    ids and numbers aside) are printed once as a typical floor, whose subtitle names the floors it
+    stands for; a floor with its own words in sheet.json, or with a part left out, keeps its page.
+    When floors were folded, an area schedule by floor page and by use follows them.
 - `check` is a working set for the person checking the plan: a summary in plain words with the
   number of findings and the three areas, then a page per floor with every room, door and window
   id on the drawing, the area of each room with its use, and every finding on that floor.

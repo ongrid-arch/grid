@@ -45,6 +45,12 @@ use, so a 40-floor sheet is a few pages and is made in seconds, not minutes.
   adding up to the net area, then the whole building by use.
 - `packages/cli/src/sheet/pages.ts`: `clientBodies` reads the three above. The words are new keys
   in `en.ts` and `es.ts` (draft), next to the sheet's others.
+- Decisions taken while building: rooms are grouped from three alike up, so a house's two
+  bedrooms of one size keep their own names; a floor with a part left out is never folded, since
+  its page says so; of rooms as tall, the hall figure names the largest (the hall, not its foyer);
+  the rounding line says a table prints more places where its rows need them to add up, as
+  `sumText` does; a typical floor's page does not list its floors in `grid_sheet`'s page list
+  (its subtitle does), so the tool's output schema is unchanged.
 - Decisions: no new field in the plan (no convention taken); a room count is read from uses and
   items, a dock from a roller or garage door in an outside wall; the area schedule is added only
   when floors were folded, so a two-floor house keeps its three pages; the check sheet keeps every
