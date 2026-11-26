@@ -118,3 +118,28 @@ describe('the items wherever an agent looks', () => {
     expect(schedule.text).not.toContain('In all:')
   })
 })
+
+describe('equipment in rows (CNT-47)', () => {
+  const HALL = ['walls outside 0.3 inside 0.1 height 4', 'room hall "Data hall" plant 12 x 8 at 0,0', 'door d1 in hall south, centred, 1.2 wide']
+
+  it('lays out racks in rows in one call, each a fixture grid_count counts by its kind', async () => {
+    await ok('grid_write_rooms', { plan: 'hall.json', rooms: HALL.join('\n') })
+    const reply = await ok('grid_add_item', { plan: 'hall.json', name: 'rack', id: 'r', room: 'hall', against: 'north', end: 'west', repeat: 15, rows: 3, row_every: 2.4 })
+    expect(reply.text).toContain('Laid out 45 × rack from "rack" (0.60 × 1.20 m, 2.00 m high), 3 rows of 15, "r-1-1" to "r-3-15"')
+    expect(reply.data).toMatchObject({ item: 'r-1-1', fits: true })
+    expect(((reply.data as Rec)['placed'] as string[])).toHaveLength(45)
+    expect(items('hall.json')).toHaveLength(45)
+    const counted = await ok('grid_count', { plan: 'hall.json', kind: ['fixture'], by: 'item kind' })
+    expect(((counted.data as Rec)['groups'] as Rec[]).map((g) => [g['value'], g['count']])).toEqual([['rack', 45]])
+    const back = await ok('grid_describe', { plan: 'hall.json', as: 'rooms' })
+    expect(back.text).toMatch(/row r rack at 8\.7,7\.4 turn 180 repeat 15 every 0\.6, 3 rows every 2\.4/)
+  })
+
+  it('takes generic equipment with clear floor at its sides, and refuses a row that cannot be laid out', async () => {
+    await ok('grid_add_item', { plan: 'hall.json', name: 'equipment', id: 'ups', label: 'UPS', width: 1.2, depth: 0.8, height: 1.9, x: 9, y: 1, repeat: 2, every: 1.5, clear_left: 0.2, out: 'ups.json' })
+    expect(itemIn('ups.json', 'ups-2')).toMatchObject({ kind: 'equipment', label: 'UPS', at: [10.5, 1], clearSides: { left: 0.2 } })
+    expect(await refused('grid_add_item', { plan: 'hall.json', name: 'rack', room: 'hall', against: 'north', repeat: 3, every: 0.3 })).toMatch(/stand in each other.*Nothing was written/)
+    expect(await refused('grid_add_item', { plan: 'hall.json', name: 'rack', x: 1, y: 1, rows: 2 })).toMatch(/give repeat/)
+    expect(await refused('grid_add_item', { plan: 'hall.json', name: 'rack', id: 'r', x: 1, y: 1, repeat: 2, rows: 2 })).toMatch(/The id "r-1-1" that the row would give is taken by rack "r-1-1"/)
+  })
+})
