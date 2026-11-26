@@ -20,13 +20,14 @@ import { inLanguage } from '../command/words'
 import type { LoadedPlan } from '../command/plan'
 import { describeText } from '../describe/card'
 import { planFacts } from '../describe/facts'
-import { AREA_RULES, planAreas, type FloorAreas } from '../quantities/areas'
+import { AREA_RULES, planAreas, type FloorAreas, type PlanAreas } from '../quantities/areas'
 import { factsText, flatSchedule, openingSchedule, openingTypeSchedule, roomSchedule, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
 import type { ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
 import { surveyPlan } from '../quantities/survey'
 import { notShownNote } from './limits'
 import { coverFigures, roundingNote } from './coverFigures'
 import { groupRooms } from './roomGroups'
+import { typicalFloors } from './typicalFloors'
 import { displayFor, sqFt } from '../quantities/units'
 import { showLength, type Display } from '@ongrid/floorplan/types/units'
 
@@ -124,6 +125,8 @@ export interface SheetPage {
   readonly kind: 'cover' | 'floor' | 'summary'
   /** The floor a floor page, or its continuation, is about; null on the cover and the summary. */
   readonly floor: string | null
+  /** SHT-21: on a typical floor's page, every floor it stands for, lowest first; `floor` is the first. */
+  readonly stands?: readonly string[]
   readonly topLine: string
   readonly title: string | null
   readonly subtitle: string | null
@@ -365,19 +368,73 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
   }
   // Never an id here: floors that share a name are told apart by their place in the plan.
   const named = (name: string) => floors.filter((f) => f.name === name).length
-  const pages = floors.map((floor, i): Body => {
-    const floorAreas = areas.floors.find((f) => f.floor === floor.id)
-    const leftOut = floorIssues(loaded, floor.id).some((issue) => loaded.broken.has(issue.id))
-    const floorTitle = named(floor.name) > 1 ? w.say('sheet.floorNumbered', { floor: floor.name, number: i + 1 }) : floor.name
+  const floorTitle = new Map(floors.map((floor, i) => [floor.id, named(floor.name) > 1 ? w.say('sheet.floorNumbered', { floor: floor.name, number: i + 1 }) : floor.name] as const))
+  const leftOut = new Set(floors.filter((floor) => floorIssues(loaded, floor.id).some((issue) => loaded.broken.has(issue.id))).map((floor) => floor.id))
+  // SHT-21: alike floors are printed once, as a typical floor; a floor with its own words, or with
+  // a part left out, is never folded into another.
+  const apart = new Set([...leftOut, ...floors.filter((floor) => (words?.floors?.[floor.id] ?? []).length > 0).map((floor) => floor.id)])
+  const sets = typicalFloors(loaded.plan, areas, apart)
+  const typical = sets.filter((set) => set.length > 1)
+  const setTitle = (set: readonly string[]): string => {
+    if (set.length === 1) return floorTitle.get(set[0]!)!
+    return typical.length === 1 ? w.say('sheet.typicalFloor') : w.say('sheet.typicalFloor.numbered', { number: typical.indexOf(set as string[]) + 1 })
+  }
+  const pages = sets.map((set): Body => {
+    const id = set[0]!
+    const floorAreas = areas.floors.find((f) => f.floor === id)
+    const pageTitle = setTitle(set)
+    const nets = set.map((floor) => areas.floors.find((f) => f.floor === floor)?.net ?? 0)
     return {
-      kind: 'floor', floor: floor.id, topLine: `${title} / ${floorTitle}`, title: floorTitle, subtitle: null,
-      paragraphs: words?.floors?.[floor.id] ?? [], figures: [],
+      kind: 'floor', floor: id, topLine: `${title} / ${pageTitle}`, title: pageTitle,
+      subtitle: set.length === 1 ? null : w.say('sheet.typicalFloor.stands', { count: set.length, floors: set.map((floor) => floorTitle.get(floor)!).join(w.say('join.comma')) }),
+      ...(set.length === 1 ? {} : { stands: set }),
+      paragraphs: words?.floors?.[id] ?? [], figures: [],
       table: floorAreas ? areaTable(floorAreas, false, units, w) : null,
-      picture: floorPicture(loaded, frames, floor.id, false),
-      notes: [notShownNote(loaded.plan, floor.id, stairsDrawn, w.language), ...limits, ...(leftOut ? [w.say('sheet.leftOutLimit')] : []), ...undecidedNote(loaded, floor.id, w)],
+      picture: floorPicture(loaded, frames, id, false),
+      notes: [
+        ...(set.length === 1 ? [] : [w.say('sheet.typicalFloor.each', { count: set.length, area: units.sum(nets, nets.reduce((a, b) => a + b, 0)).total, unit: units.areaUnit })]),
+        notShownNote(loaded.plan, id, stairsDrawn, w.language), ...limits, ...(leftOut.has(id) ? [w.say('sheet.leftOutLimit')] : []), ...undecidedNote(loaded, id, w),
+      ],
     }
   })
-  return [cover, ...pages]
+  // When floors were folded, the area by floor and by use, so nothing a page stands for is lost.
+  return [cover, ...pages, ...(typical.length === 0 ? [] : areaScheduleBodies(sets, setTitle, areas, units, w, title))]
+}
+
+/**
+ * SHT-21: the area schedule after a client sheet's floors, when some were printed once: one row
+ * per floor page (a typical floor's counts all its floors), then the whole building by use. Both
+ * add up to the net area, from `planAreas`' rooms as each floor's table counts them.
+ */
+function areaScheduleBodies(sets: readonly string[][], setTitle: (set: readonly string[]) => string, areas: PlanAreas, units: SheetUnits, w: Words, title: string): Body[] {
+  const floorOf = (id: string) => areas.floors.find((f) => f.floor === id)
+  const counted = (floor: FloorAreas | undefined) => (floor?.rooms ?? []).filter((r) => r.zoneOf === undefined && r.countedWith === undefined && r.outdoor === undefined && r.void !== true)
+  const useName = (use: string): string => (use === '' ? w.say('sheet.useNotSaid') : w.use(use))
+  const byUse = (rooms: readonly FloorAreas['rooms'][number][], times = 1): Map<string, number> => {
+    const out = new Map<string, number>()
+    for (const room of rooms) out.set(room.use ?? '', (out.get(room.use ?? '') ?? 0) + (room.net ?? 0) * times)
+    return out
+  }
+  const nets = sets.map((set) => set.reduce((sum, id) => sum + (floorOf(id)?.net ?? 0), 0))
+  const total = nets.reduce((a, b) => a + b, 0)
+  const shownFloors = units.sum(nets, total)
+  const floorRows: SheetRow[] = sets.map((set, i) => ({
+    name: set.length === 1 ? setTitle(set) : w.say('sheet.typicalFloor.times', { title: setTitle(set), count: set.length }),
+    detail: [...byUse(counted(floorOf(set[0]!)), set.length)].map(([use, area]) => w.say('sheet.areaSchedule.use', { use: useName(use), area: units.area(area) })).join(w.say('join.comma')) || null,
+    area: shownFloors.parts[i]!,
+  }))
+  const uses = byUse(sets.flatMap((set) => set.flatMap((id) => counted(floorOf(id)))))
+  const shownUses = units.sum([...uses.values()], total)
+  const useRows: SheetRow[] = [...uses.keys()].map((use, i) => ({ name: useName(use), detail: null, area: shownUses.parts[i]! }))
+  const body = (heading: string, rows: readonly SheetRow[], shownTotal: string): Body => ({
+    kind: 'summary', floor: null, topLine: `${title} / ${w.say('sheet.areaSchedule')}`, title: w.say('sheet.areaSchedule'), subtitle: null,
+    paragraphs: [], figures: [], picture: null, notes: [],
+    table: { heading, rows, total: { name: w.say('sheet.netArea'), detail: null, area: shownTotal }, note: AREA_RULES.net },
+  })
+  return [
+    body(w.say('sheet.areaSchedule.floors', { unit: units.areaUnit }), floorRows, shownFloors.total),
+    body(w.say('sheet.areaSchedule.uses', { unit: units.areaUnit }), useRows, shownUses.total),
+  ]
 }
 
 const ENTITY_KEYS: Readonly<Record<string, MessageKey>> = {
