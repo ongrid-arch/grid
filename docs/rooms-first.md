@@ -318,6 +318,12 @@ the ids it had.
   lobby); one in a rising room's outside wall stays on its own floor. A floor that writes its own
   opening between the same two rooms keeps its own, and `remove <id>` takes a carried one off. A
   floor copied from one they rise through holds them once.
+- A stair or a lift that rises to a floor where no door is written into it (nor into the rising
+  rooms its openings join it to) takes up its doors to rooms that do not rise, from the floor it
+  is written on, in the same place, where its wall there is shared with a room of that floor (a
+  roof terrace) (LVL-19). Each takes the floor's id in front of its id, and the answer names them
+  (`rooms/door-carried`). A door whose place there faces the outside or another rising room is not
+  carried, a window never is, and a floor that writes a door into the stair gets none.
 
 The plan file holds every room, wall and opening written out, floor by floor, with the ids the
 text gave them: a repeat, a copy or a room through several floors leaves nothing in the file for

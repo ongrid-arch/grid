@@ -763,6 +763,8 @@ class Compiler {
   private readonly turned = new Map<string, Map<string, { a: string; b: string; sine: number; off: number }>>()
   /** WRT-17: the line each opening was written on, for a refusal that names it. */
   private readonly openingLines = new Map<string, number>()
+  /** LVL-19: each placed opening's id as its line writes it, by its id in the plan. */
+  private readonly openingLocal = new Map<string, string>()
   /**
    * WRT-51: for an opening line refused for not saying which of several sides, the line written
    * with each side in full, and for a line between two rooms the room it must then join; tried
@@ -3872,6 +3874,7 @@ class Compiler {
           else if (item) {
             plan.openings.push(o.name === undefined ? item : { ...item, properties: { ...item.properties, name: o.name } })
             this.openingLines.set(item.id, o.line)
+            this.openingLocal.set(item.id, local)
           }
         } catch (error) {
           if (!(error instanceof RoomsStop)) throw error
@@ -3900,6 +3903,7 @@ class Compiler {
         }
       }
     }
+    if (this.problems.length === 0) this.carryShaftDoors(plan, idOf)
     this.checkOpeningClash(plan.openings, plan.walls as Wall[])
     this.emitFlats(plan, idOf)
     const all = [...plan.walls, ...plan.rooms, ...plan.openings].map((x) => x.id)
@@ -3924,6 +3928,124 @@ class Compiler {
     }
     this.rawFacts(plan)
     return plan
+  }
+
+  /**
+   * LVL-19: a stair or a lift that rose `through` to a floor where no door leads into it (nor into
+   * the rising rooms its own openings join it to) takes up the doors it has, on the floor it is
+   * written on, into a room that does not rise: each in the same place, where the same stretch of
+   * its wall on this floor is shared with a room of this floor (the roof's terrace). A door whose
+   * place there faces the outside or another rising room stays where it is written, and a floor
+   * that writes any door into it gets none. The write answer names every door carried.
+   */
+  private carryShaftDoors(plan: { walls: WrittenWall[]; openings: Opening[] }, idOf: (fl: FloorDraft, id: string) => string): void {
+    if (!this.explicitFloors) return
+    const walls = new Map(plan.walls.map((w) => [w.id, w] as const))
+    const ids = new Set([...plan.walls.map((w) => w.id), ...plan.openings.map((o) => o.id)])
+    for (const fl of this.floors) for (const room of fl.rooms.values()) ids.add(idOf(fl, room.id))
+    const step = tolerance('stepPastFace')
+    const dirOf = (w: WrittenWall): { a: P; u: P; L: number } => {
+      const a: P = [w.start[0], w.start[1]]
+      const d = sub([w.end[0], w.end[1]], a)
+      const L = norm(d)
+      return { a, u: mul(d, 1 / L), L }
+    }
+    // The room on each face of a wall at a point along it, of a floor's rooms (null: none, the outside).
+    const facing = (fl: FloorDraft, w: WrittenWall, at: number): [string | null, string | null] => {
+      const { a, u } = dirOf(w)
+      const mid = add(a, mul(u, at))
+      const n: P = [-u[1], u[0]]
+      const off = w.thickness / 2 + step
+      const at2 = (k: number): string | null => {
+        const p = add(mid, mul(n, k * off))
+        const room = [...fl.rooms.values()].find((r) => pointInPolygon({ x: p[0], y: p[1] }, r.poly.map(([x, y]) => ({ x, y }))))
+        return room?.id ?? null
+      }
+      return [at2(1), at2(-1)]
+    }
+    const straight = (w: WrittenWall | undefined): w is WrittenWall => w !== undefined && w.arc === undefined
+    const on = (fl: FloorDraft): Opening[] => plan.openings.filter((o) => walls.get(o.wall)?.floor === fl.id)
+    const carried: Said[] = []
+    for (const fl of this.floors) {
+      const rose = new Set([...fl.rooms.values()].filter((r) => r.risenFrom !== null).map((r) => r.id))
+      if (rose.size === 0) continue
+      // What each door or opening on this floor joins, by the rooms on its two faces.
+      const ways = on(fl).flatMap((o) => {
+        const w = walls.get(o.wall)
+        return o.type === 'window' || !straight(w) ? [] : [facing(fl, w, o.offset + o.width / 2)]
+      })
+      const done = new Set<string>()
+      for (const first of rose) {
+        if (done.has(first)) continue
+        // The rising rooms the floor's openings join to this one: a stair and the lift beside it.
+        const group = new Set([first])
+        for (let grew = true; grew; ) {
+          grew = false
+          for (const [x, y] of ways) {
+            for (const [p, q] of [[x, y], [y, x]] as const) {
+              if (p !== null && q !== null && group.has(p) && rose.has(q) && !group.has(q)) {
+                group.add(q)
+                grew = true
+              }
+            }
+          }
+        }
+        for (const id of group) done.add(id)
+        if (ways.some(([x, y]) => (x !== null && group.has(x)) !== (y !== null && group.has(y)))) continue
+        for (const id of group) {
+          const shaft = fl.rooms.get(id)!
+          if (shaft.use !== 'stair' && shaft.use !== 'lift') continue
+          const src = this.floors.find((f) => f.id === shaft.risenFrom)
+          if (src === undefined) continue
+          for (const o of on(src)) {
+            const sw = walls.get(o.wall)
+            if (o.type === 'window' || !straight(sw)) continue
+            const [left, right] = facing(src, sw, o.offset + o.width / 2)
+            const other = left === id ? right : right === id ? left : undefined
+            // A door to the outside, or to a room that rises with it, is not this one's to carry.
+            if (other === undefined || other === null || rose.has(other)) continue
+            const s = dirOf(sw)
+            const p0 = add(s.a, mul(s.u, o.offset))
+            const p1 = add(s.a, mul(s.u, o.offset + o.width))
+            const target = plan.walls.find((w) => {
+              if (w.floor !== fl.id || !straight(w)) return false
+              const t = dirOf(w)
+              if (Math.abs(cross(t.u, s.u)) > tolerance('joint')) return false
+              const reach = Math.max(w.thickness, sw.thickness) / 2 + tolerance('joint')
+              return [p0, p1].every((p) => {
+                const along = dot(sub(p, t.a), t.u)
+                return Math.abs(cross(t.u, sub(p, t.a))) <= reach && along >= -tolerance('joint') && along <= t.L + tolerance('joint')
+              })
+            })
+            if (target === undefined) continue
+            const t = dirOf(target)
+            const same = dot(t.u, s.u) > 0
+            const offset = Math.max(0, Math.min(dot(sub(p0, t.a), t.u), dot(sub(p1, t.a), t.u)))
+            const [l, r] = facing(fl, target, offset + o.width / 2)
+            const into = l === id ? r : r === id ? l : undefined
+            if (into === undefined || into === null || rose.has(into)) continue
+            const local = this.openingLocal.get(o.id) ?? o.id
+            const newId = `${fl.id}-${local}`
+            if (ids.has(newId)) continue
+            if (on(fl).some((x) => x.wall === target.id && x.offset < offset + o.width && offset < x.offset + x.width)) continue
+            const flip = <T extends string>(v: T | undefined, a: T, b: T): T | undefined => (v === undefined || same ? v : v === a ? b : a)
+            const { anchor: _anchor, ...kept } = o
+            const swing = flip(o.swing, 'left', 'right')
+            const hinge = flip(o.hinge, 'start', 'end')
+            const item: Opening = { ...kept, id: newId, wall: target.id, offset: r4(offset), ...(swing === undefined ? {} : { swing }), ...(hinge === undefined ? {} : { hinge }) }
+            plan.openings.push(item)
+            ids.add(newId)
+            const line = this.openingLines.get(o.id)
+            if (line !== undefined) this.openingLines.set(newId, line)
+            this.openingFacts.push(
+              english(said('rooms.rawRoom.fact', { id: newId, kind: o.type, width: num(f2(o.width)), wall: target.id, joins: `${idOf(fl, id)} and ${idOf(fl, into)}`, from: num(f2(offset)), to: num(f2(t.L - offset - o.width)), said: '' }))
+            )
+            carried.push(said('rooms.doorCarried.one', { id: newId, floor: fl.id, shaft: idOf(src, id), source: o.id, from: src.id, room: idOf(fl, into) }))
+          }
+        }
+      }
+    }
+    if (carried.length > 0) this.warn('rooms/door-carried', null, english(said('rooms.doorCarried', { list: joined(carried, 'join.semicolon') })))
   }
 
   /**

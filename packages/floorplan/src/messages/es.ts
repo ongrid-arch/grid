@@ -2135,6 +2135,9 @@ export const es: Messages = {
   'rooms.copyNoOpenings.many':
     "Las plantas {floors} copian los recintos de la planta '{from}' pero ninguna de sus puertas y ventanas, y no escriben ninguna propia, así que no tienen ninguna: escriba 'copy {from} with openings' en cada una para tomarlas, o escriba sus puertas y ventanas.",
   'rooms.copyNoOpenings.more': '{list} y {count} más',
+  'rooms.doorCarried':
+    "Una escalera o un ascensor que sube a una planta donde no se escribe ninguna puerta hacia él toma sus puertas de la planta donde se escribe, en el mismo sitio, donde su muro allí da a un recinto de esa planta: {list}. Para darle otra entrada, escriba una puerta hacia él en esa planta.",
+  'rooms.doorCarried.one': "'{source}' de '{shaft}' en la planta '{from}' es '{id}' en la planta '{floor}', hacia '{room}'",
   'rooms.idChanged.one':
     'Los ids son únicos en todo el plano, y este se escribió en más de una planta, así que la primera planta que lo escribe lo conserva y cada otra planta lo toma con su id de planta delante: {list}. Todos los demás ids se conservan como se escribieron. Use estos ids en las llamadas siguientes.',
   'rooms.idChanged.many':
