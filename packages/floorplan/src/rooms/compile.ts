@@ -100,6 +100,9 @@
  *   raw floor { "roof": {...}, "parapet": <m> }         the floor's fields rooms text has no words for (LVL-6);
  *                                                      BRF-4 adds "outline", "homes" and "parking";
  *                                                      null takes a copied one off (LVL-16)
+ *   plot <w> x <d> [at x,y]   site boundary x,y ...   street <side|edge n>   setback <from> <m>
+ *   north <degrees> [clockwise] | north <up|left|...>   site origin|location|elevation|ground|country ...
+ *   site <fence|gate|path|paving|tree|pool> ...         the plot, north and the site (CNT-41): `site.ts`
  *
  * An opening pattern (LVL-8) is not rooms text, in a unit or out of one: a `pattern` line is
  * refused with where a pattern goes instead (`patternLine`). It lives in the plan file's
@@ -129,6 +132,7 @@ import { english, joined, name as sayName, num, said, type MessageKey, type Said
 import { idsOfText } from './ids'
 import { f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUnit, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
+import { SITE_LINE_WORDS, SiteLines } from './site'
 import { likelyMeant } from '../types/nearest'
 import { readingNotes } from '../types/reading'
 
@@ -162,7 +166,7 @@ const RAW_ELSEWHERE: Readonly<Record<string, Said>> = {
   fixture: said('rooms.raw.kind.list', { list: 'items' }),
   item: said('rooms.raw.kind.list', { list: 'items' }),
   furniture: said('rooms.raw.kind.list', { list: 'items' }),
-  site: said('rooms.raw.kind.list', { list: 'site' }),
+  site: said('rooms.raw.kind.site'),
   bay: said('rooms.raw.kind.list', { list: 'bays' }),
   ramp: said('rooms.raw.kind.list', { list: 'ramps' }),
   grid: said('rooms.raw.kind.list', { list: 'grids' }),
@@ -833,6 +837,9 @@ class Compiler {
     }
   }
 
+  /** CNT-41: the plot, north and the site's things, from their own lines. */
+  private readonly siteLines = new SiteLines()
+
   private stop(code: string, at: number | null, message: string): never {
     throw new RoomsStop(code, message, at)
   }
@@ -1056,6 +1063,8 @@ class Compiler {
 
   private statement(t: string[], at: number): void {
     const kw = t[0]!
+    // CNT-41: the plot, north and the site's things (`site.ts`).
+    if (SITE_LINE_WORDS.includes(kw)) return this.siteLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     switch (kw) {
       case 'plan':
         this.name = t[1] ?? null
@@ -1133,7 +1142,7 @@ class Compiler {
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw.`
+          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north.`
         )
     }
   }
@@ -4070,6 +4079,7 @@ class Compiler {
     const twice = [...new Set(all.filter((x, k) => all.indexOf(x) !== k))].sort()
     for (const id of twice) this.problem('rooms/duplicate-id', null, `The id '${id}' would name two things in the plan (walls, rooms and openings share one set of ids). Rename one.`)
     this.rawOpeningFloors(plan.walls)
+    this.emitSite(plan)
     if (this.problems.length > 0) return null
     this.askSizes(plan)
     const wallIds = new Set(plan.walls.map((w) => w.id))
@@ -4088,6 +4098,19 @@ class Compiler {
     }
     this.rawFacts(plan)
     return plan
+  }
+
+  /** CNT-41: the site lines into the plan's `site` and `north`; a plot with no place is centred on the walls. */
+  private emitSite(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.siteLines.written) return
+    const ends = plan.walls.flatMap((w) => [w.start, w.end].map((p) => [p[0], p[1], w.thickness / 2] as const))
+    const extent = ends.length === 0 ? null : ([Math.min(...ends.map((e) => e[0] - e[2])), Math.min(...ends.map((e) => e[1] - e[2])), Math.max(...ends.map((e) => e[0] + e[2])), Math.max(...ends.map((e) => e[1] + e[2]))] as const)
+    const made = this.siteLines.finish(extent)
+    const capital = (note: { code: string; line: number | null; message: string }): RoomsProblem => ({ ...note, message: note.message.charAt(0).toUpperCase() + note.message.slice(1) })
+    this.problems.push(...made.problems.map(capital))
+    this.warnings.push(...made.warnings.map(capital))
+    if (made.site !== undefined) plan.site = made.site
+    if (made.north !== undefined) plan.north = made.north
   }
 
   /**

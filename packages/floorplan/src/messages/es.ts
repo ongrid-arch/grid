@@ -2072,6 +2072,7 @@ export const es: Messages = {
   'rooms.raw.kind.opening': 'Una puerta o una ventana se escribe raw opening {"id": "<id>", "type": "{type}", "wall": "<id del muro>", "offset": <m>, "width": <m>, "height": <m>}.',
   'rooms.raw.kind.floor': 'El {list} de una planta se escribe raw floor {"{list}": ...}, bajo su línea de planta.',
   'rooms.raw.kind.list': 'El texto de estancias no tiene línea para ello: el archivo de plano de Grid lo guarda en "{list}", que se cambia en el archivo una vez escrito el plano.',
+  'rooms.raw.kind.site': 'El texto de estancias escribe el solar en líneas propias: plot <ancho> x <fondo> o site boundary x,y ..., street <lado>, setback <desde> <m>, north <grados> y site <tree|path|paving|pool|fence|gate> ....',
   'rooms.raw.kind.none': 'El texto de estancias no tiene línea para ello, en crudo o no.',
   'rooms.raw.smallLetters':
     "Línea {line}: el texto de estancias se lee en minúsculas, y '{written}' no lo está; escriba '{offered}'.",

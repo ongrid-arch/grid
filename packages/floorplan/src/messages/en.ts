@@ -2066,6 +2066,7 @@ export const en = {
   'rooms.raw.kind.opening': 'A door or a window is written raw opening {"id": "<id>", "type": "{type}", "wall": "<wall id>", "offset": <m>, "width": <m>, "height": <m>}.',
   'rooms.raw.kind.floor': 'A floor\'s {list} is written raw floor {"{list}": ...}, under its floor line.',
   'rooms.raw.kind.list': 'Rooms text has no line for it: Grid\'s plan file holds it in "{list}", changed in the file once the plan is written.',
+  'rooms.raw.kind.site': 'Rooms text writes the site in lines of its own: plot <width> x <depth> or site boundary x,y ..., street <side>, setback <from> <m>, north <degrees> and site <tree|path|paving|pool|fence|gate> ....',
   'rooms.raw.kind.none': 'Rooms text has no line for it, raw or not.',
   'rooms.raw.smallLetters':
     "Line {line}: rooms text is read in small letters, and '{written}' is not; write '{offered}'.",
