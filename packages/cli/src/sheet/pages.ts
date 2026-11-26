@@ -25,6 +25,7 @@ import { factsText, flatSchedule, openingSchedule, openingTypeSchedule, roomSche
 import type { ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
 import { surveyPlan } from '../quantities/survey'
 import { notShownNote } from './limits'
+import { coverFigures, roundingNote } from './coverFigures'
 import { displayFor, sqFt } from '../quantities/units'
 import { showLength, type Display } from '@ongrid/floorplan/types/units'
 
@@ -148,7 +149,7 @@ export interface SheetOptions {
  * `sheetUnits`, in the person's units with the language's decimal mark. Names from the plan go
  * in as they are: the sheet prints them unquoted, as the person wrote them.
  */
-interface Words {
+export interface Words {
   readonly language: Language
   readonly say: (key: MessageKey, values?: Values) => string
   /** A sentence Grid made elsewhere: its English as given, else said from its key and values. */
@@ -231,7 +232,7 @@ function undecidedNote(loaded: LoadedPlan, floor: string, w: Words): string[] {
  * language writes its own decimal mark (a comma in Spanish) unless the display states one
  * (`mark`), on the figures only, never on a name. A unit's words are said in the language.
  */
-interface SheetUnits {
+export interface SheetUnits {
   readonly metric: boolean
   /** `m²` or `sq ft`, for a heading. */
   readonly areaUnit: string
@@ -305,21 +306,6 @@ function areaTable(floor: FloorAreas, withUse: boolean, units: SheetUnits, w: Wo
   }
 }
 
-/** Floor to floor, from the levels the 3D view stacks; one floor gives its clear height. */
-function heightFigure(loaded: LoadedPlan, units: SheetUnits, w: Words): SheetFigure | null {
-  const storeys = [...floorElevations(loaded.plan).floors.values()]
-  const levels = [...new Set(storeys.map((s) => s.floorLevel))].sort((a, b) => a - b)
-  if (levels.length < 2) {
-    const only = storeys[0]
-    return only ? { value: units.length(only.clearHeight), label: w.say('sheet.figure.clearHeight') } : null
-  }
-  const steps = levels.slice(1).map((level, i) => level - levels[i]!)
-  const low = Math.min(...steps)
-  const high = Math.max(...steps)
-  const value = units.length(low) === units.length(high) ? units.length(low) : units.metric ? `${units.mark(metresText(low))}–${units.mark(metresText(high))} m` : `${units.length(low)}–${units.length(high)}`
-  return { value, label: w.say('sheet.figure.floorToFloor') }
-}
-
 /** An area figure, or "not known" when the plan gives none (the reason goes in the notes). */
 function areaFigure(value: number | null, label: string, units: SheetUnits, w: Words): SheetFigure {
   return { value: value === null ? w.say('sheet.notKnown') : `${units.area(value)} ${units.areaUnit}`, label }
@@ -339,23 +325,21 @@ function accessLines(notes: readonly AccessNote[], units: SheetUnits, w: Words):
 }
 
 function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string, w: Words, accessNotes: readonly AccessNote[] = []): Body[] {
-  const areas = planAreas(surveyPlan(loaded.plan))
+  const survey = surveyPlan(loaded.plan)
+  const areas = planAreas(survey)
   const floors = planFloors(loaded.plan)
   const frames = floorFrames(loaded)
   const facts = planFacts(loaded.plan)
-  const bedrooms = loaded.plan.rooms.filter((room) => room.use === 'bedroom').length
   const title = words?.name ?? name
   const units = sheetUnits(loaded.plan, w)
   // ARE-60: a US home is headlined by its living area under air and its total under roof, never
   // by a gross figure with the garage in.
   const first = areas.underAir.first
-  const figures: SheetFigure[] = first
+  const headline: SheetFigure[] = first
     ? [areaFigure(areas.conditioned, w.say('sheet.figure.conditioned'), units, w), areaFigure(areas.underRoof, w.say('sheet.figure.underRoof'), units, w)]
     : [areaFigure(areas.grossInternal, w.say('sheet.figure.grossInternal'), units, w)]
-  figures.push({ value: String(floors.length), label: w.say(floors.length === 1 ? 'sheet.figure.floors.one' : 'sheet.figure.floors.many') })
-  figures.push({ value: String(bedrooms), label: w.say(bedrooms === 1 ? 'sheet.figure.bedrooms.one' : 'sheet.figure.bedrooms.many') })
-  const height = heightFigure(loaded, units, w)
-  if (height) figures.push(height)
+  // SHT-21: then the figures the building's kind is judged by, its storeys, heights and ratio.
+  const { figures, more } = coverFigures(survey, areas, headline, units, w)
 
   const stairsDrawn = facts.connections.stairs.length > 0
   const limits = facts.connections.unjoined.length > 0 ? [w.say('sheet.stairLimit')] : []
@@ -366,6 +350,8 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
       ...(first
         ? (['conditioned', 'underRoof'] as const).flatMap((m) => (areas[m] === null && areas.underAirWhy[m] !== null ? [areas.underAirWhy[m]!] : []))
         : areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : []),
+      ...(more === null ? [] : [more]),
+      roundingNote(units, w),
       ...accessLines(accessNotes, units, w),
     ],
   }
