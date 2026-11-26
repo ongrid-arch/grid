@@ -144,7 +144,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-41: four more, the site's lines.
   'packages/cli/src/mcp/roomsGrammar.ts': [55, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
-  'packages/cli/src/mcp/siteTools.ts': [44, 'tools'],
+  'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -392,10 +392,10 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // refusal for no layout is gone).
     // and SHT-20 2: printing a sheet at a stated scale and paper size (it used the cap's slack on its own).
     // and CNT-40 1: the estimate's plural words for the new room uses (quantities/estimate.ts).
-    // and CNT-41 115: the site lines in rooms text (rooms/site.ts 30), the site's changes
-    // (edit/site.ts 35), their tools (mcp/siteTools.ts 44), the grammar's site topic (4) and what
+    // and CNT-41 116: the site lines in rooms text (rooms/site.ts 30), the site's changes
+    // (edit/site.ts 35), their tools (mcp/siteTools.ts 45), the grammar's site topic (4) and what
     // the coverage counts (quantities/site.ts 2) (odd/tasks/CNT-41.md).
-    expect(left).toBeLessThanOrEqual(1777)
+    expect(left).toBeLessThanOrEqual(1778)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

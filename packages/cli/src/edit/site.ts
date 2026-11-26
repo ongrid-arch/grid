@@ -9,7 +9,7 @@
  * Sides are the drawing's, as in rooms text and every edit (C4: north is up the drawing); the
  * reading of them is rooms text's own (`rooms/site.ts`), so the two read a side the same way.
  */
-import { metresText, pointInPolygon, SITE_THING_WORDS } from '@ongrid/floorplan/geometry'
+import { metresText, pointInPolygon, SITE_THING_WORDS, tolerance } from '@ongrid/floorplan/geometry'
 import { northWordsOf, plotCorners, siteEdges, type SetbackWords } from '@ongrid/floorplan/rooms'
 import { SiteSchema, SiteThingSchema, boundaryEdgeCount, type FloorPlan, type Site, type SiteThing, type SiteThingKind } from '@ongrid/floorplan/types/floorplan'
 import type { Survey } from '../quantities/survey'
@@ -213,14 +213,14 @@ function outsideLine(plan: FloorPlan, thing: SiteThing): string | null {
   return `The ${word(thing.kind)} ${thing.id} stands ${out.length === points.length ? 'outside' : 'partly outside'} the plot's boundary.`
 }
 
+/** Whether a point is on the boundary: no further from one of its edges than a building may reach past it unseen. */
 function onRing(ring: readonly { x: number; y: number }[], x: number, y: number): boolean {
+  const near = tolerance('pastBoundary')
   return ring.some((a, i) => {
     const b = ring[(i + 1) % ring.length]!
-    const length = Math.hypot(b.x - a.x, b.y - a.y)
-    if (length === 0) return Math.hypot(x - a.x, y - a.y) < 1e-6
-    const t = ((x - a.x) * (b.x - a.x) + (y - a.y) * (b.y - a.y)) / (length * length)
-    if (t < 0 || t > 1) return false
-    return Math.abs((x - a.x) * (b.y - a.y) - (y - a.y) * (b.x - a.x)) / length < 1e-6
+    const length2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2
+    const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * (b.x - a.x) + (y - a.y) * (b.y - a.y)) / length2))
+    return Math.hypot(x - (a.x + t * (b.x - a.x)), y - (a.y + t * (b.y - a.y))) <= near
   })
 }
 
@@ -283,7 +283,7 @@ export function changeSiteThing(survey: Survey, request: ThingRequest): Patch {
     if ((request.by === undefined) === (request.to === undefined)) throw new EditRefused('To move a thing, give by (how far, x,y) or to (where its middle goes, x,y), one of them.')
     const middle = middleOf(thing)
     const [dx, dy] = request.by ?? [request.to![0] - middle[0], request.to![1] - middle[1]]
-    const shift = (p: readonly number[]): Pair => [Math.round((p[0]! + dx) * 1e6) / 1e6, Math.round((p[1]! + dy) * 1e6) / 1e6]
+    const shift = (p: readonly number[]): Pair => [Math.round((p[0]! + dx) * 1e6) / 1e6 + 0, Math.round((p[1]! + dy) * 1e6) / 1e6 + 0]
     change = { ...(thing.at === undefined ? {} : { at: shift(thing.at) }), ...(thing.points === undefined ? {} : { points: thing.points.map(shift) }) }
     const ways = [dx === 0 ? '' : `${M(Math.abs(dx))} ${dx > 0 ? 'east' : 'west'}`, dy === 0 ? '' : `${M(Math.abs(dy))} ${dy > 0 ? 'north' : 'south'}`].filter((w) => w !== '')
     line = `Moved the ${word(thing.kind)} ${thing.id} ${ways.length === 0 ? 'nowhere: it is there already' : ways.join(' and ')} on the drawing, ${placeText({ ...thing, ...change })} now.`

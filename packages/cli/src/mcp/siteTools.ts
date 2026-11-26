@@ -152,7 +152,7 @@ export const changeSiteTool: GridTool = {
     at: { type: 'string', maxLength: POINT_MAX, description: 'A tree\'s trunk, "x,y".', examples: ['10,15'] },
     by: { type: 'string', maxLength: POINT_MAX, description: 'For move: how far, "dx,dy" (2,0 is 2 m east on the drawing).', examples: ['2,0'] },
     to: { type: 'string', maxLength: POINT_MAX, description: 'For move: where its middle goes, "x,y": a tree\'s trunk, or the middle of the box round its points.', examples: ['12,15'] },
-    width: number('A path\'s width.', [1.2, 3], 0.05, 1000),
+    width: number('How wide a walk, drive or jetty is, across its middle line.', [1.2, 3], 0.05, 1000),
     canopy: number('A tree\'s canopy, across its crown.', [5], 0.1, 200),
     height: number('A fence\'s, a gate\'s or a tree\'s height, drawn only.', [1.8], 0.05, 200),
     label: { type: 'string', maxLength: NAME_MAX, description: 'The person\'s word for it.', examples: ['Old oak', 'Jetty'] },
