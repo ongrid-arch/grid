@@ -48,7 +48,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/export.ts': [20, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
-  'packages/cli/src/command/main.ts': [59, 'command'],
+  // CMD-43: three more, the --from refusals.
+  'packages/cli/src/command/main.ts': [62, 'command'],
   'packages/cli/src/command/options.ts': [9, 'command'],
   'packages/cli/src/command/plan.ts': [27, 'command'],
   // CMD-30: one more, the refusal of an invisible character.
@@ -61,7 +62,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-57: one less, the count of problems now said from the messages.
   // CMD-30: one more, the refusal of a read-only plan.
   // LVL-21: two more, the file's stairs kept when the text writes none.
-  'packages/cli/src/command/write.ts': [37, 'command'],
+  // CMD-43: three more, the help of --from, --layers and --units.
+  'packages/cli/src/command/write.ts': [40, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
@@ -78,6 +80,12 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/draw/stamp.ts': [1, 'notWords'],
   // VEW-62: the refusals of grid_view's out.
   'packages/cli/src/draw/pictureFiles.ts': [2, 'agent'],
+  // CMD-43: a DXF or IFC drawing read into rooms text, its refusals, notes and answer, as the scan's are.
+  'packages/cli/src/drawing/dxf.ts': [25, 'notYet'],
+  'packages/cli/src/drawing/fromDrawing.ts': [20, 'notYet'],
+  'packages/cli/src/drawing/ifc.ts': [11, 'notYet'],
+  'packages/cli/src/drawing/step.ts': [11, 'notYet'],
+  'packages/cli/src/drawing/toRooms.ts': [9, 'notYet'],
   'packages/cli/src/edit/addOpening.ts': [26, 'notYet'],
   // WRT-73: the receipts and refusals of marking phases.
   'packages/cli/src/edit/phaseMarks.ts': [18, 'notYet'],
@@ -101,6 +109,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
   // CNT-41: the plot's and the site's things' receipts and refusals.
   'packages/cli/src/edit/site.ts': [35, 'notYet'],
+  // VEW-67: the trace image's receipts and refusals.
+  'packages/cli/src/edit/trace.ts': [21, 'notYet'],
   'packages/cli/src/edit/split.ts': [19, 'notYet'],
   // LVL-21: a stair's receipts and refusals.
   'packages/cli/src/edit/stairs.ts': [15, 'notYet'],
@@ -171,6 +181,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
+  // VEW-67: the trace image's tool.
+  'packages/cli/src/mcp/traceTool.ts': [26, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -188,7 +200,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-62: one more, grid_sheet's pictures of the pages.
   // WRT-73: six more, the phase rules, the correction argument and its note, and keep_north.
   // VEW-64: one more, the floors an export holds.
-  'packages/cli/src/mcp/writeTools.ts': [152, 'tools'],
+  // CMD-43: six more, the from, layers and units arguments and their refusals.
+  'packages/cli/src/mcp/writeTools.ts': [158, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -440,7 +453,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-43 10: an item placed at its own size or by its kind, its receipt, refusals and its
     // tool's help (edit/place.ts 1, library/index.ts 2, mcp/editTools.ts 7).
     // and CNT-44 28: the fill's receipts and refusals (edit/fill.ts).
-    expect(left).toBeLessThanOrEqual(1956)
+    // and VEW-67 47: the trace image's change (edit/trace.ts 21) and its tool (mcp/traceTool.ts 26).
+    // and CMD-43 82: a drawing read into rooms text (drawing/ 76) and write's --from (main 3, write 3).
+    expect(left).toBeLessThanOrEqual(2085)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

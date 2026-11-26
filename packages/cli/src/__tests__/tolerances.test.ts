@@ -17,6 +17,9 @@ const ALLOWED: ReadonlyArray<readonly [file: string, text: string, why: string]>
   ['cli/src/describe/facts.ts', 'export const ALONG_WALL_SINE = 1e-3', 'no entry in the table yet; reviews/MSG-15.md asks for one'],
   ['cli/src/edit/edits.ts', 'Math.abs(dot(n, out) - 1) < 1e-3', 'a cosine, not a length; no entry in the table yet (reviews/MSG-15.md)'],
   ['cli/src/edit/edits.ts', 'oldAxis.dir) - 1) > 1e-6', 'a cosine, not a length; no entry in the table yet (reviews/MSG-15.md)'],
+  // CMD-43: the zero guards of a determinant, not lengths.
+  ['cli/src/drawing/faces.ts', 'Math.abs(den) < 1e-12 * Ls * Lt', 'a cross product\'s zero guard, scaled by the lengths, not a length'],
+  ['cli/src/drawing/ifc.ts', 'Math.abs(d) < 1e-12) return [a, c]', 'a determinant\'s zero guard for three points in a line, not a length'],
   ['cli/src/edit/fit.ts', 'Math.abs(cosine - to) < 1e-3', 'a cosine, not a length, as moveRoomSide reads a side; no entry in the table yet (reviews/MSG-15.md)'],
   // CNT-44: the fill's rounding guard and its angle comparisons.
   ['cli/src/edit/fill.ts', 'const EPS = 1e-9', 'a rounding guard on counting modules (Math.floor of a ratio), not a tolerance of the drawing'],
