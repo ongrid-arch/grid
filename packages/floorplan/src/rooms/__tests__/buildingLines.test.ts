@@ -40,6 +40,15 @@ describe('LVL-23 building blocks', () => {
     expect(levels.get('bg')!.floorLevel).toBeCloseTo(0, 9)
   })
 
+  it('counts on from a building\'s basement to its ground floor', () => {
+    const made = compiled(`building a\n${floor('ab', 0, ' level -1')}${floor('ag', 0)}${floor('a1', 0)}`)
+    expect(made.plan!.floors!.map((f) => [f.id, f.level])).toEqual([
+      ['ab', -1],
+      ['ag', 0],
+      ['a1', 1],
+    ])
+  })
+
   it('takes the floors form, naming floors written anywhere', () => {
     const made = compiled(`${floor('ag', 0)}${floor('bg', 20, ' level 0')}building a "A" floors ag\nbuilding b floors bg`)
     expect(made.problems).toEqual([])

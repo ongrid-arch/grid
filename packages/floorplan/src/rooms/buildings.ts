@@ -96,6 +96,8 @@ interface Entry {
   readonly words: BuildingWords
   /** The floors of a block, by the floor lines under it. */
   readonly held: string[]
+  /** Their levels, in the same order. */
+  readonly levels: number[]
   /** Written `building <word>` alone, which may be a kind of building Grid does not know. */
   readonly bare: boolean
 }
@@ -111,7 +113,7 @@ export class BuildingLines {
 
   read(quoted: readonly LineWord[], at: number, plain: PlainNumbers): void {
     const words = buildingOfWords(quoted, at, plain)
-    const entry: Entry = { line: at, words, held: [], bare: quoted.length === 2 }
+    const entry: Entry = { line: at, words, held: [], levels: [], bare: quoted.length === 2 }
     this.entries.push(entry)
     this.open = words.floors === null ? entry : null
   }
@@ -122,14 +124,19 @@ export class BuildingLines {
     this.open = null
   }
 
-  /** The level a floor line that states none takes: the next of its building's, or `fallback` outside a building. */
+  /**
+   * The level a floor line that states none takes: under a building line, the one above the
+   * highest of that building's floors so far, 0 for its first; `fallback` outside a building.
+   */
   levelFor(fallback: number): number {
-    return this.open === null ? fallback : this.open.held.length
+    if (this.open === null) return fallback
+    return this.open.levels.length === 0 ? 0 : Math.floor(Math.max(...this.open.levels)) + 1
   }
 
-  /** A floor line, written under the open building line, if any. */
-  floor(id: string): void {
+  /** A floor line, at its level, written under the open building line, if any. */
+  floor(id: string, level: number): void {
     this.open?.held.push(id)
+    this.open?.levels.push(level)
   }
 
   /** The plan's buildings, in the order of their lines, and what is wrong with them. */

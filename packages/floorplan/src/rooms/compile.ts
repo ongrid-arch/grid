@@ -1344,7 +1344,7 @@ class Compiler {
     if (!this.explicitFloors && this.floors.length > 0) refuse(say('rooms.floor.roomsFirst'))
     this.explicitFloors = true
     this.floors.push(fl)
-    this.buildingLines.floor(fl.id)
+    this.buildingLines.floor(fl.id, fl.level)
     this.cur = fl
     this.riseInto(fl)
     if (copy !== null) this.stCopy(copy, at)
