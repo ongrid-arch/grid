@@ -117,6 +117,8 @@
  *   item <id> ["<label>"] <name> [<w> x <d>] [<h> high] in <room> against <side> [, at <end> | , <n> from <end> | , full width]
  *        or ... at x,y [turn <deg>] [on <floor>]        raw item|fixture|furniture { ...JSON... }
  *                                                     the plan's fixtures and furniture (CNT-45): `items.ts`
+ *   row <id> <item words> repeat <n> [every <m>] [, <k> rows [every <m>] [behind]]
+ *                                                     items laid out in rows (CNT-47): `rows.ts`
  *   note|tag "<text>" at x,y | in <room>   symbol north|entrance ...   key [at x,y]
  *   route [<category>] x,y x,y ...   sketch line|shape|rect|arc|text <category> ...   [on <floor>] [id <id>]
  *   raw note|sketch { ...Grid's own JSON... }           writing on the drawing and the sketch (SHT-22): `notes.ts`
@@ -157,6 +159,7 @@ import { checkWritten } from './selfCheck'
 import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
 import { ITEM_LINE_WORDS, ItemLines, RAW_ITEM_KINDS } from './items'
+import { readRowLine, ROW_LINE_WORDS } from './rows'
 import { NOTE_LINE_WORDS, NoteLines } from './notes'
 import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
 import { edgeWords, mirroredSide, OPEN_SIDES, outdoorWordKind, outsideEdge, type EdgeWord } from './edges'
@@ -1144,6 +1147,8 @@ class Compiler {
     if (STAIR_LINE_WORDS.includes(kw)) return this.stairLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     // CNT-45: a fixture or a piece of furniture (`items.ts`), placed once the rooms are drawn.
     if (ITEM_LINE_WORDS.includes(kw)) return this.itemLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    // CNT-47: items laid out in rows (`rows.ts`), placed with the item lines.
+    if (ROW_LINE_WORDS.includes(kw)) return readRowLine(this.itemLines, t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     // SHT-22: writing on the drawing and the sketch (`notes.ts`), on the floor of the block it is under.
     if (NOTE_LINE_WORDS.includes(kw)) return this.noteLines.read(quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
     // WRT-75: the base plan a fit-out is written on (`base.ts`).
@@ -1229,7 +1234,7 @@ class Compiler {
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, item, base, bay, bays, ramp, note, tag, symbol, key, route, sketch.`
+          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, item, row, base, bay, bays, ramp, note, tag, symbol, key, route, sketch.`
         )
     }
   }
