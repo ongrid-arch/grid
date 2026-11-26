@@ -18,7 +18,7 @@ import { sheetPages, SHEET_LAYOUTS, type SheetLayout } from './pages'
 import { sheetPdf } from './pdf'
 import { floorOption } from '../command/plan'
 // SHT-6: the drawing's layout and files load only when one is made: a chunk of their own.
-import type { DrawingRequest, DrawingSet, DrawingSheet } from './drawingSheet'
+import type { DrawingRequest, DrawingSet } from './drawingSheet'
 import { PAPER_NAMES, SCALE_MAX, scaleText, type PaperName } from './drawingPapers'
 
 export const SHEET_FILE = 'sheet.json'
