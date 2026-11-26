@@ -2160,7 +2160,7 @@ export const en = {
     "Line {line}: a raw floor holds the floor's {known}, as Grid's plan file holds them, and {field} is none of them. {fix}",
   'rooms.raw.floorField.line': "The floor's {field} is written on its floor line: floor <id> {field} <value>.",
   'rooms.raw.kind':
-    "Line {line}: raw takes wall, room, opening, floor, stair or item, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
+    "Line {line}: raw takes wall, room, opening, floor, stair, item, bay or ramp, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
   'rooms.raw.kind.opening': 'A door or a window is written raw opening {"id": "<id>", "type": "{type}", "wall": "<wall id>", "offset": <m>, "width": <m>, "height": <m>}.',
   'rooms.raw.kind.floor': 'A floor\'s {list} is written raw floor {"{list}": ...}, under its floor line.',
   'rooms.raw.kind.list': 'Rooms text has no line for it: Grid\'s plan file holds it in "{list}", changed in the file once the plan is written.',
@@ -2172,6 +2172,8 @@ export const en = {
   'rooms.ground.once': "line {line}: the ground level is written on line {first} already: write it once, as 'ground <m>'.",
   'site.ground.how': "State it with a 'ground <m>' line in rooms text, or grid_set_site ground: the ground outside, in metres from the ground floor's floor level (-0.15 for a floor 15 cm above the ground).",
   'rooms.raw.kind.none': 'Rooms text has no line for it, raw or not.',
+  'rooms.raw.kind.bay': 'A parking bay is written raw bay {"id": "<id>", "at": [x, y], "width": <m>, "length": <m>}, or in a line of its own: bay <id> at x,y, <width> x <length>, or a row: bays <group> in <room> along <side>, <width> x <length>, or bays <group> in <room> fill.',
+  'rooms.raw.kind.ramp': 'A ramp is written raw ramp {"id": "<id>", "from": "<floor>", "to": "<floor>", "width": <m>, "run": [[x, y], ...]}, or in a line of its own: ramp <id> from <floor> to <floor> in <room>, <width> wide, straight, runs <side>, or ..., helix.',
   'rooms.raw.kind.stair': 'A stair is written raw stair {"id": "<id>", "from": "<floor>", "to": "<floor>", "width": <m>, "run": [[x, y], ...]}, or in a line of its own: stair <id> from <floor> to <floor> in <room>, <width> wide, straight|L|U, runs <side>.',
   // WRT-75: a fit-out on a base plan in rooms text (rooms/base.ts).
   'rooms.base.syntax': "line {line}: write 'base <plan file>', the base plan's path from the project folder, in quotes when it holds a space.",
@@ -2188,7 +2190,7 @@ export const en = {
   'rooms.raw.smallLetters':
     "Line {line}: rooms text is read in small letters, and '{written}' is not; write '{offered}'.",
   'rooms.raw.kind.item': 'A fixture or a piece of furniture is written raw item {"id": "<id>", "kind": "<kind>", "at": [x, y], "size": [w, d], "height": <m>}, or in a line of its own: item <id> <name> in <room> against <side>.',
-  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor, stair or item, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
+  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor, stair, item, bay or ramp, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
   'rooms.plan.oneName': 'Line {line}: the plan line takes one name, in quotes when it has spaces, and {extra} after it would not be read. Write {offered}.',
   'rooms.wall.unknownRoom':
     "Line {line}: the wall line names '{room}', which is no room written on floor '{floor}'.{nearest} Rooms there: {rooms}.",

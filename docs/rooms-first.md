@@ -567,7 +567,7 @@ raw room {"id": "apse-room", "name": "Apse", "use": "assembly", "boundary": ["ap
 
 ### Raw parts
 
-raw wall|room|opening|stair {...} writes one part as Grid's own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms' boundaries name, or the one facing <side>). Columns, fixtures, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text; stairs and the site have lines of their own (below).
+raw wall|room|opening|stair|bay|ramp {...} writes one part as Grid's own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms' boundaries name, or the one facing <side>). Columns, fixtures and structural grids are lists of the plan of their own, never rooms text; stairs, parking bays, ramps and the site have lines of their own (below).
 
 ```rooms
 raw wall {"id": "s", "start": [0, 0], "end": [4, 0], "thickness": 0.2, "height": 3, "kind": "exterior"}
@@ -680,6 +680,24 @@ item tub "Bath 1700" bath 1.7 x 0.7 in bath against north, at west
 item wc1 wc in bath against east, 0.1 from south
 item robe "Built-in wardrobe" wardrobe in bed against east, full width
 item bed1 double-bed in bed against north, at west
+```
+
+### Parking
+
+After the rooms, the plan's own parking bays and ramps, which the drawing, the bay counts, the takeoff and the slope check read; never draw a bay or a ramp as a room. bays <group> in <room> fill, <width> x <length> [aisle <m>] [rows east-west|north-south] [from <side>] [count <n>] [numbered <first>] fills the room with rows of bays and the aisles between them (a row, an aisle, two rows back to back, an aisle; aisles 6 m, Grid's own, when left out); bays <group> in <room> along <side>, <width> x <length> [count <n>] [offset <m>] [inset <m>] [from <end>] is one row against that side; bays <group> at x,y, <w> x <l>, count <n>, runs <side> [pitch <m>] [turn <deg>] a row by its first bay's middle; bay <id> at x,y, <w> x <l> [turn <deg>] [number <n>] [on <floor>] one bay. car, small, accessible or motorcycle in place of the size is Grid's own starting size, not a code's. A row's bays are <group>-1, <group>-2 and on; numbered B1-01 numbers them on. ramp <id> ["<name>"] from <floor|room> to <floor|room> [in <room>], <width> wide, straight, runs <side> [along <side>] lays a ramp face to face of its room; ..., helix [at x,y] [radius <m>] [turns <n>] [starts <side>] [clockwise] turns it round a circle; ..., run x,y x,y ... gives its middle line; slope <%> is the slope the design means. The answer gives each ramp's rise, length and slope. raw bay {...} and raw ramp {...} take Grid's own JSON. grid_place_bays and grid_add_ramp write the same.
+
+```rooms
+floor b1 "Basement" level -1 height 3
+room deck "Deck" parking 30 x 20 at 0,0
+room spiral "Ramp" parking 12 x 12 east of deck
+opening o-b1 between deck and spiral, centred, 6 wide
+floor g "Ground" level 0 height 3
+room deck "Deck" parking 30 x 20 at 0,0
+room spiral "Ramp" parking 12 x 12 east of deck
+opening o-g between deck and spiral, centred, 6 wide
+door way-in in deck south, centred, 1 wide, opens out
+bays b1 in deck fill, 2.5 x 5, aisle 6, numbered B1-01, on b1
+ramp h "Helix" from b1 to g in spiral, 3.5 wide, helix, turns 1
 ```
 
 ### Site

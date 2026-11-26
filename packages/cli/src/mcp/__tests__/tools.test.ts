@@ -63,6 +63,8 @@ const ORDER = [
   'grid_add_item',
   'grid_move_item',
   'grid_remove_item',
+  'grid_place_bays',
+  'grid_add_ramp',
   'grid_set_site',
   'grid_change_site',
   'grid_place_trace',
@@ -70,7 +72,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -156,7 +158,9 @@ describe('tools/list', () => {
     // shell as the fit-out's own walls, or edited the base itself).
     // 53 since CNT-45: an item added against a wall, moved and taken out, which no tool did
     // (agents said Grid holds no fixtures, edited the JSON, or moved a door to clear a desk).
-    expect((await listed()).length).toBeLessThanOrEqual(53)
+    // 55 since CNT-46: rows of parking bays placed and a ramp added, which agents could only write as
+    // the plan file's JSON (they hand-wrote hundreds of bays, or drew a helix ramp as a room).
+    expect((await listed()).length).toBeLessThanOrEqual(55)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -297,6 +301,8 @@ describe('the tools on a two-bedroom flat', () => {
     grid_add_item: { name: 'wardrobe', id: 'robe', room: 'bed2', against: 'north', end: 'west', out: 'robe.json' },
     grid_move_item: { plan: 'robe.json', id: 'robe', against: 'north', end: 'east', out: 'robe-moved.json' },
     grid_remove_item: { plan: 'robe.json', ids: ['robe'], out: 'robe-gone.json' },
+    grid_place_bays: { plan: 'house.json', group: 'p', room: 'hall', along: 'west', kind: 'motorcycle', out: 'bays.json' },
+    grid_add_ramp: { plan: 'house.json', id: 'r', from: 'ground', to: 'first', width: 1.2, run: ['1.2,0.5', '1.2,4.5'], out: 'ramp.json' },
     grid_set_site: { plot_width: 15, plot_depth: 20, streets: ['south'], setbacks: ['all 2'], north: 30, out: 'sited.json' },
     grid_change_site: { action: 'add', kind: 'tree', at: '1,-2', canopy: 4, out: 'treed.json' },
     grid_place_trace: { image: 'scan.png', calibrate_from: '0,0', calibrate_to: '100,0', length: 5, at: '-1,8', out: 'traced.json' },
@@ -356,7 +362,7 @@ describe('the tools on a two-bedroom flat', () => {
     const withFloor = GRID_TOOLS.filter((tool) => 'floor' in tool.args).map((tool) => tool.name)
     expect(withFloor.length).toBeGreaterThanOrEqual(6)
     for (const name of withFloor) {
-      const args = name === 'grid_stretch' ? { side: 'east', by: 0.3, floor: 'basement-99' } : name === 'grid_view' ? { kind: 'plan', floor: 'basement-99' } : name === 'grid_export' ? { plan: 'plan.json', format: 'dxf', floor: 'basement-99' } : name === 'grid_compare' ? { plans: ['plan.json', 'flat.json'], picture: true, floor: 'basement-99' } : name === 'grid_place_item' || name === 'grid_add_item' ? { name: 'wc', x: 1, y: 1, floor: 'basement-99' } : name === 'grid_move_item' ? { id: 'robe', x: 1, y: 1, floor: 'basement-99' } : name === 'grid_sheet' ? { plan: 'plan.json', layout: 'drawing', floor: 'basement-99' } : { floor: 'basement-99' }
+      const args = name === 'grid_stretch' ? { side: 'east', by: 0.3, floor: 'basement-99' } : name === 'grid_view' ? { kind: 'plan', floor: 'basement-99' } : name === 'grid_export' ? { plan: 'plan.json', format: 'dxf', floor: 'basement-99' } : name === 'grid_compare' ? { plans: ['plan.json', 'flat.json'], picture: true, floor: 'basement-99' } : name === 'grid_place_item' || name === 'grid_add_item' ? { name: 'wc', x: 1, y: 1, floor: 'basement-99' } : name === 'grid_move_item' ? { id: 'robe', x: 1, y: 1, floor: 'basement-99' } : name === 'grid_sheet' ? { plan: 'plan.json', layout: 'drawing', floor: 'basement-99' } : name === 'grid_place_bays' ? { group: 'p', room: 'bed2', floor: 'basement-99' } : { floor: 'basement-99' }
       const reply = await b.call(name, args)
       expect(reply.isError, name).toBe(true)
       expect(reply.text, name).not.toContain('basement-99')
