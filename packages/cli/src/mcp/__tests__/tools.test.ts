@@ -61,11 +61,12 @@ const ORDER = [
   'grid_change_stair',
   'grid_set_site',
   'grid_change_site',
+  'grid_place_trace',
   'grid_save_view',
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_site', 'grid_change_site', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -145,7 +146,9 @@ describe('tools/list', () => {
     // hand-edited the JSON, or left the stair an empty room).
     // 48 since CNT-44: a room or zone filled with desks or seats at a pitch in one call, which agents
     // did one item a call (a hundred calls for a floor of desks, and no fair count of how many fit).
-    expect((await listed()).length).toBeLessThanOrEqual(48)
+    // 49 since VEW-67: the trace image set, placed, scaled and turned, which agents could only
+    // write as the plan file's JSON (they read a scale bar by eye and never lined a photo up).
+    expect((await listed()).length).toBeLessThanOrEqual(49)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -284,6 +287,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_change_stair: { plan: 'stair.json', id: 'st', width: 0.9, out: 'narrower.json' },
     grid_set_site: { plot_width: 15, plot_depth: 20, streets: ['south'], setbacks: ['all 2'], north: 30, out: 'sited.json' },
     grid_change_site: { action: 'add', kind: 'tree', at: '1,-2', canopy: 4, out: 'treed.json' },
+    grid_place_trace: { image: 'scan.png', calibrate_from: '0,0', calibrate_to: '100,0', length: 5, at: '-1,8', out: 'traced.json' },
     grid_save_view: { name: 'Garden corner', camera: { target: { room: null, point: [5, 4, 1] }, bearing: 135, tilt: 30, distance: 20, lens: { focalLength: 35 }, cut: null }, out: 'viewed.json' },
   }
 

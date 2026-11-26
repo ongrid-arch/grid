@@ -40,11 +40,23 @@ export const WRITE_OPTIONS: OptionSpecs = {
   },
   '--replace': {
     takesValue: false,
-    help: 'Write over a plan that was not written from this rooms text or scan, or was changed since. Grid refuses that otherwise, with the difference.',
+    help: 'Write over a plan that was not written from this rooms text, scan or drawing, or was changed since. Grid refuses that otherwise, with the difference.',
   },
   '--scan': {
     takesValue: true,
     help: 'Write the plan from a phone room scan in the project (Apple\'s room model, as JSON) in place of rooms text. The scan is kept beside the plan as <plan>.scan.json.',
+  },
+  '--from': {
+    takesValue: true,
+    help: 'In place of rooms text: a DXF or IFC drawing in the project. Its rooms text is written beside the plan as <plan>.rooms, then the plan from it.',
+  },
+  '--layers': {
+    takesValue: true,
+    help: 'With --from and a DXF: what layers hold, over their names, as walls=<layer>,<layer>;doors=<layer>;windows=<layer>;openings=<layer>;rooms=<layer>;names=<layer>;nothing=<layer>.',
+  },
+  '--units': {
+    takesValue: true,
+    help: 'With --from and a DXF that states no unit: m, cm, mm, in or ft.',
   },
   '--layout': {
     takesValue: true,
@@ -211,7 +223,13 @@ export function differenceLine(before: FloorPlan, after: FloorPlan): string {
 /** Rooms past which the tool's answer lists only what is not plain: sizes to the walls, guesses, warnings. */
 export const ROOMS_LISTED_MAX = 12
 
-export function writeRoomsIntoProject(project: Project, text: string, planFile: string, options: { readonly replace?: boolean; readonly brief?: boolean } = {}): WriteDone {
+/** CMD-43: facts to set on the walls and openings the text writes, by id, before the plan is stamped. */
+export interface PartFacts {
+  readonly walls?: Readonly<Record<string, Readonly<Record<string, string>>>>
+  readonly openings?: Readonly<Record<string, Readonly<Record<string, string>>>>
+}
+
+export function writeRoomsIntoProject(project: Project, text: string, planFile: string, options: { readonly replace?: boolean; readonly brief?: boolean; readonly facts?: PartFacts } = {}): WriteDone {
   if (!planFile.toLowerCase().endsWith('.json')) throw new RoomsRefused('rooms/plan-file', `The plan to write must be a .json file: got ${JSON.stringify(planFile)}.`)
   // WRT-13: grid.json and the files kept beside a plan are never written as a plan.
   refuseGridFile(project.shown(project.resolve(planFile)), planFile)
@@ -286,6 +304,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // CNT-9: the facts of the person's own and the rooms' numbers stay with their parts, by id.
   const carried = before === null ? null : carryFacts(before, plan)
   if (carried !== null) plan = carried.plan
+  // CMD-43: a drawing's sources on the parts rooms text cannot carry them on, by id.
+  if (options.facts !== undefined) plan = withPartFacts(plan, options.facts)
   // Everything the rooms text does not hold stays as the file has it: its id, its picture.
   const next: Record<string, unknown> = { ...raw, version: '1', units: 'm' }
   delete next['floors']
@@ -376,4 +396,16 @@ function keptWords(display: unknown): Record<string, unknown> {
   if (typeof display !== 'object' || display === null || Array.isArray(display)) return {}
   const own = display as Record<string, unknown>
   return { ...(own['language'] === undefined ? {} : { language: own['language'] }), ...(own['words'] === undefined ? {} : { words: own['words'] }) }
+}
+
+/** CMD-43: the plan with each wall's and opening's given facts set over its own, by id. */
+function withPartFacts(plan: FloorPlan, facts: PartFacts): FloorPlan {
+  const set = <T extends { readonly id: string; readonly properties?: unknown }>(parts: readonly T[], given: PartFacts['walls']): T[] =>
+    parts.map((part) => {
+      const own = given?.[part.id]
+      if (own === undefined) return part
+      const was = typeof part.properties === 'object' && part.properties !== null ? (part.properties as Record<string, unknown>) : {}
+      return { ...part, properties: { ...was, ...own } }
+    })
+  return { ...plan, walls: set(plan.walls, facts.walls), openings: set(plan.openings, facts.openings) }
 }

@@ -55,6 +55,7 @@ import { readRoomsFile, RoomsRefused, WRITE_OPTIONS, writeRoomsIntoProject } fro
 import { writeLayout } from '../brief/layout'
 import { LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { writeScanIntoProject } from './scan'
+import { writeDrawingIntoProject } from '../drawing/fromDrawing'
 
 export const EXIT_OK = 0
 export const EXIT_REFUSED = 1
@@ -86,8 +87,8 @@ const COMMANDS = {
     options: INIT_OPTIONS,
   },
   write: {
-    usage: 'grid write <plan.rooms> | --layout tidy|sizes | --scan <scan.json> [--plan <plan.json>] [--replace] [--json] [--project <folder>]',
-    summary: 'Writes a plan from rooms text: name the rooms with their sizes and neighbours, and Grid works out the walls. The main way to write a plan. With --layout, a first layout from the brief beside the plan; --scan writes it from a phone room scan instead.',
+    usage: 'grid write <plan.rooms> | --layout tidy|sizes | --scan <scan.json> | --from <drawing.dxf|.ifc> [--layers <map>] [--units <unit>] [--plan <plan.json>] [--replace] [--json] [--project <folder>]',
+    summary: 'Writes a plan from rooms text: name the rooms with their sizes and neighbours, and Grid works out the walls. The main way to write a plan. With --layout, a first layout from the brief beside the plan; --scan writes it from a phone room scan instead; --from reads a DXF or IFC drawing into rooms text beside the plan and writes the plan from it.',
     options: WRITE_OPTIONS,
   },
   edit: {
@@ -329,6 +330,28 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     return EXIT_OK
   }
 
+  if (name === 'write' && !parsed.values.has('--from')) {
+    const alone = ['--layers', '--units'].find((option) => parsed.values.has(option))
+    if (alone !== undefined) throw new UsageError(`${alone} goes with --from: it says how to read a DXF drawing.`)
+  }
+
+  if (name === 'write' && parsed.values.has('--from')) {
+    // CMD-43: a DXF or IFC drawing, read into rooms text beside the plan.
+    const other = ['--layout', '--scan'].find((option) => parsed.values.has(option))
+    if (other !== undefined) throw new UsageError(`write takes --from or ${other}, not both: --from reads a DXF or IFC drawing in place of rooms text.`)
+    if (parsed.positionals.length > 0) throw new UsageError('write --from reads the drawing in place of rooms text: name one or the other, not both.')
+    const project = openProject(projectOption, io.cwd)
+    const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
+    const layers = textOf(parsed, '--layers')
+    const units = textOf(parsed, '--units')
+    const done = writeDrawingIntoProject(project, textOf(parsed, '--from')!, target, { replace: parsed.values.has('--replace'), ...(layers === undefined ? {} : { layers }), ...(units === undefined ? {} : { units }) })
+    if (parsed.values.has('--json')) {
+      const r = done.reading
+      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.done.written, roomsFile: done.roomsFile, format: done.drawing.format, unit: done.drawing.unit, layers: done.drawing.layers, rooms: r.rooms, openings: r.openings, factName: r.factName, assumed: r.assumed, leftOut: r.leftOut, verdict: done.done.verdict, drawingProblems: done.done.drawingProblems, toLookAt: done.done.toLookAt }, null, 2)}\n`)
+    } else io.stdout(`${[GENERAL_GUIDANCE_LABEL, ...done.lines].join('\n')}\n`)
+    return EXIT_OK
+  }
+
   if (name === 'write' && parsed.values.has('--scan')) {
     // HND-12: a phone room scan in place of rooms text.
     if (parsed.values.has('--layout')) throw new UsageError('write takes --layout or --scan, not both: --layout writes a first layout from the brief, --scan writes the plan from a phone room scan.')
@@ -348,7 +371,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const shape = textOf(parsed, '--layout')
     if (shape !== undefined && !(LAYOUT_SHAPES as readonly string[]).includes(shape)) throw new UsageError(`--layout takes ${LAYOUT_SHAPES.join(' or ')}: tidy for a rectangle, sizes to keep every size.`)
     if (shape !== undefined && parsed.positionals.length > 0) throw new UsageError('write takes a rooms text file or --layout, not both: --layout writes a first layout from the brief beside the plan.')
-    if (shape === undefined && parsed.positionals.length !== 1) throw new UsageError(`write takes one rooms text file: grid write <plan.rooms>, --layout tidy|sizes or --scan <scan.json>${parsed.positionals.length > 1 ? `, but was given ${parsed.positionals.length}` : ''}.`)
+    if (shape === undefined && parsed.positionals.length !== 1) throw new UsageError(`write takes one rooms text file: grid write <plan.rooms>, --layout tidy|sizes, --scan <scan.json> or --from <drawing.dxf>${parsed.positionals.length > 1 ? `, but was given ${parsed.positionals.length}` : ''}.`)
     const roomsFile = parsed.positionals[0]
     if (roomsFile === '-') throw new UsageError('write reads rooms text from a file, not from standard input: name the file.')
     if (roomsFile?.toLowerCase().endsWith('.json')) throw new UsageError(`write reads rooms text, not a plan: ${JSON.stringify(roomsFile)} ends in .json. Name the plan to write with --plan.`)
