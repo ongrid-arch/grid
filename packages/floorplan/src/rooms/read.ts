@@ -342,7 +342,9 @@ function roomLine(room: Room, poly: P[], local: string): string {
   const type = room.roomType !== undefined ? ` type ${quote(room.roomType)}` : ''
   // CNT-7 (C26): `outdoor: true` has no word of its own, so such a room's floor is given raw.
   const outdoor = typeof room.outdoor === 'string' ? ` outdoor ${room.outdoor}${room.roofed === undefined ? '' : room.roofed ? ' roofed' : ' unroofed'}` : ''
-  return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}`
+  // ARE-60: whether it is heated or cooled, when it states it.
+  const air = room.conditioned === undefined ? '' : room.conditioned ? ' conditioned' : ' unconditioned'
+  return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}${air}`
 }
 
 /**

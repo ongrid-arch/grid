@@ -45,6 +45,8 @@
  *                tenure <private|shared|common|commercial>  type "<the firm's own room type>"
  *                outdoor <garden|courtyard|terrace|balcony|light-well|porch|carport|other> [roofed|unroofed]
  *                                 the room is outdoor space (CNT-7, C26), roofed or not
+ *                conditioned|unconditioned  heated or cooled or not, so in the living area under air
+ *                                 or out of it (ARE-60); unstated, a parking room is not
  *                through <floor>  the room, and so its walls, stands on every floor written after this
  *                                 one up to that floor too, in the same place (WRT-4): a stair or lift
  *                                 core, a shaft, a block's outside walls; with the openings written
@@ -269,6 +271,8 @@ const ROOM_LINE_WORDS: Readonly<Record<string, readonly string[]>> = {
   outdoor: ['<kind>'],
   roofed: [],
   unroofed: [],
+  conditioned: [],
+  unconditioned: [],
 }
 /** The words agents write for a room line's own: a room's level above its storey is its `floor`. */
 const ROOM_LINE_MEANS: Readonly<Record<string, string>> = { level: 'floor', elevation: 'floor', offset: 'floor', ceiling: 'height', headroom: 'height', thickness: 'walls' }
@@ -489,6 +493,8 @@ interface RoomDraft {
   /** CNT-7 (C26): the outdoor kind, and whether a roof covers it when the line says. */
   outdoor: OutdoorKind | null
   roofed: boolean | null
+  /** ARE-60: heated or cooled, when the line says. */
+  conditioned: boolean | null
   /** The size as written and what it measures to, for the answer. */
   size: { w: number | null; d: number | null; basis: SizeBasis } | null
   /** WRT-4: the last floor the room rises through, when it stands on the floors after its own too. */
@@ -1459,7 +1465,7 @@ class Compiler {
       this.stop('rooms/unknown-use', at, `line ${at}: '${useWord}' is not a room use Grid knows. Use one of: ${USES.join(', ')}; or '-' for none. The room's name keeps the person's own word: "Pooja room", "Bryggers".`)
     }
     const fl = this.floor()
-    const room: RoomDraft = { id, name, use, line: at, poly: [], box: [0, 0, 0, 0], wallsT: null, wallsKind: null, height: null, floorOffset: null, firstWall: null, tenure: null, roomType: null, outdoor: null, roofed: null, size: null, through: null, risenFrom: null }
+    const room: RoomDraft = { id, name, use, line: at, poly: [], box: [0, 0, 0, 0], wallsT: null, wallsKind: null, height: null, floorOffset: null, firstWall: null, tenure: null, roomType: null, outdoor: null, roofed: null, conditioned: null, size: null, through: null, risenFrom: null }
     const mx = ctx?.mx === true
     const my = ctx?.my === true
     let W: string | null = null
@@ -1562,6 +1568,9 @@ class Compiler {
       } else if ((w === 'roofed' || w === 'unroofed') && room.outdoor !== null) {
         room.roofed = w === 'roofed'
         i++
+      } else if (w === 'conditioned' || w === 'unconditioned') {
+        room.conditioned = w === 'conditioned'
+        i++
       } else if (w === 'type' && i + 1 < t.length) {
         room.roomType = t[i + 1]!
         i += 2
@@ -1593,6 +1602,11 @@ class Compiler {
           english(said('rooms.room.unknown', { line: at, word: w, meant: meant === null ? '' : said('rooms.room.meant', { written: meant }), tenures: TENURES.join('|'), outdoor: OUTDOOR_KINDS.join('|') }))
         )
       }
+    }
+    // ARE-60: outdoor space is never under air, so the word is said to be read as nothing.
+    if (room.conditioned !== null && room.outdoor !== null) {
+      this.warn('rooms/conditioned-outdoor', at, english(said('rooms.room.conditionedNever', { line: at, room: sayName(id), word: room.conditioned ? 'conditioned' : 'unconditioned' })))
+      room.conditioned = null
     }
     if (poly !== null) {
       // WRT-63: a polygon's points are its place, from the drawing's origin or the unit's; a place
@@ -3956,6 +3970,7 @@ class Compiler {
             ...(room.roomType !== null ? { roomType: room.roomType } : {}),
             ...(room.outdoor !== null ? { outdoor: room.outdoor } : {}),
             ...(room.roofed !== null ? { roofed: room.roofed } : {}),
+            ...(room.conditioned !== null ? { conditioned: room.conditioned } : {}),
           }
           plan.rooms.push(item)
           const area = Math.abs(signedArea(room.poly))
