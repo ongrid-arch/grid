@@ -120,8 +120,11 @@ function piecesOf(page: SheetPage): Piece[] {
     if (table.total) pieces.push({ type: 'total', row: table.total })
     if (table.note !== null) pieces.push({ type: 'tableNote', text: table.note })
   }
+  // On the cover, notes about the figures keep first use of the space below them.
+  const notes = page.notes.map((text): Piece => ({ type: 'note', text }))
+  if (page.kind === 'cover') pieces.push(...notes)
   for (const text of page.paragraphs) pieces.push({ type: 'paragraph', text })
-  for (const text of page.notes) pieces.push({ type: 'note', text })
+  if (page.kind !== 'cover') pieces.push(...notes)
   return pieces
 }
 

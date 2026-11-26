@@ -3,7 +3,8 @@
  * where a claim reads as Grid's. Grid refuses the ones it never says itself (MSG-3's approval
  * words: complies, passes, approved, certified) and the access claims, "accessible" and its kin:
  * Grid measures doors, corridors and turning space and never says a room or a building is
- * accessible. A word inside quotation marks is somebody else's and is left alone, as elsewhere.
+ * accessible. Quotes within prose are left alone. Quoting a whole headline or introductory
+ * paragraph leaves it as the author's claim.
  */
 import { approvalWords } from '@ongrid/rules'
 import { DEFAULT_LANGUAGE, say } from '@ongrid/floorplan/messages'
@@ -20,6 +21,14 @@ const ACCESS_CLAIMS: readonly RegExp[] = [
 ]
 
 const QUOTED = /"(?:[^"\\]|\\.)*"|“[^”]*”/g
+
+const QUOTED_FIELD = /^(?:"((?:[^"\\]|\\.)*)"|“([^”]*)”)[.!?]?$/u
+
+function claimText(text: string, cover: boolean): string {
+  const normalized = text.trim().replace(/\s+/gu, ' ').replace(/\p{Pd}/gu, '-')
+  const wrapped = cover ? QUOTED_FIELD.exec(normalized) : null
+  return wrapped?.[1] ?? wrapped?.[2] ?? normalized
+}
 
 function accessClaims(text: string): string[] {
   const lower = text.replace(QUOTED, ' ').toLowerCase()
@@ -39,7 +48,10 @@ export function sheetClaims(words: SheetWords): { field: string; found: string[]
   // A floor is named by its place in the words, never by its key, which may be anything.
   Object.values(words.floors ?? {}).forEach((paragraphs, f) => paragraphs.forEach((p, i) => texts.push([`floors (key ${f + 1}) paragraph ${i + 1}`, p])))
   return texts
-    .map(([field, text]) => ({ field, found: [...approvalWords(text), ...accessClaims(text)] }))
+    .map(([field, text]) => {
+      const claim = claimText(text, field === 'headline' || field.startsWith('intro['))
+      return { field, found: [...approvalWords(claim), ...accessClaims(claim)] }
+    })
     .filter((t) => t.found.length > 0)
 }
 
