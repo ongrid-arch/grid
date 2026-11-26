@@ -6,8 +6,8 @@
  * text's own (`item tub bath in bathroom against north, at west`); the changes are `edit/items.ts`.
  */
 import { limit } from '@ongrid/floorplan/geometry'
-import { ITEM_SIDES, type ItemSide } from '@ongrid/floorplan/rooms'
-import { NAME_MAX } from '../command/planText'
+import { ITEM_SIDES, type ItemSide, type RowWords } from '@ongrid/floorplan/rooms'
+import { NAME_MAX, PARTS_MAX } from '../command/planText'
 import { PathRefused } from '../fs/projectFiles'
 import { addItem, moveItem, removeItems, type ItemPlace } from '../edit/items'
 import { libraryFor } from '../library/office'
@@ -63,14 +63,38 @@ function placeOf(args: Record<string, unknown>): ItemPlace {
   }
 }
 
+/** CNT-47: the row from the call's arguments, or undefined for one item. */
+function rowOf(args: Record<string, unknown>): RowWords | undefined {
+  const count = args['repeat'] as number | undefined
+  if (count === undefined) {
+    const stray = ['every', 'rows', 'row_every', 'behind'].filter((key) => args[key] !== undefined)
+    if (stray.length > 0) throw new ToolRefusal(`${stray.join(', ')} lay out a row: give repeat, how many side by side, too.`)
+    return undefined
+  }
+  if (args['rows'] === undefined && (args['row_every'] !== undefined || args['behind'] !== undefined)) throw new ToolRefusal('row_every and behind lay out rows: give rows, how many, too.')
+  const whole = (key: string): number => {
+    const n = args[key] as number
+    if (!Number.isInteger(n)) throw new ToolRefusal(`${key} is a whole number, not ${n}.`)
+    return n
+  }
+  return {
+    count: whole('repeat'),
+    ...(args['every'] === undefined ? {} : { every: args['every'] as number }),
+    ...(args['rows'] === undefined ? {} : { rows: whole('rows') }),
+    ...(args['row_every'] === undefined ? {} : { rowEvery: args['row_every'] as number }),
+    ...(args['behind'] === true ? { behind: true } : {}),
+  }
+}
+
 export const addItemTool: GridTool = {
   name: 'grid_add_item',
   title: 'Add a fixture or furniture against a wall',
   hint: 'change-plan',
   description:
     'Use this when the person asks for a fixture or a piece of furniture against a wall of a room: "a bath along the north wall of the bathroom, in the west corner", "a WC 0.3 m from the west end of the south wall", "a built-in wardrobe the full width of the bedroom\'s east wall", "a sofa against the living room\'s west wall". '
-    + 'Give name (a library entry such as bath, wc, double-bed, wardrobe, sofa-3; grid_measure what=library lists them; or a kind: toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant), room and against: its back goes on that side\'s inside face and its turn is worked out, so it faces into the room. end puts it in a corner, from and distance that far from one, full_width makes it the length of the side; centred otherwise. Or give x and y (its middle) and turn. '
-    + 'width, depth, height, clearance and label are its own figures in place of the entry\'s; a kind with no size is Grid\'s first entry of that kind. It answers with the room it stands in and whether it fits (a wall it runs into, an item it stands in, the clear floor kept in front of one that something blocks). Rooms text writes the same: item tub bath in bathroom against north, at west. '
+    + 'Give name (a library entry such as bath, wc, double-bed, wardrobe, sofa-3, rack, seat, pew, fume-cupboard; grid_measure what=library lists them; or a kind: toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant, and the equipment rack, generator, pump, tank, seat, pew, altar, fume-cupboard, lab-bench, safety-shower, kennel, exam-table, clinical-sink, or equipment for any other thing, given its width, depth, height and label), room and against: its back goes on that side\'s inside face and its turn is worked out, so it faces into the room. end puts it in a corner, from and distance that far from one, full_width makes it the length of the side; centred otherwise. Or give x and y (its middle) and turn. '
+    + 'width, depth, height, clearance and label are its own figures in place of the entry\'s; a kind with no size is Grid\'s first entry of that kind. It answers with the room it stands in and whether it fits (a wall it runs into, an item it stands in, the clear floor kept on a side of one that something blocks). Rooms text writes the same: item tub bath in bathroom against north, at west. '
+    + 'repeat lays out that many side by side along their backs, every metres apart (their width unstated), and rows that many rows, row_every apart, in front of the first (behind with behind, at a point): 200 racks, 1,800 seats or a bank of kennels in one call, ids <id>-<n> or <id>-<row>-<n>; rooms text writes the same with row r rack in hall against north, repeat 20, 10 rows every 2.4. '
     + 'Do not use for a typical room\'s worth of items at once (grid_place_item), or to move or take out an item already placed (grid_move_item, grid_remove_item). It replaces the plan file unless out is given. Lengths are metres, or text with their unit.',
   args: {
     plan: PLAN_ARG,
@@ -83,6 +107,14 @@ export const addItemTool: GridTool = {
     depth: { type: 'number', length: true, description: 'Its own depth from its back to its front, in metres; with full_width, alone.', examples: [0.7], minimum: 0.01, maximum: 100 },
     height: { type: 'number', length: true, description: 'Its own height from the floor, in metres.', examples: [0.55], minimum: 0.01, maximum: 100 },
     clearance: { type: 'number', length: true, description: 'The clear floor it keeps in front of it, in metres (0 for none).', examples: [0.7], minimum: 0, maximum: 100 },
+    clear_back: { type: 'number', length: true, description: 'The clear floor it keeps behind it, as wide as it is, in metres.', examples: [0.6], minimum: 0, maximum: 100 },
+    clear_left: { type: 'number', length: true, description: 'The clear floor it keeps at its own left (facing out of its front), as deep as it is, in metres.', examples: [0.9], minimum: 0, maximum: 100 },
+    clear_right: { type: 'number', length: true, description: 'The clear floor it keeps at its own right (facing out of its front), as deep as it is, in metres.', examples: [0.9], minimum: 0, maximum: 100 },
+    repeat: { type: 'number', description: 'How many to lay out side by side in a row, along their backs from the first one\'s left. One item when left out.', examples: [20], minimum: 1, maximum: PARTS_MAX },
+    every: { type: 'number', length: true, description: 'With repeat: metres from one middle to the next along the row. Their width, so they touch, when left out.', examples: [0.6, 0.55], minimum: 0.01, maximum: 100 },
+    rows: { type: 'number', description: 'With repeat: how many rows, each in front of the last.', examples: [10], minimum: 1, maximum: PARTS_MAX },
+    row_every: { type: 'number', length: true, description: 'With rows: metres from one row to the next. Their depth and the clear floor in front, the aisle, when left out.', examples: [2.4, 0.9], minimum: 0.01, maximum: 1000 },
+    behind: { type: 'boolean', description: 'With rows, at a point: each row behind the last in place of in front of it.', examples: [true] },
     out: OUT_ARG,
   },
   outputSchema: { ...ITEM_OUTPUT, properties: { ...ITEM_OUTPUT.properties, placed: listSchema(STRING) } },
@@ -93,6 +125,12 @@ export const addItemTool: GridTool = {
     const width = args['width'] as number | undefined
     const depth = args['depth'] as number | undefined
     if (width !== undefined && depth === undefined) throw new ToolRefusal("Give width with depth: the item's own size is both.")
+    const row = rowOf(args)
+    const clearSides = {
+      ...(args['clear_back'] === undefined ? {} : { back: args['clear_back'] as number }),
+      ...(args['clear_left'] === undefined ? {} : { left: args['clear_left'] as number }),
+      ...(args['clear_right'] === undefined ? {} : { right: args['clear_right'] as number }),
+    }
     return writeChange(context, args, (survey) => {
       const { library } = libraryFor(project, file, survey.plan)
       const floor = floorArg(survey.plan, args['floor'])
@@ -104,6 +142,8 @@ export const addItemTool: GridTool = {
         ...(width === undefined && depth !== undefined ? { depth } : {}),
         ...(args['height'] === undefined ? {} : { height: args['height'] as number }),
         ...(args['clearance'] === undefined ? {} : { clearance: args['clearance'] as number }),
+        ...(Object.keys(clearSides).length === 0 ? {} : { clearSides }),
+        ...(row === undefined ? {} : { row }),
         ...placeOf(args),
         ...(floor === undefined ? {} : { floor }),
       })
