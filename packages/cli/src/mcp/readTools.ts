@@ -319,7 +319,7 @@ const areasTool: GridTool = {
   description:
     'Use this when the person asks how big the plan or a room is, for the total floor area, a gross internal or gross external area, square feet, circulation or net to gross, or an area table for a spreadsheet. '
     + 'It lists every room with its inside size and net area, the totals by floor and by use, the area of each flat the plan lists (and of the rooms in no flat), and the gross areas, each with a sentence saying what it measures, what it does not take off and what the plan cannot say. '
-    + 'Pass country for the gross measure the reader there usually means (the inside face of the outer walls in the UK and most of Europe, the outside face for US homes), or gross to ask for one or both. '
+    + 'The plan\'s own site.country is read as grid_check reads it; pass country to override it for the gross measure the reader there usually means (the inside face of the outer walls in the UK and most of Europe, the outside face for US homes), or gross to ask for one or both. '
     + 'On a plan that lists flats it gives each flat\'s area to the middle of its party walls too, and where fixtures stand the free floor beside the floor area, per room, zone, flat, floor and in all. Outdoor space is left out of every total unless outdoor_rules states a rule that counts part of it, and the answer says which. '
     + 'Rooms named in outside_rooms (a balcony, a terrace, a garage) are the outside, as outdoor space is: the walls round them face outside, they are listed apart and are in no net, gross internal or gross external figure; a room Grid could not draw is named and left out of every figure. Do not use for wall lengths, plaster or skirting (grid_takeoff), or to compare plans (grid_compare). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
@@ -333,7 +333,7 @@ const areasTool: GridTool = {
       minItems: 1,
       maxItems: 50,
     },
-    country: { type: 'string', maxLength: 2, description: 'Where it will be built, as a two-letter country code: the gross measure usual there is given first. Both when left out or when Grid has none for that place.', examples: ['GB', 'US'] },
+    country: { type: 'string', maxLength: 2, description: 'Where it will be built, as a two-letter country code, in place of the plan\'s site.country: the gross measure usual there is given first. Both when neither is given or when Grid has none for that place.', examples: ['GB', 'US'] },
     gross: { type: 'string', enum: ['internal', 'external', 'both'], description: 'The gross measure to give: internal (to the inside face of the outer walls), external (to the outside face) or both. The usual one for country when left out.', examples: ['both', 'external'] },
     outdoor_rules: OUTDOOR_RULES_ARG,
     // ARE-20: one building measured apart from another built against it on the same floors.

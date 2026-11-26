@@ -63,7 +63,7 @@ function shop(): unknown {
 
 let b: Bench
 beforeAll(async () => {
-  b = bench({ 'balcony.json': balconyFlat(), 'shop.json': shop(), 'house.json': houseWithGardens() })
+  b = bench({ 'balcony.json': balconyFlat(), 'shop.json': shop(), 'house.json': houseWithGardens(), 'stated-gb.json': { ...(balconyFlat() as object), site: { country: 'GB' } } })
   const wrote = await b.call('grid_write_rooms', { plan: 'four.json', rooms: FOUR_FLATS })
   expect(wrote.isError, wrote.text).toBe(false)
 })
@@ -101,6 +101,19 @@ describe('ARE-14 an area per flat to the middle of the party walls (lab R-1)', (
     expect(reply.text).not.toContain('to the outside face of the outer walls')
     const flats = reply.data!['flats'] as { toPartyWalls: { grossExternal: number } }[]
     expect(flats[0]!.toPartyWalls.grossExternal).toBeCloseTo(79.11, 2)
+  })
+})
+
+describe('ARE-59 the plan\'s own country is read, and the argument only overrides it', () => {
+  it('gives the gross measure usual where the plan says it stands, with no country argument', async () => {
+    const reply = await ok({ plan: 'stated-gb.json' })
+    expect(reply.text).not.toContain('No country was given')
+    expect(reply.text).toContain('For GB Grid gives the inside face')
+  })
+
+  it('lets the country argument override the plan\'s', async () => {
+    const us = await ok({ plan: 'stated-gb.json', country: 'US' })
+    expect(us.text).toContain('For homes in US Grid gives the outside face')
   })
 })
 

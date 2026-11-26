@@ -12,6 +12,7 @@
  * net or the gross internal area. Rooms Grid could not draw are listed with no area, named, and
  * are in no figure.
  */
+import { planPlace } from '@ongrid/rules'
 import { MEASURES, PHASE_WORDS, floorOf, floorRoofShape, headroomBands, planMarks, roomHeadroom, wallSureness, type GrossMeasure, type HeadroomBand, type MeasureRule, type ReaderMeasure, type RoomLeftOut } from '@ongrid/floorplan/geometry'
 import { english, joined, num, said } from '@ongrid/floorplan/messages'
 import { FLAT_AREA_RULE, planAreaFigures, type ApartAreaFigure, type FlatAreaFigure, type OutdoorAreaFigure, type OutdoorWeight, type PlanAreaFigures } from '@ongrid/floorplan/geometry/areas'
@@ -291,10 +292,12 @@ const key = roomKey
 
 export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas {
   const outside = request.outside ?? new Set<string>()
+  // ARE-59: the plan's own country, as `grid check` reads it; a country in the request only overrides it.
+  const country = request.country ?? planPlace(survey.plan)?.country
   const figures = planAreaFigures(survey.plan, {
     outside,
     ...(request.floors ? { floors: request.floors } : {}),
-    ...(request.country ? { country: request.country } : {}),
+    ...(country ? { country } : {}),
     ...(request.gross ? { gross: request.gross } : {}),
     ...(request.outdoorWeights ? { outdoorWeights: request.outdoorWeights } : {}),
     ...(request.apart ? { apart: request.apart } : {}),
