@@ -68,6 +68,7 @@ import { flightProfile, landingLevels, profileRing, stairWaist, type FlightProfi
 import { tryRoomShape } from './room'
 import { outdoorRoofed } from './outdoor'
 import { roomFloorOffset } from './steps'
+import { isItemKind, itemRoom, itemSolid, roomShapes } from './items'
 import { roomZones } from './zones'
 import { planWallSides, stretchAt } from './exposure'
 import { planMarks } from './marks'
@@ -96,12 +97,12 @@ export interface SectionPiece {
   readonly holes: readonly (readonly Vec2[])[]
 }
 
-export type SectionPartKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'floor' | 'plinth'
+export type SectionPartKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'floor' | 'plinth' | 'item'
 
 /** One part of the model the line cuts, as rectangles (a wall, a slab) or blocks (a stair). */
 export interface SectionPart {
   readonly kind: SectionPartKind
-  /** The wall's or the stair's id, the floor's for a slab, roof, parapet or plinth, the room's for a raised floor. */
+  /** The wall's or the stair's id, the floor's for a slab, roof, parapet or plinth, the room's for a raised floor, the item's for an item. */
   readonly id: string
   readonly floor: string
   /** The rectangles it is cut into along the line, each counter-clockwise. */
@@ -136,7 +137,7 @@ export interface SectionEarth {
   readonly open: { readonly start: boolean; readonly end: boolean }
 }
 
-export type SectionFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'plinth'
+export type SectionFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | 'plinth' | 'item'
 
 /** A face beyond the cut that faces the person looking: a piece to paint over what lies behind it. */
 export interface SectionFace {
@@ -254,6 +255,12 @@ export interface PlanSection {
   readonly parts: readonly SectionPart[]
   /** VEW-23: the walls of a glazed type the line cuts, apart from `cut`: glass in a frame, never solid. */
   readonly glass: readonly SectionPart[]
+  /**
+   * CNT-48: the fixtures and furniture the line cuts, apart from `cut` and `parts`: each item's
+   * blocks (`itemSolid`, as the 3D view stands them) on the floor of its room, one part per item.
+   * Their sides beyond the cut are in `beyond`, of kind `item`.
+   */
+  readonly items: readonly SectionPart[]
   /** What lies beyond the cut, farthest first. */
   readonly beyond: readonly SectionFace[]
   /**
@@ -414,6 +421,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   const ground = groundLevel(plan, elevations)
   const marks = planMarks(plan)
   const parts: SectionPart[] = []
+  const itemParts: SectionPart[] = []
   const faces: SectionFace[] = []
   const rooms: SectionRoom[] = []
   const notes: SectionAssumption[] = []
@@ -721,6 +729,23 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         ...(under === null ? {} : { through: under.through.map((t) => t.room) }),
         ...(sloped === null || headroom === null ? {} : { headroom: bands })
       })
+    }
+
+    // CNT-48: each item standing here, by the blocks the 3D view stands it as, on its room's floor:
+    // cut where the line crosses it, its sides beyond the cut seen.
+    const items = (slice.items ?? []).filter((item) => !broken.has(item.id) && isItemKind(item.kind))
+    if (items.length > 0) {
+      const shapes = roomShapes(index, broken)
+      for (const item of items) {
+        const room = itemRoom(item, shapes)
+        const lift = base + (room === null ? 0 : roomFloorOffset(room))
+        const rings: Vec2[][] = []
+        for (const block of itemSolid(item)) {
+          for (const [x0, x1] of inside(frame, [block.outline])) rings.push(rect(snap, x0, x1, lift + block.bottom, lift + block.top))
+          ringFaces('item', item.id, floor.id, block.outline, lift + block.bottom, lift + block.top)
+        }
+        if (rings.length > 0) itemParts.push({ kind: 'item', id: item.id, floor: floor.id, rings })
+      }
     }
   }
 
@@ -1031,8 +1056,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
 
   /**
-   * A flight's faces beyond the cut (VEW-11): its two sides, each its profile; the risers seen head-on, one face
-   * at its foot (VEW-41); its upper end, from the soffit to its last tread, which also stands for the soffit
+   * A flight's faces beyond the cut (VEW-11): its two sides, each its profile; its risers, one face (VEW-41)
+   * of each riser in its place (VEW-69); its upper end, from the soffit to its last tread, which also stands for the soffit
    * seen from above the flight.
    */
   function flightFaces(stair: (typeof laid)[number], flight: (typeof laid)[number]['flights'][number], profile: FlightProfile, along: Vec2): void {
@@ -1046,9 +1071,42 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     const [lTop, rTop] = ends(profile.length)
     sideFace(stair, profile, lFoot, lTop, perp(along))
     sideFace(stair, profile, rFoot, rTop, scale(perp(along), -1))
-    // VEW-41: the risers seen head-on are one face at the foot, as tall as the flight, not one column each.
-    face('stair', stair.id, stair.lower.floor, lFoot, rFoot, scale(along, -1), profile.lower, profile.topAt(profile.length))
+    riserFace(stair, flight, profile, along)
     face('stair', stair.id, stair.lower.floor, lTop, rTop, along, profile.bottomAt(profile.length), profile.topAt(profile.length))
+  }
+
+  /**
+   * VEW-69: a flight's risers beyond the cut, as one face (VEW-41): each riser one riser tall, at its
+   * own riser line and the height it rises from, joined. Seen head-on they make one rectangle, at an
+   * angle they step up and away; seen edge-on they add nothing, since the flight's side shows them.
+   * Never a face from the floor at the foot up to the top, which closed off the room under the stair.
+   */
+  function riserFace(stair: (typeof laid)[number], flight: (typeof laid)[number]['flights'][number], profile: FlightProfile, along: Vec2): void {
+    const facing = dot(scale(along, -1), frame.look)
+    if (facing >= -squareFace) return
+    const rings: Vec2[][] = []
+    let depth = Infinity
+    // The last riser line rises to the landing or floor above, which draws its own face.
+    for (let k = 0; k + 1 < flight.riserLines.length; k++) {
+      const [a, b] = flight.riserLines[k]!
+      let da = beyondOf(frame, a)
+      let db = beyondOf(frame, b)
+      if (da <= none && db <= none) continue
+      let pa = a
+      let pb = b
+      if (da < 0 || db < 0) {
+        const cut = add(a, scale(sub(b, a), da / (da - db)))
+        if (da < 0) [pa, da] = [cut, 0]
+        else [pb, db] = [cut, 0]
+      }
+      const x0 = Math.max(0, Math.min(across(frame, pa), across(frame, pb)))
+      const x1 = Math.min(frame.length, Math.max(across(frame, pa), across(frame, pb)))
+      if (!(x1 - x0 > none)) continue
+      rings.push(rect(snap, x0, x1, profile.lower + k * stair.riserHeight, profile.lower + (k + 1) * stair.riserHeight))
+      depth = Math.min(depth, (da + db) / 2)
+    }
+    const pieces = joined(rings)
+    if (pieces.length > 0) faces.push({ kind: 'stair', id: stair.id, floor: stair.lower.floor, depth, pieces, edge: null })
   }
 
   /** A side of a flight, from its foot `a` to its top `b`, facing `outward`: the flight's profile. */
@@ -1254,6 +1312,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   const points: Vec2[] = [
     ...cut.flatMap((p) => p.outline),
     ...glass.flatMap((p) => p.rings.flat()),
+    ...itemParts.flatMap((p) => p.rings.flat()),
     ...faces.flatMap((f) => (f.edge === null ? f.pieces.flatMap((p) => p.outline) : [...f.edge])),
     ...segments.flatMap(([a, b]) => [{ x: a, y: ground.level }, { x: b, y: ground.level }]),
     { x: 0, y: ground.level },
@@ -1269,6 +1328,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     cut,
     parts,
     glass,
+    items: itemParts,
     beyond: faces,
     ground: { level: ground.level, stated: ground.stated, segments, earth },
     levels: levels.sort((a, b) => a.level - b.level),

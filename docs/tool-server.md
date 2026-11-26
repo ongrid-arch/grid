@@ -73,7 +73,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_set_facts` | Sets facts of the person's own (`set`), takes them out (`unset`) or gives one room its number (`number`, `none` to leave it to Grid's count), on parts named by id (`parts`) or picked as `grid_find` picks them (`kind`, `floor`, `room`, `where`), and says what changed on which parts and what was so already ([below](#asking-across-the-parts-fields-find-and-count)) |
 | `grid_add_stair` | Adds a stair between two floors (`from`, `to`: floors, or rooms that stand for their floors; `width`), laid in a room by the same words as a rooms text `stair` line (`room`, `shape` straight, L or U, `runs`, `then`, `along`) or along its own walking line (`run`); answers with the risers, their height, the going, the pitch and the rooms at its ends, and refuses a stair that does not fit its room, naming the room's size ([plan-file.md](plan-file.md#stairs-that-join-two-floors)) |
 | `grid_change_stair` | Changes a stair by id: its floors, width, room, shape, way, risers (0 leaves them to Grid), name or walking line, laying a stair laid in a room out again with the new words; or `remove` takes it out |
-| `grid_add_item` | Adds a fixture or a piece of furniture (`name`: a library entry or a kind) with its back against a side of a room (`room`, `against`), its turn worked out so it faces into the room: centred, in a corner (`end`), a distance from one (`from`, `distance`) or the full width of the side (`full_width`, a built-in wardrobe); or at a point (`x`, `y`, `turn`). The same words as a rooms text `item` line. It says the room it stands in and whether it fits |
+| `grid_add_item` | Adds a fixture or a piece of furniture (`name`: a library entry or a kind) with its back against a side of a room (`room`, `against`), its turn worked out so it faces into the room: centred, in a corner (`end`), a distance from one (`from`, `distance`) or the full width of the side (`full_width`, a built-in wardrobe); or at a point (`x`, `y`, `turn`). The same words as a rooms text `item` line. It says the room it stands in and whether it fits; with `name` a typical room (`kitchen`, `bathroom`, `shower-room`, `cloakroom`) and `room` alone, sets out that room's usual fixtures, each against a side where it fits, and lists what fits nowhere (`notPlaced`, CNT-48) |
 | `grid_move_item` | Moves or turns an item by id: against another side or into another room, to a point, by a distance (`dx`, `dy`) or turned where it stands, keeping its kind and size, and says whether it fits |
 | `grid_remove_item` | Takes items out by id (`ids`), or every item standing in a room (`room`) |
 | `grid_place_bays` | Places a group of parking bays in a room (`group`, `room`), by the same words as a rooms text `bays` line: one row against a side (`along`, `count`, `offset`, `inset`, `from`), or the room filled with rows and the aisles between them (`aisle`, `rows`, `from`), the module `width` and `length` or a `kind` (Grid's own starting sizes); numbers them on from the floor's highest number unless `numbered` gives the first, replaces the group's bays when placed again, and answers with how many it placed, their ids and numbers ([plan-file.md](plan-file.md#parking-bays-and-ramps)) |
@@ -81,6 +81,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_set_site` | Sets the plot's boundary (its corners, or a width and depth, centred on the building when not placed, and said), the edges on a street (by the side of the drawing they face, or by number), the person's own set-backs, north (degrees, or where the arrow points) and where the building is on the earth, each only when given, `remove` taking one out; answers with the plot as `grid_measure what=site` gives it: its area (in acres too on a plan in feet and inches), the coverage and what it counts, and each edge's distance against its set-back ([below](#the-plot-distances-to-the-boundary-and-the-coverage)) |
 | `grid_change_site` | Adds, moves (`by` or `to`), resizes or removes one of the site's things, a tree, a path, paving, a pool, a fence or a gate, keeping the rest of it as written, and says when it stands outside the plot's boundary. Things are drawn only ([below](#the-plot-distances-to-the-boundary-and-the-coverage)) |
 | `grid_place_trace` | Sets the plan's trace image (`image`, a `.png`, `.jpg`, `.jpeg` or a `.pdf` with its `pdf_page`, inside the project folder), the floor it lies under and its `opacity`, and places, scales and turns it: `at` and `rotation`; `scale` in metres per pixel, or `calibrate_from`, `calibrate_to` and `length` (two pixels on it, such as a scale bar's ends, and how far apart they are on the building), or `pin_pixels` with `pin_points` (two of its pixels and the two points of the plan they show, which set its corner, turn and scale together); keeps what a call does not give, `remove` takes it out, and answers with where it now lies, as `grid_view` says it ([a trace image under the plan](plan-file.md#a-trace-image-under-the-plan)) |
+| `grid_annotate` | Places notes, tags, symbols, the key, routes drawn as arrows and sketch items on the drawing, by floor, in a room or at a point: one from its own arguments (`kind`, `text`, `at`, `room`, `points`, `category`, ...) or many as rooms text lines (`lines`), and takes them out by id (`remove`); answers with each entry placed, its id, what it is, where and on which floor, and what each floor carries. Drawn and exported only ([plan-file.md](plan-file.md#writing-on-the-drawing-and-the-sketch-layer)) |
 | `grid_save_view` | Saves a camera record `grid_view` returned under a name, with the plan, in its `views`, as Grid's setting and as BCF's camera; with `replace` over a view of that name, with `remove` takes one out ([below](#a-camera-you-can-set-and-saved-views)) |
 
 In a plan that states a phase, an edit is building work. `correction` on `grid_change_opening`, `grid_change_wall`, `grid_move_room_side`, `grid_mirror`, `grid_merge_rooms`, `grid_split_room`, `grid_add_room`, `grid_stretch`, `grid_square_scan` and `grid_add_opening` makes the change a correction of the survey instead: it is made in place and no part's phase changes ("the hall is on the right, actually"; [plan-file.md](plan-file.md#existing-demolished-and-new)).
@@ -438,6 +439,9 @@ it. The climb is never in the length. With `width` the way keeps to its floor. A
 only when it cannot be walked, and `gap` says where and why: the room and `no outline` (it
 cannot be drawn), `doorway` (the doorway `via` is not found on its side) or `no line` (no line
 keeps to its floor). A door in a curved wall is walked from either side of the curve.
+ARE-63: from a floor whose way out the check does not follow, because no stair joins it to the
+ground floor (its `no_stairs` note), the answer says so, found or not, and carries the note as
+`notChecked` (`reason`, `floor`): a basement car park left by a ramp for cars is such a floor.
 
 With `to=outside` (ARE-21) the route is walked to every way out on the floor, each by the way
 with the fewest rooms to its door, and the shortest by walked length is the answer. It names the
@@ -448,7 +452,9 @@ then to the smaller id.
 `grid_describe length=walk` is the long form of the description: the plan walked room by room.
 Each floor starts at its way in: the front door the plan names, else the widest door from outside
 into a corridor, else the widest door from outside; a floor with no door from outside starts in
-its stair room. The walk takes the ways on from each room from left to right as you stand in its
+its stair room. ARE-63: what no door in reaches is walked next from an open side onto the
+outside (a carport, the bays past a car park's open ramp), then from each room a stair reaches
+from another floor, so only a room the check finds cut off is left not reached. The walk takes the ways on from each room from left to right as you stand in its
 doorway, goes as deep as it can and comes back, so a room off a room comes straight after it. In
 each room you stand in the doorway you came in by, at its middle, facing in square to the wall,
 and what is in the room is said by the wall it is on: ahead (from left to right, each so far to
@@ -456,8 +462,9 @@ your left or right), on your left and on your right (each so far ahead), and in 
 stand in. A fixture is on the wall nearest its middle; one that stands more than 0.3 m clear of
 every wall, an island or a table, is said where it stands (`inRoom`; `F` for an agent): how far
 ahead its near side is and whether it is across your way or to one side. Where a floor's walk
-starts with no doorway you stand in the room's middle facing square to its longest side, and the
-room is said by its whole depth. Every way the way-out check reads is a way on, an open side as
+starts with no doorway you stand in the room's middle facing square to its own sides (ARE-63:
+the way its straight sides run for the most length, even with one wall curved), and the room is
+said by its whole depth. Every way the way-out check reads is a way on, an open side as
 much as a door, round a well in the floor too (ARE-18). Each wall comes with how far it is,
 straight out from where you stand. A plan whose y runs down the page is the building mirrored,
 and left and right are read the right way round. A floor laid out like an earlier one is said
@@ -781,7 +788,10 @@ The guide and the schema are made from the code when they are read, so they say 
 reads; the pages are the ones the package ships in its `docs/` folder. A host that lists
 resources shows them all; a host that has none can still read the same files in the package. The
 server's instructions, which carry the guide's first paragraphs word for word and point to the
-guide and the schema, are sent on `initialize` as well as on `server/discover`.
+guide and the schema, are sent on `initialize` as well as on `server/discover`. Some hosts show
+only their first 2,048 characters, so those open with what Grid makes, the brief, the label and
+retelling rule, room names and the guide; rooms first, units, the source of truth and the first
+questions follow, and are in the guide and in `grid_write_rooms` too.
 
 ## Protocol versions
 

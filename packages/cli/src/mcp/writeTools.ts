@@ -46,6 +46,7 @@ import { renameInBrief } from '../brief/rename'
 import { causedText, newLines } from '../edit/caused'
 import { followWalls } from '../edit/items'
 import { faultText } from '../command/plan'
+import { refusePlanTarget } from '../command/planFile'
 import { SEEN_NEW_OUTPUT, seenBefore as seenMarksBefore, seenMadeNew, seenNewData, seenNewLines } from '../edit/seen'
 import { BRIEF_OUTPUT } from './briefTool'
 import { writeLayout } from '../brief/layout'
@@ -356,6 +357,13 @@ function writeChangeHeld(context: ToolContext, args: Record<string, unknown>, ma
   const { project, file, loaded } = readPlan(context, args['plan'], { whole: true, leftOutKept: true })
   const out = (args['out'] as string | undefined) ?? file
   if (!out.toLowerCase().endsWith('.json')) throw new ToolRefusal('out must name a .json file.')
+  // CMD-45: out is never one of Grid's own files, nor a file there already that holds no plan.
+  try {
+    refusePlanTarget(project, out)
+  } catch (error) {
+    if (error instanceof PlanRefused || error instanceof PathRefused) throw new ToolRefusal(error.message)
+    throw error
+  }
   const before = surveyPlan(loaded.plan)
   // A plan written rooms first keeps its derived boundaries derived through Grid's own edits (WRT-2).
   const planAfter = (patch: Patch): FloorPlan => keptDerived(loaded.plan.rooms, readingAfter(loaded.plan, patch) as unknown as Record<string, unknown>) as unknown as FloorPlan

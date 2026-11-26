@@ -159,6 +159,26 @@ describe('a section through a stated stair (LVL-3)', () => {
   it('lists the risers Grid worked out', () => {
     expect(section.assumed.find((a) => a.kind === 'risers')!.ids).toEqual(['s1'])
   })
+
+  it('draws no line from the floor at the foot up to the top along the flight, so no box closes under it (VEW-69)', () => {
+    const laid = planStairs(plan, brokenOnFloor).stairs[0]!
+    const lines = section.beyond.filter((f) => f.kind === 'stair' && f.edge !== null).map((f) => f.edge!)
+    // Each line beyond the flight is its top end at most: a riser and a waist tall, never the flight's rise.
+    for (const [a, b] of lines) expect(Math.abs(b.y - a.y)).toBeLessThan(laid.riserHeight + 0.4)
+  })
+
+  it('draws the risers of a flight seen at an angle stepping up and away, not as a box on the floor at its foot (VEW-69)', () => {
+    // South-west of the stair, looking north-east at its foot and its west side.
+    const line: SectionLine = { from: { x: -4, y: 0 }, to: { x: 1, y: -5 }, toward: 'left' }
+    const seen = planSection(plan, line).beyond.filter((f) => f.kind === 'stair' && f.edge === null)
+    const laid = planStairs(plan, brokenOnFloor).stairs[0]!
+    const frame = sectionFrame(line)
+    const foot = laid.flights[0]!.from
+    const x = (foot.x - frame.start.x) * frame.right.x + (foot.y - frame.start.y) * frame.right.y
+    // Over the middle of the foot, the first risers stand, and higher up nothing of the stair does.
+    expect(seen.some((f) => f.pieces.some((p) => solidAt(p, { x, y: laid.riserHeight / 2 })))).toBe(true)
+    expect(seen.some((f) => f.pieces.some((p) => solidAt(p, { x, y: laid.rise * 0.8 })))).toBe(false)
+  })
 })
 
 describe('a section through a stair that turns at a landing (VEW-11)', () => {

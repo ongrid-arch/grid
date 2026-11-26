@@ -68,15 +68,18 @@ export const LABEL_AND_RETELLING = `Every report carries the label ${GENERAL_GUI
 /** Where a shared paragraph is carried. */
 export type GuidePlace = 'instructions' | 'skill' | 'guide' | 'readme'
 
-/** Each shared paragraph, by name, with the places that carry it as written here. */
+/**
+ * Each shared paragraph, by name, with the places that carry it as written here, in the
+ * instructions' order (MSG-32: what a host shows first comes first).
+ */
 export const SHARED: Readonly<Record<string, { readonly text: string; readonly in: readonly GuidePlace[] }>> = {
   TOOLS_WORK_ON_PLANS: { text: TOOLS_WORK_ON_PLANS, in: ['instructions', 'guide'] },
   BRIEF_FIRST: { text: BRIEF_FIRST, in: ['instructions', 'guide'] },
-  UNITS_RULE: { text: UNITS_RULE, in: ['instructions', 'skill', 'guide'] },
+  LABEL_AND_RETELLING: { text: LABEL_AND_RETELLING, in: ['instructions', 'skill', 'guide'] },
+  ROOM_NAMES_TRAVEL: { text: ROOM_NAMES_TRAVEL, in: ['instructions', 'skill', 'guide'] },
+  GUIDE_AND_SCHEMA: { text: GUIDE_AND_SCHEMA, in: ['instructions', 'skill'] },
   ROOMS_FIRST: { text: ROOMS_FIRST, in: ['instructions', 'skill', 'guide', 'readme'] },
+  UNITS_RULE: { text: UNITS_RULE, in: ['instructions', 'skill', 'guide'] },
   SOURCE_OF_TRUTH: { text: SOURCE_OF_TRUTH, in: ['instructions', 'skill', 'guide'] },
   FIRST_QUESTIONS: { text: FIRST_QUESTIONS, in: ['instructions', 'skill', 'guide', 'readme'] },
-  GUIDE_AND_SCHEMA: { text: GUIDE_AND_SCHEMA, in: ['instructions', 'skill'] },
-  ROOM_NAMES_TRAVEL: { text: ROOM_NAMES_TRAVEL, in: ['instructions', 'skill', 'guide'] },
-  LABEL_AND_RETELLING: { text: LABEL_AND_RETELLING, in: ['instructions', 'skill', 'guide'] },
 }

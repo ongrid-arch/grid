@@ -31,6 +31,7 @@ import { siteLines } from './site'
 import { stairLines } from './stairs'
 import { itemAndRowLines } from './rows'
 import { parkingLines } from './parking'
+import { noteLines } from './notes'
 import { fitOutReading, type BasePlan } from './base'
 
 type P = readonly [number, number]
@@ -772,6 +773,9 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
   // CNT-46: the bays and ramps, after every floor, so each room a line names is written above it.
   const parking = parkingLines(plan)
   if (parking.length > 0) lines.push('', ...parking)
+  // SHT-22: writing on the drawing and the sketch, last, on the floor of the last block unless they say another.
+  const notes = noteLines(plan, floors.at(-1)?.id)
+  if (notes.length > 0) lines.push('', ...notes)
   return `${lines.join('\n')}\n`
 }
 

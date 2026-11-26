@@ -10,6 +10,7 @@
  * - the cut parts solid, in the walls' tone, under the heavy outline the plan's cut walls have
  *   (written twice the `cut` pen, its inner half under the fill), or solid with no outline in a
  *   screen look;
+ * - CNT-48: the fixtures and furniture the line cuts, in paper with a light outline, over the cut;
  * - what the section takes that the plan does not state, over the cut in a light tint and a dashed
  *   outline, never a hatch (a hatch reads as a material);
  * - VEW-65: the earth under the ground, in the cut, filled with paper and hatched as a material, the
@@ -299,6 +300,14 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
       ])
     })
     nodes.push(el('g', { 'data-part': 'section-glass-group' }, glassNodes))
+  }
+
+  // CNT-48: the fixtures and furniture the line cuts: paper in a light outline, over the cut, so a
+  // kitchen island reads as a thing standing in the room and never as structure.
+  const items = section.items.filter((part) => part.rings.length > 0)
+  if (items.length > 0) {
+    const outline = look.lines.unit === 'mm' ? look.ink : look.colors.dimension
+    nodes.push(el('g', { 'data-part': 'section-item-group' }, items.map((part) => el('path', { 'data-part': 'section-item', 'data-id': part.id, d: part.rings.map((ring) => pathOf(ring)).join(''), fill: paper, stroke: outline, 'stroke-width': n(lines.width('wallOutline')), 'stroke-linejoin': 'round' }))))
   }
 
   // What was taken, over the cut: a light tint and a dashed outline, which no material has.
