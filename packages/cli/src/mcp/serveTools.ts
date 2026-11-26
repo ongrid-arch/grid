@@ -39,6 +39,7 @@ import { setFactsTool } from './factsTool'
 import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
 import { STAIR_TOOLS } from './stairTools'
+import { BUILDING_TOOLS } from './buildingTools'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -77,6 +78,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   setFactsTool,
   // LVL-21: a stair between two floors, added, changed or removed: the last of the building's changes.
   ...STAIR_TOOLS,
+  // LVL-23: which floors are each building's, and the ground each stands on.
+  ...BUILDING_TOOLS,
   // CNT-41: the plot, north and the site's things: the ground, never the building.
   ...SITE_TOOLS,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
