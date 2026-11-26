@@ -205,6 +205,30 @@ together hold all of it. A tool that changes the plan takes no `page`, because c
 would change the plan again: its change is made in full, and `grid_describe` and `grid_check` read
 the plan as it is now. A tool that takes `floor` answers one floor, which is often the better ask.
 
+## Changes that come at once: the plan's revision and based_on
+
+Several agents, or several tool servers, may change one plan at the same time (CMD-41,
+`src/mcp/revisions.ts` and `src/edit/revision.ts`). No change is lost to another:
+
+- Every answer about a plan carries the plan's revision: `planRevision` in its data (every output
+  schema lists it) and one line of its own after the answer, a last text block, so an answer
+  whose text is a file (CSV, rooms text) is left whole: `"plan.json" is at revision
+  3f9a0c12be47. ...`. The revision is the first 12 hex digits of the SHA-256 of the plan file's
+  text, so any change to the file, by Grid or anything else, gives a new one. A reading tool
+  reads it before it reads the plan; a change answers the revision it wrote.
+- Every tool that changes the plan takes `based_on`: the revision you read. When the plan is no
+  longer at it, the change is refused and nothing is written. The refusal says `The plan changed
+  since you read it`, the revision the plan is at now and, when this server read the version you
+  based the change on, what changed since in `grid_diff`'s words; then make the change again on
+  the plan as it is now. Left out, the change is made on the plan as it is.
+- A change holds a lock on the plan file from reading it to writing it back: `<plan>.lock`
+  beside the plan (`plan.lock` for `plan.json`), with the process id and the time, removed after.
+  A second change, in the same server or another process, waits for the first and then works on
+  the plan as the first left it. A lock whose process has gone, or older than ten minutes, is
+  taken over; a change that waits 30 seconds is refused with nothing written, to be tried again.
+  `grid edit` on the command line holds the same lock. The words tool, which writes the plan's
+  display, holds it too, and takes no `based_on`.
+
 ## The person's language
 
 `grid_check`, `grid_describe`, `grid_view` and `grid_sheet` take `language` (any language tag:

@@ -72,7 +72,12 @@ describe('the plot (grid_measure what=site)', () => {
     expect(at.text).toContain("Plot coverage: 20%, the building's 90.00 m² on the 450.00 m² plot.")
     expect(things.text.split('\n').filter((l) => !l.startsWith("The site's things"))).toEqual(at.text.split('\n'))
     expect(things.text).toContain("The site's things, drawn only and never measured: 1 fence, 3 trees and 1 pool.")
-    const areas = async (plan: string): Promise<Record<string, unknown>> => (await b.call('grid_areas', { plan })).data!
+    // CMD-41: each file has its own revision; the areas are what must match.
+    const areas = async (plan: string): Promise<Record<string, unknown>> => {
+      const data = { ...(await b.call('grid_areas', { plan })).data! }
+      delete data['planRevision']
+      return data
+    }
     expect(await areas('things.json')).toEqual(await areas('at.json'))
   })
 
