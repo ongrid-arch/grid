@@ -156,6 +156,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   fit is refused with the sizes that do (WRT-66). `unit`, `place`, `repeat` and `mirror` write a group of rooms
   once; `copy <floor>` starts a floor from another, and `through <floor>` stands a room on the
   floors above its own ([many of one room](#many-of-one-room-floors-copied-and-walls-through-floors)).
+- Grid infers one wall from a gap up to 0.6 m. For a thicker wall, give its thickness with
+  `walls <t>` on a room, `walls inside <t>` for the floor, or `wall between <a> and <b> <t>`
+  for that pair. Write the wall line before the room it places. Rooms placed by their own
+  coordinates keep those positions, so the wall takes the measured gap up to the stated
+  thickness (WRT-77).
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),
   or that leave a gap that is neither a wall nor a room are refused in plain words naming both
   rooms. Every refusal has a code, such as `rooms/overlap`. Each gives the advice that applies
@@ -655,6 +660,18 @@ north 30 clockwise
 ground -0.15
 site tree oak at 9,15 canopy 5 "Old oak"
 site pool pool 0,12 3,12 3,18 0,18
+```
+
+### Fit-out
+
+base <base plan> names the plan this one is fitted out in, as the project knows it (base shell.json; in quotes when the name holds a space): the shell, whose walls, doors and windows are read in as existing, drawn, measured and checked with the fit-out, and never written into it. Write the rooms by their inside faces as always: a wall Grid works out whose room faces lie on a base wall's faces is the base's, and the room names it by the base's id. Put a room's face on the base wall's face (a 0.3 m wall on x = 0 has its faces at -0.15 and 0.15) to rest it there; a face a little off one is said, with how far. A door or window in a base wall is refused, as the shell is read-only: its doors and windows are the base's. grid_start_fit_out starts a fit-out with the base's rooms as its own.
+
+```rooms
+base shell.json
+walls outside 0.2 inside 0.1
+room front "Reception" office 5.8 x 7.7 at 0.15,0.15
+room back "Treatment" office 5.8 x 7.7 east of front
+door d1 between front and back, centred, 0.9 wide, opens into back
 ```
 
 ### Other lines

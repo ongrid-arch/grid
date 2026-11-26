@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
+import { safeParseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { handleLine } from '../protocol'
 import { GRID_TOOLS, projectResources } from '../serveTools'
 import { toolDefinition } from '../toolkit'
@@ -16,10 +17,16 @@ import { bench } from './replay/harness'
 const writeRooms = toolDefinition(GRID_TOOLS.find((t) => t.name === 'grid_write_rooms')!)
 const roomsArg = (writeRooms.inputSchema as { properties: Record<string, { description: string }> }).properties['rooms']!.description
 
+/** WRT-75: the shell the fit-out's example is written on, 12 x 8 m to its 0.3 m walls' centre lines, with a door. */
+function shell(): FloorPlan {
+  const made = compileRoomsText(['walls outside 0.3', 'room unit "Unit" office 11.7 x 7.7 at 0.15,0.15', 'door entrance in unit south, 1 from west, 1.2 wide'].join('\n'))
+  return safeParseFloorPlan(made.plan)!
+}
+
 describe('the rooms grammar (CMD-38)', () => {
   for (const topic of ROOMS_GRAMMAR) {
     it(`writes the example of ${topic.topic} with no problem`, () => {
-      const result = compileRoomsText(`${topic.example.join('\n')}\n`)
+      const result = compileRoomsText(`${topic.example.join('\n')}\n`, topic.topic === 'fit-out' ? { base: { file: 'shell.json', plan: shell() } } : {})
       // A copy renames the ids it writes again, and says so: that is what a copy does.
       const said = [...result.problems.map((p) => p.message), ...result.warnings.filter((w) => w.code !== 'rooms/id-changed').map((w) => `${w.code}: ${w.message}`)]
       expect(said).toEqual([])

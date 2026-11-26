@@ -54,6 +54,7 @@ const ORDER = [
   'grid_set_phase',
   'grid_start_works',
   'grid_phase_from',
+  'grid_start_fit_out',
   'grid_tidy',
   'grid_set',
   'grid_set_facts',
@@ -150,9 +151,11 @@ describe('tools/list', () => {
     // did one item a call (a hundred calls for a floor of desks, and no fair count of how many fit).
     // 49 since VEW-67: the trace image set, placed, scaled and turned, which agents could only
     // write as the plan file's JSON (they read a scale bar by eye and never lined a photo up).
-    // 51 since CNT-46: rows of parking bays placed and a ramp added, which agents could only write as
+    // 50 since WRT-75: a fit-out started on a base plan, which no tool wrote (agents redrew the
+    // shell as the fit-out's own walls, or edited the base itself).
+    // 52 since CNT-46: rows of parking bays placed and a ramp added, which agents could only write as
     // the plan file's JSON (they hand-wrote hundreds of bays, or drew a helix ramp as a room).
-    expect((await listed()).length).toBeLessThanOrEqual(51)
+    expect((await listed()).length).toBeLessThanOrEqual(52)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -284,6 +287,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_set_phase: { phase: 'demolished', parts: ['door-bed2'], out: 'phased.json' },
     grid_start_works: { out: 'surveyed.json' },
     grid_phase_from: { before: 'plan.json', after: 'wider.json', out: 'works.json' },
+    grid_start_fit_out: { base: 'plan.json', plan: 'fit-out.json' },
     grid_tidy: { all: true, out: 'tidied.json' },
     grid_set: { parts: ['bed2'], set: { floorOffset: 0.02 }, out: 'set.json' },
     grid_set_facts: { parts: ['bed2'], set: { department: 'Sales' }, out: 'facts.json' },

@@ -355,7 +355,7 @@ export const TOLERANCES = {
     value: 0.6,
     unit: 'm',
     decides:
-      'The widest gap between two rooms written rooms first that is still one wall between them. ' +
+      'The widest gap between two rooms written rooms first that is still one wall without a wider thickness stated. ' +
       'A wider gap that is not a room is refused, naming both rooms.',
     basis: own
   },
@@ -409,6 +409,13 @@ export const TOLERANCES = {
       'Two scanned wall faces, or an edge of a scanned floor outline and a face, whose directions ' +
       'differ by less than this (the sine of 5 degrees) may be the two faces of one wall, or the ' +
       'same face.',
+    basis: own
+  },
+  scanWallWidest: {
+    kind: 'tolerance',
+    value: 1.8,
+    unit: 'm',
+    decides: 'Two scanned wall faces may bound one wall up to this width when they face each other across the gap (WRT-77).',
     basis: own
   },
   scanFaceReach: {
