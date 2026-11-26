@@ -11,7 +11,7 @@ back of house, or 120 cabins by type no longer need a guess from areas or names.
 
 ## Design
 - `quantities/query.ts`: four fields on a room, `room type`, `tenure`, `flat` (the id of the flat
-  the room is in, by the plan's flats list: the first flat that holds it) and `flat type` (the
+  the room is in, by the plan's flats list: the flat whose id comes first when two hold it) and `flat type` (the
   type's name, else its id). All text; a room with none is "not stated" in a count and meets
   only "is missing". They are `from: 'grid'`, so a fact of the person's own with the same name
   is reached as `properties.<name>`, as for every other field.
@@ -22,7 +22,7 @@ back of house, or 120 cabins by type no longer need a guess from areas or names.
   zones add nothing here.
 - `quantities/compare.ts` and `mcp/readTools.ts`: an option row carries the same two totals when
   they exist, its line says them and the output schemas list them.
-- Decision: rooms in two flats (the plan's check already warns) take the first flat, as the
+- Decision: rooms in two flats (the plan's check already warns) take the flat whose id comes first, as the
   flat schedule does.
 
 ## Done

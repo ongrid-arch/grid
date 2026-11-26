@@ -50,6 +50,9 @@ export interface RoomArea {
   readonly id: string
   readonly name: string
   readonly use: string | null
+  /** ARE-61: the firm's own type for the room and who it is for, only where the plan states them. */
+  readonly roomType?: string
+  readonly tenure?: string
   readonly floor: string
   /** Null when the room cannot be drawn, so has no area (MSG-2): it is named as left out of every total. */
   readonly net: number | null
@@ -95,6 +98,9 @@ export interface FloorAreas {
   readonly leftOut: readonly RoomLeftOut[]
   readonly net: number
   readonly byUse: Readonly<Record<string, number>>
+  /** ARE-61: the net floor by the firm's room type and by tenure, "not said" for a room with none; only on a plan where a room states one. */
+  readonly byRoomType?: Readonly<Record<string, number>>
+  readonly byTenure?: Readonly<Record<string, number>>
   readonly circulation: number
   /** Null when it cannot be worked out on this floor (`why`). */
   readonly grossInternal: number | null
@@ -123,6 +129,8 @@ export interface FloorAreas {
   readonly states: {
     readonly net: AreaState
     readonly byUse: Readonly<Record<string, AreaState>>
+    readonly byRoomType?: Readonly<Record<string, AreaState>>
+    readonly byTenure?: Readonly<Record<string, AreaState>>
     readonly circulation: AreaState
     readonly grossInternal: AreaState
     readonly grossExternal: AreaState
@@ -178,6 +186,9 @@ export interface PlanAreas {
   /** Net over gross internal, 0 to 1; null without a gross internal area. */
   readonly netToGross: number | null
   readonly byUse: Readonly<Record<string, number>>
+  /** ARE-61: as on a floor, for the whole building. */
+  readonly byRoomType?: Readonly<Record<string, number>>
+  readonly byTenure?: Readonly<Record<string, number>>
   readonly leftOut: readonly RoomLeftOut[]
   /** Which gross measure to give first, and why. */
   readonly reader: ReaderMeasure
@@ -234,6 +245,29 @@ function addBands(lists: readonly (readonly HeadroomBand[])[]): HeadroomBand[] {
 const sum = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0)
 
 const NOT_SAID = 'not said'
+
+/**
+ * ARE-61: rooms' net floor grouped by a word each states (the firm's room type, tenure). Every
+ * group is listed, "not said" for a room with none, with its state; none when no room states one.
+ */
+function groupedBy(rooms: readonly RoomArea[], word: (room: RoomArea) => string | undefined): { area: Record<string, number>; states: Record<string, AreaState> } | null {
+  if (!rooms.some((room) => word(room) !== undefined)) return null
+  const area: Record<string, number> = {}
+  const states: Record<string, AreaState> = {}
+  for (const group of new Set(rooms.map((room) => word(room) ?? NOT_SAID))) {
+    const held = rooms.filter((room) => (word(room) ?? NOT_SAID) === group)
+    area[group] = sum(held.map((room) => room.net ?? 0))
+    states[group] = sumState(held)
+  }
+  return { area, states }
+}
+
+/** ARE-61: each group's figures from several floors, added. */
+function addGroups(floors: readonly (Readonly<Record<string, number>> | undefined)[]): Record<string, number> | undefined {
+  const lists = floors.filter((f): f is Readonly<Record<string, number>> => f !== undefined)
+  if (lists.length === 0) return undefined
+  return Object.fromEntries([...new Set(lists.flatMap((f) => Object.keys(f)))].map((group) => [group, sum(lists.map((f) => f[group] ?? 0))]))
+}
 
 /** The rule for a band on an area, said where one is given (WRT-6). */
 export const SURENESS_RULE = 'Give or take: each side of a room times the tolerance its wall is marked with, added up, over the area: the most the area moves if every marked face moves its full tolerance one way. Grid\'s own rule, not a survey standard.'
@@ -340,6 +374,7 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     // Every room on the floor, in plan order: one Grid could not draw is listed with no area.
     const ids = [...new Set(survey.plan.rooms.map((room) => room.id).filter((id) => counted.has(id) || unmeasured.has(id)))]
     const uses = new Map(survey.plan.rooms.filter((room) => counted.has(room.id) || unmeasured.has(room.id)).map((room) => [room.id, room.use ?? null] as const))
+    const stated = new Map(survey.plan.rooms.filter((room) => floorOf(room) === f.floor).map((room) => [room.id, room] as const))
     const rooms: RoomArea[] = ids.map((id) => {
       const figure = counted.get(id)
       const net = figure?.area ?? null
@@ -352,6 +387,8 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
         id,
         name: figure?.name ?? unmeasured.get(id)!.name,
         use: figure?.use ?? uses.get(id) ?? null,
+        ...(stated.get(id)?.roomType === undefined ? {} : { roomType: stated.get(id)!.roomType! }),
+        ...(stated.get(id)?.tenure === undefined ? {} : { tenure: stated.get(id)!.tenure! }),
         floor: f.floor,
         net,
         state: roomState(net, doubted),
@@ -385,6 +422,8 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     // A use whose rooms could none be measured is still listed, at 0 and not looked at (MSG-2).
     const byUse: Record<string, number> = { ...f.byUse }
     for (const use of Object.keys(byUseState)) byUse[use] ??= 0
+    const byType = groupedBy(inside, (room) => room.roomType)
+    const byTenure = groupedBy(inside, (room) => room.tenure)
     const headroom = inside.some((room) => room.headroom !== undefined) ? addBands(inside.flatMap((room) => (room.headroom ? [room.headroom.bands] : []))) : null
     const floorSure = sumSureness(inside, f.net)
     // ARE-14 (lab S-6): the floor the fixtures take from the rooms the net counts, beside the net.
@@ -396,6 +435,8 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
       leftOut: f.leftOut,
       net: f.net,
       byUse,
+      ...(byType === null ? {} : { byRoomType: byType.area }),
+      ...(byTenure === null ? {} : { byTenure: byTenure.area }),
       circulation: sum(circulating.map((room) => room.net ?? 0)),
       grossInternal: f.grossInternal,
       grossExternal: f.grossExternal,
@@ -414,6 +455,8 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
       states: {
         net: sumState(inside),
         byUse: byUseState,
+        ...(byType === null ? {} : { byRoomType: byType.states }),
+        ...(byTenure === null ? {} : { byTenure: byTenure.states }),
         circulation: sumState(circulating),
         // Gross areas come from the walls; gross internal takes off the outside rooms. ARE-20: one
         // below a figure it must hold is not proven, and says why.
@@ -425,6 +468,8 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
 
   const grossInternal = figures.grossInternal.area
   const net = figures.net.area ?? 0
+  const totalByType = addGroups(floors.map((f) => f.byRoomType))
+  const totalByTenure = addGroups(floors.map((f) => f.byTenure))
   const circulation = sum(floors.map((f) => f.circulation))
   const unknown = [figures.grossInternal, figures.grossExternal].filter((g) => g.area === null)
   const grossWhy = unknown.length === 0 ? null : `No ${unknown.map((g) => g.rule.name.toLowerCase()).join(' or ')}: ${unknown[0]!.why}`
@@ -526,6 +571,8 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     circulationShare: grossInternal ? circulation / grossInternal : null,
     netToGross: grossInternal ? net / grossInternal : null,
     byUse: Object.fromEntries([...new Set(floors.flatMap((f) => Object.keys(f.byUse)))].map((use) => [use, sum(floors.map((f) => f.byUse[use] ?? 0))])),
+    ...(totalByType === undefined ? {} : { byRoomType: totalByType }),
+    ...(totalByTenure === undefined ? {} : { byTenure: totalByTenure }),
     leftOut: figures.leftOut,
     reader: figures.reader,
     grossWhy,
