@@ -13,7 +13,7 @@
  */
 import { floorOf, indexPlan, itemKindWord, itemRoom, roomShapes, validatePlan, type FloorPlan, type Item } from '@ongrid/floorplan/geometry'
 import type { Library } from '@ongrid/floorplan/library'
-import { itemsFollowWalls, ItemRefused, placeItem, type ItemMade, type ItemSide, type ItemWords } from '@ongrid/floorplan/rooms'
+import { itemsFollowWalls, ItemRefused, layRow, placeItem, rowItemId, type ClearSides, type ItemMade, type ItemSide, type ItemWords, type RowWords } from '@ongrid/floorplan/rooms'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { quoted } from '../fs/projectFiles'
 import type { Survey } from '../quantities/survey'
@@ -45,6 +45,10 @@ export interface AddItemRequest extends ItemPlace {
   readonly depth?: number
   readonly height?: number
   readonly clearance?: number
+  /** CNT-47: the clear floor kept behind it and at its left and right. */
+  readonly clearSides?: ClearSides
+  /** CNT-47: the item laid out in rows, as a row line lays it out. */
+  readonly row?: RowWords
 }
 
 /** What a call says about an item to move: a new place, or a distance to move it by. */
@@ -124,6 +128,7 @@ export function addItem(survey: Survey, library: Library, request: AddItemReques
   const plan = survey.plan
   const taken = takenIds(plan)
   if (request.id !== undefined && taken.has(request.id)) throw new EditRefused(`The id ${quoted(request.id)} is taken by ${idHolder(plan, request.id)}: give the item another id, or move that one with grid_move_item.`)
+  if (request.row !== undefined) return addRow(survey, library, request, request.row, taken)
   let id = request.id ?? request.name
   if (request.id === undefined) for (let n = 2; taken.has(id); n++) id = `${request.name}-${n}`
   const made = placed(plan, {
@@ -134,6 +139,7 @@ export function addItem(survey: Survey, library: Library, request: AddItemReques
     ...(request.depth === undefined ? {} : { depth: request.depth }),
     ...(request.height === undefined ? {} : { height: request.height }),
     ...(request.clearance === undefined ? {} : { clearance: request.clearance }),
+    ...(request.clearSides === undefined ? {} : { clearSides: request.clearSides }),
     ...placeWords(request),
   }, library)
   const patch: Patch = { ...emptyPatch([]), addItems: [{ ...made.record }], ...(made.copy.length === 0 ? {} : { addLibrary: made.copy.map((entry) => ({ ...entry })) }) }
@@ -147,6 +153,57 @@ export function addItem(survey: Survey, library: Library, request: AddItemReques
     ...(made.copy.length === 0 ? [] : [`The plan now holds ${made.copy.map((entry) => quoted(entry.name)).join(', ')} in its own library, so it reads the same without the library folder.`]),
   ]
   return { ...patch, said, extra: { item: id, placed: [id], fits: fit.fits, worthALook: fit.worthALook } }
+}
+
+/** CNT-47: the ids a row of items takes, from its own id. */
+function rowIds(id: string, row: RowWords): string[] {
+  const rows = row.rows ?? 1
+  const ids: string[] = []
+  for (let r = 1; r <= rows; r++) for (let n = 1; n <= row.count; n++) ids.push(rowItemId(id, r, n, rows))
+  return ids
+}
+
+/** CNT-47: an item laid out in rows, as a row line lays it out, each item a plain item of the plan. */
+function addRow(survey: Survey, library: Library, request: AddItemRequest, row: RowWords, taken: ReadonlySet<string>): Patch {
+  const plan = survey.plan
+  let id = request.id ?? request.name
+  const clash = (base: string): string | undefined => rowIds(base, row).find((one) => taken.has(one))
+  if (request.id !== undefined && clash(id) !== undefined) throw new EditRefused(`The id ${quoted(clash(id)!)} that the row would give is taken by ${idHolder(plan, clash(id)!)}: give the row another id.`)
+  if (request.id === undefined) for (let n = 2; clash(id) !== undefined; n++) id = `${request.name}-${n}`
+  const words: ItemWords = {
+    id,
+    name: request.name,
+    ...(request.label === undefined ? {} : { label: request.label }),
+    ...(request.size === undefined ? {} : { size: request.size }),
+    ...(request.depth === undefined ? {} : { depth: request.depth }),
+    ...(request.height === undefined ? {} : { height: request.height }),
+    ...(request.clearance === undefined ? {} : { clearance: request.clearance }),
+    ...(request.clearSides === undefined ? {} : { clearSides: request.clearSides }),
+    ...placeWords(request),
+  }
+  let made: ItemMade[]
+  try {
+    made = layRow(plan, words, row, library)
+  } catch (error) {
+    if (error instanceof ItemRefused) throw new EditRefused(sentence(error.message))
+    throw error
+  }
+  const first = made[0]!
+  const copy = first.copy
+  const patch: Patch = { ...emptyPatch([]), addItems: made.map((one) => ({ ...one.record })), ...(copy.length === 0 ? {} : { addLibrary: copy.map((entry) => ({ ...entry })) }) }
+  const after = readingAfter(plan, patch)
+  const ids = made.map((one) => one.item.id)
+  const item = (after.items ?? []).find((i) => i.id === ids[0]) ?? first.item
+  const fit = fitLines(after, new Set(ids))
+  const rows = row.rows ?? 1
+  const word = itemKindWord(item.kind)
+  const said = [
+    `Laid out ${made.length} × ${word}${item.library === undefined ? '' : ` from ${quoted(item.library)}`} (${n2(item.size[0])} × ${n2(item.size[1])} m, ${n2(item.height)} m high)${rows > 1 ? `, ${rows} rows of ${row.count}` : ` in a row of ${row.count}`}, ${quoted(ids[0]!)} to ${quoted(ids[ids.length - 1]!)}${againstSaid(first, request)} the first ${whereSaid(after, item)}.`,
+    ...first.guesses.map(sentence),
+    ...fit.lines,
+    ...(copy.length === 0 ? [] : [`The plan now holds ${copy.map((entry) => quoted(entry.name)).join(', ')} in its own library, so it reads the same without the library folder.`]),
+  ]
+  return { ...patch, said, extra: { item: ids[0]!, placed: ids, fits: fit.fits, worthALook: fit.worthALook } }
 }
 
 /** An item moved or turned: against another side, into another room, to a point, or by a distance. */
