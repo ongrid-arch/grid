@@ -84,7 +84,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
-  'packages/cli/src/edit/place.ts': [11, 'notYet'],
+  // CNT-43: +1, the item at the size given.
+  'packages/cli/src/edit/place.ts': [12, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   // WRT-59: one more, a plan with nothing to mirror or turn.
   // WRT-73: one more, a mirror's line when it keeps the north.
@@ -123,7 +124,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
-  'packages/cli/src/mcp/editTools.ts': [107, 'tools'],
+  // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
+  'packages/cli/src/mcp/editTools.ts': [114, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // CMD-42: grid_set, its help and its argument checks.
@@ -254,7 +256,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/geometry/tolerances.ts': [341, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
-  'packages/floorplan/src/library/index.ts': [4, 'notYet'],
+  // CNT-43: +2, a kind placed with no size and a typical room given figures.
+  'packages/floorplan/src/library/index.ts': [6, 'notYet'],
   'packages/floorplan/src/geometry/use.ts': [9, 'notYet'],
   'packages/floorplan/src/geometry/vec2.ts': [2, 'developer'],
   'packages/floorplan/src/geometry/wall.ts': [2, 'developer'],
@@ -431,7 +434,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and LVL-21 87: the stair lines in rooms text (rooms/stairs.ts 39), the stairs' changes
     // (edit/stairs.ts 15), their tools (mcp/stairTools.ts 28), the grammar's stairs topic (3) and
     // the file's stairs kept by grid write (command/write.ts 2) (odd/tasks/LVL-21.md).
-    expect(left).toBeLessThanOrEqual(1918)
+    // and CNT-43 10: an item placed at its own size or by its kind, its receipt, refusals and its
+    // tool's help (edit/place.ts 1, library/index.ts 2, mcp/editTools.ts 7).
+    expect(left).toBeLessThanOrEqual(1928)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

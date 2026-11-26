@@ -43,6 +43,11 @@ version; a new size is a new name.
 | rug | `rug` 2.00 × 1.40, `rug-large` 3.00 × 2.00 |
 | plant | `plant` 0.50 × 0.50 (1.20 high) |
 
+Child-size entries, for a nursery or a school: `wc-child` (a toilet, 0.32 × 0.50, 0.35 high),
+`basin-low` (a basin, 0.45 × 0.35, 0.55 high), `cot` (a bed, 0.66 × 1.26, 0.95 high), `nap-cot`
+(a bed, 0.60 × 1.30, 0.15 high), `changing-table` (a table, 0.90 × 0.70, 0.90 high), and
+`coat-rail` (1.20 × 0.40, 1.70 high) and `coat-rail-low` (1.20 × 0.30, 1.10 high), both storage.
+
 The typical rooms are `bathroom` (a bath, a WC and a basin in 2.40 × 1.90 m), `cloakroom` (a WC
 and a small basin in 1.00 × 1.60 m), `double-bedroom` (a double bed, two side tables and a
 wardrobe in 3.20 × 3.40 m) and `single-bedroom` (a single bed, a side table and a wardrobe in
@@ -62,6 +67,18 @@ about its corner, counter-clockwise in degrees.
 ```bash
 grid edit place --name double-bedroom --x 0.1 --y 0.1
 grid edit place --name wc --x 5.55 --y 0.33 --turn 90
+```
+
+An item may take its own figures: `width` and `depth` (together), `height`, `clearance` and
+`label`. They are written on the item beside its library name, and the entry fills the rest, so
+a 1.40 × 0.70 m desk is `desk` at its own size and a plan still reads it as a desk. A thing the
+library has no entry for is placed by its kind with its width, depth and height: a kennel as
+`storage`, an exam table as `table`. A typical room takes none of these, as it is many items:
+place its items one by one to size them.
+
+```bash
+grid edit place --name desk --x 2 --y 1 --width 1.4 --depth 0.7
+grid edit place --name storage --id kennel-1 --x 1 --y 3 --width 1.2 --depth 0.9 --height 0.9 --label Kennel
 ```
 
 The answer names the room each item landed in and whether it fits: a wall it runs into, an item
