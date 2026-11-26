@@ -25,6 +25,7 @@ import { doorKindOf, kindFits, sweepsFloor, swingNeeds } from '../geometry/openi
 import { compileRoomsText, RAW_FLOOR_KEYS, type RoomsResult } from './compile'
 import { planRevision } from './stamp'
 import { factValueOf, metres, quotedWordsOf } from './words'
+import { siteLines } from './site'
 
 type P = readonly [number, number]
 
@@ -660,6 +661,8 @@ function headerLines(plan: FloorPlan, rule: Rule, name: string | undefined): str
   for (const [t, k] of [...rule.types].sort((a, b) => a[0] - b[0])) lines.push(`walltype ${metres(t)} ${k}`)
   if (!sameNumber(rule.doorH, 2.1)) lines.push(`doors height ${metres(rule.doorH)}`)
   if (!sameNumber(rule.winSill, 0.9) || !sameNumber(rule.winH, 1.2)) lines.push(`windows sill ${metres(rule.winSill)} height ${metres(rule.winH)}`)
+  // CNT-41: the plot, north and the site's things, so writing the text again keeps them.
+  lines.push(...siteLines(plan))
   return lines
 }
 

@@ -15,7 +15,7 @@
  */
 import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, planFloors, planHasPhases, roomShapes, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
 import { english, name, said, type Said } from '@ongrid/floorplan/messages'
-import { carryFacts, compileRoomsText, planRevision, problemLines, roomsAnswer, stampFor, type RoomsResult } from '@ongrid/floorplan/rooms'
+import { carryFacts, compileRoomsText, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
@@ -25,6 +25,7 @@ import { TextNotDecoded } from '../fs/textEncoding'
 import { occupancyFileOf } from '../occupancy/occupancy'
 import { comparePlans } from '../quantities/compare'
 import { surveyPlan } from '../quantities/survey'
+import { siteDescription } from '../quantities/site'
 import starterPlan from './starter-plan.json'
 import { loadPlan, PlanRefused } from './plan'
 import { refuseGridFile } from './planFile'
@@ -305,6 +306,10 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     next['flatTypes'] = plan.flatTypes ?? []
     next['flats'] = plan.flats
   }
+  // CNT-41: the site lines set what they write of the plot, north and the site's things; the rest
+  // of the file's site stays (`writtenSite`).
+  if (plan.site !== undefined) next['site'] = writtenSite(raw['site'], plan.site)
+  if (plan.north !== undefined) next['north'] = plan.north
   // SHT-14: the `plan` line's name stays in the plan; without one, the file's name stays.
   if (result.name !== null && result.name !== '') next['name'] = result.name
   next['written'] = stampFor(plan)
@@ -340,6 +345,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(carried === null || carried.lost.length === 0 ? [] : [`Not in the text, so their facts and numbers are gone with them: ${carried.lost.slice(0, 10).join(', ')}${carried.lost.length > 10 ? ` and ${carried.lost.length - 10} more` : ''}.`]),
     ...(before === null || patterns.length === 0 ? [] : [patternsKept(before, kept)]),
     ...keptItemLines(items.items),
+    // CNT-41: the plot in a line or two when the text wrote any of the site.
+    ...(plan.site === undefined ? [] : siteDescription(safeParseFloorPlan(next) ?? kept, 'agent')),
     ...(plan.flats !== undefined || (before?.flats ?? []).length === 0 ? [] : [`Kept the plan's ${before!.flats!.length === 1 ? 'flat' : `${before!.flats!.length} flats`} as the file has ${before!.flats!.length === 1 ? 'it' : 'them'}: this rooms text places no flat type. grid check names a room a flat lists that the text no longer has.`]),
     ...doors,
     english(said('write.toLookAt', { before: toLookAt.before, after: toLookAt.after, drawingBefore: drawingProblems.before, drawingAfter: drawingProblems.after })),

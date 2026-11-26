@@ -86,7 +86,8 @@ describe('raw takes wall, room, opening or floor (WRT-48)', () => {
     const cases: Array<[string, string]> = [
       ['door', 'raw opening'],
       ['stair', '"stairs"'],
-      ['site', '"site"'],
+      // CNT-41: the site has lines of its own.
+      ['site', 'site boundary x,y'],
       ['column', '"columns"'],
       ['fixture', '"items"'],
     ]

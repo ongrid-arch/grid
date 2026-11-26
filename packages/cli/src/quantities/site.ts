@@ -9,7 +9,7 @@
  * a distance is enough. The ways are read by the plan's north, and a plan that states none is
  * answered with north as the top of the drawing, said first (`northLine`).
  */
-import { areaText as areaFigure, metresText, planFacing, siteMeasures, siteThingsText, type EdgeDistance, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { areaText as areaFigure, isOutdoor, metresText, outdoorRoofed, planFacing, siteMeasures, siteThingsText, type EdgeDistance, type FloorPlan } from '@ongrid/floorplan/geometry'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { FIGURES_HEADING } from '../brief/brief'
 import { northData, northLine } from './facing'
@@ -30,6 +30,29 @@ export function percentText(ratio: number): string {
   return `${Number.isInteger(tenths) ? tenths : tenths.toFixed(1)}%`
 }
 
+/** CNT-41: square metres in an acre, by the international foot. */
+const M2_PER_ACRE = 4046.8564224
+
+/** CNT-41: a plot's area in acres, beside its area, on a plan shown in feet and inches. */
+function acresText(m2: number, display: Display): string {
+  if (display.length !== 'ft-in' && display.area !== 'ft2') return ''
+  const acres = m2 / M2_PER_ACRE
+  return ` (${acres < 10 ? acres.toFixed(acres < 1 ? 3 : 2) : acres.toFixed(1)} acres)`
+}
+
+/**
+ * CNT-41: what the coverage counts, and the plan's own outdoor space on either side of it: roofed
+ * outdoor space (a porch, a carport) is building, open (a deck, a terrace) is not.
+ */
+function coverageCountsLine(plan: FloorPlan): string {
+  const outdoor = plan.rooms.filter(isOutdoor)
+  const named = (rooms: typeof outdoor): string => `${rooms.slice(0, 5).map((r) => `"${r.name}"`).join(', ')}${rooms.length > 5 ? ` and ${rooms.length - 5} more` : ''}`
+  const roofed = outdoor.filter((r) => outdoorRoofed(r) === true)
+  const open = outdoor.filter((r) => outdoorRoofed(r) !== true)
+  if (outdoor.length === 0) return 'The coverage counts the enclosed building; a roofed porch or carport would count with it, and a deck or terrace open to the sky would not. The plan has neither.'
+  return `The coverage counts the enclosed building and roofed outdoor space (a porch, a carport); open outdoor space (a deck, a terrace, a balcony, a garden) is left out.${roofed.length === 0 ? '' : ` Counted here: ${named(roofed)}.`}${open.length === 0 ? '' : ` Left out here: ${named(open)}.`}`
+}
+
 export interface SiteAnswer {
   readonly lines: readonly string[]
   readonly data: Record<string, unknown>
@@ -46,17 +69,18 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
   const things = plan.site?.things ?? []
 
   if (boundary === null) {
-    lines.push('The site states no boundary, so no distance to it and no plot coverage are measured: give site.boundary, the plot\'s corners in order round it.')
+    lines.push('The site states no boundary, so no distance to it and no plot coverage are measured: set it with grid_set_site (boundary, or plot_width and plot_depth), or write \'plot <width> x <depth>\' or \'site boundary x,y ...\' in rooms text.')
   } else if (boundary.problem !== null) {
     lines.push(`The site's boundary is not one closed shape (${boundary.problem}), so no distance to it and no plot coverage are measured.`)
   } else {
     const streets = boundary.edges.filter((e) => e.street)
-    lines.push(`The plot: ${A(boundary.area)} inside a boundary of ${boundary.edges.length} edges; ${streets.length === 0 ? 'no edge is said to be on a street' : `on the street: ${streets.map((e) => `edge ${e.edge} (${e.name})`).join(', ')}`}.`)
+    lines.push(`The plot: ${A(boundary.area)}${acresText(boundary.area, display)} inside a boundary of ${boundary.edges.length} edges; ${streets.length === 0 ? 'no edge is said to be on a street' : `on the street: ${streets.map((e) => `edge ${e.edge} (${e.name})`).join(', ')}`}.`)
     if (site.footprint === null) lines.push(`Plot coverage and the distances to the boundary were not measured: ${site.why ?? 'the building has no outline'}`)
     else {
       if (site.coverage !== null && site.covered !== null) lines.push(`Plot coverage: ${percentText(site.coverage)}, the building's ${A(site.covered)} on the ${A(boundary.area)} plot.`)
       const open = site.withOpen
       if (open !== null && open.coverage !== null && open.covered !== null) lines.push(`With the open outdoor space counted as building: ${percentText(open.coverage)}, ${A(open.covered)} on the ${A(boundary.area)} plot.`)
+      lines.push(coverageCountsLine(plan))
       if (boundary.edges.some((e) => e.setback !== null)) lines.push(FIGURES_HEADING)
       lines.push('From each edge of the boundary, the least distance to the building:')
       for (const at of site.edges) lines.push(`  ${edgeLine(at, L, site.withOpen?.edges.find((o) => o.edge.edge === at.edge.edge))}`)
@@ -77,6 +101,7 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
         ? null
         : {
             area: round(boundary.area),
+            acres: round(boundary.area / M2_PER_ACRE),
             problem: boundary.problem,
             edges: boundary.edges.map((e) => {
               const at = site.edges.find((d) => d.edge.edge === e.edge)

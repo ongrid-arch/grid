@@ -3,7 +3,8 @@
  * plan first, ordered by the requests they answer most often (lab entry Y-2), with the problem
  * report last of them (CMD-13), then the preview and the preview page's own call (VEW-4), the export, the sheet, the start marker
  * (WRT-8), the seen mark (MSG-10), the brief (BRF-1), Grid's words in the person's language (MSG-24),
- * and last the tools that change the plan, the saved views last of them (VEW-3).
+ * and last the tools that change the plan, the site's two (CNT-41) and then the saved views last
+ * of them (VEW-3).
  *
  * Every path an agent passes goes through the project's resolver (`fs/projectFiles.ts`):
  * inside the project folder or refused, with a message naming the path and the folder. The
@@ -35,6 +36,7 @@ import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
 import { tidyTool } from './tidyTool'
 import { setFactsTool } from './factsTool'
+import { SITE_TOOLS } from './siteTools'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -69,6 +71,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   tidyTool,
   // WRT-74: facts of the person's own and a room's number, which change no part of the building.
   setFactsTool,
+  // CNT-41: the plot, north and the site's things: the ground, never the building.
+  ...SITE_TOOLS,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
   saveViewTool,
 ]
