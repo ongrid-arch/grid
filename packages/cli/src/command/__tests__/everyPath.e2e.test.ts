@@ -323,6 +323,15 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_tidy', { plan: '@' }), given: asIs },
     { arg: 'out', call: tool('grid_tidy', { plan: PLAN, all: true, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CNT-41: the plot and the site's things, written into the plan.
+  grid_set_site: [
+    { arg: 'plan', call: tool('grid_set_site', { plan: '@', north: 30 }), given: asIs },
+    { arg: 'out', call: tool('grid_set_site', { plan: PLAN, north: 30, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_change_site: [
+    { arg: 'plan', call: tool('grid_change_site', { plan: '@', action: 'add', kind: 'tree', at: '1,1' }), given: asIs },
+    { arg: 'out', call: tool('grid_change_site', { plan: PLAN, action: 'add', kind: 'tree', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // VEW-3: a camera saved by name, written into the plan.
   grid_save_view: [
     { arg: 'plan', call: tool('grid_save_view', { plan: '@', name: 'Corner', camera: CAMERA }), given: asIs },

@@ -1769,7 +1769,7 @@ before, with no north and y up the page.
 
 | Field | What it states |
 |---|---|
-| `north` | Where north lies on the drawing, in degrees counter-clockwise from its top (+y), as a north symbol's `turn` is: 0 is up the drawing, 90 to the left (-x), -90 or 270 to the right (+x) |
+| `north` | Where north lies on the drawing, in degrees counter-clockwise from its top (+y), as a north symbol's `turn` is: 0 is up the drawing, 90 to the left (-x), -90 or 270 to the right (+x). Rooms text writes it as `north 30`, `north 30 clockwise` or `north up-left`, and `grid_set_site` as `north` or `north_points` (CNT-41) |
 | `yAxis` | Which way +y runs on the page with +x to the right: `up`, as Grid draws every plan, or `down`, as a screen or an image's pixels run. Unstated, it is `up` |
 | `front` | The part whose outside face is the front of the building: `wall`, a wall's id, or `opening`, an opening's id such as the front door, by the wall it is in. One of the two |
 | `site` | Where the building sits: `origin`, a point of the plan in metres, and, if known, where that point is on the earth: `latitude` and `longitude` in degrees (north and east positive, given together) and `elevation`, metres above sea level. Each is optional, but nothing is placed on the earth without `origin`; a field Grid does not hold is named and read without. A plan kept at survey coordinates states a point near the building as `origin`, and is measured and exported from it ([survey coordinates at a stored origin](#survey-coordinates-at-a-stored-origin)). `site` also holds `ground`, the level of the ground outside ([slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground)), which needs no `origin`. `country` is [the place](#the-place) the figure checks are for, and `boundary`, `streets`, `setbacks` and `things` are [the plot](#the-plot-its-boundary-set-backs-and-what-is-on-it) |
@@ -1895,6 +1895,12 @@ The set-backs are the person's own figures, never a code's: Grid compares the dr
 applies no figure of its own, and never says a distance is enough. A street or a set-back that
 names an edge the boundary does not have, a second set-back from the same edge, or one from the
 street with no street edge, is left out alone, and `grid check` says so (`plan/value-left-out`).
+
+None of it needs the file written by hand (CNT-41). Rooms text writes the plot in lines of its own
+(`plot 15 x 30 at 0,0`, `street south`, `setback all 3`, `site tree oak at 3,4 canopy 5`; see
+[rooms first](rooms-first.md#site)); `grid_set_site` sets the boundary, streets, set-backs, north
+and where the building is, and `grid_change_site` adds, moves, resizes and removes the site's
+things ([the tool server](tool-server.md#the-plot-distances-to-the-boundary-and-the-coverage)).
 
 Each of the site's things has a kind of its own: never a wall, a room or a fixture, so it adds no
 wall, no area, no note and no storey height, and the roof stays where the walls put it.

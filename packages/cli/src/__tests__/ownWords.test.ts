@@ -91,6 +91,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
+  // CNT-41: the plot's and the site's things' receipts and refusals.
+  'packages/cli/src/edit/site.ts': [35, 'notYet'],
   'packages/cli/src/edit/split.ts': [19, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
@@ -139,7 +141,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-38: two more, the rooms grammar resource's title and description.
   'packages/cli/src/mcp/serveTools.ts': [3, 'tools'],
   // CMD-38: the whole rooms grammar, by topic, for the agent.
-  'packages/cli/src/mcp/roomsGrammar.ts': [51, 'tools'],
+  // CNT-41: four more, the site's lines.
+  'packages/cli/src/mcp/roomsGrammar.ts': [55, 'tools'],
+  // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
+  'packages/cli/src/mcp/siteTools.ts': [44, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -173,7 +178,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   // CNT-27: one more, the CSV's column for the rows in no total.
   'packages/cli/src/quantities/schedule.ts': [16, 'notYet'],
-  'packages/cli/src/quantities/site.ts': [21, 'notYet'],
+  // CNT-41: two more, what the coverage counts.
+  'packages/cli/src/quantities/site.ts': [23, 'notYet'],
   'packages/cli/src/quantities/state.ts': [3, 'notYet'],
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
   'packages/cli/src/quantities/takeoff.ts': [10, 'notYet'],
@@ -239,6 +245,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   'packages/floorplan/src/rooms/read.ts': [22, 'notYet'],
+  // CNT-41: the site lines' refusals and notes, and north in words.
+  'packages/floorplan/src/rooms/site.ts': [30, 'notYet'],
   'packages/floorplan/src/rooms/words.ts': [4, 'notYet'],
   'packages/floorplan/src/scan/evidence.ts': [2, 'notYet'],
   'packages/floorplan/src/scan/roomModel.ts': [22, 'notYet'],
@@ -384,7 +392,10 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // refusal for no layout is gone).
     // and SHT-20 2: printing a sheet at a stated scale and paper size (it used the cap's slack on its own).
     // and CNT-40 1: the estimate's plural words for the new room uses (quantities/estimate.ts).
-    expect(left).toBeLessThanOrEqual(1662)
+    // and CNT-41 115: the site lines in rooms text (rooms/site.ts 30), the site's changes
+    // (edit/site.ts 35), their tools (mcp/siteTools.ts 44), the grammar's site topic (4) and what
+    // the coverage counts (quantities/site.ts 2) (odd/tasks/CNT-41.md).
+    expect(left).toBeLessThanOrEqual(1777)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

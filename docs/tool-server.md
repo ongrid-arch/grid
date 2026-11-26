@@ -20,8 +20,8 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 
 `grid serve` is an MCP server over standard input and output, for an agent's host to start.
 Its tools are listed in a fixed order: first those that read the plan, in the order of the
-requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the thirteen that
-change the plan, writing it rooms first leading and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
+requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the fifteen that
+change the plan, writing it rooms first leading, the site's two after the building's and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
 and the allowed values of each argument, and an output schema. Each answer is short text with
 the same facts as data; a view also returns its picture. A length argument is metres, or text with its unit (`12'6"`, `360 cm`); the measuring tools, the views and the sheet write in `units` and `decimal`, or the plan's `display`, the person's own units, and in metres when neither says (see [Units](plan-file.md#units)). The check and the edit answers are in metres.
 
@@ -64,6 +64,8 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_place_item` | Places a fixture, a piece of furniture or a typical room from the library by name, at a point and a turn, and says the room each item landed in and whether it fits: a wall it runs into, an item it stands in, the clear floor kept in front of one that something blocks; an office's entry from the library folder beside the plan is copied into the plan ([library.md](library.md)) |
 | `grid_add_opening` | Adds a door, window or doorless opening to a plan that has its walls: in a side of a room, or in the wall two rooms share, centred or placed from a side with `from` and `distance` as rooms text does, with a width, height, sill and kind (defaults as rooms text's), a door given the room it opens into and its hand; a width that does not fit is refused with the wall's free stretches; in a plan with phases it is new work |
 | `grid_tidy` | Lists the faults where walls meet, each with its id and the fix Grid offers, and writes nothing; with `apply` (fault ids) or `all`, makes those fixes on the plan or `out`, and says what was made, what was skipped and why, and the faults left. A wall across a corner of a room at an angle is taken as the room's new face; a fix that would leave a room with no way in says so and lists those rooms in `seals` ([commands.md](commands.md#walls-that-do-not-meet-grid-tidy)) |
+| `grid_set_site` | Sets the plot's boundary (its corners, or a width and depth, centred on the building when not placed, and said), the edges on a street (by the side of the drawing they face, or by number), the person's own set-backs, north (degrees, or where the arrow points) and where the building is on the earth, each only when given, `remove` taking one out; answers with the plot as `grid_measure what=site` gives it: its area (in acres too on a plan in feet and inches), the coverage and what it counts, and each edge's distance against its set-back ([below](#the-plot-distances-to-the-boundary-and-the-coverage)) |
+| `grid_change_site` | Adds, moves (`by` or `to`), resizes or removes one of the site's things, a tree, a path, paving, a pool, a fence or a gate, keeping the rest of it as written, and says when it stands outside the plot's boundary. Things are drawn only ([below](#the-plot-distances-to-the-boundary-and-the-coverage)) |
 | `grid_save_view` | Saves a camera record `grid_view` returned under a name, with the plan, in its `views`, as Grid's setting and as BCF's camera; with `replace` over a view of that name, with `remove` takes one out ([below](#a-camera-you-can-set-and-saved-views)) |
 
 Every change answers with what it changed, what it guessed and what it could not keep, and
@@ -569,8 +571,9 @@ set-back they asked for, or how much of the plot it covers. `grid_measure` with 
 other argument. The building is measured from its outside face: the outer faces of the walls of
 every floor at or above the ground floor, as one shape seen from above.
 
-- **The plot**: its area, how many edges it has, and which are on the street.
-- **Plot coverage**: the part of the building's shape inside the boundary against the plot's area. Open outdoor space (a terrace, a pool deck, a garden, a balcony) is left out of the shape, as it is of every area; a roofed one, a porch or a carport, is part of it. A plan with open outdoor space also gets the figure with it counted, said apart (`coverageWithOpenOutdoor`), and each edge's distance to it beside the building's (`distanceWithOpenOutdoor`).
+- **The plot**: its area, how many edges it has, and which are on the street. On a plan shown in
+  feet and inches the area is in acres too (`boundary.acres` is always in the data).
+- **Plot coverage**: the part of the building's shape inside the boundary against the plot's area. Open outdoor space (a terrace, a pool deck, a garden, a balcony) is left out of the shape, as it is of every area; a roofed one, a porch or a carport, is part of it. A line says so on every plot, naming the plan's own outdoor rooms counted and left out (CNT-41). A plan with open outdoor space also gets the figure with it counted, said apart (`coverageWithOpenOutdoor`), and each edge's distance to it beside the building's (`distanceWithOpenOutdoor`).
 - **Each edge**: the least distance from the building, with the set-back asked for that edge
   beside it and how far short of it the building stands, or how far it reaches over the edge.
   The set-backs are the person's own figures, under their heading; no line says a distance is
@@ -594,7 +597,25 @@ From each edge of the boundary, the least distance to the building:
   Edge 4: 5.00 m from the west boundary; you asked for 3.00 m.
 ```
 
-The data holds `boundary` (`area`, `problem`, and each edge's `edge`, `from`, `to`, `length`,
+A plan with no boundary is told how to add one. `grid_set_site` writes the plot without the plan
+file being edited by hand (CNT-41), and answers with these same lines after its change:
+
+```json
+{ "plot_width": 15, "plot_depth": 30, "streets": ["south"], "setbacks": ["street 5", "all 3", "west 40 assumed"], "north_points": "up-right" }
+```
+
+Sides are the drawing's, north up it, as in rooms text: `"south"` is every edge facing down the
+drawing, and a plot's edges are 1 south, 2 east, 3 north and 4 west. A set-back is written as
+rooms text writes it, `<from> <distance>`, `assumed` after it when it is not the person's own
+figure yet. A plot given with no `plot_x` and `plot_y` is centred on the building, and the answer says
+where it put it. A new boundary keeps the streets and set-backs that still name one of its edges,
+and says which it could not keep. `remove` takes a field out. `grid_change_site` adds, moves,
+resizes and removes the site's things one at a time: `{"action": "move", "id": "oak", "by": "2,0"}`,
+`{"action": "resize", "id": "drive", "width": 3}`, `{"action": "add", "kind": "gate", "points":
+["4,0", "5,0"]}`. A point is text, `"x,y"`, as rooms text writes it, in metres or with a unit
+(`"40ft,0"`). A jetty or a boardwalk is a path, never a room.
+
+The data holds `boundary` (`area`, `acres`, `problem`, and each edge's `edge`, `from`, `to`, `length`,
 `faces`, `bearing`, `street`, `name`, `setback`, `distance`, `past`, `short`, `face` and
 `floor`), `footprint` (`area`, `floors`), `coverage` (`ratio`, `percent`, `covered`, `plot`),
 `faces` and `things`. `grid_check` gives the same shortfall as a finding,
