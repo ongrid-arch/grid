@@ -397,7 +397,10 @@ stacked, not as walls through floors.
 ## Stairs that join two floors
 
 A stair is stated once, in the plan's `stairs` list, across the two floors it joins. The plan
-says what is meant and Grid works out the rest:
+says what is meant and Grid works out the rest. Rooms text writes it in a line of its own,
+`stair s1 from ground to first in hall, 0.9 wide, straight, runs north`, and the tools
+`grid_add_stair` and `grid_change_stair` write the same (LVL-21,
+[rooms-first.md](rooms-first.md#the-whole-grammar)); in the file it is:
 
 ```json
 { "id": "s1", "name": "Main stair", "from": "ground", "to": "first", "width": 0.9, "run": [[0.6, 0.6], [0.6, 3.4]] }
