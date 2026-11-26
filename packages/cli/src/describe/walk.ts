@@ -26,7 +26,7 @@
  */
 import { dot, planOrientation, poleOfInaccessibility, sub, tolerance, type Vec2 } from '@ongrid/floorplan/geometry'
 import { planFixtures } from '../quantities/fixtures'
-import { OUTSIDE, entryWays, wayGraph } from '../quantities/measure'
+import { OUTSIDE, entryWays, stairJoins, wayGraph, type Joins } from '../quantities/measure'
 import { crossingOf } from '../quantities/walked'
 import type { Survey, SurveyRoom } from '../quantities/survey'
 import { compassOf, type Compass } from './facts'
@@ -94,7 +94,7 @@ export interface WalkStop {
 export interface FloorWalk {
   readonly floor: string
   /** How the walk starts: the named front door, a door from outside, or the stair room. */
-  readonly start: 'front' | 'way in' | 'stair' | 'first room' | null
+  readonly start: 'front' | 'way in' | 'open side' | 'stair' | 'first room' | null
   readonly stops: readonly WalkStop[]
   /** Rooms of the floor no way of the walk reaches, by id. */
   readonly notReached: readonly string[]
@@ -229,15 +229,49 @@ function distanceToOutline(p: Vec2, room: SurveyRoom): number {
 }
 
 /**
- * ARE-18: the way to face from a room's middle: of the four ways square to its longest side,
- * the one nearest `toward` (north on the drawing with none), so the room is said square.
+ * ARE-63: the way a room's own sides run: of its straight sides (holes left out), the direction
+ * they run along for the greatest length, sides a quarter turn apart counted together. Null when
+ * its straight sides are less than half its outline (a round room has no sides of its own).
+ */
+function ownDirection(room: SurveyRoom): Vec2 | null {
+  const ring = room.polygon.length
+  const outline = room.edges.slice(0, ring)
+  const total = outline.reduce((sum, e) => sum + e.length, 0)
+  const straight = outline.filter((e) => e.wall?.arc === undefined && e.length > tolerance('noLength'))
+  if (straight.length === 0 || straight.reduce((sum, e) => sum + e.length, 0) < total / 2) return null
+  // Each side's direction folded into a quarter turn, as an angle in [0, 90).
+  const quarter = (e: (typeof straight)[number]): number => {
+    const d = (Math.atan2(e.to.y - e.from.y, e.to.x - e.from.x) * 180) / Math.PI
+    return ((d % 90) + 90) % 90
+  }
+  const groups: { angle: number; length: number; longest: (typeof straight)[number] }[] = []
+  const near = (a: number, b: number): boolean => Math.min(Math.abs(a - b), 90 - Math.abs(a - b)) < 1
+  for (const e of straight) {
+    const a = quarter(e)
+    const group = groups.find((g) => near(g.angle, a))
+    if (group === undefined) groups.push({ angle: a, length: e.length, longest: e })
+    else {
+      group.length += e.length
+      if (e.length > group.longest.length) group.longest = e
+    }
+  }
+  const best = groups.reduce((a, b) => (b.length > a.length ? b : a))
+  return unit(sub(best.longest.to, best.longest.from))
+}
+
+/**
+ * ARE-18: the way to face from a room's middle: of the four ways square to its own sides
+ * (`ownDirection`, ARE-63; else its longest side), the one nearest `toward` (north on the
+ * drawing with none), so the room is said square.
  */
 function squareFacing(room: SurveyRoom, toward: Vec2 | null): Vec2 {
   const want = toward ?? { x: 0, y: 1 }
-  let longest: Vec2 | null = null
+  let longest: Vec2 | null = ownDirection(room)
   let length = 0
-  for (const edge of room.edges) {
-    if (edge.length > length) [longest, length] = [unit(sub(edge.to, edge.from)), edge.length]
+  if (longest === null) {
+    for (const edge of room.edges) {
+      if (edge.length > length) [longest, length] = [unit(sub(edge.to, edge.from)), edge.length]
+    }
   }
   if (longest === null) return want
   const ways = [longest, leftOf(longest), { x: -longest.x, y: -longest.y }, { x: longest.y, y: -longest.x }]
@@ -313,9 +347,11 @@ function stopAt(survey: Survey, ways: Ways, room: SurveyRoom, from: string | nul
   const l = leftOf(f)
   // ARE-23: the room is sized in its own frame. A doorway in a wall at an angle to the room's
   // sides is crossed square to that wall, and the room's extent along that skewed line is not
-  // a side of it; the size is then taken along the room's own side nearest to the way you face. A room with a curved wall has no sides of its own: it keeps the way you face.
+  // a side of it; the size is then taken along the room's own side nearest to the way you face.
+  // ARE-63: a room whose straight sides are most of its outline has sides of its own though one
+  // wall is curved; a room with fewer (a round one) keeps the way you face.
   const own = squareFacing(room, f)
-  const skewed = !room.edges.some((e) => e.wall?.arc !== undefined) && Math.abs(own.x * f.y - own.y * f.x) > tolerance('squareCorner')
+  const skewed = ownDirection(room) !== null && Math.abs(own.x * f.y - own.y * f.x) > tolerance('squareCorner')
   const sized = skewed ? own : f
   const sizedLeft = leftOf(sized)
   const ahead = room.polygon.map((p) => dot(sub(p, stand), sized))
@@ -348,7 +384,7 @@ function stopAt(survey: Survey, ways: Ways, room: SurveyRoom, from: string | nul
 }
 
 /** Walk one floor from its way in, room by room, left to right, as deep as it goes. */
-function walkFloor(survey: Survey, floorId: string, mirror: number, fixtures: ReadonlyMap<string, FixtureSpot[]>): FloorWalk {
+function walkFloor(survey: Survey, floorId: string, mirror: number, fixtures: ReadonlyMap<string, FixtureSpot[]>, joins: Joins): FloorWalk {
   const floor = survey.facts.floors.find((f) => f.id === floorId)!
   const roomIds = floor.rooms.filter((r) => r.zoneOf === undefined).map((r) => r.id)
   const rooms = new Set(roomIds)
@@ -389,14 +425,34 @@ function walkFloor(survey: Survey, floorId: string, mirror: number, fixtures: Re
     if (start === null) start = way.front ? 'front' : 'way in'
     tour({ room: way.room, from: OUTSIDE, via: way.via, toward: null })
   }
-  if (start === null && roomIds.length > 0) {
-    const stair = roomIds.find((id) => survey.byId.get(id)?.facts.use === 'stair')
-    const first = stair ?? roomIds[0]!
-    start = stair !== undefined ? 'stair' : 'first room'
+  // ARE-63: every way the check reads in is a way in for the walk: next, an open side with nothing
+  // past it (a dividing line onto the outside, as a carport's or a car park ramp's is).
+  for (const id of roomIds) {
+    if (visited.has(id)) continue
+    const open = (ways.next.get(id) ?? []).find((w) => w.room === OUTSIDE && !survey.facts.openings.has(w.via))
+    if (open === undefined) continue
+    if (start === null) start = 'open side'
+    tour({ room: id, from: OUTSIDE, via: open.via, toward: null })
+  }
+  const startIn = (first: string): void => {
     const door = (ways.next.get(first) ?? []).find((w) => w.room !== OUTSIDE)
     const room = survey.byId.get(first)
     const toward = door === undefined || room === undefined ? null : (crossingOf(survey, room, door.via, survey.byId.get(door.room) ?? null)?.near ?? null)
     tour({ room: first, from: null, via: null, toward })
+  }
+  // Then each part of the floor a stair reaches from another floor, from the room the stair
+  // arrives in, as the check reads the stairs (a stair the plan states, stair rooms one over the other).
+  const arrives = new Set(joins.joins.flatMap((j) => [j.lower, j.upper]).filter((end) => end.floor === floorId).map((end) => end.room))
+  for (const id of roomIds) {
+    if (visited.has(id) || !arrives.has(id)) continue
+    if (start === null) start = 'stair'
+    startIn(id)
+  }
+  if (start === null && roomIds.length > 0) {
+    const stair = roomIds.find((id) => survey.byId.get(id)?.facts.use === 'stair')
+    const first = stair ?? roomIds[0]!
+    start = stair !== undefined ? 'stair' : 'first room'
+    startIn(first)
   }
   return { floor: floorId, start, stops, notReached: roomIds.filter((id) => !visited.has(id)), repeats: null }
 }
@@ -406,11 +462,12 @@ export function planWalk(survey: Survey, onlyFloor?: string): PlanWalk {
   const mirrored = planOrientation(survey.plan).yAxis === 'down'
   const mirror = mirrored ? -1 : 1
   const fixtures = fixtureSpots(survey)
+  const joins = stairJoins(survey.plan)
   const floors = survey.facts.floors
     .filter((floor) => onlyFloor === undefined || floor.id === onlyFloor)
     .map((floor): FloorWalk => {
       if (onlyFloor === undefined && floor.repeats !== null) return { floor: floor.id, start: null, stops: [], notReached: [], repeats: floor.repeats.of }
-      return walkFloor(survey, floor.id, mirror, fixtures)
+      return walkFloor(survey, floor.id, mirror, fixtures, joins)
     })
   return { floors, mirrored }
 }
@@ -517,6 +574,7 @@ function agentStop(n: number, stop: WalkStop): string {
 const START_KEY: Record<NonNullable<FloorWalk['start']>, MessageKey> = {
   front: 'describe.walk.start.front',
   'way in': 'describe.walk.start.wayIn',
+  'open side': 'describe.walk.start.openSide',
   stair: 'describe.walk.start.stair',
   'first room': 'describe.walk.start.firstRoom',
 }

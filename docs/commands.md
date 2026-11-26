@@ -43,7 +43,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid diff [<plan>] [--since <name>\|git\|phase] [--rooms <ids>] [--show all\|summary\|changes\|issues] [--picture\|--out <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
 | `grid occupancy [<plan>]` | Lists who sits where, by room, from the occupancy file beside the plan; no export carries it (see below) |
 | `grid preview [<plan>] [--port <n>]` | Serves the preview as a page on this computer only: the plan in 2D and 3D, the part you click shared with the agent, the room it frames and the parts it picks out; it draws again within 2 s of the plan changing (see below) |
-| `grid serve` | Starts the tool server on standard input and output, with the 56 tools in [the tool server](tool-server.md) |
+| `grid serve` | Starts the tool server on standard input and output, with the 57 tools in [the tool server](tool-server.md) |
 | `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`) |
 
 A plan is told by what it holds: a list of walls, rooms or openings, or the stamp Grid writes. `grid write` never
@@ -916,6 +916,11 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   windows open, each hiding what is behind it. A stair beyond the cut shows its sides as its
   profile and its risers each at its own place and height (VEW-69), so seen at an angle they step
   up and away, and seen along the flight they leave the room under it open.
+- **Fixtures and furniture** (CNT-48) are cut where the line crosses them and seen beyond it, as
+  the plain blocks the 3D view stands them up as, on the floor of their room: a kitchen island
+  cut across shows its height, with the run against the far wall beyond it. A cut item is drawn
+  in paper with a light outline, over the cut and never joined to it, so it never reads as
+  structure.
 - **The ground** is a facade's ground line, the heaviest pen, at the site's ground level, or at
   the ground floor's level when the site states none. It runs out to the picture's edges, and
   stops only where the building stands through the ground: it runs on under a house on its plinth

@@ -232,6 +232,21 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
     ],
   },
   {
+    topic: 'writing on the drawing',
+    says: 'note "<text>" or tag "<text>" (short words in a box: you are here, FE), then at x,y or in <room> (under its name, on its floor); symbol north|entrance at x,y | in <room> [turn <degrees>] ["<label>"]; key [at x,y] (under the drawing with no at); route [<category>] x,y x,y ... draws a line with an arrowhead at its last point, the way out; sketch line|shape|rect <category> x,y ..., sketch arc <category> at x,y radius <m> start <degrees> end <degrees> and sketch text <category> at x,y "<text>" draw the sketch layer, its category the author\'s word for it (garden, street, fence). Each may end on <floor> and id <id>: with no on, a line under a floor line is on that floor; with no id, Grid gives tag-1, route-1, sketch-1. Drawn and exported only, never measured or checked; raw note|sketch {...} takes Grid\'s own JSON. Never draw your own map to add them. grid_annotate writes the same.',
+    example: [
+      'room office "Office" office 5.0 x 4.0 at 0,0',
+      'room hall "Hall" corridor 2.0 x 4.0 east of office',
+      'door d1 between office and hall, centred, 0.9 wide, opens into hall',
+      'door exit in hall south, centred, 1.0 wide, opens out',
+      'tag "You are here" at 2.5,2',
+      'tag "FE" in hall',
+      'symbol entrance at 6.1,-0.6 "Way out"',
+      'route exit 2.5,2 6.1,2 6.1,-1',
+      'sketch shape garden -1,-1.5 9,-1.5 9,-4 -1,-4',
+    ],
+  },
+  {
     topic: 'fit-out',
     says: 'base <base plan> names the plan this one is fitted out in, as the project knows it (base shell.json; in quotes when the name holds a space): the shell, whose walls, doors and windows are read in as existing, drawn, measured and checked with the fit-out, and never written into it. Write the rooms by their inside faces as always: a wall Grid works out whose room faces lie on a base wall\'s faces is the base\'s, and the room names it by the base\'s id. Put a room\'s face on the base wall\'s face (a 0.3 m wall on x = 0 has its faces at -0.15 and 0.15) to rest it there; a face a little off one is said, with how far. A door or window in a base wall is refused, as the shell is read-only: its doors and windows are the base\'s. grid_start_fit_out starts a fit-out with the base\'s rooms as its own.',
     example: [

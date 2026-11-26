@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { checkPlanSanity } from '@ongrid/floorplan/geometry/rules/check'
 import { edit, stairHouse, stairRoomHouse } from '@ongrid/floorplan/test-support/plans'
+import { basementCarPark } from '@ongrid/floorplan/test-support/parking'
 import { routeBetween } from '../measure'
 import { surveyPlan } from '../survey'
 import { crossingOf, walkRoute } from '../walked'
@@ -171,5 +172,49 @@ describe('grid_measure what=route (ARE-18)', () => {
     expect(reply.isError, reply.text).toBe(false)
     expect(reply.text).toMatch(/Walked, [0-9.]+ m: "Nook"/)
     expect(reply.text).not.toContain('grid_check says why')
+  })
+})
+
+describe('a route out from a floor the check does not follow (ARE-63)', () => {
+  let b: Bench
+  afterEach(() => b?.close())
+  // The basement car park: its stair core joins no stair room on the ground floor, so the check
+  // follows no way out from it and says so in its notes; its ramp is for cars, stated between floors.
+  const noMouth = (): FloorPlan => edit(basementCarPark(), (copy) => { copy.openings = copy.openings.filter((o) => o.id !== 'ramp-mouth') })
+
+  it('the check leaves the basement unchecked, and says so', () => {
+    for (const plan of [basementCarPark(), noMouth()]) {
+      const check = checkPlanSanity(plan)
+      expect(check.findings.filter((f) => f.floor === 'B1').map((f) => f.code)).toEqual([])
+      expect(check.notChecked.map((n) => [n.reason, n.floor])).toContainEqual(['no_stairs', 'B1'])
+    }
+  })
+
+  it('with no way out of its own: no route, and the answer says the check does not follow that floor either', async () => {
+    b = bench({ 'park.json': noMouth() })
+    const reply = await b.call('grid_measure', { plan: 'park.json', what: 'route', room: 'car-park', to: 'outside' })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.text).toContain('There is no way from "Car park" to the outside')
+    expect(reply.text).toContain('grid_check does not follow the way out of "Basement car park" either: no stair joins it to the ground floor')
+    expect(reply.data!['answer']).toEqual({ found: false, notChecked: { reason: 'no_stairs', floor: 'B1' } })
+  })
+
+  it('with a way out of its own: the route, and a line that the check does not follow it', async () => {
+    b = bench({ 'park.json': basementCarPark() })
+    const reply = await b.call('grid_measure', { plan: 'park.json', what: 'route', room: 'car-park', to: 'outside' })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.text).toContain('opening "ramp-mouth"')
+    expect(reply.text).toContain('grid_check does not follow this way out: no stair joins "Basement car park" to the ground floor')
+    const answer = reply.data!['answer'] as { found: boolean; notChecked?: unknown; length: number | null }
+    expect(answer.found).toBe(true)
+    expect(answer.length).not.toBeNull()
+    expect(answer.notChecked).toEqual({ reason: 'no_stairs', floor: 'B1' })
+  })
+
+  it('a floor the check follows gets no such line', async () => {
+    b = bench({ 'house.json': stairHouse() })
+    const reply = await b.call('grid_measure', { plan: 'house.json', what: 'route', room: 'study', to: 'outside' })
+    expect(reply.text).not.toContain('grid_check does not follow')
+    expect((reply.data!['answer'] as Record<string, unknown>)['notChecked']).toBeUndefined()
   })
 })

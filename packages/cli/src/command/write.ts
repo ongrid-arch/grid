@@ -384,6 +384,9 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // CNT-46: the bay and ramp lines replace the file's bays and ramps; a text that writes none keeps the file's.
   if (plan.bays !== undefined) next['bays'] = plan.bays
   if (plan.ramps !== undefined) next['ramps'] = plan.ramps
+  // SHT-22: the note lines replace the file's annotations, the sketch lines its sketch; a text that writes none keeps the file's.
+  if (plan.annotations !== undefined) next['annotations'] = plan.annotations
+  if (plan.sketch !== undefined) next['sketch'] = plan.sketch
   // WRT-75: the base the text names; a text with none, written over a fit-out as asked, takes it off.
   if (plan.base !== undefined) next['base'] = plan.base
   else delete next['base']

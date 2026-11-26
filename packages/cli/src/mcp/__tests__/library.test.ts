@@ -53,7 +53,7 @@ describe('the library', () => {
     expect(reply.text).toContain('Left out of the library: library/broken.json is not JSON.')
     const answer = (reply.data as { answer: { items: { name: string }[]; rooms: { name: string }[] } }).answer
     expect(answer.items.map((i) => i.name)).toContain('wardrobe')
-    expect(answer.rooms.map((r) => r.name)).toEqual(['our-bedroom', 'bathroom', 'cloakroom', 'double-bedroom', 'single-bedroom', 'table-4-chairs', 'table-6-chairs'])
+    expect(answer.rooms.map((r) => r.name)).toEqual(['our-bedroom', 'bathroom', 'shower-room', 'cloakroom', 'kitchen', 'double-bedroom', 'single-bedroom', 'table-4-chairs', 'table-6-chairs'])
     const one = await ok('grid_measure', { plan: 'plan.json', what: 'library', name: 'double-bed' })
     expect(one.text).toContain('its back is its head')
   })
