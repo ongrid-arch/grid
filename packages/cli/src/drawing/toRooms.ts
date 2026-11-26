@@ -83,7 +83,7 @@ function slug(text: string, fallback: string): string {
 }
 
 /** The use a room's name plainly means, from the whole name, then its last word, then its first. */
-function useOf(name: string | null): RoomUse | null {
+function roomUseOf(name: string | null): RoomUse | null {
   if (name === null) return null
   const words = name.split(/\s+/).filter((w) => /\p{L}/u.test(w))
   for (const w of [name, words[words.length - 1], words[0]]) {
@@ -165,7 +165,7 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
     for (const r of here) {
       const name = r.name ?? `Room ${++unnamed}`
       const id = fresh(slug(r.name ?? '', 'room'))
-      const use = useOf(r.use ?? null) ?? useOf(r.name)
+      const use = roomUseOf(r.use ?? null) ?? roomUseOf(r.name)
       if (use === null) noUse++
       const ring = signedArea(r.outline) < 0 ? [...r.outline].reverse() : [...r.outline]
       // A room whose outline touches one written before it is open to it: a dividing line, no wall.
@@ -287,7 +287,7 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
           return dot([v[1], -v[0]], COMPASS[side]!) > 0.9
         })
         .sort((x, y) => x[0][0] + x[1][0] - (y[0][0] + y[1][0]) || x[0][1] + x[1][1] - (y[0][1] + y[1][1]))
-      const k = hits.findIndex(([a, b]) => dist(a, p) < 1e-9 && dist(b, qq) < 1e-9)
+      const k = hits.findIndex(([a, b]) => dist(a, p) < tolerance('sameFace') && dist(b, qq) < tolerance('sameFace'))
       where = `in ${A.r.id} ${hits.length > 1 ? `${side}.${k + 1}` : side}`
     }
     const extra = `${o.kind === 'window' && o.sill !== null ? `, sill ${m(sill)}` : ''}${o.height === null ? '' : `, height ${m(height)}`}`

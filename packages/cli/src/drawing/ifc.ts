@@ -26,6 +26,10 @@
 import { roomsFromFaces, type FaceSegment } from './faces'
 import { arcPoints, count, dist, DrawingRefused, signedArea, tidyRing, type DrawnFloor, type DrawnOpening, type DrawnRoom, type DrawnWall, type Drawing, type LayerUse, type P } from './model'
 import { readStep, type StepRecord, type StepValue } from './step'
+import { tolerance } from '@ongrid/floorplan/geometry/tolerances'
+
+/** Two points closer than this are one, as two faces are one face. */
+const SAME_POINT = tolerance('sameFace')
 
 type V3 = readonly [number, number, number]
 /** A frame: its origin and its three axes, in the world's frame. */
@@ -174,7 +178,7 @@ export function readIfc(text: string): Drawing {
           if (parent === null) return null
           const same = seg?.args[1]?.kind === 'enum' ? seg.args[1].value !== 'F' : true
           const pts = same ? parent : [...parent].reverse()
-          out.push(...(out.length > 0 && dist(out[out.length - 1]!, pts[0]!) < 1e-6 ? pts.slice(1) : pts))
+          out.push(...(out.length > 0 && dist(out[out.length - 1]!, pts[0]!) < SAME_POINT ? pts.slice(1) : pts))
         }
         return out
       }
