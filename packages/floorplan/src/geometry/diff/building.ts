@@ -583,6 +583,12 @@ function floorLine(plan: FloorPlan, floor: string, kind: 'added' | 'removed'): s
  * with its opening patterns expanded, so a pattern's openings are paired, mirrored and turned as
  * plain openings are (a plan already expanded is taken as it is).
  */
+/** CMD-37: one entry for each opening, the first, so a line about an opening is never said twice. */
+function oncePerOpening<T extends { readonly opening: string }>(lines: readonly T[]): T[] {
+  const seen = new Set<string>()
+  return lines.filter((line) => !seen.has(line.opening) && !!seen.add(line.opening))
+}
+
 export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPlan, options: CompareOptions = {}): BuildingComparison {
   const earlier = withPatterns(earlierStated)
   const later = withPatterns(laterStated)
@@ -1106,8 +1112,8 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     rooms: verdicts,
     changes,
     issues,
-    stayed,
-    movedWith,
+    stayed: oncePerOpening(stayed),
+    movedWith: oncePerOpening(movedWith),
     scope: { checked: options.rooms !== undefined, rooms: options.rooms ?? [], outside },
     marks,
     aligned,

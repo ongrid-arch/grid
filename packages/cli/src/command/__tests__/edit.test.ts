@@ -96,4 +96,11 @@ describe('grid edit', () => {
     expect(ran.out).toMatch(/^Usage: grid edit <verb>/)
     for (const verb of ['opening', 'move-side', 'merge', 'split', 'add-room', 'stretch', 'rename', 'mirror']) expect(ran.out).toContain(`  ${verb}`)
   })
+
+  it('says --sill is a door\'s threshold as well as a window\'s sill', async () => {
+    const ran = await grid(project(), 'edit', 'opening', '--help')
+    expect(ran.status).toBe(0)
+    expect(ran.out).toMatch(/--sill <value>.*door's threshold/)
+    expect(ran.out).not.toMatch(/--sill <value>\s+Windows:/)
+  })
 })

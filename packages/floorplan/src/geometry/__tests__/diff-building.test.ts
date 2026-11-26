@@ -108,6 +108,18 @@ describe('walls drawn in other pieces (lab RT-8: the same flat with one wall per
   })
 })
 
+describe('an opening is said once (CMD-37)', () => {
+  it('lists an opening that stayed, and one that moved with its room, once each, though the plan holds it twice', () => {
+    const base = written(roomsText())
+    const wider = written(roomsText().replace('living   4.4 x 4.2', 'living   4.7 x 4.2'))
+    const twice = (ids: readonly string[]): FloorPlan => ({ ...wider, openings: [...wider.openings, ...wider.openings.filter((o) => ids.includes(o.id))] })
+    const doubled = compareBuildings(base, twice(['door-kitchen', 'door-living']))
+    const ids = (lines: readonly { readonly opening: string }[]): string[] => lines.map((line) => line.opening)
+    expect(ids(doubled.stayed)).toEqual(['door-kitchen'])
+    expect(new Set(ids(doubled.movedWith)).size).toBe(doubled.movedWith.length)
+  })
+})
+
 describe('a one-number edit to a flat written rooms first (done-when 2, lab RT-8)', () => {
   const base = (): FloorPlan => written(roomsText())
   const wider = (): FloorPlan => written(roomsText().replace('living   4.4 x 4.2', 'living   4.7 x 4.2'))
