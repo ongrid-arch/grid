@@ -79,7 +79,8 @@ describe('lab WR-14: the taped lengths against the drawing, after every run', ()
   it('names each taped length the lab\'s thicker guess on centre lines moved, and none when the outside walls are by their faces', async () => {
     const thicker = rawOf(THICKER)
     b = bench({ 'centre.json': { ...thicker, taped: TAPES }, 'faces.json': { ...byFaces({ thickness: 0.4 }), taped: TAPES } })
-    const centre = await b.call('grid_check', { plan: 'centre.json' })
+    // CMD-39: a note for every taped length is more than an answer is kept to; whole=true lists them all.
+    const centre = await b.call('grid_check', { plan: 'centre.json', whole: true })
     const differs = (centre.data?.['lines'] as Array<{ code: string; message: string; found: string }>).filter((line) => line.code === 'room/taped-differs')
     expect(differs.length).toBeGreaterThan(10)
     expect(differs[0]!.message).toMatch(/^The side along wall "ext-s" taped in Room "Bedroom" is not the length drawn$/)

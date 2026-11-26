@@ -136,6 +136,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
   'packages/cli/src/mcp/wordsTool.ts': [31, 'tools'],
   'packages/cli/src/mcp/toolkit.ts': [28, 'agent'],
+  // CMD-39: the whole and page arguments every tool takes, and left_out in the output schemas.
+  'packages/cli/src/mcp/budget.ts': [3, 'agent'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.

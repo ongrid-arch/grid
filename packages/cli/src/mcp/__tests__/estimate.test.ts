@@ -401,7 +401,8 @@ describe('grid_takeoff with for=estimate', () => {
   afterAll(() => b.close())
 
   it('gives a rate card and no money when there is no rates file (AC-2)', async () => {
-    const r = await b.call('grid_takeoff', { for: 'estimate' })
+    // CMD-39: the four flats' estimate is larger than an answer is kept to; whole=true pairs every line with its rate.
+    const r = await b.call('grid_takeoff', { for: 'estimate', whole: true })
     expect(r.isError, r.text).toBe(false)
     expect(r.text).toContain('Rate card: no rates given, so no cost.')
     expect(r.text).toContain('  door:0.8x2.1: Door 0.80 × 2.10 m, 15 nr; rate per nr')

@@ -22,6 +22,7 @@ import { wordsHint, wordsTool, WORDS_TOOL_NAME } from './wordsTool'
 import { hasWording, listenForKeys, setPlanWords } from '@ongrid/floorplan/messages'
 import { diffTool, markStartTool } from './diffTools'
 import { shapedData } from './figures'
+import { checkPage, PageRefused, PAGE_ARG_NAME, WHOLE_ARG_NAME, withinBudget } from './budget'
 import { labelled, LABEL_SILENT_TOOLS, readArgs, toolDefinition, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
 import { WRITE_TOOLS } from './writeTools'
 import { guideResources } from '../guide/resources'
@@ -67,6 +68,11 @@ export const GRID_TOOLS: readonly GridTool[] = [
 async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promise<ToolAnswer> {
   try {
     const args = readArgs(tool, raw)
+    // CMD-39: how much of the answer to give is the server's to apply, not the tool's.
+    const whole = !Object.hasOwn(tool.args, WHOLE_ARG_NAME) && args[WHOLE_ARG_NAME] === true
+    const page = Object.hasOwn(tool.args, PAGE_ARG_NAME) ? undefined : checkPage(args)
+    if (!Object.hasOwn(tool.args, WHOLE_ARG_NAME)) delete args[WHOLE_ARG_NAME]
+    if (!Object.hasOwn(tool.args, PAGE_ARG_NAME)) delete args[PAGE_ARG_NAME]
     // MSG-24: no call says another plan's words: the plan a call reads hands its own (`languageFor`).
     setPlanWords(undefined)
     // MSG-24: the keys Grid said in a language with no word for them are said once, at the end.
@@ -74,9 +80,12 @@ async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promi
     const hint = tool.name === WORDS_TOOL_NAME ? null : wordsHint(keys, hasWording)
     const result = labelled(hint === null ? made : { ...made, text: `${made.text}\n${hint}` }, !LABEL_SILENT_TOOLS.has(tool.name))
     // CMD-22: the figures in the data are written as the text writes them, once, here.
-    return { text: result.text, data: shapedData(tool, args, result.data), ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
+    const shaped = shapedData(tool, args, result.data)
+    // CMD-39: kept to the size an agent's host takes, unless asked for whole.
+    const bounded = whole ? { text: result.text, data: shaped } : withinBudget(tool, args, result.text, shaped, page)
+    return { text: bounded.text, data: bounded.data, ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
   } catch (error) {
-    if (error instanceof ToolRefusal || error instanceof CanvasMissing || error instanceof FontsMissing) return { text: error.message, isError: true }
+    if (error instanceof ToolRefusal || error instanceof PageRefused || error instanceof CanvasMissing || error instanceof FontsMissing) return { text: error.message, isError: true }
     throw error
   }
 }
