@@ -117,6 +117,27 @@ export class LibraryRefused extends Error {
 /** A place on the plan, in metres. */
 export type Pair = readonly [number, number]
 
+/**
+ * CNT-43: an item's own figures, stated on the item beside its library name, so the entry fills
+ * only what is left out (C30 keeps a value the item states). `size` is its width and depth.
+ */
+export interface OwnFigures {
+  readonly size?: Pair | undefined
+  readonly height?: number | undefined
+  readonly clearance?: number | undefined
+  readonly label?: string | undefined
+}
+
+/** What placing by name asks for: the name, where, and, for one item, its own id and figures. */
+export interface PlaceRequest {
+  readonly name: string
+  readonly at: Pair
+  readonly turn?: number
+  readonly floor?: string
+  readonly id?: string
+  readonly own?: OwnFigures
+}
+
 /** What placing by name adds to the plan: the items as their file will hold them, and the entries to copy in. */
 export interface Placed {
   /** The item records to add, each by its library name: `{ id, library, at, turn?, floor?, label? }`. */
@@ -125,6 +146,8 @@ export interface Placed {
   readonly copy: readonly LibraryItem[]
   /** Whether a typical room was placed, and which. */
   readonly room: FoundRoom | null
+  /** CNT-43: the kind it was placed by, when the name is a kind and no library entry. */
+  readonly kind: string | null
 }
 
 const round = (value: number): number => Math.round(value * 1e6) / 1e6
@@ -135,8 +158,12 @@ const turned = (turn: number): number => round(((turn % 360) + 360) % 360)
  * room with its inside back-left corner at `at`, its items set out from there and the whole turned
  * by `turn` (degrees counter-clockwise) about that corner. Ids are the entry's names, made unique
  * against `taken`. Refused for a name no library holds, naming the nearest.
+ *
+ * CNT-43: one item takes its own figures (`own`), written on it beside its library name. A name
+ * that is no entry but a kind Grid holds places a plain item of that kind, which then needs its
+ * size and height. A typical room takes none: it is many items.
  */
-export function placeFromLibrary(library: Library, request: { readonly name: string; readonly at: Pair; readonly turn?: number; readonly floor?: string; readonly id?: string }, taken: ReadonlySet<string>): Placed {
+export function placeFromLibrary(library: Library, request: PlaceRequest, taken: ReadonlySet<string>): Placed {
   const used = new Set(taken)
   const idFor = (base: string): string => {
     let id = base
@@ -145,29 +172,40 @@ export function placeFromLibrary(library: Library, request: { readonly name: str
     return id
   }
   const copies = new Map<string, LibraryItem>()
+  const where = (at: Pair, turn: number): Record<string, unknown> => ({
+    at: [round(at[0]), round(at[1])],
+    ...(turned(turn) === 0 ? {} : { turn: turned(turn) }),
+    ...(request.floor === undefined ? {} : { floor: request.floor }),
+  })
   const record = (name: string, at: Pair, turn: number, id: string, label?: string): Record<string, unknown> => {
     const found = library.items.get(name)
     if (found === undefined) throw new LibraryRefused(`no library holds an item named ${JSON.stringify(name)}`)
     if (!isItemKind(found.entry.kind)) throw new LibraryRefused(`library item ${JSON.stringify(name)} is a ${JSON.stringify(found.entry.kind)}, a kind Grid does not hold`)
     if (found.from === 'office') copies.set(name, found.entry)
-    return {
-      id,
-      library: name,
-      at: [round(at[0]), round(at[1])],
-      ...(turned(turn) === 0 ? {} : { turn: turned(turn) }),
-      ...(request.floor === undefined ? {} : { floor: request.floor }),
-      ...(label === undefined ? {} : { label }),
-    }
+    return { id, library: name, ...where(at, turn), ...(label === undefined ? {} : { label }) }
   }
   const turn = request.turn ?? 0
+  const own = request.own ?? {}
+  const figures = {
+    ...(own.size === undefined ? {} : { size: [round(own.size[0]), round(own.size[1])] }),
+    ...(own.height === undefined ? {} : { height: round(own.height) }),
+    ...(own.clearance === undefined ? {} : { clearance: round(own.clearance) }),
+    ...(own.label === undefined ? {} : { label: own.label }),
+  }
   const room = library.rooms.get(request.name)
-  if (library.items.has(request.name)) {
+  const byKind = !library.items.has(request.name) && room === undefined && isItemKind(request.name)
+  if (library.items.has(request.name) || byKind) {
     if (request.id !== undefined && used.has(request.id)) throw new LibraryRefused(`id ${JSON.stringify(request.id)} is taken by another part of the plan`)
-    const item = record(request.name, request.at, turn, request.id ?? idFor(request.name))
+    if (byKind && (own.size === undefined || own.height === undefined)) {
+      throw new LibraryRefused(`${JSON.stringify(request.name)} is a kind, not a library entry, so give its width, depth and height to place one`)
+    }
+    const id = request.id ?? idFor(request.name)
     if (request.id !== undefined) used.add(request.id)
-    return { items: [item], copy: [...copies.values()], room: null }
+    if (byKind) return { items: [{ id, kind: request.name, ...where(request.at, turn), ...figures }], copy: [], room: null, kind: request.name }
+    return { items: [{ ...record(request.name, request.at, turn, id), ...figures }], copy: [...copies.values()], room: null, kind: null }
   }
   if (room === undefined) throw new LibraryRefused(`no library holds an item or a typical room named ${JSON.stringify(request.name)}`)
+  if (Object.keys(figures).length > 0) throw new LibraryRefused(`${JSON.stringify(request.name)} is a typical room of several items, so it takes no size, height, clear floor or label of its own: place its items one by one to size them`)
   const r = (turn * Math.PI) / 180
   const cos = Math.cos(r)
   const sin = Math.sin(r)
@@ -176,7 +214,7 @@ export function placeFromLibrary(library: Library, request: { readonly name: str
     const at: Pair = [request.at[0] + x * cos - y * sin, request.at[1] + x * sin + y * cos]
     return record(part.library, at, turn + (part.turn ?? 0), idFor(part.library), part.label)
   })
-  return { items, copy: [...copies.values()], room }
+  return { items, copy: [...copies.values()], room, kind: null }
 }
 
 /**
