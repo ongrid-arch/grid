@@ -55,12 +55,13 @@ import polygonClipping from 'polygon-clipping'
 import type { FloorPlan, Opening, Wall } from './plan'
 import { COMPASS_SIDES, type WindowKind } from '../types/floorplan'
 import { floorElevations, isFiniteWall, wallTopsUnder } from './elevations'
-import { planEnvelope } from './envelope'
+import { planEnvelope, roofFacetsOver } from './envelope'
 import { floorOf, planFloors, planForFloor } from './floors'
 import { indexPlan } from './plan'
 import { groundLevel, plinthUnder } from './ground'
 import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './orientation'
 import { withPatterns } from './patterns'
+import { cutOutline, ringOf } from './polygons'
 import { limit, tolerance } from './tolerances'
 import { brokenOnFloor } from './validate'
 import { floorRoofShape, planeAt, topAt, wallTopProfile, type RoofPlane } from './roofs'
@@ -90,6 +91,55 @@ const SIDE_DIRECTION: Readonly<Record<FacadeSide, Vec2>> = {
  * the ground (`plinth`, VEW-16).
  */
 export type FacadeFaceKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'roof-plane' | 'plinth'
+
+/** VEW-71: extend exposed edges in plan, keeping the edges cut by the building above. */
+function roofOverhang(roof: MultiPolygon, outline: MultiPolygon): MultiPolygon {
+  const projection = limit('facadeRoofProjection')
+  const patches: Polygon[] = []
+  const simplified = roof.map((polygon) => polygon.map(straightened))
+  for (const polygon of simplified) {
+    for (const points of polygon) {
+      const edges = points.map((a, i) => {
+        const b = points[(i + 1) % points.length]!
+        const length = Math.hypot(b.x - a.x, b.y - a.y)
+        if (length <= tolerance('noLength')) return null
+        const along = { x: (b.x - a.x) / length, y: (b.y - a.y) / length }
+        const outward = { x: along.y, y: -along.x }
+        const amount = onEdgeOf(midpoint(a, b), outline) ? projection : 0
+        if (amount > 0) {
+          patches.push([ringOf([a, b, { x: b.x + outward.x * amount, y: b.y + outward.y * amount }, { x: a.x + outward.x * amount, y: a.y + outward.y * amount }])])
+        }
+        return { along, outward, amount }
+      })
+      points.forEach((p, i) => {
+        const before = edges[(i + edges.length - 1) % edges.length]!
+        const after = edges[i]!
+        if (!before || !after || before.amount + after.amount === 0) return
+        const turn = dot(before.along, after.outward)
+        // Strips already overlap at a reentrant corner. At an outside corner join their offset
+        // edges, with a bevel where a sharp turn would send the miter too far past the walls.
+        if (turn <= tolerance('facadeFacing')) return
+        const a = { x: p.x + before.outward.x * before.amount, y: p.y + before.outward.y * before.amount }
+        const b = { x: p.x + after.outward.x * after.amount, y: p.y + after.outward.y * after.amount }
+        const along = (after.amount - dot(before.outward, after.outward) * before.amount) / turn
+        const corner = { x: a.x + before.along.x * along, y: a.y + before.along.y * along }
+        const join = Math.hypot(corner.x - p.x, corner.y - p.y) <= 2 * projection ? [p, a, corner, b] : [p, a, b]
+        patches.push([ringOf(join)])
+      })
+    }
+  }
+  if (patches.length === 0) return roof
+  const base = simplified.map((polygon) => polygon.map(ringOf))
+  const expanded = cutOutline('union', base, patches)
+  if (expanded === null) return roof
+  // Offset strips around a tight corner can cross the footprint of a floor above.
+  const cleanOutline = outline.map((polygon) => polygon.map((ring) => ringOf(straightened(ring))))
+  const covered = cutOutline('difference', cleanOutline, [base])
+  if (covered === null) return roof
+  return covered.length === 0 ? expanded : cutOutline('difference', expanded, [covered]) ?? roof
+}
+
+const midpoint = (a: Vec2, b: Vec2): Vec2 => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
 
 /**
  * VEW-12: which edge of a sloped roof a line or a band is: its `eaves`, the level foot of a plane;
@@ -542,15 +592,15 @@ function onEdgeOf(p: Vec2, pieces: MultiPolygon): boolean {
  * not on the floor's outline, an abutment; level, its eaves at the plane's lowest (`low`) and else
  * a ridge; sloped, a verge on the outline and a hip inside the roof. Null on a level plane.
  */
-function roofEdgeOf(a: Vec2, b: Vec2, plane: RoofPlane, low: number, roof: MultiPolygon, outline: MultiPolygon): FacadeRoofEdge | null {
+function roofEdgeOf(a: Vec2, b: Vec2, plane: RoofPlane, low: number, perimeter: MultiPolygon, roof: MultiPolygon, outline: MultiPolygon): FacadeRoofEdge | null {
   if (!(Math.hypot(plane.gx, plane.gy) > tolerance('noLength'))) return null
-  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-  const onOutline = onEdgeOf(mid, outline)
-  if (!onOutline && onEdgeOf(mid, roof)) return 'abutment'
+  const mid = midpoint(a, b)
+  const outside = onEdgeOf(mid, perimeter)
+  if (outside && onEdgeOf(mid, roof) && !onEdgeOf(mid, outline)) return 'abutment'
   const za = planeAt(plane, a)
   const zb = planeAt(plane, b)
   if (Math.abs(za - zb) <= tolerance('facadeOnFace')) return Math.min(za, zb) - low <= tolerance('facadeOnFace') ? 'eaves' : 'ridge'
-  return onOutline ? 'verge' : 'hip'
+  return outside ? 'verge' : 'hip'
 }
 
 /** The silhouette of the faces above the ground: their union. Empty when it cannot be worked out. */
@@ -793,11 +843,18 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
       // VEW-12: each band and each plane's edge says which edge of the roof it is.
       const { thickness, pieces: roofPieces } = env.roof
       const outline = env.outline
-      for (const facet of env.roof.facets) {
+      const shape = floorRoofShape(plan, floor.id)
+      const expanded = shape !== null && shape.planes.length > 0 ? roofOverhang(roofPieces, outline) : roofPieces
+      const projected = shape !== null && expanded !== roofPieces ? roofFacetsOver(shape, expanded, env.roof.rooflights) : []
+      const perimeter = projected.length > 0 ? expanded : roofPieces
+      for (const facet of projected.length > 0 ? projected : env.roof.facets) {
         const at = (p: Vec2): number => storey.floorLevel + planeAt(facet.plane, p)
         const low = Math.min(...facet.pieces.flatMap((polygon) => polygon.flatMap((ring) => ring.map(([x, y]) => planeAt(facet.plane, { x, y })))))
-        const edgeOf = (a: Vec2, b: Vec2): FacadeRoofEdge | null => roofEdgeOf(a, b, facet.plane, low, roofPieces, outline)
-        for (const edge of edgesFacing(facet.pieces, direction)) add({ kind: 'roof', floor: floor.id, wall: null, points: band(edge.a, edge.b, at(edge.a), at(edge.b), thickness), openings: [], edge: edgeOf(edge.a, edge.b) })
+        const edgeOf = (a: Vec2, b: Vec2): FacadeRoofEdge | null => roofEdgeOf(a, b, facet.plane, low, perimeter, roofPieces, outline)
+        for (const edge of edgesFacing(facet.pieces, direction)) {
+          if (!onEdgeOf(midpoint(edge.a, edge.b), perimeter)) continue
+          add({ kind: 'roof', floor: floor.id, wall: null, points: band(edge.a, edge.b, at(edge.a), at(edge.b), thickness), openings: [], edge: edgeOf(edge.a, edge.b) })
+        }
         if (-(facet.plane.gx * direction.x + facet.plane.gy * direction.y) <= tolerance('facadeFacing')) continue
         for (const polygon of facet.pieces) {
           const ring = straightened(polygon[0] ?? [])
