@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -1692,8 +1692,12 @@ const measureTool: GridTool = {
       const w = wallLengths(survey, wall)
       const kind = w.virtual ? 'dividing line' : `${L(w.thickness)} thick, ${L(w.height)} high`
       const faces = w.faces.length === 0 ? 'No room\'s outline runs along it.' : `Along its face in each room: ${w.faces.map((f) => `${q(f.name)} ${L(f.length)}`).join(', ')}.`
+      // LVL-20: under a roof its floor states, the wall's height along its length.
+      const points = joined((w.top ?? []).map((p) => said('measure.wall.top.point', { height: num(metresText(p.height)), at: num(metresText(p.at)) })), 'join.comma')
+      const values = { height: num(metresText(w.height)), low: num(metresText(w.low)), high: num(metresText(w.high)), points }
+      const top = w.cut === null ? '' : ` ${english(said(w.cut === 'raised' ? 'measure.wall.top.raised' : 'measure.wall.top.cut', values))}`
       return {
-        text: `Wall ${q(w.id)}: ${L(w.length)} on its centre line, ${kind}. ${faces}\n${FACES_RULE}`,
+        text: `Wall ${q(w.id)}: ${L(w.length)} on its centre line, ${kind}.${top} ${faces}\n${FACES_RULE}`,
         data: { what, answer: w, rule: FACES_RULE },
       }
     }

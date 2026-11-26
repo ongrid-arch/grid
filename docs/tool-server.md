@@ -323,7 +323,10 @@ by the edges of its hole in the wall, a room by its inside outline. A door's dis
 inside corner is the distance between the door and the wall at that corner: in a house whose
 entrance sits 1.00 m along the south wall's centre line, with a west wall 0.30 m thick, the
 answer is 0.85 m, not 1.00 m. When the straight line between the nearest points runs through another solid wall (not the things' own, a dividing line, or a wall where it passes a door or opening), the answer says "overall, through wall …" instead of "clear", and `through` lists the walls in order and `clear` is false. Two things on different floors are refused. `what=wall` gives a
-wall's length on its centre line and the length of its face in each room beside it.
+wall's length on its centre line and the length of its face in each room beside it; under a roof
+its floor states (LVL-20), also its height along its length: `top`, the points where its top turns
+(metres along it from its start, and its height there), `low`, `high`, and `cut`, `roof` when the
+roof cuts it or `raised` when, an outside wall, it rises to the roof past the height it states.
 
 A room may state its height, floor to ceiling, in metres:
 
