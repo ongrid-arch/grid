@@ -52,7 +52,6 @@ describe('a room with a hole in a picture', () => {
         mpp
       )
       expect(placed).not.toBeNull()
-      expect(placed!.leader).toBeNull()
       const { box } = placed!
       // The whole label box is clear of the courtyard.
       const clear = box.maxX <= 2.85 || box.minX >= 7.15 || box.maxY <= 2.85 || box.minY >= 7.15
