@@ -2027,6 +2027,8 @@ export const en = {
   'rooms.raw.kind.floor': 'A floor\'s {list} is written raw floor {"{list}": ...}, under its floor line.',
   'rooms.raw.kind.list': 'Rooms text has no line for it: Grid\'s plan file holds it in "{list}", changed in the file once the plan is written.',
   'rooms.raw.kind.none': 'Rooms text has no line for it, raw or not.',
+  'rooms.raw.smallLetters':
+    "Line {line}: rooms text is read in small letters, and '{written}' is not; write '{offered}'.",
   'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening or floor, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
   'rooms.plan.oneName': 'Line {line}: the plan line takes one name, in quotes when it has spaces, and {extra} after it would not be read. Write {offered}.',
   'rooms.wall.unknownRoom':
