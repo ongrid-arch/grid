@@ -2310,6 +2310,10 @@ export const es: Messages = {
   'diff.issue.roomUnclosed': 'El local {room} se cerraba antes y ya no se cierra',
   'diff.issue.roomIdChurn': 'Se quitó el local {before} y se añadió el local {after} en el mismo sitio: puede que solo haya cambiado el id',
   'diff.issue.roomIdChurn.sameName': 'Se quitó el local {room} y se volvió a añadir en el mismo sitio con otro id: puede que solo haya cambiado el id',
+  // --- WRT-64: a grouped note on both versions that gained or lost parts (`diff/building.ts`)
+  'diff.issue.noteChanged': 'La nota {code} cambió ({how}): {message}',
+  'diff.note.group.added': 'ahora también {parts}',
+  'diff.note.group.gone': 'ya no {parts}',
 
   // --- MSG-27: la volumetría y el solar comparados (`diff/massing.ts`)
   'diff.massing.east': '{distance} m al este',

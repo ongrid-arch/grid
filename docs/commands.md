@@ -591,7 +591,10 @@ The answer, in this order:
 
 - **Issues**: a door that now joins other rooms, a wall added or moved that now meets another
   wall inside an opening, a room that no longer closes, and the notes of `grid check` that came
-  and went. An issue names rooms by their names, as the verdict and the changes do (CMD-34):
+  and went. A note `grid check` gives once for several rooms that gained or lost rooms is one
+  issue, `note_changed`, saying which rooms it now also names and which it no longer does
+  (WRT-64), not one note new and one gone.
+  An issue names rooms by their names, as the verdict and the changes do (CMD-34):
   `Door "door-bed1" joined "Bedroom 1" and "Hall"; it now joins "Hall" and "Store"`; the ids are
   in its `entities`, a door's issue listing the door and then the rooms on either side of it.
   With `--since phase` the issues are judged by what the work does (CMD-31): a door whose room

@@ -2303,6 +2303,10 @@ export const en = {
   'diff.issue.roomUnclosed': 'Room {room} closed before and no longer does',
   'diff.issue.roomIdChurn': 'Room {before} was removed and room {after} was added in the same place: the id may have changed instead',
   'diff.issue.roomIdChurn.sameName': 'Room {room} was removed and added again in the same place under another id: the id may have changed instead',
+  // --- WRT-64: a grouped note on both versions that gained or lost parts (`diff/building.ts`)
+  'diff.issue.noteChanged': 'Note {code} changed ({how}): {message}',
+  'diff.note.group.added': 'now also {parts}',
+  'diff.note.group.gone': '{parts} no longer',
 
   // --- MSG-27: the massing and the site compared (`diff/massing.ts`)
   'diff.massing.east': '{distance} m east',

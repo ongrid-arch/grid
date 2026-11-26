@@ -478,3 +478,23 @@ describe('the floor a comparison is narrowed to (CMD-32)', () => {
     }
   })
 })
+
+describe('a grouped note whose rooms changed (WRT-64)', () => {
+  const office = (rooms: string): string =>
+    'plan "Office floor"\nwalls outside 0.3 inside 0.1 height 2.6\n\nroom hall "Hall" corridor 9 x 1.5 at 0.15,0.15\n'
+    + `${rooms}door door-in in hall south, 0.5 from west, 0.9 wide, opens in, hinged east\n`
+
+  it('says the no-door note of three offices, two of them merged into a meeting room, as one issue', async () => {
+    const dir = project({ 'plan.rooms': office('room a "Office 1" office 3 x 3 north of hall\nroom b "Office 2" office 3 x 3 east of a\nroom c "Office 3" office 3 x 3 east of b\n') })
+    expect((await grid(dir, 'write', 'plan.rooms')).status).toBe(0)
+    expect((await grid(dir, 'mark')).status).toBe(0)
+    writeFileSync(join(dir, 'plan.rooms'), office('room a "Office 1" office 3 x 3 north of hall\nroom m "Meeting" meeting 6.1 x 3 east of a\n'))
+    const again = await grid(dir, 'write', 'plan.rooms', '--replace')
+    expect(again.status, again.err).toBe(0)
+    const json = JSON.parse((await grid(dir, 'diff', '--json')).out) as { issues: { code: string; message: string }[]; verdict: string }
+    expect(json.issues.filter((i) => i.code.startsWith('note_'))).toEqual([
+      expect.objectContaining({ code: 'note_changed', message: expect.stringMatching(/^Note room\/no-door changed \(now also "Meeting"; "Office 2" and "Office 3" no longer\): /) })
+    ])
+    expect((await grid(dir, 'diff')).out).toContain('Note room/no-door changed (now also "Meeting"; "Office 2" and "Office 3" no longer)')
+  })
+})
