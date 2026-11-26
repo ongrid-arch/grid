@@ -42,12 +42,18 @@ earlier one out while both answer "Wrote". After this change:
   plan, so a revision never claims more than the answer saw.
 - `writeChange` in `writeTools.ts`, the edit path every room, opening and wall change goes
   through, takes the lock itself too, so `grid edit` (which calls the tools without the server)
-  is covered. The words tool, which writes the plan's display, takes it around its own write.
+  is covered. The words tool, which writes the plan's display, is queued and locked by the server
+  as a change (it takes no `based_on`, being no change to the building), so it needs no line of
+  its own. The other tools that write files beside the plan (export, sheet, preview, markers)
+  take no lock: they never write the plan, and a sheet should not hold changes up.
 - `labelledSchema` in `toolkit.ts` lists `planRevision` in every output schema; it is not
   required, since a call about a plan that is not there has none. The preview tools keep their
   own `revision`, which is the page's and a different thing.
 - `protocol.ts`: a `ToolAnswer` may carry a `footnote`, sent as a last text block after the
-  pictures.
+  pictures. Two tests that hold an answer's content blocks one by one (`server.test.ts`,
+  `install.e2e.test.ts`) expect it.
+- A refusal's account of what changed is the comparison's verdict, cut at about 1,500
+  characters, so a refusal stays short; `grid_diff` gives the rest.
 - Grid's words for the line and the refusals go in `messages/en.ts` (`tool.revision.*`) with
   their draft Spanish.
 - Decided: no `based_on` on `grid edit` on the command line; the lock covers it, and a person at
