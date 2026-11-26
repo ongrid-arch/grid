@@ -68,6 +68,8 @@ export const FIGURES_HEADING = "The person's own figures: theirs, not from any c
  * parking spaces per home. `least` and `top` bound the value; a value of `least` itself is
  * refused but for a step (no sill) and parking (none per home).
  */
+const SEATING_TOP = 100_000
+
 export const FIGURES = {
   door_width: { what: 'door width', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'the clear width every door and doorless opening leaves, leaf by leaf, unless the figure says leaf or hole (measure)' },
   corridor_width: { what: 'corridor width', most: false, unit: 'm', least: 0, top: 100, site: false, measures: 'each room used as a corridor at its narrowest point from end to end, clear of fixtures' },
@@ -79,9 +81,28 @@ export const FIGURES = {
   floor_area_ratio: { what: 'floor area ratio', most: true, unit: '', least: 0, top: 100, site: true, measures: 'the gross area of every floor at or above the ground floor, by the measure named, against the plot\'s area' },
   building_height: { what: 'building height', most: true, unit: 'm', least: 0, top: 1000, site: true, measures: 'from the ground to the top of the highest roof' },
   parking_per_home: { what: 'parking per home', most: false, unit: 'spaces per home', least: 0, top: 100, site: true, measures: 'the parking spaces the floors state against the homes they state' },
+  // ARE-67: the person's own targets for the whole plan's seats, desks and covers, counted from the furniture (`quantities/seats.ts`).
+  seats: { what: 'seats', most: false, unit: 'seats', least: 0, top: SEATING_TOP, site: false, measures: 'the seats the furniture gives in the whole plan, as grid_measure what=seats counts them' },
+  desks: { what: 'desks', most: false, unit: 'desks', least: 0, top: SEATING_TOP, site: false, measures: 'the desks in the whole plan, as grid_measure what=seats counts them' },
+  covers: { what: 'covers', most: false, unit: 'covers', least: 0, top: SEATING_TOP, site: false, measures: 'the seats at a table in the whole plan, as grid_measure what=seats counts them' },
 } as const
 export type FigureName = keyof typeof FIGURES
 export const FIGURE_NAMES = Object.keys(FIGURES) as FigureName[]
+
+/** ARE-67: what the furniture is counted for: seats, desks and covers. */
+export const SEATING_WHATS = ['seats', 'desks', 'covers'] as const
+export type SeatingWhat = (typeof SEATING_WHATS)[number]
+export const isSeatingFigure = (figure: FigureName): figure is SeatingWhat => (SEATING_WHATS as readonly string[]).includes(figure)
+
+/** ARE-67: the most seats, desks or covers a wish may ask for. */
+export const SEATING_MAX = SEATING_TOP
+
+/** ARE-67: a target for a room's seats, desks or covers: exactly, at least or at most, as a count of rooms is. */
+export interface SeatingTarget {
+  readonly exactly: number | null
+  readonly atLeast: number | null
+  readonly atMost: number | null
+}
 
 /** Why a brief was refused. One line, naming the place, never repeating the text. */
 export class BriefRefused extends Error {
@@ -110,6 +131,10 @@ export interface RoomWish extends Said {
   readonly atMost: number | null
   /** About this inside size, either way round, m. */
   readonly inside: readonly [number, number] | null
+  /** ARE-67: the seats, desks and covers the furniture of the rooms it means gives, together. */
+  readonly seats: SeatingTarget | null
+  readonly desks: SeatingTarget | null
+  readonly covers: SeatingTarget | null
 }
 
 export interface FootprintWish extends Said {
@@ -220,7 +245,11 @@ const COUNT_LIKE_MAX = 30
 /** An area unit in the person's words: m², m2, sqm, square, metre, meter, sq ft, feet. */
 const AREA_UNIT = /m²|m2|sq\s?m|sqm|square|metre|meter|\bsq\b|\bft\b|feet|foot|tatami|㎡/i
 
-const ROOM_KEYS = ['name', 'use', 'count', 'count_at_least', 'count_at_most', 'area', 'at_least', 'at_most', 'inside', 'level', 'source', 'quote'] as const
+const ROOM_KEYS = [
+  'name', 'use', 'count', 'count_at_least', 'count_at_most', 'area', 'at_least', 'at_most', 'inside',
+  ...SEATING_WHATS.flatMap((what) => [what, `${what}_at_least`, `${what}_at_most`]),
+  'level', 'source', 'quote',
+] as const
 
 function roomWish(raw: unknown, where: string): RoomWish {
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object`)
@@ -233,8 +262,8 @@ function roomWish(raw: unknown, where: string): RoomWish {
     return read
   })
   if (name === null && use === null) throw new BriefRefused(`${where} names a room (name) or the rooms of a use (use)`)
-  const whole = (key: string) => optional(raw, key, (value) => {
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 1000) throw new BriefRefused(`${where}.${key} must be a whole number from 0 to 1,000`)
+  const whole = (key: string, max = 1000) => optional(raw, key, (value) => {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > max) throw new BriefRefused(`${where}.${key} must be a whole number from 0 to ${max.toLocaleString('en-US')}`)
     return value
   })
   const count = whole('count')
@@ -256,7 +285,16 @@ function roomWish(raw: unknown, where: string): RoomWish {
     if (!Array.isArray(value) || value.length !== 2) throw new BriefRefused(`${where}.inside must be two sizes in metres, as [3, 4]`)
     return [size(value[0], `${where}.inside[0]`, 'm', 1000), size(value[1], `${where}.inside[1]`, 'm', 1000)] as const
   })
-  return { name, use, count, countAtLeast, countAtMost, area, atLeast, atMost, inside, ...said(raw, where) }
+  // ARE-67: a room's seats, desks and covers, each read as a count of rooms is.
+  const target = (what: SeatingWhat): SeatingTarget | null => {
+    const exactly = whole(what, SEATING_MAX)
+    const least = whole(`${what}_at_least`, SEATING_MAX)
+    const most = whole(`${what}_at_most`, SEATING_MAX)
+    if (exactly !== null && (least !== null || most !== null)) throw new BriefRefused(`${where} gives ${what}, exactly how many, or ${what}_at_least and ${what}_at_most: not both`)
+    if (least !== null && most !== null && least > most) throw new BriefRefused(`${where}.${what}_at_least is more than its ${what}_at_most`)
+    return exactly === null && least === null && most === null ? null : { exactly, atLeast: least, atMost: most }
+  }
+  return { name, use, count, countAtLeast, countAtMost, area, atLeast, atMost, inside, seats: target('seats'), desks: target('desks'), covers: target('covers'), ...said(raw, where) }
 }
 
 function footprintWish(raw: unknown): FootprintWish {
@@ -297,6 +335,7 @@ function figureWishes(raw: unknown): FigureWish[] {
     onlyKeys(value, ['value', ...extra, 'level', 'source', 'quote'], where)
     const v = value['value']
     const { unit, least, top } = FIGURES[figure]
+    if (isSeatingFigure(figure) && (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > top)) throw new BriefRefused(`${where}.value must be a whole number of ${unit} from 1 to ${top.toLocaleString('en-US')}`)
     // A step may be none at all, no sill, and so may the parking a home needs.
     const zero = figure === 'step' || figure === 'parking_per_home'
     if (typeof v !== 'number' || !Number.isFinite(v) || v < least || v > top || (v === least && !zero)) {
@@ -428,7 +467,12 @@ export function briefJson(brief: Brief): Record<string, unknown> {
   if (brief.rooms.length > 0) {
     out['rooms'] = brief.rooms.map((w) => ({
       ...some('name', w.name), ...some('use', w.use), ...some('count', w.count), ...some('count_at_least', w.countAtLeast), ...some('count_at_most', w.countAtMost), ...some('area', w.area),
-      ...some('at_least', w.atLeast), ...some('at_most', w.atMost), ...some('inside', w.inside === null ? null : [...w.inside]), ...s(w),
+      ...some('at_least', w.atLeast), ...some('at_most', w.atMost), ...some('inside', w.inside === null ? null : [...w.inside]),
+      ...Object.fromEntries(SEATING_WHATS.flatMap((what) => {
+        const t = w[what]
+        return t === null ? [] : [...(t.exactly === null ? [] : [[what, t.exactly]]), ...(t.atLeast === null ? [] : [[`${what}_at_least`, t.atLeast]]), ...(t.atMost === null ? [] : [[`${what}_at_most`, t.atMost]])]
+      })),
+      ...s(w),
     }))
   }
   if (brief.footprint !== null) {

@@ -43,7 +43,16 @@ here too, as by every tool, and no brief is written.
 - **A room wish** names one room by the name it has in the plan (`name`, any case, or its id; a name also means the rooms numbered after it, "Consult" for "Consult 1" and "Consult 2", and a count line lists the rooms it counted),
   or the rooms of a use (`use`). It may give a `count` (exactly how many) or `count_at_least` and `count_at_most` ("at least 4 toilet rooms"), always rooms and never square metres, a net area (`area`, about; or `at_least`,
   `at_most`, in m² only) and an inside size (`inside`, metres, either way round). With none of them it
-  asks only for the room to be there.
+  asks only for the room to be there. A name also means the rooms whose room type (`roomType`) it is,
+  and a name in the plural the rooms named in the singular ("Phone booths" counts "Phone booth 1"
+  to "Phone booth 6", ARE-67).
+- **Seats, desks and covers** (ARE-67): a room wish may give `seats`, `desks` or `covers` (a cover
+  is a seat at a table), exactly, or `<what>_at_least` and `<what>_at_most`. They are counted from the
+  furniture as [`grid_measure what=seats`](tool-server.md#seats-desks-and-covers-counted-from-the-furniture)
+  counts them: in the room, in a zone when the wish names one, or in all the rooms of the name or
+  use together, the line listing each room's count. A wish that gives none of them but whose quote
+  says a number of seats, covers or desks ("a cafe with 24 seats") is counted against at least that
+  many, and the line says the number was read from the person's words.
 - **The footprint** gives the outside sizes (`width` and `depth`, either way round) or the area
   it covers (`area`), or both.
 - **Rooms that touch**: two rooms' names that must share a wall (`must`, `should`) or must not
@@ -68,7 +77,7 @@ metres above 0…`), never repeating the person's words, and nothing is written.
 
 The figures under `figures` are the person's, not a code's or a standard's. The file holds them
 under the heading "The person's own figures: theirs, not from any code or standard.", and every
-answer lists them under it. Grid knows five sizes, all in metres, and four site limits (BRF-4):
+answer lists them under it. Grid knows five sizes, all in metres, four site limits (BRF-4) and three counts of the furniture (ARE-67):
 
 | Figure | Measured as | Short of it |
 |---|---|---|
@@ -81,6 +90,7 @@ answer lists them under it. Grid knows five sizes, all in metres, and four site 
 | `floor_area_ratio` | the gross area of every floor at or above the ground floor over the plot's area, by `measure`: `gross_external` or `gross_internal` ([areas.md](areas.md)) | more |
 | `building_height` | metres from the ground (`site.ground`, else the ground floor's floor level) to the top of the highest roof | more |
 | `parking_per_home` | the parking spaces the floors state over the homes they state (`floors[].parking`, `floors[].homes`); 0 for none | fewer |
+| `seats`, `desks`, `covers` | ARE-67: the whole plan's seats, desks or covers, a whole number, counted from the furniture as `grid_measure what=seats` counts them; the line gives each floor's count | fewer |
 
 The site limits are measured on the plan as drawn, massing or walls
 ([plan-file.md](plan-file.md#a-floor-outline-before-the-walls)), and the plan's own set-backs
