@@ -162,7 +162,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-20: two more.
   // VEW-62: one more, grid_sheet's pictures of the pages.
   // WRT-73: six more, the phase rules, the correction argument and its note, and keep_north.
-  'packages/cli/src/mcp/writeTools.ts': [151, 'tools'],
+  // VEW-64: one more, the floors an export holds.
+  'packages/cli/src/mcp/writeTools.ts': [152, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],

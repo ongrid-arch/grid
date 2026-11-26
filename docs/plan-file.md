@@ -1877,9 +1877,9 @@ them as they are and state a point near the building as `site.origin` (HND-11, l
   than 500 m from (0, 0) is written from `site.origin`, or, with none stated, from the middle of
   its walls in whole steps of 500 m (HND-2). The IFC puts its site on that point and its elements
   from it, so a BIM tool reads small numbers and places them where they are. A GLB holds its
-  points as 32-bit numbers, about seven digits, so the floor is built near zero and the file holds
-  the model in one node, `origin`, moved by the offset, with `asset.extras.gridOrigin`: every
-  point within 1 mm of the plan. The DXF and OBJ write their numbers as text, to the micrometre,
+  points as 32-bit numbers, about seven digits, so the building is built near zero and the file's
+  root node (`building`, or the one floor asked for, VEW-64) is moved by the offset, with
+  `asset.extras.gridOrigin`: every point within 1 mm of the plan. The DXF and OBJ write their numbers as text, to the micrometre,
   and keep the survey coordinates as they are. A plan near (0, 0) exports as before.
 
 Survey coordinates still cost the drawing digits: every check and measure runs on the plan's own
