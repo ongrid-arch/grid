@@ -695,7 +695,7 @@ is refused by name, and none of the three is taken with `--3d`. `grid_view` take
 ## How each look draws a plan
 
 A plan is drawn in one of its looks: the technical look (black on white, lines in millimetres on
-paper, for files and sheets), the working look (the screen's colours, for every picture an agent
+paper, for files and sheets, and for a section whenever `look` is left out), the working look (the screen's colours, for every picture an agent
 gets) and the dark look (the working look on dark paper, for the app's and the preview page's
 dark theme only). Each look draws the same geometry; what follows is what each draws its own way
 (SHT-10).

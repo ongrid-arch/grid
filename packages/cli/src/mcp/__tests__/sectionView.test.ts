@@ -38,10 +38,20 @@ describe('grid_view kind=section', () => {
     expect(data.section.cut.filter((c) => c.kind === 'wall')).toHaveLength(12)
     expect(data.section.levels.map((l) => [l.level, l.source])).toEqual([[0, 'datum'], [2.95, 'worked-out'], [6.1, 'worked-out']])
     expect(data.section.assumed.filter((a) => a.hatched).map((a) => a.kind)).toEqual(['slab', 'slab', 'slab', 'roof'])
-    expect(answer.text).toContain('looking to the left of the line, working')
+    expect(answer.text).toContain('looking to the left of the line, technical')
     expect(answer.text).toContain('It cuts 12 walls and 9 rooms; the cut parts join into 1 shape.')
     expect(answer.text).toContain('Levels: "Ground floor" ±0.000, "First floor" +2.950 (worked out), "Second floor" +6.100 (worked out); roof +8.850; ground ±0.000 (not stated).')
     expect(answer.text).toContain('  dashed: The roof over "Second floor" is taken as flat and 0.25 m thick, on its walls: the plan states no roof.')
+  })
+
+  it('draws in the technical look unless the working look is asked for, and says so in its schema', async () => {
+    const asked = await call({ kind: 'section', cut: THROUGH_STAIR, look: 'working' })
+    expect(asked.text).toContain('looking to the left of the line, working')
+    const left = await call({ kind: 'section', cut: THROUGH_STAIR })
+    expect(left.text).toContain('of the line, technical')
+    const look = (view.args['look'] as { description: string }).description
+    expect(look).toMatch(/section/)
+    expect(look).toMatch(/technical/)
   })
 
   it('refuses a section with no cut, a cut it cannot read, a side it does not know and what a section does not take', async () => {
