@@ -293,7 +293,7 @@ describe('each install artefact installs and makes one call', () => {
     ])
     expect(text(replies[1])).toMatch(/bed/i)
     // The bundle carries the canvas for the platform it was packed on, so pictures work.
-    expect(replies[2]?.result).toMatchObject({ content: [{ type: 'text' }, { type: 'image', mimeType: 'image/png' }] })
+    expect(replies[2]?.result).toMatchObject({ content: [{ type: 'text' }, { type: 'image', mimeType: 'image/png' }, { type: 'text', text: expect.stringContaining('is at revision') }] })
     // VEW-7: the sheet is written as a PDF, through the bundle (the one form that carries the canvas).
     expect(text(replies[3])).toMatch(/Wrote "exports\/[^"]*-check\.pdf"/)
     expect(readdirSync(join(project, 'exports')).some((name) => name.endsWith('-check.pdf'))).toBe(true)
