@@ -223,7 +223,10 @@ describe('a sloped roof seen as a roof (VEW-12)', () => {
     expect(eaves.from[1]).toBe(plane.bottom)
     expect(eaves.to[1]).toBe(plane.bottom)
     expect(ridge.from[1]).toBe(plane.top)
-    expect(Math.abs(eaves.to[0] - eaves.from[0])).toBeCloseTo(10.3, 6)
+    expect(Math.abs(eaves.to[0] - eaves.from[0])).toBeCloseTo(10.9, 6)
+    const wall = facade.faces.find((f) => f.wall === 'fs')!
+    expect(plane.u0).toBeLessThan(wall.u0)
+    expect(plane.u1).toBeGreaterThan(wall.u1)
     // The verges run up the plane's two ends, upright as seen from the eaves side.
     for (const verge of plane.roofLines.filter((l) => l.kind === 'verge')) expect(verge.from[0]).toBe(verge.to[0])
     // The band along the eaves, the fascia, says it is the eaves; the walls and slabs say nothing.
@@ -265,6 +268,10 @@ describe('a sloped roof seen as a roof (VEW-12)', () => {
     })
     const leanTo = planFacade(plan, 'south').faces.find((f) => f.kind === 'roof-plane')!
     expect(kinds(leanTo.roofLines)).toEqual(['abutment', 'eaves', 'verge', 'verge'])
+    const abutment = leanTo.roofLines.find((line) => line.kind === 'abutment')!
+    expect(abutment.from[1]).toBeCloseTo(2.65 + 2.85 * Math.tan(Math.PI / 12), 6)
+    expect(abutment.to[1]).toBe(abutment.from[1])
+    expect(leanTo.u1 - leanTo.u0).toBeCloseTo(10.9, 6)
   })
 
   it('names nothing on a flat roof', () => {
@@ -585,6 +592,8 @@ describe('a gable drawn whole (VEW-61)', () => {
     // It meets the verge bands at the ridge, under them, so no sky shows through it.
     const verges = facade.faces.filter((f) => f.kind === 'roof' && f.edge === 'verge')
     expect(verges).toHaveLength(2)
+    expect(Math.min(...verges.map((v) => v.u0))).toBeLessThan(gable.u0)
+    expect(Math.max(...verges.map((v) => v.u1))).toBeGreaterThan(gable.u1)
     expect(Math.min(...verges.map((v) => v.bottom))).toBeLessThan(gable.top)
     expect(gable.outline).toContainEqual([3.5, gable.top])
     expect(Math.max(...verges.flatMap((v) => v.outline.filter(([u]) => u === 3.5).map(([, z]) => z)))).toBeGreaterThan(gable.top)

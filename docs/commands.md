@@ -1064,8 +1064,10 @@ courses along its eaves (1.5 mm apart on paper, 6 pixels on the screen), its rid
 front plane's pen, its eaves, verges and abutments in its own, and a gutter along each eaves. An
 agent reads the same lines from the facade: each band along a sloped roof's edge says which edge
 it is (`edge`: `eaves`, `ridge`, `hip`, `verge` or `abutment`, where the roof meets more of the
-building above), and each plane lists its edges as seen (`roofLines`). The roof ends at the
-outside face of its walls, as in the 3D model and the section: the plan states no overhang.
+building above), and each plane lists its edges as seen (`roofLines`). Elevations show a nominal
+0.30 m overhang along the exposed edges of pitched roofs (VEW-71). The fascia, gutter and covering
+follow the projected edge. Abutments stay where the roof meets the building above. The plan holds
+no overhang dimension. Sections, the 3D model and roof quantities use the plan's roof footprint.
 
 ## A sheet for people: `grid sheet`
 

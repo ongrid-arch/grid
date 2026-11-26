@@ -175,7 +175,9 @@ describe('a sloped roof drawn as a roof (VEW-12)', () => {
       // The gutter along the eaves, in the fascia's own group so a nearer face still hides it.
       const fascia = groups(svg, 'roof').filter((g) => g.includes('data-edge="eaves"'))
       expect(fascia).toHaveLength(1)
-      expect(tags(fascia[0]!, 'facade-gutter')).toHaveLength(1)
+      const [gutter] = tags(fascia[0]!, 'facade-gutter')
+      expect(gutter).toContain('x="-0.45"')
+      expect(gutter).toContain('width="10.9"')
       expect(tags(svg, 'facade-gutter')).toHaveLength(1)
     })
   }
