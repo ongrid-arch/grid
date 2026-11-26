@@ -39,6 +39,9 @@ export interface OptionRow {
   readonly circulationShare: number | null
   readonly netToGross: number | null
   readonly byUse: Readonly<Record<string, number>>
+  /** ARE-61: the net floor by the firm's room type and by tenure; only on a plan where a room states one. */
+  readonly byRoomType?: Readonly<Record<string, number>>
+  readonly byTenure?: Readonly<Record<string, number>>
 }
 
 export function optionRow(label: string, survey: Survey): OptionRow {
@@ -64,6 +67,8 @@ export function optionRow(label: string, survey: Survey): OptionRow {
     circulationShare: areas.circulationShare,
     netToGross: areas.netToGross,
     byUse,
+    ...(areas.byRoomType === undefined ? {} : { byRoomType: areas.byRoomType }),
+    ...(areas.byTenure === undefined ? {} : { byTenure: areas.byTenure }),
   }
 }
 

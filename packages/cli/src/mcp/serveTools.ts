@@ -36,6 +36,7 @@ import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
 import { tidyTool } from './tidyTool'
 import { setFactsTool } from './factsTool'
+import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
 import { STAIR_TOOLS } from './stairTools'
 
@@ -70,6 +71,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...PHASE_TOOLS,
   // WRT-36: grid tidy's fixes where walls meet, the last of the changes to the building.
   tidyTool,
+  // CMD-42: any other field of a part set by id, checked by the plan schema.
+  setTool,
   // WRT-74: facts of the person's own and a room's number, which change no part of the building.
   setFactsTool,
   // LVL-21: a stair between two floors, added, changed or removed: the last of the building's changes.

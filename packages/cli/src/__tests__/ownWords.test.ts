@@ -67,7 +67,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
   'packages/cli/src/describe/walk.ts': [4, 'agentForm'],
   // CMD-7: three of its skill's paragraphs are in guide/paragraphs.ts now.
-  'packages/cli/src/distribution/listing.ts': [81, 'developer'],
+  // CMD-40: seven more, the package README's, which lists the resources and the pages.
+  'packages/cli/src/distribution/listing.ts': [88, 'developer'],
   'packages/cli/src/distribution/zip.ts': [1, 'developer'],
   // VEW-26: three more, the refusals of fit with distance and of fit=room with no room, and a room's outline.
   'packages/cli/src/draw/cameraAsk.ts': [15, 'agent'],
@@ -113,6 +114,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/fs/textEncoding.ts': [5, 'command'],
   // CMD-7: the guide for agents, its shared paragraphs and its two resources, written for the agent.
   // MSG-22: eighteen fewer, none moved: the uses table no longer nests a template in a template, which the count read as more.
+  // CMD-40: the one-line descriptions of the documentation pages, as the tool server lists them.
+  'packages/cli/src/guide/docPages.ts': [21, 'agent'],
   'packages/cli/src/guide/guide.ts': [80, 'agent'],
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
@@ -123,6 +126,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/editTools.ts': [107, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
+  // CMD-42: grid_set, its help and its argument checks.
+  'packages/cli/src/mcp/setTool.ts': [13, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -194,7 +199,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/fixtures.ts': [1, 'notYet'],
   'packages/cli/src/quantities/limits.ts': [29, 'notYet'],
   'packages/cli/src/quantities/measure.ts': [3, 'notYet'],
-  'packages/cli/src/quantities/query.ts': [26, 'tools'],
+  // ARE-61: four more, the room type, tenure, flat and flat type fields' descriptions for the agent.
+  'packages/cli/src/quantities/query.ts': [30, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   // CNT-27: one more, the CSV's column for the rows in no total.
   'packages/cli/src/quantities/schedule.ts': [16, 'notYet'],

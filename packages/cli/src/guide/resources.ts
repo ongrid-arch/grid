@@ -6,6 +6,7 @@
  */
 import { planJsonSchema } from '@ongrid/floorplan/types/planSchema'
 import type { ServerResource } from '../mcp/protocol'
+import { docResources } from './docPages'
 import { agentGuide, GUIDE_URI, SCHEMA_URI } from './guide'
 
 export function guideResources(): ServerResource[] {
@@ -30,5 +31,7 @@ export function guideResources(): ServerResource[] {
       },
       read: async () => ({ text: `${JSON.stringify(planJsonSchema(), null, 2)}\n` }),
     },
+    // CMD-40: the pages of docs/, each as markdown.
+    ...docResources(),
   ]
 }

@@ -321,8 +321,8 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - A room's name and its id go into every export and sheet, and travel with the plan file: name
   a room for what it is, never for a person. Who sits where is kept in a file of its own
   ([People are kept out of the plan](plan-file.md#people-are-kept-out-of-the-plan)).
-- The full language is in the header of `packages/floorplan/src/rooms/compile.ts`, and by topic,
-  with an example each, in [The whole grammar](#the-whole-grammar) below. The
+- The full language is by topic, with an example each, in [The whole grammar](#the-whole-grammar)
+  below, which the tool server also serves as `grid://guide/rooms`. The
   [guide for agents](agent-guide.md) has it in short, with what agents ask first, and
   [samples/](samples/) three whole plans written this way.
 
@@ -333,7 +333,7 @@ each placement may change; `repeat` places it in a row, the first where the line
 next one on the given side of the one before; `first` and `last` settings hold for the two ends
 only, such as end rooms a wall's width narrower. `mirror north-south` turns the row to face the
 other way. The lab's hotel floor, twelve rooms and a corridor that the hand-drawn file holds in
-103 parts, is 17 lines (`packages/floorplan/fixtures/rooms/hotel.rooms`):
+103 parts, is 17 lines:
 
 ```
 unit guest w=3.45 bw=1.875 door=0.275 win=centred bhinge=south
@@ -391,8 +391,7 @@ A unit can be a flat type (CNT-4): `unit one flat "One bedroom" "Flat {n}"`, the
 if given, the flat's name with `{n}` for the label. Every placement of it, by `place` or `repeat`,
 is a flat of that type in the plan's [flats](plan-file.md#flats-and-flat-types), with the label as
 its id, the rooms placed as its rooms, and `mirrored` when it is placed mirrored one way. The
-lab's four-flat floor places two flat types twice each, one of each mirrored
-(`packages/floorplan/fixtures/rooms/four-flats.rooms`):
+lab's four-flat floor places two flat types twice each, one of each mirrored:
 
 ```
 unit flat1 flat "One bedroom" "Flat {n}" fh=west
@@ -471,7 +470,7 @@ one.
 
 ## The whole grammar
 
-Every line rooms text takes, by topic, each with one example Grid writes with no problem. The tool server serves this section as `grid://guide/rooms` and carries it in the `rooms` argument of `grid_write_rooms`; it is made from `packages/cli/src/mcp/roomsGrammar.ts`, and a test holds the two equal.
+Every line rooms text takes, by topic, each with one example Grid writes with no problem. The tool server serves this section as `grid://guide/rooms` and carries it in the `rooms` argument of `grid_write_rooms`; it is written once, and a test holds the two equal.
 
 ### Rooms
 

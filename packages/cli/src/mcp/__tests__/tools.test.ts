@@ -54,6 +54,7 @@ const ORDER = [
   'grid_start_works',
   'grid_phase_from',
   'grid_tidy',
+  'grid_set',
   'grid_set_facts',
   'grid_add_stair',
   'grid_change_stair',
@@ -63,7 +64,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_site', 'grid_change_site', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_site', 'grid_change_site', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -137,9 +138,11 @@ describe('tools/list', () => {
     // 44 since CNT-41: the plot, its streets, set-backs and north, and the site's things, which
     // agents on the tool server could write only as the plan file's JSON (they gave up, or
     // invented the figures).
-    // 46 since LVL-21: a stair added and changed, which no tool wrote (agents drew treads as walls,
+    // 45 since CMD-42: any other field of a part set by id, checked by the plan schema, which
+    // agents otherwise set by editing the plan file by hand (a room's floor level, a wall's height).
+    // 47 since LVL-21: a stair added and changed, which no tool wrote (agents drew treads as walls,
     // hand-edited the JSON, or left the stair an empty room).
-    expect((await listed()).length).toBeLessThanOrEqual(46)
+    expect((await listed()).length).toBeLessThanOrEqual(47)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -271,6 +274,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_start_works: { out: 'surveyed.json' },
     grid_phase_from: { before: 'plan.json', after: 'wider.json', out: 'works.json' },
     grid_tidy: { all: true, out: 'tidied.json' },
+    grid_set: { parts: ['bed2'], set: { floorOffset: 0.02 }, out: 'set.json' },
     grid_set_facts: { parts: ['bed2'], set: { department: 'Sales' }, out: 'facts.json' },
     grid_add_stair: { plan: 'house.json', id: 'st', from: 'ground', to: 'first', room: 'hall', width: 1, shape: 'U', runs: 'north', out: 'stair.json' },
     grid_change_stair: { plan: 'stair.json', id: 'st', width: 0.9, out: 'narrower.json' },

@@ -204,7 +204,7 @@ export function roomsGrammarMarkdown(): string {
   return [
     '## The whole grammar',
     '',
-    'Every line rooms text takes, by topic, each with one example Grid writes with no problem. The tool server serves this section as `grid://guide/rooms` and carries it in the `rooms` argument of `grid_write_rooms`; it is made from `packages/cli/src/mcp/roomsGrammar.ts`, and a test holds the two equal.',
+    'Every line rooms text takes, by topic, each with one example Grid writes with no problem. The tool server serves this section as `grid://guide/rooms` and carries it in the `rooms` argument of `grid_write_rooms`; it is written once, and a test holds the two equal.',
     '',
     ...topics,
   ].join('\n')

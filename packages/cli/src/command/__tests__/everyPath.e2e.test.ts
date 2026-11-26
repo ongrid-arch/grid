@@ -337,6 +337,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_tidy', { plan: '@' }), given: asIs },
     { arg: 'out', call: tool('grid_tidy', { plan: PLAN, all: true, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CMD-42: any other field of a part, written into the plan.
+  grid_set: [
+    { arg: 'plan', call: tool('grid_set', { plan: '@', parts: ['lounge'], set: { floorOffset: 0.02 } }), given: asIs },
+    { arg: 'out', call: tool('grid_set', { plan: PLAN, parts: ['lounge'], set: { floorOffset: 0.02 }, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // WRT-74: facts and a room's number, written into the plan.
   grid_set_facts: [
     { arg: 'plan', call: tool('grid_set_facts', { plan: '@', parts: ['lounge'], set: { department: 'Sales' } }), given: asIs },

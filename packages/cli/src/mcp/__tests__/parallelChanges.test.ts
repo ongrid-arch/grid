@@ -23,6 +23,8 @@ beforeAll(async () => {
     format: 'cjs',
     outfile: script,
     external: ['@napi-rs/canvas'],
+    // CMD-40: the docs pages are imported as text, as build.mjs does.
+    loader: { '.md': 'text' },
     logLevel: 'silent',
   })
   project = mkdtempSync(join(tmpdir(), 'grid-parallel-project-'))

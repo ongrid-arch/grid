@@ -20,7 +20,7 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 
 `grid serve` is an MCP server over standard input and output, for an agent's host to start.
 Its tools are listed in a fixed order: first those that read the plan, in the order of the
-requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the eighteen that
+requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the nineteen that
 change the plan, writing it rooms first leading, then the facts, the stair's two, the site's two after them and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
 and the allowed values of each argument, and an output schema. Each answer is short text with
 the same facts as data; a view also returns its picture. A length argument is metres, or text with its unit (`12'6"`, `360 cm`); the measuring tools, the views and the sheet write in `units` and `decimal`, or the plan's `display`, the person's own units, and in metres when neither says (see [Units](plan-file.md#units)). The check and the edit answers are in metres.
@@ -28,9 +28,9 @@ the same facts as data; a view also returns its picture. A length argument is me
 | Tool | Answers |
 |---|---|
 | `grid_project` | What the project folder holds, for the first call (CMD-18): the plan files in it, the plan Grid uses when none is named (`plan.json` in the folder, with or without `grid.json`) and whether it is there, and beside each plan its brief, markers, seen marks, preview record, scan and occupancy files. Reads names only, writes nothing |
-| `grid_compare` | Options side by side (net, gross internal, gross external, circulation, area by use), and what differs by room name, walls and openings; a plan mirrored or moved is said to be so. With `picture`, one sheet at one scale |
+| `grid_compare` | Options side by side (net, gross internal, gross external, circulation, area by use, and by room type and tenure where the plan states them), and what differs by room name, walls and openings; a plan mirrored or moved is said to be so. With `picture`, one sheet at one scale |
 | `grid_diff` | What changed since the start marker or the last commit, by what stands where, not by ids: issues first (a door that now joins other rooms, a wall that now meets an opening, notes that came and went), the verdict room by room with how many ids were only renamed, then the changes one line each; with `rooms`, the changes outside them; with a picture unless `picture: false` (see below) |
-| `grid_areas` | Each room's size and net area, totals by floor and by use, gross internal and gross external area (the one usual in the plan's `site.country`, or in `country` which overrides it, first, or as `gross` asks; see [areas.md](areas.md)), each flat's area from the plan's flats list and the rooms in no flat, each to the middle of its party walls too (ARE-14), the outdoor space listed apart by kind, roofed or open (CNT-7), left out of every total unless `outdoor_rules` states a rule that counts part of it, the free floor beside the floor area where fixtures stand, the rooms in `apart_rooms` measured apart as one building from another (ARE-20), and under a roof the floor states the floor by headroom band, in metres or feet, as text or CSV, each figure with its rule stated |
+| `grid_areas` | Each room's size and net area, totals by floor and by use (and by room type and tenure where a room states one), gross internal and gross external area (the one usual in the plan's `site.country`, or in `country` which overrides it, first, or as `gross` asks; see [areas.md](areas.md)), each flat's area from the plan's flats list and the rooms in no flat, each to the middle of its party walls too (ARE-14), the outdoor space listed apart by kind, roofed or open (CNT-7), left out of every total unless `outdoor_rules` states a rule that counts part of it, the free floor beside the floor area where fixtures stand, the rooms in `apart_rooms` measured apart as one building from another (ARE-20), and under a roof the floor states the floor by headroom band, in metres or feet, as text or CSV, each figure with its rule stated |
 | `grid_takeoff` | Metres of wall by kind, per room floor, ceiling (with its height and lowered zones), skirting and wall face less openings, and per floor the slab and the roof over every part with nothing above, marked assumed, with the rules stated; with `for=estimate` the bill of quantities for a first estimate, each line with its key, rule and assumed mark, priced only from the person's rates file or given as a rate card ([areas.md](areas.md#quantities-for-a-first-estimate)); with `for=change` a plan's work as three lists, demolish, make good and new, priced the same way ([plan-file.md](plan-file.md#existing-demolished-and-new)); on a plan that names wall types or finishes, the walls of each named type and each finish's total too, and the estimate prices them by type and by finish ([areas.md](areas.md#finishes-and-wall-types)); text or CSV |
 | `grid_schedule` | Doors, windows and openings by type and size, with the rooms each joins; with `of=rooms` the room schedule (number, name, use, area, height, floor, and the totals), with `of=openings` each opening once, with `of=flats` each flat and the unit mix by type, with `of=doors` or `of=windows` the door or window schedule by type (the plan's named types first, with their names and materials, then by kind and size) with each type's marks, with `of=finishes` the finishes plan, room by room, with each finish's total ([areas.md](areas.md#schedules)); a room's stated number and each part's facts of the person's own go with them; text or CSV |
 | `grid_fields` | What can be asked of the plan: the fields Grid works out for each kind of part, with their units, and the facts of the person's own the parts carry, with how many carry each and their values (see below) |
@@ -67,6 +67,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_start_works` | Marks every wall, door, window and room that states no phase as `existing`, so the plan as it stands is the building before the work and each change after it is the work; a part that states a phase keeps it |
 | `grid_phase_from` | Writes one plan with phases from two plans, `before` and `after`, paired by id: only in the first is demolished, only in the second is new, the same in both is existing, and a part that changed is new beside its old self `<id>-before`, demolished; writes `out`, changes neither plan |
 | `grid_tidy` | Lists the faults where walls meet, each with its id and the fix Grid offers, and writes nothing; with `apply` (fault ids) or `all`, makes those fixes on the plan or `out`, and says what was made, what was skipped and why, and the faults left. A wall across a corner of a room at an angle is taken as the room's new face; a fix that would leave a room with no way in says so and lists those rooms in `seals` ([commands.md](commands.md#walls-that-do-not-meet-grid-tidy)) |
+| `grid_set` | Sets fields (`set`, each its whole value as the plan file holds it, lengths in metres) or takes them out (`unset`) on walls, rooms, floors, columns, stairs, ramps, bays and structural grids named by id (`parts`; `kind` when one id is used by two kinds): a wall's `height` or `arc`, a room's `floorOffset` or `height`, a floor's `elevation` or `outline`, a column's size. The plan schema checks every value and the drawing's checks the change, with nothing written when either refuses; a field another tool sets (facts, phases, a room's name, use and walls, a wall's thickness, ends and type) is refused naming it, and doors, windows and the site are left to their own tools. Answers with what each field was and is now, and the area verdict |
 | `grid_set_facts` | Sets facts of the person's own (`set`), takes them out (`unset`) or gives one room its number (`number`, `none` to leave it to Grid's count), on parts named by id (`parts`) or picked as `grid_find` picks them (`kind`, `floor`, `room`, `where`), and says what changed on which parts and what was so already ([below](#asking-across-the-parts-fields-find-and-count)) |
 | `grid_add_stair` | Adds a stair between two floors (`from`, `to`: floors, or rooms that stand for their floors; `width`), laid in a room by the same words as a rooms text `stair` line (`room`, `shape` straight, L or U, `runs`, `then`, `along`) or along its own walking line (`run`); answers with the risers, their height, the going, the pitch and the rooms at its ends, and refuses a stair that does not fit its room, naming the room's size ([plan-file.md](plan-file.md#stairs-that-join-two-floors)) |
 | `grid_change_stair` | Changes a stair by id: its floors, width, room, shape, way, risers (0 leaves them to Grid), name or walking line, laying a stair laid in a room out again with the new words; or `remove` takes it out |
@@ -129,7 +130,7 @@ Three short tools ask across them, and across what Grid works out of every part 
 is one call for one request.
 
 - `grid_fields` lists what can be asked. Its `fields` are Grid's: `id`, `kind`, `floor`, a room's
-  and a floor's `name`, a room's `number` and `use`, `area` (m², net, as `grid_areas` measures it,
+  and a floor's `name`, a room's `number`, `use`, `room type` (the firm's own), `tenure`, `flat` (its id) and `flat type`, `area` (m², net, as `grid_areas` measures it,
   for rooms and floors), `height`, `width` and `sill` (m), a wall's `length` and `thickness` (m),
   `wall kind` and `virtual`, an opening's `wall`, `rooms` (the rooms beside a wall, or on an
   opening's two sides, `outside` where there is none) and a floor's `level`. Its `facts` are the
@@ -557,7 +558,7 @@ The entrance is the front door the plan names (`front.opening`) when it leads ou
 every door out of the ground floor. Where Grid cannot tell, the answer says so: the step from
 the ground when the site states no ground level, the steps of a stair drawn only as rooms, a
 floor no stair or lift joins. It ends with what it did not look at (`notLookedAt`): door leaves
-and handles, thresholds other than a sill, ramps (the plan cannot state one), inside a lift,
+and handles, thresholds other than a sill, ramps (a ramp the plan states joins two floors and is not measured here, and one within a floor cannot be stated), inside a lift,
 fittings the plan does not hold, surfaces and heights of controls, the way outside, and whether
 any number is enough.
 
@@ -758,13 +759,21 @@ An agent never files, posts or sends it.
 
 ## The guide and the plan's schema, as resources
 
-Besides the preview page, the server offers two resources an agent reads before its first plan
-(CMD-7): `grid://guide`, the [guide for agents](agent-guide.md) as markdown, and
-`grid://schema/plan`, the plan file's structure as a draft-07 JSON Schema with its format
-version, the same file the build writes beside the command (`plan.schema.json`). Both are made
-from the code when they are read, so they say what this Grid reads. The server's instructions,
-which carry the guide's first paragraphs word for word and point to both resources, are sent on
-`initialize` as well as on `server/discover`.
+Besides the preview page, the server offers the documentation as resources, so an agent with no
+copy of the repository reads it where it reads Grid's tools (CMD-7, CMD-40):
+
+| Resource | What it is |
+|---|---|
+| `grid://guide` | The [guide for agents](agent-guide.md), as markdown |
+| `grid://guide/rooms` | The whole rooms grammar, by topic, each with an example ([rooms-first.md](rooms-first.md#the-whole-grammar)) |
+| `grid://schema/plan` | The plan file's structure as a draft-07 JSON Schema with its format version, the same file the build writes beside the command (`plan.schema.json`) |
+| `grid://docs/<page>` | Each page of the documentation, as markdown: `recipes`, `rooms-first`, `commands`, `tool-server`, `plan-file`, `conventions`, `brief`, `firm-standards`, `library`, `areas`, `tolerances`, `result-contract` and `languages` |
+
+The guide and the schema are made from the code when they are read, so they say what this Grid
+reads; the pages are the ones the package ships in its `docs/` folder. A host that lists
+resources shows them all; a host that has none can still read the same files in the package. The
+server's instructions, which carry the guide's first paragraphs word for word and point to the
+guide and the schema, are sent on `initialize` as well as on `server/discover`.
 
 ## Protocol versions
 

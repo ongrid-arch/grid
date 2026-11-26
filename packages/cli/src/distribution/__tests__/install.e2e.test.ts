@@ -227,7 +227,7 @@ describe('each install artefact installs and makes one call', () => {
   it('installs the one bundled file and nothing else', () => {
     const files = readdirSync(join(installed, 'node_modules', 'ongrid')).sort()
     // CMD-7: with the guide for agents and the plan's JSON Schema.
-    expect(files).toEqual(['LICENSE', 'NOTICE', 'README.md', 'chunks', 'fonts', 'grid.mjs', 'guide.md', 'package.json', 'plan.schema.json'])
+    expect(files).toEqual(['LICENSE', 'NOTICE', 'README.md', 'chunks', 'docs', 'fonts', 'grid.mjs', 'guide.md', 'package.json', 'plan.schema.json'])
     expect(readdirSync(join(installed, 'node_modules', 'ongrid', 'fonts'))).toEqual(expect.arrayContaining(['SourceSans3-Regular.otf', 'OFL-SourceSerif4.txt', 'OFL-SourceSans3.txt']))
     expect(readdirSync(join(installed, 'node_modules')).filter((name) => !name.startsWith('.'))).toEqual(['ongrid'])
     const manifest = JSON.parse(readFileSync(join(installed, 'node_modules', 'ongrid', 'package.json'), 'utf8')) as Record<string, unknown>

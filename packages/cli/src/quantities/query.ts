@@ -14,7 +14,7 @@
  *
  * Pure: a survey in, plain data out.
  */
-import { compareIds, floorOf, planFloors, planForFloor, tolerance, wallLength } from '@ongrid/floorplan/geometry'
+import { compareIds, flatOfRoom, floorOf, planFlats, planFloors, planForFloor, tolerance, wallLength } from '@ongrid/floorplan/geometry'
 import { factKey, factOf, factText, type FactValue } from '@ongrid/floorplan/types/floorplan'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
@@ -64,6 +64,10 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'name', type: 'text', unit: null, kinds: ['room', 'floor'], from: 'grid', about: 'Its name in the plan.' },
   { name: 'number', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The room number the plan states, if any.' },
   { name: 'use', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'What the room is for, as the plan states it.' },
+  { name: 'room type', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The firm\'s own type for the room ("B2 double bedroom"), as the plan states it.' },
+  { name: 'tenure', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'Who the room is for: private, shared, common or commercial, as the plan states it.' },
+  { name: 'flat', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The id of the flat the room is in, from the plan\'s flats list; none for a room in no flat.' },
+  { name: 'flat type', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The type of the flat the room is in: its name, else its id.' },
   { name: 'area', type: 'number', unit: 'm²', kinds: ['room', 'floor'], from: 'grid', about: 'Net floor area, as grid_areas measures it; none for a room Grid could not draw.' },
   { name: 'height', type: 'number', unit: 'm', kinds: ['wall', ...OPENINGS, 'room', 'floor'], from: 'grid', about: 'A wall\'s or opening\'s height; a room\'s as grid_measure gives it; a floor\'s stated clear height.' },
   { name: 'width', type: 'number', unit: 'm', kinds: OPENINGS, from: 'grid', about: 'The opening in the wall, as the plan states it.' },
@@ -135,6 +139,8 @@ export function askPlan(survey: Survey): Asked {
   let floorAreas: Map<string, number> | null = null
   let left: Map<string, RoomNotCounted> | null = null
   let beside: Map<string, string[]> | null = null
+  let flatsOf: ReturnType<typeof flatOfRoom> | null = null
+  let flatTypes: Map<string, string | null> | null = null
   const storeys = new Map<string, ReturnType<typeof planForFloor>>()
   const cache = new Map<string, Value>()
 
@@ -163,6 +169,16 @@ export function askPlan(survey: Survey): Asked {
     }
     return [...(beside.get(wall) ?? [])].sort(compareIds)
   }
+  // CNT-4: the flat a room is in, by the plan's flats list; the one whose id comes first when two hold it.
+  const flatOf = (room: string): { id: string; type: string | null } | null => {
+    if (flatsOf === null || flatTypes === null) {
+      const flats = planFlats(plan)
+      flatsOf = flatOfRoom(flats)
+      flatTypes = new Map(flats.map((flat) => [flat.id, flat.typeName ?? flat.type] as const))
+    }
+    const id = flatsOf.get(room)
+    return id === undefined ? null : { id, type: flatTypes.get(id) ?? null }
+  }
   const storey = (floor: string): ReturnType<typeof planForFloor> => {
     let found = storeys.get(floor)
     if (found === undefined) {
@@ -190,6 +206,10 @@ export function askPlan(survey: Survey): Asked {
       // CNT-8: a zone is numbered by its room; a number it states is kept, not read.
       if (name === 'number') return part.zoneOf === undefined ? room.number ?? null : null
       if (name === 'use') return room.use ?? null
+      if (name === 'room type') return room.roomType ?? null
+      if (name === 'tenure') return room.tenure ?? null
+      if (name === 'flat') return flatOf(room.id)?.id ?? null
+      if (name === 'flat type') return flatOf(room.id)?.type ?? null
       if (name === 'area') return areaOf(part)
       if (name === 'height') return roomHeight(storey(part.floor), part.id).value
       return null
