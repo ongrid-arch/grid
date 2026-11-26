@@ -34,6 +34,7 @@ import { guardedRun, revisionLine, RevisionRefused, REVISION_DATA_NAME } from '.
 import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
 import { tidyTool } from './tidyTool'
+import { setFactsTool } from './factsTool'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -66,6 +67,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...PHASE_TOOLS,
   // WRT-36: grid tidy's fixes where walls meet, the last of the changes to the building.
   tidyTool,
+  // WRT-74: facts of the person's own and a room's number, which change no part of the building.
+  setFactsTool,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
   saveViewTool,
 ]

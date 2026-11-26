@@ -25,12 +25,13 @@ export interface GrammarTopic {
 export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   {
     topic: 'rooms',
-    says: 'room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room\'s south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls.',
+    says: 'room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room\'s south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls. number "<text>", dept <text> and facts <name>=<value> ... give it its room number, its department and facts of the person\'s own.',
     example: [
       'walls outside 0.3 inside 0.1 height 2.7',
       'room living "Living room" living 5.0 x 4.0 at 0,0',
       'room kitchen "Kitchen" kitchen 3.0 x 4.0 east of living',
       'room hall "Hall" corridor * x 1.2 north of living until kitchen',
+      'room office "Office" office 3.0 x 3.0 west of living number "2.03" facts department=Sales capacity=4',
     ],
   },
   {

@@ -20,8 +20,8 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 
 `grid serve` is an MCP server over standard input and output, for an agent's host to start.
 Its tools are listed in a fixed order: first those that read the plan, in the order of the
-requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the thirteen that
-change the plan, writing it rooms first leading and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
+requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the fourteen that
+change the plan, writing it rooms first leading, then the facts and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
 and the allowed values of each argument, and an output schema. Each answer is short text with
 the same facts as data; a view also returns its picture. A length argument is metres, or text with its unit (`12'6"`, `360 cm`); the measuring tools, the views and the sheet write in `units` and `decimal`, or the plan's `display`, the person's own units, and in metres when neither says (see [Units](plan-file.md#units)). The check and the edit answers are in metres.
 
@@ -67,6 +67,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_start_works` | Marks every wall, door, window and room that states no phase as `existing`, so the plan as it stands is the building before the work and each change after it is the work; a part that states a phase keeps it |
 | `grid_phase_from` | Writes one plan with phases from two plans, `before` and `after`, paired by id: only in the first is demolished, only in the second is new, the same in both is existing, and a part that changed is new beside its old self `<id>-before`, demolished; writes `out`, changes neither plan |
 | `grid_tidy` | Lists the faults where walls meet, each with its id and the fix Grid offers, and writes nothing; with `apply` (fault ids) or `all`, makes those fixes on the plan or `out`, and says what was made, what was skipped and why, and the faults left. A wall across a corner of a room at an angle is taken as the room's new face; a fix that would leave a room with no way in says so and lists those rooms in `seals` ([commands.md](commands.md#walls-that-do-not-meet-grid-tidy)) |
+| `grid_set_facts` | Sets facts of the person's own (`set`), takes them out (`unset`) or gives one room its number (`number`, `none` to leave it to Grid's count), on parts named by id (`parts`) or picked as `grid_find` picks them (`kind`, `floor`, `room`, `where`), and says what changed on which parts and what was so already ([below](#asking-across-the-parts-fields-find-and-count)) |
 | `grid_save_view` | Saves a camera record `grid_view` returned under a name, with the plan, in its `views`, as Grid's setting and as BCF's camera; with `replace` over a view of that name, with `remove` takes one out ([below](#a-camera-you-can-set-and-saved-views)) |
 
 In a plan that states a phase, an edit is building work. `correction` on `grid_change_opening`, `grid_change_wall`, `grid_move_room_side`, `grid_mirror`, `grid_merge_rooms`, `grid_split_room`, `grid_add_room`, `grid_stretch`, `grid_square_scan` and `grid_add_opening` makes the change a correction of the survey instead: it is made in place and no part's phase changes ("the hall is on the right, actually"; [plan-file.md](plan-file.md#existing-demolished-and-new)).
@@ -159,6 +160,24 @@ floor by its value (`colour`, the field it grouped by), with a key. The `floor` 
 holds most of them; `floors` lists every floor they are on. `grid_view` also takes either
 argument by hand. Grid checks nothing against a fact: no answer says what a fire rating or a
 head count means for the plan.
+
+`grid_set_facts` writes them (WRT-74), and `grid_fields` says so in its answer (`setBy`). It
+takes the parts by id in `parts`, of any kind, or picks them as `grid_find` does, with the same
+`kind`, `floor`, `room` and `where`; given both, only the named parts the selection picks. "Lot 7
+is sold" is `{ "parts": ["lot-7"], "set": { "status": "sold" } }`; "every room on the first floor
+is Sales" is `{ "kind": ["room"], "floor": "first", "set": { "department": "Sales" } }`. `set`
+gives each fact as text, a number, or true or false, and replaces one the part has; `unset` takes
+facts out, and a part left with none keeps no `properties`. A name the plan already spells
+otherwise (`Department` for `department`) keeps the plan's spelling. A name that is a field of
+Grid's on the parts named (a room's `name`, `use` or `number`, an `area`) is refused with what
+sets it. `number` gives one room its number: it is refused for several rooms, a part that is
+not a room, a zone (its room's number counts) and a number another room shows. When stating it
+would move the numbers Grid counts for the other rooms, they are written with the numbers they
+showed, and the answer says so; `none` takes a number out, refused when that would move others'.
+The answer says, fact by fact, the parts it is set on, the parts that had it already and the
+parts that carried none to take out; its data's `parts` lists each part changed with what was
+set, taken out and its number. Rooms text writes them on a room's line too
+([rooms-first.md](rooms-first.md)).
 
 ## The label, and retelling a report
 

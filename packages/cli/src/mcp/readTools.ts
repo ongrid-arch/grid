@@ -1197,7 +1197,8 @@ function asked<T>(run: () => T): T {
   }
 }
 
-const KIND_ARG: ArgSpec = {
+/** WRT-74: grid_set_facts picks parts by the same arguments. */
+export const KIND_ARG: ArgSpec = {
   type: 'array',
   description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor. Every kind when left out.',
   examples: [['door'], ['room'], ['door', 'window']],
@@ -1206,7 +1207,7 @@ const KIND_ARG: ArgSpec = {
   maxItems: PART_KINDS.length,
 }
 
-const WHERE_ARG: ArgSpec = {
+export const WHERE_ARG: ArgSpec = {
   type: 'array',
   description: 'Conditions every part must meet, one each: a field or fact, then a test. Tests: "is missing", "is set", = and != (text in any capitals, yes or no), <, <=, > and >= (numbers; a length may give its unit, as 900 mm), and "contains". A part with no value meets only "is missing". Every part when left out.',
   examples: [['fire rating is missing'], ['department = Sales', 'area >= 20'], ['width < 900 mm']],
@@ -1215,7 +1216,7 @@ const WHERE_ARG: ArgSpec = {
   maxItems: 20,
 }
 
-const ROOM_IN_ARG: ArgSpec = {
+export const ROOM_IN_ARG: ArgSpec = {
   type: 'string',
   id: true,
   description: 'Only what belongs to this room, by id: the room itself, the walls beside it and the doors, windows and openings into it.',
@@ -1252,13 +1253,16 @@ function viewOf(asked: Asked, ids: readonly string[], extra: Record<string, unkn
   return { view: { kind: 'plan', ...(most === undefined ? {} : { floor: most }), ...extra }, floors: [...count.keys()] }
 }
 
+/** WRT-74: how a fact is set, so the agent finds the tool from the question it asks first. */
+const SET_FACTS_LINE = 'Set facts and a room\'s number with grid_set_facts (set, unset, number), on parts by id or picked as grid_find picks them; or on a room\'s line in rooms text: number "2.03", dept "ED", facts department=Sales capacity=4.'
+
 const fieldsTool: GridTool = {
   name: 'grid_fields',
   title: 'What can be asked of the plan',
   hint: 'read',
   description:
     'Use this when you are about to find, count or sum parts of the plan and need the names to ask by: which fields Grid works out for each kind of part (area, width, height, the rooms beside a wall), with their units, and which facts of the person\'s own the parts carry (a fire rating, a department, a head count), with how many parts carry each and their values. '
-    + 'Call it once before grid_find or grid_count on a plan you have not asked of yet. Do not use for the answer itself (grid_find, grid_count), for areas (grid_areas) or for a door schedule (grid_schedule). Units are metres and square metres.',
+    + 'Call it once before grid_find or grid_count on a plan you have not asked of yet. To record a fact or a room number the person gives, use grid_set_facts. Do not use for the answer itself (grid_find, grid_count), for areas (grid_areas) or for a door schedule (grid_schedule). Units are metres and square metres.',
   args: {
     plan: PLAN_ARG,
     kind: KIND_ARG,
@@ -1268,6 +1272,7 @@ const fieldsTool: GridTool = {
     fields: listSchema(objectSchema({ name: STRING, type: STRING, unit: { type: ['string', 'null'] }, kinds: listSchema(STRING), from: STRING, about: STRING })),
     facts: listSchema(objectSchema({ name: STRING, type: STRING, unit: { type: ['string', 'null'] }, kinds: listSchema(STRING), from: STRING, count: NUMBER, values: listSchema(STRING), shadowed: { type: 'boolean' } }, ['name', 'type', 'kinds', 'count', 'values'])),
     rule: STRING,
+    setBy: STRING,
   }),
   run(args, context) {
     const { survey } = load(context, args['plan'])
@@ -1283,9 +1288,10 @@ const fieldsTool: GridTool = {
         ? 'No part carries a fact of the person\'s own.'
         : `Facts of the person's own: ${facts.map((f) => `${q(f.name)} (${f.type}, on ${f.count} ${f.kinds.join(' and ')} part${f.count === 1 ? '' : 's'}${f.values.length > 0 ? `; ${f.values.map(q).join(', ')}` : ''}${f.shadowed ? `; ask it as ${q(`properties.${f.name}`)}` : ''})`).join('; ')}.`,
       'Ask with grid_find (which parts, with only the fields you name) or grid_count (how many, and sums, by a field), naming fields and facts as listed here.',
+      SET_FACTS_LINE,
       QUERY_RULE,
     ]
-    return { text: lines.join('\n'), data: { kinds: counts, fields, facts, rule: QUERY_RULE } }
+    return { text: lines.join('\n'), data: { kinds: counts, fields, facts, rule: QUERY_RULE, setBy: SET_FACTS_LINE } }
   },
 }
 

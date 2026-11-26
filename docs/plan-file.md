@@ -1321,6 +1321,10 @@ or a wall meets one, and no check reads one. What Grid does with them:
   drawing's upper left corner, above its dimensions). A plan with no facts writes none.
 - **The tool server asks across them**: `grid_fields`, `grid_find` and `grid_count`
   ([tool-server.md](tool-server.md#asking-across-the-parts-fields-find-and-count)).
+- **A tool and a room line write them** (WRT-74): `grid_set_facts` sets and takes out facts and
+  a room's number on parts by id, or on every part a `where` picks; rooms text writes a room's on
+  its line, `number "2.03"`, `dept "ED"` (the fact `department`) and `facts department=Sales
+  capacity=4`, and `grid describe --as rooms` writes them back there ([rooms-first.md](rooms-first.md)).
 
 A fact travels with the plan into every export, like a room's name: keep people's names out of
 facts too ([People are kept out of the plan](#people-are-kept-out-of-the-plan)).

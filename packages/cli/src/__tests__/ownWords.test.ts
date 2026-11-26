@@ -116,6 +116,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
   'packages/cli/src/mcp/editTools.ts': [107, 'tools'],
+  // WRT-74: grid_set_facts, its help and its argument checks.
+  'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -130,7 +132,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-53: one more, the line of a measure that runs through a wall.
   // VEW-62: five more, grid_view's out argument, its description and its refusals.
   // ARE-60: one more, grid_areas' area under air.
-  'packages/cli/src/mcp/readTools.ts': [382, 'tools'],
+  // WRT-74: one more, grid_fields' line on how facts are set.
+  'packages/cli/src/mcp/readTools.ts': [383, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -145,7 +148,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-38: two more, the rooms grammar resource's title and description.
   'packages/cli/src/mcp/serveTools.ts': [3, 'tools'],
   // CMD-38: the whole rooms grammar, by topic, for the agent.
-  'packages/cli/src/mcp/roomsGrammar.ts': [51, 'tools'],
+  // WRT-74: one more, the example of a room line with its number and facts.
+  'packages/cli/src/mcp/roomsGrammar.ts': [52, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.

@@ -121,6 +121,15 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   `room s "Store" storage 2 x 2 east of k unconditioned` takes an unheated store out. Unstated, a
   parking room is not under air and every other room is. Outdoor space never is: either word on
   its line is read as nothing, and the answer says so (`rooms/conditioned-outdoor`).
+- `number "2.03"` on a room line states its room number, `dept "ED"` its department (the fact
+  `department`) and `facts department=Sales capacity=4 "head count"=8` facts of the person's own
+  (WRT-74, [the plan file](plan-file.md#facts-of-your-own-and-room-numbers)). A value in quotes is
+  text; one out of quotes is a number when it reads as one (`4`, not `007`), yes or no for `yes`,
+  `no`, `true` or `false`, and text otherwise. A fact given twice, under any spelling, or with no
+  value is refused, and so are the three words in a unit, which is placed many times: give each
+  placed room its own with `grid_set_facts`, by its id. `grid describe --as rooms` writes a room's
+  number and facts on its line; one it could not write so that it reads back the same is kept by
+  id when the text is written again, as before.
 - `outdoor terrace` on a room line marks it as outdoor space (CNT-7), one of `garden`,
   `courtyard`, `terrace`, `balcony`, `light-well`, `porch`, `carport` or `other`, and `roofed` or
   `unroofed` after it says whether a roof covers it; unstated, a porch and a carport are roofed.
@@ -444,13 +453,14 @@ Every line rooms text takes, by topic, each with one example Grid writes with no
 
 ### Rooms
 
-room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room's south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls.
+room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room's south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls. number "<text>", dept <text> and facts <name>=<value> ... give it its room number, its department and facts of the person's own.
 
 ```rooms
 walls outside 0.3 inside 0.1 height 2.7
 room living "Living room" living 5.0 x 4.0 at 0,0
 room kitchen "Kitchen" kitchen 3.0 x 4.0 east of living
 room hall "Hall" corridor * x 1.2 north of living until kitchen
+room office "Office" office 3.0 x 3.0 west of living number "2.03" facts department=Sales capacity=4
 ```
 
 ### Openings
