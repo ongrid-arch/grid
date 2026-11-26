@@ -950,6 +950,14 @@ round it too: a porch's front under the porch's roof, a terrace's parapet, a sta
 standing on a roof terrace, and the front of a floor set back behind a terrace. A wall, or a door
 or window, that nearer faces hide whole is left out of the drawing and of the facade's lists.
 
+Each window is drawn as it is built (VEW-63): its frame, a sash for each part that opens, its
+glass in a tone of its own (a pale grey in the technical look) with a bar where two panes meet, a
+sill under it and a head over it. Its kind, stated or given by its window type, decides its panes,
+as it decides the 3D view's: a fixed window has one, a pair two, a casement that opens in part a
+fixed pane beside it, a sliding window two sashes passing. The sill (`facadeSillDepth`, running
+past each side by `sillProjection`) and the head (`facadeHeadDepth`) are Grid's own drawing sizes,
+[tolerances.md](tolerances.md): the plan holds neither, and a window from the floor has no sill.
+
 It takes `--png`, `--out`, `--look` and `--scale` (PNG only), as a plan does, and the label in its
 corner. It refuses `--3d`, `--view`, `--section` and `--floor` (a facade shows every floor) and
 what belongs to a floor plan (`--ids`, `--hide`, `--colour`, `--key`, `--units`, `--decimal`,
