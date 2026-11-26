@@ -5,7 +5,7 @@
  * heights from `floorElevations`, stairs from `planFacts`, findings from `checkPlan`. The
  * pictures are named, not drawn: a floor and its frame, or the model.
  */
-import { floorElevations, planFloors, type Bounds } from '@ongrid/floorplan/geometry'
+import { planFloors, type Bounds } from '@ongrid/floorplan/geometry'
 import { areaText, metresText, sumText } from '@ongrid/floorplan/geometry/rounding'
 import type { SheetWords } from '@ongrid/floorplan/types/sheet'
 import { decimalFor, DEFAULT_LANGUAGE, joined, name, num, say, sayValue, labelOfUse, type Language, type MessageKey, type Said, type Values } from '@ongrid/floorplan/messages'
