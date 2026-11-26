@@ -418,7 +418,7 @@ const changeOpeningTool: GridTool = {
     width: { type: 'number', length: true, description: 'The new width of the hole in the wall, in metres. As wide as its wall allows.', examples: [0.9, 4], minimum: 0.3, maximum: limit('openingWidest') },
     keep: { type: 'string', enum: KEEPS, description: 'Which point stays put when the width changes: start (the end nearer the wall\'s start), centre or end. centre when left out.', examples: ['centre', 'start'] },
     height: { type: 'number', length: true, description: 'The new height of the opening, in metres.', examples: [2.1, 1.2], minimum: 0.2, maximum: 10 },
-    sill: { type: 'number', length: true, description: 'Windows: the new sill above the floor, in metres.', examples: [0.9, 0.6], minimum: 0, maximum: 5 },
+    sill: { type: 'number', length: true, description: 'The new height of its lower edge above the floor, in metres: a window\'s sill, or a door\'s threshold (0 takes the step away).', examples: [0.9, 0.6, 0], minimum: 0, maximum: 5 },
     type: { type: 'string', enum: ['door', 'window', 'opening'], description: 'Make it a door, a window or a doorless opening.', examples: ['door', 'opening'] },
     opens_into: { type: 'string', id: true, description: 'Doors: the room id it opens into, or "outside".', examples: ['hall', 'outside'] },
     hinge: { type: 'string', enum: ['start', 'end'], description: 'Doors: the end of the opening it hangs from, start being nearer the wall\'s start. For a sliding, pocket or folding door, the end it opens toward. hinged says the same in the person\'s terms.', examples: ['start', 'end'] },
