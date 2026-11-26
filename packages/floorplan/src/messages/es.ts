@@ -2195,7 +2195,7 @@ export const es: Messages = {
     "Línea {line}: un raw floor contiene {known} de la planta, como los guarda el archivo de plano de Grid, y {field} no es ninguno de ellos. {fix}",
   'rooms.raw.floorField.line': 'El {field} de la planta se escribe en su línea de planta: floor <id> {field} <valor>.',
   'rooms.raw.kind':
-    "Línea {line}: raw admite wall, room, opening, floor, stair o item, y luego un objeto JSON como lo guarda el archivo de plano de Grid; 'raw {kind}' no es ninguno de ellos. {where}",
+    "Línea {line}: raw admite wall, room, opening, floor, stair, item, bay o ramp, y luego un objeto JSON como lo guarda el archivo de plano de Grid; 'raw {kind}' no es ninguno de ellos. {where}",
   'rooms.raw.kind.opening': 'Una puerta o una ventana se escribe raw opening {"id": "<id>", "type": "{type}", "wall": "<id del muro>", "offset": <m>, "width": <m>, "height": <m>}.',
   'rooms.raw.kind.floor': 'El {list} de una planta se escribe raw floor {"{list}": ...}, bajo su línea de planta.',
   'rooms.raw.kind.list': 'El texto de estancias no tiene línea para ello: el archivo de plano de Grid lo guarda en "{list}", que se cambia en el archivo una vez escrito el plano.',
@@ -2206,6 +2206,8 @@ export const es: Messages = {
   'rooms.ground.once': "línea {line}: la cota del terreno ya está escrita en la línea {first}: escríbala una sola vez, como 'ground <m>'.",
   'site.ground.how': "Indíquela con una línea 'ground <m>' en el texto de estancias, o con grid_set_site ground: el terreno exterior, en metros desde el nivel de suelo de la planta baja (-0.15 para un suelo 15 cm por encima del terreno).",
   'rooms.raw.kind.none': 'El texto de estancias no tiene línea para ello, en crudo o no.',
+  'rooms.raw.kind.bay': 'Una plaza de aparcamiento se escribe raw bay {"id": "<id>", "at": [x, y], "width": <m>, "length": <m>}, o en una línea propia: bay <id> at x,y, <ancho> x <largo>, o una fila: bays <grupo> in <estancia> along <lado>, <ancho> x <largo>, o bays <grupo> in <estancia> fill.',
+  'rooms.raw.kind.ramp': 'Una rampa se escribe raw ramp {"id": "<id>", "from": "<planta>", "to": "<planta>", "width": <m>, "run": [[x, y], ...]}, o en una línea propia: ramp <id> from <planta> to <planta> in <estancia>, <ancho> wide, straight, runs <lado>, o ..., helix.',
   'rooms.raw.kind.stair': 'Una escalera se escribe raw stair {"id": "<id>", "from": "<planta>", "to": "<planta>", "width": <m>, "run": [[x, y], ...]}, o en una línea propia: stair <id> from <planta> to <planta> in <estancia>, <ancho> wide, straight|L|U, runs <lado>.',
   // WRT-75: un acondicionamiento sobre un plano base en texto de estancias (rooms/base.ts).
   'rooms.base.syntax': "línea {line}: escriba 'base <archivo del plano>', la ruta del plano base desde la carpeta del proyecto, entre comillas si tiene un espacio.",
@@ -2222,7 +2224,7 @@ export const es: Messages = {
   'rooms.raw.smallLetters':
     "Línea {line}: el texto de estancias se lee en minúsculas, y '{written}' no lo está; escriba '{offered}'.",
   'rooms.raw.kind.item': 'Un aparato o un mueble se escribe raw item {"id": "<id>", "kind": "<tipo>", "at": [x, y], "size": [ancho, fondo], "height": <m>}, o en una línea propia: item <id> <nombre> in <estancia> against <lado>.',
-  'rooms.raw.kind.nothing': "Línea {line}: raw admite wall, room, opening, floor, stair o item, y luego un objeto JSON como lo guarda el archivo de plano de Grid: raw wall {\"id\": ...}.",
+  'rooms.raw.kind.nothing': "Línea {line}: raw admite wall, room, opening, floor, stair, item, bay o ramp, y luego un objeto JSON como lo guarda el archivo de plano de Grid: raw wall {\"id\": ...}.",
   'rooms.plan.oneName': 'Línea {line}: la línea plan admite un nombre, entre comillas si tiene espacios, y {extra} tras él no se leería. Escriba {offered}.',
   'rooms.wall.unknownRoom':
     "Línea {line}: la línea de muro nombra '{room}', que no es una estancia escrita en la planta '{floor}'.{nearest} Estancias de ahí: {rooms}.",

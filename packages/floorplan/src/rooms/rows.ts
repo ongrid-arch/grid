@@ -151,7 +151,7 @@ export function readRowLine(lines: ItemLines, t: readonly string[], quoted: read
 }
 
 /** A row line from its item's words and its row's, as rooms text reads it. */
-export function rowLine(words: ItemWords, row: RowWords): string {
+export function itemRowLine(words: ItemWords, row: RowWords): string {
   const along = `repeat ${row.count}${row.every === undefined ? '' : ` every ${exact(row.every)}`}`
   const rows = (row.rows ?? 1) > 1 ? `, ${row.rows} rows${row.rowEvery === undefined ? '' : ` every ${exact(row.rowEvery)}`}${row.behind === true ? ' behind' : ''}` : ''
   return `row ${itemLine(words).slice('item '.length)} ${along}${rows}`
@@ -218,7 +218,7 @@ function rowAt(plan: FloorPlan, items: readonly Item[], i: number): { line: stri
   } catch {
     return null
   }
-  return { line: rowLine(words, row), size }
+  return { line: itemRowLine(words, row), size }
 }
 
 /**
