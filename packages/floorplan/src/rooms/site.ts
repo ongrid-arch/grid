@@ -16,7 +16,9 @@
  *                                         where the north arrow points on the drawing
  *   site origin x,y                       a point of the plan, placed on the earth by
  *   site location <latitude>,<longitude>  degrees, north and east positive
- *   site elevation <m>   site ground <m>   above sea level; the ground's level from the ground floor's
+ *   site elevation <m>                    above sea level
+ *   ground <m> [below|above]              the ground outside, from the ground floor's floor level
+ *                                         (ARE-62, `ground.ts`); `site ground <m>` is the same field
  *   site country <name or code>           where it will be built (C10)
  *   site <fence|gate|path|paving|tree|pool> [<id>] <points | at x,y> [width <m>] [canopy <m>]
  *        [height <m>] [id <id>] ["<label>"]
@@ -31,11 +33,13 @@
  */
 import { SITE_THING_KINDS, SiteSchema, type FloorPlan, type Site, type SiteThing, type SiteThingKind } from '../types/floorplan'
 import { metres, numberOf, pointOf, isPointWord, RoomsStop, type LineWord, type PlainNumbers, PLAIN_METRES } from './words'
+import { GROUND_LINE_WORD, groundOfWords } from './ground'
+import { english, said } from '../messages/say'
 
 type P = readonly [number, number]
 
 /** The first words of the lines this file reads. */
-export const SITE_LINE_WORDS: readonly string[] = ['site', 'plot', 'street', 'streets', 'setback', 'setbacks', 'north']
+export const SITE_LINE_WORDS: readonly string[] = ['site', 'plot', 'street', 'streets', 'setback', 'setbacks', 'north', GROUND_LINE_WORD]
 
 /** The sides of the drawing a street or a set-back may name (C4: north is up the drawing). */
 export const DRAWING_SIDES: Readonly<Record<string, P>> = { north: [0, 1], south: [0, -1], east: [1, 0], west: [-1, 0] }
@@ -286,6 +290,8 @@ export class SiteLines {
       return
     }
     if (kw === 'plot') return this.readPlot(t.slice(1), at, plain)
+    // ARE-62: `ground <m>`, the field `site ground <m>` writes too.
+    if (kw === GROUND_LINE_WORD) return this.ground(groundOfWords(t.slice(1), at, plain), at)
     // `site ...`
     const what = t[1]
     if (what === 'plot') return this.readPlot(t.slice(2), at, plain)
@@ -313,12 +319,20 @@ export class SiteLines {
       if (parts.length !== 2 || !parts.every(Number.isFinite)) stop(at, "write 'site location <latitude>,<longitude>' in degrees, north and east positive: 'site location 40.4168,-3.7038'.")
       return field('location', parts)
     }
-    if ((what === 'elevation' || what === 'ground') && rest.length === 1) return field(what, numberOf(rest[0]!, at, plain))
+    if (what === 'elevation' && rest.length === 1) return field(what, numberOf(rest[0]!, at, plain))
+    if (what === 'ground') return this.ground(groundOfWords(rest, at, plain), at)
     if (what === 'country' && rest.length > 0) {
       const named = words.slice(2).map((w) => w.text).join(' ')
       return field('country', named)
     }
-    stop(at, `write 'site boundary x,y x,y x,y ...', 'site origin x,y', 'site location <latitude>,<longitude>', 'site elevation <m>', 'site ground <m>', 'site country <name>' or one of the site's things: 'site <${SITE_THING_KINDS.join('|')}> ...'.`)
+    stop(at, `write 'site boundary x,y x,y x,y ...', 'site origin x,y', 'site location <latitude>,<longitude>', 'site elevation <m>', 'ground <m>', 'site country <name>' or one of the site's things: 'site <${SITE_THING_KINDS.join('|')}> ...'.`)
+  }
+
+  /** The ground's level, from a `ground` or a `site ground` line, written once. */
+  private ground(level: number, at: number): void {
+    const had = this.fields.get('ground')
+    if (had !== undefined) throw new RoomsStop('rooms/site', english(said('rooms.ground.once', { line: String(at), first: String(had.line) })), at)
+    this.fields.set('ground', { value: level, line: at })
   }
 
   private once(at: number): void {
@@ -455,7 +469,7 @@ export function siteLines(plan: Pick<FloorPlan, 'site' | 'north'>): string[] {
   if (site.origin !== undefined) lines.push(`site origin ${point(site.origin)}`)
   if (site.latitude !== undefined && site.longitude !== undefined) lines.push(`site location ${site.latitude},${site.longitude}`)
   if (site.elevation !== undefined) lines.push(`site elevation ${metres(site.elevation)}`)
-  if (site.ground !== undefined) lines.push(`site ground ${metres(site.ground)}`)
+  if (site.ground !== undefined) lines.push(`ground ${metres(site.ground)}`)
   if (site.country !== undefined) lines.push(`site country ${quote(site.country)}`)
   for (const thing of site.things ?? []) lines.push(thingLine(thing))
   return lines

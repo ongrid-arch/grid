@@ -13,9 +13,9 @@
  *
  * The tool server's `grid_write_rooms` does the same through `writeRoomsIntoProject`.
  */
-import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, planFloors, planHasPhases, roomShapes, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
+import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planFloors, roomShapes, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
 import { english, name, said, type Said } from '@ongrid/floorplan/messages'
-import { carryFacts, compileRoomsText, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type RoomsResult } from '@ongrid/floorplan/rooms'
+import { baseNamedIn, carryFacts, compileRoomsText, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
@@ -27,7 +27,7 @@ import { comparePlans } from '../quantities/compare'
 import { surveyPlan } from '../quantities/survey'
 import { siteDescription } from '../quantities/site'
 import starterPlan from './starter-plan.json'
-import { loadPlan, PlanRefused } from './plan'
+import { loadBase, loadPlan, PlanRefused } from './plan'
 import { refuseGridFile } from './planFile'
 import { nameNotes, PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
 import { PROJECT_OPTION, type OptionSpecs } from './options'
@@ -229,13 +229,39 @@ export interface PartFacts {
   readonly openings?: Readonly<Record<string, Readonly<Record<string, string>>>>
 }
 
+/**
+ * WRT-75: the base plan the text's `base` line names, read from the project by the rules a plan's
+ * base is read by (`loadBase`); null when it names none. The plan itself is never its own base.
+ */
+function baseOfText(project: Project, text: string, planFile: string): BasePlan | null {
+  const named = baseNamedIn(text)
+  if (named === null) return null
+  const shown = project.shown(project.resolve(planFile))
+  let same = false
+  try {
+    same = project.resolve(named.file, 'project') === project.resolve(planFile)
+  } catch {
+    // A path the project refuses is refused by loadBase, in its words.
+  }
+  if (same) throw new RoomsRefused('rooms/base', english(said('write.base.self', { file: name(named.file) })))
+  try {
+    return { file: named.file, plan: loadBase(project, named.file, shown).plan }
+  } catch (error) {
+    if (!(error instanceof PlanRefused)) throw error
+    throw new RoomsRefused('rooms/base', english(said('write.base.refused', { why: oneLine(error.message) })))
+  }
+}
+
 export function writeRoomsIntoProject(project: Project, text: string, planFile: string, options: { readonly replace?: boolean; readonly brief?: boolean; readonly facts?: PartFacts } = {}): WriteDone {
   if (!planFile.toLowerCase().endsWith('.json')) throw new RoomsRefused('rooms/plan-file', `The plan to write must be a .json file: got ${JSON.stringify(planFile)}.`)
   // WRT-13: grid.json and the files kept beside a plan are never written as a plan.
   refuseGridFile(project.shown(project.resolve(planFile)), planFile)
   refuseReadOnly(project, planFile)
+  // WRT-75: a fit-out's base is read before the text is written, and its rooms rest on its walls.
+  const base = baseOfText(project, text.normalize('NFC'), planFile)
+  const withShell = (plan: FloorPlan): FloorPlan => (base === null ? plan : mergeBase(plan, base.plan).plan)
   // CMD-30: names in one form (NFC), so a letter typed with a combining accent is the one the plan holds.
-  const result = compileRoomsText(text.normalize('NFC'))
+  const result = compileRoomsText(text.normalize('NFC'), base === null ? {} : { base })
   if (result.plan === null) {
     const lines = problemLines(result)
     const more = lines.length > 1 ? ` (${lines.length - 1} more: ${lines.slice(1).join(' | ')})` : ''
@@ -257,6 +283,9 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
 
   // The plan now, if there is one, and whether writing over it would lose a change.
   let before: FloorPlan | null = null
+  // WRT-75: the plan's own parts, without its base's: what the file holds and was stamped from.
+  let own: FloorPlan | null = null
+  let beforeBase: FloorPlan | undefined
   let dropped: DroppedFloor[] = []
   let raw: Record<string, unknown> = { version: '1', units: 'm' }
   // The plan as a person sees its name: relative to the folder Grid runs in.
@@ -265,16 +294,23 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     // Read whole: the plan is written over, and a part the reader left out would be lost unseen.
     const loaded = loadPlan(project, planFile, { whole: true })
     before = loaded.plan
-    // CNT-10: rooms text holds no phase and no base, so writing it over such a plan would lose them.
-    if (options.replace !== true && planHasPhases(before)) {
+    own = loaded.base === undefined ? before : ownParts(before, loaded.base)
+    beforeBase = loaded.base?.plan
+    // CNT-10: rooms text holds no phase, so writing it over a plan with phases would lose them.
+    // WRT-75: it holds a base, so a fit-out is written again on the same base.
+    if (options.replace !== true && [...own.walls, ...own.openings, ...own.rooms].some((part) => part.phase !== undefined)) {
       throw new RoomsRefused(
         'rooms/phases',
-        `${shownFile} holds ${before.base === undefined ? 'existing, demolished and new parts' : `a fit-out on the base plan ${JSON.stringify(before.base)}`}, which rooms text does not hold, so writing it from rooms text would lose ${before.base === undefined ? 'them' : 'it'}. Change it with the edit tools (grid edit), which keep each part's phase and leave a base as it is; or add --replace to write over it and lose ${before.base === undefined ? 'them' : 'it'}.`
+        `${shownFile} holds existing, demolished and new parts, which rooms text does not hold, so writing it from rooms text would lose them. Change it with the edit tools (grid edit), which keep each part's phase and leave a base as it is; or add --replace to write over it and lose them.`
       )
+    }
+    if (options.replace !== true && before.base !== undefined && plan.base !== before.base) {
+      const words = { file: name(shownFile), was: name(before.base), now: name(plan.base ?? '') }
+      throw new RoomsRefused('rooms/phases', english(said(plan.base === undefined ? 'write.base.dropped' : 'write.base.changed', words)))
     }
     raw = JSON.parse(project.readText(planFile, PLAN_FILE_MAX_BYTES).text) as Record<string, unknown>
     // WRT-16: rooms text for some floors would take the others, with their rooms, outlines, homes and parking.
-    dropped = floorsDropped(before, plan)
+    dropped = floorsDropped(before, withShell(plan))
     if (options.replace !== true && dropped.length > 0) {
       const shown = dropped.slice(0, 10).map(droppedWords).join('; ')
       throw new RoomsRefused(
@@ -282,27 +318,27 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
         `${shownFile} has ${dropped.length === 1 ? 'a floor' : `${dropped.length} floors`} this rooms text does not mention, and writing it would drop ${dropped.length === 1 ? 'it' : 'them'}: ${shown}${dropped.length > 10 ? ` and ${dropped.length - 10} more` : ''}. Nothing was written. Read the whole plan back as rooms text (grid describe --as rooms), change that and write it, which keeps every floor; or add --replace to drop ${dropped.length === 1 ? 'it' : 'them'}.`
       )
     }
-    const now = planRevision(before)
+    const now = planRevision(own)
     if (options.replace !== true) {
       if (result.basedOn !== null && result.basedOn !== now) {
         throw new RoomsRefused(
           'rooms/stale',
-          `This rooms text was read from another version of ${shownFile} (based on ${result.basedOn}; the plan is now ${now}), so writing it would undo what changed since. ${differenceLine(before, plan)} Read the plan back again (grid describe --as rooms), make the change there and write that; or add --replace to write over it.`
+          `This rooms text was read from another version of ${shownFile} (based on ${result.basedOn}; the plan is now ${now}), so writing it would undo what changed since. ${differenceLine(before, withShell(plan))} Read the plan back again (grid describe --as rooms), make the change there and write that; or add --replace to write over it.`
         )
       }
       const unchanged = before.written !== undefined && before.written.revision === now
-      if (result.basedOn === null && !unchanged && !nothingToLose(before)) {
+      if (result.basedOn === null && !unchanged && !nothingToLose(own)) {
         const why = before.written === undefined ? 'was not written from rooms text' : 'was changed since Grid last wrote it from rooms text'
         throw new RoomsRefused(
           'rooms/plan-changed',
-          `${shownFile} ${why}, and writing this text over it would lose that. ${differenceLine(before, plan)} Read the plan back as rooms text (grid describe --as rooms), which keeps it, and change that; or add --replace to write over it.`
+          `${shownFile} ${why}, and writing this text over it would lose that. ${differenceLine(before, withShell(plan))} Read the plan back as rooms text (grid describe --as rooms), which keeps it, and change that; or add --replace to write over it.`
         )
       }
     }
   }
 
   // CNT-9: the facts of the person's own and the rooms' numbers stay with their parts, by id.
-  const carried = before === null ? null : carryFacts(before, plan)
+  const carried = own === null ? null : carryFacts(own, plan)
   if (carried !== null) plan = carried.plan
   // CMD-43: a drawing's sources on the parts rooms text cannot carry them on, by id.
   if (options.facts !== undefined) plan = withPartFacts(plan, options.facts)
@@ -335,30 +371,36 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // SHT-22: the note lines replace the file's annotations, the sketch lines its sketch; a text that writes none keeps the file's.
   if (plan.annotations !== undefined) next['annotations'] = plan.annotations
   if (plan.sketch !== undefined) next['sketch'] = plan.sketch
+  // WRT-75: the base the text names; a text with none, written over a fit-out as asked, takes it off.
+  if (plan.base !== undefined) next['base'] = plan.base
+  else delete next['base']
   // SHT-14: the `plan` line's name stays in the plan; without one, the file's name stays.
   if (result.name !== null && result.name !== '') next['name'] = result.name
   next['written'] = stampFor(plan)
   // BRF-1: whether this is the plan's first write, before it is written.
-  const first = before === null || nothingToLose(before)
+  const first = own === null || nothingToLose(own)
   const written = project.relative(project.writeFile(planFile, `${JSON.stringify(next, null, 2)}\n`))
-  const brief = briefAnswer(project, planFile, plan)
-  const reminder = first ? briefReminder(project, planFile, plan) : null
+  // WRT-75: a fit-out is measured, counted and checked with its base read in, as every command reads it.
+  const shelled = withShell(plan)
+  const brief = briefAnswer(project, planFile, shelled)
+  const reminder = first ? briefReminder(project, planFile, shelled) : null
   // HND-11 (lab WR-14): the taped lengths the file keeps, against the plan as written.
-  const taped = tapedRows(safeParseFloorPlan(next) ?? plan)
+  const nextPlan = withShell(safeParseFloorPlan(next) ?? plan)
+  const taped = tapedRows(nextPlan)
 
-  const verdict = before === null || nothingToLose(before) ? null : comparePlans(surveyPlan(before), surveyPlan(plan), ['the plan before', 'the plan now']).verdict
+  const verdict = before === null || own === null || nothingToLose(own) ? null : comparePlans(surveyPlan(before), surveyPlan(shelled), ['the plan before', 'the plan now']).verdict
   // WRT-4 with LVL-8: the file's opening patterns are kept and name their walls by id, so the plan
   // written is counted with them, and what the new walls keep from being placed is said here.
   const patterns = before?.patterns ?? []
-  const kept: FloorPlan = patterns.length === 0 ? plan : { ...plan, patterns }
+  const kept: FloorPlan = patterns.length === 0 ? shelled : { ...shelled, patterns }
   // WRT-46: the plan as written, with the items, columns and other parts the file keeps, is the one
   // counted after, as the plan before was counted with them; its items are said with their rooms.
-  const items = keptItems(safeParseFloorPlan(next) ?? kept)
+  const items = keptItems(withShell(safeParseFloorPlan(next) ?? kept))
   const drawingProblems = { before: before === null ? 0 : validatePlan(before).issues.length, after: items.problems }
   // WRT-57: what grid check will list, as an edit counts it, so a write that leaves no way out says so;
   // and the doors that now join other rooms, from where each stands.
-  const toLookAt = { before: before === null ? 0 : inspectPlan(raw).count, after: inspectPlan(next).count }
-  const doors = before === null ? [] : doorLines(before, safeParseFloorPlan(next) ?? kept)
+  const toLookAt = { before: before === null ? 0 : inspectPlan(raw, beforeBase === undefined ? {} : { base: beforeBase }).count, after: inspectPlan(next, base === null ? {} : { base: base.plan }).count }
+  const doors = before === null ? [] : doorLines(before, nextPlan)
   const lines = [
     `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
     ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX),
@@ -371,12 +413,12 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(before === null || patterns.length === 0 ? [] : [patternsKept(before, kept)]),
     ...keptItemLines(items.items),
     // CNT-41: the plot in a line or two when the text wrote any of the site.
-    ...(plan.site === undefined ? [] : siteDescription(safeParseFloorPlan(next) ?? kept, 'agent')),
+    ...(plan.site === undefined ? [] : siteDescription(nextPlan, 'agent')),
     ...(plan.stairs !== undefined || (before?.stairs ?? []).length === 0 ? [] : [`Kept the plan's ${before!.stairs!.length === 1 ? 'stair' : `${before!.stairs!.length} stairs`} as the file has ${before!.stairs!.length === 1 ? 'it' : 'them'}: this rooms text writes no stair line. grid describe --as rooms writes ${before!.stairs!.length === 1 ? 'it' : 'them'} as stair lines.`]),
     ...(plan.flats !== undefined || (before?.flats ?? []).length === 0 ? [] : [`Kept the plan's ${before!.flats!.length === 1 ? 'flat' : `${before!.flats!.length} flats`} as the file has ${before!.flats!.length === 1 ? 'it' : 'them'}: this rooms text places no flat type. grid check names a room a flat lists that the text no longer has.`]),
     ...doors,
     english(said('write.toLookAt', { before: toLookAt.before, after: toLookAt.after, drawingBefore: drawingProblems.before, drawingAfter: drawingProblems.after })),
-    ...noStairLines(plan),
+    ...noStairLines(shelled),
     ...brief.text,
     ...(reminder === null ? [] : [reminder]),
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),

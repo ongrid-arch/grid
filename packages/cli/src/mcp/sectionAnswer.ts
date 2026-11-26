@@ -30,7 +30,7 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
     ...(section.reach.endInside ? [say(DEFAULT_LANGUAGE, 'drawing.section.reach.endInside')] : []),
     `Levels: ${section.levels.map((l) => `${q(l.name || l.floor)} ${levelText(l.level, display)}${l.source === 'worked-out' ? ' (worked out)' : ''}`).join(', ')}${section.roofs.length === 0 ? '' : `; roof ${section.roofs.map((r) => levelText(r.level, display)).join(', ')}`}; ground ${levelText(section.ground.level, display)}${section.ground.stated ? '' : ' (not stated)'}.`,
     ...(section.rooms.length === 0 ? [] : [`Rooms cut, floor to ceiling: ${section.rooms.map((r) => `${q(r.name || r.room)} ${m(r.height)} m${r.heightStated ? '' : ' (not stated)'}`).join(', ')}.`]),
-    ...(section.assumed.length === 0 ? [] : ['Taken by Grid, not stated in the plan (dashed on the drawing where marked so, and listed under it):', ...section.assumed.map((a) => `  ${a.hatched ? 'dashed' : 'listed'}: ${a.words}`)]),
+    ...(section.assumed.length === 0 ? [] : ['Taken by Grid, not stated in the plan (dashed on the drawing where marked so, and listed under it):', ...section.assumed.map((a) => `  ${a.hatched ? 'dashed' : 'listed'}: ${a.words}${a.kind === 'ground' ? ` ${say(DEFAULT_LANGUAGE, 'site.ground.how')}` : ''}`)]),
   ]
   return {
     text: lines.join('\n'),

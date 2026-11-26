@@ -485,7 +485,7 @@ and no roof, and a garden wall standing apart carries neither.
 
 | Field | What it states |
 |---|---|
-| `site.ground` | The level of the ground outside, in metres from the ground floor's floor level, the datum of a floor's `elevation`: `-0.15` for a floor 15 cm above the ground. One level for the whole site. It sits in the plan's one `site`, beside where the building is ([north, front and where the building is](#north-front-and-where-the-building-is)), and needs no `origin`; it is not `site.elevation`, which is metres above sea level |
+| `site.ground` | The level of the ground outside, in metres from the ground floor's floor level, the datum of a floor's `elevation`: `-0.15` for a floor 15 cm above the ground. One level for the whole site. It sits in the plan's one `site`, beside where the building is ([north, front and where the building is](#north-front-and-where-the-building-is)), and needs no `origin`; it is not `site.elevation`, which is metres above sea level. Rooms text writes it `ground -0.15` (or `ground 0.15 below`), and `grid_set_site` takes it as `ground` (ARE-62) |
 | floor `parapet` | Metres the floor's outside walls rise above its roof. Unstated, no parapet |
 | room `void` | The room is open to the floor below: no floor of its own |
 | room `ceiling` | The room has a ceiling, at its `height` (else its storey's). `lowered` lists the zones lower than the rest, each with `points` (its outline, three or more) and `height` (from the room's floor), and an optional `name`. A zone is clipped to its room |
@@ -1587,6 +1587,16 @@ The base is read-only. It is drawn as existing, measured and checked with the fi
 written into it: a change that would move, cut or take out a base wall or opening, or put an
 opening in a base wall, is refused, naming them, and nothing is written. To change the shell,
 change the base plan, and every fit-out on it reads the change.
+
+A fit-out is written in rooms text by its first line, `base <plan>` (WRT-75): the rooms are
+written by their inside faces as always, and a wall Grid works out whose room faces lie on the
+faces of a base wall is not written: the room names the base's wall in its boundary instead, by
+the base's id. `grid write` and `grid_write_rooms` read the base through the same resolver and
+write `base` into the plan with only the fit-out's own walls, rooms and openings; a door or window
+the text puts in a base wall is refused. `grid describe --as rooms` reads a fit-out back with its
+`base` line, and that text writes the same fit-out again; rooms text that names another base, or
+none, over a fit-out is refused unless `--replace` is given. `grid_start_fit_out` (`grid edit
+fit-out --base <plan>`) starts one: a new plan naming the base, with the base's rooms as its own.
 
 ## Wall faults, each with its fix
 
