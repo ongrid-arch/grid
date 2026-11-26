@@ -1721,6 +1721,8 @@ export const en = {
   'report.lookedAtIds': 'looked at: {ids}',
   'report.notLookedAt': 'not looked at, {parts}{where}: {why}: {ids}',
   'report.gap': '; not looked at {count}: {whys}',
+  'report.gap.byReason': '; not looked at {count}, by reason: {whys}',
+  'report.gap.reason': '{count}, {why}',
   'report.rooms.none': 'no rooms: there are none to look at',
   'report.rooms': '{lookedAt} of {rooms}{byNone}',
   'report.rooms.byNone': '; looked at by none: {ids}',

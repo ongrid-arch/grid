@@ -99,6 +99,16 @@ describe('every check says what it looked at (CH-1)', () => {
     expect(escape.skipped.map((s) => [s.reason, s.ids.length])).toEqual([['above_escape_storeys', 8], ['use_not_covered', 1]])
   })
 
+  it('counts each reason a check left parts out for, and words a single reason as before (ARE-58)', () => {
+    const result = checkPlan(plan(WORST), { country: 'US' })
+    const escape = result.result.coverage.find((c) => c.ruleId === 'escape-opening')!
+    const stairs = escape.skipped.find((s) => s.reason === 'above_escape_storeys')!
+    expect(checkText(result, 1)).toContain(`; not looked at 8: ${stairs.why}.`)
+    const drawn = { ...stairs, reason: 'cannot_be_drawn' as const, why: 'could not be drawn', said: undefined, ids: ['w1'] }
+    const mixed = { ...result, result: { ...result.result, coverage: result.result.coverage.map((c) => (c === escape ? { ...c, skipped: [...c.skipped, drawn] } : c)) } }
+    expect(checkText(mixed, 1)).toContain(`; not looked at 9, by reason: 8, ${stairs.why}; 1, could not be drawn.`)
+  })
+
   it('the same walls with no rooms: one line says no check that looks at rooms ran, and no check is listed as run', () => {
     const result = checkPlan(plan(WALLS_ONLY), { country: 'US' })
     // CNT-14: its doors state no swing, and the door check says so first, on a line of its own.
