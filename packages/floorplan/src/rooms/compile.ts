@@ -47,6 +47,8 @@
  *                                 the room is outdoor space (CNT-7, C26), roofed or not
  *                conditioned|unconditioned  heated or cooled or not, so in the living area under air
  *                                 or out of it (ARE-60); unstated, a parking room is not
+ *                number "<text>"  dept <text>  facts <name>=<value> ...  its stated room number, its
+ *                                 department and facts of the person's own (WRT-74), never in a unit
  *                through <floor>  the room, and so its walls, stands on every floor written after this
  *                                 one up to that floor too, in the same place (WRT-4): a stair or lift
  *                                 core, a shaft, a block's outside walls; with the openings written

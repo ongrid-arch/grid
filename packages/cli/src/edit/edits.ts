@@ -35,6 +35,8 @@ export type OpeningChange = Partial<{ [K in 'offset' | 'type' | 'hinge' | 'swing
   /** CNT-15: the door or window type it takes; null takes it out. */
   doorType?: string | null
   windowType?: string | null
+  /** WRT-74: its facts of the person's own, all of them; null takes them out. */
+  properties?: Readonly<Record<string, string | number | boolean>> | null
 }
 
 /** A change to one room. `null` takes a key out. `partOf` makes it a zone of that room (CNT-8). */
@@ -43,7 +45,10 @@ export type RoomChange = {
   name?: string
   use?: string | null
   partOf?: string | null
-  properties?: Readonly<Record<string, string | number | boolean>>
+  /** WRT-74: null takes every fact out. */
+  properties?: Readonly<Record<string, string | number | boolean>> | null
+  /** WRT-74: its stated room number; null leaves it to Grid's count. */
+  number?: string | null
   /** CNT-10: a room taken out of a plan with phases stays, to be demolished. */
   phase?: Room['phase']
   /** CNT-15: its finishes, by surface; null takes them all out. */
@@ -59,7 +64,7 @@ export interface Patch {
    * HND-11: `mirrored` turns a wall placed by its face over to its other face, as a mirror does.
    * CNT-18: `arc`, a curved wall's new centre and sweep.
    */
-  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null }>
+  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null; properties?: Readonly<Record<string, string | number | boolean>> | null }>
   readonly openings: ReadonlyMap<string, OpeningChange>
   readonly removeOpenings: ReadonlySet<string>
   readonly rooms: ReadonlyMap<string, RoomChange>
@@ -129,8 +134,11 @@ export function refuseCurved(walls: Iterable<{ readonly id: string; readonly arc
   }
 }
 
-/** WRT-24: the lists of parts a patch's `parts` may change; `site.things` is the site's things. */
-export type PartList = 'columns' | 'grids' | 'bays' | 'stairs' | 'ramps' | 'patterns' | 'site.things'
+/**
+ * WRT-24: the lists of parts a patch's `parts` may change; `site.things` is the site's things.
+ * WRT-74: `floors`, whose facts a change sets.
+ */
+export type PartList = 'columns' | 'grids' | 'bays' | 'stairs' | 'ramps' | 'patterns' | 'site.things' | 'floors'
 
 export function emptyPatch(said: string[]): Patch {
   return { walls: new Map(), openings: new Map(), removeOpenings: new Set(), rooms: new Map(), said }

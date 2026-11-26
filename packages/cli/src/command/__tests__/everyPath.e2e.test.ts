@@ -323,6 +323,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_tidy', { plan: '@' }), given: asIs },
     { arg: 'out', call: tool('grid_tidy', { plan: PLAN, all: true, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // WRT-74: facts and a room's number, written into the plan.
+  grid_set_facts: [
+    { arg: 'plan', call: tool('grid_set_facts', { plan: '@', parts: ['lounge'], set: { department: 'Sales' } }), given: asIs },
+    { arg: 'out', call: tool('grid_set_facts', { plan: PLAN, parts: ['lounge'], set: { department: 'Sales' }, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // VEW-3: a camera saved by name, written into the plan.
   grid_save_view: [
     { arg: 'plan', call: tool('grid_save_view', { plan: '@', name: 'Corner', camera: CAMERA }), given: asIs },
