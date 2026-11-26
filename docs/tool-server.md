@@ -20,14 +20,14 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 
 `grid serve` is an MCP server over standard input and output, for an agent's host to start.
 Its tools are listed in a fixed order: first those that read the plan, in the order of the
-requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the twenty-three that
+requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, undo and restore, and last the twenty-three that
 change the plan, writing it rooms first leading, then the facts, the stair's two, the parking two, the site's two after them, the trace image and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
 and the allowed values of each argument, and an output schema. Each answer is short text with
 the same facts as data; a view also returns its picture. A length argument is metres, or text with its unit (`12'6"`, `360 cm`); the measuring tools, the views and the sheet write in `units` and `decimal`, or the plan's `display`, the person's own units, and in metres when neither says (see [Units](plan-file.md#units)). The check and the edit answers are in metres.
 
 | Tool | Answers |
 |---|---|
-| `grid_project` | What the project folder holds, for the first call (CMD-18): the plan files in it, the plan Grid uses when none is named (`plan.json` in the folder, with or without `grid.json`) and whether it is there, and beside each plan its brief, markers, seen marks, preview record, scan and occupancy files. Reads names only, writes nothing |
+| `grid_project` | What the project folder holds, for the first call (CMD-18): the plan files in it, the plan Grid uses when none is named (`plan.json` in the folder, with or without `grid.json`) and whether it is there, and beside each plan its brief, markers, change log and checkpoints, seen marks, preview record, scan and occupancy files. Reads names only, writes nothing |
 | `grid_compare` | Options side by side (net, gross internal, gross external, circulation, area by use, and by room type and tenure where the plan states them), and what differs by room name, walls and openings; a plan mirrored or moved is said to be so. With `picture`, one sheet at one scale |
 | `grid_diff` | What changed since the start marker or the last commit, by what stands where, not by ids: issues first (a door that now joins other rooms, a wall that now meets an opening, notes that came and went), the verdict room by room with how many ids were only renamed, then the changes one line each; with `rooms`, the changes outside them; with a picture unless `picture: false` (see below) |
 | `grid_areas` | Each room's size and net area, totals by floor and by use (and by room type and tenure where a room states one), gross internal and gross external area (the one usual in the plan's `site.country`, or in `country` which overrides it, first, or as `gross` asks; see [areas.md](areas.md)), each flat's area from the plan's flats list and the rooms in no flat, each to the middle of its party walls too (ARE-14), the outdoor space listed apart by kind, roofed or open (CNT-7), left out of every total unless `outdoor_rules` states a rule that counts part of it, the free floor beside the floor area where fixtures stand, the rooms in `apart_rooms` measured apart as one building from another (ARE-20), and under a roof the floor states the floor by headroom band, in metres or feet, as text or CSV, each figure with its rule stated |
@@ -45,10 +45,12 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_preview_sync` | The preview page's own call, which a host that shows MCP Apps lists for the page only: the drawing, the shared record, and what the person did there. Not for an agent |
 | `grid_export` | Writes DXF, IFC, GLB or OBJ into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)) |
 | `grid_sheet` | Writes the plan as an A3 PDF into `exports/`, a client or check sheet answering with a small picture of each page (VEW-62): layout `client` (cover, a page per floor, the words as `sheet`) or `check` (every id, use and finding); or layout `drawing`, every floor (or the `floor` asked for) at one true scale (`scale`, `paper`, `split`, `roomSizes`) as a vector PDF of a page each and an SVG and a PNG of each page, with the PNGs in the answer |
-| `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with; or takes one off. At most 5 |
+| `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with, with `who` set it and a `note`; or takes one off. The latest 20, the oldest rolling off |
 | `grid_mark_seen` | Sets a note of `grid_check` aside as seen, with the person's reason and the name or role they give, in `plan.seen.json` beside the plan; or takes the mark off (see below) |
 | `grid_write_brief` | Writes the brief beside the plan from the person's words, before the first room: room areas and counts, inside sizes, the footprint, rooms that must or must not touch, and the person's own figures, each with its level, its quote and whether it was given or assumed, and what is still open; answers with each line met or missed ([brief.md](brief.md)). A brief already there is kept: the call is refused unless `replace` is true |
 | `grid_words` | Grid's words in the person's language, for a language Grid ships none for (MSG-24): with `output` (drawing, sheet, check or describe), the keys that output prints for this plan, each with its English, its placeholders and the word the language has now, writing nothing; with `words`, the agent's translations, each checked against the English key's placeholders and refused by name, written into the plan's `display.words` ([languages.md](languages.md#words-the-plan-keeps-for-a-language)). `plan_language` makes the language the plan's own, `decimal` sets its decimal mark |
+| `grid_undo` | Takes back the last change in the plan's change log not undone yet, writing the plan back exactly as it was; again, one change further back. Refused when the plan changed outside the log (CMD-44) |
+| `grid_restore` | Puts back an earlier version of the plan by `since`: a marker, `last`, a revision, a date, `git~1` or a commit; refused when the plan changed outside the log unless `force` (CMD-44) |
 | `grid_write_rooms` | Writes the plan from rooms text, as `grid write`: the walls, their kinds, the room boundaries and the openings' places worked out. With `layout` (`tidy` or `sizes`) in place of `rooms`, a first layout from the brief beside the plan, with each size not kept and by how much ([brief.md](brief.md#a-first-layout-from-the-brief)); with `scan`, from a phone room scan, as `grid write --scan`, with what was assumed and the scan kept beside the plan ([commands.md](commands.md#a-plan-from-a-phone-room-scan-grid-write---scan)). It takes one of `rooms`, `layout` and `scan` |
 | `grid_change_opening` | Changes a door or window (width, height, sill, type, which room it opens into, which side it is hinged on as seen from a room, its kind), moves it to a side of a room, places it from a room's side or an end of its wall and keeps it there (its anchor), or removes it |
 | `grid_change_wall` | Sets one wall's thickness: a wall placed by its face keeps that face and grows or shrinks on its other side, any other wall keeps its centre line, and a wall that ended in a thinner wall is carried to its new centre line ([plan-file.md](plan-file.md)) |
@@ -479,13 +481,28 @@ step into the room, looking ahead: VEW-3's eye camera, in the walk's order, at m
 ## What a change did
 
 Call `grid_mark_start` before an edit and `grid_diff` after every save. `grid_mark_start` copies
-the plan as it is into `plan.markers.json` beside it, under `name` (`start` unless named); a plan
-keeps at most 5 markers, and `remove: true` takes one off. `grid_diff` takes no plans to compare:
+the plan as it is into `plan.markers.json` beside it, under `name` (`start` unless named), with
+`who` and `note` when given; a plan keeps the latest 20 markers, a new one past that rolling the
+oldest off, and `remove: true` takes one off. `grid_diff` takes no plans to compare:
 it reads the plan and the earlier version itself, the marker `since` names, or with
 `since: "git"` the version last committed in the project's own `.git` folder, read from git's
 files without running git. With neither, it uses the marker `start` when there is one, else git.
 With `since: "phase"`, a plan with existing, demolished and new parts is compared with itself,
 before its work against after it (CNT-10).
+
+Every change also keeps the plan it replaced, with no marker set: each tool that changes the plan
+adds a line to the plan's change log, `plan.history.jsonl`, and keeps the plan before it in
+`plan.checkpoints/` (CMD-44). Every such tool takes `who`, your name as an agent or a person's
+initials, kept in the entry. So `since` also takes `last`, a revision, a date or date and time,
+`git~1` or a commit ([the names](commands.md#the-change-log-and-the-versions-it-keeps-cmd-44)),
+and `to` compares two earlier versions. `show: "facts"` lists every field that changed, facts and
+room numbers included, and `show: "history"` the log's entries since then: who changed what,
+when, with which tool. `grid_undo` takes the last change back, and again the one before;
+`grid_restore` puts back any of those versions. Both write the plan back exactly as it was and
+log it, so each can be taken back in turn, and both are refused with nothing written when the
+plan is not at the revision the log last wrote, because it changed by hand or in another program:
+`grid_diff since=<that revision>` says what changed, and `grid_restore` with `force: true` puts a
+version back all the same, keeping the plan as it was as a checkpoint first.
 
 It pairs the two versions by what stands where before it trusts an id, as
 [`grid diff`](commands.md#what-a-change-did-grid-mark-and-grid-diff) says, and answers issues

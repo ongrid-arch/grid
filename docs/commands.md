@@ -39,8 +39,8 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid sheet [<plan>] [--layout client\|check] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
 | `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--split] [--room-sizes on\|off] [--out <file.pdf>]` | Writes every floor (or one) at one true scale as a vector PDF of a page each, and an SVG and a PNG of each page, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
 | `grid edit <verb> [<plan>] [options]` | Changes the plan, one sentence of request a command: `opening`, `wall` (one wall's thickness), `type` (one named wall, door or window type, which every part of it takes; a list option such as `--parts` takes its items split at commas), `move-side`, `merge`, `split`, `add-room`, `stretch`, `rename`, `mirror` (`--how left-right`, or `--turn 90` to turn the plan a quarter, counter-clockwise as Grid draws it), `square` (squares a scanned plan and says how far each wall moved), `place` (a fixture, furniture or a typical room from the library by name, [library.md](library.md)), `add-opening` (a door, window or doorless opening in a side of a room or the wall between two rooms), `phase` (walls, doors, windows and rooms marked existing, demolished or new), `start-works` (the plan as it stands marked existing), `phase-from` (one plan with phases from `--before` and `--after`), `trace` (the trace image under the plan set, placed, scaled and turned) and `fit-out` (a fit-out started on `--base`, the base's rooms as its own), each the tool of that name in [the tool server](tool-server.md) with the same options (`grid edit <verb> --help`), and the same lines of [the brief](brief.md) |
-| `grid mark [<name>] [<plan.json>] [--plan <plan.json>] [--remove]` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside it, for `grid diff` to compare with: no git needed. At most 5 (see below) |
-| `grid diff [<plan>] [--since <name>\|git\|phase] [--rooms <ids>] [--show all\|summary\|changes\|issues] [--picture\|--out <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
+| `grid mark [<name>] [<plan.json>] [--plan <plan.json>] [--remove] [--who <name>] [--note <text>]` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside it, for `grid diff` to compare with: no git needed. The latest 20, the oldest rolling off (see below) |
+| `grid diff [<plan>] [--since <version>] [--to <version>] [--rooms <ids>] [--show all\|summary\|changes\|issues\|facts\|history] [--picture\|--out <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
 | `grid occupancy [<plan>]` | Lists who sits where, by room, from the occupancy file beside the plan; no export carries it (see below) |
 | `grid preview [<plan>] [--port <n>]` | Serves the preview as a page on this computer only: the plan in 2D and 3D, the part you click shared with the agent, the room it frames and the parts it picks out; it draws again within 2 s of the plan changing (see below) |
 | `grid serve` | Starts the tool server on standard input and output, with the 56 tools in [the tool server](tool-server.md) |
@@ -525,8 +525,9 @@ is; the scan kept beside the plan is replaced by the new one.
 
 `grid mark` keeps the plan as it is now, under a name (`start` unless you name another), in a
 file of its own beside the plan: `plan.markers.json` beside `plan.json`. The plan knows nothing
-of it, and no export, sheet or drawing reads it. A plan keeps at most 5 markers; marking a name
-again replaces it, and `--remove` takes one off. The plan is named as in every other command, after
+of it, and no export, sheet or drawing reads it. A plan keeps the latest 20 markers: marking a new
+name past that rolls the oldest off and says which (CMD-44); marking a name again replaces it, and
+`--remove` takes one off. `--who` and `--note` keep who set it and why, and `grid diff` says them. The plan is named as in every other command, after
 the name (`grid mark before plan.json`); `--plan` says the same. `git` is not a marker's name: it means the
 version last committed.
 
@@ -538,6 +539,36 @@ its work against after it: what is removed is to be demolished, what is added is
 git's own files, through the same project folder rules as every other file, and runs no
 program: a `.git` folder in the project folder itself, a SHA-1 repository, the branch `HEAD`
 names. A repository whose `.git` is above the project folder is outside it, and is not read.
+
+### The change log and the versions it keeps (CMD-44)
+
+Every change Grid makes to a plan file (`grid edit`, `grid write`, `grid tidy` and every tool of
+`grid serve` that changes the plan) keeps the plan it replaced, whole, as a checkpoint in
+`plan.checkpoints/<revision>.json` beside `plan.json`, and adds one line to the plan's change log,
+`plan.history.jsonl`: when, who (a tool call's `who`), with which tool, the plan's revisions
+before and after, the building's change lines and every field that changed, facts of the
+person's own and room numbers included. The log is only ever added to; the latest 50 checkpoints
+are kept. A change written to another file (`--out`) changes nothing in the plan's log. A change
+made by hand or by another program is in no entry: Grid sees it as the plan not being at the
+revision its log last wrote.
+
+So `--since` and `--to` name any version Grid keeps:
+
+| Name | The version |
+| --- | --- |
+| a marker's name | the plan when the marker was set |
+| `git`, `git~1`, a commit's first 7 or more hex digits | the plan as committed, on the first-parent line of `HEAD` |
+| `last` | the plan before the last change in the log |
+| a revision (12 hex digits, as `planRevision` gives it) | the plan now, a checkpoint or a marker with that text |
+| `2026-11-26`, `2026-11-26T10:00` | the plan as it stood then by its log; a date alone is its start, UTC unless a zone is given |
+| `phase` | the plan before its work (`--since` only) |
+
+A marker's name is read first, so a marker named like a date keeps its meaning. `--to` compares
+two earlier versions with each other. `--show facts` lists every field that changed, part by part
+(`rooms["bed2"].properties.department: "Sales" → "Finance"`), and `--show history` the log's
+entries since the earlier version. A comparison whose building did not change but whose facts or
+numbers did says so (`Changes: none to what stands; 2 fields changed, 2 of them facts or numbers.`) and lists the facts and numbers.
+The tools `grid_undo` and `grid_restore` put a version back ([tool server](tool-server.md#what-a-change-did)).
 
 The two versions are compared by what stands where in the building, not by ids. The earlier
 plan is laid on the later one, moved to its origin when that lines up more walls; each wall is
