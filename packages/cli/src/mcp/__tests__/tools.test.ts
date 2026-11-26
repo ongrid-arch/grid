@@ -244,6 +244,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_rename_room: { room: 'bed2', name: 'Study', use: 'other', out: 'renamed.json' },
     grid_square_scan: { all: true, out: 'squared.json' },
     grid_place_item: { name: 'double-bed', x: 2, y: 1.5, turn: 90, out: 'placed.json' },
+    grid_add_opening: { type: 'window', room: 'bed2', side: 'north', out: 'opened.json' },
     grid_tidy: { all: true, out: 'tidied.json' },
     grid_save_view: { name: 'Garden corner', camera: { target: { room: null, point: [5, 4, 1] }, bearing: 135, tilt: 30, distance: 20, lens: { focalLength: 35 }, cut: null }, out: 'viewed.json' },
   }
