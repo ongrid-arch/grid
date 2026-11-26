@@ -549,7 +549,7 @@ describe('the trace image a plan names (T-5)', () => {
     const check = grid(['check', plan])
     expect(check.status).toBe(0)
     expect(check.out).toContain('[plan/trace-left-out]')
-    expect(check.out).toContain(`${JSON.stringify(path)} does not end in .png, .jpg or .jpeg`)
+    expect(check.out).toContain(`${JSON.stringify(path)} does not end in .png, .jpg, .jpeg or .pdf`)
     const answers = await callTools(PLAN_TOOLS.map(([, call]) => call(plan)))
     for (const answer of answers) expect(answer.text).not.toContain("can't be used: its trace image")
   }, 120_000)
