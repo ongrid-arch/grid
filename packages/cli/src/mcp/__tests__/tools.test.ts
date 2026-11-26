@@ -53,6 +53,7 @@ const ORDER = [
   'grid_set_phase',
   'grid_start_works',
   'grid_phase_from',
+  'grid_start_fit_out',
   'grid_tidy',
   'grid_set',
   'grid_set_facts',
@@ -142,7 +143,9 @@ describe('tools/list', () => {
     // agents otherwise set by editing the plan file by hand (a room's floor level, a wall's height).
     // 47 since LVL-21: a stair added and changed, which no tool wrote (agents drew treads as walls,
     // hand-edited the JSON, or left the stair an empty room).
-    expect((await listed()).length).toBeLessThanOrEqual(47)
+    // 48 since WRT-75: a fit-out started on a base plan, which no tool wrote (agents redrew the
+    // shell as the fit-out's own walls, or edited the base itself).
+    expect((await listed()).length).toBeLessThanOrEqual(48)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -273,6 +276,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_set_phase: { phase: 'demolished', parts: ['door-bed2'], out: 'phased.json' },
     grid_start_works: { out: 'surveyed.json' },
     grid_phase_from: { before: 'plan.json', after: 'wider.json', out: 'works.json' },
+    grid_start_fit_out: { base: 'plan.json', plan: 'fit-out.json' },
     grid_tidy: { all: true, out: 'tidied.json' },
     grid_set: { parts: ['bed2'], set: { floorOffset: 0.02 }, out: 'set.json' },
     grid_set_facts: { parts: ['bed2'], set: { department: 'Sales' }, out: 'facts.json' },

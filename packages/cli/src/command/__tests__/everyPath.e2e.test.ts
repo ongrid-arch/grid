@@ -332,6 +332,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'after', call: tool('grid_phase_from', { before: PLAN, after: '@', out: 'works.json' }), given: asIs },
     { arg: 'out', call: tool('grid_phase_from', { before: PLAN, after: PLAN, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // WRT-75: a fit-out started on a base plan reads the base and writes the fit-out.
+  grid_start_fit_out: [
+    { arg: 'base', call: tool('grid_start_fit_out', { base: '@', plan: 'fit-out.json', replace: true }), given: asIs },
+    { arg: 'plan', call: tool('grid_start_fit_out', { base: PLAN, plan: '@.json', replace: true }), given: (p) => `${p}.json` },
+  ],
   // WRT-36: grid tidy on the tool server.
   grid_tidy: [
     { arg: 'plan', call: tool('grid_tidy', { plan: '@' }), given: asIs },

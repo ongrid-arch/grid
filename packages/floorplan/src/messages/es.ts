@@ -2756,6 +2756,14 @@ export const es: Messages = {
   'write.items.item.noRoom': '{kind} {id} en ninguna estancia',
   'write.items.more': ' y {n} más',
   'write.items.look': 'Conviene revisar: {message}',
+  // WRT-75: un acondicionamiento iniciado desde un plano base (cli edit/fitOut.ts).
+  'fitOut.start.unread': 'El plano base {file} no da estancias que Grid pueda escribir como las estancias de un acondicionamiento.',
+  'fitOut.start.clash': 'El plano base {file} da a algunas de sus estancias los ids de sus propios muros o aberturas ({ids}), así que no pueden ser las estancias de un acondicionamiento sobre él: cámbielos en el plano base.',
+  'fitOut.start.broken': 'El acondicionamiento sobre {file} no se podría dibujar tal como está: {id}: {message}',
+  'fitOut.start.rooms': 'Se inició un acondicionamiento sobre el plano base {file}: sus {count} estancias son propias del acondicionamiento, sobre los muros de la base, que se leen como existentes y siguen siendo de solo lectura.',
+  'fitOut.start.room': 'Se inició un acondicionamiento sobre el plano base {file}: su estancia es propia del acondicionamiento, sobre los muros de la base, que se leen como existentes y siguen siendo de solo lectura.',
+  'fitOut.start.noRooms': 'Se inició un acondicionamiento sobre el plano base {file}, que no tiene estancias: escriba las estancias del acondicionamiento con grid_write_rooms, primero la línea base {file}, y se apoyan en sus muros.',
+  'fitOut.start.next': 'Divida, una y añada estancias con las herramientas de edición, o lea el acondicionamiento con grid_describe as=rooms y escríbalo con grid_write_rooms: el plano base nunca cambia.',
   // WRT-75: grid write sobre un plano base.
   'write.base.self': 'No se escribió el texto de estancias y el plano sigue igual: su plano base {file} es el plano que escribiría. Guarde la envolvente en un archivo propio y nómbrelo en la línea base.',
   'write.base.refused': 'No se escribió el texto de estancias y el plano sigue igual: {why}',

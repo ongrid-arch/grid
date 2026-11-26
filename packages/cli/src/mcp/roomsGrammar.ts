@@ -177,6 +177,17 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
     ],
   },
   {
+    topic: 'fit-out',
+    says: 'base <base plan> names the plan this one is fitted out in, as the project knows it (base shell.json; in quotes when the name holds a space): the shell, whose walls, doors and windows are read in as existing, drawn, measured and checked with the fit-out, and never written into it. Write the rooms by their inside faces as always: a wall Grid works out whose room faces lie on a base wall\'s faces is the base\'s, and the room names it by the base\'s id. Put a room\'s face on the base wall\'s face (a 0.3 m wall on x = 0 has its faces at -0.15 and 0.15) to rest it there; a face a little off one is said, with how far. A door or window in a base wall is refused, as the shell is read-only: its doors and windows are the base\'s. grid_start_fit_out starts a fit-out with the base\'s rooms as its own.',
+    example: [
+      'base shell.json',
+      'walls outside 0.2 inside 0.1',
+      'room front "Reception" office 5.8 x 7.7 at 0.15,0.15',
+      'room back "Treatment" office 5.8 x 7.7 east of front',
+      'door d1 between front and back, centred, 0.9 wide, opens into back',
+    ],
+  },
+  {
     topic: 'other lines',
     says: 'One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings].',
     example: [

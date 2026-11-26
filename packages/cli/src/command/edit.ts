@@ -42,6 +42,8 @@ export const EDIT_VERBS = {
   phase: 'grid_set_phase',
   'start-works': 'grid_start_works',
   'phase-from': 'grid_phase_from',
+  // WRT-75: a fit-out started on a base plan.
+  'fit-out': 'grid_start_fit_out',
 } as const
 
 type Verb = keyof typeof EDIT_VERBS
@@ -58,7 +60,7 @@ function verbOptions(tool: GridTool): OptionSpecs {
   return { ...specs, '--json': { takesValue: false, help: 'Print the answer as JSON.' }, ...PROJECT_OPTION, '--help': { takesValue: false, help: 'Show this help.' } }
 }
 
-export const EDIT_SUMMARY = 'Changes the plan: one sentence of request is one command. Verbs: opening, type, move-side, merge, split, add-room, stretch, rename, mirror, square, place, add-opening, phase, start-works, phase-from.'
+export const EDIT_SUMMARY = 'Changes the plan: one sentence of request is one command. Verbs: opening, type, move-side, merge, split, add-room, stretch, rename, mirror, square, place, add-opening, phase, start-works, phase-from, fit-out.'
 export const EDIT_USAGE = 'grid edit <verb> [<plan.json>] [options] [--json] [--project <folder>]'
 
 function editHelp(): string {

@@ -2625,6 +2625,14 @@ export const en = {
   'write.items.item.noRoom': '{kind} {id} in no room',
   'write.items.more': ' and {n} more',
   'write.items.look': 'Worth a look: {message}',
+  // WRT-75: a fit-out started from a base plan (cli edit/fitOut.ts).
+  'fitOut.start.unread': 'The base plan {file} gives no rooms Grid can write as the rooms of a fit-out.',
+  'fitOut.start.clash': 'The base plan {file} gives some of its rooms the ids of its own walls or openings ({ids}), so they cannot be the rooms of a fit-out on it: rename them in the base plan.',
+  'fitOut.start.broken': 'The fit-out on {file} could not be drawn as it is: {id}: {message}',
+  'fitOut.start.rooms': "Started a fit-out on the base plan {file}: its {count} rooms are the fit-out's own, on the base's walls, which are read in as existing and stay read-only.",
+  'fitOut.start.room': "Started a fit-out on the base plan {file}: its room is the fit-out's own, on the base's walls, which are read in as existing and stay read-only.",
+  'fitOut.start.noRooms': "Started a fit-out on the base plan {file}, which has no rooms: write the fit-out's rooms with grid_write_rooms, the line base {file} first, and they rest on its walls.",
+  'fitOut.start.next': 'Split, merge and add rooms with the edit tools, or read the fit-out back with grid_describe as=rooms and write it with grid_write_rooms: the base plan is never changed.',
   // WRT-75: grid write on a base plan.
   'write.base.self': 'The rooms text was not written, and the plan is as it was: its base plan {file} is the plan it would write. Keep the shell in a file of its own and name that on the base line.',
   'write.base.refused': 'The rooms text was not written, and the plan is as it was: {why}',
