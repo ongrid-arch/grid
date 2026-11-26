@@ -37,6 +37,7 @@ import { openingTypeOf, typeMaterial, wallTypeOf } from '../partTypes'
 import { doorKindOf, statedKind } from '../openingKinds'
 import { openingParts } from '../openingParts'
 import { planFloors, planForFloor } from '../floors'
+import { planBuildings } from '../buildings'
 import { sharedPart, wholeWall } from '../through'
 import { english, said } from '../../messages/say'
 import { inIdOrder } from '../order'
@@ -46,7 +47,7 @@ import {
   isFiniteWall,
   roofOver,
   SLAB_THICKNESS,
-  stackFloors,
+  stackBuildings,
   type StoreyLevel
 } from '../elevations'
 import type { MultiPolygon } from 'polygon-clipping'
@@ -610,8 +611,10 @@ function analyseFloor(plan: FloorPlan, floor: Floor): FloorModel {
  * it, stacked on `SLAB_THICKNESS` slabs where a floor states none (see `stackFloors`): the same
  * rule the 3D view uses through `floorElevations`.
  */
-function deriveLevels(models: readonly FloorModel[]): Map<string, StoreyLevel> {
-  return stackFloors(
+function deriveLevels(plan: FloorPlan, models: readonly FloorModel[]): Map<string, StoreyLevel> {
+  // CNT-6, LVL-23: each building of the plan on its own, from its pad.
+  return stackBuildings(
+    plan,
     models.map(({ floor, walls, index }) => {
       let tallest = 0
       for (const wall of walls) {
@@ -2581,40 +2584,44 @@ function buildDocument(given: FloorPlan, options: IfcOptions): string {
     NULL
   )
 
-  const buildingPlacement = placement(w, sitePlacement, [origin[0] - siteAt[0], origin[1] - siteAt[1], 0])
-  const building = rooted(
-    'IFCBUILDING',
-    'building',
-    'building',
-    buildingName(plan),
-    NULL,
-    NULL,
-    ref(buildingPlacement),
-    NULL,
-    NULL,
-    en('ELEMENT'),
-    NULL,
-    NULL,
-    NULL
-  )
-
+  // LVL-23: one building for each the plan names, holding its own storeys; the floors no building
+  // names (every floor, when the plan names none) stay in one building of the plan's name.
   const models = planFloors(plan).map((floor) => analyseFloor(plan, floor))
-  const levels = deriveLevels(models)
-  const storeys = models.map((model) =>
-    writeStorey(c, buildingPlacement, model, levels.get(model.floor.id)!)
-  )
+  const named = planBuildings(plan).filter((b) => b.floors.length > 0)
+  const holder = new Map(named.flatMap((b) => b.floors.map((floor) => [floor, b.id] as const)))
+  const rest = models.filter((model) => !holder.has(model.floor.id))
+  const groups: { key: string; id: string; name: string; models: FloorModel[] }[] = [
+    ...(named.length === 0 || rest.length > 0 ? [{ key: 'building', id: 'building', name: named.length === 0 ? buildingName(plan) : (plan.name ?? plan.title ?? 'Building'), models: rest }] : []),
+    // The first keeps the plan's own building's id when every floor is in a building, so its identity stays as before.
+    ...named.map((b, i) => ({ key: i === 0 && rest.length === 0 ? 'building' : `building:${b.id}`, id: i === 0 && rest.length === 0 ? 'building' : `named:${b.id}`, name: b.name, models: models.filter((model) => holder.get(model.floor.id) === b.id) })),
+  ]
+  const buildings = groups.map((group) => {
+    const at = placement(w, sitePlacement, [origin[0] - siteAt[0], origin[1] - siteAt[1], 0])
+    const id = rooted('IFCBUILDING', 'building', group.id, group.name, NULL, NULL, ref(at), NULL, NULL, en('ELEMENT'), NULL, NULL, NULL)
+    return { ...group, entity: id, placement: at }
+  })
+  const building = buildings[0]!.entity
+
+  const levels = deriveLevels(plan, models)
+  const storeyOf = new Map<string, Storey>()
+  for (const group of buildings) {
+    for (const model of group.models) storeyOf.set(model.floor.id, writeStorey(c, group.placement, model, levels.get(model.floor.id)!))
+  }
+  const storeys = models.map((model) => storeyOf.get(model.floor.id)!)
   for (const storey of storeys) writeStoreyContents(c, storey)
   writeWallTypes(c)
   writeOpeningStyles(c)
 
   aggregate(c, 'project', project, [site])
-  aggregate(c, 'site', site, [building])
-  aggregate(
-    c,
-    'building',
-    building,
-    storeys.map((storey) => storey.id)
-  )
+  aggregate(c, 'site', site, buildings.map((b) => b.entity))
+  for (const group of buildings) {
+    aggregate(
+      c,
+      group.key,
+      group.entity,
+      group.models.map((model) => storeyOf.get(model.floor.id)!.id)
+    )
+  }
   writeSlabs(c, plan, storeys)
   writeItems(c, storeys)
   writeStairs(c, plan, storeys)

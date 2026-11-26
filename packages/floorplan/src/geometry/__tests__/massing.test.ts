@@ -84,7 +84,7 @@ describe('FD-1: massing on the plot, before any wall', () => {
       ['first', expect.closeTo(BY_HAND, 6), expect.closeTo(BY_HAND, 6)],
     ])
     // 3 m, the first floor's 0.25 m slab, 3 m and the 0.25 m roof over it.
-    expect(buildingHeight(plan)).toEqual({ height: 6.5, floor: 'first', ground: 0, groundStated: false })
+    expect(buildingHeight(plan)).toEqual({ height: 6.5, floor: 'first', ground: 0, groundStated: false, from: 'floor' })
   })
 
   it('stands on the plot: 48.0% covered and 3 m from the west edge, measured from the outline', () => {

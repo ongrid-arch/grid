@@ -6,8 +6,8 @@
  * - A storey is a level (`Floor.level`, C5) with at least one such floor on it: two flats side
  *   by side on one level are one storey. The storeys at or above the ground floor are counted
  *   apart from those below it, as BRF-3's footprint takes them (`footprintFloors`).
- * - The height is from the ground (`site.ground`, else the ground floor's floor level) to the
- *   top of the highest roof: a floor's level, its clear height and the roof slab over it, or the
+ * - The height is from the ground (`site.ground`, else the ground floor's floor level; LVL-23: a
+ *   building's own ground, its pad first) to the top of the highest roof: a floor's level, its clear height and the roof slab over it, or the
  *   ridge its sloped roof states, and the parapet it states. A roof stated by its pitch alone is
  *   taken at the floor's clear height, the tallest of its walls as the roof cuts them.
  *
@@ -15,7 +15,7 @@
  */
 import { floorElevations, SLAB_THICKNESS } from './elevations'
 import { planFloors } from './floors'
-import { groundLevel } from './ground'
+import { groundLevel, type GroundFrom } from './ground'
 import { outlineKnown, slabOutline } from './outline'
 import type { FloorPlan } from './plan'
 import { indexPlan } from './plan'
@@ -49,9 +49,12 @@ export interface BuildingHeight {
   readonly height: number
   /** The floor whose roof is highest. */
   readonly floor: string
-  /** The ground's level, from the ground floor's floor level: stated, or 0. */
+  /** The ground's level, from the ground floor's floor level: stated, or 0. LVL-23: a building's own ground. */
   readonly ground: number
+  /** Whether the site states its ground. */
   readonly groundStated: boolean
+  /** LVL-23: what the height is measured from: a building's pad, the site's stated ground, or the ground floor's floor level. */
+  readonly from: GroundFrom
 }
 
 export interface StoreyOptions {
@@ -88,9 +91,12 @@ export function planStoreys(plan: FloorPlan, options: StoreyOptions = {}): PlanS
  * How high the building stands over the ground: to the top of the highest roof of a floor at or
  * above the ground floor that holds something. Null when no such floor holds anything.
  */
-export function buildingHeight(plan: FloorPlan, storeys: PlanStoreys = planStoreys(plan), only?: ReadonlySet<string>): BuildingHeight | null {
+export function buildingHeight(plan: FloorPlan, storeys: PlanStoreys = planStoreys(plan), only?: ReadonlySet<string>, building?: string): BuildingHeight | null {
   const elevations = floorElevations(plan)
   const ground = groundLevel(plan, elevations)
+  // LVL-23: a building of the plan is measured from its own ground.
+  const own = building === undefined ? undefined : ground.buildings.get(building)
+  const base = own ?? { level: ground.level, from: ground.stated ? ('site' as const) : ('floor' as const) }
   const floors = new Map(planFloors(plan).map((floor) => [floor.id, floor] as const))
   let best: { top: number; floor: string } | null = null
   for (const storey of storeys.storeys) {
@@ -106,13 +112,29 @@ export function buildingHeight(plan: FloorPlan, storeys: PlanStoreys = planStore
     }
   }
   if (best === null) return null
-  return { height: best.top - ground.level, floor: best.floor, ground: ground.level, groundStated: ground.stated }
+  return { height: best.top - base.level, floor: best.floor, ground: base.level, groundStated: ground.stated, from: base.from }
+}
+
+/** LVL-23: a building's own storeys: the levels of its own floors that hold something, above its ground floor and below it. */
+export interface BuildingStoreys {
+  readonly above: number
+  readonly below: number
 }
 
 /**
  * CNT-6 (C23): how high each building the plan names stands over the ground, from its own floors
  * (`buildingHeight`), by id, in plan order. Null for a building none of whose floors holds anything.
+ * LVL-23: measured from its own ground, with its own storeys.
  */
-export function buildingHeights(plan: FloorPlan, storeys: PlanStoreys = planStoreys(plan)): { readonly id: string; readonly name: string; readonly height: BuildingHeight | null }[] {
-  return planBuildings(plan).map((building) => ({ id: building.id, name: building.name, height: buildingHeight(plan, storeys, new Set(building.floors)) }))
+export function buildingHeights(plan: FloorPlan, storeys: PlanStoreys = planStoreys(plan)): { readonly id: string; readonly name: string; readonly height: BuildingHeight | null; readonly storeys: BuildingStoreys }[] {
+  return planBuildings(plan).map((building) => {
+    const own = new Set(building.floors)
+    const mine = storeys.storeys.filter((s) => s.floors.some((f) => own.has(f)))
+    return {
+      id: building.id,
+      name: building.name,
+      height: buildingHeight(plan, storeys, own, building.id),
+      storeys: { above: mine.filter((s) => !s.below).length, below: mine.filter((s) => s.below).length },
+    }
+  })
 }

@@ -5,7 +5,8 @@
  * A building is a named group of floors, never a floor: it adds no floor and closes no outline.
  * Each building stacks its own floors (`floorElevations`), so a garden studio's floor does not
  * stand on the house's, and has its own areas (the sum of its floors', `areas.ts`) and its own
- * height. Everything that reads the buildings reads them here, so a fault in the list is read one
+ * height. LVL-23: a building may state its `pad`, the level of its own ground; its floors stack
+ * from it, and its ground floor, way out and height are read against its own ground (`ground.ts`). Everything that reads the buildings reads them here, so a fault in the list is read one
  * way: the first building with an id is the building, a floor two buildings name stays in the one
  * listed first, and an id that is no floor is named and left out (`buildingIssues`). Nothing is
  * refused.
@@ -35,6 +36,8 @@ export interface PlanBuildingRead {
   readonly unknown: readonly string[]
   /** Floors it names that a building listed before it holds, each with that building's id. */
   readonly elsewhere: readonly { readonly floor: string; readonly building: string }[]
+  /** LVL-23: the level of its own ground, from the plan's datum, as stated; null when it states none. */
+  readonly pad: number | null
 }
 
 /** The plan's buildings, the first with an id winning, in plan order. A slice is read as the plan it was cut from. */
@@ -67,6 +70,7 @@ export function planBuildings(plan: FloorPlan): PlanBuildingRead[] {
       floors: own.sort((a, b) => order.get(a)! - order.get(b)!),
       unknown,
       elsewhere,
+      pad: building.pad !== undefined && Number.isFinite(building.pad) ? building.pad : null,
     })
   }
   return out

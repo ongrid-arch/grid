@@ -12,6 +12,13 @@
  * Unstated, the ground is at 0 and the ground floor is the floor at level 0, exactly as before.
  * One level for the whole site: the ground on each side of a house on a slope comes later.
  *
+ * LVL-23: a plan that names buildings (C23) gives each its own ground (`buildingGrounds`): its
+ * `pad`, else the site's stated ground, else the floor level of its own ground floor (its lowest
+ * floor at or above level 0). Each building's floors stand above its own ground, and each building
+ * has its own ground floor, the floor of its own nearest that ground. The floors no building names
+ * are read against the site's ground, as every floor was before. `level` stays the site's, so the
+ * sections and facades draw the site's ground line as before.
+ *
  * A floor on the ground whose slab stands clear of the ground stands on a plinth (VEW-16,
  * `plinthUnder`): its sections and facades carry it down to the ground, so nothing is left open
  * under it.
@@ -29,6 +36,7 @@ import { planWallSides, stretchAt } from './exposure'
 import { brokenOnFloor } from './validate'
 import { limit, tolerance } from './tolerances'
 import { wallLength } from './wall'
+import { planBuildings } from './buildings'
 
 /** The site's stated ground level, or null when the plan states none. */
 export function statedGround(plan: FloorPlan): number | null {
@@ -36,37 +44,99 @@ export function statedGround(plan: FloorPlan): number | null {
   return ground !== undefined && Number.isFinite(ground) ? ground : null
 }
 
+/** LVL-23: what a building's ground is: its pad, the site's stated ground, or its own ground floor's floor level. */
+export type GroundFrom = 'pad' | 'site' | 'floor'
+
+/** LVL-23: a building's own ground. */
+export interface BuildingGround {
+  /** Its level, in metres from the plan's datum. */
+  readonly level: number
+  readonly from: GroundFrom
+}
+
 /** Where the ground is, and which floors stand at it. */
 export interface GroundLevel {
-  /** The ground's level: as stated, else 0. */
+  /** The site's ground level: as stated, else 0. */
   readonly level: number
   readonly stated: boolean
-  /** How far each floor's floor level stands above the ground, by floor id (negative below it). */
+  /** How far each floor's floor level stands above its ground, by floor id (negative below it). */
   readonly above: ReadonlyMap<string, number>
-  /** The floors the way out is checked from: see `groundLevel`. */
+  /** The floors the way out is checked from: see `groundLevel`. Each building's own, in plan order. */
   readonly groundFloors: readonly Floor[]
   /** Whether a floor stands so high over the ground that a door to the outside opens in mid-air. */
   readonly aboveGround: (floor: string) => boolean
+  /** LVL-23: the level of the ground under a floor: its building's own, else the site's. */
+  readonly groundOf: (floor: string) => number
+  /** LVL-23: the first ground floor of a floor's own building (of the floors no building names, for one in none), or undefined when it has none. */
+  readonly groundFloorOf: (floor: string) => Floor | undefined
+  /** LVL-23: each building's own ground, by building id; empty when the plan names no building. */
+  readonly buildings: ReadonlyMap<string, BuildingGround>
 }
 
 const levelOf = (floor: Floor): number => (Number.isFinite(floor.level) ? floor.level : 0)
 
+/** The building each floor is in and the buildings' pads (CNT-6, LVL-23), or none when the list cannot be read. */
+function buildingsOf(plan: FloorPlan): { holder: ReadonlyMap<string, string>; pads: ReadonlyMap<string, number | null> } {
+  if ((plan.buildings ?? []).length === 0) return { holder: new Map(), pads: new Map() }
+  try {
+    const read = planBuildings(plan)
+    return { holder: new Map(read.flatMap((b) => b.floors.map((f) => [f, b.id] as const))), pads: new Map(read.map((b) => [b.id, b.pad] as const)) }
+  } catch {
+    return { holder: new Map(), pads: new Map() }
+  }
+}
+
+/**
+ * LVL-23: each building's own ground, by id: its pad when it states one; else the site's stated
+ * ground; else the floor level of its ground floor, the lowest of its floors at or above level 0
+ * (the lowest standing of those on that level), or 0 when it has none.
+ */
+export function buildingGrounds(plan: FloorPlan, elevations: BuildingElevations = floorElevations(plan)): Map<string, BuildingGround> {
+  const { holder, pads } = buildingsOf(plan)
+  const site = statedGround(plan)
+  const floors = planFloors(plan)
+  const out = new Map<string, BuildingGround>()
+  for (const [id, pad] of pads) {
+    if (pad !== null) {
+      out.set(id, { level: pad, from: 'pad' })
+      continue
+    }
+    if (site !== null) {
+      out.set(id, { level: site, from: 'site' })
+      continue
+    }
+    const own = floors.filter((f) => holder.get(f.id) === id && levelOf(f) >= 0)
+    const lowest = Math.min(...own.map(levelOf))
+    const at = own.filter((f) => levelOf(f) === lowest).map((f) => elevations.floors.get(f.id)?.floorLevel ?? 0)
+    out.set(id, { level: at.length === 0 ? 0 : Math.min(...at), from: 'floor' })
+  }
+  return out
+}
+
 /**
  * The ground and the ground floor.
  *
- * A floor stands above the ground by its floor level less the ground's; past
- * `outsideDoorAboveGround` it is off the ground, and its doors to the outside open in mid-air. The
- * ground floor is, of the floors not off the ground:
+ * A floor stands above the ground by its floor level less the ground's (LVL-23: its own building's
+ * ground); past `outsideDoorAboveGround` it is off the ground, and its doors to the outside open in
+ * mid-air. The ground floor is, of the floors not off the ground, for each building on its own and
+ * for the floors no building names together:
  *
- * - with no ground stated, the floors at level 0, or the only floor (as before LVL-4);
- * - with a ground stated, the floors whose floor level lies nearest the ground, every floor within
- *   `sameFloorLevel` of the nearest counted.
+ * - with no ground stated (and for the floors no building names), the floors at level 0, or the
+ *   only floor (as before LVL-4);
+ * - with a ground stated, or for a building (its own ground), the floors whose floor level lies
+ *   nearest the ground, every floor within `sameFloorLevel` of the nearest counted.
  */
 export function groundLevel(plan: FloorPlan, elevations: BuildingElevations = floorElevations(plan)): GroundLevel {
   const floors = planFloors(plan)
   const stated = statedGround(plan)
   const level = stated ?? 0
-  const above = new Map(floors.map((f) => [f.id, (elevations.floors.get(f.id)?.floorLevel ?? 0) - level] as const))
+  const { holder } = buildingsOf(plan)
+  const buildings = holder.size === 0 ? new Map<string, BuildingGround>() : buildingGrounds(plan, elevations)
+  const groundOf = (floor: string): number => {
+    const building = holder.get(floor)
+    return building === undefined ? level : (buildings.get(building)?.level ?? level)
+  }
+  const above = new Map(floors.map((f) => [f.id, (elevations.floors.get(f.id)?.floorLevel ?? 0) - groundOf(f.id)] as const))
   // CNT-6 (C23): a floor that states what lies below it says itself whether it is at the ground.
   const below = new Map(floors.map((f) => [f.id, f.below] as const))
   const aboveGround = (floor: string): boolean => {
@@ -74,15 +144,28 @@ export function groundLevel(plan: FloorPlan, elevations: BuildingElevations = fl
     if (stated !== undefined) return stated !== 'ground'
     return (above.get(floor) ?? 0) > limit('outsideDoorAboveGround')
   }
-  const onGround = floors.filter((f) => !aboveGround(f.id))
-  let groundFloors: Floor[]
-  if (stated === null) {
-    groundFloors = (floors.length === 1 ? floors : floors.filter((f) => levelOf(f) === 0)).filter((f) => !aboveGround(f.id))
-  } else {
-    const nearest = Math.min(...onGround.map((f) => Math.abs(above.get(f.id)!)))
-    groundFloors = onGround.filter((f) => Math.abs(above.get(f.id)!) - nearest <= tolerance('sameFloorLevel'))
+  const groups = new Map<string, Floor[]>()
+  for (const f of floors) {
+    const key = holder.get(f.id) ?? ''
+    groups.set(key, [...(groups.get(key) ?? []), f])
   }
-  return { level, stated: stated !== null, above, groundFloors, aboveGround }
+  const ground = new Set<string>()
+  const firstOf = new Map<string, Floor>()
+  for (const [key, group] of groups) {
+    let found: Floor[]
+    if (stated === null && key === '') {
+      found = (group.length === 1 ? group : group.filter((f) => levelOf(f) === 0)).filter((f) => !aboveGround(f.id))
+    } else {
+      const onGround = group.filter((f) => !aboveGround(f.id))
+      const nearest = Math.min(...onGround.map((f) => Math.abs(above.get(f.id)!)))
+      found = onGround.filter((f) => Math.abs(above.get(f.id)!) - nearest <= tolerance('sameFloorLevel'))
+    }
+    for (const f of found) ground.add(f.id)
+    if (found[0] !== undefined) firstOf.set(key, found[0])
+  }
+  const groundFloors = floors.filter((f) => ground.has(f.id))
+  const groundFloorOf = (floor: string): Floor | undefined => firstOf.get(holder.get(floor) ?? '')
+  return { level, stated: stated !== null, above, groundFloors, aboveGround, groundOf, groundFloorOf, buildings }
 }
 
 /** The plinth a floor stands on, from the ground up to the underside of its slab. */
@@ -124,17 +207,21 @@ export interface OpeningBelowGround {
 
 /**
  * Every door, window and doorless opening in an outside wall whose foot lies more than
- * `openingBelowGround` under the ground the site states, floor by floor in plan order. None when
- * the plan states no ground. An opening is in an outside wall when its wall is stated exterior, or
+ * `openingBelowGround` under the ground the site states (LVL-23: or its building's pad), floor by
+ * floor in plan order. None when the plan states no ground. An opening is in an outside wall when its wall is stated exterior, or
  * when the stretch of wall it is in has a room on one face only (MSG-13, `planWallSides`).
  */
 export function openingsBelowGround(plan: FloorPlan, elevations: BuildingElevations = floorElevations(plan)): OpeningBelowGround[] {
-  const ground = statedGround(plan)
-  if (ground === null) return []
+  const site = statedGround(plan)
+  // LVL-23: a building's pad is a ground stated for its own floors.
+  const { holder, pads } = buildingsOf(plan)
+  if (site === null && ![...pads.values()].some((pad) => pad !== null)) return []
   const found: OpeningBelowGround[] = []
   for (const floor of planFloors(plan)) {
     const base = elevations.floors.get(floor.id)?.floorLevel
-    if (base === undefined) continue
+    const building = holder.get(floor.id)
+    const ground = (building === undefined ? null : (pads.get(building) ?? null)) ?? site
+    if (base === undefined || ground === null) continue
     const slice = planForFloor(plan, floor.id)
     const broken = brokenOnFloor(slice)
     const index = indexPlan(slice)

@@ -222,7 +222,9 @@
  *   no roof, and one with more of it below has no ground slab and is not a ground floor.
  *   A plan MAY name several `buildings`, each an id, a name and the floors that are its own, each
  *   floor in one building at most; each building stacks its own floors and has its own areas and
- *   height. A plan MAY draw `context`: shapes round it (a neighbour's house, the hall a stand stands
+ *   height. A building MAY state its `pad` (LVL-23): the level of its own ground, in metres from the
+ *   plan's datum (the 0 a floor's `elevation` is measured from). Its floors that state no elevation
+ *   stack from it, and its ground floor, way out and height are read against it. A plan MAY draw `context`: shapes round it (a neighbour's house, the hall a stand stands
  *   in), each an outline on a floor, with a name and a height. A context shape is never a wall, a
  *   room or a part of any building: it is drawn and is in no measure, check or count. All optional
  *   and never defaulted (version 1): a plan that states none reads exactly as before.
@@ -2308,13 +2310,17 @@ export function withTypes(raw: unknown): unknown {
 /**
  * CNT-6 (C23): a building of the plan: an id, a name, and the floors that are its own, by id. A
  * floor is in one building at most; a floor no building names is in none. A named group of
- * floors, never a floor: each building stacks its own floors and has its own areas and height
- * (`geometry/buildings.ts`). Ids that are no floor are named and left out, never refused.
+ * floors, never a floor: each building stacks its own floors, from its `pad` when it states one
+ * (LVL-23), and has its own areas, ground floor and height (`geometry/buildings.ts`). Ids that are
+ * no floor are named and left out, never refused.
  */
 export const PlanBuildingSchema = z.object({
   id: text('id').pipe(z.string().min(1)),
   name: text('name').optional(),
   floors: parts(text('id').pipe(z.string().min(1)), 'floors').pipe(z.array(z.string()).min(1, { message: english(said('read.building.floors')) })),
+  // LVL-23: the level of the building's own ground, in metres from the plan's datum (0). Optional
+  // and never defaulted: unstated, its ground is the site's, else its own ground floor's level.
+  pad: finite().optional(),
 })
 
 /**

@@ -75,7 +75,7 @@ import { columnRise, columnsOnFloor, soundColumn } from './columns'
 import type { OutdoorKind } from '../types/floorplan'
 import type { Vec2 } from './vec2'
 import { planRamps } from './parking'
-import { statedGround } from './ground'
+import { groundLevel } from './ground'
 import { overItsWalls } from './partyWalls'
 import type { RoofShape } from './plan'
 import { floorRoofShape, regionAtLeast, roofFacets, rooflightPlace, type RoofPlane, type RooflightPlace, type RoofShapeOverFloor } from './roofs'
@@ -249,8 +249,9 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
   const lowest = levels[0] ?? 0
   // LVL-15: where a floor's floor stands, which decides what stands over what.
   const floorLevelOf = (f: Floor): number => elevations.floors.get(f.id)?.floorLevel ?? 0
-  // LVL-13: the ground's level, in the floors' own datum: as the site states it, else 0.
-  const ground = statedGround(plan) ?? 0
+  // LVL-13: the ground's level, in the floors' own datum: as the site states it, else 0. LVL-23:
+  // a building's floors are under its own ground.
+  const groundOf = groundLevel(plan, elevations).groundOf
 
   const slices = new Map<string, Slice>()
   const sliceOf = (id: string) => {
@@ -357,7 +358,7 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
     // above) is not laid: the ground covers that part of the floor. LVL-12: a roof over roofed
     // outdoor space alone stands as high as that space does.
     const clear = canopy && shape === null ? canopyHeight(plan, sliceOf(floor.id), floor.id, storey.clearHeight) : onOwnWalls(plan, floor, floors, storey.clearHeight)
-    const buried = shape === null && storey.floorLevel + clear + SLAB_THICKNESS <= ground + tolerance('sameFloorLevel')
+    const buried = shape === null && storey.floorLevel + clear + SLAB_THICKNESS <= groundOf(floor.id) + tolerance('sameFloorLevel')
     if (pieces.length > 0 && !buried) {
       const sloped = shape !== null && shape.planes.length > 0
       const height = !sloped && floor.parapet !== undefined && Number.isFinite(floor.parapet) && floor.parapet > 0 ? floor.parapet : null
