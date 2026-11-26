@@ -2,7 +2,7 @@
  * SHT-12: a client sheet's words never claim the building is accessible, complies or is approved,
  * and its first page lists what Grid measured under the person's own access figures.
  */
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import { gunzipSync } from 'zlib'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -13,6 +13,7 @@ import { bench, type Bench } from '../../mcp/__tests__/replay/harness'
 import { accessNotes } from '../accessNotes'
 import { parseSheetWordsChecked, sheetClaims } from '../claims'
 import { sheetPages } from '../pages'
+import { readPdf } from './readPdf'
 
 const LAB = resolve(__dirname, '../../../../../scoreboard/data/lab-plans.ndjson.gz')
 function labPlan(name: string): Record<string, unknown> {
@@ -27,6 +28,7 @@ const NARROW = 'J/scenarios/7-wheelchair-user/probe-narrow-everything.json'
 const BRIEF = {
   figures: {
     door_width: { value: 0.8, level: 'must', source: 'given', quote: 'doors 80 cm clear' },
+    turning_circle: { value: 1.5, level: 'must', source: 'given', quote: 'turning space 1.5 m across' },
     corridor_width: { value: 1.2, level: 'must', source: 'given', quote: 'a hall 1.2 m' },
   },
 }
@@ -39,6 +41,8 @@ describe('the words a client sheet refuses', () => {
     ['an intro that says approved', { intro: ['Fine.', 'The layout is approved.'] }, 'intro[1]'],
     ['a floor paragraph that says it passes', { floors: { ground: ['It passes every check.'] } }, 'floors (key 1) paragraph 1'],
     ['wheelchair friendly', { headline: 'A wheelchair-friendly flat' }, 'headline'],
+    ['a nonbreaking hyphen', { headline: 'A wheelchair‑friendly flat' }, 'headline'],
+    ['a paragraph wrapped in quotes', { intro: ['"The layout is approved."'] }, 'intro[0]'],
     ['Spanish', { intro: ['Una casa accesible y que cumple la norma.'] }, 'intro[0]'],
   ])('refuses %s, naming the field and the words', (_what, extra, field) => {
     expect(() => parseSheetWordsChecked(words(extra), ['ground'])).toThrow(SheetWordsRefused)
@@ -64,23 +68,35 @@ describe('grid_sheet and the words', () => {
 
   it('refuses claim words in the sheet argument and writes nothing', async () => {
     b = bench({ 'probe.json': labPlan(NARROW) })
-    const reply = await b.call('grid_sheet', { plan: 'probe.json', layout: 'client', sheet: words({ headline: 'Fully accessible and compliant with the standard' }) })
+    const reply = await b.call('grid_sheet', { plan: 'probe.json', layout: 'client', sheet: words({ headline: '“Fully accessible and compliant with the standard”' }) })
     expect(reply.isError).toBe(true)
     expect(reply.text).toContain('The sheet words: headline says')
     expect(reply.text).toContain('"accessible"')
+    expect(existsSync(resolve(b.folder, 'exports', 'probe-client.pdf'))).toBe(false)
   })
 
   it('refuses claim words in the sheet file beside the plan', async () => {
-    b = bench({ 'probe.json': labPlan(NARROW), 'probe.sheet.json': words({ intro: ['This building complies.'] }) })
+    b = bench({ 'probe.json': labPlan(NARROW), 'probe.sheet.json': words({ intro: ['The layout meets\u00a0all  access requirements.'] }) })
     const reply = await b.call('grid_sheet', { plan: 'probe.json', layout: 'client' })
     expect(reply.isError).toBe(true)
-    expect(reply.text).toContain('"complies"')
+    expect(reply.text).toContain('intro[0]')
+    expect(reply.text).toContain('"meets all access requirements"')
+    expect(existsSync(resolve(b.folder, 'exports', 'probe-client.pdf'))).toBe(false)
   })
 
-  it('writes the sheet when the words hold no claim', async () => {
+  it('keeps the open access notes with the headline when a long intro continues', async () => {
     b = bench({ 'probe.json': labPlan(NARROW) })
-    const reply = await b.call('grid_sheet', { plan: 'probe.json', layout: 'client', sheet: words({ headline: 'A small flat', intro: ['Two bedrooms.'] }) })
+    expect((await b.call('grid_write_brief', { plan: 'probe.json', brief: BRIEF })).isError).toBe(false)
+    const headline = 'A small flat'
+    const intro = Array.from({ length: 3 }, () => 'Wide windows face the garden. '.repeat(40).trim())
+    const reply = await b.call('grid_sheet', { plan: 'probe.json', layout: 'client', sheet: words({ headline, intro }) })
     expect(reply.isError, reply.text).toBe(false)
+    const pdf = readFileSync(resolve(b.folder, String(reply.data?.['written'])))
+    const cover = readPdf(pdf).texts.map((line) => line.text)
+    expect(cover).toContain(headline)
+    expect(cover.filter((line) => line.startsWith('Under your figure of 0.80 m: the door')).length).toBeGreaterThanOrEqual(2)
+    expect(cover.some((line) => line.startsWith('Under your figure of 1.50 m: the turning space'))).toBe(true)
+    expect(readPdf(pdf, 1).texts.some((line) => line.text.includes('Wide windows face the garden.'))).toBe(true)
   }, 60000)
 })
 

@@ -1132,12 +1132,14 @@ Every field but `version` is optional. `floors` is keyed by the plan's floor ids
 paragraphs. Each string follows the plan's text rule. Without the file, the sheet carries the
 plan's name and no words: Grid writes none in the author's place. A check sheet takes no words.
 
-The words print above Grid's own figures, so Grid refuses the ones that claim what it never
-says: that the building is accessible, wheelchair-friendly or barrier-free, complies, passes or is
-approved (in English and Spanish). The refusal names the field and the words and writes nothing;
-words inside quotation marks are left alone. When the brief beside the plan holds your access
-figures (`door_width`, `corridor_width`, `turning_circle`), the first page lists the doors,
-corridors and turning spaces that measure under one, as `Under your figure of 0.80 m: ...`.
+Grid refuses sheet text that calls the building accessible, wheelchair-friendly, barrier-free
+or approved, or says it complies or passes (in English and Spanish). The refusal names the field
+and the words. Quoted words within prose are left alone. Grid also checks a headline or
+introductory paragraph wrapped in quotation marks. When the brief beside the plan holds your
+access figures (`door_width`, `corridor_width`, `turning_circle`), the cover gives priority to
+doors, corridors and turning spaces that measure under them, even when the introduction continues
+on another page. It shows up to six measurements and points to `grid_measure what=access` if there
+are more.
 
 Grid draws only what the plan holds: no furniture or landscape, and no stair treads but for the
 stairs the plan states. Every figure comes from
