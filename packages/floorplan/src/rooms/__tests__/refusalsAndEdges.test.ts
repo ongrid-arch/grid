@@ -165,8 +165,36 @@ describe('openings', () => {
     for (const how of ['in', 'out']) {
       const result = write(`${pair}door d1 between a and b, centred, 0.8 wide, opens ${how}\n`)
       expect(codes(result)).toEqual(['rooms/door-side'])
-      expect(result.problems[0]!.fixes?.map((f) => f.text)).toEqual(['door d1 between a and b, centred, 0.8 wide, opens into a', 'door d1 between a and b, centred, 0.8 wide, opens into b'])
+      // b is the smaller room: out of it is into a, in is into b, and that fix comes first.
+      const first = how === 'out' ? 'a' : 'b'
+      const second = how === 'out' ? 'b' : 'a'
+      expect(result.problems[0]!.fixes?.map((f) => f.text)).toEqual([`door d1 between a and b, centred, 0.8 wide, opens into ${first}`, `door d1 between a and b, centred, 0.8 wide, opens into ${second}`])
     }
+  })
+
+  it('leads the refusal of opens out between two rooms with the way out of the smaller room (WRT-65)', () => {
+    const shop = 'room sala "Sala" shop 8 x 6\nroom aseo "Aseo" toilet 2 x 2 east of sala align north\n'
+    const out = write(`${shop}door d-aseo between sala and aseo, centred, 0.9 wide, opens out\n`)
+    expect(out.plan).toBeNull()
+    expect(codes(out)).toEqual(['rooms/door-side'])
+    expect(out.problems[0]!.fixes?.map((f) => f.text)).toEqual(['door d-aseo between sala and aseo, centred, 0.9 wide, opens into sala', 'door d-aseo between sala and aseo, centred, 0.9 wide, opens into aseo'])
+    expect(out.problems[0]!.message).toContain("out of 'aseo', the smaller room")
+    expect(out.problems[0]!.message).toContain("'opens into sala'")
+    // Named the other way round, the smaller room still decides.
+    const named = write(`${shop}door d-aseo between aseo and sala, centred, 0.9 wide, opens out\n`)
+    expect(named.problems[0]!.fixes?.[0]!.text).toBe('door d-aseo between aseo and sala, centred, 0.9 wide, opens into sala')
+    const into = write(`${shop}door d-aseo between sala and aseo, centred, 0.9 wide, opens in\n`)
+    expect(into.problems[0]!.fixes?.[0]!.text).toBe('door d-aseo between sala and aseo, centred, 0.9 wide, opens into aseo')
+    expect(into.problems[0]!.message).toContain("into 'aseo', the smaller room")
+  })
+
+  it('leads by the room named second when the two rooms are the same size (WRT-65)', () => {
+    const twins = 'room a "A" bedroom 3 x 3\nroom b "B" bedroom 3 x 3 east of a\n'
+    const out = write(`${twins}door d1 between a and b, centred, 0.8 wide, opens out\n`)
+    expect(out.problems[0]!.fixes?.[0]!.text).toBe('door d1 between a and b, centred, 0.8 wide, opens into a')
+    expect(out.problems[0]!.message).toContain("out of 'b', the room named second")
+    const into = write(`${twins}door d1 between a and b, centred, 0.8 wide, opens in\n`)
+    expect(into.problems[0]!.fixes?.[0]!.text).toBe('door d1 between a and b, centred, 0.8 wide, opens into b')
   })
 
   it('lets a door carry a name, kept in its facts', () => {
