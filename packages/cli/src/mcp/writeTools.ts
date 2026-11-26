@@ -174,7 +174,7 @@ const sheetTool: GridTool = {
     + 'It writes the PDF into the exports folder beside the plan, replacing an earlier sheet of the same name and layout, and answers with the path and what is on each page. It never changes the plan. '
     + `${ROOM_NAMES_TRAVEL} `
     + 'Layout drawing (SHT-6, SHT-20) is the building to print and measure: every floor, one page each (or the one floor asked for), all drawn at one true scale (scale, N in 1:N) on one paper (A4 to A0), in black on white with walls joined, dimensions along the walls and room sizes, each page with a scale bar, a caption, north, a title block and the label; it writes one vector PDF, an SVG and a PNG of each page, and returns the PNGs to look at. Left out, the scale is the largest of 1:100, 1:200 and 1:500 every floor fits and the paper the smallest; a floor too large for the paper asked for is refused naming it, with a paper and a scale that fit and the pages split would take. With split true, a long floor is cut over pages at the scale, each part saying which it is, with a dashed line where the next continues. '
-    + 'Do not use for a single picture (grid_view) or a file for another program (grid_export).',
+    + 'A client or check sheet comes back with a small picture of each page, in order, to look at before you hand it over. Do not use for a single picture (grid_view) or a file for another program (grid_export).',
   args: {
     plan: { type: 'string', maxLength: PATH_MAX, required: true, description: 'The plan file, as a path inside the project folder.', examples: ['plan.json'] },
     layout: { type: 'string', required: true, enum: ['client', 'check', 'drawing'], description: 'client, check, or drawing for one floor at a true scale.', examples: ['client', 'check', 'drawing'] },
@@ -249,13 +249,16 @@ const sheetTool: GridTool = {
         : given !== undefined
           ? parseSheetWordsChecked(given, planFloors(loaded.plan).map((floor) => floor.id))
           : readSheetWords(project, file, loaded, undefined)
-      const done = await sheetIntoProject(project, file, layout, words, askedLanguage(args['language'], 'language'), args['date'] as string | undefined)
+      const done = await sheetIntoProject(project, file, layout, words, askedLanguage(args['language'], 'language'), args['date'] as string | undefined, true)
       const written = project.relative(done.written)
       const lines = [`Wrote ${quoted(written)} in the project folder: ${done.pages.length} pages.`]
       if (done.note) lines.push(done.note)
       const leftOut = done.loaded.broken.size
       if (leftOut > 0) lines.push(leftOutLine(leftOut))
-      return { text: lines.join('\n'), data: { written, layout, pages: done.pages, leftOut, note: done.note ?? null, svg: null, png: null, scale: null, paper: null, svgs: null, pngs: null } }
+      // VEW-62: each page as a small picture, in page order, to look at before the sheet goes on.
+      const images = (done.previews ?? []).map((data) => ({ data, mimeType: 'image/png' as const }))
+      if (images.length > 0) lines.push(`The ${images.length === 1 ? 'picture is' : `${images.length} pictures are`} the page${images.length === 1 ? '' : 's'}, in order, drawn small: look at ${images.length === 1 ? 'it' : 'them'} before you hand the sheet on.`)
+      return { text: lines.join('\n'), data: { written, layout, pages: done.pages, leftOut, note: done.note ?? null, svg: null, png: null, scale: null, paper: null, svgs: null, pngs: null }, ...(images.length === 0 ? {} : { images }) }
     } catch (error) {
       if (error instanceof SheetWordsRefused) throw new ToolRefusal(`The sheet words: ${error.message}.`)
       if (error instanceof ExportWriteFailed) throw new ToolRefusal(error.message)

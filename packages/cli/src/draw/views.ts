@@ -9,6 +9,7 @@
 import type { Display } from '@ongrid/floorplan/types/units'
 import type { Language } from '@ongrid/floorplan/messages'
 import { poleOfInaccessibility, type Bounds, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
+import type { Picture } from '@ongrid/viewer/src/picture'
 import { LOOKS as PICTURE_LOOKS, comparisonPicture, facadePicture, fileHeight, fullHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
 import { planFloors, resolveFloor, type BuildingComparison, type Facade, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
@@ -39,6 +40,23 @@ export interface PlanView {
   readonly boxes?: readonly PartBox[]
   /** Plan views: the doors drawn with the "undecided" mark (`Picture.undecidedDoors`). */
   readonly undecidedDoors?: readonly string[]
+  /** The same picture as the viewer's SVG, made only when called (VEW-62). */
+  readonly svg?: () => string
+  /** Plan views: the plan's metres the picture covers, y up as the plan states it (VEW-62). */
+  readonly bounds?: WorldBounds
+}
+
+/** VEW-62: the part of the plan, in metres, that a plan picture covers. */
+export interface WorldBounds {
+  readonly minX: number
+  readonly minY: number
+  readonly maxX: number
+  readonly maxY: number
+}
+
+/** The SVG of a picture as the PNG draws it, made when asked for. */
+function svgOf(picture: Picture): () => string {
+  return () => pictureToSvg(picture, 1, { label: true })
 }
 
 export async function planView(
@@ -63,7 +81,9 @@ export async function planView(
   const picture = planPicture(plan, { floor: options.floor ?? null, look: lookOf(options.look), showDimensions: options.dimensions, ...extra })
   const png = await drawPlan(plan, { format: 'png', floor: options.floor, look: lookOf(options.look), showDimensions: options.dimensions, ...extra })
   const boxes = pixelBoxes(partBounds(plan, options.floor), picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, boxes, undecidedDoors: picture.undecidedDoors }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, boxes, undecidedDoors: picture.undecidedDoors, svg: svgOf(picture),
+    // The view is in screen coordinates, y down: the plan's y runs the other way.
+    bounds: { minX: picture.view.x, minY: -(picture.view.y + picture.view.height), maxX: picture.view.x + picture.view.width, maxY: -picture.view.y } }
 }
 
 /**
@@ -84,7 +104,7 @@ export async function sectionView(plan: FloorPlan, line: SectionLine, look: Look
   // MSG-11: the drawing's own words in the language asked for, else the plan's own.
   const picture = sectionPicture(plan, line, { look: lookOf(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }) })
   const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section, svg: svgOf(picture) }
 }
 
 /**
@@ -94,7 +114,7 @@ export async function sectionView(plan: FloorPlan, line: SectionLine, look: Look
 export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; look: LookName; language?: Language; display?: Display }): Promise<PlanView & { readonly facade: Facade }> {
   const picture = facadePicture(plan, { side: options.side, look: lookOf(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
   const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade, svg: svgOf(picture) }
 }
 
 /**

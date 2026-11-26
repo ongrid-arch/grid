@@ -74,6 +74,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/draw/drawPlan.ts': [2, 'developer'],
   'packages/cli/src/draw/drawStill.ts': [2, 'developer'],
   'packages/cli/src/draw/stamp.ts': [1, 'notWords'],
+  // VEW-62: the refusals of grid_view's out.
+  'packages/cli/src/draw/pictureFiles.ts': [2, 'agent'],
   'packages/cli/src/edit/addOpening.ts': [26, 'notYet'],
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
@@ -121,7 +123,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
   // WRT-43: three more, grid_view's refusal of a room in no view, saying why it was left out.
   // ARE-53: one more, the line of a measure that runs through a wall.
-  'packages/cli/src/mcp/readTools.ts': [376, 'tools'],
+  // VEW-62: five more, grid_view's out argument, its description and its refusals.
+  'packages/cli/src/mcp/readTools.ts': [381, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -145,7 +148,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-38: six more, grid_change_wall's description and arguments.
   // CMD-38: three more, roomsFile's description and refusal, and what rooms text writes.
   // SHT-20: two more.
-  'packages/cli/src/mcp/writeTools.ts': [144, 'tools'],
+  // VEW-62: one more, grid_sheet's pictures of the pages.
+  'packages/cli/src/mcp/writeTools.ts': [145, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],

@@ -188,6 +188,8 @@ export interface MadeSheet {
   /** The name of the file in `exports/`, and why Grid changed the sheet's name, when it did. */
   readonly fileName: string
   readonly note?: string
+  /** Each page as a small PNG, when asked for (VEW-62). */
+  readonly previews?: readonly Uint8Array[]
 }
 
 /**
@@ -195,7 +197,7 @@ export interface MadeSheet {
  * words are in `language` when one is asked for, else the plan's own (`display.language`), else
  * English.
  */
-export async function makeSheet(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string): Promise<MadeSheet> {
+export async function makeSheet(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string, previews = false): Promise<MadeSheet> {
   const read = loadPlan(project, planFile)
   const lang = await languageFor(language, read.plan)
   // MSG-22: the floor the plan names in no list, named in the sheet's language.
@@ -204,13 +206,14 @@ export async function makeSheet(project: Project, planFile: string, layout: Shee
   const notes = layout === 'client' ? accessNotes(project, planFile, loaded) : []
   const sheet = sheetPages(loaded, words, layout, { name: base, date: exportTime(date), accessNotes: notes, language: lang })
   // The laid-out sheet is the one written: text that did not fit flows onto continuation pages.
-  const { pdf, sheet: laidOut } = await sheetPdf(loaded.plan, sheet)
+  const { pdf, sheet: laidOut, previews: small } = await sheetPdf(loaded.plan, sheet, { previews })
   const pages = laidOut.pages.map((page) => (page.floor === null ? { kind: page.kind, title: page.title } : { kind: page.kind, title: page.title, floor: page.floor }))
   const fileName = `${base}-${layout}.pdf`
+  const shown = previews ? { previews: small } : {}
   return note === undefined
-    ? { loaded, pdf, pages, fileName }
+    ? { loaded, pdf, pages, fileName, ...shown }
     // The name the sheet shows and its file in exports/ start with: true of --out as well.
-    : { loaded, pdf, pages, fileName, note: `Named the sheet ${base}: ${note}.` }
+    : { loaded, pdf, pages, fileName, note: `Named the sheet ${base}: ${note}.`, ...shown }
 }
 
 export interface SheetDone {
@@ -219,16 +222,19 @@ export interface SheetDone {
   readonly written: string
   readonly pages: MadeSheet['pages']
   readonly note?: string
+  readonly previews?: readonly Uint8Array[]
 }
 
 /**
  * Makes the sheet and writes it into `exports/` beside the plan, replacing an earlier copy, as
  * `grid export` writes its files. The command and the tool server both call this.
  */
-export async function sheetIntoProject(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string): Promise<SheetDone> {
-  const { loaded, pdf, pages, fileName, note } = await makeSheet(project, planFile, layout, words, language, date)
+export async function sheetIntoProject(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string, previews = false): Promise<SheetDone> {
+  const made = await makeSheet(project, planFile, layout, words, language, date, previews)
+  const { loaded, pdf, pages, fileName, note } = made
   const written = writeBesidePlan(project, planFile, fileName, pdf)
-  return note === undefined ? { loaded, written, pages } : { loaded, written, pages, note }
+  const shown = made.previews === undefined ? {} : { previews: made.previews }
+  return note === undefined ? { loaded, written, pages, ...shown } : { loaded, written, pages, note, ...shown }
 }
 
 /** SHT-6: a drawing at a scale made and not yet written: its files and how they are named. */

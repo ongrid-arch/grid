@@ -15,7 +15,7 @@ const q = (text: string): string => JSON.stringify(text)
 const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
 
 /** MSG-11: the picture's own words are in `language`; the answer's text stays the tool's English, as a facade's does. */
-export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: LookName, language?: Language, display?: Display): Promise<Answer> {
+export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: LookName, language?: Language, display?: Display): Promise<Answer & { readonly image: NonNullable<Answer['image']>; readonly picture: { readonly svg?: () => string; readonly bounds: null } }> {
   const look = asked === namedLook(asked) ? asked : `${namedLook(asked)} (asked as ${asked})`
   const view = await sectionView(plan, line, asked, language, display)
   const { section } = view
@@ -49,5 +49,6 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
       },
     },
     image: { data: view.png, mimeType: 'image/png' },
+    picture: { ...(view.svg === undefined ? {} : { svg: view.svg }), bounds: null },
   }
 }

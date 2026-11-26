@@ -364,12 +364,20 @@ async function drawPage(ctx: Ctx, canvas: Canvas, plan: FloorPlan, page: SheetPa
   flow(ctx, flowing, at.x, at.width, at.y)
 }
 
-/** The PDF, and the laid-out sheet whose pages match the PDF's one for one. */
-export async function sheetPdf(plan: FloorPlan, sheet: Sheet): Promise<{ pdf: Uint8Array; sheet: Sheet }> {
+/** VEW-62: a page's preview is this wide, in pixels. */
+const PREVIEW_WIDTH = 600
+
+/**
+ * The PDF, and the laid-out sheet whose pages match the PDF's one for one. With `previews`, each
+ * page is also drawn small as a PNG, for an agent to look at before the sheet is handed over.
+ */
+export async function sheetPdf(plan: FloorPlan, sheet: Sheet, options: { readonly previews?: boolean } = {}): Promise<{ pdf: Uint8Array; sheet: Sheet; previews: Uint8Array[] }> {
   const laid = await layoutSheet(sheet)
   const box = await floorPictureBox(laid)
   const canvas = await loadCanvas()
   const doc = new canvas.PDFDocument({ title: laid.name, creator: 'Grid', producer: 'Grid' })
+  const previews: Uint8Array[] = []
+  const k = PREVIEW_WIDTH / A3.width
   for (const page of laid.pages) {
     const ctx = doc.beginPage(A3.width, A3.height) as Ctx
     ctx.fillStyle = PAPER
@@ -377,6 +385,16 @@ export async function sheetPdf(plan: FloorPlan, sheet: Sheet): Promise<{ pdf: Ui
     await drawPage(ctx, canvas, plan, page, box, laid.language ?? DEFAULT_LANGUAGE)
     footer(ctx, page)
     doc.endPage()
+    if (options.previews) {
+      const small = canvas.createCanvas(PREVIEW_WIDTH, Math.round(A3.height * k))
+      const pctx = small.getContext('2d') as Ctx
+      pctx.scale(k, k)
+      pctx.fillStyle = PAPER
+      pctx.fillRect(0, 0, A3.width, A3.height)
+      await drawPage(pctx, canvas, plan, page, box, laid.language ?? DEFAULT_LANGUAGE)
+      footer(pctx, page)
+      previews.push(new Uint8Array(await small.encode('png')))
+    }
   }
-  return { pdf: trueCodePoints(new Uint8Array(doc.close())), sheet: laid }
+  return { pdf: trueCodePoints(new Uint8Array(doc.close())), sheet: laid, previews }
 }
