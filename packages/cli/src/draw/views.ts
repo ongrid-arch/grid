@@ -91,8 +91,9 @@ export async function planView(
  * `data-id`, and each part's box in the SVG's own frame (plan metres, y down), so the page can
  * frame a room without measuring anything itself.
  */
-export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 'technical' | 'dark'): { svg: string; boxes: Array<{ id: string; kind: string; x: number; y: number; width: number; height: number }> } {
-  const picture = planPicture(plan, { floor, look, showDimensions: true })
+export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 'technical' | 'dark', trace?: TracePicture): { svg: string; boxes: Array<{ id: string; kind: string; x: number; y: number; width: number; height: number }> } {
+  // VEW-67: the trace image under the plan, as grid_view draws it.
+  const picture = planPicture(plan, { floor, look, showDimensions: true, ...(trace === undefined ? {} : { trace }) })
   const round = (n: number): number => Math.round(n * 1000) / 1000
   const boxes = partBounds(plan, floor).map((part) => ({ id: part.id, kind: part.kind, x: round(part.bounds.min.x), y: round(-part.bounds.max.y), width: round(part.bounds.width), height: round(part.bounds.height) }))
   // The page draws this in the plan's own frame and carries the label itself: no caption band here.

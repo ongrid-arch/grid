@@ -312,7 +312,8 @@
  *
  * C31 · A trace image under the plan (HND-10, lab AU2, WR-13, T-5, AE-11)
  *   `referenceImage` is a scan, photo or sketch to trace over. Its `path` starts from the project
- *   folder, stays inside it and ends in `.png`, `.jpg` or `.jpeg`. Its pixels run from its
+ *   folder, stays inside it and ends in `.png`, `.jpg`, `.jpeg` or `.pdf` (VEW-67: a PDF's
+ *   `page`, the first unstated, whose largest raster image is the picture). Its pixels run from its
  *   top-left corner with y down; `at` is the point of the plan that corner lies on ([0, 0]
  *   unstated), `rotation` turns it about that corner, in degrees counter-clockwise (0 unstated),
  *   and its scale is metres per pixel: stated as `scale`, or set from two points on it and the
@@ -1581,6 +1582,8 @@ export const ReferenceImageSchema = z.object({
   rotation: finite().optional(),
   scale: finite().positive().optional(),
   calibration: TraceCalibrationSchema.optional(),
+  // VEW-67 (C31): for a PDF, the page whose picture is traced, from 1. Optional (version 1).
+  page: finite().int().positive().optional(),
 }).superRefine((image, ctx) => {
   if (image.scale !== undefined && image.calibration !== undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['scale'], message: english(said('read.trace.scaleAndCalibration')) })

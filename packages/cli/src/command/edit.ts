@@ -44,6 +44,8 @@ export const EDIT_VERBS = {
   phase: 'grid_set_phase',
   'start-works': 'grid_start_works',
   'phase-from': 'grid_phase_from',
+  // VEW-67: the trace image under the plan set, placed, scaled and turned.
+  trace: 'grid_place_trace',
 } as const
 
 type Verb = keyof typeof EDIT_VERBS
