@@ -39,10 +39,11 @@ function refusal(bytes: Buffer | string, name = 'plan.json'): string {
 
 describe('a file that is not a plan is named by its first bytes', () => {
   const cases: ReadonlyArray<readonly [string, Buffer, string, RegExp]> = [
-    ['dxf', DXF, 'DXF drawing', /does not read DXF yet.*grid write/],
-    ['dxf with comments', DXF_COMMENTED, 'DXF drawing', /does not read DXF yet/],
-    ['dwg', DWG, 'DWG drawing', /does not read DWG yet/],
-    ['ifc', IFC, 'IFC model', /does not read IFC yet/],
+    // CMD-43: a DXF or IFC is read with grid write --from.
+    ['dxf', DXF, 'DXF drawing', /grid write --from plan\.json/],
+    ['dxf with comments', DXF_COMMENTED, 'DXF drawing', /grid write --from/],
+    ['dwg', DWG, 'DWG drawing', /does not read DWG\. Save it as a DXF/],
+    ['ifc', IFC, 'IFC model', /grid write --from plan\.json/],
     ['pdf', PDF, 'PDF', /does not read PDF yet/],
     ['png', PNG, 'PNG picture', /referenceImage.*grid write/],
     ['jpeg', JPEG, 'JPEG picture', /referenceImage.*grid write/],
