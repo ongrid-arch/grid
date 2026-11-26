@@ -420,7 +420,7 @@ found in them. A `reason` is one of:
 | `way_out_not_drawn` | the floor's only door out leads to a space that is not drawn |
 | `alone_off_ground` | the only room on a floor off the ground, reached by a stair the plan does not draw |
 | `above_escape_storeys` | above the third storey, where the figures here stop |
-| `no_ground_level` | the plan states no ground level for the site (LVL-4: the check of doors and windows below the ground) |
+| `no_ground_level` | the plan states no ground level for the site, with the `ground <m>` line and `grid_set_site ground` that state it (LVL-4: the check of doors and windows below the ground; ARE-62) |
 | `no_building_outline` | the building has no outline to measure from (BRF-3: the distances to the plot's boundary) |
 | `boundary_not_closed` | the boundary is not one closed shape (BRF-3) |
 | `no_use` | no use stated |
@@ -558,9 +558,9 @@ adds. A check that looked at nothing still says "Nothing was checked for …". `
 and `grid_check` with `full: true` add the checks run, every figure the checks applied, each
 check's parts one by one, and what these checks never look at (`limits`). The data is the same
 either way: `grid check --json` gives the whole check, and `grid_check`'s data keeps `coverage`
-and `limits`. For the lab's 62.65 m² flat, which states no place, the short text is 1,196 bytes
-from `grid check` and 1,179 from `grid_check`, 984 and 969 without the line saying the plan
-states no ground level (LVL-4); with the US stated it is 1,200 from `grid check`, 988 without
+and `limits`. For the lab's 62.65 m² flat, which states no place, the short text is 1,224 bytes
+from `grid check` and 1,207 from `grid_check`, 947 and 932 without the line saying the plan
+states no ground level (LVL-4); with the US stated it is 1,265 from `grid check`, 988 without
 that line (`packages/cli/src/command/__tests__/shortReport.test.ts`). The figure checks that did
 not run because no place is stated are said together in one line of the counts, and when every
 check that used figures read them for one kind of building, the place line says it.

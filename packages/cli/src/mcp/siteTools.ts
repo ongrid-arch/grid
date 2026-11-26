@@ -73,11 +73,11 @@ export const setSiteTool: GridTool = {
   title: 'Set the plot, its streets and set-backs, and north',
   hint: 'change-plan',
   description:
-    'Use this when the person gives the plot or where the building stands: "the plot is 12 by 25 m", "the street is to the south", "keep 5 m from the street and 2 m from the other sides", "a 40 m coastal set-back on the west", "north is to the top right", or a north arrow on a sketch. '
-    + 'It sets the plot\'s boundary (its corners, or plot_width by plot_depth from its south-west corner, centred on the building when plot_x and plot_y are left out, and said), the edges on a street, the set-backs the person asked for (their own figures, never a code\'s), north, and where the building is on the earth, each only when given; remove takes a field out. '
+    'Use this when the person gives the plot or where the building stands: "the plot is 12 by 25 m", "the street is to the south", "keep 5 m from the street and 2 m from the other sides", "a 40 m coastal set-back on the west", "north is to the top right", a north arrow on a sketch, or where the ground outside is: "the floor is 15 cm above the ground", "the basement is 3 m below ground". '
+    + 'It sets the plot\'s boundary (its corners, or plot_width by plot_depth from its south-west corner, centred on the building when plot_x and plot_y are left out, and said), the edges on a street, the set-backs the person asked for (their own figures, never a code\'s), north, where the building is on the earth, and the ground level (ground), each only when given; remove takes a field out. '
     + 'Sides are the sides of the drawing, north up it, as in rooms text: street "south" is every edge facing down the drawing. Edge 1 runs from the first corner to the second; a plot\'s edges are 1 south, 2 east, 3 north, 4 west. '
     + 'It answers with the plot\'s area (in acres too on a plan shown in feet and inches), the plot coverage and what it counts (roofed porches and carports in, open decks and terraces out), and each edge\'s distance to the building against its set-back, as grid_measure what=site does. '
-    + 'Do not use for trees, paths, pools, fences or gates (grid_change_site), or to draw a path or a jetty as a room. Rooms text says the same in lines: plot 12 x 25, street south, setback all 2, north 135. It replaces the plan file unless out is given. Lengths are metres, or text with their unit.',
+    + 'Do not use for trees, paths, pools, fences or gates (grid_change_site), or to draw a path or a jetty as a room. Rooms text says the same in lines: plot 12 x 25, street south, setback all 2, north 135, ground -0.15. It replaces the plan file unless out is given. Lengths are metres, or text with their unit.',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
@@ -94,7 +94,7 @@ export const setSiteTool: GridTool = {
     latitude: number('Where the origin is on the earth, degrees north positive, with longitude.', [31.2304], -90, 90, false),
     longitude: number('Degrees east positive, with latitude.', [121.4737], -180, 180, false),
     elevation: number('The origin\'s height above sea level, in metres.', [12], -500, 9000),
-    ground: number('The ground outside, from the ground floor\'s floor level: -0.15 for a floor 15 cm above the ground.', [-0.15], -100, 100),
+    ground: number('The ground outside, in metres from the ground floor\'s floor level, the level the sections, the 3D ground and the below-ground check read: -0.15 for a floor 15 cm above the ground, 0 for one at it. A basement is set by its floor\'s elevation below the ground floor, not here.', [-0.15, 0], -100, 100),
     country: { type: 'string', maxLength: NAME_MAX, description: 'Where it will be built: a country\'s name or its two- or three-letter code. grid_check applies the figures that hold there.', examples: ['ES', 'United States'] },
     remove: { type: 'array', items: { enum: SITE_FIELDS }, minItems: 1, maxItems: SITE_FIELDS.length, description: 'Fields to take out: the boundary takes its streets and set-backs with it; location is latitude and longitude.', examples: [['north'], ['setbacks']] },
     out: OUT_ARG,

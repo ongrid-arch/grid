@@ -139,7 +139,7 @@ export function siteLimits(plan: FloorPlan, figures: readonly FigureWish[], disp
       const rule = 'from the ground to the top of the highest roof: a floor\'s level, its clear height and the roof slab over it, or the ridge its roof states, and its parapet'
       const height = buildingHeight(plan, storeysOnce())
       if (height === null) return { used: null, unit: 'm', rule, why: 'no floor at or above the ground floor holds an outline or walls that close one', assumed: null }
-      const ground = height.groundStated ? `the ground as site.ground states it` : 'the ground floor\'s floor level, since site.ground states no ground'
+      const ground = height.groundStated ? `the ground as site.ground states it` : "the ground floor's floor level, since the plan states no ground level (a 'ground <m>' line in rooms text, or grid_set_site ground, states it)"
       return { used: height.height, unit: 'm', rule: `${rule}; from ${ground}, to the roof over ${JSON.stringify(names.get(height.floor) ?? height.floor)}`, why: null, assumed: null }
     }
     // parking_per_home

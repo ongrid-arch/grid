@@ -34,6 +34,7 @@ import { askedLanguage } from '../command/language'
 import { readRoomsFile, RoomsRefused, writeRoomsIntoProject } from '../command/write'
 import { roomsGrammarText } from './roomsGrammar'
 import { writeScanIntoProject } from '../command/scan'
+import { writeDrawingIntoProject } from '../drawing/fromDrawing'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { ROOM_NAMES_TRAVEL } from './protocol'
 import { comparePlans } from '../quantities/compare'
@@ -712,16 +713,18 @@ const ROOMS_EXAMPLE = [
  * the brief and a phone room scan. Refused, naming them, when none or more than one is given.
  */
 function refuseWaysIn(args: Readonly<Record<string, unknown>>): void {
-  // CMD-38: roomsFile is rooms text too, read from the project.
-  const given = (['rooms', 'roomsFile', 'layout', 'scan'] as const).filter((name) => args[name] !== undefined)
-  if (given.length === 0) throw new ToolRefusal('Pass rooms (the rooms text to write), roomsFile (a rooms text file in the project), layout (tidy or sizes, a first layout from the brief beside the plan) or scan (a phone room scan file in the project): one of the four.')
+  // CMD-38: roomsFile is rooms text too, read from the project. CMD-43: from reads a drawing.
+  const given = (['rooms', 'roomsFile', 'layout', 'scan', 'from'] as const).filter((name) => args[name] !== undefined)
+  if (given.length === 0) throw new ToolRefusal('Pass rooms (the rooms text to write), roomsFile (a rooms text file in the project), layout (tidy or sizes, a first layout from the brief beside the plan), scan (a phone room scan file in the project) or from (a DXF or IFC drawing in the project): one of the five.')
   if (given.includes('roomsFile') && given.length > 1) throw new ToolRefusal(`Pass roomsFile or ${given.find((name) => name !== 'roomsFile')}, not both: roomsFile is the rooms text to write, read from the project.`)
+  if (given.includes('from') && given.length > 1) throw new ToolRefusal(`Pass from or ${given.find((name) => name !== 'from')}, not both: from reads a DXF or IFC drawing into rooms text, in place of the others.`)
   if (given.length === 3) throw new ToolRefusal('Pass one of rooms, layout and scan, not all three: each writes the plan in place of the others.')
   if (given.length === 2) {
     const [first, second] = given
     const why = second === 'scan' ? (first === 'layout' ? 'layout writes a first layout from the brief, scan writes the plan from a phone room scan' : 'scan writes the plan from a phone room scan, in place of rooms text') : 'layout writes a first layout from the brief, in place of rooms text'
     throw new ToolRefusal(`Pass ${first} or ${second}, not both: ${why}.`)
   }
+  for (const name of ['layers', 'units'] as const) if (args[name] !== undefined && args['from'] === undefined) throw new ToolRefusal(`${name} goes with from: it says how to read a DXF drawing.`)
 }
 
 const writeRoomsTool: GridTool = {
@@ -739,7 +742,8 @@ const writeRoomsTool: GridTool = {
     + 'From a phone room scan: pass scan, the scan file in the project (Apple\'s room model, as JSON), in place of rooms. Grid pairs each wall\'s two faces into one wall as thick as the gap between them, takes a wall seen from one side as an outside wall of its usual thickness, places the doors and windows on their walls, keeps the scan beside the plan as <plan>.scan.json keyed by its ids, and lists everything it assumed to confirm with the person. A re-scan keeps the plan\'s ids for the parts it finds again. '
     + 'Rooms text writes far more than rectangles (the rooms argument holds its whole grammar, each topic with an example, and grid://guide/rooms serves it): floors with their level, elevation and height, a floor copied from another and a stair or shaft standing through floors; rooms drawn as a polygon at any angle and corners cut out; a curved wall written raw with its arc\'s centre and sweep in degrees; a raw room bounded by its own walls; outdoor rooms (garden, terrace, balcony); a room\'s own height and its floor set lower or higher; rooms open to each other; a floor\'s roof written raw (gable, hip); and a room type written once as a unit and placed many times by place and repeat, mirrored. Write a whole building, every floor, in one rooms text: a long one goes in a file in the project, passed as roomsFile. '
     + `${PHASE_RULES} `
-    + 'Pass one of rooms, roomsFile, layout and scan. '
+    + 'From a DXF or IFC drawing (a survey, a CAD plan, a BIM model): pass from, the drawing in the project, in place of rooms, and Grid reads its rooms (room outlines, an IFC\'s spaces, or the regions its wall faces close round), their names, the doors and windows by the gaps they stand in, and the floors with their elevations, into rooms text it writes beside the plan as <plan>.rooms, then writes the plan from it. The answer says how each DXF layer or IFC class was read (layers=walls=A-WALL;doors=A-DOOR reads a layer otherwise), what was assumed to confirm with the person, each room\'s area against the drawing and each opening\'s distance from it; every room, wall and opening keeps its DXF handle or IFC GlobalId as the fact handle or guid. Check the rooms text, change a line and pass it back as roomsFile. Do not retype a drawing\'s coordinates by hand. '
+    + 'Pass one of rooms, roomsFile, layout, scan and from. '
     + 'Fixtures and furniture are item lines (item tub bath in bath against north, at west): a text with item lines replaces the file\'s items; one with none keeps them, each against a wall moved with it, with their ids, and lists them with their rooms and any a new wall runs into (itemsKept). '
     + 'Do not use for one door or window (grid_change_opening) or one wall moved (grid_move_room_side). It replaces the plan file. Rooms text that names fewer floors than the plan holds is refused, naming the floors it would drop (replace=true drops them); rooms text with no rooms is always refused.',
   args: {
@@ -755,7 +759,11 @@ const writeRoomsTool: GridTool = {
     // CMD-38: rooms text from a file in the project, so a long building is not pasted into the call.
     roomsFile: { type: 'string', maxLength: PATH_MAX, description: 'In place of rooms: a file of rooms text, as a path inside the project folder (such as building.rooms). Written as if its text were passed as rooms.', examples: ['building.rooms'] },
     scan: { type: 'string', maxLength: PATH_MAX, description: 'In place of rooms: a phone room scan, as a path inside the project folder (Apple\'s room model saved as JSON). The plan is written from it, and the scan kept beside the plan.', examples: ['scans/flat.json'] },
-    replace: { type: 'boolean', description: 'true to write over a plan that was not written from this text or scan, or was changed since. Refused with the difference when left out.', examples: [true] },
+    // CMD-43: a DXF or IFC drawing, read into rooms text beside the plan.
+    from: { type: 'string', maxLength: PATH_MAX, description: 'In place of rooms: a DXF or IFC drawing, as a path inside the project folder (ending in .dxf or .ifc). Its rooms text is written beside the plan as <plan>.rooms, then the plan from it.', examples: ['survey.dxf', 'model.ifc'] },
+    layers: { type: 'string', maxLength: 4000, description: 'With from and a DXF: what its layers hold, over what their names say, as <what>=<layer>,<layer>;... with what one of walls, doors, windows, openings, rooms (closed room outlines), names (room names) and nothing.', examples: ['walls=A-WALL,A-WALL-EXT;doors=A-DOOR;rooms=A-AREA'] },
+    units: { type: 'string', enum: ['m', 'cm', 'mm', 'in', 'ft'], description: 'With from and a DXF that states no unit (or the wrong one): the unit it is drawn in.', examples: ['mm'] },
+    replace: { type: 'boolean', description: 'true to write over a plan that was not written from this text, scan or drawing, or was changed since. Refused with the difference when left out.', examples: [true] },
     // BRF-6: a first layout from the brief, in place of rooms text.
     layout: { type: 'string', enum: [...LAYOUT_SHAPES], description: 'In place of rooms: a first layout from the brief beside the plan. tidy: a rectangle; sizes: every size kept.', examples: ['tidy'] },
   },
@@ -791,6 +799,22 @@ const writeRoomsTool: GridTool = {
       },
       required: ['evidence', 'paired', 'oneSided', 'areas', 'assumed', 'leftOut', 'match'],
     },
+    // CMD-43: what a drawing gave, or null for rooms text.
+    drawing: {
+      type: ['object', 'null'],
+      properties: {
+        roomsFile: STRING,
+        format: STRING,
+        unit: STRING,
+        layers: listSchema(objectSchema({ layer: STRING, entities: NUMBER, readAs: STRING, why: STRING })),
+        areas: listSchema(objectSchema({ id: STRING, name: STRING, area: NUMBER, drawn: NUMBER, stated: { type: ['number', 'null'] }, source: NULLABLE_STRING })),
+        openings: listSchema(objectSchema({ id: STRING, kind: STRING, source: NULLABLE_STRING, written: STRING, wall: NULLABLE_STRING, off: { type: ['number', 'null'] } })),
+        factName: STRING,
+        assumed: listSchema(STRING),
+        leftOut: listSchema(STRING),
+      },
+      required: ['roomsFile', 'format', 'unit', 'layers', 'areas', 'openings', 'factName', 'assumed', 'leftOut'],
+    },
     // HND-11: each length taped on site against the plan as written; empty when it keeps none.
     taped: TAPED_OUTPUT,
     // WRT-46: the fixtures and furniture the file keeps, which rooms text does not write: where each stands now. Empty for a scan.
@@ -821,6 +845,7 @@ const writeRoomsTool: GridTool = {
             brief: done.brief,
             reminder: done.reminder,
             layout: null,
+            drawing: null,
             taped: done.taped,
             itemsKept: [],
             scan: {
@@ -832,6 +857,49 @@ const writeRoomsTool: GridTool = {
               leftOut: c.leftOut,
               match: c.match,
             },
+          },
+        }
+      }
+      if (args['from'] !== undefined) {
+        const read = writeDrawingIntoProject(project, args['from'] as string, file, {
+          replace: args['replace'] === true,
+          brief: true,
+          ...(args['layers'] === undefined ? {} : { layers: args['layers'] as string }),
+          ...(args['units'] === undefined ? {} : { units: args['units'] as string }),
+        })
+        const done = read.done
+        const r = done.result
+        const g = read.reading
+        return {
+          text: read.lines.join('\n').replace(/--replace/g, 'replace=true').replace(/grid write (\S+\.rooms)/g, 'grid_write_rooms roomsFile=$1'),
+          data: {
+            written: done.written,
+            rooms: r.rooms.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
+            walls: r.walls.length,
+            openings: r.openings.length,
+            guesses: [...r.guesses],
+            warnings: r.warnings.map((w) => `${w.code}: ${w.message}`),
+            verdict: done.verdict,
+            drawingProblems: done.drawingProblems,
+            toLookAt: done.toLookAt,
+            doors: [...done.doors],
+            brief: done.brief,
+            reminder: done.reminder,
+            layout: null,
+            scan: null,
+            drawing: {
+              roomsFile: read.roomsFile,
+              format: read.drawing.format,
+              unit: read.drawing.unit.name,
+              layers: read.drawing.layers.map((l) => ({ ...l })),
+              areas: g.rooms.map((x) => ({ id: x.id, name: x.name, area: x.area, drawn: x.drawn, stated: x.stated, source: x.source })),
+              openings: g.openings.map((o) => ({ ...o })),
+              factName: g.factName,
+              assumed: [...g.assumed],
+              leftOut: [...g.leftOut],
+            },
+            taped: done.taped,
+            itemsKept: done.itemsKept,
           },
         }
       }
@@ -857,6 +925,7 @@ const writeRoomsTool: GridTool = {
           reminder: done.reminder,
           layout: laid?.layout ?? null,
           scan: null,
+          drawing: null,
           taped: done.taped,
           itemsKept: done.itemsKept,
         },
