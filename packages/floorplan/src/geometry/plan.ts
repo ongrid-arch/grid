@@ -14,7 +14,7 @@ import type {
   Wall as AppWall
 } from '../types/floorplan'
 
-export type { Floor, Opening, OpeningAnchor, OpeningType, Roof, Rooflight, RoofShape, Room, Stair, WallKind } from '../types/floorplan'
+export type { Dormer, Floor, Opening, OpeningAnchor, OpeningType, Roof, Rooflight, RoofShape, Room, Stair, WallKind } from '../types/floorplan'
 
 /**
  * A divider with no substance: it closes a room's outline but is neither drawn

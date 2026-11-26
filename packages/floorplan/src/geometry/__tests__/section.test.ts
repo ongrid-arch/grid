@@ -272,9 +272,9 @@ describe('a section under a roof the floor states (after LVL-6)', () => {
   }
   const ACROSS_RIDGE: SectionLine = { from: { x: 2, y: -1 }, to: { x: 2, y: 7 }, toward: 'left' }
 
-  it('says a sloped roof is drawn flat at its eaves, not that the plan states no roof', () => {
+  it('says a sloped roof is drawn on its slopes, not that the plan states no roof', () => {
     const roof = planSection(loft({ shape: 'gable', eaves: 1, ridge: 3.6, ridgeRuns: 'east-west' }), ACROSS_RIDGE).assumed.find((a) => a.kind === 'roof')
-    expect(roof?.words).toBe('The roof over "Attic (converted loft)" is stated as a gable roof, but a section does not draw its slope yet: it is drawn flat at its eaves, 0.25 m thick, and the walls under it are not cut to it.')
+    expect(roof?.words).toBe('The roof over "Attic (converted loft)" is drawn on its slopes, as the floor states it (a gable roof), and taken as 0.25 m thick.')
     expect(roof?.hatched).toBe(true)
   })
 

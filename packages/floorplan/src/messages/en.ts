@@ -448,7 +448,7 @@ export const en = {
   'issue.plan/no-walls.opening.one': '{n} opening',
   'issue.plan/no-walls.opening.many': '{n} openings',
   'issue.opening/missing-wall.roof':
-    "Opening {opening} points at wall {wall}, which is not in the plan. An opening sits in a wall; a window in the roof is a rooflight, stated in its floor's roof (floors[].roof.rooflights). Dormers are not supported yet",
+    "Opening {opening} points at wall {wall}, which is not in the plan. An opening sits in a wall; a window in the roof is a rooflight, stated in its floor's roof (floors[].roof.rooflights), and a dormer is stated there too (floors[].roof.dormers)",
   'issue.opening/above-roof': 'Opening {opening} reaches {head} m on wall {wall}, where the roof over floor {floor} cuts the wall to {range}: {where}{fits}',
   'issue.opening/above-roof.range': '{low} to {high} m',
   'issue.opening/above-roof.at': '{low} m',
@@ -459,9 +459,19 @@ export const en = {
   'issue.floor/rooflight-misplaced.outside': 'lies outside the roof',
   'issue.floor/rooflight-misplaced.acrossSlopes': 'crosses a line where two slopes of the roof meet, so it would lie in both',
   'issue.floor/dormers-not-drawn.one':
-    "The roof over floor {floor} lists a dormer: dormers are not supported yet, so the roof is drawn and measured without them, and the headroom under one is the roof's",
+    'The roof over floor {floor} lists a dormer: sections draw it and the headroom counts the floor under it, but the 3D model, elevations, exports and take-off do not show it yet',
   'issue.floor/dormers-not-drawn.many':
-    "The roof over floor {floor} lists {n} dormers: dormers are not supported yet, so the roof is drawn and measured without them, and the headroom under one is the roof's",
+    'The roof over floor {floor} lists {n} dormers: sections draw them and the headroom counts the floor under them, but the 3D model, elevations, exports and take-off do not show them yet',
+  'issue.floor/dormer-misplaced': 'Dormer {dormer} in the roof over floor {floor} {problem}: it is left out',
+  'issue.floor/dormer-misplaced.outside': 'does not stand wholly inside the roof',
+  'issue.floor/dormer-misplaced.acrossSlopes': 'does not stand on one slope of the roof: it crosses a line where two slopes meet',
+  'issue.floor/dormer-misplaced.flat': 'stands on a level part of the roof, and a dormer stands out of a slope',
+  'issue.floor/dormer-misplaced.low': 'is no higher than the roof at its front, so it would not stand out of the slope',
+  'issue.wall/under-roof':
+    "Wall {wall} stops under the roof over floor {floor}: it is {height} m high, and the roof's underside over it is at {range}, so a gap of up to {gap} m is left over it. A wall stated exterior rises to the roof: state its kind exterior, or give it the height that meets the roof",
+  'line.wall/under-roof.says': '{label} stops under the roof over it',
+  'line.wall/under-roof.needed': 'an outside wall that meets the roof over it',
+  'line.wall/under-roof.fix': "State the wall's kind exterior, so it rises to the roof, or give it the height that meets the roof.",
   'issue.room/zone-not-in-room':
     'Room {zone} is marked as a zone of room {room}, but {why}. It is counted as a room of its own. Draw it within the room it is part of, on the same floor, or leave out {partOf}.',
   'issue.room/zone-not-in-room.itself': 'a room cannot be a zone of itself',
@@ -1581,10 +1591,14 @@ export const en = {
   'line.floor/rooflight-misplaced.needed': 'a rooflight wholly inside the roof and on one of its slopes, clear of the ridge and the hips',
   'line.floor/rooflight-misplaced.fix':
     "Move the rooflight's middle (at) onto one slope, or make it smaller, so it neither leaves the roof nor crosses where two slopes meet. Until then it is left out.",
-  'line.floor/dormers-not-drawn.says': '{label} lists dormers, which are not supported yet',
-  'line.floor/dormers-not-drawn.needed': 'a roof Grid can draw: dormers are not supported yet',
+  'line.floor/dormers-not-drawn.says': '{label} lists dormers that only sections and headroom show yet',
+  'line.floor/dormers-not-drawn.needed': 'dormers in every view: the 3D model, elevations, exports and take-off do not show them yet',
   'line.floor/dormers-not-drawn.fix':
-    "Grid draws and measures the roof without its dormers. A window in a dormer's face can be drawn in an outside wall raised to it; a window in the slope is a rooflight.",
+    "Sections and the headroom read the dormers. Until the other views do, a window in a dormer's face can be drawn in an outside wall raised to it; a window in the slope is a rooflight.",
+  'line.floor/dormer-misplaced.says': '{label} has a dormer that does not stand on one slope of its roof',
+  'line.floor/dormer-misplaced.needed': 'a dormer whose front stands on one slope of the roof, higher than the roof there, running back up that slope inside the roof',
+  'line.floor/dormer-misplaced.fix':
+    "Move the dormer's front (at) onto one slope, make it narrower or shallower, or give it a height above the roof at its front. Until then it is left out.",
 
   // ── After merging main at 8b599e9: LVL-8's opening patterns ─────────────────────────────────
   'thing.pattern': 'Opening pattern {id}',
@@ -2564,7 +2578,12 @@ export const en = {
   'drawing.section.taken.slab': 'The slab under {floor} is taken as {thickness} m thick: the floor states no slab.',
   'drawing.section.taken.roof.none': 'The roof over {floor} is taken as flat and {thickness} m thick, on its walls: the plan states no roof.',
   'drawing.section.taken.roof.flat': 'The roof over {floor} is drawn flat at its eaves, as the floor states it, and taken as {thickness} m thick.',
-  'drawing.section.taken.roof.sloped': 'The roof over {floor} is stated as a {shape} roof, but a section does not draw its slope yet: it is drawn flat at its eaves, {thickness} m thick, and the walls under it are not cut to it.',
+  'drawing.section.taken.roof.sloped': 'The roof over {floor} is drawn on its slopes, as the floor states it (a {shape} roof), and taken as {thickness} m thick.',
+  'drawing.section.taken.wallRoof.one': 'A wall cut on {floor} rises to the roof over it, past the {height} m it states, as an outside wall under a stated roof does ({ids}).',
+  'drawing.section.taken.wallRoof.many': '{count} walls cut on {floor} rise to the roof over them, past the heights they state, as outside walls under a stated roof do ({ids}).',
+  'drawing.section.eaves': '{level} Eaves',
+  'drawing.section.ridge': '{level} Ridge',
+  'drawing.section.headroom': '{height} m headroom',
   'drawing.section.roofShape.mono-pitch': 'mono-pitch',
   'drawing.section.roofShape.gable': 'gable',
   'drawing.section.roofShape.hip': 'hip',
@@ -3202,6 +3221,9 @@ export const en = {
   'areas.flat.outdoorCounted': '; outdoor space {area}, of which your rules count {counted}: {withIt} with it',
   'areas.free.total': 'Free floor: {free}, the net less the {taken} its fixtures stand on. {rule}',
   'areas.free.floor': ', free floor {area}',
+  'measure.wall.top.cut': 'The roof over it cuts its top: {low} m at its lowest, {high} m at its highest; along it from its start, {points}.',
+  'measure.wall.top.raised': 'It rises to the roof over it, past the {height} m it states: {low} m at its lowest, {high} m at its highest; along it from its start, {points}.',
+  'measure.wall.top.point': '{height} m at {at} m',
   'measure.fixturesLeftOut': 'Left out of this measure, so the floor they stand on is not taken off: {items}. grid_check says why; state what is missing and they count.',
   'measure.fixtureLeftOut.field': '{item}: its {field} is {found}',
   'measure.fixtureLeftOut.plain': '{item}: grid_check says why',

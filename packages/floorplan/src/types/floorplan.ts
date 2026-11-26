@@ -524,6 +524,26 @@ export const RooflightSchema = z.object({
   length: finite().positive(),
 })
 
+/** LVL-20: the two shapes of dormer: a flat-roofed box, or one with a small gable roof of its own. */
+export const DORMER_SHAPES = ['box', 'gable'] as const
+
+/**
+ * LVL-20: a dormer standing out of one slope of the roof. `at` is the middle of its front on the
+ * plan (C4) and `width` its front's width, along the slope's eaves. `height` is metres above the
+ * floor's level: a box dormer's flat ceiling, the top of a gable dormer's sides, from which its own
+ * two slopes rise at its `pitch` (unstated, the roof's) to its ridge. `depth` is metres on plan from
+ * its front up the slope; unstated, the dormer runs back until it meets the roof.
+ */
+export const DormerSchema = z.object({
+  id: text('id').pipe(z.string().min(1)),
+  shape: z.enum(DORMER_SHAPES),
+  at: Vec2,
+  width: finite().positive(),
+  height: finite().positive(),
+  depth: finite().positive().optional(),
+  pitch: finite().gt(0).lt(90).optional(),
+})
+
 /**
  * LVL-6: the roof over a floor, as planes its walls and rooms are cut to. Heights are metres
  * above the floor's level, to the roof's underside (the ceiling under it), measured on the lines
@@ -537,8 +557,9 @@ export const RooflightSchema = z.object({
  * - `hip`: four planes from `eaves` on all four sides, at one pitch.
  *
  * A sloped roof states its `pitch` in degrees, or its `ridge`, the underside's height at the top
- * (the high side of a mono-pitch roof), never both. `rooflights` are its windows. `dormers` are
- * not drawn yet: a roof that lists any is drawn without them, and the check says so.
+ * (the high side of a mono-pitch roof), never both. `rooflights` are its windows. `dormers`
+ * (LVL-20, `DormerSchema`) raise its underside where they stand: sections and headroom read them;
+ * the 3D model, elevations, exports and take-off do not yet, and the check says so.
  */
 export const RoofSchema = z
   .object({
@@ -549,7 +570,7 @@ export const RoofSchema = z
     ridgeRuns: z.enum(RIDGE_RUNS).optional(),
     highSide: z.enum(COMPASS_SIDES).optional(),
     rooflights: parts(RooflightSchema, 'rooflights in one roof').optional(),
-    dormers: z.array(z.unknown()).optional(),
+    dormers: parts(DormerSchema, 'dormers in one roof').optional(),
   })
   .superRefine((roof, ctx) => {
     const add = (path: string, message: string): void => ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message })
@@ -2686,6 +2707,7 @@ export type Stair = z.infer<typeof StairSchema>
 export type Ceiling = z.infer<typeof CeilingSchema>
 export type Roof = z.infer<typeof RoofSchema>
 export type Rooflight = z.infer<typeof RooflightSchema>
+export type Dormer = z.infer<typeof DormerSchema>
 export type RoofShape = (typeof ROOF_SHAPES)[number]
 export type LoweredZone = z.infer<typeof LoweredZoneSchema>
 export type OpeningAnchor = z.infer<typeof OpeningAnchorSchema>

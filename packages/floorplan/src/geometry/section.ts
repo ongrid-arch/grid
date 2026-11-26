@@ -8,7 +8,11 @@
  *   door and window), with their corners joined as the plan joins them (`wallJoints`). Under another
  *   floor a storey's top is that floor's slab: a full-height wall that stops short of it, or of
  *   the flat roof Grid lays, rises to it (`wallTopsUnder`, VEW-33), and the strip it adds is listed;
- * - the slabs, the roofs and the parapets (`planEnvelope`, LVL-4), open over stairs, lifts and voids;
+ * - the slabs, the roofs and the parapets (`planEnvelope`, LVL-4), open over stairs, lifts and voids.
+ *   LVL-20: a sloped roof the floor states (LVL-6) is cut along its slopes and its dormers, as thick
+ *   as Grid takes a roof, and the walls under it are cut, and seen, up to the top the roof leaves
+ *   them (`wallTopProfile`): an outside wall rises to it, so a gable end is closed. The rooms under
+ *   it are given their headroom along the line (`headroom`);
  * - the stairs the plan states (LVL-3), as they are built (VEW-11, `stairSection.ts`): each flight
  *   its treads and risers over a waist with the soffit beneath, each landing a slab, nothing
  *   solid down to the floor the stair leaves;
@@ -41,6 +45,7 @@
  */
 
 import { planInState } from './phases'
+import { floorRoofShape, headroomBands, planeAt, risesToRoof, roomHeadroom, topAt, undersideAlong, wallTopProfile, type RoofPlane, type RoofShapeOverFloor, type WallTopPoint } from './roofs'
 import { wallTypeOf } from './partTypes'
 import type { MultiPolygon } from 'polygon-clipping'
 import { heightByDefault } from '../types/floorplan'
@@ -161,9 +166,34 @@ export interface SectionRoom {
    * a void is over most of it on the line; `from` and `to` are then where it stands under them.
    */
   readonly through?: readonly string[]
+  /**
+   * LVL-20: under a sloped roof the floor states, the stretches across the section where the room
+   * has at least each of Grid's headroom bands (`headroomBands`) over its floor, lowest band first.
+   */
+  readonly headroom?: readonly SectionHeadroom[]
 }
 
-export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'wall-top' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers' | 'waist'
+/** LVL-20: a stretch of a room's floor on the line with at least `height` over it. */
+export interface SectionHeadroom {
+  readonly height: number
+  readonly from: number
+  readonly to: number
+}
+
+/** The top of a roof the line cuts; LVL-20: and, for a roof the floor states, its shape and levels. */
+export interface SectionRoof {
+  readonly floor: string
+  /** The highest point of the roof's cut, in metres from the datum. */
+  readonly level: number
+  readonly shape?: RoofShape
+  /** The pitch in degrees; 0 on a flat roof. */
+  readonly pitch?: number
+  /** The underside's levels at the eaves and at its top (the ridge, or a flat roof's eaves). */
+  readonly eaves?: number
+  readonly ridge?: number
+}
+
+export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'wall-top' | 'wall-roof' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers' | 'waist'
 
 /** Something the section takes that the plan does not state. */
 export interface SectionAssumption {
@@ -210,7 +240,7 @@ export interface PlanSection {
   /** Every floor's level, lowest first. */
   readonly levels: readonly SectionLevel[]
   /** The top of each roof the line cuts, by the floor it covers. */
-  readonly roofs: readonly { readonly floor: string; readonly level: number }[]
+  readonly roofs: readonly SectionRoof[]
   /** The rooms the line crosses, floor by floor. */
   readonly rooms: readonly SectionRoom[]
   /**
@@ -353,6 +383,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   // VEW-33: under another floor a storey's top is that floor's slab: full-height walls rise to it.
   const topUnder = wallTopsUnder(plan, envelope, elevations)
   const raisedWalls: { floor: string; wall: string; under: WallTopUnder; rings: Vec2[][] }[] = []
+  // LVL-20: the outside walls cut up to the roof over them, past the heights they state.
+  const roofRaised: { floor: string; wall: string; height: number; rings: Vec2[][] }[] = []
   const ground = groundLevel(plan, elevations)
   const marks = planMarks(plan)
   const parts: SectionPart[] = []
@@ -425,8 +457,55 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     return runs.reduce((best, run) => (run.to - run.from > best.to - best.from ? run : best))
   }
 
+  /** Where a point of the plan lies along a straight wall from its start, within it. */
+  const alongWall = (wall: Wall, p: Vec2): number => {
+    const axis = wallAxis(wall)
+    return Math.min(axis.length, Math.max(0, dot(sub(p, axis.start), axis.dir)))
+  }
+
+  /**
+   * LVL-20: a wall's cut from `x0` to `x1` across the section, from `y0` up to the top its profile
+   * gives where the line crosses it, turning where the top turns.
+   */
+  function underProfile(wall: Wall, profile: readonly WallTopPoint[], x0: number, x1: number, y0: number, base: number): Vec2[] {
+    const u0 = alongWall(wall, pointAt(x0))
+    const u1 = alongWall(wall, pointAt(x1))
+    const xs = [x1]
+    if (Math.abs(u1 - u0) > none) {
+      for (const p of [...profile].reverse()) {
+        if (p.u > Math.min(u0, u1) + none && p.u < Math.max(u0, u1) - none) xs.push(x0 + ((p.u - u0) / (u1 - u0)) * (x1 - x0))
+      }
+    }
+    xs.push(x0)
+    const ordered = [x1, ...xs.slice(1, -1).sort((a, b) => b - a), x0]
+    const topOf = (x: number): number => Math.max(y0, base + topAt(profile, Math.abs(u1 - u0) > none ? u0 + ((x - x0) / (x1 - x0)) * (u1 - u0) : u0))
+    return [{ x: snap(x0), y: snap(y0) }, { x: snap(x1), y: snap(y0) }, ...ordered.map((x) => ({ x: snap(x), y: snap(topOf(x)) }))]
+  }
+
+  /** The part of a ring above a height, as rings. */
+  function above(ring: readonly Vec2[], y: number): Vec2[][] {
+    const xs = ring.map((p) => p.x)
+    const ys = ring.map((p) => p.y)
+    const top = Math.max(...ys)
+    if (!(top - y > none)) return []
+    const cut = cutOutline('intersection', [ringOf(ring)], [[ringOf(rect(snap, Math.min(...xs), Math.max(...xs), y, top))]])
+    return cut === null ? [] : piecesAsRings(cut).map((piece) => [...piece.outline])
+  }
+
   /** A face of the plan, from a to b with its outside toward `outward`, standing between two heights. */
-  const face = (kind: SectionFaceKind, id: string, floor: string, a: Vec2, b: Vec2, outward: Vec2, y0: number, y1: number, holes: readonly { readonly a: Vec2; readonly b: Vec2; readonly y0: number; readonly y1: number }[] = []): void => {
+  const face = (
+    kind: SectionFaceKind,
+    id: string,
+    floor: string,
+    a: Vec2,
+    b: Vec2,
+    outward: Vec2,
+    y0: number,
+    y1: number,
+    holes: readonly { readonly a: Vec2; readonly b: Vec2; readonly y0: number; readonly y1: number }[] = [],
+    // LVL-20: a wall's top as the roof leaves it, from its floor's level `base`: the face stands under it.
+    top: { readonly wall: Wall; readonly profile: readonly WallTopPoint[]; readonly base: number } | null = null
+  ): void => {
     if (!(y1 - y0 > none)) return
     let da = beyondOf(frame, a)
     let db = beyondOf(frame, b)
@@ -452,13 +531,28 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       // Seen edge-on: a corner, at its nearest point.
       const x = da <= db ? xa : xb
       if (x < -none || x > frame.length + none) return
-      faces.push({ kind, id, floor, depth: Math.min(da, db), pieces: [], edge: [{ x: snap(x), y: snap(y0) }, { x: snap(x), y: snap(y1) }] })
+      const near = da <= db ? pa : pb
+      const high = top === null ? y1 : top.base + topAt(top.profile, alongWall(top.wall, near))
+      if (!(high - y0 > none)) return
+      faces.push({ kind, id, floor, depth: Math.min(da, db), pieces: [], edge: [{ x: snap(x), y: snap(y0) }, { x: snap(x), y: snap(high) }] })
       return
     }
     const x0 = Math.max(0, Math.min(xa, xb))
     const x1 = Math.min(frame.length, Math.max(xa, xb))
     if (!(x1 - x0 > none)) return
-    const body = rect(snap, x0, x1, y0, y1)
+    let body: MultiPolygon = [[ringOf(rect(snap, x0, x1, y0, y1))]]
+    if (top !== null) {
+      // The face under the wall's top, along the edge from a to b.
+      const ua = alongWall(top.wall, pa)
+      const ub = alongWall(top.wall, pb)
+      const at = (u: number): Vec2 => (Math.abs(ub - ua) > none ? add(pa, scale(sub(pb, pa), (u - ua) / (ub - ua))) : pa)
+      const us = [ub, ...top.profile.map((p) => p.u).filter((u) => u > Math.min(ua, ub) + none && u < Math.max(ua, ub) - none).sort((p, q) => (ub > ua ? q - p : p - q)), ua]
+      const tops = us.map((u, i) => ({ x: across(frame, i === 0 ? pb : i === us.length - 1 ? pa : at(u)), y: top.base + topAt(top.profile, u) }))
+      const under = [{ x: across(frame, pa), y: y0 - 1 }, { x: across(frame, pb), y: y0 - 1 }, ...tops]
+      const cut = Math.abs(signedArea(under)) > 0 ? cutOutline('intersection', body, [[ringOf(under)]]) : null
+      if (cut === null || cut.length === 0) return
+      body = cut
+    }
     const cutters = holes.flatMap((hole) => {
       const h0 = Math.max(x0, Math.min(across(frame, hole.a), across(frame, hole.b)))
       const h1 = Math.min(x1, Math.max(across(frame, hole.a), across(frame, hole.b)))
@@ -466,7 +560,8 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       const foot = Math.max(hole.y0, y0)
       return h1 - h0 > none && top - foot > none ? [[ringOf(rect(snap, h0, h1, foot, top))]] : []
     })
-    const pieces = cutters.length === 0 ? [{ outline: body, holes: [] }] : piecesAsRings(cutOutline('difference', [ringOf(body)], cutters) ?? [[ringOf(body)]])
+    const pieces = piecesAsRings(cutters.length === 0 ? body : (cutOutline('difference', body, cutters) ?? body))
+    if (pieces.length === 0) return
     faces.push({ kind, id, floor, depth: (da + db) / 2, pieces, edge: null })
   }
 
@@ -523,20 +618,34 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         }
       }
       const rings: Vec2[][] = []
+      // LVL-20: under a roof the floor states, a wall's top is what the roof leaves it, an outside
+      // wall raised to it; its parts are cut as high as that reaches.
+      const profile = wall === part ? wallTopProfile(plan, wall) : null
+      const peak = profile === null ? wall.height : Math.max(...profile.map((p) => p.z))
+      const tall = peak > wall.height ? { ...wall, height: peak } : wall
       // VEW-33: a wall through floors keeps its own top; any other may rise to the slab over it.
-      const under = wall === part ? topUnder(wall, floor.id) : null
+      const under = wall === part && profile === null ? topUnder(wall, floor.id) : null
       const raised: Vec2[][] = []
-      for (const part of wallParts(wall, openings)) {
+      const toRoof: Vec2[][] = []
+      for (const part of wallParts(tall, openings)) {
         const polygon = wallSlicePolygon(wall, part.from, part.to, ends)
         const atTop = under !== null && part.zTo >= wall.height - none
+        const topped = profile !== null && part.zTo >= peak - none
         for (const [x0, x1] of inside(frame, [polygon])) {
           // VEW-24: a wall's foot beside or in a sunken room is carried down to that room's slab.
           const down = part.zFrom <= none ? Math.min(0, ...sunkSpans.filter((s) => s.from <= x1 + none && s.to >= x0 - none).map((s) => s.offset)) : 0
+          if (topped) {
+            const ring = underProfile(wall, profile, x0, x1, base + part.zFrom + down, base)
+            rings.push(ring)
+            if (peak > wall.height + tolerance('joint')) toRoof.push(...above(ring, base + wall.height))
+            continue
+          }
           rings.push(rect(snap, x0, x1, base + part.zFrom + down, atTop ? under.top : base + part.zTo))
           if (atTop) raised.push(rect(snap, x0, x1, base + wall.height, under.top))
         }
       }
       if (under !== null && raised.length > 0) raisedWalls.push({ floor: floor.id, wall: wall.id, under, rings: raised })
+      if (toRoof.length > 0 && risesToRoof(plan, wall)) roofRaised.push({ floor: floor.id, wall: wall.id, height: wall.height, rings: toRoof })
       if (rings.length > 0) {
         const glazed = wallTypeOf(plan, wall)?.glazed === true
         parts.push({ kind: 'wall', id: wall.id, floor: floor.id, rings, outside: outsideAt(frame, wall, sides), ...(glazed ? { glazed: true as const } : {}) })
@@ -547,11 +656,12 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       // the walls it carries stand down over the slab's edge.
       const slabOf = envelope.floors.find((f) => f.floor === floor.id)?.slab
       const drop = slabOf != null && slabOf.kind === 'floor' && !slabOf.thicknessStated ? slabOf.thickness : 0
-      wallFaces(wall, ends, openings, base, floor.id, base - drop, under?.top)
+      wallFaces(wall, ends, openings, base, floor.id, base - drop, profile !== null ? base + peak : under?.top, profile)
     }
 
     // A raised room's floor stands on its storey's, solid up to its own (LVL-7).
     const zones = roomZones(index).zoneOf
+    const roofOver = floorRoofShape(plan, floor.id)
     for (const room of slice.rooms) {
       if (broken.has(room.id) || zones.has(room.id)) continue
       const shape = tryRoomShape(room, index)
@@ -566,6 +676,11 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       const own = room.height !== undefined && Number.isFinite(room.height) && room.height > 0
       // VEW-34: a room that states no height, under a void over most of it, is as high as the space over the void.
       const under = own || room.void === true ? null : underVoid(floor.id, from, to)
+      // LVL-20: under a sloped roof the floor states, a room that states no height is as high as the
+      // roof leaves it at its highest, the figure `grid_measure` gives, and its headroom is given along the line.
+      const sloped = roofOver !== null && (roofOver.planes.length > 0 || roofOver.dormers.length > 0) && room.void !== true && outdoorRoofed(room) !== false ? roofOver : null
+      const headroom = sloped === null || under !== null ? null : roomHeadroom(plan, room, index)
+      const bands = sloped === null || headroom === null ? [] : headroomOnLine(sloped, stretches, offset, own ? room.height! : headroom.highest)
       for (const t of under?.through ?? []) risenVoids.add(`${t.floor}\u0000${t.room}`)
       rooms.push({
         room: room.id,
@@ -574,16 +689,44 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         from: snap(under?.from ?? from),
         to: snap(under?.to ?? to),
         floorLevel: snap(base + offset),
-        height: snap(own ? room.height! : under !== null ? under.top - base - offset : storey.clearHeight - offset),
+        height: snap(own ? room.height! : under !== null ? under.top - base - offset : headroom !== null ? headroom.highest : storey.clearHeight - offset),
         heightStated: own,
         ...(room.void === true || outdoorRoofed(room) === false ? { open: true as const } : {}),
-        ...(under === null ? {} : { through: under.through.map((t) => t.room) })
+        ...(under === null ? {} : { through: under.through.map((t) => t.room) }),
+        ...(sloped === null || headroom === null ? {} : { headroom: bands })
       })
     }
   }
 
+  /**
+   * LVL-20: the stretches of a room's floor on the line, `stretches`, with at least each headroom band
+   * over it under the roof: where the underside, less the room's own rise (`offset`), reaches the band,
+   * and never past the room's own height (`cap`).
+   */
+  function headroomOnLine(roof: RoofShapeOverFloor, stretches: readonly (readonly [number, number])[], offset: number, cap: number): SectionHeadroom[] {
+    const found: SectionHeadroom[] = []
+    for (const height of headroomBands()) {
+      if (cap < height - tolerance('lengthEqual')) continue
+      const runs: [number, number][] = []
+      for (const [s0, s1] of stretches) {
+        for (const piece of undersideAlong(roof, pointAt(s0), pointAt(s1))) {
+          const xa = s0 + piece.from
+          const xb = s0 + piece.to
+          const za = planeAt(piece.plane, pointAt(xa)) - offset - height
+          const zb = planeAt(piece.plane, pointAt(xb)) - offset - height
+          if (za < 0 && zb < 0) continue
+          const lo = za >= 0 ? xa : xa + (za / (za - zb)) * (xb - xa)
+          const hi = zb >= 0 ? xb : xa + (za / (za - zb)) * (xb - xa)
+          if (hi - lo > none) runs.push([lo, hi])
+        }
+      }
+      for (const [lo, hi] of mergeStretches(runs)) found.push({ height, from: snap(lo), to: snap(hi) })
+    }
+    return found
+  }
+
   /** The two faces and two ends of a wall, its doors and windows open in its faces. */
-  function wallFaces(wall: Wall, ends: typeof SQUARE_ENDS, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base, top = base + wall.height): void {
+  function wallFaces(wall: Wall, ends: typeof SQUARE_ENDS, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base, top = base + wall.height, profile: readonly WallTopPoint[] | null = null): void {
     if (wall.arc !== undefined) {
       curvedWallFaces(wall, openings, base, floor, foot, top)
       return
@@ -599,10 +742,11 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
         y0: base + o.sill,
         y1: base + o.sill + o.height
       }))
-    face('wall', wall.id, floor, l0!, l1!, axis.normal, foot, top, holesOn(half))
-    face('wall', wall.id, floor, r0!, r1!, scale(axis.normal, -1), foot, top, holesOn(-half))
-    face('wall', wall.id, floor, l1!, r1!, axis.dir, foot, top)
-    face('wall', wall.id, floor, r0!, l0!, scale(axis.dir, -1), foot, top)
+    const cutTo = profile === null ? null : { wall, profile, base }
+    face('wall', wall.id, floor, l0!, l1!, axis.normal, foot, top, holesOn(half), cutTo)
+    face('wall', wall.id, floor, r0!, r1!, scale(axis.normal, -1), foot, top, holesOn(-half), cutTo)
+    face('wall', wall.id, floor, l1!, r1!, axis.dir, foot, top, [], cutTo)
+    face('wall', wall.id, floor, r0!, l0!, scale(axis.dir, -1), foot, top, [], cutTo)
   }
 
   /**
@@ -636,7 +780,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   }
 
   // The slabs, roofs and parapets (LVL-4).
-  const roofs: { floor: string; level: number }[] = []
+  const roofs: SectionRoof[] = []
   const unstatedSlabs: { floor: Floor; rings: Vec2[][] }[] = []
   const onPlinths = new Set<string>()
   const roofRings: { floor: Floor; rings: Vec2[][]; thickness: number; shape: RoofShape | null }[] = []
@@ -674,21 +818,136 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       }
     }
     const roof = shell.roof
-    if (roof !== null) {
+    // LVL-20: a sloped roof the floor states is cut along its slopes and dormers.
+    const stated = roof !== null && roof.shape !== null ? floorRoofShape(plan, floor.id) : null
+    const slopes = stated !== null && (stated.planes.length > 0 || stated.dormers.length > 0) ? stated : null
+    if (roof !== null && slopes !== null) {
+      const level = elevations.floors.get(floor.id)?.floorLevel ?? 0
+      const rings = inside(frame, ringsOf(roof.pieces)).flatMap(([x0, x1]) => slopedCut(slopes, x0, x1, level, roof.thickness))
+      if (rings.length > 0) {
+        parts.push({ kind: 'roof', id: floor.id, floor: floor.id, rings })
+        roofRings.push({ floor, rings, thickness: roof.thickness, shape: roof.shape })
+        roofs.push({ floor: floor.id, level: snap(Math.max(...rings.flat().map((p) => p.y))), shape: slopes.roof.shape, pitch: slopes.pitch, eaves: snap(level + slopes.roof.eaves), ridge: snap(level + slopes.top) })
+      }
+      for (const piece of piecesAsRings(roof.pieces)) for (const ring of [piece.outline, ...piece.holes]) slopedFaces(floor.id, ring, slopes, level, roof.thickness)
+    } else if (roof !== null) {
       const roofTop = roof.bottom + roof.thickness
       const rings = inside(frame, ringsOf(roof.pieces)).map(([x0, x1]) => rect(snap, x0, x1, roof.bottom, roofTop))
       if (rings.length > 0) {
         parts.push({ kind: 'roof', id: floor.id, floor: floor.id, rings })
         roofRings.push({ floor, rings, thickness: roof.thickness, shape: roof.shape })
-        roofs.push({ floor: floor.id, level: snap(roofTop) })
+        const levels = stated === null ? {} : { shape: stated.roof.shape, pitch: 0, eaves: snap(roof.bottom), ridge: snap(roof.bottom) }
+        roofs.push({ floor: floor.id, level: snap(roofTop), ...levels })
       }
       for (const piece of piecesAsRings(roof.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('roof', floor.id, floor.id, ring, roof.bottom, roofTop)
       if (roof.parapet !== null) {
+        const roofTop = roof.bottom + roof.thickness
         const parapetTop = roofTop + roof.parapet.height
         const parapet = inside(frame, ringsOf(roof.parapet.pieces)).map(([x0, x1]) => rect(snap, x0, x1, roofTop, parapetTop))
         if (parapet.length > 0) parts.push({ kind: 'parapet', id: floor.id, floor: floor.id, rings: parapet })
         for (const piece of piecesAsRings(roof.parapet.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('parapet', floor.id, floor.id, ring, roofTop, parapetTop)
       }
+    }
+  }
+
+  /**
+   * LVL-20: a sloped roof's cut from `x0` to `x1` across the section: along each straight piece of
+   * its underside a band as thick as the roof, measured square to its slope; where a dormer rises
+   * from the slope, a strip as thick, on the dormer's side, joins the two.
+   */
+  function slopedCut(roof: RoofShapeOverFloor, x0: number, x1: number, level: number, thickness: number): Vec2[][] {
+    const pieces = undersideAlong(roof, pointAt(x0), pointAt(x1))
+    const rings: Vec2[][] = []
+    const band = (plane: RoofPlane): number => thickness * Math.sqrt(1 + plane.gx * plane.gx + plane.gy * plane.gy)
+    const zAt = (plane: RoofPlane, x: number): number => level + planeAt(plane, pointAt(x))
+    pieces.forEach((piece, i) => {
+      const xa = x0 + piece.from
+      const xb = x0 + piece.to
+      const t = band(piece.plane)
+      rings.push([
+        { x: snap(xa), y: snap(zAt(piece.plane, xa)) },
+        { x: snap(xb), y: snap(zAt(piece.plane, xb)) },
+        { x: snap(xb), y: snap(zAt(piece.plane, xb) + t) },
+        { x: snap(xa), y: snap(zAt(piece.plane, xa) + t) }
+      ])
+      const next = pieces[i + 1]
+      if (next === undefined) return
+      const low = zAt(piece.plane, xb)
+      const high = zAt(next.plane, xb)
+      if (Math.abs(high - low) <= none) return
+      // The higher piece holds the strip: it stands on the lower one and rises to its own top.
+      if (high > low) rings.push(rect(snap, xb, Math.min(x0 + next.to, xb + thickness), low, high + band(next.plane)))
+      else rings.push(rect(snap, Math.max(xa, xb - thickness), xb, high, low + t))
+    })
+    return rings.filter((ring) => Math.abs(signedArea(ring)) > 0)
+  }
+
+  /**
+   * LVL-20: the edges of a sloped roof seen beyond the cut, each a band along the roof's underside
+   * as thick as the roof, facing the person looking; one seen edge-on is a line.
+   */
+  function slopedFaces(floor: string, ring: readonly Vec2[], roof: RoofShapeOverFloor, level: number, thickness: number): void {
+    const clockwise = signedArea(ring) < 0
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i]!
+      const b = ring[(i + 1) % ring.length]!
+      const edge = sub(b, a)
+      const len = length(edge)
+      if (len <= none) continue
+      const left = scale(perp(edge), 1 / len)
+      const outward = clockwise ? left : scale(left, -1)
+      const facing = dot(outward, frame.look)
+      if (facing > squareFace) continue
+      let da = beyondOf(frame, a)
+      let db = beyondOf(frame, b)
+      if (da <= none && db <= none) continue
+      let pa = a
+      let pb = b
+      if (da < 0 || db < 0) {
+        const t = da / (da - db)
+        const cut = add(a, scale(sub(b, a), t))
+        if (da < 0) {
+          pa = cut
+          da = 0
+        } else {
+          pb = cut
+          db = 0
+        }
+      }
+      const pieces = undersideAlong(roof, pa, pb)
+      const run = length(sub(pb, pa))
+      const dir = run > 0 ? scale(sub(pb, pa), 1 / run) : { x: 0, y: 0 }
+      const band = (plane: RoofPlane): number => thickness * Math.sqrt(1 + plane.gx * plane.gx + plane.gy * plane.gy)
+      if (facing >= -squareFace || Math.abs(across(frame, pb) - across(frame, pa)) <= none) {
+        // Seen edge-on: a line at its nearest point.
+        const near = da <= db ? pa : pb
+        const x = across(frame, near)
+        if (x < -none || x > frame.length + none || pieces.length === 0) continue
+        const piece = pieces[da <= db ? 0 : pieces.length - 1]!
+        const z = level + planeAt(piece.plane, near)
+        faces.push({ kind: 'roof', id: floor, floor, depth: Math.min(da, db), pieces: [], edge: [{ x: snap(x), y: snap(z) }, { x: snap(x), y: snap(z + band(piece.plane)) }] })
+        continue
+      }
+      const quads = pieces.map((piece) => {
+        const p = add(pa, scale(dir, piece.from))
+        const q = add(pa, scale(dir, piece.to))
+        const zp = level + planeAt(piece.plane, p)
+        const zq = level + planeAt(piece.plane, q)
+        const t = band(piece.plane)
+        return [
+          { x: across(frame, p), y: zp },
+          { x: across(frame, q), y: zq },
+          { x: across(frame, q), y: zq + t },
+          { x: across(frame, p), y: zp + t }
+        ]
+      })
+      const ys = quads.flat().map((p) => p.y)
+      if (ys.length === 0) continue
+      const within = rect(snap, 0, frame.length, Math.min(...ys) - 1, Math.max(...ys) + 1)
+      const body = joined(quads.map((quad) => quad.map((p) => ({ x: snap(p.x), y: snap(p.y) }))))
+      const kept = body.length === 0 ? null : cutOutline('intersection', [ringOf(within)], [body.map((piece) => [ringOf(piece.outline), ...piece.holes.map(ringOf)])])
+      const shown = kept === null ? [] : piecesAsRings(kept)
+      if (shown.length > 0) faces.push({ kind: 'roof', id: floor, floor, depth: (da + db) / 2, pieces: shown, edge: null })
     }
   }
 
@@ -854,7 +1113,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     taken({ kind: 'slab', ids: [floor.id], hatched: true, pieces: joined(rings) }, said('drawing.section.taken.slab', { floor: nameOf(floor.id), thickness: num(metresText(thickness)) }))
   }
   for (const { floor, rings, thickness, shape } of roofRings) {
-    // LVL-6: a roof the floor states stands at its eaves; the section does not draw a slope yet.
+    // LVL-6: a flat roof the floor states stands at its eaves; LVL-20: a sloped one is cut on its slopes.
     const values = { floor: nameOf(floor.id), thickness: num(metresText(thickness)) }
     const sentence = shape === null
       ? said('drawing.section.taken.roof.none', values)
@@ -882,6 +1141,17 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       { kind: 'wall-top', ids: wallIds, hatched: true, pieces: joined(list.flatMap((r) => r.rings)) },
       said(`drawing.section.taken.wallTop.${under.over.kind}.${many(wallIds.length)}`, values)
     )
+  }
+  // LVL-20: the outside walls cut up to the roof over them, past the heights they state, floor by floor.
+  const raisedOn = new Map<string, (typeof roofRaised)[number][]>()
+  for (const raised of roofRaised) raisedOn.set(raised.floor, [...(raisedOn.get(raised.floor) ?? []), raised])
+  for (const [floor, list] of raisedOn) {
+    const wallIds = [...new Set(list.map((r) => r.wall))]
+    const sentence =
+      wallIds.length === 1
+        ? said('drawing.section.taken.wallRoof.one', { floor: nameOf(floor), height: num(metresText(list[0]!.height)), ids: ids(wallIds) })
+        : said('drawing.section.taken.wallRoof.many', { count: wallIds.length, floor: nameOf(floor), ids: ids(wallIds) })
+    taken({ kind: 'wall-roof', ids: wallIds, hatched: true, pieces: joined(list.flatMap((r) => r.rings)) }, sentence)
   }
   if (markedWalls.length > 0) {
     const rings = parts.filter((p) => p.kind === 'wall' && markedWalls.includes(p.id)).flatMap((p) => p.rings)

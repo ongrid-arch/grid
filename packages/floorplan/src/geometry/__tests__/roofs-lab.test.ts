@@ -148,12 +148,12 @@ describe('the rooflights and dormers the lab tried (VE-5, h15)', () => {
     const { issues } = validatePlan(parseFloorPlan(JSON.parse(labPlanText(TRIES))))
     const missing = issues.filter((i) => i.code === 'opening/missing-wall')
     expect(missing.map((i) => i.id)).toEqual(['t-rooflight-1', 't-rooflight-2'])
-    for (const line of missing) expect(line.message).toContain("a window in the roof is a rooflight, stated in its floor's roof (floors[].roof.rooflights). Dormers are not supported yet")
+    for (const line of missing) expect(line.message).toContain("a window in the roof is a rooflight, stated in its floor's roof (floors[].roof.rooflights), and a dormer is stated there too (floors[].roof.dormers)")
   })
 
   it('draws the same rooflight once it is stated in the attic\'s roof, and says its dormer is not drawn', () => {
     const raw = JSON.parse(labPlanText(TRIES)) as { floors: Record<string, unknown>[] }
-    raw.floors[1]!['roof'] = { shape: 'gable', eaves: 1.2, ridge: 3.9, ridgeRuns: 'east-west', rooflights: [{ id: 'rl', at: [5, 1.5], width: 0.8, length: 1.2 }], dormers: [{ at: [6.5, 0.6], width: 1.8 }] }
+    raw.floors[1]!['roof'] = { shape: 'gable', eaves: 1.2, ridge: 3.9, ridgeRuns: 'east-west', rooflights: [{ id: 'rl', at: [5, 1.5], width: 0.8, length: 1.2 }], dormers: [{ id: 'd', shape: 'box', at: [6.5, 0.6], width: 1.8, height: 2.2 }] }
     const plan = parseFloorPlan(raw)
     const lines = validatePlan(plan).issues.filter((i) => i.code.startsWith('floor/rooflight') || i.code.startsWith('floor/dormers'))
     expect(lines.map((i) => [i.code, i.id])).toEqual([['floor/dormers-not-drawn', 'attic']])

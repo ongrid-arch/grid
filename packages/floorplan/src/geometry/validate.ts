@@ -36,7 +36,7 @@ import { fixedText, metresText } from './rounding'
 import { likelyId } from '../types/nearest'
 import { validatePlausibility } from './plausible'
 import { wallFaults } from './wallFaults'
-import { kindDisagreements } from './exposure'
+import { kindDisagreements, planWallSides } from './exposure'
 import { inOpenSky } from './openSky'
 import { levelIssues, unknownFloorIssues } from './levels'
 import { buildingKind } from './plausible'
@@ -51,7 +51,7 @@ import { DOOR_KINDS, WINDOW_KINDS } from '../types/floorplan'
 import { expandPatterns } from './patterns'
 import type { PlanState } from './phases'
 import { idsInPhase, phaseClashes, planHasPhases, planInState } from './phases'
-import { floorRoofShape, rooflightPlace, topBetween, wallTopProfile } from './roofs'
+import { dormerPlace, floorRoofShape, risesToRoof, roofOverWall, rooflightPlace, topBetween, wallPeak, wallTopProfile } from './roofs'
 import { roomZones } from './zones'
 import { plotBoundary, ringFault } from './plot'
 import { flatIssues } from './flats'
@@ -439,7 +439,8 @@ function validateOpening(
   // LVL-5 (C19): in a wall through floors an opening may reach as high as the wall rises, from its
   // own floor's level. The roof over its top floor is checked on that floor's slice.
   const through = wall.through !== undefined && wall.through !== floorOf(wall)
-  const rise = through ? wallRise(index.plan, wall) : wall.height
+  // LVL-20: a wall that rises to the roof over it is as high as it rises.
+  const rise = through ? wallRise(index.plan, wall) : wall.virtual ? wall.height : wallPeak(index.plan, wall)
   if (!wall.virtual && head > rise + overrun) {
     // MSG-7: the tallest it can be at its sill, when it can be any height at all there.
     const tallest = rise - Math.max(opening.sill, 0)
@@ -1247,11 +1248,12 @@ function validateDerived(plan: FloorPlan, issues: Issue[], broken: Set<string>):
 
 /**
  * LVL-6: what a floor's stated roof holds that cannot be drawn. A rooflight that does not lie on
- * the roof, or lies across a ridge or a hip, is left out; dormers are not drawn yet, and a roof that
- * lists any says so. Each floor once, and only where its walls are: a floor's slice keeps the whole
- * floor list.
+ * the roof, or lies across a ridge or a hip, is left out, and so is a dormer with no place on one
+ * slope (LVL-20); a roof with dormers says they are drawn only in sections and the headroom; a wall
+ * on the outside that stops under the roof is named. Each floor once, and only where its walls are:
+ * a floor's slice keeps the whole floor list.
  */
-function validateRoofs(plan: FloorPlan, issues: Issue[]): void {
+function validateRoofs(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<string>, issues: Issue[]): void {
   const seen = new Set<string>()
   for (const floor of plan.floors ?? []) {
     if (seen.has(floor.id)) continue
@@ -1267,7 +1269,14 @@ function validateRoofs(plan: FloorPlan, issues: Issue[]): void {
         issue('floor', floor.id, 'floor/rooflight-misplaced', said('issue.floor/rooflight-misplaced', { rooflight: name(rooflight.id), floor: floorName, problem: place.problem }))
       )
     }
-    const dormers = (floor.roof.dormers ?? []).length
+    // LVL-20: a dormer with no place on one slope is left out, and the ones drawn are drawn only
+    // in sections and the headroom.
+    for (const dormer of floor.roof.dormers ?? []) {
+      const place = dormerPlace(shape, dormer)
+      if (!('problem' in place)) continue
+      issues.push(issue('floor', floor.id, 'floor/dormer-misplaced', said('issue.floor/dormer-misplaced', { dormer: name(dormer.id), floor: floorName, problem: place.problem }), 'warning'))
+    }
+    const dormers = shape.dormers.length
     if (dormers > 0) {
       issues.push(
         issue(
@@ -1279,6 +1288,44 @@ function validateRoofs(plan: FloorPlan, issues: Issue[]): void {
         )
       )
     }
+    wallsUnderRoof(plan, index, broken, floor.id, floorName, issues)
+  }
+}
+
+/**
+ * LVL-20: a solid wall on the building's outside (its sides worked out as outside, MSG-13) that is
+ * not stated `exterior`, so it does not rise to the roof (`risesToRoof`), and stops more than `joint`
+ * under the roof's underside somewhere along it: the gap over it is named. A wall through floors,
+ * one round outdoor space alone and one outside the roof's rectangle are not.
+ */
+function wallsUnderRoof(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<string>, floor: string, floorName: Value, issues: Issue[]): void {
+  const shape = floorRoofShape(plan, floor)
+  if (shape === null) return
+  let sides: ReturnType<typeof planWallSides>
+  try {
+    sides = planWallSides(index)
+  } catch {
+    return
+  }
+  for (const wall of plan.walls) {
+    if (floorOf(wall) !== floor || wall.virtual === true || wall.kind === 'exterior' || wall.through !== undefined || broken.has(wall.id)) continue
+    if (wall.arc !== undefined || sides.get(wall.id)?.worked !== 'exterior' || risesToRoof(plan, wall)) continue
+    const over = roofOverWall(shape, wall)
+    if (over === null) continue
+    const low = Math.min(...over.map((p) => p.z))
+    const high = Math.max(...over.map((p) => p.z))
+    const gap = high - wall.height
+    if (!(gap > tolerance('joint'))) continue
+    const range = high - low > tolerance('joint') ? said('issue.opening/above-roof.range', { low: num(metresText(low)), high: num(metresText(high)) }) : said('issue.opening/above-roof.at', { low: num(metresText(low)) })
+    issues.push(
+      issue(
+        'wall',
+        wall.id,
+        'wall/under-roof',
+        said('issue.wall/under-roof', { wall: name(wall.id), floor: floorName, height: num(metresText(wall.height)), range, gap: num(metresText(gap)) }),
+        'warning'
+      )
+    )
   }
 }
 
@@ -1347,7 +1394,7 @@ export function validatePlan(
   }
 
   validateOverlaps(index, broken, issues)
-  validateRoofs(plan, issues)
+  validateRoofs(plan, index, broken, issues)
 
   for (const room of plan.rooms) {
     // Already faulted (e.g. it reaches across floors) — one fault, one issue.
