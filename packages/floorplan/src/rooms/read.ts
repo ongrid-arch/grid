@@ -27,7 +27,7 @@ import { planRevision } from './stamp'
 import { factValueOf, metres, quotedWordsOf } from './words'
 import { siteLines } from './site'
 import { stairLines } from './stairs'
-import { itemLines } from './items'
+import { itemAndRowLines } from './rows'
 import { fitOutReading, type BasePlan } from './base'
 
 type P = readonly [number, number]
@@ -736,7 +736,7 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
   const stairs = stairLines(plan)
   if (stairs.length > 0) lines.push('', ...stairs)
   // CNT-45: the fixtures and furniture, after the stairs, so each room an item line names is written above it.
-  const items = itemLines(plan)
+  const items = itemAndRowLines(plan)
   if (items.length > 0) lines.push('', ...items)
   return `${lines.join('\n')}\n`
 }

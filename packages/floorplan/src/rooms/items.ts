@@ -5,6 +5,7 @@
  *   item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <side>
  *        [, at <end> | , <n> from <end> | , full width [<d> deep]]
  *   item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] at x,y [turn <degrees>] [on <floor>]
+ *   (CNT-47: `clear back <m>`, `clear left <m>`, `clear right <m>` keep clear floor on those sides too)
  *   raw item { ...Grid's own JSON for an item... }     (raw fixture and raw furniture are the same)
  *
  * `<name>` is a library entry (the plan's own, else Grid's: `bath`, `double-bed`, `wardrobe`) or a
@@ -63,6 +64,8 @@ export interface ItemWords {
   readonly depth?: number
   readonly height?: number
   readonly clearance?: number
+  /** CNT-47: the clear floor kept behind it and at its sides. */
+  readonly clearSides?: ClearSides
   /** The room it stands in, with `against`; or only to say its floor, with `at`. */
   readonly room?: string
   readonly against?: ItemSide
@@ -76,6 +79,16 @@ export interface ItemWords {
   readonly turn?: number
   readonly floor?: string
 }
+
+/** CNT-47: the clear floor an item keeps behind it and at its left and right, in metres. */
+export interface ClearSides {
+  readonly back?: number
+  readonly left?: number
+  readonly right?: number
+}
+
+/** CNT-47: the sides `clear` takes besides the front. */
+const CLEAR_SIDES = ['back', 'left', 'right'] as const
 
 /** Why an item's words give no item, in a sentence that names what to change. */
 export class ItemRefused extends Error {
@@ -204,6 +217,11 @@ export function placeItem(plan: FloorPlan, words: ItemWords, library: Library = 
   positive(words.depth, "an item's depth")
   positive(words.height, "an item's height")
   if (words.clearance !== undefined && !(Number.isFinite(words.clearance) && words.clearance >= 0)) throw new ItemRefused('the clear floor kept in front is a length, 0 or more.')
+  for (const side of CLEAR_SIDES) {
+    const v = words.clearSides?.[side]
+    if (v !== undefined && !(Number.isFinite(v) && v >= 0)) throw new ItemRefused(`the clear floor kept ${side === 'back' ? 'behind' : `at its ${side}`} is a length, 0 or more.`)
+  }
+  const clearSides = clearSidesOf(words.clearSides)
   const { found, kind, name, guesses } = entryOf(library, words)
   const entry = found?.entry
   let width = words.size?.[0] ?? entry?.size[0]
@@ -284,6 +302,7 @@ export function placeItem(plan: FloorPlan, words: ItemWords, library: Library = 
     ...(sized ? { size: [settled(width!), settled(depth!)] } : {}),
     ...(words.height !== undefined || entry === undefined ? { height: settled(height!) } : {}),
     ...(words.clearance === undefined ? {} : { clearance: settled(words.clearance) }),
+    ...(clearSides === undefined ? {} : { clearSides }),
   }
   const read = ItemSchema.safeParse({
     ...record,
@@ -298,6 +317,14 @@ export function placeItem(plan: FloorPlan, words: ItemWords, library: Library = 
   return { record, item: read.data, room: roomId, copy, guesses }
 }
 
+/** CNT-47: the sides that keep clear floor, settled, or undefined when none is given. */
+function clearSidesOf(sides: ClearSides | undefined): ClearSides | undefined {
+  if (sides === undefined) return undefined
+  const out: { -readonly [K in keyof ClearSides]: number } = {}
+  for (const side of CLEAR_SIDES) if (sides[side] !== undefined) out[side] = settled(sides[side]!)
+  return Object.keys(out).length === 0 ? undefined : out
+}
+
 /** An id an item line gives back as it is: one word of plain letters. */
 const readable = (id: string): boolean => /^[A-Za-z0-9._-]+$/.test(id) && plainId(id) === id
 
@@ -309,6 +336,7 @@ export function itemLine(words: ItemWords): string {
   if (words.size !== undefined && words.fullWidth !== true) parts.push(`${exact(words.size[0])} x ${exact(words.size[1])}`)
   if (words.height !== undefined) parts.push(`${exact(words.height)} high`)
   if (words.clearance !== undefined) parts.push(`clear ${exact(words.clearance)}`)
+  for (const side of CLEAR_SIDES) if (words.clearSides?.[side] !== undefined) parts.push(`clear ${side} ${exact(words.clearSides[side]!)}`)
   let tail = ''
   if (words.against !== undefined) {
     parts.push(`in ${words.room} against ${words.against}`)
@@ -324,7 +352,7 @@ export function itemLine(words: ItemWords): string {
 }
 
 /** Whether two items stand in one place: the same middle, turn, size and floor, to the nanometre's rounding. */
-function samePlace(a: Item, b: Item): boolean {
+export function samePlace(a: Item, b: Item): boolean {
   const near = tolerance('sameFace')
   const turnA = turned(a.turn ?? 0)
   const turnB = turned(b.turn ?? 0)
@@ -339,12 +367,13 @@ function samePlace(a: Item, b: Item): boolean {
     floorOf(a) === floorOf(b) &&
     a.kind === b.kind &&
     (a.label ?? '') === (b.label ?? '') &&
-    (a.clearance ?? 0) === (b.clearance ?? 0)
+    (a.clearance ?? 0) === (b.clearance ?? 0) &&
+    CLEAR_SIDES.every((side) => (a.clearSides?.[side] ?? 0) === (b.clearSides?.[side] ?? 0))
   )
 }
 
 /** The figures an item states itself, as words: what its library entry does not fill. */
-function figureWords(item: Item): Pick<ItemWords, 'name' | 'label' | 'size' | 'height' | 'clearance'> {
+export function figureWords(item: Item): Pick<ItemWords, 'name' | 'label' | 'size' | 'height' | 'clearance' | 'clearSides'> {
   const filled = new Set(item.fromLibrary ?? [])
   const byKind = item.library === undefined
   return {
@@ -353,6 +382,7 @@ function figureWords(item: Item): Pick<ItemWords, 'name' | 'label' | 'size' | 'h
     ...(byKind || !filled.has('size') ? { size: [item.size[0], item.size[1]] as P } : {}),
     ...(byKind || !filled.has('height') ? { height: item.height } : {}),
     ...(item.clearance !== undefined && !filled.has('clearance') ? { clearance: item.clearance } : {}),
+    ...(item.clearSides === undefined ? {} : { clearSides: item.clearSides }),
   }
 }
 
@@ -448,7 +478,7 @@ function statedOf(item: Item): Record<string, unknown> {
 }
 
 const USAGE =
-  "write 'item <id> [\"<label>\"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <n> from <end> | , full width]', or at its middle: 'item <id> <name> at x,y [turn <degrees>] [on <floor>]'."
+  "write 'item <id> [\"<label>\"] <name> [<w> x <d>] [<h> high] [clear [back|left|right] <m>] in <room> against <north|east|south|west> [, at <end> | , <n> from <end> | , full width]', or at its middle: 'item <id> <name> at x,y [turn <degrees>] [on <floor>]'."
 
 const isSide = (word: string | undefined): word is ItemSide => word !== undefined && (ITEM_SIDES as readonly string[]).includes(word)
 
@@ -478,10 +508,17 @@ export function itemOfWords(t: readonly string[], quoted: readonly LineWord[], a
   while (i < t.length) {
     const word = t[i]!
     const next = t[i + 1]
-    if (word === 'clear') {
+    if (word === 'clear' && (CLEAR_SIDES as readonly string[]).includes(next ?? '')) {
+      // CNT-47: `clear back 0.6`, `clear left 0.9`: the clear floor kept on that side.
+      const on = next as (typeof CLEAR_SIDES)[number]
+      if (t[i + 2] === undefined) return stop(`'clear ${on}' takes the clear floor kept there, in metres.`)
+      if (words.clearSides?.[on] !== undefined) stop(`the item says 'clear ${on}' twice.`)
+      words.clearSides = { ...words.clearSides, [on]: numberOf(t[i + 2]!, at, plain) }
+      i += 3
+    } else if (word === 'clear') {
       if (next === undefined) return stop("'clear' takes the clear floor kept in front, in metres.")
-      once('clearance', numberOf(next, at, plain), 'clear')
-      i += 2
+      once('clearance', numberOf(next === 'front' ? (t[i + 2] ?? '') : next, at, plain), 'clear')
+      i += next === 'front' ? 3 : 2
     } else if (word === 'in' || word === 'on') {
       if (next === undefined) return stop(`'${word}' takes ${word === 'in' ? 'a room' : 'a floor'}.`)
       once(word === 'in' ? 'room' : 'floor', next, word)
@@ -527,7 +564,7 @@ export interface ItemNote {
 
 /** The item lines of a text, read as they come and placed once the rooms are drawn. */
 export class ItemLines {
-  private readonly entries: Array<{ readonly line: number; readonly words?: ItemWords; readonly raw?: Item }> = []
+  private readonly entries: Array<{ readonly line: number; readonly words?: ItemWords; readonly raw?: Item; readonly many?: (plan: FloorPlan) => readonly ItemMade[] }> = []
 
   get written(): boolean {
     return this.entries.length > 0
@@ -540,6 +577,14 @@ export class ItemLines {
 
   read(t: readonly string[], quoted: readonly LineWord[], at: number, plain: PlainNumbers): void {
     this.entries.push({ line: at, words: itemOfWords(t, quoted, at, plain) })
+  }
+
+  /**
+   * CNT-47: a line that places many items at once (a `row` line, `rows.ts`), read in its turn
+   * with the others; `place` throws `ItemRefused` for a line that places none.
+   */
+  readMany(at: number, place: (plan: FloorPlan) => readonly ItemMade[]): void {
+    this.entries.push({ line: at, many: place })
   }
 
   /** `raw item {...}`: Grid's own JSON for an item, taken as it is, never placed again. */
@@ -569,6 +614,28 @@ export class ItemLines {
     const ids = new Set<string>()
     const others = new Set(plan === null ? [] : [...plan.walls, ...plan.rooms, ...plan.openings].map((part) => part.id))
     for (const entry of this.entries) {
+      if (entry.many !== undefined) {
+        if (plan === null) continue
+        let made: readonly ItemMade[]
+        try {
+          made = entry.many(plan)
+        } catch (error) {
+          if (!(error instanceof ItemRefused)) throw error
+          problems.push({ code: 'rooms/item', line: entry.line, message: `line ${entry.line}: ${error.message}` })
+          continue
+        }
+        const twice = made.find((one) => ids.has(one.item.id) || others.has(one.item.id))
+        if (twice !== undefined) {
+          problems.push({ code: 'rooms/duplicate-id', line: entry.line, message: `line ${entry.line}: the item id '${twice.item.id}' ${ids.has(twice.item.id) ? 'is used by two items' : 'is the id of a wall, room or opening'}.` })
+          continue
+        }
+        for (const one of made) {
+          ids.add(one.item.id)
+          items.push({ ...one.record })
+        }
+        guesses.push(...[...new Set(made.flatMap((one) => one.guesses))].map((g) => `Line ${entry.line}: ${g}`))
+        continue
+      }
       const id = entry.words?.id ?? entry.raw!.id
       if (ids.has(id) || others.has(id)) {
         problems.push({ code: 'rooms/duplicate-id', line: entry.line, message: `line ${entry.line}: the item id '${id}' ${ids.has(id) ? 'is used by two items' : 'is the id of a wall, room or opening'}.` })
