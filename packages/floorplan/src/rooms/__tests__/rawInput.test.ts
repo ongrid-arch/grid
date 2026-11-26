@@ -90,7 +90,8 @@ describe('raw takes wall, room, opening, floor, stair, bay or ramp (WRT-48, CNT-
       // CNT-41: the site has lines of its own.
       ['site', 'site boundary x,y'],
       ['column', '"columns"'],
-      ['fixture', '"items"'],
+      // CNT-45: an item is raw item, or an item line of its own.
+      ['items', 'raw item {'],
     ]
     for (const [kind, where] of cases) {
       const result = compileRoomsText(`${HALL}raw ${kind} {"id": "x1"}\n`)
@@ -98,7 +99,7 @@ describe('raw takes wall, room, opening, floor, stair, bay or ramp (WRT-48, CNT-
       expect(result.problems.map((p) => [p.code, p.line])).toEqual([['rooms/raw', 4]])
       const message = result.problems[0]!.message
       expect(message).toContain(`raw ${kind}`)
-      expect(message).toContain('wall, room, opening, floor, stair, bay or ramp')
+      expect(message).toContain('wall, room, opening, floor, stair, item, bay or ramp')
       expect(message).toContain(where)
       expect(message).not.toContain('A line starts with one of')
     }

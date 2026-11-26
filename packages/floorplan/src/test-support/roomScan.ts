@@ -236,7 +236,7 @@ export const INVENTED_FLAT: InventedScanOptions = {
     { name: 'toilet', category: 'toilet', at: [6.9, 5.1], size: [0.38, 0.68], height: 0.8, turn: 90 },
     { name: 'bath', category: 'bathtub', at: [4.6, 5.2], size: [1.7, 0.75], height: 0.55, turn: 180 },
     { name: 'bed', category: 'bed', at: [5.7, 2.4], size: [1.6, 2.0], height: 0.5, turn: 0 },
-    { name: 'sofa', category: 'sofa', at: [1.5, 3.4], size: [2.0, 0.9], height: 0.8, turn: 180 },
+    { name: 'sofa', category: 'sofa', at: [2.0, 2.0], size: [2.0, 0.9], height: 0.8, turn: 180 },
   ],
   heading: 31.7,
   at: [1.234, -2.5],

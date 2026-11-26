@@ -2160,7 +2160,7 @@ export const en = {
     "Line {line}: a raw floor holds the floor's {known}, as Grid's plan file holds them, and {field} is none of them. {fix}",
   'rooms.raw.floorField.line': "The floor's {field} is written on its floor line: floor <id> {field} <value>.",
   'rooms.raw.kind':
-    "Line {line}: raw takes wall, room, opening, floor, stair, bay or ramp, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
+    "Line {line}: raw takes wall, room, opening, floor, stair, item, bay or ramp, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
   'rooms.raw.kind.opening': 'A door or a window is written raw opening {"id": "<id>", "type": "{type}", "wall": "<wall id>", "offset": <m>, "width": <m>, "height": <m>}.',
   'rooms.raw.kind.floor': 'A floor\'s {list} is written raw floor {"{list}": ...}, under its floor line.',
   'rooms.raw.kind.list': 'Rooms text has no line for it: Grid\'s plan file holds it in "{list}", changed in the file once the plan is written.',
@@ -2189,7 +2189,8 @@ export const en = {
   'rooms.base.restsOnNone': 'Fitted out in the base plan {file}: its walls and openings are read in as existing and are not written into this plan. The rooms rest on none of its walls: write a room with its face on a base wall\'s face to rest it there.',
   'rooms.raw.smallLetters':
     "Line {line}: rooms text is read in small letters, and '{written}' is not; write '{offered}'.",
-  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor, stair, bay or ramp, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
+  'rooms.raw.kind.item': 'A fixture or a piece of furniture is written raw item {"id": "<id>", "kind": "<kind>", "at": [x, y], "size": [w, d], "height": <m>}, or in a line of its own: item <id> <name> in <room> against <side>.',
+  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor, stair, item, bay or ramp, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
   'rooms.plan.oneName': 'Line {line}: the plan line takes one name, in quotes when it has spaces, and {extra} after it would not be read. Write {offered}.',
   'rooms.wall.unknownRoom':
     "Line {line}: the wall line names '{room}', which is no room written on floor '{floor}'.{nearest} Rooms there: {rooms}.",
@@ -2292,6 +2293,34 @@ export const en = {
   'rooms.side.offer': "'{text}' for {beyond}",
   'rooms.side.offers': 'To place it, write line {line} as {offers}.',
   'rooms.side.staysOut': "No line is offered: the only side that holds it is the wall to {rooms}, so it would lead into {rooms}, not outside, and the side onto the outside is too short for it. Make room for it there, or write {words} if it is meant to lead into {rooms}.",
+  // LVL-22: floors copied turned, moved or scaled, and repeated so (`rooms/floorCopies.ts`).
+  'rooms.copy.form': 'copy <floor> [with openings] [turn <deg> [clockwise]] [about x,y] [move dx,dy] [scale <s>]',
+  'rooms.copy.unknown': "line {line}: '{word}' is not understood after the floor a copy takes. Write '{form}'.",
+  'rooms.copy.twice': "line {line}: '{word}' is written twice. Write '{form}'.",
+  'rooms.copy.takes': "line {line}: '{word}' takes {takes}. Write '{form}'.",
+  'rooms.copy.takes.turn': 'the degrees the floor turns, counter-clockwise, or clockwise with the word after them (turn 2, turn 90 clockwise)',
+  'rooms.copy.takes.about': 'the point it turns about, x,y (left out, the middle of its rooms)',
+  'rooms.copy.takes.move': 'how far it moves, dx,dy',
+  'rooms.copy.takes.scale': 'a number above 0: 0.95 makes its rooms 5% smaller, its walls as thick',
+  'rooms.copy.takes.as': 'the id of the first floor it writes, the next ones counting up from it',
+  'rooms.copy.takes.rise': 'the metres each floor stands above the one below it',
+  'rooms.repeatFloors.form': 'repeat floors <n> from <floor> [as <first id>] [with openings] [turn <deg> [clockwise]] [about x,y] [move dx,dy] [scale <s>] [rise <m>]',
+  'rooms.repeatFloors.count': "line {line}: a repeat writes from 1 to {max} floors, a whole number; found '{word}'. Write '{form}'.",
+  'rooms.repeatFloors.from': "line {line}: name the floor repeated after 'from'. Write '{form}'.",
+  'rooms.repeatFloors.noFloor': "line {line}: there is no floor '{floor}' to repeat. Floors so far: {floors}.",
+  'rooms.repeatFloors.riseFrom':
+    "line {line}: rise counts up from the elevation of floor '{floor}', which its floor line does not state. Write 'elevation <m>' on it, or leave rise out: each floor then stands on the one below.",
+  'rooms.repeatFloors.taken': "line {line}: floor '{id}', which this repeat would write, is already written. Write 'as <first id>' to number the floors from another id.",
+  'rooms.repeatFloors.wrote': "Line {line}: {count} floors written as copies of floor '{from}', {first} to {last}.",
+  'rooms.repeatFloors.wroteEach': "Line {line}: {count} floors written as copies of floor '{from}', {first} to {last}, each to the one below it: {each}.",
+  'rooms.repeatFloors.each.turn': 'turned {turn}° {way}',
+  'rooms.repeatFloors.each.move': 'moved {dx}, {dy} m',
+  'rooms.repeatFloors.each.scale': 'scaled by {scale}',
+  'rooms.repeatFloors.each.rise': '{rise} m higher',
+  'rooms.repeatFloors.ccw': 'counter-clockwise',
+  'rooms.repeatFloors.cw': 'clockwise',
+  'rooms.turnedRoof':
+    "line {line}: floor '{floor}' copies the sloped roof of floor '{from}' turned {turn}°, but a sloped roof is laid along the sides of the drawing and is not turned with the floor. Give the floor a flat roof or none on a raw floor line, or turn it by quarter turns.",
   'rooms.copyNoOpenings': '{list}',
   'rooms.copyNoOpenings.one':
     "Floor {floors} copies the rooms of floor '{from}' but none of its doors and windows, and writes none of its own, so it has none: write 'copy {from} with openings' to take them, or write its doors and windows.",

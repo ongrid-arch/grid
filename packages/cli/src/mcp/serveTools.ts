@@ -40,6 +40,7 @@ import { setFactsTool } from './factsTool'
 import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
 import { STAIR_TOOLS } from './stairTools'
+import { ITEM_TOOLS } from './itemTools'
 import { PARKING_TOOLS } from './parkingTools'
 import { placeTraceTool } from './traceTool'
 
@@ -82,6 +83,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   setFactsTool,
   // LVL-21: a stair between two floors, added, changed or removed: the last of the building's changes.
   ...STAIR_TOOLS,
+  // CNT-45: fixtures and furniture added against a wall, moved and taken out.
+  ...ITEM_TOOLS,
   // CNT-46: rows of parking bays placed and a ramp added between two floors, after the stairs.
   ...PARKING_TOOLS,
   // CNT-41: the plot, north and the site's things: the ground, never the building.

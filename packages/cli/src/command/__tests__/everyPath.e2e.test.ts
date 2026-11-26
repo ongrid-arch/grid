@@ -370,6 +370,18 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_change_stair', { plan: '@', id: 'st', width: 1 }), given: asIs },
     { arg: 'out', call: tool('grid_change_stair', { plan: PLAN, id: 'st', width: 1, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CNT-45: an item added, moved and taken out, written into the plan.
+  grid_add_item: [
+    { arg: 'plan', call: tool('grid_add_item', { plan: '@', name: 'wc', room: 'lounge', against: 'north' }), given: asIs },
+    { arg: 'out', call: tool('grid_add_item', { plan: PLAN, name: 'wc', room: 'lounge', against: 'north', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_move_item: [
+    { arg: 'plan', call: tool('grid_move_item', { plan: '@', id: 'wc', turn: 90 }), given: asIs },
+    { arg: 'out', call: tool('grid_move_item', { plan: PLAN, id: 'wc', turn: 90, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_remove_item: [
+    { arg: 'plan', call: tool('grid_remove_item', { plan: '@', ids: ['wc'] }), given: asIs },
+    { arg: 'out', call: tool('grid_remove_item', { plan: PLAN, ids: ['wc'], out: '@.json' }), given: (p) => `${p}.json` },
   // CNT-46: parking bays placed and a ramp added, written into the plan.
   grid_place_bays: [
     { arg: 'plan', call: tool('grid_place_bays', { plan: '@', group: 'p', room: 'lounge', along: 'south', kind: 'motorcycle', count: 1 }), given: asIs },

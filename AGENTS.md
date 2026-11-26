@@ -147,7 +147,7 @@ Notes for agents and people changing this repository.
   `bin/grid.mjs`, a committed launcher that runs it, because npm links bins at install time. Its end-to-end tests run that file as a
   child process; `npm test` builds it first. Every option is strict: an unknown, repeated or
   meaningless one is refused by name.
-- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 52 tools named
+- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 55 tools named
   `grid_…`, in a fixed order (`grid_project` first, `projectTool.ts` (CMD-18); then reading tools by the requests they answer, the problem report
   last of them (CMD-13, `src/report/`, which sends nothing), then the preview and the preview
   page's own call (VEW-4, `previewTools.ts`), the
@@ -155,12 +155,14 @@ Notes for agents and people changing this repository.
   `briefTool.ts`), Grid's words in the person's language (MSG-24, `wordsTool.ts`), and the tools that change the plan, tidy's fixes where walls meet (WRT-36,
   `tidyTool.ts`), a fit-out started on a base plan (WRT-75, `fitOutTool.ts`, its plan `edit/fitOut.ts`), any other field of a part set by id (CMD-42, `setTool.ts`, its change `edit/set.ts`), facts of the person's own and a room's number (WRT-74, `factsTool.ts`, its change
   `edit/facts.ts`), a stair between two floors (LVL-21, `stairTools.ts`, its changes `edit/stairs.ts`,
-  its rooms text line `packages/floorplan/src/rooms/stairs.ts`), parking bays placed in rows and a ramp between two floors (CNT-46,
+  its rooms text line `packages/floorplan/src/rooms/stairs.ts`), fixtures and furniture added against a wall,
+  moved and taken out (CNT-45, `itemTools.ts`, its changes `edit/items.ts`, its rooms text line
+  `packages/floorplan/src/rooms/items.ts`, which also moves an item with the wall it stands against), parking bays placed in rows and a ramp between two floors (CNT-46,
   `parkingTools.ts`, its changes `edit/parking.ts`, its rooms text lines `packages/floorplan/src/rooms/parking.ts`), the plot, north and the site's things (CNT-41, `siteTools.ts`, the changes in
   `src/edit/site.ts`, the lines in `packages/floorplan/src/rooms/site.ts`), the trace image set, placed, scaled and turned (VEW-67, `traceTool.ts`, its change `edit/trace.ts`) and then the saved views last (VEW-3, `viewTool.ts`)).
   Every answer goes through `budget.ts` (CMD-39), which keeps it to about 20 KB and adds `whole`
   and, on the reading tools, `page` to every tool's arguments.
-  Each is written once in `readTools.ts`, `writeTools.ts`, `previewTools.ts`, `reportTool.ts`, `seenTool.ts`, `briefTool.ts`, `wordsTool.ts`, `tidyTool.ts`, `fitOutTool.ts`, `setTool.ts`, `factsTool.ts`, `stairTools.ts`, `parkingTools.ts`, `siteTools.ts`, `traceTool.ts` or `viewTool.ts`; `toolkit.ts` turns its argument list into both the input schema and the
+  Each is written once in `readTools.ts`, `writeTools.ts`, `previewTools.ts`, `reportTool.ts`, `seenTool.ts`, `briefTool.ts`, `wordsTool.ts`, `tidyTool.ts`, `fitOutTool.ts`, `setTool.ts`, `factsTool.ts`, `stairTools.ts`, `itemTools.ts`, `parkingTools.ts`, `siteTools.ts`, `traceTool.ts` or `viewTool.ts`; `toolkit.ts` turns its argument list into both the input schema and the
   check. The measuring is in `src/quantities/` (CNT-9's asking across parts by their fields and
   facts, for `grid_fields`, `grid_find` and `grid_count`, in `query.ts`), the changes in `src/edit/`, the views in
   `src/draw/views.ts`. A 3D picture is taken from one camera record (VEW-3,
