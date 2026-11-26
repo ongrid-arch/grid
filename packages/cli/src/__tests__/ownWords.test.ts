@@ -120,6 +120,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/editTools.ts': [107, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
+  // CMD-42: grid_set, its help and its argument checks.
+  'packages/cli/src/mcp/setTool.ts': [13, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
