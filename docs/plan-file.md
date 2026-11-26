@@ -780,6 +780,7 @@ what it is, with no false alarms.
 | a floor's `above` | What lies above it: `outside`, `common` or `neighbour` |
 | a floor's `below` | What lies below it: `ground`, `outside`, `common` or `neighbour` |
 | `buildings[].id`, `name`, `floors` | A building of the plan and the floors that are its own, by id, at least one; a floor in one building at most |
+| `buildings[].pad` | The level of the building's own ground, in metres from the plan's datum (the 0 a floor's `elevation` is measured from), LVL-23. Its lowest floor at or above level 0 that states no elevation stands on it and its other floors stack from there. Its ground floor, way out, height and storeys are read against it; unstated, a building's ground is the site's stated `ground`, else its own ground floor's floor level |
 | `context[].id`, `name`, `floor`, `points`, `height` | A shape drawn round the plan for context: its outline, either way round, on a floor (unstated, the ground floor), with a name and a height |
 
 **Separating walls and what lies beyond.** `beyond` holds along every stretch of the wall that has

@@ -373,6 +373,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_change_stair', { plan: '@', id: 'st', width: 1 }), given: asIs },
     { arg: 'out', call: tool('grid_change_stair', { plan: PLAN, id: 'st', width: 1, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // LVL-23: a building of the plan, written into the plan.
+  grid_set_building: [
+    { arg: 'plan', call: tool('grid_set_building', { plan: '@', id: 'house', floors: ['ground'] }), given: asIs },
+    { arg: 'out', call: tool('grid_set_building', { plan: PLAN, id: 'house', floors: ['ground'], out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-45: an item added, moved and taken out, written into the plan.
   grid_add_item: [
     { arg: 'plan', call: tool('grid_add_item', { plan: '@', name: 'wc', room: 'lounge', against: 'north' }), given: asIs },

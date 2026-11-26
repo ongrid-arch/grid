@@ -11,7 +11,7 @@ import type { Floor, FloorPlan, Wall } from './plan'
 import { indexPlan } from './plan'
 import { validatePlan } from './validate'
 import { wallPeak } from './roofs'
-import { buildingOfFloor } from './buildings'
+import { planBuildings } from './buildings'
 import { outdoorOnlyWalls } from './outdoor'
 import { tolerance, tolerancesAsStated } from './tolerances'
 import { landscapeWalls } from './landscape'
@@ -55,9 +55,10 @@ const elevationOf = (floor: Floor): number | undefined =>
  * above 0 stands at 0, with its slab below it; each higher level stands on its own slab, laid on
  * the highest storey top of the levels below it (its level plus its clear height). Levels below 0 hang downward, each one's walls
  * ending under the slab of the level above it. Gaps in the numbering are ignored: levels are an
- * order, not positions. With nothing stated this is the rule Grid had before LVL-1.
+ * order, not positions. With nothing stated this is the rule Grid had before LVL-1. LVL-23: `base`
+ * is where the lowest level at or above 0 stands, a building's pad; 0 unless given.
  */
-export function stackFloors(entries: readonly FloorToStack[], slab: number): Map<string, StoreyLevel> {
+export function stackFloors(entries: readonly FloorToStack[], slab: number, base = 0): Map<string, StoreyLevel> {
   const levelOf = (floor: Floor): number => (Number.isFinite(floor.level) ? floor.level : 0)
   const slabOf = (floor: Floor): number => stated(floor.slab, false) ?? slab
 
@@ -88,7 +89,7 @@ export function stackFloors(entries: readonly FloorToStack[], slab: number): Map
     const undersides: number[] = []
     for (const entry of group) {
       const clearHeight = clearOf(entry, group)
-      const floorLevel = elevationOf(entry.floor) ?? (top === null ? 0 : top + slabOf(entry.floor))
+      const floorLevel = elevationOf(entry.floor) ?? (top === null ? base : top + slabOf(entry.floor))
       stacked.set(entry.floor.id, { floorLevel, clearHeight })
       tops.push(floorLevel + clearHeight)
       undersides.push(floorLevel - slabOf(entry.floor))
@@ -98,7 +99,7 @@ export function stackFloors(entries: readonly FloorToStack[], slab: number): Map
   }
 
   // Downward: each level's walls end under the slab of the level above it.
-  ceiling ??= -slab
+  ceiling ??= base - slab
   for (const level of below) {
     const group = groups.get(level)!
     const undersides: number[] = []
@@ -223,26 +224,39 @@ const elevationsOf = new WeakMap<FloorPlan, BuildingElevations>()
 function workOutElevations(plan: FloorPlan): BuildingElevations {
   const floors = floorsOf(plan)
   const entries = floors.map((floor) => ({ floor, tallest: tallestDrawnWall(plan, floor) }))
-  // CNT-6 (C23): each building the plan names stacks its own floors; the floors no building names
-  // are stacked together, as every floor was before.
-  const building = buildingOfFloorSafe(plan)
+  const byFloor = stackBuildings(plan, entries, SLAB_THICKNESS)
+  return { floors: byFloor, roof: roofOver(byFloor) }
+}
+
+/**
+ * CNT-6 (C23): `stackFloors` for each building the plan names on its own; the floors no building
+ * names are stacked together, as every floor was before. LVL-23: each building from its pad, when
+ * it states one. The 3D view and the IFC export stack through this, so a storey stands at the same
+ * height in both.
+ */
+export function stackBuildings(plan: FloorPlan, entries: readonly FloorToStack[], slab: number): Map<string, StoreyLevel> {
+  const { building, pads } = buildingsSafe(plan)
   const groups = new Map<string, FloorToStack[]>()
   for (const entry of entries) {
     const key = building.get(entry.floor.id) ?? ''
     groups.set(key, [...(groups.get(key) ?? []), entry])
   }
   const byFloor = new Map<string, StoreyLevel>()
-  for (const group of groups.values()) for (const [id, level] of stackFloors(group, SLAB_THICKNESS)) byFloor.set(id, level)
-  return { floors: byFloor, roof: roofOver(byFloor) }
+  for (const [key, group] of groups) for (const [id, level] of stackFloors(group, slab, pads.get(key) ?? 0)) byFloor.set(id, level)
+  return byFloor
 }
 
-/** The building each floor is in (CNT-6), or none when the list cannot be read. */
-function buildingOfFloorSafe(plan: FloorPlan): ReadonlyMap<string, string> {
-  if ((plan.buildings ?? []).length === 0) return new Map()
+/** The building each floor is in (CNT-6) and each building's stated pad (LVL-23), or none when the list cannot be read. */
+function buildingsSafe(plan: FloorPlan): { building: ReadonlyMap<string, string>; pads: ReadonlyMap<string, number> } {
+  if ((plan.buildings ?? []).length === 0) return { building: new Map(), pads: new Map() }
   try {
-    return buildingOfFloor(plan)
+    const read = planBuildings(plan)
+    return {
+      building: new Map(read.flatMap((b) => b.floors.map((floor) => [floor, b.id] as const))),
+      pads: new Map(read.flatMap((b) => (b.pad === null ? [] : [[b.id, b.pad] as const]))),
+    }
   } catch {
-    return new Map()
+    return { building: new Map(), pads: new Map() }
   }
 }
 

@@ -62,6 +62,7 @@ const ORDER = [
   'grid_set_facts',
   'grid_add_stair',
   'grid_change_stair',
+  'grid_set_building',
   'grid_add_item',
   'grid_move_item',
   'grid_remove_item',
@@ -75,7 +76,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -167,7 +168,9 @@ describe('tools/list', () => {
     // no tool wrote (agents drew their own maps outside Grid's pictures).
     // 58 since CMD-44: the last change undone and an earlier version put back, which agents did with
     // a script reading the markers file, or by asking the person to paste the plan back.
-    expect((await listed()).length).toBeLessThanOrEqual(58)
+    // 59 since LVL-23: which floors are each building's and the pad it stands on, which agents
+    // could only write as the plan file's JSON (every building shared one ground floor).
+    expect((await listed()).length).toBeLessThanOrEqual(59)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -310,6 +313,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_set_facts: { parts: ['bed2'], set: { department: 'Sales' }, out: 'facts.json' },
     grid_add_stair: { plan: 'house.json', id: 'st', from: 'ground', to: 'first', room: 'hall', width: 1, shape: 'U', runs: 'north', out: 'stair.json' },
     grid_change_stair: { plan: 'stair.json', id: 'st', width: 0.9, out: 'narrower.json' },
+    grid_set_building: { plan: 'house.json', id: 'house', name: 'House', pad: 0.3, floors: ['ground', 'first'], out: 'built.json' },
     grid_add_item: { name: 'wardrobe', id: 'robe', room: 'bed2', against: 'north', end: 'west', out: 'robe.json' },
     grid_move_item: { plan: 'robe.json', id: 'robe', against: 'north', end: 'east', out: 'robe-moved.json' },
     grid_remove_item: { plan: 'robe.json', ids: ['robe'], out: 'robe-gone.json' },

@@ -370,6 +370,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   if (plan.north !== undefined) next['north'] = plan.north
   // LVL-21: the stair lines replace the file's stairs; a text that writes none keeps the file's.
   if (plan.stairs !== undefined) next['stairs'] = plan.stairs
+  // LVL-23: the building lines replace the file's buildings; a text that writes none keeps the file's.
+  if (plan.buildings !== undefined) next['buildings'] = plan.buildings
   // CNT-45: the item lines replace the file's items; a text that writes none keeps the file's,
   // each that stood against a wall moved with it (walls by id).
   let itemsFollowed = 0

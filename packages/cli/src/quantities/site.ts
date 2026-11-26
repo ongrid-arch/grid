@@ -9,7 +9,8 @@
  * a distance is enough. The ways are read by the plan's north, and a plan that states none is
  * answered with north as the top of the drawing, said first (`northLine`).
  */
-import { areaText as areaFigure, isOutdoor, metresText, outdoorRoofed, planFacing, siteMeasures, siteThingsText, type EdgeDistance, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { areaText as areaFigure, isOutdoor, metresText, outdoorRoofed, planFacing, siteMeasures, siteThingsText, type BuildingSite, type EdgeDistance, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { english, name, said, type Said } from '@ongrid/floorplan/messages'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { FIGURES_HEADING } from '../brief/brief'
 import { northData, northLine } from './facing'
@@ -89,6 +90,11 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
         const edge = boundary.edges[face.edge - 1]!
         lines.push(`  The ${face.faces} face, ${L(face.length)} long: ${L(face.distance)} to ${edge.name}.`)
       }
+      // LVL-23: each building the plan names, on its own.
+      if (site.buildings !== undefined) {
+        lines.push(english(said('site.buildings.heading')))
+        for (const b of site.buildings) lines.push(`  ${english(buildingSiteLine(b, L, A))}`)
+      }
     }
   }
   if (things.length > 0) lines.push(`The site's things, drawn only and never measured: ${siteThingsText(things)}.`)
@@ -132,8 +138,30 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
     coverageWithOpenOutdoor: site.withOpen === null || site.withOpen.coverage === null || site.withOpen.covered === null || boundary === null ? null : { ratio: round(site.withOpen.coverage), percent: percentText(site.withOpen.coverage), covered: round(site.withOpen.covered), plot: round(boundary.area) },
     faces: site.faces.map((f) => ({ face: f.face, from: [round(f.from.x), round(f.from.y)], to: [round(f.to.x), round(f.to.y)], length: round(f.length), faces: f.faces, edge: f.edge, distance: round(f.distance) })),
     things: things.map((t) => ({ id: t.id, kind: t.kind, ...(t.label === undefined ? {} : { label: t.label }) })),
+    // LVL-23: only on a plan that names buildings.
+    ...(site.buildings === undefined
+      ? {}
+      : {
+          buildings: site.buildings.map((b) => ({
+            id: b.id,
+            name: b.name,
+            footprint: b.footprint === null ? null : { area: round(b.footprint.area), floors: b.footprint.floors },
+            why: b.why,
+            edges: b.edges.map((at) => ({ edge: at.edge.edge, distance: round(at.distance), past: round(at.past), short: at.short === null ? null : round(at.short), face: at.face, floor: at.floor })),
+          })),
+        }),
   }
   return { lines, data }
+}
+
+/** LVL-23: one building on its own: its footprint and the edge it comes nearest, or why it was not measured. */
+function buildingSiteLine(b: BuildingSite, L: (v: number) => string, A: (v: number) => string): Said {
+  const building = name(b.name)
+  if (b.footprint === null) return said('site.building.none', { building, why: b.why ?? '' })
+  const near = [...b.edges].sort((x, y) => (y.past - x.past) || (x.distance - y.distance))[0]
+  if (near === undefined) return said('site.building.area', { building, area: A(b.footprint.area) })
+  if (near.past > 0) return said('site.building.past', { building, area: A(b.footprint.area), past: L(near.past), edge: near.edge.name })
+  return said('site.building.near', { building, area: A(b.footprint.area), distance: L(near.distance), edge: near.edge.name })
 }
 
 /** One edge: its distance, the set-back asked for beside it, and how far short it falls. */

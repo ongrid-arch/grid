@@ -158,6 +158,7 @@ import { factValueOf, f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUn
 import { checkWritten } from './selfCheck'
 import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
+import { BuildingLines, isKindLine } from './buildings'
 import { ITEM_LINE_WORDS, ItemLines, RAW_ITEM_KINDS } from './items'
 import { readRowLine, ROW_LINE_WORDS } from './rows'
 import { NOTE_LINE_WORDS, NoteLines } from './notes'
@@ -898,6 +899,8 @@ class Compiler {
   private readonly siteLines = new SiteLines()
   /** LVL-21: the stairs, from their own lines and `raw stair`. */
   private readonly stairLines = new StairLines()
+  /** LVL-23: the building lines (`buildings.ts`). */
+  private readonly buildingLines = new BuildingLines()
   /** CNT-45: the fixtures and furniture, from their own lines and `raw item`. */
   private readonly itemLines = new ItemLines()
   /** SHT-22: writing on the drawing and the sketch, from their own lines and `raw note|sketch`. */
@@ -1161,6 +1164,8 @@ class Compiler {
         if (t.length > 2) this.planWords(t, at)
         return
       case 'building':
+        // LVL-23: a building of the plan and the floors that are its own (`buildings.ts`).
+        if (!isKindLine(t) && t.length > 1) return this.buildingLines.read(quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
         if (t.length !== 2 || !BUILDINGS.includes(readBuilding(t[1]) as string)) this.stop('rooms/syntax', at, `line ${at}: write 'building <kind>': one of ${BUILDINGS.join(', ')}.`)
         this.building = readBuilding(t[1]) as BuildingType
         return
@@ -1230,6 +1235,8 @@ class Compiler {
         return
       case 'pattern':
         return this.stop('rooms/syntax', at, patternLine(at, false))
+      case 'end':
+        return this.buildingLines.end(at)
       default:
         this.stop(
           'rooms/syntax',
@@ -1359,7 +1366,8 @@ class Compiler {
       const fixed = [`floor ${id.text}`, quoteWords(words.slice(0, end).map((w) => w.text).join(' ')), ...words.slice(end).map(lineWord)].join(' ')
       refuse(say('rooms.floor.unquoted', { word: words[0].text, line: fixed }))
     }
-    const fl = newFloor(id.text, name ?? id.text, this.floors.length === 0 ? 0 : this.floors.length, this.rule)
+    // LVL-23: under a building line, the next level of that building's own.
+    const fl = newFloor(id.text, name ?? id.text, this.buildingLines.levelFor(this.floors.length), this.rule)
     fl.ahead = this.openedAhead(this.lines.slice(at).map((text, i) => ({ line: at + i + 1, text })))
     let copy: string[] | null = null
     const seen = new Set<string>()
@@ -1410,6 +1418,7 @@ class Compiler {
     if (!this.explicitFloors && this.floors.length > 0) refuse(say('rooms.floor.roomsFirst'))
     this.explicitFloors = true
     this.floors.push(fl)
+    this.buildingLines.floor(fl.id, fl.level)
     this.cur = fl
     this.riseInto(fl)
     if (copy !== null) this.stCopy(copy, at)
@@ -4378,6 +4387,7 @@ class Compiler {
     const twice = [...new Set(all.filter((x, k) => all.indexOf(x) !== k))].sort()
     for (const id of twice) this.problem('rooms/duplicate-id', null, `The id '${id}' would name two things in the plan (walls, rooms and openings share one set of ids). Rename one.`)
     this.rawOpeningFloors(plan.walls)
+    this.emitBuildings(plan)
     this.emitSite(plan)
     this.emitStairs(plan)
     this.emitItems(plan)
@@ -4414,6 +4424,14 @@ class Compiler {
     this.warnings.push(...made.warnings.map(capital))
     if (made.site !== undefined) plan.site = made.site
     if (made.north !== undefined) plan.north = made.north
+  }
+
+  /** LVL-23: the building lines into the plan's `buildings`. */
+  private emitBuildings(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.buildingLines.written) return
+    const made = this.buildingLines.finish(this.floors.map((f) => f.id))
+    this.problems.push(...made.problems.map((note) => ({ ...note, message: note.message.charAt(0).toUpperCase() + note.message.slice(1) })))
+    if (made.buildings !== undefined) plan.buildings = made.buildings
   }
 
   /** LVL-21: the stair lines into the plan's `stairs`, laid out in the rooms as drawn. */

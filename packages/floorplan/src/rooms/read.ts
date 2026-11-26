@@ -29,6 +29,7 @@ import { planRevision } from './stamp'
 import { factValueOf, metres, quotedWordsOf } from './words'
 import { siteLines } from './site'
 import { stairLines } from './stairs'
+import { buildingLines } from './buildings'
 import { itemAndRowLines } from './rows'
 import { parkingLines } from './parking'
 import { noteLines } from './notes'
@@ -767,6 +768,9 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
   // LVL-21: the stairs, after every floor, so each room a stair line names is written above it.
   const stairs = stairLines(plan)
   if (stairs.length > 0) lines.push('', ...stairs)
+  // LVL-23: the buildings, after every floor, each naming its own floors.
+  const buildings = buildingLines(plan)
+  if (buildings.length > 0) lines.push('', ...buildings)
   // CNT-45: the fixtures and furniture, after the stairs, so each room an item line names is written above it.
   const items = itemAndRowLines(plan)
   if (items.length > 0) lines.push('', ...items)

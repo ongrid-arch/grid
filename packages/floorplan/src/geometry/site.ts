@@ -23,12 +23,16 @@
  *   distance is enough.
  * - A footprint reaching more than `pastBoundary` past an edge is said to stand over it.
  *
+ * - LVL-23: on a plan that names buildings, each is also measured on its own (`buildings`): its
+ *   footprint, from its own floors at or above its own ground floor, and its distance to each edge.
+ *
  * Pure: a plan in, plain data out. Never throws on a plan the schema reads.
  */
 import type { MultiPolygon } from 'polygon-clipping'
 import { floorElevations } from './elevations'
 import { planFloors } from './floors'
 import { groundLevel } from './ground'
+import { planBuildings } from './buildings'
 import { slabOutline, outlineKnown } from './outline'
 import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './orientation'
 import type { FloorPlan, PlanIndex } from './plan'
@@ -104,6 +108,22 @@ export interface SiteMeasures {
    * sound. The fields above are the enclosed building, open outdoor space left out.
    */
   readonly withOpen: OpenOutdoorMeasures | null
+  /**
+   * LVL-23: each building the plan names, measured on its own: its footprint (its own floors at or
+   * above its own ground floor) and its distance to each edge. Only on a plan that names buildings.
+   */
+  readonly buildings?: readonly BuildingSite[]
+}
+
+/** LVL-23: one building of the plan on its site. */
+export interface BuildingSite {
+  readonly id: string
+  readonly name: string
+  /** Null when its floors close no floor, or their outline could not be worked out (`why`). */
+  readonly footprint: Footprint | null
+  readonly why: string | null
+  /** Each edge of the boundary, when the boundary is sound and it has a footprint. */
+  readonly edges: readonly EdgeDistance[]
 }
 
 /** ARE-24: the site measured with the open outdoor space in the footprint. */
@@ -291,11 +311,11 @@ function measureFrom(plan: FloorPlan, boundary: PlotBoundary, footprint: Footpri
   return { edges, faces, coverage: boundary.area > 0 && covered !== null ? covered / boundary.area : null, covered }
 }
 
-/** The footprint of `plan` as its floors' outlines join, or why it has none. */
-function footprintOf(plan: FloorPlan, broken: ReadonlySet<string>): { footprint: Footprint; outlines: Outlines } | { why: Said } {
+/** The footprint of `plan` as its floors' outlines join (LVL-23: only the floors `only` holds, when given), or why it has none. */
+function footprintOf(plan: FloorPlan, broken: ReadonlySet<string>, only?: ReadonlySet<string>): { footprint: Footprint; outlines: Outlines } | { why: Said } {
   const outlines: { floor: string; pieces: MultiPolygon }[] = []
   const unknown: Said[] = []
-  for (const floor of footprintFloors(plan)) {
+  for (const floor of footprintFloors(plan).filter((f) => only === undefined || only.has(f))) {
     const outline = slabOutline(plan, floor, broken)
     // The outline's own reason is English (`outline.ts`), as the other measures give it.
     if (!outlineKnown(outline)) unknown.push(said('check.siteWhy.floor', { floor: JSON.stringify(floor), reason: outline.reason }))
@@ -345,12 +365,22 @@ export function siteMeasures(plan: FloorPlan, options: SiteOptions = {}): SiteMe
   const made = footprintOf(enclosed, broken)
   if ('why' in made) return without(made.why)
   const { footprint, outlines } = made
-  if (boundary === null || boundary.problem !== null) return { ...none, footprint, why: null }
-  const measured = measureFrom(enclosed, boundary, footprint, outlines)
+  const sound = boundary !== null && boundary.problem === null ? boundary : null
+  // LVL-23: each building on its own, only on a plan that names some.
+  const listed = planBuildings(plan)
+  const buildings = listed.length === 0 ? {} : {
+    buildings: listed.map((building): BuildingSite => {
+      const own = footprintOf(enclosed, broken, new Set(building.floors))
+      if ('why' in own) return { id: building.id, name: building.name, footprint: null, why: english(own.why), edges: [] }
+      return { id: building.id, name: building.name, footprint: own.footprint, why: null, edges: sound === null ? [] : measureFrom(enclosed, sound, own.footprint, own.outlines).edges }
+    }),
+  }
+  if (sound === null) return { ...none, footprint, why: null, ...buildings }
+  const measured = measureFrom(enclosed, sound, footprint, outlines)
   let withOpen: OpenOutdoorMeasures | null = null
   if (enclosed !== plan) {
     const whole = footprintOf(plan, broken)
-    if (!('why' in whole)) withOpen = { footprint: whole.footprint, ...measureFrom(plan, boundary, whole.footprint, whole.outlines) }
+    if (!('why' in whole)) withOpen = { footprint: whole.footprint, ...measureFrom(plan, sound, whole.footprint, whole.outlines) }
   }
-  return { boundary, footprint, why: null, ...measured, withOpen }
+  return { boundary, footprint, why: null, ...measured, withOpen, ...buildings }
 }
