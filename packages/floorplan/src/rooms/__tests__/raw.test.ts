@@ -24,6 +24,37 @@ function pavilion(floor?: string, prefix = ''): string {
   ].join('\n')
 }
 
+/** WRT-71: a cabin of two floors written wholly raw: a living room, a shower room and an open deck, and a loft beside a void. */
+const RAW_CABIN = cabin()
+
+function cabin(): string {
+  const wall = (id: string, floor: string, a: [number, number], b: [number, number], t: number, kind: string, extra = ''): string =>
+    `raw wall {"id": "${floor}-${id}", "start": [${a.join(', ')}], "end": [${b.join(', ')}], "thickness": ${t}, "height": 2.4, "kind": "${kind}", "floor": "${floor}"${extra}}`
+  const shell = (floor: string): string[] => [
+    wall('s', floor, [-0.1, -0.1], [7.1, -0.1], 0.2, 'exterior'),
+    wall('e', floor, [7.1, -0.1], [7.1, 4.1], 0.2, 'exterior'),
+    wall('n', floor, [7.1, 4.1], [-0.1, 4.1], 0.2, 'exterior'),
+    wall('w', floor, [-0.1, 4.1], [-0.1, -0.1], 0.2, 'exterior'),
+  ]
+  return [
+    'walls outside 0.2 inside 0.1 height 2.4',
+    'floor g "Ground floor" level 0',
+    ...shell('g'),
+    wall('a', 'g', [4, -0.1], [4, 4.1], 0.1, 'interior'),
+    wall('b', 'g', [5.5, -0.1], [5.5, 4.1], 0.1, 'interior'),
+    'raw room {"id": "main", "name": "Main room", "boundary": ["g-s", "g-a", "g-n", "g-w"], "floor": "g", "use": "living"}',
+    'raw room {"id": "shower", "name": "Shower room", "boundary": ["g-s", "g-b", "g-n", "g-a"], "floor": "g", "use": "bathroom"}',
+    'raw room {"id": "deck", "name": "Deck", "boundary": ["g-s", "g-e", "g-n", "g-b"], "floor": "g", "outdoor": "terrace", "roofed": false}',
+    'raw opening {"id": "d1", "wall": "g-a", "type": "door", "offset": 1.5, "width": 0.8, "sill": 0, "height": 2.1}',
+    'floor l "Loft" level 1 elevation 2.4',
+    ...shell('l'),
+    wall('v', 'l', [4, -0.1], [4, 4.1], 0, 'interior', ', "virtual": true'),
+    'raw room {"id": "loft", "name": "Sleeping loft", "boundary": ["l-s", "l-v", "l-n", "l-w"], "floor": "l", "use": "bedroom"}',
+    'raw room {"id": "void", "name": "Open to below", "boundary": ["l-s", "l-e", "l-n", "l-v"], "floor": "l", "void": true}',
+    '',
+  ].join('\n')
+}
+
 const GROUND = 'walls outside 0.3 inside 0.1 height 3\nfloor ground "Ground floor" level 0\nroom shop "Shop" - 12 x 9 at 0,0\n'
 
 describe('raw lines are on the floor they are written under (WRT-27)', () => {
@@ -80,15 +111,24 @@ describe('the answer counts and measures raw parts (WRT-27)', () => {
     expect(result.walls.filter((w) => w.raw === true).map((w) => w.id)).toEqual(['p1', 'p2', 'p3', 'p4'])
     expect(result.walls.find((w) => w.id === 'p1')!.length).toBeCloseTo(12.3, 6)
     const lines = roomsAnswer(result)
-    expect(lines[0]).toBe('1 floor, 1 room; 0 walls and their kinds worked out; 0 openings placed; 108.00 m² inside in all.')
+    expect(lines[0]).toBe('1 floor, 1 room (all written raw); 0 walls and their kinds worked out; 0 openings placed; 108.00 m² inside in all.')
     expect(lines[1]).toContain('walls 4, rooms 1, openings 0')
   })
 
   it('counts raw parts with the rooms worked out, on every floor', () => {
     const result = compileRoomsText(`${GROUND}floor upper "Upper floor" level 1 elevation 3.3\n${pavilion()}\n`)
     const lines = roomsAnswer(result)
-    expect(lines[0]).toMatch(/^2 floors, 2 rooms; 4 walls and their kinds worked out; 0 openings placed; 216\.00 m² inside in all\.$/)
+    expect(lines[0]).toMatch(/^2 floors, 2 rooms \(1 written raw\); 4 walls and their kinds worked out; 0 openings placed; 216\.00 m² inside in all\.$/)
     expect(lines.some((line) => line.includes('walls 4, rooms 1, openings 0'))).toBe(true)
+  })
+
+  // WRT-71: the read-back of a plan rooms text cannot give back is all raw lines, on every floor.
+  it('counts two floors of raw lines only, with a void and an outdoor deck, and says they are all raw', () => {
+    const result = compileRoomsText(RAW_CABIN)
+    expect(result.problems).toEqual([])
+    const lines = roomsAnswer(result)
+    expect(lines[0]).toBe('2 floors, 5 rooms (all written raw); 0 walls and their kinds worked out; 0 openings placed; 37.40 m² inside, plus 17.80 m² outdoor or void in 2 rooms (not in the inside figure).')
+    expect(lines[1]).toContain('walls 11, rooms 5, openings 1')
   })
 
   it('says nothing of raw parts when none were written', () => {

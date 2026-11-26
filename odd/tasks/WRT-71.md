@@ -28,12 +28,12 @@ whole case to it, from the command, and makes the first line say the rooms are r
 
 ## Done
 
-- `packages/floorplan/src/rooms/__tests__/raw.test.ts`: two floors of raw lines only, with types,
-  a void and an outdoor deck, answer "2 floors, 5 rooms (all written raw)" with their inside and
+- `packages/floorplan/src/rooms/__tests__/raw.test.ts`: two floors of raw lines only, with a void
+  and an outdoor deck, answer "2 floors, 5 rooms (all written raw)" with their inside and
   outdoor-or-void areas; the mixed text says "(1 written raw)"; a text with no raw room has no
   marker. Fails before the change, passes after.
-- `packages/cli/src/command/__tests__/write.test.ts`: `grid write` of that text into a project
-  prints the same first line.
+- `packages/cli/src/command/__tests__/write.test.ts`: `grid write` of two floors of raw lines into
+  a project prints "2 floors, 2 rooms (all written raw)" with their area.
 - `docs/rooms-first.md` says what the count line says of raw rooms.
 - Checks: the type check of `packages/floorplan` and `packages/cli`, lint, the touched tests,
   `ownWords.test.ts` and `tolerances.test.ts`.
