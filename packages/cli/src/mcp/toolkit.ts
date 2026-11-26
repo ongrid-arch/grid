@@ -18,6 +18,7 @@ import { UsageError } from '../command/options'
 import { loadPlan, PlanRefused, type LoadedPlan, type LoadOptions } from '../command/plan'
 import { ID_MAX as PLAN_ID_MAX, UNSAFE_TEXT } from '../command/planText'
 import { budgetArgs, LEFT_OUT_SCHEMA } from './budget'
+import { REVISION_DATA_NAME, REVISION_SCHEMA, revisionArgs } from './revisions'
 
 /** WRT-7: the decimal mark the call's lengths are typed with. */
 export const DECIMAL_IN_ARG: ArgSpec = {
@@ -229,8 +230,8 @@ function labelledSchema(schema: Record<string, unknown>): Record<string, unknown
   const required = (schema['required'] as readonly string[] | undefined) ?? []
   return {
     ...schema,
-    // CMD-39: an answer shortened to fit says what it left out.
-    properties: { label: { type: 'string', const: GENERAL_GUIDANCE_LABEL }, ...properties, left_out: LEFT_OUT_SCHEMA },
+    // CMD-39: an answer shortened to fit says what it left out. CMD-41: an answer about a plan, its revision.
+    properties: { label: { type: 'string', const: GENERAL_GUIDANCE_LABEL }, ...properties, left_out: LEFT_OUT_SCHEMA, [REVISION_DATA_NAME]: REVISION_SCHEMA },
     required: required.includes('label') ? [...required] : ['label', ...required],
   }
 }
@@ -339,9 +340,9 @@ export function usesRead(args: Record<string, unknown>): readonly { readonly wor
   return USES_READ.get(args) ?? []
 }
 
-/** CMD-39: the tool's own arguments and the two every answer's size is asked with. */
+/** CMD-39: the tool's own arguments and the two every answer's size is asked with; CMD-41: a change's based_on. */
 export function allArgs(tool: GridTool): ArgSpecs {
-  return { ...tool.args, ...budgetArgs(tool) }
+  return { ...tool.args, ...budgetArgs(tool), ...revisionArgs(tool) }
 }
 
 /** The arguments of a call, checked against the tool's own list. */

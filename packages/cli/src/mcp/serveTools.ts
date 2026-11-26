@@ -29,6 +29,7 @@ import { guideResources } from '../guide/resources'
 import { roomsGrammarMarkdown, ROOMS_GRAMMAR_URI } from './roomsGrammar'
 import { EDIT_TOOLS } from './editTools'
 import { projectTool } from './projectTool'
+import { guardedRun, revisionLine, RevisionRefused, REVISION_DATA_NAME } from './revisions'
 import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
 import { tidyTool } from './tidyTool'
@@ -76,17 +77,28 @@ async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promi
     if (!Object.hasOwn(tool.args, PAGE_ARG_NAME)) delete args[PAGE_ARG_NAME]
     // MSG-24: no call says another plan's words: the plan a call reads hands its own (`languageFor`).
     setPlanWords(undefined)
+    // CMD-41: the plan's revision on every answer about it; a change queued, locked and held to based_on.
+    // The words tool writes the plan's display, so it is a change here too.
+    const writes = tool.hint === 'change-plan' || tool.name === WORDS_TOOL_NAME
     // MSG-24: the keys Grid said in a language with no word for them are said once, at the end.
-    const { result: made, keys } = await listenForKeys(() => tool.run(args, context))
+    const guarded = await guardedRun(tool, args, context, writes, () => listenForKeys(() => tool.run(args, context)))
+    const { result: made, keys } = guarded.answer
     const hint = tool.name === WORDS_TOOL_NAME ? null : wordsHint(keys, hasWording)
     const result = labelled(hint === null ? made : { ...made, text: `${made.text}\n${hint}` }, !LABEL_SILENT_TOOLS.has(tool.name))
     // CMD-22: the figures in the data are written as the text writes them, once, here.
     const shaped = shapedData(tool, args, result.data)
     // CMD-39: kept to the size an agent's host takes, unless asked for whole.
     const bounded = whole ? { text: result.text, data: shaped } : withinBudget(tool, args, result.text, shaped, page)
-    return { text: bounded.text, data: bounded.data, ...(result.image ? { image: result.image } : {}), ...(result.images ? { images: result.images } : {}) }
+    const revised = guarded.revision === null || guarded.file === null ? null : { revision: guarded.revision, footnote: revisionLine(guarded.file, guarded.revision) }
+    return {
+      text: bounded.text,
+      data: revised === null ? bounded.data : { ...bounded.data, [REVISION_DATA_NAME]: revised.revision },
+      ...(result.image ? { image: result.image } : {}),
+      ...(result.images ? { images: result.images } : {}),
+      ...(revised === null ? {} : { footnote: revised.footnote }),
+    }
   } catch (error) {
-    if (error instanceof ToolRefusal || error instanceof PageRefused || error instanceof CanvasMissing || error instanceof FontsMissing) return { text: error.message, isError: true }
+    if (error instanceof ToolRefusal || error instanceof RevisionRefused || error instanceof PageRefused || error instanceof CanvasMissing || error instanceof FontsMissing) return { text: error.message, isError: true }
     throw error
   }
 }

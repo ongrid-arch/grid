@@ -98,7 +98,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/export/projectExports.ts': [2, 'command'],
   'packages/cli/src/firm/standards.ts': [18, 'command'],
   // CMD-30: one more, the refusal of a read-only file.
-  'packages/cli/src/fs/projectFiles.ts': [50, 'command'],
+  // CMD-41: one more, a lock that is a folder.
+  'packages/cli/src/fs/projectFiles.ts': [51, 'command'],
   'packages/cli/src/library/answer.ts': [9, 'notYet'],
   'packages/cli/src/library/office.ts': [6, 'notYet'],
   'packages/cli/src/fs/textEncoding.ts': [5, 'command'],
@@ -134,6 +135,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-21: one more, the nearest way out and the others.
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
+  // CMD-41: based_on's description and planRevision's.
+  'packages/cli/src/mcp/revisions.ts': [2, 'tools'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   // CMD-38: two more, the rooms grammar resource's title and description.
@@ -385,8 +388,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // refusal for no layout is gone).
     // and SHT-20 2: printing a sheet at a stated scale and paper size (it used the cap's slack on its own).
     // and CNT-40 1: the estimate's plural words for the new room uses (quantities/estimate.ts).
+    // and CMD-41 1: the refusal of a plan lock that is a folder (fs/projectFiles.ts).
     // and LVL-20 1: the most dormers one roof lists (types/floorplan.ts).
-    expect(left).toBeLessThanOrEqual(1663)
+    expect(left).toBeLessThanOrEqual(1664)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
