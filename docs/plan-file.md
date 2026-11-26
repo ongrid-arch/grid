@@ -1224,6 +1224,13 @@ is a number.
   `grid draw`, with entries in the drawing's key. `grid_takeoff` counts the bays on each floor
   with their numbers and gives each ramp's two levels, rise, length and slope as numbers (`bays`
   and `ramps`), and `grid describe` says each floor's.
+- Rooms text writes them in lines of their own after the rooms (CNT-46): `bays <group> in <room>
+  fill, 2.5 x 5, aisle 6` fills a room with rows of bays and their aisles, `bays ... along <side>`
+  is one row against a wall, `bay <id> at x,y, ...` one bay, and `ramp <id> from <floor> to
+  <floor> in <room>, 3.5 wide, helix` or `..., straight, runs north` a ramp, whose helix Grid
+  writes as the points of its middle line round the circle ([rooms-first.md](rooms-first.md#parking)).
+  `grid describe --as rooms` writes them back, and `grid write` keeps the file's bays and ramps
+  when the text writes none. `grid_place_bays` and `grid_add_ramp` write the same through the tools.
 - Whether a car can turn into a bay or up a ramp is a swept-path check: bays and ramps make one
   possible, and Grid does not make it. Nothing here says a bay or a ramp is large enough or not
   too steep: General guidance, not your local rules.

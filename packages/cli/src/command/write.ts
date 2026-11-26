@@ -332,6 +332,9 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   if (plan.north !== undefined) next['north'] = plan.north
   // LVL-21: the stair lines replace the file's stairs; a text that writes none keeps the file's.
   if (plan.stairs !== undefined) next['stairs'] = plan.stairs
+  // CNT-46: the bay and ramp lines replace the file's bays and ramps; a text that writes none keeps the file's.
+  if (plan.bays !== undefined) next['bays'] = plan.bays
+  if (plan.ramps !== undefined) next['ramps'] = plan.ramps
   // SHT-14: the `plan` line's name stays in the plan; without one, the file's name stays.
   if (result.name !== null && result.name !== '') next['name'] = result.name
   next['written'] = stampFor(plan)
@@ -370,6 +373,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     // CNT-41: the plot in a line or two when the text wrote any of the site.
     ...(plan.site === undefined ? [] : siteDescription(safeParseFloorPlan(next) ?? kept, 'agent')),
     ...(plan.stairs !== undefined || (before?.stairs ?? []).length === 0 ? [] : [`Kept the plan's ${before!.stairs!.length === 1 ? 'stair' : `${before!.stairs!.length} stairs`} as the file has ${before!.stairs!.length === 1 ? 'it' : 'them'}: this rooms text writes no stair line. grid describe --as rooms writes ${before!.stairs!.length === 1 ? 'it' : 'them'} as stair lines.`]),
+    ...(plan.bays !== undefined || (before?.bays ?? []).length === 0 ? [] : [`Kept the plan's ${before!.bays!.length === 1 ? 'parking bay' : `${before!.bays!.length} parking bays`} as the file has ${before!.bays!.length === 1 ? 'it' : 'them'}: this rooms text writes no bay line. grid describe --as rooms writes ${before!.bays!.length === 1 ? 'it' : 'them'} as bay lines.`]),
+    ...(plan.ramps !== undefined || (before?.ramps ?? []).length === 0 ? [] : [`Kept the plan's ${before!.ramps!.length === 1 ? 'ramp' : `${before!.ramps!.length} ramps`} as the file has ${before!.ramps!.length === 1 ? 'it' : 'them'}: this rooms text writes no ramp line. grid describe --as rooms writes ${before!.ramps!.length === 1 ? 'it' : 'them'} as ramp lines.`]),
     ...(plan.flats !== undefined || (before?.flats ?? []).length === 0 ? [] : [`Kept the plan's ${before!.flats!.length === 1 ? 'flat' : `${before!.flats!.length} flats`} as the file has ${before!.flats!.length === 1 ? 'it' : 'them'}: this rooms text places no flat type. grid check names a room a flat lists that the text no longer has.`]),
     ...doors,
     english(said('write.toLookAt', { before: toLookAt.before, after: toLookAt.after, drawingBefore: drawingProblems.before, drawingAfter: drawingProblems.after })),
