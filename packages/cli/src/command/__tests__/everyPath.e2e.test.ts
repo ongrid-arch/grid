@@ -408,6 +408,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'image', call: (p) => ({ name: 'grid_place_trace', arguments: { plan: PLAN, image: `${p}.png` } }), given: (p) => `${p}.png` },
     { arg: 'out', call: tool('grid_place_trace', { plan: PLAN, image: 'scan.png', out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // SHT-22: notes, tags and sketch lines written into the plan's drawing.
+  grid_annotate: [
+    { arg: 'plan', call: tool('grid_annotate', { plan: '@', kind: 'tag', text: 'Exit', at: '1,1' }), given: asIs },
+    { arg: 'out', call: tool('grid_annotate', { plan: PLAN, kind: 'tag', text: 'Exit', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // VEW-3: a camera saved by name, written into the plan.
   grid_save_view: [
     { arg: 'plan', call: tool('grid_save_view', { plan: '@', name: 'Corner', camera: CAMERA }), given: asIs },
