@@ -540,6 +540,8 @@ export const es: Messages = {
   'check.noStairs': 'No se comprobó la salida de {floor}: ninguna escalera la une con la planta baja',
   'check.noStair': '{floor} está sobre el terreno y nada la une con la planta baja: ninguna estancia suya se usa como escalera ni como ascensor, y el plano no indica ninguna escalera hasta ella',
   'check.noStair.write': 'La planta {floor} está sobre el terreno y nada la une con la planta baja: ninguna estancia suya se usa como escalera ni como ascensor, y no se indica ninguna escalera hasta ella (grid check: floor/no-stair). Para añadir una, escriba bajo la línea que empieza por "floor {belowId}": room stair "Stair" stair 1 x 3 <where> through {floorId}',
+  'route.notChecked.none': 'grid_check tampoco sigue la salida de {floor}: ninguna escalera la une a la planta baja (una escalera que indique el plano, o estancias de escalera una sobre otra), y sus notas lo dicen (no_stairs).',
+  'route.notChecked.found': 'grid_check no sigue esta salida: ninguna escalera une {floor} a la planta baja (una escalera que indique el plano, o estancias de escalera una sobre otra), y sus notas lo dicen (no_stairs).',
   'route.blockedDoorway': '{kind} {via} entre {rooms} está cerrado: {items} no deja nada libre.',
   'check.noStair.route': 'No hay salida desde {floor}: está sobre el terreno y nada la une con la planta baja, ninguna estancia suya se usa como escalera ni como ascensor y no se indica ninguna escalera ni rampa hasta ella, así que ningún recorrido desde {room} baja hasta una puerta de salida (grid check: floor/no-stair).',
   'check.outOfLine.stair': 'La escalera {upper} de {upperFloors} no queda sobre {lower} de {lowerFloors}, así que no une las dos plantas',

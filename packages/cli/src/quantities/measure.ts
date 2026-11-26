@@ -40,7 +40,7 @@ import {
   type Vec2,
   type Wall,
 } from '@ongrid/floorplan/geometry'
-import { drawable } from '@ongrid/floorplan/geometry/rules/check'
+import { checkPlanSanity, drawable } from '@ongrid/floorplan/geometry/rules/check'
 import { floorGraph, roomOutlines, type BlockedBy } from '@ongrid/floorplan/geometry/rules/graph'
 import { compassOf, type Compass } from '../describe/facts'
 import { roomCalled, type Survey, type SurveyRoom } from './survey'
@@ -257,6 +257,15 @@ export function routeBetween(survey: Survey, from: string, to: string, acrossFlo
     exit: best!.steps.at(-1)!.via,
     otherExits: others.map((r) => ({ via: r.steps.at(-1)!.via, type: r.steps.at(-1)!.type, rooms: r.rooms, length: r.length })),
   }
+}
+
+/**
+ * ARE-63: the floors whose way out the way-out check does not follow, because no stair joins them
+ * to the ground floor: the floors of its `no_stairs` notes. A route out from one is said beside
+ * them, found or not, so it never reads as the check's.
+ */
+export function floorsNotChecked(survey: Survey): ReadonlySet<string> {
+  return new Set(checkPlanSanity(survey.plan).notChecked.filter((n) => n.reason === 'no_stairs').map((n) => n.floor))
 }
 
 /** One search; `onlyExit` limits the way out to that doorway (ARE-21). */

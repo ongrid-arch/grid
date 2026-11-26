@@ -526,6 +526,8 @@ export const en = {
   'check.noStair': '{floor} stands above the ground, and nothing joins it to the ground floor: no room on it is used as a stair or a lift, and the plan states no stair to it',
   'check.noStair.write': 'Floor {floor} stands above the ground, and nothing joins it to the ground floor: no room on it is used as a stair or a lift, and no stair is stated to it (grid check: floor/no-stair). To add one, write under the line that starts "floor {belowId}": room stair "Stair" stair 1 x 3 <where> through {floorId}',
   // ARE-28: the route out from a floor above the ground that nothing joins to the ground floor.
+  'route.notChecked.none': 'grid_check does not follow the way out of {floor} either: no stair joins it to the ground floor (a stair the plan states, or stair rooms one over the other), and its notes say so (no_stairs).',
+  'route.notChecked.found': 'grid_check does not follow this way out: no stair joins {floor} to the ground floor (a stair the plan states, or stair rooms one over the other), and its notes say so (no_stairs).',
   'route.blockedDoorway': 'The {kind} {via} between {rooms} is closed: {items} leaves none of it clear.',
   'check.noStair.route': 'There is no way out from {floor}: it stands above the ground and nothing joins it to the ground floor, no room on it is used as a stair or a lift and no stair or ramp is stated to it, so no route from {room} goes down to a door out (grid check: floor/no-stair).',
   'check.outOfLine.stair': 'The stair {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so it does not join the two floors',
