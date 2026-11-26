@@ -16,7 +16,7 @@
   each piece in `answer.items` (`seats`, `desks`, `covers`, `room`, `zone`, `from`: `kind`, `width`
   or `label`), with its rule.
 - `grid_fields`, `grid_find` and `grid_count`: new fields `seats`, `desks` and `covers` on items,
-  rooms and floors, and `zone` on items; `kind` takes `item` for every fixture and piece of
+  rooms and floors, and `item zone` on items; `kind` takes `item` for every fixture and piece of
   furniture, which was refused.
 - `grid_write_brief`: a `rooms` wish takes `seats`, `desks` and `covers`, each also as
   `_at_least` and `_at_most`; `figures` takes `seats`, `desks` and `covers` (a whole number, the

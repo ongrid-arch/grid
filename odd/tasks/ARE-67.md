@@ -27,8 +27,8 @@ them) finds rooms named "Phone booth 1" to "Phone booth 6", or rooms whose room 
   and for the plan. The figures are Grid's own readings, said in every answer (`SEATING_RULE`),
   never a code's and never occupancy.
 - `packages/cli/src/quantities/query.ts`: fields `seats`, `desks` and `covers` on fixtures,
-  furniture, rooms and floors, and `zone` on items, so `grid_count kind=furniture by=zone
-  sum=seats` and `grid_count kind=room by=department sum=desks` answer from the same count.
+  furniture, rooms and floors, and `item zone` on items (not `zone`, a name people give a fact of their own), so
+  `grid_count kind=furniture by="item zone" sum=seats` and `grid_count kind=room by=department sum=desks` answer from the same count.
   `packages/cli/src/mcp/readTools.ts`: `kind` of the query tools also takes `item` (every
   fixture and piece of furniture), which they refused; and `grid_measure what=seats` gives the
   whole count, by floor, room and zone, with the rule (optionally one room).

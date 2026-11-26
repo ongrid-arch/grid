@@ -40,7 +40,7 @@ describe('ARE-67: grid_count with kind=item and the seats fields', () => {
   })
 
   it('sums seats and desks by zone and by room', async () => {
-    const byZone = await ok('grid_count', { plan: 'p.json', kind: ['item'], by: 'zone', sum: ['seats', 'desks'] })
+    const byZone = await ok('grid_count', { plan: 'p.json', kind: ['item'], by: 'item zone', sum: ['seats', 'desks'] })
     const groups = (byZone.data as { groups: { value: unknown; sums: Record<string, number> }[] }).groups
     expect(Object.fromEntries(groups.map((g) => [String(g.value), g.sums]))).toEqual({
       'team-a': { seats: 3, desks: 3 },

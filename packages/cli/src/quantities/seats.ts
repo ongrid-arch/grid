@@ -102,8 +102,8 @@ export function itemSeats(item: Pick<Item, 'kind' | 'size' | 'label'>): { seats:
   const stated = labelSeats(item.label)
   if (stated !== null) return { seats: stated, from: 'label' }
   if (ONE_SEAT.has(item.kind)) return { seats: 1, from: 'kind' }
-  // A thousandth over, so a 1.8 m sofa is three seats whatever its binary error.
-  return { seats: Math.max(1, Math.floor(item.size[0] / SEATING.seatWidth + 1e-3)), from: 'width' }
+  // The ratio to twelve figures first, so a 1.8 m sofa is three seats whatever its binary error.
+  return { seats: Math.max(1, Math.floor(Number((item.size[0] / SEATING.seatWidth).toPrecision(12)))), from: 'width' }
 }
 
 /** The least distance between two footprints: 0 when they touch or overlap. */

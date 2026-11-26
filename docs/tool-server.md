@@ -585,9 +585,9 @@ that holds any and its zones', and with `room` one room or zone and the pieces i
 kind. These are Grid's own readings of what is drawn, never how many people a room may hold.
 
 The query tools ask by the same count: `seats`, `desks` and `covers` are fields of every item
-(its share), room (its total, its zones' pieces included; a zone's its own) and floor, and `zone`
+(its share), room (its total, its zones' pieces included; a zone's its own) and floor, and `item zone`
 is a field of every item. `kind` takes `item` for every fixture and piece of furniture, so
-`grid_count kind=item by=zone sum=seats,desks` gives the desks per zone. The brief's targets for
+`grid_count kind=item by="item zone" sum=seats,desks` gives the desks per zone. The brief's targets for
 them ([brief.md](brief.md)) are measured by it too.
 
 ## Accessibility measurements, as numbers
