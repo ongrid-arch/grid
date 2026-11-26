@@ -318,6 +318,20 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_place_item', { plan: '@', name: 'wc', x: 1, y: 1 }), given: asIs },
     { arg: 'out', call: tool('grid_place_item', { plan: PLAN, name: 'wc', x: 1, y: 1, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // WRT-73: phases set on the plan, and one plan with phases written from a before and an after.
+  grid_set_phase: [
+    { arg: 'plan', call: tool('grid_set_phase', { plan: '@', phase: 'new', parts: ['bed2-door'] }), given: asIs },
+    { arg: 'out', call: tool('grid_set_phase', { plan: PLAN, phase: 'new', parts: ['bed2-door'], out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_start_works: [
+    { arg: 'plan', call: tool('grid_start_works', { plan: '@' }), given: asIs },
+    { arg: 'out', call: tool('grid_start_works', { plan: PLAN, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_phase_from: [
+    { arg: 'before', call: tool('grid_phase_from', { before: '@', after: PLAN, out: 'works.json' }), given: asIs },
+    { arg: 'after', call: tool('grid_phase_from', { before: PLAN, after: '@', out: 'works.json' }), given: asIs },
+    { arg: 'out', call: tool('grid_phase_from', { before: PLAN, after: PLAN, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // WRT-36: grid tidy on the tool server.
   grid_tidy: [
     { arg: 'plan', call: tool('grid_tidy', { plan: '@' }), given: asIs },
@@ -409,7 +423,7 @@ describe('the slots this file lists', () => {
   })
 
   it('cover every tool argument that is a path, and no other', async () => {
-    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile']
+    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after']
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
       .filter((arg) => PATH_ARGS.includes(arg))

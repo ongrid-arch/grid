@@ -1499,6 +1499,21 @@ What Grid does with each state:
   doors and windows, the new rooms' floor by use). Each line has a key a rates file prices,
   `demolish:wall:interior:0.1`, `make_good:infill:exterior:0.3`, `new:door:0.9x2.1`; a shorter key
   covers longer ones, so `demolish` prices every demolition line.
+- **Setting them.** No file needs editing by hand. `grid_start_works` (`grid edit start-works`)
+  marks every wall, door, window and room that states no phase as `existing`; a door or window
+  with none on a wall that is demolished or new is left to go with its wall. `grid_set_phase`
+  (`grid edit phase`) marks parts by id, or rooms, each with the walls only it uses and the doors
+  and windows in them; a wall another room still stands against is left, and named.
+  `grid_phase_from` (`grid edit phase-from`) writes one plan from two plans with no phases, the
+  building `before` and `after` the work, pairing parts by id: only in the first is demolished,
+  only in the second new, the same in both existing, and a part that changed is new beside
+  `<id>-before`, demolished. Fixtures, stairs and everything else are the second plan's.
+- **Corrections.** To fix the survey rather than make work, pass `correction` (`--correction`) to
+  a change of an opening or a wall, a side moved, a stretch, a mirror or turn, a merge, a split, a
+  room or opening added, or a scan squared. The change is made in place and no part's phase
+  changes; a part it adds states none, so it is existing (new on a wall that is new). A mirror or
+  turn takes the whole plan, what is to be demolished too. Any other correction is worked out on
+  the building after the work, leaves what is only to be demolished as it was, and says so.
 - **Edits.** In a plan with phases a change is the work: what it adds is new; a door, window,
   wall or room it takes out of what stood before stays, demolished; a door or window it changes
   keeps its old self beside it as `<id>-before`, demolished, so widening a door is an old opening

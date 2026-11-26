@@ -77,13 +77,16 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-62: the refusals of grid_view's out.
   'packages/cli/src/draw/pictureFiles.ts': [2, 'agent'],
   'packages/cli/src/edit/addOpening.ts': [26, 'notYet'],
+  // WRT-73: the receipts and refusals of marking phases.
+  'packages/cli/src/edit/phaseMarks.ts': [18, 'notYet'],
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   // WRT-59: one more, a plan with nothing to mirror or turn.
-  'packages/cli/src/edit/edits.ts': [65, 'notYet'],
+  // WRT-73: one more, a mirror's line when it keeps the north.
+  'packages/cli/src/edit/edits.ts': [66, 'notYet'],
   // WRT-59: the notes an edit caused, opening its answer.
   'packages/cli/src/edit/caused.ts': [1, 'notYet'],
   'packages/cli/src/edit/merge.ts': [32, 'notYet'],
@@ -150,13 +153,16 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/toolkit.ts': [28, 'agent'],
   // CMD-39: the whole and page arguments every tool takes, and left_out in the output schemas.
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
+  // WRT-73: the three phase tools, their arguments and refusals.
+  'packages/cli/src/mcp/phaseTools.ts': [26, 'tools'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
   // CMD-38: three more, roomsFile's description and refusal, and what rooms text writes.
   // SHT-20: two more.
   // VEW-62: one more, grid_sheet's pictures of the pages.
-  'packages/cli/src/mcp/writeTools.ts': [145, 'tools'],
+  // WRT-73: six more, the phase rules, the correction argument and its note, and keep_north.
+  'packages/cli/src/mcp/writeTools.ts': [151, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -388,7 +394,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and SHT-20 2: printing a sheet at a stated scale and paper size (it used the cap's slack on its own).
     // and CNT-40 1: the estimate's plural words for the new room uses (quantities/estimate.ts).
     // and CMD-41 1: the refusal of a plan lock that is a folder (fs/projectFiles.ts).
-    expect(left).toBeLessThanOrEqual(1663)
+    // and WRT-73 51: setting phases, its receipts and refusals (edit/phaseMarks.ts 18), its tools
+    // (mcp/phaseTools.ts 26), the correction and keep_north words (mcp/writeTools.ts 6, edit/edits.ts 1).
+    expect(left).toBeLessThanOrEqual(1714)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

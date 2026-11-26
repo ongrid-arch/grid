@@ -20,7 +20,7 @@ import { limit } from '@ongrid/floorplan/geometry'
 import { placeItems } from '../edit/place'
 import { libraryFor } from '../library/office'
 import { DECIMAL_IN_ARG, floorArg, listSchema, NUMBER, objectSchema, PLAN_ARG, planFileOf, projectOf, roomArg, STRING, ToolRefusal, type GridTool } from './toolkit'
-import { EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
+import { CORRECTION_ARG, EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 
 const NAME = (description: string, example: string, required = false): { type: 'string'; maxLength: number; description: string; examples: string[]; required: boolean } => ({ type: 'string', maxLength: NAME_MAX, description, examples: [example], required })
 const USE_WORDS_TAKEN = `One of ${ROOM_USES.join(', ')}; or a word that plainly means one, in the person's language (cocina, Flur, salle de bains), read as that use.`
@@ -35,7 +35,7 @@ const mergeTool: GridTool = {
     'Use this when the person asks to knock two rooms into one, open them up or take out the wall between them: "knock the kitchen and living room into one". '
     + 'It takes out the stretch of wall the two rooms share, cut where the walls round them meet it, with the doors and windows in that stretch; the first room takes in the second and keeps its id, name and use unless name or use say otherwise. '
     + 'Two rooms of different uses (a kitchen and a living room) need use, the merged room\'s, or zones true, which keeps both as zones of one open-plan room, each with its id, name and use, either side of a dividing line; left out, the call is refused and asks. It answers with the area of the room it makes, and the verdict names any use the plan no longer has. A type fact the rooms carry ("1.5x3") is kept as the first room\'s and said to be out of date, unless type gives the merged room its own; two doors on one wall of the merged room are named, with the call that takes one out. '
-    + 'When the two share several walls (an earlier knock-through left two), every shared stretch is taken out in the one call, and the answer names each wall cut; a counted fact the two rooms state differently (desks 28 and 40) is answered with the value kept and the one not, so correct it if it should be the sum. Rooms whose meeting would leave more than one outline or a hole are refused. Do not use to make a room bigger by moving a wall (grid_move_room_side). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+    + 'When the two share several walls (an earlier knock-through left two), every shared stretch is taken out in the one call, and the answer names each wall cut; a counted fact the two rooms state differently (desks 28 and 40) is answered with the value kept and the one not, so correct it if it should be the sum. Rooms whose meeting would leave more than one outline or a hole are refused. Do not use to make a room bigger by moving a wall (grid_move_room_side). In a plan with phases the change is building work; pass correction to fix the survey instead. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     room: { type: 'string', id: true, required: true, description: 'The room that takes in the other and keeps its id; with zones, the first zone.', examples: ['living'] },
@@ -45,6 +45,7 @@ const mergeTool: GridTool = {
     type: { type: 'string', maxLength: NAME_MAX, description: 'The merged room\'s type, the value of the type fact its rooms carry (a fact named "type" when they carry none). Left out, the merged room keeps the first room\'s type, and the answer says it may no longer fit.', examples: ['3x3'] },
     zones: { type: 'boolean', description: 'true to keep both rooms as zones of the merged room, each with its id, name and use: an open-plan room. The merged room is a new room.', examples: [true] },
     new_room: { type: 'string', id: true, description: 'With zones: the merged room\'s id. Made from the two rooms\' ids when left out.', examples: ['kitchen-living'] },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
@@ -70,7 +71,7 @@ const splitTool: GridTool = {
   description:
     'Use this when the person asks to divide a room, or take part of one for another room: "bedroom 2 into a study and a second bathroom", "a 1.4 m bathroom off the east end". '
     + 'A new wall goes across the room; the new room takes its side, size metres inside from that side\'s face, and the room keeps its id and the rest, with name and use for its own if they change. A door goes in the new wall, centred unless door_from and door_distance place it (door_width 0 for none). It answers with both areas, what it guessed and a room left with no window. '
-    + 'Rectangles square to the drawing only. Do not use to add a room outside the walls (grid_add_room). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+    + 'Rectangles square to the drawing only. Do not use to add a room outside the walls (grid_add_room). In a plan with phases the change is building work; pass correction to fix the survey instead. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
@@ -87,6 +88,7 @@ const splitTool: GridTool = {
     door_width: { type: 'number', length: true, description: 'The door in the new wall, in metres; 0 for none. 0.8 when left out. As wide as the new wall allows.', examples: [0.7, 0], minimum: 0, maximum: limit('openingWidest') },
     door_from: { type: 'string', enum: DIRECTIONS, description: 'Which end of the new wall the door is measured from: a side of the room.', examples: ['south'] },
     door_distance: { type: 'number', length: true, description: 'Metres from that side\'s inside face to the door\'s nearer edge.', examples: [1.35], minimum: 0, maximum: 100 },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
@@ -116,7 +118,7 @@ const addRoomTool: GridTool = {
   description:
     'Use this when the person asks for an extension or a new room outside the walls, against one side of a room: "a 3 x 4 m extension at the back of the living room, with an opening into it and a door to the garden". '
     + 'It builds the room\'s three walls, as thick as the wall it stands against, cuts that wall where they meet it, and makes the stretch between the rooms an inside wall. A door or window in that stretch is in the way: pass in_the_way remove or keep (kept, it joins the two rooms); left out, the call is refused naming them. opening_width puts a doorless opening between the rooms and door_width a door in the far side, both centred. '
-    + 'Sizes are inside sizes unless size is centre (to the walls\' centre lines). The door is drawn with no swing until grid_change_opening gives it one, or a kind such as sliding or folding. Do not use to make an existing room bigger (grid_move_room_side) or to divide one (grid_split_room). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+    + 'Sizes are inside sizes unless size is centre (to the walls\' centre lines). The door is drawn with no swing until grid_change_opening gives it one, or a kind such as sliding or folding. Do not use to make an existing room bigger (grid_move_room_side) or to divide one (grid_split_room). In a plan with phases the change is building work; pass correction to fix the survey instead. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
@@ -133,6 +135,7 @@ const addRoomTool: GridTool = {
     in_the_way: { type: 'string', enum: IN_THE_WAY, description: 'What happens to doors and windows in the stretch of wall it covers: remove, or keep them between the two rooms.', examples: ['remove'] },
     opening_width: { type: 'number', length: true, description: 'A doorless opening between the two rooms, centred, in metres.', examples: [2.4], minimum: 0, maximum: limit('openingWidest') },
     door_width: { type: 'number', length: true, description: 'A door in the far side, to the outside, centred, in metres.', examples: [2.2], minimum: 0, maximum: limit('openingWidest') },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
@@ -165,7 +168,7 @@ const stretchTool: GridTool = {
   description:
     'Use this when the person asks for the whole building, flat or house wider, longer or deeper: "the flat 30 cm wider", "the house 1 m longer to the north, through the kitchen". '
     + 'Everything beyond a line across the building moves out by the distance: the line is just inside the outside wall on that side, or through the middle of a room with through. Walls across the line get longer and the rooms they bound grow, and the columns, parking bays, stairs, ramps, structural grids and site things beyond it move with them, an opening pattern keeping its pitch (what stays behind is named); every floor moves together unless floor names one. Doors and windows keep their anchor or their place in the building, so one in a wall that grows at its start does not slide. '
-    + 'Do not use for one room (grid_move_room_side). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+    + 'Do not use for one room (grid_move_room_side). In a plan with phases the change is building work; pass correction to fix the survey instead (grid_start_works and grid_set_phase set phases). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
@@ -173,6 +176,7 @@ const stretchTool: GridTool = {
     by: { type: 'number', length: true, required: true, description: 'Metres to grow; negative to shrink.', examples: [0.3, -0.2], minimum: -50, maximum: 50 },
     through: { type: 'string', id: true, description: 'A room the line runs through, across its middle: it and the rooms in line with it grow.', examples: ['living'] },
     floor: { type: 'string', id: true, description: 'A floor id from the plan\'s "floors": stretch that floor only. Every floor when left out.', examples: ['ground'] },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
@@ -225,11 +229,12 @@ const squareTool: GridTool = {
     'Use this when a plan came from a scan or a capture and its walls are a degree or two off square, or the person asks to square it up or straighten the walls: "square the scan". '
     + 'It turns each wall within about 3 degrees of the plan\'s main directions onto them, about its middle, puts the corners back where the new lines cross, and answers with how far each wall turned and moved; a wall further off is left as it is and named. '
     + 'Only the walls the plan marks scanned (its marks, source scanned) are squared unless all is true. The marks stay, so areas from those walls still carry their give or take. '
-    + 'Do not use for a plan drawn by hand, or to move one wall (grid_move_room_side). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm); angles are degrees.',
+    + 'Do not use for a plan drawn by hand, or to move one wall (grid_move_room_side). In a plan with phases the change is building work; pass correction to fix the survey instead. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm); angles are degrees.',
   args: {
     plan: PLAN_ARG,
     all: { type: 'boolean', description: 'true to square every wall, not only those marked scanned. false when left out.', examples: [true, false] },
     floor: { type: 'string', id: true, description: 'A floor id from the plan\'s "floors": square that floor only. Every floor when left out.', examples: ['ground'] },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: {
@@ -304,7 +309,7 @@ const addOpeningTool: GridTool = {
     'Use this when the person asks to put a door, window or doorless opening in a wall that has none there: "a door in the bathroom\'s north wall", "a window in the kitchen, 0.6 from the east side", "a door between the hall and the living room", "a 2.4 m opening into the garden room", "a sliding door to the terrace". '
     + 'It adds one opening to the plan as it is, with nothing else rewritten (so it works over a plan with phases, where it is new work, or one with parts written by hand). Say where: room with side (that side of the room\'s wall) or room with between (the wall the two rooms share). Centred unless from and distance place it, as rooms text does: "0.25 from west" is from and distance, from a side of room. '
     + 'width, height and sill default to rooms text\'s own (a door 0.9 × 2.1 m; a window 1.2 m wide, sill 0.9 m, 1.2 m high). A door opens into a room or "outside" with opens_into and is hinged on the left or right as seen from a room with hinged; given neither it has no swing drawn, and the answer says so. A width that does not fit is refused with the wall\'s free stretches, as grid_change_opening refuses one, and nothing is written. '
-    + 'Do not use to change, move or take out an opening already there (grid_change_opening), or to build a room (grid_add_room). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+    + 'Do not use to change, move or take out an opening already there (grid_change_opening), or to build a room (grid_add_room). In a plan with phases the change is building work; pass correction to fix the survey instead. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
@@ -322,6 +327,7 @@ const addOpeningTool: GridTool = {
     hinged: { type: 'string', enum: ['left', 'right'], description: 'Doors, with opens_into: the side it is hinged on as seen from seen_from, else from the room it opens into.', examples: ['left'] },
     seen_from: { type: 'string', id: true, description: 'Doors, with hinged: the room id it is seen from, or "outside". The room it opens into when left out.', examples: ['bedroom'] },
     id: { type: 'string', id: true, description: 'Its id. Unstated, made from its type, room and side, and unique.', examples: ['door-bath'] },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
