@@ -100,6 +100,24 @@ const CORNER_ROOMS = [
   'door d-robe in robe south, centred, 0.8 wide, sliding',
 ]
 
+/** CNT-46: a car park of two levels, its bays in rows and a helix ramp between them. */
+const CAR_PARK_ROOMS = [
+  'building parking',
+  'walls outside 0.3 inside 0.2 height 3',
+  'floor b1 "Basement" level -1 height 3',
+  'room deck "Deck" parking 30 x 20 at 0,0',
+  'room spiral "Ramp" parking 12 x 12 east of deck',
+  'opening o-b1 between deck and spiral, centred, 6 wide',
+  'floor g "Ground" level 0 height 3',
+  'room deck "Deck" parking 30 x 20 at 0,0',
+  'room spiral "Ramp" parking 12 x 12 east of deck',
+  'opening o-g between deck and spiral, centred, 6 wide',
+  'door way-in in deck south, centred, 1 wide, opens out',
+  'bays b1 in deck fill, 2.5 x 5, aisle 6, numbered B1-01, on b1',
+  'bays g in deck along north, accessible, count 4, numbered G-01, on g',
+  'ramp h "Helix" from b1 to g in spiral, 3.5 wide, helix, turns 1',
+]
+
 /** A part rooms text has no words for, written the plan file's way on one line. */
 const RAW_ROOMS = [
   'room living "Living room" living 5.0 x 4.0 at 0,0',
@@ -194,6 +212,12 @@ export function agentGuide(): string {
     ...rooms(STAIR_ROOMS),
     '',
     'The flight itself, with its treads, is optional: the plan file\'s `stairs` list holds it (its two floors, its width and its walking line), and rooms text does not write it ([Stairs that join two floors](plan-file.md#stairs-that-join-two-floors)). A floor\'s `level` orders the floors (0 the ground, 1 the one above, -1 a basement); it is not a height. A floor\'s height is `height` on its line.',
+    '',
+    '### How do I draw a car park?',
+    '',
+    'The decks are rooms used as `parking`; the bays and the ramps are lines of their own after the rooms, never rooms or walls. `bays <group> in <room> fill, <width> x <length>` fills a room with rows of bays and the aisles between them (`aisle 6`, `rows east-west`, `from north`, `count 40`); `bays <group> in <room> along <side>, ...` is one row against a wall (`offset`, `inset`, `from <end>`); a kind word (`car`, `small`, `accessible`, `motorcycle`) gives Grid\'s own starting size in place of the size, not a code\'s. Its bays are `<group>-1`, `<group>-2` and on, and `numbered B1-01` numbers them on. A ramp joins two floors as a stair does: `ramp <id> from <floor> to <floor> in <room>, <width> wide, straight, runs <side>`, or `..., helix [radius <m>] [turns <n>] [clockwise]` for a spiral ramp, or `..., run x,y x,y ...` along its middle line. The answer says how many bays each line placed and their numbers, and each ramp\'s rise, length and slope from the floors\' levels; `grid_takeoff` and `grid_describe` count the bays by floor. `grid_place_bays` and `grid_add_ramp` write the same through the tools, and `raw bay {...}` and `raw ramp {...}` take the plan file\'s own JSON.',
+    '',
+    ...rooms(CAR_PARK_ROOMS),
     '',
     '### Which word is the use for an office, a toilet or a stair?',
     '',

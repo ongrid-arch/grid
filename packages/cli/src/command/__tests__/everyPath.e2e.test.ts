@@ -383,6 +383,15 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_remove_item', { plan: '@', ids: ['wc'] }), given: asIs },
     { arg: 'out', call: tool('grid_remove_item', { plan: PLAN, ids: ['wc'], out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CNT-46: parking bays placed and a ramp added, written into the plan.
+  grid_place_bays: [
+    { arg: 'plan', call: tool('grid_place_bays', { plan: '@', group: 'p', room: 'lounge', along: 'south', kind: 'motorcycle', count: 1 }), given: asIs },
+    { arg: 'out', call: tool('grid_place_bays', { plan: PLAN, group: 'p', room: 'lounge', along: 'south', kind: 'motorcycle', count: 1, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_add_ramp: [
+    { arg: 'plan', call: tool('grid_add_ramp', { plan: '@', from: 'ground', to: 'first', width: 1.2, run: ['1,1', '1,4'] }), given: asIs },
+    { arg: 'out', call: tool('grid_add_ramp', { plan: PLAN, from: 'ground', to: 'first', width: 1.2, run: ['1,1', '1,4'], out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-41: the plot and the site's things, written into the plan.
   grid_set_site: [
     { arg: 'plan', call: tool('grid_set_site', { plan: '@', north: 30 }), given: asIs },
