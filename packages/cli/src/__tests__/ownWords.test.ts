@@ -84,6 +84,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/phaseMarks.ts': [18, 'notYet'],
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
+  // CNT-44: the fill's receipts and refusals.
+  'packages/cli/src/edit/fill.ts': [28, 'notYet'],
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   // CNT-43: +1, the item at the size given.
   'packages/cli/src/edit/place.ts': [12, 'notYet'],
@@ -100,6 +102,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
   // CNT-41: the plot's and the site's things' receipts and refusals.
   'packages/cli/src/edit/site.ts': [35, 'notYet'],
+  // VEW-67: the trace image's receipts and refusals.
+  'packages/cli/src/edit/trace.ts': [21, 'notYet'],
   'packages/cli/src/edit/split.ts': [19, 'notYet'],
   // LVL-21: a stair's receipts and refusals.
   'packages/cli/src/edit/stairs.ts': [15, 'notYet'],
@@ -128,7 +132,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
   // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
-  'packages/cli/src/mcp/editTools.ts': [114, 'tools'],
+  // CNT-44: 23 more, grid_fill_room's help.
+  'packages/cli/src/mcp/editTools.ts': [137, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // CMD-42: grid_set, its help and its argument checks.
@@ -175,6 +180,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // CNT-45: the item tools' help and refusals.
   'packages/cli/src/mcp/itemTools.ts': [39, 'tools'],
+  // VEW-67: the trace image's tool.
+  'packages/cli/src/mcp/traceTool.ts': [26, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -446,9 +453,11 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // the file's stairs kept by grid write (command/write.ts 2) (odd/tasks/LVL-21.md).
     // and CNT-43 10: an item placed at its own size or by its kind, its receipt, refusals and its
     // tool's help (edit/place.ts 1, library/index.ts 2, mcp/editTools.ts 7).
+    // and CNT-44 28: the fill's receipts and refusals (edit/fill.ts).
+    // and VEW-67 47: the trace image's change (edit/trace.ts 21) and its tool (mcp/traceTool.ts 26).
     // and CNT-45 68: the item lines in rooms text (rooms/items.ts 45), the items' changes
     // (edit/items.ts 20) and grid write's items placed and moved (command/write.ts 3) (odd/tasks/CNT-45.md).
-    expect(left).toBeLessThanOrEqual(1996)
+    expect(left).toBeLessThanOrEqual(2071)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

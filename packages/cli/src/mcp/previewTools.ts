@@ -16,6 +16,7 @@ import { CameraRefused, cameraFor, settingOfCamera } from '../draw/cameraAsk'
 import { LOOKS, namedLook, type LookName } from '../draw/viewNames'
 import { PathRefused } from '../fs/projectFiles'
 import { surveyPlan, type Survey } from '../quantities/survey'
+import { readTrace } from '../trace/traceImage'
 import { HIGHLIGHT_MAX, planParts, PREVIEW_NOTE_MAX, readPreview, writePreview, type PreviewRead, type PreviewRecord, type PreviewSelection, type PreviewView } from '../preview/record'
 import { CAMERA_ARG, CAMERA_SCHEMA, READ_TOOLS } from './readTools'
 import {
@@ -375,7 +376,9 @@ export const previewSyncTool: GridTool = {
       }
     }
     const { planDrawing } = await import('../draw/views')
-    const drawing = planDrawing(plan, shown, namedLook(look))
+    // VEW-67: the trace image under the floor shown, read from the project folder as grid_view reads it.
+    const trace = readTrace(project, plan, shown)
+    const drawing = planDrawing(plan, shown, namedLook(look), trace.picture ?? undefined)
     return {
       text: [`Floor ${q(shown)} as a drawing, for the preview page.`, ...said].join('\n'),
       data: { changed: true, ...base, floors, parts: onFloor, drawing: { view: '2d', floor: shown, ...drawing } },

@@ -318,6 +318,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_place_item', { plan: '@', name: 'wc', x: 1, y: 1 }), given: asIs },
     { arg: 'out', call: tool('grid_place_item', { plan: PLAN, name: 'wc', x: 1, y: 1, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CNT-44: a room filled with desks reads the plan (and the library folder beside it) and writes it, or another file.
+  grid_fill_room: [
+    { arg: 'plan', call: tool('grid_fill_room', { plan: '@', room: 'lounge', name: 'chair' }), given: asIs },
+    { arg: 'out', call: tool('grid_fill_room', { plan: PLAN, room: 'lounge', name: 'chair', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // WRT-73: phases set on the plan, and one plan with phases written from a before and an after.
   grid_set_phase: [
     { arg: 'plan', call: tool('grid_set_phase', { plan: '@', phase: 'new', parts: ['bed2-door'] }), given: asIs },
@@ -377,6 +382,13 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_change_site: [
     { arg: 'plan', call: tool('grid_change_site', { plan: '@', action: 'add', kind: 'tree', at: '1,1' }), given: asIs },
     { arg: 'out', call: tool('grid_change_site', { plan: PLAN, action: 'add', kind: 'tree', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  // VEW-67: the trace image, its picture resolved from the project folder like the plan.
+  grid_place_trace: [
+    // Written beside the plan, so the plans other tests trace keep the picture they name.
+    { arg: 'plan', call: tool('grid_place_trace', { plan: '@', image: 'scan.png', out: 'placed-trace.json' }), given: asIs },
+    { arg: 'image', call: (p) => ({ name: 'grid_place_trace', arguments: { plan: PLAN, image: `${p}.png` } }), given: (p) => `${p}.png` },
+    { arg: 'out', call: tool('grid_place_trace', { plan: PLAN, image: 'scan.png', out: '@.json' }), given: (p) => `${p}.json` },
   ],
   // VEW-3: a camera saved by name, written into the plan.
   grid_save_view: [
@@ -464,7 +476,7 @@ describe('the slots this file lists', () => {
   })
 
   it('cover every tool argument that is a path, and no other', async () => {
-    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after']
+    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after', 'image']
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
       .filter((arg) => PATH_ARGS.includes(arg))
@@ -563,7 +575,8 @@ describe('the trace image a plan names (T-5)', () => {
       expectTraceLeftOut(answer.text, path, why)
     })
     expectOutsideUntouched()
-  }, 60_000)
+    // Six plans times every tool that reads one: it grows with each tool and runs long on a busy machine.
+  }, 300_000)
 
   it('HND-10: is never followed when it does not end as a picture, by any command or tool', async () => {
     const path = 'notes/plan.sh'
@@ -571,7 +584,7 @@ describe('the trace image a plan names (T-5)', () => {
     const check = grid(['check', plan])
     expect(check.status).toBe(0)
     expect(check.out).toContain('[plan/trace-left-out]')
-    expect(check.out).toContain(`${JSON.stringify(path)} does not end in .png, .jpg or .jpeg`)
+    expect(check.out).toContain(`${JSON.stringify(path)} does not end in .png, .jpg, .jpeg or .pdf`)
     const answers = await callTools(PLAN_TOOLS.map(([, call]) => call(plan)))
     for (const answer of answers) expect(answer.text).not.toContain("can't be used: its trace image")
   }, 120_000)

@@ -51,7 +51,10 @@ Child-size entries, for a nursery or a school: `wc-child` (a toilet, 0.32 × 0.5
 The typical rooms are `bathroom` (a bath, a WC and a basin in 2.40 × 1.90 m), `cloakroom` (a WC
 and a small basin in 1.00 × 1.60 m), `double-bedroom` (a double bed, two side tables and a
 wardrobe in 3.20 × 3.40 m) and `single-bedroom` (a single bed, a side table and a wardrobe in
-2.40 × 3.00 m). In each, every item and the clear floor each keeps are clear of the others.
+2.40 × 3.00 m). In each, every item and the clear floor each keeps are clear of the others. Two
+sets are for filling a café or a meeting room (CNT-44): `table-4-chairs` (a table for four with
+two chairs on each long side, 1.20 × 1.80 m) and `table-6-chairs` (a table for six, three chairs
+a side, 1.80 × 1.90 m).
 
 A bed's back is its head, so its width is across the head and its depth its length; its clear
 floor is at its foot. Fixtures take the floor they stand on from a room's free floor
@@ -87,6 +90,40 @@ front of, a door that swings into it. It is written either way, and `grid check`
 note. `grid_measure what=fit room=bed1 name=double-bed` tries the entry's own size with its
 clear floor in front (1.40 × 2.60 m for a double bed), so "will a double bed fit" gets the same
 answer every time.
+
+## Filling a room at a pitch
+
+`grid_fill_room` (CNT-44) answers "how many desks fit in the hot-desk zone" and places them in
+one call: it repeats one entry, an item or a set, over a room or a zone of an open-plan room.
+
+| Argument | What it sets | Left out |
+|---|---|---|
+| `pitch` | Metres from one module's middle to the next along a row | The module's width: side by side |
+| `aisle` | The clear way between a row's modules, with the floor they keep in front, and the next row | 0.90 m, Grid's own figure |
+| `back_to_back` | Rows in pairs, back to back, as bench desks are | Rows all facing one way |
+| `turn` | The rows' turn, counter-clockwise: 0 runs them along x with the backs to -y | The one that fits most of 0°, 90°, 180°, 270° and square to the room's longest side |
+| `wall_clearance` | Metres kept clear of the room's walls and edges | 0 m |
+| `door_clearance` | Metres kept clear in front of each door and doorless opening, both sides of its wall | 1.20 m, Grid's own figure |
+| `count` | The most modules placed; the answer says how many short | As many as fit, at most 1,000 |
+
+A module is the entry with the clear floor it keeps in front (a desk and its chair's floor,
+1.20 × 1.35 m for `desk`), or a set's size. A place is kept when the module lies inside the room's
+inside outline, grown by the wall clearance, and stands clear of each door's floor, each column
+and each item already there; Grid's own fit checks (the ones `grid_place_item` answers with) then
+take out any module they name. The lattice is tried with its slack at the near edge, the middle
+and the far edge both ways, and the set-out that fits most is kept.
+
+The modules are written as one group: `desk-1` … `desk-48`, or `cafe-1-1` … for a set's items
+(`group` names it). The answer gives the count, against `count` when given, the rows and the
+most in a row, the room's area over the count, what is left over along and across the rows, and
+how many places a door, a column, an item, the room's shape or Grid's checks took. `dry_run`
+answers the same and writes nothing; `replace` takes the group's earlier items out and fills
+again, so trying another pitch is one more call. A plan that already holds the group is refused
+without `replace`.
+
+```bash
+grid edit fill --room hot-desks --name desk --pitch 1.6 --aisle 1.2 --back-to-back --dry-run
+```
 
 ## An office's own library
 

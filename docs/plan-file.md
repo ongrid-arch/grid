@@ -1746,10 +1746,14 @@ Taped against drawn (4; 1 differs): each length taped on site, set against the d
 
 ## A trace image under the plan
 
-A scan, a photo or a sketch can be traced over (HND-10, C31). The plan names it in
-`referenceImage`, says where it lies and how large it is, and Grid draws it under that floor's
-plan in every picture an agent gets: `grid_view`, `grid draw` and the preview's picture. It is in
-no measure, check, export or sheet.
+A scan, a photo, a sketch or a page of a PDF can be traced over (HND-10, C31). The plan names it
+in `referenceImage`, says where it lies and how large it is, and Grid draws it under that floor's
+plan in every picture an agent gets: `grid_view`, `grid draw` and the preview, its picture and
+its page's own drawing. It is in no measure, check, export or sheet. `grid_place_trace` and
+`grid edit trace` (VEW-67) write it without editing the file by hand: the picture, its floor and
+opacity, its corner and turn, and its scale stated, set from two points on it and their length
+(a scale bar's two ends and the length marked on it), or with its corner and turn from two of its
+pixels pinned to the two points of the plan they show.
 
 ```json
 "referenceImage": {
@@ -1764,7 +1768,8 @@ no measure, check, export or sheet.
 
 | Field | What it states |
 |---|---|
-| `path` | The picture, from the project folder: a relative path that stays inside it and ends in `.png`, `.jpg` or `.jpeg` |
+| `path` | The picture, from the project folder: a relative path that stays inside it and ends in `.png`, `.jpg`, `.jpeg` or `.pdf` |
+| `page` | Optional, for a PDF: the page traced, from 1. Unstated, the first. The page's largest raster picture is traced, in its own pixels: a scanned sheet's scan. A page drawn only in lines and text has none, and is said not to be drawn |
 | `floor` | Optional: the floor it lies under. Unstated, the ground floor, the one a picture draws when none is asked for |
 | `at` | Optional: the point of the plan, in metres, that the picture's top-left corner lies on. Unstated, `[0, 0]` |
 | `rotation` | Optional: its turn about that corner, in degrees counter-clockwise. Unstated, 0 |

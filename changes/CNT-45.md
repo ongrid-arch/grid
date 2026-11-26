@@ -20,7 +20,7 @@
 - New tools `grid_add_item` (name, room, against, end, from with distance, full_width, or x, y,
   turn; width, depth, height, clearance, label), `grid_move_item` (id, then a new place, turn, or
   dx and dy) and `grid_remove_item` (ids, or room). Each answers with `item`, `fits` and
-  `worthALook` (`removed` for the last); 50 tools in all.
+  `worthALook` (`removed` for the last); 52 tools in all.
 - Rooms text takes `item` lines and `raw item` (also `raw fixture`, `raw furniture`); a refusal
   of one is `rooms/item`. `grid_write_rooms` with item lines replaces the file's items, and says
   so in place of the items kept.
