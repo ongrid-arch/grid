@@ -26,6 +26,7 @@ import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import { RETELLING_RULE } from '../mcp/retelling'
 import { dependencies } from '../../package.json'
 import type { GridTool } from '../mcp/toolkit'
+import { DOC_PAGES } from '../guide/docPages'
 import { FIRST_QUESTIONS, GUIDE_AND_SCHEMA, LABEL_AND_RETELLING, ROOM_NAMES_TRAVEL, ROOMS_FIRST, SOURCE_OF_TRUTH, UNITS_RULE } from '../guide/paragraphs'
 
 /** The npm package, and the command `npx` runs from it. */
@@ -68,7 +69,7 @@ export function packageManifest(version: string): Record<string, unknown> {
     type: 'module',
     bin: { grid: 'grid.mjs', ongrid: 'grid.mjs' },
     // CMD-7: the guide for agents and the plan's JSON Schema travel with the command.
-    files: ['grid.mjs', 'chunks/', 'fonts/', 'guide.md', 'plan.schema.json', 'README.md', 'LICENSE', 'NOTICE'],
+    files: ['grid.mjs', 'chunks/', 'fonts/', 'docs/', 'guide.md', 'plan.schema.json', 'README.md', 'LICENSE', 'NOTICE'],
     engines: { node: '>=22' },
     mcpName: MCP_NAME,
     repository: { type: 'git', url: `git+${REPOSITORY}.git`, directory: 'packages/cli' },
@@ -79,20 +80,39 @@ export function packageManifest(version: string): Record<string, unknown> {
   }
 }
 
-/** The short README the package carries. */
+/**
+ * The README the package carries (CMD-40): what Grid is, how an agent starts it, where its
+ * documentation is (in the package, and as resources of the tool server) and the label.
+ */
 export function packageReadme(): string {
+  const pages = ['agent-guide', ...Object.keys(DOC_PAGES)]
   return [
     '# Grid (ongrid)',
     '',
     `${DESCRIPTION} The \`grid\` and \`ongrid\` commands do the same thing.`,
     '',
-    `Start the tool server for an agent with \`${ONE_LINE}\`. Run \`grid --help\` for the commands.`,
+    '## Start',
     '',
-    'Before writing a first plan, an agent reads `guide.md`, the guide for agents (the tool server serves it as `grid://guide`). `plan.schema.json` is the plan file\'s structure as a JSON Schema (`grid://schema/plan`).',
+    `Start the tool server for an agent with \`${ONE_LINE}\`. Run \`grid --help\` for the commands. The README of the repository has every other way to install it: ${REPOSITORY}`,
+    '',
+    'Before writing a first plan, an agent reads the guide for agents, `docs/agent-guide.md`. [Recipes](docs/recipes.md) start the four things people ask for first: a flat for a listing, a house over three floors, a shop with zones, and a plot with a building on it.',
+    '',
+    '## Read it without the repository',
+    '',
+    'Everything below is in this package, and the tool server lists each as a resource, so an agent reads it where it reads the tools.',
+    '',
+    '| Resource | File in this package | What it is |',
+    '|---|---|---|',
+    '| `grid://guide` | [docs/agent-guide.md](docs/agent-guide.md), `guide.md` | The guide for agents: rooms first, the raw-wall form and the answers to what agents ask first |',
+    '| `grid://guide/rooms` | [docs/rooms-first.md](docs/rooms-first.md#the-whole-grammar) | Every line rooms text takes, by topic, with an example each |',
+    '| `grid://schema/plan` | `plan.schema.json` | The plan file\'s structure as a JSON Schema (draft-07), with its format version |',
+    ...Object.entries(DOC_PAGES).map(([page, { title, description }]) => `| \`grid://docs/${page}\` | [docs/${page}.md](docs/${page}.md) | ${title}: ${description} |`),
+    '',
+    `The \`docs/\` folder holds ${pages.length} pages, each opening with one line on when to read it.`,
     '',
     `Every report is labelled "${GENERAL_GUIDANCE_LABEL}".`,
     '',
-    `Source, issues and the other ways to install: ${REPOSITORY}`,
+    `Source and issues: ${REPOSITORY}`,
     '',
     `Licensed under ${LICENSE}. See LICENSE and NOTICE.`,
     '',

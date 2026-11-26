@@ -9,6 +9,14 @@ const windows = process.platform === 'win32'
 const limit = windows ? 60_000 : process.env['CI'] ? 30_000 : 5_000
 
 export default defineConfig({
+  plugins: [
+    {
+      // CMD-40: a page of docs/ imported as its text, as the build's `.md` loader does.
+      name: 'markdown-as-text',
+      enforce: 'pre',
+      transform: (code, id) => (id.endsWith('.md') ? { code: `export default ${JSON.stringify(code)}`, map: null } : null),
+    },
+  ],
   test: {
     environment: 'node',
     globals: true,
