@@ -14,7 +14,8 @@
  *   outline, never a hatch (a hatch reads as a material);
  * - the ground line, twice as heavy as the cut, running past the building;
  * - each room's name and height, and the level of every floor, roof and the ground beside the
- *   drawing;
+ *   drawing; LVL-20: a sloped roof's eaves and ridge, and under it each room's headroom bands, a
+ *   dashed line at each band's height where the room has that much over its floor;
  * - under it, the section's name and line, and the list of what was taken.
  *
  * Pure: no DOM, no React.
@@ -105,7 +106,15 @@ function unitsOf(plan: FloorPlan, options: SectionPictureOptions, tongue: Drawin
 function levelLabels(section: PlanSection, tongue: DrawingWords, units: Display): { left: LevelLabel[]; right: LevelLabel[] } {
   const left = section.levels.map((l) => ({ level: l.level, words: `${levelText(l.level, units)} ${l.name || l.floor}`, part: 'section-level' }))
   const right: LevelLabel[] = [
-    ...section.roofs.map((r) => ({ level: r.level, words: drawingText(tongue, 'drawing.section.roof', { level: levelText(r.level, units) }), part: 'section-roof-level' })),
+    // LVL-20: a sloped roof the floor states is marked at its eaves and its ridge; any other at its top.
+    ...section.roofs.flatMap((r) =>
+      r.pitch !== undefined && r.pitch > 0 && r.eaves !== undefined && r.ridge !== undefined
+        ? [
+            { level: r.eaves, words: drawingText(tongue, 'drawing.section.eaves', { level: levelText(r.eaves, units) }), part: 'section-eaves-level' },
+            { level: r.ridge, words: drawingText(tongue, 'drawing.section.ridge', { level: levelText(r.ridge, units) }), part: 'section-ridge-level' }
+          ]
+        : [{ level: r.level, words: drawingText(tongue, 'drawing.section.roof', { level: levelText(r.level, units) }), part: 'section-roof-level' }]
+    ),
     { level: section.ground.level, words: drawingText(tongue, 'drawing.section.ground', { level: levelText(section.ground.level, units) }), part: 'section-ground-level' }
   ]
   return { left, right }
@@ -283,6 +292,27 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
       return Array.from({ length: steps + 1 }, (_, i) => `${i === 0 ? 'M' : 'L'}${(x + (i % 2 === 0 ? -amp : amp)).toFixed(4)},${(-(top - i * step)).toFixed(4)}`).join('')
     }
     nodes.push(el('g', { 'data-part': 'section-break-group' }, ends.map((x) => el('path', { 'data-part': 'section-break', 'data-at': x === 0 ? 'start' : 'end', d: zig(x), fill: 'none', stroke: look.ink, 'stroke-width': n(lines.width('wallOutline')), 'stroke-linejoin': 'miter' }))))
+  }
+
+  // LVL-20: under a sloped roof, each headroom band a dashed line over the room's floor where it has
+  // that much height, with its figure at its start.
+  const bands = section.rooms.flatMap((room) => (room.headroom ?? []).map((band) => ({ room, band })))
+  if (bands.length > 0) {
+    const pen = lines.width('elevationLevel')
+    nodes.push(
+      el(
+        'g',
+        { 'data-part': 'section-headroom-group' },
+        bands.map(({ room, band }) => {
+          const y = room.floorLevel + band.height
+          const figure = units.length === 'm' ? num(metresText(band.height)) : showLength(band.height, units)
+          return el('g', { 'data-part': 'section-headroom', 'data-id': room.room, 'data-height': n(band.height) }, [
+            el('path', { d: lineOf({ x: band.from, y }, { x: band.to, y }), fill: 'none', stroke: look.colors.dimension, 'stroke-width': n(pen), 'stroke-dasharray': `${n(pen * 6)} ${n(pen * 4)}` }),
+            words({ x: band.from, y }, drawingText(tongue, 'drawing.section.headroom', { height: figure }), mpp, { 'text-anchor': 'start', fill: look.colors.dimensionText, 'font-family': look.colors.font, 'font-size': TEXT_PX.dimension }, -3)
+          ])
+        })
+      )
+    )
   }
 
   // Each room: its name and height, in the largest empty part of the room's cut (VEW-50), clear of

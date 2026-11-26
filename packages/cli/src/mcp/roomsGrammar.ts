@@ -25,12 +25,13 @@ export interface GrammarTopic {
 export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   {
     topic: 'rooms',
-    says: 'room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room\'s south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls.',
+    says: 'room <id> "<name>" <use|-> <width> x <depth> [inside|centre|outside] <where>. Width runs east-west, depth north-south. <where>: at x,y (the first room\'s south-west corner) or <north|south|east|west> of <room> [align <side|centre>] [shift <m>] [until [near] <room>]. A size may be * to stretch until a room. walls <t> [kind] after the place gives that room its own walls. number "<text>", dept <text> and facts <name>=<value> ... give it its room number, its department and facts of the person\'s own.',
     example: [
       'walls outside 0.3 inside 0.1 height 2.7',
       'room living "Living room" living 5.0 x 4.0 at 0,0',
       'room kitchen "Kitchen" kitchen 3.0 x 4.0 east of living',
       'room hall "Hall" corridor * x 1.2 north of living until kitchen',
+      'room office "Office" office 3.0 x 3.0 west of living number "2.03" facts department=Sales capacity=4',
     ],
   },
   {
@@ -81,7 +82,7 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   },
   {
     topic: 'raw parts',
-    says: 'raw wall|room|opening {...} writes one part as Grid\'s own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms\' boundaries name, or the one facing <side>). Stairs, columns, fixtures, site things, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text.',
+    says: 'raw wall|room|opening {...} writes one part as Grid\'s own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms\' boundaries name, or the one facing <side>). Stairs, columns, fixtures, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text; the site has lines of its own (below).',
     example: [
       'raw wall {"id": "s", "start": [0, 0], "end": [4, 0], "thickness": 0.2, "height": 3, "kind": "exterior"}',
       'raw wall {"id": "e", "start": [4, 0], "end": [4, 3], "thickness": 0.2, "height": 3, "kind": "exterior"}',
@@ -146,6 +147,21 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
       'repeat cell 4 east as 101 at 0,0',
       'room corridor "Corridor" corridor * x 1.5 north of 101 until 104',
       'repeat cell 4 east as 105 north of corridor mirror north-south',
+    ],
+  },
+  {
+    topic: 'site',
+    says: 'plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person\'s own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m>, site ground <m> and site country <name> say where it is. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site\'s things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.',
+    example: [
+      'room house "House" living 8.0 x 9.0 at 0,0',
+      'door front in house south, centred, 0.9 wide, opens in',
+      'plot 15 x 30 at -3.5,-10',
+      'street south',
+      'setback street 5',
+      'setback all 2',
+      'north 30 clockwise',
+      'site tree oak at 9,15 canopy 5 "Old oak"',
+      'site pool pool 0,12 3,12 3,18 0,18',
     ],
   },
   {

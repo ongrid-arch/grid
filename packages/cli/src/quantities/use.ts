@@ -16,6 +16,7 @@ import {
   INDICATOR_NOTE,
   itemFootprint,
   itemName,
+  liesUnderfoot,
   limit,
   lineMouth,
   openingMouth,
@@ -120,6 +121,8 @@ function fixturesOfPlan(survey: Survey): SurveyFixtures {
   const byFloor = new Map<string, { obstacle: Obstacle; box: Box }[]>()
   const listByFloor = new Map<string, Obstacle[]>()
   for (const row of rows) {
+    // CNT-42: a rug lies on the floor: nothing is measured to it, and it narrows no way.
+    if (liesUnderfoot(row.kind)) continue
     const outline = itemFootprint(itemById.get(row.id)!)
     const list = byFloor.get(row.floor) ?? []
     list.push({ obstacle: { id: row.id, outline }, box: boxOf(outline) })
@@ -294,6 +297,8 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
   // The floor in front of and beside each fixture.
   const space = figureOf(given.clearance, 'useClearSpace')
   for (const row of own) {
+    // CNT-42: a rug keeps no floor of its own clear.
+    if (liesUnderfoot(row.kind)) continue
     const item = itemById.get(row.id)!
     const found = fixtureSpace(item, room.polygon, room.holes, everyFixture)
     const sides = [['in front', found.front], ...(found.sides ? ([['to its left', found.left], ['to its right', found.right]] as const) : [])] as readonly (readonly [string, number | null])[]

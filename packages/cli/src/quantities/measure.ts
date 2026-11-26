@@ -24,6 +24,8 @@ import {
   pointAlong,
   poleOfInaccessibility,
   roomHeadroom,
+  risesToRoof,
+  wallTopProfile,
   roomWallIds,
   spotsInside,
   sub,
@@ -456,6 +458,17 @@ export interface WallLengths {
   readonly height: number
   readonly virtual: boolean
   readonly faces: ReadonlyArray<{ readonly room: string; readonly name: string; readonly length: number }>
+  /**
+   * LVL-20: the wall's top along its length, under a roof its floor states: `roof` when the roof
+   * cuts it, `raised` when, an outside wall, it rises to the roof past the height it states (`height`);
+   * null when its top is level at its height.
+   */
+  readonly cut: 'roof' | 'raised' | null
+  /** Where its top turns, in metres along it from its start, and its height there; null when it is level. */
+  readonly top: ReadonlyArray<{ readonly at: number; readonly height: number }> | null
+  /** Its top's lowest and highest points: both its height when it is level. */
+  readonly low: number
+  readonly high: number
 }
 
 export function wallLengths(survey: Survey, wall: Wall): WallLengths {
@@ -466,6 +479,10 @@ export function wallLengths(survey: Survey, wall: Wall): WallLengths {
       length: room.edges.filter((edge) => edge.wall?.id === wall.id).reduce((sum, edge) => sum + edge.length, 0),
     }))
     .filter((face) => face.length > tolerance('joint'))
+  const profile = wall.virtual === true ? null : wallTopProfile(survey.plan, wall)
+  const heights = profile === null ? [wall.height] : profile.map((p) => p.z)
+  const high = Math.max(...heights)
+  const raised = profile !== null && risesToRoof(survey.plan, wall) && high > wall.height + tolerance('joint')
   return {
     id: wall.id,
     floor: floorOf(wall),
@@ -474,6 +491,10 @@ export function wallLengths(survey: Survey, wall: Wall): WallLengths {
     height: wall.height,
     virtual: wall.virtual === true,
     faces,
+    cut: profile === null ? null : raised ? 'raised' : 'roof',
+    top: profile === null ? null : profile.map((p) => ({ at: p.u, height: p.z })),
+    low: Math.min(...heights),
+    high,
   }
 }
 

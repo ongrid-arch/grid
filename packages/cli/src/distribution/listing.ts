@@ -149,7 +149,7 @@ function skill(): string {
     '   guessed and what it could not keep. Change the plan only when asked.',
     '   Before a change, `grid_mark_start` keeps the plan as it is; after every save, `grid_diff`',
     '   says what the change did, issues first, and names any change outside the rooms you meant.',
-    '   For a refurbishment, give walls, doors, windows and rooms a phase (existing, demolished or new):',
+    '   For a refurbishment, mark phases with `grid_start_works` (before the changes), `grid_set_phase` or `grid_phase_from`:',
     '   `grid_diff` with since: phase says what the work does, and `grid_takeoff` with for=change costs it.',
     '6. When a Grid tool\'s answer looks wrong, `grid_report_problem` drafts an issue about it.',
     '   Grid sends nothing: show the person the draft and let them decide whether to file it.',

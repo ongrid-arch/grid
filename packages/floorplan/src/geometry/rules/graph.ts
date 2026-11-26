@@ -25,7 +25,7 @@ import { overFigure, underFigure } from '../rounding'
 import { roomFloorOffset } from '../steps'
 import { doorwayClearance } from '../use'
 import { itemFootprint } from '../items'
-import { isItemKind } from '../itemKinds'
+import { isItemKind, liesUnderfoot } from '../itemKinds'
 
 /** How far past a wall's face a point is taken to be in the room beyond it, in metres (`stepPastFace`). */
 export const STEP_PAST_FACE_M = TOLERANCES.stepPastFace.value
@@ -364,7 +364,8 @@ export function floorGraph(plan: FloorPlan, leftOut: ReadonlySet<string> = new S
   const tooSmall: TooSmall[] = []
   const blocked: BlockedBy[] = []
   // The storey's own items, each by its footprint (`planForFloor` has cut them to the floor).
-  const obstacles = (plan.items ?? []).filter((item) => isItemKind(item.kind)).map((item) => ({ id: item.id, outline: itemFootprint(item) }))
+  // CNT-42: a rug lies on the floor and closes no doorway.
+  const obstacles = (plan.items ?? []).filter((item) => isItemKind(item.kind) && !liesUnderfoot(item.kind)).map((item) => ({ id: item.id, outline: itemFootprint(item) }))
   const closedCourts: OneSided[] = []
   const betweenLevels: BetweenLevels[] = []
   const roomsById = new Map(plan.rooms.map((room) => [room.id, room] as const))

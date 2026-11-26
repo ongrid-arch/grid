@@ -254,7 +254,8 @@ describe('lab MS-12: the GLB of a plan at survey coordinates', () => {
   it('is within 1 mm of the plan: built from the site\'s origin, the offset in the node that holds it', () => {
     const bytes = exportPlan(kept, 'glb', ids).data as Uint8Array
     const glb = parseGlb(bytes)
-    const holder = glb.json.nodes!.find((node) => node.name === 'origin')!
+    // VEW-64: the building's root node holds the floors, and the offset.
+    const holder = glb.json.nodes!.find((node) => node.name === 'building')!
     expect(holder.translation).toEqual([432000, 0, -4580000])
     expect(glb.json.scenes![0]!.nodes).toEqual([glb.json.nodes!.indexOf(holder)])
     expect((glb.json.asset as { extras?: { gridOrigin?: unknown } }).extras?.gridOrigin).toMatchObject({ x: 432000, y: 4580000 })
@@ -270,7 +271,8 @@ describe('lab MS-12: the GLB of a plan at survey coordinates', () => {
     const near = labPlan(AS_TAPED)
     const glb = parseGlb(exportPlan(near, 'glb', ids).data as Uint8Array)
     expect(glb.json.nodes!.some((node) => node.name === 'origin' || node.translation !== undefined)).toBe(false)
-    expect(glb.json.scenes![0]!.nodes).toEqual(glb.json.nodes!.map((_, i) => i))
+    // VEW-64: one root, the building, which moves nothing.
+    expect(glb.json.scenes![0]!.nodes).toEqual([glb.json.nodes!.findIndex((node) => node.name === 'building')])
     expect((glb.json.asset as { extras?: Record<string, unknown> }).extras).not.toHaveProperty('gridOrigin')
   })
 

@@ -77,13 +77,16 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-62: the refusals of grid_view's out.
   'packages/cli/src/draw/pictureFiles.ts': [2, 'agent'],
   'packages/cli/src/edit/addOpening.ts': [26, 'notYet'],
+  // WRT-73: the receipts and refusals of marking phases.
+  'packages/cli/src/edit/phaseMarks.ts': [18, 'notYet'],
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   'packages/cli/src/edit/place.ts': [11, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   // WRT-59: one more, a plan with nothing to mirror or turn.
-  'packages/cli/src/edit/edits.ts': [65, 'notYet'],
+  // WRT-73: one more, a mirror's line when it keeps the north.
+  'packages/cli/src/edit/edits.ts': [66, 'notYet'],
   // WRT-59: the notes an edit caused, opening its answer.
   'packages/cli/src/edit/caused.ts': [1, 'notYet'],
   'packages/cli/src/edit/merge.ts': [32, 'notYet'],
@@ -91,6 +94,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/phases.ts': [8, 'notYet'],
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
+  // CNT-41: the plot's and the site's things' receipts and refusals.
+  'packages/cli/src/edit/site.ts': [35, 'notYet'],
   'packages/cli/src/edit/split.ts': [19, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
@@ -98,7 +103,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/export/projectExports.ts': [2, 'command'],
   'packages/cli/src/firm/standards.ts': [18, 'command'],
   // CMD-30: one more, the refusal of a read-only file.
-  'packages/cli/src/fs/projectFiles.ts': [50, 'command'],
+  // CMD-41: one more, a lock that is a folder.
+  'packages/cli/src/fs/projectFiles.ts': [51, 'command'],
   'packages/cli/src/library/answer.ts': [9, 'notYet'],
   'packages/cli/src/library/office.ts': [6, 'notYet'],
   'packages/cli/src/fs/textEncoding.ts': [5, 'command'],
@@ -112,6 +118,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
   'packages/cli/src/mcp/editTools.ts': [107, 'tools'],
+  // WRT-74: grid_set_facts, its help and its argument checks.
+  'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -126,7 +134,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-53: one more, the line of a measure that runs through a wall.
   // VEW-62: five more, grid_view's out argument, its description and its refusals.
   // ARE-60: one more, grid_areas' area under air.
-  'packages/cli/src/mcp/readTools.ts': [382, 'tools'],
+  // WRT-74: one more, grid_fields' line on how facts are set.
+  'packages/cli/src/mcp/readTools.ts': [383, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -134,12 +143,18 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-21: one more, the nearest way out and the others.
   'packages/cli/src/mcp/reportTool.ts': [30, 'tools'],
   'packages/cli/src/mcp/retelling.ts': [3, 'agent'],
+  // CMD-41: based_on's description and planRevision's.
+  'packages/cli/src/mcp/revisions.ts': [2, 'tools'],
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   // CMD-38: two more, the rooms grammar resource's title and description.
   'packages/cli/src/mcp/serveTools.ts': [3, 'tools'],
   // CMD-38: the whole rooms grammar, by topic, for the agent.
-  'packages/cli/src/mcp/roomsGrammar.ts': [51, 'tools'],
+  // WRT-74: one more, the example of a room line with its number and facts.
+  // CNT-41: four more, the site's lines.
+  'packages/cli/src/mcp/roomsGrammar.ts': [56, 'tools'],
+  // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
+  'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -147,13 +162,17 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/toolkit.ts': [28, 'agent'],
   // CMD-39: the whole and page arguments every tool takes, and left_out in the output schemas.
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
+  // WRT-73: the three phase tools, their arguments and refusals.
+  'packages/cli/src/mcp/phaseTools.ts': [26, 'tools'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
   // CMD-38: three more, roomsFile's description and refusal, and what rooms text writes.
   // SHT-20: two more.
   // VEW-62: one more, grid_sheet's pictures of the pages.
-  'packages/cli/src/mcp/writeTools.ts': [145, 'tools'],
+  // WRT-73: six more, the phase rules, the correction argument and its note, and keep_north.
+  // VEW-64: one more, the floors an export holds.
+  'packages/cli/src/mcp/writeTools.ts': [152, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -174,7 +193,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   // CNT-27: one more, the CSV's column for the rows in no total.
   'packages/cli/src/quantities/schedule.ts': [16, 'notYet'],
-  'packages/cli/src/quantities/site.ts': [21, 'notYet'],
+  // CNT-41: two more, what the coverage counts.
+  'packages/cli/src/quantities/site.ts': [23, 'notYet'],
   'packages/cli/src/quantities/state.ts': [3, 'notYet'],
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
   'packages/cli/src/quantities/takeoff.ts': [10, 'notYet'],
@@ -240,11 +260,14 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   'packages/floorplan/src/rooms/read.ts': [22, 'notYet'],
+  // CNT-41: the site lines' refusals and notes, and north in words.
+  'packages/floorplan/src/rooms/site.ts': [30, 'notYet'],
   'packages/floorplan/src/rooms/words.ts': [4, 'notYet'],
   'packages/floorplan/src/scan/evidence.ts': [2, 'notYet'],
   'packages/floorplan/src/scan/roomModel.ts': [22, 'notYet'],
   'packages/floorplan/src/scan/toPlan.ts': [30, 'notYet'],
-  'packages/floorplan/src/types/floorplan.ts': [60, 'notYet'],
+  // LVL-20: one more, the most dormers one roof lists, as the rooflights' is worded.
+  'packages/floorplan/src/types/floorplan.ts': [61, 'notYet'],
   'packages/floorplan/src/types/places.ts': [7, 'notYet'],
   // CMD-7: the plan JSON Schema's title, its description, and the error for a schema part it cannot write.
   'packages/floorplan/src/types/planSchema.ts': [3, 'developer'],
@@ -385,7 +408,14 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // refusal for no layout is gone).
     // and SHT-20 2: printing a sheet at a stated scale and paper size (it used the cap's slack on its own).
     // and CNT-40 1: the estimate's plural words for the new room uses (quantities/estimate.ts).
-    expect(left).toBeLessThanOrEqual(1662)
+    // and CMD-41 1: the refusal of a plan lock that is a folder (fs/projectFiles.ts).
+    // and WRT-73 51: setting phases, its receipts and refusals (edit/phaseMarks.ts 18), its tools
+    // (mcp/phaseTools.ts 26), the correction and keep_north words (mcp/writeTools.ts 6, edit/edits.ts 1).
+    // and LVL-20 1: the most dormers one roof lists (types/floorplan.ts).
+    // and CNT-41 116: the site lines in rooms text (rooms/site.ts 30), the site's changes
+    // (edit/site.ts 35), their tools (mcp/siteTools.ts 45), the grammar's site topic (4) and what
+    // the coverage counts (quantities/site.ts 2) (odd/tasks/CNT-41.md).
+    expect(left).toBeLessThanOrEqual(1831)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

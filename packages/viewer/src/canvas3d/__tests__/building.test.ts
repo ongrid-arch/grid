@@ -317,6 +317,20 @@ describe('createSceneMemo: one scene per storey', () => {
     for (const id of ids) expect(after.get(id)).toBe(before.get(id))
   })
 
+  it('raises a piece of furniture on its own storey, and again where it stands once moved (CNT-42)', () => {
+    const scenesOf = storeys()
+    const sofa = { id: 'sofa', kind: 'sofa', at: [3, 2] as [number, number], size: [2, 0.9] as [number, number], height: 0.85, floor: 'first' }
+    const furnished: FloorPlan = { ...threeStoreys, items: [sofa] }
+    const before = scenesOf(furnished)
+    expect(before.get('first')!.items!.map((i) => i.id)).toEqual(['sofa'])
+    expect(before.get('ground')!.items).toEqual([])
+    const moved = scenesOf(reparsed({ ...furnished, items: [{ ...sofa, at: [3, 2.5] }] }))
+    expect(moved.get('ground')).toBe(before.get('ground'))
+    expect(moved.get('first')).not.toBe(before.get('first'))
+    const ys = moved.get('first')!.items![0]!.blocks.flatMap((b) => b.outline.map((p) => p.y))
+    expect(Math.max(...ys)).toBeCloseTo(2.95, 9)
+  })
+
   it('raises the storeys above a taller ground floor without touching their walls', () => {
     const scenesOf = storeys()
     const before = scenesOf(threeStoreys)

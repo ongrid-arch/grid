@@ -11,18 +11,19 @@ import { baseRefusal, baseTouched, phasedPatch } from '../edit/phases'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { DOOR_KINDS, OPENING_KINDS, WINDOW_KINDS, WallKindSchema, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
-import { limit, planFloors, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { limit, planFloors, phaseCounts, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { EXPORT_FORMATS, isExportFormat } from '@ongrid/floorplan/export'
 import { inspectPlan } from '@ongrid/rules'
-import { approximatedText, checkExportRequest, dxfProfileLine, ExportWriteFailed, exportIntoProject, leftOutText } from '../command/export'
+import { approximatedText, checkExportRequest, dxfProfileLine, ExportWriteFailed, exportIntoProject, floorsText, leftOutText } from '../command/export'
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { PlanRefused } from '../command/plan'
 import { nameNotes } from '../command/planText'
 import { occupancyFileOf } from '../occupancy/occupancy'
 import { keepRoomNumbers } from '../edit/numbers'
+import { PlanBusy, withPlanLock } from '../edit/revision'
 import { changeOpening, changeWallThickness, listed, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
 import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
 import { parseSheetWordsChecked } from '../sheet/claims'
@@ -94,13 +95,14 @@ const exportTool: GridTool = {
   description:
     'Use this when the person wants the plan as a file to open in another program: dxf for AutoCAD and other 2D CAD programs (the nearest to DWG), ifc for BIM programs such as Revit, glb or obj for 3D. '
     + 'It writes the file into the exports folder beside the plan, replacing an earlier copy of the same export, and answers with the path it wrote and every part of the plan the file leaves out (the file says so too). It never changes the plan, and refuses a file that would hold nothing of it. '
+    + 'A glb or obj with no floor holds the whole building, each floor at its elevation (in a glb, a node per floor named by its id under one root node), and the answer says which floors a file holds as floors and which it does not as floorsLeftOut. '
     + `A dxf is in metres, with doors and windows as blocks, filled walls, dimensions, room tags and an A3 sheet; it takes its layer names and pens from ${DXF_PROFILE_FILE} in the project folder when there is one, and answers with that file as dxfProfile. `
     + `${ROOM_NAMES_TRAVEL} `
     + 'Do not use for a picture to look at (grid_view). For a PDF to read or print, use grid_sheet; JPG is not made. The plan must be a file inside the project folder: any other path is refused.',
   args: {
     plan: { type: 'string', maxLength: PATH_MAX, required: true, description: 'The plan file, as a path inside the project folder.', examples: ['floor-plan.json', 'plan.json'] },
     format: { type: 'string', required: true, enum: EXPORT_FORMATS, description: 'The file format.', examples: ['dxf', 'ifc'] },
-    floor: { ...FLOOR_ARG, description: 'dxf, obj and glb only: a floor id from the plan\'s "floors". The ground floor when left out.' },
+    floor: { ...FLOOR_ARG, description: 'dxf, obj and glb only: a floor id from the plan\'s "floors", for that floor alone at its elevation. Left out, obj and glb hold every floor, and dxf the ground floor.' },
   },
   outputSchema: objectSchema({
     written: STRING,
@@ -111,6 +113,9 @@ const exportTool: GridTool = {
     ),
     // CNT-18: the curved walls and the rooms along them the file writes as straight pieces.
     approximated: listSchema(objectSchema({ kind: STRING, id: STRING, floor: NULLABLE_STRING }, ['kind', 'id', 'floor'])),
+    // VEW-64: the floors the file holds, lowest first, each with its elevation in metres, and the plan's floors it does not hold.
+    floors: listSchema(objectSchema({ id: STRING, elevation: NUMBER }, ['id', 'elevation'])),
+    floorsLeftOut: listSchema(STRING),
     note: { type: ['string', 'null'] },
     dxfProfile: { type: ['string', 'null'] },
     gridVersion: STRING,
@@ -134,9 +139,12 @@ const exportTool: GridTool = {
       if (left !== null) lines.push(left)
       const curves = approximatedText(done.approximated)
       if (curves !== null) lines.push(curves)
+      // VEW-64: which floors the file holds, and which it does not.
+      const held = floorsText(done, format)
+      if (held !== null) lines.push(held)
       // HND-1: a DXF names the project's profile when its layers and pens came from one.
       if (done.dxfProfile !== null) lines.push(dxfProfileLine(done.dxfProfile))
-      return { text: lines.join('\n'), data: { written, format, leftOut: done.leftOut.length, leftOutParts: done.leftOut, approximated: done.approximated, note: done.note ?? null, dxfProfile: done.dxfProfile, gridVersion: version } }
+      return { text: lines.join('\n'), data: { written, format, leftOut: done.leftOut.length, leftOutParts: done.leftOut, approximated: done.approximated, floors: done.floors, floorsLeftOut: done.floorsLeftOut, note: done.note ?? null, dxfProfile: done.dxfProfile, gridVersion: version } }
     } catch (error) {
       if (error instanceof PathRefused || error instanceof PlanRefused || error instanceof ExportWriteFailed || error instanceof DxfProfileRefused) throw new ToolRefusal(error.message)
       if (error instanceof UsageError) throw new ToolRefusal(asArguments(error.message))
@@ -279,6 +287,20 @@ export const OUT_ARG = {
   examples: ['option-b2.json', 'plan.json'],
 }
 
+/**
+ * WRT-73 (C16): the phase rules, in the words the tools that write and edit a plan carry. A plan
+ * with phases is read in two states, before the work and after it; an edit of it is the work.
+ */
+export const PHASE_RULES =
+  'Phases: parts may state existing, demolished or new. In a plan that states a phase an edit is building work: what it adds is new and what it takes out of what stands is kept, to be demolished; a plan that states none is read as it is. grid_start_works marks a plan as it stands existing, grid_set_phase marks parts by id or room, grid_phase_from writes one plan from a before and an after. To fix the survey itself ("the hall is on the right, actually") pass correction, so the change is not work.'
+
+/** WRT-73: on an edit of a plan with phases, true makes the change a correction of the survey, not building work. */
+export const CORRECTION_ARG = {
+  type: 'boolean' as const,
+  description: 'true when the change fixes the survey rather than making building work: a plan with phases keeps every part\'s phase and the change is made in place, as on a plan with none. false (left out) makes the change the work.',
+  examples: [true],
+}
+
 export const EDIT_OUTPUT = objectSchema({
   written: STRING,
   changed: listSchema(STRING),
@@ -312,18 +334,34 @@ function renamesIn(plan: FloorPlan, patch: Patch): [string, string][] {
   return out
 }
 
-/** Applies a patch to the plan file, or refuses it with nothing written. */
-export function writeChange(context: ToolContext, args: Record<string, unknown>, make: (survey: Survey, problemsOf: ProblemsOf) => Patch): { text: string; data: Record<string, unknown> } {
+/**
+ * Applies a patch to the plan file, or refuses it with nothing written. CMD-41: it holds the plan's
+ * lock from reading the plan to writing it back, so no other change, in this process or another,
+ * comes between; `grid edit` gets it here too, the server already holds it (`revisions.ts`).
+ */
+export function writeChange(context: ToolContext, args: Record<string, unknown>, make: (survey: Survey, problemsOf: ProblemsOf, stated: FloorPlan) => Patch): { text: string; data: Record<string, unknown> } {
+  const project = projectOf(context)
+  try {
+    return withPlanLock(project, planFileOf(project, args['plan']), () => writeChangeHeld(context, args, make))
+  } catch (error) {
+    if (error instanceof PlanBusy) throw new ToolRefusal(error.message)
+    throw error
+  }
+}
+
+function writeChangeHeld(context: ToolContext, args: Record<string, unknown>, make: (survey: Survey, problemsOf: ProblemsOf, stated: FloorPlan) => Patch): { text: string; data: Record<string, unknown> } {
   const { project, file, loaded } = readPlan(context, args['plan'], { whole: true, leftOutKept: true })
   const out = (args['out'] as string | undefined) ?? file
   if (!out.toLowerCase().endsWith('.json')) throw new ToolRefusal('out must name a .json file.')
   const before = surveyPlan(loaded.plan)
   // A plan written rooms first keeps its derived boundaries derived through Grid's own edits (WRT-2).
   const planAfter = (patch: Patch): FloorPlan => keptDerived(loaded.plan.rooms, readingAfter(loaded.plan, patch) as unknown as Record<string, unknown>) as unknown as FloorPlan
-  const problemsOf: ProblemsOf = (patch) => newProblems(loaded.plan, planAfter(phasedPatch(loaded.plan, patch)))
+  // WRT-73: a correction fixes the survey itself, so the change is not the work and every phase stays as it was.
+  const asWork = (patch: Patch): Patch => (args['correction'] === true ? patch : phasedPatch(loaded.plan, patch))
+  const problemsOf: ProblemsOf = (patch) => newProblems(loaded.plan, planAfter(asWork(patch)))
   let patch: Patch
   try {
-    patch = make(before, problemsOf)
+    patch = make(before, problemsOf, loaded.plan)
   } catch (error) {
     if (error instanceof EditRefused) throw new ToolRefusal(`${error.message} Nothing was written.`)
     throw error
@@ -340,7 +378,7 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
     const touched = baseTouched(patch, loaded.base)
     if (touched.length > 0) throw new ToolRefusal(baseRefusal(touched, loaded.base.file))
   }
-  patch = phasedPatch(loaded.plan, patch)
+  patch = asWork(patch)
   const after = planAfter(patch)
   const fresh = newProblems(loaded.plan, after)
   if (fresh.length > 0) throw new ToolRefusal(`That change would break the drawing, so nothing was written: ${problemsText(fresh)}`)
@@ -384,6 +422,10 @@ export function writeChange(context: ToolContext, args: Record<string, unknown>,
   const caused = causedText(newNotes)
   const guessed = [...(patch.guessed ?? [])]
   const couldNotKeep = [...(patch.notKept ?? [])]
+  // WRT-73: edits are worked out on the building after the work, so a correction does not reach what stands only before it.
+  if (args['correction'] === true && patch.whole !== true && phaseCounts(loaded.plan).demolished.walls > 0) {
+    couldNotKeep.push('A correction changes the plan as it stands after the work, so what is only to be demolished is left as it was: check it against the correction.')
+  }
   // BRF-1: the brief beside the plan the change read, against the plan as it now is.
   // WRT-59: a room renamed is renamed in the brief's wishes too, so they do not read as missed.
   const renamed = renamesIn(loaded.plan, patch)
@@ -424,7 +466,7 @@ const changeOpeningTool: GridTool = {
     'Use this when the person asks to make a door or window wider or narrower, change which room a door opens into or which side it is hinged on, make it a sliding, double, folding, pocket, roller or garage door (or a fixed, sliding or high-level window), raise or lower a sill, turn a window into a door, or take a door or window out: "bathroom door to 90 cm, opening outwards", "hinged on the left as seen from the bedroom", "make the dock door a roller door", "block the kitchen door", "a 4 m opening to the garden". '
     + 'It changes one opening in place and answers with what changed and the area verdict. A width that does not fit is refused with the free stretches of the wall, and nothing is written. '
     + 'To move it to another wall, pass room and side ("the bathroom door to its north wall"); to place it, from and distance, as rooms text does ("0.25 from west"): from a side of room, or without room from an end of its wall. Given from, it keeps that distance when walls move later (its anchor). '
-    + 'Do not use to move a wall (grid_move_room_side). Grid has no roof windows. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+    + 'Do not use to move a wall (grid_move_room_side). Grid has no roof windows. In a plan with phases the change is building work; pass correction to fix the survey instead (grid_start_works and grid_set_phase set phases). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
@@ -444,6 +486,7 @@ const changeOpeningTool: GridTool = {
     side: { type: 'string', enum: DIRECTIONS, description: 'With room: the side of that room whose wall it moves to.', examples: ['north'] },
     from: { type: 'string', enum: FROMS, description: 'What its place is measured and kept from: with room, a side of that room (its inside face); without, an end of its wall: start, end, or the end toward north, east, south or west.', examples: ['west', 'start'] },
     distance: { type: 'number', length: true, description: 'Metres from that side or end to the opening\'s nearer edge. Left out with from, the distance it has now is kept.', examples: [0.25, 0.1], minimum: 0, maximum: 100 },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
@@ -490,12 +533,13 @@ const changeWallTool: GridTool = {
   description:
     'Use this when the person asks to make one wall thicker or thinner, or gives the thickness of a wall the plan guessed or left out: "the outside wall is 450 mm", "make the wall between the bedrooms 100 mm". '
     + 'It sets that wall\'s own thickness. A wall placed by its face (face in the file, as a survey taped inside gives it) keeps that face where it is and grows or shrinks on its other side, so the rooms it was taped from keep their size; any other wall keeps its centre line and each face moves half the change. A wall that ended in it and would end short of the thinner wall is carried to its new centre line. It answers with every room whose area changed and the taped lengths against the plan as it now is. '
-    + 'Do not use to change every wall of a kind or a named type (grid_change_type), or to move a wall (grid_move_room_side). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (18", 450 mm).',
+    + 'Do not use to change every wall of a kind or a named type (grid_change_type), or to move a wall (grid_move_room_side). In a plan with phases the change is building work; pass correction to fix the survey instead (grid_start_works and grid_set_phase set phases). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (18", 450 mm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
     wall: { type: 'string', id: true, required: true, description: 'The id of the wall (grid_describe with for=agent lists them).', examples: ['ext-s', 'w3'] },
     thickness: { type: 'number', length: true, required: true, description: 'Its new thickness, in metres.', examples: [0.45, 0.1], minimum: 0.01, maximum: 3 },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
@@ -558,7 +602,7 @@ const moveSideTool: GridTool = {
   description:
     'Use this when the person asks to make a room deeper or wider by moving one of its walls, or to build out: "go out 3 m at the back, full width", "make the kitchen 1 m longer", "bring the bedroom wall in 0.5 m". '
     + 'It moves the wall on the named side of the room straight out (a positive distance) or in (negative), or to give the room an inside size (to: "the kitchen 4 m deep"); walls that end on it follow, and its doors and windows move with it. Doors and windows on the walls that grow keep their anchor or their place in the building, and a door that would end up between other rooms follows the wall where it can. It answers with every room whose area changed, what it guessed and what it could not keep. A move that would leave the drawing with a new problem is refused with the largest move that way that fits; call again with that by. '
-    + 'Only a side square to the drawing moves: north is the top of the drawing. Do not use to add a separate room or to split one. It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+    + 'Only a side square to the drawing moves: north is the top of the drawing. Do not use to add a separate room or to split one. In a plan with phases the change is building work; pass correction to fix the survey instead (grid_start_works and grid_set_phase set phases). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
@@ -566,6 +610,7 @@ const moveSideTool: GridTool = {
     side: { type: 'string', enum: DIRECTIONS, required: true, description: 'Which side of the room: north (the top of the drawing), east, south or west.', examples: ['north', 'east'] },
     by: { type: 'number', length: true, description: 'Metres to move it: positive makes the room bigger, negative smaller. Pass by or to.', examples: [3, -0.5], minimum: -50, maximum: 50 },
     to: { type: 'number', length: true, description: 'The room\'s inside size across that side after the move, in metres: its depth for north or south, its width for east or west. Pass by or to.', examples: [4, 3.2], minimum: NARROWEST_ACROSS, maximum: 100 },
+    correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
   outputSchema: EDIT_OUTPUT,
@@ -597,10 +642,13 @@ const mirrorTool: GridTool = {
     'Use this when the person asks to flip the plan, mirror it, have it the other way round, or turn it a quarter or half round: "the lounge is on the right as you come in, flip it", "rotate it 90 degrees". '
     + 'how left-right swaps east and west, top-bottom swaps north and south; turn instead turns the whole plan by 90, 180 or 270 degrees (-90 is 270), counter-clockwise as Grid draws it, y up. Every room keeps its size and every door keeps opening into the same room. '
     + 'A mirror mirrors a north the plan states, so the swap is the real one; a turn keeps the north, so the building faces new ways. '
+    + 'For "I drew it the wrong way round", pass keep_north: the building is mirrored and the north the plan states stays. On a plan with phases a mirror is a correction of the survey, not building work: pass correction. '
     + 'Do not use to turn the drawing for a picture (grid_view). It replaces the plan file unless out is given.',
   args: {
     plan: PLAN_ARG,
     how: { type: 'string', enum: MIRRORS, description: 'To mirror: left-right or top-bottom. Give how or turn, not both.', examples: ['left-right'] },
+    keep_north: { type: 'boolean', description: 'With how: true keeps the north the plan states, for a plan drawn the wrong way round; false (left out) mirrors the north with the building.', examples: [true] },
+    correction: CORRECTION_ARG,
     turn: { type: 'number', minimum: -270, maximum: 270, description: 'To turn instead: 90, 180, 270 or -90 degrees, counter-clockwise as Grid draws the plan (y up). Quarter turns only.', examples: [90] },
     out: OUT_ARG,
   },
@@ -609,11 +657,14 @@ const mirrorTool: GridTool = {
     const how = args['how'] as Mirror | undefined
     const turn = args['turn'] as number | undefined
     if (how !== undefined && turn !== undefined) throw new ToolRefusal('Pass how to mirror or turn to turn, not both: make two calls for a mirror and a turn.')
+    if (args['keep_north'] === true && how === undefined) throw new ToolRefusal('keep_north goes with how: a turn keeps the north already.')
     if (how === undefined && turn === undefined) throw new ToolRefusal('Pass how (left-right or top-bottom) to mirror the plan, or turn (90, 180, 270 or -90 degrees) to turn it.')
-    if (turn === undefined) return writeChange(context, args, (survey) => mirrorPlan(survey, how!))
+    // WRT-73: a correction mirrors or turns the whole plan, what is to be demolished with the rest.
+    const all = (survey: Survey, stated: FloorPlan): Survey => (args['correction'] === true ? { ...survey, plan: stated } : survey)
+    if (turn === undefined) return writeChange(context, args, (survey, _, stated) => mirrorPlan(all(survey, stated), how!, { keepNorth: args['keep_north'] === true }))
     const degrees = ((turn % 360) + 360) % 360
     if (!(TURNS as readonly number[]).includes(degrees)) throw new ToolRefusal(`turn is ${turn}: Grid turns a plan by quarter turns only, 90, 180, 270 or -90 degrees.`)
-    return writeChange(context, args, (survey) => turnPlanBy(survey, degrees as Turn))
+    return writeChange(context, args, (survey, _, stated) => turnPlanBy(all(survey, stated), degrees as Turn))
   },
 }
 
@@ -679,6 +730,7 @@ const writeRoomsTool: GridTool = {
     + 'A plain number is metres; a length may carry its unit in one word (360cm, 3600mm, 12ft, 12ft6in, 12\'6"). A display line (display ft-in, display mm, display m decimal comma) records how the person reads lengths: drawings, figures and sheets follow it, and the plan file stays in metres. Under a display that is not metres, say what a plain number is on that line (display ft-in numbers ft, display mm numbers mm), or write every length with its unit: a plain number is refused there. '
     + 'From a phone room scan: pass scan, the scan file in the project (Apple\'s room model, as JSON), in place of rooms. Grid pairs each wall\'s two faces into one wall as thick as the gap between them, takes a wall seen from one side as an outside wall of its usual thickness, places the doors and windows on their walls, keeps the scan beside the plan as <plan>.scan.json keyed by its ids, and lists everything it assumed to confirm with the person. A re-scan keeps the plan\'s ids for the parts it finds again. '
     + 'Rooms text writes far more than rectangles (the rooms argument holds its whole grammar, each topic with an example, and grid://guide/rooms serves it): floors with their level, elevation and height, a floor copied from another and a stair or shaft standing through floors; rooms drawn as a polygon at any angle and corners cut out; a curved wall written raw with its arc\'s centre and sweep in degrees; a raw room bounded by its own walls; outdoor rooms (garden, terrace, balcony); a room\'s own height and its floor set lower or higher; rooms open to each other; a floor\'s roof written raw (gable, hip); and a room type written once as a unit and placed many times by place and repeat, mirrored. Write a whole building, every floor, in one rooms text: a long one goes in a file in the project, passed as roomsFile. '
+    + `${PHASE_RULES} `
     + 'Pass one of rooms, roomsFile, layout and scan. '
     + 'Fixtures and furniture are not rooms text: a rewrite keeps them where they stood, with their ids, and lists them with their rooms and any a new wall runs into (itemsKept). '
     + 'Do not use for one door or window (grid_change_opening) or one wall moved (grid_move_room_side). It replaces the plan file. Rooms text that names fewer floors than the plan holds is refused, naming the floors it would drop (replace=true drops them); rooms text with no rooms is always refused.',

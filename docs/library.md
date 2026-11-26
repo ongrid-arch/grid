@@ -32,11 +32,16 @@ version; a new size is a new name.
 | shower | `shower-800`, `shower-900`, `shower-1200` (1.20 × 0.80) |
 | bath | `bath` 1.70 × 0.70, `bath-1500` |
 | kitchen run | `kitchen-run-2400`, `kitchen-run-3000` (0.60 deep, 1.20 clear in front) |
-| bed | `single-bed` 0.90 × 2.00, `double-bed` 1.40 × 2.00, `large-double-bed` 1.60 × 2.00 |
-| table | `side-table` 0.45 × 0.40, `desk` 1.20 × 0.60, `dining-table-4` 1.20 × 0.80, `dining-table-6` 1.80 × 0.90 |
-| chair | `chair` 0.45 × 0.50, `armchair` 0.80 × 0.85 |
+| bed | `single-bed` 0.90 × 2.00, `double-bed` 1.40 × 2.00, `large-double-bed` 1.60 × 2.00, `king-bed` 1.80 × 2.00 |
+| table | `side-table` 0.45 × 0.40, `bedside-table` 0.40 × 0.35, `coffee-table` 1.10 × 0.60, `dining-table-4` 1.20 × 0.80, `dining-table-6` 1.80 × 0.90 |
+| chair | `chair` 0.45 × 0.50 |
+| stool | `stool` 0.35 × 0.35, `bar-stool` 0.40 × 0.40 (0.75 high) |
+| armchair | `armchair` 0.80 × 0.85 |
 | sofa | `sofa-2` 1.60 × 0.90, `sofa-3` 2.10 × 0.90 |
-| storage | `wardrobe` 1.00 × 0.60, `chest-of-drawers` 0.80 × 0.45 |
+| storage | `wardrobe` 1.00 × 0.60, `chest-of-drawers` 0.80 × 0.45, `tv-unit` 1.60 × 0.45 |
+| desk | `desk` 1.20 × 0.60, `desk-1400` 1.40 × 0.70 (0.75 clear in front) |
+| rug | `rug` 2.00 × 1.40, `rug-large` 3.00 × 2.00 |
+| plant | `plant` 0.50 × 0.50 (1.20 high) |
 
 The typical rooms are `bathroom` (a bath, a WC and a basin in 2.40 × 1.90 m), `cloakroom` (a WC
 and a small basin in 1.00 × 1.60 m), `double-bedroom` (a double bed, two side tables and a

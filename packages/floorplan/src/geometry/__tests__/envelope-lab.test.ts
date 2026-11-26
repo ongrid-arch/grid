@@ -57,13 +57,17 @@ function objRanges(text: string): Map<string, { min: number; max: number }> {
   return ranges
 }
 
-/** The storeys of a plan stacked as the lab stacked the files: each floor's own file lifted to its floor level. */
+/**
+ * The storeys of a plan as the whole building's OBJ holds them (VEW-64): every floor in one file,
+ * each at its elevation, so the file's heights are the building's. The lab lifted each floor's own
+ * file to its floor level by hand.
+ */
 function stacked(plan: FloorPlan): { floor: string; level: number; top: number; ranges: Map<string, { min: number; max: number }> }[] {
   const levels = floorElevations(plan).floors
+  const ranges = objRanges(exportPlan(plan, 'obj', OPTIONS).data as string)
   return ['ground', 'first'].map((floor) => {
-    const obj = exportPlan(plan, 'obj', { ...OPTIONS, floorId: floor }).data as string
     const level = levels.get(floor)!
-    return { floor, level: level.floorLevel, top: level.floorLevel + level.clearHeight, ranges: objRanges(obj) }
+    return { floor, level: level.floorLevel, top: level.floorLevel + level.clearHeight, ranges }
   })
 }
 
@@ -76,8 +80,8 @@ describe('VE-4: slabs in the OBJ and GLB files', () => {
     expect(first!.level).toBeCloseTo(2.95, 9)
     const slab = first!.ranges.get('slab_first')
     expect(slab, 'the first floor file has a slab').toBeDefined()
-    expect(first!.level + slab!.min).toBeCloseTo(ground!.top, 9)
-    expect(first!.level + slab!.max).toBeCloseTo(first!.level, 9)
+    expect(slab!.min).toBeCloseTo(ground!.top, 9)
+    expect(slab!.max).toBeCloseTo(first!.level, 9)
     // The ground floor stands on its own slab, and its single-storey part carries the roof.
     expect(ground!.ranges.get('slab_ground')).toEqual({ min: -0.25, max: 0 })
     const roof = ground!.ranges.get('roof_ground')
@@ -86,9 +90,11 @@ describe('VE-4: slabs in the OBJ and GLB files', () => {
     expect(roof!.max).toBeCloseTo(2.95, 9)
   })
 
-  it('writes the same slab and roof into the GLB', () => {
+  it('writes the same slab and roof into the GLB, each floor at its elevation', () => {
     const plan = labPlan(ODD)
+    const levels = floorElevations(plan).floors
     for (const floor of ['ground', 'first']) {
+      const level = levels.get(floor)!.floorLevel
       const meshes = readMeshes(parseGlb(exportPlan(plan, 'glb', { ...OPTIONS, floorId: floor }).data as Uint8Array))
       // glTF is Y up: a model height is the stored y.
       const heights = (name: string): number[] => {
@@ -98,8 +104,8 @@ describe('VE-4: slabs in the OBJ and GLB files', () => {
         return [Math.min(...ys), Math.max(...ys)]
       }
       const [bottom, top] = heights(`slab_${floor}`)
-      expect(bottom).toBeCloseTo(-0.25, 6)
-      expect(top).toBeCloseTo(0, 6)
+      expect(bottom).toBeCloseTo(level - 0.25, 6)
+      expect(top).toBeCloseTo(level, 6)
       heights(`roof_${floor}`)
     }
   })

@@ -63,6 +63,8 @@ beforeAll(() => {
     'level.json': box([2.7, 2.7, 2.7, 2.7]),
     'mixed.json': box([2.7, 2.7, 2.4, 2.7]),
     'stated.json': box([2.7, 2.7, 2.4, 2.7], 2.55),
+    // LVL-20: the box under a gable from 2.4 m eaves on the south and north walls to a 3.9 m ridge.
+    'gable.json': { ...(box([2.4, 2.4, 2.4, 2.4]) as object), floors: [{ id: 'ground', name: 'Ground', level: 0, roof: { shape: 'gable', eaves: 2.4, ridge: 3.9, ridgeRuns: 'east-west' } }] },
   })
 })
 afterAll(() => b.close())
@@ -178,6 +180,23 @@ describe('what=wall: a wall\'s length on its centre line and along each room\'s 
     expect(wall.faces[1]!.length).toBeCloseTo(6.79, 6)
     expect(reply.text).toContain('10.00 m')
     expect(reply.text).toContain('"Hall and stair" 2.79 m')
+  })
+})
+
+describe('what=wall under a roof the floor states (LVL-20): its height along its length', () => {
+  it('gives a gable end\'s top from the eaves to the ridge, raised past the height it states', async () => {
+    const reply = await ok({ plan: 'gable.json', what: 'wall', wall: 'w-e' })
+    const wall = answer(reply) as { cut: string; low: number; high: number; top: Array<{ at: number; height: number }> }
+    expect(wall.cut).toBe('raised')
+    expect(wall.low).toBeCloseTo(2.4, 6)
+    expect(wall.high).toBeCloseTo(3.9, 6)
+    expect(wall.top.map((p) => [Number(p.at.toFixed(3)), Number(p.height.toFixed(3))])).toEqual([[0, 2.4], [1.5, 3.9], [3, 2.4]])
+    expect(reply.text).toContain('It rises to the roof over it, past the 2.40 m it states: 2.40 m at its lowest, 3.90 m at its highest; along it from its start, 2.40 m at 0.00 m, 3.90 m at 1.50 m, 2.40 m at 3.00 m.')
+  })
+
+  it('gives a side wall at the eaves as level, with no top along it', async () => {
+    const wall = answer(await ok({ plan: 'gable.json', what: 'wall', wall: 'w-s' })) as { cut: string | null; top: unknown; low: number; high: number }
+    expect(wall).toMatchObject({ cut: null, top: null, low: 2.4, high: 2.4 })
   })
 })
 

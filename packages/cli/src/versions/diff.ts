@@ -83,7 +83,7 @@ export function diffSince(project: Project, planFile: string, since: string | un
  */
 function diffByPhase(loaded: LoadedPlan, rooms?: readonly string[]): PlanDiffRun {
   if (!planHasPhases(loaded.plan)) {
-    throw new MarkerRefused('The plan states no phase, so it holds no work to compare: give its walls, openings and rooms a phase (existing, demolished or new), or compare with a marker or git.')
+    throw new MarkerRefused('The plan states no phase, so it holds no work to compare: mark it with grid_start_works before the work\'s edits, or its parts with grid_set_phase (existing, demolished or new), or compare with a marker or git.')
   }
   const after = planInState(loaded.plan, 'after')
   // WRT-15: a room an edit reshaped, kept as it stood, is read as the room it became.

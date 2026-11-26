@@ -304,7 +304,7 @@ display chooses a point. Names from the plan are never translated.
 | `flat/zone-without-room` | {thing} names a zone but not the room it is part of | the room a zone is part of, in the flat with it |
 | `item/too-large` | {thing} has a number Grid does not accept | finite numbers within the size Grid accepts |
 | `item/no-size` | {thing} has no size | a width, a depth and a height above 0 |
-| `item/unknown-kind` | {thing} is a kind the plan does not hold yet | a kind Grid holds: a fixture ("toilet", "basin", "shower", "bath" or "kitchen-run"), furniture ("bed", "table", "chair", "sofa" or "storage"), or a kind added through the kinds registry |
+| `item/unknown-kind` | {thing} is a kind the plan does not hold yet | a kind Grid holds: a fixture ("toilet", "basin", "shower", "bath" or "kitchen-run"), furniture ("bed", "table", "chair", "sofa", "storage", "armchair", "stool", "desk", "rug" or "plant"), or a kind added through the kinds registry |
 | `item/duplicate-id` | {thing} has an id another part of the plan has too | an id of its own on every item |
 | `item/unknown-floor` | {thing} is on a floor the plan does not have | a floor of the plan |
 | `item/outside-rooms` | {thing} stands in no room | its middle inside a room on its floor |
@@ -324,7 +324,7 @@ display chooses a point. Names from the plan are never translated.
 | `floor/empty-top` | {thing} is the top floor and has nothing drawn on it | a top floor with something on it |
 | `floor/out-of-line` | {thing} does not line up with the floor below it | a floor's outline over the floor below it, or marked overhang "meant" where it overhangs or sits back on purpose |
 | `floor/rooflight-misplaced` | {thing} has a rooflight that does not lie on one slope of its roof | a rooflight wholly inside the roof and on one of its slopes, clear of the ridge and the hips |
-| `floor/dormers-not-drawn` | {thing} lists dormers, which are not supported yet | a roof Grid can draw: dormers are not supported yet |
+| `floor/dormers-not-drawn` | {thing} lists dormers that only sections and headroom show yet | dormers in every view: the 3D model, elevations, exports and take-off do not show them yet |
 | `floor/size-question` | {thing} has a height that may not be meant | the height of a storey in a building |
 | `floor/spaces-unknown` | The spaces the walls enclose on {thing} could not be worked out | walls Grid can join into spaces |
 | `floor/overlaps-unknown` | The rooms on {thing} were not all compared to see whether they overlap | fewer pairs of rooms lying over each other |

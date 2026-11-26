@@ -97,10 +97,10 @@ describe('the client layout (VEW-7)', () => {
   it('shows its figures on the cover, made by Grid', () => {
     const labels = sheet.pages[0]!.figures.map((f) => f.label)
     expect(labels).toContain('floors')
-    expect(labels).toContain('bedrooms')
     expect(sheet.pages[0]!.figures.find((f) => f.label === 'floors')!.value).toBe('2')
-    // The fixture's rooms have no use, so it has no bedroom.
-    expect(sheet.pages[0]!.figures.find((f) => f.label === 'bedrooms')!.value).toBe('0')
+    // SHT-21: the fixture states no kind and its rooms have no use, so it has no bedroom to count,
+    // and the cover never says "0 bedrooms".
+    expect(labels.some((l) => l.startsWith('bedroom'))).toBe(false)
   })
 
   it('writes no words in the author\'s place without sheet.json', () => {
@@ -389,7 +389,8 @@ describe('small things a sheet says (VEW-7)', () => {
     const label = (count: number) => sheetPages(withBedrooms(count), null, 'client', { name: 'x', date }).pages[0]!.figures.find((f) => f.value === String(count) && f.label.startsWith('bedroom'))?.label
     expect(label(1)).toBe('bedroom')
     expect(label(2)).toBe('bedrooms')
-    expect(label(0)).toBe('bedrooms')
+    // SHT-21: with no kind stated, none is not shown; a home shows its none (kindCover.test.ts).
+    expect(label(0)).toBeUndefined()
   })
 
   it('shows a gross area it cannot work out as not known, with the reason', () => {
