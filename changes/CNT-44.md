@@ -1,0 +1,10 @@
+# 2026-11-26: a room or zone filled with desks or seats at a pitch in one call (CNT-44)
+
+## For people
+
+- "How many desks fit in the hot-desk zone?" is one call, or one command (`grid edit fill --room hot-desks --name desk --pitch 1.6 --aisle 1.2 --dry-run`). Grid repeats one library entry, a desk, a seat or a table with its chairs, over a room or a zone at your pitch, aisle and clearances to the walls and doors, rows back to back if you ask, clear of the columns and what is already there, and says how many fit, how they are set out, the floor each has and what is left over. A dry run only counts; `--replace` tries another pitch in one more call. The library has two new sets for cafés and meeting rooms, `table-4-chairs` and `table-6-chairs` (CNT-44).
+
+## For agents
+
+- New tool `grid_fill_room` (`grid edit fill`), after `grid_place_item`: `room` (a room or a zone), `name` (a library item or set), `pitch`, `aisle`, `back_to_back`, `turn`, `wall_clearance`, `door_clearance`, `count`, `group`, `label`, `replace`, `dry_run`, `correction`, `out`. Figures left out are Grid's own and listed in `guessed` (pitch the module's width, aisle 0.90 m, 0 m from the walls, 1.20 m in front of a door); with no `turn` the one that fits most is kept and the answer names the next best. It writes the modules as one group, ids `<group>-<n>` (a set's items `<group>-<n>-<m>`), and refuses a plan that already holds the group unless `replace` is true, which takes the group's earlier items out (`removed`). The data: `count`, `items`, `placed`, `asked`, `rows`, `perRow`, `turn`, `pitch`, `rowPitch`, `aisle`, `backToBack`, `wallClearance`, `doorClearance`, `area`, `perModule` (the room's area over the count), `leftOver` (`alongRows`, `acrossRows`), `givenUp` (`door`, `column`, `item`, `shape`, `checks`) and `dryRun`; a dry run writes nothing and answers without `written`. A fill where nothing fits is refused with nothing written. The tool server lists 48 tools.
+- The library's typical rooms add `table-4-chairs` (1.20 × 1.80 m) and `table-6-chairs` (1.80 × 1.90 m). No new code in the record.
