@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -2133,6 +2133,32 @@ function paintOf(survey: Survey, floor: string, by: string | undefined, highligh
   })
 }
 
+/**
+ * VEW-70: on a plan of several floors, which of the parts to be demolished are on the floor drawn,
+ * by id, and how many are on each other floor: a wall and a room by their own floor, an opening by
+ * its wall's. `grid_check`'s count is for the whole plan.
+ */
+function demolishedHere(plan: FloorPlan, floor: string): string {
+  const gone = idsInPhase(plan, 'demolished')
+  const wallFloor = new Map(plan.walls.map((w) => [w.id, floorOf(w)] as const))
+  const floors = new Map<string, string[]>()
+  const put = (id: string, on: string): void => {
+    if (!gone.has(id)) return
+    gone.delete(id)
+    floors.set(on, [...(floors.get(on) ?? []), id])
+  }
+  for (const wall of plan.walls) put(wall.id, floorOf(wall))
+  for (const opening of plan.openings) put(opening.id, wallFloor.get(opening.wall) ?? 'ground')
+  for (const room of plan.rooms) put(room.id, floorOf(room))
+  const ids = floors.get(floor) ?? []
+  const total = [...floors.values()].reduce((sum, list) => sum + list.length, 0)
+  const shown = ids.slice(0, 12).map((id) => name(id))
+  const parts = joined(ids.length > 12 ? [...shown, said('issue.part.more', { n: num(String(ids.length - 12)) })] : shown, 'join.comma')
+  const elsewhere = joined([...floors].filter(([on]) => on !== floor).map(([on, list]) => said('view.phases.elsewhere', { floor: name(on), count: num(String(list.length)) })), 'join.comma')
+  const counts = { total: num(String(total)), here: num(String(ids.length)), parts, elsewhere }
+  return english(said(ids.length === total ? 'view.phases.here.all' : ids.length === 0 ? 'view.phases.here.none' : 'view.phases.here.some', counts))
+}
+
 /** LVL-9: a cut line as grid_view takes it: two points of the plan. */
 interface CutArg {
   readonly from: [number, number]
@@ -2416,6 +2442,8 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
         const gone = work.demolished
         const total = gone.walls + gone.openings + gone.rooms
         lines.push(english(said('view.phases.work', { total: num(String(total)), walls: num(String(gone.walls)), openings: num(String(gone.openings)), rooms: num(String(gone.rooms)), new: num(String(work.new.walls + work.new.openings + work.new.rooms)) })))
+        const here = total > 0 && planFloors(stated).length > 1 ? demolishedHere(stated, shown) : null
+        if (here !== null) lines.push(here)
       }
       const marked = faults.filter((line) => line.floor === null || line.floor === shown).length
       if (marked > 0) lines.push(`${marked} of grid_check's lines are about this floor: each has its grid_check number on the part it is about, and all are listed under the drawing. A room that cannot be drawn is the dashed box round its walls.`)

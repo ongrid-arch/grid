@@ -70,18 +70,24 @@ export const VERSIONS_SPOKEN = `Grid's tool server speaks MCP ${listOf(PER_REQUE
  * once, in `guide/paragraphs.ts`, and carried by the skill, the guide and the README too.
  * CMD-7 (T-app-integrator-4, T-estate-agent-listings-3): sent on `initialize` as well as on
  * `server/discover`, so the hosts of both eras show it.
+ * MSG-32: a host may show only the opening (`INSTRUCTIONS_SHOWN`), so what Grid makes, the brief,
+ * the label and retelling rule, room names and the guide come first; the rest is in the guide
+ * and in `grid_write_rooms`'s own description.
  */
 export const INSTRUCTIONS = [
   TOOLS_WORK_ON_PLANS,
   BRIEF_FIRST,
-  UNITS_RULE,
+  LABEL_AND_RETELLING,
+  ROOM_NAMES_TRAVEL,
+  GUIDE_AND_SCHEMA,
   ROOMS_FIRST,
+  UNITS_RULE,
   SOURCE_OF_TRUTH,
   FIRST_QUESTIONS,
-  GUIDE_AND_SCHEMA,
-  ROOM_NAMES_TRAVEL,
-  LABEL_AND_RETELLING,
 ].join(' ')
+
+/** MSG-32: how much of the instructions a host is known to show (Claude Code keeps 2,048 characters). */
+export const INSTRUCTIONS_SHOWN = 2048
 
 type Id = string | number | null
 

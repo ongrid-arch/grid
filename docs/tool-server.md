@@ -787,7 +787,10 @@ The guide and the schema are made from the code when they are read, so they say 
 reads; the pages are the ones the package ships in its `docs/` folder. A host that lists
 resources shows them all; a host that has none can still read the same files in the package. The
 server's instructions, which carry the guide's first paragraphs word for word and point to the
-guide and the schema, are sent on `initialize` as well as on `server/discover`.
+guide and the schema, are sent on `initialize` as well as on `server/discover`. Some hosts show
+only their first 2,048 characters, so those open with what Grid makes, the brief, the label and
+retelling rule, room names and the guide; rooms first, units, the source of truth and the first
+questions follow, and are in the guide and in `grid_write_rooms` too.
 
 ## Protocol versions
 
