@@ -50,6 +50,10 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   0,25ft` (WRT-62). A point whose length Grid cannot read is refused naming that word, and a
   polygon with a unit in its points is taken as meant, at any size. A long polygon reads back with
   `m` on its points.
+- A polygon's points are its place: from the drawing's origin, or the unit's in a unit. `at x,y`,
+  a side (`north of <room>`) or a corner (`inside <room> corner <c>`) on the same line is refused
+  as `rooms/syntax`, never read as a move (WRT-63). For `at`, the refusal gives the points moved
+  by that much, ready to write in their place.
 - A length written with its unit is taken as meant, at any size: `250m x 160m`, `250000mm`,
   `0.5km`. A room side written as a bare number, stretched with `*` or drawn as a polygon that is
   longer than a building's is still written, in metres, and the answer asks about it

@@ -2085,6 +2085,9 @@ export const es: Messages = {
   // WRT-55: a room line read as written, or refused for what is really wrong.
   'rooms.room.placedTwice': "Línea {line}: la estancia '{room}' se sitúa dos veces, con '{first}' y con '{second}'. Una estancia va en un solo sitio: deja el que quieres y quita el otro.",
   'rooms.room.sizedTwice': "Línea {line}: la estancia '{room}' tiene dos tamaños, '{first}' y '{second}'. Una estancia tiene un tamaño: deja el que quieres y quita el otro.",
+  // WRT-63: a place written on a polygon room, whose points are its place.
+  'rooms.room.polygonAt': "Línea {line}: la estancia '{room}' es un polígono y sus puntos son su sitio, medidos desde el origen del dibujo (el de la unidad, en una unidad), así que '{at}' no se lee como un desplazamiento. Para moverla, escribe sus puntos ya movidos: '{points}'.",
+  'rooms.room.polygonPlaced': "Línea {line}: la estancia '{room}' es un polígono y sus puntos son su sitio, así que '{place}' no puede situarla además. Escribe los puntos donde está la estancia, o dale un tamaño en lugar del polígono: '<ancho> x <fondo> {place}'.",
   'rooms.room.floorNamed':
     "Línea {line}: 'floor {floor}' no se lee en una línea de estancia. Una estancia está en la planta cuya línea floor va encima de ella: escribe 'floor {floor}' en una línea propia y debajo las estancias de esa planta; la siguiente línea floor empieza la planta siguiente. En una línea de estancia, 'floor <m>' es un número: cuánto sube o baja el suelo de la estancia respecto al de su planta (con un menos si baja).",
   'rooms.room.openUnit': "Línea {line}: 'open' necesita una estancia a la que abrirse, y '{ref}' es una unidad. Nombra la estancia: {rooms}.",
