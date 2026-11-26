@@ -62,9 +62,9 @@ export interface Patch {
   /**
    * Walls changed, by id: their centre line's new ends, as Grid reads the plan, and their kind.
    * HND-11: `mirrored` turns a wall placed by its face over to its other face, as a mirror does.
-   * CNT-18: `arc`, a curved wall's new centre and sweep.
+   * CNT-18: `arc`, a curved wall's new centre and sweep. CMD-47: `through`, the floor it now rises through.
    */
-  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null; properties?: Readonly<Record<string, string | number | boolean>> | null }>
+  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null; properties?: Readonly<Record<string, string | number | boolean>> | null; through?: string }>
   readonly openings: ReadonlyMap<string, OpeningChange>
   readonly removeOpenings: ReadonlySet<string>
   readonly rooms: ReadonlyMap<string, RoomChange>
@@ -110,6 +110,12 @@ export interface Patch {
   readonly whole?: true
   /** Anything else the answer carries as data. */
   readonly extra?: Readonly<Record<string, unknown>>
+  /**
+   * CMD-47: other lists of parts (floors, stairs, columns, buildings ...): the ids taken out, and the
+   * records added where the first one taken out was, else at the end. The rest of each list stays
+   * as the file has it. A list left with nothing is taken out of the file.
+   */
+  readonly lists?: ReadonlyMap<string, { readonly remove: ReadonlySet<string>; readonly add: readonly RawRecord[] }>
 }
 
 /**
@@ -178,7 +184,8 @@ export function readingAfter(plan: FloorPlan, patch: Patch): FloorPlan {
   // CNT-15 (C24): with named types, a part takes what its type gives as the file will be read, so
   // the plan is read again from what each part states: a changed type reaches every part of it.
   // CNT-20 (C30): an item placed by name takes its size from its library entry, as the file will be read.
-  const placed = (patch.addItems ?? []).length > 0
+  // CMD-47: and a change of the floors (a roof moved up, a storey added) reads each wall's height from its floor again.
+  const placed = (patch.addItems ?? []).length > 0 || patch.lists?.has('floors') === true
   if (!placed && !planHasTypes(plan) && !(isRecordLike(patch.plan) && patch.plan['types'] !== undefined)) return applied
   const again = FloorPlanSchema.safeParse({
     ...applied,
@@ -296,7 +303,23 @@ export function applyPatch<T extends RawRecord>(raw: T, patch: Patch): T {
     const list = records(key === 'patterns' ? ((patterns as RawRecord)['patterns'] ?? top[key]) : top[key])
     if (list !== null) parts[key] = list
   }
-  return { ...top, walls, openings, rooms, ...items, ...library, ...patterns, ...parts }
+  const done: RawRecord = { ...top, walls, openings, rooms, ...items, ...library, ...patterns, ...parts }
+  // CMD-47: whole records out of and into the other lists.
+  for (const [key, change] of patch.lists ?? []) {
+    const next: RawRecord[] = []
+    let put = false
+    for (const part of Array.isArray(done[key]) ? (done[key] as RawRecord[]) : []) {
+      if (!change.remove.has(part['id'] as string)) next.push(part)
+      else if (!put) {
+        next.push(...change.add)
+        put = true
+      }
+    }
+    if (!put) next.push(...change.add)
+    if (next.length === 0) delete done[key]
+    else done[key] = next
+  }
+  return done as T
 }
 
 /** The free stretches of a wall, measured from its start, between the other openings in it. */
