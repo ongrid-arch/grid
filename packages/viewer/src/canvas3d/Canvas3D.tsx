@@ -8,7 +8,7 @@ import type { PlanBuild } from '../preview/useBuildFrame'
 import { isStillClick } from '../preview/click'
 import { useReducedMotion } from '../preview/useReducedMotion'
 import { usePlanColors } from './usePlanColors'
-import { buildingFrame, buildingLayout } from './building'
+import { buildingFrame, buildingGround, buildingLayout } from './building'
 import { openingCamera, recordCamera } from './camera'
 import { moveRig } from './pivot'
 import { BuildingScene, GROUND_GRID } from './BuildingScene'
@@ -58,6 +58,10 @@ export function Canvas3D({
   const elevations = useMemo(() => floorElevations(floorPlan), [floorPlan])
   const layout = useMemo(() => buildingLayout(floorPlan, focus, elevations), [floorPlan, focus, elevations])
   const frame = useMemo(() => buildingFrame(floorPlan, elevations, focus), [floorPlan, elevations, focus])
+  // VEW-66: the ground at the ground, cut away over the floors that go down into it.
+  const { single, focus: shown } = layout
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the ground depends on the layout only through these two
+  const ground = useMemo(() => buildingGround(floorPlan, layout, elevations), [floorPlan, elevations, single, shown])
 
   // The camera props are initial-only: the camera never moves on its own when
   // the plan changes. The pivot follows the footprint's centre in x and z, as
@@ -120,10 +124,11 @@ export function Canvas3D({
           highlightRoom={highlightRoom}
           hovered={shownHover}
           pointer={pointer}
+          ground={ground}
         />
 
-        {/* At the ground, where it reads as ground; basements go below it. */}
-        <GroundGrid x={cx} z={cz} cellColor={colors.grid} sectionColor={colors.gridSection} />
+        {/* At the ground, where it reads as ground; basements go below it (VEW-66). */}
+        <GroundGrid x={cx} y={ground.y} z={cz} cellColor={colors.grid} sectionColor={colors.gridSection} />
 
         {/* Orbiting lets the build keep rising, like scrolling while code is written. */}
         <OrbitControls target={view === null ? initial.target : view.target} />
@@ -145,17 +150,20 @@ export function Canvas3D({
 }
 
 /**
- * The ground grid, `GROUND_GRID.args` across and centred under the building: three's grid
+ * The ground grid, `GROUND_GRID.args` across and centred under the building at the ground: three's grid
  * helper twice, a line every cell and one every section. The lines are as strong as a still
  * draws them, about their thickness squared, with the cell lines at three quarters.
  */
 function GroundGrid({
   x,
+  y,
   z,
   cellColor,
   sectionColor
 }: {
   x: number
+  /** The ground's height (VEW-66). */
+  y: number
   z: number
   cellColor: string
   sectionColor: string
@@ -167,7 +175,7 @@ function GroundGrid({
   const sectionOpacity = Math.min(1, GROUND_GRID.cellThickness ** 2 + GROUND_GRID.sectionThickness ** 2)
   // A helper's colours are read once, when it is made, so a new colour makes a new helper.
   return (
-    <group position={[x, GROUND_GRID.y, z]}>
+    <group position={[x, y + GROUND_GRID.y, z]}>
       <gridHelper
         key={`cells ${cellColor}`}
         args={[size, cells, cellColor, cellColor]}

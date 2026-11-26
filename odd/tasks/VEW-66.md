@@ -14,8 +14,10 @@ the grid:
   at the ground. What lies below it (basement walls, a car park's levels, the slab under a garden)
   shows through it faded, as buried, and what stands above it is drawn as before;
 - the ground is cut away over the building where it goes down into the ground (every floor whose
-  slab's underside lies below the ground), so a basement shown as a cutaway is seen from above
-  through the hole, not through the ground;
+  slab's underside lies below the ground), so the building stands in its hole;
+- a floor whose floor lies below the ground, shown as a cutaway (or the one storey of a plan of
+  one), is drawn whole under the grid's lines, with no sheet over it: the sheet would hide the
+  floor the view is of;
 - a plan with no basement looks as it did but for the edge of its ground slab, which lies in the
   ground and now shows faded: the ground at the ground floor's floor, its hole under the ground
   floor's slab, where nothing shows through.
@@ -32,7 +34,7 @@ the grid:
 - `packages/viewer/src/canvas3d/building.ts`: `buildingGround(plan, layout, elevations)` gives the
   ground in Three's frame: its `y` (the level, less the one storey's floor level for a one-storey
   plan, which stands at 0 as it always has) and its pieces, reaching `GROUND_REACH` past the
-  building.
+  building; no pieces when the floor shown (`layout.focus`) has its floor below the ground.
 - `packages/viewer/src/canvas3d/Ground3D.tsx` (new): the pieces as one flat mesh at `y`, unlit, in
   the background's colour, not tone mapped (so where nothing lies under it, it is the background),
   at `GROUND_FILL.opacity`, drawn before every other see-through part (render order -1) and writing
@@ -47,7 +49,8 @@ Decisions:
   reading the picture must see that it is under the ground. Fading what lies under a background-
   coloured sheet does both and needs no new colour token.
 - Cut, not dashed: a dashed outline in 3D needs edges of its own on every part; the hole over the
-  dug floors is one polygon and reads as the dig.
+  dug floors is one polygon and reads as the dig. Seen from the opening camera, a cutaway below the
+  ground through that hole showed only its far side, so such a cutaway drops the sheet instead.
 - One ground level for the whole site, as the schema has it. A walk-out storey on a slope, or a
   terrace stepping up a street, needs the ground per side or per point, a convention of its own,
   and is not here: such a plan gets one flat ground at its stated level.
@@ -62,7 +65,7 @@ Decisions:
   over their outline, the ground reaching `reach` past the bounds; a floor on a plinth cuts no
   hole; a broken plan gives the whole square.
 - `packages/viewer/src/canvas3d/__tests__/building.test.ts`: `buildingGround` at the stated ground,
-  and relative to a one-storey plan's floor.
+  and relative to a one-storey plan's floor; no sheet over a cutaway below the ground.
 - `packages/viewer/src/still/__tests__/planStill.test.ts`: a still of a house with basements has a
   ground mesh at the ground, with a hole; the basements' pixels under the ground are fainter than
   without it; the background round a plan with no basement stays the background.
