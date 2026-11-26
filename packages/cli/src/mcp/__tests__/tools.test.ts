@@ -6,6 +6,11 @@ import { handleLine } from '../protocol'
 import { GRID_TOOLS, projectTools } from '../serveTools'
 import { bench, type Bench } from './replay/harness'
 import { agentFlat, twoBedFlat } from './replay/plans'
+import { compileRoomsText } from '@ongrid/floorplan/rooms'
+
+/** LVL-21: a house of two floors, a hall below a landing, for the stair tools. */
+const twoFloorHouse = (): unknown =>
+  compileRoomsText(['floor ground "Ground"', 'room hall "Hall" corridor 2.4 x 5 at 0,0', 'door front in hall south, centred, 0.9 wide, opens in', 'floor first "First" level 1', 'room landing "Landing" corridor 2.4 x 5 at 0,0'].join('\n')).plan
 
 /** The tools in their fixed order. Changing it is a decision: change this list with it. */
 const ORDER = [
@@ -51,13 +56,15 @@ const ORDER = [
   'grid_tidy',
   'grid_set',
   'grid_set_facts',
+  'grid_add_stair',
+  'grid_change_stair',
   'grid_set_site',
   'grid_change_site',
   'grid_save_view',
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_set_site', 'grid_change_site', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_site', 'grid_change_site', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -133,7 +140,9 @@ describe('tools/list', () => {
     // invented the figures).
     // 45 since CMD-42: any other field of a part set by id, checked by the plan schema, which
     // agents otherwise set by editing the plan file by hand (a room's floor level, a wall's height).
-    expect((await listed()).length).toBeLessThanOrEqual(45)
+    // 47 since LVL-21: a stair added and changed, which no tool wrote (agents drew treads as walls,
+    // hand-edited the JSON, or left the stair an empty room).
+    expect((await listed()).length).toBeLessThanOrEqual(47)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -219,7 +228,7 @@ describe('the tools on a two-bedroom flat', () => {
   beforeAll(() => {
     // MSG-10: noted.json has one note to mark, a field Grid does not read.
     // WRT-8: plan.markers.json holds a start marker, the plan as it is.
-    b = bench({ 'plan.json': twoBedFlat(), 'flat.json': agentFlat(), 'noted.json': { ...twoBedFlat(), colour: 'red' }, 'plan.markers.json': { version: '1', markers: [{ name: 'start', at: '2026-11-22T10:00:00.000Z', text: JSON.stringify(twoBedFlat()) }] } })
+    b = bench({ 'plan.json': twoBedFlat(), 'flat.json': agentFlat(), 'house.json': twoFloorHouse(), 'noted.json': { ...twoBedFlat(), colour: 'red' }, 'plan.markers.json': { version: '1', markers: [{ name: 'start', at: '2026-11-22T10:00:00.000Z', text: JSON.stringify(twoBedFlat()) }] } })
   })
   afterAll(() => b.close())
 
@@ -267,6 +276,8 @@ describe('the tools on a two-bedroom flat', () => {
     grid_tidy: { all: true, out: 'tidied.json' },
     grid_set: { parts: ['bed2'], set: { floorOffset: 0.02 }, out: 'set.json' },
     grid_set_facts: { parts: ['bed2'], set: { department: 'Sales' }, out: 'facts.json' },
+    grid_add_stair: { plan: 'house.json', id: 'st', from: 'ground', to: 'first', room: 'hall', width: 1, shape: 'U', runs: 'north', out: 'stair.json' },
+    grid_change_stair: { plan: 'stair.json', id: 'st', width: 0.9, out: 'narrower.json' },
     grid_set_site: { plot_width: 15, plot_depth: 20, streets: ['south'], setbacks: ['all 2'], north: 30, out: 'sited.json' },
     grid_change_site: { action: 'add', kind: 'tree', at: '1,-2', canopy: 4, out: 'treed.json' },
     grid_save_view: { name: 'Garden corner', camera: { target: { room: null, point: [5, 4, 1] }, bearing: 135, tilt: 30, distance: 20, lens: { focalLength: 35 }, cut: null }, out: 'viewed.json' },
