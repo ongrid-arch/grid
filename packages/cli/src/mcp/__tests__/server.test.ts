@@ -22,6 +22,7 @@ beforeAll(async () => {
     format: 'cjs',
     outfile: script,
     external: ['@napi-rs/canvas'],
+    loader: { '.md': 'text' },
     logLevel: 'silent',
   })
   project = mkdtempSync(join(tmpdir(), 'grid-tool-project-'))

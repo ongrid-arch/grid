@@ -9,8 +9,8 @@ ramps). The tool server lists each documentation page as a resource (`grid://doc
 beside the guide (`grid://guide`), the rooms grammar (`grid://guide/rooms`) and the schema
 (`grid://schema/plan`). The package's README says where each is and links the pages it ships.
 A page of recipes (a listing plan, a house over three floors, a shop with zones, a plot with a
-building) gives a start for the four things people ask for first. No page sends an npm reader
-to a file the package does not carry.
+building) gives a start for the four things people ask for first. The rooms page no longer
+sends an npm reader to a source file the package does not carry.
 
 ## Design
 
@@ -38,8 +38,8 @@ to a file the package does not carry.
 - `src/guide/__tests__/recipes.test.ts`: each recipe's rooms text writes with no problem and the
   site reads.
 - `src/guide/__tests__/docResources.test.ts`: every page of `docs/` but the guide is a listed
-  resource that reads back as the page, with its title; the README names the resources; no page
-  names a path the package does not carry.
+  resource that reads back as the page, with its title; the README names the resources; the rooms page and
+  the guide name no source file.
 - `listing.test.ts` and `install.e2e.test.ts`: the manifest's `files` and the unpacked package
   hold `docs/`, and the README links resolve inside it.
 - `npm run typecheck`, `npm run lint`, the `packages/cli` tests, `npm run scoreboard`.

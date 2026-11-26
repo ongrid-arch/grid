@@ -58,6 +58,7 @@ try {
     format: 'esm',
     target: 'node22',
     external: ['@napi-rs/canvas'],
+    loader: { '.md': 'text' },
     logLevel: 'warning',
   })
   /** @type {typeof import('./src/distribution/listing') & typeof import('./src/distribution/zip') & { GRID_TOOLS: import('./src/mcp/toolkit').GridTool[], agentGuide: () => string }} */
@@ -82,6 +83,8 @@ try {
   cpSync(join(cli, 'dist', 'fonts'), join(stage, 'fonts'), { recursive: true })
   // CMD-7: the plan's JSON Schema, as the build wrote it, and the guide for agents.
   cpSync(join(cli, 'dist', 'plan.schema.json'), join(stage, 'plan.schema.json'))
+  // CMD-40: the documentation pages, so the README's links read in the unpacked package.
+  cpSync(join(repo, 'docs'), join(stage, 'docs'), { recursive: true })
   cpSync(join(repo, 'LICENSE'), join(stage, 'LICENSE'))
   cpSync(join(repo, 'NOTICE'), join(stage, 'NOTICE'))
   writeAll(stage, {

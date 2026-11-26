@@ -142,6 +142,7 @@ describe('what the command and the tool server run', () => {
       platform: 'node',
       format: 'esm',
       external: ['@napi-rs/canvas'],
+      loader: { '.md': 'text' },
       write: false,
       metafile: true,
       logLevel: 'silent',

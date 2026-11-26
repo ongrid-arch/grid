@@ -32,6 +32,8 @@ const result = await build({
   format: 'esm',
   target: 'node22',
   external: ['@napi-rs/canvas'],
+  // CMD-40: the pages of docs/ are imported as text and served as resources.
+  loader: { '.md': 'text' },
   // React's production build: the development one only adds checks and warnings.
   define: { 'process.env.NODE_ENV': '"production"' },
   banner: { js: '#!/usr/bin/env node' },

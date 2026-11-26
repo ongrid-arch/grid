@@ -66,7 +66,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
   'packages/cli/src/describe/walk.ts': [4, 'agentForm'],
   // CMD-7: three of its skill's paragraphs are in guide/paragraphs.ts now.
-  'packages/cli/src/distribution/listing.ts': [81, 'developer'],
+  // CMD-40: seven more, the package README's, which lists the resources and the pages.
+  'packages/cli/src/distribution/listing.ts': [88, 'developer'],
   'packages/cli/src/distribution/zip.ts': [1, 'developer'],
   // VEW-26: three more, the refusals of fit with distance and of fit=room with no room, and a room's outline.
   'packages/cli/src/draw/cameraAsk.ts': [15, 'agent'],
@@ -104,6 +105,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/fs/textEncoding.ts': [5, 'command'],
   // CMD-7: the guide for agents, its shared paragraphs and its two resources, written for the agent.
   // MSG-22: eighteen fewer, none moved: the uses table no longer nests a template in a template, which the count read as more.
+  // CMD-40: the one-line descriptions of the documentation pages, as the tool server lists them.
+  'packages/cli/src/guide/docPages.ts': [21, 'agent'],
   'packages/cli/src/guide/guide.ts': [80, 'agent'],
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],

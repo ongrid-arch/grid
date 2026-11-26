@@ -502,7 +502,7 @@ The entrance is the front door the plan names (`front.opening`) when it leads ou
 every door out of the ground floor. Where Grid cannot tell, the answer says so: the step from
 the ground when the site states no ground level, the steps of a stair drawn only as rooms, a
 floor no stair or lift joins. It ends with what it did not look at (`notLookedAt`): door leaves
-and handles, thresholds other than a sill, ramps (the plan cannot state one), inside a lift,
+and handles, thresholds other than a sill, ramps (a ramp the plan states joins two floors and is not measured here, and one within a floor cannot be stated), inside a lift,
 fittings the plan does not hold, surfaces and heights of controls, the way outside, and whether
 any number is enough.
 
@@ -684,13 +684,21 @@ An agent never files, posts or sends it.
 
 ## The guide and the plan's schema, as resources
 
-Besides the preview page, the server offers two resources an agent reads before its first plan
-(CMD-7): `grid://guide`, the [guide for agents](agent-guide.md) as markdown, and
-`grid://schema/plan`, the plan file's structure as a draft-07 JSON Schema with its format
-version, the same file the build writes beside the command (`plan.schema.json`). Both are made
-from the code when they are read, so they say what this Grid reads. The server's instructions,
-which carry the guide's first paragraphs word for word and point to both resources, are sent on
-`initialize` as well as on `server/discover`.
+Besides the preview page, the server offers the documentation as resources, so an agent with no
+copy of the repository reads it where it reads Grid's tools (CMD-7, CMD-40):
+
+| Resource | What it is |
+|---|---|
+| `grid://guide` | The [guide for agents](agent-guide.md), as markdown |
+| `grid://guide/rooms` | The whole rooms grammar, by topic, each with an example ([rooms-first.md](rooms-first.md#the-whole-grammar)) |
+| `grid://schema/plan` | The plan file's structure as a draft-07 JSON Schema with its format version, the same file the build writes beside the command (`plan.schema.json`) |
+| `grid://docs/<page>` | Each page of the documentation, as markdown: `recipes`, `rooms-first`, `commands`, `tool-server`, `plan-file`, `conventions`, `brief`, `firm-standards`, `library`, `areas`, `tolerances`, `result-contract` and `languages` |
+
+The guide and the schema are made from the code when they are read, so they say what this Grid
+reads; the pages are the ones the package ships in its `docs/` folder. A host that lists
+resources shows them all; a host that has none can still read the same files in the package. The
+server's instructions, which carry the guide's first paragraphs word for word and point to the
+guide and the schema, are sent on `initialize` as well as on `server/discover`.
 
 ## Protocol versions
 
