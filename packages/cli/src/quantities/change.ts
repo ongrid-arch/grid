@@ -95,7 +95,7 @@ function endsOn(point: readonly [number, number], wall: Wall): boolean {
  */
 export function planChange(plan: FloorPlan, options: { floors?: readonly string[] } = {}): ChangeEstimate {
   if (!planHasPhases(plan)) {
-    return { lines: [], notes: ['The plan states no phase, so it holds no work to cost: give its walls, openings and rooms a phase (existing, demolished or new).'] }
+    return { lines: [], notes: ['The plan states no phase, so it holds no work to cost: mark it with grid_start_works before the work\'s edits, or its parts with grid_set_phase (existing, demolished or new).'] }
   }
   // LVL-5: a wall through floors stands on each floor it rises through, and is taken off once,
   // whole, its height its whole rise above its own floor.

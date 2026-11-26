@@ -145,7 +145,7 @@ Notes for agents and people changing this repository.
   `bin/grid.mjs`, a committed launcher that runs it, because npm links bins at install time. Its end-to-end tests run that file as a
   child process; `npm test` builds it first. Every option is strict: an unknown, repeated or
   meaningless one is refused by name.
-- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 38 tools named
+- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 41 tools named
   `grid_…`, in a fixed order (`grid_project` first, `projectTool.ts` (CMD-18); then reading tools by the requests they answer, the problem report
   last of them (CMD-13, `src/report/`, which sends nothing), then the preview and the preview
   page's own call (VEW-4, `previewTools.ts`), the
@@ -166,7 +166,9 @@ Notes for agents and people changing this repository.
 - The edits (WRT-3, `packages/cli/src/edit/`): one sentence of request is one call. `edits.ts`
   holds the patch every change makes and the opening and side moves; `merge.ts`, `split.ts`,
   `addRoom.ts`, `stretch.ts` and `rename.ts` the room edits; `addOpening.ts` (WRT-72) a door or window added to the plan as it is, and `seat.ts` where openings go when
-  walls change (an opening's `anchor`, else its place in the building). The room edits are the
+  walls change (an opening's `anchor`, else its place in the building). `phaseMarks.ts` (WRT-73,
+  tools in `src/mcp/phaseTools.ts`) sets phases: the survey marked existing, parts by id or room,
+  one plan from a before and an after; an edit given `correction` skips `phasedPatch`. The room edits are the
   tools in `src/mcp/editTools.ts` and the verbs of `grid edit` (`src/command/edit.ts`), made
   from the tools' own arguments. `edit/__tests__/requests.test.ts` replays the lab's six flat
   requests (WR-2) against the hand-made versions in `packages/floorplan/fixtures/edits/`.

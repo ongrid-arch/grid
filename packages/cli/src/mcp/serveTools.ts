@@ -28,6 +28,7 @@ import { WRITE_TOOLS } from './writeTools'
 import { guideResources } from '../guide/resources'
 import { roomsGrammarMarkdown, ROOMS_GRAMMAR_URI } from './roomsGrammar'
 import { EDIT_TOOLS } from './editTools'
+import { PHASE_TOOLS } from './phaseTools'
 import { projectTool } from './projectTool'
 import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
@@ -60,6 +61,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   wordsTool,
   ...WRITE_TOOLS.filter((tool) => tool.hint === 'change-plan'),
   ...EDIT_TOOLS,
+  // WRT-73: phases set without hand-editing: the plan as it stands as existing, parts by id or room, one plan from two.
+  ...PHASE_TOOLS,
   // WRT-36: grid tidy's fixes where walls meet, the last of the changes to the building.
   tidyTool,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
