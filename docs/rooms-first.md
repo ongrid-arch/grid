@@ -115,6 +115,12 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
 - A room stands on the floor whose floor line comes above it. `floor first` on a room line is
   refused with that (WRT-55): write the floor line, then its rooms under it. On a room line,
   `floor <m>` is a number, its own floor raised or sunk.
+- `unconditioned` on a room line says it is neither heated nor cooled, so out of the living area
+  under air, and `conditioned` that it is (ARE-60, [areas.md](areas.md#living-area-under-air-and-total-under-roof)):
+  `room g "Garage" parking 3 x 5 east of l conditioned` counts a heated garage, and
+  `room s "Store" storage 2 x 2 east of k unconditioned` takes an unheated store out. Unstated, a
+  parking room is not under air and every other room is. Outdoor space never is: either word on
+  its line is read as nothing, and the answer says so (`rooms/conditioned-outdoor`).
 - `outdoor terrace` on a room line marks it as outdoor space (CNT-7), one of `garden`,
   `courtyard`, `terrace`, `balcony`, `light-well`, `porch`, `carport` or `other`, and `roofed` or
   `unroofed` after it says whether a roof covers it; unstated, a porch and a carport are roofed.

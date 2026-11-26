@@ -346,7 +346,12 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
   const bedrooms = loaded.plan.rooms.filter((room) => room.use === 'bedroom').length
   const title = words?.name ?? name
   const units = sheetUnits(loaded.plan, w)
-  const figures: SheetFigure[] = [areaFigure(areas.grossInternal, w.say('sheet.figure.grossInternal'), units, w)]
+  // ARE-60: a US home is headlined by its living area under air and its total under roof, never
+  // by a gross figure with the garage in.
+  const first = areas.underAir.first
+  const figures: SheetFigure[] = first
+    ? [areaFigure(areas.conditioned, w.say('sheet.figure.conditioned'), units, w), areaFigure(areas.underRoof, w.say('sheet.figure.underRoof'), units, w)]
+    : [areaFigure(areas.grossInternal, w.say('sheet.figure.grossInternal'), units, w)]
   figures.push({ value: String(floors.length), label: w.say(floors.length === 1 ? 'sheet.figure.floors.one' : 'sheet.figure.floors.many') })
   figures.push({ value: String(bedrooms), label: w.say(bedrooms === 1 ? 'sheet.figure.bedrooms.one' : 'sheet.figure.bedrooms.many') })
   const height = heightFigure(loaded, units, w)
@@ -357,7 +362,12 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
   const cover: Body = {
     kind: 'cover', floor: null, topLine: title, title, subtitle: words?.headline ?? null,
     paragraphs: words?.intro ?? [], figures, table: null, picture: { kind: 'model' },
-    notes: [...(areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : []), ...accessLines(accessNotes, units, w)],
+    notes: [
+      ...(first
+        ? (['conditioned', 'underRoof'] as const).flatMap((m) => (areas[m] === null && areas.underAirWhy[m] !== null ? [areas.underAirWhy[m]!] : []))
+        : areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : []),
+      ...accessLines(accessNotes, units, w),
+    ],
   }
   // Never an id here: floors that share a name are told apart by their place in the plan.
   const named = (name: string) => floors.filter((f) => f.name === name).length

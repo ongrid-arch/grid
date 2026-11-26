@@ -6,7 +6,8 @@ and priced from your own rates.
 
 Grid gives three areas, per floor and per use, from the spaces the walls enclose, and lists
 outdoor space apart; a flat's area to the middle of its party walls and the free floor beside the
-floor area (ARE-14) are measured from the same rooms. Each is
+floor area (ARE-14), and the living area under air and the total under roof (ARE-60), are
+measured from the same rooms. Each is
 described in Grid's own words by what it measures, and no figure is said to follow a published
 standard: a standard's rule would come in only as a figure record, with its document, edition,
 clause, place, day read and status, and none is carried yet.
@@ -20,6 +21,8 @@ clause, place, day read and status, and none is carried yet.
 | Outdoor area | Outdoor area is the floor of each room the plan marks as outdoor space, roofed or open, measured to the faces of its walls and edges as a room is. | It is in no net, gross internal or gross external figure, and nor is a wall that bounds outdoor space and no room, such as a fence or a parapet. | The plan cannot say how much of an outdoor space a local rule counts, such as part of a balcony: Grid counts none of it unless the caller states such a rule, with where it comes from. |
 | Area to the party walls | Area to the party walls is the floor of a flat's rooms with the walls and partitions between them, measured to the middle of each wall it shares with another flat, the common parts or a neighbour, and to the inside face of the walls that face outside, or to their outside face for the outside-face figure. | Nothing inside the flat is taken off: its inner walls, its partitions, its columns and its stair, on each floor it stands on, are all in it. | The plan cannot say which rooms make a flat but by its flats list, so floor no room claims and outdoor space are in no flat's figure, and a wall to a neighbour counts to its middle only once the plan marks it separating. |
 | Free floor | Free floor is a room's net area less the floor its fixtures stand on: their footprints, joined where they overlap, within the room. | Only the fixtures the plan states are taken off, at the sizes it states: loose furniture, which the plan does not hold, and the floor kept clear in front of a fixture both count as free. | The plan cannot say what stands in a room beyond what it states: a room with no fixtures stated is free floor all over, and a zone's fixtures are its room's too. |
+| Living area under air | Living area under air is the floor inside the outside face of the walls round the rooms that are heated or cooled, the walls between two of them counted, and a wall between one of them and a room that is not, or the outside, counted in full; less any void, which has no floor. | Inner walls, partitions, stairs and floor no room claims among the rooms under air are not taken off. | The plan cannot say which rooms are heated or cooled unless a room states it: unstated, a room is under air unless it is used for parking, and outdoor space never is, so a lanai, a covered entry or an unheated store drawn as a room counts until it is marked unconditioned. |
+| Total under roof | Total under roof is the gross external area, every enclosed room in it whether heated or not, a garage too, plus the floor of each outdoor space a roof covers, such as a porch, a carport or a lanai, measured to its own edges. | Outer walls, inner walls, rooms not under air and floor no room claims are not taken off. | The plan cannot say how far a roof reaches past the walls, so a covered outdoor space counts by its own floor and an overhang beyond it does not; a room named as outside is in neither figure. |
 
 On every floor the gross external area is the net area, plus the floor under columns,
 the walls and the floor no room claims, to a millionth of a square metre. A room named outside is the outside, as outdoor space is: the walls round it face outside and its floor is in no net, gross internal or gross external figure. Where rooms overlap, or run over
@@ -46,6 +49,31 @@ Gross internal area takes off the walls that face outside now, worked out from t
 each wall (ARE-39). A wall built as an outside wall (stated `exterior`) stays one as a fact of the
 wall, but it faces outside only where it has no room on one face: where rooms stand on both faces,
 as the old end wall of a building does once it is extended, its floor counts in gross internal area.
+
+### Living area under air and total under roof
+
+A home is often sold by the floor of the rooms that are heated or cooled. A room says whether it
+is with `conditioned` ([plan-file.md](plan-file.md)), or `conditioned` and `unconditioned` on its
+rooms text line, or `grid_rename_room` with `conditioned: true` or `false`. Unstated, a room is
+under air unless its use is parking; outdoor space and a void never are, and a zone is as its room
+is. So a garage is out until it says otherwise, and a lanai, a covered entry or an unheated store
+drawn as a room is in until it is marked unconditioned.
+
+- The living area under air (`conditioned`) is measured as the gross external area is, with the
+  rooms not under air as the outside: the wall between the house and its garage faces outside and
+  counts in full with the house, and the garage's own walls, and the stretches of a long wall that
+  run along it, are in no part of it. A house of a 6 × 5 m living room and a
+  3 × 5 m garage under 0.3 m outer walls with a 0.1 m wall between, is 54.32 m² gross external and
+  35.84 m² under air, 6.4 × 5.6 m.
+- The total under roof (`underRoof`) is the gross external area, garage in, plus the floor of the
+  outdoor spaces a roof covers (a porch, a carport, a roofed lanai), each to its own edges.
+
+`grid_areas` gives both on every floor and in all (`conditioned`, `underRoof`), marks each room
+not under air (`unconditioned`) and lists them (`notUnderAir`). For a plan built in the US, where
+homes are measured to the outside face (the plan's `site.country`, or `country`), its answer, the
+client sheet's cover and `grid_compare`'s rows lead with these two figures, so a home is never
+headlined with its garage in; elsewhere `grid_areas` says them where a room states `conditioned`.
+In the library: `planAreaFigures(plan).conditioned`, `.underRoof` and `.reader.underAirFirst`.
 
 ### One building measured apart
 

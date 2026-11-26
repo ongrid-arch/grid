@@ -2,11 +2,13 @@
  * A room renamed, or given another use (WRT-3, lab AB-8): "the front room is a let now", "the
  * rooms in Spanish for the guests". The answer says which of Grid's checks now look at the room
  * that did not before, and which no longer do, because the checks go by a room's stated use and
- * never by its name.
+ * never by its name. ARE-60: it also says whether the room is heated or cooled, so in the living
+ * area under air.
  *
  * Pure: a survey in, a patch out.
  */
-import { FINISH_SURFACES, buildingKind, floorBuilding, floorOf, roomFinishes, type FinishSurface } from '@ongrid/floorplan/geometry'
+import { FINISH_SURFACES, buildingKind, floorBuilding, floorOf, isConditioned, isOutdoor, roomFinishes, type FinishSurface } from '@ongrid/floorplan/geometry'
+import { english, name as sayName, said as said_ } from '@ongrid/floorplan/messages'
 import type { RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { rulesForUse } from '@ongrid/rules'
 import { quoted } from '../fs/projectFiles'
@@ -20,13 +22,23 @@ export type UseOrNone = RoomUse | 'none'
 /** CNT-15: a finish's name, or `none` to take it out. */
 export type FinishOrNone = string
 
-export function renameRoom(survey: Survey, roomId: string, request: { readonly name?: string; readonly use?: UseOrNone; readonly finishes?: Partial<Record<FinishSurface, FinishOrNone>> }): Patch {
+export function renameRoom(survey: Survey, roomId: string, request: { readonly name?: string; readonly use?: UseOrNone; readonly finishes?: Partial<Record<FinishSurface, FinishOrNone>>; readonly conditioned?: boolean }): Patch {
   const room = survey.plan.rooms.find((r) => r.id === roomId)!
   const name = quoted(room.name)
   const finishing = request.finishes !== undefined && Object.keys(request.finishes).length > 0
-  if (request.name === undefined && request.use === undefined && !finishing) throw new EditRefused('Pass name, use, a finish, or more than one.')
+  if (request.name === undefined && request.use === undefined && !finishing && request.conditioned === undefined) throw new EditRefused('Pass name, use, a finish, conditioned, or more than one.')
   const change: RoomChange = {}
   const said: string[] = []
+  // ARE-60: heated or cooled, or not. Outdoor space and a void never are, and a zone is as its room.
+  if (request.conditioned !== undefined) {
+    const called = sayName(room.name)
+    if (isOutdoor(room)) throw new EditRefused(english(said_('edit.conditioned.outdoor', { room: called })))
+    if (room.void === true) throw new EditRefused(english(said_('edit.conditioned.void', { room: called })))
+    if (room.partOf !== undefined) {
+      const of = survey.plan.rooms.find((r) => r.id === room.partOf && floorOf(r) === floorOf(room))
+      throw new EditRefused(english(said_('edit.conditioned.zone', { room: called, of: sayName(of?.name ?? room.partOf) })))
+    }
+  }
   // CNT-15 (C24): the room's or zone's finishes, by the person's own names; none takes one out.
   if (finishing) {
     const was = roomFinishes(room)
@@ -51,6 +63,18 @@ export function renameRoom(survey: Survey, roomId: string, request: { readonly n
   if (is !== was) {
     change.use = is ?? null
     said.push(`${quoted(request.name ?? room.name)} is ${is === undefined ? 'of no stated use' : `used as ${is}`} now, not ${was === undefined ? 'of no stated use' : was}.`)
+  }
+  // ARE-60: heated or cooled as asked, stated only where its new use would not give it, and said
+  // whenever the room comes into the living area under air or leaves it. A zone is as its room.
+  if (room.partOf === undefined) {
+    const airBefore = isConditioned(room)
+    const byUse = isConditioned({ ...room, use: is, conditioned: undefined })
+    const airAfter = request.conditioned ?? isConditioned({ ...room, use: is })
+    if (request.conditioned !== undefined) {
+      const stated = airAfter === byUse ? undefined : airAfter
+      if (stated !== room.conditioned) change.conditioned = stated ?? null
+    }
+    if (airAfter !== airBefore) said.push(english(said_(airAfter ? 'edit.conditioned.on' : 'edit.conditioned.off', { room: sayName(request.name ?? room.name) })))
   }
   if (said.length === 0) throw new EditRefused(`That is how ${name} is already: nothing to change.`)
   if (request.name === undefined && request.use === undefined) {

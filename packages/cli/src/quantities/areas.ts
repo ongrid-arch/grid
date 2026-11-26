@@ -14,7 +14,7 @@
  */
 import { planPlace } from '@ongrid/rules'
 import { MEASURES, PHASE_WORDS, floorOf, floorRoofShape, headroomBands, planMarks, roomHeadroom, wallSureness, type GrossMeasure, type HeadroomBand, type MeasureRule, type ReaderMeasure, type RoomLeftOut } from '@ongrid/floorplan/geometry'
-import { english, joined, num, said } from '@ongrid/floorplan/messages'
+import { english, joined, name, num, said } from '@ongrid/floorplan/messages'
 import { FLAT_AREA_RULE, planAreaFigures, type ApartAreaFigure, type FlatAreaFigure, type OutdoorAreaFigure, type OutdoorWeight, type PlanAreaFigures } from '@ongrid/floorplan/geometry/areas'
 import type { PartyWallArea } from '@ongrid/floorplan/geometry/partyWalls'
 import type { MarkSource, OutdoorKind } from '@ongrid/floorplan/types/floorplan'
@@ -79,6 +79,8 @@ export interface RoomArea {
   readonly outdoor?: { readonly kind: OutdoorKind; readonly roofed: boolean }
   /** ARE-16, only on a void (LVL-4): no floor stands there. Measured, and in no total. */
   readonly void?: true
+  /** ARE-60, only on a room not heated or cooled: in the total under roof, not in the living area under air. */
+  readonly unconditioned?: true
   /**
    * WRT-6: only on a room whose walls the plan marks: where they came from and how sure the area
    * is. A zone's band is its own, and is added into no total (CNT-8).
@@ -97,6 +99,9 @@ export interface FloorAreas {
   /** Null when it cannot be worked out on this floor (`why`). */
   readonly grossInternal: number | null
   readonly grossExternal: number | null
+  /** ARE-60: the living area under air and the total under roof; null when not known. */
+  readonly conditioned: number | null
+  readonly underRoof: number | null
   readonly outsideRooms: number
   /** SHT-11: the stair rooms whose floor is counted with the stair room below. */
   readonly overStairs: number
@@ -156,6 +161,17 @@ export interface PlanAreas {
   readonly net: number
   readonly grossInternal: number | null
   readonly grossExternal: number | null
+  /**
+   * ARE-60: the living area under air and the total under roof, each with why when not known;
+   * `underAir.first` when they lead (a plan built in the US), `underAir.shown` when the answer says
+   * them (they lead, or a room states `conditioned`).
+   */
+  readonly conditioned: number | null
+  readonly underRoof: number | null
+  readonly underAirWhy: { readonly conditioned: string | null; readonly underRoof: string | null }
+  readonly underAir: { readonly first: boolean; readonly shown: boolean }
+  /** ARE-60: the rooms the net counts that are not under air, and their floor. */
+  readonly notUnderAir: PlanAreaFigures['notUnderAir']
   readonly circulation: number
   /** Circulation over gross internal, 0 to 1; null without a gross internal area. */
   readonly circulationShare: number | null
@@ -192,6 +208,8 @@ export interface PlanAreas {
     readonly grossExternal: AreaState
     readonly circulationShare: AreaState
     readonly netToGross: AreaState
+    readonly conditioned: AreaState
+    readonly underRoof: AreaState
   }
 }
 
@@ -348,6 +366,7 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
         ...(figure === undefined || figure.zoneOf === null ? {} : { zoneOf: figure.zoneOf }),
         ...(figure?.outdoor === undefined ? {} : { outdoor: figure.outdoor }),
         ...(figure?.void === true ? { void: true as const } : {}),
+        ...(figure?.unconditioned === true ? { unconditioned: true as const } : {}),
         ...(sureness === undefined ? {} : { sureness }),
       }
     })
@@ -380,6 +399,8 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
       circulation: sum(circulating.map((room) => room.net ?? 0)),
       grossInternal: f.grossInternal,
       grossExternal: f.grossExternal,
+      conditioned: f.conditioned,
+      underRoof: f.underRoof,
       outsideRooms: f.outsideRooms,
       overStairs: f.overStairs,
       walls: f.walls,
@@ -480,6 +501,13 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
   }
   const fittedFloors = floors.filter((f) => f.fixtures !== undefined)
   const planFixtureFloor = sum(fittedFloors.map((f) => f.fixtures!))
+  // ARE-60: said where they lead (a plan built in the US) or where a room states whether it is heated.
+  const underAir = { first: figures.reader.underAirFirst, shown: figures.reader.underAirFirst || survey.plan.rooms.some((room) => room.conditioned !== undefined) }
+  if (underAir.shown && figures.notUnderAir.rooms.length > 0) {
+    const several = survey.facts.floors.length > 1
+    const rooms = figures.notUnderAir.rooms.map((room) => said(room.why === 'stated' ? 'areas.conditioned.stated' : 'areas.conditioned.byUse', { room: name(several ? `${room.name}, ${room.floor}` : room.name) }))
+    notes.push(english(said(rooms.length === 1 ? 'areas.note.unconditioned.one' : 'areas.note.unconditioned.many', { count: rooms.length, rooms: joined(rooms, 'join.comma'), area: num(figures.notUnderAir.area.toFixed(2)) })))
+  }
   return {
     floors,
     flats,
@@ -489,6 +517,11 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
     net,
     grossInternal,
     grossExternal: figures.grossExternal.area,
+    conditioned: figures.conditioned.area,
+    underRoof: figures.underRoof.area,
+    underAirWhy: { conditioned: figures.conditioned.why, underRoof: figures.underRoof.why },
+    underAir,
+    notUnderAir: figures.notUnderAir,
     circulation,
     circulationShare: grossInternal ? circulation / grossInternal : null,
     netToGross: grossInternal ? net / grossInternal : null,
@@ -507,6 +540,7 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
       // ARE-14: a flat's area to the party walls, on a plan that lists flats, and free floor where fixtures stand.
       ...(hasFlats ? [MEASURES.partyWall] : []),
       ...(taken.size === 0 ? [] : [MEASURES.freeFloor]),
+      ...(underAir.shown ? [MEASURES.conditioned, MEASURES.underRoof] : []),
     ],
     rules: [...Object.values(AREA_RULES), ...(hasFlats ? [FLAT_RULE] : []), ...(taken.size === 0 ? [] : [FIXTURE_RULES.free]), ...(floorBands.length === 0 ? [] : [MEASURES.headroom.measures]), ...(sureness === undefined ? [] : [SURENESS_RULE])],
     notes,
@@ -521,6 +555,9 @@ export function planAreas(survey: Survey, request: AreasRequest = {}): PlanAreas
       grossExternal: grossExternalState,
       circulationShare: grossInternal ? joinStates([circulationState, grossInternalState]) : NOT_LOOKED_AT,
       netToGross: grossInternal ? joinStates([netState, grossInternalState]) : NOT_LOOKED_AT,
+      // ARE-60: measured from the walls, as the gross external area is.
+      conditioned: figures.conditioned.area === null ? NOT_LOOKED_AT : grossExternalState,
+      underRoof: figures.underRoof.area === null ? NOT_LOOKED_AT : grossExternalState,
     },
   }
 }

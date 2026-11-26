@@ -1365,6 +1365,11 @@ export const RoomSchema = z.object({
   // `outdoor`.
   outdoor: z.union([OutdoorKindSchema, z.literal(true)]).optional(),
   roofed: z.boolean().optional(),
+  // ARE-60: whether the room is heated or cooled, so in the living area under air. Unstated, a
+  // room is conditioned unless its use is parking (`isConditioned` in `geometry/areas.ts`). On an
+  // outdoor space (C26: to the building, the outside), a void (no floor) or a zone (its room's
+  // floor) it is read as nothing. Optional and never defaulted (version 1).
+  conditioned: z.boolean().optional(),
 })
 
 export const OpeningTypeSchema = z.enum(['door', 'window', 'opening'])

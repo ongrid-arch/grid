@@ -48,6 +48,8 @@ export type RoomChange = {
   phase?: Room['phase']
   /** CNT-15: its finishes, by surface; null takes them all out. */
   finishes?: Readonly<Record<string, string>> | null
+  /** ARE-60: heated or cooled, or not; null leaves it to the room's use. */
+  conditioned?: boolean | null
 }
 
 /** What a change does, by id. */

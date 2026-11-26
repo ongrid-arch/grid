@@ -188,10 +188,11 @@ const stretchTool: GridTool = {
 
 const renameTool: GridTool = {
   name: 'grid_rename_room',
-  title: 'Rename a room, or change its use or finishes',
+  title: 'Rename a room, or change its use, finishes or whether it is heated',
   hint: 'change-plan',
   description:
-    'Use this when the person asks to call a room something else, to use it for something else, or what its floor, walls, ceiling or skirting are finished in: "the front room is a bedroom now", "the room names in Spanish", "tile the kitchen floor", "the bathroom walls are tiled". '
+    'Use this when the person asks to call a room something else, to use it for something else, what its floor, walls, ceiling or skirting are finished in, or whether it is heated or cooled: "the front room is a bedroom now", "the room names in Spanish", "tile the kitchen floor", "the bathroom walls are tiled", "the lanai is not air-conditioned", "the garage is heated now". '
+    + 'conditioned says whether the room is in the living area under air (grid_areas): unstated, a room is under air unless it is used for parking, and outdoor space never is. '
     + 'It changes the room\'s name, its use (none to leave it unstated), its finishes (by the person\'s own names; none takes one out), or more than one, and nothing else, and answers with which of Grid\'s checks now look at the room and which no longer do: they go by its use, never its name. A zone of an open-plan room takes finishes too: its part of the room is finished in them. '
     + 'Do not use to change a room\'s size (grid_move_room_side) or its id. It replaces the plan file unless out is given.',
   args: {
@@ -203,6 +204,7 @@ const renameTool: GridTool = {
     wall_finish: NAME('The finish of its walls\' inside faces, or none to take it out.', 'Painted plaster'),
     ceiling_finish: NAME('Its ceiling finish, or none to take it out.', 'Painted plasterboard'),
     skirting_finish: NAME('Its skirting, or none to take it out.', 'Oak skirting'),
+    conditioned: { type: 'string', enum: ['yes', 'no'], description: 'yes when the room is heated or cooled, so in the living area under air; no when it is not, so in the total under roof only.', examples: ['no', 'yes'] },
     out: OUT_ARG,
   },
   outputSchema: { ...EDIT_OUTPUT, properties: { ...(EDIT_OUTPUT['properties'] as Record<string, unknown>), checks: objectSchema({ now: listSchema(STRING), noLonger: listSchema(STRING) }) } },
@@ -210,7 +212,7 @@ const renameTool: GridTool = {
     return writeChange(context, args, (survey) => {
       const id = roomArg(survey.plan, args['room'])
       const finishes = Object.fromEntries((['floor', 'wall', 'ceiling', 'skirting'] as const).filter((surface) => args[`${surface}_finish`] !== undefined).map((surface) => [surface === 'wall' ? 'walls' : surface, args[`${surface}_finish`] as string]))
-      return renameRoom(survey, id, { ...(args['name'] !== undefined ? { name: args['name'] as string } : {}), ...(args['use'] !== undefined ? { use: args['use'] as UseOrNone } : {}), ...(Object.keys(finishes).length === 0 ? {} : { finishes }) })
+      return renameRoom(survey, id, { ...(args['name'] !== undefined ? { name: args['name'] as string } : {}), ...(args['use'] !== undefined ? { use: args['use'] as UseOrNone } : {}), ...(Object.keys(finishes).length === 0 ? {} : { finishes }), ...(args['conditioned'] === undefined ? {} : { conditioned: args['conditioned'] === 'yes' }) })
     })
   },
 }
