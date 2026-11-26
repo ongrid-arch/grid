@@ -2556,6 +2556,7 @@ export const en = {
   'rooms.building.endAlone': "line {line}: 'end' closes a building line or a unit, and none is open here.",
   'rooms.building.duplicate': "line {line}: the building id '{id}' is used by two buildings (line {other}).",
   'rooms.building.empty': "line {line}: building '{id}' holds no floor: write its floor lines under it, or name them: building {id} floors <floor> ...",
+  'rooms.building.emptyBare': "line {line}: write 'building <kind>': one of {kinds}; or, for '{id}' as a building of the plan, write its floor lines under it.",
   'rooms.building.unknownFloor': "line {line}: building '{id}' names floor '{floor}', which the text does not write. The text's floors: {floors}.",
   'rooms.building.twoBuildings': "line {line}: floor '{floor}' is in building '{other}' already (line {at}), so it cannot be in '{id}' too: a floor is in one building at most.",
   'site.buildings.heading': 'Each building on its own, and the edge of the boundary it comes nearest:',

@@ -81,6 +81,15 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   walls it started with, and the answer says so (`rooms/walls-late`); a copied floor keeps the
   walls of the floor it copies. A floor that states its `height` gives its walls that height;
   where the walls line says another, the answer says which won (`rooms/walls-height`).
+- A building line says which floors are a building's own, on a site of several (LVL-23):
+  `building <id> ["<name>"] [pad <length>]`, then the floor lines that are its own, up to `end`
+  or the next building line; or `building <id> ["<name>"] [pad <length>] floors <floor> ...`,
+  naming floors written anywhere, which is how the read-back writes it. A floor line under a
+  building line with no `level` takes the next of that building's levels, its first being 0.
+  `pad` is the level of the building's own ground from the plan's datum: its floors stack from
+  it, and its ground floor, way out and height are read against it. A floor is in one building
+  at most. `building <kind>` alone still says what kind of building the plan is; a lone word
+  near a kind (`building offce`) is refused as a misspelt kind.
 - A floor line starts each storey (WRT-14):
   `floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]`.
   The name is in quotes, or left out and the id names the floor (`floor ground`). `level` is the

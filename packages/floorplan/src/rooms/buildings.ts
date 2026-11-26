@@ -96,6 +96,8 @@ interface Entry {
   readonly words: BuildingWords
   /** The floors of a block, by the floor lines under it. */
   readonly held: string[]
+  /** Written `building <word>` alone, which may be a kind of building Grid does not know. */
+  readonly bare: boolean
 }
 
 /** The building lines of one rooms text, read as they come and made into buildings at the end. */
@@ -109,7 +111,7 @@ export class BuildingLines {
 
   read(quoted: readonly LineWord[], at: number, plain: PlainNumbers): void {
     const words = buildingOfWords(quoted, at, plain)
-    const entry: Entry = { line: at, words, held: [] }
+    const entry: Entry = { line: at, words, held: [], bare: quoted.length === 2 }
     this.entries.push(entry)
     this.open = words.floors === null ? entry : null
   }
@@ -137,7 +139,7 @@ export class BuildingLines {
     const buildings: BuildingMade[] = []
     const ids = new Map<string, number>()
     const holder = new Map<string, { building: string; line: number }>()
-    for (const { line, words, held } of this.entries) {
+    for (const { line, words, held, bare } of this.entries) {
       if (ids.has(words.id)) {
         problems.push({ code: 'rooms/duplicate-id', line, message: english(said('rooms.building.duplicate', { line, id: words.id, other: ids.get(words.id)! })) })
         continue
@@ -145,7 +147,9 @@ export class BuildingLines {
       ids.set(words.id, line)
       const own = words.floors ?? held
       if (own.length === 0) {
-        problems.push({ code: 'rooms/syntax', line, message: english(said('rooms.building.empty', { line, id: words.id })) })
+        // A lone word with no floor under it is most likely a kind of building Grid does not know.
+        const message = bare ? said('rooms.building.emptyBare', { line, id: words.id, kinds: BUILDING_TYPES.join(', ') }) : said('rooms.building.empty', { line, id: words.id })
+        problems.push({ code: 'rooms/syntax', line, message: english(message) })
         continue
       }
       let sound = true

@@ -71,13 +71,14 @@ describe('LVL-23 building lines refused', () => {
   })
 
   it('refuses a block with no floor', () => {
-    expect(problems(`${floor('ag', 0)}building a\nend`)).toEqual([
+    expect(problems(`${floor('ag', 0)}building a "A"\nend`)).toEqual([
       "rooms/syntax Line 5: building 'a' holds no floor: write its floor lines under it, or name them: building a floors <floor> ...",
     ])
   })
 
-  it('takes a bare word near a kind for a misspelt kind', () => {
+  it('takes a bare word near a kind for a misspelt kind, and a lone word with no floor for a kind it does not know', () => {
     expect(problems(`building offce\n${floor('ag', 0)}`)[0]).toMatch(/did you mean 'building office'/)
+    expect(problems(`${floor('ag', 0)}building mall`)[0]).toMatch(/write 'building <kind>': one of home, .*; or, for 'mall' as a building of the plan, write its floor lines under it\./)
   })
 
   it('refuses a word it does not take, and an end with nothing open', () => {

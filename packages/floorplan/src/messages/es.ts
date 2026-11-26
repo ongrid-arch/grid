@@ -2556,6 +2556,7 @@ export const es: Messages = {
   'rooms.building.endAlone': "línea {line}: 'end' cierra una línea de edificio o una unidad, y aquí no hay ninguna abierta.",
   'rooms.building.duplicate': "línea {line}: el id de edificio '{id}' lo usan dos edificios (línea {other}).",
   'rooms.building.empty': "línea {line}: el edificio '{id}' no tiene ninguna planta: escribe sus líneas de planta debajo, o nómbralas: building {id} floors <planta> ...",
+  'rooms.building.emptyBare': "línea {line}: escribe 'building <tipo>': uno de {kinds}; o, para '{id}' como edificio del plano, escribe sus líneas de planta debajo.",
   'rooms.building.unknownFloor': "línea {line}: el edificio '{id}' nombra la planta '{floor}', que el texto no escribe. Las plantas del texto: {floors}.",
   'rooms.building.twoBuildings': "línea {line}: la planta '{floor}' ya está en el edificio '{other}' (línea {at}), así que no puede estar también en '{id}': una planta está en un edificio como mucho.",
   'site.buildings.heading': 'Cada edificio por separado, y el lindero al que más se acerca:',
