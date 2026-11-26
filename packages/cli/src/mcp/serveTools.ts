@@ -38,6 +38,7 @@ import { tidyTool } from './tidyTool'
 import { setFactsTool } from './factsTool'
 import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
+import { placeTraceTool } from './traceTool'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -76,6 +77,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   setFactsTool,
   // CNT-41: the plot, north and the site's things: the ground, never the building.
   ...SITE_TOOLS,
+  // VEW-67: the trace image under the plan, drawn only: no part of the building.
+  placeTraceTool,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
   saveViewTool,
 ]

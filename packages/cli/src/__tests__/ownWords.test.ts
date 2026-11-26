@@ -97,6 +97,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
   // CNT-41: the plot's and the site's things' receipts and refusals.
   'packages/cli/src/edit/site.ts': [35, 'notYet'],
+  // VEW-67: the trace image's receipts and refusals.
+  'packages/cli/src/edit/trace.ts': [21, 'notYet'],
   'packages/cli/src/edit/split.ts': [19, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
@@ -160,6 +162,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/roomsGrammar.ts': [56, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
+  // VEW-67: the trace image's tool.
+  'packages/cli/src/mcp/traceTool.ts': [26, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -420,7 +424,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-41 116: the site lines in rooms text (rooms/site.ts 30), the site's changes
     // (edit/site.ts 35), their tools (mcp/siteTools.ts 45), the grammar's site topic (4) and what
     // the coverage counts (quantities/site.ts 2) (odd/tasks/CNT-41.md).
-    expect(left).toBeLessThanOrEqual(1831)
+    // and VEW-67 47: the trace image's change (edit/trace.ts 21) and its tool (mcp/traceTool.ts 26).
+    expect(left).toBeLessThanOrEqual(1878)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

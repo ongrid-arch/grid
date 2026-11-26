@@ -356,6 +356,12 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_change_site', { plan: '@', action: 'add', kind: 'tree', at: '1,1' }), given: asIs },
     { arg: 'out', call: tool('grid_change_site', { plan: PLAN, action: 'add', kind: 'tree', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // VEW-67: the trace image, its picture resolved from the project folder like the plan.
+  grid_place_trace: [
+    { arg: 'plan', call: tool('grid_place_trace', { plan: '@', image: 'scan.png' }), given: asIs },
+    { arg: 'image', call: (p) => ({ name: 'grid_place_trace', arguments: { plan: PLAN, image: `${p}.png` } }), given: (p) => `${p}.png` },
+    { arg: 'out', call: tool('grid_place_trace', { plan: PLAN, image: 'scan.png', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // VEW-3: a camera saved by name, written into the plan.
   grid_save_view: [
     { arg: 'plan', call: tool('grid_save_view', { plan: '@', name: 'Corner', camera: CAMERA }), given: asIs },
@@ -442,7 +448,7 @@ describe('the slots this file lists', () => {
   })
 
   it('cover every tool argument that is a path, and no other', async () => {
-    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after']
+    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after', 'image']
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
       .filter((arg) => PATH_ARGS.includes(arg))
