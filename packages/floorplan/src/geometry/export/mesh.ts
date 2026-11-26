@@ -15,7 +15,7 @@
  */
 
 import type { Vec2 } from '../vec2'
-import type { SceneColumn, SceneOpening, SceneSlab, SceneSolid, SceneStair, SceneWall, Vec3, WallBasis, WallElevation } from '../scene3d'
+import type { SceneColumn, SceneItem, SceneOpening, SceneSlab, SceneSolid, SceneStair, SceneWall, Vec3, WallBasis, WallElevation } from '../scene3d'
 import type { OpeningPartKind } from '../openingParts'
 import { alongFace } from '../scene3d'
 import { triangulate } from '../triangulate'
@@ -173,6 +173,11 @@ export function stairMesh(stair: SceneStair): Mesh | null {
 /** CNT-16: a column as one closed solid, its footprint from its foot to its top. */
 export function columnMesh(column: SceneColumn): Mesh | null {
   return blocksMesh([column])
+}
+
+/** CNT-42: a fixture or a piece of furniture as one mesh, each block its kind gives a closed solid. */
+export function itemMesh(item: SceneItem): Mesh | null {
+  return blocksMesh(item.blocks)
 }
 
 /** Upright blocks, each its outline (counter-clockwise) solid from its bottom to its top, as one mesh of closed solids. */

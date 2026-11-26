@@ -1625,9 +1625,11 @@ export const FIXTURE_KINDS = ['toilet', 'basin', 'shower', 'bath', 'kitchen-run'
 /**
  * CNT-20 (C30): the furniture an item may be, Grid's own plain symbols: a bed, a table (a side
  * table is a small one), a chair, a sofa and a storage unit (a wardrobe, a cupboard, shelves).
- * Furniture is drawn, exported and checked as a fixture is, and takes no free floor: it can be moved.
+ * CNT-42: and an armchair, a stool, a desk, a rug (which lies on the floor, so things stand on
+ * it) and a plant, each counted as its own kind. Furniture is drawn, exported and checked as a
+ * fixture is, and takes no free floor: it can be moved.
  */
-export const FURNITURE_KINDS = ['bed', 'table', 'chair', 'sofa', 'storage'] as const
+export const FURNITURE_KINDS = ['bed', 'table', 'chair', 'sofa', 'storage', 'armchair', 'stool', 'desk', 'rug', 'plant'] as const
 
 /**
  * The kinds Grid holds itself, fixtures first. Another kind is added through the kinds registry

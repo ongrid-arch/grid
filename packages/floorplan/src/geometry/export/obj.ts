@@ -16,7 +16,7 @@
  */
 
 import type { Scene3D } from '../scene3d'
-import { OPENING_PART_KINDS, columnMesh, floorMesh, makeNamer, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
+import { OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
 import type { Mesh } from './mesh'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { approximationLines, leftOutLines, leftOutSummary, type Approximations, type LeftOutPart } from './leftOut'
@@ -43,7 +43,7 @@ function objComment(text: string): string {
 }
 
 /**
- * The scene as an OBJ document, one object per wall and per room, then the stairs, the columns (CNT-16), each door's
+ * The scene as an OBJ document, one object per wall and per room, then the stairs, the columns (CNT-16), the items (CNT-42), each door's
  * and window's frame, leaves and glass (CNT-14), and the floor's slab, roof and parapet (LVL-4).
  *
  * Pure and total: it never throws and never reads the filesystem. Whatever the
@@ -80,6 +80,8 @@ export function toObj(scene: Scene3D, options: ObjOptions = {}): string {
   for (const stair of scene.stairs) write('stair', stair.id, stairMesh(stair))
   // CNT-16: each column, once, whole.
   for (const column of scene.columns ?? []) write('column', column.id, columnMesh(column))
+  // CNT-42: each fixture and piece of furniture, as its kind's blocks.
+  for (const item of scene.items ?? []) write('item', item.id, itemMesh(item))
   // CNT-14: each door's and window's frame, leaves and glass.
   for (const opening of scene.openings) for (const part of OPENING_PART_KINDS) write(part, opening.id, openingPartMesh(opening, part))
   // LVL-4: the slab the floor stands on, its roof and its parapet.

@@ -304,7 +304,7 @@ display chooses a point. Names from the plan are never translated.
 | `flat/zone-without-room` | {thing} names a zone but not the room it is part of | the room a zone is part of, in the flat with it |
 | `item/too-large` | {thing} has a number Grid does not accept | finite numbers within the size Grid accepts |
 | `item/no-size` | {thing} has no size | a width, a depth and a height above 0 |
-| `item/unknown-kind` | {thing} is a kind the plan does not hold yet | a kind Grid holds: a fixture ("toilet", "basin", "shower", "bath" or "kitchen-run"), furniture ("bed", "table", "chair", "sofa" or "storage"), or a kind added through the kinds registry |
+| `item/unknown-kind` | {thing} is a kind the plan does not hold yet | a kind Grid holds: a fixture ("toilet", "basin", "shower", "bath" or "kitchen-run"), furniture ("bed", "table", "chair", "sofa", "storage", "armchair", "stool", "desk", "rug" or "plant"), or a kind added through the kinds registry |
 | `item/duplicate-id` | {thing} has an id another part of the plan has too | an id of its own on every item |
 | `item/unknown-floor` | {thing} is on a floor the plan does not have | a floor of the plan |
 | `item/outside-rooms` | {thing} stands in no room | its middle inside a room on its floor |

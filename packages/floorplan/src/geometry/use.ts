@@ -16,7 +16,7 @@
 import { floorOf } from './floors'
 import type { Holes } from './innerPoint'
 import { pointInPolygon, poleOfInaccessibility } from './innerPoint'
-import { itemKindDefinition } from './itemKinds'
+import { itemKindDefinition, liesUnderfoot } from './itemKinds'
 import { isItemKind, itemFootprint, itemName, itemNounSaid, type Item } from './items'
 import type { FloorPlan, Opening, PlanIndex, Wall } from './plan'
 import type { Said, Value } from '../messages/say'
@@ -76,7 +76,8 @@ export interface Obstacle {
 
 /** The fixtures of a plan held as obstacles on one floor: the kinds it holds, each by its footprint. */
 export function fixtureObstacles(items: readonly Item[], floor: string): Obstacle[] {
-  return items.filter((item) => isItemKind(item.kind) && floorOf(item) === floor).map((item) => ({ id: item.id, outline: itemFootprint(item) }))
+  // CNT-42: a rug lies on the floor and is in no one's way.
+  return items.filter((item) => isItemKind(item.kind) && !liesUnderfoot(item.kind) && floorOf(item) === floor).map((item) => ({ id: item.id, outline: itemFootprint(item) }))
 }
 
 // ── Small shapes ─────────────────────────────────────────────────────────────────────────────
@@ -852,7 +853,8 @@ const m = (value: number): Value => num(metresText(value))
  * skipped; the lines come in the order of the fixtures, then of the openings.
  */
 export function itemUseIssues(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<string>): ItemUseIssue[] {
-  const items = (plan.items ?? []).filter((item) => !broken.has(item.id) && isItemKind(item.kind))
+  // CNT-42: a rug in front of a door or under a window blocks neither.
+  const items = (plan.items ?? []).filter((item) => !broken.has(item.id) && isItemKind(item.kind) && !liesUnderfoot(item.kind))
   if (items.length === 0) return []
   const depth = limit('useApproachDepth')
   const found: { item: number; opening: number; issue: ItemUseIssue }[] = []
