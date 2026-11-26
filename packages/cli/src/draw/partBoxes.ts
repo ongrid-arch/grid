@@ -6,10 +6,11 @@
  * hole through the wall, a wall by its body), then put through the picture's own framing. A box
  * is `x`, `y` from the top-left corner of the image, and `width`, `height`, all in pixels.
  */
-import { buildFloorPlan, curveFault, openingChord, planForFloor, resolveFloor, wallPolygon, type Bounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
+import { buildFloorPlan, curveFault, floorOf, itemFootprint, itemKindDefinition, openingChord, planForFloor, resolveFloor, wallPolygon, type Bounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import type { Picture } from '@ongrid/viewer/src/picture'
 
-export type PartKind = 'room' | 'door' | 'window' | 'opening' | 'wall'
+/** CNT-45: and the plan's fixtures and furniture, each by its footprint. */
+export type PartKind = 'room' | 'door' | 'window' | 'opening' | 'wall' | 'fixture' | 'furniture'
 
 export interface PartBounds {
   readonly id: string
@@ -51,9 +52,10 @@ function strip(a: Vec2, b: Vec2, width: number): Vec2[] {
   ]
 }
 
-/** Every room, opening and wall of one floor, with its box in metres. Rooms without an outline are left out. */
+/** Every room, opening, wall and (CNT-45) item of one floor, with its box in metres. Rooms without an outline are left out. */
 export function partBounds(plan: FloorPlan, floor: string | undefined): PartBounds[] {
-  const slice = planForFloor(plan, resolveFloor(plan, floor ?? null))
+  const resolved = resolveFloor(plan, floor ?? null)
+  const slice = planForFloor(plan, resolved)
   const walls = new Map(slice.walls.map((w) => [w.id, w]))
   const parts: PartBounds[] = []
   // The rooms as the picture draws them.
@@ -88,6 +90,10 @@ export function partBounds(plan: FloorPlan, floor: string | undefined): PartBoun
     const a = { x: wall.start[0], y: wall.start[1] }
     const b = { x: wall.end[0], y: wall.end[1] }
     parts.push({ id: wall.id, kind: 'wall', bounds: boundsOf(strip(a, b, wall.virtual === true ? 0 : wall.thickness)) })
+  }
+  for (const item of plan.items ?? []) {
+    if (floorOf(item) !== resolved || itemKindDefinition(item.kind) === undefined) continue
+    parts.push({ id: item.id, kind: itemKindDefinition(item.kind)!.group === 'furniture' ? 'furniture' : 'fixture', bounds: boundsOf(itemFootprint(item)) })
   }
   return parts
 }

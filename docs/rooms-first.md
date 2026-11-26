@@ -445,12 +445,16 @@ grows, write that wall to start where the row starts (`wall 1 north reversed`): 
 like the rooms, keep their ids when the row grows by one. When the walls written leave a kept
 pattern without its wall, `grid write` says so in its answer.
 
-Fixtures and furniture (the plan file's `items`) are not rooms text either, so writing a plan
-again from rooms text never clears them: they stay where they stood, as the file has them, and
-their ids stay taken. `grid write` and `grid_write_rooms` say how many they kept, each one with
-the room it stands in now, and name at once one the new walls run into or that now stands in no
-room (`itemsKept` in the tool's answer, WRT-46). To move one or take it out, change it in the plan
-file's `items`. A refusal of a taken id names the part that holds it and where it is.
+Fixtures and furniture (the plan file's `items`) are written in `item` lines of their own (CNT-45,
+[Items](#items)): against a side of a room, their turn worked out, or at a point. `grid describe
+--as rooms` writes every item back as an item line, so writing the text again keeps it; the text's
+item lines replace the file's items. A text that writes no item line never clears them: they stay
+as the file has them, each one that stands against a wall moved with that wall, and their ids
+stay taken. `grid write` and `grid_write_rooms` say how many they kept, each one with the room it
+stands in now, and name at once one the new walls run into or that now stands in no room
+(`itemsKept` in the tool's answer, WRT-46). `grid_add_item`, `grid_move_item` and
+`grid_remove_item` add, move and take out one without rewriting the plan. A refusal of a taken id
+names the part that holds it and where it is.
 
 The walls Grid works out are named by what they are: `ext-south` for an outside wall facing south,
 `w-hall-kitchen` for one between two rooms, `w-hall-south` for one with a room on one side only,
@@ -663,6 +667,20 @@ door front in hall south, centred, 0.9 wide, opens in
 floor first "First floor" level 1
 room landing "Landing" corridor 2.4 x 5 at 0,0
 stair st "Main stair" from ground to first in hall, 1 wide, U, runs north
+```
+
+### Items
+
+item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side's inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant). item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid's own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.
+
+```rooms
+room bath "Bathroom" bathroom 2.4 x 2 at 0,0
+room bed "Bedroom" bedroom 3.5 x 4 east of bath
+door d1 between bath and bed, centred, 0.8 wide
+item tub "Bath 1700" bath 1.7 x 0.7 in bath against north, at west
+item wc1 wc in bath against east, 0.1 from south
+item robe "Built-in wardrobe" wardrobe in bed against east, full width
+item bed1 double-bed in bed against north, at west
 ```
 
 ### Site

@@ -41,6 +41,7 @@ import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
 import { STAIR_TOOLS } from './stairTools'
 import { BUILDING_TOOLS } from './buildingTools'
+import { ITEM_TOOLS } from './itemTools'
 import { placeTraceTool } from './traceTool'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
@@ -84,6 +85,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...STAIR_TOOLS,
   // LVL-23: which floors are each building's, and the ground each stands on.
   ...BUILDING_TOOLS,
+  // CNT-45: fixtures and furniture added against a wall, moved and taken out.
+  ...ITEM_TOOLS,
   // CNT-41: the plot, north and the site's things: the ground, never the building.
   ...SITE_TOOLS,
   // VEW-67: the trace image under the plan, drawn only: no part of the building.

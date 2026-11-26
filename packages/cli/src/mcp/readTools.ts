@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -79,6 +79,7 @@ import {
   fieldOf,
   GRID_FIELDS,
   groupParts,
+  FACT_PART_KINDS,
   PART_KINDS,
   QUERY_RULE,
   QueryRefused,
@@ -1155,7 +1156,7 @@ const scheduleTool: GridTool = {
   args: {
     plan: PLAN_ARG,
     floor: FLOOR_ARG,
-    of: { type: 'string', enum: ['rooms', 'openings', 'flats', 'doors', 'windows', 'finishes'], description: 'rooms for the room schedule, openings for one row per door, window and opening, flats for the flats and the unit mix by type, doors or windows for the door or window schedule by type with each type\'s marks, finishes for each room\'s floor, wall, ceiling and skirting finishes with their quantities and each finish\'s total. Grouped by type and size when left out.', examples: ['rooms', 'openings', 'flats', 'doors', 'finishes'] },
+    of: { type: 'string', enum: ['rooms', 'openings', 'flats', 'doors', 'windows', 'finishes', 'fixtures'], description: 'fixtures for every fixture and piece of furniture with its kind, room and size (as types=fixture), rooms for the room schedule, openings for one row per door, window and opening, flats for the flats and the unit mix by type, doors or windows for the door or window schedule by type with each type\'s marks, finishes for each room\'s floor, wall, ceiling and skirting finishes with their quantities and each finish\'s total. Grouped by type and size when left out.', examples: ['rooms', 'openings', 'flats', 'doors', 'finishes'] },
     types: { type: 'array', description: 'Only these kinds: door, window, opening, or fixture for the toilets, basins, showers, baths and kitchen runs. All of them when left out.', examples: [['door'], ['door', 'opening'], ['fixture']], items: { enum: ['door', 'window', 'opening', 'fixture'] }, minItems: 1, maxItems: 4 },
     narrower_than: { type: 'number', length: true, description: 'Only openings narrower than this many metres, for example 0.8.', examples: [0.8, 0.9], minimum: 0.1, maximum: 10 },
     units: UNITS_ARG,
@@ -1167,13 +1168,14 @@ const scheduleTool: GridTool = {
   run(args, context) {
     const { survey, floor } = load(context, args['plan'], args['floor'])
     const units = displayFor(args['units'], args['decimal'], survey.plan)
-    const of = args['of'] as ScheduleOf | undefined
+    const of = args['of'] as ScheduleOf | 'fixtures' | undefined
     if (of !== undefined) {
       const stray = ['types', 'narrower_than'].filter((name) => args[name] !== undefined)
       if (stray.length > 0) throw new ToolRefusal(`of=${of} takes no ${stray.join(' or ')}.`)
-      return listSchedule(survey, of, floor, units, args['format'] === 'csv')
+      if (of !== 'fixtures') return listSchedule(survey, of, floor, units, args['format'] === 'csv')
     }
-    const types = args['types'] as ('door' | 'window' | 'opening' | 'fixture')[] | undefined
+    // CNT-45: of=fixtures is the fixtures and furniture alone.
+    const types = of === 'fixtures' ? ['fixture' as const] : (args['types'] as ('door' | 'window' | 'opening' | 'fixture')[] | undefined)
     const openingTypes = types?.filter((t): t is 'door' | 'window' | 'opening' => t !== 'fixture')
     const s = planSchedule(survey, {
       ...(floor === undefined ? {} : { floors: [floor] }),
@@ -1222,13 +1224,22 @@ function asked<T>(run: () => T): T {
   }
 }
 
-/** WRT-74: grid_set_facts picks parts by the same arguments. */
+/** WRT-74: grid_set_facts picks parts by the same arguments, of the kinds that carry facts. */
 export const KIND_ARG: ArgSpec = {
   type: 'array',
   description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor. Every kind when left out.',
   examples: [['door'], ['room'], ['door', 'window']],
-  items: { enum: PART_KINDS },
+  items: { enum: FACT_PART_KINDS },
   minItems: 1,
+  maxItems: FACT_PART_KINDS.length,
+}
+
+/** CNT-45: grid_fields, grid_find and grid_count ask of the fixtures and furniture too. */
+const QUERY_KIND_ARG: ArgSpec = {
+  ...KIND_ARG,
+  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run) or furniture (a bed, a sofa, a table). Every kind when left out.',
+  examples: [['door'], ['room'], ['fixture', 'furniture']],
+  items: { enum: PART_KINDS },
   maxItems: PART_KINDS.length,
 }
 
@@ -1252,8 +1263,8 @@ export const ROOM_IN_ARG: ArgSpec = {
 const kindsOf = (args: Record<string, unknown>): readonly PartKind[] | undefined => args['kind'] as PartKind[] | undefined
 
 function partsWord(kinds: readonly PartKind[] | undefined, n: number): string {
-  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors' }
-  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor' }
+  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture' }
+  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture' }
   if (kinds !== undefined && kinds.length === 1) return `${n} ${n === 1 ? one[kinds[0]!] : plural[kinds[0]!]}`
   return `${n} part${n === 1 ? '' : 's'}`
 }
@@ -1290,7 +1301,7 @@ const fieldsTool: GridTool = {
     + 'Call it once before grid_find or grid_count on a plan you have not asked of yet. To record a fact or a room number the person gives, use grid_set_facts. Do not use for the answer itself (grid_find, grid_count), for areas (grid_areas) or for a door schedule (grid_schedule). Units are metres and square metres.',
   args: {
     plan: PLAN_ARG,
-    kind: KIND_ARG,
+    kind: QUERY_KIND_ARG,
   },
   outputSchema: objectSchema({
     kinds: listSchema(objectSchema({ kind: STRING, count: NUMBER })),
@@ -1301,7 +1312,7 @@ const fieldsTool: GridTool = {
   }),
   run(args, context) {
     const { survey } = load(context, args['plan'])
-    const ask = askPlan(survey)
+    const ask = askPlan(survey, { items: true })
     const kinds = kindsOf(args)
     const counts = PART_KINDS.filter((k) => kinds === undefined || kinds.includes(k)).map((kind) => ({ kind, count: ask.parts.filter((p) => p.kind === kind).length }))
     const fields = GRID_FIELDS.filter((f) => kinds === undefined || f.kinds.some((k) => kinds.includes(k)))
@@ -1326,11 +1337,11 @@ const findTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks which parts of the plan have, lack or match something: "which doors have no fire rating", "rooms of the Sales department", "windows lower than 900 mm", "walls rated EI 60 on the first floor". '
-    + 'It returns the ids of the walls, doors, windows, openings, rooms or floors that meet every condition, with only the fields you name, and a view argument to pass to grid_view so they are shown picked out. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
+    + 'It returns the ids of the walls, doors, windows, openings, rooms, floors, fixtures or furniture (kind=fixture, kind=furniture: "the beds in the plan", "every WC on the first floor") that meet every condition, with only the fields you name, and a view argument to pass to grid_view so they are shown picked out. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
     + 'Call grid_fields first for the names. Do not use for how many or how much by group (grid_count), for areas (grid_areas) or for a door schedule (grid_schedule). Lengths are metres, areas square metres.',
   args: {
     plan: PLAN_ARG,
-    kind: KIND_ARG,
+    kind: QUERY_KIND_ARG,
     floor: FLOOR_ARG,
     room: ROOM_IN_ARG,
     where: WHERE_ARG,
@@ -1351,7 +1362,7 @@ const findTool: GridTool = {
     const { survey } = load(context, args['plan'], args['floor'])
     if (args['room'] !== undefined) roomArg(survey.plan, args['room'])
     return asked(() => {
-      const ask = askPlan(survey)
+      const ask = askPlan(survey, { items: true })
       const kinds = kindsOf(args)
       const fields = ((args['fields'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `fields item ${i + 1}`))
       const found = select(ask, {
@@ -1383,13 +1394,13 @@ const countTool: GridTool = {
   title: 'Count and sum parts by group',
   hint: 'read',
   description:
-    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor". '
+    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room). '
     + 'It groups the parts that meet every condition by the field named in by, and gives each group its count, the sum of each field named in sum, and its ids, with a view argument to pass to grid_view so each group is shown in its own colour. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
     + 'Rooms are counted as grid_areas counts them, so an area sum is its net: a zone with its room, a stair or lift drawn on floor after floor once, on the floor it rises from (stairs=per floor counts it on each floor), and no void or outdoor space; the answer lists each room left out, with why. '
     + 'Call grid_fields first for the names. Do not use for the list of parts itself (grid_find), for the plan\'s areas by use (grid_areas) or for a door schedule (grid_schedule). Areas are square metres, lengths metres.',
   args: {
     plan: PLAN_ARG,
-    kind: KIND_ARG,
+    kind: QUERY_KIND_ARG,
     floor: FLOOR_ARG,
     room: ROOM_IN_ARG,
     where: WHERE_ARG,
@@ -1411,7 +1422,7 @@ const countTool: GridTool = {
     const { survey } = load(context, args['plan'], args['floor'])
     if (args['room'] !== undefined) roomArg(survey.plan, args['room'])
     return asked(() => {
-      const ask = askPlan(survey)
+      const ask = askPlan(survey, { items: true })
       const kinds = kindsOf(args)
       const by = args['by'] === undefined ? null : fieldOf(ask, args['by'] as string, 'by')
       const sums = ((args['sum'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `sum item ${i + 1}`))
@@ -2391,6 +2402,9 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
         lines.push(`Drawn with a dashed line and "?" as undecided, ${undecided.length === 1 ? 'a door' : `${undecided.length} doors`} with no stated swing: ${undecided.map(q).join(', ')}. Ask the person which side each is hinged on and which way it opens, then set its hinge and swing.`)
       }
       lines.push('Each part\'s box on the picture, in pixels from its top-left corner, is in boxes: id, kind and x, y, width, height.')
+      // CNT-45: the fixtures and furniture drawn on the floor, named, so none is taken for gone.
+      const onFloor = (stated.items ?? []).filter((item) => floorOf(item) === shown)
+      if (onFloor.length > 0) lines.push(`Fixtures and furniture drawn: ${onFloor.length} (${onFloor.slice(0, 12).map((item) => `${itemKindWord(item.kind)} ${q(item.id)}`).join(', ')}${onFloor.length > 12 ? ` and ${onFloor.length - 12} more` : ''}); their boxes are in boxes, kind fixture or furniture. grid_find kind=fixture or kind=furniture lists them with their rooms.`)
       if (trace.line !== null) lines.push(trace.line)
       if (work !== null) {
         const gone = work.demolished
