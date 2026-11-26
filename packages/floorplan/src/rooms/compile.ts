@@ -1652,8 +1652,8 @@ class Compiler {
         place.corner = t[i + 3]!
         i += 4
       } else if (w === 'open' && OPEN_SIDES.includes(t[i + 1] ?? '') && t[i + 2] !== 'of' && !(ctx?.local.has(t[i + 1]!) || fl.rooms.has(t[i + 1]!))) {
-        // WRT-76: 'open <side>' opens that side onto whatever is there, mirrored with its unit.
-        room.openSides = [...(room.openSides ?? []), mirroredSide(t[i + 1]!, mx, my)]
+        // WRT-76: unit expansion has already mirrored the side word.
+        room.openSides = [...(room.openSides ?? []), t[i + 1]!]
         i += 2
       } else if (w === 'edge') {
         const read = edgeWords(t, i, at, this.plain)

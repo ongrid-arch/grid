@@ -173,14 +173,17 @@ describe('one side open, a railing or a wall (WRT-76)', () => {
     readsBack(plan)
   })
 
-  it("opens a unit's side when nothing is there and mirrors its open side", () => {
-    const { plan } = write(['unit bay open south', 'room load "Loading bay" storage 4 x 6 at 0,0', 'end', 'place bay as b1 at 0,0', 'place bay as b2 at 0,20 mirror north-south'])
+  it.each([
+    ['unit bay open south', 'room load "Loading bay" storage 4 x 6 at 0,0'],
+    ['unit bay', 'room load "Loading bay" storage 4 x 6 at 0,0 open south'],
+  ])('mirrors the open side in %s', (unit, room) => {
+    const { plan } = write([unit, room, 'end', 'place bay as b1 at 0,0', 'place bay as b2 at 0,20 mirror north-south'])
     const open = (room: string): number => {
       const index = indexPlan(plan)
       return plan.walls.filter((w) => w.virtual === true && (index.roomsByWall.get(w.id) ?? []).some((r) => r.id === room)).map((w) => (w.start[1] + w.end[1]) / 2)[0]!
     }
     expect(open('load-b1')).toBeCloseTo(0, 6)
-    expect(open('load-b2')).toBeCloseTo(20, 6)
+    expect(open('load-b2')).toBeCloseTo(26, 6)
   })
 })
 
