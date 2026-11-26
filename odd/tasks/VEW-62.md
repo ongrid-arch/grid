@@ -31,8 +31,7 @@ agent can look at the sheet before handing it over.
   (`previews` option of `sheetPdf`), 600 px wide, and returns them in `images`. The command
   `grid sheet` does not ask for them and pays nothing.
 - Decided: `out` is opt-in rather than always writing `exports/view-*.png`, so a look at the plan
-  leaves no files behind. Decided: no `.view.json` for PDF or SVG differs from PNG: one JSON for
-  any format.
+  leaves no files behind. One record serves every format.
 
 ## Done
 

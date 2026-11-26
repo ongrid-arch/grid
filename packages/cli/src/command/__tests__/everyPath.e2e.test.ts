@@ -231,7 +231,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_find: [{ arg: 'plan', call: tool('grid_find', { plan: '@', kind: ['door'] }), given: asIs }],
   grid_count: [{ arg: 'plan', call: tool('grid_count', { plan: '@', kind: ['room'], by: 'use' }), given: asIs }],
   grid_measure: [{ arg: 'plan', call: tool('grid_measure', { plan: '@', what: 'room', room: 'lounge' }), given: asIs }],
-  grid_view: [{ arg: 'plan', call: tool('grid_view', { plan: '@', kind: 'plan' }), given: asIs }],
+  grid_view: [
+    { arg: 'plan', call: tool('grid_view', { plan: '@', kind: 'plan' }), given: asIs },
+    // VEW-62: the picture's own path, written inside the project only.
+    { arg: 'out', call: tool('grid_view', { plan: PLAN, kind: 'plan', out: '@.png' }), given: (p) => `${p}.png` },
+  ],
   grid_describe: [{ arg: 'plan', call: tool('grid_describe', { plan: '@' }), given: asIs }],
   grid_check: [{ arg: 'plan', call: tool('grid_check', { plan: '@' }), given: asIs }],
   grid_report_problem: [{ arg: 'plan', call: tool('grid_report_problem', { plan: '@', tool: 'grid_check', expected: 'The plan read.' }), given: asIs }],

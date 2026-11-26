@@ -249,3 +249,15 @@ describe('grid_sheet words reach a drawing (SHT-18)', () => {
     await expect(call({ plan: 'plan.json', layout: 'drawing', sheet: { version: '1', drawing: 'x'.repeat(NAME_MAX + 1) } })).rejects.toThrow(/drawing is longer than 120 characters/)
   })
 })
+
+describe('a picture of each page (VEW-62)', () => {
+  it('a client sheet comes back with one small png per page, in order', async () => {
+    const answer = (await tool.run(readArgs(tool, { plan: 'plan.json', layout: 'client', date: '2026-01-31' }), context().context)) as { data: { pages: unknown[] }; images?: { data: Uint8Array; mimeType: string }[] }
+    expect(answer.images?.length).toBe(answer.data.pages.length)
+    for (const image of answer.images ?? []) {
+      expect(image.mimeType).toBe('image/png')
+      expect([...image.data.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47])
+      expect(image.data.byteLength).toBeLessThan(400_000)
+    }
+  }, 60_000)
+})

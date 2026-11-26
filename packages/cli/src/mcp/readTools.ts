@@ -9,7 +9,10 @@
  */
 import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, phaseCounts, planHasPhases, itemFootprint, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, levelText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
-import { PATH_MAX } from '../fs/projectFiles'
+import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
+import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
+import type { WorldBounds } from '../draw/views'
+import { version } from '../../package.json'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
 import { causeText, checkPlan, checkTitle, countsText, coverageSummary, firmHeadingText, firmNoNoteText, firmSectionTitle, firmStandardsText, kindWord, limitsText, nothingCheckedText, partsText, placeText, type PlaceWords, problemsText, readForText, restText, ruleText, seenBeforeText, seenByText, seenCount, thingText, usedFigures, withSeen, type CheckResult } from '../command/check'
 import { askedLanguage, languageFor, spokenPlan } from '../command/language'
@@ -124,6 +127,7 @@ import {
   type Answer,
   type ArgSpec,
   type GridTool,
+  type AnswerImage,
   type ToolContext,
   nearestList,
 } from './toolkit'
@@ -2104,7 +2108,7 @@ function facadeRoofLine(plan: FloorPlan): string {
   return stated === '' ? 'The plan states no roof: the top of each part with nothing above is drawn flat.' : `The roof the plan states is drawn as it is: ${stated}.`
 }
 
-async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, language: Language = 'en', display?: Display): Promise<{ text: string; data: Record<string, unknown>; image: { data: Uint8Array; mimeType: 'image/png' } }> {
+async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, language: Language = 'en', display?: Display): Promise<ViewAnswer> {
   if (args['side'] === undefined) throw new ToolRefusal(`kind=facade needs side: the side of the drawing to draw, one of ${FACADE_SIDES.join(', ')} (north is the top of the drawing).`)
   const side = args['side'] as FacadeSide
   const asked = (args['look'] as LookName | undefined) ?? 'working'
@@ -2144,22 +2148,29 @@ async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, lang
       extent: facade.extent,
     },
   }
-  return { text: lines.join('\n'), data, image: { data: view.png, mimeType: 'image/png' } }
+  return { text: lines.join('\n'), data, image: { data: view.png, mimeType: 'image/png' }, picture: { svg: view.svg, bounds: null } }
+}
+
+/** VEW-62: what a view hands back besides the answer: its SVG, made when asked for, and the plan's metres the picture covers. */
+interface ViewAnswer extends Answer {
+  readonly image: AnswerImage
+  readonly picture?: { readonly svg?: () => string; readonly bounds: WorldBounds | null }
 }
 
 const viewTool: GridTool = {
   name: 'grid_view',
   title: 'Draw a view of the plan',
-  hint: 'read',
+  hint: 'write-file',
   description:
     'Use this when the person asks to see the plan: "can I see it", a floor plan, a 3D view from the garden side or from above, the front of the house as an elevation, a section through the stair, "the living room from the south-west, from higher up", "a bit lower and more from the left", a view saved by name, "stand me in the kitchen looking at the garden", "can I see out sitting down", or a black and white drawing. '
     + 'kind=plan draws one floor from above with its sizes; kind=facade draws one side of the drawing (side: north, east, south or west; north is the top of the drawing) in elevation, every floor at its level, its doors and windows, the ground line heaviest and faces set back lighter; kind=3d draws the model through a camera: from a side or corner of the drawing (from), or a compass bearing from the plan\'s stated north (bearing), with tilt, distance, eye_height, lens, a room to point at and a floor cut away; kind=eye stands in a room, on its middle line or at stand_at, with the eye eye_height above that room\'s own floor, and looks level toward an opening or a direction, and lists the window sills against that eye height; kind=section cuts every floor along a line (cut) and looks to one side of it (toward), with the levels, the room heights, and what Grid takes that the plan does not state dashed and listed. '
     + 'Every 3d and eye picture comes back with its camera record (camera: target, bearing, tilt, distance, eye height, lens in mm on a 36 × 24 mm sensor, cut, floors, where it stands, and position, direction, up and field of view as the BCF format writes them). To change the view, send camera back with turn, tilt_by or changed numbers; view calls up one saved with grid_save_view. '
-    + 'It returns the picture with the numbers that made it; look at the picture before you describe it. It changes nothing and writes no file. Do not use for a file to hand on (grid_export), to move the person\'s live preview (grid_preview) or to save a view (grid_save_view). The 3d model and the facade draw the roof each floor of the plan states (flat, mono-pitch, gable or hip, with its pitch), so a pitched roof the plan holds is drawn pitched; only where the plan states no roof is a flat one taken over the part with nothing above. The 3d model shows its roof from outside, or when a floor states one; a floor cut away is drawn open, and roof shows or hides it. It has no furniture, glass or door leaves. The drawing\'s figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
+    + 'It returns the picture with the numbers that made it; look at the picture before you describe it. It changes nothing in the plan. It writes no file unless you pass out: a .png, .svg or .pdf name, written inside the project (a bare name goes into the exports folder beside the plan), with the path in the answer and, beside it, a .view.json with the picture\'s size, its pixels per metre and, for a plan, the plan\'s metres it covers; svg is not made for 3d or eye. Do not use for a file to hand on to another program (grid_export), to move the person\'s live preview (grid_preview) or to save a view (grid_save_view). The 3d model and the facade draw the roof each floor of the plan states (flat, mono-pitch, gable or hip, with its pitch), so a pitched roof the plan holds is drawn pitched; only where the plan states no roof is a flat one taken over the part with nothing above. The 3d model shows its roof from outside, or when a floor states one; a floor cut away is drawn open, and roof shows or hides it. It has no furniture, glass or door leaves. The drawing\'s figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     plan: PLAN_ARG,
+    out: { type: 'string', maxLength: PATH_MAX, description: 'A .png, .svg or .pdf file to write the picture to, inside the project folder: a bare name goes into the exports folder beside the plan. A .view.json is written beside it with its size, pixels per metre and, for a plan, the plan\'s metres it covers. svg is not made for 3d or eye. Nothing is written when left out.', examples: ['plan-ground.png', 'exports/south.svg'] },
     kind: { type: 'string', required: true, enum: ['plan', 'facade', '3d', 'eye', 'section'], description: 'plan, facade, 3d, eye or section.', examples: ['plan', 'facade', 'section'] },
     side: { type: 'string', enum: FACADE_SIDES, description: 'For facade: the side of the drawing whose facade to draw: north (its top), east, south or west. Required for facade.', examples: ['south', 'east'] },
     floor: { ...FLOOR_ARG, description: 'For plan: the floor to draw, the lowest when left out. For 3d: that floor cut away, the whole building when left out (with room, on a plan of several floors, that room\'s floor).' },
@@ -2203,8 +2214,35 @@ const viewTool: GridTool = {
     },
     marks: { type: 'array', description: 'For plan: marks for the plan\'s other drawings: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of cut and the way toward looks), schedule (each room\'s and opening\'s mark in the schedules, tied to its row in grid_schedule). None when left out.', examples: [['levels', 'elevations'], ['section'], ['schedule']], items: { enum: MARK_WORDS }, minItems: 1, maxItems: 4 },
   },
-  outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' } }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes']),
+  outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes']),
   async run(args, context) {
+    const out = args['out'] as string | undefined
+    // VEW-62: the name is checked before anything is drawn.
+    const ext = out === undefined ? null : asToolArg(() => pictureExtension(out))
+    if (ext === '.svg' && (args['kind'] === '3d' || args['kind'] === 'eye')) throw new ToolRefusal(`kind=${args['kind'] as string} is a picture of pixels, so it is not made as an svg: name a .png or .pdf file.`)
+    const { picture, ...answer } = await drawView(args, context)
+    if (out === undefined || ext === null) return answer
+    const { project, file } = readPlan(context, args['plan'])
+    const size = pngSize(answer.image.data)
+    const data = answer.data
+    const px = (data['pxPerMetre'] as number | null) ?? null
+    const bounds = picture?.bounds ?? null
+    const body = ext === '.png' ? answer.image.data : ext === '.pdf' ? await pngToPdf(answer.image.data, out) : picture?.svg?.()
+    if (body === undefined) throw new ToolRefusal('That picture is not made as an svg: name a .png or .pdf file.')
+    let done
+    try {
+      done = writePicture(project, file, out, body, { kind: data['kind'] as string, floor: (data['floor'] as string | null) ?? null, pxPerMetre: px, bounds, ...size }, version)
+    } catch (error) {
+      if (error instanceof PictureOutRefused || error instanceof PathRefused) throw new ToolRefusal(error.message)
+      throw asRefusal(error)
+    }
+    const where = bounds === null ? '' : ` It covers x ${bounds.minX.toFixed(2)} to ${bounds.maxX.toFixed(2)} and y ${bounds.minY.toFixed(2)} to ${bounds.maxY.toFixed(2)} m of the plan.`
+    return { ...answer, text: `${answer.text}\nWrote ${quoted(done.picture)} (${size.width} × ${size.height} px) and ${quoted(done.record)} in the project folder.${where}`, data: { ...data, written: done.picture, record: done.record } }
+  },
+}
+
+async function drawView(args: Record<string, unknown>, context: ToolContext): Promise<ViewAnswer> {
+  {
     const { project, loaded: read } = readPlan(context, args['plan'])
     // MSG-11: the drawing's own words in the language asked for, else the plan's own. MSG-22: the
     // floor the plan names in no list, named in it.
@@ -2302,6 +2340,7 @@ const viewTool: GridTool = {
         text: lines.join('\n'),
         data: { kind, floor: shown, camera: null, view: null, pxPerMetre: view.pxPerMetre, sills: [], ids, boxes: view.boxes ?? [], ...(painted === null ? {} : { painted: painted.groups }) },
         image: { data: view.png, mimeType: 'image/png' },
+        picture: { ...(view.svg === undefined ? {} : { svg: view.svg }), bounds: view.bounds ?? null },
       }
     }
     if (kind === '3d') {
@@ -2413,7 +2452,7 @@ const viewTool: GridTool = {
       data: { kind, floor: room.facts.floor, camera, view: null, pxPerMetre: null, sills, ids: [], boxes: [] },
       image: { data: view.png, mimeType: 'image/png' },
     }
-  },
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
