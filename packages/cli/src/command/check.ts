@@ -679,7 +679,7 @@ export function coverageSummary(result: CheckResult): string[] {
       continue
     }
     const gaps = check.skipped.filter((skip) => skip.reason !== 'use_not_covered')
-    const gap = gaps.length === 0 ? '' : t('report.gap', { count: gaps.reduce((n, skip) => n + skip.ids.length, 0), whys: [...new Set(gaps.map(whyText))].join('; ') })
+    const gap = gapText(gaps)
     const findings = check.findings === 0 ? '' : `; ${findingsText(check.findings)}`
     lines.push(check.lookedAtCount === 0
       ? `  - ${nothingCheckedText(checkTitle(check), check.looksAt)}${gap}.`
@@ -688,6 +688,21 @@ export function coverageSummary(result: CheckResult): string[] {
   // COD-3: when every check that used figures read them for the same kind of building, the
   // report's first line says it (`placeText`), so it is not said again here.
   return lines
+}
+
+/**
+ * ARE-58: the parts a check left out, counted for each reason as worded: one reason is a total
+ * beside it; several give the total, then each reason with its own count, so one part that could
+ * not be drawn is never read as every part left out for another reason.
+ */
+function gapText(gaps: readonly { readonly ids: readonly string[]; readonly why: string; readonly said?: Said }[]): string {
+  if (gaps.length === 0) return ''
+  const byReason = new Map<string, number>()
+  for (const skip of gaps) byReason.set(whyText(skip), (byReason.get(whyText(skip)) ?? 0) + skip.ids.length)
+  const count = gaps.reduce((n, skip) => n + skip.ids.length, 0)
+  if (byReason.size === 1) return t('report.gap', { count, whys: [...byReason.keys()][0]! })
+  const each = [...byReason].map(([why, n]) => t('report.gap.reason', { count: n, why })).join('; ')
+  return t('report.gap.byReason', { count, whys: each })
 }
 
 /** What a figure check is called in one word or two: `Room sizes`; any other check by its title. */

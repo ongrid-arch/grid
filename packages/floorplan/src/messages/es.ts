@@ -1735,6 +1735,8 @@ export const es: Messages = {
   'report.lookedAtIds': 'miradas: {ids}',
   'report.notLookedAt': 'sin mirar, {parts}{where}: {why}: {ids}',
   'report.gap': '; sin mirar {count}: {whys}',
+  'report.gap.byReason': '; sin mirar {count}, por motivo: {whys}',
+  'report.gap.reason': '{count}, {why}',
   'report.rooms.none': 'ninguna estancia: no hay ninguna que mirar',
   'report.rooms': '{lookedAt} de {rooms}{byNone}',
   'report.rooms.byNone': '; no las miró ninguna: {ids}',
