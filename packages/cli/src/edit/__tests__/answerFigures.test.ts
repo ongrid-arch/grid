@@ -65,6 +65,43 @@ describe('WRT-11: a split answers with the rooms as they are', () => {
     expect(rooms.find((r) => r.id === 'den')!.net).toBeCloseTo(Number(taken), 1)
     expect(reply.text).not.toContain('has no window now')
   })
+
+  it('checks whether the remaining room keeps a patterned window', async () => {
+    const raw = JSON.parse(readFileSync(resolve(b.folder, 'pair.json'), 'utf8')) as {
+      rooms: { id: string; boundary: string[] }[]
+      walls: { id: string; start: number[]; end: number[] }[]
+    }
+    const west = raw.rooms.find((r) => r.id === 'west')!
+    const north = raw.walls.find(({ id, start, end }) => west.boundary.includes(id) && start[1] === end[1] && start[1]! > 3)!
+    const margins = north.start[0]! < north.end[0]! ? { start: 0, end: 4 } : { start: 4, end: 0 }
+    const pattern = { id: 'north-row', wall: north.id, opening: { type: 'window', width: 0.8, height: 1.2, sill: 0.9 }, count: 1, margins }
+    b.write('patterned.json', { ...raw, patterns: [pattern] })
+    const reply = await b.call('grid_split_room', { plan: 'patterned.json', room: 'west', side: 'west', size: 1.1, new_room: 'store', new_name: 'Store', out: 'pattern-split.json' })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.text).not.toContain('has no window now')
+    const after = JSON.parse(readFileSync(resolve(b.folder, 'pattern-split.json'), 'utf8')) as { patterns: unknown[] }
+    expect(after.patterns).toEqual([pattern])
+  })
+
+  it('reports both measured areas when splitting an outdoor courtyard', async () => {
+    const rooms = `plan "Courtyard"
+walls outside 0.3 inside 0.1 height 2.6
+
+room court "Courtyard" - 6 x 6 at 0.15,0.15 outdoor courtyard edge wall
+`
+    const written = await b.call('grid_write_rooms', { plan: 'court.json', rooms })
+    expect(written.isError, written.text).toBe(false)
+    const reply = await b.call('grid_split_room', { plan: 'court.json', room: 'court', side: 'west', size: 26 / 15, new_room: 'yard', new_name: 'Yard', door_width: 0, out: 'court-split.json' })
+    expect(reply.isError, reply.text).toBe(false)
+    const areas = await b.call('grid_areas', { plan: 'court-split.json' })
+    const byId = (areas.data!['floors'] as { rooms: { id: string; net: number }[] }[])[0]!.rooms
+    const kept = byId.find((r) => r.id === 'court')!.net
+    const added = byId.find((r) => r.id === 'yard')!.net
+    expect(kept).toBeGreaterThan(24)
+    expect(added).toBeGreaterThan(9)
+    expect(reply.text).toContain(`"Courtyard": 36.00 → ${kept.toFixed(2)} m²; new room "Yard": ${added.toFixed(2)} m².`)
+    expect(areas.data!['net']).toBe(0)
+  })
 })
 
 describe('WRT-11: the verdict counts things', () => {
@@ -97,6 +134,7 @@ describe('WRT-11: the verdict counts things', () => {
     const reply = await b.call('grid_change_opening', { plan: 'pair.json', opening: 'door-mid', opens_into: 'west', out: 'swing.json' })
     expect(reply.isError, reply.text).toBe(false)
     expect(reply.data!['verdict']).toContain('1 opening changed')
+    expect(reply.data!['verdict']).toContain('"door-mid" now opens into "West room" (it opened into "East room")')
     expect(reply.data!['verdict']).not.toMatch(/mirrored|turned/)
   })
 
@@ -133,10 +171,17 @@ describe('WRT-11: the verdict counts things', () => {
     expect(Math.abs(mirrored.walls[1]!.end[1]! - mirrored.walls[1]!.start[1]!)).toBeCloseTo(3.5345, 6)
   })
 
-  it('says writing the same rooms again is the same building', async () => {
-    const back = await b.call('grid_describe', { plan: 'flat.json', as: 'rooms' })
-    const again = await b.call('grid_write_rooms', { plan: 'flat.json', rooms: back.text })
+  it('says writing the same rooms again is the same building when the file keeps a column', async () => {
+    const raw = JSON.parse(readFileSync(resolve(b.folder, 'flat.json'), 'utf8')) as Record<string, unknown>
+    raw['columns'] = [{ id: 'c1', shape: 'square', width: 0.6, at: [2, 2] }]
+    b.write('rewrite.json', raw)
+    const before = await b.call('grid_areas', { plan: 'rewrite.json' })
+    const back = await b.call('grid_describe', { plan: 'rewrite.json', as: 'rooms' })
+    expect(back.isError, back.text).toBe(false)
+    const again = await b.call('grid_write_rooms', { plan: 'rewrite.json', rooms: back.text })
     expect(again.isError, again.text).toBe(false)
     expect(again.data!['verdict']).toContain('same building')
+    const after = await b.call('grid_areas', { plan: 'rewrite.json' })
+    expect(after.data!['net']).toBe(before.data!['net'])
   })
 })
