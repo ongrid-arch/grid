@@ -1090,6 +1090,14 @@ export const TOLERANCES = {
       'that stretch of the facade shows, with its height and its openings.',
     basis: own
   },
+  facadeRoofProjection: {
+    kind: 'limit',
+    value: 0.3,
+    unit: 'm',
+    decides:
+      'How far a pitched roof is drawn past its outside walls in elevation (VEW-71). The plan holds no overhang dimension.',
+    basis: own
+  },
   facadeSameDepth: {
     kind: 'tolerance',
     value: 0.05,
