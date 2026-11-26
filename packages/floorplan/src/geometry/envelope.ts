@@ -453,7 +453,12 @@ function roofPieces(shape: RoofShapeOverFloor | null, pieces: MultiPolygon, clea
     const whole = Math.abs(multiArea(ring))
     return inside !== null && Math.abs(multiArea(inside) - whole) <= tolerance('areaReported') ? [place] : []
   })
-  const facets = roofFacets(shape).flatMap((facet): RoofFacetPieces[] => {
+  return { facets: roofFacetsOver(shape, pieces, rooflights), rooflights }
+}
+
+/** Cut roof planes to the supplied footprint and the openings on each plane. */
+export function roofFacetsOver(shape: RoofShapeOverFloor, pieces: MultiPolygon, rooflights: readonly RooflightPlace[]): RoofFacetPieces[] {
+  return roofFacets(shape).flatMap((facet): RoofFacetPieces[] => {
     // VEW-12: a hip line running exactly through a corner of the outline can defeat the cut; the
     // plane is then cut again, pulled in toward its middle by a hair (`noLength`), never lost.
     let under = cutOutline('intersection', pieces, [[[ringOf([...facet.polygon])]]]) ?? cutOutline('intersection', pieces, [[[ringOf(pulledIn(facet.polygon))]]])
@@ -464,7 +469,6 @@ function roofPieces(shape: RoofShapeOverFloor | null, pieces: MultiPolygon, clea
     const rise = Math.hypot(facet.plane.gx, facet.plane.gy)
     return [{ plane: facet.plane, pieces: under, area, slopeArea: area * Math.sqrt(1 + rise * rise) }]
   })
-  return { facets, rooflights }
 }
 
 /**
