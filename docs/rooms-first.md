@@ -228,7 +228,10 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   own words). What the check would still note is said in the answer: floor the rooms close round
   that no room claims (`rooms/hole`, with where it is: write it as a room, `-` for no use, or
   `outdoor courtyard`), a wall only as thick as the gap two rooms leave when no line states that
-  thickness (`rooms/wall-from-gap`), and any other note (`rooms/check`). A part written `raw` is
+  thickness (`rooms/wall-from-gap`), and any other note (`rooms/check`). Between two indoor rooms
+  the outside thickness is not an inside wall's, and a wall thicker than the one the rooms would
+  be set apart by says how much thicker, the floor in it and the size of either room that closes
+  the gap, or how far to move a room with no plain size (WRT-67). A part written `raw` is
   the person's own and is kept as written: what the check finds on it is said, never refused.
 - A door between two rooms that share no wall (`rooms/no-shared-wall`) is refused with the line
   that would make them share one, when changing how one of them lines up does (BRF-6, lab

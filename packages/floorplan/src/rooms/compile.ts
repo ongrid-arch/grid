@@ -2410,6 +2410,9 @@ class Compiler {
     let junc = fl.rule.outside
     const thicknessStated = (t: number): boolean =>
       [fl.rule.inside, fl.rule.outside, ...this.statedT, ...[...this.tkinds.keys()].map((k) => k / 1000)].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
+    // WRT-67: what a wall between two indoor rooms may be without a word: the inside thickness, or one a line states.
+    const insideStated = (t: number): boolean =>
+      [fl.rule.inside, ...this.statedT, ...[...this.tkinds.keys()].map((k) => k / 1000)].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
     // WRT-31: what a wall between a room and outdoor space may be without a word: the outside thickness, or one a line states.
     const outsideStated = (t: number): boolean => [fl.rule.outside, ...this.statedT].some((s) => Math.abs(s - t) <= tolerance('diffLength'))
     const reported = new Set<string>()
@@ -2565,11 +2568,13 @@ class Compiler {
           )
         }
         // WRT-17: the wall takes the gap the rooms leave; a gap no line states is said, once a pair.
+        // WRT-67: between two indoor rooms the outside thickness is no inside wall's, and a wall
+        // thicker than the one the rooms would be set apart by says the floor in it and the fix.
         if (!virtual && !(spec && spec.t !== null) && !this.fromGap.has(key)) {
           const values = { a: A.id, aLine: String(A.line), b: B.id, bLine: String(B.line), thickness: f2(d), inside: f2(fl.rule.inside), outside: f2(fl.rule.outside) }
-          if (!thicknessStated(d)) {
+          if (facesOutdoor(A, B) ? !thicknessStated(d) : !insideStated(d)) {
             this.fromGap.add(key)
-            this.warn('rooms/wall-from-gap', B.line, english(said('rooms.wallFromGap', values)))
+            this.warn('rooms/wall-from-gap', B.line, english(said('rooms.wallFromGap', { ...values, ...this.gapWallTakes(edges, A, B, d, e.n) })))
           } else if (facesOutdoor(A, B) && !outsideStated(d)) {
             // WRT-31: the inside thickness is no outside wall's: rooms placed by hand left it.
             this.fromGap.add(key)
@@ -2730,20 +2735,45 @@ class Compiler {
   }
 
   /**
+   * WRT-55: the size of each of two rooms written `w x d` that makes it `by` larger toward the
+   * other across a gap whose normal is `n`, as its line would write it, the later room first.
+   */
+  private closingSizes(a: RoomDraft, b: RoomDraft, by: number, n: P): Said[] {
+    const wide = Math.abs(n[0]) > 0.5
+    const plain = this.plain.numbers === 'm' || (this.plain.numbers === null && this.plain.display === 'm')
+    const word = (v: number): string => (plain ? String(r4(v)) : `${r4(v)}m`)
+    return [b, a].flatMap((r) => {
+      if (r.size === null || r.size.w === null || r.size.d === null) return []
+      const size = wide ? `${word(r.size.w + by)} x ${word(r.size.d)}` : `${word(r.size.w)} x ${word(r.size.d + by)}`
+      return [said('rooms.gap.size', { room: r.id, size })]
+    })
+  }
+
+  /**
+   * WRT-67: what a wall `d` thick from the gap between rooms `a` and `b` takes past the wall they
+   * would be set apart by, along every stretch they share on the floor, and the fix: the sizes
+   * that close the gap to that wall, or how far to move a room. A thinner wall takes no floor.
+   */
+  private gapWallTakes(edges: readonly Edge[], a: RoomDraft, b: RoomDraft, d: number, n: P): Values {
+    const wall = this.gapBetween(b, [a])
+    const by = d - wall
+    if (by <= tolerance('diffLength')) return { floor: '', fix: said('rooms.wallFromGap.move') }
+    let along = 0
+    for (const e of edges) if (e.room === a) for (const c of e.cover) if (c.f.room === b) along += c.s1 - c.s0
+    const floor = said('rooms.wallFromGap.floor', { more: num(f2(by)), wall: num(f2(wall)), along: num(f2(along)), area: num(f2(by * along)) })
+    const offers = this.closingSizes(a, b, by, n)
+    const fix = offers.length === 0 ? said('rooms.wallFromGap.moveBy', { by: num(f2(by)) }) : said('rooms.wallFromGap.closes', { by: num(f2(by)), sizes: joined(offers, 'join.commaOr') })
+    return { floor, fix }
+  }
+
+  /**
    * WRT-55: two rooms that leave a gap too wide for one wall, with the size of each that closes it
    * to the wall between them, as its line would write it.
    */
   private gapSaid(a: RoomDraft, b: RoomDraft, d: number, along: number, n: P, widest: number): string {
     const wall = this.gapBetween(b, [a])
     const by = d - wall
-    const wide = Math.abs(n[0]) > 0.5
-    const plain = this.plain.numbers === 'm' || (this.plain.numbers === null && this.plain.display === 'm')
-    const word = (v: number): string => (plain ? String(r4(v)) : `${r4(v)}m`)
-    const offers = [b, a].flatMap((r) => {
-      if (r.size === null || r.size.w === null || r.size.d === null) return []
-      const size = wide ? `${word(r.size.w + by)} x ${word(r.size.d)}` : `${word(r.size.w)} x ${word(r.size.d + by)}`
-      return [said('rooms.gap.size', { room: r.id, size })]
-    })
+    const offers = this.closingSizes(a, b, by, n)
     const closes = offers.length === 0 ? said('rooms.gap.close') : said('rooms.gap.closes', { wall: num(f2(wall)), by: num(f2(by)), sizes: joined(offers, 'join.commaOr') })
     return english(said('rooms.gap', { a: a.id, aLine: a.line, b: b.id, bLine: b.line, gap: num(f2(d)), along: num(f2(along)), widest: num(String(widest)), closes }))
   }
