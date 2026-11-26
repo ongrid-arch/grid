@@ -105,6 +105,9 @@
  *   plot <w> x <d> [at x,y]   site boundary x,y ...   street <side|edge n>   setback <from> <m>
  *   north <degrees> [clockwise] | north <up|left|...>   site origin|location|elevation|ground|country ...
  *   site <fence|gate|path|paving|tree|pool> ...         the plot, north and the site (CNT-41): `site.ts`
+ *   stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <w> wide, straight|L|U, runs <side>
+ *         [then <side>] [along <side>] [risers <n>]   or   ..., <w> wide, run x,y x,y ...
+ *   raw stair { ...Grid's own JSON for a stair... }     the plan's stairs (LVL-21): `stairs.ts`
  *
  * An opening pattern (LVL-8) is not rooms text, in a unit or out of one: a `pattern` line is
  * refused with where a pattern goes instead (`patternLine`). It lives in the plan file's
@@ -135,6 +138,7 @@ import { idsOfText } from './ids'
 import { factValueOf, f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUnit, numberOf, PLAIN_METRES, PLAIN_UNITS, pointOf, quotedWordsOf, RoomsStop, wordsOf, type LineWord, type PlainNumbers, type PlainUnit } from './words'
 import { checkWritten } from './selfCheck'
 import { SITE_LINE_WORDS, SiteLines } from './site'
+import { STAIR_LINE_WORDS, StairLines } from './stairs'
 import { likelyMeant } from '../types/nearest'
 import { readingNotes } from '../types/reading'
 
@@ -146,7 +150,7 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
 
 /** WRT-68: the kinds a `raw` line takes, written after it in small letters. */
-const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor']
+const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair']
 
 /**
  * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
@@ -161,8 +165,9 @@ const RAW_ELSEWHERE: Readonly<Record<string, Said>> = {
   roof: said('rooms.raw.kind.floor', { list: 'roof' }),
   parapet: said('rooms.raw.kind.floor', { list: 'parapet' }),
   outline: said('rooms.raw.kind.floor', { list: 'outline' }),
-  stair: said('rooms.raw.kind.list', { list: 'stairs' }),
-  staircase: said('rooms.raw.kind.list', { list: 'stairs' }),
+  // LVL-21: a stair is `raw stair` or a stair line of its own.
+  stair: said('rooms.raw.kind.stair'),
+  staircase: said('rooms.raw.kind.stair'),
   column: said('rooms.raw.kind.list', { list: 'columns' }),
   pillar: said('rooms.raw.kind.list', { list: 'columns' }),
   fixture: said('rooms.raw.kind.list', { list: 'items' }),
@@ -847,6 +852,8 @@ class Compiler {
 
   /** CNT-41: the plot, north and the site's things, from their own lines. */
   private readonly siteLines = new SiteLines()
+  /** LVL-21: the stairs, from their own lines and `raw stair`. */
+  private readonly stairLines = new StairLines()
 
   private stop(code: string, at: number | null, message: string): never {
     throw new RoomsStop(code, message, at)
@@ -888,6 +895,7 @@ class Compiler {
         else if (kind === 'floor') this.rawFloor(rest, at)
         else if (kind === 'pattern') this.stop('rooms/syntax', at, patternLine(at, false))
         else if (kind === 'wall' || kind === 'room' || kind === 'opening') this.rawPart(kind, rest, at)
+        else if (kind === 'stair') this.stairLines.raw(rest, at)
         else this.rawKind(kind, at)
         continue
       }
@@ -1073,6 +1081,8 @@ class Compiler {
     const kw = t[0]!
     // CNT-41: the plot, north and the site's things (`site.ts`).
     if (SITE_LINE_WORDS.includes(kw)) return this.siteLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    // LVL-21: a stair (`stairs.ts`), laid out once the rooms are drawn.
+    if (STAIR_LINE_WORDS.includes(kw)) return this.stairLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     switch (kw) {
       case 'plan':
         this.name = t[1] ?? null
@@ -1150,7 +1160,7 @@ class Compiler {
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north.`
+          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair.`
         )
     }
   }
@@ -4133,6 +4143,7 @@ class Compiler {
     for (const id of twice) this.problem('rooms/duplicate-id', null, `The id '${id}' would name two things in the plan (walls, rooms and openings share one set of ids). Rename one.`)
     this.rawOpeningFloors(plan.walls)
     this.emitSite(plan)
+    this.emitStairs(plan)
     if (this.problems.length > 0) return null
     this.askSizes(plan)
     const wallIds = new Set(plan.walls.map((w) => w.id))
@@ -4164,6 +4175,18 @@ class Compiler {
     this.warnings.push(...made.warnings.map(capital))
     if (made.site !== undefined) plan.site = made.site
     if (made.north !== undefined) plan.north = made.north
+  }
+
+  /** LVL-21: the stair lines into the plan's `stairs`, laid out in the rooms as drawn. */
+  private emitStairs(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.stairLines.written) return
+    const made = this.stairLines.finish(this.problems.length > 0 ? null : safeParseFloorPlan(plan))
+    const capital = (note: { code: string; line: number | null; message: string }): RoomsProblem => ({ ...note, message: note.message.charAt(0).toUpperCase() + note.message.slice(1) })
+    this.problems.push(...made.problems.map(capital))
+    this.warnings.push(...made.warnings.map(capital))
+    this.guesses.push(...made.guesses)
+    if (made.stairs !== undefined) plan.stairs = made.stairs
+    for (const id of this.stairLines.rawIds()) this.rawIds.add(id)
   }
 
   /**

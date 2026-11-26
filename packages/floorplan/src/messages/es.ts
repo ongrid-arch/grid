@@ -2138,15 +2138,16 @@ export const es: Messages = {
     "Línea {line}: un raw floor contiene {known} de la planta, como los guarda el archivo de plano de Grid, y {field} no es ninguno de ellos. {fix}",
   'rooms.raw.floorField.line': 'El {field} de la planta se escribe en su línea de planta: floor <id> {field} <valor>.',
   'rooms.raw.kind':
-    "Línea {line}: raw admite wall, room, opening o floor, y luego un objeto JSON como lo guarda el archivo de plano de Grid; 'raw {kind}' no es ninguno de ellos. {where}",
+    "Línea {line}: raw admite wall, room, opening, floor o stair, y luego un objeto JSON como lo guarda el archivo de plano de Grid; 'raw {kind}' no es ninguno de ellos. {where}",
   'rooms.raw.kind.opening': 'Una puerta o una ventana se escribe raw opening {"id": "<id>", "type": "{type}", "wall": "<id del muro>", "offset": <m>, "width": <m>, "height": <m>}.',
   'rooms.raw.kind.floor': 'El {list} de una planta se escribe raw floor {"{list}": ...}, bajo su línea de planta.',
   'rooms.raw.kind.list': 'El texto de estancias no tiene línea para ello: el archivo de plano de Grid lo guarda en "{list}", que se cambia en el archivo una vez escrito el plano.',
   'rooms.raw.kind.site': 'El texto de estancias escribe el solar en líneas propias: plot <ancho> x <fondo> o site boundary x,y ..., street <lado>, setback <desde> <m>, north <grados> y site <tree|path|paving|pool|fence|gate> ....',
   'rooms.raw.kind.none': 'El texto de estancias no tiene línea para ello, en crudo o no.',
+  'rooms.raw.kind.stair': 'Una escalera se escribe raw stair {"id": "<id>", "from": "<planta>", "to": "<planta>", "width": <m>, "run": [[x, y], ...]}, o en una línea propia: stair <id> from <planta> to <planta> in <estancia>, <ancho> wide, straight|L|U, runs <lado>.',
   'rooms.raw.smallLetters':
     "Línea {line}: el texto de estancias se lee en minúsculas, y '{written}' no lo está; escriba '{offered}'.",
-  'rooms.raw.kind.nothing': "Línea {line}: raw admite wall, room, opening o floor, y luego un objeto JSON como lo guarda el archivo de plano de Grid: raw wall {\"id\": ...}.",
+  'rooms.raw.kind.nothing': "Línea {line}: raw admite wall, room, opening, floor o stair, y luego un objeto JSON como lo guarda el archivo de plano de Grid: raw wall {\"id\": ...}.",
   'rooms.plan.oneName': 'Línea {line}: la línea plan admite un nombre, entre comillas si tiene espacios, y {extra} tras él no se leería. Escriba {offered}.',
   'rooms.wall.unknownRoom':
     "Línea {line}: la línea de muro nombra '{room}', que no es una estancia escrita en la planta '{floor}'.{nearest} Estancias de ahí: {rooms}.",

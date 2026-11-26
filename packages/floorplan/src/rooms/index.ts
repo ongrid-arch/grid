@@ -10,3 +10,4 @@ export { boundariesEdited, boundaryPrint, keptDerived, planRevision, stampFor, t
 export { carryFacts, type FactsCarried } from './facts'
 export { plainIdsFor, withPlainIds } from './ids'
 export { DRAWING_SIDES, edgeSides, edgesFacing, northOfWords, northWordsOf, NORTH_WAYS, plotCorners, setbackOfWords, siteEdges, siteLines, streetsOfWords, thingOfWords, turnOf, writtenSite, type SetbackWords } from './site'
+export { layStair, stairLine, stairLines, stairOfWords, stairSummary, stairWordsOf, StairLines, StairRefused, STAIR_SHAPES, STAIR_WAYS, type StairMade, type StairShape, type StairWay, type StairWords } from './stairs'
