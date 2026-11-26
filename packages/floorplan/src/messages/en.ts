@@ -2921,6 +2921,7 @@ export const en = {
   'describe.walk.floor.many': '{floor}: {count} rooms walked. {start}',
   'describe.walk.start.front': 'It starts at the front door the plan names.',
   'describe.walk.start.wayIn': 'The plan names no front door: it starts at the widest door from outside into a corridor, or the widest door from outside when none leads into one.',
+  'describe.walk.start.openSide': 'No door leads in from outside on this floor: it starts across an open side onto the outside.',
   'describe.walk.start.stair': 'No door leads in from outside on this floor: it starts in the stair room, where the stairs arrive.',
   'describe.walk.start.firstRoom': 'No door leads in from outside and no room is a stair: it starts in the first room of the floor.',
   'describe.walk.start.none': 'It has no room to walk.',

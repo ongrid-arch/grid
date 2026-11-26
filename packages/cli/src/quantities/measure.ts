@@ -366,10 +366,10 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
   }
 }
 
-type Joins = Pick<ReturnType<typeof floorJoins>, 'joins' | 'stairs'>
+export type Joins = Pick<ReturnType<typeof floorJoins>, 'joins' | 'stairs'>
 
-/** The stairs between floors as the way-out check reads them: its outlines, a lift left out. */
-function stairJoins(plan: FloorPlan): Joins {
+/** The stairs between floors as the way-out check reads them: its outlines, a lift left out. ARE-63: the walk reads them too. */
+export function stairJoins(plan: FloorPlan): Joins {
   const outlines = new Map<string, Map<string, readonly Vec2[]>>()
   const leftOutOn = new Map<string, ReadonlySet<string>>()
   for (const floor of planFloors(plan)) {

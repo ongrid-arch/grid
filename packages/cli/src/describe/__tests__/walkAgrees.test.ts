@@ -165,3 +165,130 @@ describe('the description says a door leads in from outside when the check does 
     expect(agent.text).toContain('from outside across open sides into hall')
   })
 })
+
+/**
+ * ARE-63: a house 6 × 4 with its front door, and a carport 3 × 4 against its west wall, open on
+ * its other three sides: dividing lines with nothing past them, which the check reads as ways out.
+ */
+const CARPORT = {
+  version: '1',
+  units: 'm',
+  walls: [
+    wall('s', [0, 0], [6, 0]),
+    wall('e', [6, 0], [6, 4]),
+    wall('n', [6, 4], [0, 4]),
+    wall('w', [0, 4], [0, 0]),
+    line('cp-s', [0, 0], [-3, 0]),
+    line('cp-w', [-3, 0], [-3, 4]),
+    line('cp-n', [-3, 4], [0, 4]),
+  ],
+  rooms: [
+    { id: 'house', name: 'House', boundary: ['s', 'e', 'n', 'w'], use: 'living' },
+    { id: 'carport', name: 'Carport', boundary: ['cp-s', 'w', 'cp-n', 'cp-w'] },
+  ],
+  openings: [door('front', 's', 2.5)],
+}
+
+/**
+ * ARE-63: a ground floor in two parts no door joins, a hall with the front door and its stair
+ * room, and a wing with its own stair room; upstairs a corridor joins the stair rooms over both.
+ * The wing is reached by its stair, from upstairs, as the check reads it.
+ *
+ *   x 0      4    6        10    12
+ *     | hall | stA | wing   | stB |   ground (front door in the hall)
+ *     | room | stA | corridor| stB |  first
+ */
+function twoStairs(): Record<string, unknown> {
+  const walls: Record<string, unknown>[] = []
+  const rooms: Record<string, unknown>[] = []
+  const openings: Record<string, unknown>[] = []
+  const xs = [0, 4, 6, 10, 12]
+  for (const [floor, names] of [['ground', ['hall', 'sta', 'wing', 'stb']], ['first', ['room', 'sta-1', 'corridor', 'stb-1']]] as const) {
+    const on = { floor }
+    for (let i = 0; i < 4; i++) {
+      walls.push(wall(`${floor}-s${i}`, [xs[i]!, 0], [xs[i + 1]!, 0], on), wall(`${floor}-n${i}`, [xs[i + 1]!, 4], [xs[i]!, 4], on))
+    }
+    walls.push(wall(`${floor}-w`, [0, 4], [0, 0], on), wall(`${floor}-e`, [12, 0], [12, 4], on))
+    for (const x of [1, 2, 3]) walls.push(wall(`${floor}-x${x}`, [xs[x]!, 0], [xs[x]!, 4], { ...on, kind: 'interior' }))
+    const side = (i: number): string => (i === 0 ? `${floor}-w` : `${floor}-x${i}`)
+    for (let i = 0; i < 4; i++) {
+      const east = i === 3 ? `${floor}-e` : `${floor}-x${i + 1}`
+      rooms.push({ id: names[i], name: names[i], floor, boundary: [`${floor}-s${i}`, east, `${floor}-n${i}`, side(i)], ...(names[i]!.startsWith('st') ? { use: 'stair' } : {}) })
+    }
+  }
+  openings.push(
+    door('front', 'ground-s0', 1.5),
+    door('g1', 'ground-x1', 1.5),
+    door('g3', 'ground-x3', 1.5),
+    door('f1', 'first-x1', 1.5),
+    door('f2', 'first-x2', 1.5),
+    door('f3', 'first-x3', 1.5),
+  )
+  return {
+    version: '1',
+    units: 'm',
+    floors: [{ id: 'ground', name: 'Ground floor', level: 0 }, { id: 'first', name: 'First floor', level: 1 }],
+    walls,
+    rooms,
+    openings,
+  }
+}
+
+/**
+ * ARE-63: a stair room 3 m wide and 16.1 m long to the start of its half-round north end, a
+ * curved wall, entered by a door in a 45° chamfer across its south-west corner.
+ */
+const CURVED_STAIR = {
+  version: '1',
+  units: 'm',
+  walls: [
+    wall('s', [1.5, 0], [3, 0]),
+    wall('e', [3, 0], [3, 16.1]),
+    wall('n', [3, 16.1], [0, 16.1], { arc: { centre: [1.5, 16.1], sweep: 180 } }),
+    wall('w', [0, 16.1], [0, 1.5]),
+    wall('c', [0, 1.5], [1.5, 0]),
+  ],
+  rooms: [{ id: 'stair', name: 'Stair', boundary: ['s', 'e', 'n', 'w', 'c'], use: 'stair' }],
+  openings: [door('d', 'c', 0.6)],
+}
+
+describe('the walk reaches every room the check reaches (ARE-63)', () => {
+  it('a carport open to the outside is walked from its open side, not left "not reached"', () => {
+    const survey = surveyPlan(parseFloorPlan(CARPORT))
+    expect(checkPlanSanity(survey.plan).findings.filter((f) => f.code === 'no_route_to_exit' || f.code === 'room_without_door')).toEqual([])
+    const walk = planWalk(survey).floors[0]!
+    expect(walk.start).toBe('way in')
+    expect(walk.notReached).toEqual([])
+    const carport = walk.stops.find((s) => s.room === 'carport')!
+    expect(carport.from).toBe('outside')
+    expect(carport.viaKind).toBe('open side')
+  })
+
+  it('the wing reached only by its stair is walked from its stair room', () => {
+    const survey = surveyPlan(parseFloorPlan(twoStairs()))
+    expect(checkPlanSanity(survey.plan).findings.filter((f) => f.code === 'no_route_to_exit' || f.code === 'room_without_door')).toEqual([])
+    const ground = planWalk(survey).floors.find((f) => f.floor === 'ground')!
+    expect(ground.start).toBe('way in')
+    expect(ground.notReached).toEqual([])
+    expect(ground.stops.map((s) => s.room)).toEqual(['hall', 'sta', 'stb', 'wing'])
+    expect(ground.stops.find((s) => s.room === 'stb')!.from).toBeNull()
+  })
+
+  it('in words: the open side the walk comes in by, and no room "not reached"', () => {
+    const survey = surveyPlan(parseFloorPlan(CARPORT))
+    const person = walkText(survey, planWalk(survey), 'person')
+    expect(person).not.toContain('Not reached')
+    expect(person).toContain('Carport')
+  })
+})
+
+describe('a room is sized along its own sides (ARE-63)', () => {
+  it('a 3 m stair with a curved end, entered at a chamfer, is said by its own sides: 2.8 m across', () => {
+    const survey = surveyPlan(parseFloorPlan(CURVED_STAIR))
+    const stair = planWalk(survey).floors[0]!.stops[0]!
+    // Inside the 0.2 m walls: 2.8 m across; from the chamfer's door to the far end of the curve.
+    expect(stair.across).toBeCloseTo(2.8, 1)
+    expect(stair.deep).toBeGreaterThan(15)
+    expect(stair.deep).toBeLessThan(17.5)
+  })
+})

@@ -2914,6 +2914,7 @@ export const es: Messages = {
   'describe.walk.floor.many': '{floor}: {count} estancias recorridas. {start}',
   'describe.walk.start.front': 'Empieza en la puerta principal que indica el plano.',
   'describe.walk.start.wayIn': 'El plano no indica puerta principal: empieza en la puerta más ancha desde el exterior a un pasillo, o en la puerta más ancha desde el exterior si ninguna da a uno.',
+  'describe.walk.start.openSide': 'Ninguna puerta entra desde el exterior en esta planta: empieza cruzando un lado abierto al exterior.',
   'describe.walk.start.stair': 'Ninguna puerta entra desde el exterior en esta planta: empieza en la estancia de la escalera, donde llega la escalera.',
   'describe.walk.start.firstRoom': 'Ninguna puerta entra desde el exterior y ninguna estancia es una escalera: empieza en la primera estancia de la planta.',
   'describe.walk.start.none': 'No tiene estancias que recorrer.',
