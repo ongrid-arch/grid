@@ -39,6 +39,7 @@ import { setFactsTool } from './factsTool'
 import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
 import { STAIR_TOOLS } from './stairTools'
+import { placeTraceTool } from './traceTool'
 import { annotateTool } from './annotateTool'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
@@ -80,6 +81,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...STAIR_TOOLS,
   // CNT-41: the plot, north and the site's things: the ground, never the building.
   ...SITE_TOOLS,
+  // VEW-67: the trace image under the plan, drawn only: no part of the building.
+  placeTraceTool,
   // SHT-22: writing on the drawing and its sketch, never the building or the ground.
   annotateTool,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
