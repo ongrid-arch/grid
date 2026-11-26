@@ -53,7 +53,6 @@ export type StairShape = (typeof STAIR_SHAPES)[number]
 export const STAIR_WAYS = ['north', 'east', 'south', 'west'] as const
 export type StairWay = (typeof STAIR_WAYS)[number]
 
-const WAY: Readonly<Record<StairWay, P>> = { north: [0, 1], east: [1, 0], south: [0, -1], west: [-1, 0] }
 /** A quarter turn clockwise on the drawing. */
 const CLOCKWISE: Readonly<Record<StairWay, StairWay>> = { north: 'east', east: 'south', south: 'west', west: 'north' }
 const OPPOSITE: Readonly<Record<StairWay, StairWay>> = { north: 'south', south: 'north', east: 'west', west: 'east' }

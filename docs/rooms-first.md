@@ -270,6 +270,28 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   with its line (`rooms/raw`). With no floor line the plan has one floor and a raw part gets no
   floor; a `raw floor` line there gives its fields to that one floor, the ground floor, and the
   plan writes it with them.
+- A stair is a line of its own (LVL-21), after the rooms it names:
+  `stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <width> wide, straight|L|U, runs <side> [then <side>] [along <side>] [risers <n>]`.
+  It writes the plan's own stair (`stairs`), which the drawing's treads and break line, the
+  sections, the 3D model, the IFC export and the way-out check read: never draw treads as walls
+  or leave a stair an empty room. A room after `from` or `to` stands for its floor, and with no
+  `in` the stair goes in the room `from` (or else `to`) names. `runs` is the way the walking line
+  goes from the `from` floor. Grid lays it in the box of the room's inside faces, each end of the
+  walking line a landing as deep as the stair is wide inside the room: a straight one centred
+  across the room, or against the side `along` names; an L up the side away from its turn, a
+  square landing in the far corner and on towards the side `then` names (a quarter turn
+  clockwise from `runs` when left out); a U up one side and back down the other. Grid's stairs
+  turn on square landings as wide as the flight, so a U is two landings with a short flight
+  across the well between them, in a room wider than twice the stair. `..., <width> wide, run x,y x,y ...`
+  gives the walking line itself, for a stair in a room it does not fill. The answer gives, among
+  what Grid chose, each stair's walking line, risers, their height, the going and the pitch; a
+  stair that does not fit its room is refused naming the room's size and what it needs
+  (`rooms/stair`), and an end that lands in no room is said with its line (`rooms/stair-end`).
+  `raw stair {...}` takes the plan file's own JSON for a stair, kept as written. The read-back
+  writes every stair as a line: in its room when the room gives back its walking line, along
+  its walking line otherwise, and raw when Grid cannot lay it out. `grid write` keeps the file's
+  stairs when the text writes no stair line, and says so; `grid_add_stair` and
+  `grid_change_stair` write and change the same stairs on the tool server.
 - A door, window or opening line may name a raw room (WRT-45). `between <a> and <b>` goes in
   the one wall both rooms' boundaries name, and `in <room> <side>` in the one wall of the room
   whose outside face looks that way, a curved wall too. The place is `centred` or
@@ -282,10 +304,10 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   refused with its line, the nearest field Grid knows and the fields that place has: a curve is
   `"arc": {"centre": [x, y], "sweep": <degrees>}`, never `bulge` or `spline`, and facts of your
   own go in `"properties"`. A `raw floor` field the floor does not take is named too (a height is
-  written on the floor line). Raw takes `wall`, `room`, `opening` or `floor`: `raw door` is told
-  it is a raw opening, `raw stair`, `raw column` and `raw fixture` that the plan file
-  holds them in its own lists, and `raw site` that the site has lines of its own (`rooms/raw`), however `raw` is written: `Raw stair` is told the
-  same, and `Raw wall {...}` is refused offering `raw wall`, as rooms text is read in small
+  written on the floor line). Raw takes `wall`, `room`, `opening`, `floor` or `stair`: `raw door` is told
+  it is a raw opening, `raw column` and `raw fixture` that the plan file
+  holds them in its own lists, `raw staircase` how a stair is written, and `raw site` that the site has lines of its own (`rooms/raw`), however `raw` is written: `Raw stair {...}` and
+  `Raw wall {...}` are refused offering `raw stair` and `raw wall`, as rooms text is read in small
   letters (WRT-68). A `plan` line takes one name, in quotes when it has
   spaces, and words after it are refused (`rooms/syntax`); a wall line naming no room of its
   floor is refused with the nearest room (`rooms/unknown-room`).
@@ -515,7 +537,7 @@ raw room {"id": "apse-room", "name": "Apse", "use": "assembly", "boundary": ["ap
 
 ### Raw parts
 
-raw wall|room|opening {...} writes one part as Grid's own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms' boundaries name, or the one facing <side>). Stairs, columns, fixtures, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text; the site has lines of its own (below).
+raw wall|room|opening|stair {...} writes one part as Grid's own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms' boundaries name, or the one facing <side>). Columns, fixtures, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text; stairs and the site have lines of their own (below).
 
 ```rooms
 raw wall {"id": "s", "start": [0, 0], "end": [4, 0], "thickness": 0.2, "height": 3, "kind": "exterior"}
@@ -586,6 +608,19 @@ end
 repeat cell 4 east as 101 at 0,0
 room corridor "Corridor" corridor * x 1.5 north of 101 until 104
 repeat cell 4 east as 105 north of corridor mirror north-south
+```
+
+### Stairs
+
+stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <width> wide, straight|L|U, runs <north|south|east|west> [then <side>] [along <side>] [risers <n>] lays the plan's own stair in the room, after the rooms: the drawing's treads and break line, the sections, the 3D model, the IFC export and the way-out check read it. A room after from or to stands for its floor, and with no in the stair goes in that room. runs is the way the walking line goes from the from floor; each end keeps a landing as deep as the stair is wide inside the room. L turns on a square landing in the far corner (then: the way it turns, clockwise when left out); U goes up one side and down the other, a short flight across the well, in a room wider than twice the stair; along puts a straight one against that side. ..., <width> wide, run x,y x,y ... gives the walking line itself. Never draw treads as walls. grid_add_stair and grid_change_stair write the same.
+
+```rooms
+floor ground "Ground floor"
+room hall "Hall" corridor 2.4 x 5 at 0,0
+door front in hall south, centred, 0.9 wide, opens in
+floor first "First floor" level 1
+room landing "Landing" corridor 2.4 x 5 at 0,0
+stair st "Main stair" from ground to first in hall, 1 wide, U, runs north
 ```
 
 ### Site
