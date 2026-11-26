@@ -31,8 +31,8 @@ top, as before, and a wall on a floor with no sloped roof is drawn as before.
 
 - `packages/floorplan/src/geometry/__tests__/facade.test.ts`: a loft whose walls state 2.60 m
   under a gable rising higher draws its gable end as one face from the eaves to the verge, with no
-  corner at 2.60 m, and the silhouette has one ring with no hole; a terrace's parapet under the
-  same roof keeps its height.
+  corner between them, under the verge bands, and the silhouette has one ring with no hole; the
+  side walls are still cut at the eaves.
 - `packages/viewer/src/picture/__tests__/facade.test.ts`: the gable's path has no point at the
   stated height.
 - The packages' tests, the type check of `floorplan` and `viewer`, lint, `ownWords.test.ts` and

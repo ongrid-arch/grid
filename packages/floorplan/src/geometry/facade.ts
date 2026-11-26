@@ -17,7 +17,9 @@
  * - **the wall behind each stretch of that edge** is the solid wall whose outside face lies on it
  *   (within `facadeOnFace`): its height, from its floor's level (`floorElevations`, LVL-1), and its
  *   doors and windows, at their sills and heads. Under another floor a storey's top is that
- *   floor's slab: a full-height wall that stops short of it rises to it (`wallTopsUnder`, VEW-33). A short stretch with no wall on it (a corner, a
+ *   floor's slab: a full-height wall that stops short of it rises to it (`wallTopsUnder`, VEW-33).
+ *   Under a roof the floor states (LVL-6) it rises to the roof whatever height it states, so a
+ *   gable end is drawn whole from the eaves to the verge (VEW-61). A short stretch with no wall on it (a corner, a
  *   wall end) is part of the wall beside it; a long one (a dividing line on the outline, an open
  *   side) is open, and drawn as nothing;
  * - **on a floor with outdoor space** (C26, VEW-25), whose slab's outline leaves out the walls round
@@ -53,14 +55,14 @@ import type { FloorPlan, Opening, Wall } from './plan'
 import { COMPASS_SIDES } from '../types/floorplan'
 import { floorElevations, isFiniteWall, wallTopsUnder } from './elevations'
 import { planEnvelope } from './envelope'
-import { planFloors, planForFloor } from './floors'
+import { floorOf, planFloors, planForFloor } from './floors'
 import { indexPlan } from './plan'
 import { groundLevel, plinthUnder } from './ground'
 import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './orientation'
 import { withPatterns } from './patterns'
 import { tolerance } from './tolerances'
 import { brokenOnFloor } from './validate'
-import { planeAt, topAt, wallTopProfile, type RoofPlane } from './roofs'
+import { floorRoofShape, planeAt, topAt, wallTopProfile, type RoofPlane } from './roofs'
 import type { Vec2 } from './vec2'
 import { straightPieces, wallPointAt } from './wall'
 import { curveFault, wallCurve } from './arc'
@@ -458,13 +460,18 @@ function openingsIn(
  * back along its top: level at its height, or at the underside of the slab or flat roof over it
  * when it stops short of it (`raisedTo`, VEW-33), or, under a roof the floor states (LVL-6), the
  * top the roof leaves it (`wallTopProfile`), turning where it turns.
+ *
+ * VEW-61: under a roof the floor states, an outside wall (`toRoof`) rises to the roof whatever
+ * height it states, as a wall that states none does: its top is the roof's underside over its line,
+ * so a gable end is drawn whole from the eaves to the verge, with no line at the stated height.
  */
-function wallPoints(plan: FloorPlan, wall: Wall, edge: { a: Vec2; e: Vec2 }, stretch: { t0: number; t1: number }, floorLevel: number, drop = 0, raisedTo?: number): Seen['points'] {
+function wallPoints(plan: FloorPlan, wall: Wall, edge: { a: Vec2; e: Vec2 }, stretch: { t0: number; t1: number }, floorLevel: number, drop = 0, raisedTo?: number, toRoof = false): Seen['points'] {
   const point = (t: number): Vec2 => ({ x: edge.a.x + edge.e.x * t, y: edge.a.y + edge.e.y * t })
   const a = point(stretch.t0)
   const b = point(stretch.t1)
   const bottom = [{ p: a, z: floorLevel - drop }, { p: b, z: floorLevel - drop }]
-  const profile = wallTopProfile(plan, wall)
+  const roofTop = toRoof ? floorRoofShape(plan, floorOf(wall))?.top : undefined
+  const profile = wallTopProfile(plan, roofTop !== undefined && roofTop > wall.height ? { ...wall, height: roofTop } : wall)
   // VEW-33: a level top under another floor's slab, or the flat roof Grid lays, rises to it.
   const level = raisedTo ?? floorLevel + wall.height
   if (profile === null) return [...bottom, { p: b, z: level }, { p: a, z: level }]
@@ -680,7 +687,11 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
             kind: 'wall',
             floor: floor.id,
             wall: stretch.wall.id,
-            points: wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel, bandDrop, fenced.has((owners.get(stretch.wall) ?? stretch.wall).id) ? undefined : topUnder(owners.get(stretch.wall) ?? stretch.wall, floor.id)?.top),
+            points: (() => {
+              const own = fenced.has((owners.get(stretch.wall) ?? stretch.wall).id)
+              // VEW-35: a wall round outdoor space alone keeps its own top; VEW-61: any other rises to the roof the floor states.
+              return wallPoints(plan, stretch.wall, edge, stretch, storey.floorLevel, bandDrop, own ? undefined : topUnder(owners.get(stretch.wall) ?? stretch.wall, floor.id)?.top, !own)
+            })(),
             openings: openingsIn(stretch.wall, openingsOf.get(stretch.wall.id) ?? [], edge, stretch, across, storey.floorLevel)
           })
         }

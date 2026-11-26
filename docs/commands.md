@@ -955,9 +955,10 @@ corner. It refuses `--3d`, `--view`, `--section` and `--floor` (a facade shows e
 what belongs to a floor plan (`--ids`, `--hide`, `--colour`, `--key`, `--units`, `--decimal`,
 `--marks`), by name. Stairs
 stand inside and are not seen; a garden wall that bounds no room or outdoor space is not drawn. Under a roof a
-floor states (LVL-6), each wall is drawn to the top the roof leaves it, so a gable end is a
-gable, the roof's edges follow its slope, and each plane of it that comes down toward the side is
-drawn as a surface.
+floor states (LVL-6), each outside wall is drawn up to the roof, whatever height it states
+(VEW-61): a gable end is drawn whole from the eaves to the verge, with no line at the walls'
+height, the roof's edges follow its slope, and each plane of it that comes down toward the side is
+drawn as a surface. A wall round outdoor space alone keeps its own height.
 
 A sloped roof's plane is drawn as a roof (VEW-12), never as a blank face: its covering as level
 courses along its eaves (1.5 mm apart on paper, 6 pixels on the screen), its ridge and hips in the
