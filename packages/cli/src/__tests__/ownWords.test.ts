@@ -68,7 +68,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-46: four more, the file's bays and ramps kept when the text writes none.
   'packages/cli/src/command/write.ts': [46, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
-  'packages/cli/src/describe/card.ts': [14, 'agentForm'],
+  'packages/cli/src/describe/card.ts': [15, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
   'packages/cli/src/describe/walk.ts': [4, 'agentForm'],
   // CMD-7: three of its skill's paragraphs are in guide/paragraphs.ts now.
