@@ -149,7 +149,7 @@ describe('WR-19: the estate agent\'s five rooms', () => {
       const withScan = await run('write', '--layout', 'tidy', '--scan', 'scans/flat.json')
       expect(withScan.status).toBe(2)
       expect(withScan.err).toContain('write takes --layout or --scan, not both')
-      expect((await run('write')).err).toContain('grid write <plan.rooms>, --layout tidy|sizes or --scan <scan.json>')
+      expect((await run('write')).err).toContain('grid write <plan.rooms>, --layout tidy|sizes, --scan <scan.json> or --from <drawing.dxf>')
       writeFileSync(join(dir, 'plan.brief.json'), JSON.stringify({ version: '1', ...LISTING }))
       const done = await run('write', '--layout', 'tidy')
       expect(done.status, done.err).toBe(0)
@@ -171,7 +171,7 @@ describe('WR-19: the estate agent\'s five rooms', () => {
     expect(both.text).toContain('Pass rooms or layout, not both')
     const neither = await b.call('grid_write_rooms', { plan: 'plan.json' })
     expect(neither.isError).toBe(true)
-    expect(neither.text).toContain('Pass rooms (the rooms text to write), roomsFile (a rooms text file in the project), layout (tidy or sizes, a first layout from the brief beside the plan) or scan')
+    expect(neither.text).toContain('Pass rooms (the rooms text to write), roomsFile (a rooms text file in the project), layout (tidy or sizes, a first layout from the brief beside the plan), scan (a phone room scan file in the project) or from')
     // HND-12: a scan is the third way in, and the answer carries it, null for a layout.
     expect(done.data?.['scan']).toBeNull()
     const withScan = await b.call('grid_write_rooms', { plan: 'plan.json', layout: 'tidy', scan: 'scans/flat.json' })

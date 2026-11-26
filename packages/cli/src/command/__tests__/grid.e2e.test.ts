@@ -595,6 +595,8 @@ describe('the built file', () => {
     // again with no new dependency.
     // 750 kB since CMD-7: the guide for agents, which the tool server serves from the bundle, and
     // the plan's JSON Schema writer take it to 717,520 bytes, with no new dependency.
-    expect(statSync(bundle).size).toBeLessThan(750_000)
+    // 800 kB since CMD-43: its DXF and IFC readers on main at 7e8093e9 take it to 752,603 bytes,
+    // again with no new dependency.
+    expect(statSync(bundle).size).toBeLessThan(800_000)
   })
 })

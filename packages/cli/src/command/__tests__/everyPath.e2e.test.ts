@@ -130,6 +130,8 @@ const COMMAND_SLOTS: Readonly<Record<string, readonly CommandSlot[]>> = {
     { label: '--plan, with --layout', args: (p) => ['write', '--layout', 'tidy', '--plan', `${p}.json`], given: (p) => `${p}.json` },
     // HND-12: a phone room scan, read like a plan; its evidence file is the plan's name beside the plan.
     { label: '--scan', args: (p) => ['write', '--scan', p, '--plan', 'new.json'], given: asIs },
+    // CMD-43: a DXF or IFC drawing, read like a scan; its rooms text is the plan's name beside the plan.
+    { label: '--from', args: (p) => ['write', '--from', p, '--plan', 'new.json'], given: asIs },
   ],
   check: [
     { label: 'the plan', args: (p) => ['check', p], given: asIs },
@@ -259,6 +261,8 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'scan', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: 'new.json', scan: p } }), given: asIs },
     // CMD-38: rooms text read from a file in the project.
     { arg: 'roomsFile', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: 'new.json', roomsFile: p } }), given: asIs },
+    // CMD-43: a DXF or IFC drawing in place of rooms text.
+    { arg: 'from', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: 'new.json', from: p } }), given: asIs },
   ],
   grid_change_opening: [
     { arg: 'plan', call: tool('grid_change_opening', { plan: '@', opening: 'bed2-door', hinge: 'end' }), given: asIs },
@@ -469,15 +473,17 @@ describe('the slots this file lists', () => {
 
   it('cover every tool argument that is a path, and no other', async () => {
     const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after', 'image']
+    // CMD-43: from is a drawing's path in grid_write_rooms; elsewhere it is a part or a point.
+    const isPath = (tool: string, arg: string): boolean => PATH_ARGS.includes(arg) || (tool === 'grid_write_rooms' && arg === 'from')
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
-      .filter((arg) => PATH_ARGS.includes(arg))
+      .filter((arg) => isPath(t.name, arg))
       .map((arg) => `${t.name} ${arg}`))
     const listed = [...new Set(Object.entries(TOOL_SLOTS).flatMap(([name, slots]) => slots.map((slot) => `${name} ${slot.arg}`)))]
     expect(listed.sort()).toEqual(pathArgs.sort())
     // No other free text argument of any tool is described as a file, a folder or a path.
     const others = reply!.result.tools.flatMap((t) => Object.entries(t.inputSchema.properties as Record<string, { type?: unknown; enum?: unknown; description?: string }>)
-      .filter(([arg, schema]) => !PATH_ARGS.includes(arg)
+      .filter(([arg, schema]) => !isPath(t.name, arg)
         && JSON.stringify(schema.type).includes('string') && schema.enum === undefined
         && /\b(file|folder|path)\b/i.test(schema.description ?? ''))
       .map(([arg]) => `${t.name} ${arg}`))
