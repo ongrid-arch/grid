@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildFloorPlan, rectInsidePolygon } from '@ongrid/floorplan/geometry'
+import { buildFloorPlan, rectInsidePolygon, rectTouchesPolygon } from '@ongrid/floorplan/geometry'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { TEXT_PX } from '../look'
@@ -23,6 +23,13 @@ function units(count: number, size: number, extra = ''): FloorPlan {
   return written.plan as FloorPlan
 }
 
+function roomWalls(id: string, corners: [number, number][]): FloorPlan['walls'] {
+  return corners.map((start, i) => ({
+    id: `${id}-${i}`, start, end: corners[(i + 1) % corners.length]!,
+    thickness: 0.12, height: 2.6, kind: 'interior'
+  }))
+}
+
 const textOf = (node: SvgNode | string | undefined): string =>
   node === undefined ? '' : typeof node === 'string' ? node : node.children.map(textOf).join('')
 
@@ -41,7 +48,7 @@ describe('the room key (VEW-13)', () => {
       const [x, y] = /translate\((\S+) (\S+)\)/.exec(String(node.attrs.transform))!.slice(1).map(Number)
       const name = (node.children as SvgNode[])[0]!
       const scale = Number(name.attrs['font-size']) / TEXT_PX.roomName
-      const box = formBox({ names: [textOf(name)], area: null, scale, turned: false, keyed: true }, { x: x!, y: -y! }, mpp)
+      const box = formBox({ names: [textOf(name)], area: null, scale, angle: 0, keyed: true }, { x: x!, y: -y! }, mpp)
       expect(rectInsidePolygon(box, room.polygon)).toBe(true)
     }
     const entries = (picture.key?.nodes ?? []).filter((node) => node.attrs['data-part'] === 'room-key-entry').map(textOf)
@@ -53,6 +60,49 @@ describe('the room key (VEW-13)', () => {
     expect(planPicture(units(3, 4), { width: 800 }).key).toBeNull()
     const off = planPicture(units(24, 1.2), { width: 800, show: { key: false } })
     expect((off.key?.nodes ?? []).some((node) => node.attrs['data-part'] === 'room-key-entry')).toBe(false)
+  })
+
+  it('shows the number on each repeated room even when its whole name fits', () => {
+    const plan = units(3, 4)
+    const [first, ...rest] = plan.rooms
+    const picture = planPicture({ ...plan, rooms: [{ ...first!, number: 'A4' }, ...rest] }, { width: 800 })
+    const labels = picture.nodes.filter((node) => node.key?.startsWith('label:'))
+    expect(labels.map((label) => textOf(label.children[0]))).toEqual(['A4 Storage unit', '1 Storage unit', '2 Storage unit'])
+    expect(labels.every((label) => textOf(label.children[1]).endsWith('m²'))).toBe(true)
+  })
+
+  it('places labels in the visible part of a crop and keeps the floor numbers', () => {
+    const plan = units(3, 40)
+    const picture = planPicture(plan, {
+      width: 800,
+      frame: { min: { x: 43, y: 4 }, max: { x: 45, y: 6 }, width: 2, height: 2 }
+    })
+    const labels = picture.nodes.filter((node) => node.key?.startsWith('label:'))
+    expect(labels.map((label) => label.key)).toEqual(['label:u2'])
+    expect(textOf(labels[0]?.children[0])).toBe('2 Storage unit')
+    const [, x, y] = /translate\((\S+) (\S+)\)/.exec(String(labels[0]?.attrs.transform))!
+    expect(Number(x)).toBeGreaterThan(43)
+    expect(Number(x)).toBeLessThan(45)
+    expect(-Number(y)).toBeGreaterThan(4)
+    expect(-Number(y)).toBeLessThan(6)
+  })
+
+  it('keeps the host label off a room nested inside it', () => {
+    const plan = units(1, 10)
+    const inner = roomWalls('pod', [[2, 2], [8, 2], [8, 8], [2, 8]])
+    const joined: FloorPlan = {
+      ...plan,
+      walls: [...plan.walls, ...inner],
+      rooms: [...plan.rooms, { id: 'pod', name: 'Meeting pod', boundary: inner.map((wall) => wall.id), inside: true }]
+    }
+    const picture = planPicture(joined, { width: 800 })
+    const host = picture.nodes.find((node) => node.key === 'label:u1')!
+    const [, x, y] = /translate\((\S+) (\S+)\)/.exec(String(host.attrs.transform))!
+    const box = formBox({
+      names: ['Storage unit'], area: textOf(host.children[1]), scale: 1, angle: 0, keyed: false
+    }, { x: Number(x), y: -Number(y) }, picture.view.width / picture.width)
+    const pod = buildFloorPlan(joined).rooms.find((room) => room.id === 'pod')!
+    expect(rectTouchesPolygon(box, pod.polygon)).toBe(false)
   })
 
   it('writes the numbers in runs', () => {

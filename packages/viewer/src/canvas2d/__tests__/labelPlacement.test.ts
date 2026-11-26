@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { buildFloorPlan, pointInPolygon, poleOfInaccessibility, rectInsidePolygon, rectTouchesPolygon, roomDimensions } from '@ongrid/floorplan/geometry'
+import { buildFloorPlan, pointInPolygon, rectInsidePolygon, rectTouchesPolygon, roomDimensions } from '@ongrid/floorplan/geometry'
 import type { Dimension, PlanRoom } from '@ongrid/floorplan/geometry'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { LabelRoom } from '../labelPlacement'
 import {
-  LEADER_REACH_PX,
   dimensionTextBox,
   doorSwingBox,
   formBox,
+  formCorners,
   lineOutline,
   roomNumbers,
   formatArea,
@@ -118,7 +118,6 @@ const labelRoom = (id: string, polygon: { x: number; y: number }[], name = 'Kitc
 describe('placeRoomLabels', () => {
   it('centres the label on the middle of a plain room', () => {
     const [label] = placeRoomLabels([labelRoom('r', ring([0, 0], [6, 0], [6, 5], [0, 5]))], NONE, MPP)
-    expect(label!.leader).toBeNull()
     expect((label!.box.minX + label!.box.maxX) / 2).toBeCloseTo(3, 6)
     expect((label!.box.minY + label!.box.maxY) / 2).toBeCloseTo(2.5, 6)
   })
@@ -126,8 +125,7 @@ describe('placeRoomLabels', () => {
   it('puts a U-shaped room’s label in the room, where its corners’ average is not', () => {
     const you = ring([0, 0], [7, 0], [7, 5], [5, 5], [5, 2], [2, 2], [2, 5], [0, 5])
     const [label] = placeRoomLabels([labelRoom('u', you)], NONE, MPP)
-    expect(label!.leader).toBeNull()
-    expect(pointInPolygon(label!.anchor, you)).toBe(true)
+    expect(pointInPolygon(label!.at, you)).toBe(true)
     expect(rectInsidePolygon(label!.box, you)).toBe(true)
   })
 
@@ -135,7 +133,6 @@ describe('placeRoomLabels', () => {
     const polygon = ring([0, 0], [4, 0], [4, 3], [0, 3])
     const swing = { minX: 1.2, minY: 0.8, maxX: 2.8, maxY: 2.2 }
     const [label] = placeRoomLabels([labelRoom('r', polygon)], { ...NONE, swings: [swing] }, MPP)
-    expect(label!.leader).toBeNull()
     expect(overlaps(label!.box, swing)).toBe(false)
     expect(rectInsidePolygon(label!.box, polygon)).toBe(true)
   })
@@ -147,35 +144,10 @@ describe('placeRoomLabels', () => {
     expect(label!.box.maxX <= 2.9 || label!.box.minX >= 3.1 || label!.box.minY >= 3).toBe(true)
   })
 
-  it('moves a label too big for its room out, with a leader from the room’s pole', () => {
-    // VEW-13: too small for the name even wrapped and smaller, and with no number to fall back to.
-    const closet = ring([0, 0], [0.4, 0], [0.4, 0.4], [0, 0.4])
-    const hall = ring([1, 0], [8, 0], [8, 4], [1, 4])
-    const [small, big] = placeRoomLabels([labelRoom('closet', closet, 'Linen closet'), labelRoom('hall', hall)], NONE, MPP)
-    expect(big!.leader).toBeNull()
-    expect(small!.leader).not.toBeNull()
-    const [from, to] = small!.leader!
-    expect(from).toEqual(poleOfInaccessibility(closet).point)
-    expect(pointInPolygon(small!.anchor, closet)).toBe(true)
-    // The leader ends on the edge of the moved label, which sits clear of both rooms.
-    expect(to.x >= small!.box.minX && to.x <= small!.box.maxX && to.y >= small!.box.minY && to.y <= small!.box.maxY).toBe(true)
-    expect(overlaps(small!.box, big!.box)).toBe(false)
-    expect(rectInsidePolygon(small!.box, hall)).toBe(false)
-    expect(small!.box.maxX <= 0 || small!.box.minY >= 4 || small!.box.maxY <= 0 || small!.box.minX >= 8).toBe(true)
-    // A short leader: the label stays by its room.
-    expect(Math.max(-small!.box.maxX, small!.box.minY - 0.4, -small!.box.maxY, small!.box.minX - 0.4)).toBeLessThanOrEqual(LEADER_REACH_PX * MPP + 1e-9)
-  })
-
-  it('keeps every label off every other, in a row of rooms too small for them', () => {
-    const rooms = Array.from({ length: 12 }, (_, i) =>
-      labelRoom(`r${i}`, ring([i, 0], [i + 0.9, 0], [i + 0.9, 0.9], [i, 0.9]), `Store room ${i}`)
-    )
-    const labels = placeRoomLabels(rooms, NONE, MPP)
-    labels.forEach((a, i) => {
-      expect(a).not.toBeNull()
-      expect(pointInPolygon(a!.anchor, rooms[i]!.polygon)).toBe(true)
-      labels.slice(i + 1).forEach((b) => expect(overlaps(a!.box, b!.box)).toBe(false))
-    })
+  it('leaves a room with no fitting label blank, even next to open space', () => {
+    const closet = ring([0, 0], [0.12, 0], [0.12, 0.12], [0, 0.12])
+    const [small] = placeRoomLabels([{ ...labelRoom('closet', closet, 'Linen closet'), number: '1' }], NONE, MPP)
+    expect(small).toBeNull()
   })
 
   it('gives the same places every time', () => {
@@ -190,8 +162,7 @@ describe('room labels that stay in their rooms (VEW-13)', () => {
   it('turns the name along a long narrow room it is too wide to sit across', () => {
     const corridor = ring([0, 0], [1, 0], [1, 12], [0, 12])
     const [label] = placeRoomLabels([labelRoom('c', corridor, 'Dirty corridor')], NONE, MPP)
-    expect(label!.leader).toBeNull()
-    expect(label!.form.turned).toBe(true)
+    expect(label!.form.angle).toBe(90)
     expect(label!.form.names).toEqual(['Dirty corridor'])
     expect(rectInsidePolygon(label!.box, corridor)).toBe(true)
     const redrawn = formBox(label!.form, label!.at, MPP)
@@ -201,7 +172,6 @@ describe('room labels that stay in their rooms (VEW-13)', () => {
   it('writes a smaller, wrapped name in a room too small for the whole label', () => {
     const office = ring([0, 0], [1.2, 0], [1.2, 1.2], [0, 1.2])
     const [label] = placeRoomLabels([labelRoom('o', office, 'Two person office')], NONE, MPP)
-    expect(label!.leader).toBeNull()
     expect(label!.form.scale).toBeLessThan(1)
     expect(label!.form.names.length).toBe(2)
     expect(rectInsidePolygon(label!.box, office)).toBe(true)
@@ -210,7 +180,6 @@ describe('room labels that stay in their rooms (VEW-13)', () => {
   it('falls back to the room’s number, in the room, when no name fits', () => {
     const stall = ring([0, 0], [0.6, 0], [0.6, 0.6], [0, 0.6])
     const [label] = placeRoomLabels([numbered('s', stall, 'Housekeeping store', '7')], NONE, MPP)
-    expect(label!.leader).toBeNull()
     expect(label!.form.keyed).toBe(true)
     expect(label!.form.names).toEqual(['7'])
     expect(rectInsidePolygon(label!.box, stall)).toBe(true)
@@ -220,7 +189,6 @@ describe('room labels that stay in their rooms (VEW-13)', () => {
     const stalls = Array.from({ length: 24 }, (_, i) => numbered(`s${i}`, ring([i * 0.7, 0], [i * 0.7 + 0.6, 0], [i * 0.7 + 0.6, 0.6], [i * 0.7, 0.6]), 'Food stall', String(i + 1)))
     const labels = placeRoomLabels(stalls, NONE, MPP)
     labels.forEach((label, i) => {
-      expect(label!.leader).toBeNull()
       expect(rectInsidePolygon(label!.box, stalls[i]!.polygon)).toBe(true)
     })
   })
@@ -237,23 +205,13 @@ describe('room labels that stay in their rooms (VEW-13)', () => {
     expect(labels[0]).toBeNull()
   })
 
-  it('never runs a leader across another room, and keeps the moved label off every room', () => {
-    // A tiny room on the building's edge, between two others.
-    const tiny = ring([1, 0], [1.3, 0], [1.3, 0.3], [1, 0.3])
-    const rooms = [
-      labelRoom('t', tiny, 'Riser cupboard'),
-      labelRoom('w', ring([0, 0], [0.95, 0], [0.95, 3], [0, 3]), 'West'),
-      labelRoom('e', ring([1.35, 0], [3, 0], [3, 3], [1.35, 3]), 'East'),
-      labelRoom('n', ring([0.95, 0.35], [1.35, 0.35], [1.35, 3], [0.95, 3]), 'North')
-    ]
-    const [label] = placeRoomLabels(rooms, NONE, MPP)
-    expect(label!.leader).not.toBeNull()
-    const [a, b] = label!.leader!
-    for (let k = 0; k <= 50; k++) {
-      const p = { x: a.x + ((b.x - a.x) * k) / 50, y: a.y + ((b.y - a.y) * k) / 50 }
-      for (const other of rooms.slice(1)) expect(pointInPolygon(p, other.polygon)).toBe(false)
-    }
-    for (const room of rooms) expect(rectTouchesPolygon(label!.box, room.polygon)).toBe(false)
+  it('turns a long label along a diagonal room', () => {
+    const turn = ({ x, y }: { x: number; y: number }) => ({ x: (x - y) * Math.SQRT1_2, y: (x + y) * Math.SQRT1_2 })
+    const polygon = ring([0, 0], [8, 0], [8, 0.55], [0, 0.55]).map(turn)
+    const [label] = placeRoomLabels([labelRoom('hall', polygon, 'Long diagonal corridor')], NONE, MPP)
+    expect(label!.form.angle).toBeCloseTo(45)
+    expect(label!.form.scale).toBe(1)
+    expect(formCorners(label!.form, label!.at, MPP).every((point) => pointInPolygon(point, polygon))).toBe(true)
   })
 
   it('keeps a label off a lift’s cross and a stair’s flight', () => {
@@ -268,6 +226,11 @@ describe('room labels that stay in their rooms (VEW-13)', () => {
     const [stair] = placeRoomLabels([labelRoom('h', hall, 'Stair hall')], { ...NONE, walls: [flight] }, MPP)
     expect(stair).not.toBeNull()
     expect(rectTouchesPolygon(stair!.box, flight)).toBe(false)
+  })
+
+  it('disambiguates repeated stated numbers without taking another stated number', () => {
+    expect(roomNumbers([{ number: 'A' }, { number: 'A' }, { number: 'A-2' }, { number: 'A' }]))
+      .toEqual(['A', 'A-3', 'A-2', 'A-4'])
   })
 
   it('numbers rooms by their own number, else by their place, passing over the stated ones', () => {

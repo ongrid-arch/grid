@@ -308,8 +308,7 @@ export function rectTouchesPolygon(rect: Rect, polygon: readonly Vec2[]): boolea
 const SPOTS_ACROSS = 24
 
 /** The spots of a grid `count` across the outline's longer side where the box fits, the farthest from the edges first. */
-function gridSpots(polygon: readonly Vec2[], halfWidth: number, halfHeight: number, holes: Holes, count: number, fits: (p: Vec2) => boolean): Vec2[] {
-  const box = rectOf(polygon)
+function gridSpots(polygon: readonly Vec2[], box: Rect, halfWidth: number, halfHeight: number, holes: Holes, count: number, fits: (p: Vec2) => boolean): Vec2[] {
   const x0 = box.minX + halfWidth
   const x1 = box.maxX - halfWidth
   const y0 = box.minY + halfHeight
@@ -342,10 +341,26 @@ function gridSpots(polygon: readonly Vec2[], halfWidth: number, halfHeight: numb
  * when the box fits there; the rest follow on a grid, the spots farthest from the edges first.
  * Empty when the box fits nowhere.
  */
-export function spotsInside(polygon: readonly Vec2[], halfWidth: number, halfHeight: number, holes: Holes = NO_HOLES): Vec2[] {
+export function spotsInside(
+  polygon: readonly Vec2[],
+  halfWidth: number,
+  halfHeight: number,
+  holes: Holes = NO_HOLES,
+  options: { readonly within?: Rect; readonly accepts?: (box: Rect) => boolean } = {}
+): Vec2[] {
   if (polygon.length < 3 || !(halfWidth >= 0) || !(halfHeight >= 0)) return []
-  const fits = (p: Vec2): boolean =>
-    rectInsidePolygon({ minX: p.x - halfWidth, minY: p.y - halfHeight, maxX: p.x + halfWidth, maxY: p.y + halfHeight }, polygon, holes)
+  const frame = options.within
+  const outline = rectOf(polygon)
+  const search = frame === undefined ? outline : {
+    minX: Math.max(outline.minX, frame.minX), maxX: Math.min(outline.maxX, frame.maxX),
+    minY: Math.max(outline.minY, frame.minY), maxY: Math.min(outline.maxY, frame.maxY)
+  }
+  if (search.maxX - search.minX < 2 * halfWidth || search.maxY - search.minY < 2 * halfHeight) return []
+  const fits = (p: Vec2): boolean => {
+    const box = { minX: p.x - halfWidth, minY: p.y - halfHeight, maxX: p.x + halfWidth, maxY: p.y + halfHeight }
+    return (frame === undefined || (box.minX >= frame.minX && box.minY >= frame.minY && box.maxX <= frame.maxX && box.maxY <= frame.maxY)) &&
+      rectInsidePolygon(box, polygon, holes) && (options.accepts?.(box) ?? true)
+  }
 
   const out: Vec2[] = []
   const pole = poleOfInaccessibility(polygon, undefined, holes).point
@@ -354,7 +369,7 @@ export function spotsInside(polygon: readonly Vec2[], halfWidth: number, halfHei
   // VEW-22: a grid four times finer when the first finds no spot, so a long thin room at an
   // angle, a wedge, still holds a label that fits in it somewhere.
   for (const across of [SPOTS_ACROSS, 4 * SPOTS_ACROSS]) {
-    const grid = gridSpots(polygon, halfWidth, halfHeight, holes, across, fits)
+    const grid = gridSpots(polygon, search, halfWidth, halfHeight, holes, across, fits)
     for (const spot of grid) out.push(spot)
     if (out.length > 0) break
   }

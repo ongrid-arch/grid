@@ -82,7 +82,6 @@ describe('the picture look', () => {
     expect(number(at('door-arc').get('stroke-width'))).toBe(LINE_PX.doorArc)
     expect(number(at('dimension-line').get('stroke-width'))).toBe(LINE_PX.dimension)
     expect(number(at('extension').get('stroke-width'))).toBe(LINE_PX.extension)
-    expect(number(at('label-leader').get('stroke-width'))).toBe(LINE_PX.leader)
     expect(at('dimension-line', "[data-kind='room'] ").get('stroke-dasharray')).toBe(LINE_PX.roomDimensionDash.join(' '))
     expect(number(at('door-warning-dot').get('stroke-width'))).toBe(LINE_PX.warningRing)
     expect(number(at('door-warning-text').get('stroke-width'))).toBe(LINE_PX.warningHalo)
@@ -95,8 +94,6 @@ describe('the picture look', () => {
 
   it('has the font sizes of plan.css', () => {
     const size = (part: string, extra = '') => number(rule(`.canvas ${extra}[data-part='${part}']`).get('font-size'))
-    expect(size('label')).toBe(TEXT_PX.roomName)
-    expect(size('area')).toBe(TEXT_PX.roomArea)
     expect(size('dimension-text')).toBe(TEXT_PX.dimension)
     expect(size('dimension-text', "[data-kind='room'] ")).toBe(TEXT_PX.roomDimension)
     expect(size('door-warning-text')).toBe(TEXT_PX.warning)
@@ -108,7 +105,7 @@ describe('the picture look', () => {
   })
 
   it('draws every line in plan.css at a fixed screen width, which the picture turns into metres', () => {
-    for (const part of ['virtual', 'opening', 'jamb', 'door-leaf', 'door-arc', 'dimension-line', 'extension', 'label-leader', 'undrawn-room', 'lift-cross', 'above-line']) {
+    for (const part of ['virtual', 'opening', 'jamb', 'door-leaf', 'door-arc', 'dimension-line', 'extension', 'undrawn-room', 'lift-cross', 'above-line']) {
       expect(rule(`.canvas [data-part='${part}']`).get('vector-effect'), part).toBe('non-scaling-stroke')
     }
   })

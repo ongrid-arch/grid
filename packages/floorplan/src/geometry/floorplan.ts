@@ -17,7 +17,7 @@ import { openingChord, openingSpan, wallAxis, wallCenterline, wallParts, wallPat
 import { wallCurve } from './arc'
 import { wallJoints } from './joints'
 import type { WallExposure } from './exposure'
-import { roomFloorArea, tryRoomShape } from './room'
+import { roomFloorArea, roomNesting, tryRoomShape } from './room'
 import { poleOfInaccessibility } from './innerPoint'
 import { wallExposure, wallSides } from './exposure'
 import type { Issue } from './validate'
@@ -125,6 +125,8 @@ export interface PlanRoom {
   readonly area: number
   /** Where to place the name label. In a room with holes, a point on its floor, never in a hole. */
   readonly labelAt: Vec2
+  /** The floor left for labels when this room has rooms inside it, outer ring first. */
+  readonly labelRegions?: readonly (readonly (readonly Vec2[])[])[]
   /** VEW-13: the room's own number, as the plan states it (CNT-9). Left out when it states none. */
   readonly number?: string
   /** WRT-6: the plan marks the room, or a value of it, assumed. Left out when it does not. */
@@ -567,6 +569,7 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
     }
   }
 
+  const nesting = roomNesting(index)
   const rooms: PlanRoom[] = []
   const lifts: PlanLift[] = []
   const undrawn: UndrawnRoom[] = []
@@ -578,6 +581,10 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
       continue
     }
     const { polygon, holes } = shape
+    const host = nesting.hosts.get(room.id)
+    const labelRegions = host?.rooms.length
+      ? host.region.map((region) => region.map((ring) => ring.slice(0, -1).map(fromTuple)))
+      : undefined
     if (room.use === 'lift') lifts.push({ id: room.id, lines: liftSymbol(polygon, holes).lines })
     rooms.push({
       id: room.id,
@@ -589,6 +596,7 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
       // The middle of the corners of a ring lies in its hole: there, the point of its floor
       // farthest from every edge.
       labelAt: holes.length === 0 ? centroid(polygon) : poleOfInaccessibility(polygon, undefined, holes).point,
+      ...(labelRegions === undefined ? {} : { labelRegions }),
       ...(room.number === undefined ? {} : { number: room.number }),
       ...assumed('room', room.id),
       ...phaseOf(room.id)
