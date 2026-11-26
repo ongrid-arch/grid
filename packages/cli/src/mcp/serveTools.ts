@@ -42,6 +42,7 @@ import { SITE_TOOLS } from './siteTools'
 import { STAIR_TOOLS } from './stairTools'
 import { BUILDING_TOOLS } from './buildingTools'
 import { ITEM_TOOLS } from './itemTools'
+import { PARKING_TOOLS } from './parkingTools'
 import { placeTraceTool } from './traceTool'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
@@ -87,6 +88,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...BUILDING_TOOLS,
   // CNT-45: fixtures and furniture added against a wall, moved and taken out.
   ...ITEM_TOOLS,
+  // CNT-46: rows of parking bays placed and a ramp added between two floors, after the stairs.
+  ...PARKING_TOOLS,
   // CNT-41: the plot, north and the site's things: the ground, never the building.
   ...SITE_TOOLS,
   // VEW-67: the trace image under the plan, drawn only: no part of the building.

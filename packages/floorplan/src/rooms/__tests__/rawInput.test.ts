@@ -81,7 +81,7 @@ describe('a raw floor reads only the floor fields, on the floor it is written un
   })
 })
 
-describe('raw takes wall, room, opening, floor or stair (WRT-48)', () => {
+describe('raw takes wall, room, opening, floor, stair, bay or ramp (WRT-48, CNT-46)', () => {
   it('refuses another kind by its word, and says where that part goes', () => {
     const cases: Array<[string, string]> = [
       ['door', 'raw opening'],
@@ -99,7 +99,7 @@ describe('raw takes wall, room, opening, floor or stair (WRT-48)', () => {
       expect(result.problems.map((p) => [p.code, p.line])).toEqual([['rooms/raw', 4]])
       const message = result.problems[0]!.message
       expect(message).toContain(`raw ${kind}`)
-      expect(message).toContain('wall, room, opening, floor, stair or item')
+      expect(message).toContain('wall, room, opening, floor, stair, item, bay or ramp')
       expect(message).toContain(where)
       expect(message).not.toContain('A line starts with one of')
     }
