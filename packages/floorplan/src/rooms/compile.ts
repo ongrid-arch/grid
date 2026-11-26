@@ -108,6 +108,10 @@
  *   stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <w> wide, straight|L|U, runs <side>
  *         [then <side>] [along <side>] [risers <n>]   or   ..., <w> wide, run x,y x,y ...
  *   raw stair { ...Grid's own JSON for a stair... }     the plan's stairs (LVL-21): `stairs.ts`
+ *   bay <id> at x,y, <w> x <l> [turn <deg>] [number <n>] [on <floor>]
+ *   bays <group> in <room> along <side> | fill, <w> x <l> ...   or   bays <group> at x,y, <w> x <l>, count <n>, runs <way> ...
+ *   ramp <id> ["<name>"] from <floor|room> to <floor|room> [in <room>], <w> wide, straight, runs <way> | helix ... | run x,y ...
+ *   raw bay { ... }   raw ramp { ... }                  the plan's bays and ramps (CNT-46): `parking.ts`
  *
  * An opening pattern (LVL-8) is not rooms text, in a unit or out of one: a `pattern` line is
  * refused with where a pattern goes instead (`patternLine`). It lives in the plan file's
@@ -139,6 +143,7 @@ import { factValueOf, f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUn
 import { checkWritten } from './selfCheck'
 import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
+import { PARKING_LINE_WORDS, ParkingLines } from './parking'
 import { likelyMeant } from '../types/nearest'
 import { readingNotes } from '../types/reading'
 
@@ -150,7 +155,7 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
 
 /** WRT-68: the kinds a `raw` line takes, written after it in small letters. */
-const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair']
+const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', 'bay', 'ramp']
 
 /**
  * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
@@ -174,8 +179,10 @@ const RAW_ELSEWHERE: Readonly<Record<string, Said>> = {
   item: said('rooms.raw.kind.list', { list: 'items' }),
   furniture: said('rooms.raw.kind.list', { list: 'items' }),
   site: said('rooms.raw.kind.site'),
-  bay: said('rooms.raw.kind.list', { list: 'bays' }),
-  ramp: said('rooms.raw.kind.list', { list: 'ramps' }),
+  // CNT-46: a bay and a ramp are `raw bay`, `raw ramp` or lines of their own.
+  bay: said('rooms.raw.kind.bay'),
+  stall: said('rooms.raw.kind.bay'),
+  ramp: said('rooms.raw.kind.ramp'),
   grid: said('rooms.raw.kind.list', { list: 'grids' }),
 }
 
@@ -854,6 +861,8 @@ class Compiler {
   private readonly siteLines = new SiteLines()
   /** LVL-21: the stairs, from their own lines and `raw stair`. */
   private readonly stairLines = new StairLines()
+  /** CNT-46: the parking bays and ramps, from their own lines and `raw bay`, `raw ramp`. */
+  private readonly parkingLines = new ParkingLines()
 
   private stop(code: string, at: number | null, message: string): never {
     throw new RoomsStop(code, message, at)
@@ -896,6 +905,7 @@ class Compiler {
         else if (kind === 'pattern') this.stop('rooms/syntax', at, patternLine(at, false))
         else if (kind === 'wall' || kind === 'room' || kind === 'opening') this.rawPart(kind, rest, at)
         else if (kind === 'stair') this.stairLines.raw(rest, at)
+        else if (kind === 'bay' || kind === 'ramp') this.parkingLines.raw(kind, rest, at)
         else this.rawKind(kind, at)
         continue
       }
@@ -1083,6 +1093,8 @@ class Compiler {
     if (SITE_LINE_WORDS.includes(kw)) return this.siteLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     // LVL-21: a stair (`stairs.ts`), laid out once the rooms are drawn.
     if (STAIR_LINE_WORDS.includes(kw)) return this.stairLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    // CNT-46: a bay, a row of bays or a ramp (`parking.ts`), laid out once the rooms are drawn.
+    if (PARKING_LINE_WORDS.includes(kw)) return this.parkingLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
     switch (kw) {
       case 'plan':
         this.name = t[1] ?? null
@@ -1160,7 +1172,7 @@ class Compiler {
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair.`
+          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, bay, bays, ramp.`
         )
     }
   }
@@ -4144,6 +4156,7 @@ class Compiler {
     this.rawOpeningFloors(plan.walls)
     this.emitSite(plan)
     this.emitStairs(plan)
+    this.emitParking(plan)
     if (this.problems.length > 0) return null
     this.askSizes(plan)
     const wallIds = new Set(plan.walls.map((w) => w.id))
@@ -4187,6 +4200,17 @@ class Compiler {
     this.guesses.push(...made.guesses)
     if (made.stairs !== undefined) plan.stairs = made.stairs
     for (const id of this.stairLines.rawIds()) this.rawIds.add(id)
+  }
+
+  /** CNT-46: the bay and ramp lines into the plan's `bays` and `ramps`, laid out in the rooms as drawn. */
+  private emitParking(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.parkingLines.written.bays && !this.parkingLines.written.ramps) return
+    const made = this.parkingLines.finish(this.problems.length > 0 ? null : safeParseFloorPlan(plan))
+    this.problems.push(...made.problems.map((note): RoomsProblem => ({ ...note, message: note.message.charAt(0).toUpperCase() + note.message.slice(1) })))
+    this.guesses.push(...made.guesses)
+    if (made.bays !== undefined) plan.bays = made.bays
+    if (made.ramps !== undefined) plan.ramps = made.ramps
+    for (const id of this.parkingLines.rawIds()) this.rawIds.add(id)
   }
 
   /**

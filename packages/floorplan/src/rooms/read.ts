@@ -27,6 +27,7 @@ import { planRevision } from './stamp'
 import { factValueOf, metres, quotedWordsOf } from './words'
 import { siteLines } from './site'
 import { stairLines } from './stairs'
+import { parkingLines } from './parking'
 
 type P = readonly [number, number]
 
@@ -720,6 +721,9 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
   // LVL-21: the stairs, after every floor, so each room a stair line names is written above it.
   const stairs = stairLines(plan)
   if (stairs.length > 0) lines.push('', ...stairs)
+  // CNT-46: the bays and ramps, after every floor, so each room a line names is written above it.
+  const parking = parkingLines(plan)
+  if (parking.length > 0) lines.push('', ...parking)
   return `${lines.join('\n')}\n`
 }
 
