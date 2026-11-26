@@ -27,6 +27,7 @@ import { planRevision } from './stamp'
 import { factValueOf, metres, quotedWordsOf } from './words'
 import { siteLines } from './site'
 import { stairLines } from './stairs'
+import { fitOutReading, type BasePlan } from './base'
 
 type P = readonly [number, number]
 
@@ -95,6 +96,8 @@ export interface ReadOptions {
   readonly prefer?: 'exact' | 'rooms'
   /** The name on the `plan` line. */
   readonly name?: string
+  /** WRT-75: a fit-out's base plan, as the command read it: the text names it and its rooms rest on its walls. */
+  readonly base?: BasePlan
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -236,6 +239,8 @@ interface Rule {
   winH: number
   /** The revision the `based on` line names: the file's own (WRT-44: before any part is left out). */
   basedOn: string
+  /** WRT-75: a fit-out's `base` line. */
+  base?: string
 }
 
 function ruleOf(plan: FloorPlan): Rule {
@@ -648,6 +653,7 @@ function headerLines(plan: FloorPlan, rule: Rule, name: string | undefined): str
   const lines: string[] = []
   if (name !== undefined) lines.push(`plan ${quote(name)}`)
   lines.push(`based on ${rule.basedOn}`)
+  if (rule.base !== undefined) lines.push(rule.base)
   if (plan.building !== undefined) lines.push(`building ${plan.building}`)
   // WRT-7: how the person reads lengths, so writing the text again keeps it.
   // WRT-34: the reading writes its lengths in metres, so a display that is not metres says so.
@@ -831,9 +837,12 @@ const SETTLE_ROUNDS = 8
  * `compileRoomsText` gives back the same walls, rooms, openings and floors.
  */
 export function readRoomsText(file: FloorPlan, options: ReadOptions = {}): RoomsReading {
+  // WRT-75: a fit-out is read with the base walls its rooms rest on, and written again on its base.
+  const fit = options.base === undefined || file.base === undefined ? null : fitOutReading(file, options.base)
   // WRT-44: a wall with no length is read back as the check reads it: left out, and said so.
-  const { plan, leftOut } = buildable(file)
-  const rule: Rule = { ...ruleOf(plan), basedOn: planRevision(file) }
+  const { plan, leftOut } = buildable(fit?.plan ?? file)
+  const rule: Rule = { ...ruleOf(plan), basedOn: planRevision(file), ...(fit === null ? {} : { base: fit.line }) }
+  const writtenAgain = (text: string): RoomsResult | null => compiledAgain(text, options.base)
   const floors = planFloors(plan).map((f) => f.id)
   if (floors.length === 0) floors.push('ground')
   const multi = floors.length > 1 || (plan.floors?.length ?? 0) > 0
@@ -879,7 +888,8 @@ export function readRoomsText(file: FloorPlan, options: ReadOptions = {}): Rooms
       break
     }
     // Read as a plan file is read, so a wall it gives no height reads as the plan's do (WRT-6).
-    const written: ReadBack = { ...compiled, plan: compiled.plan === null ? null : safeParseFloorPlan(compiled.plan) }
+    const parsed = compiled.plan === null ? null : safeParseFloorPlan(compiled.plan)
+    const written: ReadBack = { ...compiled, plan: parsed === null || fit === null ? parsed : fit.again(parsed) }
     if (written.plan === null) {
       // WRT-42: each opening line the writing refuses is given raw on its own, and the rest of
       // its floor is written again as rooms.
@@ -969,7 +979,7 @@ export function readRoomsText(file: FloorPlan, options: ReadOptions = {}): Rooms
   // WRT-42: a draft the rounds did not settle is not given unchecked: each floor it would change,
   // or every floor still in rooms text when its writing is refused, is given in Grid's own terms.
   // Asked for rooms, the reading stays rooms first.
-  if (!decided && options.prefer !== 'rooms') unsettled(plan, rule, options.name, drafts, raw, why, fitted())
+  if (!decided && options.prefer !== 'rooms') unsettled(plan, rule, options.name, drafts, raw, why, fitted(), options.base, fit?.again)
   let text = textOf(plan, rule, options.name, drafts, raw, why)
   if (leftOut.length > 0) text = `${leftOut.map((line) => `# ${line}`).join('\n')}\n${text}`
   if (changes.length > 0) {
@@ -999,9 +1009,10 @@ function buildable(file: FloorPlan): { plan: FloorPlan; leftOut: readonly string
 }
 
 /** WRT-42: the floors a draft left unsettled would change, given in Grid's own terms. */
-function unsettled(plan: FloorPlan, rule: Rule, name: string | undefined, drafts: readonly FloorDraft[], raw: Set<string>, why: Map<string, string>, fitted: ReadonlySet<string>): void {
-  const compiled = writtenAgain(textOf(plan, rule, name, drafts, raw, why))
-  const written = compiled === null || compiled.plan === null ? null : safeParseFloorPlan(compiled.plan)
+function unsettled(plan: FloorPlan, rule: Rule, name: string | undefined, drafts: readonly FloorDraft[], raw: Set<string>, why: Map<string, string>, fitted: ReadonlySet<string>, base?: BasePlan, again?: (written: FloorPlan) => FloorPlan): void {
+  const compiled = compiledAgain(textOf(plan, rule, name, drafts, raw, why), base)
+  const parsed = compiled === null || compiled.plan === null ? null : safeParseFloorPlan(compiled.plan)
+  const written = parsed === null || again === undefined ? parsed : again(parsed)
   for (const d of drafts) {
     if (raw.has(d.id) || (written !== null && floorDifferences(plan, written, d.id, fitted).length === 0)) continue
     raw.add(d.id)
@@ -1010,9 +1021,9 @@ function unsettled(plan: FloorPlan, rule: Rule, name: string | undefined, drafts
 }
 
 /** WRT-42: the text written again, or null when the writing fails outright, so the read-back never throws. */
-function writtenAgain(text: string): RoomsResult | null {
+function compiledAgain(text: string, base?: BasePlan): RoomsResult | null {
   try {
-    return compileRoomsText(text)
+    return compileRoomsText(text, base === undefined ? {} : { base })
   } catch {
     return null
   }

@@ -2171,6 +2171,18 @@ export const es: Messages = {
   'rooms.raw.kind.site': 'El texto de estancias escribe el solar en líneas propias: plot <ancho> x <fondo> o site boundary x,y ..., street <lado>, setback <desde> <m>, north <grados> y site <tree|path|paving|pool|fence|gate> ....',
   'rooms.raw.kind.none': 'El texto de estancias no tiene línea para ello, en crudo o no.',
   'rooms.raw.kind.stair': 'Una escalera se escribe raw stair {"id": "<id>", "from": "<planta>", "to": "<planta>", "width": <m>, "run": [[x, y], ...]}, o en una línea propia: stair <id> from <planta> to <planta> in <estancia>, <ancho> wide, straight|L|U, runs <lado>.',
+  // WRT-75: un acondicionamiento sobre un plano base en texto de estancias (rooms/base.ts).
+  'rooms.base.syntax': "línea {line}: escriba 'base <archivo del plano>', la ruta del plano base desde la carpeta del proyecto, entre comillas si tiene un espacio.",
+  'rooms.base.twice': 'línea {line}: el texto ya nombra su plano base en la línea {first}; un acondicionamiento se escribe sobre una sola base.',
+  'rooms.base.notRead': 'línea {line}: no se leyó el plano base {file}, así que las estancias no pueden apoyarse en sus muros. Escriba el texto con grid write o grid_write_rooms, que leen la base desde la carpeta del proyecto.',
+  'rooms.base.opening': '{kind} {id} quedaría en el muro base {walls} de {file}: en un acondicionamiento la envolvente es de solo lectura, y sus puertas y ventanas son las del plano base. Póngala en un muro del acondicionamiento, o cambie el plano base.',
+  'rooms.base.idTaken': '{id} es el id de un muro o una abertura del plano base {file}: dele otro id.',
+  'rooms.base.rawTaken': 'raw {kind} {id} tiene el id de una parte del plano base {file} pero no es esa parte: dele otro id, o quítela, ya que se lee la de la base.',
+  'rooms.base.renamed': 'El muro que Grid calculó como {id} se escribe {renamed}: el plano base {file} tiene una parte con ese id.',
+  'rooms.base.off': 'Estancia {room}: su cara a lo largo del muro {wall} está a {by} m de la cara del muro base {base} de {file}, así que no se apoya en él y se dibujan los dos muros. Mueva la estancia esa distancia para apoyarla en el muro base.',
+  'rooms.base.partly': 'Estancia {room}: su cara a lo largo del muro {wall} está sobre el muro base {bases} de {file} solo en parte de su longitud, así que el muro se escribe como propio del acondicionamiento.',
+  'rooms.base.restsOn': 'Acondicionamiento en el plano base {file}: sus muros y aberturas se leen como existentes y no se escriben en este plano. Las estancias se apoyan en {count} de sus muros: {walls}.',
+  'rooms.base.restsOnNone': 'Acondicionamiento en el plano base {file}: sus muros y aberturas se leen como existentes y no se escriben en este plano. Las estancias no se apoyan en ninguno de sus muros: escriba una estancia con su cara sobre la cara de un muro base para apoyarla en él.',
   'rooms.raw.smallLetters':
     "Línea {line}: el texto de estancias se lee en minúsculas, y '{written}' no lo está; escriba '{offered}'.",
   'rooms.raw.kind.nothing': "Línea {line}: raw admite wall, room, opening, floor o stair, y luego un objeto JSON como lo guarda el archivo de plano de Grid: raw wall {\"id\": ...}.",

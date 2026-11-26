@@ -108,6 +108,7 @@
  *   stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <w> wide, straight|L|U, runs <side>
  *         [then <side>] [along <side>] [risers <n>]   or   ..., <w> wide, run x,y x,y ...
  *   raw stair { ...Grid's own JSON for a stair... }     the plan's stairs (LVL-21): `stairs.ts`
+ *   base <plan file>                   a fit-out on that base plan (WRT-75): the rooms rest on its walls, `base.ts`
  *
  * An opening pattern (LVL-8) is not rooms text, in a unit or out of one: a `pattern` line is
  * refused with where a pattern goes instead (`patternLine`). It lives in the plan file's
@@ -139,6 +140,7 @@ import { factValueOf, f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUn
 import { checkWritten } from './selfCheck'
 import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
+import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
 import { likelyMeant } from '../types/nearest'
 import { readingNotes } from '../types/reading'
 
@@ -669,6 +671,8 @@ export interface RoomsResult {
   readonly sizes: { readonly basis: SizeBasis; readonly stated: boolean }
   /** WRT-27: how many of the walls, rooms and openings were written raw; left out when none were. */
   readonly raw?: { readonly walls: number; readonly rooms: number; readonly openings: number }
+  /** WRT-75: the base plan a fit-out is written on, and the base's walls its rooms rest on. */
+  readonly base?: { readonly file: string; readonly restsOn: readonly string[] }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -854,6 +858,8 @@ class Compiler {
   private readonly siteLines = new SiteLines()
   /** LVL-21: the stairs, from their own lines and `raw stair`. */
   private readonly stairLines = new StairLines()
+  /** WRT-75: the base plan a fit-out names (`base.ts`). */
+  readonly baseLine = new BaseLine()
 
   private stop(code: string, at: number | null, message: string): never {
     throw new RoomsStop(code, message, at)
@@ -1083,6 +1089,8 @@ class Compiler {
     if (SITE_LINE_WORDS.includes(kw)) return this.siteLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     // LVL-21: a stair (`stairs.ts`), laid out once the rooms are drawn.
     if (STAIR_LINE_WORDS.includes(kw)) return this.stairLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    // WRT-75: the base plan a fit-out is written on (`base.ts`).
+    if (BASE_LINE_WORDS.includes(kw)) return this.baseLine.read(this.lines[at - 1] ?? '', at)
     switch (kw) {
       case 'plan':
         this.name = t[1] ?? null
@@ -1160,7 +1168,7 @@ class Compiler {
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair.`
+          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, base.`
         )
     }
   }
@@ -4600,6 +4608,8 @@ export interface CompileOptions {
    * would make them share one, when there is one. On (the default) unless a fix is being tried.
    */
   readonly offerFixes?: boolean
+  /** WRT-75: the base plan the text's `base` line names, as the command read it; the rooms rest on its walls. */
+  readonly base?: BasePlan
 }
 
 /**
@@ -4696,6 +4706,9 @@ function compiled(text: string, options: CompileOptions): { result: RoomsResult;
     }
     if (problems.length > 0) plan = null
   }
+  // WRT-75: a fit-out's rooms rest on its base's walls, and it is checked with its base read in.
+  const fit = stopped === null && plan !== null && problems.length === 0 ? restOnBase(text, plan, c.baseLine.file === null ? null : { file: c.baseLine.file, line: c.baseLine.line! }, options.base, c.rawIds) : null
+  if (fit !== null) [plan, problems, warnings] = [fit.problems.length > 0 ? null : fit.plan, [...problems, ...fit.problems], [...warnings, ...fit.warnings]]
   // MSG-22: the ids it writes are ids every tool takes, and the ones put in plain letters are named.
   if (stopped === null && plan !== null && problems.length === 0) {
     const ids = idsOfText(text, plan)
@@ -4705,7 +4718,7 @@ function compiled(text: string, options: CompileOptions): { result: RoomsResult;
   }
   // WRT-17: what is written passes the drawing's own check, or is not written.
   if (stopped === null && plan !== null && problems.length === 0) {
-    const checked = checkWritten(plan, warnings, c.rawIds)
+    const checked = fit === null ? checkWritten(plan, warnings, c.rawIds) : checkWritten(fit.checked, warnings, new Set([...c.rawIds, ...fit.baseIds]))
     problems = checked.problems
     warnings = [...warnings, ...checked.warnings]
     if (problems.length > 0) plan = null
@@ -4719,8 +4732,9 @@ function compiled(text: string, options: CompileOptions): { result: RoomsResult;
     warnings,
     guesses: c.guesses,
     rooms: c.roomFacts,
-    walls: c.wallFacts,
+    walls: fit === null ? c.wallFacts : c.wallFacts.filter((w) => !fit.rested.has(w.id)),
     openings: c.openingFacts,
+    ...(fit === null || fit.problems.length > 0 ? {} : { base: { file: fit.plan.base!, restsOn: fit.restsOn } }),
     sizes: c.sizes,
     ...(c.rawCounts() === null ? {} : { raw: c.rawCounts()! }),
   }

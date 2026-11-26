@@ -2167,6 +2167,18 @@ export const en = {
   'rooms.raw.kind.site': 'Rooms text writes the site in lines of its own: plot <width> x <depth> or site boundary x,y ..., street <side>, setback <from> <m>, north <degrees> and site <tree|path|paving|pool|fence|gate> ....',
   'rooms.raw.kind.none': 'Rooms text has no line for it, raw or not.',
   'rooms.raw.kind.stair': 'A stair is written raw stair {"id": "<id>", "from": "<floor>", "to": "<floor>", "width": <m>, "run": [[x, y], ...]}, or in a line of its own: stair <id> from <floor> to <floor> in <room>, <width> wide, straight|L|U, runs <side>.',
+  // WRT-75: a fit-out on a base plan in rooms text (rooms/base.ts).
+  'rooms.base.syntax': "line {line}: write 'base <plan file>', the base plan's path from the project folder, in quotes when it holds a space.",
+  'rooms.base.twice': 'line {line}: the text names its base plan on line {first} already; a fit-out is written on one base.',
+  'rooms.base.notRead': 'line {line}: the base plan {file} was not read, so the rooms cannot rest on its walls. Write the text with grid write or grid_write_rooms, which read the base from the project folder.',
+  'rooms.base.opening': '{kind} {id} would be in the base wall {walls} of {file}: the shell is read-only in a fit-out, and its doors and windows are the base plan\'s. Put it in a wall of the fit-out, or change the base plan.',
+  'rooms.base.idTaken': '{id} is the id of a wall or opening of the base plan {file}: give it another id.',
+  'rooms.base.rawTaken': 'raw {kind} {id} has the id of a part of the base plan {file} but is not that part: give it another id, or leave it out, since the base\'s own is read in.',
+  'rooms.base.renamed': 'The wall Grid worked out as {id} is written {renamed}: the base plan {file} has a part with that id.',
+  'rooms.base.off': 'Room {room}: its face along wall {wall} is {by} m off the face of the base wall {base} of {file}, so it does not rest on it and both walls are drawn. Move the room by that much to rest it on the base wall.',
+  'rooms.base.partly': 'Room {room}: its face along wall {wall} lies on the base wall {bases} of {file} for part of its length only, so the wall is written as the fit-out\'s own.',
+  'rooms.base.restsOn': 'Fitted out in the base plan {file}: its walls and openings are read in as existing and are not written into this plan. The rooms rest on {count} of its walls: {walls}.',
+  'rooms.base.restsOnNone': 'Fitted out in the base plan {file}: its walls and openings are read in as existing and are not written into this plan. The rooms rest on none of its walls: write a room with its face on a base wall\'s face to rest it there.',
   'rooms.raw.smallLetters':
     "Line {line}: rooms text is read in small letters, and '{written}' is not; write '{offered}'.",
   'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor or stair, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
