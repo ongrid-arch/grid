@@ -150,8 +150,40 @@ const ROOM_TYPES: Readonly<Record<string, { readonly name: string; readonly use:
   dining: { name: 'Dining room', use: 'dining', id: 'dining' },
 }
 
-/** The objects a scan gives that Grid draws as fixtures (C6), and the fixture each is. */
-export const SCAN_FIXTURES: Readonly<Record<string, string>> = { toilet: 'toilet', bathtub: 'bath' }
+/**
+ * The objects a scan gives that Grid draws as items (C6), and the kind each is. CNT-45: the
+ * furniture and the appliances too, so a robot, a walk-through or a fit-out sees them as the
+ * obstacles they are; an appliance is storage, labelled with what the scan calls it.
+ */
+export const SCAN_FIXTURES: Readonly<Record<string, string>> = {
+  toilet: 'toilet',
+  bathtub: 'bath',
+  sink: 'basin',
+  bed: 'bed',
+  table: 'table',
+  sofa: 'sofa',
+  chair: 'chair',
+  storage: 'storage',
+  refrigerator: 'storage',
+  stove: 'storage',
+  oven: 'storage',
+  dishwasher: 'storage',
+  washerDryer: 'storage',
+  fireplace: 'storage',
+  television: 'storage',
+}
+
+/** CNT-45: the label of an object whose kind does not say what it is, and the word its id starts with. */
+const SCAN_OBJECT_LABELS: Readonly<Record<string, readonly [string, string]>> = {
+  sink: ['Sink', 'sink'],
+  refrigerator: ['Fridge', 'fridge'],
+  stove: ['Stove', 'stove'],
+  oven: ['Oven', 'oven'],
+  dishwasher: ['Dishwasher', 'dishwasher'],
+  washerDryer: ['Washer-dryer', 'washer-dryer'],
+  fireplace: ['Fireplace', 'fireplace'],
+  television: ['Television', 'television'],
+}
 
 /** Ids that rooms text can carry: a kept id with any other character is given up for a new one. */
 const PLAIN_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/
@@ -631,7 +663,9 @@ export function planFromScan(scan: RoomScan, previous: ScanIds | null = null): S
         continue
       }
       const id = reserved.get(s.id) ?? fresh('opening', `${type}-`)
-      openings.push({ id, wall: host.id, type, offset: fix(offset), width: fix(width), sill: fix(sill), height: fix(height) })
+      // CNT-45: whether the capture saw a door open, kept as a fact on it.
+      const seen = type === 'door' && s.open !== null ? { properties: { scannedOpen: s.open } } : {}
+      openings.push({ id, wall: host.id, type, offset: fix(offset), width: fix(width), sill: fix(sill), height: fix(height), ...seen })
       if (type === 'door') undecided.push(id)
       idsOut[s.id] = { part: 'opening', id }
     }
@@ -650,7 +684,7 @@ export function planFromScan(scan: RoomScan, previous: ScanIds | null = null): S
     assumed.push({ text: `${plural(nudged.length, 'opening')} ran past the end of ${nudged.length === 1 ? 'its' : 'their'} wall: moved along it to fit (${idList(ids)}).`, parts: ids.map((id) => ({ part: 'opening' as const, id })), value: 'offset' })
   }
 
-  // Fixtures: a toilet and a bath. Other objects are kept, not drawn.
+  // Fixtures, furniture and appliances (CNT-45). A stair the scan boxes is kept, not drawn.
   const items: NonNullable<WrittenPlan['items']>[number][] = []
   const notDrawn = new Map<string, number>()
   for (const s of byList('objects')) {
@@ -662,11 +696,12 @@ export function planFromScan(scan: RoomScan, previous: ScanIds | null = null): S
       continue
     }
     const { at, u } = surfaceAt(s)
-    const id = reserved.get(s.id) ?? fresh('item', `${kind}-`)
+    const named = s.category === null ? undefined : SCAN_OBJECT_LABELS[s.category]
+    const id = reserved.get(s.id) ?? fresh('item', `${named?.[1] ?? kind}-`)
     const floor = floorIds.get(s.story ?? 0) ?? DEFAULT_FLOOR_ID
     let turnDeg = deg(Math.atan2(u[1], u[0]))
     if (turnDeg <= -180) turnDeg += 360
-    items.push({ id, kind, at: [fix(at[0]), fix(at[1])], size: [fix(width), fix(depth)], height: fix(height), ...(Math.abs(turnDeg) > tolerance('noTurn') ? { turn: fix(turnDeg) } : {}), ...(stories.length > 1 ? { floor } : {}) })
+    items.push({ id, kind, at: [fix(at[0]), fix(at[1])], size: [fix(width), fix(depth)], height: fix(height), ...(Math.abs(turnDeg) > tolerance('noTurn') ? { turn: fix(turnDeg) } : {}), ...(stories.length > 1 ? { floor } : {}), ...(named === undefined ? {} : { label: named[0] }) })
     idsOut[s.id] = { part: 'item', id }
   }
   if (notDrawn.size > 0) leftOut.push(`Objects that are not fixtures Grid draws, kept in the scan beside the plan: ${[...notDrawn].map(([what, n]) => `${n} ${what}`).join(', ')}.`)

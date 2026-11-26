@@ -109,6 +109,9 @@
  *   stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <w> wide, straight|L|U, runs <side>
  *         [then <side>] [along <side>] [risers <n>]   or   ..., <w> wide, run x,y x,y ...
  *   raw stair { ...Grid's own JSON for a stair... }     the plan's stairs (LVL-21): `stairs.ts`
+ *   item <id> ["<label>"] <name> [<w> x <d>] [<h> high] in <room> against <side> [, at <end> | , <n> from <end> | , full width]
+ *        or ... at x,y [turn <deg>] [on <floor>]        raw item|fixture|furniture { ...JSON... }
+ *                                                     the plan's fixtures and furniture (CNT-45): `items.ts`
  *   base <plan file>                   a fit-out on that base plan (WRT-75): the rooms rest on its walls, `base.ts`
  *
  * An opening pattern (LVL-8) is not rooms text, in a unit or out of one: a `pattern` line is
@@ -141,6 +144,7 @@ import { factValueOf, f2, hasUnit, isNumberWord, isPointWord, metres, pointHasUn
 import { checkWritten } from './selfCheck'
 import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
+import { ITEM_LINE_WORDS, ItemLines, RAW_ITEM_KINDS } from './items'
 import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
 import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
 import { likelyMeant } from '../types/nearest'
@@ -154,7 +158,7 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
 
 /** WRT-68: the kinds a `raw` line takes, written after it in small letters. */
-const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair']
+const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS]
 
 /**
  * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
@@ -174,9 +178,10 @@ const RAW_ELSEWHERE: Readonly<Record<string, Said>> = {
   staircase: said('rooms.raw.kind.stair'),
   column: said('rooms.raw.kind.list', { list: 'columns' }),
   pillar: said('rooms.raw.kind.list', { list: 'columns' }),
-  fixture: said('rooms.raw.kind.list', { list: 'items' }),
-  item: said('rooms.raw.kind.list', { list: 'items' }),
-  furniture: said('rooms.raw.kind.list', { list: 'items' }),
+  // CNT-45: an item is `raw item` or an item line of its own.
+  fixture: said('rooms.raw.kind.item'),
+  item: said('rooms.raw.kind.item'),
+  furniture: said('rooms.raw.kind.item'),
   site: said('rooms.raw.kind.site'),
   bay: said('rooms.raw.kind.list', { list: 'bays' }),
   ramp: said('rooms.raw.kind.list', { list: 'ramps' }),
@@ -860,6 +865,8 @@ class Compiler {
   private readonly siteLines = new SiteLines()
   /** LVL-21: the stairs, from their own lines and `raw stair`. */
   private readonly stairLines = new StairLines()
+  /** CNT-45: the fixtures and furniture, from their own lines and `raw item`. */
+  private readonly itemLines = new ItemLines()
   /** WRT-75: the base plan a fit-out names (`base.ts`). */
   readonly baseLine = new BaseLine()
 
@@ -904,6 +911,7 @@ class Compiler {
         else if (kind === 'pattern') this.stop('rooms/syntax', at, patternLine(at, false))
         else if (kind === 'wall' || kind === 'room' || kind === 'opening') this.rawPart(kind, rest, at)
         else if (kind === 'stair') this.stairLines.raw(rest, at)
+        else if (RAW_ITEM_KINDS.includes(kind)) this.itemLines.raw(rest, at)
         else this.rawKind(kind, at)
         continue
       }
@@ -1091,6 +1099,8 @@ class Compiler {
     if (SITE_LINE_WORDS.includes(kw)) return this.siteLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     // LVL-21: a stair (`stairs.ts`), laid out once the rooms are drawn.
     if (STAIR_LINE_WORDS.includes(kw)) return this.stairLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    // CNT-45: a fixture or a piece of furniture (`items.ts`), placed once the rooms are drawn.
+    if (ITEM_LINE_WORDS.includes(kw)) return this.itemLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
     // WRT-75: the base plan a fit-out is written on (`base.ts`).
     if (BASE_LINE_WORDS.includes(kw)) return this.baseLine.read(this.lines[at - 1] ?? '', at)
     switch (kw) {
@@ -1172,7 +1182,7 @@ class Compiler {
         this.stop(
           'rooms/syntax',
           at,
-          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, base.`
+          `line ${at}: '${kw}' is not a word this way of writing knows. A line starts with one of: plan, building, based, walls, walltype, sizes, doors, windows, floor, room, wall, door, window, opening, unit, place, repeat, copy, rename, remove, raw, plot, site, street, setback, north, stair, item, base.`
         )
     }
   }
@@ -4242,6 +4252,7 @@ class Compiler {
     this.rawOpeningFloors(plan.walls)
     this.emitSite(plan)
     this.emitStairs(plan)
+    this.emitItems(plan)
     if (this.problems.length > 0) return null
     this.askSizes(plan)
     const wallIds = new Set(plan.walls.map((w) => w.id))
@@ -4285,6 +4296,16 @@ class Compiler {
     this.guesses.push(...made.guesses)
     if (made.stairs !== undefined) plan.stairs = made.stairs
     for (const id of this.stairLines.rawIds()) this.rawIds.add(id)
+  }
+
+  /** CNT-45: the item lines into the plan's `items`, placed in the rooms as drawn. */
+  private emitItems(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.itemLines.written) return
+    const made = this.itemLines.finish(this.problems.length > 0 ? null : safeParseFloorPlan(plan))
+    this.problems.push(...made.problems.map((note): RoomsProblem => ({ ...note, message: note.message.charAt(0).toUpperCase() + note.message.slice(1) })))
+    this.guesses.push(...made.guesses)
+    if (made.items !== undefined) plan.items = made.items as unknown as WrittenPlan['items']
+    for (const id of this.itemLines.rawIds()) this.rawIds.add(id)
   }
 
   /**
