@@ -35,7 +35,9 @@
  *   `plinthUnder`): a band along the same edges as its slab's, from the ground up to the slab, so
  *   the building stands on the ground line with nothing open under it;
  * - **the ground**, at the level the site states (`site.ground`), else the ground floor's floor
- *   level, 0, as LVL-4 reads it. Nothing below it is seen.
+ *   level, 0, as LVL-4 reads it. Nothing below it is seen. CNT-49: on a slope the ground along the
+ *   side's front face is a sloped line (`ground.fall`, read with `facadeGroundAt`), and the
+ *   silhouette is cut at it.
  *
  * Every face carries how far it stands behind the nearest (`depth`) and its plane (`tier`: 0 the
  * front, 1 the next set back, 2 anything further), for its line weight, and the faces come
@@ -196,7 +198,12 @@ export interface Facade {
   readonly faces: readonly FacadeFace[]
   /** The facade's silhouette above the ground: rings of `[u, z]` points, each closed. */
   readonly outline: readonly (readonly (readonly [number, number])[])[]
-  readonly ground: { readonly level: number; readonly stated: boolean }
+  /**
+   * The ground: its level and whether the site states it. CNT-49: on a slope, `fall` is the ground
+   * along the side's front face, its level at u = 0 and how much it rises per metre of u; `level`
+   * is then the lowest ground under the building.
+   */
+  readonly ground: { readonly level: number; readonly stated: boolean; readonly fall?: FacadeGroundFall }
   /** The floors with a face on this facade, lowest first. */
   readonly levels: readonly FacadeLevel[]
   /** What the facade spans, or null when nothing faces this side. */
@@ -207,6 +214,18 @@ export interface Facade {
 }
 
 type Pair = readonly [number, number]
+
+/** CNT-49: the ground along a facade, `z = at + perMetre * u`. */
+export interface FacadeGroundFall {
+  readonly at: number
+  readonly perMetre: number
+}
+
+/** CNT-49: the ground's level at `u` across a facade: on its slope, else its one level. */
+export function facadeGroundAt(facade: Pick<Facade, 'ground'>, u: number): number {
+  const fall = facade.ground.fall
+  return fall === undefined ? facade.ground.level : fall.at + fall.perMetre * u
+}
 
 const dot = (p: Vec2, d: Vec2): number => p.x * d.x + p.y * d.y
 
@@ -554,17 +573,17 @@ function roofEdgeOf(a: Vec2, b: Vec2, plane: RoofPlane, low: number, roof: Multi
 }
 
 /** The silhouette of the faces above the ground: their union. Empty when it cannot be worked out. */
-function silhouette(faces: readonly FacadeFace[], ground: number): (readonly (readonly [number, number])[])[] {
+function silhouette(faces: readonly FacadeFace[], ground: number, groundAt: (u: number) => number = () => ground): (readonly (readonly [number, number])[])[] {
   const shapes: Polygon[] = faces
-    .filter((f) => f.top > ground && f.u1 > f.u0 && f.outline.length >= 3)
+    .filter((f) => f.top > Math.min(groundAt(f.u0), groundAt(f.u1)) && f.u1 > f.u0 && f.outline.length >= 3)
     .map((f) => [[...f.outline.map(([u, z]) => [u, z] as [number, number]), [f.outline[0]![0], f.outline[0]![1]]]])
   if (shapes.length === 0) return []
   try {
     const all = polygonClipping.union(shapes[0]!, ...shapes.slice(1))
     const u0 = Math.min(...faces.map((f) => f.u0)) - 1
     const u1 = Math.max(...faces.map((f) => f.u1)) + 1
-    const top = Math.max(...faces.map((f) => f.top)) + 1
-    const above = polygonClipping.intersection(all, [[[u0, ground], [u1, ground], [u1, top], [u0, top], [u0, ground]]])
+    const top = Math.max(...faces.map((f) => f.top), groundAt(u0), groundAt(u1)) + 1
+    const above = polygonClipping.intersection(all, [[[u0, groundAt(u0)], [u1, groundAt(u1)], [u1, top], [u0, top], [u0, groundAt(u0)]]])
     // A ring with no area to speak of (`areaReported`), a sliver the join leaves along a gable's slope, is not part of it.
     const area = (ring: readonly (readonly [number, number])[]): number => Math.abs(ring.slice(0, -1).reduce((sum, [u, z], i) => sum + u * ring[i + 1]![1] - ring[i + 1]![0] * z, 0)) / 2
     return above.flatMap((polygon) => polygon.map((ring) => ring.map(([u, z]) => [fine(u), fine(z)] as const)).filter((ring) => area(ring) > tolerance('areaReported')))
@@ -686,14 +705,22 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
   const bearing = orientation.north === null ? null : bearingOf(direction, orientation)
   const compass = bearing === null ? null : { bearing, faces: compassPoint(bearing) }
   const elevations = floorElevations(plan)
-  const ground = (() => {
+  const ground = ((): Facade['ground'] => {
     try {
       const found = groundLevel(plan, elevations)
-      return { level: found.level, stated: found.stated }
+      const surface = found.surface
+      if (surface === null) return { level: found.level, stated: found.stated }
+      // CNT-49: the ground along the side's front face, the building's furthest point that way.
+      const ends = plan.walls.flatMap((w) => [w.start, w.end]).filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+      const front = ends.length === 0 ? 0 : Math.max(...ends.map((p) => dot({ x: p[0], y: p[1] }, direction)))
+      const g = surface.gradient
+      const fall = { at: fine(surface.c + dot(g, direction) * front), perMetre: fine(dot(g, across)) }
+      return { level: found.level, stated: found.stated, fall }
     } catch {
       return { level: 0, stated: false }
     }
   })()
+  const groundAt = (u: number): number => facadeGroundAt({ ground }, u)
   const empty: Facade = { side, direction, across, compass, faces: [], outline: [], ground, levels: [], extent: null, walls: [], openings: [] }
 
   let floors: ReturnType<typeof planFloors>
@@ -888,13 +915,13 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
     across,
     compass,
     faces,
-    outline: silhouette(faces, ground.level),
+    outline: silhouette(faces, ground.level, groundAt),
     ground,
     levels,
     extent: {
       u0: Math.min(...faces.map((f) => f.u0)),
       u1: Math.max(...faces.map((f) => f.u1)),
-      bottom: Math.min(ground.level, ...faces.map((f) => f.bottom)),
+      bottom: Math.min(ground.level, groundAt(Math.min(...faces.map((f) => f.u0))), groundAt(Math.max(...faces.map((f) => f.u1))), ...faces.map((f) => f.bottom)),
       top: Math.max(...faces.map((f) => f.top))
     },
     walls: plan.walls.filter((w) => wallIds.has(w.id)).map((w) => w.id).filter((id, i, all) => all.indexOf(id) === i),

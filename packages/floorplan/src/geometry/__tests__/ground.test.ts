@@ -72,7 +72,7 @@ describe('openings below the ground (VE-7)', () => {
 describe('the plan check', () => {
   it('is one of the six plan checks, and its limit is said in every report', () => {
     expect(RULES.map((r) => r.id)).toContain('openings-above-ground')
-    expect(LIMITS).toContain("Whether a door or window lies below the ground is checked only when the plan states the site's ground level, and against that one level, not a slope")
+    expect(LIMITS).toContain("Whether a door or window lies below the ground is checked only when the plan states the site's ground level, and against that level, or on a slope against the ground at the opening's own wall")
   })
 })
 

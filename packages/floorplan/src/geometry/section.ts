@@ -18,6 +18,8 @@
  *   solid down to the floor the stair leaves;
  * - the floor of each raised room (LVL-7), solid from its storey's floor up;
  * - the ground the site states (LVL-4), and which side of each cut wall is outside (MSG-13, CNT-3);
+ *   CNT-49: on a slope the ground along the line is sloped (`ground.fall`, read with
+ *   `sectionGroundAt`), and the earth, the ground line and the walls holding it back follow it;
  * - VEW-65: the earth under the ground, in the cut, less the building's part below the ground, so a
  *   basement stands in its hole, the walls cut below the ground with the outside on one face holding
  *   it back (`retaining`); `sectionEarth` runs it, and the ground line, out to a picture's edges;
@@ -269,7 +271,7 @@ export interface PlanSection {
    * stands clear of it on its plinth (VEW-16) and over a basement that lies under it. `earth` is
    * the earth below it.
    */
-  readonly ground: { readonly level: number; readonly stated: boolean; readonly segments: readonly (readonly [number, number])[]; readonly earth: SectionEarth }
+  readonly ground: { readonly level: number; readonly stated: boolean; readonly segments: readonly (readonly [number, number])[]; readonly earth: SectionEarth; readonly fall?: SectionGroundFall }
   /** Every floor's level, lowest first. */
   readonly levels: readonly SectionLevel[]
   /** The top of each roof the line cuts, by the floor it covers. */
@@ -350,6 +352,25 @@ function snapper(): (v: number) => number {
   const steps = Math.round(1 / tolerance('shellGrid'))
   return (v) => Math.round(v * steps) / steps
 }
+
+/** CNT-49: the ground along a section's line, `level = at + perMetre * x`. */
+export interface SectionGroundFall {
+  readonly at: number
+  readonly perMetre: number
+}
+
+/** CNT-49: the ground's level at `x` along a section's line: on its slope, else its one level. */
+export function sectionGroundAt(ground: Pick<PlanSection['ground'], 'level' | 'fall'>, x: number): number {
+  return ground.fall === undefined ? ground.level : ground.fall.at + ground.fall.perMetre * x
+}
+
+/** CNT-49: the band from `bottom` up to the ground, `x0` to `x1`, its top following the ground. */
+const underGround = (snap: (v: number) => number, x0: number, x1: number, bottom: number, groundAt: (x: number) => number): Vec2[] => [
+  { x: snap(x0), y: snap(bottom) },
+  { x: snap(x1), y: snap(bottom) },
+  { x: snap(x1), y: snap(groundAt(x1)) },
+  { x: snap(x0), y: snap(groundAt(x0)) }
+]
 
 const rect = (snap: (v: number) => number, x0: number, x1: number, y0: number, y1: number): Vec2[] => [
   { x: snap(x0), y: snap(y0) },
@@ -438,6 +459,10 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       : [{ floor: shell.floor, top: shell.slab.top, pieces: [shell.slab.body, ...shell.slab.sunken.map((s) => s.pieces)], voids: shell.slab.openings.filter((o) => o.kind === 'void' && o.room !== null) }]
   )
   const pointAt = (x: number): Vec2 => add(frame.start, scale(frame.right, x))
+  // CNT-49: on a slope, the ground along the line.
+  const fall: SectionGroundFall | undefined =
+    ground.surface === null ? undefined : { at: ground.surface.at(frame.start), perMetre: ground.surface.gradient.x * frame.right.x + ground.surface.gradient.y * frame.right.y }
+  const groundAt = (x: number): number => sectionGroundAt({ level: ground.level, fall }, x)
   /**
    * A point of a floor rising through the voids over it: the lowest slab over it, above the
    * floor, open there as a void, takes it to that floor's top, and on. Null when no void is over it.
@@ -856,7 +881,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       if (shell.slab.thicknessStated) for (const piece of piecesAsRings(shell.slab.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('slab', floor.id, floor.id, ring, top - thickness, top)
     }
     // VEW-16: the outside walls carried down to the ground, under a floor whose slab stands clear of it.
-    const plinth = plinthUnder(shell.slab, ground.level)
+    const plinth = plinthUnder(shell.slab, ground.under.get(floor.id)?.low ?? ground.level)
     if (plinth !== null) {
       const band = plinthBand(floor.id)
       const rings = inside(frame, ringsOf(band)).map(([x0, x1]) => rect(snap, x0, x1, plinth.bottom, plinth.top))
@@ -1172,7 +1197,12 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   // through the ground, its foot at or under it (no plinth, VEW-16) and its top over it. So it runs on
   // under a floor on its plinth, and over a basement under a garden.
   const through = mergeStretches(
-    bodies.filter((b) => !(b.foot - ground.level > tolerance('plinthLeast')) && b.top - ground.level > tolerance('sameFloorLevel')).map((b) => [b.from, b.to] as const)
+    bodies
+      .filter((b) => {
+        const at = groundAt((b.from + b.to) / 2)
+        return !(b.foot - at > tolerance('plinthLeast')) && b.top - at > tolerance('sameFloorLevel')
+      })
+      .map((b) => [b.from, b.to] as const)
   )
   const segments: [number, number][] = []
   let cursor = 0
@@ -1193,26 +1223,27 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     const standing = bodies.filter((b) => b.from <= mid && b.to >= mid)
     if (standing.length === 0) continue
     const foot = Math.min(...standing.map((b) => b.foot))
-    const top = Math.min(ground.level, Math.max(...standing.map((b) => b.top)))
+    // CNT-49: cut off at the ground by `below`, which follows it on a slope.
+    const top = fall === undefined ? Math.min(ground.level, Math.max(...standing.map((b) => b.top))) : Math.min(Math.max(groundAt(x0), groundAt(x1)), Math.max(...standing.map((b) => b.top)))
     if (top - foot > none) dugRings.push(rect(snap, x0, x1, foot, top))
   }
-  const cutRings = parts.flatMap((p) => p.rings).filter((ring) => ring.some((p) => p.y < ground.level - none))
-  const lowest = Math.min(ground.level, ...dugRings.flat().map((p) => p.y), ...cutRings.flat().map((p) => p.y))
-  const below = [[ringOf(rect(snap, -1, lineLength + 1, lowest - 1, ground.level))]]
+  const cutRings = parts.flatMap((p) => p.rings).filter((ring) => ring.some((p) => p.y < groundAt(p.x) - none))
+  const lowest = Math.min(groundAt(0), groundAt(lineLength), ...dugRings.flat().map((p) => p.y), ...cutRings.flat().map((p) => p.y))
+  const below = [[ringOf(underGround(snap, -1, lineLength + 1, lowest - 1, groundAt))]]
   const dugAll = [...dugRings, ...cutRings].filter((ring) => Math.abs(signedArea(ring)) > 0)
   const dug: MultiPolygon = dugAll.length === 0 ? [] : (cutOutline('intersection', union(dugAll.map((ring) => [ringOf(ring)])), below) ?? [])
   const earthBottom = snap(lowest - limit('sectionEarthBelow'))
   const touches = (x: number): boolean => piecesAsRings(dug).some((piece) => piece.outline.some((p) => Math.abs(p.x - x) <= tolerance('shellGrid')))
   const earth: SectionEarth = {
     bottom: earthBottom,
-    pieces: earthBetween(dug, 0, lineLength, earthBottom, ground.level, snap),
+    pieces: earthBetween(dug, 0, lineLength, earthBottom, groundAt, snap),
     dug: piecesAsRings(dug).map((piece) => ({ outline: piece.outline.map((p) => ({ x: snap(p.x), y: snap(p.y) })), holes: piece.holes.map((h) => h.map((p) => ({ x: snap(p.x), y: snap(p.y) }))) })),
     open: { start: !touches(0), end: !touches(lineLength) }
   }
   // A wall cut below the ground with the outside on one face holds the earth back.
   parts.forEach((part, i) => {
     if (part.kind !== 'wall' || part.outside == null) return
-    if (part.rings.some((ring) => ring.some((p) => p.y < ground.level - tolerance('sameFloorLevel')))) parts[i] = { ...part, retaining: true }
+    if (part.rings.some((ring) => ring.some((p) => p.y < groundAt(p.x) - tolerance('sameFloorLevel')))) parts[i] = { ...part, retaining: true }
   })
 
   // What is taken, in the order it is listed. MSG-11: each sentence by key (`drawing.section.taken.*`),
@@ -1314,9 +1345,9 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     ...glass.flatMap((p) => p.rings.flat()),
     ...itemParts.flatMap((p) => p.rings.flat()),
     ...faces.flatMap((f) => (f.edge === null ? f.pieces.flatMap((p) => p.outline) : [...f.edge])),
-    ...segments.flatMap(([a, b]) => [{ x: a, y: ground.level }, { x: b, y: ground.level }]),
-    { x: 0, y: ground.level },
-    { x: lineLength, y: ground.level },
+    ...segments.flatMap(([a, b]) => [{ x: a, y: groundAt(a) }, { x: b, y: groundAt(b) }]),
+    { x: 0, y: groundAt(0) },
+    { x: lineLength, y: groundAt(lineLength) },
     { x: 0, y: earth.bottom }
   ]
   return {
@@ -1330,7 +1361,7 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
     glass,
     items: itemParts,
     beyond: faces,
-    ground: { level: ground.level, stated: ground.stated, segments, earth },
+    ground: { level: ground.level, stated: ground.stated, segments, earth, ...(fall === undefined ? {} : { fall }) },
     levels: levels.sort((a, b) => a.level - b.level),
     roofs,
     rooms: shownRooms,
@@ -1341,9 +1372,9 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
 }
 
 /** VEW-65: the earth from `x0` to `x1`, from `bottom` up to the ground, less the building below the ground. */
-function earthBetween(dug: MultiPolygon, x0: number, x1: number, bottom: number, level: number, snap: (v: number) => number): SectionPiece[] {
-  if (!(x1 - x0 > tolerance('noLength')) || !(level - bottom > tolerance('noLength'))) return []
-  const band = [ringOf(rect(snap, x0, x1, bottom, level))]
+function earthBetween(dug: MultiPolygon, x0: number, x1: number, bottom: number, groundAt: (x: number) => number, snap: (v: number) => number): SectionPiece[] {
+  if (!(x1 - x0 > tolerance('noLength')) || !(Math.min(groundAt(x0), groundAt(x1)) - bottom > tolerance('noLength'))) return []
+  const band = [ringOf(underGround(snap, x0, x1, bottom, groundAt))]
   const left = dug.length === 0 ? [band] : cutOutline('difference', band, [dug])
   if (left === null) return []
   const snapped = (ring: readonly Vec2[]): Vec2[] => ring.map((p) => ({ x: snap(p.x), y: snap(p.y) }))
@@ -1358,11 +1389,11 @@ function earthBetween(dug: MultiPolygon, x0: number, x1: number, bottom: number,
  */
 export function sectionEarth(section: PlanSection, from: number, to: number): { readonly pieces: readonly SectionPiece[]; readonly segments: readonly (readonly [number, number])[] } {
   const snap = snapper()
-  const { earth, segments, level } = section.ground
+  const { earth, segments } = section.ground
   const left = earth.open.start ? Math.min(0, from) : 0
   const right = earth.open.end ? Math.max(section.length, to) : section.length
   const dug: MultiPolygon = earth.dug.map((piece) => [ringOf(piece.outline), ...piece.holes.map(ringOf)])
-  const pieces = earthBetween(dug, left, right, earth.bottom, level, snap)
+  const pieces = earthBetween(dug, left, right, earth.bottom, (x) => sectionGroundAt(section.ground, x), snap)
   const near = tolerance('shellGrid')
   const out = segments.map(([a, b]): [number, number] => [a <= near ? snap(left) : a, b >= section.length - near ? snap(right) : b])
   return { pieces, segments: out }

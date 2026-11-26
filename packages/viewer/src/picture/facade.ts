@@ -12,7 +12,7 @@
  * Pure: no DOM, no React. `pictureToSvg` writes it out with the label (MSG-3), as it does a plan.
  */
 import type { Bounds } from '@ongrid/floorplan/geometry'
-import { hatchLines, levelText, planFacade, type Facade, type FacadeFace, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { facadeGroundAt, hatchLines, levelText, planFacade, type Facade, type FacadeFace, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { fitTo } from '../canvas2d/viewport'
 import type { LinePart, Look } from './look'
 import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
@@ -82,7 +82,8 @@ export function facadeFraming(facade: Facade): Bounds {
   const extent = facade.extent ?? { u0: 0, u1: 10, bottom: facade.ground.level, top: facade.ground.level + 3 }
   const span = Math.max(extent.u1 - extent.u0, 1)
   const run = Math.max(span * GROUND_RUN, GROUND_RUN_LEAST)
-  const min = { x: extent.u0 - run, y: facade.ground.level - BELOW }
+  // CNT-49: on a slope, the lowest of the ground line's ends.
+  const min = { x: extent.u0 - run, y: Math.min(facade.ground.level, facadeGroundAt(facade, extent.u0 - run), facadeGroundAt(facade, extent.u1 + run)) - BELOW }
   const max = { x: extent.u1 + run + span * LEVEL_ROOM, y: extent.top + ABOVE }
   return { min, max, width: max.x - min.x, height: max.y - min.y }
 }
@@ -242,19 +243,27 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
   })
   nodes.push(el('g', { 'data-part': 'facade-faces' }, faces))
 
-  // Under the ground nothing is seen: the paper covers it, under the ground line.
-  const ground = facade.ground.level
+  // Under the ground nothing is seen: the paper covers it, under the ground line. CNT-49: on a
+  // slope the line, and the paper under it, follow the ground along the face.
   const span = Math.max(extent.u1 - extent.u0, 1)
   const run = Math.max(span * GROUND_RUN, GROUND_RUN_LEAST)
+  const [left, right] = [frame.min.x - frame.width, frame.min.x + frame.width * 2]
+  const deep = Math.min(facadeGroundAt(facade, left), facadeGroundAt(facade, right)) - frame.height * 2
   nodes.push(
-    el('rect', {
-      'data-part': 'facade-below-ground',
-      x: lengthText(frame.min.x - frame.width),
-      y: lengthText(-ground),
-      width: lengthText(frame.width * 3),
-      height: lengthText(frame.height * 2),
-      fill: look.colors.paper
-    })
+    facade.ground.fall === undefined
+      ? el('rect', {
+          'data-part': 'facade-below-ground',
+          x: lengthText(left),
+          y: lengthText(-facade.ground.level),
+          width: lengthText(frame.width * 3),
+          height: lengthText(frame.height * 2),
+          fill: look.colors.paper
+        })
+      : el('path', {
+          'data-part': 'facade-below-ground',
+          d: `M${lengthText(left)},${lengthText(-facadeGroundAt(facade, left))}L${lengthText(right)},${lengthText(-facadeGroundAt(facade, right))}L${lengthText(right)},${lengthText(-deep)}L${lengthText(left)},${lengthText(-deep)}Z`,
+          fill: look.colors.paper
+        })
   )
 
   if (facade.outline.length > 0) {
@@ -266,9 +275,9 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
     el('line', {
       'data-part': 'facade-ground',
       x1: lengthText(extent.u0 - run),
-      y1: lengthText(-ground),
+      y1: lengthText(-facadeGroundAt(facade, extent.u0 - run)),
       x2: lengthText(extent.u1 + run),
-      y2: lengthText(-ground),
+      y2: lengthText(-facadeGroundAt(facade, extent.u1 + run)),
       stroke: look.ink,
       'stroke-width': width('elevationGround')
     })
@@ -291,7 +300,7 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
     ])
   )
   nodes.push(el('g', { 'data-part': 'facade-levels' }, levels))
-  nodes.push(textNode(look, extent.u0 - run, -ground + metresPerPixel * 18, metresPerPixel, facadeCaption(facade, words), 'facade-caption'))
+  nodes.push(textNode(look, extent.u0 - run, -Math.min(facadeGroundAt(facade, extent.u0 - run), facade.ground.level) + metresPerPixel * 18, metresPerPixel, facadeCaption(facade, words), 'facade-caption'))
   return nodes
 }
 
