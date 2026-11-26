@@ -14,6 +14,7 @@ import type { SKRSContext2D } from '@napi-rs/canvas'
 import { loadCanvas } from '../draw/canvas'
 import { drawPlan } from '../draw/drawPlan'
 import { drawStill } from '../draw/drawStill'
+import { trueCodePoints } from './pdfText'
 import { SANS, SERIF, registerSheetFonts, sheetFont } from './fonts'
 import { PLAN_BOX, planPictureOptions, type Sheet, type SheetPage, type SheetRow, type SheetTable } from './pages'
 
@@ -377,5 +378,5 @@ export async function sheetPdf(plan: FloorPlan, sheet: Sheet): Promise<{ pdf: Ui
     footer(ctx, page)
     doc.endPage()
   }
-  return { pdf: new Uint8Array(doc.close()), sheet: laid }
+  return { pdf: trueCodePoints(new Uint8Array(doc.close())), sheet: laid }
 }
