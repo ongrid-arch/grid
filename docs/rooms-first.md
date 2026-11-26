@@ -292,6 +292,20 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   its walking line otherwise, and raw when Grid cannot lay it out. `grid write` keeps the file's
   stairs when the text writes no stair line, and says so; `grid_add_stair` and
   `grid_change_stair` write and change the same stairs on the tool server.
+- Writing on the drawing and its sketch are lines of their own (SHT-22): `note "<text>"` and
+  `tag "<text>"` at a point (`at x,y`) or in a room (`in <room>`, under its name, on its floor),
+  `symbol north|entrance` (with `turn <degrees>` and a label in quotes), `key` (under the drawing
+  with no `at`), `route [<category>] x,y x,y ...` (a line with an arrowhead at its last point, the
+  way out), and `sketch line|shape|rect|arc|text <category> ...`. Each may end with `on <floor>`
+  and `id <id>`: with no `on`, a line under a `floor` line is on that floor; with no `id`, Grid
+  gives `tag-1`, `route-1`, `sketch-1` and so on. They write the plan's own `annotations` and
+  `sketch`, which the drawing, the sheet and the DXF export show, and the answer lists what each
+  floor now carries; a line Grid cannot place is refused naming what to write (`rooms/note`).
+  A route is a sketch line whose last three points draw its head, so every drawing shows the
+  arrow; the read-back finds it again and writes it as a `route` line, and writes the rest as
+  their lines, or `raw note {...}` and `raw sketch {...}` for one a line cannot give back. `grid
+  write` keeps the file's annotations, and its sketch, when the text writes none of them;
+  `grid_annotate` places and takes out the same on the tool server.
 - A door, window or opening line may name a raw room (WRT-45). `between <a> and <b>` goes in
   the one wall both rooms' boundaries name, and `in <room> <side>` in the one wall of the room
   whose outside face looks that way, a curved wall too. The place is `centred` or
@@ -636,6 +650,22 @@ setback all 2
 north 30 clockwise
 site tree oak at 9,15 canopy 5 "Old oak"
 site pool pool 0,12 3,12 3,18 0,18
+```
+
+### Writing on the drawing
+
+note "<text>" or tag "<text>" (short words in a box: you are here, FE), then at x,y or in <room> (under its name, on its floor); symbol north|entrance at x,y | in <room> [turn <degrees>] ["<label>"]; key [at x,y] (under the drawing with no at); route [<category>] x,y x,y ... draws a line with an arrowhead at its last point, the way out; sketch line|shape|rect <category> x,y ..., sketch arc <category> at x,y radius <m> start <degrees> end <degrees> and sketch text <category> at x,y "<text>" draw the sketch layer, its category the author's word for it (garden, street, fence). Each may end on <floor> and id <id>: with no on, a line under a floor line is on that floor; with no id, Grid gives tag-1, route-1, sketch-1. Drawn and exported only, never measured or checked; raw note|sketch {...} takes Grid's own JSON. Never draw your own map to add them. grid_annotate writes the same.
+
+```rooms
+room office "Office" office 5.0 x 4.0 at 0,0
+room hall "Hall" corridor 2.0 x 4.0 east of office
+door d1 between office and hall, centred, 0.9 wide, opens into hall
+door exit in hall south, centred, 1.0 wide, opens out
+tag "You are here" at 2.5,2
+tag "FE" in hall
+symbol entrance at 6.1,-0.6 "Way out"
+route exit 2.5,2 6.1,2 6.1,-1
+sketch shape garden -1,-1.5 9,-1.5 9,-4 -1,-4
 ```
 
 ### Other lines

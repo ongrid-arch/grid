@@ -2160,7 +2160,7 @@ export const en = {
     "Line {line}: a raw floor holds the floor's {known}, as Grid's plan file holds them, and {field} is none of them. {fix}",
   'rooms.raw.floorField.line': "The floor's {field} is written on its floor line: floor <id> {field} <value>.",
   'rooms.raw.kind':
-    "Line {line}: raw takes wall, room, opening, floor or stair, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
+    "Line {line}: raw takes wall, room, opening, floor, stair, note or sketch, then one JSON object as Grid's plan file holds it; 'raw {kind}' is none of them. {where}",
   'rooms.raw.kind.opening': 'A door or a window is written raw opening {"id": "<id>", "type": "{type}", "wall": "<wall id>", "offset": <m>, "width": <m>, "height": <m>}.',
   'rooms.raw.kind.floor': 'A floor\'s {list} is written raw floor {"{list}": ...}, under its floor line.',
   'rooms.raw.kind.list': 'Rooms text has no line for it: Grid\'s plan file holds it in "{list}", changed in the file once the plan is written.',
@@ -2169,7 +2169,7 @@ export const en = {
   'rooms.raw.kind.stair': 'A stair is written raw stair {"id": "<id>", "from": "<floor>", "to": "<floor>", "width": <m>, "run": [[x, y], ...]}, or in a line of its own: stair <id> from <floor> to <floor> in <room>, <width> wide, straight|L|U, runs <side>.',
   'rooms.raw.smallLetters':
     "Line {line}: rooms text is read in small letters, and '{written}' is not; write '{offered}'.",
-  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor or stair, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
+  'rooms.raw.kind.nothing': "Line {line}: raw takes wall, room, opening, floor, stair, note or sketch, then one JSON object as Grid's plan file holds it: raw wall {\"id\": ...}.",
   'rooms.plan.oneName': 'Line {line}: the plan line takes one name, in quotes when it has spaces, and {extra} after it would not be read. Write {offered}.',
   'rooms.wall.unknownRoom':
     "Line {line}: the wall line names '{room}', which is no room written on floor '{floor}'.{nearest} Rooms there: {rooms}.",

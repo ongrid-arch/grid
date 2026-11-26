@@ -98,7 +98,7 @@ describe('raw takes wall, room, opening, floor or stair (WRT-48)', () => {
       expect(result.problems.map((p) => [p.code, p.line])).toEqual([['rooms/raw', 4]])
       const message = result.problems[0]!.message
       expect(message).toContain(`raw ${kind}`)
-      expect(message).toContain('wall, room, opening, floor or stair')
+      expect(message).toContain('wall, room, opening, floor, stair, note or sketch')
       expect(message).toContain(where)
       expect(message).not.toContain('A line starts with one of')
     }

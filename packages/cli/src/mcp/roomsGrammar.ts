@@ -177,6 +177,21 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
     ],
   },
   {
+    topic: 'writing on the drawing',
+    says: 'note "<text>" or tag "<text>" (short words in a box: you are here, FE), then at x,y or in <room> (under its name, on its floor); symbol north|entrance at x,y | in <room> [turn <degrees>] ["<label>"]; key [at x,y] (under the drawing with no at); route [<category>] x,y x,y ... draws a line with an arrowhead at its last point, the way out; sketch line|shape|rect <category> x,y ..., sketch arc <category> at x,y radius <m> start <degrees> end <degrees> and sketch text <category> at x,y "<text>" draw the sketch layer, its category the author\'s word for it (garden, street, fence). Each may end on <floor> and id <id>: with no on, a line under a floor line is on that floor; with no id, Grid gives tag-1, route-1, sketch-1. Drawn and exported only, never measured or checked; raw note|sketch {...} takes Grid\'s own JSON. Never draw your own map to add them. grid_annotate writes the same.',
+    example: [
+      'room office "Office" office 5.0 x 4.0 at 0,0',
+      'room hall "Hall" corridor 2.0 x 4.0 east of office',
+      'door d1 between office and hall, centred, 0.9 wide, opens into hall',
+      'door exit in hall south, centred, 1.0 wide, opens out',
+      'tag "You are here" at 2.5,2',
+      'tag "FE" in hall',
+      'symbol entrance at 6.1,-0.6 "Way out"',
+      'route exit 2.5,2 6.1,2 6.1,-1',
+      'sketch shape garden -1,-1.5 9,-1.5 9,-4 -1,-4',
+    ],
+  },
+  {
     topic: 'other lines',
     says: 'One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings].',
     example: [

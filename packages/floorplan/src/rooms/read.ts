@@ -27,6 +27,7 @@ import { planRevision } from './stamp'
 import { factValueOf, metres, quotedWordsOf } from './words'
 import { siteLines } from './site'
 import { stairLines } from './stairs'
+import { noteLines } from './notes'
 
 type P = readonly [number, number]
 
@@ -720,6 +721,9 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
   // LVL-21: the stairs, after every floor, so each room a stair line names is written above it.
   const stairs = stairLines(plan)
   if (stairs.length > 0) lines.push('', ...stairs)
+  // SHT-22: writing on the drawing and the sketch, last, on the floor of the last block unless they say another.
+  const notes = noteLines(plan, floors.at(-1)?.id)
+  if (notes.length > 0) lines.push('', ...notes)
   return `${lines.join('\n')}\n`
 }
 

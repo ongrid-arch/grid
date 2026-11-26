@@ -1278,6 +1278,13 @@ of it changes an area, a check or a wall count.
 A field the format does not have, on a note or a sketch item, is named like any other
 (`plan/unknown-field`). The 3D views do not show the sketch yet.
 
+Rooms text writes both in lines of their own, and `grid_annotate` places and takes out the same
+on the tool server (SHT-22): `tag "You are here" at 3,4`, `tag "FE" in kitchen`,
+`symbol entrance at 2,-0.5`, `route exit 2,5 2,1 6,1 on first`, `sketch shape garden ...`
+([rooms text](rooms-first.md#writing-on-the-drawing)). A route is a sketch `line` whose last
+three points draw an arrowhead at its end, a V back up its last leg, at most 0.4 m long, so
+every drawing and the DXF show the arrow; the read-back writes such a line as a `route` again.
+
 ## Facts of your own, and room numbers
 
 A wall, a door, a window, a doorless opening, a room and a floor may carry facts of the
