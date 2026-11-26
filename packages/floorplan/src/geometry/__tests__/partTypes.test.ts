@@ -111,6 +111,27 @@ describe('CNT-15 a part takes what its type gives', () => {
     expect([other.wallType, other.thickness]).toEqual(['brick', 0.2])
   })
 
+  it('keeps a window or door that states every size out of the default type', () => {
+    const raw = typedFlat() as Raw & { openings: Raw[]; types: Raw }
+    raw.types['defaults'] = { window: 'W12', door: 'D80' }
+    const wall = raw.openings[0]!['wall']
+    const add = (extra: Raw): Raw => ({ offset: 0.2, wall, ...extra })
+    raw.openings.push(
+      add({ id: 'loft', type: 'window', width: 0.6, height: 0.6, sill: 1 }),
+      add({ id: 'part', type: 'window', width: 0.6, height: 0.6 }),
+      add({ id: 'named', type: 'window', width: 0.6, height: 0.6, sill: 1, windowType: 'W12' }),
+      add({ id: 'plain-door', type: 'door', width: 0.7, height: 2 }),
+    )
+    const plan = parseFloorPlan(raw)
+    const get = (id: string) => plan.openings.find((o) => o.id === id)!
+    expect(get('loft').windowType).toBeUndefined()
+    expect(get('loft').typed).toBeUndefined()
+    expect(openingTypeOf(plan, get('loft'))).toBeNull()
+    expect([get('part').windowType, get('part').sill, get('part').typed]).toEqual(['W12', 0.9, ['windowType', 'sill']])
+    expect([get('named').windowType, get('named').width]).toEqual(['W12', 0.6])
+    expect(get('plain-door').doorType).toBeUndefined()
+  })
+
   it('reads a file\'s own typed as a field it does not know, and fills from no type it does not have', () => {
     const raw = typedFlat() as Raw & { walls: Raw[] }
     raw.walls[0]!['typed'] = ['thickness']
