@@ -6,8 +6,8 @@
  * room each landed in and what Grid's checks say of it: a wall it runs into, an item it stands in,
  * the clear floor it keeps blocked.
  */
-import { floorOf, indexPlan, itemKindWord, itemRoom, roomShapes, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
-import { LibraryRefused, libraryNames, placeFromLibrary, type Library, type Pair } from '@ongrid/floorplan/library'
+import { floorOf, indexPlan, isItemKind, itemKindWord, itemRoom, roomShapes, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { LibraryRefused, libraryNames, placeFromLibrary, type Library, type PlaceRequest } from '@ongrid/floorplan/library'
 import { english, name as idName, said as sentence } from '@ongrid/floorplan/messages'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { quoted } from '../fs/projectFiles'
@@ -26,12 +26,12 @@ function takenIds(plan: FloorPlan): Set<string> {
   return new Set([...plan.walls, ...plan.rooms, ...plan.openings, ...(plan.items ?? []), ...(plan.columns ?? [])].map((part) => part.id))
 }
 
-export function placeItems(survey: Survey, library: Library, request: { readonly name: string; readonly at: Pair; readonly turn?: number; readonly floor?: string; readonly id?: string }, problems: readonly string[] = []): Patch {
+export function placeItems(survey: Survey, library: Library, request: PlaceRequest, problems: readonly string[] = []): Patch {
   const leftOut = problems.map((problem) => `Left out of the library: ${problem}.`)
   const plan = survey.plan
   // WRT-46: an id a part holds is refused naming that part and where it is, as a kept item is easily taken for cleared.
   const taken = takenIds(plan)
-  if (request.id !== undefined && taken.has(request.id) && library.items.has(request.name)) {
+  if (request.id !== undefined && taken.has(request.id) && (library.items.has(request.name) || (!library.rooms.has(request.name) && isItemKind(request.name)))) {
     throw new EditRefused([english(sentence('edit.idTaken.place', { name: idName(request.name), id: idName(request.id), holder: idHolder(plan, request.id) })), ...leftOut].join(' '))
   }
   let placed: ReturnType<typeof placeFromLibrary>
@@ -49,6 +49,9 @@ export function placeItems(survey: Survey, library: Library, request: { readonly
   const { issues, broken } = validatePlan(after, index)
   const rooms = roomShapes(index, broken)
   const ids = new Set(placed.items.map((item) => item.id as string))
+  // CNT-43: an item given its own size, height or clear floor is said at the size given, not the entry's.
+  const own = request.own ?? {}
+  const sized = own.size !== undefined || own.height !== undefined || own.clearance !== undefined
   const said: string[] = [...leftOut]
   if (placed.room !== null) {
     const { room, from, file } = placed.room
@@ -58,10 +61,10 @@ export function placeItems(survey: Survey, library: Library, request: { readonly
     const found = library.items.get(item.library ?? '')
     const room = itemRoom(item, rooms)
     const where = room === null ? 'in no room' : `in room ${quoted(room.name || room.id)}`
-    const source = found === undefined ? '' : found.from === 'office' ? `, from ${found.file}` : found.from === 'grid' ? ", Grid's own size, not a code figure" : ", the plan's own entry"
+    const source = sized ? ', at the size given' : found === undefined ? '' : found.from === 'office' ? `, from ${found.file}` : found.from === 'grid' ? ", Grid's own size, not a code figure" : ", the plan's own entry"
     const clear = item.clearance === undefined || item.clearance === 0 ? '' : `, keeping ${n2(item.clearance)} m clear in front`
     said.push(
-      `Placed ${itemKindWord(item.kind)} ${quoted(item.id)} from ${quoted(item.library ?? '')} (${n2(item.size[0])} × ${n2(item.size[1])} m, ${n2(item.height)} m high${clear}${source}) at (${n2(item.at[0])}, ${n2(item.at[1])})${item.turn === undefined ? '' : `, turned ${item.turn}°`}, ${where}${floorOf(item) === 'ground' && request.floor === undefined ? '' : ` on floor ${quoted(floorOf(item))}`}.`
+      `Placed ${itemKindWord(item.kind)} ${quoted(item.id)} ${item.library === undefined ? '' : `from ${quoted(item.library)} `}(${n2(item.size[0])} × ${n2(item.size[1])} m, ${n2(item.height)} m high${clear}${source}) at (${n2(item.at[0])}, ${n2(item.at[1])})${item.turn === undefined ? '' : `, turned ${item.turn}°`}, ${where}${floorOf(item) === 'ground' && request.floor === undefined ? '' : ` on floor ${quoted(floorOf(item))}`}.`
     )
   }
   const fit = issues.filter((issue) => FIT_CODES.has(issue.code) && (ids.has(issue.id) || ((issue as { readonly hits?: readonly string[] }).hits ?? []).some((hit) => ids.has(hit))))

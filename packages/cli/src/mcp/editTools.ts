@@ -17,6 +17,7 @@ import { splitRoom } from '../edit/split'
 import { squarePlan } from '../edit/square'
 import { stretchPlan } from '../edit/stretch'
 import { limit } from '@ongrid/floorplan/geometry'
+import type { OwnFigures } from '@ongrid/floorplan/library'
 import { placeItems } from '../edit/place'
 import { libraryFor } from '../library/office'
 import { DECIMAL_IN_ARG, floorArg, listSchema, NUMBER, objectSchema, PLAN_ARG, planFileOf, projectOf, roomArg, STRING, ToolRefusal, type GridTool } from './toolkit'
@@ -254,6 +255,19 @@ const squareTool: GridTool = {
   },
 }
 
+/** CNT-43: an item's own figures from the place tool's arguments; width and depth come together. */
+function ownFigures(args: Readonly<Record<string, unknown>>): OwnFigures {
+  const width = args['width'] as number | undefined
+  const depth = args['depth'] as number | undefined
+  if ((width === undefined) !== (depth === undefined)) throw new ToolRefusal(`Give width and depth together: the item's own size is both. Only ${width === undefined ? 'depth' : 'width'} was given.`)
+  return {
+    ...(width !== undefined && depth !== undefined ? { size: [width, depth] as const } : {}),
+    ...(args['height'] !== undefined ? { height: args['height'] as number } : {}),
+    ...(args['clearance'] !== undefined ? { clearance: args['clearance'] as number } : {}),
+    ...(args['label'] !== undefined ? { label: args['label'] as string } : {}),
+  }
+}
+
 // CNT-20 (C30): a library item or a typical room placed by name.
 const placeTool: GridTool = {
   name: 'grid_place_item',
@@ -262,7 +276,8 @@ const placeTool: GridTool = {
   description:
     'Use this when the person asks to put a fixture or a piece of furniture in the plan, or a whole typical room\'s worth: "put a double bed in the main bedroom", "a bath and a WC in the bathroom", "use our standard bathroom here", "will a double bed and two side tables fit". '
     + 'It places a library entry by name (grid_measure what=library lists them: Grid\'s own sizes, the office\'s files in the library folder beside the plan, and the plan\'s own), so a double bed is the same bed every time, with its size, height and the clear floor it keeps in front, and answers with the room it landed in and whether it fits: a wall it runs into, an item it stands in, the clear floor kept in front of one that something blocks. '
-    + 'x and y are the middle of an item, or the inside back-left corner of a typical room, whose items are set out from there; unturned, an item\'s back faces -y (down the drawing), and turn turns it counter-clockwise. An entry from the office\'s folder is copied into the plan, so the plan reads the same without the folder. '
+    + 'x and y are the middle of an item, or the inside back-left corner of a typical room, whose items are set out from there; unturned, an item\'s back faces -y (down the drawing), and turn turns it counter-clockwise. An entry from the office\'s folder is copied into the plan, so the plan reads the same without the folder.'
+    + 'For an odd size, give the item its own width, depth, height, clearance or label: they are written on it and the entry fills the rest (a 1.40 × 0.70 desk from desk, a WC at 0.35 m high). A thing the library has no entry for is placed by its kind (storage, table, bed, toilet) with its width, depth and height: a 1.2 × 0.9 kennel as storage. '
     + 'Do not use to move or size an item already placed, or to add a room (grid_add_room). It replaces the plan file unless out is given. Lengths are metres, or text with their unit; angles are degrees.',
   args: {
     plan: PLAN_ARG,
@@ -272,6 +287,11 @@ const placeTool: GridTool = {
     turn: { type: 'number', description: 'Degrees counter-clockwise: 0 puts an item\'s back to -y, 90 to +x, 180 to +y, 270 to -x. 0 when left out.', examples: [0, 90, 180], minimum: -360, maximum: 360 },
     floor: { type: 'string', id: true, description: 'A floor id from the plan\'s "floors". The ground floor when left out.', examples: ['first'] },
     id: { type: 'string', id: true, description: 'For an item: its id. Unstated, its library name, made unique.', examples: ['bed-main'] },
+    width: { type: 'number', length: true, description: 'For an item: its own width along its back, in metres, in place of the entry\'s (with depth). Needed when name is a kind.', examples: [1.4], minimum: 0.01, maximum: 100 },
+    depth: { type: 'number', length: true, description: 'For an item: its own depth from its back to its front, in metres, with width.', examples: [0.7], minimum: 0.01, maximum: 100 },
+    height: { type: 'number', length: true, description: 'For an item: its own height from the floor, in metres. Needed when name is a kind.', examples: [0.35], minimum: 0.01, maximum: 100 },
+    clearance: { type: 'number', length: true, description: 'For an item: the clear floor it keeps in front of it, in metres (0 for none), in place of the entry\'s.', examples: [0.6], minimum: 0, maximum: 100 },
+    label: NAME('For an item: what the drawing calls it, in place of the entry\'s label.', 'Kennel'),
     out: OUT_ARG,
   },
   outputSchema: {
@@ -295,6 +315,7 @@ const placeTool: GridTool = {
         ...(args['turn'] !== undefined ? { turn: args['turn'] as number } : {}),
         ...(floor !== undefined ? { floor } : {}),
         ...(args['id'] !== undefined ? { id: args['id'] as string } : {}),
+        own: ownFigures(args),
       }, problems)
     })
   },

@@ -3,7 +3,8 @@ import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { PlaybackClock } from '../preview/playback'
 import type { PlanBuild } from '../preview/useBuildFrame'
 import type { PlanColors3D } from './usePlanColors'
-import type { BuildingFrame, BuildingLayout } from './building'
+import type { BuildingFrame, BuildingGround, BuildingLayout } from './building'
+import { Ground3D } from './Ground3D'
 import { Storey3D, type StoreyPointer } from './Storey3D'
 
 type BuildClock = PlaybackClock<PlanBuild>
@@ -15,7 +16,7 @@ const NO_BUILDS: ReadonlyMap<string, BuildClock> = new Map()
  * draws the same lines itself, both from these figures.
  */
 export const GROUND_GRID = {
-  /** Just under the ground, where it reads as ground; basements go below it. */
+  /** Just under the ground (VEW-66: `BuildingGround.y`, which it is from), where it reads as ground. */
   y: -0.01,
   args: [40, 40] as [number, number],
   cellSize: 1,
@@ -37,6 +38,8 @@ export interface BuildingSceneProps {
   /** The storey under the pointer, tinted. */
   hovered?: string | null
   pointer?: StoreyPointer
+  /** VEW-66: the ground, drawn as a surface the floors below it show faded through. None when left out. */
+  ground?: BuildingGround | null
 }
 
 /**
@@ -52,7 +55,8 @@ export function BuildingScene({
   builds = NO_BUILDS,
   highlightRoom = null,
   hovered = null,
-  pointer
+  pointer,
+  ground = null
 }: BuildingSceneProps): JSX.Element {
   const { shadow } = frame
   const { roof } = layout
@@ -91,6 +95,8 @@ export function BuildingScene({
           />
         )
       )}
+
+      {ground !== null && <Ground3D ground={ground} color={colors.background} />}
     </>
   )
 }

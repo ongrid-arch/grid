@@ -5,7 +5,9 @@ import type * as THREE from 'three'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { buildScene, sceneShell } from '@ongrid/floorplan/geometry'
 import { toGlb } from '@ongrid/floorplan/geometry/export/gltf'
+import * as Three from 'three'
 import { DARK_COLORS_3D, LIGHT_COLORS_3D, planStill, stillScene, type RasterImage } from '..'
+import { GROUND_FILL } from '../../canvas3d/Ground3D'
 
 const flat = JSON.parse(readFileSync(resolve(__dirname, '../../../../cli/fixtures/two-bed-flat.json'), 'utf8')) as FloorPlan
 
@@ -68,7 +70,8 @@ describe('planStill', () => {
       // CNT-14: and every box of each door's and window's frame, leaves and glass.
       const parts = model.openings.reduce((sum, opening) => sum + opening.parts.length, 0)
       expect(parts).toBeGreaterThan(0)
-      expect(meshes.length).toBe(model.walls.length + model.slabs.length + model.shell!.slab.length + parts)
+      // VEW-66: and the ground round it.
+      expect(meshes.length).toBe(model.walls.length + model.slabs.length + model.shell!.slab.length + parts + 1)
       // Its lights are the app's, read from the scene rather than written down twice.
       const lights = still.scene.children.filter((object) => (object as THREE.Light).isLight)
       expect(lights.map((light) => light.type).sort()).toEqual(['DirectionalLight', 'HemisphereLight'])
@@ -147,6 +150,90 @@ describe('planStill', () => {
       const open = planStill(gabled, { width: 300, height: 200, focus: 'ground', roof: false })
       expect(Buffer.from(cut.data).equals(Buffer.from(open.data))).toBe(true)
       expect(Buffer.from(asked.data).equals(Buffer.from(open.data))).toBe(false)
+    })
+  })
+
+  describe('a house over two basements (VEW-66)', () => {
+    /** A closed box 6 by 4 of walls `height` high on `floor`, with its room. */
+    const storey = (floor: string, height: number) => {
+      const corners: [number, number][] = [
+        [0, 0],
+        [6, 0],
+        [6, 4],
+        [0, 4]
+      ]
+      const walls = corners.map((start, i) => ({ id: `${floor}-w${i}`, start, end: corners[(i + 1) % 4]!, thickness: 0.2, height, kind: 'exterior' as const, floor }))
+      return { walls, room: { id: `${floor}-room`, name: floor, boundary: walls.map((w) => w.id), floor } }
+    }
+    const dig = (ground: number): FloorPlan => {
+      const parts = [storey('b2', 3), storey('b1', 3), storey('g', 3)]
+      return {
+        version: '1',
+        units: 'm',
+        floors: [
+          { id: 'b2', name: 'Lower basement', level: -2 },
+          { id: 'b1', name: 'Basement', level: -1 },
+          { id: 'g', name: 'Ground floor', level: 0 }
+        ],
+        site: { ground },
+        walls: parts.flatMap((p) => p.walls),
+        rooms: parts.map((p) => p.room),
+        openings: []
+      } as FloorPlan
+    }
+
+    it('lays the ground at the ground, cut away over the building', () => {
+      const still = stillScene(dig(0), { colors: LIGHT_COLORS_3D, width: 300, height: 200 })
+      try {
+        expect(still.ground.y).toBe(0)
+        const sheets: Three.Mesh[] = []
+        still.scene.traverseVisible((object) => {
+          const mesh = object as Three.Mesh
+          if (mesh.isMesh && (mesh.material as Three.Material).transparent && (mesh.material as Three.Material).opacity === GROUND_FILL.opacity) sheets.push(mesh)
+        })
+        expect(sheets).toHaveLength(1)
+        const box = new Three.Box3().setFromObject(sheets[0]!)
+        expect(box.min.y).toBeCloseTo(GROUND_FILL.y, 6)
+        expect(box.max.y).toBeCloseTo(GROUND_FILL.y, 6)
+        // Round the building, past its walls: a hole is cut over it, so it is more than one square of triangles.
+        expect(box.max.x - box.min.x).toBeGreaterThan(6 + 2 * 39)
+        expect(sheets[0]!.geometry.getIndex()?.count ?? sheets[0]!.geometry.getAttribute('position').count).toBeGreaterThan(6)
+      } finally {
+        still.close()
+      }
+    })
+
+    it('shows the basements under the ground faded toward the background', () => {
+      const still = stillScene(dig(0), { colors: LIGHT_COLORS_3D, width: 300, height: 200 })
+      // The middle of an outside face of the upper basement that the camera faces, on screen.
+      const eye = still.camera.position.clone()
+      const faces = [
+        { point: new Three.Vector3(3, -1.6, 0.1), normal: new Three.Vector3(0, 0, 1) },
+        { point: new Three.Vector3(3, -1.6, -4.1), normal: new Three.Vector3(0, 0, -1) },
+        { point: new Three.Vector3(6.1, -1.6, -2), normal: new Three.Vector3(1, 0, 0) },
+        { point: new Three.Vector3(-0.1, -1.6, -2), normal: new Three.Vector3(-1, 0, 0) }
+      ]
+      const face = faces.find((f) => eye.clone().sub(f.point).dot(f.normal) > 0)!
+      const at = face.point.clone().project(still.camera)
+      still.close()
+      const x = Math.round(((at.x + 1) / 2) * 300)
+      const y = Math.round(((1 - at.y) / 2) * 200)
+      const distance = (image: RasterImage): number => {
+        const pixel = hex(image, x, y)
+        const channel = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16)
+        return [0, 1, 2].reduce((sum, i) => sum + Math.abs(channel(pixel, i) - channel(LIGHT_COLORS_3D.background, i)), 0)
+      }
+      // The same building with the ground stated under all of it: nothing is buried.
+      const buried = distance(planStill(dig(0), { width: 300, height: 200 }))
+      const open = distance(planStill(dig(-20), { width: 300, height: 200 }))
+      expect(open).toBeGreaterThan(0)
+      expect(buried).toBeLessThan(open * (1 - GROUND_FILL.opacity) + 6)
+    })
+
+    it('leaves the background round the building the background', () => {
+      const image = planStill(dig(0), { width: 300, height: 200 })
+      expect(hex(image, 0, 0)).toBe(LIGHT_COLORS_3D.background)
+      expect(hex(image, 299, 0)).toBe(LIGHT_COLORS_3D.background)
     })
   })
 

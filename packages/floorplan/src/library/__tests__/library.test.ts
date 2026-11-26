@@ -104,6 +104,13 @@ describe('Grid\'s built-in library', () => {
       rug: ['rug', 2, 1.4, 0.01, 0],
       'rug-large': ['rug', 3, 2, 0.01, 0],
       plant: ['plant', 0.5, 0.5, 1.2, 0],
+      'wc-child': ['toilet', 0.32, 0.5, 0.35, 0.5],
+      'basin-low': ['basin', 0.45, 0.35, 0.55, 0.5],
+      cot: ['bed', 0.66, 1.26, 0.95, 0.5],
+      'nap-cot': ['bed', 0.6, 1.3, 0.15, 0.4],
+      'changing-table': ['table', 0.9, 0.7, 0.9, 0.7],
+      'coat-rail': ['storage', 1.2, 0.4, 1.7, 0.6],
+      'coat-rail-low': ['storage', 1.2, 0.3, 1.1, 0.6],
     })
   })
 
@@ -141,6 +148,32 @@ describe('Grid\'s built-in library', () => {
       { id: 'wc-2', library: 'wc', at: [9.675, 5.4], turn: 90 },
       { id: 'basin-small', library: 'basin-small', at: [8.8, 5.825], turn: 180 },
     ])
+  })
+
+  it('holds child-size fixtures and furniture, each of a kind Grid holds (CNT-43)', () => {
+    const library = planLibrary({})
+    for (const name of ['wc-child', 'basin-low', 'cot', 'nap-cot', 'changing-table', 'coat-rail', 'coat-rail-low']) expect(library.items.get(name)?.from, name).toBe('grid')
+  })
+
+  it('places an item at its own size, height and label, the entry filling the rest (CNT-43)', () => {
+    const library = planLibrary({})
+    const placed = placeFromLibrary(library, { name: 'desk', at: [2, 2], own: { size: [1.4, 0.7], label: 'Hot desk' } }, new Set())
+    expect(placed.items).toEqual([{ id: 'desk', library: 'desk', at: [2, 2], size: [1.4, 0.7], label: 'Hot desk' }])
+    const item = parseFloorPlan({ items: placed.items }).items![0]!
+    expect([item.size, item.height, item.clearance, item.label, item.fromLibrary]).toEqual([[1.4, 0.7], 0.75, 0.75, 'Hot desk', ['kind', 'height', 'clearance']])
+  })
+
+  it('places a thing the library has no entry for by its kind, given its size and height (CNT-43)', () => {
+    const library = planLibrary({})
+    const placed = placeFromLibrary(library, { name: 'storage', at: [1, 1], id: 'kennel-1', own: { size: [1.2, 0.9], height: 0.9, label: 'Kennel' } }, new Set())
+    expect(placed.kind).toBe('storage')
+    expect(placed.items).toEqual([{ id: 'kennel-1', kind: 'storage', at: [1, 1], size: [1.2, 0.9], height: 0.9, label: 'Kennel' }])
+    expect(parseFloorPlan({ items: placed.items }).items![0]!.size).toEqual([1.2, 0.9])
+    expect(() => placeFromLibrary(library, { name: 'storage', at: [1, 1], own: { size: [1.2, 0.9] } }, new Set())).toThrow('give its width, depth and height')
+  })
+
+  it('refuses own figures for a typical room, which is many items (CNT-43)', () => {
+    expect(() => placeFromLibrary(planLibrary({}), { name: 'bathroom', at: [0, 0], own: { height: 1 } }, new Set())).toThrow('place its items one by one')
   })
 
   it('gives the floor an entry needs: an item with its clear floor in front, a typical room its size', () => {

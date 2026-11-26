@@ -43,7 +43,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid diff [<plan>] [--since <name>\|git\|phase] [--rooms <ids>] [--show all\|summary\|changes\|issues] [--picture\|--out <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
 | `grid occupancy [<plan>]` | Lists who sits where, by room, from the occupancy file beside the plan; no export carries it (see below) |
 | `grid preview [<plan>] [--port <n>]` | Serves the preview as a page on this computer only: the plan in 2D and 3D, the part you click shared with the agent, the room it frames and the parts it picks out; it draws again within 2 s of the plan changing (see below) |
-| `grid serve` | Starts the tool server on standard input and output, with the 46 tools in [the tool server](tool-server.md) |
+| `grid serve` | Starts the tool server on standard input and output, with the 48 tools in [the tool server](tool-server.md) |
 | `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`) |
 
 A plan is told by what it holds: a list of walls, rooms or openings, or the stamp Grid writes. `grid write` never
@@ -829,6 +829,14 @@ graphics card: the scene is drawn in software, each face lit flat, without shado
 `--floor`, that floor is shown as a cutaway, as in the app, its walls cut to 1.2 m above its floor
 (`planCutHeight`) whether the building has one storey or several; without it, the whole building.
 The PNG is 1200 by 800 pixels, times `--scale` (up to 4).
+
+The ground (VEW-66) lies at the level the site states (`site.ground`), else at the ground floor's
+floor level: the grid's lines, and under them a sheet in the background's colour that hides most
+of what lies below it. A basement, a car park's levels or the slab under a garden shows through it
+faded, as buried, while what stands above the ground is drawn as before. The sheet is cut away over
+every floor whose slab's underside lies below the ground, so the building stands in its hole; with a
+floor below the ground shown as a cutaway, only the grid's lines are drawn, over it, so the floor
+is seen whole. One level for the whole site: a slope is not drawn.
 
 `grid draw --view <name>` draws a view saved with the plan (VEW-3, `grid_save_view`): the 3D
 model through that view's camera, with the floor it was saved with cut away, the same picture

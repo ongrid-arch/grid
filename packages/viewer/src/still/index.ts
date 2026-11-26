@@ -80,7 +80,10 @@ export function planStill(plan: FloorPlan, options: StillOptions = {}): RasterIm
     // A camera standing in a room sees the room, not the ground under its floor.
     const ground = camera !== undefined && camera.standingIn.room !== null
       ? {}
-      : { ground: { ...GROUND_GRID, center: [cx, cz] as [number, number], cellColor: colors.grid, sectionColor: colors.gridSection } }
+      : {
+          // VEW-66: at the ground, as the scene's own ground surface.
+          ground: { ...GROUND_GRID, y: still.ground.y + GROUND_GRID.y, center: [cx, cz] as [number, number], cellColor: colors.grid, sectionColor: colors.gridSection }
+        }
     return rasterise(still.scene, still.camera, {
       width,
       height,

@@ -11,7 +11,7 @@ import { _roots, advance, createRoot, extend, flushSync, type RootState } from '
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { floorElevations } from '@ongrid/floorplan/geometry'
 import { BuildingScene } from '../canvas3d/BuildingScene'
-import { buildingFrame, buildingLayout, type BuildingFrame, type BuildingLayout } from '../canvas3d/building'
+import { buildingFrame, buildingGround, buildingLayout, type BuildingFrame, type BuildingGround, type BuildingLayout } from '../canvas3d/building'
 import type { CameraRecord } from '@ongrid/floorplan/geometry'
 import { openingCamera, recordCamera } from '../canvas3d/camera'
 import type { PlanColors3D } from '../canvas3d/usePlanColors'
@@ -35,6 +35,8 @@ export interface StillScene {
   readonly camera: THREE.PerspectiveCamera
   readonly frame: BuildingFrame
   readonly layout: BuildingLayout
+  /** VEW-66: the ground the scene draws, where the still's grid lies too. */
+  readonly ground: BuildingGround
   /** Unmounts the scene and frees its geometry. */
   readonly close: () => void
 }
@@ -63,6 +65,7 @@ export function stillScene(plan: FloorPlan, options: StillSceneOptions): StillSc
   const elevations = floorElevations(plan)
   const layout = buildingLayout(plan, focus, elevations, options.roof)
   const frame = buildingFrame(plan, elevations, focus, options.roof)
+  const ground = buildingGround(plan, layout, elevations)
 
   // Fiber keeps one root per canvas: any object will do as the key.
   const canvas = {}
@@ -77,7 +80,7 @@ export function stillScene(plan: FloorPlan, options: StillSceneOptions): StillSc
 
   let store: ReturnType<typeof root.render> | undefined
   flushSync(() => {
-    store = root.render(<BuildingScene floorPlan={plan} layout={layout} frame={frame} colors={options.colors} />)
+    store = root.render(<BuildingScene floorPlan={plan} layout={layout} frame={frame} colors={options.colors} ground={ground} />)
   })
   const state: RootState = store!.getState()
   // One frame, as the app draws before anything is seen: it puts every part at rest.
@@ -102,5 +105,5 @@ export function stillScene(plan: FloorPlan, options: StillSceneOptions): StillSc
     _roots.delete(canvas as HTMLCanvasElement)
   }
 
-  return { scene: state.scene, camera, frame, layout, close }
+  return { scene: state.scene, camera, frame, layout, ground, close }
 }
