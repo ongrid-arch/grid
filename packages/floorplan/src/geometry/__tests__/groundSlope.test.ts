@@ -11,6 +11,10 @@ import { checkPlanSanity } from '../rules/check'
 import { footprintFloors } from '../site'
 import { buildingHeight, planStoreys } from '../storeys'
 import { flat } from '../../test-support/plans'
+import { facadeGroundAt, planFacade } from '../facade'
+import { planSection, sectionGroundAt } from '../section'
+import { sceneGround } from '../groundPlane'
+import { openingPoint } from '../ground'
 
 const plan = (text: string): FloorPlan => {
   const result = compileRoomsText(text)
@@ -109,5 +113,93 @@ describe('a plan with one ground level', () => {
     expect(before.surface).toBeNull()
     expect(before.under.size).toBe(0)
     expect(before.level).toBe(1.2)
+  })
+})
+
+/** Three houses of a terrace stepping down a street that falls 3 m along the plot's south edge. */
+const TERRACE = `plan "Terrace"
+walls outside 0.3 inside 0.1 height 2.6
+floor h1 "House 1" level 0 elevation 0
+room r1 "House 1" living 4.7 x 8 at 0.15,0.15
+door d1 in r1 south, 2 from west, 0.9 wide
+floor h2 "House 2" level 0 elevation -1
+room r2 "House 2" living 4.7 x 8 at 5.15,0.15
+door d2 in r2 south, 2 from west, 0.9 wide
+floor h3 "House 3" level 0 elevation -2
+room r3 "House 3" living 4.7 x 8 at 10.15,0.15
+door d3 in r3 south, 2 from west, 0.9 wide
+`
+
+describe('a terrace along a falling street (lab: no one level was right for every door)', () => {
+  const street = { boundary: [[0, -3], [15, -3], [15, 12], [0, 12]] as [number, number][], streets: [1], groundEdges: [{ edge: 1, start: 0, end: -3 }] }
+
+  it('reads each door against the street in front of it', () => {
+    const terrace = withSite(plan(TERRACE), street)
+    const ground = groundLevel(terrace)
+    const steps = (['d1', 'd2', 'd3'] as const).map((id, i) => ground.aboveAt(`h${i + 1}`, openingPoint(terrace, terrace.openings.find((o) => o.id === id)!)!))
+    for (const step of steps) expect(step).toBeGreaterThan(0)
+    for (const step of steps) expect(step).toBeLessThan(0.8)
+    const report = checkPlanSanity(terrace)
+    expect(report.findings.filter((f) => f.code === 'opening_below_ground' || f.code === 'door_to_outside_above_ground')).toEqual([])
+  })
+
+  it('names a door below one level for the whole street, as before', () => {
+    const report = checkPlanSanity(withSite(plan(TERRACE), { ground: -1 }))
+    expect(report.findings.filter((f) => f.code === 'opening_below_ground').map((f) => f.openings[0])).toEqual(['d3'])
+  })
+})
+
+/** A car park level dug in under a street that falls 3 m from west to east. */
+const CAR_PARK = `plan "Car park"
+walls outside 0.3 inside 0.1 height 2.6
+floor p "Car park" level -1 elevation -3
+room park "Parking" parking 20 x 10 at 0.15,0.15
+opening ramp in park east, 4 from south, 3 wide, height 2.2
+window vent-w in park west, 4 from south, 1 wide, sill 2, height 0.5
+`
+
+describe('a car park under a falling street (lab: its depth worked out by hand)', () => {
+  it('names each opening by its depth under the street at its own wall', () => {
+    const park = withSite(plan(CAR_PARK), { groundSides: { west: 0, east: -3 } })
+    const below = openingsBelowGround(park)
+    expect(below.map((o) => o.opening)).toEqual(['vent-w'])
+    expect(below[0]!.sillBelow).toBeCloseTo(1, 6)
+  })
+})
+
+describe('the pictures on a slope', () => {
+  const chalet = withSite(plan(CHALET), { groundSides: { north: 0, south: -2.8 } })
+
+  it('draws the ground along a side facade as a sloped line, and level along the low side', () => {
+    const east = planFacade(chalet, 'east')
+    expect(east.ground.fall).toBeDefined()
+    const { u0, u1 } = east.extent!
+    const ends = [facadeGroundAt(east, u0), facadeGroundAt(east, u1)].sort((a, b) => a - b)
+    const surface = groundSurface(chalet)!
+    expect(ends[0]).toBeLessThan(-2.7)
+    expect(ends[1]).toBeGreaterThan(-0.1)
+    expect(ends[1]! - ends[0]!).toBeCloseTo(surface.gradient.y * (u1 - u0), 4)
+    const south = planFacade(chalet, 'south')
+    expect(south.ground.fall!.perMetre).toBeCloseTo(0, 9)
+    expect(facadeGroundAt(south, 0)).toBeCloseTo(-2.8, 0)
+    // A flat ground has no fall.
+    expect(planFacade(withSite(plan(CHALET), { ground: 0 }), 'east').ground.fall).toBeUndefined()
+  })
+
+  it('draws the ground along a section line as sloped, the earth under it with it', () => {
+    const section = planSection(chalet, { from: { x: 4, y: -3 }, to: { x: 4, y: 9 }, toward: 'right' })
+    expect(section.ground.fall).toBeDefined()
+    const surface = groundSurface(chalet)!
+    const ends = [sectionGroundAt(section.ground, 0), sectionGroundAt(section.ground, section.length)].sort((a, b) => a - b)
+    expect(ends[0]).toBeCloseTo(surface.at({ x: 4, y: -3 }), 6)
+    expect(ends[1]).toBeCloseTo(surface.at({ x: 4, y: 9 }), 6)
+    expect(section.ground.earth.pieces.length).toBeGreaterThan(0)
+  })
+
+  it('tilts the 3D ground sheet', () => {
+    const ground = sceneGround(chalet, 10)
+    expect(ground.tilt).toBeDefined()
+    expect(ground.tilt!.y).toBeGreaterThan(0)
+    expect(sceneGround(withSite(plan(CHALET), { ground: 0 }), 10).tilt).toBeUndefined()
   })
 })
