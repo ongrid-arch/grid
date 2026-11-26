@@ -666,8 +666,13 @@ function insideFace(walls: readonly Wall[], spaces: FloorSpaces, sides: Readonly
     }
   }
   // CNT-22: in Grid's own words; the library's message is never passed on.
-  return 'the outer walls could not be cut from the floor: their shapes are too close to tell apart'
+  return NOT_CUT
 }
+
+/** CNT-22: why the walls could not be cut from a floor, in Grid's own words (the library's message is never passed on). */
+const NOT_CUT = 'the outer walls could not be cut from the floor: their shapes are too close to tell apart'
+/** Why a floor's gross figures are not known: the walls' outline is not. */
+const noOutline = (reason: string): string => `the walls' outline could not be worked out: ${reason}`
 
 /**
  * The walls of one floor that face outside, as strips along them (LVL-4: what a parapet stands
@@ -782,7 +787,7 @@ function floorFigures(
   const measured = building ?? { plan, index, sides, outdoor: new Set<string>() }
   const spaces = floorSpaces(measured.plan, floor, { index: measured.index, broken })
   if (!spacesKnown(spaces)) {
-    return { ...base, grossExternal: null, grossInternal: null, walls: null, outerWalls: null, unclaimed: null, offSpace: null, why: `the walls' outline could not be worked out: ${spaces.reason}`, massing: false, doubts: NO_DOUBTS }
+    return { ...base, grossExternal: null, grossInternal: null, walls: null, outerWalls: null, unclaimed: null, offSpace: null, why: noOutline(spaces.reason), massing: false, doubts: NO_DOUBTS }
   }
   const outdoorSpace = (space: Space): boolean => space.rooms.length > 0 && space.rooms.every((r) => measured.outdoor.has(r.room))
   const enclosedOutdoor = measured.outdoor.size === 0 ? 0 : sum(spaces.spaces.filter(outdoorSpace).map((space) => space.area))
@@ -1235,7 +1240,7 @@ function underAir(
  */
 function trimmedOff(measured: Building, floor: string, broken: ReadonlySet<string>): number | string {
   const spaces = floorSpaces(measured.plan, floor, { index: measured.index, broken })
-  if (!spacesKnown(spaces)) return `the walls' outline could not be worked out: ${spaces.reason}`
+  if (!spacesKnown(spaces)) return noOutline(spaces.reason)
   const indoor = (space: Space): boolean => !(space.rooms.length > 0 && space.rooms.every((r) => measured.outdoor.has(r.room)))
   const sides = measured.around()
   const walls = floorWalls(measured.plan, floor, broken).filter((wall) => wall.virtual !== true)
@@ -1272,7 +1277,7 @@ function trimmedOff(measured: Building, floor: string, broken: ReadonlySet<strin
       // The polygon library could not cut the walls on this grid: the next, coarser one is tried.
     }
   }
-  return 'the outer walls could not be cut from the floor: their shapes are too close to tell apart'
+  return NOT_CUT
 }
 
 /** ARE-60: the rooms the net counts that are not under air, with why, and their floor. */

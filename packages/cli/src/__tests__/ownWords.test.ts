@@ -107,7 +107,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
-  'packages/cli/src/mcp/editTools.ts': [86, 'tools'],
+  // ARE-60: two more, grid_rename_room's conditioned.
+  'packages/cli/src/mcp/editTools.ts': [88, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -120,7 +121,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-19: two more, grid_view's roof argument and its answer naming the stated roof.
   // WRT-43: three more, grid_view's refusal of a room in no view, saying why it was left out.
   // ARE-53: one more, the line of a measure that runs through a wall.
-  'packages/cli/src/mcp/readTools.ts': [376, 'tools'],
+  // ARE-60: one more, grid_areas' area under air.
+  'packages/cli/src/mcp/readTools.ts': [377, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.

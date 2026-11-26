@@ -200,7 +200,10 @@ function percent(share: number | null): string {
 function optionLine(row: OptionRow, units: Display): string {
   const uses = Object.entries(row.byUse).sort((a, b) => b[1] - a[1]).map(([use, value]) => `${use} ${value.toFixed(2)}`).join(', ')
   const gross = row.grossInternal === null ? 'gross not known' : `gross internal ${areaText(row.grossInternal, units)}, gross external ${areaText(row.grossExternal!, units)}`
-  return `${row.label}: net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.`
+  // ARE-60: a US option leads with its living area under air and its total under roof.
+  const unknown = english(said('sheet.notKnown'))
+  const air = row.underAirFirst ? `${english(said('areas.compare.underAir', { conditioned: row.conditioned === null ? unknown : areaText(row.conditioned, units), underRoof: row.underRoof === null ? unknown : areaText(row.underRoof, units) }))}; ` : ''
+  return `${row.label}: ${air}net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.`
 }
 
 /** At most `max` items, then how many more there are in the data. */
@@ -249,7 +252,7 @@ const compareTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks how two or more plans differ, which option is bigger, to see options side by side, or what a change did: "compare A, B and C", "what differs between A and B", "how much bigger than now", "what comes out and what is new". '
-    + 'It gives one table of the options (net, gross internal and gross external areas, circulation, net to gross, area by use) and, for each later plan against the first, what differs by room name, walls out and new with their lengths and face areas, and openings out, new or changed. '
+    + 'It gives one table of the options (net, gross internal and gross external areas, the living area under air and the total under roof, which lead a US plan\'s row, circulation, net to gross, area by use) and, for each later plan against the first, what differs by room name, walls out and new with their lengths and face areas, and openings out, new or changed. '
     + 'A plan that is the first one moved, mirrored or turned is said to be so, not listed as moved walls. With picture true it also returns one sheet of the plans side by side at the same scale. '
     + 'Do not use for the areas of one plan (grid_areas) or a picture of one plan (grid_view). Units are metres.',
   args: {
@@ -274,7 +277,7 @@ const compareTool: GridTool = {
     picture: { type: 'boolean', description: 'true to return one sheet with the plans side by side at one scale. false when left out.', examples: [true, false] },
   },
   outputSchema: objectSchema({
-    options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' } })),
+    options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, underAirFirst: { type: 'boolean' }, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' } })),
     comparisons: listSchema(objectSchema({ before: STRING, after: STRING, likeness: { type: ['string', 'null'] }, verdict: STRING, rooms: { type: 'array' }, wallsOut: { type: 'array' }, wallsNew: { type: 'array' }, wallsChanged: { type: 'array' }, openingsOut: { type: 'array' }, openingsNew: { type: 'array' }, openingsChanged: { type: 'array' }, massing: { type: 'object' } })),
     rules: listSchema(STRING),
   }),
@@ -285,7 +288,9 @@ const compareTool: GridTool = {
     const surveys = files.map((file) => load(context, file).survey)
     const options = surveys.map((survey, i) => optionRow(labels[i]!, survey))
     const comparisons = surveys.slice(1).map((survey, i) => ({ before: labels[0]!, after: labels[i + 1]!, ...comparePlans(surveys[0]!, survey, [labels[0]!, labels[i + 1]!]) }))
-    const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...Object.values(AREA_RULES)]
+    // ARE-60: the area under air's rules, where an option leads with it.
+    const rules = [...Object.values(AREA_RULES), ...(options.some((row) => row.underAirFirst) ? [MEASURES.conditioned.measures, MEASURES.underRoof.measures] : [])]
+    const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...rules]
     let image
     if (args['picture'] === true) {
       const floor = args['floor']
@@ -297,7 +302,7 @@ const compareTool: GridTool = {
     }
     return {
       text: lines.join('\n'),
-      data: { options, comparisons, rules: Object.values(AREA_RULES) },
+      data: { options, comparisons, rules },
       ...(image ? { image } : {}),
     }
   },
@@ -320,6 +325,7 @@ const areasTool: GridTool = {
     'Use this when the person asks how big the plan or a room is, for the total floor area, a gross internal or gross external area, square feet, circulation or net to gross, or an area table for a spreadsheet. '
     + 'It lists every room with its inside size and net area, the totals by floor and by use, the area of each flat the plan lists (and of the rooms in no flat), and the gross areas, each with a sentence saying what it measures, what it does not take off and what the plan cannot say. '
     + 'The plan\'s own site.country is read as grid_check reads it; pass country to override it for the gross measure the reader there usually means (the inside face of the outer walls in the UK and most of Europe, the outside face for US homes), or gross to ask for one or both. '
+    + 'It gives the living area under air (conditioned: the rooms heated or cooled, to the outside face of their walls, a garage out) and the total under roof (underRoof: the gross external area, garage in, plus roofed outdoor space) on every floor and in all; for a US plan they lead the answer. Mark a room heated or not with grid_rename_room conditioned. '
     + 'On a plan that lists flats it gives each flat\'s area to the middle of its party walls too, and where fixtures stand the free floor beside the floor area, per room, zone, flat, floor and in all. Outdoor space is left out of every total unless outdoor_rules states a rule that counts part of it, and the answer says which. '
     + 'Rooms named in outside_rooms (a balcony, a terrace, a garage) are the outside, as outdoor space is: the walls round them face outside, they are listed apart and are in no net, gross internal or gross external figure; a room Grid could not draw is named and left out of every figure. Do not use for wall lengths, plaster or skirting (grid_takeoff), or to compare plans (grid_compare). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
@@ -351,10 +357,14 @@ const areasTool: GridTool = {
     data: DATA_ARG,
   },
   outputSchema: withOptional(objectSchema({
-    floors: listSchema(objectSchema({ floor: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, circulation: NUMBER, rooms: { type: 'array' }, leftOut: { type: 'array' }, byUse: { type: 'object' } }, ['floor', 'net', 'rooms', 'leftOut'])),
+    floors: listSchema(objectSchema({ floor: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, circulation: NUMBER, rooms: { type: 'array' }, leftOut: { type: 'array' }, byUse: { type: 'object' } }, ['floor', 'net', 'rooms', 'leftOut'])),
     net: NUMBER,
     grossInternal: NULLABLE_NUMBER,
     grossExternal: NULLABLE_NUMBER,
+    // ARE-60: the living area under air and the total under roof, and the rooms not under air.
+    conditioned: NULLABLE_NUMBER,
+    underRoof: NULLABLE_NUMBER,
+    notUnderAir: objectSchema({ rooms: listSchema(objectSchema({ floor: STRING, id: STRING, name: STRING, why: STRING, area: NUMBER })), area: NUMBER }),
     // ARE-42: a gross total the whole building lacks, from the floors that have it, with the floors left out named; only then.
     partial: { type: 'object' },
     byUse: { type: 'object' },
@@ -416,6 +426,9 @@ const areasTool: GridTool = {
       net: areas.net,
       grossInternal: areas.grossInternal,
       grossExternal: areas.grossExternal,
+      conditioned: areas.conditioned,
+      underRoof: areas.underRoof,
+      notUnderAir: areas.notUnderAir,
       ...(areas.partial === undefined ? {} : { partial: areas.partial }),
       byUse: areas.byUse,
       circulationShare: areas.circulationShare,
@@ -448,6 +461,12 @@ const areasTool: GridTool = {
       rows.push(['all', '', 'Net total', '', null, null, areas.net, sqFt(areas.net), '', areas.states.net.state])
       if (areas.grossInternal !== null) rows.push(['all', '', 'Gross internal', '', null, null, areas.grossInternal, sqFt(areas.grossInternal), '', areas.states.grossInternal.state])
       if (areas.grossExternal !== null) rows.push(['all', '', 'Gross external', '', null, null, areas.grossExternal, sqFt(areas.grossExternal), '', areas.states.grossExternal.state])
+      // ARE-60: where they are said, first for a US plan.
+      if (areas.underAir.shown) {
+        const air = ([['conditioned', areas.conditioned], ['underRoof', areas.underRoof]] as const).flatMap(([m, value]) => (value === null ? [] : [['all', '', MEASURES[m].name, '', null, null, value, sqFt(value), '', areas.states[m].state]]))
+        if (areas.underAir.first) rows.splice(rows.length - [areas.grossInternal, areas.grossExternal].filter((v) => v !== null).length - 1, 0, ...air)
+        else rows.push(...air)
+      }
       return { text: csv(['floor', 'room id', 'name', 'use', 'across m', 'up m', 'net m2', 'net sq ft', 'counted', 'state'], rows), data }
     }
     const lines: string[] = []
@@ -465,18 +484,23 @@ const areasTool: GridTool = {
         const below = r.countedWith ? `, counted once with ${q(r.countedWith.room)} on floor ${q(r.countedWith.floor)}, the ${r.use === 'lift' ? 'lift' : 'stair'} it rises from` : ''
         // CNT-27: a void has no floor, so it is in no figure.
         const open = r.void === true ? ', a void, open to the floor below: in no figure' : ''
+        // ARE-60: a room not heated or cooled, where the area under air is said.
+        const air = r.unconditioned === true && areas.underAir.shown && notCounted(r) === null ? english(said('areas.room.unconditioned')) : ''
         // LVL-6: under a roof the floor states, the room's floor by headroom band.
         const headroom = r.headroom === undefined ? '' : `; ${bandsText(r.headroom.bands, units)}, headroom ${lengthText(r.headroom.lowest, units)} to ${lengthText(r.headroom.highest, units)}`
         // CNT-7: an outdoor space is listed apart, with its kind and whether a roof covers it.
         const outdoor = r.outdoor === undefined ? '' : english(said('areas.room.outdoor', { kind: said(`outdoor.kind.${r.outdoor.kind}`), roofed: said(r.outdoor.roofed ? 'outdoor.roofed' : 'outdoor.open') }))
-        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${open}${headroom}`)
+        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${open}${air}${headroom}`)
       }
     }
     if (several) {
       for (const f of areas.floors) {
         const gross = areas.reader.gross.map((m) => `${m === 'grossInternal' ? 'gross internal' : 'gross external'} ${f[m] === null ? 'not known' : areaText(f[m]!, units)}`)
         const free = f.free === undefined ? '' : english(said('areas.free.floor', { area: areaText(f.free, units) }))
-        lines.push(`Floor ${q(f.floor)}: net ${areaText(f.net, units)}${surenessText(f.sureness, units)}${free}, ${gross.join(', ')}.`)
+        // ARE-60: the area under air and the total under roof, first where they lead.
+        const air = !areas.underAir.shown ? [] : ([['conditioned', f.conditioned], ['underRoof', f.underRoof]] as const).map(([m, value]) => `${MEASURES[m].name.toLowerCase()} ${value === null ? 'not known' : areaText(value, units)}`)
+        const figures = areas.underAir.first ? [...air, ...gross] : [...gross, ...air]
+        lines.push(`Floor ${q(f.floor)}: net ${areaText(f.net, units)}${surenessText(f.sureness, units)}${free}, ${figures.join(', ')}.`)
       }
     }
     // CNT-4: each flat the plan lists, from the list and never from the rooms' names (lab EL-1).
@@ -507,6 +531,12 @@ const areasTool: GridTool = {
     }
     const uses = Object.entries(areas.byUse)
     if (uses.length > 1) lines.push(`Net by use: ${uses.map(([use, area]) => `${use} ${areaText(area, units)}`).join(', ')}.`)
+    // ARE-60: the living area under air and the total under roof, each with its rule; first for a US plan.
+    const airLines = !areas.underAir.shown ? [] : (['conditioned', 'underRoof'] as const).map((m) => {
+      const value = areas[m]
+      return `${MEASURES[m].name}: ${value === null ? `not known: ${areas.underAirWhy[m] ?? ''}` : `${areaText(value, units)}${stateText(areas.states[m], several)}.`} ${MEASURES[m].measures}`
+    })
+    if (areas.underAir.first) lines.push(...airLines)
     // Each figure with the rule it follows, in Grid's words: never a bare number (AR-16).
     lines.push(`Net: ${areaText(areas.net, units)}${surenessText(areas.sureness, units)}${stateText(areas.states.net, several)}. ${AREA_RULES.net}`)
     for (const m of areas.reader.gross) {
@@ -516,6 +546,7 @@ const areasTool: GridTool = {
       const unknown = part === undefined ? 'not known' : english(said(part.floors.length === 1 ? 'areas.partial.line.one' : 'areas.partial.line.many', { count: part.floors.length, area: areaText(part.area, units), left: joined(part.unmeasured.map((u) => `floor ${q(u.floor)} (${u.why})`), 'join.comma') }))
       lines.push(`${m === 'grossInternal' ? 'Gross internal' : 'Gross external'}: ${value === null ? unknown : areaText(value, units)}${state}. ${AREA_RULES[m]}`)
     }
+    if (!areas.underAir.first) lines.push(...airLines)
     if (areas.headroom !== null) lines.push(`Area by headroom: ${bandsText(areas.headroom, units)}. ${MEASURES.headroom.measures}`)
     // ARE-14 (lab S-6): the free floor beside the floor area, each with its label.
     if (areas.free !== undefined) lines.push(english(said('areas.free.total', { free: areaText(areas.free, units), taken: areaText(areas.fixtures!, units), rule: MEASURES.freeFloor.measures })))
@@ -538,7 +569,7 @@ const areasTool: GridTool = {
       if (!gross || areas.reader.gross.includes(rule.measure)) lines.push(`${rule.name}: ${rule.notTakenOff} ${rule.cannotSay}`)
     }
     // Any rule beyond the measures' (ARE-14: free floor is one of them now, said with its figure).
-    const measureRules: readonly string[] = [...Object.values(AREA_RULES), MEASURES.headroom.measures, MEASURES.freeFloor.measures]
+    const measureRules: readonly string[] = [...Object.values(AREA_RULES), MEASURES.headroom.measures, MEASURES.freeFloor.measures, MEASURES.conditioned.measures, MEASURES.underRoof.measures]
     lines.push(...areas.rules.filter((rule) => !measureRules.includes(rule)), ...areas.notes)
     return { text: lines.join('\n'), data }
   },

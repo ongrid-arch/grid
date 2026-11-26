@@ -31,6 +31,10 @@ export interface OptionRow {
   readonly net: number
   readonly grossInternal: number | null
   readonly grossExternal: number | null
+  /** ARE-60: the living area under air and the total under roof; `underAirFirst` when they lead (a US plan). */
+  readonly conditioned: number | null
+  readonly underRoof: number | null
+  readonly underAirFirst: boolean
   readonly circulation: number
   readonly circulationShare: number | null
   readonly netToGross: number | null
@@ -53,6 +57,9 @@ export function optionRow(label: string, survey: Survey): OptionRow {
     net: areas.net,
     grossInternal: areas.grossInternal,
     grossExternal: areas.grossExternal,
+    conditioned: areas.conditioned,
+    underRoof: areas.underRoof,
+    underAirFirst: areas.underAir.first,
     circulation: areas.circulation,
     circulationShare: areas.circulationShare,
     netToGross: areas.netToGross,
