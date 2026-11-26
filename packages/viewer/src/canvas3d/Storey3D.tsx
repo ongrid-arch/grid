@@ -11,6 +11,7 @@ import { useReducedMotion } from '../preview/useReducedMotion'
 import { Slab3D } from './Slab3D'
 import { Stair3D } from './Stair3D'
 import { Column3D } from './Column3D'
+import { Item3D } from './Item3D'
 import { Opening3D } from './Opening3D'
 import { Shell3D } from './Shell3D'
 import { Divider3D } from './Divider3D'
@@ -190,6 +191,9 @@ export function Storey3D({
       ))}
       {(scene.columns ?? []).map((column) => (
         <Column3D key={`column:${column.id}`} column={column} color={palette.wallExterior} castShadow={shadows} glow={glow} />
+      ))}
+      {(scene.items ?? []).map((item) => (
+        <Item3D key={`item:${item.id}`} item={item} color={palette.wallInterior} cut={storey.cut} castShadow={shadows} glow={glow} />
       ))}
       {scene.openings.map((opening) => (
         <Opening3D

@@ -39,6 +39,7 @@ import { floorElevations } from './elevations'
 import { planFloors, wholePlan } from './floors'
 import { wholeWall } from './through'
 import { columnFootprint, columnPart, columnRise, soundColumns } from './columns'
+import { isItemKind, itemRoom, itemSolid, roomShapes, type ItemBlock } from './items'
 import { floorEnvelope, type FloorRoof } from './envelope'
 import { outdoorKind, outdoorRoofed } from './outdoor'
 import type { OutdoorKind } from '../types/floorplan'
@@ -368,6 +369,17 @@ export interface SceneColumn {
   readonly top: number
 }
 
+/**
+ * CNT-42: a fixture or a piece of furniture, raised on the floor of the room it stands in as the
+ * plain blocks its kind gives (`itemSolid`, the kinds registry): each block's outline,
+ * counter-clockwise, solid from `bottom` to `top`, in metres above its storey's z = 0.
+ */
+export interface SceneItem {
+  readonly id: string
+  readonly kind: string
+  readonly blocks: readonly ItemBlock[]
+}
+
 export interface Scene3D {
   readonly walls: readonly SceneWall[]
   /** CNT-14: the frames, leaves and glass of the doors and windows the walls hold. */
@@ -378,6 +390,8 @@ export interface Scene3D {
   readonly stairs: readonly SceneStair[]
   /** CNT-16: the columns raised from this floor, each once, whole; `buildScene` always gives the list, empty when the plan states none. */
   readonly columns?: readonly SceneColumn[]
+  /** CNT-42: the items standing on this floor, each by its kind's blocks; `buildScene` always gives the list, empty when the plan states none. */
+  readonly items?: readonly SceneItem[]
   /** The slab under this floor and the roof over its parts with nothing above (LVL-4), or null. */
   readonly shell: SceneShell | null
   /** Plan envelope, for framing the camera. */
@@ -668,6 +682,19 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
     }
   }
 
+  // CNT-42: each item Grid can draw, raised from the floor of the room it stands in.
+  const items: SceneItem[] = []
+  const placed = (plan.items ?? []).filter((item) => !broken.has(item.id) && isItemKind(item.kind))
+  if (placed.length > 0) {
+    const rooms = roomShapes(index, broken)
+    for (const item of placed) {
+      const room = itemRoom(item, rooms)
+      const lift = room === null ? 0 : roomFloorOffset(room)
+      const blocks = itemSolid(item).map((b) => ({ outline: b.outline, bottom: b.bottom + lift, top: b.top + lift }))
+      if (blocks.length > 0) items.push({ id: item.id, kind: item.kind, blocks })
+    }
+  }
+
   // The bounds stay the walls' axes and the rooms, as before: the shell reaches out to the walls'
   // faces, which the bounds do not frame either.
   const shell = options.shell !== undefined ? options.shell : sceneShell(plan)
@@ -676,5 +703,5 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
   const order = new Map(plan.openings.map((o, i) => [o.id, i] as const))
   openings.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
 
-  return { walls, openings, slabs, dividers, stairs, columns, shell, bounds: computeBounds(extent), height, issues }
+  return { walls, openings, slabs, dividers, stairs, columns, items, shell, bounds: computeBounds(extent), height, issues }
 }
