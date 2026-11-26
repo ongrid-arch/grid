@@ -624,7 +624,7 @@ stair st "Main stair" from ground to first in hall, 1 wide, U, runs north
 
 ### Site
 
-plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m>, site ground <m> and site country <name> say where it is. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
+plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m> and site country <name> say where it is. ground <m> (or ground <m> below|above) is the ground outside, in metres from the ground floor's floor level, the level the sections, the 3D ground and the below-ground check read: ground -0.15 for a floor 15 cm above the ground. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
 
 ```rooms
 room house "House" living 8.0 x 9.0 at 0,0
@@ -634,8 +634,21 @@ street south
 setback street 5
 setback all 2
 north 30 clockwise
+ground -0.15
 site tree oak at 9,15 canopy 5 "Old oak"
 site pool pool 0,12 3,12 3,18 0,18
+```
+
+### Fit-out
+
+base <base plan> names the plan this one is fitted out in, as the project knows it (base shell.json; in quotes when the name holds a space): the shell, whose walls, doors and windows are read in as existing, drawn, measured and checked with the fit-out, and never written into it. Write the rooms by their inside faces as always: a wall Grid works out whose room faces lie on a base wall's faces is the base's, and the room names it by the base's id. Put a room's face on the base wall's face (a 0.3 m wall on x = 0 has its faces at -0.15 and 0.15) to rest it there; a face a little off one is said, with how far. A door or window in a base wall is refused, as the shell is read-only: its doors and windows are the base's. grid_start_fit_out starts a fit-out with the base's rooms as its own.
+
+```rooms
+base shell.json
+walls outside 0.2 inside 0.1
+room front "Reception" office 5.8 x 7.7 at 0.15,0.15
+room back "Treatment" office 5.8 x 7.7 east of front
+door d1 between front and back, centred, 0.9 wide, opens into back
 ```
 
 ### Other lines

@@ -30,6 +30,7 @@ import { guideResources } from '../guide/resources'
 import { roomsGrammarMarkdown, ROOMS_GRAMMAR_URI } from './roomsGrammar'
 import { EDIT_TOOLS } from './editTools'
 import { PHASE_TOOLS } from './phaseTools'
+import { FIT_OUT_TOOLS } from './fitOutTool'
 import { projectTool } from './projectTool'
 import { guardedRun, revisionLine, RevisionRefused, REVISION_DATA_NAME } from './revisions'
 import { saveViewTool } from './viewTool'
@@ -39,6 +40,7 @@ import { setFactsTool } from './factsTool'
 import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
 import { STAIR_TOOLS } from './stairTools'
+import { placeTraceTool } from './traceTool'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -69,6 +71,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...EDIT_TOOLS,
   // WRT-73: phases set without hand-editing: the plan as it stands as existing, parts by id or room, one plan from two.
   ...PHASE_TOOLS,
+  // WRT-75: a fit-out started on a base plan, which stays read-only.
+  ...FIT_OUT_TOOLS,
   // WRT-36: grid tidy's fixes where walls meet, the last of the changes to the building.
   tidyTool,
   // CMD-42: any other field of a part set by id, checked by the plan schema.
@@ -79,6 +83,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...STAIR_TOOLS,
   // CNT-41: the plot, north and the site's things: the ground, never the building.
   ...SITE_TOOLS,
+  // VEW-67: the trace image under the plan, drawn only: no part of the building.
+  placeTraceTool,
   // VEW-3: changes the plan's saved views only, never the building: the last of the changes.
   saveViewTool,
 ]

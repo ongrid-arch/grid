@@ -130,6 +130,8 @@ const COMMAND_SLOTS: Readonly<Record<string, readonly CommandSlot[]>> = {
     { label: '--plan, with --layout', args: (p) => ['write', '--layout', 'tidy', '--plan', `${p}.json`], given: (p) => `${p}.json` },
     // HND-12: a phone room scan, read like a plan; its evidence file is the plan's name beside the plan.
     { label: '--scan', args: (p) => ['write', '--scan', p, '--plan', 'new.json'], given: asIs },
+    // CMD-43: a DXF or IFC drawing, read like a scan; its rooms text is the plan's name beside the plan.
+    { label: '--from', args: (p) => ['write', '--from', p, '--plan', 'new.json'], given: asIs },
   ],
   check: [
     { label: 'the plan', args: (p) => ['check', p], given: asIs },
@@ -259,6 +261,8 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'scan', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: 'new.json', scan: p } }), given: asIs },
     // CMD-38: rooms text read from a file in the project.
     { arg: 'roomsFile', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: 'new.json', roomsFile: p } }), given: asIs },
+    // CMD-43: a DXF or IFC drawing in place of rooms text.
+    { arg: 'from', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: 'new.json', from: p } }), given: asIs },
   ],
   grid_change_opening: [
     { arg: 'plan', call: tool('grid_change_opening', { plan: '@', opening: 'bed2-door', hinge: 'end' }), given: asIs },
@@ -337,6 +341,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'after', call: tool('grid_phase_from', { before: PLAN, after: '@', out: 'works.json' }), given: asIs },
     { arg: 'out', call: tool('grid_phase_from', { before: PLAN, after: PLAN, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // WRT-75: a fit-out started on a base plan reads the base and writes the fit-out.
+  grid_start_fit_out: [
+    { arg: 'base', call: tool('grid_start_fit_out', { base: '@', plan: 'fit-out.json', replace: true }), given: asIs },
+    { arg: 'plan', call: tool('grid_start_fit_out', { base: PLAN, plan: '@.json', replace: true }), given: (p) => `${p}.json` },
+  ],
   // WRT-36: grid tidy on the tool server.
   grid_tidy: [
     { arg: 'plan', call: tool('grid_tidy', { plan: '@' }), given: asIs },
@@ -369,6 +378,13 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_change_site: [
     { arg: 'plan', call: tool('grid_change_site', { plan: '@', action: 'add', kind: 'tree', at: '1,1' }), given: asIs },
     { arg: 'out', call: tool('grid_change_site', { plan: PLAN, action: 'add', kind: 'tree', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  // VEW-67: the trace image, its picture resolved from the project folder like the plan.
+  grid_place_trace: [
+    // Written beside the plan, so the plans other tests trace keep the picture they name.
+    { arg: 'plan', call: tool('grid_place_trace', { plan: '@', image: 'scan.png', out: 'placed-trace.json' }), given: asIs },
+    { arg: 'image', call: (p) => ({ name: 'grid_place_trace', arguments: { plan: PLAN, image: `${p}.png` } }), given: (p) => `${p}.png` },
+    { arg: 'out', call: tool('grid_place_trace', { plan: PLAN, image: 'scan.png', out: '@.json' }), given: (p) => `${p}.json` },
   ],
   // VEW-3: a camera saved by name, written into the plan.
   grid_save_view: [
@@ -456,16 +472,18 @@ describe('the slots this file lists', () => {
   })
 
   it('cover every tool argument that is a path, and no other', async () => {
-    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after']
+    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after', 'image', 'base']
+    // CMD-43: from is a drawing's path in grid_write_rooms; elsewhere it is a part or a point.
+    const isPath = (tool: string, arg: string): boolean => PATH_ARGS.includes(arg) || (tool === 'grid_write_rooms' && arg === 'from')
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
-      .filter((arg) => PATH_ARGS.includes(arg))
+      .filter((arg) => isPath(t.name, arg))
       .map((arg) => `${t.name} ${arg}`))
     const listed = [...new Set(Object.entries(TOOL_SLOTS).flatMap(([name, slots]) => slots.map((slot) => `${name} ${slot.arg}`)))]
     expect(listed.sort()).toEqual(pathArgs.sort())
     // No other free text argument of any tool is described as a file, a folder or a path.
     const others = reply!.result.tools.flatMap((t) => Object.entries(t.inputSchema.properties as Record<string, { type?: unknown; enum?: unknown; description?: string }>)
-      .filter(([arg, schema]) => !PATH_ARGS.includes(arg)
+      .filter(([arg, schema]) => !isPath(t.name, arg)
         && JSON.stringify(schema.type).includes('string') && schema.enum === undefined
         && /\b(file|folder|path)\b/i.test(schema.description ?? ''))
       .map(([arg]) => `${t.name} ${arg}`))
@@ -564,7 +582,7 @@ describe('the trace image a plan names (T-5)', () => {
     const check = grid(['check', plan])
     expect(check.status).toBe(0)
     expect(check.out).toContain('[plan/trace-left-out]')
-    expect(check.out).toContain(`${JSON.stringify(path)} does not end in .png, .jpg or .jpeg`)
+    expect(check.out).toContain(`${JSON.stringify(path)} does not end in .png, .jpg, .jpeg or .pdf`)
     const answers = await callTools(PLAN_TOOLS.map(([, call]) => call(plan)))
     for (const answer of answers) expect(answer.text).not.toContain("can't be used: its trace image")
   }, 120_000)
@@ -632,8 +650,12 @@ describe('the base plan a fit-out names (CNT-10)', () => {
     const calls = plans.flatMap((plan) => PLAN_TOOLS.map(([, call]) => call(plan)))
     const answers = await callTools(calls)
     answers.forEach((answer, i) => {
-      const [path, why] = T5_TRACE_IMAGE_PATHS[Math.floor(i / PLAN_TOOLS.length)]!
-      expectToolRefused(answer, path, 'base plan', why)
+      const at = Math.floor(i / PLAN_TOOLS.length)
+      const [path, why] = T5_TRACE_IMAGE_PATHS[at]!
+      // WRT-75: grid_start_fit_out takes the fitted plan as its base, and refuses it as a base that
+      // names a base of its own before it follows that path.
+      if (PLAN_TOOLS[i % PLAN_TOOLS.length]![0] === 'grid_start_fit_out') expectToolRefused(answer, plans[at]!, 'names a base of its own')
+      else expectToolRefused(answer, path, 'base plan', why)
     })
     expect(tree(project)).toEqual([ROOMS, PLAN, ...plans].sort())
     expectOutsideUntouched()
