@@ -44,12 +44,13 @@ const ORDER = [
   'grid_rename_room',
   'grid_square_scan',
   'grid_place_item',
+  'grid_add_opening',
   'grid_tidy',
   'grid_save_view',
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_view', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_tidy', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_add_opening', 'grid_tidy', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -114,7 +115,9 @@ describe('tools/list', () => {
     // by hand, and a wall placed by its face keeps that face.
     // 37 since MSG-24: Grid's words in the person's language, which the agent writes into the plan,
     // so no translation file is written for each language.
-    expect((await listed()).length).toBeLessThanOrEqual(37)
+    // 38 since WRT-72: a door or window added to a plan that has its walls, which no tool did
+    // (agents rewrote the whole rooms text, or removed doors they could not place).
+    expect((await listed()).length).toBeLessThanOrEqual(38)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
