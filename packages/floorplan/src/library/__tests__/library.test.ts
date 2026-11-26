@@ -111,6 +111,20 @@ describe('Grid\'s built-in library', () => {
       'changing-table': ['table', 0.9, 0.7, 0.9, 0.7],
       'coat-rail': ['storage', 1.2, 0.4, 1.7, 0.6],
       'coat-rail-low': ['storage', 1.2, 0.3, 1.1, 0.6],
+      // CNT-47: equipment.
+      rack: ['rack', 0.6, 1.2, 2, 1],
+      generator: ['generator', 3, 1.2, 2, 1],
+      pump: ['pump', 0.6, 0.6, 0.8, 0.6],
+      tank: ['tank', 1.5, 1.5, 2, 0],
+      seat: ['seat', 0.5, 0.6, 0.9, 0],
+      pew: ['pew', 3, 0.6, 0.9, 0],
+      altar: ['altar', 2, 1, 1, 1],
+      'fume-cupboard': ['fume-cupboard', 1.5, 0.9, 2.4, 1],
+      'lab-bench': ['lab-bench', 3, 0.75, 0.9, 1],
+      'safety-shower': ['safety-shower', 1, 1, 2.3, 0],
+      kennel: ['kennel', 0.9, 0.9, 0.9, 0],
+      'exam-table': ['exam-table', 1.2, 0.6, 0.9, 0.8],
+      'clinical-sink': ['clinical-sink', 0.9, 0.6, 0.9, 0.6],
     })
   })
 

@@ -43,6 +43,13 @@ version; a new size is a new name.
 | rug | `rug` 2.00 × 1.40, `rug-large` 3.00 × 2.00 |
 | plant | `plant` 0.50 × 0.50 (1.20 high) |
 
+Equipment (CNT-47), each a fixture that takes the floor it stands on, one entry of each kind by
+its kind's name: `rack` 0.60 × 1.20 (2.00 high, 1.00 clear in front), `generator` 3.00 × 1.20,
+`pump` 0.60 × 0.60, `tank` 1.50 × 1.50, `seat` 0.50 × 0.60, `pew` 3.00 × 0.60, `altar` 2.00 ×
+1.00, `fume-cupboard` 1.50 × 0.90 (2.40 high), `lab-bench` 3.00 × 0.75, `safety-shower` 1.00 ×
+1.00, `kennel` 0.90 × 0.90, `exam-table` 1.20 × 0.60 and `clinical-sink` 0.90 × 0.60. Any other
+thing is the kind `equipment`, which has no entry: give it its size, height and label.
+
 Child-size entries, for a nursery or a school: `wc-child` (a toilet, 0.32 × 0.50, 0.35 high),
 `basin-low` (a basin, 0.45 × 0.35, 0.55 high), `cot` (a bed, 0.66 × 1.26, 0.95 high), `nap-cot`
 (a bed, 0.60 × 1.30, 0.15 high), `changing-table` (a table, 0.90 × 0.70, 0.90 high), and
@@ -168,7 +175,9 @@ written back, so a plan written back keeps only what it stated.
 ]
 ```
 
-Any item may state `clearance` itself, with or without a library entry. Every other field is
+Any item may state `clearance` itself, with or without a library entry, and (CNT-47)
+`clearSides`, the clear floor it keeps behind it (`back`, as wide as it is) and at its own left
+and right (`left`, `right`, as deep as it is), facing out of its front. Every other field is
 in [plan-file.md](plan-file.md#fixtures).
 
 ## What Grid checks
@@ -180,7 +189,7 @@ Each is worth a look; the item is drawn and measured either way.
 | `item/unknown-library` | The item names an entry no library holds. It is drawn from what it states; one that states no size is left out by the reading |
 | `item/overlap` | It stands in another item by more than 5 mm (`itemOverlap`) |
 | `item/leaves-room` | More than 0.005 m² of its footprint lies past its room's edge where no wall stands (`itemLeavesRoom`) |
-| `item/clearance-blocked` | A wall, or another item, stands in the clear floor it keeps in front of it |
+| `item/clearance-blocked` | A wall, or another item, stands in the clear floor it keeps in front of it, or behind it or at a side (CNT-47) |
 
 These come with the checks every item has, in [plan-file.md](plan-file.md#fixtures).
 

@@ -75,6 +75,20 @@ export const BUILT_IN_ITEMS: readonly LibraryItem[] = [
   entry('changing-table', 'table', 'Changing table', [0.9, 0.7], 0.9, 0.7),
   entry('coat-rail', 'storage', 'Coat rail', [1.2, 0.4], 1.7, 0.6),
   entry('coat-rail-low', 'storage', 'Coat rail', [1.2, 0.3], 1.1, 0.6),
+  // CNT-47: equipment, one plain size of each kind; any other thing is `equipment`, given its own size.
+  entry('rack', 'rack', 'Rack', [0.6, 1.2], 2, 1),
+  entry('generator', 'generator', 'Generator', [3, 1.2], 2, 1),
+  entry('pump', 'pump', 'Pump', [0.6, 0.6], 0.8, 0.6),
+  entry('tank', 'tank', 'Tank', [1.5, 1.5], 2),
+  entry('seat', 'seat', 'Seat', [0.5, 0.6], 0.9),
+  entry('pew', 'pew', 'Pew', [3, 0.6], 0.9),
+  entry('altar', 'altar', 'Altar', [2, 1], 1, 1),
+  entry('fume-cupboard', 'fume-cupboard', 'Fume cupboard', [1.5, 0.9], 2.4, 1),
+  entry('lab-bench', 'lab-bench', 'Lab bench', [3, 0.75], 0.9, 1),
+  entry('safety-shower', 'safety-shower', 'Safety shower', [1, 1], 2.3),
+  entry('kennel', 'kennel', 'Kennel', [0.9, 0.9], 0.9),
+  entry('exam-table', 'exam-table', 'Exam table', [1.2, 0.6], 0.9, 0.8),
+  entry('clinical-sink', 'clinical-sink', 'Clinical sink', [0.9, 0.6], 0.9, 0.6),
 ]
 
 /** One item of a typical room: a library item by name, where it stands in the room and its turn. */
