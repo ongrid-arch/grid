@@ -178,7 +178,7 @@ describe('ARE-8 the measures table', () => {
     const section = readFileSync(join(ROOT, 'docs', 'areas.md'), 'utf8')
     const rows = section
       .split('\n')
-      .filter((line) => /^\| (Net|Gross|Area by headroom|Outdoor area|Area to the party walls|Free floor)/.test(line))
+      .filter((line) => /^\| (Net|Gross|Area by headroom|Outdoor area|Area to the party walls|Free floor|Living area under air|Total under roof)/.test(line))
       .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
     expect(rows).toEqual(Object.values(MEASURES).map((m) => [m.name, m.measures, m.notTakenOff, m.cannotSay]))
   })

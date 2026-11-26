@@ -180,6 +180,7 @@ A room may also say:
 |---|---|
 | `tenure` | Who it is for: `private` (one household's or one tenant's own), `shared` (some households' or tenants', not all), `common` (the building's, for everyone in it, such as the stair or the bin store) or `commercial` (let or run as a business) |
 | `roomType` | The firm's own type for the room, as its room data sheets name it ("B2 double bedroom"), beside the fixed use. At most 120 characters, one line. Grid keeps it and reads nothing from it |
+| `conditioned` | `true` when the room is heated or cooled, `false` when it is not: whether it is in the living area under air ([areas.md](areas.md#living-area-under-air-and-total-under-roof)). Unstated, a room is conditioned unless its use is `parking`. Read as nothing on outdoor space, a void or a zone, which follows its room. Rooms text writes `conditioned` or `unconditioned` on a room line |
 
 One check reads `tenure`: a room to let is left through the common parts ([a way out that leads
 somewhere](#a-way-out-that-leads-somewhere-and-rooms-to-let)). No check reads `roomType`. Rooms text writes all of these: `building office`,

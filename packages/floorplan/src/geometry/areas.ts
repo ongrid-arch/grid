@@ -53,10 +53,11 @@ import { partyWallArea, type PartyWallArea, type PartyWallRoom } from './partyWa
 import { landscapeWalls } from './landscape'
 
 /**
- * The three measures, the floor by headroom band (LVL-6), outdoor space (CNT-7), and a flat's area
- * to the party walls and the free floor beside the net (ARE-14).
+ * The three measures, the floor by headroom band (LVL-6), outdoor space (CNT-7), a flat's area
+ * to the party walls and the free floor beside the net (ARE-14), and the living area under air
+ * and the total under roof (ARE-60).
  */
-export type Measure = 'net' | 'grossInternal' | 'grossExternal' | 'headroom' | 'outdoor' | 'partyWall' | 'freeFloor'
+export type Measure = 'net' | 'grossInternal' | 'grossExternal' | 'headroom' | 'outdoor' | 'partyWall' | 'freeFloor' | 'conditioned' | 'underRoof'
 export type GrossMeasure = 'grossInternal' | 'grossExternal'
 
 /** A measure described in Grid's own words. No standard's text, and no standard's name. */
@@ -129,6 +130,22 @@ export const MEASURES: Readonly<Record<Measure, MeasureRule>> = {
     notTakenOff: english(said('areas.measure.freeFloor.notTakenOff')),
     cannotSay: english(said('areas.measure.freeFloor.cannotSay')),
   },
+  // ARE-60: the floor of the rooms heated or cooled, to the outside face of the walls round them.
+  conditioned: {
+    measure: 'conditioned',
+    name: english(said('areas.measure.conditioned.name')),
+    measures: english(said('areas.measure.conditioned.measures')),
+    notTakenOff: english(said('areas.measure.conditioned.notTakenOff')),
+    cannotSay: english(said('areas.measure.conditioned.cannotSay')),
+  },
+  // ARE-60: the gross external area with the floor of the roofed outdoor spaces added.
+  underRoof: {
+    measure: 'underRoof',
+    name: english(said('areas.measure.underRoof.name')),
+    measures: english(said('areas.measure.underRoof.measures')),
+    notTakenOff: english(said('areas.measure.underRoof.notTakenOff')),
+    cannotSay: english(said('areas.measure.underRoof.cannotSay')),
+  },
 }
 
 /**
@@ -149,6 +166,16 @@ export function usualGross(country: string | undefined): GrossMeasure | null {
   if (INSIDE_FACE.has(code)) return 'grossInternal'
   if (OUTSIDE_FACE.has(code)) return 'grossExternal'
   return null
+}
+
+/**
+ * ARE-60: whether a room is heated or cooled, so in the living area under air: as it states, else
+ * unless its use is parking. Outdoor space (C26) and a void never are. A zone is under air as its
+ * room is (`planAreaFigures` reads its room); its own statement is read as nothing.
+ */
+export function isConditioned(room: Room): boolean {
+  if (isOutdoor(room) || room.void === true) return false
+  return room.conditioned ?? room.use !== 'parking'
 }
 
 /** A room as the areas count it. */
@@ -191,6 +218,11 @@ export interface RoomAreaFigure {
    * listed and measured, and is in no net, gross internal or gross external figure.
    */
   readonly void?: true
+  /**
+   * ARE-60: on a room counted in the net (or a zone of one) that is not heated or cooled
+   * (`isConditioned`): in the total under roof, and not in the living area under air.
+   */
+  readonly unconditioned?: true
 }
 
 /** A room Grid could not draw, so it is in no figure. */
@@ -241,6 +273,24 @@ export interface FloorAreaFigures {
    * figure with a doubt is still given, and is not proven.
    */
   readonly doubts: { readonly grossInternal: string | null; readonly grossExternal: string | null }
+  /**
+   * ARE-60: the living area under air, the gross external area with the rooms not under air as
+   * the outside, so the wall between counts in full with the rooms under air; null with
+   * `conditionedWhy` when it cannot be worked out, or on massing (no rooms yet).
+   */
+  readonly conditioned: number | null
+  readonly conditionedWhy: string | null
+  /** ARE-60: the total under roof, the gross external area plus the roofed outdoor spaces' floor; null with it. */
+  readonly underRoof: number | null
+}
+
+/** ARE-60: a room not under air, and why: its use (parking) or its own statement. */
+export interface NotUnderAir {
+  readonly floor: string
+  readonly id: string
+  readonly name: string
+  readonly why: 'use' | 'stated'
+  readonly area: number
 }
 
 /** A total, with the rule it follows. */
@@ -280,6 +330,11 @@ export interface ReaderMeasure {
   readonly country: string | null
   /** In a sentence. */
   readonly why: string
+  /**
+   * ARE-60: the living area under air and the total under roof come first, where the outside face
+   * is the usual gross measure (homes in the US, the ARE-8 decision).
+   */
+  readonly underAirFirst: boolean
 }
 
 /** CNT-4: what a flat's area measures, in Grid's own words. */
@@ -379,6 +434,11 @@ export interface PlanAreaFigures {
   readonly net: AreaFigure
   readonly grossInternal: AreaFigure
   readonly grossExternal: AreaFigure
+  /** ARE-60: the living area under air, and the total under roof. */
+  readonly conditioned: AreaFigure
+  readonly underRoof: AreaFigure
+  /** ARE-60: the rooms the net counts that are not under air, in plan order, and their floor. */
+  readonly notUnderAir: { readonly rooms: readonly NotUnderAir[]; readonly area: number }
   /** Net by use over the floors given. Adds up to the net total. */
   readonly byUse: Readonly<Record<string, number>>
   readonly outsideRooms: number
@@ -629,6 +689,13 @@ interface Building {
   readonly index: PlanIndex
   readonly sides: () => ReadonlyMap<string, WallSides>
   readonly outdoor: ReadonlySet<string>
+  /**
+   * ARE-60: the wall sides of the plan before the walls that bound outdoor space alone are taken
+   * out, and its outdoor spaces (rooms named outside among them), so a stretch along a garage still
+   * names the garage.
+   */
+  readonly around: () => ReadonlyMap<string, WallSides>
+  readonly outdoorAround: ReadonlySet<string>
 }
 
 function floorFigures(
@@ -640,7 +707,7 @@ function floorFigures(
   sides: () => ReadonlyMap<string, WallSides>,
   stacks: ReadonlyMap<string, StairBelow>,
   building: Building | null
-): FloorAreaFigures {
+): FloorFiguresMeasured {
   const rooms: RoomAreaFigure[] = []
   const leftOut: RoomLeftOut[] = []
   const zones = roomZones(index)
@@ -751,6 +818,9 @@ function floorFigures(
     doubts: englishDoubts(orderDoubts(net, internal, gross, offSpace)),
   }
 }
+
+/** A floor's figures before the area under air and the total under roof are added (ARE-60). */
+type FloorFiguresMeasured = Omit<FloorAreaFigures, 'conditioned' | 'conditionedWhy' | 'underRoof'>
 
 /** ARE-20: the doubts of a floor whose figures are in order, or unknown. */
 const NO_DOUBTS: FloorAreaFigures['doubts'] = { grossInternal: null, grossExternal: null }
@@ -931,29 +1001,32 @@ function stairStacks(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<stri
 
 function readerMeasure(options: AreaOptions): ReaderMeasure {
   const country = options.country === undefined || options.country.trim() === '' ? null : options.country.trim().toUpperCase()
-  if (options.gross === 'both') return { gross: ['grossInternal', 'grossExternal'], chosen: 'asked', country, why: 'Both gross areas were asked for.' }
-  if (options.gross !== undefined) return { gross: [options.gross], chosen: 'asked', country, why: `${MEASURES[options.gross].name} was asked for.` }
   const usual = usualGross(country ?? undefined)
-  if (usual === 'grossInternal') return { gross: [usual], chosen: 'country', country, why: `For ${country} Grid gives the inside face of the outer walls first; gross external can be asked for.` }
-  if (usual === 'grossExternal') return { gross: [usual], chosen: 'country', country, why: `For homes in ${country} Grid gives the outside face of the walls first; gross internal can be asked for.` }
+  // ARE-60: where homes are measured to the outside face, the area under air leads.
+  const underAirFirst = usual === 'grossExternal'
+  if (options.gross === 'both') return { gross: ['grossInternal', 'grossExternal'], chosen: 'asked', country, why: 'Both gross areas were asked for.', underAirFirst }
+  if (options.gross !== undefined) return { gross: [options.gross], chosen: 'asked', country, why: `${MEASURES[options.gross].name} was asked for.`, underAirFirst }
+  if (usual === 'grossInternal') return { gross: [usual], chosen: 'country', country, why: `For ${country} Grid gives the inside face of the outer walls first; gross external can be asked for.`, underAirFirst }
+  if (usual === 'grossExternal') return { gross: [usual], chosen: 'country', country, why: `For homes in ${country} Grid gives the outside face of the walls first; gross internal can be asked for.`, underAirFirst }
   const usualWhere = 'the inside face is usual in the UK and most of Europe, the outside face for homes in the US'
   return {
     gross: ['grossInternal', 'grossExternal'],
     chosen: 'none',
     country,
+    underAirFirst,
     why: country === null
       ? `No country was given, so both gross areas are given: ${usualWhere}.`
       : `Grid has no usual gross measure for ${country}, so both are given: ${usualWhere}.`,
   }
 }
 
-const total = (measure: Measure, floors: readonly FloorAreaFigures[], pick: (f: FloorAreaFigures) => number | null): AreaFigure => {
+const total = (measure: Measure, floors: readonly FloorAreaFigures[], pick: (f: FloorAreaFigures) => number | null, whyOf: (f: FloorAreaFigures) => string | null = (f) => f.why): AreaFigure => {
   const unknown = floors.filter((f) => pick(f) === null)
   return {
     measure,
     area: unknown.length > 0 ? null : sum(floors.map((f) => pick(f)!)),
     rule: MEASURES[measure],
-    why: unknown.length > 0 ? unknown.map((f) => `Floor ${JSON.stringify(f.floor)}: ${f.why ?? 'not known'}.`).join(' ') : null,
+    why: unknown.length > 0 ? unknown.map((f) => `Floor ${JSON.stringify(f.floor)}: ${whyOf(f) ?? 'not known'}.`).join(' ') : null,
     doubt: measure === 'grossInternal' || measure === 'grossExternal' ? totalDoubt(floors, measure) : null,
   }
 }
@@ -974,9 +1047,10 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
   const sidesOnce = (): ReadonlyMap<string, WallSides> => (sides ??= planWallSides(index))
   const stacks = stairStacks(plan, index, broken)
   const building = buildingOf(plan, index, outside)
-  const floors = planFloors(plan)
+  const measured = planFloors(plan)
     .filter((floor) => options.floors === undefined || options.floors.includes(floor.id))
     .map((floor) => floorFigures(plan, floor.id, index, broken, outside, sidesOnce, stacks, building))
+  const floors = underAir(plan, index, broken, outside, sidesOnce, stacks, building, measured)
 
   const byUse: Record<string, number> = {}
   for (const f of floors) for (const [use, area] of Object.entries(f.byUse)) byUse[use] = (byUse[use] ?? 0) + area
@@ -1051,6 +1125,8 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
   const notInFlats = sum(floors.map((f) => f.net)) - sum(flats.map((flat) => flat.net))
   const grossInternal = total('grossInternal', floors, (f) => f.grossInternal)
   const grossExternal = total('grossExternal', floors, (f) => f.grossExternal)
+  const conditioned = total('conditioned', floors, (f) => f.conditioned, (f) => f.conditionedWhy)
+  const underRoof = total('underRoof', floors, (f) => f.underRoof)
   // ARE-20: a gross figure below one it must hold is given, and says why it cannot be taken as it is.
   for (const figure of [grossInternal, grossExternal]) if (figure.doubt !== null) notes.push(figure.doubt)
   const apart = options.apart === undefined || options.apart.size === 0 ? null : apartFigure(plan, index, broken, sidesOnce, floors, options.apart)
@@ -1064,6 +1140,9 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
     net: total('net', floors, (f) => f.net),
     grossInternal,
     grossExternal,
+    conditioned,
+    underRoof,
+    notUnderAir: notUnderAirOf(plan, floors),
     byUse,
     outsideRooms,
     leftOut,
@@ -1072,6 +1151,139 @@ export function planAreaFigures(stated: FloorPlan, given: AreaOptions = {}): Pla
     ...(outdoor === null ? {} : { outdoor }),
     ...(apart === null ? {} : { apart }),
   }
+}
+
+/**
+ * ARE-60: the rooms not under air (`isConditioned`), by floor, as ids: no outdoor space or void,
+ * which no gross figure holds already, and a zone as its room is.
+ */
+function unconditionedRooms(plan: FloorPlan, index: PlanIndex): Map<string, Set<string>> {
+  const zones = roomZones(index)
+  const out = new Map<string, Set<string>>()
+  for (const room of plan.rooms) {
+    if (isOutdoor(room) || room.void === true) continue
+    const floor = floorOf(room)
+    const of = zones.zoneOf.get(room.id)
+    const own = of === undefined ? room : (plan.rooms.find((r) => r.id === of && floorOf(r) === floor) ?? room)
+    if (isConditioned(own)) continue
+    const ids = out.get(floor) ?? new Set<string>()
+    ids.add(room.id)
+    out.set(floor, ids)
+  }
+  return out
+}
+
+/**
+ * ARE-60: each floor's living area under air and total under roof. The area under air is the
+ * floor's gross external area measured again with its rooms not under air as the outside, as a
+ * room named outside is (ARE-29): the wall between them and a room under air faces outside, so it
+ * counts in full, and the stretches of wall with outdoor space or a room not under air on a face
+ * and no room under air on either are cut off (`trimmedOff`). Floors with the same rooms not under
+ * air share one building; a floor with neither such a room nor outdoor space keeps its gross
+ * external area.
+ */
+function underAir(
+  plan: FloorPlan,
+  index: PlanIndex,
+  broken: ReadonlySet<string>,
+  outside: ReadonlySet<string>,
+  sides: () => ReadonlyMap<string, WallSides>,
+  stacks: ReadonlyMap<string, StairBelow>,
+  building: Building | null,
+  floors: readonly FloorFiguresMeasured[]
+): FloorAreaFigures[] {
+  const unconditioned = unconditionedRooms(plan, index)
+  const passes = new Map<string, { readonly out: ReadonlySet<string>; readonly building: Building }>()
+  return floors.map((f) => {
+    const ids = [...(unconditioned.get(f.floor) ?? [])].filter((id) => !outside.has(id))
+    const rooms = f.rooms.map((room) => (ids.includes(room.id) && !room.outside ? { ...room, unconditioned: true as const } : room))
+    const roofed = sum(f.rooms.filter((room) => room.outdoor?.roofed === true && room.zoneOf === null).map((room) => room.area))
+    const underRoof = f.grossExternal === null ? null : f.grossExternal + roofed
+    const done = { ...f, rooms, underRoof }
+    if (f.massing) return { ...done, conditioned: null, conditionedWhy: english(said('areas.conditioned.massing')) }
+    const unknown = (why: string | null) => ({ ...done, conditioned: null, conditionedWhy: why ?? f.why })
+    let gross = f.grossExternal
+    let measured = building
+    if (ids.length > 0) {
+      const key = [...ids].sort().join('\u0000')
+      let pass = passes.get(key)
+      if (pass === undefined) {
+        const out = new Set([...outside, ...ids])
+        pass = { out, building: buildingOf(plan, index, out)! }
+        passes.set(key, pass)
+      }
+      const again = floorFigures(plan, f.floor, index, broken, pass.out, sides, stacks, pass.building)
+      gross = again.grossExternal
+      measured = pass.building
+      if (gross === null) return unknown(again.why)
+    }
+    if (gross === null) return unknown(f.why)
+    if (measured === null) return { ...done, conditioned: gross, conditionedWhy: null }
+    const off = trimmedOff(measured, f.floor, broken)
+    if (typeof off === 'string') return unknown(off)
+    return { ...done, conditioned: Math.max(0, gross - off), conditionedWhy: null }
+  })
+}
+
+/**
+ * ARE-60: what the area under air takes off the building's gross external area on a floor: the
+ * stretches of solid wall with an outdoor space (a room not under air being one, in its pass) on a
+ * face and no room under air on either, cut from the outline at their full thickness, and what is
+ * left in a piece that holds no space under air (a wall's end past the garage's corner). An
+ * outdoor space inside what is kept was taken off the gross already; one in a piece cut away is
+ * not taken off twice. 0 when no such stretch is drawn; a reason when the cut cannot be made.
+ */
+function trimmedOff(measured: Building, floor: string, broken: ReadonlySet<string>): number | string {
+  const spaces = floorSpaces(measured.plan, floor, { index: measured.index, broken })
+  if (!spacesKnown(spaces)) return `the walls' outline could not be worked out: ${spaces.reason}`
+  const indoor = (space: Space): boolean => !(space.rooms.length > 0 && space.rooms.every((r) => measured.outdoor.has(r.room)))
+  const sides = measured.around()
+  const walls = floorWalls(measured.plan, floor, broken).filter((wall) => wall.virtual !== true)
+  const spans = walls.flatMap((wall) =>
+    (sides.get(wall.id)?.stretches ?? [])
+      .filter((stretch) => {
+        const rooms = [...stretch.left, ...stretch.right]
+        return rooms.length > 0 && rooms.every((id) => measured.outdoorAround.has(id)) && stretch.to - stretch.from > tolerance('noLength')
+      })
+      .map((stretch) => ({ wall, from: stretch.from, to: stretch.to }))
+  )
+  if (spans.length === 0) return 0
+  const join = tolerance('gap')
+  const outline: MultiPolygon = spaces.outline.map((rings) => rings.map((ring) => ring.map((p): [number, number] => [p.x, p.y])))
+  const enclosed = sum(spaces.spaces.filter((space) => !indoor(space)).map((space) => space.area))
+  for (const grid of TOLERANCES.joinGrids.values) {
+    try {
+      const steps = grid === 0 ? 0 : Math.round(1 / grid)
+      const snap = grid === 0 ? (v: number) => v : (v: number) => Math.round(v * steps) / steps
+      const cuts: Polygon[] = spans.flatMap(({ wall, from, to }) => {
+        const whole = wallLength(wall)
+        if (wall.arc !== undefined) return curveBands(wall, from, to, wall.thickness / 2 + join, join, snap)
+        const axis = wallSegments(wall)[0]!
+        const a = from <= tolerance('noLength') ? -join : from
+        const b = to >= whole - tolerance('noLength') ? whole + join : to
+        const at = { x: axis.start.x + axis.dir.x * a, y: axis.start.y + axis.dir.y * a }
+        return [strip(at, axis.dir, b - a, wall.thickness / 2 + join, 0, snap)]
+      })
+      const rest: MultiPolygon = polygonClipping.difference(outline, ...cuts)
+      const kept = rest.filter((piece) => spaces.spaces.some((space) => indoor(space) && inPolygon(space.at, piece)))
+      const keptOutdoor = sum(spaces.spaces.filter((space) => !indoor(space) && kept.some((piece) => inPolygon(space.at, piece))).map((space) => space.area))
+      return Math.max(0, spaces.outlineArea - sum(kept.map(polygonArea)) - (enclosed - keptOutdoor))
+    } catch {
+      // The polygon library could not cut the walls on this grid: the next, coarser one is tried.
+    }
+  }
+  return 'the outer walls could not be cut from the floor: their shapes are too close to tell apart'
+}
+
+/** ARE-60: the rooms the net counts that are not under air, with why, and their floor. */
+function notUnderAirOf(plan: FloorPlan, floors: readonly FloorAreaFigures[]): PlanAreaFigures['notUnderAir'] {
+  const stated = new Map(plan.rooms.map((room) => [`${floorOf(room)}|${room.id}`, room] as const))
+  const list: NotUnderAir[] = floors.flatMap((f) =>
+    f.rooms
+      .filter((room) => room.unconditioned === true && room.zoneOf === null && room.countedWith === undefined)
+      .map((room) => ({ floor: f.floor, id: room.id, name: room.name, why: stated.get(`${f.floor}|${room.id}`)?.conditioned === false ? ('stated' as const) : ('use' as const), area: room.area }))
+  )
+  return { rooms: list, area: sum(list.map((room) => room.area)) }
 }
 
 /** ARE-20: the rooms asked for measured apart: their net as the net counts it, and to the party walls. */
@@ -1105,7 +1317,15 @@ function buildingOf(stated: FloorPlan, statedIndex: PlanIndex, outside: Readonly
   const measured = buildingPlan(plan, index)
   const own = measured === plan ? index : indexPlan(measured)
   let sides: ReadonlyMap<string, WallSides> | undefined
-  return { plan: measured, index: own, sides: () => (sides ??= planWallSides(own)), outdoor: outdoorIds(measured) }
+  let around: ReadonlyMap<string, WallSides> | undefined
+  return {
+    plan: measured,
+    index: own,
+    sides: () => (sides ??= planWallSides(own)),
+    outdoor: outdoorIds(measured),
+    around: () => (around ??= measured === plan ? planWallSides(own) : planWallSides(index)),
+    outdoorAround: outdoorIds(plan),
+  }
 }
 
 /** CNT-7: the outdoor spaces on the floors given, and their floor weighted by the rules stated. Null when there is none. */
