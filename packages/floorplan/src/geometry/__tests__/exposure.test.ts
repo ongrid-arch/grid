@@ -209,6 +209,45 @@ describe('R-9 a courtyard drawn as a room', () => {
   })
 })
 
+describe('ARE-57 an outdoor balcony beside a curved corner of an outside wall', () => {
+  // A plate with a rounded south-east corner (a quarter arc, 0.3 m thick) and a balcony marked
+  // outdoor against its south wall, whose side wall ends where the arc begins.
+  const arcCorner = (id: string, kind?: Wall['kind']): Wall =>
+    wall(id, [12, 0], [15, 3], { kind: kind ?? 'exterior', thickness: 0.3, arc: { centre: [12, 3], sweep: 90 } })
+  const build = (outdoor: boolean): FloorPlan =>
+    parseFloorPlan({
+      walls: [
+        wall('s', [0, 0], [12, 0], { kind: 'exterior', thickness: 0.3 }),
+        arcCorner('s-corner'),
+        wall('e', [15, 3], [15, 9], { kind: 'exterior', thickness: 0.3 }),
+        wall('n', [15, 9], [0, 9], { kind: 'exterior', thickness: 0.3 }),
+        wall('w', [0, 9], [0, 0], { kind: 'exterior', thickness: 0.3 }),
+        wall('bal-e', [12, 0], [12, -2], { kind: 'exterior', thickness: 0.1 }),
+        wall('bal-s', [12, -2], [0, -2], { kind: 'exterior', thickness: 0.1 }),
+        wall('bal-w', [0, -2], [0, 0], { kind: 'exterior', thickness: 0.1 })
+      ],
+      rooms: [
+        room('plate', ['s', 's-corner', 'e', 'n', 'w']),
+        { id: 'balcony', name: 'Balcony', boundary: ['s', 'bal-w', 'bal-s', 'bal-e'], ...(outdoor ? { outdoor: 'balcony' } : {}) }
+      ]
+    })
+
+  it('is the outside to the walls it stands against: no note about rooms on both sides', () => {
+    const plan = build(true)
+    expect(validatePlan(plan).issues.filter((i) => i.code === 'wall/kind-differs')).toEqual([])
+    const index = indexPlan(plan)
+    expect(wallSides(index, 's-corner')!.stretches.map((s) => [s.left, s.right, s.worked])).toEqual([[['plate'], [], 'exterior']])
+    expect(wallExposure(index, 's')).toBe('exterior')
+  })
+
+  it('a balcony not marked outdoor is a room: the note holds and names the room on each side', () => {
+    const lines = validatePlan(build(false)).issues.filter((i) => i.code === 'wall/kind-differs')
+    expect(lines.map((i) => i.id)).toEqual(['s'])
+    expect(lines[0]!.message).toContain('"plate"')
+    expect(lines[0]!.message).toContain('"balcony"')
+  })
+})
+
 describe('what the worked-out kind leaves alone', () => {
   it('a partition with a room on one side only is treated as an outside wall, and says so', () => {
     const plan = parseFloorPlan({
