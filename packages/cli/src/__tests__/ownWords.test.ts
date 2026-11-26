@@ -56,7 +56,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/scan.ts': [22, 'command'],
   'packages/cli/src/command/section.ts': [6, 'command'],
   // SHT-6: four more, the help of --scale, --paper, --floor and --room-sizes.
-  'packages/cli/src/command/sheet.ts': [8, 'command'],
+  'packages/cli/src/command/sheet.ts': [9, 'command'],
   'packages/cli/src/command/tidy.ts': [12, 'command'],
   // WRT-57: one less, the count of problems now said from the messages.
   // CMD-30: one more, the refusal of a read-only plan.
@@ -144,7 +144,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
   // CMD-38: three more, roomsFile's description and refusal, and what rooms text writes.
-  'packages/cli/src/mcp/writeTools.ts': [142, 'tools'],
+  // SHT-20: two more.
+  'packages/cli/src/mcp/writeTools.ts': [144, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -176,7 +177,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-16: +1, the columns' place on the sheet ("drawn and tabled").
   'packages/cli/src/sheet/coverage.ts': [30, 'developer'],
   // SHT-6: the refusal of a floor too large for the paper.
-  'packages/cli/src/sheet/drawingSheet.ts': [2, 'command'],
+  'packages/cli/src/sheet/drawingSheet.ts': [3, 'command'],
   'packages/cli/src/sheet/fonts.ts': [1, 'developer'],
   // SHT-6: nine more, the drawing's refusals, its answer line and its file note.
   'packages/cli/src/sheet/sheetFile.ts': [15, 'command'],
@@ -373,7 +374,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and 3 more from the same merge (CMD-25, CNT-37 and CMD-26 each raised the cap on their own).
     // and CMD-35 2: diff's --out refusal and help line, and the drawing refusal's reason (the sheet
     // refusal for no layout is gone).
-    expect(left).toBeLessThanOrEqual(1659)
+    // and SHT-20 2: printing a sheet at a stated scale and paper size (it used the cap's slack on its own).
+    expect(left).toBeLessThanOrEqual(1661)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

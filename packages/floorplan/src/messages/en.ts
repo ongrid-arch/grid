@@ -2989,6 +2989,7 @@ export const en = {
   'sheet.drawing.title': '{floor} plan',
   'sheet.drawing.caption.one': 'Floor plan of {floor}, drawn at {scale} on {paper}.',
   'sheet.drawing.caption.many': 'Floor plan of {floor}, floor {number} of {count}, drawn at {scale} on {paper}.',
+  'sheet.drawing.part': 'Part {part} of {parts} of this floor, at the same scale: a dashed line is where the next part continues.',
   'sheet.block.project': 'Project',
   'sheet.block.drawing': 'Drawing',
   'sheet.block.scale': 'Scale',

@@ -93,8 +93,8 @@ describe('grid_words (MSG-24)', () => {
     // The drawing, as its file: every word of Grid's on it in German.
     const project = openProject(b.folder, b.folder)
     const drawing = await makeDrawing(project, 'plan.json', {}, null)
-    expect(drawing.files.svg).toMatch(/DE /)
-    expect(drawing.files.svg).not.toContain('Floor plan with')
+    expect(drawing.files.svgs.join('')).toMatch(/DE /)
+    expect(drawing.files.svgs.join('')).not.toContain('Floor plan with')
     const view = await b.call('grid_view', { plan: 'plan.json', kind: 'plan' })
     expect(view.isError, view.text).toBe(false)
     expect(view.text).not.toContain('grid_words')

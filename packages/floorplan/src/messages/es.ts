@@ -2987,6 +2987,7 @@ export const es: Messages = {
   'sheet.drawing.title': 'Planta: {floor}',
   'sheet.drawing.caption.one': 'Planta de {floor}, dibujada a {scale} en {paper}.',
   'sheet.drawing.caption.many': 'Planta de {floor}, planta {number} de {count}, dibujada a {scale} en {paper}.',
+  'sheet.drawing.part': 'Parte {part} de {parts} de esta planta, a la misma escala: una línea discontinua marca dónde sigue la parte siguiente.',
   'sheet.block.project': 'Proyecto',
   'sheet.block.drawing': 'Plano',
   'sheet.block.scale': 'Escala',
