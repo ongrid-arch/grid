@@ -93,3 +93,28 @@ describe('items follow their walls', () => {
     expect(back.text).toContain('item robe wardrobe in bed against east, full width 0.6 deep')
   })
 })
+
+describe('the items wherever an agent looks', () => {
+  it('finds and counts fixtures and furniture as kinds of part, with their rooms', async () => {
+    await ok('grid_add_item', { plan: 'flat.json', name: 'double-bed', id: 'bed1', room: 'bed', against: 'north', out: 'furnished.json' })
+    const found = await ok('grid_find', { plan: 'furnished.json', kind: ['fixture'], fields: ['item kind', 'room'] })
+    expect(found.data).toMatchObject({ count: 1, ids: ['tub'] })
+    expect(found.text).toContain('fixture "tub"')
+    const fields = await ok('grid_fields', { plan: 'furnished.json', kind: ['furniture'] })
+    expect((fields.data as Rec)['kinds']).toEqual([{ kind: 'furniture', count: 1 }])
+    const counted = await ok('grid_count', { plan: 'furnished.json', kind: ['fixture', 'furniture'], by: 'room' })
+    expect(((counted.data as Rec)['groups'] as Rec[]).map((g) => [g['value'], g['count']])).toEqual([['bath', 1], ['bed', 1]])
+  })
+
+  it('lists the items grid_view draws, with their boxes', async () => {
+    const view = await ok('grid_view', { plan: 'furnished.json', kind: 'plan' })
+    expect(view.text).toMatch(/Fixtures and furniture drawn: 2 \(bath "tub", bed "bed1"\)/)
+    expect(((view.data as Rec)['boxes'] as Rec[]).filter((box) => box['kind'] === 'fixture' || box['kind'] === 'furniture').map((box) => box['id'])).toEqual(['tub', 'bed1'])
+  })
+
+  it('schedules the fixtures and furniture with of=fixtures', async () => {
+    const schedule = await ok('grid_schedule', { plan: 'furnished.json', of: 'fixtures' })
+    expect(((schedule.data as Rec)['fixtures'] as Rec[]).map((row) => [row['id'], row['room']])).toEqual([['tub', 'bath'], ['bed1', 'bed']])
+    expect(schedule.text).not.toContain('In all:')
+  })
+})
