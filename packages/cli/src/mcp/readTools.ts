@@ -2176,7 +2176,7 @@ async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, lang
   const units = display ?? displayFor(undefined, undefined, plan, language)
   const levels = facade.levels.map((l) => `${q(l.name)} at ${levelText(l.level, units)}`).join(', ')
   const facing = facade.compass === null ? 'The plan states no north, so this is the side of the drawing only.' : `By the north the plan states, this side faces ${facade.compass.faces} (bearing ${Math.round(facade.compass.bearing)}°).`
-  const ground = facade.ground.stated ? `The ground line is at ${levelText(facade.ground.level, units)}, the level the site states.` : "The site states no ground level: the ground line is drawn at the ground floor's floor level."
+  const ground = facade.ground.stated ? `The ground line is at ${levelText(facade.ground.level, units)}, the level the site states.` : "The site states no ground level: the ground line is drawn at the ground floor's floor level. " + english(said('site.ground.how'))
   const lines = facade.extent === null
     ? [`Nothing of the plan faces ${side}: no outside face of any floor turns that way. ${facing}`]
     : [
