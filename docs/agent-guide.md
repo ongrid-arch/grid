@@ -69,6 +69,27 @@ opening o-landing between landing and stair, 0.3 from south, 1.0 wide
 
 The flight itself, with its treads, is optional: the plan file's `stairs` list holds it (its two floors, its width and its walking line), and rooms text does not write it ([Stairs that join two floors](plan-file.md#stairs-that-join-two-floors)). A floor's `level` orders the floors (0 the ground, 1 the one above, -1 a basement); it is not a height. A floor's height is `height` on its line.
 
+### How do I draw a car park?
+
+The decks are rooms used as `parking`; the bays and the ramps are lines of their own after the rooms, never rooms or walls. `bays <group> in <room> fill, <width> x <length>` fills a room with rows of bays and the aisles between them (`aisle 6`, `rows east-west`, `from north`, `count 40`); `bays <group> in <room> along <side>, ...` is one row against a wall (`offset`, `inset`, `from <end>`); a kind word (`car`, `small`, `accessible`, `motorcycle`) gives Grid's own starting size in place of the size, not a code's. Its bays are `<group>-1`, `<group>-2` and on, and `numbered B1-01` numbers them on. A ramp joins two floors as a stair does: `ramp <id> from <floor> to <floor> in <room>, <width> wide, straight, runs <side>`, or `..., helix [radius <m>] [turns <n>] [clockwise]` for a spiral ramp, or `..., run x,y x,y ...` along its middle line. The answer says how many bays each line placed and their numbers, and each ramp's rise, length and slope from the floors' levels; `grid_takeoff` and `grid_describe` count the bays by floor. `grid_place_bays` and `grid_add_ramp` write the same through the tools, and `raw bay {...}` and `raw ramp {...}` take the plan file's own JSON.
+
+```rooms
+building parking
+walls outside 0.3 inside 0.2 height 3
+floor b1 "Basement" level -1 height 3
+room deck "Deck" parking 30 x 20 at 0,0
+room spiral "Ramp" parking 12 x 12 east of deck
+opening o-b1 between deck and spiral, centred, 6 wide
+floor g "Ground" level 0 height 3
+room deck "Deck" parking 30 x 20 at 0,0
+room spiral "Ramp" parking 12 x 12 east of deck
+opening o-g between deck and spiral, centred, 6 wide
+door way-in in deck south, centred, 1 wide, opens out
+bays b1 in deck fill, 2.5 x 5, aisle 6, numbered B1-01, on b1
+bays g in deck along north, accessible, count 4, numbered G-01, on g
+ramp h "Helix" from b1 to g in spiral, 3.5 wide, helix, turns 1
+```
+
 ### Which word is the use for an office, a toilet or a stair?
 
 The word after a room's name is its use, one of the words in the table below. A word in the right-hand column is read as the use on its row, in any capitals (`WC` is `toilet`), and `-` means no use. The room's name keeps the person's own word: `room wc1 "Guest loo" toilet`. The right-hand column holds the words read in other languages, Spanish, German, French and Chinese (`cocina`, `Flur`, `chambre`, `卧室`): each is a use's own name or a word that means it and nothing else. A word that is not in the table is not a use. Rooms text, the way to write a plan, refuses it on its line, lists the uses it takes and writes nothing (`kennel` is refused); write `other` if no use fits, or `-` for none. Only a plan file reads it with no use, with a note that names it, so the checks that need a use skip the room. No other word is read as `bedroom`, `living` or `dining` but the old ones `parlour`, `parlor`, `sitting` and `box room`: the room size checks look at those, so only you choose them, in your own language or Grid's. `building office` on its own line says what kind of building the plan is (`home`, `flats`, `office`, `shop`, `food`, `hotel`, `school`, `health`, `sport`, `assembly`, `industry`, `warehouse`, `parking`, `transport`, `culture`, `lab`, `custody` or `other`; a plain word such as `hospital`, `apartments`, `airport`, `museum` or `prison` is read as its kind); a floor line takes `building shop` for one floor.
