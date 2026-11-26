@@ -17,6 +17,7 @@ import { missingDefaultPlan, projectPlanFile } from '../command/init'
 import { UsageError } from '../command/options'
 import { loadPlan, PlanRefused, type LoadedPlan, type LoadOptions } from '../command/plan'
 import { ID_MAX as PLAN_ID_MAX, UNSAFE_TEXT } from '../command/planText'
+import { budgetArgs, LEFT_OUT_SCHEMA } from './budget'
 
 /** WRT-7: the decimal mark the call's lengths are typed with. */
 export const DECIMAL_IN_ARG: ArgSpec = {
@@ -228,21 +229,24 @@ function labelledSchema(schema: Record<string, unknown>): Record<string, unknown
   const required = (schema['required'] as readonly string[] | undefined) ?? []
   return {
     ...schema,
-    properties: { label: { type: 'string', const: GENERAL_GUIDANCE_LABEL }, ...properties },
+    // CMD-39: an answer shortened to fit says what it left out.
+    properties: { label: { type: 'string', const: GENERAL_GUIDANCE_LABEL }, ...properties, left_out: LEFT_OUT_SCHEMA },
     required: required.includes('label') ? [...required] : ['label', ...required],
   }
 }
 
 /** The tool as `tools/list` shows it. */
 export function toolDefinition(tool: GridTool): Record<string, unknown> & { name: string } {
-  const required = Object.entries(tool.args).filter(([, spec]) => spec.required).map(([name]) => name)
+  // CMD-39: whole, and page on a tool that only reads, beside the tool's own arguments.
+  const args = allArgs(tool)
+  const required = Object.entries(args).filter(([, spec]) => spec.required).map(([name]) => name)
   return {
     name: tool.name,
     title: tool.title,
     description: tool.description,
     inputSchema: {
       type: 'object',
-      properties: Object.fromEntries(Object.entries(tool.args).map(([name, spec]) => [name, argSchema(spec)])),
+      properties: Object.fromEntries(Object.entries(args).map(([name, spec]) => [name, argSchema(spec)])),
       ...(required.length > 0 ? { required } : {}),
       additionalProperties: false,
     },
@@ -335,15 +339,21 @@ export function usesRead(args: Record<string, unknown>): readonly { readonly wor
   return USES_READ.get(args) ?? []
 }
 
+/** CMD-39: the tool's own arguments and the two every answer's size is asked with. */
+export function allArgs(tool: GridTool): ArgSpecs {
+  return { ...tool.args, ...budgetArgs(tool) }
+}
+
 /** The arguments of a call, checked against the tool's own list. */
 export function readArgs(tool: GridTool, raw: unknown): Record<string, unknown> {
-  const names = Object.keys(tool.args)
+  const specs = allArgs(tool)
+  const names = Object.keys(specs)
   if (raw === undefined) raw = {}
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new ToolRefusal(`Pass the arguments of ${tool.name} as an object${names.length > 0 ? `: ${listOf(names)}` : ''}.`)
   }
   const given = raw as Record<string, unknown>
-  const unknown = Object.keys(given).filter((key) => !Object.hasOwn(tool.args, key))
+  const unknown = Object.keys(given).filter((key) => !Object.hasOwn(specs, key))
   if (unknown.length > 0) {
     const shown = unknown.length > 3 ? `${unknown.length} others` : unknown.every((key) => key.length <= ID_MAX && ID.test(key)) ? listOf(unknown.map(quoted)) : 'others'
     throw new ToolRefusal(`${tool.name} takes ${names.length > 0 ? listOf(names) : 'no arguments'}, not ${shown}.`)
@@ -351,7 +361,7 @@ export function readArgs(tool: GridTool, raw: unknown): Record<string, unknown> 
   const args: Record<string, unknown> = {}
   readings = []
   // The decimal mark first: a length typed with a comma is read by it (WRT-7).
-  const order = Object.entries(tool.args).sort(([a], [b]) => (a === 'decimal' ? -1 : b === 'decimal' ? 1 : 0))
+  const order = Object.entries(specs).sort(([a], [b]) => (a === 'decimal' ? -1 : b === 'decimal' ? 1 : 0))
   for (const [name, spec] of order) {
     const value = given[name]
     if (value === undefined || value === null) {

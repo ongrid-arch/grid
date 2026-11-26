@@ -233,7 +233,8 @@ describe('no word of approval (MSG-3)', () => {
     ] }
     b = bench({ 'flat.json': flat([CUPBOARD, WC]), [FIRM_FILE]: everything })
     for (const full of [false, true]) {
-      const check = await b.call('grid_check', { plan: 'flat.json', ...(full ? { full } : {}) })
+      // CMD-39: every standard on every room is more than an answer is kept to; whole=true lists every line.
+      const check = await b.call('grid_check', { plan: 'flat.json', whole: true, ...(full ? { full } : {}) })
       expect(check.text.split('\n')[0]).toBe(GENERAL_GUIDANCE_LABEL)
       expect(approvalWords(check.text)).toEqual([])
       const firm = linesOf(check.data).filter(isFirmLine)
