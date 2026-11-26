@@ -1842,6 +1842,7 @@ export const en = {
   'describe.repeat.one': '{floors} is laid out like {of}',
   'describe.repeat.many': '{floors} are laid out like {of}',
   'describe.entered': 'from outside, {ways} into {rooms}',
+  'describe.entered.common': 'from the building\'s common parts, which the plan does not draw, {ways} into {rooms}',
   'describe.entered.none': 'no door leads in from outside',
   'describe.entered.openSide': 'from outside, no door but an open side leads into {rooms}',
   'describe.ways.door': 'a door leads',

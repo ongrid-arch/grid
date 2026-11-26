@@ -292,3 +292,29 @@ describe('a room is sized along its own sides (ARE-63)', () => {
     expect(stair.deep).toBeLessThan(17.5)
   })
 })
+
+describe('the description says a door leads in from the common parts when the check reads one (ARE-63)', () => {
+  let b: Bench
+  afterEach(() => b?.close())
+
+  for (const [label, change] of [
+    ['through a separating wall', (w: FloorPlan['walls'][number]) => ({ ...w, kind: 'separating' as const })],
+    ['through a wall that states the common parts beyond it', (w: FloorPlan['walls'][number]) => ({ ...w, beyond: 'common' as const })],
+  ] as const) {
+    it(label, async () => {
+      const plan = edit(flat(), (copy) => {
+        copy.walls = copy.walls.map((w) => (w.id === 's1' ? change(w) : w))
+      })
+      const check = checkPlanSanity(plan)
+      expect(check.findings.filter((f) => f.code === 'no_exit' || f.code === 'no_route_to_exit')).toEqual([])
+      expect(check.notChecked.map((n) => n.reason)).toContain('way_out_through_common_parts')
+      b = bench({ 'plan.json': plan })
+      const person = await b.call('grid_describe', { plan: 'plan.json', for: 'person' })
+      expect(person.text).toContain("from the building's common parts, which the plan does not draw, a door leads into Hall.")
+      expect(person.text).not.toContain('no door leads in from outside')
+      expect(person.text).not.toContain('from outside, a door leads into Hall')
+      const agent = await b.call('grid_describe', { plan: 'plan.json', for: 'agent' })
+      expect(agent.text).toContain('from the common parts into hall')
+    })
+  }
+})

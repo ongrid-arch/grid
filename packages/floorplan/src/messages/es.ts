@@ -1856,6 +1856,7 @@ export const es: Messages = {
   'describe.repeat.one': '{floors} tiene la misma distribución que {of}',
   'describe.repeat.many': '{floors} tienen la misma distribución que {of}',
   'describe.entered': 'desde el exterior, {ways} a {rooms}',
+  'describe.entered.common': 'desde las zonas comunes del edificio, que el plano no dibuja, {ways} a {rooms}',
   'describe.entered.none': 'ninguna puerta da paso desde el exterior',
   'describe.entered.openSide': 'desde el exterior, ninguna puerta pero sí un lado abierto da paso a {rooms}',
   'describe.ways.door': 'una puerta da',

@@ -154,6 +154,8 @@ export interface FloorFacts {
   readonly openSides: readonly OpenSide[]
   /** ARE-18: open sides with a room on one side only that the way-out check reads as a way out, each with its room. */
   readonly edgesOut: readonly { readonly wall: string; readonly room: string }[]
+  /** ARE-63: doors and doorless openings onto the building's common parts, not drawn (a flat's front door onto its landing), as the way-out check reads them; left out when there are none. */
+  readonly commonIn?: readonly { readonly opening: string; readonly room: string }[]
   readonly repeats: Repeat | null
   readonly area: number
   /**
@@ -598,6 +600,7 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
     openings,
     openSides,
     edgesOut: graph.openEdges.filter((e) => e.beyond === 'outside').map((e) => ({ wall: e.edge, room: e.room })),
+    ...(graph.common.length === 0 ? {} : { commonIn: graph.common.map((c) => ({ opening: c.opening, room: c.room })) }),
     repeats: null,
     // A zone's floor is its room's (CNT-8): counted once.
     // CNT-7: an outdoor space is listed apart, in no total.
