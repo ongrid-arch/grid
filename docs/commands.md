@@ -591,7 +591,9 @@ The answer, in this order:
 
 - **Issues**: a door that now joins other rooms, a wall added or moved that now meets another
   wall inside an opening, a room that no longer closes, and the notes of `grid check` that came
-  and went.
+  and went. A note `grid check` gives once for several rooms that gained or lost rooms is one
+  issue, `note_changed`, saying which rooms it now also names and which it no longer does
+  (WRT-64), not one note new and one gone.
   With `--since phase` the issues are judged by what the work does (CMD-31): a door whose room
   the work takes out and replaces with a new one is the work, not an issue, while a door that
   comes to join the outside or a room that stood before still is; and an old window the work

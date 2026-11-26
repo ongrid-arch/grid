@@ -197,6 +197,73 @@ describe('the issues, first', () => {
   })
 })
 
+describe('a grouped note whose rooms changed (WRT-64)', () => {
+  type Note = { code: string; thing: { kind: string; id: string }; also: string[]; message: string; floor?: string | null; each?: { kind: string; id: string }[] }
+  /** One line for the same note on several rooms, as the drawing check groups it. */
+  const group = (code: string, ids: readonly string[], floor: string | null = null): Note => ({
+    code,
+    thing: { kind: 'room', id: ids[0]! },
+    also: ids.slice(1),
+    message: `${code} on ${ids.join(', ')}`,
+    floor,
+    ...(ids.length > 1 ? { each: ids.map((id) => ({ kind: 'room', id })) } : {})
+  })
+  const before = flat()
+  const after = renamedAndMoved(before, [0, 0], 0)
+  // renamedAndMoved names the rooms room-1 … room-6 in the fixture's order.
+  const later = (id: string): string => `room-${before.rooms.findIndex((r) => r.id === id) + 1}`
+
+  it('says a group that gained a room and lost two as one issue, naming them', () => {
+    const compared = compareBuildings(before, after, {
+      notes: {
+        before: [group('room/no-door', ['living', 'hall', 'bed1'])],
+        after: [group('room/no-door', [later('living'), later('bed2')])]
+      }
+    })
+    expect(compared.issues.map((i) => [i.code, i.message])).toEqual([
+      ['note_changed', `Note room/no-door changed (now also "Bedroom 2"; "Hall" and "Bedroom 1" no longer): room/no-door on ${later('living')}, ${later('bed2')}`]
+    ])
+    expect(compared.issues[0]!.entities).toEqual([
+      { type: 'room', id: later('bed2') },
+      { type: 'room', id: later('hall') },
+      { type: 'room', id: later('bed1') }
+    ])
+    expect(compared.verdict).toMatch(/^1 issue to look at first\./)
+  })
+
+  it('says a group of two left with one room as one issue', () => {
+    const compared = compareBuildings(before, after, {
+      notes: { before: [group('room/no-door', ['hall', 'bed1'])], after: [group('room/no-door', [later('hall')])] }
+    })
+    expect(compared.issues.map((i) => [i.code, i.message])).toEqual([
+      ['note_changed', `Note room/no-door changed ("Bedroom 1" no longer): room/no-door on ${later('hall')}`]
+    ])
+  })
+
+  it('says nothing of a group whose rooms all stayed', () => {
+    const compared = compareBuildings(before, after, {
+      notes: { before: [group('room/no-door', ['hall', 'bed1'])], after: [group('room/no-door', [later('hall'), later('bed1')])] }
+    })
+    expect(compared.issues).toEqual([])
+  })
+
+  it('pairs no group on another floor, of another code or with no room in common', () => {
+    const compared = compareBuildings(before, after, {
+      notes: {
+        before: [group('room/no-door', ['hall', 'bed1'], 'ground'), group('room/no-window', ['living', 'kitchen']), group('room/too-small', ['bath', 'bed2'])],
+        after: [group('room/no-door', [later('hall'), later('bed2')], 'first'), group('room/no-door', [later('living'), later('kitchen')]), group('room/too-small', [later('hall'), later('bed1')])]
+      }
+    })
+    expect(compared.issues.map((i) => i.code)).toEqual(['note_added', 'note_added', 'note_added', 'note_gone', 'note_gone', 'note_gone'])
+  })
+
+  it('pairs no two notes on one part each', () => {
+    const one = (id: string, also: string[]): Note => ({ code: 'opening/door-hits-wall', thing: { kind: 'room', id }, also, message: `door on ${id} hits ${also.join(', ')}` })
+    const compared = compareBuildings(before, after, { notes: { before: [one('hall', ['a'])], after: [one(later('hall'), ['b'])] } })
+    expect(compared.issues.map((i) => i.code)).toEqual(['note_added', 'note_gone'])
+  })
+})
+
 describe('laying one version on the other', () => {
   it('pairs walls by place before id, and keeps a pair the other way round', () => {
     const before = flat()

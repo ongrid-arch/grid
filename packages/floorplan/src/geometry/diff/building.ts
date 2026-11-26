@@ -74,6 +74,8 @@ export type ComparisonIssueCode =
   | 'note_added'
   /** A note of the earlier version the later one no longer has. */
   | 'note_gone'
+  /** WRT-64: a grouped note of the drawing check on both versions that gained or lost parts. */
+  | 'note_changed'
 
 export interface ComparisonIssue {
   readonly code: ComparisonIssueCode
@@ -151,6 +153,10 @@ export interface NoteLike {
   readonly thing: { readonly kind: string; readonly id: string }
   readonly also: readonly string[]
   readonly message: string
+  /** WRT-64: the floor it is on, null for the plan as a whole (and when left out). */
+  readonly floor?: string | null
+  /** WRT-64: on a line that stands for the same note on several parts, each of them. */
+  readonly each?: readonly { readonly kind: string; readonly id: string }[]
 }
 
 export interface CompareOptions {
@@ -440,7 +446,11 @@ function windowsBetweenRooms(later: FloorPlan, faces: { readonly base: ReturnTyp
   return issues
 }
 
-function noteIssues(notes: CompareOptions['notes'], rename: (kind: string, id: string) => string): ComparisonIssue[] {
+function noteIssues(
+  notes: CompareOptions['notes'],
+  rename: (kind: string, id: string) => string,
+  partName: (kind: string, id: string) => Value
+): ComparisonIssue[] {
   if (notes === undefined) return []
   const key = (line: NoteLike, map: (kind: string, id: string) => string): string =>
     [line.code, line.thing.kind, map(line.thing.kind, line.thing.id), ...line.also.map((id) => map('', id)).sort()].join('\u0000')
@@ -457,17 +467,69 @@ function noteIssues(notes: CompareOptions['notes'], rename: (kind: string, id: s
   }
   const before = count(notes.before, rename)
   const after = count(notes.after, same)
-  const issues: ComparisonIssue[] = []
   const ref = (line: NoteLike, id: string): EntityRef[] => (['wall', 'opening', 'room', 'floor'].includes(line.thing.kind) ? [{ type: line.thing.kind as EntityRef['type'], id }] : [])
-  for (const [k, lines] of after) {
-    const had = before.get(k)?.length ?? 0
-    for (const line of lines.slice(had)) issues.push({ code: 'note_added', message: `New note ${line.code}: ${line.message}`, entities: ref(line, line.thing.id) })
+  const added: NoteLike[] = []
+  const gone: NoteLike[] = []
+  for (const [k, lines] of after) added.push(...lines.slice(before.get(k)?.length ?? 0))
+  for (const [k, lines] of before) gone.push(...lines.slice(after.get(k)?.length ?? 0))
+  const issues: ComparisonIssue[] = []
+  // WRT-64: a grouped note that gained or lost parts is one note that changed, not one new and one gone.
+  const { pairs, unpaired } = pairedGroups(added, gone, rename)
+  for (const { later, gained, lost } of pairs) {
+    const parts = (list: readonly Part[]): Value => joined(list.map((p) => partName(p.kind, p.id)), 'join.comma', 'join.and')
+    const how = [
+      ...(gained.length === 0 ? [] : [said('diff.note.group.added', { parts: parts(gained) })]),
+      ...(lost.length === 0 ? [] : [said('diff.note.group.gone', { parts: parts(lost) })])
+    ]
+    const entities = [...gained, ...lost].filter((p) => ['wall', 'opening', 'room', 'floor'].includes(p.kind)).map((p) => ({ type: p.kind as EntityRef['type'], id: p.id }))
+    issues.push({ code: 'note_changed', message: english(said('diff.issue.noteChanged', { code: later.code, how: joined(how, 'join.semicolon'), message: later.message })), entities })
   }
-  for (const [k, lines] of before) {
-    const has = after.get(k)?.length ?? 0
-    for (const line of lines.slice(has)) issues.push({ code: 'note_gone', message: `Note gone ${line.code}: ${line.message}`, entities: ref(line, rename(line.thing.kind, line.thing.id)) })
-  }
+  for (const line of added.filter((l) => unpaired.has(l))) issues.push({ code: 'note_added', message: `New note ${line.code}: ${line.message}`, entities: ref(line, line.thing.id) })
+  for (const line of gone.filter((l) => unpaired.has(l))) issues.push({ code: 'note_gone', message: `Note gone ${line.code}: ${line.message}`, entities: ref(line, rename(line.thing.kind, line.thing.id)) })
   return issues
+}
+
+/** WRT-64: a part a note is about, by kind and the later plan's id (an earlier one's when it is gone). */
+interface Part {
+  readonly kind: string
+  readonly id: string
+}
+
+/**
+ * WRT-64: the new and the gone notes that are one grouped note before and after: the same code,
+ * kind and floor, at least one of them standing for several parts, and a part in common (the
+ * earlier one's followed through renamed ids). A new note takes the gone one it shares most parts
+ * with, the first of them on a tie; each gone note pairs once.
+ */
+function pairedGroups(
+  added: readonly NoteLike[],
+  gone: readonly NoteLike[],
+  rename: (kind: string, id: string) => string
+): { pairs: { later: NoteLike; gained: Part[]; lost: Part[] }[]; unpaired: Set<NoteLike> } {
+  const partsOf = (line: NoteLike, map: (kind: string, id: string) => string): Part[] =>
+    (line.each ?? [line.thing]).map((p) => ({ kind: p.kind, id: map(p.kind, p.id) }))
+  const grouped = (line: NoteLike): boolean => (line.each?.length ?? 0) > 1
+  const at = (p: Part): string => `${p.kind}\u0000${p.id}`
+  const unpaired = new Set<NoteLike>([...added, ...gone])
+  const pairs: { later: NoteLike; gained: Part[]; lost: Part[] }[] = []
+  for (const later of added) {
+    const now = partsOf(later, (_kind, id) => id)
+    const nowAt = new Set(now.map(at))
+    let best: { line: NoteLike; was: Part[]; shared: number } | null = null
+    for (const earlier of gone) {
+      if (!unpaired.has(earlier) || earlier.code !== later.code || earlier.thing.kind !== later.thing.kind) continue
+      if ((earlier.floor ?? null) !== (later.floor ?? null) || !(grouped(earlier) || grouped(later))) continue
+      const was = partsOf(earlier, rename)
+      const shared = was.filter((p) => nowAt.has(at(p))).length
+      if (shared > 0 && (best === null || shared > best.shared)) best = { line: earlier, was, shared }
+    }
+    if (best === null) continue
+    unpaired.delete(later)
+    unpaired.delete(best.line)
+    const wasAt = new Set(best.was.map(at))
+    pairs.push({ later, gained: now.filter((p) => !wasAt.has(at(p))), lost: best.was.filter((p) => !nowAt.has(at(p))) })
+  }
+  return { pairs, unpaired }
 }
 
 /** WRT-32: at most this many rooms whose id changed are named in the verdict; more are only counted. */
@@ -486,8 +548,9 @@ const ISSUE_ORDER: Readonly<Record<string, number>> = {
   invalid_head: 6,
   unknown_target: 7,
   note_added: 8,
-  note_gone: 9,
-  suspected_id_churn: 10
+  note_changed: 9,
+  note_gone: 10,
+  suspected_id_churn: 11
 }
 
 /** WRT-20: a floor added to or removed from a plan, with the rooms on it and their net area. */
@@ -870,7 +933,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     // WRT-32: written rooms first, a wall is named after its rooms, so a wall under a new id is a room's new id, not churn.
     ...diff.issues.filter((i) => !(roomsFirst && i.code === 'suspected_id_churn' && i.entities.every((e) => e.type === 'wall'))).map((i: DiffIssue): ComparisonIssue => i),
     ...(scope?.issues.filter((i) => i.code === 'unknown_target') ?? []),
-    ...noteIssues(options.notes, rename)
+    ...noteIssues(options.notes, rename, (kind, id) => (kind === 'room' ? name(headRooms.get(id)?.name || baseRooms.get(id)?.name || id) : name(id)))
   ].sort((a, b) => (ISSUE_ORDER[a.code] ?? 99) - (ISSUE_ORDER[b.code] ?? 99) || compareText(a.message, b.message))
 
   // The scope check: room lines and opening lines by their rooms; wall lines as the scope check of the diff says.

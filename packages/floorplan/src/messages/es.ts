@@ -2298,6 +2298,11 @@ export const es: Messages = {
   // --- Comparar un plano por fases: una ventana que la obra deja entre dos estancias (CMD-31)
   'diff.issue.windowBetweenRooms': 'La ventana {opening} queda ahora entre {first} y {second}; antes de la obra uno de sus lados era {before}',
 
+  // --- WRT-64: a grouped note on both versions that gained or lost parts (`diff/building.ts`)
+  'diff.issue.noteChanged': 'La nota {code} cambió ({how}): {message}',
+  'diff.note.group.added': 'ahora también {parts}',
+  'diff.note.group.gone': 'ya no {parts}',
+
   // --- MSG-27: la volumetría y el solar comparados (`diff/massing.ts`)
   'diff.massing.east': '{distance} m al este',
   'diff.massing.west': '{distance} m al oeste',

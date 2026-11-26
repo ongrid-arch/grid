@@ -2291,6 +2291,11 @@ export const en = {
   // --- Comparing a plan by phase: a window the work leaves between two rooms (CMD-31, `diff/building.ts`)
   'diff.issue.windowBetweenRooms': 'Window {opening} now stands between {first} and {second}; before the work one side of it was {before}',
 
+  // --- WRT-64: a grouped note on both versions that gained or lost parts (`diff/building.ts`)
+  'diff.issue.noteChanged': 'Note {code} changed ({how}): {message}',
+  'diff.note.group.added': 'now also {parts}',
+  'diff.note.group.gone': '{parts} no longer',
+
   // --- MSG-27: the massing and the site compared (`diff/massing.ts`)
   'diff.massing.east': '{distance} m east',
   'diff.massing.west': '{distance} m west',
