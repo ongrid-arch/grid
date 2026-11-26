@@ -207,7 +207,7 @@ describe('grid_sheet layout drawing (SHT-6)', () => {
   })
 
   it('refuses a floor too large for the paper, saying what fits', async () => {
-    await expect(call({ plan: 'plan.json', layout: 'drawing', scale: 20, paper: 'A4' })).rejects.toThrow(/^At 1:20 the floor's drawing is \d+ x \d+ mm, larger than A4 can hold: A\d fits it, or 1:\d+ fits A4\.$/)
+    await expect(call({ plan: 'plan.json', layout: 'drawing', scale: 20, paper: 'A4' })).rejects.toThrow(/^At 1:20 the floor's drawing is \d+ x \d+ mm, larger than the \d+ x \d+ mm A4 leaves for it after its margins and title block: A\d fits it, or 1:\d+ fits A4\.$/)
   })
 })
 
