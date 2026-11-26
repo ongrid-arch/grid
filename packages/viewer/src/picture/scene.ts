@@ -241,6 +241,8 @@ function paints(named: Look, mpp: number, paperScale: number | undefined) {
   })
   return {
     room: { fill: look.room } as Attrs,
+    outdoorRoom: { fill: look.outdoorRoom ?? look.room } as Attrs,
+    edge: { fill: 'none', stroke: look.edge ?? look.virtual, 'stroke-width': width('edge'), 'stroke-linejoin': 'miter' } as Attrs,
     // SHT-10: each kind of wall in its own fill; a wall hatched in a detailed drawing on the paper.
     wall: (kind: WallDrawnKind, phase?: PlanWall['phase'], hatched = false): Attrs => ({
       // CNT-10: an existing wall in its tone and a new one filled, where the look says so.
@@ -794,15 +796,15 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   const paint = paints(look, mpp, input.paperScale)
   const show: SceneShow = { ...SHOW_ALL, ...input.show }
   const picked = show.paint ?? null
-  const fillOf = (id: string): Attrs => {
-    const colour = picked?.get(id)
-    const base = { ...paint.room, ...tintOf(look, show.colourBy, id, input) }
+  const fillOf = (room: PlanRoom): Attrs => {
+    const colour = picked?.get(room.id)
+    const base = { ...(room.outdoor ? paint.outdoorRoom : paint.room), ...tintOf(look, show.colourBy, room.id, input) }
     return colour === undefined ? base : { ...base, fill: colour, 'fill-opacity': 0.45 }
   }
   // SHT-10: the detail a drawing at 1:50 or larger shows, in a look that has it.
   const detail = detailShown(look, mpp, input.paperScale) ? look.detail : null
   const materials = input.materials ?? []
-  const hatched = (wall: PlanWall): boolean => detail !== null && !wall.virtual && wall.material !== undefined && materials.includes(wall.material)
+  const hatched = (wall: PlanWall): boolean => detail !== null && !wall.virtual && !wall.railing && !wall.low && wall.material !== undefined && materials.includes(wall.material)
   const out: SvgNode[] = []
 
   const selected = (id: string): boolean => id === live.selectedId
@@ -814,13 +816,13 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     const children: SvgNode[] = []
     for (const room of before.rooms) {
       if (!ids.has(room.id)) continue
-      children.push(el('path', { d: roomPathOf(room), 'data-part': 'room', 'data-id': room.id, ...paint.room }, [], room.id))
+      children.push(el('path', { d: roomPathOf(room), 'data-part': 'room', 'data-outdoor': room.outdoor, 'data-id': room.id, ...(room.outdoor ? paint.outdoorRoom : paint.room) }, [], room.id))
     }
     for (const wall of before.walls) {
       if (!ids.has(wall.id)) continue
-      if (wall.virtual) {
+      if (wall.virtual || wall.railing) {
         children.push(
-          el('path', { d: virtualPath(linePoints(wall)), 'data-part': 'virtual', 'data-id': wall.id, ...paint.virtual }, [], wall.id)
+          el('path', { d: virtualPath(linePoints(wall)), 'data-part': wall.railing ? 'railing' : wall.openEdge ? 'open-edge' : 'virtual', 'data-id': wall.id, ...(wall.railing || wall.openEdge ? paint.edge : paint.virtual) }, [], wall.id)
         )
         continue
       }
@@ -830,11 +832,11 @@ function planSceneIn(input: SceneInput): SvgNode[] {
             'path',
             {
               d: pathOf(slice),
-              'data-part': 'wall',
+              'data-part': wall.low ? 'low-wall' : 'wall',
               'data-id': wall.id,
               'data-exposure': wall.exposure,
               'data-wall-kind': wallDrawnKind(wall),
-              ...paint.wall(wallDrawnKind(wall))
+              ...(wall.low ? paint.edge : paint.wall(wallDrawnKind(wall)))
             },
             [],
             `${wall.id}:${index}`
@@ -890,11 +892,12 @@ function planSceneIn(input: SceneInput): SvgNode[] {
           d: roomPathOf(room),
           'data-part': 'room',
           'data-id': room.id,
+          'data-outdoor': room.outdoor,
           'data-selectable': 'true',
           'data-selected': selected(room.id),
           opacity: live.roomFill(room.id) ?? undefined,
           ...live.marks(room.id),
-          ...fillOf(room.id)
+          ...fillOf(room)
         },
         [],
         room.id
@@ -1004,7 +1007,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
         'g',
         { 'data-part': 'wall-outlines', 'pointer-events': 'none', 'aria-hidden': 'true' },
         drawing.walls.flatMap((wall) =>
-          wall.virtual || wall.phase === 'demolished' ? [] : wall.slices.map((slice) => el('path', { d: pathOf(slice), 'data-part': 'wall-outline', 'data-wall': wall.id, ...outline(wallDrawnKind(wall)) }))
+          wall.virtual || wall.railing || wall.low || wall.phase === 'demolished' ? [] : wall.slices.map((slice) => el('path', { d: pathOf(slice), 'data-part': 'wall-outline', 'data-wall': wall.id, ...outline(wallDrawnKind(wall)) }))
         ),
         'wall-outlines'
       )
@@ -1040,24 +1043,27 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     // CNT-10: a wall to be demolished is drawn as it stands before the work, dashed and unfilled,
     // under what stands after it. Drawing, not a target.
     if (wall.phase === 'demolished') {
-      const shapes = wall.virtual ? [el('path', { d: virtualPath(linePoints(wall)), 'data-part': 'demolished-wall', 'data-id': wall.id, ...paint.demolished })] : wall.slices.map((slice) => el('path', { d: pathOf(slice), 'data-part': 'demolished-wall', 'data-id': wall.id, ...paint.demolished }))
+      const shapes = wall.virtual || wall.railing ? [el('path', { d: virtualPath(linePoints(wall)), 'data-part': 'demolished-wall', 'data-id': wall.id, ...paint.demolished })] : wall.slices.map((slice) => el('path', { d: pathOf(slice), 'data-part': 'demolished-wall', 'data-id': wall.id, ...paint.demolished }))
       out.push(el('g', { 'data-phase': 'demolished', 'pointer-events': 'none' }, shapes, `demolished-${wall.id}`))
       continue
     }
 
-    if (wall.virtual) {
+    if (wall.virtual || wall.railing) {
       const points = linePoints(wall)
       out.push(
         el(
           'path',
           {
             d: virtualPath(tracing === null ? points : lineShare(points, tracing)),
-            'data-part': 'virtual',
+            'data-part': wall.railing ? 'railing' : wall.openEdge ? 'open-edge' : 'virtual',
             'data-id': wall.id,
+            'data-phase': wall.phase,
+            'data-selectable': wall.railing === true ? 'true' : undefined,
+            'data-selected': wall.railing ? selected(wall.id) : undefined,
             'data-moving': offset ? wall.id : undefined,
             transform,
             ...live.marks(wall.id),
-            ...paint.virtual
+            ...(wall.openEdge || wall.railing ? paint.edge : paint.virtual)
           },
           [],
           wall.id
@@ -1076,7 +1082,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
             'path',
             {
               d: pathOf(slice),
-              'data-part': 'wall',
+              'data-part': wall.low ? 'low-wall' : 'wall',
               'data-id': wall.id,
               'data-exposure': wall.exposure,
               'data-wall-kind': wallDrawnKind(wall),
@@ -1085,7 +1091,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
               'data-selected': selected(wall.id),
               ...live.marks(wall.id),
               ...live.hit(wall.id),
-              ...paint.wall(wallDrawnKind(wall), wall.phase, hatched(wall))
+              ...(wall.low ? paint.edge : paint.wall(wallDrawnKind(wall), wall.phase, hatched(wall)))
             },
             [],
             String(index)

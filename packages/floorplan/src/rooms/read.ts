@@ -20,6 +20,8 @@ import { indexPlan } from '../geometry/plan'
 import { planFloors } from '../geometry/floors'
 import { english, said } from '../messages/say'
 import { tryRoomPolygon } from '../geometry/room'
+import { isOutdoor } from '../geometry/outdoor'
+import { wallSides } from '../geometry/exposure'
 import { limit, tolerance } from '../geometry/tolerances'
 import { doorKindOf, kindFits, sweepsFloor, swingNeeds } from '../geometry/openingKinds'
 import { compileRoomsText, RAW_FLOOR_KEYS, type RoomsResult } from './compile'
@@ -538,7 +540,7 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
     }
     draft.rooms.push(roomLine(room, poly, local.get(room.id) ?? room.id))
   }
-  // Virtual lines, and outside walls of another thickness or kind: said before the writing.
+  // Say dividing lines and walls that differ from the rules the writing would use.
   const onFloor = plan.rooms.filter((r) => floorOf(r) === floor)
   for (const wall of plan.walls.filter((w) => floorOf(w) === floor)) {
     const rooms = index.roomsByWall.get(wall.id) ?? []
@@ -550,16 +552,42 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
       }
       continue
     }
-    if (wall.virtual === true || (wall.thickness === rule.outside && wall.kind === 'exterior')) continue
+    // WRT-76: outdoor space is open where no room faces it, and every other room walled: the
+    // other way round is said, and so is a railing.
+    const outdoorOnly = rooms.length === 1 && isOutdoor(rooms[0]!)
+    if (wall.virtual !== true && rooms.length >= 2 && (wall.railing === true || rooms.some(isOutdoor))) {
+      const outdoor = new Set(rooms.filter(isOutdoor).map((room) => room.id))
+      for (const stretch of wallSides(index, wall.id)?.stretches ?? []) {
+        for (const a of stretch.left) for (const b of stretch.right) {
+          if (!rooms.some((room) => room.id === a) || !rooms.some((room) => room.id === b)) continue
+          if (wall.railing !== true && !outdoor.has(a) && !outdoor.has(b)) continue
+          const usual = outdoor.has(a) !== outdoor.has(b) && (wall.thickness === rule.outside || wall.thickness === rule.inside)
+          if (wall.railing !== true && usual) continue
+          const handle = `wall between ${local.get(a) ?? a} and ${local.get(b) ?? b}`
+          const reverse = `wall between ${local.get(b) ?? b} and ${local.get(a) ?? a}`
+          if (draft.walls.has(handle) || draft.walls.has(reverse)) continue
+          addWallSay(draft, handle, [metres(wall.thickness), wall.kind, ...(wall.railing === true ? ['railing'] : [])])
+        }
+      }
+    }
+    if (wall.virtual === true && (rooms.length !== 1 || (outdoorOnly && wall.thickness === 0 && wall.height === 0))) continue
+    if (wall.virtual !== true && !outdoorOnly && wall.railing !== true && wall.thickness === rule.outside && wall.kind === 'exterior') continue
     for (const room of rooms) {
       const poly = polys.get(room.id)
       if (!poly) continue
       const side = outsideSide(poly, wall, onFloor.filter((r) => r !== room).map((r) => polys.get(r.id)).filter((x): x is P[] => x !== undefined))
       if (side === null) continue
-      addWallSay(draft, `wall ${local.get(room.id) ?? room.id} ${side}`, [
-        ...(wall.thickness !== rule.outside ? [metres(wall.thickness)] : []),
-        ...(wall.kind !== 'exterior' ? [wall.kind] : []),
-      ])
+      addWallSay(
+        draft,
+        `wall ${local.get(room.id) ?? room.id} ${side}`,
+        wall.virtual === true
+          ? ['virtual', ...(wall.thickness !== 0 ? [metres(wall.thickness)] : []), ...(wall.height !== 0 ? ['height', metres(wall.height)] : [])]
+          : [
+              ...(wall.thickness !== (wall.railing === true ? rule.inside : rule.outside) ? [metres(wall.thickness)] : []),
+              ...(wall.kind !== 'exterior' || outdoorOnly ? [wall.kind] : []),
+              ...(wall.railing === true ? ['railing'] : []),
+            ]
+      )
     }
   }
   const walls = new Map(plan.walls.map((w) => [w.id, w]))
@@ -608,6 +636,7 @@ function facingAcross(wall: Wall, rooms: readonly Room[], polys: Map<string, P[]
 function outsideSide(poly: readonly P[], wall: Wall, others: readonly (readonly P[])[]): string | null {
   const dir = unit(sub(wall.end, wall.start))
   const len = norm(sub(wall.end, wall.start))
+  const half = wall.virtual === true ? 0 : wall.thickness / 2
   for (let i = 0; i < poly.length; i++) {
     const p0 = poly[i]!
     const p1 = poly[(i + 1) % poly.length]!
@@ -615,7 +644,7 @@ function outsideSide(poly: readonly P[], wall: Wall, others: readonly (readonly 
     if (Math.abs(cross(u, dir)) > tolerance('noTurn')) continue
     const n: P = [u[1], -u[0]]
     const off = dot(sub(wall.start, p0), n)
-    if (Math.abs(off - wall.thickness / 2) > SAME * 10) continue
+    if (Math.abs(off - half) > SAME * 10) continue
     // Where the side and the wall run together.
     const a = dot(sub(p0, wall.start), dir)
     const b = dot(sub(p1, wall.start), dir)
@@ -623,7 +652,7 @@ function outsideSide(poly: readonly P[], wall: Wall, others: readonly (readonly 
     const hi = Math.min(len, Math.max(a, b))
     if (hi - lo <= SAME) continue
     const mid = (lo + hi) / 2
-    const beyond = wall.thickness / 2 + tolerance('stepPastFace')
+    const beyond = half + tolerance('stepPastFace')
     const probe: P = [wall.start[0] + dir[0] * mid + n[0] * beyond, wall.start[1] + dir[1] * mid + n[1] * beyond]
     if (others.some((o) => contains(o, probe))) return null
     return compassOf(n)
@@ -760,6 +789,7 @@ function reconcileWalls(original: FloorPlan, written: ReadBack, drafts: FloorDra
         // nor one it takes from its floor or the floor's roof, which the floor line gives again.
         if ((!sameNumber(same.height, w.height) || !heightStated(w)) && heightStated(same)) sayWords(handle, words, 'height', metres(same.height))
         if (same.kind !== w.kind && w.virtual !== true) sayWords(handle, words, same.kind)
+        if (same.railing === true && w.railing !== true) words.push('railing')
         if (samePoint(same.start, w.end) && !samePoint(same.start, w.start) && !words.includes('reversed')) words.push('reversed')
         if (words.join(' ') !== before) {
           draft.walls.set(handle, words)
@@ -778,6 +808,7 @@ function reconcileWalls(original: FloorPlan, written: ReadBack, drafts: FloorDra
       sayWords(handle, words, 'id', covering[0]!.id)
       if ((!sameNumber(covering[0]!.height, w.height) || !heightStated(w)) && heightStated(covering[0]!)) sayWords(handle, words, 'height', metres(covering[0]!.height))
       if (covering[0]!.kind !== w.kind) sayWords(handle, words, covering[0]!.kind)
+      if (covering[0]!.railing === true && !words.includes('railing')) words.push('railing')
       draft.walls.set(handle, words)
       said = true
     }

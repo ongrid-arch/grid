@@ -2255,6 +2255,11 @@ export const es: Messages = {
   'rooms.room.outdoorUse':
     "Línea {line}: '{word}' no es un uso de estancia. Un espacio exterior es una estancia de uso '-' (o un uso, como 'parking' para una cochera), con 'outdoor <tipo>' después de su tamaño y su sitio: uno de {kinds}.{offer}",
   'rooms.room.outdoorUse.offer': " Escribe '{written}'.",
+  // WRT-76: the edges of outdoor space, and what 'walls' and 'height' on a room line set.
+  'rooms.edge.form': "Línea {line}: 'edge {word}' no se entiende. Escribe 'edge open' (sin muro en los lados que no dan a otra estancia), 'edge railing <h>' (una barandilla de esa altura) o 'edge wall [<h>]' (un muro tan grueso como su 'walls <t>', de la altura de la planta o <h>).",
+  'rooms.walls.unused.outdoor': "Línea {line}: 'walls {thickness}' en el espacio exterior '{room}' no fija ningún muro: está abierto donde no da a otra estancia, y el muro entre él y el edificio es el muro exterior del edificio. Escribe 'edge railing <h>' o 'edge wall [<h>]' para bordes de ese grosor.",
+  'rooms.walls.unused': "Línea {line}: 'walls {thickness}' en '{room}' no fija ningún muro: fija los muros entre la estancia y las que se sitúan junto a ella, y sus muros exteriores son los de la planta, de {outside} m. Escribe 'edge wall' en su línea para darles también {thickness} m.",
+  'rooms.outdoor.height': "Línea {line}: 'height {height}' en el espacio exterior '{room}' es su altura libre, hasta un techo o una cubierta, no la altura de sus bordes. Para bordes bajos escribe 'edge wall {height}' o 'edge railing {height}'.",
   'rooms.repeat.fill':
     "Línea {line}: 'fill <longitud>' hace una fila de esa longitud calculando uno de los ajustes de la unidad, escrito '*' en la línea repeat: uno de {settings}. Escribe la longitud después de 'fill' y ese ajuste como nombre=*, y deja los demás como están.",
   'rooms.repeat.fillNone': "Línea {line}: {count} unidades no pueden llenar {length} m con '{key}': no quedaría nada de ellas. Llena una longitud mayor, o repite la unidad menos veces.",

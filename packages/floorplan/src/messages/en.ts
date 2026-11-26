@@ -2253,6 +2253,11 @@ export const en = {
   'rooms.room.outdoorUse':
     "Line {line}: '{word}' is not a room use. Outdoor space is a room whose use is '-' (or a use, such as 'parking' for a carport), with 'outdoor <kind>' after its size and place: one of {kinds}.{offer}",
   'rooms.room.outdoorUse.offer': " Write '{written}'.",
+  // WRT-76: the edges of outdoor space, and what 'walls' and 'height' on a room line set.
+  'rooms.edge.form': "Line {line}: 'edge {word}' is not understood. Write 'edge open' (no wall on the sides no room faces), 'edge railing <h>' (a railing that high there) or 'edge wall [<h>]' (a wall as thick as the room's own 'walls <t>', as high as the storey or <h>).",
+  'rooms.walls.unused.outdoor': "Line {line}: 'walls {thickness}' on outdoor space '{room}' sets no wall: it is open where no room faces it, and the wall between it and the building is the building's outside wall. Write 'edge railing <h>' or 'edge wall [<h>]' for edges that thick.",
+  'rooms.walls.unused': "Line {line}: 'walls {thickness}' on '{room}' sets no wall: it sets the walls between the room and the rooms placed beside it, and its outside walls are the floor's {outside} m. Write 'edge wall' on its line to give its outside walls {thickness} m too.",
+  'rooms.outdoor.height': "Line {line}: 'height {height}' on outdoor space '{room}' is its headroom, to a roof or a ceiling over it, not the height of its edges. For low edges write 'edge wall {height}' or 'edge railing {height}'.",
   'rooms.repeat.fill':
     "Line {line}: 'fill <length>' makes a row that long by working out one of the unit's settings, written '*' on the repeat line: one of {settings}. Write the length after 'fill' and that one setting as name=*, and leave the others as they are.",
   'rooms.repeat.fillNone': "Line {line}: {count} units cannot fill {length} m by '{key}': it would leave nothing of them. Fill a longer length, or repeat the unit fewer times.",

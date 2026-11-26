@@ -20,6 +20,7 @@ import type { WallExposure } from './exposure'
 import { roomFloorArea, tryRoomShape } from './room'
 import { poleOfInaccessibility } from './innerPoint'
 import { wallExposure, wallSides } from './exposure'
+import { isOutdoor } from './outdoor'
 import type { Issue } from './validate'
 import { brokenOnFloor, validatePlan } from './validate'
 import type { PlanStep } from './steps'
@@ -54,6 +55,12 @@ import { partPhases, planHasPhases, planInState } from './phases'
 export interface PlanWall {
   readonly id: string
   readonly virtual: boolean
+  /** WRT-76: a virtual outside edge of outdoor space. */
+  readonly openEdge?: true
+  /** WRT-76: a railing is drawn as a line in plan. */
+  readonly railing?: true
+  /** WRT-76: a solid wall below the plan cut is drawn in outline. */
+  readonly low?: true
   /**
    * Whether it faces the outside or separates two rooms. Derived from the
    * geometry rather than read from the file — it is what gives each wall its
@@ -110,6 +117,7 @@ export interface PlanCurve {
 
 export interface PlanRoom {
   readonly id: string
+  readonly outdoor?: true
   readonly name: string
   readonly polygon: readonly Vec2[]
   /**
@@ -504,10 +512,16 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
     const path = wallPath(wall)
     const exposure = wallExposure(index, wall.id)
     const material = typeMaterial(wallTypeOf(plan, wall))
+    const sides = wallSides(index, wall.id)
+    const listedBy = index.roomsByWall.get(wall.id) ?? []
+    const openEdge = wall.virtual === true && listedBy.length > 0 && listedBy.every(isOutdoor) &&
+      sides?.stretches.every((stretch) => stretch.left.length === 0 || stretch.right.length === 0) === true
 
     walls.push({
       id: wall.id,
       virtual: wall.virtual === true,
+      ...(openEdge && { openEdge: true as const }),
+      ...(wall.virtual !== true && (wall.railing === true ? { railing: true as const } : wall.height < limit('planCutHeight') ? { low: true as const } : {})),
       exposure,
       slices,
       centerline: wallCenterline(wall),
@@ -531,7 +545,7 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
       // SHT-10: a stated partition standing inside, and its type's material, for the drawing's detail.
       ...(wall.kind === 'partition' && !wall.virtual && exposure === 'interior' && { partition: true as const }),
       ...(material !== null && !wall.virtual && { material }),
-      ...(wallSides(index, wall.id)?.landscape === true && { landscape: true as const })
+      ...(sides?.landscape === true && { landscape: true as const })
     })
 
     for (const slice of slices) extent.push(...slice)
@@ -582,6 +596,7 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
     rooms.push({
       id: room.id,
       name: room.name,
+      ...(isOutdoor(room) && { outdoor: true as const }),
       polygon,
       holes,
       // Less its holes (ARE-6) and the floor of any room marked `inside` that sits in it (ARE-5).

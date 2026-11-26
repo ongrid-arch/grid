@@ -939,6 +939,10 @@ An outdoor space is drawn and measured as a room is, and to the building it is t
 Both fields are optional and never defaulted, so a plan with no outdoor space reads, checks and
 exports exactly as before (version 1).
 
+An exposed edge can be a wall with `"virtual": true` for an open side, `"railing": true`
+on a solid wall for a railing drawn as a line, or a solid wall with a stated `height`
+for a parapet. In rooms text, outdoor sides that face no room default to virtual edges.
+
 ## Rooms with holes
 
 A ring gallery round a courtyard, or a car park round a core, is one room with a hole in it. Its
