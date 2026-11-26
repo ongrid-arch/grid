@@ -142,7 +142,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-38: two more, the rooms grammar resource's title and description.
   'packages/cli/src/mcp/serveTools.ts': [3, 'tools'],
   // CMD-38: the whole rooms grammar, by topic, for the agent.
-  'packages/cli/src/mcp/roomsGrammar.ts': [51, 'tools'],
+  // WRT-74: one more, the example of a room line with its number and facts.
+  'packages/cli/src/mcp/roomsGrammar.ts': [52, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
