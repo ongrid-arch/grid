@@ -313,7 +313,12 @@ function doesNotFit(framed: Bounds, request: DrawingRequest, foot: (innerWidth: 
         return want === undefined ? null : `${scaleText(want)} fits ${request.paper}`
       })()
   const offers = [larger, smaller].filter((offer): offer is string => offer !== null)
-  const where = request.paper === undefined ? 'larger than A0 can hold' : `larger than ${request.paper} can hold`
+  // The room is what the paper leaves after its margins and the title block, not its size: a
+  // drawing that seems to fit the paper may not fit that.
+  const roomOn = request.paper ?? PAPER_NAMES[PAPER_NAMES.length - 1]!
+  const rooms = (['portrait', 'landscape'] as const).map((orientation) => layoutOf(roomOn, orientation, foot).area)
+  const room = rooms.reduce((best, area) => (area.width * area.height > best.width * best.height ? area : best))
+  const where = `larger than the ${Math.floor(room.width)} x ${Math.floor(room.height)} mm ${roomOn} leaves for it after its margins and title block`
   return new DrawingDoesNotFit(`${at}, ${where}${offers.length > 0 ? `: ${offers.join(', or ')}` : ''}.`)
 }
 

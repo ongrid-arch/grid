@@ -22,6 +22,7 @@ export const DIFF_OPTIONS: OptionSpecs = {
   '--rooms': { takesValue: true, help: 'The rooms meant to be edited, by id, separated by commas: every change outside them is named.' },
   '--show': { takesValue: true, help: `What to print: ${DIFF_SHOWS.join(', ')}. all when left out.` },
   '--picture': { takesValue: true, help: 'Write the comparison as a PNG to this file: removed in red, added in green, what changed in amber, the rest pale.' },
+  '--out': { takesValue: true, help: 'The same as --picture, named as grid draw and grid sheet name their file.' },
   '--floor': { takesValue: true, help: 'The floor to show: only the changes, rooms and openings on it are listed, and --picture draws it. The issues and the verdict stay whole. Every floor, and for --picture the first floor with a change, when left out.' },
   '--json': { takesValue: false, help: 'Print the comparison as JSON.' },
   ...PROJECT_OPTION,

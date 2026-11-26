@@ -146,6 +146,7 @@ const COMMAND_SLOTS: Readonly<Record<string, readonly CommandSlot[]>> = {
   diff: [
     { label: 'the plan', args: (p) => ['diff', p], given: asIs },
     { label: '--picture', args: (p) => ['diff', PLAN, '--since', 'start', '--picture', `${p}.png`], given: (p) => `${p}.png` },
+    { label: '--out', args: (p) => ['diff', PLAN, '--since', 'start', '--out', `${p}.png`], given: (p) => `${p}.png` },
   ],
   draw: [
     { label: 'the plan', args: (p) => ['draw', p], given: asIs },

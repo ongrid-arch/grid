@@ -40,7 +40,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/check.ts': [10, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
   // CMD-32: one fewer, --floor no longer needs --picture.
-  'packages/cli/src/command/diff.ts': [12, 'command'],
+  'packages/cli/src/command/diff.ts': [13, 'command'],
   // SHT-10: one more, the refusal of --look dark for a file.
   'packages/cli/src/command/draw.ts': [46, 'command'],
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
@@ -48,7 +48,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/export.ts': [20, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
-  'packages/cli/src/command/main.ts': [58, 'command'],
+  'packages/cli/src/command/main.ts': [59, 'command'],
   'packages/cli/src/command/options.ts': [9, 'command'],
   'packages/cli/src/command/plan.ts': [27, 'command'],
   // CMD-30: one more, the refusal of an invisible character.
@@ -171,10 +171,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-16: +1, the columns' place on the sheet ("drawn and tabled").
   'packages/cli/src/sheet/coverage.ts': [30, 'developer'],
   // SHT-6: the refusal of a floor too large for the paper.
-  'packages/cli/src/sheet/drawingSheet.ts': [1, 'command'],
+  'packages/cli/src/sheet/drawingSheet.ts': [2, 'command'],
   'packages/cli/src/sheet/fonts.ts': [1, 'developer'],
   // SHT-6: nine more, the drawing's refusals, its answer line and its file note.
-  'packages/cli/src/sheet/sheetFile.ts': [16, 'command'],
+  'packages/cli/src/sheet/sheetFile.ts': [15, 'command'],
   // WRT-12: one more, the heading of the openings that moved with their wall or room.
   // CMD-32: one more, what a floor's change heading left out.
   'packages/cli/src/versions/diff.ts': [12, 'notYet'],
@@ -364,7 +364,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and ARE-48 5: the keep-apart line's ways between the rooms (brief/lines.ts).
     // and ARE-56 1: the line's note that a room of the wish's use was taken for the name (brief/lines.ts).
     // and 3 more from the same merge (CMD-25, CNT-37 and CMD-26 each raised the cap on their own).
-    expect(left).toBeLessThanOrEqual(1635)
+    // and CMD-35 2: diff's --out refusal and help line, and the drawing refusal's reason (the sheet
+    // refusal for no layout is gone).
+    expect(left).toBeLessThanOrEqual(1637)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

@@ -64,10 +64,10 @@ describe('grid sheet (VEW-7)', () => {
     expect(run.status).toBe(0)
     expect(existsSync(join(dir, 'set.pdf'))).toBe(true)
   })
-  it('needs --layout, naming both', () => {
-    const run = grid(['sheet', 'two-floor-house.json'])
-    expect(run.status).toBe(2)
-    expect(run.err).toMatch(/--layout.*client.*check/)
+  it('CMD-35: writes the client sheet when no layout is named', () => {
+    const run = grid(['sheet', 'two-floor-house.json', '--out', 'plain.pdf'])
+    expect(run.status).toBe(0)
+    expect(readFileSync(join(dir, 'plain.pdf')).subarray(0, 5).toString('latin1')).toBe('%PDF-')
   })
   it('refuses --sheet with the check layout', () => {
     const run = grid(['sheet', 'two-floor-house.json', '--layout', 'check', '--sheet', 'sheet.json'])
@@ -228,7 +228,7 @@ describe('grid sheet --scale --paper (SHT-6)', () => {
   })
 
   it.each([
-    [['--scale', '1:20', '--paper', 'A4'], 1, /^grid: At 1:20 the floor's drawing is \d+ x \d+ mm, larger than A4 can hold: A\d fits it, or 1:\d+ fits A4\.\n$/],
+    [['--scale', '1:20', '--paper', 'A4'], 1, /^grid: At 1:20 the floor's drawing is \d+ x \d+ mm, larger than the \d+ x \d+ mm A4 leaves for it after its margins and title block: A\d fits it, or 1:\d+ fits A4\.\n$/],
     [['--layout', 'check', '--paper', 'A4'], 2, /^grid: --paper is for a drawing at a scale \(--layout drawing\), not a check sheet: leave it out\.\n$/],
     [['--scale', '1:0'], 2, /^grid: --scale takes 1:N, N a whole number from 1 to 1000/],
     [['--paper', 'letter'], 2, /^grid: --paper takes A4, A3, A2, A1 or A0\.\n$/],

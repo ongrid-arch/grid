@@ -107,9 +107,10 @@ export function sheetLanguage(request: SheetRequest): Language | undefined {
 
 export function checkSheetRequest(request: SheetRequest): SheetLayout {
   const layouts = `${SHEET_LAYOUTS.join(', ')} or drawing`
-  if (request.layout === undefined) throw new UsageError(`sheet needs --layout: ${layouts} (or --scale and --paper, for a drawing).`)
-  if (!(SHEET_LAYOUTS as readonly string[]).includes(request.layout)) throw new UsageError(`--layout takes ${layouts}.`)
-  if (request.layout === 'check' && request.sheet !== undefined) {
+  // CMD-35: no layout is the client sheet, the one most people want.
+  const layout = request.layout ?? 'client'
+  if (!(SHEET_LAYOUTS as readonly string[]).includes(layout)) throw new UsageError(`--layout takes ${layouts}.`)
+  if (layout === 'check' && request.sheet !== undefined) {
     throw new UsageError('--sheet gives the words of a client sheet; a check sheet takes none: leave --sheet out.')
   }
   if (request.out !== undefined && path.extname(request.out).toLowerCase() !== '.pdf') {
@@ -117,7 +118,7 @@ export function checkSheetRequest(request: SheetRequest): SheetLayout {
   }
   sheetLanguage(request)
   exportTime(request.date)
-  return request.layout as SheetLayout
+  return layout as SheetLayout
 }
 
 /**

@@ -92,6 +92,15 @@ describe('grid init <folder>', () => {
     expect(run.out).toContain('Next: cd demo && grid check')
   })
 
+  it('CMD-35: says only grid check when the project is the folder it stands in', () => {
+    const here = join(base, 'here')
+    mkdirSync(here, { recursive: true })
+    const run = grid(['init', '.'], here)
+    expect(run.status).toBe(0)
+    expect(run.out).toContain('Next: grid check')
+    expect(run.out).not.toContain('cd .')
+  })
+
   it('gives every project its own id', () => {
     grid(['init', 'one'], base)
     grid(['init', 'two'], base)
