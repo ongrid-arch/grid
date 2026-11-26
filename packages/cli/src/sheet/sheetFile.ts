@@ -18,7 +18,7 @@ import { sheetPages, SHEET_LAYOUTS, type SheetLayout } from './pages'
 import { sheetPdf } from './pdf'
 import { floorOption } from '../command/plan'
 // SHT-6: the drawing's layout and files load only when one is made: a chunk of their own.
-import type { DrawingRequest, DrawingSheet } from './drawingSheet'
+import type { DrawingRequest, DrawingSet, DrawingSheet } from './drawingSheet'
 import { PAPER_NAMES, SCALE_MAX, scaleText, type PaperName } from './drawingPapers'
 
 export const SHEET_FILE = 'sheet.json'
@@ -38,6 +38,8 @@ export interface SheetRequest {
   readonly paper?: string
   readonly floor?: string
   readonly roomSizes?: string
+  /** SHT-20: `--split`, a drawing's floor too large for the paper cut over pages. */
+  readonly split?: boolean
   /** SHT-16: the date to write on the sheet, as given (the form `grid export --date` takes). */
   readonly date?: string
 }
@@ -47,14 +49,14 @@ export type SheetKind = SheetLayout | 'drawing'
 export const SHEET_KINDS: readonly SheetKind[] = [...SHEET_LAYOUTS, 'drawing']
 
 /** The options only a drawing takes, by the name the command gives them. */
-const DRAWING_OPTIONS = [['scale', '--scale'], ['paper', '--paper'], ['floor', '--floor'], ['roomSizes', '--room-sizes']] as const
+const DRAWING_OPTIONS = [['scale', '--scale'], ['paper', '--paper'], ['floor', '--floor'], ['roomSizes', '--room-sizes'], ['split', '--split']] as const
 
 /**
  * SHT-6: the sheet a request asks for. `--layout drawing`, or no layout with a drawing's own
  * option (`--scale`, `--paper`, `--floor`, `--room-sizes`), is the drawing; else VEW-7's layout.
  */
 export function sheetKindOf(request: SheetRequest): SheetKind {
-  const drawingAsked = DRAWING_OPTIONS.filter(([field]) => request[field] !== undefined).map(([, option]) => option)
+  const drawingAsked = DRAWING_OPTIONS.filter(([field]) => request[field] !== undefined && request[field] !== false).map(([, option]) => option)
   if (request.layout === 'drawing' || (request.layout === undefined && drawingAsked.length > 0)) {
     checkDrawingRequest(request)
     return 'drawing'
@@ -97,6 +99,7 @@ export function checkDrawingRequest(request: SheetRequest): DrawingRequest {
     ...(request.paper === undefined ? {} : { paper: paperOption(request.paper) }),
     ...(request.floor === undefined ? {} : { floor: request.floor }),
     ...(request.roomSizes === undefined ? {} : { roomSizes: request.roomSizes === 'on' }),
+    ...(request.split === true ? { split: true } : {}),
   }
 }
 
@@ -228,31 +231,40 @@ export async function sheetIntoProject(project: Project, planFile: string, layou
   return note === undefined ? { loaded, written, pages } : { loaded, written, pages, note }
 }
 
-/** SHT-6: a drawing at a scale made and not yet written: its three files and how they are named. */
+/** SHT-6: a drawing at a scale made and not yet written: its files and how they are named. */
 export interface MadeDrawing {
   readonly loaded: LoadedPlan
-  readonly sheet: DrawingSheet
-  readonly files: { readonly pdf: Uint8Array; readonly svg: string; readonly png: Uint8Array }
+  /** SHT-20: every page, at one scale on one paper. */
+  readonly set: DrawingSet
+  /** One PDF of every page; an SVG and a PNG of each page, in order. */
+  readonly files: { readonly pdf: Uint8Array; readonly svgs: readonly string[]; readonly pngs: readonly Uint8Array[] }
   /** The name of the files in `exports/`, without the extension. */
   readonly stem: string
   readonly note?: string
 }
 
 /**
- * The drawing's file names: the plan's export name, its floor by its place when the plan has
- * several, `-drawing`, and its scale and paper (`-1-100-A3`) once the sheet is made.
+ * The drawing's file names: the plan's export name, its floor by its place when one floor of
+ * several is drawn, `-drawing`, and its scale and paper (`-1-100-A3`) once the sheet is made.
+ * SHT-20: every floor of a plan of several is drawn under no floor's place.
  */
-function drawingStem(planFile: string, loaded: LoadedPlan, floor: string, made?: { scale: number; paper: string }): { stem: string; note?: string } {
+function drawingStem(planFile: string, loaded: LoadedPlan, floors: readonly string[], made?: { scale: number; paper: string }): { stem: string; note?: string } {
   const { base, note } = exportBaseOf(planFile)
-  const floors = planFloors(loaded.plan)
-  const place = floors.length > 1 ? `-floor-${floors.findIndex((f) => f.id === floor) + 1}` : ''
+  const all = planFloors(loaded.plan)
+  const place = all.length > 1 && floors.length === 1 ? `-floor-${all.findIndex((f) => f.id === floors[0]) + 1}` : ''
   const stem = `${base}${place}-drawing${made === undefined ? '' : `-1-${made.scale}-${made.paper}`}`
   return note === undefined ? { stem } : { stem, note: `Named the sheet ${base}: ${note}.` }
+}
+
+/** SHT-20: the name of a page's SVG or PNG: the drawing's own when it has one page, else `-page-<n>` after it. */
+export function pageFile(stem: string, pages: number, index: number, extension: 'svg' | 'png'): string {
+  return pages === 1 ? `${stem}.${extension}` : `${stem}-page-${index + 1}.${extension}`
 }
 
 /**
  * SHT-6: reads the plan and makes the drawing at a true scale. The project's name is the sheet
  * words' name (`sheet.json`), else the plan's title, else the export name of the plan's file.
+ * SHT-20: every floor when none is asked for, all at one scale on one paper.
  */
 export async function makeDrawing(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string): Promise<MadeDrawing> {
   const read = loadPlan(project, planFile)
@@ -260,57 +272,66 @@ export async function makeDrawing(project: Project, planFile: string, request: D
   // MSG-22: the floor the plan names in no list, named in the drawing's language.
   const loaded = spokenPlan(read, lang)
   const floor = floorOption(loaded.plan, request.floor)
-  const named = drawingStem(planFile, loaded, floor ?? planFloors(loaded.plan)[0]?.id ?? '')
+  const named = drawingStem(planFile, loaded, floor === undefined ? planFloors(loaded.plan).map((f) => f.id) : [floor])
   const projectName = words?.name ?? loaded.plan.title ?? exportBaseOf(planFile).base
-  const { DrawingDoesNotFit, drawingSheet } = await import('./drawingSheet')
+  const { DrawingDoesNotFit, drawingSheets } = await import('./drawingSheet')
   const { drawingSheetFiles, sheetMeasure } = await import('./drawingFiles')
-  let sheet: DrawingSheet
+  let set: DrawingSet
   try {
-    sheet = drawingSheet(loaded, { ...request, ...(floor === undefined ? {} : { floor }) }, { project: projectName, ...(words?.drawing === undefined ? {} : { drawing: words.drawing }), date: exportTime(date), language: lang, measure: await sheetMeasure() })
+    set = drawingSheets(loaded, { ...request, ...(floor === undefined ? {} : { floor }) }, { project: projectName, ...(words?.drawing === undefined ? {} : { drawing: words.drawing }), date: exportTime(date), language: lang, measure: await sheetMeasure() })
   } catch (error) {
     if (error instanceof DrawingDoesNotFit) throw new PlanRefused(error.message)
     throw error
   }
-  const { stem } = drawingStem(planFile, loaded, sheet.floor, { scale: sheet.scale, paper: sheet.paper.name })
-  const files = await drawingSheetFiles(sheet, `${projectName}: ${sheet.words.drawing}`)
-  return named.note === undefined ? { loaded, sheet, files, stem } : { loaded, sheet, files, stem, note: named.note }
+  const { stem } = drawingStem(planFile, loaded, set.floors, { scale: set.scale, paper: set.paper })
+  const first = set.sheets[0]!
+  const title = set.floors.length === 1 ? first.words.drawing : set.sheets.map((sheet) => sheet.words.drawing).filter((t, i, all) => all.indexOf(t) === i).join(', ')
+  const files = await drawingSheetFiles(set.sheets, `${projectName}: ${title}`)
+  return named.note === undefined ? { loaded, set, files, stem } : { loaded, set, files, stem, note: named.note }
 }
 
-/** SHT-6: one line on what the drawing is: its floor, scale and paper, and what Grid chose. */
-export function drawingLine(sheet: DrawingSheet): string {
-  const chosen = sheet.chosen.scale && sheet.chosen.paper
-    ? ' (the largest of 1:100, 1:200 and 1:500 the floor fits, on the smallest paper)'
-    : sheet.chosen.scale ? ' (the largest of 1:100, 1:200 and 1:500 the floor fits on it)'
-    : sheet.chosen.paper ? ' (the smallest paper the floor fits at that scale)' : ''
-  return `${sheet.words.drawing} at ${scaleText(sheet.scale)} on ${sheet.paper.name} ${sheet.paper.orientation}${chosen}.`
+/** SHT-6: one line on what the drawing is: its floor, scale and paper, and what Grid chose. SHT-20: its pages when it has several. */
+export function drawingLine(set: DrawingSet): string {
+  const chosen = set.chosen.scale && set.chosen.paper
+    ? ` (the largest of 1:100, 1:200 and 1:500 ${set.floors.length > 1 ? 'every floor fits' : 'the floor fits'}, on the smallest paper)`
+    : set.chosen.scale ? ` (the largest of 1:100, 1:200 and 1:500 ${set.floors.length > 1 ? 'every floor fits' : 'the floor fits'} on it)`
+    : set.chosen.paper ? ` (the smallest paper ${set.floors.length > 1 ? 'every floor fits' : 'the floor fits'} at that scale)` : ''
+  const first = set.sheets[0]!
+  if (set.sheets.length === 1) return `${first.words.drawing} at ${scaleText(set.scale)} on ${first.paper.name} ${first.paper.orientation}${chosen}.`
+  if (set.floors.length === 1) return `${first.words.drawing} at ${scaleText(set.scale)} on ${set.paper}, over ${set.sheets.length} pages${chosen}.`
+  const split = set.sheets.filter((sheet) => sheet.part?.index === 1)
+  const parts = split.length === 0 ? '' : `; ${split.map((sheet) => `${sheet.words.drawing} over ${sheet.part!.count} pages`).join(', ')}`
+  return `${set.floors.length} floors at ${scaleText(set.scale)} on ${set.paper}, ${set.sheets.length} pages${parts}${chosen}.`
 }
 
 export interface DrawingDone {
   readonly loaded: LoadedPlan
-  readonly sheet: DrawingSheet
-  /** The real paths written: the PDF, the SVG and the PNG. */
-  readonly written: { readonly pdf: string; readonly svg: string; readonly png: string }
-  /** The PNG's bytes, for a tool's answer to show. */
-  readonly png: Uint8Array
+  readonly set: DrawingSet
+  /** The real paths written: the PDF, and the SVG and PNG of each page. */
+  readonly written: { readonly pdf: string; readonly svgs: readonly string[]; readonly pngs: readonly string[] }
+  /** Each page's PNG, for a tool's answer to show. */
+  readonly pngs: readonly Uint8Array[]
   readonly note?: string
 }
 
-/** SHT-6: makes the drawing and writes its PDF, SVG and PNG into `exports/` beside the plan. */
+/** SHT-6: makes the drawing and writes its PDF, SVGs and PNGs into `exports/` beside the plan. */
 export async function drawingIntoProject(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string): Promise<DrawingDone> {
   const made = await makeDrawing(project, planFile, request, words, language, date)
+  const pages = made.set.sheets.length
   const written = {
     pdf: writeBesidePlan(project, planFile, `${made.stem}.pdf`, made.files.pdf),
-    svg: writeBesidePlan(project, planFile, `${made.stem}.svg`, made.files.svg),
-    png: writeBesidePlan(project, planFile, `${made.stem}.png`, made.files.png),
+    svgs: made.files.svgs.map((svg, i) => writeBesidePlan(project, planFile, pageFile(made.stem, pages, i, 'svg'), svg)),
+    pngs: made.files.pngs.map((png, i) => writeBesidePlan(project, planFile, pageFile(made.stem, pages, i, 'png'), png)),
   }
-  const done = { loaded: made.loaded, sheet: made.sheet, written, png: made.files.png }
+  const done = { loaded: made.loaded, set: made.set, written, pngs: made.files.pngs }
   return made.note === undefined ? done : { ...done, note: made.note }
 }
 
-/** SHT-6: `--out`'s PDF, and the SVG and PNG beside it, with its name. */
-export function drawingOutFiles(out: string): { pdf: string; svg: string; png: string } {
+/** SHT-6: `--out`'s PDF, and the SVG and PNG of each page beside it (SHT-20: `-page-<n>` when there are several). */
+export function drawingOutFiles(out: string, pages = 1): { pdf: string; svgs: string[]; pngs: string[] } {
   const stem = out.slice(0, -path.extname(out).length)
-  return { pdf: out, svg: `${stem}.svg`, png: `${stem}.png` }
+  const each = Array.from({ length: pages }, (_, i) => i)
+  return { pdf: out, svgs: each.map((i) => pageFile(stem, pages, i, 'svg')), pngs: each.map((i) => pageFile(stem, pages, i, 'png')) }
 }
 
 export type { PaperName }

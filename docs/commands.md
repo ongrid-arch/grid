@@ -37,7 +37,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor; to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section and schedule marks to a plan (see below) |
 | `grid export [<plan>] --format dxf\|ifc\|glb\|obj [--floor <id>] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
 | `grid sheet [<plan>] [--layout client\|check] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
-| `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--room-sizes on\|off] [--out <file.pdf>]` | Writes one floor at a true scale as a vector PDF, an SVG and a PNG, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
+| `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--split] [--room-sizes on\|off] [--out <file.pdf>]` | Writes every floor (or one) at one true scale as a vector PDF of a page each, and an SVG and a PNG of each page, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
 | `grid edit <verb> [<plan>] [options]` | Changes the plan, one sentence of request a command: `opening`, `wall` (one wall's thickness), `type` (one named wall, door or window type, which every part of it takes; a list option such as `--parts` takes its items split at commas), `move-side`, `merge`, `split`, `add-room`, `stretch`, `rename`, `mirror` (`--how left-right`, or `--turn 90` to turn the plan a quarter, counter-clockwise as Grid draws it), `square` (squares a scanned plan and says how far each wall moved), `place` (a fixture, furniture or a typical room from the library by name, [library.md](library.md)), each the tool of that name in [the tool server](tool-server.md) with the same options (`grid edit <verb> --help`), and the same lines of [the brief](brief.md) |
 | `grid mark [<name>] [<plan.json>] [--plan <plan.json>] [--remove]` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside it, for `grid diff` to compare with: no git needed. At most 5 (see below) |
 | `grid diff [<plan>] [--since <name>\|git\|phase] [--rooms <ids>] [--show all\|summary\|changes\|issues] [--picture\|--out <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
@@ -1033,7 +1033,15 @@ plan with several), or beside the `.pdf` that `--out` names.
 - Left out, the scale is the largest of 1:100, 1:200 and 1:500 the floor fits, and the paper the
   smallest that holds it at that scale. A floor too large for the paper asked for is refused, with
   the paper that fits it at that scale and the scale that fits it on that paper.
-- `--floor <id>`: the floor drawn, the lowest when left out.
+- Every floor is drawn, one page each, all at the one scale on the one paper: the scale and paper
+  every floor fits. A plan of several floors writes one PDF of every page and an SVG and a PNG of
+  each, `-page-1.svg`, `-page-2.png` and so on, under no floor's place in the name. A floor too
+  large is refused by its name, and the refusal also says how many pages `--split` takes.
+- `--floor <id>`: the one floor drawn, alone on its page.
+- `--split`: a floor too large for the paper at the scale is cut into equal parts, the fewest the
+  paper holds, each on its own page at that scale. Each part's notes say which part it is, and a
+  dashed line marks each side where the next part continues. The paper is the one asked for, else
+  A0, and the scale the one asked for, else 1:100. A floor that fits stays whole on its page.
 - `--room-sizes on|off`: each room's width and depth along its walls. On when left out; the
   dimensions outside the plan are always drawn.
 

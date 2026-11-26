@@ -264,8 +264,10 @@ function markAsk(parsed: ReturnType<typeof parseOptions>): MarkAsk | null {
 }
 
 /**
- * SHT-6: `grid sheet --layout drawing` (or `--scale`, `--paper`): one floor at a true scale, as a
- * PDF, an SVG and a PNG, into `exports/` beside the plan or beside `--out`'s PDF.
+ * SHT-6: `grid sheet --layout drawing` (or `--scale`, `--paper`): a floor at a true scale, as a
+ * PDF, an SVG and a PNG, into `exports/` beside the plan or beside `--out`'s PDF. SHT-20: every
+ * floor at one scale when none is named, one PDF page and one SVG and PNG each; `--split` cuts a
+ * floor too large for the paper over pages.
  */
 async function drawingCommand(io: CommandIo, projectOption: string | undefined, planFile: string, request: SheetRequest): Promise<number> {
   const asked = checkDrawingRequest(request)
@@ -275,17 +277,19 @@ async function drawingCommand(io: CommandIo, projectOption: string | undefined, 
     const done = await drawingIntoProject(project, planFile, asked, words, sheetLanguage(request), request.date)
     warnLeftOut(io, done.loaded)
     if (done.note) io.stderr(`${done.note}\n`)
-    io.stdout(`${drawingLine(done.sheet)}\nWrote ${project.shown(done.written.pdf)}, ${project.shown(done.written.svg)} and ${project.shown(done.written.png)}\n`)
+    const files = [done.written.pdf, ...done.written.svgs.flatMap((svg, i) => [svg, done.written.pngs[i]!])]
+    io.stdout(`${drawingLine(done.set)}\nWrote ${files.map((file) => project.shown(file)).join(', ').replace(/, ([^,]*)$/, ' and $1')}\n`)
     return EXIT_OK
   }
-  const out = drawingOutFiles(request.out)
   // Drawing a large plan takes seconds: a file that can't be written is refused first.
-  for (const file of [out.pdf, out.svg, out.png]) checkWritable(project, file)
+  const one = drawingOutFiles(request.out)
+  for (const file of [one.pdf, ...one.svgs, ...one.pngs]) checkWritable(project, file)
   const made = await makeDrawing(project, planFile, asked, words, sheetLanguage(request), request.date)
+  const out = drawingOutFiles(request.out, made.set.sheets.length)
   warnLeftOut(io, made.loaded)
   if (made.note) io.stderr(`${made.note}\n`)
-  const written = [write(project, out.pdf, made.files.pdf), write(project, out.svg, made.files.svg), write(project, out.png, made.files.png)]
-  io.stdout(`${drawingLine(made.sheet)}\nWrote ${written.map((file) => project.shown(file)).join(', ').replace(/, ([^,]*)$/, ' and $1')}\n`)
+  const written = [write(project, out.pdf, made.files.pdf), ...out.svgs.flatMap((svg, i) => [write(project, svg, made.files.svgs[i]!), write(project, out.pngs[i]!, made.files.pngs[i]!)])]
+  io.stdout(`${drawingLine(made.set)}\nWrote ${written.map((file) => project.shown(file)).join(', ').replace(/, ([^,]*)$/, ' and $1')}\n`)
   return EXIT_OK
 }
 
@@ -549,6 +553,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const request = {
       layout: textOf(parsed, '--layout'), sheet: textOf(parsed, '--sheet'), out: textOf(parsed, '--out'), lang: textOf(parsed, '--lang'),
       scale: textOf(parsed, '--scale'), paper: textOf(parsed, '--paper'), floor: textOf(parsed, '--floor'), roomSizes: textOf(parsed, '--room-sizes'), date: textOf(parsed, '--date'),
+      ...(parsed.values.has('--split') ? { split: true } : {}),
     }
     const kind = sheetKindOf(request)
     if (kind === 'drawing') return drawingCommand(io, projectOption, planFile, request)

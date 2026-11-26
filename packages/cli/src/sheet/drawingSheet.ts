@@ -62,6 +62,8 @@ export interface DrawingRequest {
   readonly floor?: string
   /** Each room's width and depth (its room dimensions). On when left out. */
   readonly roomSizes?: boolean
+  /** SHT-20: cut a floor too large for the paper at the scale over pages, at that scale. Off when left out. */
+  readonly split?: boolean
 }
 
 export interface DrawingSheetOptions {
@@ -102,6 +104,8 @@ export interface DrawingSheet {
   readonly nodes: readonly SvgNode[]
   /** How the scale or the paper was chosen, when Grid chose it. */
   readonly chosen: { readonly scale: boolean; readonly paper: boolean }
+  /** SHT-20: which part of its floor this page is, when the floor is split over pages; else null. */
+  readonly part: SheetPart | null
 }
 
 /** The floor does not fit the paper asked for at the scale asked for. The message says what would. */
@@ -300,10 +304,13 @@ function paperFor(framed: Bounds, scale: number, papers: readonly PaperName[], f
   return null
 }
 
-function doesNotFit(framed: Bounds, request: DrawingRequest, foot: (innerWidth: number) => Foot): DrawingDoesNotFit {
+/** SHT-20: what a refusal adds: the floor by its name on a plan of several, and the pages a split would take. */
+interface NotFitExtra { readonly floor?: string; readonly split: number; readonly paper: PaperName }
+
+function doesNotFit(framed: Bounds, request: DrawingRequest, foot: (innerWidth: number) => Foot, extra: NotFitExtra): DrawingDoesNotFit {
   const scale = request.scale ?? SCALES_TRIED[0]
   const size = drawnSize(framed, scale)
-  const at = `At ${scaleText(scale)} the floor's drawing is ${Math.ceil(size.width)} x ${Math.ceil(size.height)} mm`
+  const at = `At ${scaleText(scale)} ${extra.floor === undefined ? "the floor's drawing" : `the drawing of ${extra.floor}`} is ${Math.ceil(size.width)} x ${Math.ceil(size.height)} mm`
   const paper = paperFor(framed, scale, PAPER_NAMES, foot)
   const larger = paper === null ? null : `${paper.paper.name} fits it`
   const smaller = request.paper === undefined
@@ -312,7 +319,8 @@ function doesNotFit(framed: Bounds, request: DrawingRequest, foot: (innerWidth: 
         const want = COMMON_SCALES.find((s) => s > scale && paperFor(framed, s, [request.paper!], foot) !== null)
         return want === undefined ? null : `${scaleText(want)} fits ${request.paper}`
       })()
-  const offers = [larger, smaller].filter((offer): offer is string => offer !== null)
+  const split = `--split prints it at ${scaleText(scale)} over ${extra.split} pages of ${extra.paper}`
+  const offers = [larger, smaller, split].filter((offer): offer is string => offer !== null)
   // The room is what the paper leaves after its margins and the title block, not its size: a
   // drawing that seems to fit the paper may not fit that.
   const roomOn = request.paper ?? PAPER_NAMES[PAPER_NAMES.length - 1]!
@@ -339,17 +347,22 @@ function floorPicture(plan: FloorPlan, options: PictureOptions, framed: Bounds, 
   return planPicture(plan, { ...options, frame, width, height, paperScale: scale })
 }
 
-/** Leaves out the picture's own north arrow: the sheet draws its own, beside the scale bar. */
-function withoutNorth(nodes: readonly SvgNode[]): SvgNode[] {
-  return nodes.filter((node) => node.attrs['data-part'] !== 'north-arrow')
+/** One floor, read once for every page it is drawn on. */
+interface FloorToDraw {
+  readonly id: string
+  readonly name: string
+  readonly framed: Bounds
+  readonly north: { readonly turn: number } | null
+  readonly pictureOptions: PictureOptions
+  readonly wordsAt: (scale: number, paper: PaperName, part?: SheetPart) => DrawingWords
 }
 
-/** Lays out the sheet. Throws `DrawingDoesNotFit` when the floor fits no paper asked for. */
-export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, options: DrawingSheetOptions): DrawingSheet {
+/** SHT-20: which part of a floor split over pages a sheet is, counted from 1, and how many. */
+export interface SheetPart { readonly index: number; readonly count: number }
+
+function floorToDraw(loaded: LoadedPlan, floorId: string, request: DrawingRequest, options: DrawingSheetOptions): FloorToDraw {
   const { plan } = loaded
   const language = options.language ?? DEFAULT_LANGUAGE
-  const { measure } = options
-  const floorId = resolveFloor(plan, request.floor)
   const floors = planFloors(plan)
   const floorIndex = floors.findIndex((floor) => floor.id === floorId)
   const floor = floors[floorIndex] ?? { id: floorId, name: floorId }
@@ -363,15 +376,15 @@ export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, option
   }
   const framed = pictureFrame(plan, pictureOptions)
   const north = buildFloorPlan(planForFloor(withPatterns(plan), floorId)).north
-
   const facts = planFacts(plan)
   const undecided = undecidedDoorsOf(plan, floorId).length > 0
-  const wordsAt = (scale: number, paper: PaperName): DrawingWords => {
+  const wordsAt = (scale: number, paper: PaperName, part?: SheetPart): DrawingWords => {
     const scaleOn = say(language, 'sheet.block.scaleOn', { scale: scaleText(scale), paper })
     const caption = floors.length > 1
       ? say(language, 'sheet.drawing.caption.many', { floor: floor.name, number: floorIndex + 1, count: floors.length, scale: scaleText(scale), paper })
       : say(language, 'sheet.drawing.caption.one', { floor: floor.name, scale: scaleText(scale), paper })
     const notes = [
+      ...(part === undefined ? [] : [say(language, 'sheet.drawing.part', { part: part.index, parts: part.count })]),
       notShownNote(plan, floorId, facts.connections.stairs.length > 0, language),
       ...(undecided ? [say(language, 'sheet.undecided')] : []),
       ...(north === null ? [say(language, 'sheet.north.notStated')] : []),
@@ -387,28 +400,58 @@ export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, option
       notes,
     }
   }
+  return { id: floorId, name: floor.name, framed, north, pictureOptions, wordsAt }
+}
 
-  // The words depend on the paper's name only through the caption and the scale's cell, which
-  // wrap the same for every paper name of two characters: they are measured with the first.
-  const scales = request.scale === undefined ? SCALES_TRIED : [request.scale]
-  const papers = request.paper === undefined ? PAPER_NAMES : [request.paper]
-  let chosen: { laid: Layout & { foot: Foot }; scale: number } | null = null
-  for (const scale of scales) {
-    const words = wordsAt(scale, papers[0]!)
-    const foot = (innerWidth: number): Foot => footOf(measure, words, innerWidth, language)
-    const laid = paperFor(framed, scale, papers, foot)
-    if (laid !== null) { chosen = { laid, scale }; break }
-  }
-  if (chosen === null) {
-    const words = wordsAt(scales[0]!, papers[0]!)
-    throw doesNotFit(framed, request, (innerWidth) => footOf(measure, words, innerWidth, language))
-  }
-  const { scale } = chosen
-  const words = wordsAt(scale, chosen.laid.paper.name)
-  const laid = layoutOf(chosen.laid.paper.name, chosen.laid.paper.orientation, (innerWidth) => footOf(measure, words, innerWidth, language))
+type Laid = Layout & { foot: Foot }
+
+/** The floor's foot at a scale and paper, as the layout measures it. */
+const footFor = (floor: FloorToDraw, scale: number, paper: PaperName, options: DrawingSheetOptions, part?: SheetPart) => {
+  const language = options.language ?? DEFAULT_LANGUAGE
+  const words = floor.wordsAt(scale, paper, part)
+  return (innerWidth: number): Foot => footOf(options.measure, words, innerWidth, language)
+}
+
+/**
+ * SHT-20: how a floor too large for a paper at a scale is cut, in the orientation of fewest
+ * pages: its columns and rows. The words are measured with a part note of two figures, as long
+ * as any.
+ */
+function splitOf(floor: FloorToDraw, scale: number, paper: PaperName, options: DrawingSheetOptions): { orientation: 'portrait' | 'landscape'; columns: number; rows: number } {
+  const size = drawnSize(floor.framed, scale)
+  const foot = footFor(floor, scale, paper, options, { index: 99, count: 99 })
+  const ways = orientations(size).map((orientation) => {
+    const { area } = layoutOf(paper, orientation, foot)
+    return { orientation, columns: Math.max(1, Math.ceil(size.width / area.width)), rows: Math.max(1, Math.ceil(size.height / area.height)) }
+  })
+  return ways.reduce((best, way) => (way.columns * way.rows < best.columns * best.rows ? way : best))
+}
+
+/** The pages a floor too large for the paper takes when split, for a refusal to offer. */
+const splitPages = (floor: FloorToDraw, scale: number, paper: PaperName, options: DrawingSheetOptions): number => {
+  const way = splitOf(floor, scale, paper, options)
+  return way.columns * way.rows
+}
+
+/** Leaves out the picture's own north arrow: the sheet draws its own, beside the scale bar. */
+function withoutNorth(nodes: readonly SvgNode[]): SvgNode[] {
+  return nodes.filter((node) => node.attrs['data-part'] !== 'north-arrow')
+}
+
+/** The dashed line on a cut side of a part, where the next part continues. */
+const MATCH_DASH = '4 1.5'
+
+interface PartCut { readonly part: SheetPart; readonly frame: Bounds; readonly cuts: { readonly left: boolean; readonly right: boolean; readonly top: boolean; readonly bottom: boolean } }
+
+/** One page: the floor, or a part of it, at a scale on a paper turned one way. */
+function pageOf(loaded: LoadedPlan, floor: FloorToDraw, scale: number, paperName: PaperName, orientation: 'portrait' | 'landscape', options: DrawingSheetOptions, request: DrawingRequest, cut?: PartCut): DrawingSheet {
+  const language = options.language ?? DEFAULT_LANGUAGE
+  const words = floor.wordsAt(scale, paperName, cut?.part)
+  const laid = layoutOf(paperName, orientation, (innerWidth) => footOf(options.measure, words, innerWidth, language))
   const { paper, area, foot } = laid
+  const framed = cut?.frame ?? floor.framed
 
-  const picture = floorPicture(plan, pictureOptions, framed, scale)
+  const picture = floorPicture(loaded.plan, floor.pictureOptions, framed, scale)
   const drawn = { width: (picture.view.width * 1000) / scale, height: (picture.view.height * 1000) / scale }
   const drawing = { x: area.x + (area.width - drawn.width) / 2, y: area.y + (area.height - drawn.height) / 2, width: drawn.width, height: drawn.height, view: picture.view }
   const floorNode = el('svg', {
@@ -416,6 +459,20 @@ export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, option
     x: n(drawing.x), y: n(drawing.y), width: n(drawing.width), height: n(drawing.height),
     viewBox: viewBoxOf(picture.view), preserveAspectRatio: 'xMidYMid meet',
   }, withoutNorth(picture.nodes))
+
+  // SHT-20: a part's cut sides, where the part itself ends inside the space kept round it.
+  const matchLines: SvgNode[] = []
+  if (cut !== undefined) {
+    const part = { width: (framed.width * 1000) / scale, height: (framed.height * 1000) / scale }
+    const left = drawing.x + (drawing.width - part.width) / 2
+    const top = drawing.y + (drawing.height - part.height) / 2
+    const dashed = (x1: number, y1: number, x2: number, y2: number): SvgNode =>
+      el('line', { 'data-part': 'match-line', x1: n(x1), y1: n(y1), x2: n(x2), y2: n(y2), stroke: INK, 'stroke-width': n(LINE.frame), 'stroke-dasharray': MATCH_DASH })
+    if (cut.cuts.left) matchLines.push(dashed(left, drawing.y, left, drawing.y + drawing.height))
+    if (cut.cuts.right) matchLines.push(dashed(left + part.width, drawing.y, left + part.width, drawing.y + drawing.height))
+    if (cut.cuts.top) matchLines.push(dashed(drawing.x, top, drawing.x + drawing.width, top))
+    if (cut.cuts.bottom) matchLines.push(dashed(drawing.x, top + part.height, drawing.x + drawing.width, top + part.height))
+  }
 
   // The foot: the title block at the right, the caption, notes, scale bar and north beside it,
   // or above it on a narrow paper.
@@ -425,16 +482,18 @@ export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, option
   const blockY = footBottom - foot.block.height
   const sideX = MARGIN + PAD
   const sideTop = foot.side ? footBottom - foot.height : laid.footTop
-  const caption = foot.captionLines.map((words, i) => textNode(sideX, sideTop + (i + 1) * lead(TEXT_MM.caption) - 0.3 * TEXT_MM.caption, TEXT_MM.caption, words, { 'data-part': 'caption', 'font-weight': 600 }))
+  const caption = foot.captionLines.map((line, i) => textNode(sideX, sideTop + (i + 1) * lead(TEXT_MM.caption) - 0.3 * TEXT_MM.caption, TEXT_MM.caption, line, { 'data-part': 'caption', 'font-weight': 600 }))
   const notesTop = sideTop + foot.captionLines.length * lead(TEXT_MM.caption) + 1
-  const notes = foot.noteLines.map((words, i) => textNode(sideX, notesTop + (i + 1) * lead(TEXT_MM.note) - 0.3 * TEXT_MM.note, TEXT_MM.note, words, { 'data-part': 'note', fill: QUIET }))
+  const notes = foot.noteLines.map((line, i) => textNode(sideX, notesTop + (i + 1) * lead(TEXT_MM.note) - 0.3 * TEXT_MM.note, TEXT_MM.note, line, { 'data-part': 'note', fill: QUIET }))
   const barRowTop = notesTop + foot.noteLines.length * lead(TEXT_MM.note) + 2
   const bar = scaleBarNodes(scale, sideX + 2, barRowTop + NORTH_RADIUS - BAR_HEIGHT, language)
   const northAt = { x: sideX + Math.min(foot.sideWidth - NORTH_RADIUS - 1, bar.length + 22 + NORTH_RADIUS), y: barRowTop + NORTH_RADIUS + 1.5 }
+  const { north } = floor
   const nodes: SvgNode[] = [
     el('rect', { 'data-part': 'paper', x: 0, y: 0, width: n(paper.width), height: n(paper.height), fill: PAPER_FILL }),
     el('rect', { 'data-part': 'frame', x: MARGIN, y: MARGIN, width: n(paper.width - 2 * MARGIN), height: n(paper.height - 2 * MARGIN), fill: 'none', stroke: INK, 'stroke-width': n(LINE.frame) }),
     floorNode,
+    ...matchLines,
     ...caption,
     ...notes,
     ...bar.nodes,
@@ -444,14 +503,106 @@ export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, option
   return {
     paper,
     scale,
-    floor: floorId,
+    floor: floor.id,
     drawing,
     scaleBar: { x: sideX + 2, y: barRowTop + NORTH_RADIUS - BAR_HEIGHT, metres: bar.metres, length: bar.length },
     north: north === null ? null : { ...northAt, turn: north.turn },
     words,
     nodes,
     chosen: { scale: request.scale === undefined, paper: request.paper === undefined },
+    part: cut?.part ?? null,
   }
+}
+
+/** SHT-20: a floor cut into parts in a grid, read top row first, left to right, each a page. */
+function splitPagesOf(loaded: LoadedPlan, floor: FloorToDraw, scale: number, paper: PaperName, options: DrawingSheetOptions, request: DrawingRequest): DrawingSheet[] {
+  const { orientation, columns, rows } = splitOf(floor, scale, paper, options)
+  const { framed } = floor
+  const width = framed.width / columns
+  const height = framed.height / rows
+  const count = columns * rows
+  const pages: DrawingSheet[] = []
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < columns; column++) {
+      // The plan's y is up and the page's down: the top row is the plan's largest y.
+      const minX = framed.min.x + column * width
+      const maxY = framed.max.y - row * height
+      const frame = computeBounds([{ x: minX, y: maxY - height }, { x: minX + width, y: maxY }])
+      const cuts = { left: column > 0, right: column < columns - 1, top: row > 0, bottom: row < rows - 1 }
+      pages.push(pageOf(loaded, floor, scale, paper, orientation, options, request, { part: { index: pages.length + 1, count }, frame, cuts }))
+    }
+  }
+  return pages
+}
+
+/** SHT-20: every page of a drawing, at one scale on one paper, and how they were chosen. */
+export interface DrawingSet {
+  readonly sheets: readonly DrawingSheet[]
+  readonly scale: number
+  readonly paper: PaperName
+  readonly chosen: { readonly scale: boolean; readonly paper: boolean }
+  /** The floors drawn, in order: one when a floor was asked for, else every floor. */
+  readonly floors: readonly string[]
+}
+
+/**
+ * SHT-20: lays out every floor (or the one asked for) at one scale on one paper, the scale and
+ * paper every floor fits whole. With `split`, a floor that fits no paper asked for is cut over
+ * pages at that scale; without it, the drawing is refused (`DrawingDoesNotFit`) with what fits.
+ */
+export function drawingSheets(loaded: LoadedPlan, request: DrawingRequest, options: DrawingSheetOptions): DrawingSet {
+  const { plan } = loaded
+  const ids = request.floor === undefined ? planFloors(plan).map((floor) => floor.id) : [resolveFloor(plan, request.floor)]
+  const floors = (ids.length > 0 ? ids : [resolveFloor(plan, undefined)]).map((id) => floorToDraw(loaded, id, request, options))
+  const several = planFloors(plan).length > 1
+
+  // The words depend on the paper's name only through the caption and the scale's cell, which
+  // wrap the same for every paper name of two characters: they are measured with the first.
+  const scales = request.scale === undefined ? SCALES_TRIED : [request.scale]
+  const papers = request.paper === undefined ? PAPER_NAMES : [request.paper]
+  /** The smallest paper every floor fits whole at a scale, each turned its own way, or null. */
+  const everyFloorOn = (scale: number): { paper: PaperName; laid: Laid[] } | null => {
+    for (const paper of papers) {
+      const laid = floors.map((floor) => paperFor(floor.framed, scale, [paper], footFor(floor, scale, papers[0]!, options)))
+      if (laid.every((one) => one !== null)) return { paper, laid: laid as Laid[] }
+    }
+    return null
+  }
+  let whole: { scale: number; paper: PaperName; laid: Laid[] } | null = null
+  for (const scale of scales) {
+    const found = everyFloorOn(scale)
+    if (found !== null) { whole = { scale, ...found }; break }
+  }
+  const chosen = { scale: request.scale === undefined, paper: request.paper === undefined }
+  if (whole !== null) {
+    const sheets = floors.map((floor, i) => pageOf(loaded, floor, whole.scale, whole.paper, whole.laid[i]!.paper.orientation, options, request))
+    return { sheets, scale: whole.scale, paper: whole.paper, chosen, floors: floors.map((floor) => floor.id) }
+  }
+
+  const scale = scales[0]!
+  if (request.split !== true) {
+    // The first floor that fits nothing asked for is the one named.
+    const floor = floors.find((one) => paperFor(one.framed, scale, papers, footFor(one, scale, papers[0]!, options)) === null) ?? floors[0]!
+    const paper = request.paper ?? PAPER_NAMES[PAPER_NAMES.length - 1]!
+    throw doesNotFit(floor.framed, request, footFor(floor, scale, papers[0]!, options), {
+      ...(several ? { floor: floor.name } : {}),
+      split: splitPages(floor, scale, paper, options),
+      paper,
+    })
+  }
+  // Split: the scale asked, else 1:100; the paper asked, else A0, the fewest pages.
+  const paper = request.paper ?? PAPER_NAMES[PAPER_NAMES.length - 1]!
+  const sheets = floors.flatMap((floor) => {
+    const laid = paperFor(floor.framed, scale, [paper], footFor(floor, scale, paper, options))
+    return laid === null ? splitPagesOf(loaded, floor, scale, paper, options, request) : [pageOf(loaded, floor, scale, paper, laid.paper.orientation, options, request)]
+  })
+  return { sheets, scale, paper, chosen, floors: floors.map((floor) => floor.id) }
+}
+
+/** Lays out one floor's sheet (the floor asked for, else the lowest). Throws `DrawingDoesNotFit` when it fits no paper asked for. */
+export function drawingSheet(loaded: LoadedPlan, request: DrawingRequest, options: DrawingSheetOptions): DrawingSheet {
+  const floor = resolveFloor(loaded.plan, request.floor)
+  return drawingSheets(loaded, { ...request, floor, split: false }, options).sheets[0]!
 }
 
 /** The sheet as an SVG file, sized in millimetres: printed at 100%, it is at its scale. */
