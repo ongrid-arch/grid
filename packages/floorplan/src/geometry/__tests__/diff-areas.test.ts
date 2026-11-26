@@ -154,7 +154,8 @@ describe('a room that stops closing', () => {
     expect(left.dependsOn).toEqual(['wall:w_mid:modified'])
     expect(diff.issues).toContainEqual({
       code: 'room_unclosed',
-      message: expect.stringContaining('r_left'),
+      // CMD-34: named by its name; its id is in the entities.
+      message: 'Room "Left room" closed before and no longer does',
       entities: [{ type: 'room', id: 'r_left' }]
     })
   })

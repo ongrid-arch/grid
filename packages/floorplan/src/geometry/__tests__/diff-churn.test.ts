@@ -119,6 +119,16 @@ describe('a room that came back under a new id', () => {
     expect(churn(diffPlans(base, next), 'room')).toHaveLength(1)
   })
 
+  it('names the rooms by their names, with their ids as data (CMD-34)', () => {
+    const base = box(0, 4, 'a', 'r1')
+    const sameName = churn(diffPlans(base, edit(base, (copy) => { copy.rooms[0]!.id = 'r2' })), 'room')
+    expect(sameName.map((i) => i.message)).toEqual(['Room "Room" was removed and added again in the same place under another id: the id may have changed instead'])
+    expect(sameName[0]!.entities).toEqual([{ type: 'room', id: 'r1' }, { type: 'room', id: 'r2' }])
+    const renamed = churn(diffPlans(base, edit(base, (copy) => { copy.rooms[0]!.id = 'r2'; copy.rooms[0]!.name = 'Study' })), 'room')
+    expect(renamed.map((i) => i.message)).toEqual(['Room "Room" was removed and room "Study" was added in the same place: the id may have changed instead'])
+    expect(renamed[0]!.message).not.toMatch(/r1|r2/)
+  })
+
   it('is suspected when the walls were renumbered too, through the walls that matched', () => {
     const diff = diffPlans(box(0, 4, 'a', 'r1'), box(0, 4, 'b', 'r2'))
     expect(churn(diff, 'wall')).toHaveLength(4)

@@ -184,7 +184,6 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/geometry/camera.ts': [1, 'agent'],
   'packages/floorplan/src/geometry/diff/building.ts': [28, 'notYet'],
   'packages/floorplan/src/geometry/diff/churn.ts': [2, 'notYet'],
-  'packages/floorplan/src/geometry/diff/rooms.ts': [1, 'notYet'],
   'packages/floorplan/src/geometry/diff/scope.ts': [1, 'notYet'],
   'packages/floorplan/src/geometry/diff/summary.ts': [4, 'notYet'],
   'packages/floorplan/src/geometry/diff/turn.ts': [7, 'notYet'],

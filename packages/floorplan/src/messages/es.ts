@@ -2298,6 +2298,14 @@ export const es: Messages = {
   // --- Comparar un plano por fases: una ventana que la obra deja entre dos estancias (CMD-31)
   'diff.issue.windowBetweenRooms': 'La ventana {opening} queda ahora entre {first} y {second}; antes de la obra uno de sus lados era {before}',
 
+  // --- CMD-34: las líneas de los problemas de una comparación nombran los locales por su nombre
+  'diff.issue.doorJoins': 'La puerta {opening} unía {before}; ahora une {after}',
+  'diff.issue.door.side.outside': 'el exterior',
+  'diff.issue.door.side.undrawn': 'un espacio que no está dibujado',
+  'diff.issue.roomUnclosed': 'El local {room} se cerraba antes y ya no se cierra',
+  'diff.issue.roomIdChurn': 'Se quitó el local {before} y se añadió el local {after} en el mismo sitio: puede que solo haya cambiado el id',
+  'diff.issue.roomIdChurn.sameName': 'Se quitó el local {room} y se volvió a añadir en el mismo sitio con otro id: puede que solo haya cambiado el id',
+
   // --- MSG-27: la volumetría y el solar comparados (`diff/massing.ts`)
   'diff.massing.east': '{distance} m al este',
   'diff.massing.west': '{distance} m al oeste',

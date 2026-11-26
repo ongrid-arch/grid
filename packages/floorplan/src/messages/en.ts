@@ -2291,6 +2291,14 @@ export const en = {
   // --- Comparing a plan by phase: a window the work leaves between two rooms (CMD-31, `diff/building.ts`)
   'diff.issue.windowBetweenRooms': 'Window {opening} now stands between {first} and {second}; before the work one side of it was {before}',
 
+  // --- CMD-34: the comparison's issue lines name rooms by their names, the ids kept as data (`diff/building.ts`, `diff/rooms.ts`, `diff/churn.ts`)
+  'diff.issue.doorJoins': 'Door {opening} joined {before}; it now joins {after}',
+  'diff.issue.door.side.outside': 'the outside',
+  'diff.issue.door.side.undrawn': 'a space that is not drawn',
+  'diff.issue.roomUnclosed': 'Room {room} closed before and no longer does',
+  'diff.issue.roomIdChurn': 'Room {before} was removed and room {after} was added in the same place: the id may have changed instead',
+  'diff.issue.roomIdChurn.sameName': 'Room {room} was removed and added again in the same place under another id: the id may have changed instead',
+
   // --- MSG-27: the massing and the site compared (`diff/massing.ts`)
   'diff.massing.east': '{distance} m east',
   'diff.massing.west': '{distance} m west',

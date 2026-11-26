@@ -69,7 +69,9 @@ describe('the issues of a comparison by phase (CMD-31)', () => {
 
   it('still says a door that led outside and now leads into a room', () => {
     const door = byPhase(school(), true).issues.find((i) => i.code === 'door_joins_other_rooms')!
-    expect(door.message).toBe('Door "door-north" joined "class-a" and the outside; it now joins "class-new" and "hall"')
+    // CMD-34: the rooms by their names, as the rest of the comparison says them; their ids are data.
+    expect(door.message).toBe('Door "door-north" joined "Classroom A" and the outside; it now joins "New classroom" and "Teaching hall"')
+    expect(door.entities).toEqual([{ type: 'opening', id: 'door-north' }, { type: 'room', id: 'class-new' }, { type: 'room', id: 'hall' }, { type: 'room', id: 'class-a' }])
   })
 
   it('reads the same plans as two versions as before: every door that joins other rooms, and no window', () => {

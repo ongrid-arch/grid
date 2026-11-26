@@ -185,6 +185,15 @@ describe('the issues, first', () => {
     expect(compared.verdict).toMatch(/^\d+ issues? to look at first\./)
   })
 
+  it('names the rooms a door joins by their names, with their ids as data (CMD-34)', () => {
+    const before = flat()
+    // Bedroom 1's door slides along its wall, past the hall, to open from the bathroom.
+    const after: FloorPlan = { ...before, openings: before.openings.map((o) => (o.id === 'door-bed1' ? { ...o, offset: 2 } : o)) }
+    const door = compareBuildings(before, after).issues.find((i) => i.code === 'door_joins_other_rooms')!
+    expect(door.message).toBe('Door "door-bed1" joined "Bedroom 1" and "Hall"; it now joins "Bathroom" and "Bedroom 1"')
+    expect(door.entities).toEqual([{ type: 'opening', id: 'door-bed1' }, { type: 'room', id: 'bath' }, { type: 'room', id: 'bed1' }, { type: 'room', id: 'hall' }])
+  })
+
   it('says which notes of the drawing check came and went, following renamed ids', () => {
     const before = flat()
     const after = renamedAndMoved(before, [0, 0], 0)
