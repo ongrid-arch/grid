@@ -152,6 +152,8 @@ Notes for agents and people changing this repository.
   export, the sheet, the start marker (WRT-8), the seen mark (MSG-10, `seenTool.ts`), the brief (BRF-1,
   `briefTool.ts`), Grid's words in the person's language (MSG-24, `wordsTool.ts`), and the tools that change the plan, tidy's fixes where walls meet (WRT-36,
   `tidyTool.ts`) and then the saved views last (VEW-3, `viewTool.ts`)).
+  Every answer goes through `budget.ts` (CMD-39), which keeps it to about 20 KB and adds `whole`
+  and, on the reading tools, `page` to every tool's arguments.
   Each is written once in `readTools.ts`, `writeTools.ts`, `previewTools.ts`, `reportTool.ts`, `seenTool.ts`, `briefTool.ts`, `wordsTool.ts`, `tidyTool.ts` or `viewTool.ts`; `toolkit.ts` turns its argument list into both the input schema and the
   check. The measuring is in `src/quantities/` (CNT-9's asking across parts by their fields and
   facts, for `grid_fields`, `grid_find` and `grid_count`, in `query.ts`), the changes in `src/edit/`, the views in

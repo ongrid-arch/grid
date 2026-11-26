@@ -176,6 +176,32 @@ appears. Whole numbers, places on the globe and figures under a millimetre are l
 figures and the totals come first, then the lists, with null and empty values left out except
 those the output schema requires. The words of the answer do not change.
 
+## The size of an answer: page and whole
+
+An answer is kept to about 20 KB, its text and its structured data (as JSON) together, so an
+agent's host takes it whole (`src/mcp/budget.ts`, CMD-39). Pictures travel as images and are not
+counted. An answer that fits is left as it is, to the byte; on a house, a flat or a school floor
+nearly every answer fits. A larger one, such as `grid_check` or `grid_areas` on a tower of forty
+floors, is shortened where the server answers, the same way for every tool:
+
+- Runs of four or more lines alike (the same words with other numbers and names, such as one
+  line per floor or per room) keep their first two and one line counting the rest.
+- If the text is still too long, its first lines and its last lines are kept, with one line in
+  the middle saying how many were left out: the summary leads, and a change's result can come last.
+- The longest lists in the data are halved, again and again, until the data fits; text in the
+  data (a drawing, a file) is never cut.
+- The line after the label says how large the answer was whole, what was left out and how to get
+  the rest. In rooms text that line, and the lines that count what was left out, are comments.
+- `left_out` in the data gives the same as numbers: `whole_bytes`, `budget_bytes`, `pages`,
+  `text_lines` and each list cut (`path`, `shown`, `of`). Every output schema lists it.
+
+Every tool but the preview's takes `whole: true` for the answer whole, however large. The tools
+that only read take `page`, from 1: piece `page` of the whole answer, a piece of its text and a
+stretch of each list its data was cut in (`from` in `left_out` says where it starts), so the pieces
+together hold all of it. A tool that changes the plan takes no `page`, because calling it again
+would change the plan again: its change is made in full, and `grid_describe` and `grid_check` read
+the plan as it is now. A tool that takes `floor` answers one floor, which is often the better ask.
+
 ## The person's language
 
 `grid_check`, `grid_describe`, `grid_view` and `grid_sheet` take `language` (any language tag:
