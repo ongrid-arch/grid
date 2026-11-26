@@ -412,6 +412,20 @@ function roomReplaced(change: DoorRoomsChange, earlierRooms: ReadonlySet<string>
 }
 
 /**
+ * CMD-34: a door that joins other rooms, its rooms named as the rest of the comparison names them
+ * (by name, by id when a room has none), each from the version it stands in. The ids are data: the
+ * door first, then every room on either side of it, after the change and then before it.
+ */
+function doorIssue(change: DoorRoomsChange, earlierRooms: ReadonlyMap<string, Room>, laterRooms: ReadonlyMap<string, Room>): ComparisonIssue {
+  const side = (face: DoorFace, rooms: ReadonlyMap<string, Room>): Value =>
+    'room' in face ? name(rooms.get(face.room)?.name || face.room) : said('outside' in face ? 'diff.issue.door.side.outside' : 'diff.issue.door.side.undrawn')
+  const sides = (faces: readonly [DoorFace, DoorFace], rooms: ReadonlyMap<string, Room>): Joined => joined(faces.map((f) => side(f, rooms)), 'join.and')
+  const message = english(said('diff.issue.doorJoins', { opening: name(change.opening), before: sides(change.before, earlierRooms), after: sides(change.after, laterRooms) }))
+  const rooms = [...new Set([...change.after, ...change.before].flatMap((face) => ('room' in face ? [face.room] : [])))]
+  return { code: 'door_joins_other_rooms', message, entities: [{ type: 'opening', id: change.opening }, ...rooms.map((id) => ({ type: 'room' as const, id }))] }
+}
+
+/**
  * CMD-31: the windows in both states that had a room on one side at most before the work and
  * stand between two rooms after it: an old window that now looks into a room built against it.
  * A window the work adds is placed by it and is not compared.
@@ -864,7 +878,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const laterRoomIds = new Set(later.rooms.map((r) => r.id))
   const doorChanges = doorsThatChangedRooms(aligned, later).filter((d) => options.work !== true || !roomReplaced(d, earlierRoomIds, laterRoomIds))
   const issues: ComparisonIssue[] = [
-    ...doorChanges.map((d): ComparisonIssue => ({ code: 'door_joins_other_rooms', message: `Door ${d.message}`, entities: [{ type: 'opening', id: d.opening }] })),
+    ...doorChanges.map((d) => doorIssue(d, baseRooms, headRooms)),
     ...(options.work === true ? windowsBetweenRooms(later, faces) : []),
     ...crossedOpenings(later, changedWalls),
     // WRT-32: written rooms first, a wall is named after its rooms, so a wall under a new id is a room's new id, not churn.

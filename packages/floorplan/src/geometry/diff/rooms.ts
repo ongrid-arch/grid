@@ -13,6 +13,7 @@ import type { FloorPlan, PlanIndex, Room } from '../plan'
 import { roomWallIds } from '../plan'
 import { floorOf } from '../floors'
 import { roomFloorArea, roomNesting, tryRoomPolygon } from '../room'
+import { english, name, said } from '../../messages/say'
 import { matchById } from './match'
 import type { AreaDelta, DiffIssue, PlanChange } from './types'
 
@@ -78,7 +79,8 @@ export function roomAreas(
       if (before !== null && after === null) {
         issues.push({
           code: 'room_unclosed',
-          message: `Room ${room.id} closed before and no longer does`,
+          // CMD-34: by the name the person gave it; its id is in `entities`.
+          message: english(said('diff.issue.roomUnclosed', { room: name(room.name || room.id) })),
           entities: [{ type: 'room', id: room.id }]
         })
       }

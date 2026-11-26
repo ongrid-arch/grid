@@ -13,6 +13,7 @@ import type { FloorPlan, Opening, PlanIndex, Room, Wall } from '../plan'
 import { floorOf } from '../floors'
 import { tryRoomPolygon } from '../room'
 import { area, centroid, cross, distance, dot, fromTuple, normalize, sub } from '../vec2'
+import { english, name, said } from '../../messages/say'
 import { matchById } from './match'
 import type { DiffIssue, EntityRef } from './types'
 import { TOLERANCES, tolerance } from '../tolerances'
@@ -53,6 +54,22 @@ function issue(noun: string, removed: EntityRef, added: EntityRef): DiffIssue {
       `${noun} ${removed.id} was removed and ${noun.toLowerCase()} ${added.id} was added in ` +
       `the same place: the id may have changed instead`,
     entities: [removed, added]
+  }
+}
+
+/**
+ * CMD-34: two rooms that may be one under a new id, named by the names the person gave them (their
+ * id when they have none), as the rest of a comparison names rooms; the ids are in `entities`.
+ */
+function roomIssue(removed: Room, added: Room): DiffIssue {
+  const before = removed.name || removed.id
+  const after = added.name || added.id
+  return {
+    code: 'suspected_id_churn',
+    message: english(before === after
+      ? said('diff.issue.roomIdChurn.sameName', { room: name(after) })
+      : said('diff.issue.roomIdChurn', { before: name(before), after: name(after) })),
+    entities: [{ type: 'room', id: removed.id }, { type: 'room', id: added.id }]
   }
 }
 
@@ -136,7 +153,7 @@ export function idChurn(
           distance(was.centre, is.centre) <= tolerance('diffRoomCentre')
       }
       if (sameWalls || sameSpot) {
-        issues.push(issue('Room', { type: 'room', id: removed.id }, { type: 'room', id: added.id }))
+        issues.push(roomIssue(removed, added))
       }
     }
   }

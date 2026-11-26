@@ -62,7 +62,8 @@ describe('a start marker, an edit and grid diff, in a folder with no git (done-w
     const after = await grid(dir, 'diff', '--since', 'start', '--rooms', 'bed1')
     expect(after.status, after.err).toBe(0)
     const issues = after.out.split('Verdict:')[0]!
-    expect(issues).toContain('Door "door-bed1" joined "bed1" and "hall"; it now joins "hall" and "store"')
+    // CMD-34: the rooms by their names, as the verdict and the changes name them.
+    expect(issues).toContain('Door "door-bed1" joined "Bedroom 1" and "Hall"; it now joins "Hall" and "Store"')
     expect(after.out).toMatch(/Verdict: \d+ issues? to look at first\. \d+ changes, room by room: "Bedroom 1" 13\.64 m² → /)
     expect(after.out).toContain('Room added: "Store"')
     expect(after.out).toContain('Nothing changed outside the rooms named ("bed1")')
