@@ -176,6 +176,8 @@ export interface BaseMerge {
   /** The ids of the walls and openings that came from the base: read-only. */
   readonly walls: ReadonlySet<string>
   readonly openings: ReadonlySet<string>
+  /** WRT-75: the ids of the floors that came from the base, which the fit-out does not list. */
+  readonly floors: ReadonlySet<string>
   /** Base parts whose ids the fit-out uses for a part of its own. */
   readonly clashes: readonly string[]
 }
@@ -200,7 +202,8 @@ export function mergeBase(plan: FloorPlan, base: FloorPlan): BaseMerge {
     openings: [...plan.openings, ...openings],
     ...(floors.length > 0 ? { floors } : {}),
   }
-  return { plan: merged, walls: new Set(walls.map((w) => w.id)), openings: new Set(openings.map((o) => o.id)), clashes }
+  const fromBase = new Set((shell.floors ?? []).map((floor) => floor.id).filter((id) => !floorIds.has(id)))
+  return { plan: merged, walls: new Set(walls.map((w) => w.id)), openings: new Set(openings.map((o) => o.id)), floors: fromBase, clashes }
 }
 
 /**

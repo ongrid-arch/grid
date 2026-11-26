@@ -69,6 +69,8 @@ export interface LoadedBase {
   readonly plan: FloorPlan
   readonly walls: ReadonlySet<string>
   readonly openings: ReadonlySet<string>
+  /** WRT-75: the floors that came from the base, which the plan does not list. */
+  readonly floors: ReadonlySet<string>
 }
 
 export interface LoadOptions {
@@ -204,6 +206,21 @@ function traceImageCheck(project: Project, plan: FloorPlan): TraceLeftOut | null
  */
 function readBase(project: Project, file: string, plan: FloorPlan): { plan: FloorPlan; base: LoadedBase } {
   const named = plan.base!
+  const loaded = loadBase(project, named, file)
+  const merged = mergeBase(plan, loaded.plan)
+  if (merged.clashes.length > 0) {
+    const ids = merged.clashes.slice(0, 5).map(quoted).join(', ')
+    throw new PlanRefused(`${file} can't be used: it gives ${merged.clashes.length === 1 ? 'a part' : 'parts'} of its own the ${merged.clashes.length === 1 ? 'id' : 'ids'} ${ids}${merged.clashes.length > 5 ? ` and ${merged.clashes.length - 5} more` : ''} of the base plan ${quoted(named)}'s walls and openings. Rename ${merged.clashes.length === 1 ? 'it' : 'them'} in this plan.`)
+  }
+  return { plan: merged.plan, base: { file: named, plan: loaded.plan, walls: merged.walls, openings: merged.openings, floors: merged.floors } }
+}
+
+/**
+ * WRT-75: the base plan `named` (its path from the project folder, as a plan's `base` holds it),
+ * read as `readBase` reads one, for the plan `file`: for `grid write` and the tools that start a
+ * fit-out, before the plan names it. Refused with `PlanRefused` in the same words.
+ */
+export function loadBase(project: Project, named: string, file: string): LoadedPlan {
   let real: string
   try {
     real = project.resolve(named, 'project')
@@ -222,12 +239,7 @@ function readBase(project: Project, file: string, plan: FloorPlan): { plan: Floo
   if (loaded.plan.base !== undefined) {
     throw new PlanRefused(`${file} can't be used: its base plan ${quoted(named)} names a base of its own, and a base must be a plan that stands on its own.`)
   }
-  const merged = mergeBase(plan, loaded.plan)
-  if (merged.clashes.length > 0) {
-    const ids = merged.clashes.slice(0, 5).map(quoted).join(', ')
-    throw new PlanRefused(`${file} can't be used: it gives ${merged.clashes.length === 1 ? 'a part' : 'parts'} of its own the ${merged.clashes.length === 1 ? 'id' : 'ids'} ${ids}${merged.clashes.length > 5 ? ` and ${merged.clashes.length - 5} more` : ''} of the base plan ${quoted(named)}'s walls and openings. Rename ${merged.clashes.length === 1 ? 'it' : 'them'} in this plan.`)
-  }
-  return { plan: merged.plan, base: { file: named, plan: loaded.plan, walls: merged.walls, openings: merged.openings } }
+  return loaded
 }
 
 /** Reads a plan file inside the project. Refused with `PlanRefused`, or `PathRefused` for the path. */

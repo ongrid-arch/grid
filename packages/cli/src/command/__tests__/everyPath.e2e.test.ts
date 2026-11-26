@@ -341,6 +341,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'after', call: tool('grid_phase_from', { before: PLAN, after: '@', out: 'works.json' }), given: asIs },
     { arg: 'out', call: tool('grid_phase_from', { before: PLAN, after: PLAN, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // WRT-75: a fit-out started on a base plan reads the base and writes the fit-out.
+  grid_start_fit_out: [
+    { arg: 'base', call: tool('grid_start_fit_out', { base: '@', plan: 'fit-out.json', replace: true }), given: asIs },
+    { arg: 'plan', call: tool('grid_start_fit_out', { base: PLAN, plan: '@.json', replace: true }), given: (p) => `${p}.json` },
+  ],
   // WRT-36: grid tidy on the tool server.
   grid_tidy: [
     { arg: 'plan', call: tool('grid_tidy', { plan: '@' }), given: asIs },
@@ -472,7 +477,7 @@ describe('the slots this file lists', () => {
   })
 
   it('cover every tool argument that is a path, and no other', async () => {
-    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after', 'image']
+    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after', 'image', 'base']
     // CMD-43: from is a drawing's path in grid_write_rooms; elsewhere it is a part or a point.
     const isPath = (tool: string, arg: string): boolean => PATH_ARGS.includes(arg) || (tool === 'grid_write_rooms' && arg === 'from')
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
@@ -650,8 +655,12 @@ describe('the base plan a fit-out names (CNT-10)', () => {
     const calls = plans.flatMap((plan) => PLAN_TOOLS.map(([, call]) => call(plan)))
     const answers = await callTools(calls)
     answers.forEach((answer, i) => {
-      const [path, why] = T5_TRACE_IMAGE_PATHS[Math.floor(i / PLAN_TOOLS.length)]!
-      expectToolRefused(answer, path, 'base plan', why)
+      const at = Math.floor(i / PLAN_TOOLS.length)
+      const [path, why] = T5_TRACE_IMAGE_PATHS[at]!
+      // WRT-75: grid_start_fit_out takes the fitted plan as its base, and refuses it as a base that
+      // names a base of its own before it follows that path.
+      if (PLAN_TOOLS[i % PLAN_TOOLS.length]![0] === 'grid_start_fit_out') expectToolRefused(answer, plans[at]!, 'names a base of its own')
+      else expectToolRefused(answer, path, 'base plan', why)
     })
     expect(tree(project)).toEqual([ROOMS, PLAN, ...plans].sort())
     expectOutsideUntouched()

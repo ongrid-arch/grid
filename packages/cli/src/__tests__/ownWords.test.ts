@@ -63,7 +63,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-30: one more, the refusal of a read-only plan.
   // LVL-21: two more, the file's stairs kept when the text writes none.
   // CMD-43: three more, the help of --from, --layers and --units.
-  'packages/cli/src/command/write.ts': [40, 'command'],
+  // WRT-75: one fewer, the refusal over a fit-out is in the message files now.
+  'packages/cli/src/command/write.ts': [39, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
@@ -143,6 +144,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/editTools.ts': [137, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
+  // WRT-75: grid_start_fit_out, its help, its arguments and its refusals.
+  'packages/cli/src/mcp/fitOutTool.ts': [13, 'tools'],
   // CMD-42: grid_set, its help and its argument checks.
   'packages/cli/src/mcp/setTool.ts': [13, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
@@ -178,7 +181,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-74: one more, the example of a room line with its number and facts.
   // CNT-41: four more, the site's lines.
   // LVL-21: three more, the stairs' topic.
-  'packages/cli/src/mcp/roomsGrammar.ts': [59, 'tools'],
+  // WRT-75: three more, the fit-out's topic.
+  'packages/cli/src/mcp/roomsGrammar.ts': [62, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
@@ -273,7 +277,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // HND-10: one more, the trace image's unscaled drawing scale (traceUnscaled).
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [341, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [342, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   // CNT-43: +2, a kind placed with no size and a typical room given figures.
