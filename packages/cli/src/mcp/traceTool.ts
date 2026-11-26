@@ -63,12 +63,13 @@ export const placeTraceTool: GridTool = {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
     image: { type: 'string', maxLength: PATH_MAX, description: 'The picture to trace, as a path inside the project folder, ending in .png, .jpg, .jpeg or .pdf.', examples: ['assets/ground-floor-scan.png', 'sheets/survey.pdf'] },
-    page: { type: 'number', minimum: 1, maximum: 100_000, description: 'For a PDF: the page to trace, from 1. The first when left out.', examples: [2] },
+    // Not `page`: that is the piece of a long answer on the reading tools (CMD-39).
+    pdf_page: { type: 'number', minimum: 1, maximum: 100_000, description: 'For a PDF: the page to trace, from 1. The first when left out.', examples: [2] },
     floor: { ...FLOOR_ARG, description: 'The floor it lies under, by id. The lowest floor when never given.' },
     opacity: { type: 'number', minimum: 0, maximum: 1, description: 'How strongly it is drawn, from 0 to 1. 0.4 when never given.', examples: [0.5] },
     at: { type: 'string', maxLength: POINT_MAX, description: 'The point of the plan its top-left corner lies on, "x,y" in metres.', examples: ['-1.2,9.4'] },
     rotation: { type: 'number', minimum: -360, maximum: 360, description: 'Its turn about its top-left corner, in degrees counter-clockwise: 180 for a picture upside down.', examples: [0, 180, -90] },
-    scale: { type: 'number', minimum: 1e-6, maximum: 100, description: 'Its scale in metres per pixel, when the person states it: 0.01 for one centimetre a pixel.', examples: [0.01] },
+    scale: { type: 'number', minimum: 0.000001, maximum: 100, description: 'Its scale in metres per pixel, when the person states it: 0.01 for one centimetre a pixel.', examples: [0.01] },
     calibrate_from: { type: 'string', maxLength: POINT_MAX, description: 'One end of a known length on the picture, "u,v" in its pixels: one end of the scale bar, or a corner of a wall whose length is written on it.', examples: ['212,148'] },
     calibrate_to: { type: 'string', maxLength: POINT_MAX, description: 'The other end, "u,v".', examples: ['1012,148'] },
     length: { type: 'number', length: true, minimum: 0.001, maximum: LARGEST, description: 'How far apart calibrate_from and calibrate_to are on the building: the length the scale bar is marked with, in metres or with its unit.', examples: [8.4] },
@@ -97,7 +98,7 @@ export const placeTraceTool: GridTool = {
     const changed = writeChange(context, args, (_survey, _problems, stated) => {
       const request: TraceRequest = {
         ...(path === undefined ? {} : { path }),
-        ...(given('page') ? { page: args['page'] as number } : {}),
+        ...(given('pdf_page') ? { page: args['pdf_page'] as number } : {}),
         ...(given('floor') ? { floor: floorArg(stated, args['floor']) } : {}),
         ...(given('opacity') ? { opacity: args['opacity'] as number } : {}),
         ...(given('at') ? { at: pointArg('at', args['at'] as string, true) } : {}),

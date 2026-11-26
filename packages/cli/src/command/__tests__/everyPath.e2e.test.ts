@@ -367,7 +367,8 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   ],
   // VEW-67: the trace image, its picture resolved from the project folder like the plan.
   grid_place_trace: [
-    { arg: 'plan', call: tool('grid_place_trace', { plan: '@', image: 'scan.png' }), given: asIs },
+    // Written beside the plan, so the plans other tests trace keep the picture they name.
+    { arg: 'plan', call: tool('grid_place_trace', { plan: '@', image: 'scan.png', out: 'placed-trace.json' }), given: asIs },
     { arg: 'image', call: (p) => ({ name: 'grid_place_trace', arguments: { plan: PLAN, image: `${p}.png` } }), given: (p) => `${p}.png` },
     { arg: 'out', call: tool('grid_place_trace', { plan: PLAN, image: 'scan.png', out: '@.json' }), given: (p) => `${p}.json` },
   ],

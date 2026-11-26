@@ -48,7 +48,8 @@ export function pinnedPlacement(pixels: readonly [Pair, Pair], points: readonly 
   const scale = metresApart / pixelsApart
   let rotation = ((Math.atan2(b[1], b[0]) - Math.atan2(a[1], a[0])) * 180) / Math.PI
   rotation = ((rotation % 360) + 540) % 360 - 180
-  if (Math.abs(rotation) < 1e-9) rotation = 0
+  // To a billionth of a degree, so pins in line read as no turn (and never -0).
+  rotation = Number(rotation.toFixed(9)) || 0
   const turn = (rotation * Math.PI) / 180
   const u = pixels[0][0] * scale
   const v = -pixels[0][1] * scale
@@ -65,7 +66,7 @@ export function placeTrace(plan: FloorPlan, request: TraceRequest): Patch {
     if (had === undefined) throw new EditRefused('The plan has no trace image to take out.')
     return { ...emptyPatch(['Took the trace image out. The picture itself stays in the project folder.']), plan: { referenceImage: null } }
   }
-  if (given.length === 0) throw new EditRefused('Give the picture (path), or how to place it: floor, at, rotation, scale, calibrate_from with calibrate_to and length, pin_pixels with pin_points, opacity or page; or remove to take it out.')
+  if (given.length === 0) throw new EditRefused('Give the picture (path), or how to place it: floor, at, rotation, scale, calibrate_from with calibrate_to and length, pin_pixels with pin_points, opacity or pdf_page; or remove to take it out.')
   if (had === undefined && request.path === undefined) throw new EditRefused('The plan has no trace image yet: give path, the picture inside the project folder.')
   const scales = [request.scale !== undefined, request.calibration !== undefined, request.pins !== undefined].filter(Boolean).length
   if (scales > 1) throw new EditRefused('Give one way to scale it: scale, calibrate_from with calibrate_to and length, or pin_pixels with pin_points.')
@@ -81,7 +82,7 @@ export function placeTrace(plan: FloorPlan, request: TraceRequest): Patch {
   }
   const pdf = String(image['path']).toLowerCase().endsWith('.pdf')
   if (request.page !== undefined) {
-    if (!pdf) throw new EditRefused('page names a page of a PDF: the trace image is a picture, not a PDF.')
+    if (!pdf) throw new EditRefused('pdf_page names a page of a PDF: the trace image is a picture, not a PDF.')
     image['page'] = request.page
     said.push(`It is page ${request.page} of the PDF.`)
   } else if (!pdf) delete image['page']

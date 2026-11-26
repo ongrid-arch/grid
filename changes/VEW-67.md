@@ -14,8 +14,8 @@
 
 ## For agents
 
-- New tool `grid_place_trace` (46 tools), after `grid_change_site` and before `grid_save_view`:
-  `image`, `page`, `floor`, `opacity`, `at`, `rotation`, `scale`, `calibrate_from` with
+- New tool `grid_place_trace` (48 tools), after `grid_change_site` and before `grid_save_view`:
+  `image`, `pdf_page`, `floor`, `opacity`, `at`, `rotation`, `scale`, `calibrate_from` with
   `calibrate_to` and `length`, `pin_pixels` with `pin_points`, `remove`, `out`. It keeps what a
   call does not give and answers with `referenceImage` as now stated and `trace`, the line
   `grid_view` gives on it.

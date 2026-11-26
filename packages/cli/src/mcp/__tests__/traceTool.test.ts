@@ -81,12 +81,12 @@ describe('grid_place_trace', () => {
   })
 
   it('takes a PDF page, and refuses a page for a picture', async () => {
-    await ok('grid_place_trace', { plan: 'traced.json', image: 'sheets/survey.pdf', page: 2, out: 'paged.json' })
+    await ok('grid_place_trace', { plan: 'traced.json', image: 'sheets/survey.pdf', pdf_page: 2, out: 'paged.json' })
     expect(image('paged.json')).toMatchObject({ path: 'sheets/survey.pdf', page: 2, at: [0, 10] })
     // Back to a picture, its page goes.
     await ok('grid_place_trace', { plan: 'paged.json', image: 'scan.png', out: 'unpaged.json' })
     expect(image('unpaged.json')!['page']).toBeUndefined()
-    await refused({ plan: 'traced.json', page: 2 }, 'page names a page of a PDF')
+    await refused({ plan: 'traced.json', pdf_page: 2 }, 'pdf_page names a page of a PDF')
   })
 
   it('takes it out, and refuses what would not be read', async () => {

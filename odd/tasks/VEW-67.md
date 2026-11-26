@@ -41,6 +41,8 @@ a scale bar by eye and never digs the schema out of the bundle:
   calibration out and the other way round, as the schema allows only one.
 - `packages/cli/src/mcp/traceTool.ts` (new), registered after the site's tools and before the
   saved views; `grid edit trace` runs it. Its `path` argument joins the every-path test.
+  The PDF's page is the tool's `pdf_page` (`--pdf-page`), not `page`: on the tool server `page`
+  is the piece of a long answer, and a tool that changes the plan takes none (CMD-39).
 - `packages/cli/src/mcp/previewTools.ts` and `src/draw/views.ts`: the sync drawing reads the
   trace image as `grid_view` does and hands it to `planPicture`.
 - Rooms text gains no trace line here: the rooms-text compiler is not this change's to edit; a
