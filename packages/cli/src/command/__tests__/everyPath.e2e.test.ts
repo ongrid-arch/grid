@@ -253,6 +253,8 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: `${p}.json`, layout: 'tidy' } }), given: (p) => `${p}.json` },
     // HND-12: a phone room scan in place of rooms text.
     { arg: 'scan', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: 'new.json', scan: p } }), given: asIs },
+    // CMD-38: rooms text read from a file in the project.
+    { arg: 'roomsFile', call: (p) => ({ name: 'grid_write_rooms', arguments: { plan: 'new.json', roomsFile: p } }), given: asIs },
   ],
   grid_change_opening: [
     { arg: 'plan', call: tool('grid_change_opening', { plan: '@', opening: 'bed2-door', hinge: 'end' }), given: asIs },
@@ -399,7 +401,7 @@ describe('the slots this file lists', () => {
   })
 
   it('cover every tool argument that is a path, and no other', async () => {
-    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan']
+    const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile']
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
       .filter((arg) => PATH_ARGS.includes(arg))
