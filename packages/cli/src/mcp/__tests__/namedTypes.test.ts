@@ -28,6 +28,16 @@ beforeAll(() => {
     'flat.json': TWO_BED,
     'inside.json': { ...TWO_BED, walls: TWO_BED.walls.map((w) => ({ ...w, kind: 'interior' as const })) },
     'finished.json': finished(),
+    'defaulted.json': {
+      ...TWO_BED,
+      types: {
+        walls: [{ id: 'stud-100', name: 'Stud partition 100', thickness: 0.1 }, { id: 'block-300', name: 'Block wall 300', thickness: 0.3 }],
+        windows: [{ id: 'casement', name: 'Casement', height: 1.2 }],
+        defaults: { walls: { interior: 'stud-100', exterior: 'block-300' }, window: 'casement' },
+      },
+      walls: TWO_BED.walls.map((w) => ({ ...w, thickness: undefined, ...(w.id === 'spine' ? { wallType: 'stud-100' } : {}) })),
+      openings: TWO_BED.openings.map((o) => (o.type === 'window' ? { ...o, height: undefined } : o)),
+    },
     'misnamed.json': { ...TWO_BED, types: { walls: [{ id: 'stud-100', name: 'Stud partition 100', thickness: 0.1 }] }, walls: TWO_BED.walls.map((w) => (w.id === 'spine' ? { ...w, wallType: 'stud-10' } : w)) },
   })
 })
@@ -200,6 +210,20 @@ describe('CNT-15 written again from rooms text', () => {
     // And so a change to the type still reaches them.
     await ok('grid_change_type', { plan: 'rt.json', of: 'wall', type: 'stud-100', thickness: 0.12 })
     expect(readOf('rt.json').walls.filter((w) => inside.includes(w.id)).every((w) => w.thickness === 0.12)).toBe(true)
+  })
+})
+
+describe('WRT-70 written again from rooms text, a part typed by a default stays typed by it', () => {
+  it('names a type only on the wall that named one, and the defaults still type the rest', async () => {
+    const text = await ok('grid_describe', { plan: 'defaulted.json', as: 'rooms' })
+    await ok('grid_write_rooms', { plan: 'defaulted.json', rooms: text.data!['text'] as string })
+    const file = fileOf('defaulted.json')
+    expect(file.walls.filter((w) => w['wallType'] !== undefined).map((w) => w['id'])).toEqual(['spine'])
+    expect(file.walls.every((w) => w['thickness'] === undefined)).toBe(true)
+    expect(file.openings.filter((o) => o['type'] === 'window').every((o) => o['windowType'] === undefined && o['height'] === undefined)).toBe(true)
+    const read = readOf('defaulted.json')
+    expect(read.walls.filter((w) => w.kind === 'exterior').every((w) => w.wallType === 'block-300' && w.thickness === 0.3)).toBe(true)
+    expect(read.openings.filter((o) => o.type === 'window').every((o) => o.windowType === 'casement' && o.height === 1.2)).toBe(true)
   })
 })
 
