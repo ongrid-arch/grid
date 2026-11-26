@@ -142,6 +142,24 @@ describe('a scan of several rooms with no floor outline', () => {
     expect(done.leftOut.join(' ')).not.toContain('wall face')
   })
 
+  it.each([0.75, 0.9, 1.8])('joins surveyed faces %s m apart', (gap) => {
+    const done = convert({
+      ...two,
+      rooms: [two.rooms[0]!, { ...two.rooms[1]!, box: [4 + gap, 0, 8 + gap, 3.2] }],
+    })
+    expect(problems(done.plan).filter((p) => !p.startsWith('wall/size-question:'))).toEqual([])
+    expect(done.paired).toEqual([expect.objectContaining({ thickness: expect.closeTo(gap, 6), faces: [expect.any(String), expect.any(String)] })])
+  })
+
+  it('keeps rooms separated past the scan pairing limit', () => {
+    const done = convert({
+      ...two,
+      rooms: [two.rooms[0]!, { ...two.rooms[1]!, box: [6, 0, 10, 3.2] }],
+    })
+    expect(problems(done.plan)).toEqual([])
+    expect(done.paired).toEqual([])
+  })
+
   it('draws every room of the invented flat', () => {
     const done = convert({ ...INVENTED_FLAT, floors: false })
     expect(problems(done.plan)).toEqual([])

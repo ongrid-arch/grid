@@ -551,6 +551,14 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
       }
       continue
     }
+    if (wall.virtual !== true && wall.arc === undefined && wall.thickness > tolerance('roomsWallWidest') && rooms.length >= 2) {
+      for (const [a, b] of facingAcross(wall, rooms, polys)) {
+        const poly = polys.get(a)
+        const side = poly === undefined ? null : outsideSide(poly, wall, [])
+        const handle = `wall between ${local.get(a) ?? a} and ${local.get(b) ?? b}${side === null ? '' : ` ${side}`}`
+        addWallSay(draft, handle, [metres(wall.thickness)])
+      }
+    }
     if (wall.virtual === true || (wall.thickness === rule.outside && wall.kind === 'exterior')) continue
     for (const room of rooms) {
       const poly = polys.get(room.id)

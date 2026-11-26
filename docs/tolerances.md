@@ -62,12 +62,13 @@ is not asked whether it was typed in feet.
 | `chainSliver` | tolerance | 0.01 m | Two points between a chain's ends closer than this are one point, so a wall a little off square leaves no sliver in it (VEW-22) |
 | `chainThinWall` | tolerance | 0.12 m | A solid wall thinner than this that meets a facade is marked in the walls chain at its centre line, so its thickness is no figure of its own (VEW-22) |
 | `wingShare` | tolerance | 0.25 ratio | Outside walls running one way that hold this share of the outside length, in three walls or more, are a wing dimensioned square to itself; half or more is the plan's main directions (VEW-22) |
-| `roomsWallWidest` | tolerance | 0.6 m | The widest gap between two rooms written rooms first that is still one wall between them; a wider gap that is not a room is refused |
+| `roomsWallWidest` | tolerance | 0.6 m | The widest gap inferred as one wall in rooms text without a wider thickness stated |
 | `roomsTouch` | tolerance | 0.02 m | Rooms written rooms first closer than this touch with no wall between them, refused unless they are open to each other |
 | `roomsFaceSkew` | tolerance | 0.02 m | Faces of rooms written rooms first that run the opposite way and whose distance apart changes by no more than this along the shorter face each other, as on an angled side written to the centimetre |
 | `roomsFaceTurn` | tolerance | 0.0872 sine | Faces of rooms written rooms first that run the opposite way within about 5 degrees of parallel, and no further apart than a wall at both ends of what they share, are one wall's two faces, drawn along their middle line (WRT-56) |
 | `roomsFaceStep` | tolerance | 0.002 m | Faces of rooms written rooms first further out of line than this are named as sizes that do not add up |
 | `scanFaceTurn` | tolerance | 0.0872 sine | Two scanned wall faces, or a scanned floor outline's edge and a face, within about 5 degrees of each other may be one wall's two faces, or the same face (HND-12) |
+| `scanWallWidest` | tolerance | 1.8 m | The widest wall a scan pairs from two scanned wall faces (WRT-77) |
 | `scanFaceReach` | tolerance | 0.05 m | An edge of a scanned floor outline this close to a scanned wall face lies on that face (HND-12) |
 | `scanCornerGap` | tolerance | 0.15 m | In a scan with no floor outline, wall faces whose ends are this close meet at a corner of the room (HND-12) |
 | `scanOnFloor` | tolerance | 0.05 m | A scanned door or opening whose bottom is this close to the floor stands on it, with a sill of 0 (HND-12) |
