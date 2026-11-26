@@ -913,7 +913,9 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   at least one riser thick.
 - **What lies beyond the cut** is drawn in a lighter line, the one a facade draws its faces set
   back in: the faces of walls, slab and roof edges and stairs that face you, with their doors and
-  windows open, each hiding what is behind it.
+  windows open, each hiding what is behind it. A stair beyond the cut shows its sides as its
+  profile and its risers each at its own place and height (VEW-69), so seen at an angle they step
+  up and away, and seen along the flight they leave the room under it open.
 - **The ground** is a facade's ground line, the heaviest pen, at the site's ground level, or at
   the ground floor's level when the site states none. It runs out to the picture's edges, and
   stops only where the building stands through the ground: it runs on under a house on its plinth

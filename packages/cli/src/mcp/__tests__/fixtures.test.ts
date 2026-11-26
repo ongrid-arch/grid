@@ -75,7 +75,7 @@ describe('count by kind (grid_schedule)', () => {
     expect(reply.text).toContain('Island "island" (kitchen-run), in "Kitchen"')
     expect(reply.text).not.toContain('In all:')
     // CNT-20: every kind the registry holds is counted, furniture too.
-    expect(reply.data!['fixtureCounts']).toEqual({ toilet: 1, basin: 1, shower: 0, bath: 0, 'kitchen-run': 2, bed: 0, table: 0, chair: 0, sofa: 0, storage: 0, armchair: 0, stool: 0, desk: 0, rug: 0, plant: 0 })
+    expect(reply.data!['fixtureCounts']).toEqual({ toilet: 1, basin: 1, shower: 0, bath: 0, 'kitchen-run': 2, bed: 0, table: 0, chair: 0, sofa: 0, storage: 0, armchair: 0, stool: 0, desk: 0, rug: 0, plant: 0, rack: 0, generator: 0, pump: 0, tank: 0, seat: 0, pew: 0, altar: 0, 'fume-cupboard': 0, 'lab-bench': 0, 'safety-shower': 0, kennel: 0, 'exam-table': 0, 'clinical-sink': 0, equipment: 0 })
     const rooms = (reply.data!['fixtures'] as { id: string; room: string }[]).map((f) => [f.id, f.room])
     expect(rooms).toEqual([['run', 'kitchen'], ['island', 'kitchen'], ['wc', 'bath'], ['basin', 'bath']])
   })

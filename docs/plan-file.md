@@ -1071,10 +1071,15 @@ What a pattern cannot place is said, never dropped in silence. Each is left out,
 A plan may list its fixtures and furniture in `items`: a toilet, a basin, a shower, a bath or a
 kitchen run (base units with their worktop), and a bed, a table, a chair, a sofa, storage (a
 wardrobe, a cupboard, shelves, a TV unit), an armchair, a stool, a desk, a rug or a plant
-(CNT-42). Each has a `kind`, `at` (the middle of its footprint), a
+(CNT-42), or equipment: a rack, a generator, a pump, a tank, a fixed seat, a pew, an altar, a
+fume cupboard, a lab bench, a safety shower, a kennel, an exam table, a clinical sink, and
+`equipment` for any other thing, a plain box called by its label (CNT-47). Equipment is a
+fixture: it takes the floor it stands on. Each has a `kind`, `at` (the middle of its footprint), a
 `size` (its width along its back and its depth to its front), a `height`, and may have a `turn`
 (degrees, counter-clockwise; unturned, its back faces down the drawing), a `label`, a
-`floor` and a `clearance` (metres of clear floor kept in front of it). An item may instead name
+`floor`, a `clearance` (metres of clear floor kept in front of it) and `clearSides` (CNT-47:
+`back`, `left` and `right`, the same behind it and at its own left and right, facing out of its
+front). An item may instead name
 a library entry in `library`, which gives what it leaves out (CNT-20, C30: [library.md](library.md)).
 Every other figure is the author's.
 

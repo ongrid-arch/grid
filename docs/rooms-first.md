@@ -462,7 +462,10 @@ stay taken. `grid write` and `grid_write_rooms` say how many they kept, each one
 stands in now, and name at once one the new walls run into or that now stands in no room
 (`itemsKept` in the tool's answer, WRT-46). `grid_add_item`, `grid_move_item` and
 `grid_remove_item` add, move and take out one without rewriting the plan. A refusal of a taken id
-names the part that holds it and where it is.
+names the part that holds it and where it is. A `row` line lays one item out many times, in rows
+(CNT-47, [Rows](#rows)): racks in a data hall, seats in a cinema, pews, a bank of kennels. Each
+is a plain item of the plan, and the read-back writes a run of them that is exactly a row as one
+row line again, at its first item's point.
 
 The walls Grid works out are named by what they are: `ext-south` for an outside wall facing south,
 `w-hall-kitchen` for one between two rooms, `w-hall-south` for one with a room on one side only,
@@ -679,7 +682,7 @@ stair st "Main stair" from ground to first in hall, 1 wide, U, runs north
 
 ### Items
 
-item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side's inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant). item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid's own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.
+item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side's inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant; the equipment rack, generator, pump, tank, seat, pew, altar, fume-cupboard, lab-bench, safety-shower, kennel, exam-table, clinical-sink, and equipment for any other thing, given its size, height and label). clear back|left|right <m> keeps clear floor on that side too. item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid's own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.
 
 ```rooms
 room bath "Bathroom" bathroom 2.4 x 2 at 0,0
@@ -689,6 +692,17 @@ item tub "Bath 1700" bath 1.7 x 0.7 in bath against north, at west
 item wc1 wc in bath against east, 0.1 from south
 item robe "Built-in wardrobe" wardrobe in bed against east, full width
 item bed1 double-bed in bed against north, at west
+```
+
+### Rows
+
+row <id> <the words of an item line> repeat <n> [every <m>] [, <k> rows [every <m>] [behind]] lays the item out n times side by side along their backs, every metres from middle to middle (their width, so they touch, when left out), and k rows of them, each in front of the last (behind it with behind, for a row at a point), every metres apart (their depth and the clear floor in front when left out). Against a side, the first row is centred on it or set at or from one end. The items are <id>-<n>, or <id>-<row>-<n> in several rows, each a plain item, counted and checked: racks in a data hall, seats in a cinema, pews, kennels. grid_add_item with repeat and rows writes the same.
+
+```rooms
+room hall "Data hall" plant 12 x 8 at 0,0
+door d1 in hall south, centred, 1.2 wide
+row r rack in hall against north, at west, repeat 15, 3 rows every 2.4
+row ups "UPS" equipment 1.2 x 0.8 1.9 high at 9.5,0.5 repeat 2 every 1.5
 ```
 
 ### Parking

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { handleLine, INSTRUCTIONS, LINE_MAX_BYTES, REQUEST_ID_MAX, type ServerTool } from '../protocol'
+import { BRIEF_FIRST, GUIDE_AND_SCHEMA, LABEL_AND_RETELLING, ROOM_NAMES_TRAVEL, TOOLS_WORK_ON_PLANS } from '../../guide/paragraphs'
+import { handleLine, INSTRUCTIONS, INSTRUCTIONS_SHOWN, LINE_MAX_BYTES, REQUEST_ID_MAX, type ServerTool } from '../protocol'
 
 const echo: ServerTool = {
   definition: { name: 'grid_echo' },
@@ -37,6 +38,12 @@ describe('the tool server protocol', () => {
     const first = INSTRUCTIONS.split('. ')[0] ?? ''
     for (const word of ['small space', 'van', 'cabin', 'module', 'container', 'picture', 'free-floor', 'one or two calls']) expect(first).toContain(word)
     expect(INSTRUCTIONS.slice(0, 400)).toContain('3D model')
+  })
+
+  it('keeps what Grid makes, the brief, the label and retelling rule, room names and the guide inside the share a host shows (MSG-32)', () => {
+    const shown = INSTRUCTIONS.slice(0, INSTRUCTIONS_SHOWN)
+    for (const paragraph of [TOOLS_WORK_ON_PLANS, BRIEF_FIRST, LABEL_AND_RETELLING, ROOM_NAMES_TRAVEL, GUIDE_AND_SCHEMA]) expect(shown).toContain(paragraph)
+    expect(shown.startsWith(TOOLS_WORK_ON_PLANS)).toBe(true)
   })
 
   it('stays silent on notifications', () => {

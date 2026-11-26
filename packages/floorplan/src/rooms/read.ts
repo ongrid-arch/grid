@@ -30,7 +30,7 @@ import { factValueOf, metres, quotedWordsOf } from './words'
 import { siteLines } from './site'
 import { stairLines } from './stairs'
 import { buildingLines } from './buildings'
-import { itemLines } from './items'
+import { itemAndRowLines } from './rows'
 import { parkingLines } from './parking'
 import { fitOutReading, type BasePlan } from './base'
 
@@ -771,7 +771,7 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
   const buildings = buildingLines(plan)
   if (buildings.length > 0) lines.push('', ...buildings)
   // CNT-45: the fixtures and furniture, after the stairs, so each room an item line names is written above it.
-  const items = itemLines(plan)
+  const items = itemAndRowLines(plan)
   if (items.length > 0) lines.push('', ...items)
   // CNT-46: the bays and ramps, after every floor, so each room a line names is written above it.
   const parking = parkingLines(plan)
