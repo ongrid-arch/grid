@@ -43,6 +43,7 @@ import { say } from '@ongrid/floorplan/messages'
 import { briefAnswer } from '../brief/answer'
 import { renameInBrief } from '../brief/rename'
 import { causedText, newLines } from '../edit/caused'
+import { followWalls } from '../edit/items'
 import { faultText } from '../command/plan'
 import { SEEN_NEW_OUTPUT, seenBefore as seenMarksBefore, seenMadeNew, seenNewData, seenNewLines } from '../edit/seen'
 import { BRIEF_OUTPUT } from './briefTool'
@@ -305,7 +306,8 @@ export const EDIT_OUTPUT = objectSchema({
   written: STRING,
   changed: listSchema(STRING),
   verdict: STRING,
-  drawingProblems: objectSchema({ before: { type: 'number' }, after: { type: 'number' } }),
+  // CNT-45: and the notes on fixtures and furniture among them.
+  drawingProblems: objectSchema({ before: { type: 'number' }, after: { type: 'number' }, items: objectSchema({ before: { type: 'number' }, after: { type: 'number' } }) }, ['before', 'after']),
   // MSG-1: the result record's one count, before and after, as grid_check gives it.
   toLookAt: objectSchema({ before: { type: 'number' }, after: { type: 'number' } }),
   // MSG-14: each door or doorless opening that joins other rooms after the change, in words.
@@ -379,6 +381,8 @@ function writeChangeHeld(context: ToolContext, args: Record<string, unknown>, ma
     if (touched.length > 0) throw new ToolRefusal(baseRefusal(touched, loaded.base.file))
   }
   patch = asWork(patch)
+  // CNT-45: an item standing against a wall the change moves moves with it.
+  patch = followWalls(loaded.plan, patch, planAfter)
   const after = planAfter(patch)
   const fresh = newProblems(loaded.plan, after)
   if (fresh.length > 0) throw new ToolRefusal(`That change would break the drawing, so nothing was written: ${problemsText(fresh)}`)
@@ -410,7 +414,11 @@ function writeChangeHeld(context: ToolContext, args: Record<string, unknown>, ma
   const doors = doorsThatChangedRooms(planInState(loaded.plan, 'after'), planInState(after, 'after'))
     .filter((change) => become.size === 0 || key(change.before) !== key(change.after))
     .map((change) => `${change.message}.`)
-  const drawingProblems = { before: validatePlan(loaded.plan).issues.length, after: validatePlan(after).issues.length }
+  // CNT-45: the notes on fixtures and furniture are counted on their own too, so an item left behind is seen.
+  const issuesBefore = validatePlan(loaded.plan).issues
+  const issuesAfter = validatePlan(after).issues
+  const itemNotes = { before: issuesBefore.filter((issue) => issue.entity === 'item').length, after: issuesAfter.filter((issue) => issue.entity === 'item').length }
+  const drawingProblems = { before: issuesBefore.length, after: issuesAfter.length, items: itemNotes }
   // The files as written, before and after (MSG-4): a field Grid does not read is kept by the change, and counted.
   // CNT-10: a fit-out's files are read with its base, as the command reads them.
   const withBase = loaded.base === undefined ? {} : { base: loaded.base.plan }
@@ -449,7 +457,7 @@ function writeChangeHeld(context: ToolContext, args: Record<string, unknown>, ma
     ...couldNotKeep.map((line) => `Could not keep: ${line}`),
     verdict,
     ...doors,
-    `To look at: ${toLookAt.before} → ${toLookAt.after}, of them problems in the drawing ${drawingProblems.before} → ${drawingProblems.after}. grid_check lists them.`,
+    `To look at: ${toLookAt.before} → ${toLookAt.after}, of them problems in the drawing ${drawingProblems.before} → ${drawingProblems.after}${itemNotes.before + itemNotes.after === 0 ? '' : `, on fixtures and furniture ${itemNotes.before} → ${itemNotes.after}`}. grid_check lists them.`,
     ...seenNewLines(seenNew),
     ...brief.text,
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),

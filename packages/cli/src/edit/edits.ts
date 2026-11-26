@@ -70,8 +70,10 @@ export interface Patch {
   readonly rooms: ReadonlyMap<string, RoomChange>
   /** CNT-3: the plan's own fields set (`north`, `site`). `null` takes a key out. Left out by a change that sets none. */
   readonly plan?: Readonly<Record<string, unknown>>
-  /** CNT-12: fixtures moved or turned, by id. Left out by a change that moves none. */
-  readonly items?: ReadonlyMap<string, { at: Pair; turn: number }>
+  /** CNT-12: fixtures moved or turned, by id. Left out by a change that moves none. CNT-45: onto another floor, or to a new size (a full-width item). */
+  readonly items?: ReadonlyMap<string, { at: Pair; turn: number; floor?: string; size?: Pair }>
+  /** CNT-45: items taken out, by id. */
+  readonly removeItems?: ReadonlySet<string>
   /** CNT-20: items added at the end of the list, as their file will hold them (placed from the library by name). */
   readonly addItems?: readonly RawRecord[]
   /** CNT-20 (C30): library entries the plan takes in, at the end of its `library`. */
@@ -251,13 +253,16 @@ export function applyPatch<T extends RawRecord>(raw: T, patch: Patch): T {
     })
   rooms.push(...(patch.addRooms ?? []))
   // A plan with no items keeps no key.
-  const moved = patch.items === undefined || !Array.isArray(raw['items'])
+  const gone = patch.removeItems ?? new Set<string>()
+  const moved = (patch.items === undefined && gone.size === 0) || !Array.isArray(raw['items'])
     ? {}
     : {
-        items: list('items').map((item) => {
-          const change = patch.items!.get(item['id'] as string)
-          return change ? { ...item, ...change } : item
-        }),
+        items: list('items')
+          .filter((item) => !gone.has(item['id'] as string))
+          .map((item) => {
+            const change = patch.items?.get(item['id'] as string)
+            return change ? { ...item, ...change } : item
+          }),
       }
   // CNT-20: items placed by name go at the end, and the library entries they need with them.
   const added = patch.addItems ?? []
