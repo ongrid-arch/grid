@@ -23,7 +23,7 @@
  * Pure: no DOM, no React.
  */
 import type { Dimension, Ghosts, OpeningSymbol, PlanAbove, PlanDrawing, PlanOpening, PlanRoom, PlanWall, ScheduleMark, SymbolPart, Vec2, WallDrawnKind } from '@ongrid/floorplan/geometry'
-import { boundsWithDimensions, guessedDoorKind, hatchLines, openingDetail, openingSymbol, poleOfInaccessibility, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
+import { boundsWithDimensions, guessedDoorKind, hatchLines, openingDetail, openingSymbol, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
 import type { DoorHanding } from '../canvas2d/doorHanding'
 import { doorSymbolOf } from '../canvas2d/doorSymbol'
 import { openingAt, stripAcross } from '../canvas2d/strip'
@@ -161,9 +161,8 @@ export interface SceneInput {
   /** How many metres one pixel of the picture measures: the zoom. */
   readonly metersPerPixel: number
   /**
-   * VEW-44: the part of the plan the picture shows. A label moved out of its room stays inside
-   * it, so no leader is drawn to a label that would fall outside the picture. Left out, the
-   * whole drawing and its margin, as a framed view always shows.
+   * The part of the plan the picture shows. Labels are laid out in the visible room floor.
+   * Left out, the whole drawing and its margin.
    */
   readonly view?: Viewport
   /** A named look, or colours of your own drawn the working way. */
@@ -359,7 +358,6 @@ function paints(named: Look, mpp: number, paperScale: number | undefined) {
         ? text(look.dimensionSoftText, TEXT_PX.roomDimension)
         : text(look.dimensionText, TEXT_PX.dimension),
     label: text(look.label, TEXT_PX.roomName),
-    leader: { stroke: look.labelSoft, 'stroke-width': width('leader') } as Attrs,
     area: text(look.labelSoft, TEXT_PX.roomArea),
     // In a group scaled to pixels, so these widths are pixels.
     warningDot: { fill: look.warning, stroke: look.paper, 'stroke-width': LINE_PX.warningRing } as Attrs,
@@ -736,18 +734,18 @@ function tintOf(look: Look, by: SceneShow['colourBy'], id: string, input: SceneI
 /** The plan's elements, back to front: what goes inside the `<svg>`. */
 /**
  * A room's label as it was placed (VEW-13): the plain form as it has always been drawn, else its
- * lines at its size, turned a quarter to read from the bottom when it is turned. A keyed label is
+ * lines at its size, turned along the room when needed. A keyed label is
  * the room's number, with the room's name in `data-name` for the room key (`roomKeyOf`).
  */
 function labelNode(label: PlacedLabel, name: string, area: string[] | null, opacity: number | undefined, mpp: number, paint: Paints, key: string): SvgNode {
   const { form } = label
-  const transform = `${labelTransform(label.at, mpp)}${form.turned ? ' rotate(-90)' : ''}`
+  const transform = `${labelTransform(label.at, mpp)}${form.angle === 0 ? '' : ` rotate(${-form.angle})`}`
   if (form.scale === 1 && !form.keyed && form.names.length === 1 && form.area !== null) {
     return el(
       'g',
       { transform, opacity },
       [
-        el('text', { 'data-part': 'label', ...paint.label }, [name]),
+        el('text', { 'data-part': 'label', ...paint.label }, [form.names[0]!]),
         ...(area === null ? [] : [el('text', { 'data-part': 'area', dy: String(ROOM_AREA_DY), ...paint.area }, area)])
       ],
       key
@@ -1373,9 +1371,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     )
   })
 
-  // Each label goes to a spot in its room clear of door swings, walls and the other labels,
-  // or out of the room with a leader. Measured from the text actually drawn, so a wider
-  // "before → after" area still gets the room it needs.
+  // Measure the text as drawn, including the wider area line on a review picture.
   const areaText = (room: PlanRoom): string => {
     if (!show.areas) return ''
     const change = live.areaChange(room.id)
@@ -1397,6 +1393,9 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     const name = labelName(blank ? room.id : room.name, index, style)
     return style.ids && !blank ? `${name} [${room.id}]` : name
   })
+  const nameCounts = new Map<string, number>()
+  const nameKeys = drawing.rooms.map((room) => room.name.trim().replace(/\s+/g, ' ').toLowerCase())
+  for (const name of nameKeys) nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1)
   const swings: Box[] = []
   for (const opening of drawing.openings) {
     const box = doorSwingBox(opening, drawnHanding(opening, handings.get(opening.id)), mpp)
@@ -1416,16 +1415,10 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     dimensionBlocks.push(lineBox({ x: dim.from.x + shift.x, y: dim.from.y + shift.y }, { x: dim.to.x + shift.x, y: dim.to.y + shift.y }, mpp))
     if (dim.kind !== 'room') dimensionBlocks.push(dimensionTextBox(dim.labelAt, dim, mpp))
   }
-  // A label moved out of its room keeps off the box of a room that could not be drawn, when it can.
-  for (const room of drawing.undrawn) {
-    dimensionBlocks.push({ minX: room.box.min.x, maxX: room.box.max.x, minY: room.box.min.y, maxY: room.box.max.y })
-  }
-  // A label moved out of its room stays where a framed view of the plan, or a picture of it,
-  // always shows: the drawing and its dimensions, and the margin `fitTo` leaves round them.
+  // The frame of the picture or the whole drawing when shown in the app.
   const framed = boundsWithDimensions(drawing, dimensions)
   const padX = Math.max(framed.width, 0.001) * FRAME_MARGIN
   const padY = Math.max(framed.height, 0.001) * FRAME_MARGIN
-  // VEW-44: nor outside the picture's own view, where its leader would lead to nothing.
   const shown = input.view
   const reach: Box = {
     minX: Math.max(framed.min.x - padX, shown ? shown.x : -Infinity),
@@ -1433,24 +1426,45 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     minY: Math.max(framed.min.y - padY, shown ? -(shown.y + shown.height) : -Infinity),
     maxY: Math.min(framed.max.y + padY, shown ? -shown.y : Infinity)
   }
-  // VEW-13: the number a room's label falls back to, its name then listed in the room key.
   const numbers = roomNumbers(drawing.rooms)
+  const pen = lineMetres(look, mpp, input.paperScale)
+  const labelObstacles = {
+    swings,
+    walls: [
+      ...drawing.walls.flatMap((wall) => {
+        if (wall.virtual) {
+          const points = linePoints(wall)
+          const ink = pen.width(wall.phase === 'demolished' ? 'demolished' : 'virtual') / 2
+          return points.slice(1).map((end, i) => ({ outline: lineOutline(points[i]!, end, mpp), ink }))
+        }
+        const ink = wall.phase === 'demolished'
+          ? pen.width('demolished') / 2
+          : look.wallOutline === null ? 0 : wallOutlineMetres(look, wallDrawnKind(wall), mpp, input.paperScale) / 2
+        return wall.slices.map((outline) => ({ outline, ink }))
+      }),
+      ...drawing.items.map((item) => ({ outline: item.outline, ink: pen.width('fixture') / 2 })),
+      ...(drawing.columns ?? []).map((column) => ({ outline: column.outline, ink: pen.width('column') / 2 })),
+      ...drawing.stairs.flatMap((stair) => stair.flights.map((flight) => ({ outline: flight.outline, ink: pen.width('stair') / 2 }))),
+      ...liftOutlines.map((outline) => ({ outline, ink: pen.width('stair') / 2 }))
+    ],
+    dimensions: dimensionBlocks
+  }
+  const labelView = shown === undefined ? undefined : reach
   const labels = placeRoomLabels(
-    drawing.rooms.map((room, index) => ({ id: room.id, polygon: room.polygon, holes: room.holes, name: names[index]!, areaText: areaText(room), number: numbers[index]! })),
-    // A fixture blocks a label like a wall does (CNT-12): a room's name never sits on a bath.
-    // VEW-13: nor on a stair's treads or a lift's cross.
-    {
-      swings,
-      walls: [
-        ...drawing.walls.filter((wall) => !wall.virtual).flatMap((wall) => wall.slices),
-        ...drawing.items.map((item) => item.outline),
-        ...drawing.stairs.flatMap((stair) => stair.flights.map((flight) => flight.outline)),
-        ...drawing.lifts.flatMap((lift) => lift.lines.map(([a, b]) => lineOutline(a, b, mpp)))
-      ],
-      dimensions: dimensionBlocks
-    },
+    drawing.rooms.map((room, index) => ({
+      id: room.id,
+      polygon: room.polygon,
+      holes: room.holes,
+      labelRegions: room.labelRegions,
+      name: !style.numbered && nameKeys[index] !== '' && (nameCounts.get(nameKeys[index]!) ?? 0) > 1
+        ? `${numbers[index]} ${names[index]}`
+        : names[index]!,
+      areaText: areaText(room),
+      number: numbers[index]!
+    })),
+    labelObstacles,
     mpp,
-    reach
+    labelView
   )
   const labelBlocks = labels.flatMap((label) => (label ? [label.box] : []))
   // VEW-51: and those a room's label could not keep off.
@@ -1486,33 +1500,26 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     // No clear spot at this zoom: the label waits for the user to zoom in.
     if (!label) return
     const opacity = live.labelOpacity(room.id)
-    if (label.leader) {
-      const [a, b] = label.leader
-      out.push(
-        el(
-          'line',
-          { 'data-part': 'label-leader', 'data-room': room.id, x1: a.x, y1: -a.y, x2: b.x, y2: -b.y, opacity, ...paint.leader },
-          [],
-          `leader:${room.id}`
-        )
-      )
-    }
     out.push(labelNode(label, names[index]!, show.areas ? areaPieces(room) : null, opacity, mpp, paint, `label:${room.id}`))
   })
 
   // The name of each room that could not be drawn, and why, in the middle of its box.
   out.push(...undrawnRoomText(faultLayout, faults))
 
-  // After the current labels, so the plan's own fills never cover it. A ghost, so no paint.
-  for (const room of live.removedRooms) {
-    out.push(
-      el(
-        'g',
-        { transform: labelTransform(poleOfInaccessibility(room.polygon, undefined, room.holes).point, mpp), ...live.ghostAttrs(room.id) },
-        [el('text', { 'data-part': 'label' }, [`${room.name.trim() === '' ? room.id : room.name} · ${formatArea(room.area, decimals)} · ${drawingText(drawingWords(), 'drawing.removed')}`])],
-        `ghost-label-${room.id}`
-      )
-    )
+  // A removed room's ghost label fits its former floor and keeps off current labels.
+  if (live.removedRooms.length > 0) {
+    const ghosts = live.removedRooms.map((room) => ({
+      ...room,
+      name: `${room.name.trim() === '' ? room.id : room.name} · ${formatArea(room.area, decimals)} · ${drawingText(drawingWords(), 'drawing.removed')}`,
+      areaText: '',
+      number: undefined
+    }))
+    const ghostLabels = placeRoomLabels(ghosts, { ...labelObstacles, swings: [...swings, ...labelBlocks] }, mpp, labelView)
+    for (const label of ghostLabels) {
+      if (!label) continue
+      const node = labelNode(label, '', null, undefined, mpp, { ...paint, label: {} }, `ghost-label-${label.id}`)
+      out.push({ ...node, attrs: { ...node.attrs, ...live.ghostAttrs(label.id) } })
+    }
   }
 
   // SHT-7: the notes, tags and symbols. A note in a room goes under that room's label.
