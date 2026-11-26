@@ -90,7 +90,12 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   floor with no elevation stands on the one below, at that floor's elevation and height plus its
   own slab, so a floor-to-floor figure is each floor's `elevation`, not its `height`. Settings
   written `elevation=0` or `level: 1` are read as `elevation 0` and `level 1`; an unquoted name,
-  `level 2.85` or `level -9ft` is refused, and every refusal shows the whole line.
+  `level 2.85` or `level -9ft` is refused, and every refusal shows the whole line. A refusal
+  names the fault (WRT-69): a number right after the id stands where the quoted name goes, and
+  is offered as `level <n>` when it can be the storey number; a quoted name written after the
+  settings is offered back right after the id; and a word with nothing after it (`slab`) says
+  what it takes (`slab <m>`). A walls, doors or windows line ending on one of its words says
+  that word needs its value, and `slab`, `elevation` or `level` there is written on the floor line.
 
   ```
   floor ground "Ground floor" level 0 elevation 0 height 2.6

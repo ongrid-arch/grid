@@ -220,7 +220,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-51: two fewer, the sides facing one way moved into the message files.
   // WRT-55: nine fewer, the gap, touching, overlap and wall-line refusals moved too.
   // WRT-66: one fewer, the corner cut's refusal that does not fit moved too.
-  'packages/floorplan/src/rooms/compile.ts': [104, 'notYet'],
+  // WRT-69: one fewer, the walls line's word it cannot read moved into the message files.
+  'packages/floorplan/src/rooms/compile.ts': [103, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   'packages/floorplan/src/rooms/read.ts': [22, 'notYet'],
