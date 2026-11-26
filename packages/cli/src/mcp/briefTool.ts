@@ -7,7 +7,7 @@
  * answers with each line met or missed (`brief/lines.ts`).
  */
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
-import { BriefRefused, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBriefLines, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief, type BriefParts, type RefusedLine } from '../brief/brief'
+import { BriefRefused, SEATING_MAX, SEATING_WHATS, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBriefLines, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief, type BriefParts, type RefusedLine } from '../brief/brief'
 import { briefLines, briefText, MAT } from '../brief/lines'
 import { DOOR_MEASURES } from '../quantities/doorWidth'
 
@@ -22,6 +22,9 @@ const VALUE_SAYS: Readonly<Record<FigureName, string>> = {
   floor_area_ratio: 'The most gross floor area, every floor at or above the ground floor, over the plot area (1.2).',
   building_height: 'The highest the building may stand, metres from the ground to the top of its roof.',
   parking_per_home: 'The fewest parking spaces per home, the spaces the floors state over the homes they state: 0 for none.',
+  seats: 'The fewest seats in the whole plan, counted from the furniture as grid_measure what=seats counts them.',
+  desks: 'The fewest desks in the whole plan.',
+  covers: 'The fewest covers, seats at a table, in the whole plan.',
 }
 import type { FloorPlan } from '@ongrid/floorplan/geometry'
 import { loadPlan } from '../command/plan'
@@ -58,6 +61,15 @@ const BRIEF_SCHEMA = {
           at_least: { ...SIZE, description: 'A net area of at least this, m². Square metres only: for how many rooms use count_at_least.' },
           at_most: { ...SIZE, description: 'A net area of at most this, m². Square metres only: for how many rooms use count_at_most.' },
           inside: { type: 'array', items: SIZE, minItems: 2, maxItems: 2, description: 'About this inside size, metres, either way round.' },
+          // ARE-67: the furniture's seats, desks and covers in the rooms the wish means, together.
+          ...Object.fromEntries(SEATING_WHATS.flatMap((what) => {
+            const of = what === 'covers' ? 'covers (seats at a table)' : what
+            return [
+              [what, { type: 'integer', minimum: 0, maximum: SEATING_MAX, description: `Exactly this many ${of} in the room, or in all the rooms of the name or use together, counted from the furniture.` }],
+              [`${what}_at_least`, { type: 'integer', minimum: 0, maximum: SEATING_MAX, description: `At least this many ${of} ("a cafe for 24": ${what}_at_least 24).` }],
+              [`${what}_at_most`, { type: 'integer', minimum: 0, maximum: SEATING_MAX, description: `At most this many ${of}.` }],
+            ]
+          })),
           ...SAID,
         },
         required: ['level', 'source'],
@@ -125,6 +137,7 @@ const EXAMPLE = {
     { name: 'Bathroom 1', area: 4.5, level: 'must', source: 'given', quote: 'a small bathroom, 4.5 square metres' },
     { use: 'bedroom', count: 3, level: 'must', source: 'given', quote: 'three bedrooms' },
     { name: 'Kitchen', inside: [3, 4], level: 'should', source: 'assumed' },
+    { name: 'Dining', seats_at_least: 8, level: 'should', source: 'given', quote: 'a table for eight' },
   ],
   footprint: { width: 10, depth: 12, level: 'should', source: 'given', quote: 'the plot takes about 10 by 12' },
   touch: [{ rooms: ['Kitchen', 'Bathroom 1'], level: 'avoid', source: 'given', quote: 'not the bathroom next to the kitchen' }],
@@ -178,7 +191,7 @@ export const writeBriefTool: GridTool = {
   hint: 'write-file',
   description:
     'Use this when the person says what they want, before you draw the first room: in one call, write the brief from their words, each wish with its level (must, should, avoid), its source (given, with the person\'s words in quote, or assumed, for them to confirm), and what is still open. '
-    + 'It holds room areas (m²) and counts, inside sizes and the footprint in metres, rooms that must touch or must not (avoid), and under figures the person\'s own figures, theirs and not from any code or standard: door_width, corridor_width, turning_circle, step and ceiling_height, and the site limits plot_coverage (%), floor_area_ratio (with the gross measure it is set by), building_height (m) and parking_per_home. A figure Grid does not know is refused with the ones it knows. A line that is wrong (a given wish with no quote, a number out of range) refuses only that line: the others are written, and the answer returns the refused line with why, in refused, for you to mend and send again with replace: true; a brief with no line Grid can read writes nothing. '
+    + 'It holds room areas (m²) and counts, inside sizes and the footprint in metres, rooms that must touch or must not (avoid), and under figures the person\'s own figures, theirs and not from any code or standard: door_width, corridor_width, turning_circle, step and ceiling_height, and the site limits plot_coverage (%), floor_area_ratio (with the gross measure it is set by), building_height (m) and parking_per_home, and the whole plan\'s seats, desks and covers (seats at a table). A room wish takes seats, desks and covers too (exactly, _at_least, _at_most), for the room, a zone, or all the rooms of a name or use together, counted from the furniture as grid_measure what=seats counts them; a wish for numbered rooms ("Phone booths", count 6) counts the rooms named "Phone booth 1" and on, or of that room type. A figure Grid does not know is refused with the ones it knows. A line that is wrong (a given wish with no quote, a number out of range) refuses only that line: the others are written, and the answer returns the refused line with why, in refused, for you to mend and send again with replace: true; a brief with no line Grid can read writes nothing. '
     + `It writes only the brief beside the plan (plan.brief.json beside plan.json), never the plan. A brief already there is not replaced unless replace is true: read it first (leave brief out), then write the whole brief with what changed. It answers with each line met or missed against the plan as drawn, measured as grid_areas and grid_measure measure, and a size written in a room's name (12 m², 6 tatami, a mat taken as ${MAT.width} × ${MAT.length} m) is read against the room until the brief gives one. Leave brief out to read the brief and its lines and write nothing. `
     + 'Every change to the plan then answers with the same lines. Do not use to change the plan (grid_write_rooms and the edit tools), for a rule from a code (grid_check), or to say a plan is allowed: a line met says only that the drawing holds what was asked.',
   args: {

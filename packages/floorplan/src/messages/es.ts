@@ -2799,7 +2799,7 @@ export const es: Messages = {
   'sheet.limits.structure': 'la estructura',
   'sheet.limits.services': 'las instalaciones',
   'sheet.limits.landscape': 'el paisajismo',
-  'sheet.claim.refused': '{field} dice {words}, que Grid no imprime como afirmación sobre el edificio. Grid mide el plano y nunca dice que sea accesible, cumpla o esté aprobado; escribe lo que el plano contiene (sus estancias, tamaños y distribución) y deja la afirmación a quienes lo comprueban. Las palabras entre comillas se dejan como están',
+  'sheet.claim.refused': '{field} dice {words}, que Grid no imprime como afirmación sobre el edificio. Grid mide el plano y nunca dice que sea accesible, cumpla o esté aprobado; escribe lo que el plano contiene (sus estancias, tamaños y distribución) y deja la afirmación a quienes lo comprueban',
   'sheet.access.door': 'Por debajo de tu cifra de {figure}: la puerta entre {a} y {b} mide {value} libres.',
   'sheet.access.corridor': 'Por debajo de tu cifra de {figure}: el pasillo {room} se estrecha a {value}.',
   'sheet.access.turning': 'Por debajo de tu cifra de {figure}: el espacio de giro en {room} mide {value} de ancho.',
