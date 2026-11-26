@@ -382,6 +382,7 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_remove_item: [
     { arg: 'plan', call: tool('grid_remove_item', { plan: '@', ids: ['wc'] }), given: asIs },
     { arg: 'out', call: tool('grid_remove_item', { plan: PLAN, ids: ['wc'], out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-46: parking bays placed and a ramp added, written into the plan.
   grid_place_bays: [
     { arg: 'plan', call: tool('grid_place_bays', { plan: '@', group: 'p', room: 'lounge', along: 'south', kind: 'motorcycle', count: 1 }), given: asIs },
