@@ -179,15 +179,6 @@ function thingsIn(survey: Survey, ways: Ways, room: SurveyRoom, stand: Vec2, f: 
   for (const spot of fixtures.get(room.facts.id) ?? []) {
     // ARE-18: clear of every wall by more than AGAINST_WALL, it stands in the room.
     const clear = Math.min(...spot.corners.map((c) => distanceToOutline(c, room)))
-    if (clear > AGAINST_WALL) {
-      const aheadOf = spot.corners.map((c) => dot(sub(c, stand), f))
-      const sideOf = spot.corners.map((c) => mirror * dot(sub(c, stand), leftOf(f)))
-      const lo = Math.min(...sideOf)
-      const hi = Math.max(...sideOf)
-      const nearAhead = Math.min(...aheadOf) > 0 ? Math.min(...aheadOf) : Math.max(...aheadOf) < 0 ? Math.max(...aheadOf) : 0
-      out.inRoom.push({ kind: 'fixture', id: spot.id, width: spot.width, to: null, label: spot.label, ...place(spot.at), near: { ahead: nearAhead, across: lo > 0 ? lo : hi < 0 ? hi : 0 } })
-      continue
-    }
     let best: { d: number; out: Vec2 } | null = null
     for (const edge of room.edges) {
       const e = sub(edge.to, edge.from)
@@ -196,6 +187,19 @@ function thingsIn(survey: Survey, ways: Ways, room: SurveyRoom, stand: Vec2, f: 
       const t = Math.max(0, Math.min(1, dot(sub(spot.at, edge.from), e) / span))
       const d = Math.hypot(edge.from.x + e.x * t - spot.at.x, edge.from.y + e.y * t - spot.at.y)
       if (best === null || d < best.d) best = { d, out: unit({ x: e.y, y: -e.x }) }
+    }
+    const aheadOf = spot.corners.map((c) => dot(sub(c, stand), f))
+    // MSG-31: against an inner wall that faces back at you (or ahead, with the item behind you) is
+    // still metres into the room: it stands in the room, never in the wall you stand in.
+    const faces = best === null ? null : wallFor(best.out, f)
+    const stray = (faces === 'behind' && Math.min(...aheadOf) > STRAIGHT) || (faces === 'ahead' && Math.max(...aheadOf) < -STRAIGHT)
+    if (clear > AGAINST_WALL || stray) {
+      const sideOf = spot.corners.map((c) => mirror * dot(sub(c, stand), leftOf(f)))
+      const lo = Math.min(...sideOf)
+      const hi = Math.max(...sideOf)
+      const nearAhead = Math.min(...aheadOf) > 0 ? Math.min(...aheadOf) : Math.max(...aheadOf) < 0 ? Math.max(...aheadOf) : 0
+      out.inRoom.push({ kind: 'fixture', id: spot.id, width: spot.width, to: null, label: spot.label, ...place(spot.at), near: { ahead: nearAhead, across: lo > 0 ? lo : hi < 0 ? hi : 0 } })
+      continue
     }
     if (best === null) continue
     put(wallFor(best.out, f), { kind: 'fixture', id: spot.id, width: spot.width, to: null, label: spot.label, ...place(spot.at) })
