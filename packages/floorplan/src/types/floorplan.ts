@@ -449,6 +449,13 @@ export const BUILDING_TYPES = [
   'industry',
   'warehouse',
   'parking',
+  // CNT-40: a block of flats (the home figures cover it), stations and terminals, museums, galleries,
+  // libraries and theatres, labs and cleanrooms, and prisons and police custody.
+  'flats',
+  'transport',
+  'culture',
+  'lab',
+  'custody',
   'other',
 ] as const
 
@@ -460,6 +467,41 @@ export type BuildingType = z.infer<typeof BuildingTypeSchema>
 export const BUILDING_TYPE_TEXT: Readonly<Record<BuildingType, string>> = Object.fromEntries(
   BUILDING_TYPES.map((type) => [type, en[`check.building.${type}`]])
 ) as Record<BuildingType, string>
+
+/**
+ * CNT-40: words for a kind of building that plainly mean one (`hospital` is `health`, `apartments`
+ * `flats`), folded as `foldUseWord` folds them. A kind written as one of these, or in other capitals,
+ * is read as the kind; any other word is left as it is, for the schema to refuse.
+ */
+export const BUILDING_WORDS: Readonly<Record<string, BuildingType>> = {
+  house: 'home', dwelling: 'home', residence: 'home', residential: 'home',
+  flat: 'flats', apartment: 'flats', apartments: 'flats', maisonette: 'flats', maisonettes: 'flats',
+  blockofflats: 'flats', studenthousing: 'flats', studentresidence: 'flats', hallsofresidence: 'flats', coliving: 'flats',
+  hospital: 'health', clinic: 'health', surgery: 'health', carehome: 'health', hospice: 'health', medical: 'health', healthcare: 'health',
+  station: 'transport', terminal: 'transport', airport: 'transport', metro: 'transport', railway: 'transport', train: 'transport',
+  trainstation: 'transport', busstation: 'transport', port: 'transport',
+  museum: 'culture', gallery: 'culture', library: 'culture', theatre: 'culture', theater: 'culture', cinema: 'culture',
+  concerthall: 'culture', cultural: 'culture',
+  laboratory: 'lab', laboratories: 'lab', labs: 'lab', cleanroom: 'lab', research: 'lab',
+  prison: 'custody', jail: 'custody', police: 'custody', policestation: 'custody', courthouse: 'custody',
+  restaurant: 'food', cafe: 'food', bar: 'food', pub: 'food',
+  nursery: 'school', kindergarten: 'school', college: 'school', university: 'school',
+  gym: 'sport', stadium: 'sport', church: 'assembly', cathedral: 'assembly', factory: 'industry', workshop: 'industry',
+  garage: 'parking', carpark: 'parking',
+}
+
+/**
+ * A kind of building as Grid reads it (CNT-40): one of `BUILDING_TYPES` in any capitals, or a word that
+ * plainly means one (`BUILDING_WORDS`), so `Hospital` is `health` and `apartments` is `flats`. Anything
+ * else is left as it is.
+ */
+export function readBuilding(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  const lower = value.trim().toLowerCase()
+  if ((BUILDING_TYPES as readonly string[]).includes(lower)) return lower
+  const folded = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  return Object.hasOwn(BUILDING_WORDS, folded) ? BUILDING_WORDS[folded] : value
+}
 
 /** The four sides of the drawing: north is +Y (C4). */
 export const COMPASS_SIDES = ['north', 'east', 'south', 'west'] as const
@@ -556,7 +598,7 @@ export const FloorSchema = z.object({
   // CNT-5: what kind of building this floor is, when it is not the plan's (`FloorPlan.building`):
   // the shop on the ground floor of a block of flats. Optional and never defaulted: unstated, the
   // floor is the plan's kind (version 1).
-  building: BuildingTypeSchema.optional(),
+  building: z.preprocess(readBuilding, BuildingTypeSchema).optional(),
   // LVL-5 (C19): the floor's outline overhangs or sits back from the floor below it on purpose, so
   // Grid does not say it does not line up. Optional and never defaulted (version 1).
   overhang: z.enum(OVERHANG_MEANT).optional(),
@@ -976,6 +1018,35 @@ export const ROOM_USES = [
   'storage',
   'plant',
   'parking',
+  // CNT-40: stations and terminals, wards and theatres, galleries and libraries, labs, cells and
+  // back of house, and the rooms of an open-plan workplace.
+  'platform',
+  'concourse',
+  'ticketing',
+  'checkin',
+  'security',
+  'gate',
+  'ward',
+  'operating',
+  'anteroom',
+  'gallery',
+  'auditorium',
+  'stage',
+  'foyer',
+  'library',
+  'cafe',
+  'bar',
+  'breakout',
+  'print',
+  'comms',
+  'phonebooth',
+  'focus',
+  'wellbeing',
+  'training',
+  'lab',
+  'cleanroom',
+  'cell',
+  'prep',
   'other',
 ] as const
 
@@ -1046,7 +1117,67 @@ export const USE_WORDS: Readonly<Record<string, RoomUse>> = {
   boiler: 'plant',
   garage: 'parking',
   carpark: 'parking',
+  // CNT-40: plain words for the uses past homes. `clean` and `ante` are `cleanroom` and `anteroom`
+  // with the last "room" taken off.
+  platforms: 'platform',
+  tickets: 'ticketing',
+  ticketing: 'ticketing',
+  tickethall: 'ticketing',
+  bagdrop: 'checkin',
+  screening: 'security',
+  gates: 'gate',
+  boarding: 'gate',
+  wards: 'ward',
+  bedbay: 'ward',
+  bedbays: 'ward',
+  surgery: 'treatment',
+  theatre: 'operating',
+  operatingtheatre: 'operating',
+  ante: 'anteroom',
+  airlock: 'anteroom',
+  galleries: 'gallery',
+  exhibition: 'gallery',
+  exhibit: 'gallery',
+  lecture: 'auditorium',
+  cinema: 'auditorium',
+  foyers: 'foyer',
+  libraries: 'library',
+  reading: 'library',
+  archive: 'storage',
+  cafes: 'cafe',
+  cafeteria: 'cafe',
+  coffee: 'cafe',
+  buffet: 'bar',
+  pub: 'bar',
+  bars: 'bar',
+  printing: 'print',
+  printer: 'print',
+  copy: 'print',
+  server: 'comms',
+  servers: 'comms',
+  comm: 'comms',
+  phone: 'phonebooth',
+  phonepod: 'phonebooth',
+  quiet: 'focus',
+  wellness: 'wellbeing',
+  laboratory: 'lab',
+  labs: 'lab',
+  laboratories: 'lab',
+  clean: 'cleanroom',
+  cells: 'cell',
+  detention: 'cell',
+  foodprep: 'prep',
+  preparation: 'prep',
+  // CNT-40: old and regional words for a room, read as the use the person means by them; the word
+  // stays the room's name. The one place a word is read as a use the figure checks look at (`OLD_USE_WORDS`).
+  parlour: 'living',
+  parlor: 'living',
+  sitting: 'living',
+  box: 'bedroom',
 }
+
+/** CNT-40: the words of `USE_WORDS` read as `bedroom`, `living` or `dining`: old and regional words only. */
+export const OLD_USE_WORDS: readonly string[] = ['parlour', 'parlor', 'sitting', 'box']
 
 /**
  * A use word as `USE_WORDS` holds it: lower case, letters and digits only, and a last "room"
@@ -2368,7 +2499,7 @@ export const FloorPlanFieldsSchema = z.object({
   // CNT-5: what kind of building the plan is (`BUILDING_TYPES`). A floor may say otherwise for
   // itself (`Floor.building`). Optional and never defaulted: unstated, the plan does not say,
   // and the figure checks run as they did before CNT-5 (version 1).
-  building: BuildingTypeSchema.optional(),
+  building: z.preprocess(readBuilding, BuildingTypeSchema).optional(),
   // QAR-5: the project's own id, which the IFC builds every element's identity from (with the
   // element's kind, floor and id), so a re-export of the project is recognised as the same
   // model whatever the file is called. `grid init` writes it. Keep it, and the parts' ids,

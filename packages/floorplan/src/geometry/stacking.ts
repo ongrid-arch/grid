@@ -336,7 +336,10 @@ export function stackingIssues(plan: FloorPlan, spaces: readonly FloorSpaces[]):
     }
     if (floor.overhang === 'meant') continue
     if (beneath.length > 0) {
-      const issue = lineUp(plan, floor, upper, beneath, outlines)
+      // CNT-40: a floor below ground (a negative `level`) is dug into the earth: it is not said to
+      // overhang or sit back from the floors under it, and a floor is not set against a basement.
+      const judged = levelOf(floor) < 0 ? [] : beneath.filter((f) => levelOf(f) >= 0)
+      const issue = judged.length === 0 ? null : lineUp(plan, floor, upper, judged, outlines)
       if (issue !== null) issues.push(issue)
       continue
     }

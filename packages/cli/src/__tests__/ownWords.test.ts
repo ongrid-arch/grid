@@ -154,7 +154,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/change.ts': [18, 'notYet'],
   'packages/cli/src/quantities/compare.ts': [25, 'notYet'],
   // CNT-31: three more, the roof edges' rule and line and why a roof is left out.
-  'packages/cli/src/quantities/estimate.ts': [40, 'notYet'],
+  'packages/cli/src/quantities/estimate.ts': [41, 'notYet'],
   'packages/cli/src/quantities/finishes.ts': [2, 'notYet'],
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
   // ARE-14: the free floor rule is one of the area measures now, in the message files.

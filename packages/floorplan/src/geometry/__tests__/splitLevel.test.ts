@@ -131,7 +131,7 @@ describe('the floors under a floor (LVL-11)', () => {
     expect(notes.map((i) => [i.code, i.id])).toEqual([['floor/split-level', 'back']])
   })
 
-  it('sets a part floor against the floor under it, not the basement under that', () => {
+  it('sets no floor against a basement under it, and a floor over the ground against nothing under that', () => {
     const notes = floorNotes(
       plan([
         { id: 'basement', name: 'Basement', level: -1, box: [0, 0, 20, 10] },
@@ -139,7 +139,8 @@ describe('the floors under a floor (LVL-11)', () => {
         { id: 'first', name: 'First floor', level: 1, box: [0, 0, 10, 10] }
       ])
     )
-    expect(notes.map((i) => [i.code, i.id])).toEqual([['floor/set-back', 'ground']])
+    // CNT-40: the ground floor sits inside a larger basement dug into the earth: no set-back.
+    expect(notes).toEqual([])
   })
 
   it('does not set the floor over a house against a garden studio beside it at the level below', () => {

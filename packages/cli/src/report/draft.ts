@@ -25,7 +25,7 @@
  * What is left is held to the plan's text rule before it is shown.
  */
 import { tolerance } from '@ongrid/floorplan/geometry/tolerances'
-import { BUILDING_TYPES, ITEM_KINDS, ROOM_TENURES, ROOM_USES, Y_AXES, readUse } from '@ongrid/floorplan/types/floorplan'
+import { BUILDING_TYPES, ITEM_KINDS, ROOM_TENURES, ROOM_USES, Y_AXES, readBuilding, readUse } from '@ongrid/floorplan/types/floorplan'
 import { GENERAL_GUIDANCE_LABEL, RESULT_VERSION, type GridResult, type ResultLine } from '@ongrid/rules'
 import { planTextProblem } from '../command/planText'
 
@@ -344,7 +344,8 @@ function clearedPlan(raw: Record<string, unknown>, cut: Cut, clearing: Clearing)
   const ids = (list: unknown): Json[] => (Array.isArray(list) ? list.map((id) => clearing.idOf(id) ?? 'wall-?') : [])
   const plan: Record<string, Json> = { version: '1', units: 'm' }
   // CNT-5: what kind of building it is decides which checks run, and is one of the format's words.
-  if (typeof raw['building'] === 'string' && (BUILDING_TYPES as readonly string[]).includes(raw['building'])) plan['building'] = raw['building']
+  const building = readBuilding(raw['building'])
+  if (typeof building === 'string' && (BUILDING_TYPES as readonly string[]).includes(building)) plan['building'] = building
   if (cut.floors.length > 0) {
     plan['floors'] = cut.floors.map((floor) => {
       const i = listOf(raw, 'floors').indexOf(floor)
