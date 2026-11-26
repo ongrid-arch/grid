@@ -2121,6 +2121,11 @@ export const es: Messages = {
     "Las estancias '{a}' (línea {aLine}) y '{b}' (línea {bLine}) se tocan a lo largo de {along} m sin muro entre ellas (el hueco es de {gap} mm). Si el espacio es abierto, {open}. Si hay un muro, deja su grosor entre las estancias, o escribe 'wall between {a} and {b}' para levantarlo sobre la línea que comparten.",
   'rooms.touching.openBeside': "añade 'open' a la línea de '{b}' o escribe 'wall between {a} and {b} virtual'",
   'rooms.touching.openNamed': "añade 'open {a}' a la línea de '{b}' o escribe 'wall between {a} and {b} virtual'",
+  'rooms.inside.noFit':
+    "Línea {line}: '{room}' ({w} x {d} más un muro de {t}) no cabe en la esquina {corner} de '{host}', cuyos lados allí miden {x} m de este a oeste y {y} m de norte a sur. Una estancia recortada de esa esquina tiene un ancho menor de {wFit} m y un fondo menor de {dFit} m con su muro, o todo el ancho de {x} m o todo el fondo de {y} m, que deja a '{host}' una franja a su lado.",
+  'rooms.inside.fills': "Línea {line}: '{room}' ({w} x {d}) es tan ancha y tan profunda como '{host}': recortada de su esquina {corner}, la llenaría. Hazla más pequeña en un sentido, o escríbela como una estancia propia.",
+  'rooms.inside.noStrip': "Línea {line}: '{room}' ocupa un lado entero de '{host}' desde su esquina {corner}, pero '{host}' no sigue en escuadra más allá de ese lado lo bastante para dejar una franja. Escribe '{room}' como una estancia propia junto a '{host}'.",
+  'rooms.inside.wholeSide': "Línea {line}: '{room}' ocupa todo el lado de {side} m de '{host}', así que mide {side} m en ese sentido, no {size} m y un muro de {t} m: ningún muro corre a lo largo de un lado que no linda con nada de '{host}'.",
   'rooms.overlap':
     "Las estancias '{a}' (línea {aLine}) y '{b}' (línea {bLine}) se solapan: comparten un área de unos {ox} m de este a oeste por {oy} m de norte a sur. Para despejarla, {move}, o haz una de ellas más pequeña en esa medida más el muro entre ellas.{corner}",
   'rooms.overlap.eastWest': "mueve '{room}' {by} m al este o al oeste",

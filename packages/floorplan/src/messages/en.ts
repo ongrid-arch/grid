@@ -2113,6 +2113,11 @@ export const en = {
     "Rooms '{a}' (line {aLine}) and '{b}' (line {bLine}) touch along {along} m with no wall between them (the gap is {gap} mm). If the space is open-plan, {open}. If there is a wall, leave its thickness between the rooms, or write 'wall between {a} and {b}' to stand one on the line they share.",
   'rooms.touching.openBeside': "add 'open' to the room line of '{b}' or write 'wall between {a} and {b} virtual'",
   'rooms.touching.openNamed': "add 'open {a}' to the room line of '{b}' or write 'wall between {a} and {b} virtual'",
+  'rooms.inside.noFit':
+    "Line {line}: '{room}' ({w} x {d} plus a {t} wall) does not fit in the {corner} corner of '{host}', whose sides there are {x} m east-west and {y} m north-south. A room cut from that corner takes a width under {wFit} m and a depth under {dFit} m with its wall, or the whole {x} m width or the whole {y} m depth, which leaves '{host}' a strip beside it.",
+  'rooms.inside.fills': "Line {line}: '{room}' ({w} x {d}) is as wide and as deep as '{host}': cut from its {corner} corner, it would fill '{host}'. Make it smaller one way, or write it as a room of its own.",
+  'rooms.inside.noStrip': "Line {line}: '{room}' spans a whole side of '{host}' from its {corner} corner, but '{host}' does not go on square beyond that side far enough to leave a strip. Write '{room}' as a room of its own beside '{host}'.",
+  'rooms.inside.wholeSide': "Line {line}: '{room}' spans the whole {side} m side of '{host}', so it is {side} m that way, not {size} m and a {t} m wall: no wall runs along a side that borders nothing of '{host}'.",
   'rooms.overlap':
     "Rooms '{a}' (line {aLine}) and '{b}' (line {bLine}) overlap: they share an area about {ox} m east-west by {oy} m north-south. To clear it, {move}, or make one of them smaller by that much plus the wall between them.{corner}",
   'rooms.overlap.eastWest': "move '{room}' {by} m east or west",

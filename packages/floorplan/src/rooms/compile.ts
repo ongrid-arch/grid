@@ -37,6 +37,7 @@
  *       <where>: at x,y (the south-west corner the size measures to: inside, unless centre or outside)
  *                <north|south|east|west> of <room or unit> [align <side|centre>] [shift <m>] [until [near] <room>] [open [<room>]]
  *                inside <room> corner <ne|nw|se|sw> [wall <t> [kind]] [open]  cuts that corner out of the room
+ *                (as wide or as deep as the room's side there, a strip across it: WRT-66)
  *                one place and one size a line (WRT-55); 'open <room>' names the room it is open to, for a
  *                room placed 'at x,y' too, and a bare 'open' is said in the answer: the room it is placed
  *                beside, or the room it is cut out of
@@ -1829,28 +1830,64 @@ class Compiler {
     const cy = c.includes('n') ? hb[3] : hb[1]
     const sx = c.includes('e') ? -1 : 1
     const sy = c.includes('n') ? -1 : 1
-    const box: Box = [Math.min(cx, cx + sx * W), Math.min(cy, cy + sy * D), Math.max(cx, cx + sx * W), Math.max(cy, cy + sy * D)]
     const k = host.poly.findIndex((p) => Math.abs(p[0] - cx) < eps() && Math.abs(p[1] - cy) < eps())
     if (k < 0) this.stop('rooms/inside-corner', at, `line ${at}: room '${host.id}' has no square corner at its ${c} to put '${room.id}' in (another room may already be there).`)
     const n = host.poly.length
-    const A = host.poly[(k - 1 + n) % n]!
-    const C = host.poly[k]!
-    const B = host.poly[(k + 1) % n]!
+    // The host's sides from the corner, C, rotated so the corner comes first: C, B, ..., A.
+    const ring = [...host.poly.slice(k), ...host.poly.slice(0, k)]
+    const C = ring[0]!
+    const B = ring[1]!
+    const A = ring[n - 1]!
     const dA = unit(sub(A, C))
     const dB = unit(sub(B, C))
-    const la = Math.abs(dA[0]) > 0.5 ? W + T : D + T
-    const lb = Math.abs(dB[0]) > 0.5 ? W + T : D + T
-    if (la >= norm(sub(A, C)) - eps() || lb >= norm(sub(B, C)) - eps()) {
+    const sideA = norm(sub(A, C))
+    const sideB = norm(sub(B, C))
+    const sideX = Math.abs(dA[0]) > 0.5 ? sideA : sideB
+    const sideY = Math.abs(dA[0]) > 0.5 ? sideB : sideA
+    // WRT-66: a size, or a size and its wall, that comes to the whole side spans it: no wall
+    // runs along a side that borders nothing of the host, so the room takes the whole side.
+    const spans = (size: number, side: number) => Math.abs(size - side) < eps() || Math.abs(size + T - side) < eps()
+    const spanX = spans(W, sideX)
+    const spanY = spans(D, sideY)
+    const fitsX = spanX || W + T < sideX - eps()
+    const fitsY = spanY || D + T < sideY - eps()
+    const sizes = { line: at, room: room.id, w: num(f2(W)), d: num(f2(D)), t: num(f2(T)), corner: c, host: host.id }
+    if (spanX && spanY) this.stop('rooms/inside-corner', at, english(said('rooms.inside.fills', sizes)))
+    if (!fitsX || !fitsY) {
       this.stop(
         'rooms/inside-corner',
         at,
-        `line ${at}: '${room.id}' (${f2(W)} x ${f2(D)} plus a ${f2(T)} wall) does not fit in the ${c} corner of '${host.id}', whose sides there are ${f2(norm(sub(A, C)))} and ${f2(norm(sub(B, C)))} m.`
+        english(said('rooms.inside.noFit', { ...sizes, x: num(f2(sideX)), y: num(f2(sideY)), wFit: num(f2(sideX - T)), dFit: num(f2(sideY - T)) }))
       )
     }
+    const w = spanX ? sideX : W
+    const d = spanY ? sideY : D
+    if ((spanX && Math.abs(W - sideX) >= eps()) || (spanY && Math.abs(D - sideY) >= eps())) {
+      this.guesses.push(english(said('rooms.inside.wholeSide', { ...sizes, side: num(f2(spanX ? sideX : sideY)), size: num(f2(spanX ? W : D)) })))
+    }
+    const box: Box = [Math.min(cx, cx + sx * w), Math.min(cy, cy + sy * d), Math.max(cx, cx + sx * w), Math.max(cy, cy + sy * d)]
+    const alongA = Math.abs(dA[0]) > 0.5 ? spanX : spanY
+    const la = alongA ? sideA : (Math.abs(dA[0]) > 0.5 ? w : d) + T
+    const lb = !alongA && (spanX || spanY) ? sideB : (Math.abs(dB[0]) > 0.5 ? w : d) + T
     const Ca = add(C, mul(dA, la))
     const Cb = add(C, mul(dB, lb))
     const Q = add(Ca, mul(dB, lb))
-    host.poly = cleanPoly([...host.poly.slice(0, k), Ca, Q, Cb, ...host.poly.slice(k + 1)])
+    let rest: P[]
+    if (!spanX && !spanY) rest = [Ca, Q, Cb, ...ring.slice(1)]
+    else {
+      // A strip: the far end of the spanned side goes too, and the strip's inner corner, Q, must
+      // stand on the host's next side beyond it, short of that side's end.
+      const end = alongA ? A : B
+      const next = alongA ? ring[n - 2]! : ring[2]!
+      const across = alongA ? dB : dA
+      const reach = alongA ? lb : la
+      const onward = sub(next, end)
+      if (n < 4 || Math.abs(cross(unit(onward), across)) > eps() || dot(onward, across) < reach + eps()) {
+        this.stop('rooms/inside-corner', at, english(said('rooms.inside.noStrip', sizes)))
+      }
+      rest = alongA ? [Q, Cb, ...ring.slice(1, n - 1)] : [Ca, Q, ...ring.slice(2)]
+    }
+    host.poly = cleanPoly(rest)
     room.box = box
     room.poly = [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]]
     const kind = place.wallKind ?? (outdoorPair ? null : room.wallsKind)
@@ -2764,7 +2801,10 @@ class Compiler {
         if (hit) {
           const move = ox <= oy ? said('rooms.overlap.eastWest', { room: b.id, by: num(f2(ox)) }) : said('rooms.overlap.northSouth', { room: b.id, by: num(f2(oy)) })
           // WRT-55: a corner is offered only to a room that fits inside the other.
-          const fits = bb[2] - bb[0] < ab[2] - ab[0] - eps() && bb[3] - bb[1] < ab[3] - ab[1] - eps()
+          // WRT-66: or as wide or as deep as the other, cut across it as a strip.
+          const fitsX = bb[2] - bb[0] < ab[2] - ab[0] + eps()
+          const fitsY = bb[3] - bb[1] < ab[3] - ab[1] + eps()
+          const fits = fitsX && fitsY && (bb[2] - bb[0] < ab[2] - ab[0] - eps() || bb[3] - bb[1] < ab[3] - ab[1] - eps())
           const corner = fits ? said('rooms.overlap.corner', { a: a.id, b: b.id }) : ''
           this.problem('rooms/overlap', b.line, english(said('rooms.overlap', { a: a.id, aLine: a.line, b: b.id, bLine: b.line, ox: num(f2(ox)), oy: num(f2(oy)), move, corner })))
         }
