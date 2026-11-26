@@ -60,6 +60,17 @@ describe('opening lines naming raw rooms are placed (WRT-45)', () => {
     expect(result.plan!.openings[0]).toMatchObject({ wall: 's1', offset: 0.5, swing: 'right', hinge: 'start' })
   })
 
+  it('refuses opens out and opens in on a door between two raw rooms, offering each room (WRT-65)', () => {
+    for (const how of ['out', 'in']) {
+      const result = compileRoomsText(`${RULES}${PAIR}\ndoor d1 between west and east, centred, 0.9 wide, opens ${how}\n`)
+      expect(result.plan).toBeNull()
+      expect(result.problems.map((p) => p.code)).toEqual(['rooms/door-side'])
+      // The two rooms are the same size: out of the room named second, or into it, comes first.
+      const rooms = how === 'out' ? ['west', 'east'] : ['east', 'west']
+      expect(result.problems[0]!.fixes?.map((f) => f.text)).toEqual(rooms.map((r) => `door d1 between west and east, centred, 0.9 wide, opens into ${r}`))
+    }
+  })
+
   it('places a door in the curved wall of a round raw room, along its arc', () => {
     const result = compileRoomsText(`${RULES}${ROUND}\ndoor d3 in round south, centred, 0.9 wide, opens into round\n`)
     expect(result.problems).toEqual([])

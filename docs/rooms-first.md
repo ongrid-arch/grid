@@ -187,7 +187,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   Between two rooms, a `<m> from <side>` that, measured along the room's side as before, would
   fall outside the stretch of wall the two share is measured along that stretch, from its end on
   that side, and the answer says so; `opens in` or `opens out` is refused (neither room is the outside),
-  with the line written `opens into` each room. A window written in a side that is partly the
+  with the line written `opens into` each room. The first of those is the room the words most
+  often mean: `opens out` out of the smaller room (a toilet or a store opens out into the room
+  beside it) and `opens in` into it, or, for two rooms the same size, the room named second
+  (WRT-65). A door between two raw rooms, or a raw room and another, is refused the same way.
+  A window written in a side that is partly the
   wall to another room goes in that side's outside stretch, placed along it, and the answer says
   so; one that already stands in the outside stretch as written stays where it is.
 - A room whose outline steps (a corner cut out for a WC, an L) can have more than one side

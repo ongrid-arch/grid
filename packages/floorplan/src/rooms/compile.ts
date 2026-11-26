@@ -59,7 +59,8 @@
  *   door|window|opening <id> ["<name>"] in <room> <side>, <place>, <w> wide [...]
  *       the name is kept in the opening's facts (`properties.name`, WRT-55). Between two rooms a
  *       place that, measured along the room's side, misses the stretch they share is measured along
- *       that stretch, and 'opens in' or 'opens out' is refused;
+ *       that stretch, and 'opens in' or 'opens out' is refused, the fix for the room the words most
+ *       often mean first: out of the smaller room, or into it (WRT-65);
  *       a window in a side partly against another room goes in the side's outside stretch
  *       <side>: a compass word, or `<side>.<k>` when more than one of the room's sides faces it,
  *                counted from the west, then the south; a bare word there is refused, except in a
@@ -3159,6 +3160,28 @@ class Compiler {
    * expression for `in <room> <side>` or `between <a> and <b>`), or null when the line is not
    * written as the words read (a line of a unit, written once for every placement).
    */
+  /**
+   * WRT-65: a door between two rooms that 'opens in' or 'opens out' is refused, with a fix for each
+   * room. The fix first is the room the words most often mean: 'out' out of the smaller room (a
+   * toilet or a store opens out into the room beside it), 'in' into it; between two rooms the same
+   * size, or one whose outline is not known, the room named second, which a door that says
+   * nothing opens into.
+   */
+  private refuseInOutBetween(t: readonly string[], at: number, oid: string, how: 'in' | 'out', a: string, b: string, areaA: number | null, areaB: number | null): never {
+    const same = areaA === null || areaB === null || Math.abs(areaA - areaB) < tolerance('areaEqual')
+    const small = same || areaB! < areaA! ? b : a
+    const large = small === a ? b : a
+    const likely = how === 'out' ? large : small
+    const other = likely === a ? b : a
+    const offers = [likely, other].flatMap((room) => {
+      const text = this.rewritten(t, at, /\bopens\s+(?:in|out)\b/, `opens into ${room}`)
+      return text === null ? [] : [{ line: at, text }]
+    })
+    if (offers.length > 0) this.stopFixes.set(at, offers)
+    const key: MessageKey = how === 'out' ? (same ? 'rooms.door.meant.outSecond' : 'rooms.door.meant.outSmaller') : same ? 'rooms.door.meant.inSecond' : 'rooms.door.meant.inSmaller'
+    return this.stop('rooms/door-side', at, english(said('rooms.door.inOutBetween', { line: at, id: oid, how, a, b, meant: said(key, { room: small }), likely, other })))
+  }
+
   private rewritten(t: readonly string[], at: number, find: RegExp, put: string): string | null {
     const source = this.lines[at - 1]
     if (source === undefined) return null
@@ -3476,13 +3499,11 @@ class Compiler {
         guessed.push(`opens into '${target}'`)
       } else if ((opens === '<out' || opens === '<in') && between !== null) {
         // WRT-55: between two rooms neither is the outside, so 'in' and 'out' say nothing: name the room.
-        const how = opens.slice(1)
-        const offers = [between.A, between.B].flatMap((room) => {
-          const text = this.rewritten(t, at, /\bopens\s+(?:in|out)\b/, `opens into ${room}`)
-          return text === null ? [] : [{ line: at, text }]
-        })
-        if (offers.length > 0) this.stopFixes.set(at, offers)
-        this.stop('rooms/door-side', at, english(said('rooms.door.inOutBetween', { line: at, id: oid, how, a: between.A, b: between.B })))
+        const areaOf = (room: string): number | null => {
+          const draft = fl.rooms.get(room)
+          return draft === undefined ? null : Math.abs(signedArea(draft.poly))
+        }
+        this.refuseInOutBetween(t, at, oid, opens === '<out' ? 'out' : 'in', between.A, between.B, areaOf(between.A), areaOf(between.B))
       } else if (opens === '<out') target = other.length > 0 ? other[0]!.id : null
       else if (opens === '<in') target = e.room.id
       else {
@@ -3675,6 +3696,14 @@ class Compiler {
       if (opens === null && !swingless) {
         target = pid(between ? named[1]! : named[0]!)
         guessed.push(said('rooms.rawRoom.guess.opens', { room: target }))
+      } else if ((opens === '<out' || opens === '<in') && between) {
+        // WRT-65: as for rooms Grid works out, 'in' and 'out' between two rooms say nothing.
+        const areaOf = (room: string): number | null => {
+          const r = roomOf(room)
+          const poly = r === undefined ? null : polyOf(r)
+          return poly === null ? null : Math.abs(signedArea(poly.map((p) => [p.x, p.y] as P)))
+        }
+        this.refuseInOutBetween(t, at, oid, opens === '<out' ? 'out' : 'in', named[0]!, named[1]!, areaOf(named[0]!), areaOf(named[1]!))
       } else if (opens === '<out') target = others[0] ?? null
       else if (opens === '<in') target = first
       else if (opens !== null) {
@@ -3896,7 +3925,8 @@ class Compiler {
           }
         } catch (error) {
           if (!(error instanceof RoomsStop)) throw error
-          this.problem(error.code, error.line, error.message.charAt(0).toUpperCase() + error.message.slice(1))
+          const fixes = error.line === null ? undefined : this.stopFixes.get(error.line)
+          this.problems.push({ code: error.code, line: error.line, message: error.message.charAt(0).toUpperCase() + error.message.slice(1), ...(fixes === undefined ? {} : { fixes }) })
         }
       }
     }
