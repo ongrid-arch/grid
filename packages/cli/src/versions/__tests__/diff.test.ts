@@ -7,7 +7,7 @@ import { compileRoomsText } from '@ongrid/floorplan/rooms'
 import { runGrid } from '../../command/main'
 import { openProject } from '../../fs/projectFiles'
 import { bench } from '../../mcp/__tests__/replay/harness'
-import { lastCommitted } from '../git'
+import { committedVersion, lastCommitted } from '../git'
 import { MARKERS_MAX, readMarkers } from '../markers'
 
 /**
@@ -305,6 +305,24 @@ describe.skipIf(!gitThere)('the last committed version, read from the project\'s
     expect(run.status, run.err).toBe(0)
     expect(run.out).toContain('Compared with the plan as last committed on main')
     expect(run.out).toContain('"Box room" renamed "Study"')
+  })
+
+  it('CMD-44: reads an earlier commit, as git~1 and by its first digits, and compares two of them with --to', async () => {
+    const dir = project()
+    git(dir, 'init', '-q', '-b', 'main')
+    git(dir, 'add', 'plan.json')
+    git(dir, 'commit', '-q', '-m', 'first')
+    const firstCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: dir }).stdout.toString().trim()
+    writeFileSync(join(dir, 'plan.json'), flat.replace('"Bedroom 2"', '"Box room"'))
+    git(dir, 'commit', '-q', '-am', 'second')
+    const p = openProject(dir, dir)
+    expect(committedVersion(p, 'plan.json', 'git~1')).toMatchObject({ text: flat, commit: firstCommit })
+    expect(committedVersion(p, 'plan.json', firstCommit.slice(0, 7)).commit).toBe(firstCommit)
+    expect(() => committedVersion(p, 'plan.json', 'git~5')).toThrow('goes back further than the first commit')
+    const run = await grid(dir, 'diff', '--since', 'git~1', '--to', 'git')
+    expect(run.status, run.err).toBe(0)
+    expect(run.out).toContain(`the plan as committed in ${firstCommit.slice(0, 7)} (git~1)`)
+    expect(run.out).toContain('"Bedroom 2" renamed "Box room"')
   })
 
   it('says why when the plan is not in the last commit', async () => {
