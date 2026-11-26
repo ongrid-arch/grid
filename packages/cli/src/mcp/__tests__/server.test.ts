@@ -71,7 +71,8 @@ describe('the tool server', () => {
     expect(replies[1]).toMatchObject({ result: { structuredContent: { net: expect.any(Number) } } })
     // VEW-4: the preview writes its record beside the plan and answers with the picture it shows;
     // this server is bundled alone, without the canvas a PNG needs, so it says so and still moves.
-    expect(replies[2]).toMatchObject({ result: { content: [{ type: 'text', text: expect.stringMatching(/^General guidance, not your local rules\nShowing floor "ground" in 3d\. [^]*@napi-rs\/canvas/) }] } })
+    // CMD-41: the plan's revision is the last text block of every answer about a plan.
+    expect(replies[2]).toMatchObject({ result: { content: [{ type: 'text', text: expect.stringMatching(/^General guidance, not your local rules\nShowing floor "ground" in 3d\. [^]*@napi-rs\/canvas/) }, { type: 'text', text: expect.stringMatching(/^"plan\.json" is at revision [0-9a-f]{12}\./) }] } })
     expect(replies[3]).toMatchObject({ result: { isError: true, content: [{ type: 'text', text: 'That floor is not in this plan. Its floors: "ground".' }] } })
     expect((replies[4] as { result: { tools: unknown[] } }).result.tools).toHaveLength(38)
   }, 30_000)
@@ -81,6 +82,6 @@ describe('the tool server', () => {
     const replies = await exchange([
       { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'grid_view', arguments: { kind: 'plan' } } },
     ], [join(__dirname, '..', '..', '..', 'bin', 'grid.mjs'), 'serve'])
-    expect(replies[0]).toMatchObject({ result: { content: [{ type: 'text' }, { type: 'image', mimeType: 'image/png' }] } })
+    expect(replies[0]).toMatchObject({ result: { content: [{ type: 'text' }, { type: 'image', mimeType: 'image/png' }, { type: 'text', text: expect.stringContaining('is at revision') }] } })
   }, 30_000)
 })
