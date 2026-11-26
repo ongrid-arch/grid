@@ -13,7 +13,7 @@ import { DOC_PAGES, DOCS_URI_PREFIX } from '../docPages'
 const docs = resolve(__dirname, '../../../../../docs')
 const pages = readdirSync(docs).filter((name) => name.endsWith('.md')).map((name) => name.slice(0, -3))
 
-async function rpc(method: string, params: Record<string, unknown> = {}): Promise<{ result: Record<string, any> }> {
+async function rpc(method: string, params: Record<string, unknown> = {}): Promise<{ result: Record<string, unknown> }> {
   return JSON.parse((await handleLine(JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), [], projectResources())) as string)
 }
 
