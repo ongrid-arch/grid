@@ -12,7 +12,7 @@
  * Pure: no DOM, no React. `pictureToSvg` writes it out with the label (MSG-3), as it does a plan.
  */
 import type { Bounds } from '@ongrid/floorplan/geometry'
-import { hatchLines, levelText, planFacade, type Facade, type FacadeFace, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { hatchLines, levelText, planFacade, type Facade, type FacadeFace, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { fitTo } from '../canvas2d/viewport'
 import type { LinePart, Look } from './look'
 import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
@@ -58,6 +58,12 @@ const COURSE_MM = 1.5
 const COURSE_PX = 6
 /** VEW-12: how deep a gutter is drawn along the eaves, in metres, at the top of the fascia. */
 const GUTTER_DEPTH = 0.12
+
+/**
+ * VEW-63: a window's glass on a facade: the look's window tone, or this pale grey where the look's
+ * windows are the paper itself (the technical look), so the glass still reads apart from its frame.
+ */
+const GLASS_ON_PAPER = '#e4e4e4'
 
 /** The share of the facade's width the floor marks and their names take on its right. */
 const LEVEL_ROOM = 0.25
@@ -153,8 +159,25 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
     return parts
   }
 
+  // VEW-63: a window as the core sees it: its head over the hole, the hole, its lights in the glass
+  // tone, the members of its frame and sashes farthest first, and its sill last, standing in front.
+  const glass = look.colors.window === look.colors.paper ? GLASS_ON_PAPER : look.colors.window
+  const box = (part: string, r: FacadeRect, fill: string, ink: string): SvgNode =>
+    el('rect', { 'data-part': part, x: lengthText(r.u0), y: lengthText(-r.top), width: lengthText(r.u1 - r.u0), height: lengthText(r.top - r.bottom), fill, stroke: ink, 'stroke-width': width('elevationOpening') })
+  const windowParts = (opening: FacadeOpening, hole: SvgNode, ink: string): SvgNode => {
+    const w = opening.window!
+    return el('g', { 'data-part': 'facade-window', 'data-id': opening.id, 'data-kind': w.kind }, [
+      ...(w.head === null ? [] : [box('facade-window-head', w.head, look.colors.room, ink)]),
+      hole,
+      ...w.lights.map((light) => box('facade-window-light', light, glass, ink)),
+      ...w.members.map((member) => box('facade-window-frame', member, look.colors.paper, ink)),
+      ...(w.sill === null ? [] : [box('facade-window-sill', w.sill, look.colors.paper, ink)])
+    ])
+  }
+
   const faces = facade.faces.map((face, i) => {
     const ink = face.tier === 2 ? look.colors.labelSoft : look.ink
+    const windowNode = (opening: FacadeOpening, hole: SvgNode): SvgNode => windowParts(opening, hole, ink)
     // VEW-49: a doorless opening is a void: a hole in the face's path, the wall's edges stepping
     // back to an inner edge (its reveals), and what stands behind it seen through it.
     const voids = face.openings.filter((o) => o.type === 'opening' && o.u0 >= face.u0 && o.u1 <= face.u1 && o.bottom >= face.bottom && o.top <= face.top)
@@ -173,6 +196,7 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
         stroke: ink,
         'stroke-width': width('elevationOpening')
       })
+      if (opening.window !== undefined) return [windowNode(opening, rect)]
       if (!isVoid) return [rect]
       const w = opening.u1 - opening.u0
       const h = opening.top - opening.bottom

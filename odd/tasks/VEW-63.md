@@ -25,9 +25,9 @@ or two beside a fixed part, a pair two with a bar between, a sliding window two 
 - `packages/viewer/src/picture/facade.ts`: draws the record and works out nothing: the head, the
   hole, the lights in the glass tone, the members in the paper colour with fine lines, the sill
   last, standing in front. Doors and doorless openings are drawn as before.
-- `packages/viewer/src/picture/look.ts`: an optional glass tone, so the technical look's glass
-  is a pale grey on white paper instead of the paper itself; the screen looks use their window
-  colour.
+- The glass tone is the look's window colour, or a pale grey where the look's windows are the
+  paper itself (the technical look); it is kept in the facade picture, so the look and the app's
+  colour tokens are unchanged.
 - Doors keep their outline in elevation; a door's leaves and panels are a change of their own.
   The frame's size is the same for every material: the plan's `material` is not read for it.
 
