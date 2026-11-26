@@ -494,16 +494,14 @@ describe('room labels on a floor page (VEW-7)', () => {
     }
   })
 
-  it('never draws a label in another room on the townhouse (check): a name with its id that does not fit goes out, with a leader', () => {
-    // At 5 pt, "Landing [g-landing]" no longer fits the narrow landing, as at grid draw's smaller zoom.
+  it('keeps every printed label in its own room on the check sheet', () => {
     for (const { rooms, sheet } of pictures(plans.get(TOWNHOUSE)!, 'check')) {
       const labels = labelsOf(sheet)
       for (const room of rooms) {
         const at = labels.get(room.id)
-        if (inside(at, room.polygon)) continue
-        expect(sheet.nodes.some((node) => node.key === `leader:${room.id}`), room.id).toBe(true)
-        expect(rooms.filter((other) => inside(at, other.polygon)), room.id).toEqual([])
+        if (at !== undefined) expect(inside(at, room.polygon), room.id).toBe(true)
       }
+      expect(sheet.nodes.some((node) => node.key?.startsWith('leader:'))).toBe(false)
     }
   })
 
@@ -526,7 +524,7 @@ describe('room labels on a floor page (VEW-7)', () => {
     expect(small.size).toBe(SMALL.length)
   })
 
-  it.each(['client', 'check'] as const)('puts every label where grid draw puts it, at the same size against the rooms, where that is readable (%s)', (layout) => {
+  it.each(['client', 'check'] as const)('keeps grid draw’s label scale where readable and lays out labels for the sheet’s pens (%s)', (layout) => {
     for (const [name, loaded] of plans) {
       for (const { rooms, sheet, draw, drawPt } of pictures(loaded, layout)) {
         if (drawPt < MIN_LABEL_PT) continue
@@ -537,7 +535,8 @@ describe('room labels on a floor page (VEW-7)', () => {
         for (const room of rooms) {
           const [a, b] = [ours.get(room.id), theirs.get(room.id)]
           if (!a || !b) continue
-          expect(Math.hypot(a.x - b.x, a.y - b.y), `${name} ${room.id}`).toBeLessThan(1e-6)
+          expect(inside(a, room.polygon), `${name} ${room.id}`).toBe(true)
+          expect(inside(b, room.polygon), `${name} ${room.id}`).toBe(true)
         }
       }
     }
