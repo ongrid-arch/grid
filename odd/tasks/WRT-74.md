@@ -22,6 +22,9 @@ says how facts are set, so the agent finds the tool from the question it asks fi
   is refused for more than one room, for a zone (its room's number counts), and when another room
   states the same number. When stating one number would move the numbers Grid counts for the
   other rooms, those rooms are given the numbers they showed (WRT-23's rule), and the answer says so.
+  `none` that would move the other rooms' numbers is refused: freezing them would leave the room
+  a counted number another room may show. `edit/numbers.ts` leaves a room whose stated number the
+  change takes out to Grid's count, instead of writing its old number back.
 - `edit/edits.ts`: the patch carries a wall's and an opening's `properties` (null takes them out),
   a room's `number` and `properties` as null, and floors as one more `parts` list (`floors`).
 - `packages/cli/src/mcp/factsTool.ts`: the tool, a change through `writeChange`, after `grid_tidy`
@@ -40,15 +43,17 @@ says how facts are set, so the agent finds the tool from the question it asks fi
 - Decision: one tool for numbers and facts rather than two; the number is the one value a single
   room takes, so it is refused across several rooms instead of numbering them in some order.
 - Decision: no `grid edit` verb yet; the command's verbs live outside this change's files.
+- The words of the edit's answers and refusals and of the room line's refusals are message keys
+  (`edit.facts.*`, `rooms.room.facts*`) in `en.ts` and `es.ts`, so no new English is left to move.
 
 ## Done
 - `edit/__tests__/facts.test.ts`: set on parts by id across kinds; set through `where`; a name the
   plan spells otherwise keeps the plan's spelling; unset; a number set, taken out, refused for two
   rooms, a zone and a number another room has; the other rooms keep the numbers they showed;
   refusals of an unknown id, Grid's own field names, nothing to change and no parts named.
-- `mcp/__tests__/factsTool.test.ts`: the call writes the file and answers what changed; `out`;
+- `mcp/__tests__/setFacts.test.ts` (`facts.test.ts` there is CNT-9's): the call writes the file and answers what changed; `out`;
   `grid_count` by the fact after it; `grid_fields` names the tool.
-- `rooms/__tests__/facts.test.ts` in floorplan: the three words on a room line, typed values,
+- `rooms/__tests__/roomFacts.test.ts` in floorplan: the three words on a room line, typed values,
   quoted names, refusals (empty value, two names for one fact, in a unit, unknown word offers
   them), and `readRoomsText` writes them back so the text writes the same plan again.
 - `tools.test.ts` order and count, `server.test.ts`, `everyPath.e2e.test.ts` slot for `out`,

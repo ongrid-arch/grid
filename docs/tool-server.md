@@ -20,8 +20,8 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 
 `grid serve` is an MCP server over standard input and output, for an agent's host to start.
 Its tools are listed in a fixed order: first those that read the plan, in the order of the
-requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the thirteen that
-change the plan, writing it rooms first leading and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
+requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, and last the fourteen that
+change the plan, writing it rooms first leading, then the facts and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
 and the allowed values of each argument, and an output schema. Each answer is short text with
 the same facts as data; a view also returns its picture. A length argument is metres, or text with its unit (`12'6"`, `360 cm`); the measuring tools, the views and the sheet write in `units` and `decimal`, or the plan's `display`, the person's own units, and in metres when neither says (see [Units](plan-file.md#units)). The check and the edit answers are in metres.
 
@@ -64,6 +64,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_place_item` | Places a fixture, a piece of furniture or a typical room from the library by name, at a point and a turn, and says the room each item landed in and whether it fits: a wall it runs into, an item it stands in, the clear floor kept in front of one that something blocks; an office's entry from the library folder beside the plan is copied into the plan ([library.md](library.md)) |
 | `grid_add_opening` | Adds a door, window or doorless opening to a plan that has its walls: in a side of a room, or in the wall two rooms share, centred or placed from a side with `from` and `distance` as rooms text does, with a width, height, sill and kind (defaults as rooms text's), a door given the room it opens into and its hand; a width that does not fit is refused with the wall's free stretches; in a plan with phases it is new work |
 | `grid_tidy` | Lists the faults where walls meet, each with its id and the fix Grid offers, and writes nothing; with `apply` (fault ids) or `all`, makes those fixes on the plan or `out`, and says what was made, what was skipped and why, and the faults left. A wall across a corner of a room at an angle is taken as the room's new face; a fix that would leave a room with no way in says so and lists those rooms in `seals` ([commands.md](commands.md#walls-that-do-not-meet-grid-tidy)) |
+| `grid_set_facts` | Sets facts of the person's own (`set`), takes them out (`unset`) or gives one room its number (`number`, `none` to leave it to Grid's count), on parts named by id (`parts`) or picked as `grid_find` picks them (`kind`, `floor`, `room`, `where`), and says what changed on which parts and what was so already ([below](#asking-across-the-parts-fields-find-and-count)) |
 | `grid_save_view` | Saves a camera record `grid_view` returned under a name, with the plan, in its `views`, as Grid's setting and as BCF's camera; with `replace` over a view of that name, with `remove` takes one out ([below](#a-camera-you-can-set-and-saved-views)) |
 
 Every change answers with what it changed, what it guessed and what it could not keep, and
@@ -154,6 +155,24 @@ floor by its value (`colour`, the field it grouped by), with a key. The `floor` 
 holds most of them; `floors` lists every floor they are on. `grid_view` also takes either
 argument by hand. Grid checks nothing against a fact: no answer says what a fire rating or a
 head count means for the plan.
+
+`grid_set_facts` writes them (WRT-74), and `grid_fields` says so in its answer (`setBy`). It
+takes the parts by id in `parts`, of any kind, or picks them as `grid_find` does, with the same
+`kind`, `floor`, `room` and `where`; given both, only the named parts the selection picks. "Lot 7
+is sold" is `{ "parts": ["lot-7"], "set": { "status": "sold" } }`; "every room on the first floor
+is Sales" is `{ "kind": ["room"], "floor": "first", "set": { "department": "Sales" } }`. `set`
+gives each fact as text, a number, or true or false, and replaces one the part has; `unset` takes
+facts out, and a part left with none keeps no `properties`. A name the plan already spells
+otherwise (`Department` for `department`) keeps the plan's spelling. A name that is a field of
+Grid's on the parts named (a room's `name`, `use` or `number`, an `area`) is refused with what
+sets it. `number` gives one room its number: it is refused for several rooms, a part that is
+not a room, a zone (its room's number counts) and a number another room shows. When stating it
+would move the numbers Grid counts for the other rooms, they are written with the numbers they
+showed, and the answer says so; `none` takes a number out, refused when that would move others'.
+The answer says, fact by fact, the parts it is set on, the parts that had it already and the
+parts that carried none to take out; its data's `parts` lists each part changed with what was
+set, taken out and its number. Rooms text writes them on a room's line too
+([rooms-first.md](rooms-first.md)).
 
 ## The label, and retelling a report
 
