@@ -188,7 +188,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/fixtures.ts': [1, 'notYet'],
   'packages/cli/src/quantities/limits.ts': [29, 'notYet'],
   'packages/cli/src/quantities/measure.ts': [3, 'notYet'],
-  'packages/cli/src/quantities/query.ts': [26, 'tools'],
+  // ARE-61: four more, the room type, tenure, flat and flat type fields' descriptions for the agent.
+  'packages/cli/src/quantities/query.ts': [30, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   // CNT-27: one more, the CSV's column for the rows in no total.
   'packages/cli/src/quantities/schedule.ts': [16, 'notYet'],
