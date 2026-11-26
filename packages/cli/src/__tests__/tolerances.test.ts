@@ -18,6 +18,11 @@ const ALLOWED: ReadonlyArray<readonly [file: string, text: string, why: string]>
   ['cli/src/edit/edits.ts', 'Math.abs(dot(n, out) - 1) < 1e-3', 'a cosine, not a length; no entry in the table yet (reviews/MSG-15.md)'],
   ['cli/src/edit/edits.ts', 'oldAxis.dir) - 1) > 1e-6', 'a cosine, not a length; no entry in the table yet (reviews/MSG-15.md)'],
   ['cli/src/edit/fit.ts', 'Math.abs(cosine - to) < 1e-3', 'a cosine, not a length, as moveRoomSide reads a side; no entry in the table yet (reviews/MSG-15.md)'],
+  // CNT-44: the fill's rounding guard and its angle comparisons.
+  ['cli/src/edit/fill.ts', 'const EPS = 1e-9', 'a rounding guard on counting modules (Math.floor of a ratio), not a tolerance of the drawing'],
+  ['cli/src/edit/fill.ts', 'Math.abs(o - t) < 1e-6', 'degrees, not a length: two tried turns that are the same'],
+  ['cli/src/edit/fill.ts', 'Math.abs(back.x) > 1 - 1e-9', 'a cosine, not a length: a turn that faces an axis'],
+  ['cli/src/edit/fill.ts', 'best.turn) - 180) > 1e-6', 'degrees, not a length: a turn that is the best one turned round'],
 ]
 
 const SMALL = /(?<![\w.])\d+(?:\.\d+)?e-\d+\b/

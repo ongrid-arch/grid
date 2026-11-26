@@ -74,6 +74,8 @@ export interface Patch {
   readonly items?: ReadonlyMap<string, { at: Pair; turn: number }>
   /** CNT-20: items added at the end of the list, as their file will hold them (placed from the library by name). */
   readonly addItems?: readonly RawRecord[]
+  /** CNT-44: items taken out, by id (a group filled again). Left out by a change that takes none out. */
+  readonly removeItems?: ReadonlySet<string>
   /** CNT-20 (C30): library entries the plan takes in, at the end of its `library`. */
   readonly addLibrary?: readonly RawRecord[]
   /**
@@ -251,12 +253,14 @@ export function applyPatch<T extends RawRecord>(raw: T, patch: Patch): T {
     })
   rooms.push(...(patch.addRooms ?? []))
   // A plan with no items keeps no key.
-  const moved = patch.items === undefined || !Array.isArray(raw['items'])
+  const removeItems = patch.removeItems ?? new Set<string>()
+  const moved = (patch.items === undefined && removeItems.size === 0) || !Array.isArray(raw['items'])
     ? {}
     : {
-        items: list('items').map((item) => {
-          const change = patch.items!.get(item['id'] as string)
-          return change ? { ...item, ...change } : item
+        items: list('items').flatMap((item) => {
+          if (removeItems.has(item['id'] as string)) return []
+          const change = patch.items?.get(item['id'] as string)
+          return [change ? { ...item, ...change } : item]
         }),
       }
   // CNT-20: items placed by name go at the end, and the library entries they need with them.

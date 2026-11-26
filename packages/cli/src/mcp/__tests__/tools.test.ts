@@ -49,6 +49,7 @@ const ORDER = [
   'grid_rename_room',
   'grid_square_scan',
   'grid_place_item',
+  'grid_fill_room',
   'grid_add_opening',
   'grid_set_phase',
   'grid_start_works',
@@ -64,7 +65,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_site', 'grid_change_site', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_site', 'grid_change_site', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -142,7 +143,9 @@ describe('tools/list', () => {
     // agents otherwise set by editing the plan file by hand (a room's floor level, a wall's height).
     // 47 since LVL-21: a stair added and changed, which no tool wrote (agents drew treads as walls,
     // hand-edited the JSON, or left the stair an empty room).
-    expect((await listed()).length).toBeLessThanOrEqual(47)
+    // 48 since CNT-44: a room or zone filled with desks or seats at a pitch in one call, which agents
+    // did one item a call (a hundred calls for a floor of desks, and no fair count of how many fit).
+    expect((await listed()).length).toBeLessThanOrEqual(48)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -269,6 +272,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_rename_room: { room: 'bed2', name: 'Study', use: 'other', out: 'renamed.json' },
     grid_square_scan: { all: true, out: 'squared.json' },
     grid_place_item: { name: 'double-bed', x: 2, y: 1.5, turn: 90, out: 'placed.json' },
+    grid_fill_room: { room: 'living', name: 'chair', count: 4, out: 'filled.json' },
     grid_add_opening: { type: 'window', room: 'bed2', side: 'north', out: 'opened.json' },
     grid_set_phase: { phase: 'demolished', parts: ['door-bed2'], out: 'phased.json' },
     grid_start_works: { out: 'surveyed.json' },
