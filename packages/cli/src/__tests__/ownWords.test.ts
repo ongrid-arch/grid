@@ -490,11 +490,10 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // changes (edit/parking.ts 10), their tools (mcp/parkingTools.ts 46), the grammar's parking topic
     // (8), the guide's car park (10) and the file's bays and ramps kept by grid write
     // (command/write.ts 4) (odd/tasks/CNT-46.md).
-  // LVL-23: a building's receipts and refusals.
-  'packages/cli/src/edit/buildings.ts': [9, 'notYet'],
     // and CNT-47 25: the row lines in rooms text (rooms/rows.ts 18), the clear floor at an item's
     // sides (rooms/items.ts 5) and a row's receipt and taken id (edit/items.ts 2) (odd/tasks/CNT-47.md).
-    expect(left).toBeLessThanOrEqual(2351)
+    // and LVL-23 23: a building's changes (edit/buildings.ts 9) and its tool (mcp/buildingTools.ts 14).
+    expect(left).toBeLessThanOrEqual(2374)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

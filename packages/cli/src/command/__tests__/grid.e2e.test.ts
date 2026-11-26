@@ -597,6 +597,9 @@ describe('the built file', () => {
     // the plan's JSON Schema writer take it to 717,520 bytes, with no new dependency.
     // 800 kB since CMD-43: its DXF and IFC readers on main at 7e8093e9 take it to 752,603 bytes,
     // again with no new dependency.
-    expect(statSync(bundle).size).toBeLessThan(800_000)
+    // 850 kB since LVL-23: its buildings on their own pads (the building lines, the tool, each
+    // building's ground, height, site measures and IFC building) with main's parking, items and
+    // rows at 7f41cfdf make it 806,092 bytes, again with no new dependency.
+    expect(statSync(bundle).size).toBeLessThan(850_000)
   })
 })
