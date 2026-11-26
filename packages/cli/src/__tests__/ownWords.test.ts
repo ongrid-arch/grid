@@ -61,8 +61,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/tidy.ts': [12, 'command'],
   // WRT-57: one less, the count of problems now said from the messages.
   // CMD-30: one more, the refusal of a read-only plan.
+  // LVL-21: two more, the file's stairs kept when the text writes none.
   // CMD-43: three more, the help of --from, --layers and --units.
-  'packages/cli/src/command/write.ts': [38, 'command'],
+  'packages/cli/src/command/write.ts': [40, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [14, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
@@ -91,7 +92,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
-  'packages/cli/src/edit/place.ts': [11, 'notYet'],
+  // CNT-43: +1, the item at the size given.
+  'packages/cli/src/edit/place.ts': [12, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   // WRT-59: one more, a plan with nothing to mirror or turn.
   // WRT-73: one more, a mirror's line when it keeps the north.
@@ -106,6 +108,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-41: the plot's and the site's things' receipts and refusals.
   'packages/cli/src/edit/site.ts': [35, 'notYet'],
   'packages/cli/src/edit/split.ts': [19, 'notYet'],
+  // LVL-21: a stair's receipts and refusals.
+  'packages/cli/src/edit/stairs.ts': [15, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
   'packages/cli/src/export/dxfProfile.ts': [5, 'command'],
@@ -128,7 +132,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
-  'packages/cli/src/mcp/editTools.ts': [107, 'tools'],
+  // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
+  'packages/cli/src/mcp/editTools.ts': [114, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // CMD-42: grid_set, its help and its argument checks.
@@ -165,9 +170,12 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-38: the whole rooms grammar, by topic, for the agent.
   // WRT-74: one more, the example of a room line with its number and facts.
   // CNT-41: four more, the site's lines.
-  'packages/cli/src/mcp/roomsGrammar.ts': [56, 'tools'],
+  // LVL-21: three more, the stairs' topic.
+  'packages/cli/src/mcp/roomsGrammar.ts': [59, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
+  // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
+  'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
@@ -257,7 +265,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/geometry/tolerances.ts': [341, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
-  'packages/floorplan/src/library/index.ts': [4, 'notYet'],
+  // CNT-43: +2, a kind placed with no size and a typical room given figures.
+  'packages/floorplan/src/library/index.ts': [6, 'notYet'],
   'packages/floorplan/src/geometry/use.ts': [9, 'notYet'],
   'packages/floorplan/src/geometry/vec2.ts': [2, 'developer'],
   'packages/floorplan/src/geometry/wall.ts': [2, 'developer'],
@@ -276,6 +285,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/rooms/read.ts': [22, 'notYet'],
   // CNT-41: the site lines' refusals and notes, and north in words.
   'packages/floorplan/src/rooms/site.ts': [30, 'notYet'],
+  // LVL-21: the stair lines' refusals, the stair's summary and the read-back's note.
+  'packages/floorplan/src/rooms/stairs.ts': [39, 'notYet'],
   'packages/floorplan/src/rooms/words.ts': [4, 'notYet'],
   'packages/floorplan/src/scan/evidence.ts': [2, 'notYet'],
   'packages/floorplan/src/scan/roomModel.ts': [22, 'notYet'],
@@ -429,8 +440,13 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-41 116: the site lines in rooms text (rooms/site.ts 30), the site's changes
     // (edit/site.ts 35), their tools (mcp/siteTools.ts 45), the grammar's site topic (4) and what
     // the coverage counts (quantities/site.ts 2) (odd/tasks/CNT-41.md).
+    // and LVL-21 87: the stair lines in rooms text (rooms/stairs.ts 39), the stairs' changes
+    // (edit/stairs.ts 15), their tools (mcp/stairTools.ts 28), the grammar's stairs topic (3) and
+    // the file's stairs kept by grid write (command/write.ts 2) (odd/tasks/LVL-21.md).
+    // and CNT-43 10: an item placed at its own size or by its kind, its receipt, refusals and its
+    // tool's help (edit/place.ts 1, library/index.ts 2, mcp/editTools.ts 7).
     // and CMD-43 82: a drawing read into rooms text (drawing/ 76) and write's --from (main 3, write 3).
-    expect(left).toBeLessThanOrEqual(1913)
+    expect(left).toBeLessThanOrEqual(2010)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

@@ -66,6 +66,15 @@ export const BUILT_IN_ITEMS: readonly LibraryItem[] = [
   entry('rug', 'rug', 'Rug', [2, 1.4], 0.01),
   entry('rug-large', 'rug', 'Rug', [3, 2], 0.01),
   entry('plant', 'plant', 'Plant', [0.5, 0.5], 1.2),
+  // CNT-43: child-size fixtures and furniture, for a nursery or a school. A cot is a bed (its
+  // back is its head) and a coat rail is storage, told apart by name and label.
+  entry('wc-child', 'toilet', 'Child WC', [0.32, 0.5], 0.35, 0.5),
+  entry('basin-low', 'basin', 'Low basin', [0.45, 0.35], 0.55, 0.5),
+  entry('cot', 'bed', 'Cot', [0.66, 1.26], 0.95, 0.5),
+  entry('nap-cot', 'bed', 'Nap cot', [0.6, 1.3], 0.15, 0.4),
+  entry('changing-table', 'table', 'Changing table', [0.9, 0.7], 0.9, 0.7),
+  entry('coat-rail', 'storage', 'Coat rail', [1.2, 0.4], 1.7, 0.6),
+  entry('coat-rail-low', 'storage', 'Coat rail', [1.2, 0.3], 1.1, 0.6),
 ]
 
 /** One item of a typical room: a library item by name, where it stands in the room and its turn. */

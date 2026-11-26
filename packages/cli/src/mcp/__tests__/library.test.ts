@@ -22,7 +22,7 @@ function bedroom(): unknown {
 
 let b: Bench
 beforeAll(() => {
-  b = bench({ 'plan.json': bedroom(), 'twice.json': bedroom(), 'office.json': bedroom(), 'taken.json': bedroom() })
+  b = bench({ 'plan.json': bedroom(), 'twice.json': bedroom(), 'office.json': bedroom(), 'taken.json': bedroom(), 'sized.json': bedroom() })
   mkdirSync(join(b.folder, 'library'))
   writeFileSync(
     join(b.folder, 'library', 'ours.json'),
@@ -107,6 +107,31 @@ describe('placing by name', () => {
     const dxf = readFileSync(join(b.folder, (exported.data as { written: string }).written), 'utf8')
     expect(dxf).toContain('GRID-OUR-BED-1500x2000')
     expect(dxf).toContain('GRID-SIDE-TABLE-450x400')
+  })
+
+  // CNT-43: an odd size placed in one call, from the nearest entry or by its kind.
+  it('places an item at its own size, height and label, and a thing with no entry by its kind', async () => {
+    const desk = await ok('grid_place_item', { plan: 'sized.json', name: 'desk', x: 1.2, y: 0.7, width: 1.4, depth: 0.7, label: 'Hot desk' })
+    expect(desk.text).toContain('Placed desk "desk" from "desk" (1.40 × 0.70 m, 0.75 m high, keeping 0.75 m clear in front, at the size given)')
+    const wc = await ok('grid_place_item', { plan: 'sized.json', name: 'wc-child', x: 3, y: 0.5 })
+    expect(wc.text).toContain('(0.32 × 0.50 m, 0.35 m high, keeping 0.50 m clear in front, Grid\'s own size, not a code figure)')
+    const kennel = await ok('grid_place_item', { plan: 'sized.json', name: 'storage', id: 'kennel', x: 1.2, y: 3, width: 1.2, depth: 0.9, height: 0.9, label: 'Kennel', turn: 180 })
+    expect(kennel.text).toContain('Placed storage unit "kennel" (1.20 × 0.90 m, 0.90 m high, at the size given)')
+    const items = fileOf('sized.json')['items'] as Record<string, unknown>[]
+    expect(items.map((i) => i['id'])).toEqual(['desk', 'wc-child', 'kennel'])
+    expect(items[0]).toEqual({ id: 'desk', library: 'desk', at: [1.2, 0.7], size: [1.4, 0.7], label: 'Hot desk' })
+    expect(items[2]).toEqual({ id: 'kennel', kind: 'storage', at: [1.2, 3], turn: 180, size: [1.2, 0.9], height: 0.9, label: 'Kennel' })
+    const before = readFileSync(join(b.folder, 'sized.json'), 'utf8')
+    for (const [args, says] of [
+      [{ name: 'table', x: 3, y: 3, width: 1.2, depth: 0.6 }, 'give its width, depth and height'],
+      [{ name: 'desk', x: 3, y: 3, width: 1.2 }, 'Give width and depth together'],
+      [{ name: 'bathroom', x: 3, y: 3, height: 1 }, 'place its items one by one'],
+    ] as const) {
+      const refused = await b.call('grid_place_item', { plan: 'sized.json', ...args })
+      expect(refused.isError, says).toBe(true)
+      expect(refused.text).toContain(says)
+    }
+    expect(readFileSync(join(b.folder, 'sized.json'), 'utf8')).toBe(before)
   })
 
   it('refuses a name no library holds, naming the nearest, and writes nothing', async () => {

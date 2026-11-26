@@ -26,6 +26,8 @@ interface Said {
 /** The check's notes the writer says in words of its own, with the writer's code for each. */
 const SAID_BY_THE_WRITER: Readonly<Record<string, string>> = {
   'opening/window-between-rooms': 'rooms/inside-window',
+  // LVL-21: a stair line says an end in no room with its line.
+  'stair/end-in-no-room': 'rooms/stair-end',
 }
 
 /** The floors of the plan, as its rooms name them. */

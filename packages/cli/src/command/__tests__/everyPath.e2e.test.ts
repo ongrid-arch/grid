@@ -351,6 +351,15 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_set_facts', { plan: '@', parts: ['lounge'], set: { department: 'Sales' } }), given: asIs },
     { arg: 'out', call: tool('grid_set_facts', { plan: PLAN, parts: ['lounge'], set: { department: 'Sales' }, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // LVL-21: a stair added and changed, written into the plan.
+  grid_add_stair: [
+    { arg: 'plan', call: tool('grid_add_stair', { plan: '@', from: 'ground', to: 'first', width: 0.9, run: ['1,1', '1,4'] }), given: asIs },
+    { arg: 'out', call: tool('grid_add_stair', { plan: PLAN, from: 'ground', to: 'first', width: 0.9, run: ['1,1', '1,4'], out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_change_stair: [
+    { arg: 'plan', call: tool('grid_change_stair', { plan: '@', id: 'st', width: 1 }), given: asIs },
+    { arg: 'out', call: tool('grid_change_stair', { plan: PLAN, id: 'st', width: 1, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-41: the plot and the site's things, written into the plan.
   grid_set_site: [
     { arg: 'plan', call: tool('grid_set_site', { plan: '@', north: 30 }), given: asIs },

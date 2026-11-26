@@ -7,10 +7,13 @@ import {
   planBounds,
   planFloors,
   limit,
+  tolerance,
   planStairs,
+  sceneGround,
   sceneShell,
   type BuildingElevations,
-  type Scene3D
+  type Scene3D,
+  type SceneGround
 } from '@ongrid/floorplan/geometry'
 import { OPENING_CAMERA, cameraPosition } from './camera'
 
@@ -147,6 +150,35 @@ export function stillRoofShown(plan: FloorPlan, view: { readonly focus: string |
   if (view.focus !== null && planFloors(plan).some((floor) => floor.id === view.focus)) return false
   if (!view.inside) return true
   return (plan.floors ?? []).some((floor) => floor.roof !== undefined) || planFloors(plan).length > 1
+}
+
+/** VEW-66: how far the ground reaches past the building's walls, in metres: past the grid's own lines. */
+export const GROUND_REACH = 40
+
+/** VEW-66: the ground in Three's frame. */
+export interface BuildingGround {
+  /** The ground's height: the site's stated level, else the ground floor's floor level. */
+  readonly y: number
+  /**
+   * On plan (C4): round the building, cut away over every floor that goes down into the ground.
+   * None, so no surface is drawn and only the grid marks the ground, when the floor shown as a
+   * cutaway stands below the ground: the ground would hide the floor the view is of.
+   */
+  readonly pieces: SceneGround['pieces']
+}
+
+/**
+ * VEW-66: where the ground lies under `layout` (`sceneGround`). One storey stands at 0 whatever its
+ * level, and the ground stands with it, as far under or over it as the plan says.
+ */
+export function buildingGround(plan: FloorPlan, layout: BuildingLayout, elevations: BuildingElevations = floorElevations(plan)): BuildingGround {
+  const ground = sceneGround(plan, GROUND_REACH, elevations)
+  const only = layout.single ? layout.storeys[0] : undefined
+  const offset = only === undefined ? 0 : (elevations.floors.get(only.floorId)?.floorLevel ?? 0)
+  // One storey is always the one shown, as a cutaway is.
+  const focused = layout.focus === null ? undefined : elevations.floors.get(layout.focus)
+  const buried = focused !== undefined && ground.level - focused.floorLevel > tolerance('sameFloorLevel')
+  return { y: ground.level - offset, pieces: buried ? [] : ground.pieces }
 }
 
 type Vec3 = [number, number, number]

@@ -82,7 +82,7 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
   },
   {
     topic: 'raw parts',
-    says: 'raw wall|room|opening {...} writes one part as Grid\'s own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms\' boundaries name, or the one facing <side>). Stairs, columns, fixtures, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text; the site has lines of its own (below).',
+    says: 'raw wall|room|opening|stair {...} writes one part as Grid\'s own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms\' boundaries name, or the one facing <side>). Columns, fixtures, parking bays, ramps and structural grids are lists of the plan of their own, never rooms text; stairs and the site have lines of their own (below).',
     example: [
       'raw wall {"id": "s", "start": [0, 0], "end": [4, 0], "thickness": 0.2, "height": 3, "kind": "exterior"}',
       'raw wall {"id": "e", "start": [4, 0], "end": [4, 3], "thickness": 0.2, "height": 3, "kind": "exterior"}',
@@ -147,6 +147,18 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
       'repeat cell 4 east as 101 at 0,0',
       'room corridor "Corridor" corridor * x 1.5 north of 101 until 104',
       'repeat cell 4 east as 105 north of corridor mirror north-south',
+    ],
+  },
+  {
+    topic: 'stairs',
+    says: 'stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <width> wide, straight|L|U, runs <north|south|east|west> [then <side>] [along <side>] [risers <n>] lays the plan\'s own stair in the room, after the rooms: the drawing\'s treads and break line, the sections, the 3D model, the IFC export and the way-out check read it. A room after from or to stands for its floor, and with no in the stair goes in that room. runs is the way the walking line goes from the from floor; each end keeps a landing as deep as the stair is wide inside the room. L turns on a square landing in the far corner (then: the way it turns, clockwise when left out); U goes up one side and down the other, a short flight across the well, in a room wider than twice the stair; along puts a straight one against that side. ..., <width> wide, run x,y x,y ... gives the walking line itself. Never draw treads as walls. grid_add_stair and grid_change_stair write the same.',
+    example: [
+      'floor ground "Ground floor"',
+      'room hall "Hall" corridor 2.4 x 5 at 0,0',
+      'door front in hall south, centred, 0.9 wide, opens in',
+      'floor first "First floor" level 1',
+      'room landing "Landing" corridor 2.4 x 5 at 0,0',
+      'stair st "Main stair" from ground to first in hall, 1 wide, U, runs north',
     ],
   },
   {

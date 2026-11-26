@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Floor, FloorPlan, Room, Wall } from '@ongrid/floorplan/types/floorplan'
 import { SLAB_THICKNESS, floorElevations, limit, planBounds, planForFloor, type Scene3D } from '@ongrid/floorplan/geometry'
-import { buildingFrame, buildingLayout, createSceneMemo, stillRoofShown, type StoreyLayout } from '../building'
+import { GROUND_REACH, buildingFrame, buildingGround, buildingLayout, createSceneMemo, stillRoofShown, type StoreyLayout } from '../building'
+import { inPieces } from '@ongrid/floorplan/geometry/polygons'
 
 /**
  * The whole building, decided without Three (design D2/D3): which storeys are
@@ -474,3 +475,40 @@ const normalize = (a: V): [number, number, number] => {
   const l = Math.hypot(...a)
   return [a[0] / l, a[1] / l, a[2] / l]
 }
+
+describe('the ground (VEW-66)', () => {
+  const dig = building([
+    [floor('b2', -2, 'Lower basement'), 3],
+    [BASEMENT, 3],
+    [GROUND, 3]
+  ])
+
+  it('lies at the ground floor, under the basements, cut away over the building', () => {
+    const ground = buildingGround(dig, buildingLayout(dig, null))
+    expect(ground.y).toBe(0)
+    // The basements stand under it.
+    const layout = buildingLayout(dig, null)
+    expect(Math.max(...layout.storeys.filter((s) => s.floorId !== 'ground').map((s) => s.base + s.clearHeight))).toBeLessThan(0)
+    expect(inPieces(ground.pieces, { x: 3, y: 2 })).toBe(false)
+    expect(inPieces(ground.pieces, { x: -GROUND_REACH + 1, y: 2 })).toBe(true)
+  })
+
+  it('lies at the level the site states', () => {
+    const stated = { ...dig, site: { ground: 2.5 } }
+    expect(buildingGround(stated, buildingLayout(stated, null)).y).toBe(2.5)
+  })
+
+  it('stands with a one-storey plan, as far from its floor as the plan says', () => {
+    const cellar = building([[BASEMENT, 3]])
+    const layout = buildingLayout(cellar, null)
+    // The one storey stands at 0; its floor is 3.25 m under the ground floor's level.
+    const level = floorElevations(cellar).floors.get('basement')!.floorLevel
+    expect(level).toBeCloseTo(-3 - SLAB_THICKNESS, 6)
+    expect(buildingGround(cellar, layout).y).toBeCloseTo(-level, 6)
+  })
+
+  it('draws no surface over a floor shown as a cutaway below the ground, and keeps it over the ground floor', () => {
+    expect(buildingGround(dig, buildingLayout(dig, 'basement')).pieces).toEqual([])
+    expect(buildingGround(dig, buildingLayout(dig, 'ground')).pieces.length).toBeGreaterThan(0)
+  })
+})
