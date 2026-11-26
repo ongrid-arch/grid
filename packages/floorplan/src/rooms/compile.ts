@@ -142,6 +142,7 @@ import { checkWritten } from './selfCheck'
 import { SITE_LINE_WORDS, SiteLines } from './site'
 import { STAIR_LINE_WORDS, StairLines } from './stairs'
 import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
+import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
 import { likelyMeant } from '../types/nearest'
 import { readingNotes } from '../types/reading'
 
@@ -1152,6 +1153,8 @@ class Compiler {
         this.stPlace(t, at)
         return
       case 'repeat':
+        // LVL-22: `repeat floors` repeats a floor (`floorCopies.ts`); any other repeat a unit.
+        if (t[1] === 'floors') return this.stRepeatFloors(t, at)
         this.stRepeat(t, at)
         return
       case 'copy':
@@ -2439,18 +2442,29 @@ class Compiler {
   // ------------------------------------------------------------------------------------------
   // Floors copied, rooms renamed and removed
 
-  private stCopy(t: string[], at: number): void {
+  private stCopy(t: string[], at: number, nth: { words: CopyWords; k: number; about: P } | null = null): void {
     if (t.length < 2) this.stop('rooms/syntax', at, `line ${at}: write 'copy <floor id> [with openings]', on a line of its own or at the end of the floor line.`)
     const src = this.floors.find((f) => f.id === t[1])
     if (!src) this.stop('rooms/unknown-floor', at, `line ${at}: there is no floor '${t[1]}'. Floors so far: ${this.floors.map((f) => f.id).join(', ')}.`)
     const fl = this.floor()
     if (fl === src) this.stop('rooms/syntax', at, `line ${at}: a floor cannot copy itself. Start the new floor with a 'floor' line first.`)
+    // LVL-22: turned, moved or scaled (`floorCopies.ts`), once or as the k-th floor of a repeat.
+    const words = nth?.words ?? readCopyWords(t, at, this.plain)
+    const tr = inPlace(words) ? null : nthTransform(words, nth?.about ?? words.about ?? middleOf([...src.rooms.values()].map((r) => r.poly)), nth?.k ?? 1)
+    const turned = tr === null ? null : turnedRooms([...src.rooms.values()], tr, src.rule.inside / 2)
+    const polys = (room: string): { before: P[]; after: P[] } | undefined => (turned?.has(room) === true && src.rooms.has(room) ? { before: src.rooms.get(room)!.poly, after: turned.get(room)! } : undefined)
     // WRT-47: a floor copied before it has rooms of its own is written by the walls its rooms were placed by.
     if (!started(fl)) fl.rule = { ...src.rule }
     // A room that rose through to this floor is here already (WRT-4).
-    for (const r of src.rooms.values()) if (!(fl.rooms.get(r.id)?.risenFrom === (r.risenFrom ?? src.id))) this.addRoom({ ...r, poly: [...r.poly], through: null, risenFrom: r.risenFrom, number: null }, null)
+    for (const r of src.rooms.values()) {
+      if (fl.rooms.get(r.id)?.risenFrom === (r.risenFrom ?? src.id)) continue
+      const poly = turned?.get(r.id) ?? [...r.poly]
+      // LVL-22: a room turned is placed by its inside faces.
+      const moved = turned === null ? {} : { box: boxOf([poly]), drawn: undefined, off: undefined }
+      this.addRoom({ ...r, poly, ...moved, through: null, risenFrom: r.risenFrom, number: null }, null)
+    }
     // LVL-16: the floor's outline, roof, parapet, homes and parking too, unless this floor set its own.
-    for (const key of RAW_FLOOR_KEYS) if (src.extra[key] !== undefined && !(key in fl.extra)) fl.extra[key] = structuredClone(src.extra[key])
+    for (const key of RAW_FLOOR_KEYS) if (src.extra[key] !== undefined && !(key in fl.extra)) fl.extra[key] = tr === null ? structuredClone(src.extra[key]) : this.turnedExtra(key, src, fl, tr, at)
     for (const [k, v] of src.inst) fl.inst.set(k, [...v])
     // CNT-4: the flats placed on the floor copied are flats here too, of the copied rooms.
     for (const flat of src.flats) {
@@ -2458,15 +2472,69 @@ class Compiler {
       fl.flats.push({ ...flat, rooms })
     }
     for (const [k, v] of src.between) fl.between.set(k, { ...v })
-    for (const [k, v] of src.betweenSide) fl.betweenSide.set(k, { ...v })
+    // LVL-22: a wall line's side turns with its room.
+    const sidesOn = (room: string, side: string): string[] => {
+      const p = polys(room)
+      return p === undefined ? [side] : turnedSides(p.before, p.after, side)
+    }
+    for (const [k, v] of src.betweenSide) {
+      const [a, b, room, side] = k.split('\u0000') as [string, string, string, string]
+      for (const word of sidesOn(room, side)) fl.betweenSide.set([a, b, room, word].join('\u0000'), { ...v })
+    }
     for (const k of src.open) fl.open.add(k)
-    fl.extover.push(...src.extover.map((e) => ({ ...e, say: { ...e.say } })))
-    const rest = t.slice(2).join(' ')
-    if (rest !== '' && rest !== 'with openings') this.stop('rooms/syntax', at, `line ${at}: after the floor id only 'with openings' is understood.`)
+    fl.extover.push(...src.extover.flatMap((e) => sidesOn(e.room, e.side).map((side) => ({ ...e, side, say: { ...e.say } }))))
     // LVL-16: an opening carried up with the rooms that rose through to this floor is here already.
     const here = new Set(fl.openings.map((o) => o.words[1]))
-    if (rest === 'with openings') fl.openings.push(...src.openings.filter((o) => !here.has(o.words[1])).map((o) => ({ words: o.words, line: o.line, ...(o.name === undefined ? {} : { name: o.name }) })))
-    fl.copied = { from: src.id, openings: rest === 'with openings' }
+    if (words.openings) {
+      for (const o of src.openings) {
+        if (here.has(o.words[1])) continue
+        fl.openings.push({ words: tr === null ? o.words : turnedOpeningWords(o.words, polys, tr), line: o.line, ...(o.name === undefined ? {} : { name: o.name }) })
+      }
+    }
+    fl.copied = { from: src.id, openings: words.openings }
+  }
+
+  /** LVL-22: a floor field copied with a turn: the outline turned with the rooms, a sloped roof kept and said. */
+  private turnedExtra(key: string, src: FloorDraft, fl: FloorDraft, tr: FloorTransform, at: number): unknown {
+    const value = structuredClone(src.extra[key])
+    if (key === 'outline' && Array.isArray(value)) return value.map((p: unknown) => (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number' ? turnPoint([p[0], p[1]], tr) : p))
+    const roof = value as { shape?: unknown } | null
+    if (key === 'roof' && roof !== null && typeof roof === 'object' && roof.shape !== undefined && roof.shape !== 'flat' && tr.turn % 90 !== 0) {
+      this.warn('rooms/turned-roof', at, english(said('rooms.turnedRoof', { line: at, floor: fl.id, from: src.id, turn: metres(tr.turn) })))
+    }
+    return value
+  }
+
+  /** LVL-22: `repeat floors <n> from <floor> ...`: n floors, each the floor copied once more turned, moved, scaled and raised. */
+  private stRepeatFloors(t: string[], at: number): void {
+    const words = readRepeatFloors(t, at, this.plain)
+    const src = this.floors.find((f) => f.id === words.from)
+    if (!src) this.stop('rooms/unknown-floor', at, english(said('rooms.repeatFloors.noFloor', { line: at, floor: words.from, floors: this.floors.map((f) => f.id).join(', ') || '-' })))
+    if (!this.explicitFloors) this.stop('rooms/syntax', at, `line ${at}: ${english(said('rooms.floor.roomsFirst'))}`)
+    let base = src.elevation
+    if (words.rise !== null && base === null) {
+      if (this.floors[0] !== src) this.stop('rooms/syntax', at, english(said('rooms.repeatFloors.riseFrom', { line: at, floor: src.id })))
+      base = 0
+    }
+    const ids = repeatedIds(src.id, words.first, words.count)
+    for (const id of ids) if (this.floors.some((f) => f.id === id)) this.stop('rooms/duplicate-id', at, english(said('rooms.repeatFloors.taken', { line: at, id })))
+    const about = words.about ?? middleOf([...src.rooms.values()].map((r) => r.poly))
+    ids.forEach((id, i) => {
+      const k = i + 1
+      const fl = newFloor(id, id, this.floors.length, this.rule)
+      fl.level = src.level + k
+      fl.height = src.height
+      fl.slab = src.slab
+      fl.building = src.building
+      if (words.rise !== null) fl.elevation = base! + words.rise * k
+      // Lines after the repeat are the last floor's, as after a floor line.
+      if (k === ids.length) fl.ahead = this.openedAhead(this.lines.slice(at).map((text, n) => ({ line: at + n + 1, text })))
+      this.floors.push(fl)
+      this.cur = fl
+      this.riseInto(fl)
+      this.stCopy(['copy', src.id], at, { words, k, about })
+    })
+    this.guesses.push(repeatSaid(at, src.id, ids, words))
   }
 
   private stRename(t: string[], at: number): void {

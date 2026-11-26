@@ -371,6 +371,20 @@ the ids it had.
   alone, and `null` takes one off it (`raw floor {"roof": null}`). Without `with openings` it
   takes none of the doors and windows, and the answer warns (`rooms/copy-no-openings`) when
   copies are left with none.
+- `copy l3 with openings turn 15 [clockwise] [about x,y] [move dx,dy] [scale 0.95]` copies the
+  floor turned (degrees counter-clockwise, or clockwise with the word), about a point (left out,
+  the middle of the box round its rooms), scaled about it and then moved (LVL-22). A scale makes
+  the rooms smaller or larger and keeps the walls as thick; doors and windows keep their sizes,
+  distances and the sides of their rooms. A room written with `through` stays where it is, and the
+  floor's outline turns with it; a sloped roof does not, and the answer says so
+  (`rooms/turned-roof`) unless the turn is by quarter turns.
+- `repeat floors 39 from f00 with openings turn 2 rise 3.4` writes 39 floors after `f00`
+  (`f01` … `f39`, counting up from its digits, or from `as <first id>`), each a copy turned,
+  moved and scaled once more than the one below and `rise` metres higher: a twisting, stepping
+  or tapering tower in one line. Each floor is worked out from the floor repeated, so the last
+  carries no rounding of the ones below, and the file holds every floor written out with ids that
+  come out the same on every writing. A repeat writes at most 200 floors; lines after it are for
+  the last floor it wrote.
 - An id written on several floors stays as written on the first floor that writes it, and takes
   its floor's id in front on the others (`l4-room-301`), so a copy never renames the floor it
   copies; the answer names each one.
@@ -504,7 +518,7 @@ window w2 in living south, 0.4 from east, 1.8 wide, sliding
 
 ### Floors
 
-floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [copy <floor> [with openings]] starts a floor; every room after it is on it. level is the storey number (0, 1, 0.5), elevation the metres from the ground floor's level up to this one, height to its ceiling, slab the floor under it. copy takes another floor's rooms (with openings: its doors and windows too). through <floor> on a room line stands the room and its walls on every floor up to that one, in the same place: a stair, a lift, a shaft. All floors are written in one rooms text, never one plan per floor.
+floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [copy <floor> [with openings]] starts a floor; every room after it is on it. level is the storey number (0, 1, 0.5), elevation the metres from the ground floor's level up to this one, height to its ceiling, slab the floor under it. copy takes another floor's rooms (with openings: its doors and windows too), turned, moved or scaled when it says (see turned floors). through <floor> on a room line stands the room and its walls on every floor up to that one, in the same place: a stair, a lift, a shaft. All floors are written in one rooms text, never one plan per floor.
 
 ```rooms
 floor ground "Ground floor" level 0 elevation 0 height 2.75
@@ -614,6 +628,21 @@ room corridor "Corridor" corridor * x 1.5 north of 101 until 104
 repeat cell 4 east as 105 north of corridor mirror north-south
 ```
 
+### Turned floors
+
+copy <floor> [with openings] [turn <deg> [clockwise]] [about x,y] [move dx,dy] [scale <s>] copies a floor turned (degrees counter-clockwise, or clockwise with the word), about a point (left out, the middle of its rooms), scaled about it (rooms smaller or larger, walls as thick) and then moved; on its own line or at the end of a floor line. repeat floors <n> from <floor> [as <first id>] [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>] [rise <m>] writes n floors after it, each a copy turned, moved and scaled once more than the one below and rise metres higher: a twisting, stepping or tapering tower in one line, never corner points worked out by hand. The ids count up from the floor's digits (f00: f01, f02 ...) or from as. A room written with through stays where it is on every floor. Doors and windows keep their sizes and the sides of their rooms.
+
+```rooms
+walls outside 0.3 inside 0.1 height 2.8
+floor f00 "Typical floor" level 0 elevation 0 slab 0.2
+room east "East flat" living 3.95 x 8 at 0,0
+room west "West flat" living 3.95 x 8 east of east
+door d1 between east and west, centred, 0.9 wide
+window w1 in east south, centred, 1.8 wide
+repeat floors 3 from f00 with openings turn 90 rise 3
+floor top "Top floor" level 4 elevation 12 slab 0.2 copy f00 with openings turn 90 clockwise about 4,4
+```
+
 ### Stairs
 
 stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <width> wide, straight|L|U, runs <north|south|east|west> [then <side>] [along <side>] [risers <n>] lays the plan's own stair in the room, after the rooms: the drawing's treads and break line, the sections, the 3D model, the IFC export and the way-out check read it. A room after from or to stands for its floor, and with no in the stair goes in that room. runs is the way the walking line goes from the from floor; each end keeps a landing as deep as the stair is wide inside the room. L turns on a square landing in the far corner (then: the way it turns, clockwise when left out); U goes up one side and down the other, a short flight across the well, in a room wider than twice the stair; along puts a straight one against that side. ..., <width> wide, run x,y x,y ... gives the walking line itself. Never draw treads as walls. grid_add_stair and grid_change_stair write the same.
@@ -658,7 +687,7 @@ door d1 between front and back, centred, 0.9 wide, opens into back
 
 ### Other lines
 
-One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings].
+One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>]; repeat floors <n> from <floor> [...] [rise <m>].
 
 ```rooms
 plan "Corner shop"
