@@ -61,11 +61,10 @@ const SHAPE = (() => {
  *
  * Labels are sized in pixels, so the picture has as many pixels as make one pixel measure what
  * it does in `grid draw`'s picture of the floor (`metresPerPixel`): each label is as large
- * against the rooms as there, and goes where `grid draw` puts it. Drawn at the box's own size,
- * labels were up to a few times larger and pushed into other rooms. Where `grid draw`'s zoom
- * would print a name under `MIN_LABEL_PT`, the zoom is the one that prints it at that size, and
- * the labels may go elsewhere than in `grid draw`; it also bounds the picture's width (at most
- * 1,820 pixels and one step). Pixels come whole and the
+ * against the rooms as there. The sheet's pens can move the labels within their rooms.
+ * Where `grid draw`'s zoom would print a name under `MIN_LABEL_PT`, the zoom is the one that
+ * prints it at that size. This also bounds the picture's width (at most 1,820 pixels and one
+ * step). Pixels come whole and the
  * box keeps its shape, so the picture shows a little more than the frame (at most one step of
  * `SHAPE`) at the frame's scale; what is beyond the frame is cut, as it always was.
  *

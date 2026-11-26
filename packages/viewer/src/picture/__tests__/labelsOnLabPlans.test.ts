@@ -233,15 +233,17 @@ for (const { name, plan } of ALL) {
         const room = label.room
         if (!inside(centroid(room.polygon), room.polygon)) tally.centreOutside++
         if (!inside(label.at, room.polygon)) tally.failures.push(`${where}: ${room.id}'s anchor is outside the room`)
-        for (const other of labels.slice(i + 1)) {
-          if (overlap(label.box, other.box)) tally.failures.push(`${where}: ${room.id}'s label is on ${other.room.id}'s`)
-        }
         // In the picture: its view is in plan metres with y down.
         const shown = label.box.minX >= view.x && label.box.maxX <= view.x + view.width && -label.box.maxY >= view.y && -label.box.minY <= view.y + view.height
         if (!shown) tally.failures.push(`${where}: ${room.id}'s label is outside the picture`)
         const rad = label.form.angle * Math.PI / 180
         const local = (p: Vec2): Vec2 => ({ x: p.x * Math.cos(rad) + p.y * Math.sin(rad), y: -p.x * Math.sin(rad) + p.y * Math.cos(rad) })
         const box = rectOf(formCorners(label.form, label.at, mpp).map(local))
+        for (const other of labels.slice(i + 1)) {
+          if (overlap(label.box, other.box) && rectTouchesPolygon(box, formCorners(other.form, other.at, mpp).map(local))) {
+            tally.failures.push(`${where}: ${room.id}'s label is on ${other.room.id}'s`)
+          }
+        }
         if (swings.some((swing) => rectTouchesPolygon(box, boxCorners(swing).map(local)))) {
           tally.failures.push(`${where}: ${room.id}'s label is on a door swing`)
         }

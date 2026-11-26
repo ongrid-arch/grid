@@ -214,6 +214,19 @@ describe('room labels that stay in their rooms (VEW-13)', () => {
     expect(formCorners(label!.form, label!.at, MPP).every((point) => pointInPolygon(point, polygon))).toBe(true)
   })
 
+  it('fits labels in neighbouring diagonal rooms whose bounding boxes overlap', () => {
+    const turn = ({ x, y }: { x: number; y: number }) => ({ x: (x - y) * Math.SQRT1_2, y: (x + y) * Math.SQRT1_2 })
+    const rooms = [0, 0.6].map((y, i) =>
+      labelRoom(String(i), ring([0, y], [2.3, y], [2.3, y + 0.55], [0, y + 0.55]).map(turn), 'Diagonal passage')
+    )
+    const [first, second] = placeRoomLabels(rooms, NONE, MPP)
+    expect(first!.form.angle).toBeCloseTo(45)
+    expect(second!.form.angle).toBeCloseTo(45)
+    expect(first!.form.scale).toBe(1)
+    expect(second!.form.scale).toBe(1)
+    expect(overlaps(first!.box, second!.box)).toBe(true)
+  })
+
   it('keeps a label off a lift’s cross and a stair’s flight', () => {
     const lift = ring([0, 0], [2, 0], [2, 2], [0, 2])
     const cross = [lineOutline({ x: 0, y: 0 }, { x: 2, y: 2 }, MPP), lineOutline({ x: 2, y: 0 }, { x: 0, y: 2 }, MPP)]

@@ -461,7 +461,7 @@ export function placeRoomLabels(
   const extent = within ?? rectOf(rooms.flatMap((room) => room.polygon))
   const cell = Math.max((extent.maxX - extent.minX) / 128, (extent.maxY - extent.minY) / 128, 32 * mpp, tolerance('joint'))
 
-  const taken = new BoxIndex<Box>(cell)
+  const taken = new BoxIndex<readonly Vec2[]>(cell)
   const swings = new BoxIndex<readonly Vec2[]>(cell)
   obstacles.swings.forEach((box) => swings.add(box, corners(box)))
   const dimensions = new BoxIndex<Box>(cell)
@@ -482,7 +482,7 @@ export function placeRoomLabels(
     for (const form of labelForms(room.name, room.areaText, room.number, roomAngle(room.polygon))) {
       let direction = directions.get(form.angle)
       if (direction === undefined) {
-        direction = roomLabelAxes(form.angle, room.polygon[0]!, regions, within)
+        direction = roomLabelAxes(form.angle, form.angle === 0 ? { x: 0, y: 0 } : room.polygon[0]!, regions, within)
         directions.set(form.angle, direction)
       }
       const { toPlan, planBox, viewed, shapes, project } = direction
@@ -495,11 +495,13 @@ export function placeRoomLabels(
       })
       const clear = (box: Box): boolean => {
         const plan = planBox(box)
-        const padded = grow(plan, air)
+        const localPad = grow(box, air)
+        const padded = grow(plan, form.angle % 90 === 0 ? air : air * Math.SQRT2)
+        const crosses = (outline: readonly Vec2[]): boolean => rectTouchesPolygon(localPad, project(outline))
         return (within === undefined || contains(within, plan)) &&
-          !taken.some(padded, () => true) &&
-          !swings.some(padded, (swing) => rectTouchesPolygon(grow(box, air), project(swing))) &&
-          !walls.some(grow(plan, widestInk), ({ outline, ink }) => rectTouchesPolygon(ink > 0 ? grow(box, ink) : box, project(outline)))
+          !taken.some(padded, crosses) &&
+          !swings.some(padded, crosses) &&
+          !walls.some(grow(plan, form.angle % 90 === 0 ? widestInk : widestInk * Math.SQRT2), ({ outline, ink }) => rectTouchesPolygon(ink > 0 ? grow(box, ink) : box, project(outline)))
       }
       let first: Vec2 | undefined
       let best: Vec2 | undefined
@@ -513,7 +515,7 @@ export function placeRoomLabels(
       if (centre === undefined) continue
       const at = toPlan({ x: centre.x - (base.maxX + base.minX) / 2, y: centre.y - (base.maxY + base.minY) / 2 })
       const box = planBox(boundsAt(centre))
-      taken.add(box, box)
+      taken.add(box, corners(boundsAt(centre)).map(toPlan))
       return { id: room.id, at, box, form }
     }
     return null
