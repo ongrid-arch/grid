@@ -74,6 +74,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/draw/drawPlan.ts': [2, 'developer'],
   'packages/cli/src/draw/drawStill.ts': [2, 'developer'],
   'packages/cli/src/draw/stamp.ts': [1, 'notWords'],
+  'packages/cli/src/edit/addOpening.ts': [26, 'notYet'],
   'packages/cli/src/edit/addRoom.ts': [18, 'notYet'],
   // WRT-18: the refusal of a side move that does not fit, and the move that does.
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
@@ -107,7 +108,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
   'packages/cli/src/mcp/diffTools.ts': [20, 'tools'],
-  'packages/cli/src/mcp/editTools.ts': [86, 'tools'],
+  'packages/cli/src/mcp/editTools.ts': [105, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -363,6 +364,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and WRT-50 1: the merge refuses rooms that meet in more than one outline (edit/merge.ts).
     // and CNT-27 2: a shaft counted once in the brief, the schedule CSV's column for rows in no total.
     // and CNT-31 3: the estimate's roof edges' rule and line, and why a roof is left out (estimate.ts).
+    // and WRT-72 22: the add-opening change's receipts and refusals (edit/addOpening.ts) and its tool's help (mcp/editTools.ts).
     // and WRT-38 4: one wall's thickness, its receipt and refusals (edit/edits.ts).
     // and CNT-34 4: the estimate's gable lines and their rules (estimate.ts).
     // and ARE-44 3: the step line's floor-level and ground-step lines (brief/lines.ts).
@@ -371,7 +373,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and 3 more from the same merge (CMD-25, CNT-37 and CMD-26 each raised the cap on their own).
     // and CMD-35 2: diff's --out refusal and help line, and the drawing refusal's reason (the sheet
     // refusal for no layout is gone).
-    expect(left).toBeLessThanOrEqual(1637)
+    expect(left).toBeLessThanOrEqual(1659)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

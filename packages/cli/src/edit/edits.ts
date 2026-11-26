@@ -286,7 +286,7 @@ export function applyPatch<T extends RawRecord>(raw: T, patch: Patch): T {
 }
 
 /** The free stretches of a wall, measured from its start, between the other openings in it. */
-function freeStretches(plan: FloorPlan, wall: Wall, skip: string): Array<[number, number]> {
+export function freeStretches(plan: FloorPlan, wall: Wall, skip: string): Array<[number, number]> {
   const length = wallLength(wall)
   const taken = plan.openings
     .filter((o) => o.wall === wall.id && o.id !== skip)
@@ -340,7 +340,7 @@ export interface OpeningChangeRequest {
 const sideName = (side: unknown): string | null => (typeof side === 'object' && side !== null && 'room' in side ? (side as { room: string }).room : side === 'outside' ? 'outside' : null)
 
 /** The wall on one side of a room, or a refusal that says why there is not one. */
-function wallOnSide(survey: Survey, roomId: string, side: Direction): { wall: Wall; lo: number; hi: number } {
+export function wallOnSide(survey: Survey, roomId: string, side: Direction): { wall: Wall; lo: number; hi: number } {
   const room = survey.byId.get(roomId)!
   const name = quoted(room.facts.name)
   const out = COMPASS[side]
