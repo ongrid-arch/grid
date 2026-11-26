@@ -2625,6 +2625,11 @@ export const en = {
   'write.items.item.noRoom': '{kind} {id} in no room',
   'write.items.more': ' and {n} more',
   'write.items.look': 'Worth a look: {message}',
+  // WRT-75: grid write on a base plan.
+  'write.base.self': 'The rooms text was not written, and the plan is as it was: its base plan {file} is the plan it would write. Keep the shell in a file of its own and name that on the base line.',
+  'write.base.refused': 'The rooms text was not written, and the plan is as it was: {why}',
+  'write.base.changed': '{file} is a fit-out on the base plan {was}, and this rooms text names {now}, so writing it would move the fit-out into another shell. Name {was} on the base line, or add --replace to write it on {now}.',
+  'write.base.dropped': '{file} is a fit-out on the base plan {was}, and this rooms text names no base, so writing it would lose its shell. Add the line base {was} (grid describe --as rooms writes it), or add --replace to write it as a plan of its own.',
   'write.toLookAt': 'To look at: {before} → {after}, of them problems in the drawing {drawingBefore} → {drawingAfter}. Run grid check for the notes.',
   'write.door.notOut': 'No longer leads outside: {change}.',
   'write.items.looksMore': 'And {n} more kept items run into a wall or stand in no room: grid check names them.',

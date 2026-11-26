@@ -2756,6 +2756,11 @@ export const es: Messages = {
   'write.items.item.noRoom': '{kind} {id} en ninguna estancia',
   'write.items.more': ' y {n} más',
   'write.items.look': 'Conviene revisar: {message}',
+  // WRT-75: grid write sobre un plano base.
+  'write.base.self': 'No se escribió el texto de estancias y el plano sigue igual: su plano base {file} es el plano que escribiría. Guarde la envolvente en un archivo propio y nómbrelo en la línea base.',
+  'write.base.refused': 'No se escribió el texto de estancias y el plano sigue igual: {why}',
+  'write.base.changed': '{file} es un acondicionamiento sobre el plano base {was}, y este texto de estancias nombra {now}, así que escribirlo movería el acondicionamiento a otra envolvente. Nombre {was} en la línea base, o añada --replace para escribirlo sobre {now}.',
+  'write.base.dropped': '{file} es un acondicionamiento sobre el plano base {was}, y este texto de estancias no nombra ninguna base, así que escribirlo perdería su envolvente. Añada la línea base {was} (grid describe --as rooms la escribe), o añada --replace para escribirlo como un plano propio.',
   'write.toLookAt': 'Por revisar: {before} → {after}, de ellos problemas en el dibujo {drawingBefore} → {drawingAfter}. Ejecuta grid check para ver las notas.',
   'write.door.notOut': 'Ya no da al exterior: {change}.',
   'write.items.looksMore': 'Y {n} elementos conservados más chocan con un muro o no están en ninguna estancia: grid check los nombra.',

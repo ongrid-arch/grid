@@ -385,8 +385,11 @@ export function baseAnswer(base: { readonly file: string; readonly restsOn: read
 }
 
 /** A fit-out's own parts: the plan as read with its base's walls and openings taken out again. */
-export function ownParts<T extends Pick<FloorPlan, 'walls' | 'openings'>>(plan: T, base: { readonly walls: ReadonlySet<string>; readonly openings: ReadonlySet<string> }): T {
-  return { ...plan, walls: plan.walls.filter((w) => !base.walls.has(w.id)), openings: plan.openings.filter((o) => !base.openings.has(o.id)) }
+export function ownParts<T extends Pick<FloorPlan, 'walls' | 'openings' | 'floors'>>(plan: T, base: { readonly walls: ReadonlySet<string>; readonly openings: ReadonlySet<string>; readonly floors: ReadonlySet<string> }): T {
+  const floors = (plan.floors ?? []).filter((f) => !base.floors.has(f.id))
+  const { floors: _all, ...rest } = plan
+  void _all
+  return { ...rest, ...(floors.length > 0 ? { floors } : {}), walls: plan.walls.filter((w) => !base.walls.has(w.id)), openings: plan.openings.filter((o) => !base.openings.has(o.id)) } as T
 }
 
 /**
