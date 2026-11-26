@@ -258,7 +258,7 @@ describe('a correction that adds or reshapes', () => {
 
   it('is taken by every edit that would otherwise make work', () => {
     expect(GRID_TOOLS.filter((t) => 'correction' in t.args).map((t) => t.name)).toEqual([
-      'grid_change_opening', 'grid_change_wall', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_square_scan', 'grid_add_opening',
+      'grid_change_opening', 'grid_change_wall', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_square_scan', 'grid_fill_room', 'grid_add_opening',
     ])
   })
 })

@@ -21,6 +21,11 @@ const ALLOWED: ReadonlyArray<readonly [file: string, text: string, why: string]>
   ['cli/src/drawing/faces.ts', 'Math.abs(den) < 1e-12 * Ls * Lt', 'a cross product\'s zero guard, scaled by the lengths, not a length'],
   ['cli/src/drawing/ifc.ts', 'Math.abs(d) < 1e-12) return [a, c]', 'a determinant\'s zero guard for three points in a line, not a length'],
   ['cli/src/edit/fit.ts', 'Math.abs(cosine - to) < 1e-3', 'a cosine, not a length, as moveRoomSide reads a side; no entry in the table yet (reviews/MSG-15.md)'],
+  // CNT-44: the fill's rounding guard and its angle comparisons.
+  ['cli/src/edit/fill.ts', 'const EPS = 1e-9', 'a rounding guard on counting modules (Math.floor of a ratio), not a tolerance of the drawing'],
+  ['cli/src/edit/fill.ts', 'Math.abs(o - t) < 1e-6', 'degrees, not a length: two tried turns that are the same'],
+  ['cli/src/edit/fill.ts', 'Math.abs(back.x) > 1 - 1e-9', 'a cosine, not a length: a turn that faces an axis'],
+  ['cli/src/edit/fill.ts', 'best.turn) - 180) > 1e-6', 'degrees, not a length: a turn that is the best one turned round'],
 ]
 
 const SMALL = /(?<![\w.])\d+(?:\.\d+)?e-\d+\b/
