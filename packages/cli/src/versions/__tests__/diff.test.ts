@@ -451,6 +451,16 @@ describe('the floor a comparison is narrowed to (CMD-32)', () => {
     expect(drawn.out.slice(drawn.out.indexOf('Changes'))).not.toContain('Kitchen')
   })
 
+  it('CMD-35: --out writes the picture as --picture does, and both together are refused', async () => {
+    const dir = await edited()
+    const out = await grid(dir, 'diff', '--floor', 'first', '--out', 'by-out.png')
+    expect(out.status, out.err).toBe(0)
+    expect(out.out).toContain('Wrote the picture of floor "first" to by-out.png')
+    const both = await grid(dir, 'diff', '--out', 'a.png', '--picture', 'b.png')
+    expect(both.status).toBe(2)
+    expect(both.err).toContain('--out and --picture are the same file')
+  })
+
   it('narrows the tool the same way, and refuses an unknown floor there too', async () => {
     const dir = await edited()
     const b = bench({ 'plan.json': JSON.parse(readFileSync(join(dir, 'plan.json'), 'utf8')) as unknown, 'plan.markers.json': JSON.parse(readFileSync(join(dir, 'plan.markers.json'), 'utf8')) as unknown })

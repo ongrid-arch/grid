@@ -174,7 +174,7 @@ describe('a sheet at a true scale (SHT-6)', () => {
 
   it('refuses a floor too large for the paper asked for, saying what fits', () => {
     expect(() => sheetOf(flat, { scale: 20, paper: 'A4' })).toThrow(DrawingDoesNotFit)
-    expect(() => sheetOf(flat, { scale: 20, paper: 'A4' })).toThrow(/^At 1:20 the floor's drawing is \d+ x \d+ mm, larger than A4 can hold: A0 fits it, or 1:100 fits A4\.$/)
+    expect(() => sheetOf(flat, { scale: 20, paper: 'A4' })).toThrow(/^At 1:20 the floor's drawing is \d+ x \d+ mm, larger than the \d+ x \d+ mm A4 leaves for it after its margins and title block: A0 fits it, or 1:100 fits A4\.$/)
   })
 
   it('leaves the room sizes off when asked, keeping the outside dimensions', () => {

@@ -149,7 +149,7 @@ export function initText(done: InitDone, given: string | undefined): string {
     'The rules store keeps the build location and rules sheet on this computer, outside the',
     `project folder, under the id in ${PROJECT_FILE}.`,
     '',
-    given === undefined ? 'Next: grid check' : `Next: cd ${typed(given)} && grid check`,
+    given === undefined || /^\.[\\/]*$/.test(given) ? 'Next: grid check' : `Next: cd ${typed(given)} && grid check`,
     '',
   ].join('\n')
 }

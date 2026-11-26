@@ -102,7 +102,7 @@ const COMMANDS = {
     options: MARK_OPTIONS,
   },
   diff: {
-    usage: 'grid diff [<plan.json>] [--since <name>|git] [--rooms <ids>] [--show all|summary|changes|issues] [--picture <file.png>] [--floor <id>] [--json] [--project <folder>]',
+    usage: 'grid diff [<plan.json>] [--since <name>|git] [--rooms <ids>] [--show all|summary|changes|issues] [--picture|--out <file.png>] [--floor <id>] [--json] [--project <folder>]',
     summary: 'Says what changed since a start marker or the last commit, by what stands where, not by ids: issues first, then room by room, then each change. --picture draws it.',
     options: DIFF_OPTIONS,
   },
@@ -127,7 +127,7 @@ const COMMANDS = {
     options: EXPORT_OPTIONS,
   },
   sheet: {
-    usage: 'grid sheet [<plan.json>] --layout client|check|drawing [--sheet <sheet.json>] [--scale 1:N] [--paper A4|A3|A2|A1|A0] [--floor <id>] [--room-sizes on|off] [--out <file.pdf>] [--lang en|es] [--project <folder>]',
+    usage: 'grid sheet [<plan.json>] [--layout client|check|drawing] [--sheet <sheet.json>] [--scale 1:N] [--paper A4|A3|A2|A1|A0] [--floor <id>] [--room-sizes on|off] [--out <file.pdf>] [--lang en|es] [--project <folder>]',
     summary: 'Writes the plan as an A3 PDF for people (client, with the words of <plan>.sheet.json, or check, with ids and findings), or one floor at a true scale as a PDF, SVG and PNG (drawing).',
     options: SHEET_OPTIONS,
   },
@@ -411,7 +411,9 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
 
   if (name === 'diff') {
     const project = openProject(projectOption, io.cwd)
-    const request = { since: textOf(parsed, '--since'), rooms: textOf(parsed, '--rooms'), show: textOf(parsed, '--show'), picture: textOf(parsed, '--picture'), floor: textOf(parsed, '--floor') }
+    // CMD-35: --out is --picture under the name draw and sheet use; both at once is refused.
+    if (parsed.values.has('--out') && parsed.values.has('--picture')) throw new UsageError('--out and --picture are the same file: leave one out.')
+    const request = { since: textOf(parsed, '--since'), rooms: textOf(parsed, '--rooms'), show: textOf(parsed, '--show'), picture: textOf(parsed, '--out') ?? textOf(parsed, '--picture'), floor: textOf(parsed, '--floor') }
     const done = await runDiff(project, planFile, request)
     if (done.png !== null && request.picture !== undefined) {
       const written = project.shown(write(project, request.picture, done.png))
