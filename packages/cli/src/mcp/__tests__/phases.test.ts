@@ -69,7 +69,7 @@ describe('a plan with existing, demolished and new parts (CNT-10, EL-10)', () =>
     expect(changes).toContain('Room added: "Kitchen and dining", 27.36 m²')
     // The widened door: its old opening and the new one, paired by place.
     expect(changes).toContain('Door "d-bath" width 0.70 → 0.90 m, in "Bathroom" and "Living room"')
-    expect(reply.data!['since']).toEqual({ kind: 'phase', name: null, at: null, commit: null })
+    expect(reply.data!['since']).toEqual({ kind: 'phase', name: null, at: null, commit: null, revision: null, by: null, note: null })
     const rooms = reply.data!['rooms'] as { room: string; status: string }[]
     expect(rooms.find((r) => r.room === 'bath')?.status).toBe('unchanged')
   })

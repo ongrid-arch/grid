@@ -74,6 +74,8 @@ export const undoTool: GridTool = {
     const project = projectOf(context)
     const file = planFileOf(project, args['plan'])
     try {
+      // The plan's own path is checked first, so a refusal names it, not a file beside it.
+      project.resolve(file)
       const done = undoLast(project, file, { via: VIA_SERVER, by: args['who'] as string | undefined })
       const back = backLines(done)
       const by = done.undid.by === null ? '' : historySay('tool.history.words.by', { by: { name: done.undid.by } })
@@ -122,6 +124,7 @@ export const restoreTool: GridTool = {
     const file = planFileOf(project, args['plan'])
     const since = args['since'] as string
     try {
+      project.resolve(file)
       const done = restoreTo(project, file, since, { via: VIA_SERVER, by: args['who'] as string | undefined, force: args['force'] === true })
       const back = backLines(done)
       const v = done.version

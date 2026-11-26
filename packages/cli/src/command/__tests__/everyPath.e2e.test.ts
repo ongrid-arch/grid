@@ -737,6 +737,8 @@ describe('every file Grid writes lands under the project folder', () => {
       'plans/exports/flat.dxf', 'plans/exports/flat.glb', 'plans/exports/flat.ifc', 'plans/exports/flat.obj', `plans/exports/${sheets[0]}`,
       'plans/flat.json', 'plans/flat.png', 'plans/flat.svg',
       'plans/hinged.json', 'plans/mirrored.json', 'plans/tool.json', 'plans/wider.json', 'plans/written.json',
+      // CMD-44: each plan Grid wrote has its change log beside it; a change written to out logs nothing.
+      'plans/tool.history.jsonl', 'plans/written.history.jsonl',
     ].sort())
     // The original is left as it was: each change went to its out.
     expect(readFileSync(join(project, 'plans', 'flat.json'), 'utf8')).toBe(sample)
