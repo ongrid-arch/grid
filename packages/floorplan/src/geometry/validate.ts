@@ -23,6 +23,7 @@ import { keptFor } from './kept'
 import { floorOf, isFloorSlice, planFloors } from './floors'
 import { statedOpening, throughIssues, wallRise, wallStandsOn } from './through'
 import { stackingIssues } from './stacking'
+import { sameSpaceIssues } from './sameSpace'
 import { area } from './vec2'
 import { openingSpan, wallLength } from './wall'
 import { curveFault, wallCurve } from './arc'
@@ -1485,6 +1486,8 @@ function validated(plan: FloorPlan, index: PlanIndex, options: ValidateOptions):
     const spaces = validateSpaces(plan, index, broken, issues, options.leftOutParts ?? [])
     // LVL-5 (lab WR-9): a floor whose outline does not lie over the floor below it.
     if (!isFloorSlice(plan)) issues.push(...stackingIssues(plan, spaces))
+    // LVL-26: a wall of one floor rising into the space of a wall of a floor above it.
+    if (!isFloorSlice(plan)) issues.push(...sameSpaceIssues(plan, broken))
     traceItemRooms(plan, spaces, broken, options.leftOutParts ?? [], issues)
     validateNesting(plan, index, broken, issues)
     validateZones(index, broken, issues)

@@ -418,6 +418,8 @@ export const CODES = {
   'wall/crosses-room': {},
   'wall/stands-in-room': {},
   'wall/above-storey': {},
+  // LVL-26: a wall of one floor rising into the space of a wall of a floor above it.
+  'wall/same-space': {},
   // --- Openings -------------------------------------------------------------------------------
   'opening/too-large': {},
   'opening/broken-wall': {},

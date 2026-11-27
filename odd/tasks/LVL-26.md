@@ -14,10 +14,11 @@ the storey's height.
 - `walltype 0.05 partition height 2.5` gives every wall of that thickness that height, and a room
   line's `walls 0.05 partition height 2.5` gives the walls that room adds that height: shell-scheme
   booths and low screens in a hall whose storey is 6 m.
-- The storey keeps its own height: a floor whose rooms raise walls above it, and which states no
-  height of its own, is written with its storey height, so the raised walls lift neither the roof
-  of the rest of the floor nor the floor above. The flat roof Grid lays steps up over a raised room
-  to the room's height.
+- The storey keeps its own height: a wall that stands to the top of a room it bounds that states
+  its height is that room's, and a floor that states no height takes its clear height from its
+  other walls (all of them only when every wall is a room's), so the raised walls lift neither the
+  roof of the rest of the floor nor the floor above. The flat roof Grid lays steps up over a raised
+  room to the room's height.
 - `grid describe` says each floor's level and storey height, and each room whose floor or height
   is not its storey's says its own (person and agent forms).
 - `grid check` warns when a wall of one floor rises past the level of a floor above it where a
@@ -41,8 +42,11 @@ written exactly as before.
 - `packages/floorplan/src/geometry/sameSpace.ts` (new): the check, run with the stacking checks on
   the whole plan. Walls are in the same place when they are straight, parallel, their bodies
   overlap across and they share a length along of more than the new tolerance `sameSpaceAlong`.
-- `packages/floorplan/src/geometry/levels.ts`: a wall no higher than the top of a room it bounds,
-  which states its height, is not asked about against its storey.
+- `packages/floorplan/src/geometry/roomTops.ts` (new): the top of the rooms a wall bounds that
+  state their height, and whether the wall stands to it. `elevations.ts` (`tallestDrawnWall`) leaves
+  such walls out of the storey's height; `levels.ts` does not ask about them against the storey.
+  Decided over writing the floor's height into the plan from rooms text: it holds for plans written
+  any way, and a text's plan keeps the fields it had.
 - `packages/floorplan/src/geometry/envelope.ts`: a flat roof Grid lays is cut into one facet at the
   storey height and one at each raised room's top; `scene3d.ts` already lays each facet on its own
   plane. The ceiling is VEW-78's, at the room's height.
