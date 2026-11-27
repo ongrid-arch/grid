@@ -2893,6 +2893,8 @@ export const es: Messages = {
   'drawing.picture.empty': 'Plano',
   'drawing.key': 'Leyenda',
   'drawing.notes': 'Notas',
+  'drawing.total': 'Superficie {area}{also}: el suelo dentro de los muros de cada estancia, sumado (superficie útil)',
+  'drawing.total.outdoor': 'Espacio exterior {area}{also}, fuera de la superficie',
   'drawing.key.rooms': 'Estancias',
   'drawing.key.outsideWall': 'Muro exterior',
   'drawing.key.insideWall': 'Muro interior',

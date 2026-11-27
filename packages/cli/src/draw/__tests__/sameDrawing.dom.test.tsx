@@ -49,7 +49,8 @@ function appDrawing(plan: FloorPlan, look: LookName): { inner: string; viewBox: 
 const FRAMED = /<svg x="0" y="0" ([^>]*)>([\s\S]*)<\/svg>(?:<g data-part="key"|<g data-part="guidance-label")/
 const LABEL = /<g data-part="guidance-label"[^>]*>(?:(?!<\/g>)[\s\S])*<\/g><\/svg>\n$/
 
-const CASES = BUILDINGS.flatMap((name) => LOOK_NAMES.map((look) => [name, look] as const))
+// VEW-76: the looks for people are pictures only, which the app's screen does not draw.
+const CASES = BUILDINGS.flatMap((name) => LOOK_NAMES.filter((look) => look !== 'simple' && look !== 'large').map((look) => [name, look] as const))
 
 describe('the app and grid draw draw the same SVG', () => {
   it('has the buildings to compare', () => {
