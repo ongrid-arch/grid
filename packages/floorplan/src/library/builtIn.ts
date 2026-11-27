@@ -228,6 +228,39 @@ export const BUILT_IN_ROOMS: readonly TypicalRoom[] = [
     ],
     source: BUILT_IN_SOURCE,
   },
+  // CNT-61: a living room and a dining room, so `grid_furnish_rooms` furnishes every room of a
+  // house. The living room's sofa has its back to the back wall, the coffee table in front of it,
+  // an armchair against the left wall and the TV unit facing the sofa across the room; the dining
+  // room is a table for six with floor round it to pull the chairs out.
+  {
+    name: 'living-room',
+    label: 'Living room',
+    use: 'living',
+    size: [3.6, 3.4],
+    items: [
+      { library: 'sofa-3', at: [1.8, 0.45] },
+      { library: 'coffee-table', at: [1.8, 1.45] },
+      { library: 'armchair', at: [0.425, 1.6], turn: 270 },
+      { library: 'tv-unit', at: [1.8, 3.175], turn: 180 },
+    ],
+    source: BUILT_IN_SOURCE,
+  },
+  {
+    name: 'dining-room',
+    label: 'Dining room',
+    use: 'dining',
+    size: [3, 3.1],
+    items: [
+      { library: 'chair', at: [0.9, 0.85] },
+      { library: 'chair', at: [1.5, 0.85] },
+      { library: 'chair', at: [2.1, 0.85] },
+      { library: 'dining-table-6', at: [1.5, 1.55] },
+      { library: 'chair', at: [0.9, 2.25], turn: 180 },
+      { library: 'chair', at: [1.5, 2.25], turn: 180 },
+      { library: 'chair', at: [2.1, 2.25], turn: 180 },
+    ],
+    source: BUILT_IN_SOURCE,
+  },
   // CNT-44: sets of a table and its chairs, which `grid_fill_room` repeats through a café or a
   // meeting room. The chairs face the table from its long sides, set out clear of it; the set's
   // size is the table and its chairs, with no floor round them (the fill's aisle is that).

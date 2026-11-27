@@ -88,6 +88,14 @@ export function valueOf(name: string, spec: ArgSpec, text: string | true): unkno
   if (spec.type === 'boolean') return true
   // CNT-15: a list is given as one option, its items split at commas: --parts w1,w2.
   if (spec.type === 'array' && typeof text === 'string') return text.split(',').map((item) => item.trim()).filter((item) => item.length > 0)
+  // CNT-61: an object or a list of them is given as JSON: --items '[{"name":"wc","x":1,"y":1}]'.
+  if (spec.type === 'object' && typeof text === 'string') {
+    try {
+      return JSON.parse(text) as unknown
+    } catch {
+      throw new UsageError(`${optionOf(name)} takes JSON: for example ${JSON.stringify(spec.examples[0])}.`)
+    }
+  }
   // WRT-7: a length goes to the tool as typed, and its reader takes the unit or the decimal comma.
   if (spec.type === 'number' && spec.length === true && typeof text === 'string') return text
   if (spec.type === 'number') {

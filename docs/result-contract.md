@@ -169,7 +169,8 @@ The label "General guidance, not your local rules" is the first line of every re
 list Grid prints or a tool answers, and every tool answer carries it as `label` in its data
 (MSG-3). Drawings carry it in their top-left corner, and every export file in a place its
 format keeps: a text over the plan in DXF, the header and the project's description in IFC,
-`asset.extras.label` in GLB, the first comment in OBJ, the first cell of a CSV, a comment on
+`asset.extras.label` in GLB, the first comment in OBJ, the last row of a CSV or XLSX table (whose
+header is its first row, VEW-83), a comment on
 the first line of rooms text, and the footer of every sheet page.
 
 No line Grid writes holds pass, complies, compliant, approved, meets code or their kin, outside

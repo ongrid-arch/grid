@@ -83,7 +83,9 @@ The typical rooms are `bathroom` (a bath, a WC and a basin in 2.40 × 1.90 m), `
 shower, a WC and a basin in 2.10 × 1.80 m, CNT-48), `cloakroom` (a WC and a small basin in
 1.00 × 1.60 m), `kitchen` (a 3.00 m kitchen run in 3.00 × 2.40 m, CNT-48), `double-bedroom` (a double bed, two side tables and a
 wardrobe in 3.20 × 3.40 m) and `single-bedroom` (a single bed, a side table and a wardrobe in
-2.40 × 3.00 m). In each, every item and the clear floor each keeps are clear of the others. Two
+2.40 × 3.00 m). `living-room` (a three-seat sofa, a coffee table in front of it, an armchair at
+its side and a TV unit facing it in 3.60 × 3.40 m) and `dining-room` (a table for six and its
+chairs, with 0.60 m round them to pull the chairs out, in 3.00 × 3.10 m) are CNT-61's. In each, every item and the clear floor each keeps are clear of the others. Two
 sets are for filling a café or a meeting room (CNT-44): `table-4-chairs` (a table for four with
 two chairs on each long side, 1.20 × 1.80 m) and `table-6-chairs` (a table for six, three chairs
 a side, 1.80 × 1.90 m).
@@ -136,6 +138,46 @@ front of, a door that swings into it. It is written either way, and `grid check`
 note. `grid_measure what=fit room=bed1 name=double-bed` tries the entry's own size with its
 clear floor in front (1.40 × 2.60 m for a double bed), so "will a double bed fit" gets the same
 answer every time.
+
+Several entries go in one call as `items`, a list of the same fields one call takes, placed in
+order as one change (CNT-61). Ids are made unique along the list (`bedside-table`,
+`bedside-table-2`); one entry Grid cannot place refuses the whole list, naming it by its place
+("Entry 2 of items"), and nothing is written. On the command line the list is JSON.
+
+```bash
+grid edit place --items '[{"name":"double-bed","x":2.25,"y":5.3},{"name":"bedside-table","x":1.2,"y":4.5},{"name":"wardrobe","x":3.5,"y":7.4,"turn":180}]'
+```
+
+## Furnishing rooms
+
+`grid_furnish_rooms` furnishes a whole plan in one call (CNT-61). Each room named in `rooms`, or
+when it is left out every room whose use has a usual set and that holds no item yet, takes a
+typical room's set:
+
+| Use | Set, then the one tried when it does not fit |
+| --- | --- |
+| `bedroom` | `double-bedroom`, then `single-bedroom` |
+| `bathroom` | `bathroom`, then `shower-room` |
+| `toilet` | `cloakroom` |
+| `kitchen` | `kitchen` |
+| `living` | `living-room` |
+| `dining` | `dining-room` |
+
+`sets` gives a room another typical room, an office's own among them: `{"bed3": "single-bedroom"}`.
+A set is placed as it is drawn, so a bed keeps its side tables either side: its back on the
+inside face of a side of the room, the longest side first, centred on it and then at each end. The
+first place where Grid's fit checks (the ones `grid_place_item` answers with, and an item leaving
+its room) name none of its items is kept, and the next room is set out with it in the plan. A set
+of fixtures (a bathroom, a kitchen) that fits nowhere as drawn is set out item by item against the
+room's sides, as `grid_add_item` does with a typical room; a set of furniture that fits nowhere is
+left out, and the answer says why. Kinds a room already holds are left out of its set. The answer
+says room by room which set went where, and `notFurnished` lists the rooms it left. Like every set-out
+here, it is a first one to move from, not a layout rule.
+
+```text
+grid_furnish_rooms
+grid_furnish_rooms rooms=bed1,bed2 sets={"bed2": "single-bedroom"}
+```
 
 ## Filling a room at a pitch
 
