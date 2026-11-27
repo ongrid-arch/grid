@@ -100,3 +100,14 @@ describe('the ground on a slope in rooms text (CNT-49)', () => {
     expect(again.plan!.site).toEqual(plan.site)
   })
 })
+
+describe('the plinth line (WRT-79)', () => {
+  it('writes the ground that far below the ground floor, the same field as ground', () => {
+    expect(ground('plinth 0.6')).toBe(-0.6)
+    expect(ground('plinth 45cm')).toBe(-0.45)
+    expect(ground('plinth 0')).toBe(0)
+    expect(refused('plinth')).toBe("Line 4: write 'plinth <m>', how far the ground floor's floor stands above the ground outside: 'plinth 0.6' writes the same level as 'ground -0.6'.")
+    expect(refused('plinth -0.6')).toMatch(/^Line 4: write 'plinth <m>'/)
+    expect(refused('ground -0.15', 'plinth 0.6')).toBe("Line 5: the ground level is written on line 4 already: write it once, as 'ground <m>'.")
+  })
+})

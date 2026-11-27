@@ -33,13 +33,13 @@
  */
 import { SITE_THING_KINDS, SiteSchema, type FloorPlan, type Site, type SiteThing, type SiteThingKind } from '../types/floorplan'
 import { metres, numberOf, pointOf, isPointWord, RoomsStop, type LineWord, type PlainNumbers, PLAIN_METRES } from './words'
-import { GROUND_LINE_WORD, SLOPE_LINE_WORD, fallOfWords, groundLineOfWords, slopeLines, type GroundWords } from './ground'
+import { GROUND_LINE_WORD, PLINTH_LINE_WORD, SLOPE_LINE_WORD, fallOfWords, groundLineOfWords, plinthOfWords, slopeLines, type GroundWords } from './ground'
 import { english, said } from '../messages/say'
 
 type P = readonly [number, number]
 
 /** The first words of the lines this file reads. */
-export const SITE_LINE_WORDS: readonly string[] = ['site', 'plot', 'street', 'streets', 'setback', 'setbacks', 'north', GROUND_LINE_WORD, SLOPE_LINE_WORD]
+export const SITE_LINE_WORDS: readonly string[] = ['site', 'plot', 'street', 'streets', 'setback', 'setbacks', 'north', GROUND_LINE_WORD, SLOPE_LINE_WORD, PLINTH_LINE_WORD]
 
 /** The sides of the drawing a street or a set-back may name (C4: north is up the drawing). */
 export const DRAWING_SIDES: Readonly<Record<string, P>> = { north: [0, 1], south: [0, -1], east: [1, 0], west: [-1, 0] }
@@ -294,6 +294,8 @@ export class SiteLines {
     if (kw === 'plot') return this.readPlot(t.slice(1), at, plain)
     // ARE-62: `ground <m>`, the field `site ground <m>` writes too. CNT-49: and the ground on a slope.
     if (kw === GROUND_LINE_WORD) return this.groundLine(groundLineOfWords(t.slice(1), at, plain), at)
+    // WRT-79: `plinth <m>`, the same level as `ground -<m>`, written once with it.
+    if (kw === PLINTH_LINE_WORD) return this.ground(plinthOfWords(t.slice(1), at, plain), at)
     if (kw === SLOPE_LINE_WORD) return this.groundLine({ kind: 'fall', fall: fallOfWords(t.slice(1), at) }, at)
     // `site ...`
     const what = t[1]

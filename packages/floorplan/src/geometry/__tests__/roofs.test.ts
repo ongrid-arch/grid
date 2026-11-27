@@ -303,10 +303,12 @@ describe('the roof itself', () => {
 })
 
 describe('rooms text', () => {
-  it('writes the roof back as it is, on a raw floor line', () => {
+  it('writes the roof back as it is, on roof and rooflight lines', () => {
     const plan = box({ shape: 'gable', eaves: 1, ridge: 3.6, ridgeRuns: 'east-west', rooflights: [{ id: 'rl', at: [2, 1.5], width: 0.78, length: 1.18 }] }, { height: 3.6 })
     const text = readRoomsText(plan).text
-    expect(text).toContain('raw floor {"roof":{"shape":"gable","eaves":1,"ridge":3.6,"ridgeRuns":"east-west","rooflights":[{"id":"rl","at":[2,1.5],"width":0.78,"length":1.18}]}}')
+    expect(text).toContain('roof gable ridge 3.6 eaves 1 ridge runs east-west')
+    expect(text).toContain('rooflight rl at 2,1.5, 0.78 x 1.18')
+    expect(text).not.toContain('raw floor')
     const back = compileRoomsText(text).plan!
     expect(back.floors![0]!.roof).toEqual(plan.floors![0]!.roof)
   })

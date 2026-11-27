@@ -89,7 +89,9 @@ describe('raw takes wall, room, opening, floor, stair, bay or ramp (WRT-48, CNT-
       ['staircase', 'raw stair {'],
       // CNT-41: the site has lines of its own.
       ['site', 'site boundary x,y'],
-      ['column', '"columns"'],
+      // WRT-79: a column is raw column, or a column line of its own; a roof a roof line.
+      ['pillar', 'column <id> [square|round]'],
+      ['roof', 'roof <flat|gable|hip|mono-pitch>'],
       // CNT-45: an item is raw item, or an item line of its own.
       ['items', 'raw item {'],
     ]
@@ -99,7 +101,7 @@ describe('raw takes wall, room, opening, floor, stair, bay or ramp (WRT-48, CNT-
       expect(result.problems.map((p) => [p.code, p.line])).toEqual([['rooms/raw', 4]])
       const message = result.problems[0]!.message
       expect(message).toContain(`raw ${kind}`)
-      expect(message).toContain('wall, room, opening, floor, stair, item, bay, ramp, note or sketch')
+      expect(message).toContain('wall, room, opening, floor, stair, item, bay, ramp, note, sketch or column')
       expect(message).toContain(where)
       expect(message).not.toContain('A line starts with one of')
     }
