@@ -7,6 +7,7 @@ import type { CameraRecord } from '@ongrid/floorplan/geometry'
 import { eyeCamera } from '../draw/cameraAsk'
 import type { Survey } from '../quantities/survey'
 import { WALK_EYE_HEIGHT, type PlanWalk, type WalkStop } from './walk'
+import type { Language } from '@ongrid/floorplan/messages'
 
 /** How far into the room a picture is taken from the doorway's middle. */
 const PICTURE_STEP = 0.5
@@ -27,11 +28,11 @@ export function walkCameras(survey: Survey, walk: PlanWalk): { stop: WalkStop; c
 }
 
 /** A picture at eye height from each doorway of the walk, in stop order, at most `most`. */
-export async function walkPictures(survey: Survey, walk: PlanWalk, most = Infinity): Promise<{ stop: WalkStop; png: Uint8Array }[]> {
+export async function walkPictures(survey: Survey, walk: PlanWalk, most = Infinity, language?: Language): Promise<{ stop: WalkStop; png: Uint8Array }[]> {
   const cameras = walkCameras(survey, walk).slice(0, most)
   if (cameras.length === 0) return []
   const { cameraView } = await import('../draw/views')
   const out: { stop: WalkStop; png: Uint8Array }[] = []
-  for (const { stop, camera } of cameras) out.push({ stop, png: (await cameraView(survey.plan, camera)).png })
+  for (const { stop, camera } of cameras) out.push({ stop, png: (await cameraView(survey.plan, camera, language)).png })
   return out
 }

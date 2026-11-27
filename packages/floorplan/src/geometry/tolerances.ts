@@ -1262,6 +1262,16 @@ export const TOLERANCES = {
     decides: 'The most lines one set of a structural grid may have; a set with more is refused.',
     basis: own
   },
+  // MSG-34: how many room names say the person's language before a write records it.
+  languageNamesLeast: {
+    kind: 'limit',
+    value: 2,
+    unit: 'count',
+    decides:
+      'The fewest room names that are one language\'s word for a use, and none another\'s, before ' +
+      'writing rooms text records that language as the plan\'s own.',
+    basis: own
+  },
   gridOverrun: {
     kind: 'limit',
     value: 1.5,

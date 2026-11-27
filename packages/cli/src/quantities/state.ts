@@ -17,6 +17,7 @@
  */
 import { planForFloor, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import type { NumberState } from '@ongrid/rules'
+import { ENGLISH_SPEAKER, name, type Speaker } from '@ongrid/floorplan/messages'
 
 export type { NumberState }
 
@@ -109,17 +110,20 @@ export function doubted(state: AreaState, why: string | null): AreaState {
 /** A figure Grid could not work out at all: nothing it would be made of was measured. */
 export const NOT_LOOKED_AT: AreaState = { state: 'not-looked-at', leftOut: [], notProven: [] }
 
-const names = (rooms: readonly RoomRef[], several: boolean): string =>
-  rooms.map((room) => `${JSON.stringify(room.name)}${several ? ` on ${JSON.stringify(room.floor)}` : ''}`).join(', ')
+const names = (rooms: readonly RoomRef[], several: boolean, s: Speaker): string =>
+  rooms.map((room) => (several ? s.say('state.roomOnFloor', { room: name(room.name), floor: name(room.floor) }) : JSON.stringify(room.name))).join(', ')
 
-/** The state in words, after the figure: "", or "; not proven: leaves out "Kitchen", which could not be measured". */
-export function stateText(state: AreaState, several: boolean): string {
+/**
+ * The state in words, after the figure: "", or "; not proven: leaves out "Kitchen", which could not be measured".
+ * MSG-34: in the speaker's language.
+ */
+export function stateText(state: AreaState, several: boolean, s: Speaker = ENGLISH_SPEAKER): string {
   if (state.state === 'proven') return ''
-  if (state.state === 'not-looked-at' && state.leftOut.length === 0) return '; not looked at: nothing it is made of could be measured'
+  if (state.state === 'not-looked-at' && state.leftOut.length === 0) return s.say('state.notLookedAt.nothing')
   const parts: string[] = []
-  if (state.leftOut.length > 0) parts.push(`leaves out ${names(state.leftOut, several)}, which could not be measured`)
-  if (state.notProven.length > 0) parts.push(`holds ${names(state.notProven, several)}, whose outline the drawing questions`)
+  if (state.leftOut.length > 0) parts.push(s.say('state.leavesOut', { rooms: names(state.leftOut, several, s) }))
+  if (state.notProven.length > 0) parts.push(s.say('state.holds', { rooms: names(state.notProven, several, s) }))
   // ARE-20: a reason in Grid's own words, such as a gross area below the net, ends with its own stop.
-  for (const why of state.why ?? []) parts.push(why.replace(/\.$/, ''))
-  return `; ${state.state === 'not-proven' ? 'not proven' : 'not looked at'}: ${parts.join('; ')}`
+  for (const why of state.why ?? []) parts.push(s.text(why.replace(/\.$/, '')))
+  return s.say(state.state === 'not-proven' ? 'state.notProven' : 'state.notLookedAt', { parts: parts.join('; ') })
 }

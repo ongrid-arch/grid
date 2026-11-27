@@ -35,6 +35,7 @@ import { countryOf } from '@ongrid/floorplan/types/places'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { FIGURES, type FigureName, type FigureWish, type RatioMeasure } from '../brief/brief'
 import { areaText, lengthText } from './units'
+import { ENGLISH_SPEAKER, type Speaker } from '@ongrid/floorplan/messages'
 
 /** The limits, in the order they are reported. */
 export const LIMITS = ['plot_coverage', 'floor_area_ratio', 'building_height', 'setback', 'parking_per_home'] as const
@@ -202,9 +203,10 @@ export function massingLines(plan: FloorPlan, display: Display): string[] {
   return lines
 }
 
-/** The storey count in words. */
-export function storeysText(storeys: PlanStoreys): string {
-  const n = (count: number, what: string): string => `${count === 0 ? 'none' : count} ${what}`
-  const above = `${storeys.above} ${storeys.above === 1 ? 'storey' : 'storeys'} at or above the ground floor`
-  return `Storeys: ${above}, ${n(storeys.below, 'below it')}; counted by level, from the floors that hold an outline or walls that close one${storeys.empty.length > 0 ? `, and not ${storeys.empty.length === 1 ? 'the floor' : `the ${storeys.empty.length} floors`} holding nothing yet` : ''}.`
+/** The storey count in words; MSG-34: in the speaker's language. */
+export function storeysText(storeys: PlanStoreys, s: Speaker = ENGLISH_SPEAKER): string {
+  const above = s.say(storeys.above === 1 ? 'storeys.above.one' : 'storeys.above', { count: storeys.above })
+  const below = storeys.below === 0 ? s.say('storeys.below.none') : s.say('storeys.below', { count: storeys.below })
+  const empty = storeys.empty.length === 0 ? '' : s.say(storeys.empty.length === 1 ? 'storeys.empty.one' : 'storeys.empty', { count: storeys.empty.length })
+  return s.say('storeys.line', { above, below, empty })
 }

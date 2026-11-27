@@ -254,6 +254,28 @@ together hold all of it. A tool that changes the plan takes no `page`, because c
 would change the plan again: its change is made in full, and `grid_describe` and `grid_check` read
 the plan as it is now. A tool that takes `floor` answers one floor, which is often the better ask.
 
+## The language of an answer
+
+Every tool takes `language`, a language tag (`es`, `es-MX`, `de`), beside its own arguments, as
+it takes `whole` (MSG-34, `src/mcp/answerLanguage.ts`). Left out, the answer is in the plan's own
+language (`display.language`, which `grid_set_plan` sets), else in English. A tool with a
+`language` of its own keeps its meaning: `grid_check`, `grid_describe`, `grid_view`, `grid_export`
+and `grid_sheet` write their words in it, `grid_set_plan` sets the plan's language, and
+`grid_words` names the language its words are for. Codes, ids, values and the data's figures are
+the same in every language. See [Languages](languages.md#the-language-setting).
+
+- `grid_check`, `grid_describe`, `grid_view`, `grid_sheet`, `grid_areas` and `grid_schedule`
+  answer in the language, the drawing list of `grid_check`, the pictures of `grid_diff`,
+  `grid_compare` and the walk too.
+- Every other tool's own sentences are English yet. Its answer in another language closes with
+  one line in that language saying so, for the agent to retell it in the person's language.
+- An answer writes every figure with one decimal mark: the display's, which is the language's
+  own (a comma in Spanish) unless the display states one. A CSV cell always takes a point, and its
+  lengths are in the display's length unit, named in the column's head (`across ft`).
+- `grid_write_rooms` records the person's language when the plan states none: the call's
+  `language`, else the language the rooms' names are plainly in (two or more names that are one
+  language's word for a use, such as "Cocina" and "Dormitorio", and none another's), and says so.
+
 ## One building of a site of many
 
 A plan of a housing site, a resort or a campus holds many buildings (`buildings` in the plan file,

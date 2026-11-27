@@ -18,7 +18,8 @@ import { causeText, checkPlan, checkTitle, countsText, coverageSummary, firmHead
 import { keptFor } from '@ongrid/floorplan/geometry/kept'
 import { askedLanguage, languageFor, spokenPlan } from '../command/language'
 import { inLanguage, t, tv } from '../command/words'
-import { LANGUAGES, english, joined, name, num, said, say, type Language, type MessageKey } from '@ongrid/floorplan/messages'
+import { ENGLISH_SPEAKER, LANGUAGES, english, joined, labelOfUse, marked, name, num, said, say, speakerFor, type Language, type MessageKey, type Speaker } from '@ongrid/floorplan/messages'
+import { toolLanguage } from './answerLanguage'
 import { readSeen, type SeenState } from '../seen/marks'
 import { firmForCheck } from '../firm/measure'
 import { briefMissedText } from '../brief/answer'
@@ -42,7 +43,7 @@ import { LETTABLE_TENURES_ARG, LETTABLE_USES_ARG, PEOPLE_ARG, type PeopleFigures
 import { AS_WRITTEN_RULE, asWrittenAreas, asWrittenText, lettableAnswer, lettableFloorText, lettableLines, netToGrossNote, peopleLines, withAsWritten } from './lettableAnswer'
 import { lettableRules } from '../quantities/lettable'
 import { FRONTAGE_BANDS, FRONTAGE_BANDS_MAX, FRONTAGE_DEPTH, frontageSide, frontageZones } from '../quantities/frontage'
-import type { RoomTenure } from '@ongrid/floorplan/types/floorplan'
+import type { OpeningKind, RoomTenure, RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { stateText } from '../quantities/state'
 import { comparePlans, optionRow, type Comparison, type OptionRow } from '../quantities/compare'
 import {
@@ -108,7 +109,7 @@ import {
   type PartKind,
   type Value,
 } from '../quantities/query'
-import { areaText, csv, DISPLAY_UNITS, displayFor, lengthText, ownLengthText, sqFt } from '../quantities/units'
+import { areaText, csv, csvLengths, csvLengthUnit, DISPLAY_UNITS, displayFor, lengthText, ownLengthText, sqFt } from '../quantities/units'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { PLACE_TEXT_MAX } from '@ongrid/floorplan/types/places'
 import { GROUP_COLOURS, HIGHLIGHT_COLOUR } from '@ongrid/viewer/src/picture/look'
@@ -226,16 +227,16 @@ function briefPeopleOf(context: ToolContext, file: string): { brief?: PeopleFigu
 }
 
 /** WRT-6 (lab AE-4, AE-13): where an area's walls came from and how sure it is, after the figure. */
-const SOURCE_WORDS = { scanned: 'from a scan', measured: 'measured', given: 'as given', assumed: 'assumed' } as const
-function surenessText(sure: AreaSureness | undefined, units: Display): string {
+function surenessText(sure: AreaSureness | undefined, units: Display, s: Speaker = ENGLISH_SPEAKER): string {
   if (sure === undefined) return ''
-  const word = SOURCE_WORDS[sure.source]
-  if (sure.plusMinus === null || sure.percent === null) return `, ${word}: how sure is not stated (a wall states no tolerance)`
-  return `, ${word}, about ± ${sure.percent.toFixed(1)}% (± ${areaText(sure.plusMinus, units)})`
+  const word = s.say(`tool.areas.source.${sure.source}`)
+  if (sure.plusMinus === null || sure.percent === null) return s.say('tool.areas.sureness.notStated', { source: word })
+  return s.say('tool.areas.sureness', { source: word, percent: num(sure.percent.toFixed(1)), area: areaText(sure.plusMinus, units) })
 }
 
-function percent(share: number | null): string {
-  return share === null ? 'not known' : `${(share * 100).toFixed(1)}%`
+/** A share as a percentage; MSG-34: in the speaker's language and decimal mark. */
+function percent(share: number | null, s: Speaker = ENGLISH_SPEAKER): string {
+  return share === null ? s.say('tool.areas.notKnown') : s.figure(`${(share * 100).toFixed(1)}%`)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -358,7 +359,8 @@ const compareTool: GridTool = {
       const floor = args['floor']
       surveys.forEach((survey) => floorArg(survey.plan, floor))
       const { sheetView } = await import('../draw/views')
-      const sheet = await sheetView(surveys.map((survey, i) => ({ plan: survey.plan, title: labels[i]!, ...(floor ? { floor: floor as string } : {}) })), 'working')
+      // MSG-34: the sheet's words and label in the call's language, else each plan's own.
+      const sheet = await sheetView(surveys.map((survey, i) => ({ plan: survey.plan, title: labels[i]!, ...(floor ? { floor: floor as string } : {}) })), 'working', context.language)
       image = { data: sheet.png, mimeType: 'image/png' as const }
       lines.push(`The sheet: ${labels.join(', ')} side by side, all at 1 m = ${sheet.pxPerMetre.toFixed(1)} px. Look at it before you describe it.`)
     }
@@ -479,7 +481,9 @@ const areasTool: GridTool = {
     for (const id of outside) roomArg(survey.plan, id, 'outside_rooms item')
     const apart = (args['apart_rooms'] as string[] | undefined) ?? []
     for (const id of apart) roomArg(survey.plan, id, 'apart_rooms item')
-    const units = displayFor(args['units'], args['decimal'], survey.plan)
+    // MSG-34: the call's language, else the plan's; its decimal mark unless the display states one.
+    const language = toolLanguage(context, survey.plan)
+    const units = displayFor(args['units'], args['decimal'], survey.plan, language)
     const country = args['country'] as string | undefined
     if (country !== undefined && !/^[A-Za-z]{2}$/.test(country)) throw new ToolRefusal(`country takes a two-letter country code, such as GB or US: got ${q(country)}.`)
     const asked = args['gross'] as 'internal' | 'external' | 'both' | undefined
@@ -546,7 +550,8 @@ const areasTool: GridTool = {
       ...(letting.people.length === 0 ? {} : { people: letting.people }),
     }
     if (args['format'] === 'csv') {
-      const rows = areas.floors.flatMap((f) => f.rooms.map((r) => [f.floor, r.id, r.name, r.use, r.size?.[0] ?? null, r.size?.[1] ?? null, r.net, r.net === null ? null : sqFt(r.net), countedWord(r), r.state]))
+      // MSG-34: lengths in the display's unit, named in the head; areas in both m2 and sq ft, as before.
+      const rows = areas.floors.flatMap((f) => f.rooms.map((r) => [f.floor, r.id, r.name, r.use, ...csvLengths(units, [r.size?.[0] ?? null, r.size?.[1] ?? null]), r.net, r.net === null ? null : sqFt(r.net), countedWord(r), r.state]))
       // CNT-4: each flat, then the rooms in no flat, after the rooms and before the totals.
       for (const flat of areas.flats) rows.push([flat.floors.join(' '), flat.id, flat.name, flat.typeName ?? flat.type ?? '', null, null, flat.net, sqFt(flat.net), 'flat', flat.state.state])
       if (areas.notInFlats !== null) rows.push(['all', '', 'In no flat', '', null, null, areas.notInFlats, sqFt(areas.notInFlats), 'not in a flat', areas.states.net.state])
@@ -559,129 +564,154 @@ const areasTool: GridTool = {
         if (areas.underAir.first) rows.splice(rows.length - [areas.grossInternal, areas.grossExternal].filter((v) => v !== null).length - 1, 0, ...air)
         else rows.push(...air)
       }
-      return { text: csv(['floor', 'room id', 'name', 'use', 'across m', 'up m', 'net m2', 'net sq ft', 'counted', 'state'], rows), data }
+      return { text: csv(['floor', 'room id', 'name', 'use', `across ${csvLengthUnit(units)}`, `up ${csvLengthUnit(units)}`, 'net m2', 'net sq ft', 'counted', 'state'], rows), data }
     }
+    // MSG-34: every line in the call's language, every figure with the display's decimal mark.
+    const s = speakerFor(language, units.decimal)
+    const wordOfUse = (use: string): string => (language === 'en' ? use : labelOfUse(language, use as RoomUse))
+    const grossWord = (m: 'grossInternal' | 'grossExternal', value: string): string => s.say(m === 'grossInternal' ? 'tool.areas.grossInternal.figure' : 'tool.areas.grossExternal.figure', { area: value })
+    const notKnown = s.say('tool.areas.notKnown')
     const lines: string[] = []
     const several = survey.facts.floors.length > 1
     for (const f of areas.floors) {
-      if (several) lines.push(`Floor ${q(f.floor)}:`)
+      if (several) lines.push(s.say('tool.areas.floor.heading', { floor: name(f.floor) }))
       for (const r of f.rooms) {
-        const size = r.size ? `${lengthText(r.size[0], units)} × ${lengthText(r.size[1], units)}, ` : ''
+        const size = r.size ? s.say('tool.areas.room.size', { across: lengthText(r.size[0], units), up: lengthText(r.size[1], units) }) : ''
         // MSG-2: a room that could not be measured has no area, and one in doubt says so.
-        const free = r.free === undefined ? '' : `, free floor ${areaText(r.free, units)} (fixtures stand on ${areaText(r.fixtures!, units)})`
-        const measured = r.net === null ? 'not measured: it could not be drawn' : `${size}${areaText(r.net, units)}${free}${r.state === 'not-proven' ? `, not proven: the drawing questions its outline (${r.doubts.join(', ')})` : ''}`
+        const free = r.free === undefined ? '' : s.say('tool.areas.room.free', { free: areaText(r.free, units), taken: areaText(r.fixtures!, units) })
+        const measured = r.net === null ? s.say('tool.areas.room.notMeasured') : `${size}${areaText(r.net, units)}${free}${r.state === 'not-proven' ? s.say('tool.areas.room.notProven', { doubts: r.doubts.join(', ') }) : ''}`
         // CNT-8: a zone's floor is in its room's, so it is not counted again.
-        const zone = r.zoneOf === undefined ? '' : `, a zone of ${q(f.rooms.find((room) => room.id === r.zoneOf)?.name ?? r.zoneOf)}: in its area, not counted again`
+        const zone = r.zoneOf === undefined ? '' : s.say('tool.areas.room.zone', { room: name(f.rooms.find((room) => room.id === r.zoneOf)?.name ?? r.zoneOf) })
         // SHT-11: a stair room over the stair below is counted once, with it.
-        const below = r.countedWith ? `, counted once with ${q(r.countedWith.room)} on floor ${q(r.countedWith.floor)}, the ${r.use === 'lift' ? 'lift' : 'stair'} it rises from` : ''
+        const below = r.countedWith ? s.say(r.use === 'lift' ? 'tool.areas.room.countedWith.lift' : 'tool.areas.room.countedWith.stair', { room: name(r.countedWith.room), floor: name(r.countedWith.floor) }) : ''
         // CNT-27: a void has no floor, so it is in no figure.
-        const open = r.void === true ? ', a void, open to the floor below: in no figure' : ''
+        const open = r.void === true ? s.say('tool.areas.room.void') : ''
         // ARE-60: a room not heated or cooled, where the area under air is said.
-        const air = r.unconditioned === true && areas.underAir.shown && notCounted(r) === null ? english(said('areas.room.unconditioned')) : ''
+        const air = r.unconditioned === true && areas.underAir.shown && notCounted(r) === null ? s.say('areas.room.unconditioned') : ''
         // LVL-6: under a roof the floor states, the room's floor by headroom band.
-        const headroom = r.headroom === undefined ? '' : `; ${bandsText(r.headroom.bands, units)}, headroom ${lengthText(r.headroom.lowest, units)} to ${lengthText(r.headroom.highest, units)}`
+        const headroom = r.headroom === undefined ? '' : s.say('tool.areas.room.headroom', { bands: bandsText(r.headroom.bands, units, s), lowest: lengthText(r.headroom.lowest, units), highest: lengthText(r.headroom.highest, units) })
         // CNT-7: an outdoor space is listed apart, with its kind and whether a roof covers it.
-        const outdoor = r.outdoor === undefined ? '' : english(said('areas.room.outdoor', { kind: said(`outdoor.kind.${r.outdoor.kind}`), roofed: said(r.outdoor.roofed ? 'outdoor.roofed' : 'outdoor.open') }))
-        const asWritten = written === null || r.net === null ? '' : asWrittenText(written.get(`${f.floor}\u0000${r.id}`), units)
-        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${asWritten}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${open}${air}${headroom}`)
+        const outdoor = r.outdoor === undefined ? '' : s.value(said('areas.room.outdoor', { kind: said(`outdoor.kind.${r.outdoor.kind}`), roofed: said(r.outdoor.roofed ? 'outdoor.roofed' : 'outdoor.open') }))
+        const asWritten = written === null || r.net === null ? '' : asWrittenText(written.get(`${f.floor}\u0000${r.id}`), units, s)
+        lines.push(`  ${q(r.name)}${r.use ? ` (${wordOfUse(r.use)})` : ''}: ${measured}${asWritten}${r.net === null ? '' : surenessText(r.sureness, units, s)}${r.outside ? s.say('tool.areas.room.outside') : ''}${outdoor}${zone}${below}${open}${air}${headroom}`)
       }
     }
     if (several) {
       for (const f of areas.floors) {
-        const gross = areas.reader.gross.map((m) => `${m === 'grossInternal' ? 'gross internal' : 'gross external'} ${f[m] === null ? 'not known' : areaText(f[m]!, units)}`)
-        const free = f.free === undefined ? '' : english(said('areas.free.floor', { area: areaText(f.free, units) }))
+        const gross = areas.reader.gross.map((m) => grossWord(m, f[m] === null ? notKnown : areaText(f[m]!, units)))
+        const free = f.free === undefined ? '' : s.say('areas.free.floor', { area: areaText(f.free, units) })
         // ARE-60: the area under air and the total under roof, first where they lead.
-        const air = !areas.underAir.shown ? [] : ([['conditioned', f.conditioned], ['underRoof', f.underRoof]] as const).map(([m, value]) => `${MEASURES[m].name.toLowerCase()} ${value === null ? 'not known' : areaText(value, units)}`)
+        const air = !areas.underAir.shown ? [] : ([['conditioned', f.conditioned], ['underRoof', f.underRoof]] as const).map(([m, value]) => `${measureName(m, s).toLocaleLowerCase(language)} ${value === null ? notKnown : areaText(value, units)}`)
         const figures = areas.underAir.first ? [...air, ...gross] : [...gross, ...air]
-        lines.push(`Floor ${q(f.floor)}: net ${areaText(f.net, units)}${surenessText(f.sureness, units)}${free}, ${figures.join(', ')}${lettableFloorText(letting, f.floor, units)}.`)
+        lines.push(s.say('tool.areas.floor.line', { floor: name(f.floor), net: `${areaText(f.net, units)}${surenessText(f.sureness, units, s)}${free}`, figures: figures.join(', '), lettable: lettableFloorText(letting, f.floor, units, s) }))
       }
     }
     // CNT-4: each flat the plan lists, from the list and never from the rooms' names (lab EL-1).
     if (areas.notInFlats !== null) {
-      lines.push('Flats, as the plan lists them:')
+      lines.push(s.say('tool.areas.flats.heading'))
       for (const flat of areas.flats) {
-        const type = flat.type === null ? '' : `${flat.typeName ?? flat.type}${flat.mirrored ? ', mirrored' : ''}; `
-        const floors = flat.floors.length > 1 ? `, on ${flat.floors.length} floors (${flat.floors.map((id) => `${q(id)} ${areaText(flat.byFloor[id] ?? 0, units)}`).join(', ')})` : ''
-        const doubt = flat.state.state === 'proven' ? '' : `, ${flat.state.state === 'not-proven' ? 'not proven' : 'not measured'}`
-        lines.push(`  ${q(flat.name)} (${type}${flat.rooms.length} room${flat.rooms.length === 1 ? '' : 's'}): ${areaText(flat.net, units)}${floors}${doubt}${flatExtras(flat, areas.reader.gross, units)}`)
+        const type = flat.type === null ? '' : `${flat.typeName ?? flat.type}${flat.mirrored ? s.say('tool.areas.flat.mirrored') : ''}; `
+        const floors = flat.floors.length > 1 ? s.say('tool.areas.flat.floors', { count: flat.floors.length, floors: flat.floors.map((id) => `${q(id)} ${areaText(flat.byFloor[id] ?? 0, units)}`).join(', ') }) : ''
+        const doubt = flat.state.state === 'proven' ? '' : s.say(flat.state.state === 'not-proven' ? 'tool.areas.flat.notProven' : 'tool.areas.flat.notMeasured')
+        const rooms = s.say(flat.rooms.length === 1 ? 'tool.areas.flat.rooms.one' : 'tool.areas.flat.rooms', { count: flat.rooms.length })
+        lines.push(`  ${q(flat.name)} (${type}${rooms}): ${areaText(flat.net, units)}${floors}${doubt}${flatExtras(flat, areas.reader.gross, units, s)}`)
       }
-      lines.push(`  In no flat: ${areaText(areas.notInFlats, units)}${toPartyWallsText(areas.notInFlatsToPartyWalls, areas.reader.gross, units)}.`)
-      lines.push(`${MEASURES.partyWall.name}: ${MEASURES.partyWall.measures}`)
+      lines.push(`  ${s.say('tool.areas.notInFlats', { area: `${areaText(areas.notInFlats, units)}${toPartyWallsText(areas.notInFlatsToPartyWalls, areas.reader.gross, units, s)}` })}`)
+      lines.push(`${s.say('areas.measure.partyWall.name')}: ${s.say('areas.measure.partyWall.measures')}`)
     }
     // CNT-6: each building the plan names, from its own floors.
     if (buildings.length > 0) {
-      lines.push(english(said('areas.buildings.heading')))
+      lines.push(s.say('areas.buildings.heading'))
       for (const b of buildings) {
-        const gross = areas.reader.gross.map((m) => `${m === 'grossInternal' ? 'gross internal' : 'gross external'} ${b[m] === null ? 'not known' : areaText(b[m]!, units)}`)
+        const gross = areas.reader.gross.map((m) => grossWord(m, b[m] === null ? notKnown : areaText(b[m]!, units)))
         const storeys = b.storeys.above + b.storeys.below
         const counted = said(storeys === 1 ? 'areas.building.storeys.one' : 'areas.building.storeys', { count: storeys })
         const from = said(`areas.building.from.${b.from}` as MessageKey, { level: levelText(b.ground, units) })
-        lines.push(`  ${q(b.name)} (${b.floors.length} floor${b.floors.length === 1 ? '' : 's'}, ${english(counted)}): net ${areaText(b.net, units)}, ${gross.join(', ')}${b.height === null ? '' : `, ${lengthText(b.height, units)} high ${english(from)}`}.`)
+        const high = b.height === null ? '' : s.say('tool.areas.building.high', { height: lengthText(b.height, units), from: s.value(from) })
+        lines.push(`  ${s.say(b.floors.length === 1 ? 'tool.areas.building.one' : 'tool.areas.building', { building: name(b.name), count: b.floors.length, storeys: s.value(counted), net: areaText(b.net, units), gross: gross.join(', '), high })}`)
       }
     }
     // ARE-20: the rooms measured apart, as one building from the one built against it.
     if (areas.apart !== undefined) {
       const parts = areas.apart.toPartyWalls === null ? [] : areas.reader.gross.map((m) => said(m === 'grossInternal' ? 'areas.toPartyWalls.grossInternal' : 'areas.toPartyWalls.grossExternal', { area: areaText(areas.apart!.toPartyWalls![m], units) }))
-      lines.push(english(said(areas.apart.rooms.length === 1 ? 'areas.apart.one' : 'areas.apart', { count: areas.apart.rooms.length, net: `${areaText(areas.apart.net, units)}${stateText(areas.apart.state, several)}`, toPartyWalls: parts.length === 0 ? '' : said('areas.apart.toPartyWalls', { areas: joined(parts, 'join.comma') }) })))
-      if (areas.apart.notCounted.length > 0) lines.push(english(said('areas.apart.notCounted', { ids: joined(areas.apart.notCounted.map((id) => name(id)), 'join.comma') })))
+      lines.push(s.value(said(areas.apart.rooms.length === 1 ? 'areas.apart.one' : 'areas.apart', { count: areas.apart.rooms.length, net: `${areaText(areas.apart.net, units)}${stateText(areas.apart.state, several, s)}`, toPartyWalls: parts.length === 0 ? '' : said('areas.apart.toPartyWalls', { areas: joined(parts, 'join.comma') }) })))
+      if (areas.apart.notCounted.length > 0) lines.push(s.value(said('areas.apart.notCounted', { ids: joined(areas.apart.notCounted.map((id) => name(id)), 'join.comma') })))
     }
     const uses = Object.entries(areas.byUse)
-    if (uses.length > 1) lines.push(`Net by use: ${uses.map(([use, area]) => `${use} ${areaText(area, units)}`).join(', ')}.`)
+    if (uses.length > 1) lines.push(s.say('tool.areas.byUse', { uses: uses.map(([use, area]) => `${wordOfUse(use)} ${areaText(area, units)}`).join(', ') }))
     // ARE-61: by the firm's room type and by tenure, on a plan where a room states one.
-    for (const [title, groups] of [['room type', areas.byRoomType], ['tenure', areas.byTenure]] as const) {
-      if (groups !== undefined) lines.push(`Net by ${title}: ${Object.entries(groups).map(([group, area]) => `${group} ${areaText(area, units)}`).join(', ')}.`)
+    for (const [key, groups] of [['tool.areas.byRoomType', areas.byRoomType], ['tool.areas.byTenure', areas.byTenure]] as const) {
+      if (groups !== undefined) lines.push(s.say(key, { groups: Object.entries(groups).map(([group, area]) => `${group} ${areaText(area, units)}`).join(', ') }))
     }
     // ARE-60: the living area under air and the total under roof, each with its rule; first for a US plan.
     const airLines = !areas.underAir.shown ? [] : (['conditioned', 'underRoof'] as const).map((m) => {
       const value = areas[m]
-      return `${MEASURES[m].name}: ${value === null ? `not known: ${areas.underAirWhy[m] ?? ''}` : `${areaText(value, units)}${stateText(areas.states[m], several)}.`} ${MEASURES[m].measures}`
+      return `${measureName(m, s)}: ${value === null ? s.say('tool.areas.notKnownWhy', { why: s.text(areas.underAirWhy[m] ?? '') }) : `${areaText(value, units)}${stateText(areas.states[m], several, s)}.`} ${s.text(MEASURES[m].measures)}`
     })
     if (areas.underAir.first) lines.push(...airLines)
     // Each figure with the rule it follows, in Grid's words: never a bare number (AR-16).
-    lines.push(`Net: ${areaText(areas.net, units)}${surenessText(areas.sureness, units)}${stateText(areas.states.net, several)}. ${AREA_RULES.net}`)
+    lines.push(s.say('tool.areas.net', { area: `${areaText(areas.net, units)}${surenessText(areas.sureness, units, s)}${stateText(areas.states.net, several, s)}`, rule: s.text(AREA_RULES.net) }))
     for (const m of areas.reader.gross) {
       const value = m === 'grossInternal' ? areas.grossInternal : areas.grossExternal
-      const state = value === null ? '' : stateText(areas.states[m], several)
+      const state = value === null ? '' : stateText(areas.states[m], several, s)
       const part = areas.partial?.[m]
-      const unknown = part === undefined ? 'not known' : english(said(part.floors.length === 1 ? 'areas.partial.line.one' : 'areas.partial.line.many', { count: part.floors.length, area: areaText(part.area, units), left: joined(part.unmeasured.map((u) => `floor ${q(u.floor)} (${u.why})`), 'join.comma') }))
-      lines.push(`${m === 'grossInternal' ? 'Gross internal' : 'Gross external'}: ${value === null ? unknown : areaText(value, units)}${state}. ${AREA_RULES[m]}`)
+      const unknown = part === undefined ? notKnown : s.value(said(part.floors.length === 1 ? 'areas.partial.line.one' : 'areas.partial.line.many', { count: part.floors.length, area: areaText(part.area, units), left: joined(part.unmeasured.map((u) => said('tool.areas.partial.floor', { floor: name(u.floor), why: s.text(u.why) })), 'join.comma') }))
+      lines.push(s.say(m === 'grossInternal' ? 'tool.areas.grossInternal' : 'tool.areas.grossExternal', { area: `${value === null ? unknown : areaText(value, units)}${state}`, rule: s.text(AREA_RULES[m]) }))
     }
     if (!areas.underAir.first) lines.push(...airLines)
-    if (areas.headroom !== null) lines.push(`Area by headroom: ${bandsText(areas.headroom, units)}. ${MEASURES.headroom.measures}`)
+    if (areas.headroom !== null) lines.push(s.say('tool.areas.headroom', { bands: bandsText(areas.headroom, units, s), rule: headroomRule(s) }))
     // ARE-14 (lab S-6): the free floor beside the floor area, each with its label.
-    if (areas.free !== undefined) lines.push(english(said('areas.free.total', { free: areaText(areas.free, units), taken: areaText(areas.fixtures!, units), rule: MEASURES.freeFloor.measures })))
-    if (areas.floors.some((f) => f.massing)) lines.push(storeysText(storeys))
-    lines.push(`Assumed: ${areas.reader.why} Grid's own rule, not checked against any local standard.`)
+    if (areas.free !== undefined) lines.push(s.say('areas.free.total', { free: areaText(areas.free, units), taken: areaText(areas.fixtures!, units), rule: s.say('areas.measure.freeFloor.measures') }))
+    if (areas.floors.some((f) => f.massing)) lines.push(storeysText(storeys, s))
+    lines.push(s.say('tool.areas.assumed', { why: readerWhy(areas.reader, s) }))
     if (areas.grossInternal !== null && areas.reader.gross.includes('grossInternal')) {
-      lines.push(`Circulation: ${areas.circulation.toFixed(2)} m², ${percent(areas.circulationShare)} of gross internal. Net to gross: ${percent(areas.netToGross)}.${netToGrossNote(letting)}`)
+      lines.push(s.say('tool.areas.circulation', { area: num(areas.circulation.toFixed(2)), share: percent(areas.circulationShare, s), netToGross: percent(areas.netToGross, s), note: netToGrossNote(letting, s) }))
     }
-    lines.push(...lettableLines(letting, units, several))
-    if (written !== null) lines.push(AS_WRITTEN_RULE())
+    lines.push(...lettableLines(letting, units, several, s))
+    if (written !== null) lines.push(AS_WRITTEN_RULE(s))
     const outsideArea = areas.floors.reduce((sum, f) => sum + f.outsideRooms, 0)
-    if (outsideArea > 0) lines.push(`Outside, listed apart: ${areaText(outsideArea, units)}.`)
+    if (outsideArea > 0) lines.push(s.say('tool.areas.outside', { area: areaText(outsideArea, units) }))
     // CNT-7 (C26): the outdoor spaces, listed apart from every total, by kind.
     if (areas.outdoor !== undefined) {
       const kinds = Object.entries(areas.outdoor.byKind).map(([kind, area]) => said('areas.outdoor.kind', { kind: said(`outdoor.kind.${kind}` as MessageKey), area: areaText(area ?? 0, units) }))
-      lines.push(english(said('areas.outdoor', { area: areaText(areas.outdoor.area, units), kinds: joined(kinds, 'join.comma'), roofed: areaText(areas.outdoor.roofed, units), open: areaText(areas.outdoor.open, units), rule: areas.outdoor.rule.measures })))
+      lines.push(s.value(said('areas.outdoor', { area: areaText(areas.outdoor.area, units), kinds: joined(kinds, 'join.comma'), roofed: areaText(areas.outdoor.roofed, units), open: areaText(areas.outdoor.open, units), rule: s.text(areas.outdoor.rule.measures) })))
       // ARE-14: left out of every total, or counted by the rule the person stated: the answer says which.
-      lines.push(...outdoorCountedLines(areas.outdoor, units))
+      lines.push(...outdoorCountedLines(areas.outdoor, units, s))
     }
     for (const rule of areas.measures) {
       const gross = rule.measure === 'grossInternal' || rule.measure === 'grossExternal'
-      if (!gross || areas.reader.gross.includes(rule.measure)) lines.push(`${rule.name}: ${rule.notTakenOff} ${rule.cannotSay}`)
+      if (!gross || areas.reader.gross.includes(rule.measure)) lines.push(`${measureName(rule.measure, s)}: ${s.text(rule.notTakenOff)} ${s.text(rule.cannotSay)}`)
     }
     // Any rule beyond the measures' (ARE-14: free floor is one of them now, said with its figure).
     const measureRules: readonly string[] = [...Object.values(AREA_RULES), MEASURES.headroom.measures, MEASURES.freeFloor.measures, MEASURES.conditioned.measures, MEASURES.underRoof.measures]
-    lines.push(...areas.rules.filter((rule) => !measureRules.includes(rule)), ...areas.notes)
+    lines.push(...[...areas.rules.filter((rule) => !measureRules.includes(rule)), ...areas.notes].map((line) => s.text(line)))
     return { text: lines.join('\n'), data }
   },
 }
 
+/** MSG-34: a measure's name in the speaker's language: its key when it has one, else as `MEASURES` names it. */
+function measureName(measure: keyof typeof MEASURES, s: Speaker): string {
+  return s.text(MEASURES[measure].name)
+}
+
+/** MSG-34: why the answer gives the gross measures it gives, as `planAreas` decided, in the speaker's language. */
+function readerWhy(reader: ReturnType<typeof planAreas>['reader'], s: Speaker): string {
+  const country = reader.country ?? ''
+  if (reader.chosen === 'asked') return reader.gross.length > 1 ? s.say('tool.areas.why.both') : s.say('tool.areas.why.asked', { measure: measureName(reader.gross[0]!, s) })
+  if (reader.chosen === 'country') return s.say(reader.gross[0] === 'grossInternal' ? 'tool.areas.why.inside' : 'tool.areas.why.outside', { country })
+  return reader.country === null ? s.say('tool.areas.why.none') : s.say('tool.areas.why.unknown', { country })
+}
+
+/** MSG-34: the headroom measure's rule, with its two heights, in the speaker's language. */
+function headroomRule(s: Speaker): string {
+  return s.say('areas.measure.headroom.measures', { low: num(String(tolerance('headroomLow'))), full: num(String(tolerance('headroomFull'))) })
+}
+
 /** ARE-14: an area to the party walls, in the gross measures the reader asked for, after a flat's net. */
-function toPartyWallsText(area: { readonly grossInternal: number; readonly grossExternal: number } | null, gross: readonly ('grossInternal' | 'grossExternal')[], units: Display): string {
+function toPartyWallsText(area: { readonly grossInternal: number; readonly grossExternal: number } | null, gross: readonly ('grossInternal' | 'grossExternal')[], units: Display, s: Speaker = ENGLISH_SPEAKER): string {
   if (area === null) return ''
   const parts = gross.map((m) => said(m === 'grossInternal' ? 'areas.toPartyWalls.grossInternal' : 'areas.toPartyWalls.grossExternal', { area: areaText(area[m], units) }))
-  return english(said('areas.flat.toPartyWalls', { areas: joined(parts, 'join.comma') }))
+  return s.value(said('areas.flat.toPartyWalls', { areas: joined(parts, 'join.comma') }))
 }
 
 /** CNT-27: the CSV's `counted` cell for a room of grid_areas: `inside`, or why it is in no total. */
@@ -701,40 +731,40 @@ const NOT_COUNTED_WORDS: Readonly<Record<NotCounted, readonly [string, string]>>
 }
 
 /** ARE-14: a flat's area to the party walls, its free floor and its outdoor space, after its net. */
-function flatExtras(flat: ReturnType<typeof planAreas>['flats'][number], gross: readonly ('grossInternal' | 'grossExternal')[], units: Display): string {
-  const free = flat.free === undefined ? '' : english(said('areas.flat.free', { area: areaText(flat.free, units) }))
+function flatExtras(flat: ReturnType<typeof planAreas>['flats'][number], gross: readonly ('grossInternal' | 'grossExternal')[], units: Display, s: Speaker = ENGLISH_SPEAKER): string {
+  const free = flat.free === undefined ? '' : s.say('areas.flat.free', { area: areaText(flat.free, units) })
   const outdoor = flat.outdoor === undefined
     ? ''
     : flat.outdoor.weighted === null
-      ? english(said('areas.flat.outdoor', { area: areaText(flat.outdoor.area, units) }))
-      : english(said('areas.flat.outdoorCounted', { area: areaText(flat.outdoor.area, units), counted: areaText(flat.outdoor.weighted, units), withIt: areaText(flat.net + flat.outdoor.weighted, units) }))
-  return `${toPartyWallsText(flat.toPartyWalls, gross, units)}${free}${outdoor}`
+      ? s.say('areas.flat.outdoor', { area: areaText(flat.outdoor.area, units) })
+      : s.say('areas.flat.outdoorCounted', { area: areaText(flat.outdoor.area, units), counted: areaText(flat.outdoor.weighted, units), withIt: areaText(flat.net + flat.outdoor.weighted, units) })
+  return `${toPartyWallsText(flat.toPartyWalls, gross, units, s)}${free}${outdoor}`
 }
 
 /** ARE-14: whether the outdoor space is left out of every total or counted by the rules stated, kind by kind. */
-function outdoorCountedLines(outdoor: NonNullable<ReturnType<typeof planAreas>['outdoor']>, units: Display): string[] {
+function outdoorCountedLines(outdoor: NonNullable<ReturnType<typeof planAreas>['outdoor']>, units: Display, s: Speaker = ENGLISH_SPEAKER): string[] {
   const kindSaid = (kind: string) => said(`outdoor.kind.${kind}` as MessageKey)
-  if (outdoor.weighted === null) return [english(said('areas.outdoor.leftOut'))]
-  const counted = outdoor.weighted.kinds.map((k) => english(said('areas.outdoor.counted', { kind: kindSaid(k.kind), share: num(String(Number((k.share * 100).toFixed(2)))), rule: k.rule, area: areaText(k.counted, units) })))
+  if (outdoor.weighted === null) return [s.say('areas.outdoor.leftOut')]
+  const counted = outdoor.weighted.kinds.map((k) => s.value(said('areas.outdoor.counted', { kind: kindSaid(k.kind), share: num(String(Number((k.share * 100).toFixed(2)))), rule: k.rule, area: areaText(k.counted, units) })))
   const left = Object.keys(outdoor.byKind).filter((kind) => !outdoor.weighted!.kinds.some((k) => k.kind === kind))
   return [
     ...counted,
-    ...(left.length === 0 ? [] : [english(said('areas.outdoor.notCounted', { kinds: joined(left.map(kindSaid), 'join.comma') }))]),
-    english(said('areas.outdoor.withNet', { area: areaText(outdoor.weighted.withNet, units) })),
+    ...(left.length === 0 ? [] : [s.value(said('areas.outdoor.notCounted', { kinds: joined(left.map(kindSaid), 'join.comma') }))]),
+    s.say('areas.outdoor.withNet', { area: areaText(outdoor.weighted.withNet, units) }),
   ]
 }
 
 /** LVL-6: a stated roof's shape, pitch, area on its slope and rooflights, after its area on plan. */
 function sloped(roof: { readonly shape: string | null; readonly pitch: number; readonly slopeArea: number; readonly rooflights: number }, units: Display): string {
   if (roof.shape === null) return ''
-  const slope = roof.pitch > 0 ? `, pitched ${roof.pitch.toFixed(1)}°, ${areaText(roof.slopeArea, units)} on its slope` : ''
+  const slope = roof.pitch > 0 ? `, pitched ${marked(roof.pitch.toFixed(1), units.decimal)}°, ${areaText(roof.slopeArea, units)} on its slope` : ''
   const lights = roof.rooflights === 0 ? '' : `, ${roof.rooflights === 1 ? 'one rooflight' : `${roof.rooflights} rooflights`}`
   return `, on plan; a ${roof.shape} roof${slope}${lights}`
 }
 
 /** LVL-6: floor by headroom band, as `at least 1.50 m 18.42 m², at least 2.20 m 12.28 m²`. */
-function bandsText(bands: readonly HeadroomBand[], units: Display): string {
-  return bands.map((b) => `at least ${lengthText(b.height, units)} ${areaText(b.area, units)}`).join(', ')
+function bandsText(bands: readonly HeadroomBand[], units: Display, s: Speaker = ENGLISH_SPEAKER): string {
+  return bands.map((b) => s.say('tool.areas.band', { height: lengthText(b.height, units), area: areaText(b.area, units) })).join(', ')
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -746,8 +776,11 @@ function quantityText(quantity: number, unit: QuantityUnit, units: Display): str
   return unit === 'm2' ? areaText(quantity, units) : lengthText(quantity, units)
 }
 
-const money = (amount: number, currency: string): string =>
-  `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
+/** A sum of money, its thousands grouped; MSG-34: with the display's decimal mark (1.234,56 with a comma). */
+const money = (amount: number, currency: string, decimal: 'point' | 'comma' = 'point'): string => {
+  const shown = amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `${decimal === 'comma' ? shown.replace(/[.,]/g, (mark) => (mark === '.' ? ',' : '.')) : shown} ${currency}`
+}
 
 const UNIT_SHOWN: Readonly<Record<QuantityUnit, string>> = { m2: 'm²', m: 'm', nr: 'nr' }
 
@@ -794,8 +827,8 @@ function estimateAnswer(estimate: Estimate, pricing: Pricing | null, units: Disp
     let cost = ''
     if (pricing !== null) {
       if (line.state === 'priced' || line.state === 'alternative') {
-        const waste = line.given!.waste === 0 ? '' : ` + ${+(line.given!.waste * 100).toFixed(2)}% waste`
-        cost = `${waste} × ${money(line.rate!, pricing.currency)}/${UNIT_SHOWN[line.unit]} = ${money(line.amount!, pricing.currency)}${line.state === 'alternative' ? ', an alternative to the total' : ''}`
+        const waste = line.given!.waste === 0 ? '' : ` + ${marked(String(+(line.given!.waste * 100).toFixed(2)), units.decimal)}% waste`
+        cost = `${waste} × ${money(line.rate!, pricing.currency, units.decimal)}/${UNIT_SHOWN[line.unit]} = ${money(line.amount!, pricing.currency, units.decimal)}${line.state === 'alternative' ? ', an alternative to the total' : ''}`
       } else if (line.state === 'wrong unit') {
         cost = `, not priced: the rate ${q(line.rateKey!)} is per ${line.given!.unit}`
       } else {
@@ -819,13 +852,14 @@ function estimateAnswer(estimate: Estimate, pricing: Pricing | null, units: Disp
     if (pricing.wrongUnit.length > 0) {
       gaps.push(`${pricing.wrongUnit.length} ${pricing.wrongUnit.length === 1 ? 'line has its rate' : 'lines have their rate'} in the wrong unit (${pricing.wrongUnit.map((w) => `${w.key}: ${q(w.rateKey)} is per ${w.rateUnit}, the line is in ${w.unit}`).join('; ')})`)
     }
-    lines.push(`Total of the priced lines: ${money(pricing.total, pricing.currency)}.${gaps.length === 0 ? ' Every line is priced.' : ` Not the whole cost: ${gaps.join(', and ')}.`}`)
-    if (pricing.wholeBuilding !== null) lines.push(`The whole building at the ${WHOLE_BUILDING_KEY} rate: ${money(pricing.wholeBuilding, pricing.currency)}, an alternative to the total, never added to it.`)
+    lines.push(`Total of the priced lines: ${money(pricing.total, pricing.currency, units.decimal)}.${gaps.length === 0 ? ' Every line is priced.' : ` Not the whole cost: ${gaps.join(', and ')}.`}`)
+    if (pricing.wholeBuilding !== null) lines.push(`The whole building at the ${WHOLE_BUILDING_KEY} rate: ${money(pricing.wholeBuilding, pricing.currency, units.decimal)}, an alternative to the total, never added to it.`)
     if (pricing.unused.length > 0) lines.push(`Rates that price no line of this plan: ${pricing.unused.map(q).join(', ')}.`)
     if (pricing.orders.length > 0) {
       lines.push('Orders, from the rates file:')
       for (const order of pricing.orders) {
-        lines.push(`  ${q(order.name)}: ${order.packs} ${order.pack} (${order.needed.toFixed(2)} ${UNIT_SHOWN[order.unit]} needed)${order.assumed ? ', assumed: it rests on an assumed line' : ''}`)
+        // MSG-34: what an order needs, in the display's units.
+        lines.push(`  ${q(order.name)}: ${order.packs} ${order.pack} (${quantityText(order.needed, order.unit, units)} needed)${order.assumed ? ', assumed: it rests on an assumed line' : ''}`)
         lines.push(`    Rule: ${order.rule}`)
       }
     }
@@ -870,15 +904,15 @@ function parkingLines(bays: readonly BayCount[], ramps: readonly RampFigures[], 
   ]
 }
 
-/** CNT-15: one line per surface with each finish's quantity, a finish not stated last. */
-function finishLines(totals: readonly { readonly surface: FinishSurface; readonly finish: string | null; readonly quantity: number; readonly rooms: readonly string[] }[], units: Display): string[] {
-  const words: Record<FinishSurface, string> = { floor: 'Floor', walls: 'Wall faces', ceiling: 'Ceilings', skirting: 'Skirting' }
+/** CNT-15: one line per surface with each finish's quantity, a finish not stated last. MSG-34: in the speaker's language. */
+function finishLines(totals: readonly { readonly surface: FinishSurface; readonly finish: string | null; readonly quantity: number; readonly rooms: readonly string[] }[], units: Display, s: Speaker = ENGLISH_SPEAKER): string[] {
   const amount = (surface: FinishSurface, quantity: number): string => (FINISH_UNITS[surface] === 'm' ? lengthText(quantity, units) : areaText(quantity, units))
+  const rooms = (n: number): string => s.say(n === 1 ? 'tool.schedule.count.room.one' : 'tool.schedule.count.room', { count: n })
   return [
-    'Finishes:',
+    s.say('tool.finishes.heading'),
     ...FINISH_SURFACES.flatMap((surface) => {
       const of = totals.filter((total) => total.surface === surface)
-      return of.length === 0 ? [] : [`  ${words[surface]}: ${of.map((total) => `${total.finish === null ? 'not stated' : q(total.finish)} ${amount(surface, total.quantity)} (${total.rooms.length} room${total.rooms.length === 1 ? '' : 's'})`).join('; ')}.`]
+      return of.length === 0 ? [] : [`  ${s.say(`tool.finishes.total.${surface}`)}: ${of.map((total) => `${total.finish === null ? s.say('tool.schedule.notStated') : q(total.finish)} ${amount(surface, total.quantity)} (${rooms(total.rooms.length)})`).join('; ')}.`]
     }),
   ]
 }
@@ -968,7 +1002,8 @@ const takeoffTool: GridTool = {
         throw asRefusal(error)
       }
       const floors = floor === undefined ? {} : { floors: [floor] }
-      const units = displayFor(args['units'], args['decimal'], loaded.plan)
+      // MSG-34: the call's language, else the plan's, gives the decimal mark of every figure and sum.
+      const units = displayFor(args['units'], args['decimal'], loaded.plan, toolLanguage(context, loaded.plan))
       const answer = (estimate: Estimate): Answer => estimateAnswer(estimate, rates === null ? null : priceEstimate(estimate, rates), units, args['format'] === 'csv', change)
       // CNT-10: the work of a plan with phases, as three lists, on the same rates. Read only when
       // asked for, so the command's file stays small.
@@ -979,7 +1014,8 @@ const takeoffTool: GridTool = {
     const { survey, floor } = load(context, args['plan'], args['floor'])
     const rooms = args['rooms'] as string[] | undefined
     for (const id of rooms ?? []) roomArg(survey.plan, id, 'rooms item')
-    const units = displayFor(args['units'], args['decimal'], survey.plan)
+    // MSG-34: the decimal mark of the call's language, else the plan's, on every figure.
+    const units = displayFor(args['units'], args['decimal'], survey.plan, toolLanguage(context, survey.plan))
     const t = planTakeoff(survey, floor === undefined ? undefined : [floor], rooms)
     // CNT-15 (C24): the named wall types' walls and the finishes, on a plan that names any.
     const wallTypes = planHasTypes(survey.plan) ? wallTypeRuns(survey, floor === undefined ? undefined : [floor]) : []
@@ -1038,13 +1074,13 @@ const takeoffTool: GridTool = {
         ...(f.roof ? [`  Roof over${on || ' the floor'}, where nothing is above: ${areaText(f.roof.area, units)}${f.roof.parapet === null ? '' : `, parapet ${lengthText(f.roof.parapet, units)} high`}${sloped(f.roof, units)}; assumed.`] : []),
       ]
     })
-    const assumed = [...new Set(t.envelope.floors.flatMap((f) => f.assumed))]
+    const assumed = [...new Set(t.envelope.floors.flatMap((f) => f.assumed))].map((line) => marked(line, units.decimal))
     const lines = [
       `Walls: ${t.walls.map((w) => `${w.kind} ${lengthText(w.gross, units)} (${w.count} wall${w.count === 1 ? '' : 's'}; ${lengthText(w.net, units)} less openings)`).join('; ')}.`,
       ...(t.columns === undefined ? [] : [columnsLine(t.columns, units)]),
       ...(t.bays === undefined && t.ramps === undefined ? [] : parkingLines(t.bays ?? [], t.ramps ?? [], units, new Map(planFloors(survey.plan).map((f) => [f.id, f.name ?? f.id])))),
       'By room: floor and ceiling, skirting, wall face to plaster.',
-      ...t.rooms.map((r) => `  ${q(r.name)}: floor ${areaText(r.floorArea, units)}, ceiling ${areaText(r.ceiling, units)}, skirting ${lengthText(r.skirting, units)}, wall face ${areaText(r.wallFace, units)} (${r.openingsOff.toFixed(2)} m² of openings off, walls ${r.height === null ? 'none' : `${r.height.toFixed(2)} m`} high)${r.void === true ? `; a void: no floor, ceiling or skirting, guard ${lengthText(r.guard ?? 0, units)} along its open edge` : ''}`),
+      ...t.rooms.map((r) => `  ${q(r.name)}: floor ${areaText(r.floorArea, units)}, ceiling ${areaText(r.ceiling, units)}, skirting ${lengthText(r.skirting, units)}, wall face ${areaText(r.wallFace, units)} (${areaText(r.openingsOff, units)} of openings off, walls ${r.height === null ? 'none' : lengthText(r.height, units)} high)${r.void === true ? `; a void: no floor, ceiling or skirting, guard ${lengthText(r.guard ?? 0, units)} along its open edge` : ''}`),
       `Totals: floor ${areaText(t.totals.floorArea, units)}, ceiling ${areaText(t.totals.ceiling, units)}, skirting ${lengthText(t.totals.skirting, units)}, wall face ${areaText(t.totals.wallFace, units)}${t.totals.guard === undefined ? '' : `, guard ${lengthText(t.totals.guard, units)} round voids`}.`,
       'Slabs and roof, worked out from the outlines (assumed: the plan states no slab or roof):',
       ...envelopeLines,
@@ -1078,131 +1114,151 @@ const takeoffTool: GridTool = {
 /** What grid_schedule's `of` names. */
 type ScheduleOf = 'rooms' | 'openings' | 'flats' | 'doors' | 'windows' | 'finishes'
 
-/** ARE-12: the room schedule or the opening schedule, from one set of rows, as text or CSV. */
-function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined, units: Display, asCsv: boolean): Answer {
+/** MSG-34: a door's or window's kind in words, in the speaker's language (`kindWords` in English). */
+function kindIn(s: Speaker, type: 'door' | 'window' | 'opening', kind: OpeningKind | null): string {
+  if (s.language === 'en') return type === 'opening' ? type : kindWords(type, kind)
+  const word = s.say(`tool.schedule.type.${type}`)
+  if (type === 'opening' || kind === null) return word
+  return s.say(`tool.schedule.kinded.${type}`, { kind: s.say(kind === 'single' && type === 'door' ? 'tool.schedule.kind.singleLeaf' : `tool.schedule.kind.${kind}`) })
+}
+
+/** ARE-12: the room schedule or the opening schedule, from one set of rows, as text or CSV. MSG-34: in the speaker's language. */
+function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined, units: Display, asCsv: boolean, s: Speaker = ENGLISH_SPEAKER): Answer {
   const floors = floor === undefined ? undefined : [floor]
   const several = survey.facts.floors.length > 1
+  const wordOfUse = (use: string): string => (s.language === 'en' ? use : labelOfUse(s.language, use as RoomUse))
   if (of === 'finishes') {
     // CNT-15 (C24): the finishes room by room, a zone with its own after its room, and each finish's total.
-    const s = planFinishes(survey, floors)
-    const data = { rows: s.rows, totals: s.totals, rule: s.rule }
+    const f = planFinishes(survey, floors)
+    const data = { rows: f.rows, totals: f.totals, rule: f.rule }
     const amount = (surface: FinishSurface, quantity: number): string => (FINISH_UNITS[surface] === 'm' ? lengthText(quantity, units) : areaText(quantity, units))
     if (asCsv) {
       // CNT-51: no skirting is none; the bands and finished faces, each its finish and area, in one cell.
-      const cells = s.rows.map((r) => [r.id, r.name, r.floor, r.zoneOf, ...FINISH_SURFACES.flatMap((surface) => [surface === 'skirting' && r.noSkirting ? 'none' : r.surfaces[surface].finish, r.surfaces[surface].quantity]), [...r.bands.map((b) => `${b.finish} ${b.area.toFixed(2)}`), ...r.faces.map((f) => `${f.finish} ${f.area.toFixed(2)}`)].join('; ')])
+      const cells = f.rows.map((r) => [r.id, r.name, r.floor, r.zoneOf, ...FINISH_SURFACES.flatMap((surface) => [surface === 'skirting' && r.noSkirting ? 'none' : r.surfaces[surface].finish, r.surfaces[surface].quantity]), [...r.bands.map((b) => `${b.finish} ${b.area.toFixed(2)}`), ...r.faces.map((face) => `${face.finish} ${face.area.toFixed(2)}`)].join('; ')])
       return { text: csv(['id', 'name', 'floor', 'zone of', 'floor finish', 'floor m2', 'wall finish', 'wall face m2', 'ceiling finish', 'ceiling m2', 'skirting finish', 'skirting m', 'bands and faces m2'], cells), data }
     }
-    const floorName = new Map(survey.facts.floors.map((f) => [f.id, f.name] as const))
-    const lines = [planHasFinishes(survey.plan) ? 'Finishes by room:' : 'The plan names no finishes: every surface is not stated. Name a room\'s or a zone\'s in its finishes (floor, walls, ceiling, skirting).']
-    for (const r of s.rows) {
+    const floorName = new Map(survey.facts.floors.map((x) => [x.id, x.name] as const))
+    const lines = [planHasFinishes(survey.plan) ? s.say('tool.schedule.finishes.heading') : s.say('tool.schedule.finishes.none')]
+    for (const r of f.rows) {
       const shown = FINISH_SURFACES.filter((surface) => r.zoneOf === null || r.surfaces[surface].finish !== null || (surface === 'skirting' && r.noSkirting))
-      const parts = shown.map((surface) => (surface === 'skirting' && r.noSkirting && r.surfaces[surface].finish === null ? 'no skirting' : `${surface} ${r.surfaces[surface].finish === null ? 'not stated' : q(r.surfaces[surface].finish!)} ${amount(surface, r.surfaces[surface].quantity)}`))
+      const parts = shown.map((surface) => (surface === 'skirting' && r.noSkirting && r.surfaces[surface].finish === null ? s.say('tool.schedule.finishes.noSkirting') : s.say('tool.schedule.finishes.surface', { surface: s.say(`tool.schedule.surface.${surface}`), finish: r.surfaces[surface].finish === null ? s.say('tool.schedule.notStated') : q(r.surfaces[surface].finish!), amount: amount(surface, r.surfaces[surface].quantity) })))
       const indent = r.zoneOf === null ? '' : '  '
-      lines.push(`${indent}${q(r.name)}${r.zoneOf === null ? '' : ` (a zone of ${q(r.zoneOf)})`}${several ? `, ${q(floorName.get(r.floor) ?? r.floor)}` : ''}: ${parts.join(', ')}`)
+      lines.push(`${indent}${q(r.name)}${r.zoneOf === null ? '' : s.say('tool.schedule.finishes.zoneOf', { room: name(r.zoneOf) })}${several ? `, ${q(floorName.get(r.floor) ?? r.floor)}` : ''}: ${parts.join(', ')}`)
       // CNT-51: each band and finished face on its own line, taken off the walls above.
       for (const b of r.bands) {
-        const where = b.behind !== null ? `behind ${q(b.behind)}` : b.wall !== null ? `on wall ${q(b.wall)}` : 'all round'
-        lines.push(`${indent}  band ${q(b.finish)} ${where}, ${lengthText(b.from, units, 'height')} to ${lengthText(b.to, units, 'height')}, ${lengthText(b.length, units)} long: ${areaText(b.area, units)}`)
+        const where = b.behind !== null ? s.say('tool.schedule.band.behind', { item: name(b.behind) }) : b.wall !== null ? s.say('tool.schedule.band.onWall', { wall: name(b.wall) }) : s.say('tool.schedule.band.allRound')
+        lines.push(`${indent}  ${s.say('tool.schedule.band', { finish: name(b.finish), where, from: lengthText(b.from, units, 'height'), to: lengthText(b.to, units, 'height'), length: lengthText(b.length, units), area: areaText(b.area, units) })}`)
       }
-      for (const f of r.faces) lines.push(`${indent}  face of wall ${q(f.wall)} ${q(f.finish)}: ${areaText(f.area, units)}`)
+      for (const face of r.faces) lines.push(`${indent}  ${s.say('tool.schedule.face', { wall: name(face.wall), finish: name(face.finish), area: areaText(face.area, units) })}`)
     }
-    lines.push(...finishLines(s.totals, units), s.rule)
+    lines.push(...finishLines(f.totals, units, s), s.text(f.rule))
     return { text: lines.join('\n'), data }
   }
   if (of === 'doors' || of === 'windows') {
     // ARE-15: the door or window schedule by type (kind and size), each type with its openings' marks.
     const type = of === 'doors' ? 'door' : 'window'
-    const s = openingTypeSchedule(survey, type, floors === undefined ? {} : { floors })
-    const data = { rows: s.rows, count: s.count, rule: s.rule }
-    if (asCsv) return { text: openingTypeScheduleCsv(s), data }
-    const size = (w: number, h: number): string => `${lengthText(w, units)} wide × ${lengthText(h, units)} high`
-    const lines = [`${type === 'door' ? 'Door' : 'Window'} schedule by type, ${s.count} ${type}${s.count === 1 ? '' : 's'} of ${s.rows.length} type${s.rows.length === 1 ? '' : 's'}:`]
-    for (const r of s.rows) {
-      const sills = type === 'window' ? `, sill ${r.sills.map((sill) => lengthText(sill, units, 'height')).join(' or ')}` : ''
-      const part = r.opens === null ? '' : `, opens ${lengthText(r.opens.width, units)} × ${lengthText(r.opens.height, units)}`
+    const t = openingTypeSchedule(survey, type, floors === undefined ? {} : { floors })
+    const data = { rows: t.rows, count: t.count, rule: t.rule }
+    if (asCsv) return { text: openingTypeScheduleCsv(t, units), data }
+    const size = (w: number, h: number): string => s.say('tool.schedule.size', { width: lengthText(w, units), height: lengthText(h, units) })
+    const lines = [s.say(type === 'door' ? 'tool.schedule.byType.door' : 'tool.schedule.byType.window', { openings: s.say(t.count === 1 ? `tool.schedule.count.${type}.one` : `tool.schedule.count.${type}`, { count: t.count }), types: s.say(t.rows.length === 1 ? 'tool.schedule.count.type.one' : 'tool.schedule.count.type', { count: t.rows.length }) })]
+    for (const r of t.rows) {
+      const sills = type === 'window' ? s.say('tool.schedule.sill', { sill: r.sills.map((sill) => lengthText(sill, units, 'height')).join(s.say('join.or')) }) : ''
+      const part = r.opens === null ? '' : s.say('tool.schedule.opens', { width: lengthText(r.opens.width, units), height: lengthText(r.opens.height, units) })
       // CNT-15: a type the plan names is said by its name, with its material.
       const named = r.basis === 'named' ? `${q(r.name!)}, ` : ''
-      const material = r.basis === 'named' ? `, ${r.material === null ? 'material not stated' : r.material}${r.glazed === true ? ', glazed' : ''}` : ''
-      lines.push(`${r.number}. ${r.count} × ${named}${kindWords(type, r.kind)} ${size(r.width, r.height)}${part}${sills}${material} (type ${r.key}): ${r.marks.join(', ')}`)
+      const material = r.basis === 'named' ? `, ${r.material === null ? s.say('tool.schedule.materialNotStated') : r.material}${r.glazed === true ? s.say('tool.schedule.glazed') : ''}` : ''
+      lines.push(`${r.number}. ${r.count} × ${named}${kindIn(s, type, r.kind)} ${size(r.width, r.height)}${part}${sills}${material} ${s.say('tool.schedule.typeKey', { key: r.key })}: ${r.marks.join(', ')}`)
     }
-    if (s.rows.length === 0) lines.push(`The plan has no ${of}${floor === undefined ? '' : ' on that floor'}.`)
-    lines.push(s.rule)
+    if (t.rows.length === 0) lines.push(s.say(floor === undefined ? `tool.schedule.none.${of}` : `tool.schedule.none.${of}.floor`))
+    lines.push(s.text(t.rule))
     return { text: lines.join('\n'), data }
   }
   if (of === 'flats') {
     // CNT-4: the plan's flats list, each flat once, then the mix by type (lab EL-1, AR-7).
-    const s = flatSchedule(survey, floors === undefined ? {} : { floors })
-    const data = { rows: s.rows, mix: s.mix, total: s.total, notInFlats: s.notInFlats, rules: s.rules }
-    if (asCsv) return { text: flatScheduleCsv(s), data }
+    const f = flatSchedule(survey, floors === undefined ? {} : { floors })
+    const data = { rows: f.rows, mix: f.mix, total: f.total, notInFlats: f.notInFlats, rules: f.rules }
+    if (asCsv) return { text: flatScheduleCsv(f), data }
     if ((survey.plan.flats ?? []).length === 0) {
-      return { text: ['The plan lists no flats, so there is no flat schedule or mix. List them in the plan\'s "flats", each with its rooms by id, or place a flat type in rooms text (unit <name> flat "<type name>").', ...s.rules].join('\n'), data }
+      return { text: [s.say('tool.schedule.flats.none'), ...f.rules.map((rule) => s.text(rule))].join('\n'), data }
     }
-    const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
-    const lines = s.rows.map((r) => `${r.number}. ${q(r.name)}${r.typeName === null ? '' : ` (${r.typeName}${r.mirrored ? ', mirrored' : ''})`}, ${r.floors.map(q).join(' and ') || 'no floor given'}: ${count(r.rooms, 'room')}, ${count(r.bedrooms, 'bedroom')}, ${areaText(r.area, units)}${r.state === 'proven' ? '' : ', not proven'}`)
-    if (s.rows.length === 0) lines.push('No flat has a room on the floors given.')
-    lines.push(`All flats: ${count(s.total.flats, 'flat')}, ${areaText(s.total.area, units)}${stateText(s.total.state, several)}. In no flat: ${areaText(s.notInFlats, units)}.`)
-    lines.push('Mix by type:')
-    for (const m of s.mix) lines.push(`  ${q(m.name)}: ${count(m.flats, 'flat')}${m.mirrored === 0 ? '' : ` (${m.mirrored} mirrored)`}${m.bedrooms === null ? '' : `, ${count(m.bedrooms, 'bedroom')} each`}, ${percent(m.share)} of the flats, ${areaText(m.area, units)}${m.each === null ? '' : `, ${areaText(m.each, units)} each on average`}`)
-    lines.push(...s.rules)
+    const count = (n: number, one: 'room' | 'bedroom' | 'flat'): string => s.say(n === 1 ? `tool.schedule.count.${one}.one` : `tool.schedule.count.${one}`, { count: n })
+    const lines = f.rows.map((r) => `${r.number}. ${q(r.name)}${r.typeName === null ? '' : ` (${r.typeName}${r.mirrored ? s.say('tool.areas.flat.mirrored') : ''})`}, ${r.floors.map(q).join(s.say('join.and')) || s.say('tool.schedule.flats.noFloor')}: ${count(r.rooms, 'room')}, ${count(r.bedrooms, 'bedroom')}, ${areaText(r.area, units)}${r.state === 'proven' ? '' : s.say('tool.areas.flat.notProven')}`)
+    if (f.rows.length === 0) lines.push(s.say('tool.schedule.flats.noneOnFloors'))
+    lines.push(s.say('tool.schedule.flats.all', { flats: count(f.total.flats, 'flat'), area: `${areaText(f.total.area, units)}${stateText(f.total.state, several, s)}`, notInFlats: areaText(f.notInFlats, units) }))
+    lines.push(s.say('tool.schedule.flats.mix'))
+    for (const m of f.mix) lines.push(`  ${s.say('tool.schedule.flats.mixLine', { type: name(m.name), flats: count(m.flats, 'flat'), mirrored: m.mirrored === 0 ? '' : s.say('tool.schedule.flats.mirrored', { count: m.mirrored }), bedrooms: m.bedrooms === null ? '' : s.say('tool.schedule.flats.bedroomsEach', { bedrooms: count(m.bedrooms, 'bedroom') }), share: percent(m.share, s), area: areaText(m.area, units), each: m.each === null ? '' : s.say('tool.schedule.flats.each', { area: areaText(m.each, units) }) })}`)
+    lines.push(...f.rules.map((rule) => s.text(rule)))
     return { text: lines.join('\n'), data }
   }
   if (of === 'rooms') {
-    const s = roomSchedule(survey, floors === undefined ? {} : { floors })
-    const data = { rows: s.rows, floors: s.floors, total: s.total, rules: s.rules }
-    if (asCsv) return { text: roomScheduleCsv(s), data }
+    const r0 = roomSchedule(survey, floors === undefined ? {} : { floors })
+    const data = { rows: r0.rows, floors: r0.floors, total: r0.total, rules: r0.rules }
+    if (asCsv) return { text: roomScheduleCsv(r0, units), data }
     // CNT-9: a stated room number wins over Grid's, and the room's own facts follow its figures.
     const own = (properties: Readonly<Record<string, string | number | boolean>>): string => (Object.keys(properties).length === 0 ? '' : `; ${factsText(properties)}`)
     // CNT-4: on a plan that lists flats, the flat each room is in.
     const flatNames = new Map((survey.plan.flats ?? []).map((f) => [f.id, f.name ?? f.id] as const))
-    const inFlat = (flat: string | null | undefined): string => (flat === undefined ? '' : flat === null ? ', in no flat' : `, flat ${q(flatNames.get(flat) ?? flat)}`)
+    const inFlat = (flat: string | null | undefined): string => (flat === undefined ? '' : flat === null ? s.say('tool.schedule.room.noFlat') : s.say('tool.schedule.room.flat', { flat: name(flatNames.get(flat) ?? flat) }))
     // CNT-27: a row in no total says why, so the rows that count add up to the totals.
     const floorNames = new Map(survey.facts.floors.map((f) => [f.id, f.name ?? f.id] as const))
-    const rowNames = new Map(s.rows.map((r) => [`${r.floor}\u0000${r.id}`, r.name] as const))
-    const left = (r: (typeof s.rows)[number]): string => {
+    const rowNames = new Map(r0.rows.map((r) => [`${r.floor}\u0000${r.id}`, r.name] as const))
+    const left = (r: (typeof r0.rows)[number]): string => {
       const c = r.notCounted
       if (c === undefined) return ''
-      if (c.with !== undefined) return `; in no total: counted once with ${q(rowNames.get(`${c.with.floor}\u0000${c.with.room}`) ?? c.with.room)} on ${q(floorNames.get(c.with.floor) ?? c.with.floor)}`
-      return `; in no total: ${NOT_COUNTED_WORDS[c.why][0]}`
+      if (c.with !== undefined) return s.say('tool.schedule.room.countedWith', { room: name(rowNames.get(`${c.with.floor}\u0000${c.with.room}`) ?? c.with.room), floor: name(floorNames.get(c.with.floor) ?? c.with.floor) })
+      return s.say('tool.schedule.room.inNoTotal', { why: s.say(`tool.schedule.notCounted.${c.why}`) })
     }
-    const roomsWord = (n: number): string => `${n} room${n === 1 ? '' : 's'}`
-    const lines = s.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(roomCalled(r))}${r.use ? ` (${r.use})` : ''}, ${q(r.floorName)}: ${r.area === null ? 'not measured: it could not be drawn' : areaText(r.area, units)}, ${r.height === null ? 'height not known' : `${lengthText(r.height, units)} high`}${r.state === 'not-proven' ? ', not proven' : ''}${inFlat(r.flat)}${own(r.properties)}${left(r)}`)
-    for (const t of s.floors) lines.push(`${q(t.floorName!)}: ${roomsWord(t.rooms)}, ${areaText(t.area, units)}${stateText(t.state, several)}.`)
-    lines.push(`All floors: ${roomsWord(s.total.rooms)}, ${areaText(s.total.area, units)}${stateText(s.total.state, several)}.`, ...s.rules)
+    const roomsWord = (n: number): string => s.say(n === 1 ? 'tool.schedule.count.room.one' : 'tool.schedule.count.room', { count: n })
+    const lines = r0.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(roomCalled(r))}${r.use ? ` (${wordOfUse(r.use)})` : ''}, ${q(r.floorName)}: ${r.area === null ? s.say('tool.areas.room.notMeasured') : areaText(r.area, units)}, ${r.height === null ? s.say('tool.schedule.room.heightNotKnown') : s.say('tool.schedule.room.high', { height: lengthText(r.height, units) })}${r.state === 'not-proven' ? s.say('tool.areas.flat.notProven') : ''}${inFlat(r.flat)}${own(r.properties)}${left(r)}`)
+    for (const t of r0.floors) lines.push(s.say('tool.schedule.room.floorTotal', { floor: name(t.floorName!), rooms: roomsWord(t.rooms), area: `${areaText(t.area, units)}${stateText(t.state, several, s)}` }))
+    lines.push(s.say('tool.schedule.room.allFloors', { rooms: roomsWord(r0.total.rooms), area: `${areaText(r0.total.area, units)}${stateText(r0.total.state, several, s)}` }), ...r0.rules.map((rule) => s.text(rule)))
     return { text: lines.join('\n'), data }
   }
-  const s = openingSchedule(survey, floors === undefined ? {} : { floors })
-  const data = { rows: s.rows, counts: s.counts, rule: s.rule }
-  if (asCsv) return { text: openingScheduleCsv(s), data }
+  const o = openingSchedule(survey, floors === undefined ? {} : { floors })
+  const data = { rows: o.rows, counts: o.counts, rule: o.rule }
+  if (asCsv) return { text: openingScheduleCsv(o, units), data }
   // CNT-14: its kind, the part that opens and its handing, where the plan states them.
-  const kindOf = (r: (typeof s.rows)[number]): string => (r.type === 'opening' ? r.type : kindWords(r.type, r.kind))
-  const partOf = (r: (typeof s.rows)[number]): string =>
-    `${r.opens === null ? '' : `, opens ${lengthText(r.opens.width, units)} × ${lengthText(r.opens.height, units)}`}${r.handing === null ? '' : `, ${r.handing}`}`
+  const partOf = (r: (typeof o.rows)[number]): string =>
+    `${r.opens === null ? '' : s.say('tool.schedule.opens', { width: lengthText(r.opens.width, units), height: lengthText(r.opens.height, units) })}${r.handing === null ? '' : `, ${r.handingSaid !== null && s.language !== 'en' ? s.value(r.handingSaid) : r.handing}`}`
   // ARE-15: each opening's mark, as the drawing shows it (grid_view marks schedule).
-  const lines = s.rows.map((r) => `${r.number}. ${r.mark} ${kindOf(r)} ${q(r.id)}, ${q(r.floorName)}: ${lengthText(r.width, units)} wide × ${lengthText(r.height, units)} high${r.type === 'window' ? `, sill ${lengthText(r.sill, units, 'height')}` : ''}${partOf(r)}, ${r.between[0]} ↔ ${r.between[1]}${Object.keys(r.properties).length === 0 ? '' : `; ${factsText(r.properties)}`}`)
-  if (lines.length === 0) lines.push('The plan has no openings.')
-  lines.push(`In all, each counted once: ${s.counts.door} doors, ${s.counts.window} windows, ${s.counts.opening} doorless openings.`, s.rule)
+  const lines = o.rows.map((r) => `${r.number}. ${r.mark} ${kindIn(s, r.type, r.kind)} ${q(r.id)}, ${q(r.floorName)}: ${s.say('tool.schedule.size', { width: lengthText(r.width, units), height: lengthText(r.height, units) })}${r.type === 'window' ? s.say('tool.schedule.sill', { sill: lengthText(r.sill, units, 'height') }) : ''}${partOf(r)}, ${sideIn(s, r.between[0])} ↔ ${sideIn(s, r.between[1])}${Object.keys(r.properties).length === 0 ? '' : `; ${factsText(r.properties)}`}`)
+  if (lines.length === 0) lines.push(s.say('tool.schedule.none.openings'))
+  lines.push(s.say('tool.schedule.counts.once', { counts: countsIn(s, o.counts) }), s.text(o.rule))
   return { text: lines.join('\n'), data }
 }
 
+/** MSG-34: an opening's side in the speaker's language: a room's name as written, the outside in its word. */
+function sideIn(s: Speaker, side: string): string {
+  return side === 'outside' && s.language !== 'en' ? s.say('tool.schedule.outside') : side
+}
+
+/** MSG-34: "2 doors, 3 windows, 0 doorless openings", in the speaker's language. */
+function countsIn(s: Speaker, counts: Readonly<Record<'door' | 'window' | 'opening', number>>): string {
+  return s.say('tool.schedule.counts', { doors: counts.door, windows: counts.window, openings: counts.opening })
+}
+
 /** CNT-52: grid_schedule of=items: every item, points too, numbered in plan order, with its place and facts. */
-function itemSchedule(survey: Survey, floor: string | undefined, units: Display, asCsv: boolean): Answer {
+function itemSchedule(survey: Survey, floor: string | undefined, units: Display, asCsv: boolean, s: Speaker = ENGLISH_SPEAKER): Answer {
   const f = planFixtures(survey.plan, floor === undefined ? undefined : [floor])
   const rows = f.rows.map((r, i) => ({ number: i + 1, id: r.id, kind: r.kind, group: r.group, label: r.label, floor: r.floor, room: r.room, at: r.at, size: r.size, height: r.height, turn: r.turn, properties: r.properties }))
   const counts = Object.fromEntries(Object.entries(f.counts).filter(([, n]) => n > 0))
   const data = { rows, counts, leftOut: f.leftOut, rule: FIXTURE_RULES.count }
-  const name = (id: string): string => (survey.facts.rooms.has(id) ? q(roomCalled(survey.facts.rooms.get(id)!)) : q(id))
+  const roomName = (id: string): string => (survey.facts.rooms.has(id) ? q(roomCalled(survey.facts.rooms.get(id)!)) : q(id))
   if (asCsv) {
-    const cells = rows.map((r) => [r.number, r.id, r.kind, r.group, r.label, r.floor, r.room ?? '', r.at[0], r.at[1], r.size[0], r.size[1], r.height, r.turn, factsText(r.properties)])
-    return { text: csv(['number', 'id', 'kind', 'group', 'label', 'floor', 'room', 'x m', 'y m', 'width m', 'depth m', 'height m', 'turn', 'facts'], cells), data }
+    const cells = rows.map((r) => [r.number, r.id, r.kind, r.group, r.label, r.floor, r.room ?? '', ...csvLengths(units, [r.at[0], r.at[1], r.size[0], r.size[1], r.height]), r.turn, factsText(r.properties)])
+    const unit = csvLengthUnit(units)
+    return { text: csv(['number', 'id', 'kind', 'group', 'label', 'floor', 'room', `x ${unit}`, `y ${unit}`, `width ${unit}`, `depth ${unit}`, `height ${unit}`, 'turn', 'facts'], cells), data }
   }
   const several = survey.facts.floors.length > 1
-  const lines = [rows.length === 0 ? `The plan has no items${floor === undefined ? '' : ' on that floor'}.` : `Items: ${fixtureCountText(f.counts)}.`]
+  const lines = [rows.length === 0 ? s.say(floor === undefined ? 'tool.schedule.items.none' : 'tool.schedule.items.none.floor') : s.say('tool.schedule.items', { counts: fixtureCountText(f.counts, s) })]
   for (const r of rows) {
     const facts = Object.keys(r.properties).length === 0 ? '' : `; ${factsText(r.properties)}`
-    lines.push(`${r.number}. ${r.label} ${q(r.id)} (${r.kind}), ${r.room === null ? 'in no room' : `in ${name(r.room)}`}${several ? `, floor ${q(r.floor)}` : ''}, at ${lengthText(r.at[0], units)}, ${lengthText(r.at[1], units)}${facts}`)
+    const where = r.room === null ? s.say('tool.schedule.item.noRoom') : s.say('tool.schedule.item.inRoom', { room: roomName(r.room) })
+    lines.push(`${r.number}. ${r.label} ${q(r.id)} (${r.kind}), ${where}${several ? s.say('tool.schedule.item.floor', { floor: name(r.floor) }) : ''}, ${s.say('tool.schedule.item.at', { x: lengthText(r.at[0], units), y: lengthText(r.at[1], units) })}${facts}`)
   }
-  if (f.leftOut.length > 0) lines.push(`Left out, as grid_check says: ${f.leftOut.map(q).join(', ')}.`)
-  lines.push(FIXTURE_RULES.count)
+  if (f.leftOut.length > 0) lines.push(s.say('tool.schedule.leftOut', { ids: f.leftOut.map(q).join(', ') }))
+  lines.push(s.text(FIXTURE_RULES.count))
   return { text: lines.join('\n'), data }
 }
 
@@ -1296,18 +1352,21 @@ const scheduleTool: GridTool = {
   outputSchema: SCHEDULE_OUTPUT,
   run(args, context) {
     const { survey, floor } = load(context, args['plan'], args['floor'])
-    const units = displayFor(args['units'], args['decimal'], survey.plan)
+    // MSG-34: the call's language, else the plan's, with the display's decimal mark throughout.
+    const language = toolLanguage(context, survey.plan)
+    const units = displayFor(args['units'], args['decimal'], survey.plan, language)
+    const s = speakerFor(language, units.decimal)
     const of = args['of'] as ScheduleOf | 'fixtures' | 'items' | undefined
     if (of !== undefined) {
       const stray = ['types', 'narrower_than'].filter((name) => args[name] !== undefined)
       if (stray.length > 0) throw new ToolRefusal(`of=${of} takes no ${stray.join(' or ')}.`)
-      if (of === 'items') return itemSchedule(survey, floor, units, args['format'] === 'csv')
-      if (of !== 'fixtures') return listSchedule(survey, of, floor, units, args['format'] === 'csv')
+      if (of === 'items') return itemSchedule(survey, floor, units, args['format'] === 'csv', s)
+      if (of !== 'fixtures') return listSchedule(survey, of, floor, units, args['format'] === 'csv', s)
     }
     // CNT-45: of=fixtures is the fixtures and furniture alone.
     const types = of === 'fixtures' ? ['fixture' as const] : (args['types'] as ('door' | 'window' | 'opening' | 'fixture')[] | undefined)
     const openingTypes = types?.filter((t): t is 'door' | 'window' | 'opening' => t !== 'fixture')
-    const s = planSchedule(survey, {
+    const sched = planSchedule(survey, {
       ...(floor === undefined ? {} : { floors: [floor] }),
       ...(openingTypes === undefined ? {} : { types: openingTypes }),
       ...(args['narrower_than'] === undefined ? {} : { narrowerThan: args['narrower_than'] as number }),
@@ -1315,27 +1374,29 @@ const scheduleTool: GridTool = {
     // CNT-12: the fixtures by kind, with the room each stands in. A width says nothing of them.
     const withFixtures = (types === undefined || types.includes('fixture')) && args['narrower_than'] === undefined
     const f = withFixtures ? planFixtures(survey.plan, floor === undefined ? undefined : [floor]) : null
-    const name = (id: string): string => (survey.facts.rooms.has(id) ? q(roomCalled(survey.facts.rooms.get(id)!)) : id)
+    const roomName = (id: string): string => (survey.facts.rooms.has(id) ? q(roomCalled(survey.facts.rooms.get(id)!)) : id)
     const fixtureData = f === null || f.rows.length === 0 ? {} : { fixtures: f.rows.map((r) => ({ id: r.id, kind: r.kind, label: r.label, floor: r.floor, room: r.room, size: r.size, height: r.height })), fixtureCounts: f.counts }
-    const data = { rows: s.rows, counts: s.counts, rule: s.rule, ...fixtureData }
+    const data = { rows: sched.rows, counts: sched.counts, rule: sched.rule, ...fixtureData }
     if (args['format'] === 'csv') {
       // CNT-14: a kind column only when some opening states its kind, so a plan with none is as before.
-      const kinds = s.rows.some((row) => row.kind !== null)
-      const rows = s.rows.flatMap((row) => row.items.map((item) => [row.type, ...(kinds ? [row.kind ?? ''] : []), item.id, row.width, row.height, row.sill, item.floor, name(item.between[0]).replace(/"/g, ''), name(item.between[1]).replace(/"/g, '')]))
-      for (const r of f?.rows ?? []) rows.push([r.kind, ...(kinds ? [''] : []), r.id, r.size[0], r.height, '', r.floor, r.room === null ? 'no room' : name(r.room).replace(/"/g, ''), ''])
-      return { text: csv(['type', ...(kinds ? ['kind'] : []), 'id', 'width m', 'height m', 'sill m', 'floor', 'side 1', 'side 2'], rows), data }
+      const kinds = sched.rows.some((row) => row.kind !== null)
+      const rows = sched.rows.flatMap((row) => row.items.map((item) => [row.type, ...(kinds ? [row.kind ?? ''] : []), item.id, ...csvLengths(units, [row.width, row.height, row.sill]), item.floor, roomName(item.between[0]).replace(/"/g, ''), roomName(item.between[1]).replace(/"/g, '')]))
+      for (const r of f?.rows ?? []) rows.push([r.kind, ...(kinds ? [''] : []), r.id, ...csvLengths(units, [r.size[0], r.height]), '', r.floor, r.room === null ? 'no room' : roomName(r.room).replace(/"/g, ''), ''])
+      const unit = csvLengthUnit(units)
+      return { text: csv(['type', ...(kinds ? ['kind'] : []), 'id', `width ${unit}`, `height ${unit}`, `sill ${unit}`, 'floor', 'side 1', 'side 2'], rows), data }
     }
-    const lines = types?.length === 1 && types[0] === 'fixture' ? [] : s.rows.map((row) => `${row.count} × ${row.type === 'opening' ? row.type : kindWords(row.type, row.kind)} ${lengthText(row.width, units)} wide × ${lengthText(row.height, units)} high${row.type === 'window' ? `, sill ${lengthText(row.sill, units, 'height')}` : ''}: ${row.items.map((item) => `${q(item.id)} (${name(item.between[0])} ↔ ${name(item.between[1])})`).join(', ')}`)
+    const lines = types?.length === 1 && types[0] === 'fixture' ? [] : sched.rows.map((row) => `${row.count} × ${kindIn(s, row.type, row.kind)} ${s.say('tool.schedule.size', { width: lengthText(row.width, units), height: lengthText(row.height, units) })}${row.type === 'window' ? s.say('tool.schedule.sill', { sill: lengthText(row.sill, units, 'height') }) : ''}: ${row.items.map((item) => `${q(item.id)} (${sideIn(s, roomName(item.between[0]))} ↔ ${sideIn(s, roomName(item.between[1]))})`).join(', ')}`)
     const onlyFixtures = types !== undefined && types.every((t) => t === 'fixture')
-    if (lines.length === 0 && !onlyFixtures) lines.push(args['narrower_than'] !== undefined ? `Nothing of that kind is narrower than ${m(args['narrower_than'] as number)} m.` : 'The plan has no openings of that kind.')
-    if (!onlyFixtures) lines.push(`In all: ${s.counts.door} doors, ${s.counts.window} windows, ${s.counts.opening} doorless openings.`, s.rule)
+    if (lines.length === 0 && !onlyFixtures) lines.push(args['narrower_than'] !== undefined ? s.say('tool.schedule.noneNarrower', { width: num(m(args['narrower_than'] as number)) }) : s.say('tool.schedule.noneOfKind'))
+    if (!onlyFixtures) lines.push(s.say('tool.schedule.counts.all', { counts: countsIn(s, sched.counts) }), s.text(sched.rule))
     if (f !== null && (f.rows.length > 0 || onlyFixtures)) {
-      lines.push(`Fixtures: ${fixtureCountText(f.counts)}.`)
+      lines.push(s.say('tool.schedule.fixtures', { counts: fixtureCountText(f.counts, s) }))
       for (const r of f.rows) {
-        lines.push(`  ${r.label} ${q(r.id)} (${r.kind}), ${r.room === null ? 'in no room' : `in ${name(r.room)}`}: ${lengthText(r.size[0], units)} wide × ${lengthText(r.size[1], units)} deep × ${lengthText(r.height, units)} high`)
+        const where = r.room === null ? s.say('tool.schedule.item.noRoom') : s.say('tool.schedule.item.inRoom', { room: roomName(r.room) })
+        lines.push(`  ${r.label} ${q(r.id)} (${r.kind}), ${where}: ${s.say('tool.schedule.fixture.size', { width: lengthText(r.size[0], units), depth: lengthText(r.size[1], units), height: lengthText(r.height, units) })}`)
       }
-      if (f.leftOut.length > 0) lines.push(`Left out, as grid_check says: ${f.leftOut.map(q).join(', ')}.`)
-      lines.push(FIXTURE_RULES.count)
+      if (f.leftOut.length > 0) lines.push(s.say('tool.schedule.leftOut', { ids: f.leftOut.map(q).join(', ') }))
+      lines.push(s.text(FIXTURE_RULES.count))
     }
     return { text: lines.join('\n'), data }
   },
@@ -2333,7 +2394,7 @@ async function allFloorsAnswer(plan: FloorPlan, asked: LookName, look: string, d
   const frame: Bounds = { min, max, width: max.x - min.x, height: max.y - min.y }
   const named = (f: (typeof floors)[number]): string => (f.name.trim() === '' ? f.id : f.name)
   const { sheetView } = await import('../draw/views')
-  const sheet = await sheetView(floors.map((f) => ({ plan, title: named(f), floor: f.id, frame, showDimensions: dimensions })), asked, language === 'en' ? undefined : language)
+  const sheet = await sheetView(floors.map((f) => ({ plan, title: named(f), floor: f.id, frame, showDimensions: dimensions })), asked, language)
   const list = floors.map((f) => (named(f) === f.id ? q(f.id) : `${q(named(f))} (${q(f.id)})`)).join(', ')
   const lines = [
     `Every floor of the plan side by side, the lowest on the left, ${floors.length === 1 ? 'one floor' : `${floors.length} floors`}, each under its name: ${list}. Drawn in the ${look} look${peopleLook(pictureLook(asked)) ?? (dimensions ? ', with inside sizes' : ', without sizes')}: ${sheet.width} × ${sheet.height} px, all at one scale, 1 m = ${sheet.pxPerMetre.toFixed(1)} px.`,
@@ -2721,7 +2782,8 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     const besideAll = allFloors ? ['ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'].filter((key) => args[key] !== undefined) : []
     if (besideAll.length > 0) throw new ToolRefusal(`floor=all takes look and dimensions, not ${besideAll.join(', ')}: name one floor for those.`)
     const plan = survey.plan
-    const inTongue = language === 'en' ? {} : { language }
+    // MSG-34: always the language worked out, so English asked on a plan in another language is English.
+    const inTongue = { language }
     // VEW-20: a section or a facade writes its levels in the units asked for, else the plan's display.
     const levelDisplay = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
     if (kind === 'facade') return facadeAnswer(plan, args, language, levelDisplay)
@@ -2994,7 +3056,8 @@ const describeTool: GridTool = {
       // VEW-9: the walk, and a picture from each doorway when asked, at most WALK_PICTURES_MAX.
       // MSG-11: in the language asked for; a picture is named in it too.
       const { survey, walk } = walkOf(loaded, floor)
-      const shots = args['pictures'] === true ? await walkPictures(survey, walk, WALK_PICTURES_MAX) : []
+      // MSG-34: each picture's label in the description's language.
+      const shots = args['pictures'] === true ? await walkPictures(survey, walk, WALK_PICTURES_MAX, language) : []
       const names = new Map(shots.map((shot, i) => [shot.stop, say(language, 'describe.walk.pictureName', { n: i + 1 })]))
       const stops = walk.floors.reduce((sum, floor) => sum + floor.stops.length, 0)
       const more = args['pictures'] === true && stops > shots.length ? `\nPictures of the first ${shots.length} doorways of ${stops}: pass floor to walk one floor at a time.` : ''
@@ -3157,7 +3220,7 @@ const checkTool: GridTool = {
       const firm = firmForCheck(project, file, loaded.plan)
       // MSG-11: the language asked for, else the plan's own, with its messages loaded.
       const language = await languageFor(askedLanguage(args['language'], 'language'), loaded.plan)
-      const request = { ...(floor ? { floor } : {}), ...(args['country'] ? { country: args['country'] as string } : {}), ...(firm ? { firm } : {}), ...(language === 'en' ? {} : { language }) }
+      const request = { ...(floor ? { floor } : {}), ...(args['country'] ? { country: args['country'] as string } : {}), ...(firm ? { firm } : {}), language }
       // CMD-51: kept with the plan version for the same request; in another language the words
       // Grid has none for are listened for as it is worked out, so it is worked out each time.
       const work = (): CheckResult => checkPlan(loaded, request, 'country')
@@ -3174,7 +3237,9 @@ const checkTool: GridTool = {
       rooms: f.rooms.map((id) => ({ id, name: roomName.get(id) ?? '' })),
     }))
     const notChecked = result.report.notChecked.map((n) => ({ floor: n.floor, message: n.message }))
-    const drawing = result.issues.map((i) => ({ severity: i.severity, entity: i.entity, id: i.id, message: i.message }))
+    // MSG-34: the drawing's own problems in the language of the check, from each one's key.
+    const spokenIssue = (i: (typeof result.issues)[number]): string => ((result.language ?? 'en') === 'en' || i.said === undefined ? i.message : inLanguage(result.language, result.decimal, () => tv(i.said)))
+    const drawing = result.issues.map((i) => ({ severity: i.severity, entity: i.entity, id: i.id, message: spokenIssue(i) }))
     return inLanguage(result.language, result.decimal, () => {
       const record = result.result
       const states = result.seen?.states ?? []

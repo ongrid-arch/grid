@@ -20,7 +20,7 @@ import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, empty
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { loadPlan, PlanRefused } from '../command/plan'
-import { nameNotes } from '../command/planText'
+import { nameNotes, PLAN_FILE_MAX_BYTES } from '../command/planText'
 import { occupancyFileOf } from '../occupancy/occupancy'
 import { keepRoomNumbers } from '../edit/numbers'
 import { PlanBusy, withPlanLock } from '../edit/revision'
@@ -36,12 +36,12 @@ import { readRoomsFile, RoomsRefused, writeRoomsIntoProject } from '../command/w
 import { roomsGrammarText } from './roomsGrammar'
 import { writeScanIntoProject } from '../command/scan'
 import { writeDrawingIntoProject } from '../drawing/fromDrawing'
-import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
+import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { ROOM_NAMES_TRAVEL } from './protocol'
 import { comparePlans } from '../quantities/compare'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { LANGUAGE_ARG, openingBetween } from './readTools'
-import { say } from '@ongrid/floorplan/messages'
+import { languageOfNames, say, type Language } from '@ongrid/floorplan/messages'
 import { briefAnswer } from '../brief/answer'
 import { renameInBrief } from '../brief/rename'
 import { causedText, newLines } from '../edit/caused'
@@ -886,6 +886,8 @@ const writeRoomsTool: GridTool = {
     taped: TAPED_OUTPUT,
     // WRT-46: the fixtures and furniture the file keeps, which rooms text does not write: where each stands now. Empty for a scan.
     itemsKept: listSchema(objectSchema({ id: STRING, kind: STRING, at: listSchema(NUMBER), floor: STRING, room: NULLABLE_STRING, worthALook: listSchema(STRING) })),
+    // MSG-34: the language this write recorded as the plan's own, else null.
+    language: NULLABLE_STRING,
   }),
   run(args, context) {
     const project = projectOf(context)
@@ -915,6 +917,7 @@ const writeRoomsTool: GridTool = {
             drawing: null,
             taped: done.taped,
             itemsKept: [],
+            language: null,
             scan: {
               evidence: done.evidence,
               paired: c.paired,
@@ -967,16 +970,20 @@ const writeRoomsTool: GridTool = {
             },
             taped: done.taped,
             itemsKept: done.itemsKept,
+            language: null,
           },
         }
       }
       const options = { replace: args['replace'] === true, brief: true }
       const laid = shape === undefined ? null : writeLayout(project, file, shape, options)
       const text = args['roomsFile'] === undefined ? (args['rooms'] as string) : readRoomsFile(project, args['roomsFile'] as string)
-      const done = laid?.done ?? writeRoomsIntoProject(project, text, file, options)
+      // MSG-34: the person's language, recorded when the plan states none: the one the call asks, else the one the rooms are named in.
+      const recorded = laid === null ? languageToRecord(project, file, context.language, text) : null
+      const done = laid?.done ?? writeRoomsIntoProject(project, text, file, { ...options, ...(recorded === null ? {} : { language: recorded.language }) })
       const r = done.result
+      const languageLine = recorded === null ? [] : [say(context.language ?? 'en', recorded.from === 'asked' ? 'write.language.asked' : 'write.language.names', { language: recorded.language })]
       return {
-        text: [...(laid?.lines ?? done.lines), ...onCircleLines(done.plan)].join('\n'),
+        text: [...(laid?.lines ?? done.lines), ...onCircleLines(done.plan, context.language ?? 'en'), ...languageLine].join('\n'),
         data: {
           written: done.written,
           rooms: r.rooms.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
@@ -995,6 +1002,7 @@ const writeRoomsTool: GridTool = {
           drawing: null,
           taped: done.taped,
           itemsKept: done.itemsKept,
+          language: recorded?.language ?? null,
         },
       }
     } catch (error) {
@@ -1013,12 +1021,32 @@ function roomsLength(value: number): string {
  * CMD-51: a line for each room written as a polygon whose corners lie on one circle, with the
  * circle that draws it round (`polygonsOnCircles`).
  */
-function onCircleLines(plan: FloorPlan): string[] {
+function onCircleLines(plan: FloorPlan, language: Language): string[] {
   return polygonsOnCircles(plan).map((found) => {
     const across = roomsLength(2 * found.radius - found.thickness)
     const written = `circle ${across} at ${roomsLength(found.centre[0])},${roomsLength(found.centre[1])}`
-    return say('en', 'rooms.room.polygonOnCircle', { room: found.room, corners: found.corners, written })
+    return say(language, 'rooms.room.polygonOnCircle', { room: found.room, corners: found.corners, written })
   })
+}
+
+/**
+ * MSG-34: the language a write records as the plan's own, and why: the call's, else the one the
+ * rooms text's room names are plainly in (`languageOfNames`). None when the plan states one
+ * already (grid_set_plan changes it), or its file cannot be read.
+ */
+function languageToRecord(project: Project, file: string, asked: Language | undefined, text: string): { readonly language: Language; readonly from: 'asked' | 'names' } | null {
+  if (project.exists(file)) {
+    try {
+      const display = (JSON.parse(project.readText(file, PLAN_FILE_MAX_BYTES).text) as { display?: { language?: unknown } }).display
+      if (display?.language !== undefined) return null
+    } catch {
+      return null
+    }
+  }
+  if (asked !== undefined) return asked === 'en' ? null : { language: asked, from: 'asked' }
+  const names = [...text.matchAll(/^\s*room\s+\S+\s+"([^"\n]*)"/gm)].map((match) => match[1]!)
+  const language = languageOfNames(names)
+  return language === null ? null : { language, from: 'names' }
 }
 
 export const WRITE_TOOLS: readonly GridTool[] = [exportTool, sheetTool, writeRoomsTool, changeOpeningTool, changeWallTool, changeTypeTool, moveSideTool, mirrorTool]

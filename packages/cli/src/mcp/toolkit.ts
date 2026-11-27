@@ -20,6 +20,8 @@ import { cachedPlan } from './planCache'
 import { ID_MAX as PLAN_ID_MAX, UNSAFE_TEXT } from '../command/planText'
 import { budgetArgs, LEFT_OUT_SCHEMA } from './budget'
 import { REVISION_DATA_NAME, REVISION_SCHEMA, revisionArgs } from './revisions'
+import { heardPlan, languageArgs, type Spoken } from './answerLanguage'
+import type { Language } from '@ongrid/floorplan/messages'
 
 /** WRT-7: the decimal mark the call's lengths are typed with. */
 export const DECIMAL_IN_ARG: ArgSpec = {
@@ -151,6 +153,10 @@ export interface ToolContext {
   readonly project: Project | PathRefused
   /** The protocol version the request named, when it named one (a 2026-07-28 client, CMD-13). */
   readonly protocolVersion?: string
+  /** MSG-34: the language the call asked its answer in, read by the server; the plan's own when not given. */
+  readonly language?: Language
+  /** MSG-34: what the call learnt of the plan it read (its display), filled in by `readPlan`. */
+  readonly spoken?: Spoken
 }
 
 const HINTS: Record<Hint, Record<string, boolean>> = {
@@ -341,9 +347,9 @@ export function usesRead(args: Record<string, unknown>): readonly { readonly wor
   return USES_READ.get(args) ?? []
 }
 
-/** CMD-39: the tool's own arguments and the two every answer's size is asked with; CMD-41: a change's based_on. */
+/** CMD-39: the tool's own arguments and the two every answer's size is asked with; CMD-41: a change's based_on; MSG-34: the answer's language. */
 export function allArgs(tool: GridTool): ArgSpecs {
-  return { ...tool.args, ...budgetArgs(tool), ...revisionArgs(tool) }
+  return { ...tool.args, ...budgetArgs(tool), ...revisionArgs(tool), ...languageArgs(tool) }
 }
 
 /** The arguments of a call, checked against the tool's own list. */
@@ -415,7 +421,10 @@ export function readPlan(context: ToolContext, plan: unknown, options: LoadOptio
   if (typeof plan !== 'string' && !project.exists(file)) throw new ToolRefusal(missingDefaultPlan(project, file))
   try {
     // CMD-51: the plan kept for this version, when the server read it before.
-    return { project, file, loaded: cachedPlan(project, file, options) }
+    const loaded = cachedPlan(project, file, options)
+    // MSG-34: the plan's display, so the answer is in its language when the call asks none.
+    heardPlan(context, loaded.plan.display)
+    return { project, file, loaded }
   } catch (error) {
     throw asRefusal(error)
   }

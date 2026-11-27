@@ -123,9 +123,10 @@ export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; l
  * in their colours, and the changed rooms labelled with their old and new area. The core says
  * what changed (`marks`); the viewer draws it (`comparisonPicture`).
  */
-export async function comparisonView(comparison: Pick<BuildingComparison, 'aligned' | 'marks'>, later: FloorPlan, floor: string | undefined): Promise<PlanView & { readonly floor: string }> {
+export async function comparisonView(comparison: Pick<BuildingComparison, 'aligned' | 'marks'>, later: FloorPlan, floor: string | undefined, language?: Language): Promise<PlanView & { readonly floor: string }> {
   const shown = resolveFloor(later, floor)
-  const picture = comparisonPicture(comparison.aligned, later, comparison.marks, { floor: shown })
+  // MSG-34: its key, its labels and its caption in `language`, else the later plan's own.
+  const picture = comparisonPicture(comparison.aligned, later, comparison.marks, { floor: shown, ...(language === undefined ? {} : { language }) })
   const png = await pictureToPng(picture)
   return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, floor: shown }
 }

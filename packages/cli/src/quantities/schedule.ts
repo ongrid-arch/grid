@@ -12,7 +12,8 @@ import { flatOfRoom, planFlatTypes, planFlats } from '@ongrid/floorplan/geometry
 import { HEIGHT_RULE, roomHeight } from './measure'
 import { joinStates, type AreaState, type NumberState } from './state'
 import { roomCalled, sideNames, surveyPlan, type Survey } from './survey'
-import { csv, sqFt } from './units'
+import { csv, csvLengths, csvLengthUnit, sqFt } from './units'
+import type { Display } from '@ongrid/floorplan/types/units'
 import type { DrawingMarksAsked, ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
 
 export const SCHEDULE_RULE =
@@ -482,7 +483,7 @@ export function openingTypeSchedule(survey: Survey, of: 'door' | 'window', optio
 }
 
 /** ARE-15: the door or window schedule by type as CSV: one row per type, with its marks. */
-export function openingTypeScheduleCsv(schedule: OpeningTypeSchedule): string {
+export function openingTypeScheduleCsv(schedule: OpeningTypeSchedule, display?: Pick<Display, 'length'>): string {
   const name = `${schedule.of} schedule`
   const windows = schedule.of === 'window'
   // CNT-15: a schedule with a type the plan names has its name and material, after the key.
@@ -491,13 +492,13 @@ export function openingTypeScheduleCsv(schedule: OpeningTypeSchedule): string {
     const n = i + 1
     return [
       numberCell(name, n, 'number', r.number, false), textCell(name, n, 'type', r.key), ...(named ? [r.name, r.material] : []), r.kind,
-      numberCell(name, n, 'width', r.width, false), numberCell(name, n, 'height', r.height, false),
-      r.opens?.width ?? null, r.opens?.height ?? null,
-      ...(windows ? [r.sills.length === 1 ? r.sills[0]! : r.sills.join('; ')] : []),
+      ...csvLengths(display, [numberCell(name, n, 'width', r.width, false), numberCell(name, n, 'height', r.height, false), r.opens?.width ?? null, r.opens?.height ?? null]),
+      ...(windows ? [r.sills.length === 1 ? csvLengths(display, [r.sills[0]!])[0]! : csvLengths(display, r.sills).join('; ')] : []),
       numberCell(name, n, 'count', r.count, false), r.marks.join('; '),
     ]
   })
-  return csv(['number', 'type', ...(named ? ['name', 'material'] : []), 'kind', 'width m', 'height m', 'opens width m', 'opens height m', ...(windows ? ['sill m'] : []), 'count', 'marks'], rows)
+  const unit = csvLengthUnit(display)
+  return csv(['number', 'type', ...(named ? ['name', 'material'] : []), 'kind', `width ${unit}`, `height ${unit}`, `opens width ${unit}`, `opens height ${unit}`, ...(windows ? [`sill ${unit}`] : []), 'count', 'marks'], rows)
 }
 
 /** ARE-15: the marks asked for, with the schedules' marks of the plan's rooms and openings. */
@@ -547,7 +548,7 @@ function factCells(properties: Facts, columns: readonly string[]): Cell[] {
 }
 
 /** The room schedule as CSV: one row per room, then each floor's total and the total of all floors. */
-export function roomScheduleCsv(schedule: RoomSchedule): string {
+export function roomScheduleCsv(schedule: RoomSchedule, display?: Pick<Display, 'length'>): string {
   const name = 'room schedule'
   const columns = factColumns(schedule.rows)
   // CNT-4: a flat column only on a plan that lists flats, so every other schedule is as it was.
@@ -559,7 +560,7 @@ export function roomScheduleCsv(schedule: RoomSchedule): string {
     const area = numberCell(name, n, 'area', r.area, r.state === 'not-looked-at')
     return [
       r.roomNumber ?? numberCell(name, n, 'number', r.number, false), textCell(name, n, 'room id', r.id), textCell(name, n, 'name', r.name), r.use,
-      area, area === null ? null : sqFt(area), numberCell(name, n, 'height', r.height, true), textCell(name, n, 'floor', r.floorName), r.state,
+      area, area === null ? null : sqFt(area), csvLengths(display, [numberCell(name, n, 'height', r.height, true)])[0]!, textCell(name, n, 'floor', r.floorName), r.state,
       ...(flats ? [r.flat ?? null] : []),
       ...(left ? [r.notCounted?.why ?? null] : []),
       ...factCells(r.properties, columns),
@@ -569,11 +570,11 @@ export function roomScheduleCsv(schedule: RoomSchedule): string {
     const area = numberCell(name, rows.length + 1, 'total area', t.area, false)!
     return [null, '', t.floor === null ? 'Total, all floors' : `Total, ${t.floorName}`, null, area, sqFt(area), null, t.floorName ?? 'all', t.state.state, ...(flats ? [null] : []), ...(left ? [null] : []), ...columns.map(() => null)]
   })
-  return csv(['number', 'room id', 'name', 'use', 'area m2', 'area sq ft', 'height m', 'floor', 'state', ...(flats ? ['flat'] : []), ...(left ? ['not in totals'] : []), ...columns], [...rows, ...totals])
+  return csv(['number', 'room id', 'name', 'use', 'area m2', 'area sq ft', `height ${csvLengthUnit(display)}`, 'floor', 'state', ...(flats ? ['flat'] : []), ...(left ? ['not in totals'] : []), ...columns], [...rows, ...totals])
 }
 
 /** The opening schedule as CSV: one row per opening, each listed once. */
-export function openingScheduleCsv(schedule: OpeningSchedule): string {
+export function openingScheduleCsv(schedule: OpeningSchedule, display?: Pick<Display, 'length'>): string {
   const name = 'opening schedule'
   const columns = factColumns(schedule.rows)
   // CNT-14: the kind, the part that opens and the handing, each only when some opening states it,
@@ -581,20 +582,21 @@ export function openingScheduleCsv(schedule: OpeningSchedule): string {
   const kinds = schedule.rows.some((r) => r.kind !== null)
   const parts = schedule.rows.some((r) => r.opens !== null)
   const handings = schedule.rows.some((r) => r.handing !== null)
+  const unit = csvLengthUnit(display)
   const rows: Cell[][] = schedule.rows.map((r, i) => {
     const n = i + 1
     return [
       numberCell(name, n, 'number', r.number, false), textCell(name, n, 'mark', r.mark), textCell(name, n, 'id', r.id), textCell(name, n, 'type', r.type),
       ...(kinds ? [r.kind] : []),
-      numberCell(name, n, 'width', r.width, false), numberCell(name, n, 'height', r.height, false), numberCell(name, n, 'sill', r.sill, false),
-      ...(parts ? [r.opens?.width ?? null, r.opens?.height ?? null] : []),
+      ...csvLengths(display, [numberCell(name, n, 'width', r.width, false), numberCell(name, n, 'height', r.height, false), numberCell(name, n, 'sill', r.sill, false)]),
+      ...(parts ? csvLengths(display, [r.opens?.width ?? null, r.opens?.height ?? null]) : []),
       ...(handings ? [r.handing] : []),
       textCell(name, n, 'floor', r.floorName), textCell(name, n, 'room on one side', r.between[0]), textCell(name, n, 'room on the other side', r.between[1]), 1,
       ...factCells(r.properties, columns),
     ]
   })
   return csv(
-    ['number', 'mark', 'id', 'type', ...(kinds ? ['kind'] : []), 'width m', 'height m', 'sill m', ...(parts ? ['opens width m', 'opens height m'] : []), ...(handings ? ['handing'] : []), 'floor', 'side 1', 'side 2', 'count', ...columns],
+    ['number', 'mark', 'id', 'type', ...(kinds ? ['kind'] : []), `width ${unit}`, `height ${unit}`, `sill ${unit}`, ...(parts ? [`opens width ${unit}`, `opens height ${unit}`] : []), ...(handings ? ['handing'] : []), 'floor', 'side 1', 'side 2', 'count', ...columns],
     rows,
   )
 }

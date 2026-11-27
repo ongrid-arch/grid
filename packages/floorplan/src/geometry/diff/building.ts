@@ -43,7 +43,7 @@ import { doorsThatChangedRooms, openingFaces, type DoorFace, type DoorRoomsChang
 import { areaText, metresText } from '../rounding'
 import { quoted } from '../../types/planText'
 import type { Phase } from '../../types/floorplan'
-import { english, joined, name, num, said, sayValue, type Joined, type Value } from '../../messages/say'
+import { english, joined, name, num, said, sayValue, withSentence, type Joined, type Value } from '../../messages/say'
 import { planAreaFigures } from '../areas'
 import { floorOf, planFloors } from '../floors'
 import { tolerance } from '../tolerances'
@@ -1018,6 +1018,15 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     const restText = Math.abs(rest) <= areaSlack ? '' : ` ${rest > 0 ? '+' : '−'} ${areaText(Math.abs(rest))}`
     return `${v.name || v.room}: ${terms}${restText} = ${areaWords(v.after)}`
   }
+  // MSG-34: each label by its key too (not enumerable), so the picture says it in its language.
+  const areaSaid = (value: number | null): Value => (value === null ? said('drawing.comparison.notMeasured') : num(`${areaText(value)} m²`))
+  const roomLabel = (v: RoomVerdict): { readonly room: string; readonly label: string } => {
+    const named = v.name || v.room
+    const sum = v.status === 'changed' ? sumLabel(v) : null
+    if (sum !== null) return withSentence({ room: v.room, label: sum }, said('drawing.comparison.sum', { name: named, sum: num(sum.slice(named.length + 2)) }))
+    if (v.status === 'changed') return withSentence({ room: v.room, label: `${named}: ${areaWords(v.before)} to ${areaWords(v.after)}` }, said('drawing.comparison.changed', { name: named, before: areaSaid(v.before), after: areaSaid(v.after) }))
+    return withSentence({ room: v.room, label: `${named}: moved, ${areaWords(v.after)}` }, said('drawing.comparison.moved', { name: named, after: areaSaid(v.after) }))
+  }
   const marks: ComparisonMarks = {
     removed: { walls: [...ids('wall', 'removed'), ...wallsTakenDown], openings: ids('opening', 'removed'), rooms: removedRooms },
     added: { walls: [...ids('wall', 'added'), ...wallsBuilt], openings: ids('opening', 'added'), rooms: ids('room', 'added') },
@@ -1026,8 +1035,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     stretches,
     changedRooms: verdicts.flatMap((v) => {
       // Words a picture's fonts all have: no arrow. MSG-27: a room that took another in gives its sum.
-      if (v.status === 'changed') return [{ room: v.room, label: sumLabel(v) ?? `${v.name || v.room}: ${areaWords(v.before)} to ${areaWords(v.after)}` }]
-      if (v.status === 'moved') return [{ room: v.room, label: `${v.name || v.room}: moved, ${areaWords(v.after)}` }]
+      if (v.status === 'changed' || v.status === 'moved') return [roomLabel(v)]
       return []
     })
   }
