@@ -26,6 +26,11 @@ and hosts that defer the tools show the agent their names only. After this chang
 - A test measures the list: the whole list and each group's are held under a ceiling in tokens
   (counted as four characters a token), so a tool that grows its listed text fails it.
 
+As built: every tool about 39,000 tokens (from about 185,000), `view` about 7,900, `areas` 5,800,
+`write` 6,600 and `edit` 20,200. The whole list cannot reach 5,000 while it lists 67 tools with
+every argument's name, type and allowed values (with no argument descriptions at all it is still
+about 26,000); a host that wants about 5,000 starts Grid with one group.
+
 ## Design
 
 All in `packages/cli/src/mcp/` and the `serve`/`mcp` commands, with the docs.
