@@ -31,7 +31,7 @@ async function merge(p: Record<string, unknown>, args: Record<string, unknown> =
   b = bench({ 'p.json': p })
   return b.call('grid_merge_rooms', { plan: 'p.json', room, with: other, ...args })
 }
-const onDisk = () => JSON.parse(readFileSync(join(b!.folder, 'p.json'), 'utf8')) as { walls: Array<{ id: string }>; rooms: Array<{ id: string; boundary: string[]; partOf?: string }>; openings: Array<{ id: string }> }
+const onDisk = () => JSON.parse(readFileSync(join(b!.folder, 'p.json'), 'utf8')) as { walls: Array<{ id: string }>; rooms: Array<{ id: string; boundary: string[]; partOf?: string; properties?: Record<string, unknown> }>; openings: Array<{ id: string }> }
 
 describe('a merge takes out every wall two rooms share (WRT-50)', () => {
   it('takes out both walls in one call and makes one room', async () => {
@@ -47,9 +47,11 @@ describe('a merge takes out every wall two rooms share (WRT-50)', () => {
     expect(reply.text).toContain('Removed door "d1"')
   })
 
-  it('says which value of a counted fact the merged room kept', async () => {
+  // WRT-84: a number both rooms carry is a count, added up and said, never kept from one.
+  it('adds up a counted fact both rooms carry, and says so', async () => {
     const reply = await merge(twoWalls())
-    expect(reply.text).toContain('"desks" ("28" kept, "40" not)')
+    expect(reply.text).toContain('"Office" carries "desks" 68 (28 + 40)')
+    expect(onDisk().rooms.find((r) => r.id === 'office')!.properties).toEqual({ desks: 68 })
   })
 
   it('keeps both rooms as zones with a dividing line for each wall', async () => {

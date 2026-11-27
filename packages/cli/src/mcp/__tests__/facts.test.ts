@@ -147,25 +147,29 @@ describe('the facts kept through edits (done when 1)', () => {
     expect(plan.openings.find((o) => o.id === 'd-entry')!.properties).toEqual({ 'fire rating': 'EI 30', 'door set': 'DS-01', 'self-closing': true })
   })
 
-  it('splits a room into two that both keep its facts, its number staying with it, and says so', async () => {
+  // WRT-84: the facts that describe the place; a number (a count) stays with the room, so none is counted twice.
+  it('splits a room into two that both keep its place facts, its counts and number staying with it, and says so', async () => {
     fresh('split.json')
     const reply = await ok('grid_split_room', { plan: 'split.json', room: 'g-office', side: 'north', size: 2, new_room: 'g-quiet', new_name: 'Quiet room' })
     const plan = onDisk('split.json')
     const office = plan.rooms.find((r) => r.id === 'g-office')!
     const quiet = plan.rooms.find((r) => r.id === 'g-quiet')!
-    expect(quiet.properties).toEqual(office.properties)
+    expect(quiet.properties).toEqual({ department: 'Sales', finish: 'Carpet' })
+    expect(office.properties).toEqual({ department: 'Sales', 'head count': 8, finish: 'Carpet' })
+    expect(reply.text).toContain('"Open office" keeps "head count" (8) as stated for the whole room')
     expect(office.number).toBe('G.02')
     expect(quiet.number).toBeUndefined()
     expect(reply.text).toContain('"Quiet room" keeps the facts of "Open office"')
   })
 
-  it('merges two rooms into one that keeps the first\'s facts and number, and names what the second said otherwise', async () => {
+  // WRT-84: a head count both rooms carry is added up, and said.
+  it('merges two rooms into one that keeps the first\'s facts and number, adds up their counts, and says so', async () => {
     fresh('merge.json')
     const reply = await ok('grid_merge_rooms', { plan: 'merge.json', room: 'g-office', with: 'g-meeting' })
     const merged = onDisk('merge.json').rooms.find((r) => r.id === 'g-office')!
-    expect(merged.properties).toEqual({ department: 'Sales', 'head count': 8, finish: 'Carpet' })
+    expect(merged.properties).toEqual({ department: 'Sales', 'head count': 14, finish: 'Carpet' })
     expect(merged.number).toBe('G.02')
-    expect(reply.text).toContain('"head count"')
+    expect(reply.text).toContain('"head count" 14 (8 + 6)')
     expect(reply.text).toContain('"G.03"')
   })
 
