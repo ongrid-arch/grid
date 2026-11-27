@@ -681,6 +681,26 @@ export const TOLERANCES = {
     basis: own
   },
 
+  // ── A repeated note said once (MSG-36) ────────────────────────────────────────────────────
+  alikeLines: {
+    kind: 'limit',
+    value: 3,
+    unit: 'count',
+    decides:
+      'The fewest notes, warnings, refusals or diff lines alike in every word but the numbers in ' +
+      'their ids that are said as one line listing the parts or floors; fewer stay one line each.',
+    basis: own
+  },
+  alikeRunsShown: {
+    kind: 'limit',
+    value: 12,
+    unit: 'count',
+    decides:
+      'The most runs of ids (`"door-101" to "door-114"`) a line said once for many lists; the ' +
+      'rest are counted, and every id stays in the data.',
+    basis: own
+  },
+
   // ── A survey drawn from its own numbers (HND-11) ──────────────────────────────────────────
   tapedAgree: {
     kind: 'tolerance',
