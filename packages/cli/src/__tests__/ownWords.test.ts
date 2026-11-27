@@ -341,7 +341,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-67: four more, the zone, seats, desks and covers fields.
   // CNT-51: five more, the finish fields.
   // VEW-80: eight more, the geometry fields' descriptions and the refusals of a test, a group and a sum of coordinates.
-  'packages/cli/src/quantities/query.ts': [54, 'tools'],
+  'packages/cli/src/quantities/query.ts': [58, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   // ARE-67: the seat count's rule and its answer.
   'packages/cli/src/quantities/seats.ts': [4, 'notYet'],
@@ -424,7 +424,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-58: seventeen more, what the sun's figures decide.
   // VEW-82: four more, what wallPieceShortest, doorOpenAngle and cameraNear decide.
   // CNT-60: nine more, what the site's figures drawn in 3D decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [426, 'developer'],
+  // LVL-26: two more, what sameSpaceAlong decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [428, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -444,7 +445,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-55: nine fewer, the gap, touching, overlap and wall-line refusals moved too.
   // WRT-66: one fewer, the corner cut's refusal that does not fit moved too.
   // WRT-69: one fewer, the walls line's word it cannot read moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [102, 'notYet'],
+  'packages/floorplan/src/rooms/compile.ts': [101, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   // WRT-81: one more, a part read back in another phase.
@@ -659,7 +660,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // (mcp/toolGroups.ts 7) and the help of --tools (command/main.ts 1) (odd/tasks/CMD-52.md).
     // and VEW-82 11: grid export's and grid_export's doors and walls (command/export.ts 4,
     // mcp/writeTools.ts 3) and what their figures decide (geometry/tolerances.ts 4) (odd/tasks/VEW-82.md).
-    expect(left).toBeLessThanOrEqual(2768)
+    // and CMD-53 4: the columns' and a standing part's room fields (quantities/query.ts 4) (odd/tasks/CMD-53.md).
+    expect(left).toBeLessThanOrEqual(2772)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

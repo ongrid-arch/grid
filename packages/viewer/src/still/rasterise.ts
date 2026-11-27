@@ -253,6 +253,12 @@ class Target {
     const zy = (e1y * a.z + e2y * b.z + e3y * c.z) * inv
     const z0 = (e10 * a.z + e20 * b.z + e30 * c.z) * inv
 
+    // SHT-25: `plot` written out for the samples of a triangle, the one place a still spends most
+    // of its time; and a row is left once the triangle is behind it, as it is convex.
+    const depth = this.depth
+    const color = this.color
+    const [cr, cg, cb] = rgb
+    const opaque = alpha >= 1
     for (let y = minY; y <= maxY; y++) {
       const py = y + 0.5
       const px0 = minX + 0.5
@@ -261,8 +267,25 @@ class Target {
       let w3 = e3x * px0 + e3y * py + e30
       let z = zx * px0 + zy * py + z0
       const row = y * this.w
+      let entered = false
       for (let x = minX; x <= maxX; x++) {
-        if (w1 >= 0 && w2 >= 0 && w3 >= 0) this.plot(row + x, z, rgb, alpha, depthTest, depthWrite)
+        if (w1 >= 0 && w2 >= 0 && w3 >= 0) {
+          entered = true
+          const i = row + x
+          if (!(depthTest && z > depth[i]!)) {
+            if (depthWrite) depth[i] = z
+            const k = i * 3
+            if (opaque) {
+              color[k] = cr
+              color[k + 1] = cg
+              color[k + 2] = cb
+            } else {
+              color[k] = color[k]! + (cr - color[k]!) * alpha
+              color[k + 1] = color[k + 1]! + (cg - color[k + 1]!) * alpha
+              color[k + 2] = color[k + 2]! + (cb - color[k + 2]!) * alpha
+            }
+          }
+        } else if (entered) break
         w1 += e1x
         w2 += e2x
         w3 += e3x

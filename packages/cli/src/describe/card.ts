@@ -494,7 +494,9 @@ function personRoom(floor: FloorFacts, room: RoomFacts, names: PersonNames, w: W
   const next = nextOnly(floor, room)
   // CNT-8: a zone is named as part of its room, and its floor is in its room's.
   const of = room.zoneOf === undefined ? (room.outdoor === undefined ? '' : t(w, 'describe.room.outdoor', { kind: t(w, `outdoor.kind.${room.outdoor}`) })) : t(w, 'describe.room.zoneOf', { room: names.room(room.zoneOf) })
-  const lines = [`${t(w, 'describe.room', { room: `${name}${of}`, size, area: area(w, shape.area), at: point(w, shape.at.x, shape.at.y) })}${next.length > 0 ? t(w, 'describe.room.next', { rooms: listed(w, next.map((id) => names.room(id))) }) : ''}`]
+  // LVL-26: a room of its own height or floor says its floor's level and its height.
+  const level = room.level === undefined ? '' : t(w, 'describe.room.level', { level: fig(w, room.level.floor), height: fig(w, room.level.height) })
+  const lines = [`${t(w, 'describe.room', { room: `${name}${of}`, size, area: area(w, shape.area), at: point(w, shape.at.x, shape.at.y) })}${level}${next.length > 0 ? t(w, 'describe.room.next', { rooms: listed(w, next.map((id) => names.room(id))) }) : ''}`]
   const { openings, open } = roomOpenings(floor, room.id)
   for (const side of open) lines.push(`  ${t(w, 'describe.room.open', { room: names.room(side.other) })}`)
   for (const { opening, here, there } of openings) {
@@ -547,7 +549,7 @@ function agentRoomHead(room: RoomFacts): string {
   const use = room.use ?? '-'
   if (room.shape === null) return `${room.id} ${JSON.stringify(room.name)} ${use} LEFT OUT (grid check says why)`
   const { shape } = room
-  return `${room.id} ${JSON.stringify(room.name)} ${use} ${shape.rectangle ? '' : '~'}${m(shape.across)}x${m(shape.up)}${agentForm(shape.form)} @${m(shape.at.x)},${m(shape.at.y)} ${m(shape.area)}${room.zoneOf === undefined ? '' : ` zone-of:${room.zoneOf}`}${room.outdoor === undefined ? '' : ` outdoor:${room.outdoor}`}`
+  return `${room.id} ${JSON.stringify(room.name)} ${use} ${shape.rectangle ? '' : '~'}${m(shape.across)}x${m(shape.up)}${agentForm(shape.form)} @${m(shape.at.x)},${m(shape.at.y)} ${m(shape.area)}${room.zoneOf === undefined ? '' : ` zone-of:${room.zoneOf}`}${room.outdoor === undefined ? '' : ` outdoor:${room.outdoor}`}${room.level === undefined ? '' : ` floor@${m(room.level.floor)} h${m(room.level.height)}`}`
 }
 
 function agentRoom(floor: FloorFacts, room: RoomFacts): string {
@@ -644,7 +646,7 @@ function personWalls(floor: FloorFacts, names: PersonNames, w: Words): string[] 
   })
 }
 
-const AGENT_KEY_ROOMS = 'KEY metres, inside, N=+y. room: id "name" use WxD(~ not a rectangle; then round:across, band:long along its middle x wide, turned:degrees anticlockwise:own WxD, sides:going round, curves:r radius/length) @lower-left m2 | next: across a wall, no way through | opening: id d/o/w(door/opening/window) or v(virtual wall) width >other side(none=outside window, OUT=outside, NONE=nothing drawn, LEFT=left out) side of this room, gaps to its corners'
+const AGENT_KEY_ROOMS = 'KEY metres, inside, N=+y. room: id "name" use WxD(~ not a rectangle; then round:across, band:long along its middle x wide, turned:degrees anticlockwise:own WxD, sides:going round, curves:r radius/length) @lower-left m2 (floor@level hheight: a room of its own height or floor) | next: across a wall, no way through | opening: id d/o/w(door/opening/window) or v(virtual wall) width >other side(none=outside window, OUT=outside, NONE=nothing drawn, LEFT=left out) side of this room, gaps to its corners'
 const AGENT_KEY_WALLS = 'KEY metres, inside, N=+y. room: id "name" use WxD(~ not a rectangle; then round:across, band:long along its middle x wide, turned:degrees anticlockwise:own WxD, sides:going round, curves:r radius/length) @lower-left m2. wall: id start>end thickness x/i/p/s/v(exterior/interior/partition/separating/virtual) h=not the floor\'s usual | opening: id d/o/w offset+width room gaps to its side\'s corners(start end first)|other(none=outside, NONE=nothing drawn, LEFT=left out)'
 
 // The label leads every description (`describePlan`, MSG-3), so the close need not repeat it
