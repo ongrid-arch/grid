@@ -19,8 +19,8 @@ export const SET_FACTS_TOOL_NAME = 'grid_set_facts'
 const FACTS_MAX = 30
 const PARTS_MAX = 2000
 
-/** The facts to set, by name: text, a number, or true or false. */
-function readSet(value: unknown): Record<string, FactValue> {
+/** The facts to set, by name: text, a number, or true or false. CNT-52: `grid_add_item`'s `facts` too. */
+export function readSet(value: unknown): Record<string, FactValue> {
   const record = value as Record<string, unknown>
   const names = Object.keys(record)
   if (names.length > FACTS_MAX) throw new ToolRefusal(`set takes at most ${FACTS_MAX} facts in one call.`)

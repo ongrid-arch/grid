@@ -120,12 +120,17 @@ export function pixelBoxes(parts: readonly PartBounds[], picture: Pick<Picture, 
   return out
 }
 
-/** The frame for a crop to one part: its box, at least `least` metres each way, about its middle. */
-export function cropFrame(part: PartBounds, least = 2): Bounds {
-  const { min, max } = part.bounds
+/**
+ * The frame for a crop: the parts' joined box, at least `least` metres each way about its middle,
+ * with `margin` metres round it (VEW-74: several parts, a flat or a box in one frame).
+ */
+export function cropFrame(parts: PartBounds | readonly PartBounds[], least = 2, margin = 0): Bounds {
+  const list = Array.isArray(parts) ? (parts as readonly PartBounds[]) : [parts as PartBounds]
+  const joined = boundsOf(list.flatMap((part) => [part.bounds.min, part.bounds.max]))
+  const { min, max } = joined
   const cx = (min.x + max.x) / 2
   const cy = (min.y + max.y) / 2
-  const halfW = Math.max(max.x - min.x, least) / 2
-  const halfH = Math.max(max.y - min.y, least) / 2
+  const halfW = Math.max(max.x - min.x, least) / 2 + margin
+  const halfH = Math.max(max.y - min.y, least) / 2 + margin
   return { min: { x: cx - halfW, y: cy - halfH }, max: { x: cx + halfW, y: cy + halfH }, width: 2 * halfW, height: 2 * halfH }
 }

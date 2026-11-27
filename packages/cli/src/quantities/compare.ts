@@ -17,6 +17,8 @@
 import { alignPlans, centroid, compareMassing, curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type MassingFigures, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type MessageKey, type Said } from '@ongrid/floorplan/messages'
 import { notCountedRooms, planAreas, roomKey, type PlanAreas } from './areas'
+import { lettableFigures, peopleRatios, type LettableChoice, type PeopleFigures, type PeopleRatio } from './lettable'
+import { planSeating } from './seats'
 import { sideNames, type Survey } from './survey'
 
 /** Two sizes closer than this are one (MSG-15's `joint`; arithmetic, so it never changes). */
@@ -42,10 +44,26 @@ export interface OptionRow {
   /** ARE-61: the net floor by the firm's room type and by tenure; only on a plan where a room states one. */
   readonly byRoomType?: Readonly<Record<string, number>>
   readonly byTenure?: Readonly<Record<string, number>>
+  /** ARE-68: the lettable area, the core and efficiency (lettable over gross internal, null without it). */
+  readonly lettable: number
+  readonly core: number
+  readonly efficiency: number | null
+  readonly coreShare: number | null
+  /** ARE-68: the area per one of each figure for who the building is for; only where one is given or counted. */
+  readonly people?: readonly PeopleRatio[]
 }
 
-export function optionRow(label: string, survey: Survey): OptionRow {
+/** ARE-68: the lettable rooms as the person counts them, and who the building is for: the call's, else the plan's brief's. */
+export interface OptionAsk {
+  readonly choice?: LettableChoice
+  readonly people?: PeopleFigures
+  readonly brief?: PeopleFigures
+}
+
+export function optionRow(label: string, survey: Survey, ask: OptionAsk = {}): OptionRow {
   const areas: PlanAreas = planAreas(survey)
+  const letting = lettableFigures(areas, ask.choice)
+  const people = peopleRatios(areas, letting, { ...(ask.people ? { asked: ask.people } : {}), ...(ask.brief ? { brief: ask.brief } : {}) }, planSeating(survey).plan)
   const byUse: Record<string, number> = {}
   for (const floor of areas.floors) for (const [use, value] of Object.entries(floor.byUse)) byUse[use] = (byUse[use] ?? 0) + value
   // CNT-8: a zone is part of a room, not a room of its own. CNT-27: the rooms are counted as
@@ -69,6 +87,11 @@ export function optionRow(label: string, survey: Survey): OptionRow {
     byUse,
     ...(areas.byRoomType === undefined ? {} : { byRoomType: areas.byRoomType }),
     ...(areas.byTenure === undefined ? {} : { byTenure: areas.byTenure }),
+    lettable: letting.lettable,
+    core: letting.core,
+    efficiency: letting.efficiency,
+    coreShare: letting.coreShare,
+    ...(people.length === 0 ? {} : { people }),
   }
 }
 

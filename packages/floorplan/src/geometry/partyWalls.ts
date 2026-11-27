@@ -57,8 +57,11 @@ const signedArea = (ring: readonly Vec2[]): number => {
 /** The ring turned so that the floor lies on its left: outer rings counter-clockwise, holes clockwise. */
 const floorOnLeft = (ring: readonly Vec2[], outer: boolean): Vec2[] => (signedArea(ring) > 0 === outer ? [...ring] : [...ring].reverse())
 
-/** How far across its walls a room is pushed: to their inside face (0), their outside face (1), or across all of each (LVL-13). */
-type PushDepth = 0 | 1 | 'whole'
+/**
+ * How far across its walls a room is pushed: to their inside face (0), their outside face (1),
+ * across all of each (LVL-13), or to the middle of each (ARE-68).
+ */
+type PushDepth = 0 | 1 | 'whole' | 'middle'
 
 /** A run of a room's side that lies on one wall's face, with how far the floor reaches past it. */
 interface Reach {
@@ -99,10 +102,11 @@ function reaches(a: Vec2, b: Vec2, walls: readonly { readonly wall: Wall; readon
     const here = on.find((w) => w.u0 <= m && m <= w.u1) ?? on.find((w) => w.u0 - w.wall.thickness <= m && m <= w.u1 + w.wall.thickness)
     if (here === undefined) continue
     const { wall, segment } = here
-    if (outer === 'whole') {
+    if (outer === 'whole' || outer === 'middle') {
+      const depth = outer === 'whole' ? wall.thickness : wall.thickness / 2
       const last = out[out.length - 1]
-      if (last !== undefined && last.depth === wall.thickness && from - last.to <= tolerance('noLength')) out[out.length - 1] = { ...last, to }
-      else out.push({ from, to, depth: wall.thickness })
+      if (last !== undefined && last.depth === depth && from - last.to <= tolerance('noLength')) out[out.length - 1] = { ...last, to }
+      else out.push({ from, to, depth })
       continue
     }
     const point = { x: a.x + dir.x * m, y: a.y + dir.y * m }
@@ -191,6 +195,21 @@ function roomPushed(room: PartyWallRoom, sides: ReadonlyMap<string, WallSides>, 
  */
 export function overItsWalls(room: PartyWallRoom): Polygon[] {
   return roomPushed(room, new Map(), 'whole')
+}
+
+/**
+ * ARE-68: a room's floor to the middle of every wall it lies on, the corners between two of them
+ * filled, whatever lies beyond: the size a room written to its walls' centre lines was written at,
+ * as a stand or a module sold by its nominal size is. Null when the pieces cannot be joined.
+ */
+export function toWallMiddles(room: PartyWallRoom): number | null {
+  const pieces = roomPushed(room, new Map(), 'middle')
+  if (pieces.length === 0) return 0
+  try {
+    return union(pieces).reduce((sum, polygon) => sum + polygonArea(polygon), 0)
+  } catch {
+    return null
+  }
 }
 
 /**

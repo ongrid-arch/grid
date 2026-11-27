@@ -42,7 +42,8 @@ export function renameRoom(survey: Survey, roomId: string, request: { readonly n
   // CNT-15 (C24): the room's or zone's finishes, by the person's own names; none takes one out.
   if (finishing) {
     const was = roomFinishes(room)
-    const next: Record<string, string> = Object.fromEntries(FINISH_SURFACES.flatMap((surface) => (was[surface] === null ? [] : [[surface, was[surface]!]])))
+    // CNT-51: the faces, bands and a stated no skirting are kept as they are.
+    const next: Record<string, unknown> = { ...(room.finishes ?? {}) }
     for (const surface of FINISH_SURFACES) {
       const asked = request.finishes![surface]
       if (asked === undefined) continue

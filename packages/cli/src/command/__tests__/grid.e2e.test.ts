@@ -625,6 +625,9 @@ describe('the built file', () => {
     // 900 kB since CMD-47: one building of a site of many read, written, added to, taken out and
     // placed again (four tools) with main at its merge take it to 855,776 bytes, again with no new
     // dependency.
-    expect(statSync(bundle).size).toBeLessThan(900_000)
+    // 950 kB since CNT-51: grid_set_finishes for many rooms at once, with feature walls and bands,
+    // with main's lettable areas (ARE-68) and floor=all and crops (VEW-74) take it to 902,714
+    // bytes, again with no new dependency.
+    expect(statSync(bundle).size).toBeLessThan(950_000)
   })
 })

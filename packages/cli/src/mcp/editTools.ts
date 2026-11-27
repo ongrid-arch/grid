@@ -202,7 +202,7 @@ const renameTool: GridTool = {
     'Use this when the person asks to call a room something else, to use it for something else, what its floor, walls, ceiling or skirting are finished in, or whether it is heated or cooled: "the front room is a bedroom now", "the room names in Spanish", "tile the kitchen floor", "the bathroom walls are tiled", "the lanai is not air-conditioned", "the garage is heated now". '
     + 'conditioned says whether the room is in the living area under air (grid_areas): unstated, a room is under air unless it is used for parking, and outdoor space never is. '
     + 'It changes the room\'s name, its use (none to leave it unstated), its finishes (by the person\'s own names; none takes one out), or more than one, and nothing else, and answers with which of Grid\'s checks now look at the room and which no longer do: they go by its use, never its name. A zone of an open-plan room takes finishes too: its part of the room is finished in them. '
-    + 'Do not use to change a room\'s size (grid_move_room_side) or its id. It replaces the plan file unless out is given.',
+    + 'Do not use for finishes in many rooms at once, for one wall face, for a band such as a splashback, or for no skirting: use grid_set_finishes. Do not use to change a room\'s size (grid_move_room_side) or its id. It replaces the plan file unless out is given.',
   args: {
     plan: PLAN_ARG,
     room: { type: 'string', id: true, required: true, description: 'The room to rename or give another use.', examples: ['bed2'] },

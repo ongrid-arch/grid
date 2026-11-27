@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -37,6 +37,11 @@ import { MARK_WORDS, marksAsked, readMarks, sectionLineOf, towardOf } from '../c
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
 import { AREA_RULES, notCounted, planAreas, type AreaSureness, type NotCounted, type RoomArea, type RoomNotCounted } from '../quantities/areas'
 import { OUTDOOR_RULES_ARG, type OutdoorRules } from './outdoorRulesArg'
+import { LETTABLE_TENURES_ARG, LETTABLE_USES_ARG, PEOPLE_ARG, type PeopleFigures } from './lettableArgs'
+import { AS_WRITTEN_RULE, asWrittenAreas, asWrittenText, lettableAnswer, lettableFloorText, lettableLines, netToGrossNote, peopleLines, withAsWritten } from './lettableAnswer'
+import { lettableRules } from '../quantities/lettable'
+import { FRONTAGE_BANDS, FRONTAGE_BANDS_MAX, FRONTAGE_DEPTH, frontageSide, frontageZones } from '../quantities/frontage'
+import type { RoomTenure } from '@ongrid/floorplan/types/floorplan'
 import { stateText } from '../quantities/state'
 import { comparePlans, optionRow, type Comparison, type OptionRow } from '../quantities/compare'
 import {
@@ -78,12 +83,15 @@ import { columnRule, parkingRule, planTakeoff, TAKEOFF_RULES, type BayCount, typ
 import { FINISH_RULE, FINISH_SURFACES, FINISH_UNITS, WALL_TYPE_RULE, planFinishes, wallTypeRuns, type FinishSurface } from '../quantities/finishes'
 import {
   askPlan,
+  checkCondition,
   checkSums,
   factInfos,
   fieldName,
   fieldOf,
   GRID_FIELDS,
   groupParts,
+  meets,
+  readCondition,
   FACT_PART_KINDS,
   PART_KINDS,
   QUERY_RULE,
@@ -191,6 +199,16 @@ function load(context: ToolContext, plan: unknown, floor?: unknown): { survey: S
   return { survey: surveyPlan(loaded.plan), floor: floorArg(loaded.plan, floor), file }
 }
 
+/** ARE-68: the people the brief beside the plan says the building is for; none when it gives none or cannot be read. */
+function briefPeopleOf(context: ToolContext, file: string): { brief?: PeopleFigures } {
+  try {
+    const people = readBrief(projectOf(context), file).brief?.people
+    return people === undefined ? {} : { brief: people }
+  } catch {
+    return {}
+  }
+}
+
 /** WRT-6 (lab AE-4, AE-13): where an area's walls came from and how sure it is, after the figure. */
 const SOURCE_WORDS = { scanned: 'from a scan', measured: 'measured', given: 'as given', assumed: 'assumed' } as const
 function surenessText(sure: AreaSureness | undefined, units: Display): string {
@@ -213,7 +231,10 @@ function optionLine(row: OptionRow, units: Display): string {
   // ARE-60: a US option leads with its living area under air and its total under roof.
   const unknown = english(said('sheet.notKnown'))
   const air = row.underAirFirst ? `${english(said('areas.compare.underAir', { conditioned: row.conditioned === null ? unknown : areaText(row.conditioned, units), underRoof: row.underRoof === null ? unknown : areaText(row.underRoof, units) }))}; ` : ''
-  return `${row.label}: ${air}net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.${groupLine('room type', row.byRoomType)}${groupLine('tenure', row.byTenure)}`
+  // ARE-68: the lettable area and efficiency beside net to gross, and the area per person where a figure is given.
+  const letting = english(said('compare.lettable', { area: areaText(row.lettable, units), efficiency: percent(row.efficiency), core: row.core > 0 ? said('compare.core', { core: areaText(row.core, units), coreShare: percent(row.coreShare) }) : '' }))
+  const people = (row.people ?? []).map((ratio) => ` ${peopleLines([ratio], units)[0]}`).join('')
+  return `${row.label}: ${air}net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${letting}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.${groupLine('room type', row.byRoomType)}${groupLine('tenure', row.byTenure)}${people}`
 }
 
 /** ARE-61: an option's net floor by the firm's room type or by tenure, largest first; nothing when the plan states none. */
@@ -268,7 +289,7 @@ const compareTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks how two or more plans differ, which option is bigger, to see options side by side, or what a change did: "compare A, B and C", "what differs between A and B", "how much bigger than now", "what comes out and what is new". '
-    + 'It gives one table of the options (net, gross internal and gross external areas, the living area under air and the total under roof, which lead a US plan\'s row, circulation, net to gross, area by use) and, for each later plan against the first, what differs by room name, walls out and new with their lengths and face areas, and openings out, new or changed. '
+    + 'It gives one table of the options (net, gross internal and gross external areas, the living area under air and the total under roof, which lead a US plan\'s row, circulation, net to gross, the lettable area, the core and efficiency, area by use, and with people or each plan\'s brief the area per pupil, key or cover) and, for each later plan against the first, what differs by room name, walls out and new with their lengths and face areas, and openings out, new or changed. '
     + 'A plan that is the first one moved, mirrored or turned is said to be so, not listed as moved walls. With picture true it also returns one sheet of the plans side by side at the same scale. '
     + 'Do not use for the areas of one plan (grid_areas) or a picture of one plan (grid_view). Units are metres.',
   args: {
@@ -291,9 +312,13 @@ const compareTool: GridTool = {
     },
     floor: { ...FLOOR_ARG, description: 'For the picture only: the floor to draw from each plan. Each plan\'s ground floor when left out.' },
     picture: { type: 'boolean', description: 'true to return one sheet with the plans side by side at one scale. false when left out.', examples: [true, false] },
+    // ARE-68: as grid_areas takes them, for every option.
+    lettable_uses: LETTABLE_USES_ARG,
+    lettable_tenures: LETTABLE_TENURES_ARG,
+    people: { ...PEOPLE_ARG, description: `${PEOPLE_ARG.description} The same for every option; left out, each plan's own brief.` },
   },
   outputSchema: objectSchema({
-    options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, underAirFirst: { type: 'boolean' }, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' }, byRoomType: { type: 'object' }, byTenure: { type: 'object' } }, ['label', 'net', 'grossInternal', 'grossExternal', 'conditioned', 'underRoof', 'underAirFirst', 'circulation', 'circulationShare', 'netToGross', 'rooms', 'bedrooms', 'byUse'])),
+    options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, underAirFirst: { type: 'boolean' }, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' }, byRoomType: { type: 'object' }, byTenure: { type: 'object' }, lettable: NUMBER, core: NUMBER, efficiency: NULLABLE_NUMBER, coreShare: NULLABLE_NUMBER, people: { type: 'array' } }, ['label', 'net', 'grossInternal', 'grossExternal', 'conditioned', 'underRoof', 'underAirFirst', 'circulation', 'circulationShare', 'netToGross', 'rooms', 'bedrooms', 'byUse'])),
     comparisons: listSchema(objectSchema({ before: STRING, after: STRING, likeness: { type: ['string', 'null'] }, verdict: STRING, rooms: { type: 'array' }, wallsOut: { type: 'array' }, wallsNew: { type: 'array' }, wallsChanged: { type: 'array' }, openingsOut: { type: 'array' }, openingsNew: { type: 'array' }, openingsChanged: { type: 'array' }, massing: { type: 'object' } })),
     rules: listSchema(STRING),
   }),
@@ -301,12 +326,17 @@ const compareTool: GridTool = {
     const files = args['plans'] as string[]
     const labels = (args['labels'] as string[] | undefined) ?? files.map((_, i) => String.fromCharCode(65 + i))
     if (labels.length !== files.length) throw new ToolRefusal(`labels needs one name for each of the ${files.length} plans.`)
-    const surveys = files.map((file) => load(context, file).survey)
-    const options = surveys.map((survey, i) => optionRow(labels[i]!, survey))
+    const loaded = files.map((file) => load(context, file))
+    const surveys = loaded.map((one) => one.survey)
+    const choice = { ...(args['lettable_uses'] === undefined ? {} : { uses: args['lettable_uses'] as string[] }), ...(args['lettable_tenures'] === undefined ? {} : { tenures: args['lettable_tenures'] as RoomTenure[] }) }
+    const options = surveys.map((survey, i) => optionRow(labels[i]!, survey, { choice, ...(args['people'] === undefined ? {} : { people: args['people'] as PeopleFigures }), ...briefPeopleOf(context, loaded[i]!.file) }))
     const comparisons = surveys.slice(1).map((survey, i) => ({ before: labels[0]!, after: labels[i + 1]!, ...comparePlans(surveys[0]!, survey, [labels[0]!, labels[i + 1]!]) }))
+    const letRules = lettableRules(Object.keys(choice).length === 0 ? null : choice)
+    const lettingRules = [letRules.lettable, letRules.core, letRules.efficiency]
     // ARE-60: the area under air's rules, where an option leads with it.
-    const rules = [...Object.values(AREA_RULES), ...(options.some((row) => row.underAirFirst) ? [MEASURES.conditioned.measures, MEASURES.underRoof.measures] : [])]
-    const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...rules]
+    const rules = [...Object.values(AREA_RULES), ...(options.some((row) => row.underAirFirst) ? [MEASURES.conditioned.measures, MEASURES.underRoof.measures] : []), ...lettingRules, ...(options.some((row) => row.people !== undefined) ? [english(said('people.rule'))] : [])]
+    // ARE-68: the lettable rules are in the data, so the table stays short.
+    const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...rules.filter((rule) => !lettingRules.includes(rule))]
     let image
     if (args['picture'] === true) {
       const floor = args['floor']
@@ -342,6 +372,7 @@ const areasTool: GridTool = {
     + 'It lists every room with its inside size and net area, the totals by floor and by use, the area of each flat the plan lists (and of the rooms in no flat), and the gross areas, each with a sentence saying what it measures, what it does not take off and what the plan cannot say. '
     + 'The plan\'s own site.country is read as grid_check reads it; pass country to override it for the gross measure the reader there usually means (the inside face of the outer walls in the UK and most of Europe, the outside face for US homes), or gross to ask for one or both. '
     + 'It gives the living area under air (conditioned: the rooms heated or cooled, to the outside face of their walls, a garage out) and the total under roof (underRoof: the gross external area, garage in, plus roofed outdoor space) on every floor and in all; for a US plan they lead the answer. Mark a room heated or not with grid_rename_room conditioned. '
+    + 'It gives the lettable area (the net of the rooms a tenant or buyer has the use of: by a room\'s stated tenure, else every use but stair, lift, plant, corridor and parking, or the uses and tenures you choose), the core (stair, lift and plant rooms) with its share of each floor plate, and efficiency, lettable over gross internal, per floor, per floor type and in all: quote it, not net to gross, which holds the core and corridors. With people (pupils, covers, keys, beds, capacity), or the brief\'s, it gives the area per one: gross internal per pupil, net per key, per cover. as_written gives each room\'s area to its walls\' centre lines beside its net, for stands and modules sold by nominal size. '
     + 'On a plan that lists flats it gives each flat\'s area to the middle of its party walls too, and where fixtures stand the free floor beside the floor area, per room, zone, flat, floor and in all. Outdoor space is left out of every total unless outdoor_rules states a rule that counts part of it, and the answer says which. '
     + 'Rooms named in outside_rooms (a balcony, a terrace, a garage) are the outside, as outdoor space is: the walls round them face outside, they are listed apart and are in no net, gross internal or gross external figure; a room Grid could not draw is named and left out of every figure. Do not use for wall lengths, plaster or skirting (grid_takeoff), or to compare plans (grid_compare). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
@@ -367,6 +398,11 @@ const areasTool: GridTool = {
       minItems: 1,
       maxItems: 500,
     },
+    // ARE-68: the lettable area as the person counts it, who the building is for, and the area as written.
+    lettable_uses: LETTABLE_USES_ARG,
+    lettable_tenures: LETTABLE_TENURES_ARG,
+    people: PEOPLE_ARG,
+    as_written: { type: 'boolean', description: 'true to give each room\'s area as written, to the middle of every wall it lies on, beside its net: the nominal size of a stand or a module. false when left out.', examples: [true] },
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
@@ -417,9 +453,12 @@ const areasTool: GridTool = {
     buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER, ground: NUMBER, from: { type: 'string', enum: ['pad', 'site', 'floor'] }, storeys: { type: 'object', properties: { above: NUMBER, below: NUMBER } } }, ['id', 'name', 'floors', 'net'])),
     // ARE-20, only when apart_rooms is given: those rooms' net and their area to the middle of the walls they share.
     apart: objectSchema({ rooms: listSchema(STRING), net: NUMBER, byFloor: { type: 'object' }, toPartyWalls: { type: ['object', 'null'], properties: { grossInternal: NUMBER, grossExternal: NUMBER } }, notCounted: listSchema(STRING), state: { type: 'object' } }, ['rooms', 'net', 'toPartyWalls']),
-  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial', 'byRoomType', 'byTenure']),
+    // ARE-68: the lettable area, the core and efficiency, per floor, floor type and in all; the area per person, only with a figure.
+    lettable: objectSchema({ lettable: NUMBER, core: NUMBER, grossInternal: NULLABLE_NUMBER, efficiency: NULLABLE_NUMBER, coreShare: NULLABLE_NUMBER, floors: { type: 'array' }, floorTypes: { type: 'array' }, lettableByUse: { type: 'object' }, notLettable: { type: 'object' }, chosen: { type: ['object', 'null'] }, states: { type: 'object' }, rules: { type: 'object' } }, ['lettable', 'core', 'efficiency', 'coreShare', 'floors', 'floorTypes', 'rules']),
+    people: listSchema(objectSchema({ kind: STRING, count: NUMBER, from: STRING, rooms: listSchema(STRING), per: { type: 'object' } })),
+  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial', 'byRoomType', 'byTenure', 'people']),
   run(args, context) {
-    const { survey, floor } = load(context, args['plan'], args['floor'])
+    const { survey, floor, file } = load(context, args['plan'], args['floor'])
     const outside = (args['outside_rooms'] as string[] | undefined) ?? []
     for (const id of outside) roomArg(survey.plan, id, 'outside_rooms item')
     const apart = (args['apart_rooms'] as string[] | undefined) ?? []
@@ -441,6 +480,13 @@ const areasTool: GridTool = {
       ...(outdoorRules === undefined ? {} : { outdoorWeights: outdoorRules }),
       ...(apart.length === 0 ? {} : { apart: new Set(apart) }),
     })
+    // ARE-68: the lettable area, the core, efficiency and the area per person; the brief's people when the call gives none.
+    const letting = lettableAnswer(survey, areas, {
+      choice: { ...(args['lettable_uses'] === undefined ? {} : { uses: args['lettable_uses'] as string[] }), ...(args['lettable_tenures'] === undefined ? {} : { tenures: args['lettable_tenures'] as RoomTenure[] }) },
+      ...(args['people'] === undefined ? {} : { people: args['people'] as PeopleFigures }),
+      ...briefPeopleOf(context, file),
+    })
+    const written = args['as_written'] === true ? asWrittenAreas(survey) : null
     // LVL-23: each building measured from its own ground, with its own storeys.
     const buildings = areas.buildings.map((b) => {
       const own = heights.get(b.id)
@@ -448,7 +494,7 @@ const areasTool: GridTool = {
       return { ...b, height: own?.height?.height ?? null, ground: ground.level, from: ground.from, storeys: own?.storeys ?? { above: 0, below: 0 } }
     })
     const data = {
-      floors: areas.floors,
+      floors: written === null ? areas.floors : withAsWritten(areas.floors, written),
       net: areas.net,
       grossInternal: areas.grossInternal,
       grossExternal: areas.grossExternal,
@@ -480,6 +526,8 @@ const areasTool: GridTool = {
       // CNT-6: only on a plan that names buildings, so every other answer is as it was.
       ...(buildings.length === 0 ? {} : { buildings }),
       ...(areas.apart === undefined ? {} : { apart: areas.apart }),
+      lettable: letting.lettable,
+      ...(letting.people.length === 0 ? {} : { people: letting.people }),
     }
     if (args['format'] === 'csv') {
       const rows = areas.floors.flatMap((f) => f.rooms.map((r) => [f.floor, r.id, r.name, r.use, r.size?.[0] ?? null, r.size?.[1] ?? null, r.net, r.net === null ? null : sqFt(r.net), countedWord(r), r.state]))
@@ -518,7 +566,8 @@ const areasTool: GridTool = {
         const headroom = r.headroom === undefined ? '' : `; ${bandsText(r.headroom.bands, units)}, headroom ${lengthText(r.headroom.lowest, units)} to ${lengthText(r.headroom.highest, units)}`
         // CNT-7: an outdoor space is listed apart, with its kind and whether a roof covers it.
         const outdoor = r.outdoor === undefined ? '' : english(said('areas.room.outdoor', { kind: said(`outdoor.kind.${r.outdoor.kind}`), roofed: said(r.outdoor.roofed ? 'outdoor.roofed' : 'outdoor.open') }))
-        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${open}${air}${headroom}`)
+        const asWritten = written === null || r.net === null ? '' : asWrittenText(written.get(`${f.floor}\u0000${r.id}`), units)
+        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${asWritten}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${open}${air}${headroom}`)
       }
     }
     if (several) {
@@ -528,7 +577,7 @@ const areasTool: GridTool = {
         // ARE-60: the area under air and the total under roof, first where they lead.
         const air = !areas.underAir.shown ? [] : ([['conditioned', f.conditioned], ['underRoof', f.underRoof]] as const).map(([m, value]) => `${MEASURES[m].name.toLowerCase()} ${value === null ? 'not known' : areaText(value, units)}`)
         const figures = areas.underAir.first ? [...air, ...gross] : [...gross, ...air]
-        lines.push(`Floor ${q(f.floor)}: net ${areaText(f.net, units)}${surenessText(f.sureness, units)}${free}, ${figures.join(', ')}.`)
+        lines.push(`Floor ${q(f.floor)}: net ${areaText(f.net, units)}${surenessText(f.sureness, units)}${free}, ${figures.join(', ')}${lettableFloorText(letting, f.floor, units)}.`)
       }
     }
     // CNT-4: each flat the plan lists, from the list and never from the rooms' names (lab EL-1).
@@ -588,8 +637,10 @@ const areasTool: GridTool = {
     if (areas.floors.some((f) => f.massing)) lines.push(storeysText(storeys))
     lines.push(`Assumed: ${areas.reader.why} Grid's own rule, not checked against any local standard.`)
     if (areas.grossInternal !== null && areas.reader.gross.includes('grossInternal')) {
-      lines.push(`Circulation: ${areas.circulation.toFixed(2)} m², ${percent(areas.circulationShare)} of gross internal. Net to gross: ${percent(areas.netToGross)}.`)
+      lines.push(`Circulation: ${areas.circulation.toFixed(2)} m², ${percent(areas.circulationShare)} of gross internal. Net to gross: ${percent(areas.netToGross)}.${netToGrossNote(letting)}`)
     }
+    lines.push(...lettableLines(letting, units, several))
+    if (written !== null) lines.push(AS_WRITTEN_RULE())
     const outsideArea = areas.floors.reduce((sum, f) => sum + f.outsideRooms, 0)
     if (outsideArea > 0) lines.push(`Outside, listed apart: ${areaText(outsideArea, units)}.`)
     // CNT-7 (C26): the outdoor spaces, listed apart from every total, by kind.
@@ -827,7 +878,7 @@ const takeoffTool: GridTool = {
     + `A cost comes only from the person's own rates file (rates, or ${RATES_FILE} beside the plan), which must name its currency; with none, the answer is a rate card to fill in and holds no money. Lines with no rate and rates in the wrong unit are listed apart. Grid has no prices. `
     + 'Every figure is worked out from the plan\'s walls and openings by a rule stated in the answer. '
     + 'It also gives each floor\'s slab and the roof over every part with nothing above, worked out from the outlines and marked assumed. '
-    + 'On a plan that names wall types or room finishes (types and finishes in the plan), it also gives the walls of each named type (length and face, with its material) and each finish\'s quantity (floor, walls and ceiling by area, skirting by length), a zone\'s finish taking its part of its room; the estimate then prices them by type and by finish. '
+    + 'On a plan that names wall types or room finishes (types and finishes in the plan), it also gives the walls of each named type (length and face, with its material) and each finish\'s quantity (floor, walls and ceiling by area, skirting by length), a zone\'s finish taking its part of its room, and each band (a splashback behind a kitchen run, tiles to a height) and wall face finished apart (grid_set_finishes) with its own area, taken off its room\'s walls finish; a room with no skirting has none. The estimate then prices them by type and by finish. '
     + 'On a plan with parking bays or ramps (bays and ramps in the plan), it also counts the bays on each floor, with their numbers, and gives each ramp\'s two levels in metres, its rise, its length and its slope in percent, as numbers. '
     + 'Do not use for floor areas alone (grid_areas) or a list of doors and windows (grid_schedule). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
@@ -856,6 +907,9 @@ const takeoffTool: GridTool = {
     // CNT-15, on a plan that names wall types or finishes: the walls of each named type, and each finish's total.
     wallTypes: listSchema(objectSchema({ type: STRING, name: STRING, kind: NULLABLE_STRING, material: NULLABLE_STRING, glazed: BOOLEAN, count: NUMBER, gross: NUMBER, net: NUMBER, face: NUMBER, gable: NUMBER })),
     finishes: listSchema(objectSchema({ surface: STRING, finish: NULLABLE_STRING, unit: STRING, quantity: NUMBER, rooms: listSchema(STRING) })),
+    // CNT-51: each band and wall face finished apart, on a plan that states any.
+    bands: listSchema(objectSchema({ room: STRING, roomName: STRING, finish: STRING, wall: NULLABLE_STRING, behind: NULLABLE_STRING, from: NUMBER, to: NUMBER, length: NUMBER, area: NUMBER })),
+    faces: listSchema(objectSchema({ room: STRING, roomName: STRING, wall: STRING, finish: STRING, area: NUMBER })),
     rooms: listSchema(withOptional(objectSchema({ id: STRING, name: STRING, floor: STRING, floorArea: NUMBER, ceiling: NUMBER, perimeter: NUMBER, skirting: NUMBER, wallFace: NUMBER, openingsOff: NUMBER, height: NULLABLE_NUMBER, ceilingHeight: NULLABLE_NUMBER, lowered: listSchema(objectSchema({ name: STRING, height: NUMBER, area: NUMBER })), void: BOOLEAN, guard: NUMBER }), ['void', 'guard'])),
     totals: withOptional(objectSchema({ floorArea: NUMBER, ceiling: NUMBER, skirting: NUMBER, wallFace: NUMBER, guard: NUMBER }), ['guard']),
     envelope: objectSchema({
@@ -913,7 +967,11 @@ const takeoffTool: GridTool = {
     const t = planTakeoff(survey, floor === undefined ? undefined : [floor], rooms)
     // CNT-15 (C24): the named wall types' walls and the finishes, on a plan that names any.
     const wallTypes = planHasTypes(survey.plan) ? wallTypeRuns(survey, floor === undefined ? undefined : [floor]) : []
-    const finishes = rooms === undefined && planHasFinishes(survey.plan) ? planFinishes(survey, floor === undefined ? undefined : [floor]).totals : null
+    const finished = rooms === undefined && planHasFinishes(survey.plan) ? planFinishes(survey, floor === undefined ? undefined : [floor]) : null
+    const finishes = finished === null ? null : finished.totals
+    // CNT-51: each band and finished wall face, measured on its own, room by room.
+    const bands = (finished?.rows ?? []).flatMap((r) => r.bands.map((b) => ({ room: r.id, roomName: r.name, ...b })))
+    const faces = (finished?.rows ?? []).flatMap((r) => r.faces.map((f) => ({ room: r.id, roomName: r.name, ...f })))
     const data = {
       walls: t.walls,
       ...(t.columns === undefined ? {} : { columns: t.columns }),
@@ -921,6 +979,8 @@ const takeoffTool: GridTool = {
       ...(t.ramps === undefined ? {} : { ramps: t.ramps }),
       ...(wallTypes.length === 0 ? {} : { wallTypes }),
       ...(finishes === null ? {} : { finishes }),
+      ...(bands.length === 0 ? {} : { bands }),
+      ...(faces.length === 0 ? {} : { faces }),
       rooms: t.rooms,
       totals: t.totals,
       envelope: t.envelope,
@@ -947,6 +1007,9 @@ const takeoffTool: GridTool = {
         // CNT-15: the named wall types (gross and net length, face in the wall face column) and the finishes.
         ...wallTypes.map((w) => ['wall type', `${w.name} (${w.count})`, null, null, null, w.face, w.gross, w.net, null]),
         ...(finishes ?? []).map((f) => ['finish', `${f.surface}: ${f.finish ?? 'not stated'}`, f.surface === 'floor' ? f.quantity : null, f.surface === 'ceiling' ? f.quantity : null, f.surface === 'skirting' ? f.quantity : null, f.surface === 'walls' ? f.quantity : null, null, null, null]),
+        // CNT-51: each band and finished face, its area in the wall face column and a band's length.
+        ...bands.map((b) => ['band', `${b.roomName}: ${b.finish}, ${b.from.toFixed(2)} to ${b.to.toFixed(2)} m${b.behind === null ? '' : ` behind ${b.behind}`}${b.wall === null ? '' : ` on ${b.wall}`}`, null, null, null, b.area, b.length, null, null]),
+        ...faces.map((f) => ['face', `${f.roomName}: ${f.finish} on ${f.wall}`, null, null, null, f.area, null, null, null]),
       ]
       return { text: csv(['row', 'what', 'floor m2', 'ceiling m2', 'skirting m', 'wall face m2', 'length or perimeter m', 'net length m', 'state'], rows), data }
     }
@@ -975,6 +1038,13 @@ const takeoffTool: GridTool = {
         ? []
         : [`Walls by type: ${wallTypes.map((w) => `${q(w.name)} ${lengthText(w.gross, units)} (${w.count} wall${w.count === 1 ? '' : 's'}; face ${areaText(w.face, units)}${w.gable > 0 ? `, of it ${areaText(w.gable, units)} gable` : ''}${w.material === null ? ', material not stated' : `, ${w.material}`}${w.glazed ? ', glazed' : ''})`).join('; ')}.`]),
       ...(finishes === null ? [] : finishLines(finishes, units)),
+      ...(bands.length === 0 && faces.length === 0
+        ? []
+        : [
+            'Bands and wall faces finished apart, each taken off its room\'s walls finish:',
+            ...bands.map((b) => `  ${q(b.roomName)}: ${q(b.finish)} ${b.behind !== null ? `behind ${q(b.behind)}` : b.wall !== null ? `on wall ${q(b.wall)}` : 'all round'}, ${lengthText(b.from, units, 'height')} to ${lengthText(b.to, units, 'height')}, ${lengthText(b.length, units)} long: ${areaText(b.area, units)}`),
+            ...faces.map((f) => `  ${q(f.roomName)}: face of wall ${q(f.wall)} ${q(f.finish)}: ${areaText(f.area, units)}`),
+          ]),
       ...Object.values(TAKEOFF_RULES),
       ...(wallTypes.length === 0 ? [] : [WALL_TYPE_RULE]),
       ...(finishes === null ? [] : [FINISH_RULE]),
@@ -1002,15 +1072,23 @@ function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined,
     const data = { rows: s.rows, totals: s.totals, rule: s.rule }
     const amount = (surface: FinishSurface, quantity: number): string => (FINISH_UNITS[surface] === 'm' ? lengthText(quantity, units) : areaText(quantity, units))
     if (asCsv) {
-      const cells = s.rows.map((r) => [r.id, r.name, r.floor, r.zoneOf, ...FINISH_SURFACES.flatMap((surface) => [r.surfaces[surface].finish, r.surfaces[surface].quantity])])
-      return { text: csv(['id', 'name', 'floor', 'zone of', 'floor finish', 'floor m2', 'wall finish', 'wall face m2', 'ceiling finish', 'ceiling m2', 'skirting finish', 'skirting m'], cells), data }
+      // CNT-51: no skirting is none; the bands and finished faces, each its finish and area, in one cell.
+      const cells = s.rows.map((r) => [r.id, r.name, r.floor, r.zoneOf, ...FINISH_SURFACES.flatMap((surface) => [surface === 'skirting' && r.noSkirting ? 'none' : r.surfaces[surface].finish, r.surfaces[surface].quantity]), [...r.bands.map((b) => `${b.finish} ${b.area.toFixed(2)}`), ...r.faces.map((f) => `${f.finish} ${f.area.toFixed(2)}`)].join('; ')])
+      return { text: csv(['id', 'name', 'floor', 'zone of', 'floor finish', 'floor m2', 'wall finish', 'wall face m2', 'ceiling finish', 'ceiling m2', 'skirting finish', 'skirting m', 'bands and faces m2'], cells), data }
     }
     const floorName = new Map(survey.facts.floors.map((f) => [f.id, f.name] as const))
     const lines = [planHasFinishes(survey.plan) ? 'Finishes by room:' : 'The plan names no finishes: every surface is not stated. Name a room\'s or a zone\'s in its finishes (floor, walls, ceiling, skirting).']
     for (const r of s.rows) {
-      const shown = FINISH_SURFACES.filter((surface) => r.zoneOf === null || r.surfaces[surface].finish !== null)
-      const parts = shown.map((surface) => `${surface} ${r.surfaces[surface].finish === null ? 'not stated' : q(r.surfaces[surface].finish!)} ${amount(surface, r.surfaces[surface].quantity)}`)
-      lines.push(`${r.zoneOf === null ? '' : '  '}${q(r.name)}${r.zoneOf === null ? '' : ` (a zone of ${q(r.zoneOf)})`}${several ? `, ${q(floorName.get(r.floor) ?? r.floor)}` : ''}: ${parts.join(', ')}`)
+      const shown = FINISH_SURFACES.filter((surface) => r.zoneOf === null || r.surfaces[surface].finish !== null || (surface === 'skirting' && r.noSkirting))
+      const parts = shown.map((surface) => (surface === 'skirting' && r.noSkirting && r.surfaces[surface].finish === null ? 'no skirting' : `${surface} ${r.surfaces[surface].finish === null ? 'not stated' : q(r.surfaces[surface].finish!)} ${amount(surface, r.surfaces[surface].quantity)}`))
+      const indent = r.zoneOf === null ? '' : '  '
+      lines.push(`${indent}${q(r.name)}${r.zoneOf === null ? '' : ` (a zone of ${q(r.zoneOf)})`}${several ? `, ${q(floorName.get(r.floor) ?? r.floor)}` : ''}: ${parts.join(', ')}`)
+      // CNT-51: each band and finished face on its own line, taken off the walls above.
+      for (const b of r.bands) {
+        const where = b.behind !== null ? `behind ${q(b.behind)}` : b.wall !== null ? `on wall ${q(b.wall)}` : 'all round'
+        lines.push(`${indent}  band ${q(b.finish)} ${where}, ${lengthText(b.from, units, 'height')} to ${lengthText(b.to, units, 'height')}, ${lengthText(b.length, units)} long: ${areaText(b.area, units)}`)
+      }
+      for (const f of r.faces) lines.push(`${indent}  face of wall ${q(f.wall)} ${q(f.finish)}: ${areaText(f.area, units)}`)
     }
     lines.push(...finishLines(s.totals, units), s.rule)
     return { text: lines.join('\n'), data }
@@ -1090,6 +1168,28 @@ function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined,
   return { text: lines.join('\n'), data }
 }
 
+/** CNT-52: grid_schedule of=items: every item, points too, numbered in plan order, with its place and facts. */
+function itemSchedule(survey: Survey, floor: string | undefined, units: Display, asCsv: boolean): Answer {
+  const f = planFixtures(survey.plan, floor === undefined ? undefined : [floor])
+  const rows = f.rows.map((r, i) => ({ number: i + 1, id: r.id, kind: r.kind, group: r.group, label: r.label, floor: r.floor, room: r.room, at: r.at, size: r.size, height: r.height, turn: r.turn, properties: r.properties }))
+  const counts = Object.fromEntries(Object.entries(f.counts).filter(([, n]) => n > 0))
+  const data = { rows, counts, leftOut: f.leftOut, rule: FIXTURE_RULES.count }
+  const name = (id: string): string => (survey.facts.rooms.has(id) ? q(roomCalled(survey.facts.rooms.get(id)!)) : q(id))
+  if (asCsv) {
+    const cells = rows.map((r) => [r.number, r.id, r.kind, r.group, r.label, r.floor, r.room ?? '', r.at[0], r.at[1], r.size[0], r.size[1], r.height, r.turn, factsText(r.properties)])
+    return { text: csv(['number', 'id', 'kind', 'group', 'label', 'floor', 'room', 'x m', 'y m', 'width m', 'depth m', 'height m', 'turn', 'facts'], cells), data }
+  }
+  const several = survey.facts.floors.length > 1
+  const lines = [rows.length === 0 ? `The plan has no items${floor === undefined ? '' : ' on that floor'}.` : `Items: ${fixtureCountText(f.counts)}.`]
+  for (const r of rows) {
+    const facts = Object.keys(r.properties).length === 0 ? '' : `; ${factsText(r.properties)}`
+    lines.push(`${r.number}. ${r.label} ${q(r.id)} (${r.kind}), ${r.room === null ? 'in no room' : `in ${name(r.room)}`}${several ? `, floor ${q(r.floor)}` : ''}, at ${lengthText(r.at[0], units)}, ${lengthText(r.at[1], units)}${facts}`)
+  }
+  if (f.leftOut.length > 0) lines.push(`Left out, as grid_check says: ${f.leftOut.map(q).join(', ')}.`)
+  lines.push(FIXTURE_RULES.count)
+  return { text: lines.join('\n'), data }
+}
+
 /**
  * CMD-17: what grid_schedule answers, one schema for each `of` and one for the grouped default,
  * because the rows of each are a different thing (a room, an opening, a flat, a type, a room's
@@ -1114,6 +1214,13 @@ const SCHEDULE_OUTPUT: Record<string, unknown> = {
       fixtures: listSchema(objectSchema({ id: STRING, kind: STRING, label: STRING, floor: STRING, room: NULLABLE_STRING, size: { type: 'array' }, height: NUMBER })),
       fixtureCounts: { type: 'object' },
     }, ['rows', 'counts', 'rule']),
+    // of=items (CNT-52): every item with its place and facts, and the count of each kind.
+    objectSchema({
+      rows: listSchema(objectSchema({ number: NUMBER, id: STRING, kind: STRING, group: STRING, label: STRING, floor: STRING, room: NULLABLE_STRING, at: { type: 'array' }, size: { type: 'array' }, height: NUMBER, turn: NUMBER, properties: FACTS_OUTPUT }, ['number', 'id', 'kind', 'group', 'label', 'floor', 'room', 'at', 'size', 'height', 'turn', 'properties'])),
+      counts: { type: 'object' },
+      leftOut: listSchema(STRING),
+      rule: STRING,
+    }, ['rows', 'counts', 'leftOut', 'rule']),
     // of=rooms (ARE-12): the room schedule and its totals.
     objectSchema({
       rows: listSchema(objectSchema({ number: NUMBER, roomNumber: NULLABLE_STRING, mark: STRING, id: STRING, name: STRING, use: NULLABLE_STRING, floor: STRING, floorName: STRING, area: NULLABLE_NUMBER, state: STATE_OUTPUT, height: NULLABLE_NUMBER, properties: FACTS_OUTPUT, flat: NULLABLE_STRING, zones: { type: 'array' }, notCounted: { type: 'object' } }, ['number', 'roomNumber', 'mark', 'id', 'name', 'use', 'floor', 'floorName', 'area', 'height', 'properties'])),
@@ -1143,7 +1250,7 @@ const SCHEDULE_OUTPUT: Record<string, unknown> = {
     }, ['rows', 'mix', 'total', 'notInFlats', 'rules']),
     // of=finishes (CNT-15): each room's and zone's finishes by surface, and each finish's total.
     objectSchema({
-      rows: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, zoneOf: NULLABLE_STRING, surfaces: { type: 'object' } }, ['id', 'name', 'floor', 'zoneOf', 'surfaces'])),
+      rows: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, zoneOf: NULLABLE_STRING, surfaces: { type: 'object' }, bands: listSchema({ type: 'object' }), faces: listSchema({ type: 'object' }), noSkirting: { type: 'boolean' } }, ['id', 'name', 'floor', 'zoneOf', 'surfaces'])),
       totals: listSchema(objectSchema({ surface: STRING, finish: NULLABLE_STRING, unit: STRING, quantity: NUMBER, rooms: listSchema(STRING) })),
       rule: STRING,
     }, ['rows', 'totals', 'rule']),
@@ -1155,14 +1262,14 @@ const scheduleTool: GridTool = {
   title: 'Door and window schedule',
   hint: 'read',
   description:
-    'Use this when the person asks for the doors and windows by size, how many of each, a door schedule or window schedule, which doors are narrower than a width, how many toilets, basins, showers, baths or kitchen runs there are and where, or for the flats, the area of each flat or the unit mix. '
+    'Use this when the person asks for the doors and windows by size, how many of each, a door schedule or window schedule, which doors are narrower than a width, how many toilets, basins, showers, baths or kitchen runs there are and where, a list of the extinguishers, cameras or other points with their facts, or for the flats, the area of each flat or the unit mix. '
     + 'It groups every door, window and doorless opening by type, kind (sliding, double, fixed… when the plan states one) and size, each listed once with the two rooms it joins. Sizes are the hole in the wall: the plan holds no frame, so a clear width is not known. '
-    + 'With of=rooms it gives the room schedule instead: every room numbered in one order whatever the file\'s order, with its name, use, net area, height, floor and, on a plan that lists flats, its flat, and the totals for each floor and for all floors, a room in no total (a stair or lift over the lowest room of its shaft, a void, outdoor space) marked with why; with of=openings, every door, window and doorless opening once, numbered, with its size, its kind, the part that opens and its handing where the plan states them, and the rooms on its two sides; with of=flats, every flat the plan lists with its type, rooms, bedrooms and net area, and the unit mix by type (how many of each, how many mirrored, their bedrooms and area); with of=doors or of=windows, the door or window schedule a supplier needs: the doors, or the windows, grouped into types (the plan\'s own named types first, with their names and materials, then by kind and size and the part that opens), each type with its count and the marks of its openings; with of=finishes, the finishes plan: each room\'s floor, wall, ceiling and skirting finish with its quantity, a zone with its own finish as its part of its room, and each finish\'s total. Every room and opening has a mark (the room\'s number; D1, W1, O1 for openings) that grid_view kind=plan with marks schedule draws on the plan, one mark for each row. All as text or CSV. '
+    + 'With of=rooms it gives the room schedule instead: every room numbered in one order whatever the file\'s order, with its name, use, net area, height, floor and, on a plan that lists flats, its flat, and the totals for each floor and for all floors, a room in no total (a stair or lift over the lowest room of its shaft, a void, outdoor space) marked with why; with of=openings, every door, window and doorless opening once, numbered, with its size, its kind, the part that opens and its handing where the plan states them, and the rooms on its two sides; with of=flats, every flat the plan lists with its type, rooms, bedrooms and net area, and the unit mix by type (how many of each, how many mirrored, their bedrooms and area); with of=doors or of=windows, the door or window schedule a supplier needs: the doors, or the windows, grouped into types (the plan\'s own named types first, with their names and materials, then by kind and size and the part that opens), each type with its count and the marks of its openings; with of=finishes, the finishes plan: each room\'s floor, wall, ceiling and skirting finish with its quantity, a zone with its own finish as its part of its room, and each finish\'s total; with of=items, every fixture, piece of furniture and point (an extinguisher, an AED, a camera, an exit) numbered, with its kind, room, place on the plan and facts of the person\'s own, and how many of each kind. Every room and opening has a mark (the room\'s number; D1, W1, O1 for openings) that grid_view kind=plan with marks schedule draws on the plan, one mark for each row. All as text or CSV. '
     + 'Do not use for wall or plaster quantities (grid_takeoff). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
     floor: FLOOR_ARG,
-    of: { type: 'string', enum: ['rooms', 'openings', 'flats', 'doors', 'windows', 'finishes', 'fixtures'], description: 'fixtures for every fixture and piece of furniture with its kind, room and size (as types=fixture), rooms for the room schedule, openings for one row per door, window and opening, flats for the flats and the unit mix by type, doors or windows for the door or window schedule by type with each type\'s marks, finishes for each room\'s floor, wall, ceiling and skirting finishes with their quantities and each finish\'s total. Grouped by type and size when left out.', examples: ['rooms', 'openings', 'flats', 'doors', 'finishes'] },
+    of: { type: 'string', enum: ['rooms', 'openings', 'flats', 'doors', 'windows', 'finishes', 'fixtures', 'items'], description: 'fixtures for every fixture and piece of furniture with its kind, room and size (as types=fixture), items for every item, points too (an extinguisher, a camera, an exit), numbered, with its kind, room, place on the plan and facts, and the count of each kind, rooms for the room schedule, openings for one row per door, window and opening, flats for the flats and the unit mix by type, doors or windows for the door or window schedule by type with each type\'s marks, finishes for each room\'s floor, wall, ceiling and skirting finishes with their quantities and each finish\'s total. Grouped by type and size when left out.', examples: ['rooms', 'openings', 'flats', 'doors', 'finishes'] },
     types: { type: 'array', description: 'Only these kinds: door, window, opening, or fixture for the toilets, basins, showers, baths and kitchen runs. All of them when left out.', examples: [['door'], ['door', 'opening'], ['fixture']], items: { enum: ['door', 'window', 'opening', 'fixture'] }, minItems: 1, maxItems: 4 },
     narrower_than: { type: 'number', length: true, description: 'Only openings narrower than this many metres, for example 0.8.', examples: [0.8, 0.9], minimum: 0.1, maximum: 10 },
     units: UNITS_ARG,
@@ -1174,10 +1281,11 @@ const scheduleTool: GridTool = {
   run(args, context) {
     const { survey, floor } = load(context, args['plan'], args['floor'])
     const units = displayFor(args['units'], args['decimal'], survey.plan)
-    const of = args['of'] as ScheduleOf | 'fixtures' | undefined
+    const of = args['of'] as ScheduleOf | 'fixtures' | 'items' | undefined
     if (of !== undefined) {
       const stray = ['types', 'narrower_than'].filter((name) => args[name] !== undefined)
       if (stray.length > 0) throw new ToolRefusal(`of=${of} takes no ${stray.join(' or ')}.`)
+      if (of === 'items') return itemSchedule(survey, floor, units, args['format'] === 'csv')
       if (of !== 'fixtures') return listSchedule(survey, of, floor, units, args['format'] === 'csv')
     }
     // CNT-45: of=fixtures is the fixtures and furniture alone.
@@ -1243,8 +1351,8 @@ export const KIND_ARG: ArgSpec = {
 /** CNT-45: grid_fields, grid_find and grid_count ask of the fixtures and furniture too. */
 const QUERY_KIND_ARG: ArgSpec = {
   ...KIND_ARG,
-  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run) or furniture (a bed, a sofa, a table), or item for every fixture and piece of furniture. Every kind when left out.',
-  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item']],
+  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run), furniture (a bed, a sofa, a table) or point (an extinguisher, a camera, an exit), or item for every fixture, piece of furniture and point. Every kind when left out.',
+  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item'], ['point']],
   items: { enum: [...PART_KINDS, 'item'] },
   maxItems: PART_KINDS.length + 1,
 }
@@ -1269,12 +1377,12 @@ export const ROOM_IN_ARG: ArgSpec = {
 const kindsOf = (args: Record<string, unknown>): readonly PartKind[] | undefined => {
   const kinds = args['kind'] as Array<PartKind | 'item'> | undefined
   // ARE-67: item is every fixture and piece of furniture.
-  return kinds === undefined ? undefined : [...new Set(kinds.flatMap((kind): PartKind[] => (kind === 'item' ? ['fixture', 'furniture'] : [kind])))]
+  return kinds === undefined ? undefined : [...new Set(kinds.flatMap((kind): PartKind[] => (kind === 'item' ? ['fixture', 'furniture', 'point'] : [kind])))]
 }
 
 function partsWord(kinds: readonly PartKind[] | undefined, n: number): string {
-  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture' }
-  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture' }
+  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture', point: 'points' }
+  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture', point: 'point' }
   if (kinds !== undefined && kinds.length === 1) return `${n} ${n === 1 ? one[kinds[0]!] : plural[kinds[0]!]}`
   return `${n} part${n === 1 ? '' : 's'}`
 }
@@ -1404,7 +1512,7 @@ const countTool: GridTool = {
   title: 'Count and sum parts by group',
   hint: 'read',
   description:
-    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room). '
+    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room), "how many extinguishers on each floor" (kind=point, where item kind = extinguisher, by floor). '
     + 'It groups the parts that meet every condition by the field named in by, and gives each group its count, the sum of each field named in sum, and its ids, with a view argument to pass to grid_view so each group is shown in its own colour. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
     + 'Rooms are counted as grid_areas counts them, so an area sum is its net: a zone with its room, a stair or lift drawn on floor after floor once, on the floor it rises from (stairs=per floor counts it on each floor), and no void or outdoor space; the answer lists each room left out, with why. '
     + 'Call grid_fields first for the names. Do not use for the list of parts itself (grid_find), for the plan\'s areas by use (grid_areas) or for a door schedule (grid_schedule). Areas are square metres, lengths metres.',
@@ -1547,21 +1655,22 @@ const measureTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks will something fit, how wide, long or high a room is, how long a wall is, how far a door is from a corner or one wall from another, can a wheelchair turn, is the way wide enough, which doors or rooms are narrower than their own figure, or how to get from one room to another. '
-    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand. '
+    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand; what=frontage gives a shop\'s floor (room) in bands of depth from its frontage, A, B, C and the rest, in m² and sq ft: the frontage on the wall named, else on the wall it opens through most, at depth (Grid\'s own 6.1 m, 20 ft, when left out) in bands bands (3), measured and never weighted. '
     + 'It measures the room between wall faces: what=fit, what=use and what=route with width keep clear of the room\'s fixtures, the other measures take none off, the plan holds no furniture or door leaves, and the answer says so. It checks no rule: a figure the person gives is their own. Do not use for floor areas (grid_areas), for what a building code asks (grid_check), or to say a plan is accessible: what=access measures, it never says so. Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
-    what: { type: 'string', required: true, enum: ['room', 'between', 'wall', 'fit', 'route', 'narrow', 'facing', 'sun', 'site', 'use', 'access', 'library', 'seats'], description: 'What to measure: room, between, wall, fit, route, narrow, facing, sun, site, use, access, library or seats.', examples: ['between', 'fit', 'route', 'use', 'access', 'library', 'seats'] },
+    what: { type: 'string', required: true, enum: ['room', 'between', 'wall', 'fit', 'route', 'narrow', 'facing', 'sun', 'site', 'use', 'access', 'library', 'seats', 'frontage'], description: 'What to measure: room, between, wall, fit, route, narrow, facing, sun, site, use, access, library, seats or frontage.', examples: ['between', 'fit', 'route', 'use', 'access', 'library', 'seats', 'frontage'] },
     // CNT-20: a library entry, for fit and library.
     name: { type: 'string', id: true, description: 'For fit, instead of width and depth: a library item or typical room by name (double-bed, bathroom). For library: one entry only.', examples: ['double-bed', 'double-bedroom'] },
-    room: { type: 'string', id: true, description: 'For room, fit, use and route: the room id, where the route starts. For facing and sun: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
+    room: { type: 'string', id: true, description: 'For room, fit, use, frontage and route: the room id, where the route starts. For facing and sun: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
     from: { type: 'string', id: true, description: 'For between: the id of a wall, door, window, opening, fixture or room to measure from. For route: the room it starts in, as room.', examples: ['front-door', 'w-west'] },
     to: { type: 'string', id: true, description: 'For between: the id of the wall, door, window, opening, fixture or room to measure to. For route: the room id where it ends, or "outside" for the nearest way out.', examples: ['w-west', 'bed1', 'outside'] },
     x: { type: 'number', length: true, description: 'For between, instead of to: a point\'s x on the drawing in metres, such as an inside corner. The plan names no points.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
     y: { type: 'number', length: true, description: 'For between, with x: the point\'s y on the drawing in metres.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
-    wall: { type: 'string', id: true, description: 'For wall: the wall id.', examples: ['w-south'] },
+    wall: { type: 'string', id: true, description: 'For wall: the wall id. For frontage: the wall the shop front stands on; the wall the room opens through most when left out.', examples: ['w-south'] },
     width: { type: 'number', length: true, description: 'For fit: the box\'s width in metres; a table of 1.8 × 0.9 m with 0.75 m round it for chairs is 3.3. For route and use: the width of the body or trolley that must get through, such as 0.7 for a wheelchair; for use, Grid\'s own indicator when left out.', examples: [3.3, 0.7], minimum: 0.05, maximum: 100 },
-    depth: { type: 'number', length: true, description: 'For fit: the box\'s depth in metres. It is tried both ways round.', examples: [2.4, 0.6], minimum: 0.05, maximum: 100 },
+    depth: { type: 'number', length: true, description: 'For fit: the box\'s depth in metres. It is tried both ways round. For frontage: each band\'s depth from the frontage, in metres; Grid\'s own 6.1 m (20 ft) when left out.', examples: [2.4, 0.6], minimum: 0.05, maximum: 100 },
+    bands: { type: 'number', description: 'For frontage: how many bands of depth before the rest; 3 (A, B and C) when left out.', examples: [3, 2], minimum: 1, maximum: FRONTAGE_BANDS_MAX },
     diameter: { type: 'number', length: true, description: 'For fit: a circle instead of a box, such as 1.5 for a wheelchair turning circle. For use: the turning circle to set the room against; Grid\'s own indicator when left out.', examples: [1.5], minimum: 0.05, maximum: 100 },
     clearance: { type: 'number', length: true, description: 'For use: the clear floor wanted in front of and beside each fixture, in metres, such as 0.7 beside a bath; Grid\'s own indicator when left out.', examples: [0.7], minimum: 0.05, maximum: 100 },
     under: { type: 'number', length: true, description: 'For narrow: the person\'s figure in metres, such as 0.8 for a door or 1.5 for a turning circle; width does the same.', examples: [0.8, 1.5], minimum: 0.05, maximum: 100 },
@@ -1573,7 +1682,7 @@ const measureTool: GridTool = {
   outputSchema: objectSchema({ what: STRING, answer: { type: 'object' }, rule: STRING }),
   run(args, context) {
     const { survey, file } = load(context, args['plan'])
-    const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library' | 'seats'
+    const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library' | 'seats' | 'frontage'
     // CMD-29: the same thing goes by the same name in every mode: a route goes from a room, and
     // a narrow measure takes the width the way route and use do.
     if (what === 'route' && args['from'] !== undefined) {
@@ -1600,8 +1709,9 @@ const measureTool: GridTool = {
       access: [],
       library: ['name'],
       seats: ['room'],
+      frontage: ['room', 'wall', 'depth', 'bands'],
     }
-    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
+    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'bands'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`what=${what} takes ${allowed[what]!.length === 0 ? 'no other argument' : allowed[what]!.join(', ')}, not ${stray.join(', ')}.`)
     if (what === 'access') {
       // CNT-17: the accessibility measurements, set only against the person's own figures (the
@@ -1657,6 +1767,26 @@ const measureTool: GridTool = {
       const id = args['room'] === undefined ? undefined : roomArg(survey.plan, args['room'])
       const facing = facingAnswer(survey.plan, id)
       return { text: [...facing.lines, FACING_RULE].join('\n'), data: { what, answer: facing.data, rule: FACING_RULE } }
+    }
+    if (what === 'frontage') {
+      // ARE-68: a shop's floor in bands of depth from its frontage, measured, never weighted.
+      const room = roomOf()
+      const bands = args['bands'] === undefined ? FRONTAGE_BANDS : args['bands'] as number
+      if (!Number.isInteger(bands)) throw new ToolRefusal(`bands takes a whole number from 1 to ${FRONTAGE_BANDS_MAX}.`)
+      const wall = args['wall'] === undefined ? undefined : args['wall'] as string
+      const side = frontageSide(room, wall)
+      if (side === null) throw new ToolRefusal(wall === undefined ? 'That room has no side Grid can measure from; grid_check says why.' : `Room ${q(room.facts.id)} has no side on wall ${q(wall)}: name a wall its outline lies on.`)
+      const zones = frontageZones(room, side, args['depth'] === undefined ? FRONTAGE_DEPTH : args['depth'] as number, bands)
+      const text = english(said('frontage.line', {
+        room: { name: roomCalled(room.facts) },
+        width: L(zones.width),
+        wall: zones.wall === null ? said('frontage.noWall') : { name: zones.wall },
+        found: said(`frontage.found.${zones.found}` as MessageKey),
+        depth: L(zones.depth),
+        bands: joined(zones.bands.map((band) => said('frontage.band', { name: band.name, area: areaText(band.area, units), sqFt: num(band.sqFt.toFixed(0)) })), 'join.comma'),
+        area: areaText(zones.area, units),
+      }))
+      return { text: [text, zones.rule].join('\n'), data: { what, answer: zones, rule: zones.rule } }
     }
     if (what === 'seats') {
       // ARE-67: the seats, desks and covers counted from the furniture, once.
@@ -2046,20 +2176,151 @@ function refuseLeftOutRoom(loaded: LoadedPlan, room: unknown, argument: string):
   if (why !== null) throw new ToolRefusal(`${argument} names ${why}. It is in no view or measure until that is corrected; grid_check says how.`)
 }
 
-/** The part a crop names on the floor: an id first, else a room's name (any case), else refused naming the rooms. */
-function cropPart(plan: FloorPlan, floor: string, crop: string, loaded: LoadedPlan): PartBounds {
+/** VEW-74: the space a crop keeps round its parts when no margin is named, in metres. */
+const CROP_MARGIN = 0.5
+
+/** VEW-74: what a crop framed: the floor drawn, the parts and the words that say so. */
+interface CropFound {
+  readonly floor: string
+  readonly parts: readonly PartBounds[]
+  readonly words: string
+}
+
+/**
+ * VEW-74: the parts a crop names, on the first of `floors` that holds them all; refused with what
+ * the first floor tried says. One term (an id, a room's name, a flat, a condition) is read whole
+ * first, so a name with a comma in it still crops; else each term between commas.
+ */
+function cropParts(plan: FloorPlan, survey: Survey, floors: readonly string[], crop: string, loaded: LoadedPlan): CropFound {
+  let first: unknown
+  for (const floor of floors) {
+    try {
+      return { floor, ...cropOnFloor(plan, survey, floor, crop, loaded) }
+    } catch (error) {
+      if (!(error instanceof ToolRefusal)) throw error
+      first ??= error
+    }
+  }
+  throw first
+}
+
+function cropOnFloor(plan: FloorPlan, survey: Survey, floor: string, crop: string, loaded: LoadedPlan): { parts: readonly PartBounds[]; words: string } {
   const parts = partBounds(plan, floor)
-  const byId = parts.find((p) => p.id === crop)
-  if (byId) return byId
-  const wanted = crop.trim().toLowerCase()
+  const whole = cropTerm(plan, survey, floor, crop, parts, loaded, null)
+  if (whole !== null) return whole
+  const terms = crop.split(',').map((term) => term.trim()).filter((term) => term !== '')
+  if (terms.length <= 1) return cropTerm(plan, survey, floor, terms[0] ?? crop, parts, loaded, 'crop')!
+  const found = terms.map((term, i) => cropTerm(plan, survey, floor, term, parts, loaded, `crop's item ${i + 1}`)!)
+  const byId = new Map(found.flatMap((one) => one.parts).map((part) => [part.id, part]))
+  return { parts: [...byId.values()], words: `${terms.length} parts together: ${found.map((one) => one.words).join(', ')}` }
+}
+
+const CONDITION = /(!=|>=|<=|=|>|<)|\s+is\s+(missing|not set|set)$|\s+contains\s+/i
+
+/**
+ * One term of a crop on the floor: a part's id, a room's name (any case), a flat's id or name, or
+ * the rooms meeting a condition. With `place` null, null when it names nothing; else refused,
+ * naming the floor's rooms, by `place`.
+ */
+function cropTerm(plan: FloorPlan, survey: Survey, floor: string, term: string, parts: readonly PartBounds[], loaded: LoadedPlan, place: string | null): { parts: readonly PartBounds[]; words: string } | null {
+  const byId = parts.find((p) => p.id === term)
+  if (byId) return { parts: [byId], words: `${byId.kind} ${q(byId.id)}` }
+  const wanted = term.trim().toLowerCase()
   const named = plan.rooms.filter((r) => floorOf(r) === floor && r.name.trim().toLowerCase() === wanted)
   if (named.length > 1) throw new ToolRefusal(`${named.length} rooms on that floor are named so: crop by id, one of ${named.map((r) => q(r.id)).join(', ')}.`)
   const room = named[0] && parts.find((p) => p.id === named[0]!.id)
-  if (room) return room
-  refuseLeftOutRoom(loaded, named[0]?.id ?? crop, 'crop')
+  if (room) return { parts: [room], words: `${room.kind} ${q(room.id)}` }
+  // A flat, by its id or its name: its rooms on this floor.
+  const flat = planFlats(plan).find((f) => f.id === term.trim() || f.name.trim().toLowerCase() === wanted)
+  if (flat !== undefined) {
+    const rooms = flat.rooms.filter((r) => r.floor === floor).map((r) => parts.find((p) => p.id === r.id)).filter((p): p is PartBounds => p !== undefined)
+    if (rooms.length > 0) return { parts: rooms, words: `flat ${q(flat.id)} (${rooms.length === 1 ? 'one room' : `${rooms.length} rooms`} on this floor)` }
+    throw new ToolRefusal(`Flat ${q(flat.id)} has no room drawn on floor ${q(floor)}: its floors are ${flat.floors.map(q).join(', ') || 'none'}.`)
+  }
+  // The rooms that meet a condition on a field or fact, as grid_find reads one.
+  if (CONDITION.test(term)) {
+    const asked = askPlan(survey)
+    let condition
+    try {
+      condition = readCondition(asked, term, place ?? 'crop')
+      checkCondition(condition, place ?? 'crop')
+    } catch (error) {
+      if (!(error instanceof QueryRefused)) throw error
+      if (place === null) return null
+      throw new ToolRefusal(error.message)
+    }
+    const met = asked.parts.filter((part) => part.kind === 'room' && part.floor === floor && meets(asked, part, condition)).map((part) => parts.find((p) => p.id === part.id)).filter((p): p is PartBounds => p !== undefined)
+    if (met.length > 0) return { parts: met, words: `the ${met.length === 1 ? 'one room' : `${met.length} rooms`} where ${fieldName(condition.field)} ${condition.test}${condition.value === null ? '' : ` ${condition.value}`}` }
+    if (place === null) return null
+    throw new ToolRefusal(`No room drawn on floor ${q(floor)} meets ${place}'s condition: grid_find with where finds the rooms that do, on every floor.`)
+  }
+  if (place === null) return null
+  refuseLeftOutRoom(loaded, named[0]?.id ?? term, place)
   const onFloor = plan.rooms.filter((r) => floorOf(r) === floor)
-  const rooms = nearestList(crop, onFloor.map((r) => ({ id: r.id, note: r.name.trim() === '' ? ' (no name)' : ` (${q(r.name)})` })))
-  throw new ToolRefusal(`crop names no room, door, window or wall drawn on floor ${q(floor)}, nor a room's name. Its nearest rooms: ${onFloor.length === 0 ? 'none' : rooms}.`)
+  const rooms = nearestList(term, onFloor.map((r) => ({ id: r.id, note: r.name.trim() === '' ? ' (no name)' : ` (${q(r.name)})` })))
+  throw new ToolRefusal(`${place} names no room, door, window, wall or item drawn on floor ${q(floor)}, nor a room's or a flat's name. Its nearest rooms: ${onFloor.length === 0 ? 'none' : rooms}.`)
+}
+
+/** VEW-74: a box of the plan to frame, its corners in order. */
+interface CropBox {
+  readonly minX: number
+  readonly minY: number
+  readonly maxX: number
+  readonly maxY: number
+}
+
+function cropBoxArg(value: unknown): CropBox {
+  const given = value as Record<string, unknown>
+  const extra = Object.keys(given).filter((key) => key !== 'from' && key !== 'to')
+  if (extra.length > 0) throw new ToolRefusal(`crop_box takes from and to, not ${extra.length > 3 ? 'others' : extra.map((key) => (key.length <= 64 && /^[A-Za-z0-9._-]+$/.test(key) ? q(key) : 'others')).join(', ')}.`)
+  const point = (name: 'from' | 'to'): [number, number] => {
+    const p = given[name]
+    if (!Array.isArray(p) || p.length !== 2 || !p.every((v) => typeof v === 'number' && Number.isFinite(v))) throw new ToolRefusal(`crop_box.${name} takes a corner as [x, y] in metres, for example [0, 0].`)
+    return [p[0] as number, p[1] as number]
+  }
+  const [a, b] = [point('from'), point('to')]
+  const box = { minX: Math.min(a[0], b[0]), minY: Math.min(a[1], b[1]), maxX: Math.max(a[0], b[0]), maxY: Math.max(a[1], b[1]) }
+  if (!(box.maxX - box.minX > 0) || !(box.maxY - box.minY > 0)) throw new ToolRefusal('crop_box has no size: from and to must differ in both x and y.')
+  return box
+}
+
+/** The frame for a box, with `margin` metres round it. */
+function cropBoxFrame(box: CropBox, margin: number): Bounds {
+  const min = { x: box.minX - margin, y: box.minY - margin }
+  const max = { x: box.maxX + margin, y: box.maxY + margin }
+  return { min, max, width: max.x - min.x, height: max.y - min.y }
+}
+
+/** A length in metres for the answer, to the centimetre, with no trailing zeros. */
+function metres(value: number): string {
+  return String(Number(value.toFixed(2)))
+}
+
+/**
+ * VEW-74: every floor of the plan side by side, the lowest on the left, at one scale, each under
+ * its name and framed to the same part of the plan: the sheet that puts plans side by side.
+ */
+async function allFloorsAnswer(plan: FloorPlan, asked: LookName, look: string, dimensions: boolean, language: Language): Promise<ViewAnswer> {
+  const floors = planFloors(plan)
+  const frames = floors.map((f) => pictureFrame(plan, { floor: f.id, showDimensions: dimensions })).filter((b) => b.width > 0 && b.height > 0)
+  const min = { x: Math.min(...frames.map((b) => b.min.x)), y: Math.min(...frames.map((b) => b.min.y)) }
+  const max = { x: Math.max(...frames.map((b) => b.max.x)), y: Math.max(...frames.map((b) => b.max.y)) }
+  const frame: Bounds = { min, max, width: max.x - min.x, height: max.y - min.y }
+  const named = (f: (typeof floors)[number]): string => (f.name.trim() === '' ? f.id : f.name)
+  const { sheetView } = await import('../draw/views')
+  const sheet = await sheetView(floors.map((f) => ({ plan, title: named(f), floor: f.id, frame, showDimensions: dimensions })), asked, language === 'en' ? undefined : language)
+  const list = floors.map((f) => (named(f) === f.id ? q(f.id) : `${q(named(f))} (${q(f.id)})`)).join(', ')
+  const lines = [
+    `Every floor of the plan side by side, the lowest on the left, ${floors.length === 1 ? 'one floor' : `${floors.length} floors`}, each under its name: ${list}. Drawn in the ${look} look${dimensions ? ', with inside sizes' : ', without sizes'}: ${sheet.width} × ${sheet.height} px, all at one scale, 1 m = ${sheet.pxPerMetre.toFixed(1)} px.`,
+    `Each floor is framed to the same part of the plan, x ${frame.min.x.toFixed(2)} to ${frame.max.x.toFixed(2)} and y ${frame.min.y.toFixed(2)} to ${frame.max.y.toFixed(2)} m, so a part above another stands over it. North is the top of each drawing.`,
+    'For one floor drawn large, with each part\'s box, its problems marked, crop or tile, name its id in floor. Look at the picture before you describe it.',
+  ]
+  return {
+    text: lines.join('\n'),
+    data: { kind: 'plan', floor: null, floors: floors.map((f) => f.id), camera: null, view: null, pxPerMetre: sheet.pxPerMetre, sills: [], ids: [], boxes: [] },
+    image: { data: sheet.png, mimeType: 'image/png' },
+    picture: { bounds: null },
+  }
 }
 
 /** The rooms, doors and windows of one floor, by id, as the check view draws them. */
@@ -2313,7 +2574,7 @@ const viewTool: GridTool = {
     out: { type: 'string', maxLength: PATH_MAX, description: 'A .png, .svg or .pdf file to write the picture to, inside the project folder: a bare name goes into the exports folder beside the plan. A .view.json is written beside it with its size, pixels per metre and, for a plan, the plan\'s metres it covers. svg is not made for 3d or eye. Nothing is written when left out.', examples: ['plan-ground.png', 'exports/south.svg'] },
     kind: { type: 'string', required: true, enum: ['plan', 'facade', '3d', 'eye', 'section'], description: 'plan, facade, 3d, eye or section.', examples: ['plan', 'facade', 'section'] },
     side: { type: 'string', enum: FACADE_SIDES, description: 'For facade: the side of the drawing whose facade to draw: north (its top), east, south or west. Required for facade.', examples: ['south', 'east'] },
-    floor: { ...FLOOR_ARG, description: 'For plan: the floor to draw, the lowest when left out. For 3d: that floor cut away, the whole building when left out (with room, on a plan of several floors, that room\'s floor).' },
+    floor: { ...FLOOR_ARG, description: 'For plan: the floor to draw, the lowest when left out; all draws every floor side by side, the lowest on the left, at one scale, each named and framed to the same part of the plan (with look and dimensions only). For 3d: that floor cut away, the whole building when left out (with room, on a plan of several floors, that room\'s floor).' },
     from: { type: 'string', enum: SIDES, description: 'For 3d: the side or corner of the drawing the camera stands on, or above (north is the top of the drawing here). south-east when left out. Not with bearing.', examples: ['south', 'above'] },
     bearing: { type: 'number', description: 'For 3d: the compass bearing from what the camera is pointed at to the camera, in degrees clockwise from the north the plan states, or from the top of the drawing when it states none (the record says which). Not with from.', examples: [135, 200], minimum: 0, maximum: 360 },
     tilt: { type: 'number', description: 'For 3d: degrees the camera looks down at what it is pointed at; below 0 it looks up. 30 when left out (80 from above).', examples: [30, 10], minimum: -limit('cameraTilt'), maximum: limit('cameraTilt') },
@@ -2331,7 +2592,15 @@ const viewTool: GridTool = {
     look: { type: 'string', enum: LOOKS, description: 'For plan, facade and section: working (the default for a plan and a facade: clear labels and strong contrast), technical for black on white as on a sheet, with lines in millimetres at the scale and doors with no stated swing marked "?" (the default for a section, as for a drawing file). A picture is always on light paper, so dark, the app\'s screen theme, draws working. light and mono are older names for working and technical.', examples: ['working', 'technical'] },
     dimensions: { type: 'boolean', description: 'For plan: false to leave the sizes off, for a clean drawing. true when left out.', examples: [true, false] },
     tile: { type: 'number', description: 'For plan: on a floor far longer than it is wide, which the answer says is drawn in pieces, the piece to draw, from 1 at its left (or top) end; each overlaps the next and is drawn large enough to read. The whole floor when left out. Not with crop.', examples: [1, 2], minimum: 1, maximum: 1000 },
-    crop: { type: 'string', maxLength: 120, description: 'For plan: frame just this part: a room, door, window or wall id, or a room\'s name. The whole floor when left out.', examples: ['kitchen', 'front-door'] },
+    crop: { type: 'string', maxLength: 600, description: 'For plan: frame just these parts: a room, door, window, wall or item id, a room\'s name, a flat by its id or name, or the rooms that meet a condition on a field or fact as grid_find writes one (household = Rose); several of these joined by commas are framed together. A zone is a room, by its id. With no floor named, the first floor that holds them all is drawn. The whole floor when left out. Not with crop_box or tile.', examples: ['kitchen', 'kitchen, lounge', 'flat-2', 'household = Rose'] },
+    crop_box: {
+      type: 'object',
+      description: 'For plan: frame this box of the floor, from one corner to the other, x and y in metres. Not with crop or tile.',
+      examples: [{ from: [0, 0], to: [8, 6] }],
+      schema: objectSchema({ from: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 }, to: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 } }),
+      read: (value) => cropBoxArg(value),
+    },
+    margin: { type: 'number', length: true, description: 'For plan, with crop or crop_box: metres of the plan kept round what is framed, on every side. 0.5 round a crop and none round a box when left out.', examples: [0.5, 2], minimum: 0, maximum: 100 },
     ids: { type: 'boolean', description: 'For plan: true to draw the id of every room, door and window on the picture, as the plan file holds them, and to list them in the text with the areas, what each door joins, the counts and the drawing\'s problems. false when left out.', examples: [true] },
     hide: { type: 'string', maxLength: 120, description: 'For plan: parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Everything is drawn when left out.', examples: ['areas,swings', 'sketch'] },
     colour: { type: 'string', maxLength: 120, description: 'For plan: use fills each room by its use and lists the uses in the key; any other field or fact, by name as grid_fields lists it (department, fire rating), colours each room, wall, door and window by its value, with a key: grid_count\'s view passes it. One fill for every room when left out.', examples: ['use', 'department', 'fire rating'] },
@@ -2354,7 +2623,7 @@ const viewTool: GridTool = {
     },
     marks: { type: 'array', description: 'For plan: marks for the plan\'s other drawings: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of cut and the way toward looks), schedule (each room\'s and opening\'s mark in the schedules, tied to its row in grid_schedule). None when left out.', examples: [['levels', 'elevations'], ['section'], ['schedule']], items: { enum: MARK_WORDS }, minItems: 1, maxItems: 4 },
   },
-  outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes']),
+  outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, floors: listSchema(STRING), camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes']),
   async run(args, context) {
     const out = args['out'] as string | undefined
     // VEW-62: the name is checked before anything is drawn.
@@ -2389,17 +2658,23 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     const language = await languageFor(askedLanguage(args['language'], 'language'), read.plan)
     const loaded = spokenPlan(read, language)
     const survey = surveyPlan(loaded.plan)
-    const floor = floorArg(loaded.plan, args['floor'])
+    // VEW-74: floor=all is every floor, unless a floor of the plan has that id.
+    const allFloors = args['floor'] === 'all' && !planFloors(loaded.plan).some((f) => f.id === 'all')
+    const floor = allFloors ? undefined : floorArg(loaded.plan, args['floor'])
     const kind = args['kind'] as 'plan' | 'facade' | '3d' | 'eye' | 'section'
     const allowed: Record<string, readonly string[]> = {
-      plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
+      plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
       facade: ['side', 'look'],
       '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit'],
       eye: ['room', 'toward', 'eye_height', 'stand_at'],
       section: ['cut', 'toward', 'look'],
     }
-    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
+    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
+    // VEW-74: every floor side by side, for a plan only, with its look and sizes.
+    if (allFloors && kind !== 'plan') throw new ToolRefusal(`floor=all draws every floor's plan side by side: it is for kind=plan. kind=${kind} takes one floor's id.`)
+    const besideAll = allFloors ? ['ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'].filter((key) => args[key] !== undefined) : []
+    if (besideAll.length > 0) throw new ToolRefusal(`floor=all takes look and dimensions, not ${besideAll.join(', ')}: name one floor for those.`)
     const plan = survey.plan
     const inTongue = language === 'en' ? {} : { language }
     // VEW-20: a section or a facade writes its levels in the units asked for, else the plan's display.
@@ -2429,15 +2704,23 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       const look = asked === pictureLook(asked) ? asked : `${pictureLook(asked)} (asked as ${asked})`
       const { planView } = await import('../draw/views')
       const withIds = args['ids'] === true
-      const shown = floor ?? survey.facts.floors[0]?.id ?? 'ground'
+      const lowest = floor ?? survey.facts.floors[0]?.id ?? 'ground'
       // VEW-14: drawn as stated, as grid draw draws it: parts to be demolished are in the picture.
       const stated = loaded.plan
-      const crop = args['crop'] === undefined ? null : cropPart(stated, shown, args['crop'] as string, loaded)
+      // VEW-74: a crop of several parts, a flat or a condition; with no floor named, the first floor holding them.
+      const box = args['crop_box'] as CropBox | undefined
+      if (box !== undefined && args['crop'] !== undefined) throw new ToolRefusal('Pass crop or crop_box, not both: each frames part of the floor.')
+      if (box !== undefined && args['tile'] !== undefined) throw new ToolRefusal('Pass crop_box or tile, not both: each frames part of the floor.')
+      if (args['margin'] !== undefined && args['crop'] === undefined && box === undefined) throw new ToolRefusal('margin is the space kept round a crop: pass it with crop or crop_box.')
+      const floorsToTry = floor !== undefined ? [floor] : [lowest, ...planFloors(stated).map((f) => f.id).filter((id) => id !== lowest)]
+      const crop = args['crop'] === undefined ? null : cropParts(stated, survey, floorsToTry, args['crop'] as string, loaded)
+      const shown = crop?.floor ?? lowest
       // What went wrong, numbered as grid_check numbers it, marked on the drawing (MSG-8).
       // VEW-15: from the file's text and its base, as grid_check reads them, so the fields the reading adds are no notes.
       const faults = inspectPlan(loaded.text ?? plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
       // CMD-45: a plan with nothing in it is refused, not drawn as a blank page.
       if (nothingToDraw(stated, faults)) throw new ToolRefusal(say('en', 'plan.notAPlan.nothingToDraw', { file: project.relative(read.file) }))
+      if (allFloors) return allFloorsAnswer(stated, asked, look, args['dimensions'] !== false, language)
       const display = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
       // SHT-7: what the picture shows, read as grid draw reads --hide, --colour and --key.
       let shownParts
@@ -2455,11 +2738,14 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       // HND-10: the plan's trace image under the floor drawn, read from the project folder.
       const trace = readTrace(project, stated, shown, language)
       // VEW-26: a floor far longer than it is wide is drawn in pieces, one at a time.
-      const tiling = tilesOf(stated, shown, dimensions, crop !== null, args['tile'] as number | undefined)
-      const frame = crop ? cropFrame(crop) : tiling.frame
+      const tiling = tilesOf(stated, shown, dimensions, crop !== null || box !== undefined, args['tile'] as number | undefined)
+      const margin = args['margin'] as number | undefined
+      const frame = crop ? cropFrame(crop.parts, 2, margin ?? CROP_MARGIN) : box ? cropBoxFrame(box, margin ?? 0) : tiling.frame
+      const framedWords = crop ? `, cropped to ${crop.words}` : box ? `, cropped to x ${box.minX.toFixed(2)} to ${box.maxX.toFixed(2)} and y ${box.minY.toFixed(2)} to ${box.maxY.toFixed(2)} m` : ''
+      const marginWords = crop || box ? (margin ?? (crop ? CROP_MARGIN : 0)) > 0 ? ` with ${metres(margin ?? CROP_MARGIN)} m round it` : '' : ''
       const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(frame ? { frame } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}) })
       const work = planHasPhases(stated) ? phaseCounts(stated) : null
-      const lines = [`Plan of floor ${q(shown)}${crop ? `, cropped to ${crop.kind} ${q(crop.id)}` : ''}${tiling.piece === null ? '' : `, piece ${tiling.piece} of ${tiling.tiles.length} along its length`}, ${look}${args['dimensions'] === false ? ', without sizes' : ', with inside sizes'}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${plan.north === undefined ? 'North is the top of the drawing; the plan holds no real north.' : `The north arrow in its top-right corner points to the north the plan states, ${northWords(wrapDegrees(plan.north))}; the sides named in other answers are the drawing's, north at the top.`} Look at the picture before you describe it.`]
+      const lines = [`Plan of floor ${q(shown)}${framedWords}${marginWords}${tiling.piece === null ? '' : `, piece ${tiling.piece} of ${tiling.tiles.length} along its length`}, ${look}${args['dimensions'] === false ? ', without sizes' : ', with inside sizes'}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${plan.north === undefined ? 'North is the top of the drawing; the plan holds no real north.' : `The north arrow in its top-right corner points to the north the plan states, ${northWords(wrapDegrees(plan.north))}; the sides named in other answers are the drawing's, north at the top.`} Look at the picture before you describe it.`]
       lines.push(...tiling.lines)
       const ids = withIds ? idsOnFloor(stated, shown) : []
       const undecided = view.undecidedDoors ?? []
