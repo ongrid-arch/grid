@@ -312,6 +312,9 @@ pen its own way, one floor or every floor ([above](#every-floor-in-one-dxf-at-a-
   glass on the insert's layer, and what the symbol shows above the cut or hidden in the wall (a
   pocket, a roll, a garage door open overhead, a high-level window) dashed on
   `GRID-OPENINGS-ABOVE`.
+- **A fixture hung above the cut** (CNT-55: a wall unit, a hood, an item whose `elevation` is 1 m
+  or more) is inserted on `GRID-FIXTURES-ABOVE`, dashed, and a commercial kitchen's piece (a
+  range, a fryer, a prep table, a dishwasher, a hood) has its label written at its middle.
 - **Dimensions** are dimension entities on `GRID-DIMENSIONS`, in the style `GRID` (ticks, metres
   to two places): the chains outside the plan and the room sizes inside it that the drawing
   shows ([the sizes on a drawing](#the-sizes-on-a-drawing)); a curve's radius is a radial
@@ -354,7 +357,7 @@ from dxf-layers.json.`). A category the file leaves out keeps Grid's pen:
   fits at (VEW-72); `--scale` wins over it.
 - The categories: `walls-outside`, `walls-inside`, `dividing-lines`, `wall-fill`, `rooms`,
   `room-tags`, `doors`, `door-swings`, `windows`, `openings`, `openings-above`, `fixtures`,
-  `dimensions`, `notes`,
+  `fixtures-above` (CNT-55: an item hung above the cut, dashed), `dimensions`, `notes`,
   `sketch` (a prefix: each category goes on it, a dash and its name), `facts`, `left-out`,
   `label`, `sheet` and `viewport`.
 - Each takes `layer` (1 to 255 characters, none of `< > / \ " : ; ? * | = ,` or a backtick),

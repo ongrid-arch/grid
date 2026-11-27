@@ -58,7 +58,7 @@ function inserts(dxf: string): string[] {
 describe('the kinds registry', () => {
   it('holds Grid\'s own kinds, fixtures first, in ITEM_KINDS order', () => {
     expect(ITEM_KIND_DEFINITIONS.map((d) => d.kind)).toEqual([...ITEM_KINDS])
-    expect(itemKinds('fixture')).toEqual(['toilet', 'basin', 'shower', 'bath', 'kitchen-run', 'rack', 'generator', 'pump', 'tank', 'seat', 'pew', 'altar', 'fume-cupboard', 'lab-bench', 'safety-shower', 'kennel', 'exam-table', 'clinical-sink', 'equipment'])
+    expect(itemKinds('fixture')).toEqual(['toilet', 'basin', 'shower', 'bath', 'kitchen-run', 'rack', 'generator', 'pump', 'tank', 'seat', 'pew', 'altar', 'fume-cupboard', 'lab-bench', 'safety-shower', 'kennel', 'exam-table', 'clinical-sink', 'equipment', 'bidet', 'urinal', 'vanity', 'double-basin', 'towel-radiator', 'shower-screen', 'sink', 'hob', 'oven', 'fridge', 'tall-unit', 'wall-unit', 'range', 'fryer', 'prep-table', 'dishwasher', 'hood'])
     expect(itemKinds('furniture')).toEqual(['bed', 'table', 'chair', 'sofa', 'storage', 'armchair', 'stool', 'desk', 'rug', 'plant'])
     expect(takesFloor('desk')).toBe(false)
     expect(liesUnderfoot('rug')).toBe(true)

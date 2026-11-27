@@ -318,6 +318,8 @@ function paints(named: Look, mpp: number, paperScale: number | undefined) {
     ramp: { fill: 'none', stroke: ink, 'stroke-width': width('stair') } as Attrs,
     rampArrow: { fill: ink, stroke: 'none' } as Attrs,
     bayNumber: text(look.dimensionText, TEXT_PX.bayNumber),
+    /** CNT-55: a labelled item's label (a fryer, a range), inside it, at a bay number's size. */
+    itemLabel: text(look.dimensionText, TEXT_PX.bayNumber),
     rampSlope: text(look.dimensionText, TEXT_PX.rampSlope),
     doorLeaf: { stroke: ink, 'stroke-width': width('doorLeaf'), 'stroke-linecap': 'square' } as Attrs,
     doorArc: { fill: 'none', stroke: ink, 'stroke-width': width('doorArc') } as Attrs,
@@ -974,17 +976,25 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   // a target: clicks reach the room underneath. Lit, like a wall, while the warning of a door
   // that swings into it is hovered (CNT-13).
   // CNT-52: a point (an extinguisher, an exit) is drawn later, over the walls it is fixed to.
-  const itemNode = (item: (typeof drawing.items)[number]): SvgNode =>
-    el(
+  // CNT-55: an item hung above the cut (a wall unit, a hood) is dashed with no fill, drawn after
+  // the others so what stands under it shows through; a labelled kind writes its label inside it.
+  const itemNode = (item: (typeof drawing.items)[number]): SvgNode => {
+    const ring = item.raised === true ? { ...paint.fixture, fill: 'none', ...paint.aboveDash } : paint.fixture
+    const line = item.raised === true ? { ...paint.fixtureLine, ...paint.aboveDash } : paint.fixtureLine
+    const centre = item.outline.reduce((sum, p) => ({ x: sum.x + p.x / item.outline.length, y: sum.y + p.y / item.outline.length }), { x: 0, y: 0 })
+    return el(
       'g',
-      { 'data-part': 'fixture', 'data-id': item.id, 'data-kind': item.kind, 'data-room': item.room ?? undefined, 'pointer-events': 'none', ...live.hit(item.id) },
+      { 'data-part': 'fixture', 'data-id': item.id, 'data-kind': item.kind, 'data-room': item.room ?? undefined, 'data-raised': item.raised === true ? 'true' : undefined, 'pointer-events': 'none', ...live.hit(item.id) },
       [
-        ...item.rings.map((ring, index) => el('path', { 'data-part': 'fixture-ring', d: `${pathOf(ring)}`, ...paint.fixture }, [], `r${index}`)),
-        ...item.lines.map((line, index) => el('path', { 'data-part': 'fixture-line', d: virtualPath(line), ...paint.fixtureLine }, [], `l${index}`))
+        ...item.rings.map((r, index) => el('path', { 'data-part': 'fixture-ring', d: `${pathOf(r)}`, ...ring }, [], `r${index}`)),
+        ...item.lines.map((l, index) => el('path', { 'data-part': 'fixture-line', d: virtualPath(l), ...line }, [], `l${index}`)),
+        ...(item.labelled === true && item.label !== '' ? [el('g', { transform: labelTransform(centre, mpp) }, [el('text', { 'data-part': 'fixture-label', dy: String(DIMENSION_DY), ...paint.itemLabel }, [item.label])], 'label')] : [])
       ],
       `fixture:${item.id}`
     )
-  for (const item of drawing.items) if (!isPointKind(item.kind)) out.push(itemNode(item))
+  }
+  for (const item of drawing.items) if (!isPointKind(item.kind) && item.raised !== true) out.push(itemNode(item))
+  for (const item of drawing.items) if (!isPointKind(item.kind) && item.raised === true) out.push(itemNode(item))
 
   // SHT-11: a lift shaft's cross, corner to corner, over its room's fill and under the walls that
   // box it. Drawing, not a target.

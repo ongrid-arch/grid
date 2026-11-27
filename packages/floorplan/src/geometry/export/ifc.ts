@@ -71,8 +71,8 @@ import { curveStations, wallCurve, type WallCurve } from '../arc'
 import type { Vec2 } from '../vec2'
 import { partPhases, phasedJoints } from '../phases'
 import type { Phase } from '../../types/floorplan'
-import { isItemKind, itemRoom, roomShapes } from '../items'
-import { itemKindWord } from '../itemKinds'
+import { isItemKind, itemElevation, itemRoom, roomShapes } from '../items'
+import { itemIfcType, itemKindWord, type ItemIfcType } from '../itemKinds'
 import { columnArea, columnDepth, columnFloorIds, columnPart, soundColumns } from '../columns'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { roomFloorArea } from '../room'
@@ -2235,11 +2235,15 @@ function writeStoreyContents(building: Context, storey: Storey): void {
 /**
  * CNT-12: every storey's fixtures (CNT-20: and furniture, and any kind the registry holds), each an IfcFurnishingElement and never a wall: placed at its
  * middle, turned as the plan turns it, and its footprint extruded to its height from the floor of
- * the room it stands in. `ObjectType` is its kind and `Tag` its id. Written after everything else,
+ * the room it stands in (CNT-55: lifted by its elevation). CNT-55: a kind that states its flow
+ * terminal type (a WC, a basin, a sink, a towel radiator) is an IfcFlowTerminal instead, typed by
+ * one IfcSanitaryTerminalType or IfcSpaceHeaterType per kind. `ObjectType` is its kind and `Tag` its id. Written after everything else,
  * in a containment relation of their own per storey, so a plan with no fixtures writes the same
  * file as before.
  */
 function writeItems(building: Context, storeys: readonly Storey[]): void {
+  // CNT-55: the flow terminals of each type, kind by kind, typed once each after every storey.
+  const terminals = new Map<string, { readonly ifc: ItemIfcType; readonly kind: string; readonly elements: number[] }>()
   for (const storey of storeys) {
     const { index, broken, floor } = storey.model
     const items = (index.plan.items ?? []).filter((item) => !broken.has(item.id) && isItemKind(item.kind))
@@ -2252,11 +2256,14 @@ function writeItems(building: Context, storeys: readonly Storey[]): void {
         const room = itemRoom(item, rooms)
         const turn = ((item.turn ?? 0) * Math.PI) / 180
         const along: Triple = [Math.cos(turn), Math.sin(turn), 0]
-        const itemPlacement = placement(c.w, storey.placement, [item.at[0], item.at[1], room === null ? 0 : roomFloorOffset(room)], along)
+        // CNT-55: lifted by its elevation, so a wall unit hangs where it is hung.
+        const itemPlacement = placement(c.w, storey.placement, [item.at[0], item.at[1], (room === null ? 0 : roomFloorOffset(room)) + itemElevation(item)], along)
         const body = bodyRepresentation(c, extrusion(c, rectangleProfile(c, item.size[0], item.size[1], 0), item.height))
         const kind = itemKindWord(item.kind)
+        const ifc = itemIfcType(item.kind)
+        // CNT-55: a basin, a WC or a sink is a flow terminal (IfcElement's attributes, as a furnishing element's).
         const element = c.w.add(
-          'IFCFURNISHINGELEMENT',
+          ifc === undefined ? 'IFCFURNISHINGELEMENT' : 'IFCFLOWTERMINAL',
           str(c.guid('item', item.id)),
           ref(c.owner),
           str(item.label ?? kind),
@@ -2267,6 +2274,12 @@ function writeItems(building: Context, storeys: readonly Storey[]): void {
           str(item.id)
         )
         written.push(element)
+        if (ifc !== undefined) {
+          const key = `${ifc.type}|${ifc.predefined}|${item.kind}`
+          const held = terminals.get(key) ?? { ifc, kind: item.kind, elements: [] }
+          held.elements.push(element)
+          terminals.set(key, held)
+        }
         // CNT-52: its facts in Grid's own set, as a room's are.
         noteFacts(c, element, 'item', item)
       } catch {
@@ -2276,6 +2289,12 @@ function writeItems(building: Context, storeys: readonly Storey[]): void {
     if (written.length > 0) {
       relate(c, 'IFCRELCONTAINEDINSPATIALSTRUCTURE', `items:${floor.id}`, refs(written), ref(storey.id))
     }
+  }
+  // IfcSanitaryTerminalType and IfcSpaceHeaterType: GlobalId, OwnerHistory, Name, Description,
+  // ApplicableOccurrence, HasPropertySets, RepresentationMaps, Tag, ElementType, PredefinedType.
+  for (const [key, { ifc, kind, elements }] of [...terminals].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    const type = building.w.add(ifc.type, str(building.guid('item-type', key)), ref(building.owner), str(itemKindWord(kind)), NULL, NULL, NULL, NULL, str(kind), str(itemKindWord(kind)), en(ifc.predefined))
+    relate(building, 'IFCRELDEFINESBYTYPE', `item-type:${key}`, refs(elements), ref(type))
   }
 }
 

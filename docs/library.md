@@ -50,6 +50,22 @@ its kind's name: `rack` 0.60 × 1.20 (2.00 high, 1.00 clear in front), `generato
 1.00, `kennel` 0.90 × 0.90, `exam-table` 1.20 × 0.60 and `clinical-sink` 0.90 × 0.60. Any other
 thing is the kind `equipment`, which has no entry: give it its size, height and label.
 
+Bathroom and kitchen fittings (CNT-55), each a fixture, one entry of each kind by its kind's
+name: `bidet` 0.36 × 0.55, `urinal` 0.40 × 0.35 (0.60 high, hung 0.35 up), `vanity` 0.80 × 0.50,
+`double-basin` 1.20 × 0.50, `towel-radiator` 0.50 × 0.10 (1.20 high, hung 0.15 up),
+`shower-screen` 0.90 × 0.02 (2.00 high), `sink` 1.00 × 0.50 and `hob` 0.60 × 0.50 (each set into
+a 0.90 m worktop: 0.20 high hung 0.70 up, and 0.03 high hung 0.88 up), `oven` 0.60 × 0.60,
+`fridge` 0.60 × 0.65 (0.85 high) and `fridge-freezer` 0.60 × 0.65 (1.80 high), `tall-unit` 0.60 ×
+0.60 (2.10 high), `wall-unit` 0.60 × 0.35 (0.72 high, hung 1.45 up), and a commercial kitchen's
+`range` 0.90 × 0.90, `fryer` 0.40 × 0.80, `prep-table` 1.80 × 0.70, `dishwasher` 0.70 × 0.75
+(1.50 high) and `hood` 1.80 × 1.00 (0.60 high, hung 2.00 up), each drawn with its label inside
+it. `wall-hung-wc` is a toilet 0.36 × 0.54, 0.22 high, hung 0.20 up. An entry may carry an
+`elevation` as an item does, metres from the floor to its underside, and an item placed from it
+takes it. A sink, a hob and a shower screen are set into or onto another item, so they stand in
+none. A kind may be named by a plain word for it, as a room's use may: `WC`, `loo` and
+`lavatory` are a toilet, `tub` a bath, `washbasin` a basin, `fridge-freezer` a fridge, `cooker`
+an oven, `wall cabinet` a wall unit.
+
 Points (CNT-52), which take no floor, one entry of each kind by its kind's name, the size its
 symbol is drawn at and the height it is shown at: `extinguisher` 0.40 × 0.40 (1.00 high), `aed`
 0.40 × 0.40 (1.20), `call-point` 0.30 × 0.30 (1.40), `first-aid` 0.40 × 0.40 (1.40), `sensor`

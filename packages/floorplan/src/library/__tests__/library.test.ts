@@ -125,6 +125,26 @@ describe('Grid\'s built-in library', () => {
       kennel: ['kennel', 0.9, 0.9, 0.9, 0],
       'exam-table': ['exam-table', 1.2, 0.6, 0.9, 0.8],
       'clinical-sink': ['clinical-sink', 0.9, 0.6, 0.9, 0.6],
+      // CNT-55: the bathroom's and the kitchen's (each hung entry's elevation is held below).
+      'wall-hung-wc': ['toilet', 0.36, 0.54, 0.22, 0.6],
+      bidet: ['bidet', 0.36, 0.55, 0.4, 0.6],
+      urinal: ['urinal', 0.4, 0.35, 0.6, 0.6],
+      vanity: ['vanity', 0.8, 0.5, 0.85, 0.6],
+      'double-basin': ['double-basin', 1.2, 0.5, 0.85, 0.6],
+      'towel-radiator': ['towel-radiator', 0.5, 0.1, 1.2, 0],
+      'shower-screen': ['shower-screen', 0.9, 0.02, 2, 0],
+      sink: ['sink', 1, 0.5, 0.2, 0],
+      hob: ['hob', 0.6, 0.5, 0.03, 0],
+      oven: ['oven', 0.6, 0.6, 0.9, 1],
+      fridge: ['fridge', 0.6, 0.65, 0.85, 1],
+      'fridge-freezer': ['fridge', 0.6, 0.65, 1.8, 1],
+      'tall-unit': ['tall-unit', 0.6, 0.6, 2.1, 1],
+      'wall-unit': ['wall-unit', 0.6, 0.35, 0.72, 0],
+      range: ['range', 0.9, 0.9, 0.9, 1.2],
+      fryer: ['fryer', 0.4, 0.8, 0.9, 1.2],
+      'prep-table': ['prep-table', 1.8, 0.7, 0.9, 1],
+      dishwasher: ['dishwasher', 0.7, 0.75, 1.5, 1],
+      hood: ['hood', 1.8, 1, 0.6, 0],
       // CNT-52: the points.
       extinguisher: ['extinguisher', 0.4, 0.4, 1, 0],
       aed: ['aed', 0.4, 0.4, 1.2, 0],
@@ -141,6 +161,8 @@ describe('Grid\'s built-in library', () => {
       refuge: ['refuge', 0.5, 0.5, 1.2, 0],
       'assembly-point': ['assembly-point', 0.6, 0.6, 2, 0],
     })
+    // CNT-55: what hangs, by its underside above the floor; every other entry stands on the floor.
+    expect(Object.fromEntries(BUILT_IN_ITEMS.filter((e) => e.elevation !== undefined).map((e) => [e.name, e.elevation]))).toEqual({ 'wall-hung-wc': 0.2, urinal: 0.35, 'towel-radiator': 0.15, sink: 0.7, hob: 0.88, 'wall-unit': 1.45, hood: 2 })
   })
 
   it('holds the starter furniture, each counted by its own kind (CNT-42)', () => {

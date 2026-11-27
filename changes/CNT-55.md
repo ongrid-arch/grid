@@ -1,0 +1,16 @@
+# 2026-11-27: sanitary and kitchen kinds, an item's height above the floor, and symbols by height (CNT-55)
+
+## For people
+
+- More fixtures: a bidet, a urinal, a vanity unit, a double basin, a towel radiator and a shower screen; a kitchen sink, a hob, an oven, a fridge (and a fridge-freezer), a tall unit and a wall unit; and a commercial kitchen's range, fryer, prep table, dishwasher and hood, which are drawn with their label in the plan and the DXF. Each has its own symbol and a plain size in Grid's library (CNT-55).
+- A kind can be written in plain words, as a room's use can: `WC`, `loo` and `lavatory` are a toilet, `tub` a bath, `washbasin` a basin, `fridge-freezer` a fridge. A word Grid does not know is named with the kind it most likely means.
+- An item can hang above the floor: `elevation` (`above 1.45` in rooms text) is the height of its underside. A wall unit floats over the kitchen run instead of standing on the floor, a wall-hung WC floats 0.2 m up, and the 3D view, the section and the IFC show them there. An item hung 1 m or more up is drawn dashed over what stands under it, takes no floor and keeps no one from their clear floor.
+- WCs, basins, showers, baths, sinks and the other sanitary fixtures go into the IFC as flow terminals with a sanitary type, no longer as furniture.
+
+## For agents
+
+- The plan file: `SANITARY_KINDS` (`bidet`, `urinal`, `vanity`, `double-basin`, `towel-radiator`, `shower-screen`) and `KITCHEN_KINDS` (`sink`, `hob`, `oven`, `fridge`, `tall-unit`, `wall-unit`, `range`, `fryer`, `prep-table`, `dishwasher`, `hood`) are fixture kinds, each with a built-in library entry of its own name; `fridge-freezer` and `wall-hung-wc` are entries too. An item's `kind` is read through `ITEM_KIND_WORDS` (plain words, any capitals: `WC` is `toilet`) and written back as the kind. An item and a library entry may state `elevation`, metres from the floor to the underside; an item's `height` is then its own. C6 and C30 widened, no new convention number.
+- The checks read the elevation: `item/overlap` only where two items' heights meet; `item/too-tall` by the item's top, with its own wording for a hung item; an item hung `itemRaised` (1 m, new in the tolerances table) or more up takes no free floor and is in no `item/clearance-blocked`. A `sink`, a `hob` and a `shower-screen` are set into or onto another item and are in no `item/overlap`. `item/unknown-kind` says "did you mean" with the likely kind. No new code in the record.
+- `grid_add_item` takes `elevation`, names the new kinds and reads a plain word as its kind; its answer says how high an item hangs. Rooms text item lines take `above <m>`.
+- The drawing: a drawn item carries `raised` (hung above the cut: dashed, no fill, drawn after the others) and `labelled` (its label written inside it, `data-part="fixture-label"`). The DXF inserts a raised item on the new category `fixtures-above` (`GRID-FIXTURES-ABOVE`, dashed) and writes a labelled item's label at its middle.
+- The IFC: an item is lifted by its elevation; the sanitary kinds (and `clinical-sink`, `safety-shower`) are `IfcFlowTerminal` typed by one `IfcSanitaryTerminalType` per kind, a `towel-radiator` by an `IfcSpaceHeaterType`; every other kind stays an `IfcFurnishingElement`.
