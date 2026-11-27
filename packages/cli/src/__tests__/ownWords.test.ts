@@ -113,7 +113,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/fill.ts': [28, 'notYet'],
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   // CNT-43: +1, the item at the size given.
-  'packages/cli/src/edit/place.ts': [12, 'notYet'],
+  // CNT-61: two more, a list's receipt and an id an entry before it holds.
+  'packages/cli/src/edit/place.ts': [14, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   // WRT-59: one more, a plan with nothing to mirror or turn.
   // WRT-73: one more, a mirror's line when it keeps the north.
@@ -142,6 +143,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/buildingParts.ts': [2, 'notYet'],
   // CNT-48: a typical room's usual fixtures set out in a room, its receipts and refusals.
   'packages/cli/src/edit/fixtureSets.ts': [10, 'notYet'],
+  // CNT-61: rooms furnished with their usual sets, room by room, and its refusals.
+  'packages/cli/src/edit/furnish.ts': [19, 'notYet'],
   // CNT-45: the items' receipts and refusals. CNT-47: two more, a row's receipt and its taken id.
   // CNT-52: one more, a point's receipt.
   // CNT-55: one more, how high an item hangs in its receipt.
@@ -183,7 +186,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
   // CNT-44: 23 more, grid_fill_room's help.
   // CMD-50: one more, grid_stretch's help on a building turned on the drawing.
-  'packages/cli/src/mcp/editTools.ts': [138, 'tools'],
+  // CNT-61: six more, grid_place_item's list of entries and its refusals.
+  'packages/cli/src/mcp/editTools.ts': [144, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // CNT-51: grid_set_finishes, its help and its argument checks.
@@ -274,7 +278,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
   // CNT-52: one more, the facts argument's help.
   // CNT-55: one more, the elevation argument's help.
-  'packages/cli/src/mcp/itemTools.ts': [55, 'tools'],
+  // CNT-61: eleven more, grid_furnish_rooms.
+  'packages/cli/src/mcp/itemTools.ts': [66, 'tools'],
   // ARE-68: the lettable_uses, lettable_tenures and people arguments and the brief's people schema.
   'packages/cli/src/mcp/lettableArgs.ts': [7, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
@@ -286,7 +291,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
   'packages/cli/src/mcp/wordsTool.ts': [31, 'tools'],
   // MSG-33: one more, the head of a refusal that lists every fault of a call.
-  'packages/cli/src/mcp/toolkit.ts': [29, 'agent'],
+  // CNT-61: two more, an entry of a list argument refused.
+  'packages/cli/src/mcp/toolkit.ts': [31, 'agent'],
   // CMD-39: the whole and page arguments every tool takes, and left_out in the output schemas.
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
   // MSG-34: the description of the language every tool takes.

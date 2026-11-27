@@ -103,7 +103,8 @@ export type ArgSpec =
   | {
       readonly type: 'object'
       readonly description: string
-      readonly examples: readonly Record<string, unknown>[]
+      /** CNT-61: a list of objects when its schema is a list. */
+      readonly examples: readonly (Record<string, unknown> | readonly Record<string, unknown>[])[]
       /** The JSON Schema `tools/list` shows. */
       readonly schema: Record<string, unknown>
       /**
@@ -335,10 +336,44 @@ function checkOne(name: string, spec: ArgSpec, value: unknown, earlier: Readonly
       return value.map((one) => checkOne(`each item of ${name}`, item, one))
     }
     case 'object': {
+      // CNT-61: an argument whose schema is a list takes a list of objects, each read by `read`.
+      if (spec.schema['type'] === 'array') {
+        if (!Array.isArray(value)) throw new ToolRefusal(`${name} takes a list.`)
+        return spec.read(value, earlier)
+      }
       if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new ToolRefusal(`${name} takes an object.`)
       return spec.read(value, earlier)
     }
   }
+}
+
+/**
+ * CNT-61: the JSON Schema of one entry of a list argument, from its own argument specs. `readEntry`
+ * checks each entry against the same specs as a call's arguments are checked: a field it does not
+ * take, one missing or a value refused is refused with `where` (such as "entry 2 of items") in front.
+ */
+export function entrySchema(specs: ArgSpecs): Record<string, unknown> {
+  const required = Object.entries(specs).filter(([, spec]) => spec.required).map(([name]) => name)
+  return { type: 'object', properties: Object.fromEntries(Object.entries(specs).map(([name, spec]) => [name, argSchema(spec)])), ...(required.length > 0 ? { required } : {}), additionalProperties: false }
+}
+
+/** CNT-61: one entry of a list argument, checked as a call's arguments are. */
+export function readEntry(where: string, specs: ArgSpecs, raw: unknown, earlier: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
+  const names = Object.keys(specs)
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ToolRefusal(`${where} takes an object: ${listOf(names)}.`)
+  const given = raw as Record<string, unknown>
+  const unknown = Object.keys(given).filter((key) => !Object.hasOwn(specs, key))
+  if (unknown.length > 0) throw new ToolRefusal(`${where} takes ${listOf(names)}, not ${unknown.length > 3 ? `${unknown.length} others` : unknown.every((key) => key.length <= ID_MAX && ID.test(key)) ? listOf(unknown.map(quoted)) : 'others'}.`)
+  const entry: Record<string, unknown> = {}
+  for (const [name, spec] of Object.entries(specs)) {
+    const value = given[name]
+    if (value === undefined || value === null) {
+      if (spec.required) throw new ToolRefusal(`${where} needs ${name}: ${spec.description.split('. ')[0]!.replace(/\.$/, '')}.`)
+      continue
+    }
+    entry[name] = checkOne(`${name} of ${where}`, spec, value, earlier)
+  }
+  return entry
 }
 
 /** WRT-58: the words a call gave for a use that Grid read as another word (`gym` as `sport`), by the call's arguments. */
