@@ -76,7 +76,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-75: one fewer, the refusal over a fit-out is in the message files now.
   // CNT-45: three more, the items the text's lines place and the kept ones that moved with their walls.
   // CNT-46: four more, the file's bays and ramps kept when the text writes none.
-  'packages/cli/src/command/write.ts': [46, 'command'],
+  // WRT-81: one fewer, the refusal over a plan with phases is in the message files now.
+  'packages/cli/src/command/write.ts': [45, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [15, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
@@ -160,6 +161,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/guide.ts': [90, 'agent'],
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
+  // VEW-75: kind=eye's camera: where it stands and looks, its lens, tilt and perspective, and their refusals.
+  'packages/cli/src/mcp/eyeAnswer.ts': [25, 'tools'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   // ARE-67: eight more, the seats, desks and covers keys' help.
   // ARE-69: thirty more, the description and schema of totals, scopes, the three figures and add, remove and update.
@@ -200,7 +203,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-68: seven more, the lettable, people, as_written and frontage arguments and frontage's refusals.
   // CNT-51: four more, the take-off's and the finishes schedule's bands and faces.
   // CNT-52: two more, grid_schedule of=items' lines.
-  'packages/cli/src/mcp/readTools.ts': [424, 'tools'],
+  // VEW-76: five more, grid_view's looks for people in its description, its look argument and its answer.
+  // VEW-75: one more, kind=eye's at, look_at and perspective arguments and its refusal of from; its answer moved to eyeAnswer.ts.
+  'packages/cli/src/mcp/readTools.ts': [430, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -224,7 +229,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-46: eight more, the parking topic. CNT-47: three more, the rows topic and the item kinds.
   // SHT-22: eight more, the topic of writing on the drawing.
   // WRT-79: nine more, the roofs and columns topics and the plinth line.
-  'packages/cli/src/mcp/roomsGrammar.ts': [108, 'tools'],
+  // WRT-81: eight more, the phases topic.
+  'packages/cli/src/mcp/roomsGrammar.ts': [116, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
@@ -378,7 +384,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/rooms/compile.ts': [102, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
-  'packages/floorplan/src/rooms/read.ts': [22, 'notYet'],
+  // WRT-81: one more, a part read back in another phase.
+  'packages/floorplan/src/rooms/read.ts': [23, 'notYet'],
   // CNT-46: the bay, bays and ramp lines' refusals, what they chose and their summaries.
   'packages/floorplan/src/rooms/parking.ts': [95, 'notYet'],
   // CNT-41: the site lines' refusals and notes, and north in words.

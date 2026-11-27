@@ -2897,6 +2897,9 @@ export const en = {
   'drawing.picture.empty': 'Floor plan',
   'drawing.key': 'Key',
   'drawing.notes': 'Notes',
+  // VEW-76: the floor's total under a picture for people, with its rule, in the drawing's units and the other.
+  'drawing.total': 'Floor area {area}{also}: the floor inside each room\'s walls, added up (net area)',
+  'drawing.total.outdoor': 'Outdoor space {area}{also}, not in the floor area',
   'drawing.key.rooms': 'Rooms',
   'drawing.key.outsideWall': 'Outside wall',
   'drawing.key.insideWall': 'Inside wall',
@@ -3937,6 +3940,14 @@ export const en = {
   'plan.fileKind.occupancy': 'a file Grid keeps beside a plan (the occupancy figures)',
   'plan.fileKind.sheet': 'a file Grid keeps beside a plan (the sheet\'s words)',
   'plan.fileKind.firm': 'the file that holds the firm\'s own standards',
+  // --- Phases in rooms text (WRT-81, `rooms/phases.ts`) and the refusal of grid write (`command/write.ts`)
+  'rooms.phase.state.before': 'Read as the building before the work (its existing and demolished parts): {problem}',
+  'rooms.phase.state.after': 'Read as the building after the work (its existing and new parts): {problem}',
+  'rooms.phase.unknown': 'Line {line}: a phase is existing, demolished or new, not {word}. Write phase existing, phase demolished or phase new.',
+  'rooms.phase.alone': 'Line {line}: a phase line is phase existing, phase demolished or phase new alone, and sets the phase of the room and opening lines after it.',
+  'rooms.phase.where': 'Line {line}: a phase goes on a room, wall, door, window, opening, place or repeat line, or alone on a line. A {kind} line takes none: it stands after the work.',
+  'rooms.phase.base': 'Line {line}: a fit-out is the work itself, its rooms and openings new on its base\'s existing walls, so it takes no phase. Take the phase words out, or write the plan without its base line.',
+  'write.phases.none': '{file} states its parts\' phases (existing, demolished or new), and this rooms text states none, so writing it would write every part with none, and so would --replace. Read the plan back as rooms text (grid describe --as rooms), which writes each part\'s phase (phase existing, phase demolished, phase new), and change that; or write the phases in this text; or add --replace to write it with no phases.',
 } as const satisfies Record<string, string>
 
 export type MessageKey = keyof typeof en

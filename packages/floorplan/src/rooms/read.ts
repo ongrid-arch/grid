@@ -15,8 +15,9 @@
  *
  * Pure: a plan in, text out.
  */
-import { heightByDefault, heightStated, safeParseFloorPlan, statedWall, type FloorPlan, type Opening, type Room, type Wall } from '../types/floorplan'
+import { heightByDefault, heightStated, safeParseFloorPlan, statedWall, type FloorPlan, type Opening, type Phase, type Room, type Wall } from '../types/floorplan'
 import { indexPlan } from '../geometry/plan'
+import { phaseReading, planHasPhases } from '../geometry/phases'
 import { planFloors } from '../geometry/floors'
 import { english, said } from '../messages/say'
 import { tryRoomPolygon } from '../geometry/room'
@@ -135,7 +136,7 @@ function wallDiffers(a: Wall, b: Wall, statesNone: (wall: Wall) => boolean): str
   if (a.kind !== b.kind) return 'is of another kind'
   if ((a.virtual === true) !== (b.virtual === true)) return 'is solid in one and a dividing line in the other'
   if (floorOf(a) !== floorOf(b)) return 'is on another floor'
-  return otherKeys(a, b, ['id', 'start', 'end', 'thickness', 'height', 'kind', 'virtual', 'floor', 'unstated', ...FACTS_CARRIED])
+  return otherKeys(a, b, ['id', 'start', 'end', 'thickness', 'height', 'kind', 'virtual', 'floor', 'unstated', 'phase', ...FACTS_CARRIED])
 }
 
 function roomDiffers(a: Room, b: Room): string | null {
@@ -145,7 +146,7 @@ function roomDiffers(a: Room, b: Room): string | null {
   if (floorOf(a) !== floorOf(b)) return 'is on another floor'
   if ((a.inside === true) !== (b.inside === true)) return 'sits inside another room in one only'
   if (!sameNumber(a.height, b.height)) return 'has another height'
-  return otherKeys(a, b, ['id', 'name', 'use', 'boundary', 'floor', 'inside', 'height', ...FACTS_CARRIED, 'number'])
+  return otherKeys(a, b, ['id', 'name', 'use', 'boundary', 'floor', 'inside', 'height', 'phase', ...FACTS_CARRIED, 'number'])
 }
 
 /**
@@ -181,7 +182,7 @@ function openingDiffers(a: Opening, b: Opening, fitted = false): string | null {
   if (a.hinge !== b.hinge || a.swing !== b.swing) return 'hangs or swings another way'
   if (a.kind !== b.kind) return 'is of another kind'
   if (!sameNumber(a.opens?.width ?? 0, b.opens?.width ?? 0) || !sameNumber(a.opens?.height ?? 0, b.opens?.height ?? 0)) return 'opens in another part'
-  return otherKeys(a, b, ['id', 'wall', 'type', 'offset', 'width', 'sill', 'height', 'hinge', 'swing', 'kind', 'opens', ...FACTS_CARRIED])
+  return otherKeys(a, b, ['id', 'wall', 'type', 'offset', 'width', 'sill', 'height', 'hinge', 'swing', 'kind', 'opens', 'phase', ...FACTS_CARRIED])
 }
 
 /** What a part the writing does not give back is said to do. */
@@ -209,15 +210,34 @@ function differences<T extends { id: string }>(kind: Difference['kind'], before:
   return out
 }
 
+/** WRT-81: the phase a part is read in, as its plan reads it (`phaseReading`); null in a plan with no phases. */
+type PhaseOf = (part: Wall | Room | Opening, kind: Difference['kind']) => Phase | null
+
+function phasesOf(plan: FloorPlan): PhaseOf {
+  if (!planHasPhases(plan)) return () => null
+  const read = phaseReading(plan)
+  return (part, kind) => (kind === 'wall' ? read.wall(part as Wall) : kind === 'room' ? read.room(part as Room) : read.opening(part as Opening))
+}
+
+/**
+ * WRT-81: a part read in another phase differs. An unstated phase and the one it is read in are
+ * the same, and a plan with phases and one with none are not.
+ */
+function phaseDiffers<T extends Wall | Room | Opening>(kind: Difference['kind'], original: FloorPlan, written: FloorPlan, differs: (a: T, b: T) => string | null): (a: T, b: T) => string | null {
+  const was = phasesOf(original)
+  const now = phasesOf(written)
+  return (a, b) => (was(a, kind) !== now(b, kind) ? 'is in another phase' : differs(a, b))
+}
+
 function floorDifferences(original: FloorPlan, written: FloorPlan, floor: string, fitted: ReadonlySet<string>): Difference[] {
   const on = <T extends { floor?: string | undefined }>(list: readonly T[]): T[] => list.filter((x) => floorOf(x) === floor)
   const wallFloor = new Map(original.walls.map((w) => [w.id, floorOf(w)]))
   const writtenWallFloor = new Map(written.walls.map((w) => [w.id, floorOf(w)]))
   const openingsOn = (plan: FloorPlan, walls: Map<string, string>): Opening[] => plan.openings.filter((o) => (walls.get(o.wall) ?? 'ground') === floor)
   return [
-    ...differences('wall', on(original.walls), on(written.walls), (a, b) => wallDiffers(a, b, (w) => heightByDefault(w === a ? original : written, w))),
-    ...differences('room', on(original.rooms), on(written.rooms), roomDiffers),
-    ...differences('opening', openingsOn(original, wallFloor), openingsOn(written, writtenWallFloor), (a, b) => openingDiffers(a, b, fitted.has(a.id))),
+    ...differences('wall', on(original.walls), on(written.walls), phaseDiffers<Wall>('wall', original, written, (a, b) => wallDiffers(a, b, (w) => heightByDefault(w === a ? original : written, w)))),
+    ...differences('room', on(original.rooms), on(written.rooms), phaseDiffers<Room>('room', original, written, roomDiffers)),
+    ...differences('opening', openingsOn(original, wallFloor), openingsOn(written, writtenWallFloor), phaseDiffers<Opening>('opening', original, written, (a, b) => openingDiffers(a, b, fitted.has(a.id)))),
   ]
 }
 
@@ -334,7 +354,7 @@ function placed(v: number): string {
   return String(Object.is(r, -0) ? 0 : r)
 }
 
-function roomLine(room: Room, poly: P[], local: string): string {
+function roomLine(room: Room, poly: P[], local: string, phase: Phase | null = null): string {
   const use = room.use ?? '-'
   const xs = poly.map((p) => p[0])
   const ys = poly.map((p) => p[1])
@@ -359,7 +379,9 @@ function roomLine(room: Room, poly: P[], local: string): string {
   const outdoor = typeof room.outdoor === 'string' ? ` outdoor ${room.outdoor}${room.roofed === undefined ? '' : room.roofed ? ' roofed' : ' unroofed'}` : ''
   // ARE-60: whether it is heated or cooled, when it states it.
   const air = room.conditioned === undefined ? '' : room.conditioned ? ' conditioned' : ' unconditioned'
-  return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}${air}${factWords(room)}`
+  // WRT-81: a room that is not existing says its phase; the text's `phase existing` line says the rest.
+  const phased = phase === null || phase === 'existing' ? '' : ` phase ${phase}`
+  return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}${air}${factWords(room)}${phased}`
 }
 
 /**
@@ -538,18 +560,20 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
     if (poly) polys.set(r.id, poly.map((p) => [p.x, p.y] as P))
   }
   const draft: FloorDraft = { id: floor, header: [], rooms: [], walls: new Map(), openings: new Map(), why: new Map(), fitted: new Set(), raw: [] }
+  const read = phasesWritten(plan, rule)
   for (const room of plan.rooms.filter((r) => floorOf(r) === floor)) {
     const poly = polys.get(room.id)
     if (!poly) {
       draft.raw.push(rawLine('room', room))
       continue
     }
-    draft.rooms.push(roomLine(room, poly, local.get(room.id) ?? room.id))
+    draft.rooms.push(roomLine(room, poly, local.get(room.id) ?? room.id, read === null ? null : read.room(room)))
   }
   // Say dividing lines and walls that differ from the rules the writing would use.
   const onFloor = plan.rooms.filter((r) => floorOf(r) === floor)
   for (const wall of plan.walls.filter((w) => floorOf(w) === floor)) {
     const rooms = index.roomsByWall.get(wall.id) ?? []
+    if (read !== null) wallPhaseSay(draft, wall, rooms, read, polys, local)
     if (wall.virtual === true && rooms.length >= 2) {
       // WRT-44: a dividing line along a row of open rooms (a kitchen open to its living room in
       // each of a row of houses) is said once for each two rooms across it that face each other.
@@ -613,12 +637,51 @@ function draftFloor(plan: FloorPlan, floor: string, rule: Rule, local: Map<strin
       continue
     }
     if (floorOf(wall) !== floor) continue
-    const line = openingLine(o, wall, plan, polys, rule, local, draft.fitted)
-    draft.openings.set(o.id, line ?? rawLine('opening', o))
+    // WRT-81: an opening is written in a room that stands whenever it does, and says the phase it states.
+    const phase = read === null ? null : read.opening(o)
+    const hosts = phase === null ? plan : { ...plan, rooms: plan.rooms.filter((r) => PHASE_STATES[phase].every((state) => PHASE_STATES[read!.room(r)].includes(state))) }
+    const line = openingLine(o, wall, hosts, polys, rule, local, draft.fitted)
+    const stated = line === null || o.phase === undefined || o.phase === 'existing' ? '' : `, phase ${o.phase}`
+    draft.openings.set(o.id, line === null ? rawLine('opening', o) : `${line}${stated}`)
     if (line === null) draft.why.set(o.id, english(said('describe.rooms.rawOpening.unplaced')))
   }
   for (const wall of plan.walls.filter((w) => floorOf(w) === floor && (index.roomsByWall.get(w.id)?.length ?? 0) === 0)) draft.raw.push(rawLine('wall', wall))
   return draft
+}
+
+/** WRT-81: the states a part in each phase stands in. */
+const PHASE_STATES: Readonly<Record<Phase, readonly ('before' | 'after')[]>> = { existing: ['before', 'after'], demolished: ['before'], new: ['after'] }
+
+/** WRT-81: how the text writes phases: as the plan reads them, in a plan with phases that is no fit-out (a fit-out is the work). */
+function phasesWritten(plan: FloorPlan, rule: Rule): ReturnType<typeof phaseReading> | null {
+  return planHasPhases(plan) && plan.base === undefined && rule.base === undefined ? phaseReading(plan) : null
+}
+
+/**
+ * WRT-81: a wall's phase, on a wall line, when it is not the one its rooms give it: new when they
+ * are all new, to be demolished when they all are, existing otherwise. Said between two of its
+ * rooms that stand together, or by the side of one.
+ */
+function wallPhaseSay(draft: FloorDraft, wall: Wall, rooms: readonly Room[], read: ReturnType<typeof phaseReading>, polys: Map<string, P[]>, local: Map<string, string>): void {
+  const phases = rooms.map((r) => read.room(r))
+  const given: Phase = phases.length > 0 && phases.every((p) => p === 'new') ? 'new' : phases.length > 0 && phases.every((p) => p === 'demolished') ? 'demolished' : 'existing'
+  const own = read.wall(wall)
+  if (own === given || rooms.length === 0) return
+  const phaseOf = new Map(rooms.map((r) => [r.id, read.room(r)]))
+  const together = (a: string, b: string): boolean => PHASE_STATES[phaseOf.get(a)!].some((state) => PHASE_STATES[phaseOf.get(b)!].includes(state))
+  const pairs = rooms.length >= 2 ? facingAcross(wall, rooms, polys).filter(([a, b]) => together(a, b)) : []
+  if (pairs.length > 0) {
+    const [a, b] = pairs[0]!
+    addWallSay(draft, `wall between ${local.get(a) ?? a} and ${local.get(b) ?? b}`, ['phase', own])
+    return
+  }
+  for (const room of rooms) {
+    const poly = polys.get(room.id)
+    const side = poly === undefined ? null : outsideSide(poly, wall, [])
+    if (side === null) continue
+    addWallSay(draft, `wall ${local.get(room.id) ?? room.id} ${side}`, ['phase', own])
+    return
+  }
 }
 
 /**
@@ -714,6 +777,8 @@ function headerLines(plan: FloorPlan, rule: Rule, name: string | undefined): str
   if (!sameNumber(rule.winSill, 0.9) || !sameNumber(rule.winH, 1.2)) lines.push(`windows sill ${metres(rule.winSill)} height ${metres(rule.winH)}`)
   // CNT-41: the plot, north and the site's things, so writing the text again keeps them.
   lines.push(...siteLines(plan))
+  // WRT-81: a plan with phases says so, so a survey whose every part is existing is written with them.
+  if (phasesWritten(plan, rule) !== null) lines.push('phase existing')
   return lines
 }
 
@@ -1013,7 +1078,7 @@ export function readRoomsText(file: FloorPlan, options: ReadOptions = {}): Rooms
         if (line.startsWith('raw ')) continue
         const a = plan.openings.find((o) => o.id === id)!
         const b = written.plan.openings.find((o) => o.id === id)
-        const what = b === undefined ? NOT_THERE : openingDiffers(a, b, d.fitted.has(id))
+        const what = b === undefined ? NOT_THERE : phaseDiffers<Opening>('opening', plan, written.plan, (x, y) => openingDiffers(x, y, d.fitted.has(id)))(a, b)
         if (what !== null) {
           d.openings.set(id, rawLine('opening', a))
           d.why.set(id, english(said('describe.rooms.rawOpening.changes', { what })))

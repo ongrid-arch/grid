@@ -19,7 +19,7 @@
 import type { Dimension, PlanOpening, Rect, Vec2 } from '@ongrid/floorplan/geometry'
 import { areaText, doorSwing, metresText, openingSymbol, RADIUS_MARK, rectOf, rectTouchesPolygon, spotsInside, symbolPoints, tolerance } from '@ongrid/floorplan/geometry'
 import { TEXT_PX } from '../picture/look'
-import { showArea, showLength, type Display } from '@ongrid/floorplan/types/units'
+import { METRES, showArea, showLength, type Display } from '@ongrid/floorplan/types/units'
 import type { DoorHanding } from './doorHanding'
 import { ENGLISH_WORDS, wordsOf, type DrawingWords } from '../picture/words'
 
@@ -69,6 +69,12 @@ export interface LabelStyle {
    * with it name the parts the same way. All of it upright.
    */
   readonly ids?: boolean
+  /** VEW-76: a rectangular room's width × depth on a line of its own under its area. */
+  readonly sizes?: boolean
+  /** VEW-76: the area, and the sizes when shown, written again in this display after the drawing's own. */
+  readonly alsoIn?: Display
+  /** VEW-76: large print: the name, and the area under it, twice as large where they fit, else one and a half times. */
+  readonly large?: boolean
 }
 
 /**
@@ -79,17 +85,22 @@ export interface LabelStyle {
 let drawingDisplay: Display | null = null
 /** MSG-11: the language of the drawing being made, kept apart: a display of plain metres is dropped, its language is not. */
 let drawingLanguage: DrawingWords = ENGLISH_WORDS
+/** VEW-76: the second display a drawing for people writes its overall sizes in too, or null. */
+let drawingAlso: Display | null = null
 
-export function withDisplay<T>(display: Display | undefined, draw: () => T): T {
+export function withDisplay<T>(display: Display | undefined, draw: () => T, also?: Display): T {
   const before = drawingDisplay
   const beforeWords = drawingLanguage
+  const beforeAlso = drawingAlso
   drawingDisplay = display === undefined || (display.length === 'm' && display.area === 'm2' && display.decimal === 'point' && display.precision === undefined) ? null : display
   drawingLanguage = wordsOf(display)
+  drawingAlso = also ?? null
   try {
     return draw()
   } finally {
     drawingDisplay = before
     drawingLanguage = beforeWords
+    drawingAlso = beforeAlso
   }
 }
 
@@ -117,11 +128,24 @@ export function areaUnit(): string {
 
 /** A dimension's number as it is drawn: metres to the millimetre, then to the centimetre (ARE-7); else in the drawing's display, as 12'-6" or 2860. */
 export function dimensionText(value: number, kind?: Dimension['kind']): string {
+  // VEW-76: a drawing for people writes its overall sizes with their unit, then in the second display.
+  if (drawingAlso !== null && kind === 'overall') return `${showLength(value, drawingDisplay ?? METRES)} (${showLength(value, drawingAlso)})`
   // VEW-79: a radius is written after the drafting mark for one.
   const mark = kind === 'radius' ? RADIUS_MARK : ''
   if (drawingDisplay !== null) return `${mark}${showLength(value, drawingDisplay, { unit: false })}`
   // A grid's spacings are set out to the millimetre, so they are drawn so and add up to the overall (VEW-46).
   return `${mark}${metresText(value, kind === 'grid' ? 3 : 2)}`
+}
+
+/**
+ * VEW-76: a room's width × depth as its label writes it: in the drawing's display, as
+ * `4.20 × 3.60 m` or `13'-9" × 11'-10"`, then in `also` in brackets when given.
+ */
+export function sizeText(width: number, depth: number, also?: Display): string {
+  const unit = drawingDisplay === null ? ' m' : drawingDisplay.length === 'ft-in' ? '' : ` ${drawingDisplay.length}`
+  const own = `${dimensionText(width)} × ${dimensionText(depth)}${unit}`
+  if (also === undefined) return own
+  return `${own} (${showLength(width, also, { unit: false })} × ${showLength(depth, also)})`
 }
 
 /** The first line of a room's tag, as `style` asks. `index` is the room's place on its floor. */
@@ -287,6 +311,10 @@ export interface LabelRoom {
    * room, its name then listed in the room key under the drawing. Left out, the room has none.
    */
   readonly number?: string
+  /** VEW-76: lines under the area (the room's sizes): the forms with them are tried first. */
+  readonly more?: readonly string[]
+  /** VEW-76: large print: the forms at twice and one and a half times the size are tried first. */
+  readonly large?: boolean
 }
 
 /** What a label keeps off, in plan metres. */
@@ -318,6 +346,8 @@ export interface LabelForm {
   readonly scale: number
   readonly angle: number
   readonly keyed: boolean
+  /** VEW-76: the lines under the area, at the area's size; none when left out. */
+  readonly more?: readonly string[]
 }
 
 /** How much smaller the smaller forms are: 13 px names become 10 px. */
@@ -326,13 +356,19 @@ export const SMALL_LABEL = 0.77
 export const COMPACT_NUMBER = 0.62
 /** How far apart two lines of one wrapped name are, in name heights. */
 const NAME_LINE = 1.15
+/** VEW-76: how far apart the lines under the area are, in pixels at the form's size. */
+export const MORE_LINE_DY = 14
+/** VEW-76: the sizes a large-print label is tried at first, before the usual ones. */
+export const LARGE_LABELS = [2, 1.5] as const
 
 /** Where each line's baseline is, in pixels below the first's, at the form's own size. */
-export function formLines(form: LabelForm): { names: number[]; area: number | null } {
+export function formLines(form: LabelForm): { names: number[]; area: number | null; more: number[] } {
   const step = NAME_LINE * ROOM_NAME_PX * form.scale
   const names = form.names.map((_, i) => i * step)
   const last = names[names.length - 1] ?? 0
-  return { names, area: form.area === null ? null : last + ROOM_AREA_DY * form.scale }
+  const area = form.area === null ? null : last + ROOM_AREA_DY * form.scale
+  const more = (form.more ?? []).map((_, i) => (area ?? last) + (i + 1) * MORE_LINE_DY * form.scale)
+  return { names, area, more }
 }
 
 /** Text bounds on axes along and across the label, with space for its ink. */
@@ -340,9 +376,11 @@ function baselineBox(form: LabelForm, mpp: number): Box {
   const namePx = ROOM_NAME_PX * form.scale
   const areaPx = ROOM_AREA_PX * form.scale
   const lines = formLines(form)
-  const width = Math.max(...form.names.map((name) => roomTextWidth(name, namePx)), form.area === null ? 0 : roomTextWidth(form.area, areaPx))
+  const more = form.more ?? []
+  const width = Math.max(...form.names.map((name) => roomTextWidth(name, namePx)), form.area === null ? 0 : roomTextWidth(form.area, areaPx), ...more.map((line) => roomTextWidth(line, areaPx)))
   const top = ASCENT * namePx + PADDING_PX
-  const bottom = (lines.area ?? lines.names[lines.names.length - 1] ?? 0) + DESCENT * (lines.area === null ? namePx : areaPx) + PADDING_PX
+  const lowest = lines.more[lines.more.length - 1] ?? lines.area
+  const bottom = (lowest ?? lines.names[lines.names.length - 1] ?? 0) + DESCENT * (lowest === null ? namePx : areaPx) + PADDING_PX
   const half = width / 2 + PADDING_PX
   return { minX: -half * mpp, maxX: half * mpp, minY: -bottom * mpp, maxY: top * mpp }
 }
@@ -403,16 +441,29 @@ function roomAngle(polygon: readonly Vec2[]): number {
 }
 
 /** The full label first, then smaller, wrapped, name only and finally number only. */
-function labelForms(name: string, areaText: string, number: string | undefined, heading: number): LabelForm[] {
+function labelForms(name: string, areaText: string, number: string | undefined, heading: number, more: readonly string[] = [], large = false): LabelForm[] {
   const area = areaText === '' ? null : areaText
   const angles = Math.abs(heading) > 1 && Math.abs(heading) < 89 ? [0, heading, 90] : [0, 90]
   const forms: LabelForm[] = []
-  const add = (names: readonly string[], area: string | null, scale: number, keyed = false) => {
-    for (const angle of angles) forms.push({ names, area, scale, angle, keyed })
+  const add = (names: readonly string[], area: string | null, scale: number, keyed = false, lines: readonly string[] = []) => {
+    for (const angle of angles) forms.push({ names, area, scale, angle, keyed, ...(lines.length === 0 ? {} : { more: lines }) })
+  }
+  const wrapped = wrapName(name)
+  // VEW-76: large print first, the name with its area and then alone; the sizes under the area next.
+  if (large) {
+    for (const scale of LARGE_LABELS) {
+      add([name], area, scale)
+      if (wrapped !== null) add(wrapped, area, scale)
+      if (area !== null) add([name], null, scale)
+    }
+  }
+  if (more.length > 0) {
+    add([name], area, 1, false, more)
+    add([name], area, SMALL_LABEL, false, more)
+    if (wrapped !== null) add(wrapped, area, SMALL_LABEL, false, more)
   }
   add([name], area, 1)
   add([name], area, SMALL_LABEL)
-  const wrapped = wrapName(name)
   if (wrapped !== null) add(wrapped, area, SMALL_LABEL)
   if (area !== null) {
     add([name], null, SMALL_LABEL)
@@ -481,7 +532,7 @@ export function placeRoomLabels(
     if (room.polygon.length < 3 || !overlaps(extent, rectOf(room.polygon))) return null
     const regions = room.labelRegions ?? [[room.polygon, ...(room.holes ?? [])]]
     const directions = new Map<number, ReturnType<typeof roomLabelAxes>>()
-    for (const form of labelForms(room.name, room.areaText, room.number, roomAngle(room.polygon))) {
+    for (const form of labelForms(room.name, room.areaText, room.number, roomAngle(room.polygon), room.more, room.large === true)) {
       let direction = directions.get(form.angle)
       if (direction === undefined) {
         direction = roomLabelAxes(form.angle, form.angle === 0 ? { x: 0, y: 0 } : room.polygon[0]!, regions, within)
