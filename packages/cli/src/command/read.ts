@@ -203,7 +203,7 @@ export function readOptions(command: ReadCommand): OptionSpecs {
   const specs: Record<`--${string}`, { takesValue: boolean; help: string }> = {}
   for (const [name, spec] of argsOf(command, tool)) specs[optionOf(name)] = { takesValue: spec.type !== 'boolean', help: spec.description }
   specs['--json'] = { takesValue: false, help: "Print exactly the tool's structured answer, as JSON." }
-  if (command.csv !== undefined) specs['--csv'] = { takesValue: false, help: 'Print the table as comma-separated values, its first row the label.' }
+  if (command.csv !== undefined) specs['--csv'] = { takesValue: false, help: 'Print the table as comma-separated values, its header on line 1 and the label in its last row.' }
   const conditions = Object.entries(command.failOn)
   if (conditions.length > 0) specs['--fail-on'] = { takesValue: true, help: `Exit 3, after printing the answer, when ${conditions.map(([word, condition]) => `${word}: ${condition.help}`).join('; ')}.` }
   return { ...specs, ...PROJECT_OPTION, '--help': { takesValue: false, help: 'Show this help.' } }

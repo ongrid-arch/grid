@@ -61,7 +61,7 @@ describe('grid_areas, the area under air (ARE-60)', () => {
 
   it('puts them first in the CSV of a US plan', async () => {
     const reply = await open({ 'us.json': house({ site: { country: 'US' } }) }).call('grid_areas', { plan: 'us.json', format: 'csv' })
-    const names = reply.text.trim().split('\n').slice(-5).map((row) => row.split(',')[2])
+    const names = reply.text.trim().split('\n').slice(-6, -1).map((row) => row.split(',')[2])
     expect(names).toEqual([MEASURES.conditioned.name, MEASURES.underRoof.name, 'Net total', 'Gross internal', 'Gross external'])
   })
 })
