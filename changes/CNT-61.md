@@ -18,7 +18,7 @@
   none of its items; a set of fixtures that fits nowhere so is set out item by item as
   `grid_add_item` does with a typical room. Its data: `placed`, `fits`, `notFurnished` and
   `rooms` (each `room`, `set`, `how`: `as-drawn`, `item-by-item` or `not-furnished`, and
-  `placed`). The tool server lists 68 tools.
+  `placed`). The tool server lists one more tool.
 - `grid_place_item` takes `items`, a list of entries with the fields one call takes (`name`, `x`
   and `y` needed in each), up to 200, placed in order as one change; `name`, `x` and `y` are
   needed only without it. One entry refused refuses the list, its refusal starting
