@@ -555,7 +555,7 @@ describe('HND-2 the bench\'s two-bed flat, room by room (lab EX-2: name only, 0 
 
   it('types the entrance door by its size and handing, with its quantities', () => {
     const door = named('IFCDOOR', 'door-entrance')
-    expect(carried.get(door.id)!.types.map((t) => [str(t.args[2]), str(t.args[7])])).toEqual([['Door 0.9 x 2.1 m, single swing, left', 'door:0.9x2.1']])
+    expect(carried.get(door.id)!.types.map((t) => [str(t.args[2]), str(t.args[7])])).toEqual([['Door 0.9 x 2.1 m, single swing, right hand', 'door:0.9x2.1']])
     expect(typedNumber(set(door, 'Qto_DoorBaseQuantities').get('Area'))).toBeCloseTo(1.89, 9)
   })
 

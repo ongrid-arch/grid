@@ -291,7 +291,8 @@ describe('labels sit where the 2D plan draws them', () => {
   it('centres every label and tag on its point', () => {
     const texts = placed(dxfOf(samplePlan()))
 
-    expect(texts.length).toBe(4)
+    // The label, the tag's three attributes and the door's five (VEW-72: its mark, type, width, height and sill).
+    expect(texts.length).toBe(9)
     for (const text of texts) {
       expect(text.find((p) => p.code === 72)?.value.trim()).toBe('1')
     }
@@ -432,13 +433,14 @@ describe('door swings (door-swing-export)', () => {
     ]
     const dxf = dxfOf(plan)
     const inserts = modelEntities(dxf, 'INSERT').filter((e) => e.layer === DXF_LAYERS.doors)
+    // VEW-72: named by the hand in Grid's one convention, the side of the hinges seen from the side it opens toward.
     expect(inserts.map((e) => [fieldOf(e, 2), Number(fieldOf(e, 50) ?? 0)])).toEqual([
-      ['GRID-DOOR-900x200-L', 0],
-      ['GRID-DOOR-900x200-L', 180],
-      ['GRID-DOOR-900x200-R', 0],
-      ['GRID-DOOR-900x200-R', 180]
+      ['GRID-DOOR-900x1200-W200-RH', 0],
+      ['GRID-DOOR-900x1200-W200-RH', 180],
+      ['GRID-DOOR-900x1200-W200-LH', 0],
+      ['GRID-DOOR-900x1200-W200-LH', 180]
     ])
-    expect(readDxf(dxf).blocks.map((b) => b.name).filter((name) => name.startsWith('GRID-DOOR'))).toEqual(['GRID-DOOR-900x200-L', 'GRID-DOOR-900x200-R'])
+    expect(readDxf(dxf).blocks.map((b) => b.name).filter((name) => name.startsWith('GRID-DOOR'))).toEqual(['GRID-DOOR-900x1200-W200-RH', 'GRID-DOOR-900x1200-W200-LH'])
   })
 
   it.each([

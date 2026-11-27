@@ -926,7 +926,7 @@ DATA;
 #919=IFCRELDEFINESBYTYPE('1W_Lc2edi4Sa0TsiZY6NLj',#5,$,$,(#60,#142,#175,#288,#355,#433,#466,#579,#646,#724,#757,#870),#918);
 #920=IFCRELASSOCIATESMATERIAL('0ymGEjBGIX5$vGs1F3Otup',#5,$,$,(#918),#66);
 #921=IFCRELASSOCIATESMATERIAL('2kIot6rBbhqFTEK6TuK$g3',#5,$,$,(#60,#142,#175,#288,#355,#433,#466,#579,#646,#724,#757,#870),#67);
-#922=IFCDOORSTYLE('1O0VwUt_9N_eQhRrU0fg3u',#5,'Door 0.9 x 2.1 m, swing not stated','Grid groups the openings by kind (as the plan states it; a door with none is one swinging leaf), size (the hole in the wall, width by height) and, for a door, its handing.',$,$,$,'door:0.9x2.1',.NOTDEFINED.,.NOTDEFINED.,.F.,.T.);
+#922=IFCDOORSTYLE('1O0VwUt_9N_eQhRrU0fg3u',#5,'Door 0.9 x 2.1 m, swing not stated','Grid groups the openings by kind (as the plan states it; a door with none is one swinging leaf), size (the hole in the wall, width by height) and, for a door, its handing. A door''s hand is the side its hinges are on, seen from the side it opens toward. IFC''s operation type names the hinge side looking the way the door opens, so a right-hand door is SINGLE_SWING_LEFT there.',$,$,$,'door:0.9x2.1',.NOTDEFINED.,.NOTDEFINED.,.F.,.T.);
 #923=IFCRELDEFINESBYTYPE('146i2dZzS$wD8_FSQ$ND_S',#5,$,$,(#102,#393,#684),#922);
 #924=IFCWINDOWSTYLE('2XXSFcvs1PAOdGiJHfpo2J',#5,'Window 1.2 x 1.2 m','Grid groups the openings by kind (as the plan states it; a door with none is one swinging leaf), size (the hole in the wall, width by height) and, for a door, its handing.',$,$,$,'window:1.2x1.2',.NOTDEFINED.,.NOTDEFINED.,.F.,.T.);
 #925=IFCRELDEFINESBYTYPE('0Ohvn5sXVXXT4vEDGeGrol',#5,$,$,(#248,#539,#830),#924);

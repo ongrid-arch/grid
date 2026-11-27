@@ -179,11 +179,19 @@ describe('VEW-64: the whole building in one OBJ', () => {
   })
 })
 
-describe('VEW-64: DXF holds one floor as before', () => {
-  it('holds the ground floor when none is named, and names the floors it leaves out', () => {
+describe('VEW-72: a DXF holds every floor unless one is named', () => {
+  it('holds every floor when none is named, and leaves none out', () => {
     const made = exportPlan(threeFloors(), 'dxf', ids)
-    expect(made.floors).toEqual([{ id: 'ground', elevation: 0 }])
-    expect(made.floorsLeftOut).toEqual(['first', 'second'])
-    expect(made.fileName).toBe('tower-ground.dxf')
+    expect(made.floors.map((floor) => floor.id)).toEqual(['ground', 'first', 'second'])
+    expect(made.floorsLeftOut).toEqual([])
+    expect(made.fileName).toBe('tower.dxf')
+    expect(made.sheets.map((sheet) => [sheet.floor, sheet.scale, sheet.fits])).toEqual([['ground', 100, true], ['first', 100, true], ['second', 100, true]])
+  })
+
+  it('holds the floor named alone, and names the floors it leaves out', () => {
+    const made = exportPlan(threeFloors(), 'dxf', { ...ids, floorId: 'first' })
+    expect(made.floors.map((floor) => floor.id)).toEqual(['first'])
+    expect(made.floorsLeftOut).toEqual(['ground', 'second'])
+    expect(made.fileName).toBe('tower-first.dxf')
   })
 })

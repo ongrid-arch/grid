@@ -90,15 +90,71 @@ describe('grid_export holds the whole building in a glb or obj (VEW-64)', () => 
     const reply = await b.call('grid_export', { plan: 'house.json', format: 'obj', floor: 'first' })
     expect(reply.isError).toBe(false)
     expect(reply.data!['floorsLeftOut']).toEqual(['ground'])
-    expect(reply.data!['written']).toBe('exports/house-floor-2.obj')
+    // VEW-72: named after the floor, not its place in the plan.
+    expect(reply.data!['written']).toBe('exports/house-first-floor.obj')
     expect(reply.text).toMatch(/^Holds floor "first" only, written at its elevation, \d+\.\d\d m; the other floor is not in this file: leave the floor out to export the whole building\.$/m)
   })
 
-  it('says a dxf holds one floor, the ground floor when none is named', async () => {
+  it('VEW-72: a dxf with no floor named holds every floor, each on a layout named after it', async () => {
     const reply = await b.call('grid_export', { plan: 'house.json', format: 'dxf' })
-    expect(reply.data!['floors']).toEqual([{ id: 'ground', elevation: 0 }])
-    expect(reply.data!['floorsLeftOut']).toEqual(['first'])
-    expect(reply.text).toContain('Holds floor "ground" only, as a DXF holds one floor; the other floor is not in this file: export each one with its floor.')
+    expect(reply.isError).toBe(false)
+    expect((reply.data!['floors'] as { id: string }[]).map((floor) => floor.id)).toEqual(['ground', 'first'])
+    expect(reply.data!['floorsLeftOut']).toEqual([])
+    expect(reply.data!['written']).toBe('exports/house.dxf')
+    expect(reply.text).toContain('Holds all 2 floors of the plan, side by side in model space from the lowest, each on a paper layout of its own named after the floor.')
+    // At 1:100, unstated, with every floor on its sheet, as before: the answer says nothing of the scale.
+    expect(reply.text).not.toContain('Its sheets')
+    expect(reply.data!['sheets']).toEqual([
+      { floor: 'ground', scale: 100, stated: false, fits: true, fitsAt: null },
+      { floor: 'first', scale: 100, stated: false, fits: true, fitsAt: null }
+    ])
+    const dxf = readFileSync(join(b.folder, 'exports', 'house.dxf'), 'utf8')
+    expect(dxf).toContain('\r\nGround floor\r\n')
+    expect(dxf).toContain('\r\nFirst floor\r\n')
+  })
+
+  it('VEW-72: a dxf of one floor named by its name is named after it, and says what it leaves out', async () => {
+    const reply = await b.call('grid_export', { plan: 'house.json', format: 'dxf', floor: 'First floor' })
+    expect(reply.isError).toBe(false)
+    expect(reply.data!['written']).toBe('exports/house-first-floor.dxf')
+    expect(reply.data!['floorsLeftOut']).toEqual(['ground'])
+    expect(reply.text).toContain('Holds floor "first" only; the other floor is not in this file: leave the floor out for every floor in one file, or ask for all floors for a file each.')
+  })
+
+  it('VEW-72: floor all writes one file per floor, each named after its floor', async () => {
+    const reply = await b.call('grid_export', { plan: 'house.json', format: 'dxf', floor: 'all' })
+    expect(reply.isError).toBe(false)
+    expect(reply.data!['files']).toEqual([
+      { written: 'exports/house-ground-floor.dxf', floors: ['ground'] },
+      { written: 'exports/house-first-floor.dxf', floors: ['first'] }
+    ])
+    expect(reply.text).not.toContain('Holds floor')
+    for (const file of ['house-ground-floor.dxf', 'house-first-floor.dxf']) expect(existsSync(join(b.folder, 'exports', file))).toBe(true)
+  })
+
+  it('VEW-72: writes to out, at a stated scale', async () => {
+    const reply = await b.call('grid_export', { plan: 'house.json', format: 'dxf', out: 'house-plans.dxf', scale: 200 })
+    expect(reply.isError).toBe(false)
+    expect(reply.data!['written']).toBe('house-plans.dxf')
+    expect(reply.text).toContain('Its sheets are A3 at 1:200, the scale stated.')
+    expect(readFileSync(join(b.folder, 'house-plans.dxf'), 'utf8')).toContain('scale 1:200 on A3')
+  })
+
+  it('VEW-72: refuses out with floor all, and an out of another format', async () => {
+    expect(await b.call('grid_export', { plan: 'house.json', format: 'dxf', floor: 'all', out: 'x.dxf' })).toMatchObject({ isError: true })
+    expect(await b.call('grid_export', { plan: 'house.json', format: 'dxf', out: 'x.ifc' })).toMatchObject({ isError: true })
+    expect(existsSync(join(b.folder, 'x.dxf'))).toBe(false)
+  })
+
+  it("VEW-72: tags the dxf's openings with the schedule's marks, and the ifc with the same", async () => {
+    await b.call('grid_export', { plan: 'house.json', format: 'dxf', floor: 'ground' })
+    await b.call('grid_export', { plan: 'house.json', format: 'ifc' })
+    const dxf = readFileSync(join(b.folder, 'exports', 'house-ground-floor.dxf'), 'utf8')
+    const ifc = readFileSync(join(b.folder, 'exports', 'house.ifc'), 'latin1')
+    expect(dxf).toMatch(/\r\nMARK\r\n/)
+    const marks = [...dxf.matchAll(/\r\n1\r\n([DW]\d+)\r\n7\r\nStandard\r\n/g)].map((m) => m[1])
+    expect(marks.length).toBeGreaterThan(0)
+    for (const mark of marks) expect(ifc).toContain(`,'${mark}',`)
   })
 
   it('says nothing of floors for a plan of one floor', async () => {
