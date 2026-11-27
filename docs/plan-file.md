@@ -1442,11 +1442,17 @@ or a wall meets one, and no check reads one. What Grid does with them:
 
 - **Edits keep them.** Every change keeps the facts of the parts it changes. A wall cut in two
   (merging rooms, building a room against it) gives both pieces the wall's facts. A room split in
-  two gives the new room the room's facts, and the room keeps its number; the new one has none.
-  Two rooms merged keep the first room's facts and number, take the second's facts the first
-  does not carry, and say what the second said otherwise and which number is gone. `grid tidy`
-  does the same: a copy of a wall taken out gives its facts to the wall kept, where it has none
-  of that name, and a room split along a wall across it gives both parts its facts. A plan read
+  two gives the new room the room's facts that describe the place (text, yes or no: a department,
+  a cost centre), and the room keeps its number; the new one has none. A fact that is a number is
+  taken for a count (seats, a head count) and is not copied: the room keeps it as stated, so the
+  floor does not count it twice, and the answer names it with the `grid_set_facts` call that
+  gives each part its own figure. Two rooms merged keep the first room's facts and number, take
+  the second's facts the first does not carry, add up the numbers both carry (4 and 6 seats are
+  10), and say each sum, each number only one of them carried, what the second said otherwise and
+  which number is gone. A merge that gives the room another use names the first room's facts it
+  keeps, which may no longer fit. `grid tidy` does the same: a copy of a wall taken out gives its
+  facts to the wall kept, where it has none of that name, and a room split along a wall across it
+  gives both parts its facts that describe the place, its numbers staying with the room. A plan read
   back as rooms text and written again keeps each part's facts and number by its id, and names
   the parts that carried some and are no longer there.
 - **Schedules list them.** In `grid_schedule`'s room schedule a room that states its number is
