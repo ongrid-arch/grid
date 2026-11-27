@@ -92,7 +92,7 @@ const NEAR: ReadonlyArray<readonly [RoomUse, RoomUse]> = [
 ]
 const near = (a: RoomUse, b: RoomUse): boolean => a === b || NEAR.some(([x, y]) => (x === a && y === b) || (x === b && y === a))
 
-function useOfWord(word: string): RoomUse | null {
+function wordUse(word: string): RoomUse | null {
   const lower = word.trim().toLowerCase()
   if (lower === '' || /^\d+$/.test(lower)) return null
   if (Object.hasOwn(HOME_WORDS, lower)) return HOME_WORDS[lower]!
@@ -115,7 +115,7 @@ export function usesInName(name: string): RoomUse[] {
   const candidates = [name, ...words, ...pieces, ...words.slice(1).map((w, i) => `${words[i]} ${w}`), ...words.slice(2).map((w, i) => `${words[i]} ${words[i + 1]} ${w}`)]
   const out: RoomUse[] = []
   for (const candidate of candidates) {
-    const use = useOfWord(candidate)
+    const use = wordUse(candidate)
     if (use !== null && HOME_NAME_USES.includes(use) && !out.includes(use)) out.push(use)
   }
   return out
