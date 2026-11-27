@@ -9,6 +9,8 @@
  * - Transparent materials after the opaque ones, farthest first.
  * - Then Three's ACES filmic tone mapping and the sRGB curve, as the app's canvas has them.
  * - The ground grid, which the app draws with a shader, from the same figures.
+ * - VEW-78: a sky in place of the flat background when asked: each sample's colour from the way
+ *   it looks, the horizon's colour going to the zenith's overhead and the ground's below.
  *
  * Every edge is smoothed by drawing at `supersample` times the size and averaging down.
  * Materials it does not know, such as shader materials, are left out.
@@ -44,6 +46,15 @@ export interface RasteriseOptions {
   /** Samples per pixel along each side. 2 by default: four samples a pixel. */
   readonly supersample?: number
   readonly ground?: GroundGrid
+  /** VEW-78: the sky drawn behind everything in place of the scene's background, as `#rrggbb` colours. */
+  readonly sky?: Sky
+}
+
+/** VEW-78: a plain sky: its colour overhead, at the horizon, and the ground's below the horizon. */
+export interface Sky {
+  readonly zenith: string
+  readonly horizon: string
+  readonly ground: string
 }
 
 /** A colour on screen, after tone mapping and the sRGB curve, each channel from 0 to 1. */
@@ -373,6 +384,7 @@ export function rasterise(scene: THREE.Scene, camera: THREE.Camera, options: Ras
 
   scene.updateMatrixWorld(true)
   camera.updateMatrixWorld()
+  if (options.sky) paintSky(target, camera, options.sky)
   const viewProjection = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
   const light = sceneLights(scene)
   const deferred: Deferred[] = []
@@ -419,6 +431,52 @@ export function rasterise(scene: THREE.Scene, camera: THREE.Camera, options: Ras
   for (const part of deferred) part.draw()
 
   return target.resolve(ss)
+}
+
+/** Screen colour of a `#rrggbb`, as the background is read. */
+function screenColour(hex: string): Rgb {
+  const c = new THREE.Color(hex).getRGB({ r: 0, g: 0, b: 0 }, THREE.SRGBColorSpace)
+  return [c.r, c.g, c.b]
+}
+
+/**
+ * Fills every sample with the sky the way it looks: for a perspective camera, from how far above
+ * or below the horizon its ray points. Above, the horizon's colour gives way to the zenith's; below,
+ * the ground's, with the horizon a soft line between them.
+ */
+function paintSky(target: Target, camera: THREE.Camera, sky: Sky): void {
+  const zenith = screenColour(sky.zenith)
+  const horizon = screenColour(sky.horizon)
+  const ground = screenColour(sky.ground)
+  const perspective = (camera as THREE.PerspectiveCamera).isPerspectiveCamera ? (camera as THREE.PerspectiveCamera) : null
+  const e = camera.matrixWorld.elements
+  // The camera's right, up and forward in the world; Three's camera looks down its -z.
+  const right = e[1]!
+  const up = e[5]!
+  const forward = -e[9]!
+  const ty = perspective ? Math.tan((perspective.fov * Math.PI) / 360) / perspective.zoom : 0
+  const tx = perspective ? ty * perspective.aspect : 0
+  const c = target.color
+  for (let y = 0; y < target.h; y++) {
+    const ny = (1 - ((y + 0.5) / target.h) * 2) * ty
+    for (let x = 0; x < target.w; x++) {
+      const nx = (((x + 0.5) / target.w) * 2 - 1) * tx
+      // The ray's height over its length: the sine of its angle above the horizon.
+      const rise = (forward + nx * right + ny * up) / Math.sqrt(1 + nx * nx + ny * ny)
+      let rgb: Rgb
+      if (rise >= 0) {
+        const t = Math.sqrt(Math.min(1, rise))
+        rgb = [horizon[0] + (zenith[0] - horizon[0]) * t, horizon[1] + (zenith[1] - horizon[1]) * t, horizon[2] + (zenith[2] - horizon[2]) * t]
+      } else {
+        const t = Math.min(1, -rise * 8)
+        rgb = [horizon[0] + (ground[0] - horizon[0]) * t, horizon[1] + (ground[1] - horizon[1]) * t, horizon[2] + (ground[2] - horizon[2]) * t]
+      }
+      const k = (y * target.w + x) * 3
+      c[k] = rgb[0]
+      c[k + 1] = rgb[1]
+      c[k + 2] = rgb[2]
+    }
+  }
 }
 
 function meshCentre(object: THREE.Mesh | THREE.LineSegments): THREE.Vector3 {

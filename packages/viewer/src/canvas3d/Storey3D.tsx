@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
-import { buildScene, planForFloor } from '@ongrid/floorplan/geometry'
+import { buildScene, planForFloor, sceneInterior } from '@ongrid/floorplan/geometry'
 import type { PlaybackClock } from '../preview/playback'
 import type { PlanBuild } from '../preview/useBuildFrame'
 import { useBuildStep } from '../preview/useBuildFrame'
@@ -16,6 +16,8 @@ import { Opening3D } from './Opening3D'
 import { Shell3D } from './Shell3D'
 import { Divider3D } from './Divider3D'
 import { RoomMarker3D } from './RoomMarker3D'
+import { Interior3D } from './Interior3D'
+import { GLASS } from './finishTint'
 import { buildWallGeometry, useWallGeometries } from './useWallGeometries'
 import { hoverColor, mutedColor, mutedGlow, toThree, wallExposureColor } from './convert'
 import type { PlanColors3D } from './usePlanColors'
@@ -57,6 +59,8 @@ interface Storey3DProps {
   castShadow: boolean
   /** Hover and click, for a building of several storeys. Without it the storey ignores the pointer. */
   pointer?: StoreyPointer
+  /** VEW-78: whether the rooms' ceilings are drawn: for a camera standing in a room. */
+  ceilings?: boolean
 }
 
 /**
@@ -74,7 +78,8 @@ export function Storey3D({
   highlightRoom,
   hovered,
   castShadow,
-  pointer
+  pointer,
+  ceilings = false
 }: Storey3DProps): JSX.Element {
   const { floorId, look } = storey
 
@@ -88,20 +93,21 @@ export function Storey3D({
   const memo = useRef(createSceneMemo()).current
   const scene = useMemo(() => memo(plan), [memo, plan])
   const wallGeometries = useWallGeometries(scene, storey.cut)
+  // VEW-78: the rooms' ceilings and the linings their wall finishes are drawn on. A floor shown
+  // as a cutaway is open above and has its walls lowered, so it has neither.
+  const interior = useMemo(() => (storey.cut === null ? sceneInterior(plan, scene, storey.clearHeight) : null), [plan, scene, storey.cut, storey.clearHeight])
 
-  const palette = useMemo(() => {
-    const tone = (color: string): string => {
-      const base = look === 'muted' ? mutedColor(color, colors.background) : color
-      return hovered ? hoverColor(base, colors.note) : base
-    }
-    return {
-      wallExterior: tone(colors.wallExterior),
-      wallInterior: tone(colors.wallInterior),
-      wallDetached: tone(colors.wallDetached),
-      floor: tone(colors.floor),
-      note: colors.note
-    }
+  const tone = useMemo(() => (color: string): string => {
+    const base = look === 'muted' ? mutedColor(color, colors.background) : color
+    return hovered ? hoverColor(base, colors.note) : base
   }, [colors, look, hovered])
+  const palette = useMemo(() => ({
+    wallExterior: tone(colors.wallExterior),
+    wallInterior: tone(colors.wallInterior),
+    wallDetached: tone(colors.wallDetached),
+    floor: tone(colors.floor),
+    note: colors.note
+  }), [colors, tone])
   const shadows = castShadow && look === 'solid'
   const glow = mutedGlow(look, colors.mutedWash)
 
@@ -157,6 +163,14 @@ export function Storey3D({
     >
       {scene.walls.map((wall) => {
         const geometry = wallGeometries.get(wall.id)
+        // VEW-78: a wall of a glazed type is glass, see-through, as a window's glass is.
+        if (geometry && wall.glazed === true) {
+          return (
+            <mesh key={wall.id} ref={register(objects.walls, wall.id)} geometry={geometry} name="glass">
+              <meshStandardMaterial color={GLASS.color} transparent opacity={GLASS.opacity} depthWrite={false} roughness={0.1} metalness={0} side={THREE.DoubleSide} />
+            </mesh>
+          )
+        }
         return geometry ? (
           <mesh
             key={wall.id}
@@ -199,13 +213,14 @@ export function Storey3D({
         <Opening3D
           key={`opening:${opening.id}`}
           opening={storey.cut === null ? opening : cutOpening(opening, storey.cut)}
-          colors={{ frame: palette.wallExterior, leaf: palette.floor, glass: colors.background }}
+          colors={{ frame: palette.wallExterior, leaf: palette.floor }}
           glow={glow}
         />
       ))}
       {scene.dividers.map((divider) => (
         <Divider3D key={`divider:${divider.wallId}`} divider={divider} color={colors.gridSection} />
       ))}
+      {interior !== null && <Interior3D interior={interior} ceilings={ceilings} ceilingColor={colors.wallInterior} tone={tone} glow={glow} />}
       {scene.shell !== null && <Shell3D shell={scene.shell} roof={roof} color={palette.floor} castShadow={shadows} glow={glow} />}
       {scene.slabs
         .filter((slab) => slab.roomId === highlightRoom)

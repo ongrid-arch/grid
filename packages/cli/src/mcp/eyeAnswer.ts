@@ -6,7 +6,7 @@
  * or two-point perspective; never inside a fixture or a piece of furniture. The words that say so
  * go with it. The picture is taken by `readTools.ts` from the record.
  */
-import { CAMERA_SENSOR, floorOf, itemName, pointInPolygon, wallPointAt, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
+import { CAMERA_SENSOR, floorOf, itemName, openingGlazed, pointInPolygon, wallPointAt, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import { EYE_FOCAL_LENGTH, eyeCamera } from '../draw/cameraAsk'
 import { eyeStand } from '../draw/views'
 import {
@@ -142,7 +142,8 @@ export function eyeShot(plan: FloorPlan, survey: Survey, room: SurveyRoom, ask: 
       across = true
     } else {
       if (toward === null && ask.perspective !== 'two-point') {
-        const windows = room.openings.filter((o) => o.type === 'window')
+        // VEW-78: a glazed door is glazing too, and looked toward with the windows.
+        const windows = room.openings.filter((o) => o.type === 'window' || (o.type === 'door' && glazedDoor(plan, o.id)))
         const target = windows[0]?.id ?? room.openings[0]?.id
         if (target === undefined) throw new ToolRefusal('That room has no opening to look at: pass toward as a direction, such as north.')
         toward = openingPoint(plan, survey, target)
@@ -216,4 +217,10 @@ function openingWords(survey: Survey, target: string): string {
 
 function doorsOf(room: SurveyRoom): string {
   return room.openings.filter((o) => o.type !== 'window').map((o) => q(o.id)).join(', ')
+}
+
+/** VEW-78: whether the plan's door of this id is of a glazed type. */
+function glazedDoor(plan: FloorPlan, id: string): boolean {
+  const stated = plan.openings.find((o) => o.id === id)
+  return stated !== undefined && openingGlazed(plan, stated)
 }
