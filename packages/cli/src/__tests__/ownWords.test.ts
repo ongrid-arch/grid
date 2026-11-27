@@ -380,7 +380,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-79: ten more, what curvePieceTurn, curveFit and radiusLineLongest decide.
   // CMD-51: four more, what polygonOnCircle and polygonOnCircleCorners decide.
   // MSG-34: two more, what languageNamesLeast decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [378, 'developer'],
+  // ARE-72: eight more, what the four limits for a home's rooms decide.
+  'packages/floorplan/src/geometry/tolerances.ts': [386, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

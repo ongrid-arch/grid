@@ -1450,6 +1450,42 @@ export const TOLERANCES = {
     decides: 'A room larger than this is questioned.',
     basis: own
   },
+  homeRoomSmallest: {
+    kind: 'limit',
+    value: 4,
+    unit: 'm²',
+    decides:
+      "Grid's own size, not a code figure. A bedroom, living room or dining room of a home with less " +
+      'net floor than this is asked about after the check, with no place or country needed (ARE-72).',
+    basis: own
+  },
+  homeRoomNarrowest: {
+    kind: 'limit',
+    value: 1.8,
+    unit: 'm',
+    decides:
+      "Grid's own size, not a code figure. A bedroom, living room or dining room of a home whose widest " +
+      'circle, as grid_measure gives it, is narrower than this is asked about after the check (ARE-72).',
+    basis: own
+  },
+  homeWetRoomSmallest: {
+    kind: 'limit',
+    value: 0.8,
+    unit: 'm²',
+    decides:
+      "Grid's own size, not a code figure. A kitchen, bathroom or toilet of a home with less net floor " +
+      'than this is asked about after the check (ARE-72).',
+    basis: own
+  },
+  homeWetRoomNarrowest: {
+    kind: 'limit',
+    value: 0.6,
+    unit: 'm',
+    decides:
+      "Grid's own size, not a code figure. A kitchen, bathroom or toilet of a home whose widest circle " +
+      'is narrower than this is asked about after the check (ARE-72).',
+    basis: own
+  },
   typicalHeightLowest: {
     kind: 'limit',
     value: 1.8,

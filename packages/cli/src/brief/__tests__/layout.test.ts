@@ -49,7 +49,8 @@ afterEach(() => {
 })
 
 const linesOf = (data: Record<string, unknown> | undefined): BriefLine[] => data?.['lines'] as BriefLine[]
-const missed = (lines: readonly BriefLine[]): string[] => lines.filter((l) => l.state === 'missed').map((l) => l.text)
+// ARE-72: the usual rooms Grid assumes for a home (no wish's, `where` null) are not the listing's.
+const missed = (lines: readonly BriefLine[]): string[] => lines.filter((l) => l.state === 'missed' && !(l.source === 'assumed' && l.where === null)).map((l) => l.text)
 
 describe('WR-19: the estate agent\'s five rooms', () => {
   it('today: the agent fits them alone, and the tidy outline leaves three rooms too large', async () => {
