@@ -71,7 +71,7 @@ describe('grid draw: a file to hand on', () => {
     const unknown = await grid(dir, 'draw', 'flat.json', '--look', 'sketch')
     expect(unknown.status).toBe(2)
     // SHT-10: a file is always on light paper, so the dark look is no longer one of them.
-    expect(unknown.err).toContain('--look "sketch" is not a look Grid draws: use one of working, technical.')
+    expect(unknown.err).toContain('--look "sketch" is not a look Grid draws: use one of working, technical, simple, large.')
     const still = await grid(dir, 'draw', 'flat.json', '--3d', '--look', 'technical')
     expect(still.status).toBe(2)
     expect(still.err).toContain('--look is for a floor plan, not the 3D model')
