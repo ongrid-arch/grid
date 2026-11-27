@@ -185,7 +185,8 @@ export function readingAfter(plan: FloorPlan, patch: Patch): FloorPlan {
   // the plan is read again from what each part states: a changed type reaches every part of it.
   // CNT-20 (C30): an item placed by name takes its size from its library entry, as the file will be read.
   // CMD-47: and a change of the floors (a roof moved up, a storey added) reads each wall's height from its floor again.
-  const placed = (patch.addItems ?? []).length > 0 || patch.lists?.has('floors') === true
+  // LVL-24: as does a floor's field set (its height, by grid_set_levels or grid_set).
+  const placed = (patch.addItems ?? []).length > 0 || patch.lists?.has('floors') === true || patch.parts?.has('floors') === true
   if (!placed && !planHasTypes(plan) && !(isRecordLike(patch.plan) && patch.plan['types'] !== undefined)) return applied
   const again = FloorPlanSchema.safeParse({
     ...applied,

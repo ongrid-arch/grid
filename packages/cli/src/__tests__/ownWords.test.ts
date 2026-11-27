@@ -227,6 +227,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // LVL-23: grid_set_building, its description, arguments and answer.
   'packages/cli/src/mcp/buildingTools.ts': [54, 'tools'],
+  // LVL-24: grid_set_levels, its description and arguments.
+  'packages/cli/src/mcp/levelsTool.ts': [10, 'tools'],
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
   'packages/cli/src/mcp/itemTools.ts': [53, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
@@ -335,7 +337,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
   // VEW-71: one more, the projected roof edge in elevation.
-  'packages/floorplan/src/geometry/tolerances.ts': [348, 'developer'],
+  // LVL-24: one more, a wall lower than storeyLowest set against its floor's height.
+  'packages/floorplan/src/geometry/tolerances.ts': [349, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   // CNT-43: +2, a kind placed with no size and a typical room given figures.
@@ -548,7 +551,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // tools (mcp/buildingTools.ts 40) and describe's building (mcp/readTools.ts 3) (odd/tasks/CMD-47.md).
     // and CNT-49 8: the ground on a slope set and said (edit/site.ts 7) and a refusal (types/floorplan.ts 1).
     // and CMD-48 36: the reading commands (command/read.ts 34) and grid check's --fail-on (command/check.ts 2).
-    expect(left).toBeLessThanOrEqual(2570)
+    // and LVL-24 11: grid_set_levels (mcp/levelsTool.ts 10) and storeyLowest's wall (tolerances.ts 1) (odd/tasks/LVL-24.md).
+    expect(left).toBeLessThanOrEqual(2581)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
