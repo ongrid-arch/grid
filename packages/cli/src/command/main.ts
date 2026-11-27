@@ -45,6 +45,9 @@ import { DIFF_OPTIONS, MARK_OPTIONS, runDiff, runMark } from './diff'
 import { recorded } from '../versions/history'
 import { MARKERS_MAX, MarkerRefused } from '../versions/markers'
 import { GitUnread } from '../versions/git'
+import { worldFileName } from '../draw/pictureFiles'
+import { worldFileText } from '../draw/pictureTransform'
+import { say } from '@ongrid/floorplan/messages'
 import { checkDrawRequest, DRAW_OPTIONS, drawFormat, drawFile, drawsPng, PNG_TO_TERMINAL, undecidedNote } from './draw'
 import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, emptyFloorsText, EXPORT_OPTIONS, exportFile, exportsIntoProject, ExportWriteFailed, floorsText, leftOutText, sheetsText, writeMaterialsBeside } from './export'
 import { DxfProfileRefused } from '../export/dxfProfile'
@@ -368,7 +371,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const done = await recorded(project, target, { tool: 'write --from', via: 'grid write' }, () => writeDrawingIntoProject(project, textOf(parsed, '--from')!, target, { replace: parsed.values.has('--replace'), ...(layers === undefined ? {} : { layers }), ...(units === undefined ? {} : { units }) }))
     if (parsed.values.has('--json')) {
       const r = done.reading
-      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.done.written, roomsFile: done.roomsFile, format: done.drawing.format, unit: done.drawing.unit, layers: done.drawing.layers, rooms: r.rooms, openings: r.openings, factName: r.factName, assumed: r.assumed, leftOut: r.leftOut, verdict: done.done.verdict, drawingProblems: done.done.drawingProblems, toLookAt: done.done.toLookAt }, null, 2)}\n`)
+      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.done.written, origin: done.done.origin, roomsFile: done.roomsFile, format: done.drawing.format, unit: done.drawing.unit, layers: done.drawing.layers, rooms: r.rooms, openings: r.openings, factName: r.factName, assumed: r.assumed, leftOut: r.leftOut, verdict: done.done.verdict, drawingProblems: done.done.drawingProblems, toLookAt: done.done.toLookAt }, null, 2)}\n`)
     } else io.stdout(`${[GENERAL_GUIDANCE_LABEL, ...done.lines].join('\n')}\n`)
     return EXIT_OK
   }
@@ -382,7 +385,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const done = await recorded(project, target, { tool: 'write --scan', via: 'grid write' }, () => writeScanIntoProject(project, textOf(parsed, '--scan')!, target, { replace: parsed.values.has('--replace') }))
     if (parsed.values.has('--json')) {
       const c = done.conversion
-      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, evidence: done.evidence, rooms: c.rooms, paired: c.paired, oneSided: c.oneSided, openings: c.plan.openings.length, items: c.plan.items?.length ?? 0, assumed: c.assumed, leftOut: c.leftOut, match: c.match, frame: c.frame, verdict: done.verdict, drawingProblems: done.drawingProblems }, null, 2)}\n`)
+      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, origin: done.origin, evidence: done.evidence, rooms: c.rooms, paired: c.paired, oneSided: c.oneSided, openings: c.plan.openings.length, items: c.plan.items?.length ?? 0, assumed: c.assumed, leftOut: c.leftOut, match: c.match, frame: c.frame, verdict: done.verdict, drawingProblems: done.drawingProblems }, null, 2)}\n`)
     } else io.stdout(`${[GENERAL_GUIDANCE_LABEL, ...done.lines].join('\n')}\n`)
     return EXIT_OK
   }
@@ -405,7 +408,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     })
     if (parsed.values.has('--json')) {
       const r = done.result
-      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, toLookAt: done.toLookAt, doors: done.doors, itemsKept: done.itemsKept, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
+      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, origin: done.origin, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, toLookAt: done.toLookAt, doors: done.doors, itemsKept: done.itemsKept, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
     } else io.stdout(`${[GENERAL_GUIDANCE_LABEL, ...(laid?.lines ?? done.lines)].join('\n')}\n`)
     return EXIT_OK
   }
@@ -512,6 +515,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       facade: textOf(parsed, '--facade'),
       out: textOf(parsed, '--out'),
       floor: textOf(parsed, '--floor'),
+      frame: textOf(parsed, '--frame'),
       scale: textOf(parsed, '--scale'),
       ids: parsed.values.has('--ids'),
       units: textOf(parsed, '--units'),
@@ -531,7 +535,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     }
     const project = openProject(projectOption, io.cwd)
     const loaded = loadPlan(project, planFile)
-    const { file: picture, undecidedDoors, sectionNote, traceNote } = await drawFile(loaded, request, scale, look, project)
+    const { file: picture, undecidedDoors, sectionNote, traceNote, pixelToMetres } = await drawFile(loaded, request, scale, look, project)
     warnLeftOut(io, loaded)
     const undecided = undecidedNote(undecidedDoors)
     if (undecided) io.stderr(undecided)
@@ -541,7 +545,20 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     if (request.out === undefined) {
       io.stdout(picture)
     } else {
+      const world = drawsPng(request) ? worldFileName(request.out) : null
+      if (world !== null && pixelToMetres === undefined && project.exists(world)) {
+        throw new UsageError(say('en', 'view.worldFile.stale', { file: project.shown(world) }))
+      }
+      if (world !== null && pixelToMetres !== undefined) {
+        checkWritable(project, world)
+        const targets = [request.out, world, loaded.file].map((file) => project.resolve(file))
+        if (new Set(targets).size !== targets.length) throw new UsageError(say('en', 'view.files.distinct'))
+      }
       io.stdout(`Wrote ${project.shown(write(project, request.out, picture))}\n`)
+      if (world !== null && pixelToMetres !== undefined) {
+        const file = project.shown(write(project, world, worldFileText(pixelToMetres)))
+        io.stdout(`${say('en', 'view.worldFile', { file })}\n`)
+      }
     }
     return EXIT_OK
   }

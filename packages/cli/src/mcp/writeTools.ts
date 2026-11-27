@@ -14,9 +14,8 @@ import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
 import { ARC_SEGMENTS_RANGE, limit, planFloors, phaseCounts, planInState, polygonsOnCircles, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
-import { EXPORT_FORMATS, isExportFormat } from '@ongrid/floorplan/export'
 import { inspectPlan } from '@ongrid/rules'
-import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, emptyFloorsText, exportFile, exportFloorId, ExportWriteFailed, exportsIntoProject, floorsText, leftOutText, sheetsText, writeMaterialsBeside, type ExportDone } from '../command/export'
+import { ALL_FLOORS, approximatedText, checkExportRequest, GRID_EXPORT_FORMATS, isGridExportFormat, dxfProfileLine, emptyFloorsText, exportFile, exportFloorId, ExportWriteFailed, exportsIntoProject, floorsText, leftOutText, sheetsText, writeMaterialsBeside, type ExportDone } from '../command/export'
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { loadPlan, PlanRefused } from '../command/plan'
@@ -97,17 +96,18 @@ const exportTool: GridTool = {
   title: 'Export the plan',
   hint: 'write-file',
   description:
-    'Use this when the person wants the plan as a file to open in another program: dxf for AutoCAD and other 2D CAD programs (the nearest to DWG), ifc for BIM programs such as Revit, glb or obj for 3D. '
+    'Use this when the person wants the plan as a file to open in another program: dxf for AutoCAD and other 2D CAD programs (the nearest to DWG), ifc for BIM programs such as Revit, glb or obj for 3D, geojson or json for the geometry as data (a robot\'s map, a wayfinding app, a digital twin). '
     + 'It writes the file into the exports folder beside the plan, replacing an earlier copy of the same export, and answers with the path it wrote and every part of the plan the file leaves out (the file says so too). It never changes the plan, and refuses a file that would hold nothing of it. '
     + 'A dxf, glb or obj with no floor holds the whole building: a glb or obj each floor at its elevation (in a glb, a node per floor named by its id under one root node), a dxf each floor side by side in model space and on a paper layout of its own named after the floor. floor all writes one file per floor, each named after its floor, listed as files. The answer says which floors a file holds as floors and which it does not as floorsLeftOut. '
     + `A dxf is in metres, with doors and windows as blocks, one per schedule type, each insert carrying its MARK (the schedules' mark, the IFC's Tag), TYPE, WIDTH, HEIGHT and SILL, filled walls, dimensions, room tags and an A3 sheet per floor at the largest standard scale every floor fits at, or at scale; sheets says the scale and any floor that does not fit. It takes its layer names and pens from ${DXF_PROFILE_FILE} in the project folder when there is one, and answers with that file as dxfProfile. A door's hand is the side of its hinges seen from the side it opens toward, in the schedule, the dxf and the ifc alike. `
     + 'A glb has flat normals, UVs in metres and a material named for each kind of part (wall, floor, door, frame, glass, slab, roof, stair, column, item), and is Y up; an obj is Z up, names the same materials and comes with grid.mtl beside it, answered as materials. Room floors stand a few millimetres above the slab. roofs false leaves the roofs out; arcSegments writes a whole circle of curved wall with that many pieces, for a lighter model. '
+    + 'A geojson or json holds every floor in one frame, the plan\'s x and y in metres, each part with its floor and elevation: each room\'s polygon, holes, centre (a point on its floor), centroid and net area; each door, window and opening\'s centre, along and across directions, hole, width, clear width, rooms on each side, sill, height, kind, hinge, swing, opensInto and sweeps (the floor its leaves sweep, as polygons); each wall\'s solid runs, centre line, thickness, height, kind and glazed; each item\'s footprint; and every part\'s facts. A door\'s state and a keep-out zone are facts the person keeps with grid_set_facts (door state: open, closed, automatic or held open; keep out: true), written as state, automatic and keepOut. A geojson is one FeatureCollection whose coordinates are plan metres, not longitude and latitude. For one part\'s geometry, use grid_find with fields polygon, centre, centroid or clear width. '
     + `${ROOM_NAMES_TRAVEL} `
     + 'Do not use for a picture to look at (grid_view). For a PDF to read or print, use grid_sheet; JPG is not made. The plan must be a file inside the project folder: any other path is refused.',
   args: {
     plan: { type: 'string', maxLength: PATH_MAX, required: true, description: 'The plan file, as a path inside the project folder.', examples: ['floor-plan.json', 'plan.json'] },
-    format: { type: 'string', required: true, enum: EXPORT_FORMATS, description: 'The file format.', examples: ['dxf', 'ifc'] },
-    floor: { type: 'string', maxLength: 200, description: 'dxf, obj and glb only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation, or all for each floor on its own. Left out, every floor.', examples: ['ground', 'all'] },
+    format: { type: 'string', required: true, enum: GRID_EXPORT_FORMATS, description: 'The file format.', examples: ['dxf', 'ifc', 'geojson'] },
+    floor: { type: 'string', maxLength: 200, description: 'dxf, obj, glb, geojson and json only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation, or all for each floor on its own. Left out, every floor.', examples: ['ground', 'all'] },
     scale: { type: 'number', description: 'dxf only: N in 1:N, a whole number, such as 100 or 200, for its sheets. Left out, the scale the profile states, else the largest of 100, 200, 500 and 1000 every floor fits at on A3.', examples: [100, 200], minimum: 1, maximum: 1000 },
     out: { type: 'string', maxLength: PATH_MAX, description: 'The file to write, inside the project folder, ending in the format\'s extension. The exports folder beside the plan when left out. Not with floor all.', examples: ['drawings/ground.dxf'] },
     roofs: { type: 'boolean', description: 'glb and obj only: false leaves out every roof and the parapets on it, to look into the model or walk through it. Left out, the roofs are in.', examples: [false] },
@@ -143,7 +143,7 @@ const exportTool: GridTool = {
     const out = args['out'] as string | undefined
     const roofs = args['roofs'] as boolean | undefined
     const arcSegments = args['arcSegments'] as number | undefined
-    if (!isExportFormat(format)) throw new ToolRefusal(`Pass format: one of ${EXPORT_FORMATS.join(', ')}.`)
+    if (!isGridExportFormat(format)) throw new ToolRefusal(`Pass format: one of ${GRID_EXPORT_FORMATS.join(', ')}.`)
     // The floor is checked against the plan first, so an unknown one is not repeated back (MS-19).
     // VEW-72: by its id or its name, or all.
     if (floor !== undefined && floor !== ALL_FLOORS) {
@@ -835,6 +835,11 @@ const writeRoomsTool: GridTool = {
   },
   outputSchema: objectSchema({
     written: STRING,
+    origin: objectSchema({
+      drawing: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 },
+      wallBoundsCorner: { type: ['array', 'null'], items: NUMBER, minItems: 2, maxItems: 2 },
+      site: { type: ['array', 'null'], items: NUMBER, minItems: 2, maxItems: 2 },
+    }),
     rooms: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, width: { type: 'number' }, depth: { type: 'number' }, area: { type: 'number' }, basis: { type: ['string', 'null'] } })),
     walls: { type: 'number' },
     openings: { type: 'number' },
@@ -902,6 +907,7 @@ const writeRoomsTool: GridTool = {
           text: done.lines.join('\n').replace(/--replace/g, 'replace=true').replace(/grid check/g, 'grid_check'),
           data: {
             written: done.written,
+            origin: done.origin,
             rooms: c.roomFacts.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
             walls: c.plan.walls.length,
             openings: c.plan.openings.length,
@@ -944,6 +950,7 @@ const writeRoomsTool: GridTool = {
           text: read.lines.join('\n').replace(/--replace/g, 'replace=true').replace(/grid write (\S+\.rooms)/g, 'grid_write_rooms roomsFile=$1'),
           data: {
             written: done.written,
+            origin: done.origin,
             rooms: r.rooms.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
             walls: r.walls.length,
             openings: r.openings.length,
@@ -986,6 +993,7 @@ const writeRoomsTool: GridTool = {
         text: [...(laid?.lines ?? done.lines), ...onCircleLines(done.plan, context.language ?? 'en'), ...languageLine].join('\n'),
         data: {
           written: done.written,
+          origin: done.origin,
           rooms: r.rooms.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
           walls: r.walls.length,
           openings: r.openings.length,

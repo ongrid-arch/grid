@@ -3,6 +3,7 @@
  * line, levels, room heights and what it takes that the plan does not state. Loaded only when a
  * section is asked for.
  */
+import type { PixelTransform } from '../draw/pictureTransform'
 import type { FloorPlan } from '@ongrid/floorplan/geometry'
 import { levelText, type SectionLine } from '@ongrid/floorplan/geometry/section'
 import { sectionView } from '../draw/views'
@@ -15,7 +16,7 @@ const q = (text: string): string => JSON.stringify(text)
 const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
 
 /** MSG-11: the picture's own words are in `language`; the answer's text stays the tool's English, as a facade's does. */
-export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: LookName, language?: Language, display?: Display): Promise<Answer & { readonly image: NonNullable<Answer['image']>; readonly picture: { readonly svg?: () => string; readonly bounds: null } }> {
+export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: LookName, language?: Language, display?: Display): Promise<Answer & { readonly image: NonNullable<Answer['image']>; readonly picture: { readonly svg?: () => string; readonly bounds: null; readonly pixelToMetres?: PixelTransform } }> {
   const look = asked === drawingLook(asked) ? asked : `${drawingLook(asked)} (asked as ${asked})`
   const view = await sectionView(plan, line, asked, language, display)
   const { section } = view
@@ -50,6 +51,6 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
       },
     },
     image: { data: view.png, mimeType: 'image/png' },
-    picture: { ...(view.svg === undefined ? {} : { svg: view.svg }), bounds: null },
+    picture: { ...(view.svg === undefined ? {} : { svg: view.svg }), bounds: null, pixelToMetres: view.pixelToMetres },
   }
 }

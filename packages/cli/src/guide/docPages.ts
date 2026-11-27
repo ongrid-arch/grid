@@ -81,6 +81,11 @@ export const DOC_PAGES: Readonly<Record<string, DocPage>> = {
     description: 'Before opening a GLB or OBJ from Grid elsewhere: which way is up, the units, what each node and object is called, the materials, normals and UVs, and how to make the file lighter.',
     load: () => import('../../../../docs/3d-files.md'),
   },
+  'plan-data': {
+    title: 'The plan as data: GeoJSON and JSON',
+    description: 'Before writing code that reads the plan\'s geometry from Grid: the frame, every member of the file and what it means, and the facts the person keeps for what Grid does not model.',
+    load: () => import('../../../../docs/plan-data.md'),
+  },
   'result-contract': {
     title: 'The result contract',
     description: 'What grid_check and grid check return: the record, refusals, receipts and every message code.',

@@ -13,9 +13,10 @@
 import { DISPLAY_UNITS, displayFor } from '../quantities/units'
 import { FILE_LOOK_NAMES, LOOK_NAMES, type LookName } from '@ongrid/viewer/src/picture/look'
 import { inspectPlan } from '@ongrid/rules'
-import { FACADE_SIDES, cameraRecord, findView, resolveFloor, viewSetting, type FacadeSide } from '@ongrid/floorplan/geometry'
-import { drawFacade, drawPlan } from '../draw/drawPlan'
-import { planPicture } from '@ongrid/viewer/src/picture'
+import { FACADE_SIDES, cameraRecord, findView, planFloors, resolveFloor, traceFloor, viewSetting, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { pictureToPng } from '../draw/drawPlan'
+import { pixelTransform, type PixelTransform } from '../draw/pictureTransform'
+import { buildingPictureFrame, facadePicture, pictureToSvg, planPicture, type Picture } from '@ongrid/viewer/src/picture'
 import { drawShowOf } from './drawShow'
 import { floorOption, PlanRefused, type LoadedPlan } from './plan'
 import { nothingToDraw } from './planFile'
@@ -36,6 +37,7 @@ export const DRAW_OPTIONS: OptionSpecs = {
   '--view': { takesValue: true, help: 'Draw a view saved with the plan (grid_save_view), by name: the 3D model through its camera, as a PNG of 1200 by 800 pixels.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in .svg or .png: the format follows the ending when --png and --3d are left out. Standard output when left out.' },
   '--floor': { takesValue: true, help: 'The floor to draw (a floor id from the plan). The ground floor when left out. With --3d, that floor as a cutaway; the whole building when left out.' },
+  '--frame': { takesValue: true, help: say('en', 'view.frame.flag') },
   '--look': { takesValue: true, help: 'How the plan is drawn: technical (the default: black on white, lines in millimetres on paper) or working (as on screen, on light paper). Not with --3d.' },
   '--hide': { takesValue: true, help: 'Parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Not with --3d.' },
   '--colour': { takesValue: true, help: 'use: fill each room by its use, with the uses in the key. Not with --3d.' },
@@ -65,6 +67,7 @@ export interface DrawRequest {
   readonly facade?: string
   readonly out?: string
   readonly floor?: string
+  readonly frame?: string
   readonly scale?: string
   /** The check view: every room, door and window carries its id (VEW-2). */
   readonly ids?: boolean
@@ -102,6 +105,7 @@ export interface SectionAsked {
 /** What a drawn file is: a picture file's text or bytes, and the doors drawn as undecided. */
 export interface DrawnFile {
   readonly file: string | Uint8Array
+  readonly pixelToMetres?: PixelTransform
   readonly undecidedDoors: readonly string[]
   /** LVL-9: what a section took that the plan does not state, for standard error, when the file is one. */
   readonly sectionNote?: string | null
@@ -169,7 +173,10 @@ export function checkDrawRequest(request: DrawRequest): { scale: number; look: L
   }
   drawShowOf(request)
   askedLanguage(request.lang)
-  sectionAsked(request)
+  const { section } = sectionAsked(request)
+  if (request.frame !== undefined && ((request.frame !== 'building' && request.frame !== 'floor') || request.threeD || request.facade !== undefined || section !== null)) {
+    throw new UsageError(say('en', 'view.frame.refusal'))
+  }
   const look = (request.look ?? DRAW_LOOK) as LookName
   // SHT-10: a file is always drawn on light paper, so the screen's dark look is refused by name.
   // SHT-10 adds one sentence here (ownWords.test.ts).
@@ -227,11 +234,14 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
   const language = await languageFor(asked, read.plan)
   // MSG-22: the floor the plan names in no list, named in the drawing's language.
   const loaded = spokenPlan(read, language)
+  const render = async (picture: Picture, space: PixelTransform['space']): Promise<Pick<DrawnFile, 'file' | 'pixelToMetres'>> => ({
+    file: request.png ? await pictureToPng(picture, { scale }) : pictureToSvg(picture),
+    pixelToMetres: pixelTransform(picture, space, { scale: request.png ? scale : 1 }),
+  })
   if (request.facade !== undefined) {
     const side = request.facade as FacadeSide
     const tongue = language === 'en' && asked === undefined ? {} : { language }
-    const file = request.png ? await drawFacade(loaded.plan, { format: 'png', side, look, scale, ...tongue }) : await drawFacade(loaded.plan, { format: 'svg', side, look, ...tongue })
-    return { file, undecidedDoors: [] }
+    return { ...await render(facadePicture(loaded.plan, { side, look, ...tongue }), 'facade'), undecidedDoors: [] }
   }
   const drawing = sectionAsked(request)
   if (drawing.section !== null) {
@@ -239,7 +249,7 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
     const { drawSection } = await import('../draw/drawSection')
     const tongue = language === 'en' && asked === undefined ? {} : { language }
     const drawn = await drawSection(loaded.plan, drawing.section, request.png ? { format: 'png', look, scale, ...tongue } : { format: 'svg', look, ...tongue })
-    return { file: drawn.file, undecidedDoors: [], sectionNote: drawn.note }
+    return { file: drawn.file, pixelToMetres: drawn.pixelToMetres, undecidedDoors: [], sectionNote: drawn.note }
   }
   const floor = floorOption(loaded.plan, request.floor)
   if (request.view !== undefined) {
@@ -263,14 +273,19 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
   const faults = inspectPlan(loaded.text ?? loaded.plan, { ...(language === 'en' ? {} : { language, ...(loaded.plan.display?.decimal ? { decimal: loaded.plan.display.decimal } : {}) }), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
   // CMD-45: a plan with nothing in it is refused, not drawn as a blank page.
   if (nothingToDraw(loaded.plan, faults)) throw new PlanRefused(say('en', 'plan.notAPlan.nothingToDraw', { file: project?.shown(read.file) ?? read.file }))
-  const undecidedDoors = planPicture(loaded.plan, { floor, look, ...labels }).undecidedDoors
-  // HND-10: the trace image under the floor drawn, and its line for standard error.
-  const trace = project === undefined ? null : readTrace(project, loaded.plan, resolveFloor(loaded.plan, floor), language)
-  const traced = trace?.picture ? { trace: trace.picture } : {}
-  const file = request.png
-    ? await drawPlan(loaded.plan, { format: 'png', floor, scale, look, faults, ...labels, ...traced })
-    : await drawPlan(loaded.plan, { format: 'svg', floor, look, faults, ...labels, ...traced })
-  return { file, undecidedDoors, traceNote: trace?.line ?? null }
+  // HND-10: the plan's trace image under the floor drawn, and its line for standard error.
+  const shown = resolveFloor(loaded.plan, floor)
+  const trace = project === undefined ? null : readTrace(project, loaded.plan, shown, language)
+  const shared = request.frame !== 'floor' && planFloors(loaded.plan).length > 1
+  const traceOn = traceFloor(loaded.plan).floor
+  const buildingTrace = shared && project !== undefined && traceOn !== shown
+    ? readTrace(project, loaded.plan, traceOn, language).picture
+    : trace?.picture
+  const frame = shared
+    ? buildingPictureFrame(loaded.plan, { look, ...labels, ...(buildingTrace ? { trace: buildingTrace } : {}) })
+    : undefined
+  const picture = planPicture(loaded.plan, { floor, look, faults, ...labels, ...(trace?.picture ? { trace: trace.picture } : {}), ...(frame ? { frame } : {}) })
+  return { ...await render(picture, 'plan'), undecidedDoors: picture.undecidedDoors, traceNote: trace?.line ?? null }
 }
 
 /** The line `grid draw` prints on standard error for doors drawn as undecided, or `null`. */

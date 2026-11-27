@@ -234,6 +234,11 @@ describe('grid draw --out: writing a picture', () => {
     const [width, height] = size('one.png')
     expect(width).toBe(1200)
     expect(size('two.png')).toEqual([width * 2, height * 2])
+    const world = (file: string): number[] => readFileSync(join(dir, file), 'utf8').trim().split('\n').map(Number)
+    const [a, d, b, e, x, y] = world('one.pgw')
+    const expectedWorld = [a! / 2, d! / 2, b! / 2, e! / 2, x! - a! / 4, y! - e! / 4]
+    world('two.pgw').forEach((value, index) => expect(value).toBeCloseTo(expectedWorld[index]!, 10))
+    expect(two.out).toContain('Wrote the world file two.pgw.')
   })
 
   it('draws a view saved with the plan with --view, by its name in any capitals (VEW-3)', () => {
@@ -628,6 +633,8 @@ describe('the built file', () => {
     // 950 kB since CNT-51: grid_set_finishes for many rooms at once, with feature walls and bands,
     // with main's lettable areas (ARE-68) and floor=all and crops (VEW-74) take it to 902,714
     // bytes, again with no new dependency.
-    expect(statSync(bundle).size).toBeLessThan(950_000)
+    // 1 MB since VEW-80: the plan's geometry as data (GeoJSON and JSON) and the geometry fields of
+    // grid_find take it to 953,961 bytes, again with no new dependency.
+    expect(statSync(bundle).size).toBeLessThan(1_000_000)
   })
 })

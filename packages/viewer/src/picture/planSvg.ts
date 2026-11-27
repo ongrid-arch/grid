@@ -24,6 +24,7 @@ import {
   isPointKind,
   openingSymbol,
   planAreaFigures,
+  planFloors,
   planForFloor,
   planWallMaterials,
   resolveFloor,
@@ -337,7 +338,7 @@ function framePicture(plan: FloorPlan, options: PictureOptions) {
   }
   const framed = frameWith(marks)
   const { width, height } = sizeOf(framed, options)
-  return { floor, slice, drawing, dimensions, marks, trace, width, height, view: fitTo(framed, width / height) }
+  return { floor, slice, drawing, dimensions, marks, trace, framed, width, height, view: fitTo(framed, width / height) }
 }
 
 /** HND-10: the plan's trace image placed under `floor`, or null when it lies under another or none is given. */
@@ -393,9 +394,14 @@ function withMarks(around: Bounds, marks: DrawingMarks): Bounds {
  * sheet at a true scale sizes its picture from it.
  */
 export function pictureFrame(plan: FloorPlan, options: PictureOptions = {}): Bounds {
-  const { drawing, dimensions, marks } = framePicture(plan, options)
-  const around = framingOf(drawing, dimensions)
-  return options.frame ?? (marks === null ? around : withMarks(around, marks))
+  return framePicture(plan, options).framed
+}
+
+/** One frame for separate floor pictures drawn at the same size. */
+export function buildingPictureFrame(plan: FloorPlan, options: Omit<PictureOptions, 'floor' | 'frame'> = {}): Bounds {
+  const frames = planFloors(plan).map(({ id }) => pictureFrame(plan, { ...options, floor: id }))
+  const occupied = frames.filter(({ width, height }) => width > 0 || height > 0)
+  return computeBounds(occupied.flatMap(({ min, max }) => [min, max]))
 }
 
 /** VEW-26: the fewest pixels a metre a long floor's piece is drawn at, so its rooms' labels have room. */

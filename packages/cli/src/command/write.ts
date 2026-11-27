@@ -13,8 +13,8 @@
  *
  * The tool server's `grid_write_rooms` does the same through `writeRoomsIntoProject`.
  */
-import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planFloors, roomShapes, validatePlan, withPatterns, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
-import { english, name, said, type Said } from '@ongrid/floorplan/messages'
+import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planBounds, planFloors, roomShapes, validatePlan, withPatterns, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
+import { english, name, num, said, type Said } from '@ongrid/floorplan/messages'
 import { baseNamedIn, carryFacts, compileRoomsText, everyProblem, itemsFollowWalls, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedItem, statedOpening, statedWall, type Identity } from '@ongrid/floorplan/types/floorplan'
 import { inspectPlan } from '@ongrid/rules'
@@ -79,7 +79,28 @@ export class RoomsRefused extends Error {
   }
 }
 
+export interface WriteOrigin {
+  readonly drawing: readonly [number, number]
+  readonly wallBoundsCorner: readonly [number, number] | null
+  readonly site: readonly [number, number] | null
+}
+
+export function originOfWrite(plan: FloorPlan): WriteOrigin {
+  const corner = planBounds(plan).min
+  return { drawing: [0, 0], wallBoundsCorner: plan.walls.length === 0 ? null : [corner.x, corner.y], site: plan.site?.origin ?? null }
+}
+
+export function writeOriginLines(origin: WriteOrigin): string[] {
+  const point = ([x, y]: readonly [number, number]) => ({ x: num(String(x)), y: num(String(y)) })
+  return [
+    english(said('write.origin.drawing')),
+    ...(origin.wallBoundsCorner === null ? [] : [english(said('write.origin.extent', point(origin.wallBoundsCorner)))]),
+    origin.site === null ? english(said('write.origin.unset')) : english(said('write.origin.site', point(origin.site))),
+  ]
+}
+
 export interface WriteDone {
+  readonly origin: WriteOrigin
   readonly written: string
   readonly result: RoomsResult
   readonly plan: FloorPlan
@@ -440,6 +461,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // HND-11 (lab WR-14): the taped lengths the file keeps, against the plan as written.
   const nextPlan = withShell(safeParseFloorPlan(next) ?? plan)
   const taped = tapedRows(nextPlan)
+  const origin = originOfWrite(nextPlan)
 
   const verdict = before === null || own === null || nothingToLose(own) ? null : comparePlans(surveyPlan(withPatterns(before)), surveyPlan(withPatterns(nextPlan)), ['the plan before', 'the plan now']).verdict
   // WRT-4 with LVL-8: the file's opening patterns are kept and name their walls by id, so the plan
@@ -458,6 +480,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const doors = before === null ? [] : doorLines(before, nextPlan)
   const lines = [
     `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
+    ...writeOriginLines(origin),
     ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX),
     // CMD-30: a new name that reads as an instruction or holds a person's name, said gently.
     ...nameNotes(next, before === null ? null : raw, occupancyFileOf(written)).map(english),
@@ -484,7 +507,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(reminder === null ? [] : [reminder]),
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),
   ]
-  return { written, result, plan, verdict, drawingProblems, toLookAt, doors, brief: brief.data, reminder, taped, itemsKept: items.items, lines }
+  return { written, result, plan, origin, verdict, drawingProblems, toLookAt, doors, brief: brief.data, reminder, taped, itemsKept: items.items, lines }
 }
 
 /** WRT-57: the doors that join other rooms than before (MSG-14), those that no longer lead outside first and said so. */

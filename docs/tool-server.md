@@ -46,7 +46,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_report_problem` | A draft issue about a failure the agent met, for the person to file or not: Grid sends nothing (see below) |
 | `grid_preview` | Shows the person a floor in 2d or 3d in Grid's preview, a room framed, parts picked out and a note, and answers with the picture the preview shows; with no argument but `plan`, reads what the person selected by clicking (see [below](#the-preview-shared-with-the-person)) |
 | `grid_preview_sync` | The preview page's own call, which a host that shows MCP Apps lists for the page only: the drawing, the shared record, and what the person did there. Not for an agent |
-| `grid_export` | Writes DXF, IFC, GLB or OBJ into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF with no `floor` holds every floor, each on a layout of its own, at the largest standard scale it fits on A3 or at `scale`; `floor` takes a floor's id or name, or `all` for one file per floor (`files`), `out` names the file to write, and `sheets` says each sheet's scale and whether its floor fits ([every floor in one DXF](commands.md#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)). A GLB or OBJ takes `roofs: false` to leave the roofs out and `arcSegments`, the pieces a whole circle of curved wall is written with; an OBJ's `grid.mtl` is written beside it and answered as `materials` ([3D files](3d-files.md)) |
+| `grid_export` | Writes DXF, IFC, GLB, OBJ, GeoJSON or JSON into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF with no `floor` holds every floor, each on a layout of its own, at the largest standard scale it fits on A3 or at `scale`; `floor` takes a floor's id or name, or `all` for one file per floor (`files`), `out` names the file to write, and `sheets` says each sheet's scale and whether its floor fits ([every floor in one DXF](commands.md#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)). A GLB or OBJ takes `roofs: false` to leave the roofs out and `arcSegments`, the pieces a whole circle of curved wall is written with; an OBJ's `grid.mtl` is written beside it and answered as `materials` ([3D files](3d-files.md)). A GeoJSON or JSON is the plan's geometry as data, every floor in one frame: rooms, doors, walls and items as coordinates, clear widths, swing areas, glass, door states and keep-out zones ([the plan as data](plan-data.md)) |
 | `grid_sheet` | Writes the plan as an A3 PDF into `exports/`, a client or check sheet answering with a small picture of each page (VEW-62): layout `client` (cover, a page per floor, the words as `sheet`) or `check` (every id, use and finding); or layout `drawing`, every floor (or the `floor` asked for) at one true scale (`scale`, `paper`, `split`, `roomSizes`) as a vector PDF of a page each and an SVG and a PNG of each page, with the PNGs in the answer |
 | `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with, with `who` set it and a `note`; or takes one off. The latest 20, the oldest rolling off |
 | `grid_mark_seen` | Sets a note of `grid_check` aside as seen, with the person's reason and the name or role they give, in `plan.seen.json` beside the plan; or takes the mark off (see below) |
@@ -167,7 +167,10 @@ is one call for one request.
   and a floor's `name`, a room's `number`, `use`, `room type` (the firm's own), `tenure`, `flat` (its id) and `flat type`, `area` (m², net, as `grid_areas` measures it,
   for rooms and floors), `height`, `width` and `sill` (m), a wall's `length` and `thickness` (m),
   `wall kind` and `virtual`, an opening's `wall`, `rooms` (the rooms beside a wall, or on an
-  opening's two sides, `outside` where there is none) and a floor's `level`. Its `facts` are the
+  opening's two sides, `outside` where there is none), a floor's `level`, and (VEW-80) each part's
+  `polygon`, `centre` and `centroid` (coordinates in the plan's frame, which only `is set` and
+  `is missing` test), a door's `clear width`, `glazed` and a door's `door state` (the fact the
+  person keeps) ([the plan as data](plan-data.md)). Its `facts` are the
   person's, as the plan names them: each with its type (`text`, `number`, `yes-no` or `mixed`),
   the kinds of part that carry it, how many do, and its values.
 - `grid_find` gives the parts that meet every condition in `where`: their `ids`, and `rows` with
@@ -408,6 +411,37 @@ from the plan as it is, so never write them into a room's name: they would go st
 edit and be in every export. A facade or a section asked for in either look is drawn in the
 working look, and the answer says so. `grid draw --look simple` and `--look large` write the same
 pictures to a file.
+
+## Floor frames and pixel coordinates
+
+Draw each floor with `grid_view kind=plan floor=<id>` to make aligned maps. The default
+`frame=building` uses the extent of every floor at the same drawing settings, so a lift
+or other point at the same plan coordinates has identical pixels across floors.
+`frame=floor` fits just the selected floor. Crops and tiles use their own frames.
+`floor=all` makes one side-by-side picture with a shared frame inside each panel.
+
+For a single orthographic drawing, `pixelToMetres` gives six coefficients
+`[a, b, c, d, e, f]`. A pixel position `(x, y)` measured right and down from the
+image's top-left edge maps to `(a*x + b*y + e, c*x + d*y + f)` in metres.
+`area` is the part of the image covered by the drawing, in pixels, excluding keys and
+captions. The `space` is `plan` for drawing x and y, `section` for horizontal position
+on the cut and height, or `facade` for horizontal position along the elevation and
+height. The first pixel centre is at `(0.5, 0.5)`. In `floor=all`, each entry in
+`panels` gives the floor and its transform from the full image's top-left edge.
+Perspective pictures give their camera and a null `pixelToMetres` value.
+
+When `out` is given, the same transform or panel transforms go into the `.view.json`.
+A PNG of a single orthographic drawing also gets a `.pgw` world file in the same
+folder, with its path in `worldFile`. The world file uses the first pixel centre
+and the drawing's metre coordinates. For a world file per floor, write each floor
+as a separate PNG. Grid asks for a fresh PNG name when a view without a single
+transform would reuse an existing world file.
+
+`grid_write_rooms` reports `origin` in metres, with the fixed drawing origin
+`drawing`, the lower-left corner of the walls' centre-line bounds
+`wallBoundsCorner`, and the optional `site` reference point. The rooms-text line
+`site origin x,y` sets the reference used by exports at survey coordinates. The picture
+transform uses the plan's drawing coordinates.
 
 ## A camera you can set, and saved views
 
