@@ -133,7 +133,7 @@ describe('kinds in rooms text', () => {
     expect(row('d-front').opens).toEqual({ width: 0.7, height: 2.1 })
     expect(reply.text).toContain('sliding door "d-patio"')
     const csv = (await ok('grid_schedule', { plan: 'rooms.json', of: 'openings', format: 'csv' })).text.split('\n')
-    expect(csv[1]).toBe('number,mark,id,type,kind,width m,height m,sill m,opens width m,opens height m,handing,floor,side 1,side 2,count')
+    expect(csv[1]).toBe('number,mark,id,type,kind,width m,height m,sill m,opens width m,opens height m,handing,floor,side 1,side 2,count,phase,section')
     const grouped = await ok('grid_schedule', { plan: 'rooms.json' })
     expect(grouped.text).toContain('1 × sliding door 2.40 m wide')
   })
