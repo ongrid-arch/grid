@@ -33,6 +33,7 @@ import { PAPER_NAMES, SCALE_MAX } from '../sheet/drawingPapers'
 import { askedLanguage } from '../command/language'
 import { readRoomsFile, RoomsRefused, writeRoomsIntoProject } from '../command/write'
 import { roomsGrammarText } from './roomsGrammar'
+import { SUN_VIEW_ARG, sunOfArg } from './sunArgs'
 import { writeScanIntoProject } from '../command/scan'
 import { writeDrawingIntoProject } from '../drawing/fromDrawing'
 import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
@@ -111,6 +112,8 @@ const exportTool: GridTool = {
     floor: { type: 'string', maxLength: 200, description: 'dxf, obj, glb, geojson and json only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation, or all for each floor on its own. Left out, every floor.', examples: ['ground', 'all'] },
     scale: { type: 'number', description: 'dxf only: N in 1:N, a whole number, such as 100 or 200, for its sheets. Left out, the scale the profile states, else the largest of 100, 200, 500 and 1000 every floor fits at on A3.', examples: [100, 200], minimum: 1, maximum: 1000 },
     out: { type: 'string', maxLength: PATH_MAX, description: 'The file to write, inside the project folder, ending in the format\'s extension. The exports folder beside the plan when left out. Not with floor all.', examples: ['drawings/ground.dxf'] },
+    // CNT-58: a glb lit by the sun at a moment.
+    sun: { ...SUN_VIEW_ARG, description: 'glb only: a moment, "YYYY-MM-DD HH:MM" in the site\'s solar time or with the clock\'s offset after it ("2026-06-21 18:30 +02:00"), written as a directional light node named sun (KHR_lights_punctual) shining the way the sun shines then, its bearing and elevation in the node\'s extras. Needs the site\'s latitude and longitude. The plan\'s north and place go into asset.extras.gridNorth whenever it states them.' },
     roofs: { type: 'boolean', description: 'glb and obj only: false leaves out every roof and the parapets on it, to look into the model or walk through it. Left out, the roofs are in.', examples: [false] },
     arcSegments: { type: 'number', description: `glb and obj only: the straight pieces a whole circle of curved wall is written with, a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}. Left out, as finely as the plan is measured.`, examples: [32], minimum: ARC_SEGMENTS_RANGE.min, maximum: ARC_SEGMENTS_RANGE.max },
     state: stateArg('is every part with its phase, as each format writes phases', 'as both'),
@@ -145,6 +148,7 @@ const exportTool: GridTool = {
     const out = args['out'] as string | undefined
     const roofs = args['roofs'] as boolean | undefined
     const arcSegments = args['arcSegments'] as number | undefined
+    const sun = args['sun'] as string | undefined
     // ARE-75: before or after the work, the building as it stands then; both, as left out, every part with its phase.
     const state = args['state'] === 'before' || args['state'] === 'after' ? (args['state'] as PlanState) : undefined
     if (!isGridExportFormat(format)) throw new ToolRefusal(`Pass format: one of ${GRID_EXPORT_FORMATS.join(', ')}.`)
@@ -154,8 +158,13 @@ const exportTool: GridTool = {
       const stated = readPlan(context, plan).loaded.plan
       if (exportFloorId(stated, floor) === undefined) floorArg(stated, floor)
     }
+    // CNT-58: the sun is read before anything is written, and refused with how to give it.
+    if (sun !== undefined) {
+      if (format !== 'glb') throw new ToolRefusal('sun lights a glb only: leave it out for this format.')
+      sunOfArg(readPlan(context, plan).loaded.plan, sun)
+    }
     try {
-      const request = { format, floor, ...(scale === undefined ? {} : { scale: String(scale) }), ...(out === undefined ? {} : { out }), ...(roofs === false ? { roofs } : {}), ...(arcSegments === undefined ? {} : { arcSegments: String(arcSegments) }) }
+      const request = { format, floor, ...(scale === undefined ? {} : { scale: String(scale) }), ...(out === undefined ? {} : { out }), ...(roofs === false ? { roofs } : {}), ...(sun === undefined ? {} : { sun }), ...(arcSegments === undefined ? {} : { arcSegments: String(arcSegments) }) }
       checkExportRequest(request)
       let files: readonly ExportDone[]
       let empty: readonly string[] = []

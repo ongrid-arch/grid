@@ -162,6 +162,15 @@ is not asked whether it was typed in feet.
 | `gridArcStep` | limit | 5 degree | The widest turn one straight piece of a radial grid's ring is drawn and exported with; a ring that is not whole stops this much short of closing at most (WRT-83) |
 | `bayOverlap` | tolerance | 0.01 m² | Two parking bays of one floor that share more floor than this overlap: each is still counted, and the warning says the floor holds fewer bays than it counts (CNT-19) |
 | `rampSlopeDiffers` | tolerance | 0.5 % | A ramp's stated slope further than this, in percentage points, from the slope its two levels and its run give is worth a look; both are kept and returned (CNT-19) |
+| `sunLowest` | tolerance | 0.5 degree | The sun lower than this above the horizon casts no shadow Grid works out: everything is taken as in shade (CNT-58) |
+| `sunStepMinutes` | limit | 30 minute | The time between the moments the sun is worked out at over a range of hours, when the call gives none (CNT-58) |
+| `sunStepDays` | limit | 7 day | The days between the dates the sun is worked out on over a range of dates, when the call gives none; the last date is always one (CNT-58) |
+| `sunMomentsMost` | limit | 2000 count | The most moments one call works the sun and its shadows out at; more is refused with the step that fits (CNT-58) |
+| `sunFaceFoot` | tolerance | 0.05 m | How far in front of a building face its foot is taken, to say how much of it lies in the shadow of something else (CNT-58) |
+| `sunFaceShortest` | tolerance | 0.5 m | A straight stretch of a building's outline shorter than this is no face of its own when the sun on the faces is said (CNT-58) |
+| `fenceCasts` | tolerance | 0.05 m | The thickness a site fence with a height is taken as when it casts a shadow (CNT-58) |
+| `treeCrownBase` | tolerance | 0.4 ratio | Where a tree's crown starts, as a share of its height, when it casts a shadow: a disc of its canopy from there to its top (CNT-58) |
+| `canopySides` | limit | 24 count | The straight sides a tree's round canopy is traced with when it casts a shadow (CNT-58) |
 | `largest` | limit | 10000000 m | The largest coordinate or size Grid accepts (10,000 km); past it the part is refused |
 | `farFromOrigin` | limit | 500 m | A plan reaching further from the origin gets a warning: from `site.origin` where the plan states one, else from (0, 0) (HND-11) |
 | `cameraTilt` | limit | 89 degree | How far a camera may look down at, or up to, what it is pointed at, from level; straight down or up a picture has no up, so a camera turned further is refused (VEW-3) |

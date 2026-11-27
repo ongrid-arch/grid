@@ -516,7 +516,7 @@ in `room` with the eye `eye_height` above that room's own floor (1.6 m when left
 |---|---|
 | `at` | Where to stand: a door or opening of the room by id (in its doorway, just inside the room), an item by id (0.5 m in front of it, looking the way it faces) or a corner of the room (`north-east`, `south-east`, `south-west`, `north-west`; north is the drawing's top), tucked in clear of its walls. Not with `stand_at` |
 | `stand_at` | A point to stand on, `{ x, y }` in metres, on the room's clear floor |
-| `toward` | An opening or item by id, or a direction, to look at |
+| `toward` | An opening or item by id, or a compass direction, to look at: by the north the plan states (CNT-58), or with north the top of the drawing when it states none, which the answer says |
 | `look_at` | A point to look at, `{ x, y }` in metres. Not with `toward` |
 | `lens` | The focal length in millimetres on a 36 × 24 mm sensor: 18 (90° across) when left out |
 | `tilt` | Degrees the eye looks down, below 0 up; level when left out. The camera stays at the eye |
@@ -899,8 +899,8 @@ marked was not checked, since Grid holds no figure for it that a named person ha
 Read this when the person asks which rooms get the sun, which way the bedroom windows look, how
 much window a room has for its size, or how deep a room runs from its windows. `grid_measure`
 with `what=sun` (BRF-5) answers with a table per room, and `room` gives one room's. It is
-geometry and nothing more: Grid works out no sun path, shade, sky, glass or reflection, and the
-table says nothing of how much daylight or sun a room gets, nor whether that is enough. Every
+geometry and nothing more: the table works out no sun path or shade (with a `date` it does, below),
+no sky, glass or reflection, and it says nothing of how much daylight or sun a room gets, nor whether that is enough. Every
 line of the table starts "Geometry,", after the label and the north.
 
 | Column | What it is |
@@ -930,6 +930,45 @@ Geometry, "Hall" ("hall"): floor 5.33 m², no window in an outside wall.
 The table lives in `grid_measure` and not in a tool of its own, so it adds no tool: it reads
 the same walls and north as `what=facing`, and it measures rooms as `what=room` does. The
 geometry is `planSunTable` in `@ongrid/floorplan` (`src/geometry/sun.ts`).
+
+### The sun's path and the shadows: a date
+
+Read this when the person asks where the sun is, what is in shade, how many hours of sun a
+garden, a courtyard, a bed or a face gets, a golden-hour picture, or one building's shadow on
+another. With `date` (`YYYY-MM-DD`) and the site's `latitude` and `longitude` (`grid_set_site`),
+`grid_measure what=sun` (CNT-58) works the sun out, so no agent works the noon sun out by hand.
+
+| Argument | What it does |
+|---|---|
+| `date` | The day; with `until`, the first of a range of days, worked out every `sunStepDays` (7) days and on the last |
+| `time` | One time, `HH:MM`: where the sun is, the faces it is on and each space's share in sun then |
+| `hours` | A range, `HH:MM-HH:MM`, worked out every `sunStepMinutes` (30) minutes and at the last: each space's share in sun weighted by time, each moment's share, and the hours the sun is on each face |
+| `utc_offset` | The clock's offset from UTC in hours. Left out, every time is the site's local solar time, 12:00 when the sun is highest, and the answer says so |
+| `areas` | Patches to measure as well, by name, each its corners in plan metres: a planting bed, a lawn. Nothing is written into the plan, so no room is drawn to stand for one |
+
+The answer gives the day's sunrise, solar noon and sunset; the sun's compass bearing
+(`azimuth`) and its height (`elevation`), the way it shines on the drawing, and how long a 1 m
+post's shadow is; the faces of each building (from the outlines of the floors at or above the
+ground, open outdoor space taken out, so a courtyard's sides face into it, and a massing floor of
+an outline alone has its faces too), each with the way it faces and whether the sun is on it, at
+what angle off square, and how much of its foot lies in another's shadow; and the share in sun
+of each open outdoor space (on its own floor's level), the site's paving and pools, and each patch
+named. A share is an area, the same at one moment or over many, so a moment and a range never
+tell two stories. Shadows are cast by each floor's outline up to its storey's top (a pitched roof
+taken flat there), the walls round outdoor space and garden walls, site fences with a height and
+trees with a height and a canopy (the crown from `treeCrownBase` of the height). Grid holds no
+terrain and no neighbour the plan does not draw. A plan that states no latitude and longitude is
+refused with how to state them. The geometry is `geometry/sunShade.ts`, the sun's position
+`astronomy/sunPosition.ts`.
+
+`grid_view` takes `sun`, one moment (`"2026-06-21 18:30"`, or with the clock's offset after it,
+`"2026-06-21 18:30 +02:00"`): `kind=plan` draws the shadow plan, the shadows then shaded on the
+ground round the building, or on an upper floor's open spaces, with its key and each space's
+share in sun; `kind=3d` and `kind=eye` light the model from the sun then, warmer when it is low,
+and by the sky alone with the sun down. `grid_export` of a glb takes the same `sun` and writes it
+as a directional light node named `sun` (`KHR_lights_punctual`), its bearing and elevation in the
+node's `extras.gridSun`; every glb of a plan that states its north or place carries them in
+`asset.extras.gridNorth`.
 
 A zone (CNT-8) is part of its room, and the room is the place: `what=use` on a zone, and
 `what=route` from or to one, measures its room as a whole, says so on its first line, and names

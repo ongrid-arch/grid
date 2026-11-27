@@ -7,7 +7,7 @@
  */
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { CameraRecord } from '@ongrid/floorplan/geometry'
-import { GROUND_GRID } from '../canvas3d/BuildingScene'
+import { GROUND_GRID, type SceneSun } from '../canvas3d/BuildingScene'
 import { stillRoofShown } from '../canvas3d/building'
 import type { PlanColors3D } from '../canvas3d/usePlanColors'
 import { DARK_COLORS_3D, LIGHT_COLORS_3D } from './look3d'
@@ -20,6 +20,8 @@ export { LIGHT_COLORS_3D, DARK_COLORS_3D } from './look3d'
 export { stillRoofShown } from '../canvas3d/building'
 export { stillScene, type StillScene, type StillSceneOptions } from './stillScene'
 export { rasterise, type RasterImage, type RasteriseOptions, type GroundGrid, type Sky } from './rasterise'
+
+export type { SceneSun } from '../canvas3d/BuildingScene'
 
 export const DEFAULT_STILL_WIDTH = 1200
 export const DEFAULT_STILL_HEIGHT = 800
@@ -53,6 +55,8 @@ export interface StillOptions {
    * camera record stands in a room (`standingIn`), no otherwise.
    */
   readonly inside?: boolean
+  /** CNT-58: the sun at a moment, which the model is lit from; Grid's fixed light when left out. */
+  readonly sun?: SceneSun | null
 }
 
 /** The most pixels a still may have: 4800 by 3200 is within it. */
@@ -83,7 +87,7 @@ export function planStill(plan: FloorPlan, options: StillOptions = {}): RasterIm
   const standing = camera !== undefined && camera.standingIn.room !== null
   const inside = options.inside ?? standing
   const roof = options.roof ?? stillRoofShown(plan, { focus, inside: standing })
-  const still = stillScene(plan, { focus, colors, width, height, roof, inside, ...(camera ? { camera } : {}) })
+  const still = stillScene(plan, { focus, colors, width, height, roof, inside, ...(camera ? { camera } : {}), ...(options.sun ? { sun: options.sun } : {}) })
   try {
     const [cx, , cz] = still.frame.target
     // A camera standing in a room sees the room, not the ground under its floor.

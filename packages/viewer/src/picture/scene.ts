@@ -222,6 +222,26 @@ export interface SceneShow {
    * own, a wall, door, window or opening laid over in the colour. Null for none.
    */
   readonly paint?: ReadonlyMap<string, string> | null
+  /** CNT-58: the shadows to shade over the floors and under the walls, as the core cast them. None when left out. */
+  readonly shade?: SceneShade
+}
+
+/** CNT-58: shadows as polygons, each its rings of [x, y] in plan metres, the first its outside. */
+export type SceneShade = readonly (readonly (readonly (readonly [number, number])[])[])[]
+
+/** CNT-58: the shade a shadow is drawn in: dark and see-through, so the floor and its fills read through it. */
+export const SHADE_COLOUR = '#1f2a44'
+const SHADE_OPACITY = 0.3
+
+/** A plan figure to the millimetre, as the path writes it. */
+const mm = (value: number): string => String(Math.round(value * 1000) / 1000 + 0)
+
+/** The shadows as one path, its holes cut out. */
+function shadeNode(shade: SceneShade): SvgNode {
+  const d = shade
+    .flatMap((polygon) => polygon.map((ring) => `M${ring.map(([x, y]) => `${mm(x)},${mm(-y)}`).join('L')}Z`))
+    .join('')
+  return el('path', { 'data-part': 'shadow', d, fill: SHADE_COLOUR, 'fill-opacity': SHADE_OPACITY, 'fill-rule': 'evenodd', stroke: 'none', 'pointer-events': 'none', 'aria-hidden': 'true' }, [], 'shadow')
 }
 
 /** Everything shown, rooms in one fill. */
@@ -1057,6 +1077,9 @@ function planSceneIn(input: SceneInput): SvgNode[] {
       )
     )
   }
+
+  // CNT-58: the shadows, over the floors and under the walls and the sketch. Drawn only.
+  if (show.shade !== undefined && show.shade.length > 0) out.push(shadeNode(show.shade))
 
   // SHT-7: the sketch layer, over the floors and under the walls. Drawn only.
   if (show.sketch) out.push(...sketchNodes(drawing.sketch, mpp, look.colors))

@@ -66,6 +66,13 @@ Notes for agents and people changing this repository.
   largest raster picture, `pdfImage.ts`, VEW-67) and says what became of it; the viewer's `planPicture` draws it, given as a `data:` address, over the rooms'
   fills and under every line, and reads no file. A path that is not a picture inside the project
   folder is never followed: `loadPlan` reads the plan without it and `grid check` says why (MSG-20).
+- The sun (CNT-58): `packages/floorplan/src/astronomy/sunPosition.ts` works out where the sun is
+  for a day, a time and a place (its series' coefficients are astronomy, not tolerances, so they
+  live there and not in the tolerance table); `geometry/sunShade.ts` turns it onto the plan by its
+  north, casts the shadows of the floors' outlines, the walls round outdoor space, fences and trees
+  on level planes, gives each open space's share in sun and each building face's sun. The CLI's
+  `quantities/sunPath.ts` words it for `grid_measure what=sun` with a date; `grid_view` and
+  `grid_export` take `sun` (`mcp/sunArgs.ts`). Times are solar unless an offset is given.
 - `packages/floorplan/src/geometry/items.ts` (CNT-12): the plan's fixtures (`items`, C6 in
   `types/floorplan.ts`): their footprints, symbols, rooms, the floor they take and their checks.
   CNT-11 decided fixtures first; CNT-20 added furniture (`FURNITURE_KINDS`), and every kind is one

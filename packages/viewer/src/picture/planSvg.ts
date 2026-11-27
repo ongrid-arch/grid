@@ -40,7 +40,7 @@ import type { Viewport } from '../canvas2d/viewport'
 import { FRAME_MARGIN, fitTo, viewBoxOf } from '../canvas2d/viewport'
 import type { Look, LookName, PlanLook } from './look'
 import { LOOKS, detailShown, fileLook, lengthText, toLook } from './look'
-import { drawnHanding, planScene, roomKeyOf } from './scene'
+import { drawnHanding, planScene, roomKeyOf, type SceneShade } from './scene'
 import type { FaultLine, PictureKey } from './faults'
 import { faultKey, faultsOnFloor } from './faults'
 import { keyEntries, northArrowNode, numberedNotes, roomKeyBand, stackBands, tagKeyEntries, writingBand } from './writing'
@@ -155,6 +155,8 @@ export interface PictureShow {
    */
   readonly paint?: ReadonlyMap<string, string>
   readonly paintKey?: readonly { readonly colour: string; readonly words: string }[]
+  /** CNT-58: shadows the core cast, each a polygon of rings of [x, y] in plan metres, shaded over the floors. */
+  readonly shade?: SceneShade
 }
 
 /** A picture before it is written out. */
@@ -506,7 +508,7 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
   const handings = handingsOf(slice)
   const asked = options.show ?? {}
   const show: PictureShow = people === undefined ? asked : { ...asked, warnings: false, above: false, colourBy: asked.colourBy ?? 'use' }
-  const on = (part: Exclude<keyof PictureShow, 'colourBy' | 'key' | 'paint' | 'paintKey'>): boolean => show[part] !== false
+  const on = (part: Exclude<keyof PictureShow, 'colourBy' | 'key' | 'paint' | 'paintKey' | 'shade'>): boolean => show[part] !== false
   const uses = new Map(slice.rooms.flatMap((room) => (room.use === undefined ? [] : [[room.id, room.use] as const])))
   // SHT-10: each room's floor finish, and the plan's finishes in the order its rooms first name
   // them, so a finish keeps its tint on every floor; the plan's wall materials, for their hatch.
@@ -542,7 +544,8 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
       warnings: on('warnings'),
       above: on('above'),
       colourBy: show.colourBy ?? null,
-      paint: show.paint ?? null
+      paint: show.paint ?? null,
+      ...(show.shade === undefined ? {} : { shade: show.shade })
     }
   })
   // CNT-3: a plan that states its north gets a north arrow in the corner of the view.

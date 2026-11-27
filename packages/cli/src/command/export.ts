@@ -9,7 +9,7 @@
  * tool server's `grid_export` runs the same code.
  */
 import path from 'path'
-import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, floorElevations, GLB_BUILDING_NODE, inIdOrder, metresText, OBJ_MATERIALS_FILE, planFloors, resolveFloor, type DxfSheet, type FloorPlan, type PlanState } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, floorElevations, GLB_BUILDING_NODE, inIdOrder, metresText, OBJ_MATERIALS_FILE, planFloors, planSunAt, resolveFloor, type DxfSheet, type FloorPlan, type PlanState, type PlanSun } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type Said } from '@ongrid/floorplan/messages'
 import {
   EXPORT_FORMATS,
@@ -32,6 +32,7 @@ import { floorOption, loadPlan, PlanRefused, type LoadedPlan } from './plan'
 import { floorAsked } from '@ongrid/floorplan/geometry/floorAsked'
 import { openingSchedule } from '../quantities/schedule'
 import { surveyPlan } from '../quantities/survey'
+import { placeOf, readMoment, SunAskRefused } from '../quantities/sunPath'
 import { loadedInState } from '../quantities/phaseState'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 
@@ -66,6 +67,21 @@ export interface ExportRequest {
   readonly roofs?: boolean
   /** VEW-73: the pieces a whole circle of curved wall is written with, as given. */
   readonly arcSegments?: string
+  /** CNT-58: a GLB's sun, a moment as `grid_view` takes it ("2026-06-21 18:30"), written as a light named sun. */
+  readonly sun?: string
+}
+
+/** CNT-58: the sun a GLB is lit by, read from the request; nothing for no sun. */
+function exportSun(plan: FloorPlan, request: ExportRequest, format: ExportFormat): { sun?: { sun: PlanSun; utcOffset: number | null } } {
+  if (request.sun === undefined) return {}
+  if (format !== 'glb') throw new UsageError('sun lights a glb only: leave it out for this format.')
+  try {
+    const asked = readMoment(request.sun, 'sun')
+    return { sun: { sun: planSunAt(plan, placeOf(plan), asked.moment, asked.utcOffset), utcOffset: asked.utcOffset } }
+  } catch (error) {
+    if (error instanceof SunAskRefused) throw new UsageError(error.message)
+    throw error
+  }
 }
 
 /**
@@ -364,7 +380,7 @@ export function exportFile(project: Project, loaded: LoadedPlan, planFile: strin
   const scale = exportScale(request, format) ?? (dxf?.scaleStated === true ? dxf.profile.scale : undefined)
   // VEW-72: the schedules' marks and types, for the DXF's attributes and the IFC's tags.
   const marks = format === 'dxf' || format === 'ifc' ? { openingMarks: new Map(openingSchedule(surveyPlan(loaded.plan)).rows.map((row) => [row.id, { mark: row.mark, type: row.typeKey }] as const)) } : {}
-  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...marks, ...exportShape(request, format), ...(scale === undefined ? {} : { dxfScale: scale }), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
+  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...marks, ...exportShape(request, format), ...exportSun(loaded.plan, request, format), ...(scale === undefined ? {} : { dxfScale: scale }), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
   const made = exportPlan(loaded.plan, format, loaded.faults === undefined ? options : { ...options, faults: loaded.faults })
   if (made.empty) throw new PlanRefused(nothingToExport(loaded, planFile, format, made, floorId))
   return { ...made, name: exportNameOf(planFile, format, floorPartOf(loaded, format, floorId)), dxfProfile: dxf?.file ?? null }

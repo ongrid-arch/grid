@@ -85,7 +85,7 @@ describe('which rooms get the sun, as a table (grid_measure what=sun)', () => {
     expect(reply.text).toContain('"win-bath" 60.0 cm wide × 70.0 cm high, 0.42 m²; the room runs 300.0 cm deep from its inside face.')
     const stray = await b.call('grid_measure', { plan: 'flat-north.json', what: 'sun', wall: 'ext-east' })
     expect(stray.isError).toBe(true)
-    expect(stray.text).toContain('what=sun takes room, not wall.')
+    expect(stray.text).toContain('what=sun takes room, date, until, time, hours, utc_offset, areas, not wall.')
     const unknown = await b.call('grid_measure', { plan: 'flat-north.json', what: 'sun', room: 'attic' })
     expect(unknown.isError).toBe(true)
   })

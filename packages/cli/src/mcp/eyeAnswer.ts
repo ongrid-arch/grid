@@ -6,7 +6,7 @@
  * or two-point perspective; never inside a fixture or a piece of furniture. The words that say so
  * go with it. The picture is taken by `readTools.ts` from the record.
  */
-import { CAMERA_SENSOR, floorOf, itemName, openingGlazed, pointInPolygon, wallPointAt, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
+import { CAMERA_SENSOR, drawingBearing, planOrientation, floorOf, itemName, openingGlazed, pointInPolygon, wallPointAt, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import { EYE_FOCAL_LENGTH, eyeCamera } from '../draw/cameraAsk'
 import { eyeStand } from '../draw/views'
 import {
@@ -30,7 +30,7 @@ import { m, openingArg, ToolRefusal } from './toolkit'
 const q = (text: string): string => JSON.stringify(text)
 const DEG = Math.PI / 180
 
-/** The directions `toward` takes, as headings on the drawing (north is its top). */
+/** The directions `toward` takes, as compass bearings: on the drawing, turned by the plan's north when it states one (CNT-58), else with north its top. */
 export const EYE_HEADING: Readonly<Record<string, number>> = { north: 0, 'north-east': 45, east: 90, 'south-east': 135, south: 180, 'south-west': 225, west: 270, 'north-west': 315 }
 
 export const PERSPECTIVES = ['one-point', 'two-point'] as const
@@ -82,8 +82,10 @@ export function eyeShot(plan: FloorPlan, survey: Survey, room: SurveyRoom, ask: 
     toward = { x: ask.lookAt[0], y: ask.lookAt[1] }
     looking = `the point (${m(ask.lookAt[0])}, ${m(ask.lookAt[1])})`
   } else if (ask.toward !== undefined && Object.hasOwn(EYE_HEADING, ask.toward)) {
-    toward = EYE_HEADING[ask.toward]!
-    looking = ask.toward
+    // CNT-58: a compass word is the compass's once the plan states its north; else the drawing's top is north.
+    const orientation = planOrientation(plan)
+    toward = orientation.north === null ? EYE_HEADING[ask.toward]! : drawingBearing(EYE_HEADING[ask.toward]!, orientation)
+    looking = orientation.north === null ? `${ask.toward} (the plan states no north, so the top of the drawing is taken as north)` : `${ask.toward} by the compass, from the north the plan states`
   } else if (ask.toward !== undefined && !isOpening(ask.toward) && planItems.some((i) => i.id === ask.toward)) {
     const item = planItems.find((i) => i.id === ask.toward)!
     if (floorOf(item) !== floor) throw new ToolRefusal(`toward ${q(item.id)} is on another floor than ${q(name)}: name an item on its floor.`)
