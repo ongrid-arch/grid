@@ -35,6 +35,8 @@ import { exportContents, type ExportContents } from './leftOut'
 
 export type { ApproximatedPart, Approximations, LeftOutKind, LeftOutPart } from '../geometry/export/leftOut'
 export { countText, kindsText, leftOutByKind, partName, partNames } from '../geometry/export/leftOut'
+// VEW-80: what a file of the floors held leaves out, for the data the CLI writes from its survey.
+export { exportContents, type ExportContents } from './leftOut'
 
 export type ExportFormat = 'dxf' | 'ifc' | 'obj' | 'glb'
 

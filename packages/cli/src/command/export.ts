@@ -9,20 +9,22 @@
  * tool server's `grid_export` runs the same code.
  */
 import path from 'path'
-import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, GLB_BUILDING_NODE, metresText, OBJ_MATERIALS_FILE, planFloors, planSunAt, resolveFloor, type DxfSheet, type FloorPlan, type PlanSun } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, floorElevations, GLB_BUILDING_NODE, inIdOrder, metresText, OBJ_MATERIALS_FILE, planFloors, planSunAt, resolveFloor, type DxfSheet, type FloorPlan, type PlanSun } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type Said } from '@ongrid/floorplan/messages'
 import {
   EXPORT_FORMATS,
+  exportContents,
   exportFileName,
   exportPlan,
   isExportFormat,
   kindsText,
   partNames,
   type ApproximatedPart,
-  type ExportFormat,
+  type ExportFormat as FileFormat,
   type LeftOutPart,
   type PlanExport
 } from '@ongrid/floorplan/export'
+import { DATA_FORMATS, isDataFormat, planData, planDataText, type DataFormat } from '../export/planData'
 import { writeProjectExport } from '../export/projectExports'
 import { projectDxfProfile } from '../export/dxfProfile'
 import { PathRefused, type Project } from '../fs/projectFiles'
@@ -33,9 +35,17 @@ import { surveyPlan } from '../quantities/survey'
 import { placeOf, readMoment, SunAskRefused } from '../quantities/sunPath'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 
+/** VEW-80: the formats Grid exports: the core's files, then the plan's geometry as data. */
+export type ExportFormat = FileFormat | DataFormat
+export const GRID_EXPORT_FORMATS: readonly ExportFormat[] = [...EXPORT_FORMATS, ...DATA_FORMATS]
+
+export function isGridExportFormat(value: unknown): value is ExportFormat {
+  return isExportFormat(value) || isDataFormat(value)
+}
+
 export const EXPORT_OPTIONS: OptionSpecs = {
-  '--format': { takesValue: true, help: `The file format: ${EXPORT_FORMATS.join(', ')}.` },
-  '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export, by its id or its name, or all for one file per floor. Left out, the file holds every floor: OBJ and GLB each at its elevation, DXF each on a layout of its own.' },
+  '--format': { takesValue: true, help: `The file format: ${GRID_EXPORT_FORMATS.join(', ')}.` },
+  '--floor': { takesValue: true, help: 'DXF, OBJ, GLB, GeoJSON and JSON: the floor to export, by its id or its name, or all for one file per floor. Left out, the file holds every floor: OBJ and GLB each at its elevation, DXF each on a layout of its own.' },
   '--scale': { takesValue: true, help: 'DXF: the scale its sheets show the plan at, 200 or 1:200. Left out, the scale dxf-layers.json states, else the largest standard scale every floor fits on A3 at.' },
   '--no-roofs': { takesValue: false, help: 'GLB and OBJ: leave out every roof and the parapets on them, to look into the model or walk through it.' },
   '--arc-segments': { takesValue: true, help: `GLB and OBJ: the straight pieces a whole circle of curved wall is written with, a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}, such as 32 for a light model. Left out, as finely as the plan is measured.` },
@@ -93,9 +103,9 @@ export function exportTime(date: string | undefined, env: NodeJS.ProcessEnv = pr
 
 /** Checks the options against each other, before the plan is read. */
 export function checkExportRequest(request: ExportRequest): ExportFormat {
-  const formats = EXPORT_FORMATS.join(', ')
+  const formats = GRID_EXPORT_FORMATS.join(', ')
   if (request.format === undefined) throw new UsageError(`export needs --format: one of ${formats}.`)
-  if (!isExportFormat(request.format)) {
+  if (!isGridExportFormat(request.format)) {
     throw new UsageError(`--format ${JSON.stringify(request.format)} is not one Grid writes: use one of ${formats}.`)
   }
   const format = request.format
@@ -232,7 +242,8 @@ export function exportNameOf(planFile: string, format: ExportFormat, floor: stri
     note = `${base} is a name Windows keeps for a device`
     base = `plan-${base}`
   }
-  const fileName = `${base}.${format}`
+  // VEW-80: the data is named apart, so it is never taken for a plan file.
+  const fileName = format === 'json' ? `${base}-data.json` : `${base}.${format}`
   return note === undefined ? { fileName } : { fileName, note: `Named the export ${fileName}: ${note}.` }
 }
 
@@ -321,6 +332,10 @@ export function floorsText(made: Pick<PlanExport, 'floors' | 'floorsLeftOut'>, f
   const all = made.floors.length + made.floorsLeftOut.length
   if (all <= 1) return null
   // MSG-11: the words are keys of the message files (`drawing.export.floors.*`), said in English.
+  // VEW-80: the data holds every floor in one frame.
+  if (isDataFormat(format)) {
+    if (made.floorsLeftOut.length === 0) return english(said('drawing.export.floors.building.data', { n: all }))
+  }
   if (made.floorsLeftOut.length === 0) {
     return english(format === 'glb'
       ? said('drawing.export.floors.building.glb', { n: all, root: name(GLB_BUILDING_NODE) })
@@ -329,7 +344,7 @@ export function floorsText(made: Pick<PlanExport, 'floors' | 'floorsLeftOut'>, f
   const held = made.floors[0]!
   const left = made.floorsLeftOut.length
   const others = left === 1 ? said('drawing.export.floors.others.one') : said('drawing.export.floors.others.many', { n: left })
-  const one = format === 'glb' ? 'glb' : format === 'obj' ? 'obj' : 'dxf'
+  const one = format === 'glb' ? 'glb' : format === 'obj' ? 'obj' : isDataFormat(format) ? 'data' : 'dxf'
   return english(said(`drawing.export.floors.one.${one}`, { floor: name(held.id), elevation: num(metresText(held.elevation)), others }))
 }
 
@@ -357,6 +372,7 @@ function nothingToExport(loaded: LoadedPlan, planFile: string, format: ExportFor
 export function exportFile(project: Project, loaded: LoadedPlan, planFile: string, format: ExportFormat, request: ExportRequest): MadeExport {
   // VEW-72: a floor by its id or its name.
   const floorId = request.floor === undefined ? undefined : (exportFloorId(loaded.plan, request.floor) ?? floorOption(loaded.plan, request.floor))
+  if (isDataFormat(format)) return dataExport(loaded, planFile, format, floorId)
   const name = projectNameOf(planFile)
   const dxf = format === 'dxf' ? projectDxfProfile(project) : null
   // VEW-72: the scale asked for, else the one the profile states; the largest that fits when neither.
@@ -367,6 +383,27 @@ export function exportFile(project: Project, loaded: LoadedPlan, planFile: strin
   const made = exportPlan(loaded.plan, format, loaded.faults === undefined ? options : { ...options, faults: loaded.faults })
   if (made.empty) throw new PlanRefused(nothingToExport(loaded, planFile, format, made, floorId))
   return { ...made, name: exportNameOf(planFile, format, floorPartOf(loaded, format, floorId)), dxfProfile: dxf?.file ?? null }
+}
+
+/**
+ * VEW-80: the plan's geometry as data (`export/planData.ts`): every floor in one frame, or the
+ * floor named. What it leaves out and whether it holds nothing are read as for every other file.
+ */
+function dataExport(loaded: LoadedPlan, planFile: string, format: DataFormat, floorId: string | undefined): MadeExport {
+  const ordered = inIdOrder(loaded.plan)
+  const levels = floorElevations(ordered).floors
+  const all = planFloors(ordered).map((floor, order) => ({ floor, order })).sort((a, b) => a.floor.level - b.floor.level || a.order - b.order).map(({ floor }) => floor.id)
+  const held = floorId === undefined ? all : [resolveFloor(ordered, floorId)]
+  const contents = exportContents(ordered, held, loaded.faults)
+  const made: PlanExport = {
+    data: planDataText(planData(surveyPlan(loaded.plan), loaded.plan, held), format),
+    fileName: '', filter: { name: format === 'geojson' ? 'GeoJSON' : 'JSON', extensions: [format] },
+    leftOut: contents.leftOut, empty: contents.empty, approximated: [],
+    floors: held.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 })), floorsLeftOut: all.filter((id) => !held.includes(id)),
+    sheets: [], materials: null,
+  }
+  if (made.empty) throw new PlanRefused(nothingToExport(loaded, planFile, format, made, floorId))
+  return { ...made, name: exportNameOf(planFile, format, floorPartOf(loaded, format, floorId)), dxfProfile: null }
 }
 
 /** VEW-72: the files of one export: one, or with `--floor all` one per floor, and the floors that held nothing. */
