@@ -17,8 +17,12 @@
  *       "heading": "The person's own figures: theirs, not from any code or standard.",
  *       "door_width": { "value": 0.8, "level": "must", "source": "given", "quote": "my chair needs 80 cm doors" }
  *     },
- *     "open": [{ "quote": "somewhere to work from home", "about": "its size, and which room" }]
+ *     "open": [{ "quote": "somewhere to work from home", "about": "its size, and which room" }],
+ *     "people": { "pupils": 420, "covers": { "count": 80, "rooms": ["Dining hall"] } }
  *   }
+ *
+ * ARE-68: `people` is who the building, or some of its rooms, is for: a fact the area answers give
+ * the area per one of, not a wish, so no line measures it.
  *
  * Every wish carries a level (`must`, `should`, `avoid`) and where it came from, in WRT-6's
  * words (`MARK_SOURCES`): `given` by the person, with their words beside it, or `assumed` by whoever wrote the
@@ -35,6 +39,7 @@ import { TextNotDecoded } from '../fs/textEncoding'
 import { NAME_MAX } from '../command/planText'
 import { reasonProblem } from '../seen/marks'
 import { DOOR_MEASURES, type DoorMeasure } from '../quantities/doorWidth'
+import { readPeople, type PeopleFigures } from '../quantities/lettable'
 
 /** What the file name adds to the plan's name. */
 export const BRIEF_SUFFIX = '.brief.json'
@@ -177,6 +182,8 @@ export interface Brief {
   readonly touch: readonly TouchWish[]
   readonly figures: readonly FigureWish[]
   readonly open: readonly OpenWish[]
+  /** ARE-68: who the building, or some of its rooms, is for (pupils, covers, keys…): a fact for the area per person, not a wish. */
+  readonly people?: PeopleFigures
 }
 
 /** The brief file of a plan file: beside it, its name without `.json` and `.brief.json` after. */
@@ -363,10 +370,18 @@ function openWish(raw: unknown, where: string): OpenWish {
   return { quote: words(raw['quote'], `${where}.quote`, QUOTE_MAX), about: optional(raw, 'about', (value) => words(value, `${where}.about`, QUOTE_MAX)) }
 }
 
+/** ARE-68: the brief's figures for who the building is for, when it gives them. */
+function briefPeople(raw: unknown): Pick<Brief, 'people'> {
+  if (raw === undefined || raw === null) return {}
+  const read = readPeople(raw, 'people')
+  if (typeof read === 'string') throw new BriefRefused(read)
+  return Object.keys(read).length === 0 ? {} : { people: read }
+}
+
 /** The brief's contents, checked. Refused with the first place that is wrong. A file's `version` must be "1"; a tool call's may be left out. */
 export function parseBrief(raw: unknown, options: { readonly versionNeeded?: boolean } = {}): Brief {
   if (!isObject(raw)) throw new BriefRefused('it must be a JSON object with rooms, footprint, touch, figures or open')
-  onlyKeys(raw, ['version', 'rooms', 'footprint', 'touch', 'figures', 'open'], 'the brief')
+  onlyKeys(raw, ['version', 'rooms', 'footprint', 'touch', 'figures', 'open', 'people'], 'the brief')
   if ((options.versionNeeded !== false || raw['version'] !== undefined) && raw['version'] !== '1') throw new BriefRefused('version must be "1"')
   const brief: Brief = {
     version: '1',
@@ -375,8 +390,9 @@ export function parseBrief(raw: unknown, options: { readonly versionNeeded?: boo
     touch: list(raw['touch'], 'touch').map((wish, i) => touchWish(wish, `touch[${i}]`)),
     figures: figureWishes(raw['figures']),
     open: list(raw['open'], 'open').map((wish, i) => openWish(wish, `open[${i}]`)),
+    ...briefPeople(raw['people']),
   }
-  if (brief.rooms.length + brief.touch.length + brief.figures.length + brief.open.length === 0 && brief.footprint === null) {
+  if (brief.rooms.length + brief.touch.length + brief.figures.length + brief.open.length === 0 && brief.footprint === null && brief.people === undefined) {
     throw new BriefRefused('it holds no wish: give rooms, footprint, touch, figures or open')
   }
   return brief
@@ -409,7 +425,7 @@ function lineText(value: unknown): string {
  */
 export function parseBriefLines(raw: unknown, options: { readonly versionNeeded?: boolean } = {}): BriefParts {
   if (!isObject(raw)) throw new BriefRefused('it must be a JSON object with rooms, footprint, touch, figures or open')
-  onlyKeys(raw, ['version', 'rooms', 'footprint', 'touch', 'figures', 'open'], 'the brief')
+  onlyKeys(raw, ['version', 'rooms', 'footprint', 'touch', 'figures', 'open', 'people'], 'the brief')
   if ((options.versionNeeded !== false || raw['version'] !== undefined) && raw['version'] !== '1') throw new BriefRefused('version must be "1"')
   const refused: RefusedLine[] = []
   const each = <T>(key: string, read: (wish: unknown, where: string) => T): T[] => {
@@ -451,8 +467,15 @@ export function parseBriefLines(raw: unknown, options: { readonly versionNeeded?
       }
     }
   }
-  const brief: Brief = { version: '1', rooms, footprint, touch, figures, open }
-  if (rooms.length + touch.length + figures.length + open.length === 0 && footprint === null) {
+  let people: Pick<Brief, 'people'> = {}
+  try {
+    people = briefPeople(raw['people'])
+  } catch (error) {
+    if (!(error instanceof BriefRefused)) throw error
+    refused.push({ where: 'people', problem: error.message, line: lineText(raw['people']) })
+  }
+  const brief: Brief = { version: '1', rooms, footprint, touch, figures, open, ...people }
+  if (rooms.length + touch.length + figures.length + open.length === 0 && footprint === null && people.people === undefined) {
     if (refused.length === 0) throw new BriefRefused('it holds no wish: give rooms, footprint, touch, figures or open')
     throw new BriefRefused(refused.map((r) => r.problem).join('; and '))
   }
@@ -487,6 +510,7 @@ export function briefJson(brief: Brief): Record<string, unknown> {
     }
   }
   if (brief.open.length > 0) out['open'] = brief.open.map((w) => ({ quote: w.quote, ...some('about', w.about) }))
+  if (brief.people !== undefined) out['people'] = Object.fromEntries(Object.entries(brief.people).map(([kind, f]) => [kind, f.rooms === undefined ? f.count : { count: f.count, rooms: [...f.rooms] }]))
   return out
 }
 

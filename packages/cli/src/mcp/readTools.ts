@@ -37,6 +37,11 @@ import { MARK_WORDS, marksAsked, readMarks, sectionLineOf, towardOf } from '../c
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
 import { AREA_RULES, notCounted, planAreas, type AreaSureness, type NotCounted, type RoomArea, type RoomNotCounted } from '../quantities/areas'
 import { OUTDOOR_RULES_ARG, type OutdoorRules } from './outdoorRulesArg'
+import { LETTABLE_TENURES_ARG, LETTABLE_USES_ARG, PEOPLE_ARG, type PeopleFigures } from './lettableArgs'
+import { AS_WRITTEN_RULE, asWrittenAreas, asWrittenText, lettableAnswer, lettableFloorText, lettableLines, netToGrossNote, peopleLines, withAsWritten } from './lettableAnswer'
+import { lettableRules } from '../quantities/lettable'
+import { FRONTAGE_BANDS, FRONTAGE_BANDS_MAX, FRONTAGE_DEPTH, frontageSide, frontageZones } from '../quantities/frontage'
+import type { RoomTenure } from '@ongrid/floorplan/types/floorplan'
 import { stateText } from '../quantities/state'
 import { comparePlans, optionRow, type Comparison, type OptionRow } from '../quantities/compare'
 import {
@@ -191,6 +196,16 @@ function load(context: ToolContext, plan: unknown, floor?: unknown): { survey: S
   return { survey: surveyPlan(loaded.plan), floor: floorArg(loaded.plan, floor), file }
 }
 
+/** ARE-68: the people the brief beside the plan says the building is for; none when it gives none or cannot be read. */
+function briefPeopleOf(context: ToolContext, file: string): { brief?: PeopleFigures } {
+  try {
+    const people = readBrief(projectOf(context), file).brief?.people
+    return people === undefined ? {} : { brief: people }
+  } catch {
+    return {}
+  }
+}
+
 /** WRT-6 (lab AE-4, AE-13): where an area's walls came from and how sure it is, after the figure. */
 const SOURCE_WORDS = { scanned: 'from a scan', measured: 'measured', given: 'as given', assumed: 'assumed' } as const
 function surenessText(sure: AreaSureness | undefined, units: Display): string {
@@ -213,7 +228,10 @@ function optionLine(row: OptionRow, units: Display): string {
   // ARE-60: a US option leads with its living area under air and its total under roof.
   const unknown = english(said('sheet.notKnown'))
   const air = row.underAirFirst ? `${english(said('areas.compare.underAir', { conditioned: row.conditioned === null ? unknown : areaText(row.conditioned, units), underRoof: row.underRoof === null ? unknown : areaText(row.underRoof, units) }))}; ` : ''
-  return `${row.label}: ${air}net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.${groupLine('room type', row.byRoomType)}${groupLine('tenure', row.byTenure)}`
+  // ARE-68: the lettable area and efficiency beside net to gross, and the area per person where a figure is given.
+  const letting = english(said('compare.lettable', { area: areaText(row.lettable, units), efficiency: percent(row.efficiency), core: areaText(row.core, units), coreShare: percent(row.coreShare) }))
+  const people = (row.people ?? []).map((ratio) => ` ${peopleLines([ratio], units)[0]}`).join('')
+  return `${row.label}: ${air}net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${letting}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.${groupLine('room type', row.byRoomType)}${groupLine('tenure', row.byTenure)}${people}`
 }
 
 /** ARE-61: an option's net floor by the firm's room type or by tenure, largest first; nothing when the plan states none. */
@@ -268,7 +286,7 @@ const compareTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks how two or more plans differ, which option is bigger, to see options side by side, or what a change did: "compare A, B and C", "what differs between A and B", "how much bigger than now", "what comes out and what is new". '
-    + 'It gives one table of the options (net, gross internal and gross external areas, the living area under air and the total under roof, which lead a US plan\'s row, circulation, net to gross, area by use) and, for each later plan against the first, what differs by room name, walls out and new with their lengths and face areas, and openings out, new or changed. '
+    + 'It gives one table of the options (net, gross internal and gross external areas, the living area under air and the total under roof, which lead a US plan\'s row, circulation, net to gross, the lettable area, the core and efficiency, area by use, and with people or each plan\'s brief the area per pupil, key or cover) and, for each later plan against the first, what differs by room name, walls out and new with their lengths and face areas, and openings out, new or changed. '
     + 'A plan that is the first one moved, mirrored or turned is said to be so, not listed as moved walls. With picture true it also returns one sheet of the plans side by side at the same scale. '
     + 'Do not use for the areas of one plan (grid_areas) or a picture of one plan (grid_view). Units are metres.',
   args: {
@@ -291,9 +309,13 @@ const compareTool: GridTool = {
     },
     floor: { ...FLOOR_ARG, description: 'For the picture only: the floor to draw from each plan. Each plan\'s ground floor when left out.' },
     picture: { type: 'boolean', description: 'true to return one sheet with the plans side by side at one scale. false when left out.', examples: [true, false] },
+    // ARE-68: as grid_areas takes them, for every option.
+    lettable_uses: LETTABLE_USES_ARG,
+    lettable_tenures: LETTABLE_TENURES_ARG,
+    people: { ...PEOPLE_ARG, description: `${PEOPLE_ARG.description} The same for every option; left out, each plan's own brief.` },
   },
   outputSchema: objectSchema({
-    options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, underAirFirst: { type: 'boolean' }, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' }, byRoomType: { type: 'object' }, byTenure: { type: 'object' } }, ['label', 'net', 'grossInternal', 'grossExternal', 'conditioned', 'underRoof', 'underAirFirst', 'circulation', 'circulationShare', 'netToGross', 'rooms', 'bedrooms', 'byUse'])),
+    options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, underAirFirst: { type: 'boolean' }, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' }, byRoomType: { type: 'object' }, byTenure: { type: 'object' }, lettable: NUMBER, core: NUMBER, efficiency: NULLABLE_NUMBER, coreShare: NULLABLE_NUMBER, people: { type: 'array' } }, ['label', 'net', 'grossInternal', 'grossExternal', 'conditioned', 'underRoof', 'underAirFirst', 'circulation', 'circulationShare', 'netToGross', 'rooms', 'bedrooms', 'byUse'])),
     comparisons: listSchema(objectSchema({ before: STRING, after: STRING, likeness: { type: ['string', 'null'] }, verdict: STRING, rooms: { type: 'array' }, wallsOut: { type: 'array' }, wallsNew: { type: 'array' }, wallsChanged: { type: 'array' }, openingsOut: { type: 'array' }, openingsNew: { type: 'array' }, openingsChanged: { type: 'array' }, massing: { type: 'object' } })),
     rules: listSchema(STRING),
   }),
@@ -301,11 +323,13 @@ const compareTool: GridTool = {
     const files = args['plans'] as string[]
     const labels = (args['labels'] as string[] | undefined) ?? files.map((_, i) => String.fromCharCode(65 + i))
     if (labels.length !== files.length) throw new ToolRefusal(`labels needs one name for each of the ${files.length} plans.`)
-    const surveys = files.map((file) => load(context, file).survey)
-    const options = surveys.map((survey, i) => optionRow(labels[i]!, survey))
+    const loaded = files.map((file) => load(context, file))
+    const surveys = loaded.map((one) => one.survey)
+    const choice = { ...(args['lettable_uses'] === undefined ? {} : { uses: args['lettable_uses'] as string[] }), ...(args['lettable_tenures'] === undefined ? {} : { tenures: args['lettable_tenures'] as RoomTenure[] }) }
+    const options = surveys.map((survey, i) => optionRow(labels[i]!, survey, { choice, ...(args['people'] === undefined ? {} : { people: args['people'] as PeopleFigures }), ...briefPeopleOf(context, loaded[i]!.file) }))
     const comparisons = surveys.slice(1).map((survey, i) => ({ before: labels[0]!, after: labels[i + 1]!, ...comparePlans(surveys[0]!, survey, [labels[0]!, labels[i + 1]!]) }))
     // ARE-60: the area under air's rules, where an option leads with it.
-    const rules = [...Object.values(AREA_RULES), ...(options.some((row) => row.underAirFirst) ? [MEASURES.conditioned.measures, MEASURES.underRoof.measures] : [])]
+    const rules = [...Object.values(AREA_RULES), ...(options.some((row) => row.underAirFirst) ? [MEASURES.conditioned.measures, MEASURES.underRoof.measures] : []), ...Object.values(lettableRules(Object.keys(choice).length === 0 ? null : choice)), ...(options.some((row) => row.people !== undefined) ? [english(said('people.rule'))] : [])]
     const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...rules]
     let image
     if (args['picture'] === true) {
@@ -342,6 +366,7 @@ const areasTool: GridTool = {
     + 'It lists every room with its inside size and net area, the totals by floor and by use, the area of each flat the plan lists (and of the rooms in no flat), and the gross areas, each with a sentence saying what it measures, what it does not take off and what the plan cannot say. '
     + 'The plan\'s own site.country is read as grid_check reads it; pass country to override it for the gross measure the reader there usually means (the inside face of the outer walls in the UK and most of Europe, the outside face for US homes), or gross to ask for one or both. '
     + 'It gives the living area under air (conditioned: the rooms heated or cooled, to the outside face of their walls, a garage out) and the total under roof (underRoof: the gross external area, garage in, plus roofed outdoor space) on every floor and in all; for a US plan they lead the answer. Mark a room heated or not with grid_rename_room conditioned. '
+    + 'It gives the lettable area (the net of the rooms a tenant or buyer has the use of: by a room\'s stated tenure, else every use but stair, lift, plant, corridor and parking, or the uses and tenures you choose), the core (stair, lift and plant rooms) with its share of each floor plate, and efficiency, lettable over gross internal, per floor, per floor type and in all: quote it, not net to gross, which holds the core and corridors. With people (pupils, covers, keys, beds, capacity), or the brief\'s, it gives the area per one: gross internal per pupil, net per key, per cover. as_written gives each room\'s area to its walls\' centre lines beside its net, for stands and modules sold by nominal size. '
     + 'On a plan that lists flats it gives each flat\'s area to the middle of its party walls too, and where fixtures stand the free floor beside the floor area, per room, zone, flat, floor and in all. Outdoor space is left out of every total unless outdoor_rules states a rule that counts part of it, and the answer says which. '
     + 'Rooms named in outside_rooms (a balcony, a terrace, a garage) are the outside, as outdoor space is: the walls round them face outside, they are listed apart and are in no net, gross internal or gross external figure; a room Grid could not draw is named and left out of every figure. Do not use for wall lengths, plaster or skirting (grid_takeoff), or to compare plans (grid_compare). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
@@ -367,6 +392,11 @@ const areasTool: GridTool = {
       minItems: 1,
       maxItems: 500,
     },
+    // ARE-68: the lettable area as the person counts it, who the building is for, and the area as written.
+    lettable_uses: LETTABLE_USES_ARG,
+    lettable_tenures: LETTABLE_TENURES_ARG,
+    people: PEOPLE_ARG,
+    as_written: { type: 'boolean', description: 'true to give each room\'s area as written, to the middle of every wall it lies on, beside its net: the nominal size of a stand or a module. false when left out.', examples: [true] },
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
@@ -417,9 +447,12 @@ const areasTool: GridTool = {
     buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER, ground: NUMBER, from: { type: 'string', enum: ['pad', 'site', 'floor'] }, storeys: { type: 'object', properties: { above: NUMBER, below: NUMBER } } }, ['id', 'name', 'floors', 'net'])),
     // ARE-20, only when apart_rooms is given: those rooms' net and their area to the middle of the walls they share.
     apart: objectSchema({ rooms: listSchema(STRING), net: NUMBER, byFloor: { type: 'object' }, toPartyWalls: { type: ['object', 'null'], properties: { grossInternal: NUMBER, grossExternal: NUMBER } }, notCounted: listSchema(STRING), state: { type: 'object' } }, ['rooms', 'net', 'toPartyWalls']),
-  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial', 'byRoomType', 'byTenure']),
+    // ARE-68: the lettable area, the core and efficiency, per floor, floor type and in all; the area per person, only with a figure.
+    lettable: objectSchema({ lettable: NUMBER, core: NUMBER, grossInternal: NULLABLE_NUMBER, efficiency: NULLABLE_NUMBER, coreShare: NULLABLE_NUMBER, floors: { type: 'array' }, floorTypes: { type: 'array' }, lettableByUse: { type: 'object' }, notLettable: { type: 'object' }, chosen: { type: ['object', 'null'] }, states: { type: 'object' }, rules: { type: 'object' } }, ['lettable', 'core', 'efficiency', 'coreShare', 'floors', 'floorTypes', 'rules']),
+    people: listSchema(objectSchema({ kind: STRING, count: NUMBER, from: STRING, rooms: listSchema(STRING), per: { type: 'object' } })),
+  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial', 'byRoomType', 'byTenure', 'people']),
   run(args, context) {
-    const { survey, floor } = load(context, args['plan'], args['floor'])
+    const { survey, floor, file } = load(context, args['plan'], args['floor'])
     const outside = (args['outside_rooms'] as string[] | undefined) ?? []
     for (const id of outside) roomArg(survey.plan, id, 'outside_rooms item')
     const apart = (args['apart_rooms'] as string[] | undefined) ?? []
@@ -441,6 +474,13 @@ const areasTool: GridTool = {
       ...(outdoorRules === undefined ? {} : { outdoorWeights: outdoorRules }),
       ...(apart.length === 0 ? {} : { apart: new Set(apart) }),
     })
+    // ARE-68: the lettable area, the core, efficiency and the area per person; the brief's people when the call gives none.
+    const letting = lettableAnswer(survey, areas, {
+      choice: { ...(args['lettable_uses'] === undefined ? {} : { uses: args['lettable_uses'] as string[] }), ...(args['lettable_tenures'] === undefined ? {} : { tenures: args['lettable_tenures'] as RoomTenure[] }) },
+      ...(args['people'] === undefined ? {} : { people: args['people'] as PeopleFigures }),
+      ...briefPeopleOf(context, file),
+    })
+    const written = args['as_written'] === true ? asWrittenAreas(survey) : null
     // LVL-23: each building measured from its own ground, with its own storeys.
     const buildings = areas.buildings.map((b) => {
       const own = heights.get(b.id)
@@ -448,7 +488,7 @@ const areasTool: GridTool = {
       return { ...b, height: own?.height?.height ?? null, ground: ground.level, from: ground.from, storeys: own?.storeys ?? { above: 0, below: 0 } }
     })
     const data = {
-      floors: areas.floors,
+      floors: written === null ? areas.floors : withAsWritten(areas.floors, written),
       net: areas.net,
       grossInternal: areas.grossInternal,
       grossExternal: areas.grossExternal,
@@ -480,6 +520,8 @@ const areasTool: GridTool = {
       // CNT-6: only on a plan that names buildings, so every other answer is as it was.
       ...(buildings.length === 0 ? {} : { buildings }),
       ...(areas.apart === undefined ? {} : { apart: areas.apart }),
+      lettable: letting.lettable,
+      ...(letting.people.length === 0 ? {} : { people: letting.people }),
     }
     if (args['format'] === 'csv') {
       const rows = areas.floors.flatMap((f) => f.rooms.map((r) => [f.floor, r.id, r.name, r.use, r.size?.[0] ?? null, r.size?.[1] ?? null, r.net, r.net === null ? null : sqFt(r.net), countedWord(r), r.state]))
@@ -518,7 +560,8 @@ const areasTool: GridTool = {
         const headroom = r.headroom === undefined ? '' : `; ${bandsText(r.headroom.bands, units)}, headroom ${lengthText(r.headroom.lowest, units)} to ${lengthText(r.headroom.highest, units)}`
         // CNT-7: an outdoor space is listed apart, with its kind and whether a roof covers it.
         const outdoor = r.outdoor === undefined ? '' : english(said('areas.room.outdoor', { kind: said(`outdoor.kind.${r.outdoor.kind}`), roofed: said(r.outdoor.roofed ? 'outdoor.roofed' : 'outdoor.open') }))
-        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${open}${air}${headroom}`)
+        const asWritten = written === null || r.net === null ? '' : asWrittenText(written.get(`${f.floor}\u0000${r.id}`), units)
+        lines.push(`  ${q(r.name)}${r.use ? ` (${r.use})` : ''}: ${measured}${asWritten}${r.net === null ? '' : surenessText(r.sureness, units)}${r.outside ? ', outside: not counted' : ''}${outdoor}${zone}${below}${open}${air}${headroom}`)
       }
     }
     if (several) {
@@ -528,7 +571,7 @@ const areasTool: GridTool = {
         // ARE-60: the area under air and the total under roof, first where they lead.
         const air = !areas.underAir.shown ? [] : ([['conditioned', f.conditioned], ['underRoof', f.underRoof]] as const).map(([m, value]) => `${MEASURES[m].name.toLowerCase()} ${value === null ? 'not known' : areaText(value, units)}`)
         const figures = areas.underAir.first ? [...air, ...gross] : [...gross, ...air]
-        lines.push(`Floor ${q(f.floor)}: net ${areaText(f.net, units)}${surenessText(f.sureness, units)}${free}, ${figures.join(', ')}.`)
+        lines.push(`Floor ${q(f.floor)}: net ${areaText(f.net, units)}${surenessText(f.sureness, units)}${free}, ${figures.join(', ')}${lettableFloorText(letting, f.floor, units)}.`)
       }
     }
     // CNT-4: each flat the plan lists, from the list and never from the rooms' names (lab EL-1).
@@ -588,8 +631,10 @@ const areasTool: GridTool = {
     if (areas.floors.some((f) => f.massing)) lines.push(storeysText(storeys))
     lines.push(`Assumed: ${areas.reader.why} Grid's own rule, not checked against any local standard.`)
     if (areas.grossInternal !== null && areas.reader.gross.includes('grossInternal')) {
-      lines.push(`Circulation: ${areas.circulation.toFixed(2)} m², ${percent(areas.circulationShare)} of gross internal. Net to gross: ${percent(areas.netToGross)}.`)
+      lines.push(`Circulation: ${areas.circulation.toFixed(2)} m², ${percent(areas.circulationShare)} of gross internal. Net to gross: ${percent(areas.netToGross)}.${netToGrossNote(letting)}`)
     }
+    lines.push(...lettableLines(letting, units, several))
+    if (written !== null) lines.push(AS_WRITTEN_RULE())
     const outsideArea = areas.floors.reduce((sum, f) => sum + f.outsideRooms, 0)
     if (outsideArea > 0) lines.push(`Outside, listed apart: ${areaText(outsideArea, units)}.`)
     // CNT-7 (C26): the outdoor spaces, listed apart from every total, by kind.
@@ -1547,21 +1592,22 @@ const measureTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks will something fit, how wide, long or high a room is, how long a wall is, how far a door is from a corner or one wall from another, can a wheelchair turn, is the way wide enough, which doors or rooms are narrower than their own figure, or how to get from one room to another. '
-    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand. '
+    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand; what=frontage gives a shop\'s floor (room) in bands of depth from its frontage, A, B, C and the rest, in m² and sq ft: the frontage on the wall named, else on the wall it opens through most, at depth (Grid\'s own 6.1 m, 20 ft, when left out) in bands bands (3), measured and never weighted. '
     + 'It measures the room between wall faces: what=fit, what=use and what=route with width keep clear of the room\'s fixtures, the other measures take none off, the plan holds no furniture or door leaves, and the answer says so. It checks no rule: a figure the person gives is their own. Do not use for floor areas (grid_areas), for what a building code asks (grid_check), or to say a plan is accessible: what=access measures, it never says so. Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
-    what: { type: 'string', required: true, enum: ['room', 'between', 'wall', 'fit', 'route', 'narrow', 'facing', 'sun', 'site', 'use', 'access', 'library', 'seats'], description: 'What to measure: room, between, wall, fit, route, narrow, facing, sun, site, use, access, library or seats.', examples: ['between', 'fit', 'route', 'use', 'access', 'library', 'seats'] },
+    what: { type: 'string', required: true, enum: ['room', 'between', 'wall', 'fit', 'route', 'narrow', 'facing', 'sun', 'site', 'use', 'access', 'library', 'seats', 'frontage'], description: 'What to measure: room, between, wall, fit, route, narrow, facing, sun, site, use, access, library, seats or frontage.', examples: ['between', 'fit', 'route', 'use', 'access', 'library', 'seats', 'frontage'] },
     // CNT-20: a library entry, for fit and library.
     name: { type: 'string', id: true, description: 'For fit, instead of width and depth: a library item or typical room by name (double-bed, bathroom). For library: one entry only.', examples: ['double-bed', 'double-bedroom'] },
-    room: { type: 'string', id: true, description: 'For room, fit, use and route: the room id, where the route starts. For facing and sun: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
+    room: { type: 'string', id: true, description: 'For room, fit, use, frontage and route: the room id, where the route starts. For facing and sun: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
     from: { type: 'string', id: true, description: 'For between: the id of a wall, door, window, opening, fixture or room to measure from. For route: the room it starts in, as room.', examples: ['front-door', 'w-west'] },
     to: { type: 'string', id: true, description: 'For between: the id of the wall, door, window, opening, fixture or room to measure to. For route: the room id where it ends, or "outside" for the nearest way out.', examples: ['w-west', 'bed1', 'outside'] },
     x: { type: 'number', length: true, description: 'For between, instead of to: a point\'s x on the drawing in metres, such as an inside corner. The plan names no points.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
     y: { type: 'number', length: true, description: 'For between, with x: the point\'s y on the drawing in metres.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
-    wall: { type: 'string', id: true, description: 'For wall: the wall id.', examples: ['w-south'] },
+    wall: { type: 'string', id: true, description: 'For wall: the wall id. For frontage: the wall the shop front stands on; the wall the room opens through most when left out.', examples: ['w-south'] },
     width: { type: 'number', length: true, description: 'For fit: the box\'s width in metres; a table of 1.8 × 0.9 m with 0.75 m round it for chairs is 3.3. For route and use: the width of the body or trolley that must get through, such as 0.7 for a wheelchair; for use, Grid\'s own indicator when left out.', examples: [3.3, 0.7], minimum: 0.05, maximum: 100 },
-    depth: { type: 'number', length: true, description: 'For fit: the box\'s depth in metres. It is tried both ways round.', examples: [2.4, 0.6], minimum: 0.05, maximum: 100 },
+    depth: { type: 'number', length: true, description: 'For fit: the box\'s depth in metres. It is tried both ways round. For frontage: each band\'s depth from the frontage, in metres; Grid\'s own 6.1 m (20 ft) when left out.', examples: [2.4, 0.6], minimum: 0.05, maximum: 100 },
+    bands: { type: 'number', description: 'For frontage: how many bands of depth before the rest; 3 (A, B and C) when left out.', examples: [3, 2], minimum: 1, maximum: FRONTAGE_BANDS_MAX },
     diameter: { type: 'number', length: true, description: 'For fit: a circle instead of a box, such as 1.5 for a wheelchair turning circle. For use: the turning circle to set the room against; Grid\'s own indicator when left out.', examples: [1.5], minimum: 0.05, maximum: 100 },
     clearance: { type: 'number', length: true, description: 'For use: the clear floor wanted in front of and beside each fixture, in metres, such as 0.7 beside a bath; Grid\'s own indicator when left out.', examples: [0.7], minimum: 0.05, maximum: 100 },
     under: { type: 'number', length: true, description: 'For narrow: the person\'s figure in metres, such as 0.8 for a door or 1.5 for a turning circle; width does the same.', examples: [0.8, 1.5], minimum: 0.05, maximum: 100 },
@@ -1573,7 +1619,7 @@ const measureTool: GridTool = {
   outputSchema: objectSchema({ what: STRING, answer: { type: 'object' }, rule: STRING }),
   run(args, context) {
     const { survey, file } = load(context, args['plan'])
-    const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library' | 'seats'
+    const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library' | 'seats' | 'frontage'
     // CMD-29: the same thing goes by the same name in every mode: a route goes from a room, and
     // a narrow measure takes the width the way route and use do.
     if (what === 'route' && args['from'] !== undefined) {
@@ -1600,8 +1646,9 @@ const measureTool: GridTool = {
       access: [],
       library: ['name'],
       seats: ['room'],
+      frontage: ['room', 'wall', 'depth', 'bands'],
     }
-    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
+    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'bands'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`what=${what} takes ${allowed[what]!.length === 0 ? 'no other argument' : allowed[what]!.join(', ')}, not ${stray.join(', ')}.`)
     if (what === 'access') {
       // CNT-17: the accessibility measurements, set only against the person's own figures (the
@@ -1657,6 +1704,26 @@ const measureTool: GridTool = {
       const id = args['room'] === undefined ? undefined : roomArg(survey.plan, args['room'])
       const facing = facingAnswer(survey.plan, id)
       return { text: [...facing.lines, FACING_RULE].join('\n'), data: { what, answer: facing.data, rule: FACING_RULE } }
+    }
+    if (what === 'frontage') {
+      // ARE-68: a shop's floor in bands of depth from its frontage, measured, never weighted.
+      const room = roomOf()
+      const bands = args['bands'] === undefined ? FRONTAGE_BANDS : args['bands'] as number
+      if (!Number.isInteger(bands)) throw new ToolRefusal(`bands takes a whole number from 1 to ${FRONTAGE_BANDS_MAX}.`)
+      const wall = args['wall'] === undefined ? undefined : args['wall'] as string
+      const side = frontageSide(room, wall)
+      if (side === null) throw new ToolRefusal(wall === undefined ? 'That room has no side Grid can measure from; grid_check says why.' : `Room ${q(room.facts.id)} has no side on wall ${q(wall)}: name a wall its outline lies on.`)
+      const zones = frontageZones(room, side, args['depth'] === undefined ? FRONTAGE_DEPTH : args['depth'] as number, bands)
+      const text = english(said('frontage.line', {
+        room: { name: roomCalled(room.facts) },
+        width: L(zones.width),
+        wall: zones.wall === null ? said('frontage.noWall') : { name: zones.wall },
+        found: said(`frontage.found.${zones.found}` as MessageKey),
+        depth: L(zones.depth),
+        bands: joined(zones.bands.map((band) => said('frontage.band', { name: band.name, area: areaText(band.area, units), sqFt: num(band.sqFt.toFixed(0)) })), 'join.comma'),
+        area: areaText(zones.area, units),
+      }))
+      return { text: [text, zones.rule].join('\n'), data: { what, answer: zones, rule: zones.rule } }
     }
     if (what === 'seats') {
       // ARE-67: the seats, desks and covers counted from the furniture, once.
