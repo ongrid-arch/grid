@@ -33,6 +33,8 @@ import { buildingLines } from './buildings'
 import { itemAndRowLines } from './rows'
 import { parkingLines } from './parking'
 import { noteLines } from './notes'
+import { roofHasLines, roofLines } from './roofs'
+import { columnLines } from './columns'
 import { fitOutReading, type BasePlan } from './base'
 
 type P = readonly [number, number]
@@ -742,13 +744,19 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
     // LVL-6: the floor's roof and parapet, which rooms text has no words for, as the plan holds
     // them; BRF-4: its outline and the homes and parking spaces it states.
     const f = (plan.floors ?? []).find((x) => x.id === d.id)
-    const extra = f === undefined ? {} : { ...(storeyLevel(f.level) ? {} : { level: f.level }), ...Object.fromEntries(RAW_FLOOR_KEYS.flatMap((key) => (f[key as keyof typeof f] === undefined ? [] : [[key, f[key as keyof typeof f]]]))) }
+    // WRT-79: a roof with no dormers is a roof line and its roof lights rooflight lines.
+    const roofWords = f?.roof !== undefined && roofHasLines(f.roof)
+    const extra = f === undefined ? {} : { ...(storeyLevel(f.level) ? {} : { level: f.level }), ...Object.fromEntries(RAW_FLOOR_KEYS.flatMap((key) => (f[key as keyof typeof f] === undefined || (key === 'roof' && roofWords) ? [] : [[key, f[key as keyof typeof f]]]))) }
     if (Object.keys(extra).length > 0) lines.push(`raw floor ${JSON.stringify(extra)}`)
+    if (roofWords) lines.push(...roofLines(f.roof!))
+    // WRT-79: the columns standing on this floor, after its rooms (they name none).
+    const columnsHere = columnLines(plan.columns ?? [], d.id, [])
     if (raw.has(d.id)) {
       // WRT-42: what stops rooms text, named, so the reader knows which part to look at.
       lines.push(`# ${english(said('describe.rooms.rawFloor', { why: why.get(d.id) ?? '' }))}`)
       for (const w of plan.walls.filter((x) => floorOf(x) === d.id)) lines.push(rawLine('wall', w))
       for (const r of plan.rooms.filter((x) => floorOf(x) === d.id)) lines.push(rawLine('room', r))
+      lines.push(...columnsHere)
       const walls = new Map(plan.walls.map((w) => [w.id, w]))
       for (const o of plan.openings) {
         const w = walls.get(o.wall)
@@ -764,7 +772,11 @@ function textOf(plan: FloorPlan, rule: Rule, name: string | undefined, floors: r
       lines.push(line)
     }
     lines.push(...d.raw)
+    lines.push(...columnsHere)
   }
+  // WRT-79: a column on a floor the text writes no block for keeps its floor, raw.
+  const strays = columnLines(plan.columns ?? [], null, floors.map((d) => d.id))
+  if (strays.length > 0) lines.push('', ...strays)
   // LVL-21: the stairs, after every floor, so each room a stair line names is written above it.
   const stairs = stairLines(plan)
   if (stairs.length > 0) lines.push('', ...stairs)

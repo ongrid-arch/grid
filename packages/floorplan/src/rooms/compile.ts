@@ -124,6 +124,12 @@
  *   north <degrees> [clockwise] | north <up|left|...>   site origin|location|elevation|ground|country ...
  *   site <fence|gate|path|paving|tree|pool> ...         the plot, north and the site (CNT-41): `site.ts`
  *   ground <m> [below|above]                            the ground outside (ARE-62): `ground.ts`
+ *   plinth <m>                                          the ground floor that far above it, ground -<m> (WRT-79)
+ *   roof <flat|gable|hip|mono-pitch> [pitch <deg> | ridge <m>] eaves <m> [ridge runs <way>] [high <side>]
+ *   rooflight <id> over <room> | at x,y, <w> x <l>     the floor's roof and its roof lights (WRT-79): `roofs.ts`
+ *   column <id> [square|round] <w> [x <d>] at x,y [turn <deg>] [height <m>] [through <floor>] [on <floor>]
+ *   columns <group> ... at x,y, count <n> [x <m>], every <s> [x <s>]   raw column { ... }
+ *                                                      the plan's columns (WRT-79): `columns.ts`
  *   stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <w> wide, straight|L|U, runs <side>
  *         [then <side>] [along <side>] [risers <n>]   or   ..., <w> wide, run x,y x,y ...
  *   raw stair { ...Grid's own JSON for a stair... }     the plan's stairs (LVL-21): `stairs.ts`
@@ -179,6 +185,8 @@ import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
 import { edgeWords, mirroredSide, OPEN_SIDES, outdoorWordKind, outsideEdge, type EdgeWord } from './edges'
 import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
 import { PARKING_LINE_WORDS, ParkingLines } from './parking'
+import { isRooflightLine, ROOF_LINE_WORDS, RoofLines, roofOfWords, rooflightOfWords } from './roofs'
+import { COLUMN_LINE_WORDS, ColumnLines } from './columns'
 import { likelyMeant } from '../types/nearest'
 import { bandShape, bowedSide, circleShape, cornerCount, curvedArea, curveOfPiece, curveWalls, facingAngle, frameAt, ovalShape, segmentShape, stationAt, type CurveCircle, type CurvedShape, type CurvedWall } from './curves'
 import { readingNotes } from '../types/reading'
@@ -191,7 +199,7 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
 
 /** WRT-68: the kinds a `raw` line takes, written after it in small letters. */
-const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS, 'bay', 'ramp', 'note', 'sketch']
+const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS, 'bay', 'ramp', 'note', 'sketch', 'column']
 
 /**
  * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
@@ -203,14 +211,16 @@ const RAW_ELSEWHERE: Readonly<Record<string, Said>> = {
   gate: said('rooms.raw.kind.opening', { type: 'door' }),
   window: said('rooms.raw.kind.opening', { type: 'window' }),
   skylight: said('rooms.raw.kind.opening', { type: 'window' }),
-  roof: said('rooms.raw.kind.floor', { list: 'roof' }),
+  // WRT-79: a roof and a column have lines of their own, and a column is `raw column` too.
+  roof: said('rooms.raw.kind.roof'),
+  rooflight: said('rooms.raw.kind.roof'),
   parapet: said('rooms.raw.kind.floor', { list: 'parapet' }),
   outline: said('rooms.raw.kind.floor', { list: 'outline' }),
   // LVL-21: a stair is `raw stair` or a stair line of its own.
   stair: said('rooms.raw.kind.stair'),
   staircase: said('rooms.raw.kind.stair'),
-  column: said('rooms.raw.kind.list', { list: 'columns' }),
-  pillar: said('rooms.raw.kind.list', { list: 'columns' }),
+  pillar: said('rooms.raw.kind.column'),
+  columns: said('rooms.raw.kind.column'),
   // CNT-45: an item is `raw item` or an item line of its own.
   fixture: said('rooms.raw.kind.item'),
   item: said('rooms.raw.kind.item'),
@@ -942,6 +952,10 @@ class Compiler {
   readonly baseLine = new BaseLine()
   /** CNT-46: the parking bays and ramps, from their own lines and `raw bay`, `raw ramp`. */
   private readonly parkingLines = new ParkingLines()
+  /** WRT-79: the floors whose roof is written, by a roof line or `raw floor` (`roofs.ts`). */
+  private readonly roofLines = new RoofLines()
+  /** WRT-79: the columns, from their own lines and `raw column` (`columns.ts`). */
+  private readonly columnLines = new ColumnLines()
 
   private stop(code: string, at: number | null, message: string): never {
     throw new RoomsStop(code, message, at)
@@ -987,6 +1001,7 @@ class Compiler {
         else if (RAW_ITEM_KINDS.includes(kind)) this.itemLines.raw(rest, at)
         else if (kind === 'bay' || kind === 'ramp') this.parkingLines.raw(kind, rest, at)
         else if (kind === 'note' || kind === 'sketch') this.noteLines.raw(kind, rest, at)
+        else if (kind === 'column') this.columnLines.raw(rest, at)
         else this.rawKind(kind, at)
         continue
       }
@@ -1068,8 +1083,31 @@ class Compiler {
       const field = said('rooms.raw.unknownField.named', { field: key })
       this.problem('rooms/raw', at, english(said('rooms.raw.floorField', { line: at, field, known: joined(known.map((k) => `"${k}"`), 'join.comma', 'join.and'), fix })))
     }
+    // WRT-79: a roof is written once on a floor, by a roof line or here.
+    if (keys.includes('roof')) this.roofLines.claim(this.floor().id, at)
     // WRT-48: with no floor line above it, it is the one floor the text has, the ground floor (`emit` writes it).
     Object.assign(this.floor().extra, Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([k]) => known.includes(k))))
+  }
+
+  /**
+   * WRT-79: a roof line sets the current floor's roof (`roof none` takes a copied one off); a
+   * rooflight line adds a roof light to it, over the middle of a room written above it or at a point.
+   */
+  private roofLine(t: string[], at: number): void {
+    const fl = this.floor()
+    if (isRooflightLine(t)) {
+      const words = rooflightOfWords(t, at, this.plain)
+      let point = words.at
+      if (words.over !== undefined) {
+        const box = this.lookup(words.over, at, null).box
+        point = [r4((box[0] + box[2]) / 2), r4((box[1] + box[3]) / 2)]
+      }
+      fl.extra['roof'] = this.roofLines.withLight(fl.extra['roof'], { id: words.id, at: point!, width: words.width, length: words.length }, at)
+      return
+    }
+    const roof = roofOfWords(t, at, this.plain)
+    this.roofLines.claim(fl.id, at)
+    fl.extra['roof'] = roof
   }
 
   /** WRT-48: a `raw` line of a kind raw does not take, named, with where that part goes. */
@@ -1191,6 +1229,9 @@ class Compiler {
     if (BASE_LINE_WORDS.includes(kw)) return this.baseLine.read(this.lines[at - 1] ?? '', at)
     // CNT-46: a bay, a row of bays or a ramp (`parking.ts`), laid out once the rooms are drawn.
     if (PARKING_LINE_WORDS.includes(kw)) return this.parkingLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
+    // WRT-79: the floor's roof and its roof lights (`roofs.ts`), and the columns (`columns.ts`).
+    if (ROOF_LINE_WORDS.includes(kw)) return this.roofLine(t, at)
+    if (COLUMN_LINE_WORDS.includes(kw)) return this.columnLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
     switch (kw) {
       case 'plan':
         this.name = t[1] ?? null
@@ -4740,6 +4781,7 @@ class Compiler {
     this.emitBuildings(plan)
     this.emitSite(plan)
     this.emitStairs(plan)
+    this.emitColumns(plan)
     this.emitItems(plan)
     this.emitParking(plan)
     this.emitNotes(plan)
@@ -4794,6 +4836,15 @@ class Compiler {
     this.guesses.push(...made.guesses)
     if (made.stairs !== undefined) plan.stairs = made.stairs
     for (const id of this.stairLines.rawIds()) this.rawIds.add(id)
+  }
+
+  /** WRT-79: the column lines into the plan's `columns`, their ids and floors checked. */
+  private emitColumns(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (!this.columnLines.written) return
+    const taken = new Set([...plan.walls, ...plan.rooms, ...plan.openings, ...(plan.stairs ?? [])].map((x) => x.id))
+    const made = this.columnLines.finish(taken, (plan.floors ?? []).map((f) => f.id))
+    this.problems.push(...made.problems)
+    if (made.columns !== undefined) plan.columns = made.columns
   }
 
   /** CNT-45: the item lines into the plan's `items`, placed in the rooms as drawn. */
