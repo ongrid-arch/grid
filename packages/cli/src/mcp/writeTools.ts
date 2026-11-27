@@ -670,7 +670,7 @@ const moveSideTool: GridTool = {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
     room: { type: 'string', id: true, required: true, description: 'The room whose side moves.', examples: ['kitchen', 'bed1'] },
-    side: { type: 'string', required: true, description: 'Which side of the room, as rooms text names it: north (the top of the drawing), east, south, west; ne, nw, se or sw for an angled side; east.2 for the second of two facing east; a wall id; or facing <room>.', examples: ['north', 'se', 'facing hall'] },
+    side: { type: 'string', required: true, maxLength: 200, description: 'Which side of the room, as rooms text names it: north (the top of the drawing), east, south, west; ne, nw, se or sw for an angled side; east.2 for the second of two facing east; a wall id; or facing <room>.', examples: ['north', 'se', 'facing hall'] },
     by: { type: 'number', length: true, description: 'Metres to move it: positive makes the room bigger, negative smaller. Pass by or to.', examples: [3, -0.5], minimum: -50, maximum: 50 },
     to: { type: 'number', length: true, description: 'The room\'s inside size across that side after the move, in metres: its depth for north or south, its width for east or west, its size along the normal of an angled side. Pass by or to.', examples: [4, 3.2], minimum: NARROWEST_ACROSS, maximum: 100 },
     correction: CORRECTION_ARG,

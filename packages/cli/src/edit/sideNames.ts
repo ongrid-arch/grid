@@ -97,7 +97,9 @@ function grouped(edges: readonly RoomEdge[]): Group[] {
   for (const edge of edges) {
     if (edge.length <= 0) continue
     const out = outOf(edge)
-    const group = groups.find((g) => dot(g.out, out) > SAME_WAY_COS && Math.abs(dot(sub(edge.from, g.edges[0]!.from), g.out)) < SAME_LINE_M)
+    // A curved wall's pieces are one side, the wall (the edit that moves it refuses it by name).
+    const curved = edge.wall !== null && edge.wall.arc !== undefined ? edge.wall.id : null
+    const group = groups.find((g) => (curved !== null ? g.edges[0]!.wall?.id === curved : g.edges[0]!.wall?.arc === undefined && dot(g.out, out) > SAME_WAY_COS && Math.abs(dot(sub(edge.from, g.edges[0]!.from), g.out)) < SAME_LINE_M))
     if (group) group.edges.push(edge)
     else groups.push({ edges: [edge], out })
   }

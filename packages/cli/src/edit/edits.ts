@@ -667,6 +667,8 @@ export function moveRoomSide(survey: Survey, roomId: string, sideName: string, b
   }
   const shifted = (p: Vec2, by: Vec2): Pair => [r3(p.x + by.x), r3(p.y + by.y)]
   const patchWalls = new Map<string, { start?: Pair; end?: Pair }>()
+  // The side's walls first, as the answer names them; their ends are set once the followers are known.
+  for (const w of walls) patchWalls.set(w.id, {})
   const followers: string[] = []
   const slid: string[] = []
   /** CMD-50: where each follower's end on the side lies, and how far beyond the side's own move it slid along the side. */
