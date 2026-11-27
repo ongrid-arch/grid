@@ -48,6 +48,14 @@ describe('grid_view out', () => {
     expect(maxY).toBeGreaterThan(minY)
     // The bounds and the pixels per metre agree: the drawing is as wide as its metres say.
     expect((maxX - minX) * record.pxPerMetre).toBeCloseTo(record.width, 0)
+    expect(answer.data['worldFile']).toBe('exports/ground.pgw')
+    expect(record.pixelToMetres).toEqual(answer.data['pixelToMetres'])
+    const [a, b, c, d, e, f] = record.pixelToMetres.coefficients
+    expect(a).toBeCloseTo(1 / record.pxPerMetre, 10)
+    expect(e).toBeCloseTo(minX, 10)
+    expect(f).toBeCloseTo(maxY, 10)
+    const world = readFileSync(join(p.dir, 'exports/ground.pgw'), 'utf8').trim().split('\n').map(Number)
+    expect(world).toEqual([a, c, b, d, e + (a + b) / 2, f + (c + d) / 2])
     expect(answer.text).toContain('exports/ground.png')
   })
 
@@ -84,9 +92,32 @@ describe('grid_view out', () => {
     mkdirSync(join(p.dir, 'ok'), { recursive: true })
   })
 
+  it('uses elevation and section coordinates for their world files', async () => {
+    const p = project()
+    const facade = await call(p, { kind: 'facade', side: 'south', out: 'facade.png' })
+    expect(facade.data['pixelToMetres']).toMatchObject({ space: 'facade' })
+    expect(facade.data['worldFile']).toBe('exports/facade.pgw')
+    const section = await call(p, { kind: 'section', cut: { from: [0, 3], to: [10, 3] }, out: 'cut.png' })
+    expect(section.data['pixelToMetres']).toMatchObject({ space: 'section' })
+    expect(section.data['worldFile']).toBe('exports/cut.pgw')
+  })
+
+  it('checks a linked world file before writing the PNG or record', async () => {
+    const p = project()
+    const away = project()
+    mkdirSync(join(p.dir, 'pics'))
+    symlinkSync(join(away.dir, 'plan.json'), join(p.dir, 'pics/plan.pgw'))
+    await expect(call(p, { kind: 'plan', out: 'pics/plan.png' })).rejects.toThrow(/outside the project/)
+    expect(existsSync(join(p.dir, 'pics/plan.png'))).toBe(false)
+    expect(existsSync(join(p.dir, 'pics/plan.view.json'))).toBe(false)
+  })
+
   it('writes a 3d picture as png and pdf', async () => {
     const p = project()
-    await call(p, { kind: '3d', out: 'model.png' })
+    const perspective = await call(p, { kind: '3d', out: 'model.png' })
+    expect(perspective.data['pixelToMetres']).toBeNull()
+    expect(perspective.data['worldFile']).toBeNull()
+    expect(existsSync(join(p.dir, 'exports/model.pgw'))).toBe(false)
     await call(p, { kind: '3d', out: 'model.pdf' })
     expect(existsSync(join(p.dir, 'exports/model.png'))).toBe(true)
     expect(readFileSync(join(p.dir, 'exports/model.pdf')).subarray(0, 5).toString()).toBe('%PDF-')

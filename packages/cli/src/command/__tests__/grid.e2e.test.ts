@@ -234,6 +234,11 @@ describe('grid draw --out: writing a picture', () => {
     const [width, height] = size('one.png')
     expect(width).toBe(1200)
     expect(size('two.png')).toEqual([width * 2, height * 2])
+    const world = (file: string): number[] => readFileSync(join(dir, file), 'utf8').trim().split('\n').map(Number)
+    const [a, d, b, e, x, y] = world('one.pgw')
+    const expectedWorld = [a! / 2, d! / 2, b! / 2, e! / 2, x! - a! / 4, y! - e! / 4]
+    world('two.pgw').forEach((value, index) => expect(value).toBeCloseTo(expectedWorld[index]!, 10))
+    expect(two.out).toContain('Wrote the world file two.pgw.')
   })
 
   it('draws a view saved with the plan with --view, by its name in any capitals (VEW-3)', () => {

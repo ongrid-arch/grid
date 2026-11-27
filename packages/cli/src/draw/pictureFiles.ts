@@ -5,11 +5,14 @@
  * is refused as everywhere.
  */
 import path from 'node:path'
+import { say } from '@ongrid/floorplan/messages'
 import type { SKRSContext2D } from '@napi-rs/canvas'
 import { pathProblem, type Project } from '../fs/projectFiles'
 import { writeBesidePlan } from '../command/export'
 import { loadCanvas } from './canvas'
 import type { WorldBounds } from './views'
+import { EXPORTS_DIR } from '../export/projectExports'
+import { worldFileText, type PixelTransform } from './pictureTransform'
 
 export const PICTURE_EXTENSIONS = ['.png', '.svg', '.pdf'] as const
 export type PictureExtension = (typeof PICTURE_EXTENSIONS)[number]
@@ -20,6 +23,8 @@ export interface PictureRecord {
   readonly floor: string | null
   readonly pxPerMetre: number | null
   readonly bounds: WorldBounds | null
+  readonly pixelToMetres: PixelTransform | null
+  readonly panels?: readonly { readonly floor: string | null; readonly pixelToMetres: PixelTransform }[]
 }
 
 export class PictureOutRefused extends Error {}
@@ -55,9 +60,14 @@ export function recordName(out: string): string {
   return `${out.slice(0, out.length - path.extname(out).length)}.view.json`
 }
 
+export function worldFileName(out: string): string {
+  return `${out.slice(0, -'.png'.length)}.pgw`
+}
+
 export interface PictureWritten {
   readonly picture: string
   readonly record: string
+  readonly worldFile: string | null
 }
 
 /**
@@ -77,8 +87,15 @@ export function writePicture(
   const name = recordName(out)
   const plain = path.basename(out) === out && !out.includes('\\')
   const json = JSON.stringify({ file: path.basename(out), ...record, ...(record.bounds === null ? {} : { pixel: 'x = (worldX - bounds.minX) * pxPerMetre, y = (bounds.maxY - worldY) * pxPerMetre, from the top-left corner' }), gridVersion }, null, 2) + '\n'
-  if (plain) {
-    return { picture: project.relative(writeBesidePlan(project, planFile, out, data)), record: project.relative(writeBesidePlan(project, planFile, name, json)) }
+  const world = path.extname(out).toLowerCase() === '.png' && record.pixelToMetres !== null
+    ? { name: worldFileName(out), text: worldFileText(record.pixelToMetres) }
+    : null
+  const target = (given: string): string => plain ? path.join(path.dirname(planFile), EXPORTS_DIR, given) : given
+  const paths = [out, name, ...(world === null ? [] : [world.name])].map((given) => project.writable(target(given)))
+  if (new Set(paths).size !== paths.length || paths.includes(project.resolve(planFile))) {
+    throw new PictureOutRefused(say('en', 'view.files.distinct'))
   }
-  return { picture: project.relative(project.writeFile(out, data)), record: project.relative(project.writeFile(name, json)) }
+  const write = (given: string, body: string | Uint8Array): string =>
+    project.relative(plain ? writeBesidePlan(project, planFile, given, body) : project.writeFile(given, body))
+  return { picture: write(out, data), record: write(name, json), worldFile: world === null ? null : write(world.name, world.text) }
 }
