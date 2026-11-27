@@ -222,9 +222,11 @@ export function labelled(answer: Answer, leads = true): Answer {
     const data = answer.data['text'] === answer.text ? { ...answer.data, text: bare } : answer.data
     return { ...answer, text: bare, data: { label: GENERAL_GUIDANCE_LABEL, ...data } }
   }
-  // A first line that holds it already (a CSV cell, a comment in rooms text) is left as it is.
+  // A first line that holds it already (a comment in rooms text) is left as it is, and so is a
+  // CSV table, whose header leads and whose last row is the label in one cell (VEW-83).
   const first = answer.text.split('\n', 1)[0]!
-  const text = first.includes(GENERAL_GUIDANCE_LABEL) ? answer.text : `${GENERAL_GUIDANCE_LABEL}\n${answer.text}`
+  const held = first.includes(GENERAL_GUIDANCE_LABEL) || answer.text.split('\n').includes(`"${GENERAL_GUIDANCE_LABEL}"`)
+  const text = held ? answer.text : `${GENERAL_GUIDANCE_LABEL}\n${answer.text}`
   return { ...answer, text, data: { label: GENERAL_GUIDANCE_LABEL, ...answer.data } }
 }
 

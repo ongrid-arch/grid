@@ -117,21 +117,21 @@ describe('the facts in the schedules (done when 1)', () => {
     expect(rows[1]!.properties).toEqual({ department: 'Sales', 'head count': 8, finish: 'Carpet' })
     expect(reply.text).toContain('"G.02". "Open office"')
     expect(reply.text).toContain('"department" "Sales", "head count" 8')
-    // MSG-3: a CSV's first row is the label, in one cell.
-    const csv = (await ok('grid_schedule', { plan: 'office.json', of: 'rooms', format: 'csv' })).text.split('\n')
-    expect(csv[0]).toBe('"General guidance, not your local rules"')
-    expect(csv[1]).toBe('number,room id,name,use,area m2,area sq ft,height m,floor,state,department,head count,finish')
-    expect(csv[3]).toMatch(/^G\.02,g-office,Open office,other,.*,Sales,8,Carpet$/)
+    // MSG-3, VEW-83: a CSV's first row is its header and its last the label, in one cell.
+    const csv = (await ok('grid_schedule', { plan: 'office.json', of: 'rooms', format: 'csv' })).text.trimEnd().split('\n')
+    expect(csv.at(-1)).toBe('"General guidance, not your local rules"')
+    expect(csv[0]).toBe('number,room id,name,use,area m2,area sq ft,height m,floor,state,department,head count,finish')
+    expect(csv[2]).toMatch(/^G\.02,g-office,Open office,other,.*,Sales,8,Carpet$/)
   })
 
   it('gives each door\'s and window\'s facts in the opening schedule', async () => {
     const reply = await ok('grid_schedule', { plan: 'office.json', of: 'openings' })
     const rows = reply.data!['rows'] as { id: string; properties: Record<string, unknown> }[]
     expect(rows.find((r) => r.id === 'd-entry')!.properties).toEqual({ 'fire rating': 'EI 30', 'door set': 'DS-01', 'self-closing': true })
-    const csv = (await ok('grid_schedule', { plan: 'office.json', of: 'openings', format: 'csv' })).text.split('\n')
-    expect(csv[0]).toBe('"General guidance, not your local rules"')
+    const csv = (await ok('grid_schedule', { plan: 'office.json', of: 'openings', format: 'csv' })).text.trimEnd().split('\n')
+    expect(csv.at(-1)).toBe('"General guidance, not your local rules"')
     // CNT-14: the doors state their swing, so the schedule says their handing.
-    expect(csv[1]).toBe('number,mark,id,type,width m,height m,sill m,handing,floor,side 1,side 2,count,phase,section,fire rating,door set,self-closing,glazing,openable')
+    expect(csv[0]).toBe('number,mark,id,type,width m,height m,sill m,handing,floor,side 1,side 2,count,phase,section,fire rating,door set,self-closing,glazing,openable')
     const facts = rows.reduce((n, r) => n + Object.keys(r.properties).length, 0)
     expect(facts).toBe(11 + 12)
   })

@@ -87,7 +87,7 @@ describe('the reading commands', () => {
     const dir = project()
     const asCsv = await grid(dir, 'areas', '--csv')
     expect(asCsv.status).toBe(0)
-    expect(asCsv.out.split('\n')[0]).toBe('"General guidance, not your local rules"')
+    expect(asCsv.out.trimEnd().split('\n').at(-1)).toBe('"General guidance, not your local rules"')
     expect(asCsv.out).toContain(',')
     expect((await grid(dir, 'areas', '--format', 'csv')).out).toBe(asCsv.out)
   })
@@ -96,10 +96,11 @@ describe('the reading commands', () => {
     const dir = project()
     const found = await grid(dir, 'find', '--kind', 'door', '--fields', 'width', '--csv')
     expect(found.status).toBe(0)
-    expect(found.out.split('\n').slice(0, 3)).toEqual(['"General guidance, not your local rules"', 'id,width', 'door-bath,0.7'])
+    expect(found.out.split('\n').slice(0, 2)).toEqual(['id,width', 'door-bath,0.7'])
+    expect(found.out).toMatch(/\n"General guidance, not your local rules"\n$/)
     const counted = await grid(dir, 'count', '--kind', 'door', '--by', 'width', '--csv')
-    expect(counted.out.split('\n').slice(1, 3)).toEqual(['width,count', '0.8,4'])
-    expect(counted.out).toMatch(/\ntotal,6\n$/)
+    expect(counted.out.split('\n').slice(0, 2)).toEqual(['width,count', '0.8,4'])
+    expect(counted.out).toMatch(/\ntotal,6\n"General guidance, not your local rules"\n$/)
   })
 
   it('refuses --csv where the answer is no table, and --csv with --json', async () => {

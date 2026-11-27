@@ -136,12 +136,12 @@ describe('grid_check\'s drawing list', () => {
 describe('the CSV tables in the plan\'s units', () => {
   it('give lengths in feet, named in the head, with a decimal point', async () => {
     const areas = (await ok('grid_areas', { plan: 'feet.json', format: 'csv' })).text.split('\n')
-    expect(areas[1]).toContain('across ft,up ft,net m2,net sq ft')
+    expect(areas[0]).toContain('across ft,up ft,net m2,net sq ft')
     expect(areas.find((line) => line.includes('Living room'))).toContain(',14.436,13.78,')
     const rooms = (await ok('grid_schedule', { plan: 'feet.json', of: 'rooms', format: 'csv' })).text.split('\n')
-    expect(rooms[1]).toContain('height ft')
+    expect(rooms[0]).toContain('height ft')
     const metres = (await ok('grid_areas', { plan: 'house.json', format: 'csv' })).text.split('\n')
-    expect(metres[1]).toContain('across m,up m,net m2')
+    expect(metres[0]).toContain('across m,up m,net m2')
   })
 })
 

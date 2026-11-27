@@ -23,7 +23,7 @@ const WHY = {
   agent: 'Written for the agent, not the person: the protocol, the argument checks, the retelling rules and the lookup prompt. English by design.',
   command: "The command line's help, usage and refusals of a mistyped command. Not moved yet.",
   developer: "For people who build or install Grid: the tolerance table's own descriptions (docs/tolerances.md), the sheet's coverage table, install and programming errors. English by design.",
-  notWords: 'Not words: CSS class names and a font.',
+  notWords: "Not words: CSS class names, a font and a workbook's XML.",
   provenance: "A figure's provenance as recorded: its document, edition, clause and what it measures, as data.",
   agentForm: "grid describe --for agent: a fixed format for agents, of tokens and ids. Its label is in the person's language.",
   notYet: 'Shown to the person, not moved yet: rooms text and its errors, the edit receipts, the measuring and quantity reports, the notes, export file texts, schema refusals and the other commands.',
@@ -56,12 +56,14 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-73: five more, the help of --no-roofs and --arc-segments and their refusals.
   // CNT-58: one more, sun refused for a format other than glb.
   // VEW-82: four more, the help of --doors and --walls and their refusals.
-  'packages/cli/src/command/export.ts': [35, 'command'],
+  // VEW-83: four more, the help of --what, --csv, --units and --decimal.
+  'packages/cli/src/command/export.ts': [39, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
   // CMD-52: one more, the help of --tools.
-  'packages/cli/src/command/main.ts': [63, 'command'],
+  // VEW-83: three more, a table's refusals of options of the other kind and of no --what.
+  'packages/cli/src/command/main.ts': [66, 'command'],
   'packages/cli/src/command/options.ts': [9, 'command'],
   'packages/cli/src/command/plan.ts': [27, 'command'],
   // CMD-30: one more, the refusal of an invisible character.
@@ -152,6 +154,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
   'packages/cli/src/export/dxfProfile.ts': [5, 'command'],
   'packages/cli/src/export/projectExports.ts': [2, 'command'],
+  // VEW-83: a workbook's XML parts.
+  'packages/cli/src/export/table.ts': [3, 'notWords'],
   // ARE-73: one more, the refusal of a zone's width.
   'packages/cli/src/firm/standards.ts': [19, 'command'],
   // CMD-30: one more, the refusal of a read-only file.
@@ -283,6 +287,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/traceTool.ts': [26, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
+  // VEW-83: a table written as a file: its refusals of floor all, out, state and an unknown tool.
+  'packages/cli/src/mcp/tableExport.ts': [5, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
   'packages/cli/src/mcp/wordsTool.ts': [31, 'tools'],
   // MSG-33: one more, the head of a refusal that lists every fault of a call.
@@ -313,7 +319,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-75: one more, grid_export's state.
   // CNT-58: two more, grid_export's sun and its refusal for another format.
   // VEW-82: three more, grid_export's glb for a game engine and its doors and walls.
-  'packages/cli/src/mcp/writeTools.ts': [171, 'tools'],
+  // VEW-83: nine more, grid_export's tables: what, units, decimal, their refusals and the answer.
+  'packages/cli/src/mcp/writeTools.ts': [180, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -652,7 +659,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // (mcp/toolGroups.ts 7) and the help of --tools (command/main.ts 1) (odd/tasks/CMD-52.md).
     // and VEW-82 11: grid export's and grid_export's doors and walls (command/export.ts 4,
     // mcp/writeTools.ts 3) and what their figures decide (geometry/tolerances.ts 4) (odd/tasks/VEW-82.md).
-    expect(left).toBeLessThanOrEqual(2706)
+    // and VEW-83 24: a table as a CSV or XLSX file (command/export.ts 4, command/main.ts 3, mcp/writeTools.ts 9,
+    // mcp/tableExport.ts 5) and a workbook's XML (export/table.ts 3) (odd/tasks/VEW-83.md).
+    expect(left).toBeLessThanOrEqual(2730)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
