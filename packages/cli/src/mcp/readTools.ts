@@ -53,6 +53,7 @@ import {
   HEIGHT_RULE,
   itemThing,
   measureRoom,
+  type RoomMeasure,
   openingThing,
   pointThing,
   roomHeight,
@@ -146,6 +147,21 @@ import {
 } from './toolkit'
 
 const q = (text: string): string => JSON.stringify(text)
+
+/** CMD-49: a room's size in grid_measure: across by up, or by the shape a person names. */
+function roomSizeText(r: RoomMeasure, L: (v: number) => string): string {
+  const form = r.form
+  if (r.rectangle || form === null || form.kind === 'curved') return r.rectangle ? `${L(r.across)} × ${L(r.up)}` : `${L(r.across)} across by ${L(r.up)} up the drawing at most`
+  if (form.kind === 'round') return english(said('measure.size.round', { across: L(form.across) }))
+  if (form.kind === 'band') return english(said('measure.size.band', { long: L(form.long), wide: L(form.wide) }))
+  if (form.kind === 'turned') return english(said('measure.size.turned', { across: L(form.across), up: L(form.up), degrees: num(degreesText(form.degrees)) }))
+  return english(said('measure.size.four', { sides: joined(form.sides.map((side) => L(side)), 'join.comma', 'join.and') }))
+}
+
+/** A turn in degrees, to a tenth, with no tenth when it is whole. */
+function degreesText(degrees: number): string {
+  return String(Math.round(degrees * 10) / 10)
+}
 
 /** CMD-23: the roofs the plan states over the given floors, in words ('' when it states none). */
 function statedRoofWords(plan: FloorPlan, floorIds: readonly string[]): string {
@@ -1743,8 +1759,9 @@ const measureTool: GridTool = {
     if (what === 'room') {
       const room = roomOf()
       const r = measureRoom(room)
-      const size = r.rectangle ? `${L(r.across)} × ${L(r.up)}` : `${L(r.across)} across by ${L(r.up)} up the drawing at most`
-      const sides = r.sides.map((s) => `${s.facing} ${L(s.length)}`).join(', ')
+      // CMD-49: a curve is one side, and a room is sized by the shape a person names.
+      const size = roomSizeText(r, L)
+      const sides = r.sides.map((s) => s.curve === null ? `${s.facing} ${L(s.length)}` : english(said(Math.abs(s.curve.sweep) >= 360 - (tolerance('curveSweep') * 180) / Math.PI ? 'measure.side.round' : 'measure.side.curve', { facing: s.facing, radius: L(s.curve.radius), length: L(s.length) }))).join(', ')
       const height = roomHeight(survey.plan, r.id)
       return {
         text: `${q(r.name)}: ${size}, ${areaText(r.area, units)}, perimeter ${L(r.perimeter)}. Sides, going round: ${sides}. The widest circle it holds is ${L(r.widestCircle)} across.\n${heightText(height, L)}\n${EMPTY_ROOM_RULE}\n${HEIGHT_RULE}`,

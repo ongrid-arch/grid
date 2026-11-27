@@ -27,6 +27,7 @@ import { decimalFor, DEFAULT_LANGUAGE, joined, name, num, say, sayValue, labelOf
 import { OUTDOOR_KINDS, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { slopeText } from '@ongrid/floorplan/geometry'
 import type { Beyond, CornerGap, FloorFacts, HeightException, OpeningFacts, OpeningSide, PlanFacts, RoomFacts } from './facts'
+import type { RoomForm } from './sides'
 
 export const DESCRIBE_LENGTHS = ['line', 'rooms', 'walls', 'walk'] as const
 export type DescribeLength = (typeof DESCRIBE_LENGTHS)[number]
@@ -489,7 +490,7 @@ function personRoom(floor: FloorFacts, room: RoomFacts, names: PersonNames, w: W
   if (room.shape === null) return [t(w, 'describe.room.unmeasured', { room: name })]
   const { shape } = room
   const across = `${fig(w, shape.across)} × ${fig(w, shape.up)}`
-  const size = shape.rectangle ? across : t(w, 'describe.room.odd', { size: across })
+  const size = shape.rectangle ? across : shape.form === null ? t(w, 'describe.room.odd', { size: across }) : formText(w, shape.form, across)
   const next = nextOnly(floor, room)
   // CNT-8: a zone is named as part of its room, and its floor is in its room's.
   const of = room.zoneOf === undefined ? (room.outdoor === undefined ? '' : t(w, 'describe.room.outdoor', { kind: t(w, `outdoor.kind.${room.outdoor}`) })) : t(w, 'describe.room.zoneOf', { room: names.room(room.zoneOf) })
@@ -509,11 +510,44 @@ function personRoom(floor: FloorFacts, room: RoomFacts, names: PersonNames, w: W
   return lines
 }
 
+/** CMD-49: a room by the shape a person names, with the unit on every length. */
+function formText(w: Words, form: RoomForm, across: string): string {
+  switch (form.kind) {
+    case 'round':
+      return t(w, 'describe.room.round', { across: fig(w, form.across) })
+    case 'band':
+      return t(w, 'describe.room.band', { long: fig(w, form.long), wide: fig(w, form.wide) })
+    case 'turned':
+      return t(w, 'describe.room.turned', { across: fig(w, form.across), up: fig(w, form.up), degrees: num(String(Math.round(form.degrees * 10) / 10)) })
+    case 'four':
+      return t(w, 'describe.room.four', { sides: listed(w, form.sides.map((side) => fig(w, side))) })
+    case 'curved':
+      return t(w, 'describe.room.curved', { size: across, curves: listed(w, form.curves.map((curve) => t(w, 'describe.room.curve', { radius: fig(w, curve.radius), length: fig(w, curve.length) }))) })
+  }
+}
+
+/** CMD-49: the agent's token for a room's shape: ` round:<across>`, ` band:<long>x<wide>`, ` turned:<deg>:<W>x<D>`, ` sides:<a>/<b>/<c>/<d>`, ` curves:r<radius>/<length>,…`; '' for none. */
+export function agentForm(form: RoomForm | null): string {
+  if (form === null) return ''
+  switch (form.kind) {
+    case 'round':
+      return ` round:${m(form.across)}`
+    case 'band':
+      return ` band:${m(form.long)}x${m(form.wide)}`
+    case 'turned':
+      return ` turned:${Math.round(form.degrees * 10) / 10}:${m(form.across)}x${m(form.up)}`
+    case 'four':
+      return ` sides:${form.sides.map(m).join('/')}`
+    case 'curved':
+      return ` curves:${form.curves.map((curve) => `r${m(curve.radius)}/${m(curve.length)}`).join(',')}`
+  }
+}
+
 function agentRoomHead(room: RoomFacts): string {
   const use = room.use ?? '-'
   if (room.shape === null) return `${room.id} ${JSON.stringify(room.name)} ${use} LEFT OUT (grid check says why)`
   const { shape } = room
-  return `${room.id} ${JSON.stringify(room.name)} ${use} ${shape.rectangle ? '' : '~'}${m(shape.across)}x${m(shape.up)} @${m(shape.at.x)},${m(shape.at.y)} ${m(shape.area)}${room.zoneOf === undefined ? '' : ` zone-of:${room.zoneOf}`}${room.outdoor === undefined ? '' : ` outdoor:${room.outdoor}`}`
+  return `${room.id} ${JSON.stringify(room.name)} ${use} ${shape.rectangle ? '' : '~'}${m(shape.across)}x${m(shape.up)}${agentForm(shape.form)} @${m(shape.at.x)},${m(shape.at.y)} ${m(shape.area)}${room.zoneOf === undefined ? '' : ` zone-of:${room.zoneOf}`}${room.outdoor === undefined ? '' : ` outdoor:${room.outdoor}`}`
 }
 
 function agentRoom(floor: FloorFacts, room: RoomFacts): string {
@@ -610,8 +644,8 @@ function personWalls(floor: FloorFacts, names: PersonNames, w: Words): string[] 
   })
 }
 
-const AGENT_KEY_ROOMS = 'KEY metres, inside, N=+y. room: id "name" use WxD(~ not a rectangle) @lower-left m2 | next: across a wall, no way through | opening: id d/o/w(door/opening/window) or v(virtual wall) width >other side(none=outside window, OUT=outside, NONE=nothing drawn, LEFT=left out) side of this room, gaps to its corners'
-const AGENT_KEY_WALLS = 'KEY metres, inside, N=+y. room: id "name" use WxD(~ not a rectangle) @lower-left m2. wall: id start>end thickness x/i/p/s/v(exterior/interior/partition/separating/virtual) h=not the floor\'s usual | opening: id d/o/w offset+width room gaps to its side\'s corners(start end first)|other(none=outside, NONE=nothing drawn, LEFT=left out)'
+const AGENT_KEY_ROOMS = 'KEY metres, inside, N=+y. room: id "name" use WxD(~ not a rectangle; then round:across, band:long along its middle x wide, turned:degrees anticlockwise:own WxD, sides:going round, curves:r radius/length) @lower-left m2 | next: across a wall, no way through | opening: id d/o/w(door/opening/window) or v(virtual wall) width >other side(none=outside window, OUT=outside, NONE=nothing drawn, LEFT=left out) side of this room, gaps to its corners'
+const AGENT_KEY_WALLS = 'KEY metres, inside, N=+y. room: id "name" use WxD(~ not a rectangle; then round:across, band:long along its middle x wide, turned:degrees anticlockwise:own WxD, sides:going round, curves:r radius/length) @lower-left m2. wall: id start>end thickness x/i/p/s/v(exterior/interior/partition/separating/virtual) h=not the floor\'s usual | opening: id d/o/w offset+width room gaps to its side\'s corners(start end first)|other(none=outside, NONE=nothing drawn, LEFT=left out)'
 
 // The label leads every description (`describePlan`, MSG-3), so the close need not repeat it
 // (the person's is `describe.close`).
