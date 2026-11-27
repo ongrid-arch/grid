@@ -300,13 +300,12 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     before = loaded.plan
     own = loaded.base === undefined ? before : ownParts(before, loaded.base)
     beforeBase = loaded.base?.plan
-    // CNT-10: rooms text holds no phase, so writing it over a plan with phases would lose them.
+    // CNT-10: a text that states no phase, written over a plan with phases, would lose them all.
+    // WRT-81: rooms text holds phases (phase words, raw parts), so a text that states one writes them.
     // WRT-75: it holds a base, so a fit-out is written again on the same base.
-    if (options.replace !== true && [...own.walls, ...own.openings, ...own.rooms].some((part) => part.phase !== undefined)) {
-      throw new RoomsRefused(
-        'rooms/phases',
-        `${shownFile} holds existing, demolished and new parts, which rooms text does not hold, so writing it from rooms text would lose them. Change it with the edit tools (grid edit), which keep each part's phase and leave a base as it is; or add --replace to write over it and lose them.`
-      )
+    const phased = (parts: Pick<FloorPlan, 'walls' | 'openings' | 'rooms'>): boolean => [...parts.walls, ...parts.openings, ...parts.rooms].some((part) => part.phase !== undefined)
+    if (options.replace !== true && phased(own) && !phased(plan)) {
+      throw new RoomsRefused('rooms/phases', english(said('write.phases.none', { file: name(shownFile) })))
     }
     if (options.replace !== true && before.base !== undefined && plan.base !== before.base) {
       const words = { file: name(shownFile), was: name(before.base), now: name(plan.base ?? '') }

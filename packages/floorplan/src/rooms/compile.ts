@@ -116,6 +116,11 @@
  *       a copy takes the floor's rooms and its raw floor fields (LVL-16), its openings only when
  *       asked; an id written on several floors is kept on the first and has the floor's id in
  *       front on the others
+ *   phase <existing|demolished|new>    alone on a line: the phase of the room and opening lines
+ *       after it; on a room, door, window, opening, place or repeat line: that line's (WRT-81,
+ *       `phases.ts`). The text is written before and after the work and made one plan: a wall in
+ *       both states is existing, one only before demolished, one only after new; on a wall line
+ *       it is that wall's phase whatever its rooms give it
  *   raw wall|room|opening { ...Grid's own JSON... }     a part written the Grid way
  *   raw floor { "roof": {...}, "parapet": <m> }         the floor's fields rooms text has no words for (LVL-6);
  *                                                      BRF-4 adds "outline", "homes" and "parking";
@@ -164,6 +169,7 @@ import { indexPlan } from '../geometry/plan'
 import { pointInPolygon } from '../geometry/innerPoint'
 import type { Vec2 } from '../geometry/vec2'
 import { phaseReading, planHasPhases, standsIn } from '../geometry/phases'
+import { compilePhased, phasedText } from './phases'
 import { roomFloorArea, tryRoomPolygon } from '../geometry/room'
 import { floorOf } from '../geometry/floors'
 import { isOutdoor } from '../geometry/outdoor'
@@ -5303,6 +5309,9 @@ export interface CompileOptions {
  * them share one, when there is one (`offerFixes`, on unless a fix is being tried).
  */
 export function compileRoomsText(text: string, options: CompileOptions = {}): RoomsResult {
+  // WRT-81: a text that states a phase is written as the building before and after the work, and made one plan.
+  const phased = phasedText(text)
+  if (phased !== null) return compilePhased(text, phased, options, (state, o) => compiled(state, o).result)
   return compiled(text, options).result
 }
 
