@@ -377,6 +377,17 @@ export const TOLERANCES = {
       'and are one curved wall; a wall that ends this near a joint of the curve ends on the curve.',
     basis: own
   },
+  // CMD-49: a room's sides as a person names them.
+  curveSweep: {
+    kind: 'tolerance',
+    value: 0.001,
+    unit: 'radian',
+    decides:
+      'Two curved sides of a room whose turns round their centre differ by less than this (about ' +
+      'a twentieth of a degree) turn through the same angle, so a room between them is a curved ' +
+      'band; a curved side this near a whole turn goes all the way round.',
+    basis: own
+  },
   roomsCurveArea: {
     kind: 'tolerance',
     value: 0.001,

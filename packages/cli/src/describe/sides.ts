@@ -8,7 +8,7 @@
  * side too, and `grid describe` (which reads outlines) and `grid_measure` (which also knows the
  * wall under each piece) say the same. Pure: points in, sides out.
  */
-import type { Vec2 } from '@ongrid/floorplan/geometry'
+import { tolerance, type Vec2 } from '@ongrid/floorplan/geometry'
 
 /** The most a curve's pieces turn at one corner: a curve traced every 2.5 degrees turns 2.5 at each. */
 const PIECE_TURN = (10 * Math.PI) / 180
@@ -72,7 +72,7 @@ function circleNear(points: readonly Vec2[]): { centre: Vec2; radius: number } |
     svuu += v * u * u
   }
   const det = suu * svv - suv * suv
-  if (Math.abs(det) < 1e-12 * Math.max(1, (suu + svv) ** 2)) return null
+  if (Math.abs(det) < tolerance('noArea') * Math.max(1, (suu + svv) ** 2)) return null
   const bu = (suuu + suvv) / 2
   const bv = (svvv + svuu) / 2
   const uc = (bu * svv - bv * suv) / det
@@ -96,7 +96,7 @@ export function ringSides(ring: readonly Vec2[], key?: (piece: number) => string
   const turn = (i: number): number => angleBetween(dir(i - 1), dir(i))
   /** A corner a curve may run on through: a small turn, between pieces of one key. */
   const onward = (i: number): boolean => Math.abs(turn(i)) <= PIECE_TURN && keyOf(i - 1) === keyOf(i)
-  const smooth = (i: number): boolean => onward(i) && Math.abs(turn(i)) > 1e-9
+  const smooth = (i: number): boolean => onward(i) && Math.abs(turn(i)) > tolerance('sameAngle')
   // Start at a corner, so no curve is cut in two; a ring with none (a circle, an oval) starts at 0.
   let start = 0
   while (start < n && smooth(start)) start++
@@ -170,7 +170,7 @@ export function ringSides(ring: readonly Vec2[], key?: (piece: number) => string
 }
 
 /** A whole turn, to the rounding of the arithmetic. */
-export const wholeTurn = (curve: SideCurve): boolean => Math.abs(curve.sweep) > TURN - 1e-6
+export const wholeTurn = (curve: SideCurve): boolean => Math.abs(curve.sweep) > TURN - tolerance('curveSweep')
 
 /**
  * A room's outline read as a person names its shape, or null when across and up the drawing say
@@ -197,7 +197,7 @@ export function roomForm(polygon: readonly Vec2[], holes: readonly (readonly Vec
   if (sides.length === 4 && curves.length === 2) {
     const [a, b] = curves as [SideCurve, SideCurve]
     const sameCentre = Math.hypot(a.centre.x - b.centre.x, a.centre.y - b.centre.y) < SAME_M
-    if (sameCentre && Math.sign(a.sweep) !== Math.sign(b.sweep) && Math.abs(Math.abs(a.sweep) - Math.abs(b.sweep)) < 1e-3) {
+    if (sameCentre && Math.sign(a.sweep) !== Math.sign(b.sweep) && Math.abs(Math.abs(a.sweep) - Math.abs(b.sweep)) < tolerance('curveSweep')) {
       return { kind: 'band', long: ((a.radius + b.radius) / 2) * Math.abs(a.sweep), wide: Math.abs(a.radius - b.radius) }
     }
   }

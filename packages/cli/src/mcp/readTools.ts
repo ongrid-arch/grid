@@ -1762,7 +1762,7 @@ const measureTool: GridTool = {
       const r = measureRoom(room)
       // CMD-49: a curve is one side, and a room is sized by the shape a person names.
       const size = roomSizeText(r, L)
-      const sides = r.sides.map((s) => s.curve === null ? `${s.facing} ${L(s.length)}` : english(said(Math.abs(s.curve.sweep) >= 360 - 1e-6 ? 'measure.side.round' : 'measure.side.curve', { facing: s.facing, radius: L(s.curve.radius), length: L(s.length) }))).join(', ')
+      const sides = r.sides.map((s) => s.curve === null ? `${s.facing} ${L(s.length)}` : english(said(Math.abs(s.curve.sweep) >= 360 - (tolerance('curveSweep') * 180) / Math.PI ? 'measure.side.round' : 'measure.side.curve', { facing: s.facing, radius: L(s.curve.radius), length: L(s.length) }))).join(', ')
       const height = roomHeight(survey.plan, r.id)
       return {
         text: `${q(r.name)}: ${size}, ${areaText(r.area, units)}, perimeter ${L(r.perimeter)}. Sides, going round: ${sides}. The widest circle it holds is ${L(r.widestCircle)} across.\n${heightText(height, L)}\n${EMPTY_ROOM_RULE}\n${HEIGHT_RULE}`,
