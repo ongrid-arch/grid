@@ -836,7 +836,14 @@ its kind.
 route: a home is not left through another, and `opening/between-homes` says so. A door onto a
 common part that is not drawn is a way on: the flat gets no "leads to a space that is not drawn"
 note, and its floor's way out is said not checked, through the common parts
-(`floor/not-checked-way-out-common-parts`). Every flat needs a front door, onto a room in no flat,
+(`floor/not-checked-way-out-common-parts`). ARE-70: on a floor up in the building that no stair
+joins to a drawn ground floor (a flat drawn on its own on the third floor), such a door, or an open
+edge onto the common parts, is the floor's way out: every room is checked to reach it, and the
+floor is said to go on through the common parts, never that no stair joins it to the ground floor
+(`floor/not-checked-no-stairs`, `floor/no-stair`). A front door in a wall that marks nothing is read
+as a door to the outside, high above the ground (`opening/door-out-above-ground`); mark its wall
+`separating` or `beyond: "common"`, for any number of walls in one `grid_set` call, and it is the
+way out. Every flat needs a front door, onto a room in no flat,
 a common part, a space not drawn or the outside (`flat/no-front-door`). A flat entered only through
 doorless openings or open sides, with no door or stair on its way in, is noted too
 (`flat/entrance-without-door`).
