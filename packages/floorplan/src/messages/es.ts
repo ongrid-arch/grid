@@ -275,6 +275,8 @@ export const es: Messages = {
   'issue.floor/empty-top.default': 'de {height} m de altura, la altura por defecto',
   'issue.wall/above-storey':
     'El muro {wall} tiene {height} m de altura, {over} m más que la planta {floor}, que indica que tiene {storey} m de altura. La planta y la cubierta se quedan donde las pone la planta; si el muro de verdad es más alto, aumente la altura de la planta.',
+  'issue.wall/same-space':
+    'El muro {wall} de la planta {floor} mide {height} m de alto, así que sube {past} m más allá del nivel de la planta {over}, donde el muro {other} está en el mismo sitio a lo largo de {along} m: las dos plantas cuentan un mismo muro dos veces. Detenga el muro {wall} en su planta, o quite el muro {other}.',
   'issue.floor/size-question':
     'La planta {floor} indica que tiene {height} m de altura: ¿es intencionado? Grid pregunta por las plantas {bound}{home}, y sus muros sin altura propia toman la de la planta.',
   'issue.floor/size-question.higher': 'de más de {limit} m',
@@ -1110,6 +1112,9 @@ export const es: Messages = {
   'line.wall/above-storey.says': '{label} es más alto que la planta que indica su piso',
   'line.wall/above-storey.needed': 'muros no más altos que la altura indicada de su planta',
   'line.wall/above-storey.fix': 'Baje el muro, o suba la altura de la planta si el muro de verdad es más alto.',
+  'line.wall/same-space.says': '{label} sube al espacio de un muro de una planta superior',
+  'line.wall/same-space.needed': 'cada muro en una sola planta',
+  'line.wall/same-space.fix': 'Detenga el muro inferior en su planta, o quite el muro de arriba de su planta.',
   'line.opening/too-large.says': '{label} tiene un número que Grid no acepta',
   'line.opening/too-large.needed': 'números finitos dentro del tamaño que Grid acepta',
   'line.opening/too-large.fix': 'Corrija el número. Todas las medidas van en metros.',
@@ -2323,6 +2328,7 @@ export const es: Messages = {
   'describe.beyond.nothing': 'nada dibujado',
   'describe.beyond.left': 'una estancia excluida',
   'describe.room': '{room}: {size}, {area} m², en {at}.',
+  'describe.room.level': ' Su suelo está a {level} m y mide {height} m de alto hasta el techo.',
   'describe.room.next': ' Junto a {rooms}.',
   'describe.room.odd': 'no es un rectángulo, {size} en su parte más ancha',
   // CMD-49: una sala dicha por la forma que una persona nombra, no por la caja que la rodea.
@@ -2574,6 +2580,11 @@ export const es: Messages = {
     "Línea {line}: esta línea walls va después de estancias de la planta '{floor}', que conserva los muros con los que empezó (exteriores {outside} m, interiores {inside} m). Vale para las plantas escritas después; para cambiar también la planta '{floor}', escríbala antes de su primera estancia.",
   'rooms.wallsLate.height':
     "Línea {line}: esta línea walls va después de estancias de la planta '{floor}', que conserva los muros con los que empezó (exteriores {outside} m, interiores {inside} m, altura {height} m). Vale para las plantas escritas después; para cambiar también la planta '{floor}', escríbala antes de su primera estancia.",
+  // LVL-26
+  'rooms.walltype.syntax':
+    "línea {line}: escriba 'walltype <grosor> <interior|partition|exterior> [height <h>]': todo muro interior de ese grosor toma ese tipo, y todo muro de ese grosor esa altura.",
+  'rooms.heightIntoFloor':
+    "Línea {line}: la estancia '{room}' mide {height} m de alto, así que sube más allá de la planta '{floor}', {level} m por encima de su suelo, donde la estancia '{other}' (línea {otherLine}) está sobre {area} m² de ella. Las dos ocuparían el mismo espacio. Baje la altura de la estancia a la de su planta, escriba esa parte de la planta '{floor}' como un vacío, o mueva la estancia '{other}'.",
   'rooms.wallsHeight':
     "La planta '{floor}' indica su altura, {floorHeight} m, así que sus muros miden {floorHeight} m de alto, no los {height} m de la línea walls (línea {line}). La altura de la línea walls es para las plantas que no indican ninguna; para dar a los muros de esta planta {height} m, escriba 'height {height}' en su línea de planta.",
   // CNT-36
@@ -3452,6 +3463,7 @@ export const es: Messages = {
   'drawing.mark.faces.north-west': 'NO',
 
   'sheet.months': 'ENE FEB MAR ABR MAY JUN JUL AGO SEP OCT NOV DIC',
+  'sheet.progress.page': 'Página {done} de {total}',
   'sheet.continued': '{title} (continuación)',
   'sheet.undecided': 'Una puerta dibujada con línea discontinua y "?" aún no tiene sentido de apertura indicado.',
   'sheet.limits': 'Dibujado solo a partir del plano. No se muestran {left}.',

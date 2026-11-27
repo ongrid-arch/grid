@@ -21,7 +21,8 @@
  *   based on <revision>                the plan this text was read from (written by the read-back)
  *   walls outside <t> inside <t> [interior|partition] height <h>      the thickness rule, for
  *       the floor it is on (before its rooms) and every floor after it (WRT-47)
- *   walltype <t> <kind>                every inside wall of that thickness gets that kind
+ *   walltype <t> <kind> [height <h>]   every inside wall of that thickness gets that kind, and
+ *                                      every wall of it that height (LVL-26)
  *   sizes inside|centre|outside        what a room's size measures to, when its line does not say
  *   doors height <h>   windows sill <s> height <h>                    defaults
  *   floor <id> ["<name>"] [level <n>] [elevation <m>] [height <m>] [slab <m>] [building <kind>] [copy <floor> [with openings]]
@@ -49,7 +50,10 @@
  *                one place and one size a line (WRT-55); 'open <room>' names the room it is open to, for a
  *                room placed 'at x,y' too, and a bare 'open' is said in the answer: the room it is placed
  *                beside, or the room it is cut out of
- *       then:    walls <t> [kind]  height <h>  floor <m> (its floor above or below the storey's)  first-wall <wall id>
+ *       then:    walls <t> [kind] [height <h>] (the walls the room adds, that high: LVL-26)
+ *                height <h>  the room's, floor to ceiling: the walls only it bounds stand to its top,
+ *                                 a wall between it and another room to the taller's (LVL-26)
+ *                floor <m> (its floor above or below the storey's)  first-wall <wall id>
  *                tenure <private|shared|common|commercial>  type "<the firm's own room type>"
  *                outdoor <garden|courtyard|terrace|balcony|light-well|porch|carport|other> [roofed|unroofed]
  *                                 the room is outdoor space (CNT-7, C26), roofed or not; open where
@@ -180,6 +184,9 @@ import { phaseReading, planHasPhases, standsIn } from '../geometry/phases'
 import { compilePhased, phasedText } from './phases'
 import { roomFloorArea, tryRoomPolygon } from '../geometry/room'
 import { floorOf } from '../geometry/floors'
+import { floorElevations } from '../geometry/elevations'
+import { roomFloorOffset } from '../geometry/steps'
+import polygonClipping, { type Pair } from 'polygon-clipping'
 import { isOutdoor } from '../geometry/outdoor'
 import { wallFrameAt, wallLength } from '../geometry/wall'
 import { limit, tolerance } from '../geometry/tolerances'
@@ -577,6 +584,8 @@ interface RoomDraft {
   box: Box
   wallsT: number | null
   wallsKind: WallKind | null
+  /** LVL-26: the height `walls <t> [kind] height <h>` gives the walls the room adds. */
+  wallsH?: number
   height: number | null
   /** LVL-7: how far the room's floor stands above or below its storey's floor level. */
   floorOffset: number | null
@@ -833,6 +842,8 @@ interface RawWall {
   height: number | null
   /** WRT-76: a railing. */
   railing?: boolean
+  /** LVL-26: its height is its wall line's, which no room's height changes. */
+  stated?: boolean
   wantId: string | null
   reversed: boolean
   rooms: RoomDraft[]
@@ -886,6 +897,11 @@ class Compiler {
   private rule: WallsRule = { ...ROOMS_WALLS, height: null, kind: 'interior', line: null }
   private dflt = { doorH: 2.1, winSill: 0.9, winH: 1.2 }
   private tkinds = new Map<number, WallKind>()
+  /** LVL-26: the rooms that rise past their storey, and every written room's line, by its id in the plan. */
+  private raisedRooms: Array<{ id: string; floor: string; line: number; height: number; top: number }> = []
+  private roomLineOf = new Map<string, number>()
+  /** LVL-26: the heights `walltype <t> <kind> height <h>` gives, by thickness in millimetres. */
+  private theights = new Map<number, number>()
   sizes: { basis: SizeBasis; stated: boolean } = { basis: 'inside', stated: false }
   readonly floors: FloorDraft[] = []
   private explicitFloors = false
@@ -1342,10 +1358,12 @@ class Compiler {
         return
       }
       case 'walltype':
-        if (t.length !== 3 || !KINDS.includes(t[2] as WallKind)) {
-          this.stop('rooms/syntax', at, `line ${at}: write 'walltype <thickness> <interior|partition|exterior>': every inside wall of that thickness gets that kind.`)
+        // LVL-26: and, with 'height <h>', every wall of that thickness stands that high.
+        if (!((t.length === 3 || (t.length === 5 && t[3] === 'height')) && KINDS.includes(t[2] as WallKind))) {
+          this.stop('rooms/syntax', at, english(said('rooms.walltype.syntax', { line: at })))
         }
         this.tkinds.set(Math.round(numberOf(t[1]!, at, this.plain) * 1000), t[2] as WallKind)
+        if (t.length === 5) this.theights.set(Math.round(numberOf(t[1]!, at, this.plain) * 1000), numberOf(t[4]!, at, this.plain))
         return
       case 'floor':
         this.stFloor(t, at)
@@ -1917,6 +1935,11 @@ class Compiler {
         if (w === 'walls') {
           room.wallsT = T
           room.wallsKind = kind
+          // LVL-26: 'height' straight after the walls' words is the walls' height, not the room's.
+          if (t[i] === 'height' && i + 1 < t.length) {
+            room.wallsH = numberOf(t[i + 1]!, at, this.plain)
+            i += 2
+          }
         } else {
           place.wallT = T
           place.wallKind = kind
@@ -3328,6 +3351,7 @@ class Compiler {
           virtual,
           height: virtual ? (spec?.height ?? 0) : (spec?.height ?? height),
           ...(spec?.railing === true && !virtual ? { railing: true } : {}),
+          ...(spec !== undefined && spec.height !== null ? { stated: true } : {}),
           wantId: spec?.id ?? null,
           reversed: spec?.reversed ?? false,
           rooms: [A, B],
@@ -3370,6 +3394,7 @@ class Compiler {
           virtual: side.virtual,
           height: side.height,
           ...(side.railing ? { railing: true } : {}),
+          ...(say !== null && say.height !== null ? { stated: true } : {}),
           wantId: say?.id ?? null,
           reversed: say?.reversed ?? false,
           rooms: [A],
@@ -3390,7 +3415,35 @@ class Compiler {
     this.checkOpenedShare(fl, edges)
     this.sideThicknesses(fl, edges, raws)
     this.warnTurned(fl)
+    this.roomHeights(fl, raws)
     return { edges, raws }
+  }
+
+  /**
+   * LVL-26: the heights rooms give the walls they bound. A wall's height is its wall line's, else
+   * its thickness's `walltype ... height`, else the `walls ... height` of the rooms it bounds (the
+   * first room's, as its kind), else the top of the tallest of them (its floor offset and height;
+   * a room with no height reaches the storey), written only where that is not the storey's. So a
+   * room taller than its storey raises its own walls and a lower one stops them, and every other
+   * wall keeps the storey's height. Outdoor space, dividing lines and railings keep theirs (their
+   * edges have their own words, WRT-76).
+   */
+  private roomHeights(fl: FloorDraft, raws: RawWall[]): void {
+    const storey = fl.height ?? fl.rule.height ?? WALL_DEFAULTS.solid.height
+    for (const r of raws) {
+      if (r.virtual || r.railing === true || r.stated === true) continue
+      const typed = this.theights.get(Math.round(r.t * 1000))
+      const indoor = r.rooms.filter((room) => room.outdoor === null)
+      const own = indoor.find((room) => room.wallsH !== undefined)?.wallsH
+      let height = typed ?? own ?? null
+      if (height === null) {
+        if (!indoor.some((room) => room.height !== null)) continue
+        const top = Math.max(...indoor.map((room) => (room.height === null ? storey : (room.floorOffset ?? 0) + room.height)))
+        if (Math.abs(top - storey) <= tolerance('diffLength')) continue
+        height = top
+      }
+      r.height = r4(height)
+    }
   }
 
   /**
@@ -4808,6 +4861,11 @@ class Compiler {
             ...(room.facts !== null ? { properties: room.facts } : {}),
           }
           plan.rooms.push(item)
+          // LVL-26: a room that rises past its storey, set against the floors above once every floor is written.
+          if (room.height !== null && room.outdoor === null && (room.floorOffset ?? 0) + room.height > height + tolerance('diffLength')) {
+            this.raisedRooms.push({ id, floor: fl.id, line: room.line, height: room.height, top: (room.floorOffset ?? 0) + room.height })
+          }
+          this.roomLineOf.set(id, room.line)
           // WRT-78: a curved room's area is its curves', not its pieces'.
           const area = room.curves === undefined ? Math.abs(signedArea(room.poly)) : curvedArea(room.poly, room.curves)
           trueAreas.set(id, area)
@@ -4909,6 +4967,7 @@ class Compiler {
     this.emitBuildings(plan)
     this.emitSite(plan)
     this.emitStairs(plan)
+    this.refuseRisingIntoFloors(plan)
     this.emitColumns(plan)
     this.emitItems(plan)
     this.emitParking(plan)
@@ -4944,6 +5003,60 @@ class Compiler {
     this.warnings.push(...made.warnings.map(capital))
     if (made.site !== undefined) plan.site = made.site
     if (made.north !== undefined) plan.north = made.north
+  }
+
+  /**
+   * LVL-26: a room whose height takes it past the level of a floor above, where a room of that
+   * floor stands over it, is refused with both lines: the two would stand in the same space. A void
+   * over it (a double-height room's open floor above) is no room standing there. The floors are
+   * stacked as every reader stacks them (`floorElevations`).
+   */
+  private refuseRisingIntoFloors(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    if (this.raisedRooms.length === 0 || this.problems.length > 0) return
+    const parsed = safeParseFloorPlan(plan)
+    if (parsed === null) return
+    const levels = floorElevations(parsed).floors
+    const index = indexPlan(parsed)
+    const rooms = new Map(parsed.rooms.map((r) => [r.id, r] as const))
+    const polygons = new Map<string, Pair[] | null>()
+    const polygonOf = (room: Room): Pair[] | null => {
+      if (!polygons.has(room.id)) polygons.set(room.id, tryRoomPolygon(room, index)?.map((p) => [p.x, p.y] as Pair) ?? null)
+      return polygons.get(room.id)!
+    }
+    const same = tolerance('sameFloorLevel')
+    for (const raised of this.raisedRooms) {
+      const base = levels.get(raised.floor)?.floorLevel
+      const room = rooms.get(raised.id)
+      const own = room === undefined ? null : polygonOf(room)
+      if (base === undefined || own === null) continue
+      for (const other of parsed.rooms) {
+        const floor = floorOf(other)
+        const level = levels.get(floor)?.floorLevel
+        if (floor === raised.floor || level === undefined || other.void === true) continue
+        const at = level + roomFloorOffset(other)
+        if (at <= base + same || at >= base + raised.top - same) continue
+        const theirs = polygonOf(other)
+        if (theirs === null) continue
+        let shared = 0
+        try {
+          for (const piece of polygonClipping.intersection([own], [theirs])) for (const [k, ring] of piece.entries()) shared += (k === 0 ? 1 : -1) * Math.abs(signedArea(ring as P[]))
+        } catch {
+          continue
+        }
+        if (shared <= tolerance('areaReported')) continue
+        this.problem('rooms/height-into-floor', raised.line, english(said('rooms.heightIntoFloor', {
+          line: raised.line,
+          room: raised.id,
+          height: num(f2(raised.height)),
+          floor,
+          level: num(f2(at - base)),
+          otherLine: this.roomLineOf.get(other.id) ?? '-',
+          other: other.id,
+          area: num(f2(shared)),
+        })))
+        break
+      }
+    }
   }
 
   /** LVL-23: the building lines into the plan's `buildings`. */

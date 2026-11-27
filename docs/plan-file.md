@@ -8,7 +8,7 @@ section explains. Rooms text, the main way to write a plan, is in
 
 - [What a plan file may hold](#what-a-plan-file-may-hold)
 - [What kind of building it is, and what each room is for](#what-kind-of-building-it-is-and-what-each-room-is-for): `plan/not-checked-sizes-for-building`, `plan/not-checked-escapes-for-building`, `floor/not-checked-sizes-for-building`, `floor/not-checked-escapes-for-building`, `plan/unknown-use`
-- [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/wall-heights-differ`, `floor/height-past-next`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
+- [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/wall-heights-differ`, `floor/height-past-next`, `floor/size-question`, `wall/same-space`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `floor/gap-under-slab`, `floor/walls-past-floor`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
@@ -268,7 +268,10 @@ high it is may be stated apart from that order, in metres. All three are optiona
 | `slab` | The thickness of the slab the floor stands on (0.25 m when not stated) |
 
 A floor that states nothing stands where it always did: its height is its tallest wall, and it
-stands on the floor below it, one slab higher. Each part of a floor with nothing above it is
+stands on the floor below it, one slab higher. A wall that stands to the top of a room it bounds
+that states its height (LVL-26: a cinema raised past its storey, a duct stopped under it) is that
+room's and sets no storey height, unless every wall of the floor is a room's; the flat roof steps
+up over such a room to its top, where its ceiling is. Each part of a floor with nothing above it is
 roofed on that floor's own walls ([Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground));
 the building's box, which the 3D view frames, still ends on the highest storey top, whichever floor
 that is on, so a loft stated inside a taller storey does not shrink it. The 3D view, the IFC export
@@ -290,7 +293,9 @@ The drawing's checks ask about levels that do not add up, as warnings: a missing
 (`plan/level-gap`, a flat on level 3 drawn alone stands on the ground until it states its
 elevation), two floors at one level one over the other (`plan/same-level`), an empty top floor
 that still counts as a storey (`floor/empty-top`), a wall taller than the height its floor states
-(`wall/above-storey`), walls a storey high (at least `storeyLowest`) that state another height of
+(`wall/above-storey`; not a wall that stands to the top of a room it bounds that states its height,
+LVL-26), a wall of one floor that rises past the level of a floor above it where a wall of that
+floor stands in the same place, so one wall is counted on two floors (`wall/same-space`), walls a storey high (at least `storeyLowest`) that state another height of
 their own than the one their floor states, said once for the floor with which won: each wall stands
 at its own, and the floor's stacks the storey (`floor/wall-heights-differ`), a clear height that
 with the slab of the floor over it runs past that floor's level, a floor-to-floor written as the
@@ -1254,6 +1259,8 @@ comes off the room's area, exports as a column and draws as one.
   layer (`GRID-COLUMNS`), a round one as a true circle; the OBJ and the GLB hold a solid for each
   (`column_<id>`); the 3D view and the sheet's still show it. `grid_takeoff` counts the columns by
   shape and size, with their metres and volume, and `grid describe` says each floor's.
+  `grid_find` and `grid_count` take `kind: ["column"]` and ask of them by room, room use, shape
+  and size (CMD-53, [the tool server](tool-server.md#what-stands-in-a-room)).
 
 A structural grid is a named set of lines the columns are set out on. Its `x` lines run along the
 grid's own y, the first through `origin`, each `spacing` metres past the one before; its `y` lines

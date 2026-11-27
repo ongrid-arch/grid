@@ -724,6 +724,15 @@ export const TOLERANCES = {
       'Past it, the wall is named with both heights.',
     basis: own
   },
+  sameSpaceAlong: {
+    kind: 'tolerance',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'Two walls of two floors, one rising past the other floor\'s level, stand in the same space ' +
+      'when they lie along each other, their bodies overlapping, for more than this (LVL-26).',
+    basis: own
+  },
   sameLevelOverlap: {
     kind: 'tolerance',
     value: 0.5,
@@ -1428,6 +1437,66 @@ export const TOLERANCES = {
     value: 24,
     unit: 'count',
     decides: 'The straight sides a tree\'s round canopy is traced with when it casts a shadow.',
+    basis: own
+  },
+
+  // ── The site drawn in 3D (CNT-60) ─────────────────────────────────────────────────────────
+  siteLift: {
+    kind: 'limit',
+    value: 0.02,
+    unit: 'm',
+    decides:
+      'How far paving, a path and a neighbour with no height are raised above the ground in the 3D ' +
+      'views and the GLB, so the two never share a plane and flicker. It only draws the model.',
+    basis: own
+  },
+  fenceDrawnHeight: {
+    kind: 'limit',
+    value: 1.2,
+    unit: 'm',
+    decides: 'How high a fence or a gate that states no height is drawn in the 3D views and the GLB. It only draws the model.',
+    basis: own
+  },
+  fenceDrawnThickness: {
+    kind: 'limit',
+    value: 0.05,
+    unit: 'm',
+    decides: 'How thick a fence or a gate is drawn in the 3D views and the GLB, as the site states its line alone.',
+    basis: own
+  },
+  treeDrawnHeight: {
+    kind: 'limit',
+    value: 6,
+    unit: 'm',
+    decides: 'How high a tree that states no height is drawn in the 3D views and the GLB. It only draws the model.',
+    basis: own
+  },
+  treeDrawnCanopy: {
+    kind: 'limit',
+    value: 4,
+    unit: 'm',
+    decides: 'How wide a tree\'s crown is drawn in the 3D views and the GLB when it states no canopy.',
+    basis: own
+  },
+  treeDrawnTrunk: {
+    kind: 'limit',
+    value: 0.3,
+    unit: 'm',
+    decides: 'How wide a tree\'s trunk is drawn in the 3D views and the GLB.',
+    basis: own
+  },
+  poolDrawnDepth: {
+    kind: 'limit',
+    value: 1.5,
+    unit: 'm',
+    decides: 'How deep a pool is drawn below the ground in the 3D views and the GLB, as the site states its edge alone.',
+    basis: own
+  },
+  poolWaterBelowEdge: {
+    kind: 'limit',
+    value: 0.15,
+    unit: 'm',
+    decides: 'How far below the ground a pool\'s water is drawn in the 3D views and the GLB, so it reads as sunk into the ground.',
     basis: own
   },
 
