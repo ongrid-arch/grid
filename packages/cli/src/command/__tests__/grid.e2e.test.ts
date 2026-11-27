@@ -628,6 +628,9 @@ describe('the built file', () => {
     // 950 kB since CNT-51: grid_set_finishes for many rooms at once, with feature walls and bands,
     // with main's lettable areas (ARE-68) and floor=all and crops (VEW-74) take it to 902,714
     // bytes, again with no new dependency.
-    expect(statSync(bundle).size).toBeLessThan(950_000)
+    // 1,000 kB since ARE-75: the building read before and after the work, its area table and the
+    // demolition and proposed plans, with main at its merge, take it to 951,375 bytes, again with
+    // no new dependency.
+    expect(statSync(bundle).size).toBeLessThan(1_000_000)
   })
 })
