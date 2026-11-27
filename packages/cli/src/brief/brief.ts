@@ -223,13 +223,41 @@ function optional<T>(raw: Record<string, unknown>, key: string, read: (value: un
   return raw[key] === undefined || raw[key] === null ? null : read(raw[key])
 }
 
-function said(raw: Record<string, unknown>, where: string, levels: readonly Level[] = LEVELS): Said {
+/**
+ * MSG-33: every fault of one wish, not only the first. `take` reads one part, keeping its fault
+ * and giving null; `done` refuses the wish with all of them, joined, when there are any.
+ */
+class Faults {
+  readonly found: string[] = []
+  take<T>(read: () => T): T | null {
+    try {
+      return read()
+    } catch (error) {
+      if (!(error instanceof BriefRefused)) throw error
+      this.found.push(error.message)
+      return null
+    }
+  }
+  done(): void {
+    if (this.found.length > 0) throw new BriefRefused(this.found.join('; '))
+  }
+}
+
+function said(raw: Record<string, unknown>, where: string, levels: readonly Level[] = LEVELS, faults: Faults = new Faults()): Said {
   const level = raw['level']
-  if (!levels.includes(level as Level)) throw new BriefRefused(`${where}.level must be one of ${listOf([...levels])}`)
+  faults.take(() => {
+    if (!levels.includes(level as Level)) throw new BriefRefused(`${where}.level must be one of ${listOf([...levels])}`)
+  })
   const source = raw['source']
-  if (!SOURCES.includes(source as Source)) throw new BriefRefused(`${where}.source must be given (the person said it) or assumed (for the person to confirm)`)
-  const quote = optional(raw, 'quote', (value) => words(value, `${where}.quote`, QUOTE_MAX))
-  if (source === 'given' && quote === null) throw new BriefRefused(`${where} is given, so it keeps the person's words in quote`)
+  faults.take(() => {
+    if (!SOURCES.includes(source as Source)) throw new BriefRefused(`${where}.source must be given (the person said it) or assumed (for the person to confirm)`)
+  })
+  const quoteFaults = faults.found.length
+  const quote = faults.take(() => optional(raw, 'quote', (value) => words(value, `${where}.quote`, QUOTE_MAX)))
+  faults.take(() => {
+    if (source === 'given' && quote === null && faults.found.length === quoteFaults) throw new BriefRefused(`${where} is given, so it keeps the person's words in quote`)
+  })
+  faults.done()
   return { level: level as Level, source: source as Source, quote }
 }
 
@@ -253,69 +281,96 @@ const ROOM_KEYS = [
 
 function roomWish(raw: unknown, where: string): RoomWish {
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object`)
-  onlyKeys(raw, ROOM_KEYS, where)
-  const name = optional(raw, 'name', (value) => words(value, `${where}.name`, NAME_MAX))
+  // MSG-33: each part read on its own, so the wish is refused with all its faults at once.
+  const faults = new Faults()
+  const check = (fault: () => void): void => void faults.take(fault)
+  check(() => onlyKeys(raw, ROOM_KEYS, where))
+  const name = faults.take(() => optional(raw, 'name', (value) => words(value, `${where}.name`, NAME_MAX)))
   // MSG-22: a use in the person's own word (`cocina`, `Flur`) is kept as the use it means.
-  const use = optional(raw, 'use', (value) => {
+  const use = faults.take(() => optional(raw, 'use', (value) => {
     const read = readUse(value)
     if (typeof read !== 'string' || !ROOM_USES.includes(read as never)) throw new BriefRefused(`${where}.use must be one of the room uses, or a word that plainly means one: ${ROOM_USES.join(', ')}`)
     return read
+  }))
+  const given = (key: string): boolean => raw[key] !== undefined && raw[key] !== null
+  check(() => {
+    if (!given('name') && !given('use')) throw new BriefRefused(`${where} names a room (name) or the rooms of a use (use)`)
   })
-  if (name === null && use === null) throw new BriefRefused(`${where} names a room (name) or the rooms of a use (use)`)
-  const whole = (key: string, max = 1000) => optional(raw, key, (value) => {
+  const whole = (key: string, max = 1000) => faults.take(() => optional(raw, key, (value) => {
     if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > max) throw new BriefRefused(`${where}.${key} must be a whole number from 0 to ${max.toLocaleString('en-US')}`)
     return value
-  })
+  }))
   const count = whole('count')
   const countAtLeast = whole('count_at_least')
   const countAtMost = whole('count_at_most')
-  if (count !== null && (countAtLeast !== null || countAtMost !== null)) throw new BriefRefused(`${where} gives count, exactly how many, or count_at_least and count_at_most: not both`)
-  if (countAtLeast !== null && countAtMost !== null && countAtLeast > countAtMost) throw new BriefRefused(`${where}.count_at_least is more than its count_at_most`)
-  const area = optional(raw, 'area', (value) => size(value, `${where}.area`, 'm²', 100_000))
-  const atLeast = optional(raw, 'at_least', (value) => size(value, `${where}.at_least`, 'm²', 100_000))
-  const atMost = optional(raw, 'at_most', (value) => size(value, `${where}.at_most`, 'm²', 100_000))
-  // ARE-33: at_least and at_most are square metres. A whole number of a few, on the rooms of a use, with
-  // no area unit in the person's words, is a count in the wrong field: refused, naming the right ones.
-  if (name === null && use !== null && [atLeast, atMost].some((v) => v !== null && Number.isInteger(v) && v <= COUNT_LIKE_MAX) && !AREA_UNIT.test(raw['quote'] === undefined || raw['quote'] === null ? '' : String(raw['quote']))) {
-    throw new BriefRefused(`${where} gives at_least or at_most, which are square metres, as a small whole number on the rooms of a use: for how many rooms use count_at_least or count_at_most, and for a size say its unit in quote`)
-  }
-  if (area !== null && (atLeast !== null || atMost !== null)) throw new BriefRefused(`${where} gives area, a size about which the room is, or at_least and at_most: not both`)
-  if (atLeast !== null && atMost !== null && atLeast > atMost) throw new BriefRefused(`${where}.at_least is more than its at_most`)
-  const inside = optional(raw, 'inside', (value) => {
+  check(() => {
+    if (count !== null && (countAtLeast !== null || countAtMost !== null)) throw new BriefRefused(`${where} gives count, exactly how many, or count_at_least and count_at_most: not both`)
+    if (countAtLeast !== null && countAtMost !== null && countAtLeast > countAtMost) throw new BriefRefused(`${where}.count_at_least is more than its count_at_most`)
+  })
+  const area = faults.take(() => optional(raw, 'area', (value) => size(value, `${where}.area`, 'm²', 100_000)))
+  const atLeast = faults.take(() => optional(raw, 'at_least', (value) => size(value, `${where}.at_least`, 'm²', 100_000)))
+  const atMost = faults.take(() => optional(raw, 'at_most', (value) => size(value, `${where}.at_most`, 'm²', 100_000)))
+  check(() => {
+    // ARE-33: at_least and at_most are square metres. A whole number of a few, on the rooms of a use, with
+    // no area unit in the person's words, is a count in the wrong field: refused, naming the right ones.
+    if (!given('name') && use !== null && [atLeast, atMost].some((v) => v !== null && Number.isInteger(v) && v <= COUNT_LIKE_MAX) && !AREA_UNIT.test(raw['quote'] === undefined || raw['quote'] === null ? '' : String(raw['quote']))) {
+      throw new BriefRefused(`${where} gives at_least or at_most, which are square metres, as a small whole number on the rooms of a use: for how many rooms use count_at_least or count_at_most, and for a size say its unit in quote`)
+    }
+    if (area !== null && (atLeast !== null || atMost !== null)) throw new BriefRefused(`${where} gives area, a size about which the room is, or at_least and at_most: not both`)
+    if (atLeast !== null && atMost !== null && atLeast > atMost) throw new BriefRefused(`${where}.at_least is more than its at_most`)
+  })
+  const inside = faults.take(() => optional(raw, 'inside', (value) => {
     if (!Array.isArray(value) || value.length !== 2) throw new BriefRefused(`${where}.inside must be two sizes in metres, as [3, 4]`)
     return [size(value[0], `${where}.inside[0]`, 'm', 1000), size(value[1], `${where}.inside[1]`, 'm', 1000)] as const
-  })
+  }))
   // ARE-67: a room's seats, desks and covers, each read as a count of rooms is.
   const target = (what: SeatingWhat): SeatingTarget | null => {
     const exactly = whole(what, SEATING_MAX)
     const least = whole(`${what}_at_least`, SEATING_MAX)
     const most = whole(`${what}_at_most`, SEATING_MAX)
-    if (exactly !== null && (least !== null || most !== null)) throw new BriefRefused(`${where} gives ${what}, exactly how many, or ${what}_at_least and ${what}_at_most: not both`)
-    if (least !== null && most !== null && least > most) throw new BriefRefused(`${where}.${what}_at_least is more than its ${what}_at_most`)
+    check(() => {
+      if (exactly !== null && (least !== null || most !== null)) throw new BriefRefused(`${where} gives ${what}, exactly how many, or ${what}_at_least and ${what}_at_most: not both`)
+      if (least !== null && most !== null && least > most) throw new BriefRefused(`${where}.${what}_at_least is more than its ${what}_at_most`)
+    })
     return exactly === null && least === null && most === null ? null : { exactly, atLeast: least, atMost: most }
   }
-  return { name, use, count, countAtLeast, countAtMost, area, atLeast, atMost, inside, seats: target('seats'), desks: target('desks'), covers: target('covers'), ...said(raw, where) }
+  const seats = target('seats')
+  const desks = target('desks')
+  const covers = target('covers')
+  const saying = said(raw, where, LEVELS, faults)
+  return { name, use, count, countAtLeast, countAtMost, area, atLeast, atMost, inside, seats, desks, covers, ...saying }
 }
 
 function footprintWish(raw: unknown): FootprintWish {
   const where = 'footprint'
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object`)
-  onlyKeys(raw, ['width', 'depth', 'area', 'level', 'source', 'quote'], where)
-  const width = optional(raw, 'width', (value) => size(value, `${where}.width`, 'm', 10_000))
-  const depth = optional(raw, 'depth', (value) => size(value, `${where}.depth`, 'm', 10_000))
-  const area = optional(raw, 'area', (value) => size(value, `${where}.area`, 'm²', 1_000_000))
-  if ((width === null) !== (depth === null)) throw new BriefRefused(`${where} gives width and depth together, the outside sizes either way round`)
-  if (width === null && area === null) throw new BriefRefused(`${where} gives width and depth, area, or both`)
-  return { width, depth, area, ...said(raw, where, ['must', 'should']) }
+  // MSG-33: every fault of the footprint at once.
+  const faults = new Faults()
+  faults.take(() => onlyKeys(raw, ['width', 'depth', 'area', 'level', 'source', 'quote'], where))
+  const width = faults.take(() => optional(raw, 'width', (value) => size(value, `${where}.width`, 'm', 10_000)))
+  const depth = faults.take(() => optional(raw, 'depth', (value) => size(value, `${where}.depth`, 'm', 10_000)))
+  const area = faults.take(() => optional(raw, 'area', (value) => size(value, `${where}.area`, 'm²', 1_000_000)))
+  const given = (key: string): boolean => raw[key] !== undefined && raw[key] !== null
+  faults.take(() => {
+    if (given('width') !== given('depth')) throw new BriefRefused(`${where} gives width and depth together, the outside sizes either way round`)
+    if (!given('width') && !given('area')) throw new BriefRefused(`${where} gives width and depth, area, or both`)
+  })
+  return { width, depth, area, ...said(raw, where, ['must', 'should'], faults) }
 }
 
 function touchWish(raw: unknown, where: string): TouchWish {
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object`)
-  onlyKeys(raw, ['rooms', 'level', 'source', 'quote'], where)
-  const rooms = raw['rooms']
-  if (!Array.isArray(rooms) || rooms.length !== 2) throw new BriefRefused(`${where}.rooms must be two rooms' names`)
-  const pair = [words(rooms[0], `${where}.rooms[0]`, NAME_MAX), words(rooms[1], `${where}.rooms[1]`, NAME_MAX)] as const
-  return { rooms: pair, ...said(raw, where) }
+  // MSG-33: every fault of the wish at once.
+  const faults = new Faults()
+  faults.take(() => onlyKeys(raw, ['rooms', 'level', 'source', 'quote'], where))
+  const pair = faults.take(() => {
+    const rooms = raw['rooms']
+    if (!Array.isArray(rooms) || rooms.length !== 2) throw new BriefRefused(`${where}.rooms must be two rooms' names`)
+    const first = faults.take(() => words(rooms[0], `${where}.rooms[0]`, NAME_MAX))
+    const second = faults.take(() => words(rooms[1], `${where}.rooms[1]`, NAME_MAX))
+    return [first!, second!] as const
+  })
+  return { rooms: pair!, ...said(raw, where, LEVELS, faults) }
 }
 
 function figureWishes(raw: unknown): FigureWish[] {
@@ -331,36 +386,46 @@ function figureWishes(raw: unknown): FigureWish[] {
     const figure = key as FigureName
     const where = `figures.${figure}`
     if (!isObject(value)) throw new BriefRefused(`${where} must be an object with value, level and source`)
+    // MSG-33: every fault of the figure at once.
+    const faults = new Faults()
     const extra = figure === 'turning_circle' ? ['rooms'] : figure === 'floor_area_ratio' || figure === 'door_width' ? ['measure'] : []
-    onlyKeys(value, ['value', ...extra, 'level', 'source', 'quote'], where)
+    faults.take(() => onlyKeys(value, ['value', ...extra, 'level', 'source', 'quote'], where))
     const v = value['value']
     const { unit, least, top } = FIGURES[figure]
-    if (isSeatingFigure(figure) && (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > top)) throw new BriefRefused(`${where}.value must be a whole number of ${unit} from 1 to ${top.toLocaleString('en-US')}`)
-    // A step may be none at all, no sill, and so may the parking a home needs.
-    const zero = figure === 'step' || figure === 'parking_per_home'
-    if (typeof v !== 'number' || !Number.isFinite(v) || v < least || v > top || (v === least && !zero)) {
-      const of = unit === 'm' ? 'a number of metres' : unit === '%' ? 'a percentage of the plot' : unit === '' ? 'a ratio, the floor area over the plot area,' : `a number of ${unit}`
-      throw new BriefRefused(`${where}.value must be ${of}${zero ? ` from ${least}` : ` above ${least}`} to ${top.toLocaleString('en-US')}`)
-    }
-    const rooms = list(value['rooms'], `${where}.rooms`).map((room, i) => words(room, `${where}.rooms[${i}]`, NAME_MAX))
-    const measure = figure !== 'floor_area_ratio' ? null : optional(value, 'measure', (m) => {
+    faults.take(() => {
+      if (isSeatingFigure(figure) && (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > top)) throw new BriefRefused(`${where}.value must be a whole number of ${unit} from 1 to ${top.toLocaleString('en-US')}`)
+      // A step may be none at all, no sill, and so may the parking a home needs.
+      const zero = figure === 'step' || figure === 'parking_per_home'
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < least || v > top || (v === least && !zero)) {
+        const of = unit === 'm' ? 'a number of metres' : unit === '%' ? 'a percentage of the plot' : unit === '' ? 'a ratio, the floor area over the plot area,' : `a number of ${unit}`
+        throw new BriefRefused(`${where}.value must be ${of}${zero ? ` from ${least}` : ` above ${least}`} to ${top.toLocaleString('en-US')}`)
+      }
+    })
+    const rooms = (faults.take(() => list(value['rooms'], `${where}.rooms`)) ?? []).map((room, i) => faults.take(() => words(room, `${where}.rooms[${i}]`, NAME_MAX))!)
+    const measure = figure !== 'floor_area_ratio' ? null : faults.take(() => optional(value, 'measure', (m) => {
       if (!RATIO_MEASURES.includes(m as RatioMeasure)) throw new BriefRefused(`${where}.measure must be ${RATIO_MEASURES.join(' or ')}`)
       return m as RatioMeasure
-    })
+    }))
     // ARE-27: a door width is for the clear width unless the brief says leaf or hole.
-    const door = figure !== 'door_width' ? null : optional(value, 'measure', (m) => {
+    const door = figure !== 'door_width' ? null : faults.take(() => optional(value, 'measure', (m) => {
       if (!DOOR_MEASURES.includes(m as DoorMeasure)) throw new BriefRefused(`${where}.measure must be clear, leaf or hole`)
       return m as DoorMeasure
-    })
-    out.push({ figure, value: v, rooms, measure, door, ...said(value, where, ['must', 'should']) })
+    }))
+    const saying = said(value, where, ['must', 'should'], faults)
+    out.push({ figure, value: v as number, rooms, measure, door, ...saying })
   }
   return out
 }
 
 function openWish(raw: unknown, where: string): OpenWish {
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object with the person's words in quote`)
-  onlyKeys(raw, ['quote', 'about'], where)
-  return { quote: words(raw['quote'], `${where}.quote`, QUOTE_MAX), about: optional(raw, 'about', (value) => words(value, `${where}.about`, QUOTE_MAX)) }
+  // MSG-33: every fault of the wish at once.
+  const faults = new Faults()
+  faults.take(() => onlyKeys(raw, ['quote', 'about'], where))
+  const quote = faults.take(() => words(raw['quote'], `${where}.quote`, QUOTE_MAX))
+  const about = faults.take(() => optional(raw, 'about', (value) => words(value, `${where}.about`, QUOTE_MAX)))
+  faults.done()
+  return { quote: quote!, about }
 }
 
 /** The brief's contents, checked. Refused with the first place that is wrong. A file's `version` must be "1"; a tool call's may be left out. */
@@ -403,18 +468,36 @@ function lineText(value: unknown): string {
 
 /**
  * ARE-52: a brief call's contents read line by line. A wish that is wrong is left out and
- * returned with its place and why; the others are kept. A fault in the brief as a whole (not an
- * object, a field it does not take, a wrong version, a list too long or no valid wish at all)
- * still throws `BriefRefused`; with no valid wish it names every refused line.
+ * returned with its place and why, every fault of it named (MSG-33); the others are kept. A field
+ * the brief does not take, a list that is no list or too long, and figures that are no object are
+ * refused lines of their own too (MSG-33). A fault that leaves nothing to read (not an object, a
+ * wrong version, no valid wish at all) still throws `BriefRefused`; with no valid wish it names
+ * every refused line.
  */
 export function parseBriefLines(raw: unknown, options: { readonly versionNeeded?: boolean } = {}): BriefParts {
   if (!isObject(raw)) throw new BriefRefused('it must be a JSON object with rooms, footprint, touch, figures or open')
-  onlyKeys(raw, ['version', 'rooms', 'footprint', 'touch', 'figures', 'open'], 'the brief')
   if ((options.versionNeeded !== false || raw['version'] !== undefined) && raw['version'] !== '1') throw new BriefRefused('version must be "1"')
   const refused: RefusedLine[] = []
+  const top = ['version', 'rooms', 'footprint', 'touch', 'figures', 'open']
+  for (const key of Object.keys(raw).filter((k) => !top.includes(k))) {
+    try {
+      onlyKeys({ [key]: raw[key] }, top, 'the brief')
+    } catch (error) {
+      if (!(error instanceof BriefRefused)) throw error
+      refused.push({ where: KEY.test(key) ? key : '…', problem: error.message, line: lineText(raw[key]) })
+    }
+  }
   const each = <T>(key: string, read: (wish: unknown, where: string) => T): T[] => {
     const out: T[] = []
-    list(raw[key], key).forEach((wish, i) => {
+    let wishes: unknown[]
+    try {
+      wishes = list(raw[key], key)
+    } catch (error) {
+      if (!(error instanceof BriefRefused)) throw error
+      refused.push({ where: key, problem: error.message, line: lineText(raw[key]) })
+      return out
+    }
+    wishes.forEach((wish, i) => {
       const where = `${key}[${i}]`
       try {
         out.push(read(wish, where))
@@ -440,8 +523,8 @@ export function parseBriefLines(raw: unknown, options: { readonly versionNeeded?
   const figures: FigureWish[] = []
   const given = raw['figures']
   if (given !== undefined && given !== null) {
-    if (!isObject(given)) throw new BriefRefused('figures must be an object, each of the person\'s figures by its name')
-    for (const [key, value] of Object.entries(given)) {
+    if (!isObject(given)) refused.push({ where: 'figures', problem: 'figures must be an object, each of the person\'s figures by its name', line: lineText(given) })
+    for (const [key, value] of Object.entries(isObject(given) ? given : {})) {
       if (key === 'heading') continue
       try {
         figures.push(...figureWishes({ [key]: value }))
