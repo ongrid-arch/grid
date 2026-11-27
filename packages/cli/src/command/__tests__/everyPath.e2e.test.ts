@@ -388,6 +388,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_set_facts', { plan: '@', parts: ['lounge'], set: { department: 'Sales' } }), given: asIs },
     { arg: 'out', call: tool('grid_set_facts', { plan: PLAN, parts: ['lounge'], set: { department: 'Sales' }, out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CNT-51: the finishes of many rooms, written into the plan.
+  grid_set_finishes: [
+    { arg: 'plan', call: tool('grid_set_finishes', { plan: '@', rooms: ['lounge'], floor_finish: 'Oak boards' }), given: asIs },
+    { arg: 'out', call: tool('grid_set_finishes', { plan: PLAN, rooms: ['lounge'], floor_finish: 'Oak boards', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // LVL-21: a stair added and changed, written into the plan.
   grid_add_stair: [
     { arg: 'plan', call: tool('grid_add_stair', { plan: '@', from: 'ground', to: 'first', width: 0.9, run: ['1,1', '1,4'] }), given: asIs },

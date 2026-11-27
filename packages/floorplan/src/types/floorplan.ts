@@ -245,7 +245,12 @@
  *   (C5, LVL-6). `types.defaults` names the type a wall of each kind, a door or a window takes when
  *   it names none: the template an office keeps. A dividing line takes no type. A room or a zone
  *   (CNT-8) MAY name its `finishes`: floor, walls, ceiling and skirting, by the person's own names;
- *   a zone's finish is its part of its room. Grid checks no finish and no material. An id a part
+ *   a zone's finish is its part of its room. Reopened by CNT-51: `skirting` MAY be `false`, no
+ *   skirting, measured as none; `faces` MAY finish one wall's face in the room other than its walls
+ *   (a wall id and a finish); `bands` MAY lay a finish `height` metres high from `from` metres above
+ *   the floor on every face of the room, on one wall's face (`wall`) or behind an item (`behind`)
+ *   over the length of its back, from the item's top unless `from` says. A band and a face take
+ *   their area off the room's walls finish. Grid checks no finish and no material. An id a part
  *   names that no type has is said and read as no type, never refused. Optional and never
  *   defaulted: a plan with none reads exactly as before (version 1).
  *
@@ -1318,11 +1323,34 @@ export type FinishSurface = (typeof FINISH_SURFACES)[number]
 
 const finishName = () => text('name').pipe(z.string().refine((value) => value.trim().length > 0, { message: 'is blank: leave the finish out instead' }))
 
+/** CNT-51 (C24): one wall's face in the room finished other than the room's walls: a feature wall. */
+export const FinishFaceSchema = z.object({
+  wall: text('id'),
+  finish: finishName(),
+})
+
+/**
+ * CNT-51 (C24): a band of finish on the room's wall faces, `height` metres high from `from` metres
+ * above its floor: on every face of the room, on one wall's face (`wall`), or behind an item
+ * (`behind`) over the length of its back, from the item's top unless `from` says.
+ */
+export const FinishBandSchema = z.object({
+  finish: finishName(),
+  height: finite().positive(),
+  from: finite().nonnegative().optional(),
+  wall: text('id').optional(),
+  behind: text('id').optional(),
+})
+
 export const FinishesSchema = z.object({
   floor: finishName().optional(),
   walls: finishName().optional(),
   ceiling: finishName().optional(),
-  skirting: finishName().optional(),
+  // CNT-51: false says the room has no skirting, so none is measured.
+  skirting: z.union([finishName(), z.literal(false)]).optional(),
+  // CNT-51: wall faces finished other than the room's walls, and bands of finish on its faces.
+  faces: parts(FinishFaceSchema, 'finished faces').optional(),
+  bands: parts(FinishBandSchema, 'finish bands').optional(),
 })
 
 export const RoomSchema = z.object({
@@ -2811,6 +2839,8 @@ export type DoorType = z.infer<typeof DoorTypeSchema>
 export type WindowType = z.infer<typeof WindowTypeSchema>
 export type PartTypes = z.infer<typeof PartTypesSchema>
 export type Finishes = z.infer<typeof FinishesSchema>
+export type FinishFace = z.infer<typeof FinishFaceSchema>
+export type FinishBand = z.infer<typeof FinishBandSchema>
 export type FloorPlan = z.infer<typeof FloorPlanSchema>
 
 export const EMPTY_FLOOR_PLAN: FloorPlan = {

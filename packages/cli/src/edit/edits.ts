@@ -51,8 +51,8 @@ export type RoomChange = {
   number?: string | null
   /** CNT-10: a room taken out of a plan with phases stays, to be demolished. */
   phase?: Room['phase']
-  /** CNT-15: its finishes, by surface; null takes them all out. */
-  finishes?: Readonly<Record<string, string>> | null
+  /** CNT-15: its finishes, by surface, whole (CNT-51: its faces, bands and no skirting too); null takes them all out. */
+  finishes?: Readonly<Record<string, unknown>> | null
   /** ARE-60: heated or cooled, or not; null leaves it to the room's use. */
   conditioned?: boolean | null
 }

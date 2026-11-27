@@ -1511,9 +1511,25 @@ finishes, and leaves to a part's type each value the text writes that the type g
 part typed by a default stays typed by it: the read-back and the writing name a type only on the
 parts that named one, so a later change of the default still reaches every other part (WRT-70).
 
+CNT-51: a room's or zone's finishes may also say that it has no skirting (`"skirting": false`,
+measured as none), finish one wall's face other than its walls (`faces`: a wall id and a
+finish, a feature wall), and lay bands of finish on its wall faces (`bands`): a finish, a
+`height` in metres and the `from` it starts at above the floor, on every face of the room, on one
+wall's face (`wall`), or behind an item (`behind`) over the length of its back, from the item's
+top unless `from` says. A band and a face take their area off the room's walls finish, so a tiled
+splashback is priced as the splashback, not the kitchen's whole wall face.
+
+```json
+{ "id": "kitchen", "finishes": { "floor": "Porcelain tile", "walls": "Painted plaster", "bands": [{ "finish": "Ceramic tile", "height": 0.6, "behind": "k-run" }] } }
+{ "id": "plant", "finishes": { "floor": "Sealed concrete", "skirting": false } }
+{ "id": "bed1", "finishes": { "walls": "Paint", "faces": [{ "wall": "w-north", "finish": "Feature paint" }] } }
+```
+
 To change a type, give a part a type or make a type the default, use `grid_change_type` (`grid
-edit type`); to set a room's finishes, `grid_rename_room` with `floor_finish`, `wall_finish`,
-`ceiling_finish` and `skirting_finish` (`none` takes one out).
+edit type`); to set finishes, `grid_set_finishes`: many rooms at once (by id, `all`, by use, less
+`except`, `wet` for the wet rooms), faces and bands, and `skirting_finish none` for no skirting.
+`grid_rename_room` sets one room's four surfaces with `floor_finish`, `wall_finish`,
+`ceiling_finish` and `skirting_finish` (`none` takes one out there).
 
 | Code | What it says |
 |---|---|

@@ -827,7 +827,7 @@ const takeoffTool: GridTool = {
     + `A cost comes only from the person's own rates file (rates, or ${RATES_FILE} beside the plan), which must name its currency; with none, the answer is a rate card to fill in and holds no money. Lines with no rate and rates in the wrong unit are listed apart. Grid has no prices. `
     + 'Every figure is worked out from the plan\'s walls and openings by a rule stated in the answer. '
     + 'It also gives each floor\'s slab and the roof over every part with nothing above, worked out from the outlines and marked assumed. '
-    + 'On a plan that names wall types or room finishes (types and finishes in the plan), it also gives the walls of each named type (length and face, with its material) and each finish\'s quantity (floor, walls and ceiling by area, skirting by length), a zone\'s finish taking its part of its room; the estimate then prices them by type and by finish. '
+    + 'On a plan that names wall types or room finishes (types and finishes in the plan), it also gives the walls of each named type (length and face, with its material) and each finish\'s quantity (floor, walls and ceiling by area, skirting by length), a zone\'s finish taking its part of its room, and each band (a splashback behind a kitchen run, tiles to a height) and wall face finished apart (grid_set_finishes) with its own area, taken off its room\'s walls finish; a room with no skirting has none. The estimate then prices them by type and by finish. '
     + 'On a plan with parking bays or ramps (bays and ramps in the plan), it also counts the bays on each floor, with their numbers, and gives each ramp\'s two levels in metres, its rise, its length and its slope in percent, as numbers. '
     + 'Do not use for floor areas alone (grid_areas) or a list of doors and windows (grid_schedule). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
@@ -856,6 +856,9 @@ const takeoffTool: GridTool = {
     // CNT-15, on a plan that names wall types or finishes: the walls of each named type, and each finish's total.
     wallTypes: listSchema(objectSchema({ type: STRING, name: STRING, kind: NULLABLE_STRING, material: NULLABLE_STRING, glazed: BOOLEAN, count: NUMBER, gross: NUMBER, net: NUMBER, face: NUMBER, gable: NUMBER })),
     finishes: listSchema(objectSchema({ surface: STRING, finish: NULLABLE_STRING, unit: STRING, quantity: NUMBER, rooms: listSchema(STRING) })),
+    // CNT-51: each band and wall face finished apart, on a plan that states any.
+    bands: listSchema(objectSchema({ room: STRING, roomName: STRING, finish: STRING, wall: NULLABLE_STRING, behind: NULLABLE_STRING, from: NUMBER, to: NUMBER, length: NUMBER, area: NUMBER })),
+    faces: listSchema(objectSchema({ room: STRING, roomName: STRING, wall: STRING, finish: STRING, area: NUMBER })),
     rooms: listSchema(withOptional(objectSchema({ id: STRING, name: STRING, floor: STRING, floorArea: NUMBER, ceiling: NUMBER, perimeter: NUMBER, skirting: NUMBER, wallFace: NUMBER, openingsOff: NUMBER, height: NULLABLE_NUMBER, ceilingHeight: NULLABLE_NUMBER, lowered: listSchema(objectSchema({ name: STRING, height: NUMBER, area: NUMBER })), void: BOOLEAN, guard: NUMBER }), ['void', 'guard'])),
     totals: withOptional(objectSchema({ floorArea: NUMBER, ceiling: NUMBER, skirting: NUMBER, wallFace: NUMBER, guard: NUMBER }), ['guard']),
     envelope: objectSchema({
@@ -913,7 +916,11 @@ const takeoffTool: GridTool = {
     const t = planTakeoff(survey, floor === undefined ? undefined : [floor], rooms)
     // CNT-15 (C24): the named wall types' walls and the finishes, on a plan that names any.
     const wallTypes = planHasTypes(survey.plan) ? wallTypeRuns(survey, floor === undefined ? undefined : [floor]) : []
-    const finishes = rooms === undefined && planHasFinishes(survey.plan) ? planFinishes(survey, floor === undefined ? undefined : [floor]).totals : null
+    const finished = rooms === undefined && planHasFinishes(survey.plan) ? planFinishes(survey, floor === undefined ? undefined : [floor]) : null
+    const finishes = finished === null ? null : finished.totals
+    // CNT-51: each band and finished wall face, measured on its own, room by room.
+    const bands = (finished?.rows ?? []).flatMap((r) => r.bands.map((b) => ({ room: r.id, roomName: r.name, ...b })))
+    const faces = (finished?.rows ?? []).flatMap((r) => r.faces.map((f) => ({ room: r.id, roomName: r.name, ...f })))
     const data = {
       walls: t.walls,
       ...(t.columns === undefined ? {} : { columns: t.columns }),
@@ -921,6 +928,8 @@ const takeoffTool: GridTool = {
       ...(t.ramps === undefined ? {} : { ramps: t.ramps }),
       ...(wallTypes.length === 0 ? {} : { wallTypes }),
       ...(finishes === null ? {} : { finishes }),
+      ...(bands.length === 0 ? {} : { bands }),
+      ...(faces.length === 0 ? {} : { faces }),
       rooms: t.rooms,
       totals: t.totals,
       envelope: t.envelope,
@@ -947,6 +956,9 @@ const takeoffTool: GridTool = {
         // CNT-15: the named wall types (gross and net length, face in the wall face column) and the finishes.
         ...wallTypes.map((w) => ['wall type', `${w.name} (${w.count})`, null, null, null, w.face, w.gross, w.net, null]),
         ...(finishes ?? []).map((f) => ['finish', `${f.surface}: ${f.finish ?? 'not stated'}`, f.surface === 'floor' ? f.quantity : null, f.surface === 'ceiling' ? f.quantity : null, f.surface === 'skirting' ? f.quantity : null, f.surface === 'walls' ? f.quantity : null, null, null, null]),
+        // CNT-51: each band and finished face, its area in the wall face column and a band's length.
+        ...bands.map((b) => ['band', `${b.roomName}: ${b.finish}, ${b.from.toFixed(2)} to ${b.to.toFixed(2)} m${b.behind === null ? '' : ` behind ${b.behind}`}${b.wall === null ? '' : ` on ${b.wall}`}`, null, null, null, b.area, b.length, null, null]),
+        ...faces.map((f) => ['face', `${f.roomName}: ${f.finish} on ${f.wall}`, null, null, null, f.area, null, null, null]),
       ]
       return { text: csv(['row', 'what', 'floor m2', 'ceiling m2', 'skirting m', 'wall face m2', 'length or perimeter m', 'net length m', 'state'], rows), data }
     }
@@ -975,6 +987,13 @@ const takeoffTool: GridTool = {
         ? []
         : [`Walls by type: ${wallTypes.map((w) => `${q(w.name)} ${lengthText(w.gross, units)} (${w.count} wall${w.count === 1 ? '' : 's'}; face ${areaText(w.face, units)}${w.gable > 0 ? `, of it ${areaText(w.gable, units)} gable` : ''}${w.material === null ? ', material not stated' : `, ${w.material}`}${w.glazed ? ', glazed' : ''})`).join('; ')}.`]),
       ...(finishes === null ? [] : finishLines(finishes, units)),
+      ...(bands.length === 0 && faces.length === 0
+        ? []
+        : [
+            'Bands and wall faces finished apart, each taken off its room\'s walls finish:',
+            ...bands.map((b) => `  ${q(b.roomName)}: ${q(b.finish)} ${b.behind !== null ? `behind ${q(b.behind)}` : b.wall !== null ? `on wall ${q(b.wall)}` : 'all round'}, ${lengthText(b.from, units, 'height')} to ${lengthText(b.to, units, 'height')}, ${lengthText(b.length, units)} long: ${areaText(b.area, units)}`),
+            ...faces.map((f) => `  ${q(f.roomName)}: face of wall ${q(f.wall)} ${q(f.finish)}: ${areaText(f.area, units)}`),
+          ]),
       ...Object.values(TAKEOFF_RULES),
       ...(wallTypes.length === 0 ? [] : [WALL_TYPE_RULE]),
       ...(finishes === null ? [] : [FINISH_RULE]),
@@ -1002,15 +1021,23 @@ function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined,
     const data = { rows: s.rows, totals: s.totals, rule: s.rule }
     const amount = (surface: FinishSurface, quantity: number): string => (FINISH_UNITS[surface] === 'm' ? lengthText(quantity, units) : areaText(quantity, units))
     if (asCsv) {
-      const cells = s.rows.map((r) => [r.id, r.name, r.floor, r.zoneOf, ...FINISH_SURFACES.flatMap((surface) => [r.surfaces[surface].finish, r.surfaces[surface].quantity])])
-      return { text: csv(['id', 'name', 'floor', 'zone of', 'floor finish', 'floor m2', 'wall finish', 'wall face m2', 'ceiling finish', 'ceiling m2', 'skirting finish', 'skirting m'], cells), data }
+      // CNT-51: no skirting is none; the bands and finished faces, each its finish and area, in one cell.
+      const cells = s.rows.map((r) => [r.id, r.name, r.floor, r.zoneOf, ...FINISH_SURFACES.flatMap((surface) => [surface === 'skirting' && r.noSkirting ? 'none' : r.surfaces[surface].finish, r.surfaces[surface].quantity]), [...r.bands.map((b) => `${b.finish} ${b.area.toFixed(2)}`), ...r.faces.map((f) => `${f.finish} ${f.area.toFixed(2)}`)].join('; ')])
+      return { text: csv(['id', 'name', 'floor', 'zone of', 'floor finish', 'floor m2', 'wall finish', 'wall face m2', 'ceiling finish', 'ceiling m2', 'skirting finish', 'skirting m', 'bands and faces m2'], cells), data }
     }
     const floorName = new Map(survey.facts.floors.map((f) => [f.id, f.name] as const))
     const lines = [planHasFinishes(survey.plan) ? 'Finishes by room:' : 'The plan names no finishes: every surface is not stated. Name a room\'s or a zone\'s in its finishes (floor, walls, ceiling, skirting).']
     for (const r of s.rows) {
-      const shown = FINISH_SURFACES.filter((surface) => r.zoneOf === null || r.surfaces[surface].finish !== null)
-      const parts = shown.map((surface) => `${surface} ${r.surfaces[surface].finish === null ? 'not stated' : q(r.surfaces[surface].finish!)} ${amount(surface, r.surfaces[surface].quantity)}`)
-      lines.push(`${r.zoneOf === null ? '' : '  '}${q(r.name)}${r.zoneOf === null ? '' : ` (a zone of ${q(r.zoneOf)})`}${several ? `, ${q(floorName.get(r.floor) ?? r.floor)}` : ''}: ${parts.join(', ')}`)
+      const shown = FINISH_SURFACES.filter((surface) => r.zoneOf === null || r.surfaces[surface].finish !== null || (surface === 'skirting' && r.noSkirting))
+      const parts = shown.map((surface) => (surface === 'skirting' && r.noSkirting && r.surfaces[surface].finish === null ? 'no skirting' : `${surface} ${r.surfaces[surface].finish === null ? 'not stated' : q(r.surfaces[surface].finish!)} ${amount(surface, r.surfaces[surface].quantity)}`))
+      const indent = r.zoneOf === null ? '' : '  '
+      lines.push(`${indent}${q(r.name)}${r.zoneOf === null ? '' : ` (a zone of ${q(r.zoneOf)})`}${several ? `, ${q(floorName.get(r.floor) ?? r.floor)}` : ''}: ${parts.join(', ')}`)
+      // CNT-51: each band and finished face on its own line, taken off the walls above.
+      for (const b of r.bands) {
+        const where = b.behind !== null ? `behind ${q(b.behind)}` : b.wall !== null ? `on wall ${q(b.wall)}` : 'all round'
+        lines.push(`${indent}  band ${q(b.finish)} ${where}, ${lengthText(b.from, units, 'height')} to ${lengthText(b.to, units, 'height')}, ${lengthText(b.length, units)} long: ${areaText(b.area, units)}`)
+      }
+      for (const f of r.faces) lines.push(`${indent}  face of wall ${q(f.wall)} ${q(f.finish)}: ${areaText(f.area, units)}`)
     }
     lines.push(...finishLines(s.totals, units), s.rule)
     return { text: lines.join('\n'), data }
@@ -1143,7 +1170,7 @@ const SCHEDULE_OUTPUT: Record<string, unknown> = {
     }, ['rows', 'mix', 'total', 'notInFlats', 'rules']),
     // of=finishes (CNT-15): each room's and zone's finishes by surface, and each finish's total.
     objectSchema({
-      rows: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, zoneOf: NULLABLE_STRING, surfaces: { type: 'object' } }, ['id', 'name', 'floor', 'zoneOf', 'surfaces'])),
+      rows: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, zoneOf: NULLABLE_STRING, surfaces: { type: 'object' }, bands: listSchema({ type: 'object' }), faces: listSchema({ type: 'object' }), noSkirting: { type: 'boolean' } }, ['id', 'name', 'floor', 'zoneOf', 'surfaces'])),
       totals: listSchema(objectSchema({ surface: STRING, finish: NULLABLE_STRING, unit: STRING, quantity: NUMBER, rooms: listSchema(STRING) })),
       rule: STRING,
     }, ['rows', 'totals', 'rule']),
