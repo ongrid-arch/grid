@@ -16,6 +16,9 @@ export const GROUND_FILL = {
   opacity: 0.7
 } as const
 
+/** CNT-60: the plot's ground, so the plot reads against the background round it. */
+export const PLOT_COLOR = '#dcdfcf'
+
 /** The ground's pieces as one flat geometry at `y`, in Three's frame, facing up. */
 export function groundGeometry(ground: BuildingGround): THREE.BufferGeometry {
   // The library closes each ring with its first point again, which a shape leaves out.
@@ -54,7 +57,7 @@ export function Ground3D({ ground, color }: { ground: BuildingGround; color: str
   return (
     <mesh geometry={geometry} renderOrder={-1} raycast={NO_RAYCAST}>
       <meshBasicMaterial
-        color={color}
+        color={ground.plot === true ? PLOT_COLOR : color}
         transparent
         opacity={GROUND_FILL.opacity}
         depthWrite={false}

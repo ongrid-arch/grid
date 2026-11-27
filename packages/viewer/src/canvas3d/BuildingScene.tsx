@@ -5,6 +5,7 @@ import type { PlanBuild } from '../preview/useBuildFrame'
 import type { PlanColors3D } from './usePlanColors'
 import type { BuildingFrame, BuildingGround, BuildingLayout } from './building'
 import { Ground3D } from './Ground3D'
+import { Site3D } from './Site3D'
 import { Storey3D, type StoreyPointer } from './Storey3D'
 
 type BuildClock = PlaybackClock<PlanBuild>
@@ -131,6 +132,8 @@ export function BuildingScene({
       )}
 
       {ground !== null && <Ground3D ground={ground} color={colors.background} />}
+      {/* CNT-60: the site on the ground: neighbours, fences, paths, paving, trees and pools. */}
+      {ground !== null && ground.site.length > 0 && <Site3D ground={ground} />}
     </>
   )
 }
