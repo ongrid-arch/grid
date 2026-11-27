@@ -12,6 +12,7 @@
 import { groundSurface, metresText, pointInPolygon, SITE_THING_WORDS, tolerance } from '@ongrid/floorplan/geometry'
 import { northWordsOf, plotCorners, siteEdges, type SetbackWords } from '@ongrid/floorplan/rooms'
 import { SiteSchema, SiteThingSchema, boundaryEdgeCount, type FallToward, type FloorPlan, type Site, type SiteThing, type SiteThingKind } from '@ongrid/floorplan/types/floorplan'
+import { english, name, said as sentence } from '@ongrid/floorplan/messages'
 import type { Survey } from '../quantities/survey'
 import { emptyPatch, type Patch } from './edits'
 import { EditRefused } from './refused'
@@ -19,7 +20,7 @@ import { EditRefused } from './refused'
 type Pair = [number, number]
 
 /** The fields `grid_set_site` can take out. */
-export const SITE_FIELDS = ['boundary', 'streets', 'setbacks', 'north', 'origin', 'location', 'elevation', 'ground', 'groundSides', 'fall', 'groundEdges', 'country', 'things'] as const
+export const SITE_FIELDS = ['boundary', 'streets', 'setbacks', 'north', 'origin', 'location', 'elevation', 'ground', 'groundSides', 'fall', 'groundEdges', 'country', 'address', 'name', 'things'] as const
 export type SiteField = (typeof SITE_FIELDS)[number]
 
 export interface SiteRequest {
@@ -38,6 +39,9 @@ export interface SiteRequest {
   readonly fall?: { readonly slope: number; readonly toward: FallToward }
   readonly groundEdges?: readonly { readonly edge: number; readonly start: number; readonly end?: number }[]
   readonly country?: string
+  /** CNT-50: the site's address and its own name, kept as written and never looked up. */
+  readonly address?: string
+  readonly name?: string
   readonly remove?: readonly SiteField[]
 }
 
@@ -75,7 +79,7 @@ export function setSite(survey: Survey, request: SiteRequest): Patch {
   const guessed: string[] = []
   const gives = Object.entries(request).filter(([k, v]) => v !== undefined && k !== 'remove').length
   if (gives === 0 && (request.remove ?? []).length === 0) {
-    throw new EditRefused('Give the plot (boundary, or plot_width and plot_depth), streets, setbacks, north, origin, latitude and longitude, elevation, ground or country to set, or remove to take one out.')
+    throw new EditRefused('Give the plot (boundary, or plot_width and plot_depth), streets, setbacks, north, origin, latitude and longitude, elevation, ground, country, address or site_name to set, or remove to take one out.')
   }
   for (const field of request.remove ?? []) {
     if (field === 'north') {
@@ -190,6 +194,15 @@ export function setSite(survey: Survey, request: SiteRequest): Patch {
   if (request.country !== undefined) {
     site['country'] = request.country
     said.push('Set where it will be built; grid_check applies the figures that hold there.')
+  }
+  // CNT-50: the site's address and its own name, in the person's words.
+  if (request.name !== undefined) {
+    site['name'] = request.name
+    said.push(english(sentence('edit.site.name', { name: name(request.name) })))
+  }
+  if (request.address !== undefined) {
+    site['address'] = request.address
+    said.push(english(sentence('edit.site.address', { address: name(request.address) })))
   }
   const problem = siteProblem(site)
   if (problem !== null) throw new EditRefused(`The site would not be read: ${problem}.`)

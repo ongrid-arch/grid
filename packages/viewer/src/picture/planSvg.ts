@@ -506,7 +506,9 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
   const at = fills < 0 ? withNorth.length : fills
   const nodes = trace === null ? withNorth : [...withNorth.slice(0, at), traceNode(trace), ...withNorth.slice(at)]
   // SHT-7: the title and the key in a band under the drawing, then what went wrong (MSG-8).
-  const title = on('title') ? (plan.title ?? null) : null
+  // CNT-50: with the site's name (when the plan has no title) and its address after it, as stated.
+  const titled = [plan.title ?? plan.site?.name, plan.site?.address].filter((part): part is string => part !== undefined)
+  const title = on('title') && titled.length > 0 ? titled.join(drawingText(words, 'join.comma')) : null
   const painted = show.paintKey ?? []
   // CNT-10: a drawing of work keys its phases unless the key is turned off.
   const shownUses = show.colourBy === 'use' ? ROOM_USES.filter((use) => drawing.rooms.some((room) => uses.get(room.id) === use)) : []

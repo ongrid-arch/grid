@@ -20,6 +20,7 @@ import { inLanguage } from '../command/words'
 import type { LoadedPlan } from '../command/plan'
 import { describeText } from '../describe/card'
 import { planFacts } from '../describe/facts'
+import { projectWithPlace, sitePlace } from '../describe/site'
 import { AREA_RULES, planAreas, type FloorAreas, type PlanAreas } from '../quantities/areas'
 import { factsText, flatSchedule, openingSchedule, openingTypeSchedule, roomSchedule, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
 import type { ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
@@ -366,6 +367,7 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
   const frames = floorFrames(loaded)
   const facts = planFacts(loaded.plan)
   const title = words?.name ?? name
+  const place = sitePlace(loaded.plan, w.language, title)
   const units = sheetUnits(loaded.plan, w)
   // ARE-60: a US home is headlined by its living area under air and its total under roof, never
   // by a gross figure with the garage in.
@@ -379,8 +381,9 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
   const stairsDrawn = facts.connections.stairs.length > 0
   const limits = facts.connections.unjoined.length > 0 ? [w.say('sheet.stairLimit')] : []
   const cover: Body = {
-    kind: 'cover', floor: null, topLine: title, title, subtitle: words?.headline ?? null,
-    paragraphs: words?.intro ?? [], figures, table: null, picture: { kind: 'model' },
+    // CNT-50: the site's name and address under the title, or before the words' own paragraphs.
+    kind: 'cover', floor: null, topLine: title, title, subtitle: words?.headline ?? place,
+    paragraphs: [...(words?.headline !== undefined && place !== null ? [place] : []), ...(words?.intro ?? [])], figures, table: null, picture: { kind: 'model' },
     notes: [
       ...accessLines(accessNotes, units, w),
       ...(first
@@ -422,7 +425,7 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
     }
   })
   // When floors were folded, the area by floor and by use, so nothing a page stands for is lost.
-  return [cover, ...pages, ...sideBodies(sides, title, date, w, 'client'), ...(typical.length === 0 ? [] : areaScheduleBodies(sets, setTitle, areas, units, w, title))]
+  return [cover, ...pages, ...sideBodies(sides, title, date, w, 'client', loaded.plan), ...(typical.length === 0 ? [] : areaScheduleBodies(sets, setTitle, areas, units, w, title))]
 }
 
 /**
@@ -467,11 +470,11 @@ function areaScheduleBodies(sets: readonly string[][], setTitle: (set: readonly 
  * what the sections took that the plan does not state; the client sheet says in one line that
  * they took some, and that the check sheet lists it.
  */
-function sideBodies(sides: ReturnType<typeof sideDrawings>, title: string, date: Date, w: Words, layout: SheetLayout): Body[] {
+function sideBodies(sides: ReturnType<typeof sideDrawings>, title: string, date: Date, w: Words, layout: SheetLayout, plan: LoadedPlan['plan']): Body[] {
   if (sides === null) return []
   const scale = scaleText(sides.scale)
   const block = (drawing: string): TitleBlockWords => ({
-    project: title,
+    project: projectWithPlace(title, plan, w.language),
     drawing,
     scale: w.say('sheet.block.scaleOn', { scale, paper: 'A3' }),
     date: dateText(date, w),
@@ -586,7 +589,7 @@ function checkBodies(loaded: LoadedPlan, name: string, w: Words, date: Date): Bo
       notes: shown,
     }
   })
-  return [summary, ...pages, ...sideBodies(sides, name, date, w, 'check'), ...scheduleBodies(loaded, name, w)]
+  return [summary, ...pages, ...sideBodies(sides, name, date, w, 'check', loaded.plan), ...scheduleBodies(loaded, name, w)]
 }
 
 /**
@@ -702,9 +705,11 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
 
 export function sheetPages(loaded: LoadedPlan, words: SheetWords | null, layout: SheetLayout, options: SheetOptions): Sheet {
   // A check sheet takes nothing from sheet.json, not even its name.
-  const name = layout === 'client' ? words?.name ?? loaded.plan.name ?? options.name : loaded.plan.name ?? options.name
+  // CNT-50: a plan that states no name of its own is named by its site's.
+  const own = loaded.plan.name ?? loaded.plan.site?.name ?? options.name
+  const name = layout === 'client' ? words?.name ?? own : own
   const w = wordsIn(options.language ?? DEFAULT_LANGUAGE)
-  const bodies = layout === 'client' ? clientBodies(loaded, words, loaded.plan.name ?? options.name, w, options.date, options.accessNotes) : checkBodies(loaded, loaded.plan.name ?? options.name, w, options.date)
+  const bodies = layout === 'client' ? clientBodies(loaded, words, own, w, options.date, options.accessNotes) : checkBodies(loaded, own, w, options.date)
   const date = dateText(options.date, w)
   const label = w.say('label')
   const pages = bodies.map((body, i): SheetPage => ({
