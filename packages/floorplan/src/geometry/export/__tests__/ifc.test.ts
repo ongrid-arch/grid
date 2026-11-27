@@ -2245,7 +2245,7 @@ describe('door swing', () => {
     const plan = doorsPlan(table.map(([h]) => h))
     const a = ofType(exported(plan), 'IFCDOORSTYLE')
     const b = ofType(exported(plan), 'IFCDOORSTYLE')
-    expect(a.map((s) => str(s.args[2]))).toEqual(['Door 0.9 x 2.1 m, single swing, left', 'Door 0.9 x 2.1 m, single swing, right'])
+    expect(a.map((s) => str(s.args[2]))).toEqual(['Door 0.9 x 2.1 m, single swing, right hand', 'Door 0.9 x 2.1 m, single swing, left hand'])
     expect(a.map((s) => str(s.args[0]))).toEqual(b.map((s) => str(s.args[0])))
   })
 
@@ -2254,7 +2254,7 @@ describe('door swing', () => {
     plan.openings[1] = { ...plan.openings[1]!, width: 0.8 }
     plan.openings.push({ id: 'win1', wall: 'w1', type: 'window', offset: 3.2, width: 0.6, sill: 0.9, height: 1.2 })
     const doc = exported(plan)
-    expect(ofType(doc, 'IFCDOORSTYLE').map((s) => str(s.args[2]))).toEqual(['Door 0.8 x 2.1 m, single swing, left', 'Door 0.9 x 2.1 m, single swing, left'])
+    expect(ofType(doc, 'IFCDOORSTYLE').map((s) => str(s.args[2]))).toEqual(['Door 0.8 x 2.1 m, single swing, right hand', 'Door 0.9 x 2.1 m, single swing, right hand'])
     const windows = ofType(doc, 'IFCWINDOWSTYLE')
     expect(windows.map((s) => [str(s.args[2]), str(s.args[7])])).toEqual([['Window 0.6 x 1.2 m', 'window:0.6x1.2']])
     const typed = ofType(doc, 'IFCRELDEFINESBYTYPE').filter((r) => ref(r.args[5]) === windows[0]!.id)

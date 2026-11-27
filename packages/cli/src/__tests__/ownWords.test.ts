@@ -38,7 +38,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
   // ARE-67: four more, the seats, desks and covers lines.
-  'packages/cli/src/brief/lines.ts': [34, 'notYet'],
+  // ARE-66: the corridor width wording now comes from the message files.
+  'packages/cli/src/brief/lines.ts': [33, 'notYet'],
   // CMD-48: two more, the help and the refusal of --fail-on.
   'packages/cli/src/command/check.ts': [12, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
@@ -49,7 +50,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/draw.ts': [46, 'command'],
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
   'packages/cli/src/command/edit.ts': [9, 'command'],
-  'packages/cli/src/command/export.ts': [20, 'command'],
+  // VEW-72: five more, the help of --scale, its refusals, --floor all with --out and a plan with nothing on any floor.
+  'packages/cli/src/command/export.ts': [25, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
@@ -248,7 +250,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-73: six more, the phase rules, the correction argument and its note, and keep_north.
   // VEW-64: one more, the floors an export holds.
   // CMD-43: six more, the from, layers and units arguments and their refusals.
-  'packages/cli/src/mcp/writeTools.ts': [158, 'tools'],
+  // VEW-72: three more, grid_export's scale and out and a file out cannot write.
+  'packages/cli/src/mcp/writeTools.ts': [161, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -312,7 +315,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/geometry/envelope.ts': [4, 'notYet'],
   'packages/floorplan/src/geometry/handing.ts': [6, 'notYet'],
   'packages/floorplan/src/geometry/export/dxfProfile.ts': [8, 'command'],
-  'packages/floorplan/src/geometry/export/ifc.ts': [38, 'notYet'],
+  // VEW-72: two fewer, a folding door's words are its hand now.
+  'packages/floorplan/src/geometry/export/ifc.ts': [36, 'notYet'],
   'packages/floorplan/src/geometry/export/leftOut.ts': [2, 'notYet'],
   'packages/floorplan/src/geometry/export/obj.ts': [2, 'notYet'],
   'packages/floorplan/src/geometry/outline.ts': [1, 'notYet'],

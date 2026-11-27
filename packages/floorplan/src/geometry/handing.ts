@@ -72,6 +72,15 @@ export function sideSeenFrom(face: DoorSide, hinge: DoorHinge): HandSide {
 }
 
 /**
+ * VEW-72: a door's hand, the one way Grid says it in the schedule, the DXF and the IFC: the side
+ * its hinges are on, seen from the side it opens toward (`handing.convention`). Null when the
+ * plan states no swing or no hinge.
+ */
+export function doorHand(opening: { readonly swing?: DoorSide | undefined; readonly hinge?: DoorHinge | undefined }): HandSide | null {
+  return opening.swing === undefined || opening.hinge === undefined ? null : sideSeenFrom(opening.swing, opening.hinge)
+}
+
+/**
  * Turns a handing said in rooms into the wall's terms, for `opening` in `plan` as it is (its wall
  * and place). `opensInto` gives `swing`; `hinged` gives `hinge`, seen from `seenFrom`, else from
  * the room it opens into, else from the face the door already opens to. A room that is on neither

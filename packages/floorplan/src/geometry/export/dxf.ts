@@ -54,6 +54,8 @@ import { computeBounds } from '../floorplan'
 import { doorSwing, type SwingArc } from '../door'
 import { boundsWithDimensions, buildDimensions, type Dimension } from '../dimensions'
 import { openingSymbol, type SymbolPiece } from '../openingSymbol'
+import { doorHand } from '../handing'
+import { english, name as sayName, num as sayNum, said } from '../../messages/say'
 import { TOLERANCES } from '../tolerances'
 import { cutOutline, piecesAsRings, ringOf } from '../polygons'
 import { areaText, metresText } from '../rounding'
@@ -189,6 +191,8 @@ function degrees(radians: number): number {
 /** Group codes and values, two lines each, CRLF: what the format is written with. */
 class Out {
   readonly lines: string[] = []
+  /** VEW-72: how far a floor after the first is moved along X in model space, added to every point. */
+  shift: Vec2 = { x: 0, y: 0 }
 
   pair(code: number, value: string | number): void {
     this.lines.push(String(code), String(value))
@@ -196,8 +200,8 @@ class Out {
 
   /** A point: x and y at `code` and `code + 10`, and z, always 0 in a plan, at `code + 20`. */
   point(at: Vec2, code = 10, z = true): void {
-    this.pair(code, num(at.x))
-    this.pair(code + 10, num(at.y))
+    this.pair(code, num(at.x + this.shift.x))
+    this.pair(code + 10, num(at.y + this.shift.y))
     if (z) this.pair(code + 20, num(0))
   }
 
@@ -359,7 +363,8 @@ class Space {
     const kept = loops.map((loop, i) => ({ loop, turns: turns[i] ?? [] })).filter(({ loop, turns: t }) => loop.length >= 2 && writablePoints(loop) && t.every(Number.isFinite) && (loop.length >= 3 || t.some((v) => v !== 0)))
     if (kept.length === 0) return
     this.start('HATCH', layer, 'AcDbHatch')
-    this.out.point({ x: 0, y: 0 })
+    // The elevation point: only its height counts, and it is not moved with the floor.
+    for (const code of [10, 20, 30]) this.out.pair(code, num(0))
     this.out.pair(210, num(0))
     this.out.pair(220, num(0))
     this.out.pair(230, num(1))
@@ -410,7 +415,7 @@ class Space {
     this.out.pair(100, 'AcDbAttribute')
     this.out.pair(280, 0)
     this.out.pair(2, a.tag)
-    this.out.pair(70, 0)
+    this.out.pair(70, a.invisible === true ? 1 : 0)
   }
 
   /** An attribute's definition in a block: where its value goes, and its tag. */
@@ -426,7 +431,7 @@ class Space {
     this.out.pair(280, 0)
     this.out.pair(3, a.prompt)
     this.out.pair(2, a.tag)
-    this.out.pair(70, 0)
+    this.out.pair(70, a.invisible === true ? 1 : 0)
   }
 }
 
@@ -435,22 +440,46 @@ interface Attribute {
   readonly value: string
   readonly at: Vec2
   readonly height: number
+  /** VEW-72: kept in the file and the block's data, not drawn. */
+  readonly invisible?: boolean
 }
 
 // ── What the drawing needs as blocks ─────────────────────────────────────────────────────────
 
 type OpeningKind = 'door' | 'window' | 'opening'
 
-/** One block an opening inserts: its kind, its size and, for a door that has one, its hand. */
+/**
+ * VEW-72: what the schedules say of one opening, which its insert's attributes carry: its mark
+ * (`D1`, `W1`, the IFC's Tag too), its schedule type's key, its height and its sill.
+ */
+export interface DxfOpeningFacts {
+  readonly mark: string
+  /** `window:1.2x1.5`, or `window-type:<id>` for a type the plan names (the schedule's `typeKey`); null for the kind and size. */
+  readonly type: string | null
+  readonly height: number | null
+  readonly sill: number | null
+}
+
+/** VEW-72: the attributes every door, window and doorless opening insert carries, by tag. */
+export const DXF_OPENING_ATTRIBUTES = { mark: 'MARK', type: 'TYPE', width: 'WIDTH', height: 'HEIGHT', sill: 'SILL' } as const
+
+/** One block an opening inserts: one schedule type, in one wall thickness, with one hand. */
 interface OpeningBlock {
   readonly key: string
   readonly kind: OpeningKind
   readonly width: number
   /** CMD-26: the width the plan states, which names the block; on a curved wall `width` is the chord. */
   readonly stated: number
+  /** VEW-72: the height of the opening, which names the block too; null when the plan states none. */
+  readonly height: number | null
+  /** VEW-72: the schedule type's key, and the word of a type the plan names, for the block's name. */
+  readonly type: string
+  readonly named: string | null
   readonly thickness: number
   /** `L` opens towards +Y of the block, `R` towards −Y; null for a door with no swing stated. */
   readonly hand: 'L' | 'R' | null
+  /** VEW-72: its hand in Grid's one convention (`doorHand`), when the plan states its hinge and swing. */
+  readonly handed: 'LH' | 'RH' | null
   /**
    * CNT-14: for a door or window drawn by its kind's symbol, the symbol in the block's own frame,
    * the kind it is drawn as and, in millimetres, the part that opens and a garage door's height
@@ -459,12 +488,14 @@ interface OpeningBlock {
   readonly symbol: { readonly kind: string; readonly pieces: readonly SymbolPiece[]; readonly part: number | null; readonly height: number | null } | null
 }
 
-/** Where one opening's block goes. */
+/** Where one opening's block goes, and the values of its attributes. */
 interface OpeningPlace {
   readonly key: string
   readonly kind: OpeningKind
   readonly at: Vec2
   readonly rotation: number
+  readonly block: OpeningBlock
+  readonly values: Readonly<Record<keyof typeof DXF_OPENING_ATTRIBUTES, string>>
 }
 
 const KIND_ORDER: Record<OpeningKind, number> = { door: 0, window: 1, opening: 2 }
@@ -514,37 +545,61 @@ function symbolKey(pieces: readonly SymbolPiece[]): string {
     .join('|')
 }
 
+/** A size in a type's key, to the millimetre, as the schedule writes it: `0.9`, `2.1`. */
+const keySize = (value: number): string => String(Math.round(value * 1000) / 1000)
+
+/** VEW-72: the face of the block a mark stands by: away from a door's swing. */
+const markSide = (hand: OpeningBlock['hand']): number => (hand === 'L' ? -1 : 1)
+
+/** VEW-72: a dimension in metres as an attribute holds it, or nothing when it is not known. */
+const metresValue = (value: number | null | undefined): string => (value === null || value === undefined || !writable(value) ? '' : metresText(value))
+
 /**
  * Each opening as a block and where it goes. A block is drawn along +X from its insertion point,
  * as wide as the opening, with the wall's axis on X. A door hung from its start jamb is inserted
  * at the start; one hung from its end jamb is the same block turned half round at the end, so a
  * door of one size has two blocks, one per hand, whichever jamb it hangs from. A door or window of
  * a kind (CNT-14) is placed the same way, by the jamb it hangs from or opens toward.
+ *
+ * VEW-72: a block is one schedule type (`facts`, else the kind and the size, width by height), so
+ * two windows of one width and different heights are two blocks, and each insert carries the
+ * opening's mark, type, width, height and sill as attributes.
  */
-function openingBlocks(drawing: PlanDrawing): { blocks: OpeningBlock[]; places: OpeningPlace[] } {
+function openingBlocks(drawings: readonly { readonly drawing: PlanDrawing; readonly facts: ReadonlyMap<string, DxfOpeningFacts> | undefined }[]): { blocks: OpeningBlock[]; places: OpeningPlace[][] } {
   const blocks = new Map<string, OpeningBlock>()
-  const places: OpeningPlace[] = []
-  for (const opening of drawing.openings) {
-    // CNT-10: an opening to be demolished has no block: it is its outline (`writeModel`).
-    if (opening.phase === 'demolished') continue
-    const width = distance(opening.from, opening.to)
-    if (!writablePoints([opening.from, opening.to]) || !writable(opening.thickness) || !(width > 0)) continue
-    const kind: OpeningKind = opening.type === 'door' ? 'door' : opening.type === 'window' ? 'window' : 'opening'
-    const ofKind = kindBlock(opening, width, opening.hinge === 'end')
-    const stated = kind === 'door' && opening.hinge !== undefined && opening.swing !== undefined
-    const fromEnd = ofKind !== null ? opening.hinge === 'end' : stated && opening.hinge === 'end'
-    const hand = ofKind !== null ? ofKind.hand : !stated ? null : (opening.swing === 'left') !== fromEnd ? 'L' : 'R'
-    const symbol = ofKind?.symbol ?? null
-    const key = `${kind}|${num(width)}|${num(opening.width)}|${num(opening.thickness)}|${hand ?? ''}${symbol === null ? '' : `|${symbol.kind}|${symbolKey(symbol.pieces)}`}`
-    if (!blocks.has(key)) blocks.set(key, { key, kind, width, stated: opening.width, thickness: opening.thickness, hand, symbol })
-    const along = Math.atan2(opening.to.y - opening.from.y, opening.to.x - opening.from.x)
-    places.push({ key, kind, at: fromEnd ? opening.to : opening.from, rotation: degrees(fromEnd ? along + Math.PI : along) })
-  }
+  const places = drawings.map(({ drawing, facts }) => {
+    const placed: OpeningPlace[] = []
+    for (const opening of drawing.openings) {
+      // CNT-10: an opening to be demolished has no block: it is its outline (`writeModel`).
+      if (opening.phase === 'demolished') continue
+      const width = distance(opening.from, opening.to)
+      if (!writablePoints([opening.from, opening.to]) || !writable(opening.thickness) || !(width > 0)) continue
+      const kind: OpeningKind = opening.type === 'door' ? 'door' : opening.type === 'window' ? 'window' : 'opening'
+      const ofKind = kindBlock(opening, width, opening.hinge === 'end')
+      const stated = kind === 'door' && opening.hinge !== undefined && opening.swing !== undefined
+      const fromEnd = ofKind !== null ? opening.hinge === 'end' : stated && opening.hinge === 'end'
+      const hand = ofKind !== null ? ofKind.hand : !stated ? null : (opening.swing === 'left') !== fromEnd ? 'L' : 'R'
+      const symbol = ofKind?.symbol ?? null
+      const own = facts?.get(opening.id)
+      const height = own?.height ?? (opening.height !== undefined && writable(opening.height) ? opening.height : null)
+      const type = own?.type ?? `${kind}:${symbol === null ? '' : `${symbol.kind}:`}${keySize(opening.width)}${height === null ? '' : `x${keySize(height)}`}`
+      const namedType = /^(?:door|window)-type:([^:]+)/.exec(type)
+      const side = kind === 'door' ? doorHand(opening) : null
+      const handed = side === null ? null : side === 'left' ? 'LH' : 'RH'
+      const key = `${kind}|${num(width)}|${num(opening.width)}|${num(opening.thickness)}|${hand ?? ''}|${height === null ? '' : num(height)}|${type}${symbol === null ? '' : `|${symbol.kind}|${symbolKey(symbol.pieces)}`}`
+      if (!blocks.has(key)) blocks.set(key, { key, kind, width, stated: opening.width, height, type, named: namedType === null ? null : blockWord(namedType[1]!), thickness: opening.thickness, hand, handed, symbol })
+      const along = Math.atan2(opening.to.y - opening.from.y, opening.to.x - opening.from.x)
+      const values = { mark: own?.mark ?? opening.id, type, width: metresValue(opening.width), height: metresValue(height), sill: metresValue(own?.sill) }
+      placed.push({ key, kind, at: fromEnd ? opening.to : opening.from, rotation: degrees(fromEnd ? along + Math.PI : along), block: blocks.get(key)!, values })
+    }
+    return placed
+  })
   const sorted = [...blocks.values()].sort(
     (a, b) =>
       KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
       (a.symbol?.kind ?? '').localeCompare(b.symbol?.kind ?? '') ||
       a.width - b.width ||
+      (a.height ?? 0) - (b.height ?? 0) ||
       a.thickness - b.thickness ||
       (a.hand ?? '').localeCompare(b.hand ?? '') ||
       (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
@@ -553,18 +608,22 @@ function openingBlocks(drawing: PlanDrawing): { blocks: OpeningBlock[]; places: 
 }
 
 /**
- * `GRID-DOOR-900x200-L`: the kind, the stated width and the wall's thickness in millimetres, the hand. A
- * door or window of a kind (CNT-14) adds its kind, the part that opens (`-P800`) and a garage
- * door's height (`-H2100`): `GRID-DOOR-SLIDING-2400x200`.
+ * `GRID-DOOR-900x2100-W200-RH`: the kind, the stated width by the height and the wall's thickness
+ * in millimetres, and the hand in Grid's one convention (VEW-72: the side of the hinges seen from
+ * the side the door opens toward). A type the plan names adds its id (`GRID-DOOR-OAK-900x2100-W200`);
+ * a door or window of a kind (CNT-14) adds its kind and the part that opens (`-P800`):
+ * `GRID-DOOR-SLIDING-2400x2100-W200`.
  */
 function blockNames(blocks: readonly OpeningBlock[]): Map<string, string> {
   const names = new Map<string, string>()
   const taken = new Set<string>()
   for (const block of blocks) {
     const kind = block.symbol === null ? '' : `-${block.symbol.kind.toUpperCase()}`
+    const named = block.named === null ? '' : `-${block.named}`
+    const size = block.height === null ? `${mm(block.stated)}` : `${mm(block.stated)}x${mm(block.height)}`
     const part = block.symbol?.part == null ? '' : `-P${block.symbol.part}`
-    const height = block.symbol?.height == null ? '' : `-H${block.symbol.height}`
-    const base = `GRID-${block.kind.toUpperCase()}${kind}-${mm(block.stated)}x${mm(block.thickness)}${block.hand === null ? '' : `-${block.hand}`}${part}${height}`
+    const height = block.height !== null || block.symbol?.height == null ? '' : `-H${block.symbol.height}`
+    const base = `GRID-${block.kind.toUpperCase()}${kind}${named}-${size}-W${mm(block.thickness)}${block.handed === null ? '' : `-${block.handed}`}${part}${height}`
     let name = base
     for (let n = 2; taken.has(name); n++) name = `${base}-${n}`
     taken.add(name)
@@ -604,18 +663,21 @@ function blockWord(text: string): string {
  * the insertion point, its back towards -Y) and inserted at its middle, turned as the plan turns
  * it. So a CAD program counts the fixtures and furniture by their blocks and swaps one for all.
  */
-function itemBlocks(drawing: PlanDrawing): { blocks: ItemBlock[]; places: ItemPlace[]; names: Map<string, string> } {
+function itemBlocks(drawings: readonly PlanDrawing[]): { blocks: ItemBlock[]; places: ItemPlace[][]; names: Map<string, string> } {
   const blocks = new Map<string, ItemBlock>()
-  const places: ItemPlace[] = []
-  for (const item of drawing.items) {
-    const { rings, lines } = item.block
-    if (!writablePoints([item.at, ...rings.flat(), ...lines.flat()]) || !writable(item.turn, item.size[0], item.size[1])) continue
-    const shape = [...rings.map((ring) => `r${ring.map((p) => `${num(p.x)},${num(p.y)}`).join(';')}`), ...lines.map((line) => `l${line.map((p) => `${num(p.x)},${num(p.y)}`).join(';')}`)].join('|')
-    const base = blockWord(item.library ?? item.kind)
-    const key = `${base}|${num(item.size[0])}|${num(item.size[1])}|${shape}`
-    if (!blocks.has(key)) blocks.set(key, { key, base, width: item.size[0], depth: item.size[1], rings, lines })
-    places.push({ key, at: item.at, rotation: item.turn })
-  }
+  const places = drawings.map((drawing) => {
+    const placed: ItemPlace[] = []
+    for (const item of drawing.items) {
+      const { rings, lines } = item.block
+      if (!writablePoints([item.at, ...rings.flat(), ...lines.flat()]) || !writable(item.turn, item.size[0], item.size[1])) continue
+      const shape = [...rings.map((ring) => `r${ring.map((p) => `${num(p.x)},${num(p.y)}`).join(';')}`), ...lines.map((line) => `l${line.map((p) => `${num(p.x)},${num(p.y)}`).join(';')}`)].join('|')
+      const base = blockWord(item.library ?? item.kind)
+      const key = `${base}|${num(item.size[0])}|${num(item.size[1])}|${shape}`
+      if (!blocks.has(key)) blocks.set(key, { key, base, width: item.size[0], depth: item.size[1], rings, lines })
+      placed.push({ key, at: item.at, rotation: item.turn })
+    }
+    return placed
+  })
   const sorted = [...blocks.values()].sort((a, b) => a.base.localeCompare(b.base) || a.width - b.width || a.depth - b.depth || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
   // `GRID-DOUBLE-BED-1400x2000`: the library entry's name, or the kind, then the width and depth in millimetres.
   const names = new Map<string, string>()
@@ -654,8 +716,29 @@ function drawSymbol(space: Space, block: OpeningBlock, pieces: readonly SymbolPi
   }
 }
 
-/** What one opening block draws, in its own frame: the core's door swing for a door that has one. */
+/** VEW-72: where an opening's mark stands in its block's frame: by its middle, on the face away from a door's swing. */
+function markPoint(block: Pick<OpeningBlock, 'width' | 'thickness' | 'hand'>, size: Doc['size']): Vec2 {
+  return { x: block.width / 2, y: markSide(block.hand) * (block.thickness / 2 + size.text * 1.5) }
+}
+
+/** VEW-72: the attributes' prompts, by tag. */
+const OPENING_PROMPTS: Readonly<Record<keyof typeof DXF_OPENING_ATTRIBUTES, string>> = { mark: 'Mark', type: 'Type', width: 'Width', height: 'Height', sill: 'Sill' }
+
+/**
+ * What one opening block draws, in its own frame: the core's door swing for a door that has one.
+ * VEW-72: and its attributes, the mark shown by the opening and the type, width, height and sill
+ * kept in the file, not drawn.
+ */
 function drawOpeningBlock(space: Space, block: OpeningBlock): void {
+  drawOpeningShape(space, block)
+  const { size } = space.doc
+  for (const field of Object.keys(DXF_OPENING_ATTRIBUTES) as (keyof typeof DXF_OPENING_ATTRIBUTES)[]) {
+    const shown = field === 'mark'
+    space.attributeDefinition({ tag: DXF_OPENING_ATTRIBUTES[field], prompt: OPENING_PROMPTS[field], at: shown ? markPoint(block, size) : { x: 0, y: 0 }, height: size.text, invisible: !shown })
+  }
+}
+
+function drawOpeningShape(space: Space, block: OpeningBlock): void {
   const { width: w, thickness: t } = block
   const from = { x: 0, y: 0 }
   const to = { x: w, y: 0 }
@@ -894,6 +977,84 @@ export interface DxfOptions {
   readonly roomNumbers?: ReadonlyMap<string, string>
   /** CNT-18: the curves it writes as straight pieces, named on the left-out layer. */
   readonly approximations?: Approximations
+  /** VEW-72: each opening's mark, type, height and sill from the schedules, by opening id. */
+  readonly openings?: ReadonlyMap<string, DxfOpeningFacts>
+  /**
+   * VEW-72: the scale the sheet shows the plan at, 100 for 1:100, as stated; `fit` for the largest
+   * standard scale it fits at (`DXF_SHEET_SCALES`). Left out, the profile's scale when a profile is
+   * given, else `fit`.
+   */
+  readonly scale?: number | 'fit'
+}
+
+/** VEW-72: one floor of a DXF of several: its drawing and what is written with it. */
+export interface DxfFloor extends Omit<DxfOptions, 'profile' | 'scale'> {
+  readonly id: string
+  /** Its name on its layout and in its title: the floor's name, else its id. */
+  readonly name: string
+  readonly drawing: PlanDrawing
+}
+
+/** VEW-72: the scales a sheet is drawn at when none is stated, the largest first. 1:50 is drawn when stated. */
+export const DXF_SHEET_SCALES = [100, 200, 500, 1000] as const
+
+/** VEW-72: how one floor's sheet shows it. */
+export interface DxfSheet {
+  /** The floor's id; null for a file of one drawing (`toDxf`). */
+  readonly floor: string | null
+  readonly scale: number
+  /** Whether the scale was stated, rather than the largest standard one the plan fits at. */
+  readonly stated: boolean
+  /** Whether the floor, with its dimensions, label and notes, fits the sheet's viewport at `scale`. */
+  readonly fits: boolean
+  /** When it does not fit, the largest standard scale it fits at; null when it fits, or fits at none. */
+  readonly fitsAt: number | null
+}
+
+/** VEW-72: the viewport's size on paper, in millimetres: the sheet inside its border, above the title strip. */
+const VIEWPORT_MM = { width: SHEET.width - SHEET.border * 2, height: SHEET.height - SHEET.border * 2 - SHEET.title } as const
+
+/** VEW-72: room on paper, in millimetres, round the drawing's frame: a side, and above for the label and a floor's title. */
+const FIT_MARGIN_MM = { side: 5, label: PAPER_MM.label * 3, title: PAPER_MM.title * 3 } as const
+
+/** VEW-72: each floor after the first is moved along X by a whole number of these, in metres. */
+const FLOOR_STEP = 10
+
+/** The frame of a drawing with its dimensions, as the file frames it. */
+function drawingFrame(drawing: PlanDrawing): Bounds {
+  const dims = buildDimensions(drawing).filter((dim) => writablePoints([dim.from, dim.to, dim.normal]) && writable(dim.offset, dim.value) && dim.value > 0)
+  return boundsWithDimensions(drawing, dims)
+}
+
+/** The lines of the note under a drawing: what it leaves out, then the curves written as straight pieces. */
+function notedLines(leftOut: readonly LeftOutPart[], approximations: Approximations): string[] {
+  return [...(leftOut.length === 0 ? [] : noteLines(leftOut)), ...approximationLines(approximations).flatMap(wrapped)]
+}
+
+/** VEW-72: whether a floor fits the viewport at 1:`ratio`, with room for its label, its title and its notes. */
+function fitsAt(frame: Bounds, notes: number, titled: boolean, ratio: number): boolean {
+  if (!writable(frame.width, frame.height) || frame.width < 0) return true
+  const width = (frame.width * 1000) / ratio + FIT_MARGIN_MM.side * 2
+  const height = (frame.height * 1000) / ratio + FIT_MARGIN_MM.side * 2 + FIT_MARGIN_MM.label + (titled ? FIT_MARGIN_MM.title : 0) + notes * PAPER_MM.text * 2
+  return width <= VIEWPORT_MM.width && height <= VIEWPORT_MM.height
+}
+
+/**
+ * VEW-72: the scale each floor's sheet shows it at, and whether it fits there. One scale for the
+ * file, as a set of plans is drawn at one: the stated one, else the largest standard scale every
+ * floor fits at, else the smallest standard one. A floor that does not fit says the largest
+ * standard scale it would fit at.
+ */
+export function dxfSheets(floors: readonly Pick<DxfFloor, 'id' | 'drawing' | 'leftOut' | 'approximations'>[], scale: number | 'fit' = 'fit', single = false): DxfSheet[] {
+  const titled = floors.length > 1
+  const measured = floors.map((floor) => ({ id: floor.id, frame: drawingFrame(floor.drawing), notes: notedLines(floor.leftOut ?? [], floor.approximations ?? NO_APPROXIMATIONS).length }))
+  const fits = (floor: (typeof measured)[number], ratio: number): boolean => fitsAt(floor.frame, floor.notes, titled, ratio)
+  const stated = scale !== 'fit'
+  const chosen = stated ? scale : (DXF_SHEET_SCALES.find((ratio) => measured.every((floor) => fits(floor, ratio))) ?? DXF_SHEET_SCALES[DXF_SHEET_SCALES.length - 1]!)
+  return measured.map((floor) => {
+    const ok = fits(floor, chosen)
+    return { floor: single ? null : floor.id, scale: chosen, stated, fits: ok, fitsAt: ok ? null : (DXF_SHEET_SCALES.find((ratio) => fits(floor, ratio)) ?? null) }
+  })
 }
 
 // ── The document ─────────────────────────────────────────────────────────────────────────────
@@ -904,9 +1065,10 @@ interface Frame {
   readonly groups: string
   readonly layouts: string
   readonly modelLayout: string
-  readonly paperLayout: string
+  /** VEW-72: one paper layout per floor, and its paper space's record; the first is `*Paper_Space`. */
+  readonly paperLayouts: readonly string[]
   readonly modelRecord: string
-  readonly paperRecord: string
+  readonly paperRecords: readonly string[]
   readonly tables: Readonly<Record<TableName, string>>
   readonly standardStyle: string
 }
@@ -921,6 +1083,8 @@ interface BlockDef {
   /** 1 for a dimension's own block, 2 for one with attributes to fill in. */
   readonly flags: number
   readonly draw: (space: Space) => void
+  /** VEW-72: a paper space of a layout after the first: its layout, and its entities are on paper. */
+  readonly layout?: string
 }
 
 /** The text style every text uses. A CAD program without the font shows its own in its place. */
@@ -934,9 +1098,38 @@ const STYLE = { name: 'Standard', font: 'arial.ttf' } as const
  * graceful degradation the canvases apply.
  */
 export function toDxf(drawing: PlanDrawing, options: DxfOptions = {}): string {
-  const profile = options.profile ?? NEUTRAL_DXF_PROFILE
+  const { profile, scale, ...rest } = options
+  return writeDxf([{ id: '', name: DXF_LAYOUT, drawing, ...rest }], profile, scale ?? (profile === undefined ? 'fit' : profile.scale), false)
+}
+
+/**
+ * VEW-72: several floors as one DXF document: each floor in model space beside the one before,
+ * from the first, moved along X by a whole number of `FLOOR_STEP` metres and titled with how far,
+ * and each on a paper layout of its own named after it, at one scale. One floor is `toDxf`'s file.
+ */
+export function toDxfFloors(floors: readonly DxfFloor[], options: Pick<DxfOptions, 'profile' | 'scale'> = {}): string {
+  const scale = options.scale ?? (options.profile === undefined ? 'fit' : options.profile.scale)
+  return writeDxf(floors, options.profile, scale, floors.length > 1)
+}
+
+/** VEW-72: a floor's name as a layout's: no character a CAD program keeps for itself, once each. */
+function layoutNames(floors: readonly DxfFloor[], several: boolean): string[] {
+  if (!several) return [DXF_LAYOUT]
+  const taken = new Set<string>(['MODEL'])
+  return floors.map((floor) => {
+    const clean = (text: string): string => dxfText(text).replace(/[<>/\\":;?*|=,\x60]/g, '-').trim().slice(0, 200)
+    const base = clean(floor.name) || clean(floor.id) || 'Floor'
+    let name = base
+    for (let n = 2; taken.has(name.toUpperCase()); n++) name = `${base} (${n})`
+    taken.add(name.toUpperCase())
+    return name
+  })
+}
+
+function writeDxf(floors: readonly DxfFloor[], given: DxfProfile | undefined, scale: number | 'fit', several: boolean): string {
+  const sheets = dxfSheets(floors, scale, !several)
+  const profile: DxfProfile = { ...(given ?? NEUTRAL_DXF_PROFILE), scale: sheets[0]?.scale ?? (scale === 'fit' ? DXF_SHEET_SCALES[0] : scale) }
   const handles = new Handles()
-  const leftOut = options.leftOut ?? []
   const metres = (mm: number): number => (mm * profile.scale) / 1000
   const size = Object.fromEntries(Object.entries(PAPER_MM).map(([key, mm]) => [key, metres(mm)])) as Doc['size']
 
@@ -958,23 +1151,23 @@ export function toDxf(drawing: PlanDrawing, options: DxfOptions = {}): string {
     groups: handles.take(),
     layouts: handles.take(),
     modelLayout: handles.take(),
-    paperLayout: handles.take(),
+    paperLayouts: floors.map(() => handles.take()),
     modelRecord: handles.take(),
-    paperRecord: handles.take(),
+    paperRecords: floors.map(() => handles.take()),
     tables: Object.fromEntries(TABLE_NAMES.map((name) => [name, handles.take()])) as Record<TableName, string>,
     standardStyle: handles.take()
   }
 
   // What the drawing needs as blocks: the openings', the room tag and one per dimension.
-  const openings = openingBlocks(drawing)
+  const openings = openingBlocks(floors.map((floor) => ({ drawing: floor.drawing, facts: floor.openings })))
   const names = blockNames(openings.blocks)
-  const dims = placedDimensions(drawing, size)
-  const blocks: BlockDef[] = openings.blocks.map((block) => ({ name: names.get(block.key)!, record: handles.take(), flags: 0, draw: (space) => drawOpeningBlock(space, block) }))
+  const dims = floors.map((floor) => placedDimensions(floor.drawing, size))
+  const blocks: BlockDef[] = openings.blocks.map((block) => ({ name: names.get(block.key)!, record: handles.take(), flags: 2, draw: (space) => drawOpeningBlock(space, block) }))
   // CNT-20: each fixture and piece of furniture, one block per entry and size.
-  const items = itemBlocks(drawing)
+  const items = itemBlocks(floors.map((floor) => floor.drawing))
   for (const block of items.blocks) blocks.push({ name: items.names.get(block.key)!, record: handles.take(), flags: 0, draw: (space) => drawItemBlock(space, block) })
   const tag = { number: { x: 0, y: size.name * 1.4 }, name: { x: 0, y: 0 }, area: { x: 0, y: -size.name * 1.4 } }
-  if (drawing.rooms.length > 0) {
+  if (floors.some((floor) => floor.drawing.rooms.length > 0)) {
     blocks.push({
       name: DXF_ROOM_TAG.block,
       record: handles.take(),
@@ -986,27 +1179,46 @@ export function toDxf(drawing: PlanDrawing, options: DxfOptions = {}): string {
       }
     })
   }
-  const dimBlocks = dims.map((placed, n): BlockDef => ({ name: `*D${n + 1}`, record: handles.take(), flags: 1, draw: (space) => drawDimensionBlock(space, placed) }))
-  for (const block of dimBlocks) blocks.push(block)
+  let counted = 0
+  const dimBlocks = dims.map((placed) => placed.map((one): BlockDef => ({ name: `*D${++counted}`, record: handles.take(), flags: 1, draw: (space) => drawDimensionBlock(space, one) })))
+  for (const block of dimBlocks.flat()) blocks.push(block)
 
-  // The frame round everything the model draws, for the label, the note, the extents and the view.
-  const planFrame = boundsWithDimensions(drawing, dims.map((placed) => placed.dim))
-  const facts = factLines(drawing, options.facts, planFrame, size.text)
+  // The frame round everything each floor's model draws, for the label, the note, the extents and the view.
+  const planFrames = floors.map((floor, k) => boundsWithDimensions(floor.drawing, dims[k]!.map((placed) => placed.dim)))
 
   const blocksOut = new Out()
   writeBlocks(blocksOut, doc, frame, blocks)
 
+  // VEW-72: each floor in model space, a floor after the first moved along X past the one before.
   const entities = new Out()
-  const model = new Space(doc, entities, frame.modelRecord)
-  const extent = writeModel(model, drawing, { leftOut, approximations: options.approximations ?? NO_APPROXIMATIONS, facts, frame: planFrame, places: openings.places, names, items, dims, dimBlocks, tag, numbers: options.roomNumbers })
-  const paper = new Space(doc, entities, frame.paperRecord, true)
-  writePaper(paper, extent)
+  const extents: Bounds[] = []
+  const gap = size.label * 8
+  floors.forEach((floor, k) => {
+    const before = extents[k - 1]
+    const step = before === undefined || !writablePoints([before.max, planFrames[k]!.min]) ? 0 : Math.max(0, Math.ceil((before.max.x + gap - planFrames[k]!.min.x) / FLOOR_STEP) * FLOOR_STEP)
+    const shift = { x: step, y: 0 }
+    const title = !several ? null : step === 0 ? english(said('dxf.floor.title', { floor: sayName(floor.name) })) : english(said('dxf.floor.moved', { floor: sayName(floor.name), dx: sayNum(metresText(step, 0)) }))
+    const facts = factLines(floor.drawing, floor.facts, planFrames[k]!, size.text)
+    entities.shift = shift
+    const model = new Space(doc, entities, frame.modelRecord)
+    const extent = writeModel(model, floor.drawing, { leftOut: floor.leftOut ?? [], approximations: floor.approximations ?? NO_APPROXIMATIONS, facts, frame: planFrames[k]!, places: openings.places[k]!, names, items: { places: items.places[k]!, names: items.names }, dims: dims[k]!, dimBlocks: dimBlocks[k]!, tag, numbers: floor.roomNumbers, title })
+    entities.shift = { x: 0, y: 0 }
+    extents.push(computeBounds([add(extent.min, shift), add(extent.max, shift)]))
+  })
+  const layouts = layoutNames(floors, several)
+  const sheetTitle = (k: number): string => (several ? english(said('dxf.sheet.floor', { floor: sayName(floors[k]!.name), scale: profile.scale })) : `Scale 1:${profile.scale} on A3`)
+  const paper = new Space(doc, entities, frame.paperRecords[0]!, true)
+  writePaper(paper, extents[0]!, sheetTitle(0), sheets[0]!)
+  // VEW-72: the layouts after the first, each its paper space's block.
+  const paperBlocks: BlockDef[] = floors.slice(1).map((_, n) => ({ name: `*Paper_Space${n}`, record: frame.paperRecords[n + 1]!, flags: 0, layout: frame.paperLayouts[n + 1]!, draw: (space) => void writePaper(space, extents[n + 1]!, sheetTitle(n + 1), sheets[n + 1]!) }))
+  writeBlocks(blocksOut, doc, frame, paperBlocks, false)
+  const extent = computeBounds(extents.flatMap((e) => [e.min, e.max]).filter((p) => writablePoints([p])))
 
   const objects = new Out()
-  writeObjects(objects, frame, extent)
+  writeObjects(objects, frame, extent, layouts)
 
   const tables = new Out()
-  writeTables(tables, doc, frame, blocks, extent)
+  writeTables(tables, doc, frame, [...blocks, ...paperBlocks], extent)
 
   const header = new Out()
   writeHeader(header, doc, extent)
@@ -1056,6 +1268,8 @@ interface ModelParts {
   readonly dimBlocks: readonly BlockDef[]
   readonly tag: Readonly<Record<'number' | 'name' | 'area', Vec2>>
   readonly numbers: ReadonlyMap<string, string> | undefined
+  /** VEW-72: a floor's title above its drawing, in a file of several floors; null in a file of one. */
+  readonly title: string | null
 }
 
 /** Model space, back to front, as the 2D plan draws it. Returns the box round what it drew. */
@@ -1155,10 +1369,16 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
     }
   }
 
-  // The openings, each its block on its kind's layer.
+  // The openings, each its block on its kind's layer. VEW-72: with its mark shown beside it, and
+  // its type, width, height and sill kept as attributes.
   for (const place of parts.places) {
     const layer = space.layer(place.kind === 'door' ? 'doors' : place.kind === 'window' ? 'windows' : 'openings')
-    space.insert(layer, parts.names.get(place.key)!, place.at, place.rotation)
+    const turn = (place.rotation * Math.PI) / 180
+    const local = markPoint(place.block, size)
+    const markAt = { x: place.at.x + local.x * Math.cos(turn) - local.y * Math.sin(turn), y: place.at.y + local.x * Math.sin(turn) + local.y * Math.cos(turn) }
+    const attributes = (Object.keys(DXF_OPENING_ATTRIBUTES) as (keyof typeof DXF_OPENING_ATTRIBUTES)[]).map((field): Attribute =>
+      field === 'mark' ? { tag: DXF_OPENING_ATTRIBUTES.mark, value: place.values.mark, at: markAt, height: size.text } : { tag: DXF_OPENING_ATTRIBUTES[field], value: place.values[field], at: place.at, height: size.text, invisible: true })
+    space.insert(layer, parts.names.get(place.key)!, place.at, place.rotation, attributes)
   }
 
   // CNT-10: each opening to be demolished, as the dashed outline across its wall where it stood.
@@ -1203,7 +1423,7 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
   // HND-6: the note, one text per line, from a line below the frame's lower left corner. CNT-18:
   // the curves written as straight pieces follow what is left out, on the same layer.
   const min = writablePoints([parts.frame.min]) ? parts.frame.min : { x: 0, y: 0 }
-  const noted = [...(parts.leftOut.length === 0 ? [] : noteLines(parts.leftOut)), ...approximationLines(parts.approximations).flatMap(wrapped)]
+  const noted = notedLines(parts.leftOut, parts.approximations)
   for (const [n, line] of noted.entries()) {
     const at = { x: min.x, y: min.y - size.text * 2 * (n + 1) }
     space.text(space.layer('left-out'), at, line, size.text, { centred: false })
@@ -1223,6 +1443,13 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
   space.text(space.layer('label'), labelAt, GENERAL_GUIDANCE_LABEL, size.label)
   points.push({ x: labelAt.x, y: labelAt.y + size.label })
 
+  // VEW-72: in a file of several floors, the floor's title over its label, saying where it was moved.
+  if (parts.title !== null && writablePoints([low])) {
+    const titleAt = { x: low.x, y: high.y + size.label * 2 + size.title * 2 }
+    space.text(space.layer('label'), titleAt, parts.title, size.title, { centred: false })
+    points.push({ x: titleAt.x, y: titleAt.y + size.title })
+  }
+
   return computeBounds(points.filter((p) => writablePoints([p])))
 }
 
@@ -1240,25 +1467,31 @@ interface View {
  * The paper layout: an A3 sheet across in millimetres, its border, one viewport showing the model
  * at the profile's scale round the middle of what it drew, and the scale and label under it.
  */
-function writePaper(space: Space, extent: Bounds): View {
+function writePaper(space: Space, extent: Bounds, heading: string, shown: DxfSheet): View {
   const { scale: ratio } = space.doc.profile
-  const { width, height, border, title } = SHEET
+  const { width, height, border, title: strip } = SHEET
   const view: View = {
-    centre: { x: width / 2, y: (height + title) / 2 },
+    centre: { x: width / 2, y: (height + strip) / 2 },
     width: width - border * 2,
-    height: height - border * 2 - title,
+    height: height - border * 2 - strip,
     target: { x: (extent.min.x + extent.max.x) / 2, y: (extent.min.y + extent.max.y) / 2 },
-    modelHeight: ((height - border * 2 - title) * ratio) / 1000
+    modelHeight: ((height - border * 2 - strip) * ratio) / 1000
   }
   const viewports = space.layer('viewport')
   // The first viewport of a layout is the sheet itself; the second shows the model.
   writeViewport(space, viewports, 1, { centre: { x: width / 2, y: height / 2 }, width, height, target: { x: width / 2, y: height / 2 }, modelHeight: height }, false)
   writeViewport(space, viewports, 2, view, true)
-  const sheet = space.layer('sheet')
-  space.polyline(sheet, [{ x: border, y: border }, { x: width - border, y: border }, { x: width - border, y: height - border }, { x: border, y: height - border }], true)
-  space.polyline(sheet, [{ x: border, y: border + title }, { x: width - border, y: border + title }], false)
-  space.text(sheet, { x: border + PAPER_MM.title, y: border + title / 2 - PAPER_MM.title / 2 }, `Scale 1:${ratio} on A3`, PAPER_MM.title, { centred: false })
-  space.text(sheet, { x: width / 2, y: border + title / 2 - PAPER_MM.text / 2 }, GENERAL_GUIDANCE_LABEL, PAPER_MM.text)
+  const layer = space.layer('sheet')
+  space.polyline(layer, [{ x: border, y: border }, { x: width - border, y: border }, { x: width - border, y: height - border }, { x: border, y: height - border }], true)
+  space.polyline(layer, [{ x: border, y: border + strip }, { x: width - border, y: border + strip }], false)
+  space.text(layer, { x: border + PAPER_MM.title, y: border + strip / 2 - PAPER_MM.title / 2 }, heading, PAPER_MM.title, { centred: false })
+  space.text(layer, { x: width / 2, y: border + strip / 2 - PAPER_MM.text / 2 }, GENERAL_GUIDANCE_LABEL, PAPER_MM.text)
+  // VEW-72: a plan that does not fit says so on its sheet, and the scale it fits at.
+  if (!shown.fits) {
+    const smallest = DXF_SHEET_SCALES[DXF_SHEET_SCALES.length - 1]!
+    const fit = shown.fitsAt !== null ? ` ${english(said('drawing.export.dxf.fitsAt', { scale: shown.fitsAt }))}` : ratio < smallest ? ` ${english(said('drawing.export.dxf.fitsNone', { scale: smallest }))}` : ''
+    space.text(layer, { x: border + PAPER_MM.title, y: border + strip + PAPER_MM.title }, `${english(said('drawing.export.dxf.notFit.plan', { scale: ratio }))}${fit}`, PAPER_MM.text, { centred: false })
+  }
   return view
 }
 
@@ -1299,7 +1532,8 @@ function writeViewport(space: Space, layer: string, id: number, view: View, lock
   out.pair(170, 0)
 }
 
-function writeBlocks(out: Out, doc: Doc, frame: Frame, blocks: readonly BlockDef[]): void {
+/** The blocks, after the model's and the first paper space's when `spaces` is set. */
+function writeBlocks(out: Out, doc: Doc, frame: Frame, blocks: readonly BlockDef[], spaces = true): void {
   const one = (name: string, record: string, flags: number, paper: boolean, draw?: (space: Space) => void): void => {
     const begin = new Space(doc, out, record, paper)
     begin.start('BLOCK', '0', 'AcDbBlockBegin')
@@ -1308,12 +1542,14 @@ function writeBlocks(out: Out, doc: Doc, frame: Frame, blocks: readonly BlockDef
     out.point({ x: 0, y: 0 })
     out.pair(3, name)
     out.pair(1, '')
-    draw?.(new Space(doc, out, record))
+    draw?.(new Space(doc, out, record, paper))
     begin.start('ENDBLK', '0', 'AcDbBlockEnd')
   }
-  one('*Model_Space', frame.modelRecord, 0, false)
-  one('*Paper_Space', frame.paperRecord, 0, true)
-  for (const block of blocks) one(block.name, block.record, block.flags, false, block.draw)
+  if (spaces) {
+    one('*Model_Space', frame.modelRecord, 0, false)
+    one('*Paper_Space', frame.paperRecords[0]!, 0, true)
+  }
+  for (const block of blocks) one(block.name, block.record, block.flags, block.layout !== undefined, block.draw)
 }
 
 /** A table's start: its handle, no owner, and how many records follow. */
@@ -1447,7 +1683,7 @@ function writeTables(out: Out, doc: Doc, frame: Frame, blocks: readonly BlockDef
   for (const [code, value] of dimvars) out.pair(code, value)
   out.pair(0, 'ENDTAB')
 
-  const records: [string, string, string][] = [['*Model_Space', frame.modelRecord, frame.modelLayout], ['*Paper_Space', frame.paperRecord, frame.paperLayout], ...blocks.map((b): [string, string, string] => [b.name, b.record, '0'])]
+  const records: [string, string, string][] = [['*Model_Space', frame.modelRecord, frame.modelLayout], ['*Paper_Space', frame.paperRecords[0]!, frame.paperLayouts[0]!], ...blocks.map((b): [string, string, string] => [b.name, b.record, b.layout ?? '0'])]
   tableHead(out, 'BLOCK_RECORD', tables.BLOCK_RECORD, records.length)
   for (const [name, record, layout] of records) {
     out.head('BLOCK_RECORD', record, tables.BLOCK_RECORD)
@@ -1463,7 +1699,8 @@ function writeTables(out: Out, doc: Doc, frame: Frame, blocks: readonly BlockDef
   out.pair(0, 'ENDTAB')
 }
 
-function writeObjects(out: Out, frame: Frame, extent: Bounds): void {
+/** The root dictionary, the groups and the layouts: the model's and one per name in `layouts`, in order. */
+function writeObjects(out: Out, frame: Frame, extent: Bounds, layouts: readonly string[]): void {
   out.head('DICTIONARY', frame.root, '0')
   out.pair(100, 'AcDbDictionary')
   out.pair(281, 1)
@@ -1487,12 +1724,16 @@ function writeObjects(out: Out, frame: Frame, extent: Bounds): void {
   out.pair(281, 1)
   out.pair(3, 'Model')
   out.pair(350, frame.modelLayout)
-  out.pair(3, DXF_LAYOUT)
-  out.pair(350, frame.paperLayout)
+  layouts.forEach((name, k) => {
+    out.pair(3, name)
+    out.pair(350, frame.paperLayouts[k]!)
+  })
 
   const { width, height } = SHEET
   writeLayout(out, frame, { handle: frame.modelLayout, record: frame.modelRecord, name: 'Model', order: 0, flags: 1712, limits: [extent.min, extent.max], extent })
-  writeLayout(out, frame, { handle: frame.paperLayout, record: frame.paperRecord, name: DXF_LAYOUT, order: 1, flags: 688, limits: [{ x: 0, y: 0 }, { x: width, y: height }], extent: computeBounds([{ x: 0, y: 0 }, { x: width, y: height }]) })
+  layouts.forEach((name, k) => {
+    writeLayout(out, frame, { handle: frame.paperLayouts[k]!, record: frame.paperRecords[k]!, name, order: k + 1, flags: 688, limits: [{ x: 0, y: 0 }, { x: width, y: height }], extent: computeBounds([{ x: 0, y: 0 }, { x: width, y: height }]) })
+  })
 }
 
 interface LayoutParts {

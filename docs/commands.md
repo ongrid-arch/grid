@@ -36,7 +36,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid check [<plan>] [--floor <id>] [--country <place>] [--full] [--json] [--seen <n> --reason <text> --by <name> \| --unseen <n>]` | Prints the report, short and about this plan unless `--full`. Every report is labelled "General guidance, not your local rules". `--country` names the place for this check, in place of the plan's `site.country`. `--seen` sets a note aside as seen (see below). With `firm-standards.json` beside the plan, the firm's own standards are set against it too, under their own heading ([a firm's own standards](firm-standards.md)) |
 | `grid describe [<plan>] [--length line\|rooms\|walls\|walk] [--for person\|agent] [--as rooms] [--floor <id>] [--pictures <folder>]` | Describes the plan in a few lines: its rooms, which rooms each opening joins, with `--length walls` its walls, and with `--length walk` the plan walked room by room, with `--pictures` a picture from each doorway (see below). `--as rooms` reads it back as rooms text, each room's number and facts on its line (WRT-74) |
 | `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor; to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section and schedule marks to a plan (see below) |
-| `grid export [<plan>] --format dxf\|ifc\|glb\|obj [--floor <id>] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
+| `grid export [<plan>] --format dxf\|ifc\|glb\|obj [--floor <id>\|<name>\|all] [--scale <n>] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. `--floor all` writes one file per floor; `--scale` (DXF) sets its sheets' scale ([every floor in one DXF](#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
 | `grid sheet [<plan>] [--layout client\|check] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
 | `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--split] [--room-sizes on\|off] [--out <file.pdf>]` | Writes every floor (or one) at one true scale as a vector PDF of a page each, and an SVG and a PNG of each page, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
 | `grid areas`, `grid schedule`, `grid takeoff`, `grid measure <what>`, `grid count`, `grid find`, `grid fields`, `grid compare <plan> <plan>...`, `grid brief` | Each runs the reading tool of that name (`grid brief` is `grid_write_brief` reading the brief, never writing it) with the tool's own arguments as options, and prints its text; `--json` prints exactly its structured answer, `--csv` a table where there is one, and `--fail-on` exits 3 when the answer holds a condition, for CI (see [below](#the-reading-tools-as-commands-grid-areas-grid-find-and-the-others)) |
@@ -173,8 +173,10 @@ An export's file name comes from the plan file's name, never from text inside th
 Grid sanitises it rather than refusing it, and says so on standard error: a name Windows
 keeps for a device gets `plan-` in front (`plan-con.dxf`); a name longer than five words or
 40 characters, or one that reads as a claim about the plan or an instruction, becomes
-`floor-plan`; one floor of several is named by its place in the plan (`house-floor-2.dxf`), and
-a GLB or OBJ of the whole building by the plan alone (`house.glb`).
+`floor-plan`; one floor of several is named after the floor, its name or else its id, made safe
+by the same rules (`house-first-floor.dxf`), and by its place in the plan (`house-floor-2.dxf`)
+when nothing usable is left of it; a file of the whole building is named by the plan alone
+(`house.glb`, `house.dxf`).
 
 Every export writes the plan's walls, rooms and openings in id order (`w2` before `w10`), so the
 same building gives the same bytes whatever order its file lists them in, and two exports can be
@@ -215,10 +217,29 @@ the file says so beside what it leaves out, with how far off the pieces are at m
 set `Grid_Approximated` in an IFC, the `GRID-LEFT-OUT` layer in a DXF, comment lines in an OBJ and
 `asset.extras.gridApproximated` in a GLB. A plan with no curved wall gets none of it.
 
-A DXF holds one floor, and so do an OBJ and a GLB when `--floor` names one: they name what is left
-out of that floor, every opening no floor holds, and every part the reader left out, which Grid
-cannot place on a floor. The IFC, and an OBJ or GLB of the whole building, name what is left out of
-every floor.
+A DXF, an OBJ and a GLB of one floor (`--floor` names one) name what is left out of that floor, every opening no floor holds, and every part the reader left out, which Grid
+cannot place on a floor. The IFC, and a DXF, OBJ or GLB of the whole building, name what is left
+out of every floor; a DXF of every floor names each floor's under that floor.
+
+### Every floor in one DXF, at a scale that fits (VEW-72)
+
+With no `--floor`, a DXF holds every floor too. In model space the floors stand side by side,
+lowest on the left: the first where the plan places it, each next one moved along X by a whole
+number of 10 m past the one before, with its title saying how far (`Floor "First", drawn 20 m along
+X from where the plan places it`), so a drafter can move it back onto the others. Each floor has a
+paper layout of its own, named after the floor (its name, else its id), whose viewport shows that
+floor. `--floor <id>` or `--floor <name>` writes that floor alone, on one layout, `Sheet`, as
+before; `--floor all` writes one file per floor into `exports/`, each named after its floor, and
+names any floor that holds nothing, for which no file is written. `--floor all` takes no `--out`.
+
+Every sheet is A3 across, at one scale for the file: `--scale` (`200` or `1:200`), else the scale
+the project's `dxf-layers.json` states, else the largest of 1:100, 1:200, 1:500 and 1:1000 at
+which every floor, its dimensions, label and notes fit the viewport. Grid starts at 1:100, its
+sheet's usual scale; 1:50 is drawn when stated. Text and dashes are sized for the scale used. A
+floor that does not fit at the scale used is drawn at it all the same, round its middle, and its
+sheet and the command say so with the scale it fits at (`The plan does not fit on A3 at 1:100:
+the sheet shows the middle of it. It fits at 1:500.`). The command says the scale on standard
+error unless it is 1:100, not stated, with every floor on its sheet.
 
 ### Every floor in one 3D file (VEW-64)
 
@@ -252,8 +273,8 @@ anything is.
 
 ### What the DXF holds (HND-1)
 
-The DXF is written for a drafter to go on working in: one floor, in metres, in layers an office
-can name and pen its own way.
+The DXF is written for a drafter to go on working in: in metres, in layers an office can name and
+pen its own way, one floor or every floor ([above](#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)).
 
 - **Version and units.** AutoCAD 2013's DXF (`AC1027`), whose text is UTF-8, so a room called
   "Baño" or "寝室" is stored as it is written and every reader shows it so. `$INSUNITS` is 6
@@ -267,18 +288,26 @@ can name and pen its own way.
   `GRID-WALLS-DEMOLISHED` (dashed, unfilled), and each opening to be demolished is its dashed
   outline on `GRID-OPENINGS-DEMOLISHED`
   ([existing, demolished and new](plan-file.md#existing-demolished-and-new)).
-- **Doors, windows and doorless openings are blocks**, one per kind and size, named by width and
-  wall thickness in millimetres (`GRID-WINDOW-1200x200`), inserted on `GRID-DOORS`,
-  `GRID-WINDOWS` or `GRID-OPENINGS` and turned along their wall, so they can be counted and
-  swapped. A block is drawn along +X from its insertion point. A door that states its hinge and
-  swing has a block per hand: `-L` opens towards +Y of the block and `-R` towards −Y, each hung at
-  the insertion point; a door hung from its other jamb is the same block turned half round. Its
-  leaf and swing are on `GRID-DOOR-SWINGS` inside the block. A door that states neither has a
-  block of its own with no swing (`GRID-DOOR-900x200`).
+- **Doors, windows and doorless openings are blocks**, one per schedule type (VEW-72: its kind,
+  width and height, or the plan's named type) in one wall thickness, named by width by height and
+  the wall's thickness in millimetres (`GRID-WINDOW-1200x1500-W200`; a named type adds its id,
+  `GRID-DOOR-OAK-900x2100-W200`), inserted on `GRID-DOORS`, `GRID-WINDOWS` or `GRID-OPENINGS` and
+  turned along their wall, so they can be counted and swapped: two windows of one width and two
+  heights are two blocks. Each insert carries the attributes `MARK` (shown by the opening: its
+  mark in the schedules, `D1`, `W1`, the same the IFC writes as the door's or window's Tag),
+  `TYPE` (the schedule type, `window:1.2x1.5`), `WIDTH`, `HEIGHT` and `SILL` (metres, kept in the
+  file, not drawn). A block is drawn along +X from its insertion point. A door that states its
+  hinge and swing has a block per hand, named in Grid's one convention, the side its hinges are on
+  seen from the side it opens toward: `-RH` or `-LH`, as the schedule says it ("hinged on the
+  right") and the IFC door style's name ("single swing, right hand"; IFC's own operation type
+  names the side looking the way the door opens, so a right-hand door is `SINGLE_SWING_LEFT`
+  there). A door hung from its other jamb is the same block turned half round. Its leaf and swing
+  are on `GRID-DOOR-SWINGS` inside the block. A door that states neither has a block of its own
+  with no swing (`GRID-DOOR-900x2100-W200`).
 - **A door or window of a kind** ([kinds of door and window](plan-file.md#kinds-of-door-and-window-their-handing-and-the-part-that-opens))
   other than one leaf, or one that states the part that opens, is drawn by its kind's symbol, one
   block per symbol, named with its kind, the part that opens and a garage door's height
-  (`GRID-DOOR-SLIDING-2400x200`, `GRID-DOOR-SINGLE-1200x200-L-P800`, `GRID-WINDOW-HIGH-LEVEL-1200x200`).
+  (`GRID-DOOR-SLIDING-2400x2100-W200`, `GRID-DOOR-SINGLE-1200x2100-W200-RH-P800`, `GRID-WINDOW-HIGH-LEVEL-1200x600-W200`).
   A door's leaves and swings are on `GRID-DOOR-SWINGS`, its fixed panel and a window's faces and
   glass on the insert's layer, and what the symbol shows above the cut or hidden in the wall (a
   pocket, a roll, a garage door open overhead, a high-level window) dashed on
@@ -289,9 +318,9 @@ can name and pen its own way.
 - **Room tags.** Each room gets the block `GRID-ROOM-TAG` on `GRID-ROOM-TAGS`, with the attributes
   `NUMBER` (the number the room states, else Grid's count, as in the schedule), `NAME` and `AREA`
   (the net area, `12.40 m²`).
-- **A sheet.** Besides the model, the layout `Sheet` is an A3 sheet across, in millimetres, with
-  a border, one viewport (on `GRID-VIEWPORT`, which does not plot) showing the plan at the
-  profile's scale, 1:100 unless it says otherwise, and the scale and the label under it. Text
+- **A sheet.** Besides the model, the layout `Sheet` (a layout per floor in a file of every floor)
+  is an A3 sheet across, in millimetres, with a border, one viewport (on `GRID-VIEWPORT`, which
+  does not plot) showing the plan at the scale chosen above, and the scale and the label under it. Text
   and dimensions are sized for that scale: names 2.5 mm, other text 2 mm on paper.
 - **Also on their own layers**, as before: the fixtures (`GRID-FIXTURES`), the sketch
   (`GRID-SKETCH-` and the category), the notes (`GRID-NOTES`), the facts (`GRID-FACTS`), what the
@@ -302,7 +331,8 @@ can name and pen its own way.
 #### An office's own layers and pens: `dxf-layers.json`
 
 With no profile the DXF uses Grid's own: the `GRID-` layers above, every line in the drawing's
-foreground colour (7, the fill in 8), line weights from 0.13 mm to 0.5 mm, and the scale 1:100.
+foreground colour (7, the fill in 8), line weights from 0.13 mm to 0.5 mm, and the largest
+standard scale the plan fits at (VEW-72), 1:100 for most plans.
 An office that wants its own writes them once in `dxf-layers.json` in the project folder, beside
 `grid.json`; `grid export` and `grid_export` read it for every DXF and say so (`Layers and pens
 from dxf-layers.json.`). A category the file leaves out keeps Grid's pen:
@@ -319,7 +349,8 @@ from dxf-layers.json.`). A category the file leaves out keeps Grid's pen:
 ```
 
 - `scale`: a whole number from 1 to 1000; 50 is 1:50. It sets the sheet's viewport and every text
-  and dimension size, and the length of the dashes.
+  and dimension size, and the length of the dashes. Left out, the largest standard scale the plan
+  fits at (VEW-72); `--scale` wins over it.
 - The categories: `walls-outside`, `walls-inside`, `dividing-lines`, `wall-fill`, `rooms`,
   `room-tags`, `doors`, `door-swings`, `windows`, `openings`, `openings-above`, `fixtures`,
   `dimensions`, `notes`,
