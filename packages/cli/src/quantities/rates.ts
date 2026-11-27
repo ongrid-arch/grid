@@ -390,7 +390,7 @@ export function priceEstimate(estimate: Estimate, rates: Rates): Pricing {
 }
 
 /** The rate card: every line's key and unit, ready to fill in and save as the rates file. */
-export function rateCard(estimate: Estimate): { readonly label: string; readonly currency: string; readonly rates: Readonly<Record<string, { readonly rate: null; readonly unit: QuantityUnit }>> } {
+export function rateCard(estimate: { readonly lines: readonly Pick<EstimateLine, 'key' | 'unit'>[] }): { readonly label: string; readonly currency: string; readonly rates: Readonly<Record<string, { readonly rate: null; readonly unit: QuantityUnit }>> } {
   return {
     label: '',
     currency: '',
