@@ -107,7 +107,9 @@ Notes for agents and people changing this repository.
   command reads the base file in `command/plan.ts`, and `cli/src/edit/phases.ts` refuses an edit
   that touches it and makes an edit of a plan with phases the work. Rooms text writes a fit-out
   with its `base` line (WRT-75, `packages/floorplan/src/rooms/base.ts`): the rooms rest on the
-  base walls their faces lie on, which are never written into the fit-out.
+  base walls their faces lie on, which are never written into the fit-out. Rooms text writes
+  phases with `phase <word>` (WRT-81, `packages/floorplan/src/rooms/phases.ts`): the text is
+  written before and after the work and the two made one plan, walls by what stands in each.
 - A survey drawn from its own numbers (HND-11): a wall may be placed by a face (`face` in
   `types/floorplan.ts`); the reading moves it to its centre line and records `placedBy`, and
   `statedWall` writes the face back. Every change that moves a wall end goes through
