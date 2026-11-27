@@ -164,7 +164,7 @@ describe('CNT-15 quantities by type and by finish', () => {
     expect(rows.slice(1).every((r) => r.basis === 'kind-and-size')).toBe(true)
     expect(s.text).toContain('4 × "Internal door 800", door 0.80 m wide')
     const csv = await ok('grid_schedule', { plan: 'thicker.json', of: 'doors', format: 'csv' })
-    expect(csv.text.split('\n')[1]).toBe('number,type,name,material,kind,width m,height m,opens width m,opens height m,count,marks,phase,section')
+    expect(csv.text.split('\n')[0]).toBe('number,type,name,material,kind,width m,height m,opens width m,opens height m,count,marks,phase,section')
   })
 
   it('gives the walls of each named type, and each finish, in the take-off', async () => {

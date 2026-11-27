@@ -80,7 +80,7 @@ describe('CNT-4 flats in the tool server', () => {
     ])
     expect(reply.text).toContain('Mix by type:\n  "One bedroom": 4 flats (2 mirrored), 1 bedroom each, 100.0% of the flats, 128.00 m², 32.00 m² each on average')
     const csv = (await b.call('grid_schedule', { plan: 'row.json', of: 'flats', format: 'csv' })).text.split('\n')
-    expect(csv[1]).toBe('row,number,id,name,type,mirrored,floors,rooms,bedrooms,flats,mirrored flats,area m2,area sq ft,state')
+    expect(csv[0]).toBe('row,number,id,name,type,mirrored,floors,rooms,bedrooms,flats,mirrored flats,area m2,area sq ft,state')
     expect(csv.find((line) => line.startsWith('mix,'))).toMatch(/^mix,,one,One bedroom,One bedroom,,,,1,4,2,128,/)
   })
 
@@ -167,9 +167,9 @@ describe('CNT-4 flats on the check set and in the CSV', () => {
   })
 
   it('adds a flat column to the room schedule CSV only on a plan that lists flats', () => {
-    const header = (plan: unknown): string => roomScheduleCsv(roomSchedule(surveyPlan(parseFloorPlan(plan)))).split('\n')[1]!
+    const header = (plan: unknown): string => roomScheduleCsv(roomSchedule(surveyPlan(parseFloorPlan(plan)))).split('\n')[0]!
     expect(header(duplexHouse())).toBe('number,room id,name,use,area m2,area sq ft,height m,floor,state,flat')
     expect(header(TWO_BED)).toBe('number,room id,name,use,area m2,area sq ft,height m,floor,state')
-    expect(flatScheduleCsv(flatSchedule(surveyPlan(parseFloorPlan(duplexHouse())))).split('\n')[2]).toMatch(/^flat,1,D1,Duplex 1,Two-storey flat,no,Ground floor; First floor,4,0,,,/)
+    expect(flatScheduleCsv(flatSchedule(surveyPlan(parseFloorPlan(duplexHouse())))).split('\n')[1]).toMatch(/^flat,1,D1,Duplex 1,Two-storey flat,no,Ground floor; First floor,4,0,,,/)
   })
 })

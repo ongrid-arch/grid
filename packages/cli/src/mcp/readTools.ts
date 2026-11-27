@@ -200,14 +200,14 @@ function statedRoofWords(plan: FloorPlan, floorIds: readonly string[]): string {
 /** CNT-12: what `fit` keeps clear of in a room with fixtures. */
 const FIT_CLEAR_RULE = 'What is fitted keeps clear of the room\'s fixtures: each takes the floor its footprint covers.'
 
-const UNITS_ARG: ArgSpec = {
+export const UNITS_ARG: ArgSpec = {
   type: 'string',
   enum: DISPLAY_UNITS,
   description: 'How figures are written: m (metres), cm, mm, or ft-in (feet and inches, square feet beside square metres; ft is the same). The plan\'s own display, or m, when left out. Grid measures in metres either way.',
   examples: ['m', 'ft-in', 'mm'],
 }
 
-const DECIMAL_ARG: ArgSpec = {
+export const DECIMAL_ARG: ArgSpec = {
   type: 'string',
   enum: ['point', 'comma'],
   description: 'The decimal mark figures are written with: point (2.40) or comma (2,40). The plan\'s own display, or point, when left out.',
@@ -225,7 +225,7 @@ const DATA_ARG: ArgSpec = {
 const FORMAT_ARG: ArgSpec = {
   type: 'string',
   enum: ['text', 'csv'],
-  description: 'text for the answer in words, csv for the table as comma-separated values to paste into a spreadsheet. text when left out.',
+  description: 'text for the answer in words, csv for the table as comma-separated values to paste into a spreadsheet, its header on line 1 and the label last, also in the data as csv; grid_export writes it as a file. text when left out.',
   examples: ['text', 'csv'],
 }
 
@@ -3660,7 +3660,24 @@ function noting(tool: GridTool, applies: (args: Record<string, unknown>) => bool
   }
 }
 
-export const READ_TOOLS: readonly GridTool[] = [compareTool, noting(areasTool, (args) => args['format'] !== 'csv'), takeoffTool, scheduleTool, fieldsTool, findTool, countTool, noting(measureTool, (args) => ['use', 'fit', 'access', 'route'].includes(args['what'] as string)), viewTool, describeTool, checkTool]
+/**
+ * VEW-83: a table asked for as CSV is in the data too, as `csv`, so a host that shows the agent
+ * only the structured answer still hands it the table.
+ */
+function csvInData(tool: GridTool): GridTool {
+  const run = tool.run
+  return {
+    ...tool,
+    run(args, context) {
+      if (args['format'] !== 'csv') return run.call(tool, args, context)
+      const withCsv = (answer: Answer): Answer => ({ ...answer, data: { ...answer.data, csv: answer.text } })
+      const made = run.call(tool, args, context)
+      return made instanceof Promise ? made.then(withCsv) : withCsv(made)
+    },
+  }
+}
+
+export const READ_TOOLS: readonly GridTool[] = [compareTool, csvInData(noting(areasTool, (args) => args['format'] !== 'csv')), csvInData(takeoffTool), csvInData(scheduleTool), fieldsTool, findTool, countTool, noting(measureTool, (args) => ['use', 'fit', 'access', 'route'].includes(args['what'] as string)), viewTool, describeTool, checkTool]
 
 /** What the sides of an opening are called in an answer. Exported for the edit tools. */
 export function openingBetween(survey: Survey, id: string): string {
