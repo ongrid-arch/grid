@@ -286,7 +286,8 @@ describe('the curve in the rest of the geometry', () => {
     const diff = diffPlans(plan, deeper)
     const change = diff.changes.find((c) => c.entity.id === 'bay')!
     expect(change.props.map((p) => p.key)).toContain('arc')
-    expect(change.summary).toContain('curve changed')
+    // WRT-86: with its figures before and after, never "curve changed" alone.
+    expect(change.summary).toBe('Wall curve radius 2.00 → 2.00 m, bulge 1.000 → -1.000 (sweep 180° → -180°)')
   })
 
   it('faces a round wall every way, room by room, the length of each compass point', () => {

@@ -561,3 +561,35 @@ describe('grid mark takes the plan as every command does (CMD-36)', () => {
     expect(names.err).toContain('mark takes one marker name')
   })
 })
+
+describe('a change of finish, of type and of curve, with grid diff (WRT-86)', () => {
+  it('says the finish, names the type with the parts that take it, and gives the data', async () => {
+    const plan = JSON.parse(flat) as { types?: unknown; walls: { id: string; kind: string; thickness?: number; wallType?: string }[]; rooms: { id: string; finishes?: unknown }[] }
+    plan.types = { walls: [{ id: 'brick', name: 'Brick 300', thickness: 0.3 }, { id: 'block', name: 'Block 200', thickness: 0.2 }] }
+    for (const wall of plan.walls) if (wall.kind === 'exterior') {
+      delete wall.thickness
+      wall.wallType = 'brick'
+    }
+    plan.rooms[0]!.finishes = { floor: 'Oak' }
+    const dir = project({ 'plan.json': JSON.stringify(plan) })
+    expect((await grid(dir, 'mark', 'start')).status).toBe(0)
+
+    plan.rooms[0]!.finishes = { floor: 'Porcelain tile' }
+    writeFileSync(join(dir, 'plan.json'), JSON.stringify(plan))
+    const finish = await grid(dir, 'diff')
+    expect(finish.status, finish.err).toBe(0)
+    expect(finish.out).not.toContain('Changes: none')
+    expect(finish.out).toContain('1. "Living room" floor finish "Oak" → "Porcelain tile"')
+
+    plan.walls.find((w) => w.id === 'ext-south')!.wallType = 'block'
+    writeFileSync(join(dir, 'plan.json'), JSON.stringify(plan))
+    const typed = await grid(dir, 'diff', '--show', 'changes')
+    expect(typed.status, typed.err).toBe(0)
+    expect(typed.out).toContain('Wall "ext-south" thickness 0.30 → 0.20 m; type "Brick 300" → "Block 200"')
+
+    const json = JSON.parse((await grid(dir, 'diff', '--json')).out) as { finishes: unknown[]; types: unknown[]; curves: unknown[] }
+    expect(json.finishes).toMatchObject([{ room: 'living', changes: [{ surface: 'floor', before: 'Oak', after: 'Porcelain tile', text: 'floor finish "Oak" → "Porcelain tile"' }] }])
+    expect(json.types).toEqual([])
+    expect(json.curves).toEqual([])
+  })
+})
