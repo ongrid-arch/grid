@@ -21,7 +21,9 @@ import { LANGUAGES, english, joined, name, num, said, say, type Language, type M
 import { readSeen, type SeenState } from '../seen/marks'
 import { firmForCheck } from '../firm/measure'
 import { briefMissedText } from '../brief/answer'
-import { describePlan, describeRooms, describeWalk, walkOf } from '../command/describe'
+import { describePlan, describeRooms, describeWalk, walkOf, type DescribeOptions } from '../command/describe'
+import { buildingReading } from '../edit/buildingEdits'
+import { EditRefused } from '../edit/refused'
 import { walkPictures } from '../describe/walkPictures'
 import { WALK_EYE_HEIGHT, WALK_PICTURES_MAX } from '../describe/walk'
 import { drawShowOf } from '../command/drawShow'
@@ -63,6 +65,7 @@ import { factsText, flatSchedule, flatScheduleCsv, openingSchedule, openingSched
 import { fixtureCountText, fixturesLeftOut, fixturesLeftOutLine, FIXTURE_RULES, planFixtures } from '../quantities/fixtures'
 import { FACING_RULE, facingAnswer, northWords } from '../quantities/facing'
 import { SUN_RULE, sunAnswer } from '../quantities/sun'
+import { SEATING_RULE, seatingAnswer } from '../quantities/seats'
 import { SITE_RULE, siteAnswer } from '../quantities/site'
 import { LIMITS_RULE, massingLines, siteLimits, storeysText } from '../quantities/limits'
 import { figureOf, roomIndicators, USE_RULE, wideRoute, wideRouteLines } from '../quantities/use'
@@ -1239,10 +1242,10 @@ export const KIND_ARG: ArgSpec = {
 /** CNT-45: grid_fields, grid_find and grid_count ask of the fixtures and furniture too. */
 const QUERY_KIND_ARG: ArgSpec = {
   ...KIND_ARG,
-  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run) or furniture (a bed, a sofa, a table). Every kind when left out.',
-  examples: [['door'], ['room'], ['fixture', 'furniture']],
-  items: { enum: PART_KINDS },
-  maxItems: PART_KINDS.length,
+  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run) or furniture (a bed, a sofa, a table), or item for every fixture and piece of furniture. Every kind when left out.',
+  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item']],
+  items: { enum: [...PART_KINDS, 'item'] },
+  maxItems: PART_KINDS.length + 1,
 }
 
 export const WHERE_ARG: ArgSpec = {
@@ -1262,7 +1265,11 @@ export const ROOM_IN_ARG: ArgSpec = {
 }
 
 /** The kinds a call asked for, or every kind. */
-const kindsOf = (args: Record<string, unknown>): readonly PartKind[] | undefined => args['kind'] as PartKind[] | undefined
+const kindsOf = (args: Record<string, unknown>): readonly PartKind[] | undefined => {
+  const kinds = args['kind'] as Array<PartKind | 'item'> | undefined
+  // ARE-67: item is every fixture and piece of furniture.
+  return kinds === undefined ? undefined : [...new Set(kinds.flatMap((kind): PartKind[] => (kind === 'item' ? ['fixture', 'furniture'] : [kind])))]
+}
 
 function partsWord(kinds: readonly PartKind[] | undefined, n: number): string {
   const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture' }
@@ -1539,11 +1546,11 @@ const measureTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks will something fit, how wide, long or high a room is, how long a wall is, how far a door is from a corner or one wall from another, can a wheelchair turn, is the way wide enough, which doors or rooms are narrower than their own figure, or how to get from one room to another. '
-    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time. '
+    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand. '
     + 'It measures the room between wall faces: what=fit, what=use and what=route with width keep clear of the room\'s fixtures, the other measures take none off, the plan holds no furniture or door leaves, and the answer says so. It checks no rule: a figure the person gives is their own. Do not use for floor areas (grid_areas), for what a building code asks (grid_check), or to say a plan is accessible: what=access measures, it never says so. Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
-    what: { type: 'string', required: true, enum: ['room', 'between', 'wall', 'fit', 'route', 'narrow', 'facing', 'sun', 'site', 'use', 'access', 'library'], description: 'What to measure: room, between, wall, fit, route, narrow, facing, sun, site, use, access or library.', examples: ['between', 'fit', 'route', 'use', 'access', 'library'] },
+    what: { type: 'string', required: true, enum: ['room', 'between', 'wall', 'fit', 'route', 'narrow', 'facing', 'sun', 'site', 'use', 'access', 'library', 'seats'], description: 'What to measure: room, between, wall, fit, route, narrow, facing, sun, site, use, access, library or seats.', examples: ['between', 'fit', 'route', 'use', 'access', 'library', 'seats'] },
     // CNT-20: a library entry, for fit and library.
     name: { type: 'string', id: true, description: 'For fit, instead of width and depth: a library item or typical room by name (double-bed, bathroom). For library: one entry only.', examples: ['double-bed', 'double-bedroom'] },
     room: { type: 'string', id: true, description: 'For room, fit, use and route: the room id, where the route starts. For facing and sun: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
@@ -1565,7 +1572,7 @@ const measureTool: GridTool = {
   outputSchema: objectSchema({ what: STRING, answer: { type: 'object' }, rule: STRING }),
   run(args, context) {
     const { survey, file } = load(context, args['plan'])
-    const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library'
+    const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library' | 'seats'
     // CMD-29: the same thing goes by the same name in every mode: a route goes from a room, and
     // a narrow measure takes the width the way route and use do.
     if (what === 'route' && args['from'] !== undefined) {
@@ -1591,6 +1598,7 @@ const measureTool: GridTool = {
       use: ['room', 'width', 'diameter', 'clearance'],
       access: [],
       library: ['name'],
+      seats: ['room'],
     }
     const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`what=${what} takes ${allowed[what]!.length === 0 ? 'no other argument' : allowed[what]!.join(', ')}, not ${stray.join(', ')}.`)
@@ -1648,6 +1656,12 @@ const measureTool: GridTool = {
       const id = args['room'] === undefined ? undefined : roomArg(survey.plan, args['room'])
       const facing = facingAnswer(survey.plan, id)
       return { text: [...facing.lines, FACING_RULE].join('\n'), data: { what, answer: facing.data, rule: FACING_RULE } }
+    }
+    if (what === 'seats') {
+      // ARE-67: the seats, desks and covers counted from the furniture, once.
+      const id = args['room'] === undefined ? undefined : roomArg(survey.plan, args['room'])
+      const found = seatingAnswer(survey, id)
+      return { text: [...found.lines, SEATING_RULE].join('\n'), data: { what, answer: found.data, rule: SEATING_RULE } }
     }
     if (what === 'sun') {
       // BRF-5: which rooms get the sun, as a table of geometry: window walls, window area, depth.
@@ -2585,6 +2599,18 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
 // ---------------------------------------------------------------------------------------------
 // grid_describe
 
+/** CMD-47: one building of the plan read back as rooms text of its own, based on that building's fingerprint. */
+function describeBuilding(loaded: LoadedPlan, id: string, language: DescribeOptions['language']): string {
+  if (loaded.base !== undefined) throw new ToolRefusal('A fit-out is read back whole: leave building out.')
+  try {
+    const alone = buildingReading(loaded.stated ?? loaded.plan, id).plan
+    return describeRooms({ ...loaded, plan: alone, stated: alone }, { language })
+  } catch (error) {
+    if (error instanceof EditRefused) throw new ToolRefusal(error.message)
+    throw error
+  }
+}
+
 const describeTool: GridTool = {
   name: 'grid_describe',
   title: 'Read the plan in room terms',
@@ -2594,12 +2620,14 @@ const describeTool: GridTool = {
     + 'It gives the plan in rooms: each room with its inside size and area, the rooms next to it, and each door and window with the side it is on, its distance from the corners and the two rooms it joins. '
     + 'length=line is one line, rooms (the default) each room, walls also every wall. for=person never shows an id; for=agent is terse and gives the ids to edit with. '
     + 'length=walk is the long form, for "walk me through it" or "what do I see when I come in": the plan walked room by room from its way in, standing in the doorway of each room, with what is ahead, on the left, on the right and in the wall you stand in, and how far; floor walks one floor, and pictures=true adds a picture at eye height from each doorway, looking ahead (at most ' + String(WALK_PICTURES_MAX) + '). '
-    + 'as=rooms reads the plan back as rooms text instead, the way plans are written: change it and pass it to grid_write_rooms, which writes it back losing nothing. Do not use for an area table (grid_areas) or a picture (grid_view). Units are metres.',
+    + 'as=rooms reads the plan back as rooms text instead (building=<id>: one building of a plan of many, which grid_write_building writes back), the way plans are written: change it and pass it to grid_write_rooms, which writes it back losing nothing. Do not use for an area table (grid_areas) or a picture (grid_view). Units are metres.',
   args: {
     plan: PLAN_ARG,
     length: { type: 'string', enum: DESCRIBE_LENGTHS, description: 'line, rooms, walls or walk. rooms when left out.', examples: ['rooms', 'line', 'walk'] },
     for: { type: 'string', enum: DESCRIBE_AUDIENCES, description: 'person (names only, no ids) or agent (terse, with ids). agent when left out.', examples: ['agent', 'person'] },
     as: { type: 'string', enum: ['rooms'], description: 'rooms: the plan as rooms text, to change and write again with grid_write_rooms. Takes no length or for.', examples: ['rooms'] },
+    // CMD-47: one building of a plan of many, as rooms text of its own.
+    building: { type: 'string', id: true, description: 'With as=rooms: one building of the plan, by id: its floors and parts only, as rooms text to change and write again with grid_write_building. The whole plan when left out.', examples: ['villa-3'] },
     floor: { ...FLOOR_ARG, description: 'For length=walk: the floor to walk. Every floor when left out, a floor laid out like an earlier one said once.' },
     pictures: { type: 'boolean', description: 'For length=walk: true to add a picture at eye height from each doorway, looking ahead, in the order of the walk. false when left out.', examples: [true, false] },
     language: LANGUAGE_ARG,
@@ -2614,8 +2642,9 @@ const describeTool: GridTool = {
     const language = await languageFor(askedLanguage(args['language'], 'language'), read.plan)
     // MSG-22: the floor the plan names in no list, named in that language.
     const loaded = spokenPlan(read, language)
+    if (args['building'] !== undefined && args['as'] !== 'rooms') throw new ToolRefusal('building goes with as=rooms: it reads one building back as rooms text.')
     if (args['as'] === 'rooms') {
-      const text = describeRooms(loaded, { language })
+      const text = args['building'] === undefined ? describeRooms(loaded, { language }) : describeBuilding(loaded, args['building'] as string, language)
       return { text, data: { length: null, for: null, as: 'rooms', text } }
     }
     const length = (args['length'] as (typeof DESCRIBE_LENGTHS)[number] | undefined) ?? 'rooms'

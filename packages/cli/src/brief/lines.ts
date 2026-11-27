@@ -25,7 +25,8 @@ import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, DOOR
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { METRES } from '@ongrid/floorplan/types/units'
 import { isSiteFigure, siteLimits } from '../quantities/limits'
-import { FIGURES, FIGURES_HEADING, type Brief, type FigureWish, type Level, type Source } from './brief'
+import { planSeating, type Seating } from '../quantities/seats'
+import { FIGURES, FIGURES_HEADING, isSeatingFigure, SEATING_WHATS, type Brief, type FigureWish, type Level, type RoomWish, type SeatingTarget, type SeatingWhat, type Source } from './brief'
 
 /** How a line stands: `met`, `missed`, `open` (nothing to measure yet), or `differs` (a size in a room's name). */
 export type BriefState = 'met' | 'missed' | 'open' | 'differs'
@@ -77,10 +78,29 @@ function numberedAs(room: string, stem: string): boolean {
   return /^(?:[\s\-_.:#]*\d+|[\s\-_.:#]+[a-z])$/.test(a.slice(b.length))
 }
 
-/** The rooms a name means: by name, any case, the name numbered ("Consult 1" for "Consult"), or by id. */
+/** ARE-67: a name in the plural, as one room is named: "Phone booths" for "Phone booth". */
+function singulars(name: string): string[] {
+  const n = name.trim()
+  if (n.length < 4) return []
+  const lower = n.toLowerCase()
+  if (lower.endsWith('ies')) return [`${n.slice(0, -3)}y`]
+  if (lower.endsWith('es')) return [n.slice(0, -1), n.slice(0, -2)]
+  if (lower.endsWith('s') && !lower.endsWith('ss')) return [n.slice(0, -1)]
+  return []
+}
+
+/**
+ * The rooms a name means: by name, any case, the name numbered ("Consult 1" for "Consult"); then
+ * (ARE-67) by the room type the plan states, the same way; then the name in the plural ("Phone
+ * booths") by name and type; or by id.
+ */
 function roomsNamed(plan: FloorPlan, name: string): FloorPlan['rooms'] {
-  const byName = plan.rooms.filter((room) => same(room.name, name) || numberedAs(room.name, name))
-  return byName.length > 0 ? byName : plan.rooms.filter((room) => room.id === name)
+  const byName = (stem: string) => plan.rooms.filter((room) => same(room.name, stem) || numberedAs(room.name, stem))
+  const byType = (stem: string) => plan.rooms.filter((room) => room.roomType !== undefined && (same(room.roomType, stem) || numberedAs(room.roomType, stem)))
+  for (const stem of [name, ...singulars(name)]) {
+    for (const found of [byName(stem), byType(stem)]) if (found.length > 0) return found
+  }
+  return plan.rooms.filter((room) => room.id === name)
 }
 
 /**
@@ -117,6 +137,8 @@ interface Context {
   readonly survey: Survey
   readonly areas: Map<string, RoomArea>
   readonly empty: boolean
+  /** ARE-67: the furniture's seats, desks and covers, counted on first use. */
+  seating(): Seating
 }
 
 const key = (floor: string, id: string): string => `${floor}\u0000${id}`
@@ -125,7 +147,8 @@ function contextOf(plan: FloorPlan): Context {
   const survey = surveyPlan(plan)
   const areas = new Map<string, RoomArea>()
   for (const floor of planAreas(survey).floors) for (const room of floor.rooms) areas.set(key(floor.floor, room.id), room)
-  return { plan, survey, areas, empty: plan.rooms.length === 0 }
+  let seating: Seating | null = null
+  return { plan, survey, areas, empty: plan.rooms.length === 0, seating: () => (seating ??= planSeating(survey)) }
 }
 
 const areaOf = (c: Context, room: FloorPlan['rooms'][number]): RoomArea | undefined => c.areas.get(key(floorOf(room), room.id))
@@ -173,6 +196,7 @@ function roomLines(c: Context, brief: Brief): BriefLine[] {
       continue
     }
     const sized = wish.area !== null || wish.atLeast !== null || wish.atMost !== null || wish.inside !== null
+    const seated = seatingTargets(wish)
     if (wish.count !== null || wish.countAtLeast !== null || wish.countAtMost !== null) {
       // ARE-33: a count asked as at least, at most, between or exactly, always in rooms and never in m².
       const least = wish.countAtLeast
@@ -180,12 +204,14 @@ function roomLines(c: Context, brief: Brief): BriefLine[] {
       const holds = wish.count !== null ? named.length === wish.count : (least === null || named.length >= least) && (most === null || named.length <= most)
       const asked = wish.count !== null ? String(wish.count) : least !== null && most !== null ? `${least} to ${most}` : least !== null ? `at least ${least}` : `at most ${most}`
       out.push(line(stateOf(holds, wish.level), wish, 'rooms', `${what}${taken}: ${word} ${asked}, drawn ${named.length}${counted(named)}${once}.`, { asked, drawn: String(named.length), unit: 'rooms', parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
-    } else if (!sized || named.length === 0) {
+    } else if ((!sized && seated.length === 0) || named.length === 0) {
       const holds = named.length > 0
       const drawn = holds ? `drawn${named.length > 1 ? ` ${named.length} times` : ''}` : 'not drawn'
       out.push(line(stateOf(holds, wish.level), wish, 'room', `${what}${taken}: ${avoid ? `${word}, ` : `${word} for, `}${drawn}.`, { parts: named.map((r) => ({ kind: 'room', id: r.id })) }))
       if (!holds) continue
     }
+    // ARE-67: the seats, desks and covers of the rooms the wish means, together.
+    for (const target of seated) out.push(seatingLine(c, wish, what, taken, named, target))
     if (!sized) continue
     for (const room of named) {
       const name = q(room.name.trim() === '' ? room.id : room.name)
@@ -218,6 +244,64 @@ function roomLines(c: Context, brief: Brief): BriefLine[] {
     }
   }
   return out
+}
+
+// ---------------------------------------------------------------------------------------------
+// ARE-67: seats, desks and covers
+
+interface SeatedTarget {
+  readonly what: SeatingWhat
+  readonly target: SeatingTarget
+  /** True when the number was read from the wish's quote, which gave no target. */
+  readonly fromQuote: boolean
+}
+
+/** A number of seats, covers or desks in the person's words: "24 seats", "a 12-cover room", "110 desks". */
+const QUOTED_SEATING = /(\d{1,5})\s*-?\s*(seats?|seater|covers?|desks?)\b/i
+
+/** A wish's seating targets; with none, the one its quote states, read as at least that many. */
+function seatingTargets(wish: RoomWish): SeatedTarget[] {
+  const given = SEATING_WHATS.flatMap((what): SeatedTarget[] => (wish[what] === null ? [] : [{ what, target: wish[what]!, fromQuote: false }]))
+  if (given.length > 0 || wish.quote === null) return given
+  const match = QUOTED_SEATING.exec(wish.quote)
+  if (match === null) return []
+  const word = match[2]!.toLowerCase()
+  const what: SeatingWhat = word.startsWith('cover') ? 'covers' : word.startsWith('desk') ? 'desks' : 'seats'
+  return [{ what, target: { exactly: null, atLeast: Number(match[1]), atMost: null }, fromQuote: true }]
+}
+
+const targetText = (t: SeatingTarget): string =>
+  t.exactly !== null ? String(t.exactly) : t.atLeast !== null && t.atMost !== null ? `${t.atLeast} to ${t.atMost}` : t.atLeast !== null ? `at least ${t.atLeast}` : `at most ${t.atMost}`
+
+const targetHolds = (t: SeatingTarget, n: number): boolean =>
+  t.exactly !== null ? n === t.exactly : (t.atLeast === null || n >= t.atLeast) && (t.atMost === null || n <= t.atMost)
+
+function seatingLine(c: Context, wish: RoomWish, what: string, taken: string, named: FloorPlan['rooms'], seated: SeatedTarget): BriefLine {
+  const counted = c.seating()
+  // A zone is counted in its room: a zone whose room the wish also means is not counted again.
+  const ids = new Set(named.map((r) => r.id))
+  const rooms = named.filter((room) => {
+    const of = c.survey.byId.get(room.id)?.facts.zoneOf
+    return of === undefined || !ids.has(of)
+  })
+  const each = rooms.map((room) => ({ room, n: (counted.zones.get(room.id) ?? counted.rooms.get(room.id))?.[seated.what] ?? 0 }))
+  const drawn = each.reduce((sum, e) => sum + e.n, 0)
+  const asked = targetText(seated.target)
+  const word = wish.level === 'avoid' ? `${askedWord(wish.source)} to avoid` : askedWord(wish.source)
+  const shown = each.length > 1 ? ` in ${each.length} rooms (${each.slice(0, 12).map((e) => `${q(e.room.name.trim() === '' ? e.room.id : e.room.name.trim())} ${e.n}`).join(', ')}${each.length > 12 ? `, and ${each.length - 12} more` : ''})` : ''
+  const quoted = seated.fromQuote ? `, the number in its words (give ${seated.what} to set it)` : ''
+  return line(stateOf(targetHolds(seated.target, drawn), wish.level), wish, 'room', `${what}${taken} ${seated.what} ${word} ${asked}${quoted}, drawn ${drawn}${shown}, counted from the furniture as grid_measure what=seats counts it.`, { asked, drawn: String(drawn), unit: seated.what, parts: rooms.map((r) => ({ kind: 'room', id: r.id })) })
+}
+
+/** The person's own target for the whole plan's seats, desks or covers. */
+function seatingFigureLine(c: Context, wish: FigureWish & { readonly figure: SeatingWhat }): BriefLine {
+  const asked = `at least ${wish.value}`
+  const word = askedWord(wish.source)
+  if (c.empty) return line('open', wish, wish.figure, `${wish.figure} in the plan ${word} ${asked}: nothing drawn yet.`, { asked, unit: wish.figure })
+  const counted = c.seating()
+  const drawn = counted.plan[wish.figure]
+  const floors = counted.floors.size > 1 ? ` (${[...counted.floors.entries()].map(([floor, t]) => `${q(floor)} ${t[wish.figure]}`).join(', ')})` : ''
+  return line(drawn >= wish.value ? 'met' : 'missed', wish, wish.figure, `${wish.figure} in the plan ${word} ${asked}, drawn ${drawn}${floors}, counted from the furniture as grid_measure what=seats counts it.`, { asked, drawn: String(drawn), unit: wish.figure })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -365,6 +449,7 @@ function wayBetween(c: Context, a: FloorPlan['rooms'], b: FloorPlan['rooms']): W
 // The person's own figures
 
 function figureLines(c: Context, wish: FigureWish): BriefLine[] {
+  if (isSeatingFigure(wish.figure)) return [seatingFigureLine(c, wish as FigureWish & { readonly figure: SeatingWhat })]
   const figure = FIGURES[wish.figure]
   const limit = `${figure.most ? 'at most' : 'at least'} ${asWritten(wish.value)}`
   const asked = `${askedWord(wish.source)} ${limit}`

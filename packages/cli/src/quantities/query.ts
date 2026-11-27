@@ -21,6 +21,7 @@ import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
 import { notCountedRooms, planAreas, roomKey, type RoomNotCounted } from './areas'
 import { roomHeight } from './measure'
+import { planSeating, seatingOf, type Seating } from './seats'
 import type { Survey } from './survey'
 
 /** The parts that carry facts of the person's own (`grid_set_facts`). */
@@ -92,6 +93,11 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'depth', type: 'number', unit: 'm', kinds: ITEMS, from: 'grid', about: 'From its back to its front.' },
   { name: 'turn', type: 'number', unit: null, kinds: ITEMS, from: 'grid', about: 'Degrees counter-clockwise; 0 puts its back to -y.' },
   { name: 'clearance', type: 'number', unit: 'm', kinds: ITEMS, from: 'grid', about: 'The clear floor it keeps in front of it.' },
+  // ARE-67: the seats, desks and covers the furniture gives (`seats.ts`), per item and in totals.
+  { name: 'item zone', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'The id of the zone of its room it stands in, if any. Named so to leave a fact called zone to the person.' },
+  { name: 'seats', type: 'number', unit: null, kinds: [...ITEMS, 'room', 'floor'], from: 'grid', about: 'The seats an item gives (a chair one, a sofa or pew one per 0.6 m of width unless its label says), or a room\'s, zone\'s or floor\'s total of them, as grid_measure what=seats counts them.' },
+  { name: 'desks', type: 'number', unit: null, kinds: [...ITEMS, 'room', 'floor'], from: 'grid', about: 'A desk is one; a room\'s, zone\'s or floor\'s total of them.' },
+  { name: 'covers', type: 'number', unit: null, kinds: [...ITEMS, 'room', 'floor'], from: 'grid', about: 'The seats an item gives when it stands at a table; a room\'s, zone\'s or floor\'s total of them.' },
 ]
 
 /** One part of the plan, as the query tools see it. */
@@ -164,6 +170,8 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
   let beside: Map<string, string[]> | null = null
   let flatsOf: ReturnType<typeof flatOfRoom> | null = null
   let flatTypes: Map<string, string | null> | null = null
+  let seating: Seating | null = null
+  const seatingNow = (): Seating => (seating ??= planSeating(survey))
   const storeys = new Map<string, ReturnType<typeof planForFloor>>()
   const cache = new Map<string, Value>()
 
@@ -215,6 +223,16 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
     if (name === 'id') return part.id
     if (name === 'kind') return part.kind
     if (name === 'floor') return part.floor
+    if (name === 'seats' || name === 'desks' || name === 'covers' || name === 'item zone') {
+      const counted = seatingNow()
+      if (part.kind === 'fixture' || part.kind === 'furniture') {
+        if (name === 'item zone') return counted.itemZones.get(part.id) ?? null
+        return counted.byItem.get(part.id)?.[name] ?? 0
+      }
+      if (name === 'item zone') return null
+      if (part.kind === 'floor') return counted.floors.get(part.id)?.[name] ?? 0
+      return seatingOf(counted, part.id)?.[name] ?? 0
+    }
     if (part.kind === 'floor') {
       const floor = floors.get(part.id)!
       if (name === 'name') return floor.name

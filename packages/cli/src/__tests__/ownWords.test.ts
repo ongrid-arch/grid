@@ -33,10 +33,12 @@ const WHY = {
 const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/apps/cadApps.ts': [1, 'developer'],
   'packages/cli/src/brief/answer.ts': [2, 'notYet'],
-  'packages/cli/src/brief/brief.ts': [58, 'agent'],
+  // ARE-67: six more, the seats, desks and covers targets' refusals and figures.
+  'packages/cli/src/brief/brief.ts': [64, 'agent'],
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
-  'packages/cli/src/brief/lines.ts': [30, 'notYet'],
+  // ARE-67: four more, the seats, desks and covers lines.
+  'packages/cli/src/brief/lines.ts': [34, 'notYet'],
   // CMD-48: two more, the help and the refusal of --fail-on.
   'packages/cli/src/command/check.ts': [12, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
@@ -125,6 +127,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/stairs.ts': [15, 'notYet'],
   // LVL-23: a building's receipts and refusals.
   'packages/cli/src/edit/buildings.ts': [9, 'notYet'],
+  'packages/cli/src/edit/buildingEdits.ts': [31, 'notYet'],
+  'packages/cli/src/edit/buildingParts.ts': [2, 'notYet'],
   // CNT-48: a typical room's usual fixtures set out in a room, its receipts and refusals.
   'packages/cli/src/edit/fixtureSets.ts': [10, 'notYet'],
   // CNT-45: the items' receipts and refusals. CNT-47: two more, a row's receipt and its taken id.
@@ -151,7 +155,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
-  'packages/cli/src/mcp/briefTool.ts': [50, 'tools'],
+  // ARE-67: eight more, the seats, desks and covers keys' help.
+  'packages/cli/src/mcp/briefTool.ts': [58, 'tools'],
   // CMD-44: five more, the descriptions of since, to, show, who and note and the change log.
   'packages/cli/src/mcp/diffTools.ts': [25, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
@@ -180,7 +185,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-60: one more, grid_areas' area under air.
   // WRT-74: one more, grid_fields' line on how facts are set.
   // CNT-45: five more, the kinds fixture and furniture, the items grid_view draws and of=fixtures.
-  'packages/cli/src/mcp/readTools.ts': [388, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [391, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -203,7 +208,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-45: seven more, the items' topic.
   // CNT-46: eight more, the parking topic. CNT-47: three more, the rows topic and the item kinds.
   // SHT-22: eight more, the topic of writing on the drawing.
-  'packages/cli/src/mcp/roomsGrammar.ts': [94, 'tools'],
+  'packages/cli/src/mcp/roomsGrammar.ts': [99, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
@@ -211,7 +216,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // LVL-23: grid_set_building, its description, arguments and answer.
-  'packages/cli/src/mcp/buildingTools.ts': [14, 'tools'],
+  'packages/cli/src/mcp/buildingTools.ts': [54, 'tools'],
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
   'packages/cli/src/mcp/itemTools.ts': [53, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
@@ -256,8 +261,11 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/measure.ts': [3, 'notYet'],
   // ARE-61: four more, the room type, tenure, flat and flat type fields' descriptions for the agent.
   // CNT-45: seven more, the items' kinds and fields.
-  'packages/cli/src/quantities/query.ts': [37, 'tools'],
+  // ARE-67: four more, the zone, seats, desks and covers fields.
+  'packages/cli/src/quantities/query.ts': [41, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
+  // ARE-67: the seat count's rule and its answer.
+  'packages/cli/src/quantities/seats.ts': [4, 'notYet'],
   // CNT-27: one more, the CSV's column for the rows in no total.
   'packages/cli/src/quantities/schedule.ts': [16, 'notYet'],
   // CNT-41: two more, what the coverage counts.
@@ -314,7 +322,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
   // VEW-71: one more, the projected roof edge in elevation.
-  'packages/floorplan/src/geometry/tolerances.ts': [343, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [348, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   // CNT-43: +2, a kind placed with no size and a typical room given figures.
@@ -520,8 +528,12 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // (edit/annotate.ts 7) (odd/tasks/SHT-22.md).
     // and CNT-48 10: a typical room's usual fixtures set out in a room (edit/fixtureSets.ts).
     // and LVL-23 23: a building's changes (edit/buildings.ts 9) and its tool (mcp/buildingTools.ts 14).
+    // and ARE-67 26: the seats, desks and covers counted and held to the brief (brief/brief.ts 6,
+    // brief/lines.ts 4, mcp/briefTool.ts 8, quantities/query.ts 4, quantities/seats.ts 4) (odd/tasks/ARE-67.md).
+    // and CMD-47 76: one building's changes (edit/buildingEdits.ts 31, edit/buildingParts.ts 2), their
+    // tools (mcp/buildingTools.ts 40) and describe's building (mcp/readTools.ts 3) (odd/tasks/CMD-47.md).
     // and CMD-48 36: the reading commands (command/read.ts 34) and grid check's --fail-on (command/check.ts 2).
-    expect(left).toBeLessThanOrEqual(2460)
+    expect(left).toBeLessThanOrEqual(2562)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
