@@ -486,6 +486,9 @@ and no roof, and a garden wall standing apart carries neither.
 | Field | What it states |
 |---|---|
 | `site.ground` | The level of the ground outside, in metres from the ground floor's floor level, the datum of a floor's `elevation`: `-0.15` for a floor 15 cm above the ground. One level for the whole site. It sits in the plan's one `site`, beside where the building is ([north, front and where the building is](#north-front-and-where-the-building-is)), and needs no `origin`; it is not `site.elevation`, which is metres above sea level. Rooms text writes it `ground -0.15` (or `ground 0.15 below`), and `grid_set_site` takes it as `ground` (ARE-62) |
+| `site.groundSides` | CNT-49: the ground at the building's sides on a slope, a level for any of `north`, `east`, `south` and `west` (the drawing's sides, north up it, as the facades name them), in the same datum. Rooms text writes `ground north 0 south -4.6`; `grid_set_site` takes `ground_north` … `ground_west` |
+| `site.fall` | CNT-49: a fall of the ground, `slope` in percent toward one of the eight compass points of the drawing (`toward`), through `site.ground`, else 0, at the middle of the building. Rooms text writes `ground slope 30% toward south` (or `slope 30% toward south`); `grid_set_site` takes `slope` and `toward` |
+| `site.groundEdges` | CNT-49: the ground along edges of the plot, each `edge` (its number, as `streets` names them) with its level at its first corner (`start`) and at its second (`end`, else the same): a street that falls along the plot. Rooms text writes `ground edge 1 0 to -3`; `grid_set_site` takes `ground_edges` |
 | floor `parapet` | Metres the floor's outside walls rise above its roof. Unstated, no parapet |
 | room `void` | The room is open to the floor below: no floor of its own |
 | room `ceiling` | The room has a ceiling, at its `height` (else its storey's). `lowered` lists the zones lower than the rest, each with `points` (its outline, three or more) and `height` (from the room's floor), and an optional `name`. A zone is clipped to its room |
@@ -504,7 +507,20 @@ and a floor stands above the ground by its height over that level: a door to the
 2 m up is named and is no way out. A door, window or doorless opening in an outside wall whose
 foot lies under the ground is named, wholly or in part (`opening/below-ground`). Unstated, the
 ground floor is the floor at level 0, as before, and nothing is named: every report says the
-check needs the ground level. A ground level for each side of a house on a slope comes later.
+check needs the ground level.
+
+On a slope (CNT-49), Grid takes the one even slope that fits every level the site states: the sides
+at the two ends of that face of the building, each plot edge at its corners, `ground` at the middle
+of the building; with a fall, its slope, fitted in height only. Levels on one even slope are met
+exactly; when they are not, `grid_set_site` says how far the slope taken is off the furthest one.
+Then the ground is read where it is wanted. A floor's ground runs from the lowest to the highest
+ground under its walls, and a floor whose level lies within that range is on the ground: a walk-out
+floor is a ground floor, in the footprint and the storeys, and its way out is checked. A door or
+window is below the ground by the ground at its own place on its wall, and a door out of a floor on
+the ground that stands more than 2 m over the ground at its own place is named and is no way out. A
+building's height is measured from the lowest ground round it. The facades and sections draw the
+ground as a sloped line, the earth under it with it, and the 3D view tilts the ground sheet. A
+building on its own `pad` (LVL-23) stands on that level, whatever the slope.
 
 ## Sloped roofs and ceilings
 

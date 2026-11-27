@@ -428,7 +428,7 @@ function readTop(work: Record<string, unknown>, faults: ReadFault<Value>[], mark
       const rest = { ...(site as Record<string, unknown>) }
       const [, key, at] = issue.path
       const list = typeof key === 'string' ? rest[key] : undefined
-      if ((key === 'streets' || key === 'setbacks' || key === 'things') && typeof at === 'number' && Array.isArray(list)) rest[key] = list.filter((_, i) => i !== at)
+      if ((key === 'streets' || key === 'setbacks' || key === 'things' || key === 'groundEdges') && typeof at === 'number' && Array.isArray(list)) rest[key] = list.filter((_, i) => i !== at)
       else delete rest[String(key)]
       work['site'] = rest
       faults.push({ kind: 'value-left-out', ...said, used: null })

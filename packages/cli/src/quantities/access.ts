@@ -29,6 +29,7 @@ import {
   floorElevations,
   floorJoins,
   groundLevel,
+  openingPoint,
   limit,
   passageWidth,
   planForFloor,
@@ -406,7 +407,10 @@ function wayTo(c: WayContext, route: AccessRoute): AccessWay {
     leg.vias.forEach((v, vi) => {
       const facts = survey.facts.openings.get(v.via)
       if (leg.fromOutside && vi === 0) {
-        const above = (c.ground.above.get(leg.floor) ?? 0) + offsetOf(v.into)
+        // CNT-49: on a slope, the ground at the door.
+        const door = survey.plan.openings.find((o) => o.id === v.via)
+        const at = c.ground.surface === null || door === undefined ? null : openingPoint(survey.plan, door)
+        const above = (at === null ? (c.ground.above.get(leg.floor) ?? 0) : c.ground.aboveAt(leg.floor, at)) + offsetOf(v.into)
         if (!c.ground.stated) cannotTell.push(`whether there is a step between the ground outside and the floor inside ${facts?.type ?? 'door'} ${q(v.via)}: the plan states no ground level for the site (a 'ground <m>' line in rooms text, or grid_set_site ground, states it)`)
         else if (Math.abs(above) > same) steps.push({ kind: 'ground', at: v.via, height: Math.abs(above), count: 1, up: above > 0 })
       }
