@@ -1,5 +1,5 @@
 /**
- * CNT-9: facts of the person's own on walls, openings, rooms and floors: a fire rating, a
+ * CNT-9: facts of the person's own on walls, openings, rooms and floors (CNT-52: and items): a fire rating, a
  * department, a head count. Each part may carry them in its own `properties` object, never as
  * loose fields, so a misspelt field of the format is still named (MSG-4). A room may also state
  * its room number, in a field of its own (`number`).
@@ -23,7 +23,7 @@ export type FactList = (typeof FACT_LISTS)[number]
  * The fields CNT-9 adds to the parts of a plan, as `<list>.<field>`. The sheet says what it does
  * with each (`packages/cli/src/sheet/coverage.ts`), and its test holds this list to the schema.
  */
-export const FACT_FIELDS = ['walls.properties', 'openings.properties', 'rooms.properties', 'rooms.number', 'floors.properties'] as const
+export const FACT_FIELDS = ['walls.properties', 'openings.properties', 'rooms.properties', 'rooms.number', 'floors.properties', 'items.properties'] as const
 export type FactField = (typeof FACT_FIELDS)[number]
 
 /**

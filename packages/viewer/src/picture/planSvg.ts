@@ -21,6 +21,7 @@ import {
   limit,
   marksExtent,
   floorAbove,
+  isPointKind,
   openingSymbol,
   planForFloor,
   planWallMaterials,
@@ -40,7 +41,7 @@ import { LOOKS, detailShown, fileLook, lengthText, toLook } from './look'
 import { drawnHanding, planScene, roomKeyOf } from './scene'
 import type { FaultLine, PictureKey } from './faults'
 import { faultKey, faultsOnFloor } from './faults'
-import { keyEntries, northArrowNode, numberedNotes, roomKeyBand, stackBands, writingBand } from './writing'
+import { keyEntries, northArrowNode, numberedNotes, roomKeyBand, stackBands, tagKeyEntries, writingBand } from './writing'
 import { clearElevationMarks, drawingMarkNodes } from './drawingMarks'
 import { framedByLayout, layoutMarks, markObstacles } from './markLayout'
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
@@ -522,12 +523,17 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
       : materials.filter((material) => drawing.walls.some((wall) => !wall.virtual && wall.phase !== 'demolished' && wall.material === material)).map((material) => ({ material, angles: detail.hatches[materials.indexOf(material) % detail.hatches.length]!, ink: look.ink }))
   // CNT-10: a drawing of work keys its phases unless the key is turned off. SHT-10: so does one
   // whose colours or hatches carry a meaning of the plan's own: its rooms tinted, its walls hatched.
-  const keyed = show.key === true || (show.key !== false && (painted.length > 0 || drawing.notes.some((note) => note.kind === 'key') || drawing.walls.some((wall) => wall.phase !== undefined) || shownUses.length > 0 || shownFinishes.length > 0 || shownMaterials.length > 0))
-  const marked = on('warnings') && faults.length > 0
-  const entries = keyed ? keyEntries(drawing, look.colors, { swings: on('swings'), sketch: on('sketch'), uses: shownUses, marks: marked, above: (above?.lines.length ?? 0) > 0, painted, phases: look.phases, walls: look.walls.fill, useFills: look.tints.uses, finishes: shownFinishes, materials: shownMaterials }, words) : []
   // VEW-17: a note's words are in the band, numbered; its mark on the plan carries the number.
-  const noteWords = numberedNotes(on('notes') ? drawing.notes : drawing.notes.filter((note) => note.kind !== 'note')).map((note) => note.text ?? '')
-  const writing = writingBand(title, entries, width, look.colors, words, noteWords)
+  const numbered = numberedNotes(on('notes') ? drawing.notes : drawing.notes.filter((note) => note.kind !== 'note'))
+  // CNT-52: so does a drawing with points or tags with words: a point's symbol, a tag's number in the key.
+  const keyedItems = drawing.items.some((item) => isPointKind(item.kind)) || numbered.some((note) => note.kind === 'tag')
+  const keyed = show.key === true || (show.key !== false && (keyedItems || painted.length > 0 || drawing.notes.some((note) => note.kind === 'key') || drawing.walls.some((wall) => wall.phase !== undefined) || shownUses.length > 0 || shownFinishes.length > 0 || shownMaterials.length > 0))
+  const marked = on('warnings') && faults.length > 0
+  const tags = keyed ? tagKeyEntries(numbered, words) : []
+  const entries = keyed ? keyEntries(drawing, look.colors, { swings: on('swings'), sketch: on('sketch'), uses: shownUses, marks: marked, above: (above?.lines.length ?? 0) > 0, painted, phases: look.phases, walls: look.walls.fill, useFills: look.tints.uses, finishes: shownFinishes, materials: shownMaterials, tags }, words) : []
+  // CNT-52: a tag the key lists is not listed again under the notes; the others keep their numbers.
+  const bandNotes = numbered.flatMap((note, index) => (keyed && note.kind === 'tag' ? [] : [{ text: note.text ?? '', number: index + 1 }]))
+  const writing = writingBand(title, entries, width, look.colors, words, bandNotes.map((note) => note.text), bandNotes.map((note) => note.number))
   const listed = options.faults === undefined || !on('warnings') ? null : faultKey(faults, all.length - faults.length, width, look.colors, words)
   // VEW-13: the rooms written as their numbers, and their names, unless the key is turned off.
   const rooms = show.key === false ? null : roomKeyBand(roomKeyOf(scene), width, look.colors, words)

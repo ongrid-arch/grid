@@ -11,7 +11,8 @@
  *
  * Pure: a survey in, a patch out.
  */
-import { floorOf, indexPlan, itemKindWord, itemRoom, roomShapes, validatePlan, type FloorPlan, type Item } from '@ongrid/floorplan/geometry'
+import { floorOf, indexPlan, isPointKind, itemKindWord, itemRoom, roomShapes, validatePlan, type FloorPlan, type Item } from '@ongrid/floorplan/geometry'
+import type { FactValue } from '@ongrid/floorplan/types/floorplan'
 import type { Library } from '@ongrid/floorplan/library'
 import { itemsFollowWalls, ItemRefused, layRow, placeItem, rowItemId, type ClearSides, type ItemMade, type ItemSide, type ItemWords, type RowWords } from '@ongrid/floorplan/rooms'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
@@ -49,7 +50,12 @@ export interface AddItemRequest extends ItemPlace {
   readonly clearSides?: ClearSides
   /** CNT-47: the item laid out in rows, as a row line lays it out. */
   readonly row?: RowWords
+  /** CNT-52: facts of the person's own it carries (`properties`): an extinguisher's type, a sensor's address. */
+  readonly facts?: Readonly<Record<string, FactValue>>
 }
+
+/** CNT-52: an item's record with the facts the call gives, when it gives any. */
+const withFacts = <T extends object>(record: T, request: AddItemRequest): T => (request.facts === undefined || Object.keys(request.facts).length === 0 ? record : { ...record, properties: { ...request.facts } })
 
 /** What a call says about an item to move: a new place, or a distance to move it by. */
 export interface MoveItemRequest extends ItemPlace {
@@ -95,8 +101,10 @@ function whereSaid(plan: FloorPlan, item: Item): string {
 function fitLines(after: FloorPlan, ids: ReadonlySet<string>): { lines: string[]; fits: boolean; worthALook: { code: string; id: string; message: string }[] } {
   const { issues } = validatePlan(after)
   const fit = issues.filter((issue) => FIT_CODES.has(issue.code) && (ids.has(issue.id) || ((issue as { readonly hits?: readonly string[] }).hits ?? []).some((hit) => ids.has(hit))))
+  // CNT-52: a point stands where it is put, on a wall or outside: no place check is made of it.
+  const points = (after.items ?? []).filter((item) => ids.has(item.id)).every((item) => isPointKind(item.kind))
   return {
-    lines: fit.length === 0 ? ['It fits: it runs into no wall or other item, and stands in no clear floor one keeps.'] : fit.map((issue) => `Worth a look: ${issue.message}`),
+    lines: fit.length === 0 ? [points ? 'It is a point: it stands where it is put, takes no floor and is in no item\'s way.' : 'It fits: it runs into no wall or other item, and stands in no clear floor one keeps.'] : fit.map((issue) => `Worth a look: ${issue.message}`),
     fits: fit.length === 0,
     worthALook: fit.map((issue) => ({ code: issue.code, id: issue.id, message: issue.message })),
   }
@@ -142,7 +150,7 @@ export function addItem(survey: Survey, library: Library, request: AddItemReques
     ...(request.clearSides === undefined ? {} : { clearSides: request.clearSides }),
     ...placeWords(request),
   }, library)
-  const patch: Patch = { ...emptyPatch([]), addItems: [{ ...made.record }], ...(made.copy.length === 0 ? {} : { addLibrary: made.copy.map((entry) => ({ ...entry })) }) }
+  const patch: Patch = { ...emptyPatch([]), addItems: [withFacts({ ...made.record }, request)], ...(made.copy.length === 0 ? {} : { addLibrary: made.copy.map((entry) => ({ ...entry })) }) }
   const after = readingAfter(plan, patch)
   const item = (after.items ?? []).find((i) => i.id === id) ?? made.item
   const fit = fitLines(after, new Set([id]))
@@ -190,7 +198,7 @@ function addRow(survey: Survey, library: Library, request: AddItemRequest, row: 
   }
   const first = made[0]!
   const copy = first.copy
-  const patch: Patch = { ...emptyPatch([]), addItems: made.map((one) => ({ ...one.record })), ...(copy.length === 0 ? {} : { addLibrary: copy.map((entry) => ({ ...entry })) }) }
+  const patch: Patch = { ...emptyPatch([]), addItems: made.map((one) => withFacts({ ...one.record }, request)), ...(copy.length === 0 ? {} : { addLibrary: copy.map((entry) => ({ ...entry })) }) }
   const after = readingAfter(plan, patch)
   const ids = made.map((one) => one.item.id)
   const item = (after.items ?? []).find((i) => i.id === ids[0]) ?? first.item

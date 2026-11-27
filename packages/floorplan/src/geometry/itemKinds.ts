@@ -24,9 +24,14 @@ import type { FloorPlan, Room } from './plan'
 import type { Vec2 } from './vec2'
 import type { Severity } from './validate'
 import { EQUIPMENT_KIND_DEFINITIONS } from './equipmentKinds'
+import { POINT_KIND_DEFINITIONS } from './pointKinds'
 
-/** A fixture takes the floor it stands on from its room's free floor; furniture can be moved and takes none. */
-export type ItemGroup = 'fixture' | 'furniture'
+/**
+ * A fixture takes the floor it stands on from its room's free floor; furniture can be moved and
+ * takes none. CNT-52: a point stands at a point of the plan (an extinguisher, a camera, an exit),
+ * takes no floor and is in no item's way, and the checks on where an item stands skip it.
+ */
+export type ItemGroup = 'fixture' | 'furniture' | 'point'
 
 /** How a kind is drawn: closed rings filled with the paper, in order, and open lines over them. */
 export interface ItemSymbol {
@@ -325,6 +330,8 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   },
   // CNT-47: the equipment, after the furniture (`equipmentKinds.ts`).
   ...EQUIPMENT_KIND_DEFINITIONS,
+  // CNT-52: the points, last (`pointKinds.ts`).
+  ...POINT_KIND_DEFINITIONS,
 ]
 
 // ── The registry ─────────────────────────────────────────────────────────────────────────────
@@ -372,6 +379,11 @@ export function itemKinds(group?: ItemGroup): string[] {
 /** CNT-42: whether an item of this kind lies flat on the floor (a rug): things stand on it and it is in no one's way. */
 export function liesUnderfoot(kind: string): boolean {
   return registry.get(kind)?.underfoot === true
+}
+
+/** CNT-52: whether an item of this kind stands at a point (an extinguisher, an exit): it takes no floor and is in no one's way. */
+export function isPointKind(kind: string): boolean {
+  return registry.get(kind)?.group === 'point'
 }
 
 /** Whether an item of this kind takes the floor it stands on from its room's free floor: fixtures do. */

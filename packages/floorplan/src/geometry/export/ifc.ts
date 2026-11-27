@@ -2255,19 +2255,20 @@ function writeItems(building: Context, storeys: readonly Storey[]): void {
         const itemPlacement = placement(c.w, storey.placement, [item.at[0], item.at[1], room === null ? 0 : roomFloorOffset(room)], along)
         const body = bodyRepresentation(c, extrusion(c, rectangleProfile(c, item.size[0], item.size[1], 0), item.height))
         const kind = itemKindWord(item.kind)
-        written.push(
-          c.w.add(
-            'IFCFURNISHINGELEMENT',
-            str(c.guid('item', item.id)),
-            ref(c.owner),
-            str(item.label ?? kind),
-            NULL,
-            str(item.kind),
-            ref(itemPlacement),
-            ref(productShape(c, [body])),
-            str(item.id)
-          )
+        const element = c.w.add(
+          'IFCFURNISHINGELEMENT',
+          str(c.guid('item', item.id)),
+          ref(c.owner),
+          str(item.label ?? kind),
+          NULL,
+          str(item.kind),
+          ref(itemPlacement),
+          ref(productShape(c, [body])),
+          str(item.id)
         )
+        written.push(element)
+        // CNT-52: its facts in Grid's own set, as a room's are.
+        noteFacts(c, element, 'item', item)
       } catch {
         // A fixture that cannot be built is left out.
       }
