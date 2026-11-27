@@ -549,6 +549,11 @@ refused by the check with its own code, `room/derived-edited`. Grid's own edits 
 Change the rooms and write them again, or take `written` out to keep the plan as a hand-written
 one.
 
+The write answer states the drawing origin on every floor and locates the lower-left
+corner of the wall centre-line bounds relative to it. A `site origin x,y` line records
+a reference point for exports at survey coordinates. Use the rooms' placement and
+outline coordinates to place the drawing relative to `(0, 0)`.
+
 ## The whole grammar
 
 Every line rooms text takes, by topic, each with one example Grid writes with no problem. The tool server serves this section as `grid://guide/rooms` and carries it in the `rooms` argument of `grid_write_rooms`; it is written once, and a test holds the two equal.

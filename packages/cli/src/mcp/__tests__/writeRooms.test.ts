@@ -58,6 +58,17 @@ describe('writing a plan rooms first through the tool server', () => {
     expect(plan.rooms.map((r) => r.id)).toEqual(['living', 'kitchen', 'bed1', 'hall', 'bath', 'bed2'])
   })
 
+  it('reports the drawing origin and the site reference kept in the plan', async () => {
+    const plain = await b.call('grid_write_rooms', { plan: 'origin.json', rooms: FLAT })
+    expect(plain.isError, plain.text).toBe(false)
+    expect(plain.data?.['origin']).toMatchObject({ drawing: [0, 0], wallBoundsCorner: [expect.any(Number), expect.any(Number)], site: null })
+    expect(plain.text).toContain('The drawing origin is (0, 0) m on every floor')
+    const anchored = await b.call('grid_write_rooms', { plan: 'site-origin.json', rooms: `${FLAT}\nsite origin 21,-17\n` })
+    expect(anchored.isError, anchored.text).toBe(false)
+    expect(anchored.data?.['origin']).toMatchObject({ drawing: [0, 0], site: [21, -17] })
+    expect(anchored.text).toContain('The site reference point is at (21, -17) m')
+  })
+
   it('keeps the boundaries derived through a mirror, which turns every one round', async () => {
     await b.call('grid_write_rooms', { plan: 'mirror.json', rooms: FLAT })
     const before = JSON.parse(readFileSync(join(b.folder, 'mirror.json'), 'utf8')) as { rooms: { boundary: string[] }[] }
