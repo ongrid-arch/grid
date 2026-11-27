@@ -276,7 +276,24 @@ and the sheet all read the floors' heights from this one rule.
 
 A floor's floor-to-floor is the distance from its level to the level of the floor over it in its
 building, and the top floor's to the top of its roof slab, so a building's height is its floors'
-floor-to-floor summed (LVL-24). The plan holds no field for it: it is the difference of two
+floor-to-floor summed (LVL-24). The floor over it is the nearest floor up that stands over the same
+footprint, the two outlines sharing more than a quarter of the smaller one (`sameFootprintShare`,
+ARE-76): in a split-level house the street floor's floor-to-floor runs to the bedroom floor over
+it, never to the garden floor half a level up beside it. A floor whose outline cannot be worked
+out stands under the next level, as before.
+
+Storeys are counted per building (ARE-76). A level whose floors stand inside the clear height of a
+lower storey of their building, such as a half level or a mezzanine, is a split level of that
+storey and no storey of its own, by where the floors stand whatever numbers their levels. A plan's
+storey count is the most of any one building's, so a row of six two-storey split-level houses has
+two storeys, each house two with two split levels. A building's height is measured from its own
+ground: its `pad`; on a sloping site the lowest ground under its own walls; on one stated
+`site.ground`, the site's ground lies under the lowest of the buildings' ground floors and a
+building whose ground floor stands higher stands on ground as much higher, so each house up a
+street is measured from its own pavement (`from: "under"` in `grid_areas`). A building that stands
+otherwise states its `pad`.
+
+The plan holds no field for a floor-to-floor: it is the difference of two
 floors' `elevation`, which is how `grid_set_levels` writes it. Given a floor-to-floor for every
 floor, one building's or the floors listed, it keeps the lowest floor at or above level 0 where it
 stands, stands each floor over it its floor-to-floor over the one under it (and each basement its

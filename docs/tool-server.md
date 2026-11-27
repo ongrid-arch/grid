@@ -1110,7 +1110,7 @@ brings no limit, proposes no layout and optimises nothing. FD-1's massing, two f
 outline (3, 5), (15.762, 5), (18.482, 22), (3, 22) on the lab's 500 m² plot:
 
 ```text
-Storeys: 2 storeys at or above the ground floor, none below it; counted by level, from the floors that hold an outline or walls that close one.
+Storeys: 2 storeys at or above the ground floor, none below it; counted by level in each building, the most of any one, a half level as a split level of the storey it stands in, from the floors that hold an outline or walls that close one.
   "Ground floor": gross external 240.07 m², massing: its outline, no walls yet.
   "First floor": gross external 240.07 m², massing: its outline, no walls yet.
 Site limits, the person's own figures: theirs, not from any code or standard.

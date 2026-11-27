@@ -28,7 +28,9 @@ function standing(plan: FloorPlan | null, id: string): string[] {
   const mine = new Set((plan.buildings ?? []).find((b) => b.id === id)?.floors ?? [])
   const floor = ground.groundFloors.find((f) => mine.has(f.id))
   if (own === undefined || height === undefined) return []
-  const from = own.from === 'pad' ? 'its pad' : own.from === 'site' ? "the site's ground" : 'its ground floor'
+  // ARE-76: the ground its height is measured from, which may be the ground under it.
+  const measured = height.height?.from ?? own.from
+  const from = measured === 'pad' ? 'its pad' : measured === 'site' ? "the site's ground" : measured === 'under' ? 'the ground under it' : 'its ground floor'
   const tall = height.height === null ? '' : `, ${Math.round(height.height.height * 100) / 100 + 0} m high from ${from}`
   return [`Its ground floor: ${floor?.id ?? 'none on the ground'}; ${height.storeys.above + height.storeys.below} storey${height.storeys.above + height.storeys.below === 1 ? '' : 's'}${tall}.`]
 }

@@ -268,7 +268,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-58: the sun's arguments, their help and refusals.
   'packages/cli/src/mcp/sunArgs.ts': [12, 'tools'],
   // LVL-23: grid_set_building, its description, arguments and answer.
-  'packages/cli/src/mcp/buildingTools.ts': [54, 'tools'],
+  'packages/cli/src/mcp/buildingTools.ts': [55, 'tools'],
   // LVL-24: grid_set_levels, its description and arguments.
   'packages/cli/src/mcp/levelsTool.ts': [10, 'tools'],
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
@@ -419,7 +419,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-83: two more, what gridArcStep decides.
   // CNT-58: seventeen more, what the sun's figures decide.
   // VEW-82: four more, what wallPieceShortest, doorOpenAngle and cameraNear decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [417, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [421, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -652,7 +652,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // (mcp/toolGroups.ts 7) and the help of --tools (command/main.ts 1) (odd/tasks/CMD-52.md).
     // and VEW-82 11: grid export's and grid_export's doors and walls (command/export.ts 4,
     // mcp/writeTools.ts 3) and what their figures decide (geometry/tolerances.ts 4) (odd/tasks/VEW-82.md).
-    expect(left).toBeLessThanOrEqual(2706)
+    // and ARE-76 5: the ground a building's height is measured from (mcp/buildingTools.ts 1) and
+    // what the same-footprint share decides (geometry/tolerances.ts 4) (odd/tasks/ARE-76.md).
+    expect(left).toBeLessThanOrEqual(2711)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
