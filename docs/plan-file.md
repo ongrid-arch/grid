@@ -509,6 +509,11 @@ foot lies under the ground is named, wholly or in part (`opening/below-ground`).
 ground floor is the floor at level 0, as before, and nothing is named: every report says the
 check needs the ground level.
 
+The escape check excludes every window or door named by `opening/below-ground`. Grid accounts
+for a light well whose floor reaches the opening's foot and for an opening at the foot of a ramp
+before giving that note. If the escape check finds no other candidate, `room/no-escape-opening`
+names the excluded openings so their below-ground notes can be found.
+
 On a slope (CNT-49), Grid takes the one even slope that fits every level the site states: the sides
 at the two ends of that face of the building, each plot edge at its corners, `ground` at the middle
 of the building; with a fall, its slope, fitted in height only. Levels on one even slope are met

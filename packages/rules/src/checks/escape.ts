@@ -88,10 +88,7 @@ export function escapeCheck(
    * at grade where one is carried. Unstated, the floor at level 0.
    */
   atGround: boolean = level === 0,
-  /**
-   * ARE-19: the openings the plan's below-ground check names (`openingsBelowGround`). One of them
-   * is no way out, unless a drawn outdoor space is in front of it.
-   */
+  /** Openings reported as below ground by the drawing check. */
   belowGround: ReadonlySet<string> = new Set()
 ): { findings: RuleFinding[]; scope: FloorScope; wholeRooms: WholeRoom[] } {
   const index = indexPlan(storey)
@@ -159,13 +156,9 @@ export function escapeCheck(
           : right !== null && left === null && facesOutside(wall, along, 'left')
             ? [right]
             : []
-    // ARE-19: below the ground with no outdoor space in front of it, it is no way out; the room
-    // it serves says so.
     for (const side of new Set(rooms)) {
       if (side === null) continue
-      const beyond = side === left ? right : left
-      const dropped = belowGround.has(opening.id) && !(beyond !== null && outdoor.has(beyond))
-      if (dropped) {
+      if (belowGround.has(opening.id)) {
         leftOutBelow.set(side, [...(leftOutBelow.get(side) ?? []), opening.id])
         continue
       }
