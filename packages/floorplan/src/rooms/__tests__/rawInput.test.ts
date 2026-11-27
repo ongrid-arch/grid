@@ -12,8 +12,9 @@ const HALL = 'walls outside 0.3 inside 0.1 height 3\nroom hall "Hall" living 5 x
 const wall = (extra: string): string => `raw wall {"id": "fence", "start": [10, 0], "end": [14, 0], "thickness": 0.1, "height": 1.2, "kind": "exterior"${extra}}`
 
 describe('a raw part with a field Grid does not have is refused by name (WRT-48)', () => {
-  it('names a curve written as bulge, spline or ellipse, and says how a curve is written', () => {
-    for (const key of ['bulge', 'spline', 'ellipse']) {
+  // WRT-82: a bulge is read as the arc's (`arcForms.test.ts`).
+  it('names a curve written as spline or ellipse, and says how a curve is written', () => {
+    for (const key of ['spline', 'ellipse']) {
       const result = compileRoomsText(`${HALL}${wall(`, "${key}": 0.5`)}\n`)
       expect(result.plan).toBeNull()
       expect(result.problems).toHaveLength(1)

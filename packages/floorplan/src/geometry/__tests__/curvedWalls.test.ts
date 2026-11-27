@@ -207,6 +207,27 @@ describe('a curve that cannot be built', () => {
     expect(issues.find((i) => i.id === 'bay')?.code).toBe('wall/arc-ends-apart')
   })
 
+  // WRT-82: an end on the circle the sweep misses is answered with the sweep that reaches it.
+  it('names the sweep that reaches an end on the circle, given the wrong sign', () => {
+    const a = (102.68 * Math.PI) / 180
+    const end: Tuple = [10 * Math.cos(a), 10 * Math.sin(a)]
+    const fault = curveFault(wall('w', [10, 0], end, { arc: { centre: [0, 0], sweep: -102.68 } }))!
+    expect(fault.code).toBe('wall/arc-ends-apart')
+    expect(fault.said.key).toBe('issue.wall/arc-ends-apart.reach')
+    expect(english(fault.said)).toMatch(/The sweep that reaches its end is \+102\.68 \(degrees/)
+    const fixed = wall('w', [10, 0], end, { arc: { centre: [0, 0], sweep: 102.68 } })
+    expect(curveFault(fixed)).toBeNull()
+  })
+
+  it('names the sweep in degrees for one given in radians, and the clockwise one when meant', () => {
+    const a = (-75 * Math.PI) / 180
+    const end: Tuple = [4 * Math.cos(a), 4 * Math.sin(a)]
+    const fault = curveFault(wall('w', [4, 0], end, { arc: { centre: [0, 0], sweep: -1.309 } }))!
+    expect(english(fault.said)).toMatch(/reaches its end is -75 \(degrees/)
+    const reach = Number(/is ([+-][\d.]+) \(/.exec(english(fault.said))![1])
+    expect(curveFault(wall('w', [4, 0], end, { arc: { centre: [0, 0], sweep: reach } }))).toBeNull()
+  })
+
   it('names a radius no more than half the thickness', () => {
     const w = wall('tight', [0.05, 0], [0.05, 0], { arc: { centre: [0, 0], sweep: 360 } })
     expect(curveFault(w)?.code).toBe('wall/arc-too-tight')
