@@ -16,6 +16,8 @@
  *   ground slope <n>[%] toward <compass point>   a fall (`site.fall`), in percent, through the
  *                                 `ground <m>` level (else 0) at the middle of the building;
  *                                 `slope <n>% toward <point>` and `ground fall ...` are the same
+ *   plinth <m>                    WRT-79: the ground floor that far above the ground outside,
+ *                                 `ground -<m>` (a plinth, a raised floor)
  *   ground edge <n> <m> [[to] <m>]  the ground along edge n of the plot (`site.groundEdges`): at
  *                                 its first corner, and at its second when it falls along it
  *
@@ -31,6 +33,17 @@ import { FALL_TOWARD, type FallToward, type Site } from '../types/floorplan'
 
 /** The first word of the line this file reads. */
 export const GROUND_LINE_WORD = 'ground'
+/** WRT-79: `plinth <m>`, the ground floor that far above the ground outside: `ground -<m>`. */
+export const PLINTH_LINE_WORD = 'plinth'
+
+/** WRT-79: the ground's level a `plinth` line writes, from the words after `plinth`. */
+export function plinthOfWords(words: readonly string[], at: number, plain: PlainNumbers = PLAIN_METRES): number {
+  const t = words[0] === 'height' || words[0] === 'of' ? words.slice(1) : words
+  const value = t.length === 1 ? numberOf(t[0]!, at, plain) : NaN
+  if (!(value >= 0)) throw new RoomsStop('rooms/site', english(said('rooms.plinth.usage', { line: String(at) })), at)
+  return value === 0 ? 0 : -value
+}
+
 /** CNT-49: `slope ...` on a line of its own is `ground slope ...`. */
 export const SLOPE_LINE_WORD = 'slope'
 

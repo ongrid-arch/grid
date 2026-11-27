@@ -129,3 +129,26 @@ describe('grid_set (CMD-42)', () => {
     expect(onDisk('shared.json').walls.find((w) => w.id === 'gn')!.height).toBe(3)
   })
 })
+
+describe('grid_set roof (WRT-79)', () => {
+  it('sets a floor\'s roof from the words of a roof line, keeping its roof lights', async () => {
+    await ok({ parts: ['first'], set: { roof: { shape: 'mono-pitch', eaves: 2.7, pitch: 10, highSide: 'north', rooflights: [{ id: 'r1', at: [6, 4], width: 1, length: 1 }] } } })
+    const reply = await b.call('grid_set', { plan: 'set.json', out: 'roofed.json', parts: ['first'], roof: 'mono-pitch pitch 15 eaves 2.6 high south' })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(onDisk('roofed.json').floors!.find((f) => f.id === 'first')!.roof).toEqual({ shape: 'mono-pitch', eaves: 2.6, pitch: 15, highSide: 'south', rooflights: [{ id: 'r1', at: [6, 4], width: 1, length: 1 }] })
+    const off = await b.call('grid_set', { plan: 'roofed.json', out: 'bare.json', parts: ['first'], roof: 'none' })
+    expect(off.isError, off.text).toBe(false)
+    expect(onDisk('bare.json').floors!.find((f) => f.id === 'first')!.roof).toBeUndefined()
+  })
+
+  it('refuses words that give no roof, and a roof given twice', async () => {
+    expect(await refusedRoof({ parts: ['first'], roof: 'gable pitch 45' })).toMatch(/roof: a roof says how high its eaves are/)
+    expect(await refusedRoof({ parts: ['first'], roof: 'flat eaves 3', set: { roof: { shape: 'flat', eaves: 3 } } })).toMatch(/Give the roof once/)
+  })
+})
+
+async function refusedRoof(args: Record<string, unknown>): Promise<string> {
+  const reply = await b.call('grid_set', { plan: 'office.json', out: 'refused.json', ...args })
+  expect(reply.isError, reply.text).toBe(true)
+  return reply.text
+}
