@@ -17,6 +17,7 @@ import {
   soundColumns,
   cross,
   dot,
+  floorElevations,
   floorJoins,
   floorOf,
   hasWallsThrough,
@@ -27,6 +28,7 @@ import {
   planHasPhases,
   planInState,
   roomArea,
+  roomFloorOffset,
   roomZones,
   sub,
   tolerance,
@@ -91,6 +93,11 @@ export interface RoomFacts {
    * has none), which an answer says beside the room's name so seven floors of `Room 101` are told apart.
    */
   readonly nameFloor?: string
+  /**
+   * LVL-26, only on a room that states its height or a floor off its storey's: its floor's level
+   * in metres (from the floors' datum, as they are stacked) and its height to its ceiling.
+   */
+  readonly level?: { readonly floor: number; readonly height: number }
 }
 
 /** How far an opening's edge is from the inside corner at one end of the room's side. */
@@ -518,10 +525,18 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
   const outlines = roomOutlines(storey, index, leftOut.rooms)
   const next = neighboursOn(storey, index, outlines)
   const zoneOf = roomZones(index).zoneOf
+  const stacked = floorElevations(plan).floors.get(floor.id)
+  // LVL-26: a room's own floor level and height, when it states its height or a floor of its own.
+  const levelOf = (room: FloorPlan['rooms'][number]): RoomFacts['level'] | null => {
+    const offset = roomFloorOffset(room)
+    if (stacked === undefined || (room.height === undefined && offset === 0)) return null
+    return { floor: stacked.floorLevel + offset, height: room.height ?? stacked.clearHeight - offset }
+  }
 
   const rooms: RoomFacts[] = storey.rooms.map((room) => {
     const outline = outlines.get(room.id)
     const of = zoneOf.get(room.id)
+    const level = levelOf(room)
     return {
       id: room.id,
       name: room.name,
@@ -532,6 +547,7 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
       ...(of === undefined ? {} : { zoneOf: of }),
       ...(outdoorKind(room) === null ? {} : { outdoor: outdoorKind(room)! }),
       ...(room.void === true ? { void: true as const } : {}),
+      ...(level === null ? {} : { level }),
     }
   })
 

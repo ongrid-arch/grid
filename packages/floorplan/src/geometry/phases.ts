@@ -13,10 +13,13 @@
  * out in a base (the plan is the work) and `existing` in any other (it stands before and after).
  *
  * A base plan (`mergeBase`): its walls and openings, as they stand after its own work, are read
- * into the plan as existing. The plan's own parts keep their ids; a base part with an id of the
- * plan's is a clash, which the caller refuses. Pure: plans in, plans and issues out.
+ * into the plan as existing. WRT-85: so are its columns, structural grids, stairs and fixtures,
+ * which state no phase and so stand before and after the work, and a floor the plan lists by a
+ * base floor's id takes the base's levels, slab, outline and roof where it states none. The
+ * plan's own parts keep their ids; a base part with an id of the plan's is a clash, which the
+ * caller refuses. Pure: plans in, plans and issues out.
  */
-import type { FloorPlan, Opening, Room, Wall } from './plan'
+import type { Floor, FloorPlan, Opening, Room, Wall } from './plan'
 import type { WallEnds } from './wall'
 import { wallJoints } from './joints'
 import type { Phase } from '../types/floorplan'
@@ -178,32 +181,99 @@ export interface BaseMerge {
   readonly openings: ReadonlySet<string>
   /** WRT-75: the ids of the floors that came from the base, which the fit-out does not list. */
   readonly floors: ReadonlySet<string>
+  /** WRT-85: the ids of the columns, structural grids, stairs and fixtures that came from the base: read-only. */
+  readonly columns: ReadonlySet<string>
+  readonly grids: ReadonlySet<string>
+  readonly stairs: ReadonlySet<string>
+  readonly items: ReadonlySet<string>
+  /** WRT-85: each floor the fit-out lists that took a value from the base's floor, as the fit-out states it. */
+  readonly ownFloors: ReadonlyMap<string, Floor>
   /** Base parts whose ids the fit-out uses for a part of its own. */
   readonly clashes: readonly string[]
 }
 
+/** WRT-85: what a floor the fit-out lists takes from the base's floor of the same id, where it states none. */
+const FLOOR_FROM_BASE = ['elevation', 'height', 'slab', 'parapet', 'roof', 'outline', 'above', 'below'] as const satisfies readonly (keyof Floor)[]
+
+/** The fit-out's floor with what it leaves unstated taken from the base's; the same object when it takes nothing. */
+function floorOnBase(own: Floor, base: Floor): Floor {
+  const taken: Partial<Record<keyof Floor, unknown>> = {}
+  for (const key of FLOOR_FROM_BASE) if (own[key] === undefined && base[key] !== undefined) taken[key] = base[key]
+  // `level` reads 0 when the file states none: a fit-out floor at 0 stands where the base's does.
+  if (own.level === 0 && base.level !== 0) taken.level = base.level
+  return Object.keys(taken).length === 0 ? own : ({ ...own, ...taken } as Floor)
+}
+
+/** The ids of `base`'s parts that `own` uses too, in the base's order. */
+const sharedIds = (base: readonly { readonly id: string }[] | undefined, own: readonly { readonly id: string }[] | undefined): string[] => {
+  const ids = new Set((own ?? []).map((part) => part.id))
+  return (base ?? []).map((part) => part.id).filter((id) => ids.has(id))
+}
+
+/** A list of the fit-out's own parts followed by the base's, or left out when both are empty. */
+function listed<K extends 'columns' | 'grids' | 'stairs' | 'items'>(key: K, plan: FloorPlan, base: FloorPlan): Partial<Pick<FloorPlan, K>> {
+  const own = (plan[key] ?? []) as NonNullable<FloorPlan[K]>
+  const from = (base[key] ?? []) as NonNullable<FloorPlan[K]>
+  if (from.length === 0) return {}
+  return { [key]: [...own, ...from] } as Partial<Pick<FloorPlan, K>>
+}
+
 /**
  * A fit-out with its base: the base's walls and openings as they stand after its own work, each
- * read as existing, after the fit-out's own; the base's floors the fit-out does not list. The
- * base's rooms are not read: the fit-out says what its rooms are. `base` must have its opening
- * patterns expanded already.
+ * read as existing, after the fit-out's own; the base's floors the fit-out does not list, and its
+ * levels, slab, outline and roof on a floor it lists that states none; and the base's columns,
+ * structural grids, stairs and fixtures after the fit-out's own (WRT-85). The base's rooms are
+ * not read: the fit-out says what its rooms are. `base` must have its opening patterns expanded
+ * already. Neither plan is changed.
  */
 export function mergeBase(plan: FloorPlan, base: FloorPlan): BaseMerge {
   const shell = planInState(base, 'after')
   const own = new Set<string>([...plan.walls, ...plan.openings, ...plan.rooms, ...(plan.items ?? []), ...(plan.stairs ?? [])].map((part) => part.id))
-  const clashes = [...new Set([...shell.walls, ...shell.openings].map((part) => part.id).filter((id) => own.has(id)))]
+  const clashes = [
+    ...new Set([
+      ...[...shell.walls, ...shell.openings].map((part) => part.id).filter((id) => own.has(id)),
+      ...sharedIds(shell.columns, plan.columns),
+      ...sharedIds(shell.grids, plan.grids),
+      ...sharedIds(shell.stairs, plan.stairs),
+      ...sharedIds(shell.items, plan.items),
+    ]),
+  ]
   const walls = shell.walls.map((wall): Wall => ({ ...wall, phase: 'existing' }))
   const openings = shell.openings.map((opening): Opening => ({ ...opening, phase: 'existing' }))
+  const baseFloors = new Map((shell.floors ?? []).map((floor) => [floor.id, floor]))
   const floorIds = new Set((plan.floors ?? []).map((floor) => floor.id))
-  const floors = [...(plan.floors ?? []), ...(shell.floors ?? []).filter((floor) => !floorIds.has(floor.id))]
+  const ownFloors = new Map<string, Floor>()
+  const listedFloors = (plan.floors ?? []).map((floor) => {
+    const from = baseFloors.get(floor.id)
+    const read = from === undefined ? floor : floorOnBase(floor, from)
+    if (read !== floor) ownFloors.set(floor.id, floor)
+    return read
+  })
+  const floors = [...listedFloors, ...(shell.floors ?? []).filter((floor) => !floorIds.has(floor.id))]
   const merged: FloorPlan = {
     ...plan,
     walls: [...plan.walls, ...walls],
     openings: [...plan.openings, ...openings],
     ...(floors.length > 0 ? { floors } : {}),
+    ...listed('columns', plan, shell),
+    ...listed('grids', plan, shell),
+    ...listed('stairs', plan, shell),
+    ...listed('items', plan, shell),
   }
   const fromBase = new Set((shell.floors ?? []).map((floor) => floor.id).filter((id) => !floorIds.has(id)))
-  return { plan: merged, walls: new Set(walls.map((w) => w.id)), openings: new Set(openings.map((o) => o.id)), floors: fromBase, clashes }
+  const idsOf = (parts: readonly { readonly id: string }[] | undefined): Set<string> => new Set((parts ?? []).map((part) => part.id))
+  return {
+    plan: merged,
+    walls: idsOf(walls),
+    openings: idsOf(openings),
+    floors: fromBase,
+    columns: idsOf(shell.columns),
+    grids: idsOf(shell.grids),
+    stairs: idsOf(shell.stairs),
+    items: idsOf(shell.items),
+    ownFloors,
+    clashes,
+  }
 }
 
 /**
