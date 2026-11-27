@@ -162,7 +162,9 @@
  *   none is read exactly as before. A plan MAY name a `base` plan, by its path from the project
  *   folder: the shell it is fitted out in. The base's walls and openings, as they stand after its
  *   own work, are read into the plan as existing and are never written back to it; the plan's own
- *   parts that state no phase are new. Both optional and never defaulted (version 1).
+ *   parts that state no phase are new. WRT-85: the base's columns, structural grids, stairs and
+ *   fixtures are read in with its walls, and a floor the plan lists by a base floor's id takes the base's levels, slab,
+ *   outline and roof where it states none. Both optional and never defaulted (version 1).
  *
  * C17 · Floor outlines (BRF-4, lab FD-1)
  *   A floor MAY state its `outline`: its outside face, its corners in plan metres in order round

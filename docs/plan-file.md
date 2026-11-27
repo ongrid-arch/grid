@@ -1776,9 +1776,23 @@ read into the plan as existing; its rooms are not, since the fit-out says what i
 fit-out's rooms may rest on the base's walls; its own parts that state no phase are new. A part of
 the fit-out with the id of a base wall or opening refuses the plan, naming the id.
 
+The base's columns, structural grids, stairs and fixtures and furniture (`items`) are read in too,
+after the fit-out's own (WRT-85). They state no phase, so they stand before and after the work:
+the shell's columns are drawn and take their floor off the fit-out's rooms, its grid is drawn and
+dimensioned, its stair joins the floors, and its fixtures (a chimney breast drawn as a storage
+unit, a WC the fit-out keeps) take their free floor and go into every export. A column, grid,
+stair or item of the fit-out's own with the id of one of the base's of the same kind refuses the
+plan, naming the id. The base's floors the fit-out does not list are read in whole; a floor it
+lists by a base floor's id takes the base's `level` (when the fit-out's reads 0), `elevation`,
+`height`, `slab`, `parapet`, `roof`, `outline`, `above` and `below` wherever it states none, so
+the fit-out stands at the shell's levels on the shell's slab. Parking bays and ramps are not read
+in.
+
 The base is read-only. It is drawn as existing, measured and checked with the fit-out, and never
 written into it: a change that would move, cut or take out a base wall or opening, or put an
-opening in a base wall, is refused, naming them, and nothing is written. To change the shell,
+opening in a base wall, is refused, naming them, and nothing is written. So is a change that would
+move, change or take out a base column, grid, stair or item; a floor the fit-out lists is written
+back as it states it. To change the shell,
 change the base plan, and every fit-out on it reads the change.
 
 A fit-out is written in rooms text by its first line, `base <plan>` (WRT-75): the rooms are
