@@ -431,6 +431,20 @@ its floor states (LVL-20), also its height along its length: `top`, the points w
 (metres along it from its start, and its height there), `low`, `high`, and `cut`, `roof` when the
 roof cuts it or `raised` when, an outside wall, it rises to the roof past the height it states.
 
+`what=room` lists a room's sides going round as a person names them (CMD-49). A curve, which the
+outline follows by short straight pieces, is one side: the way its middle faces, its radius on
+the inside face and its length along the curve (`S a curved side, radius 17.70 m, 55.61 m long`),
+split only where the wall under it changes; a round room on one wall is `a curved side all the
+way round`. Each side's `curve` in the data gives its `centre`, `radius` and `sweep` (degrees,
+counter-clockwise positive), `null` for a straight side, and the perimeter is measured along the
+curves. The room's size is by its shape when across and up the drawing do not say it: `round,
+35.40 m across`, a curved band by its length along its middle and its width, a rectangle turned
+on the drawing by its own sides and its turn (`5.00 m × 3.00 m, turned 7° on the drawing`), and
+any other four-sided room by its four sides; `form` in the data says which. Pieces are one curve
+when at least three of them, each turning no more than 10 degrees from the last and 5 degrees in
+all, have their corners within 1 cm of one circle, so a curve drawn as many short walls reads the
+same.
+
 A room may state its height, floor to ceiling, in metres:
 
 ```json

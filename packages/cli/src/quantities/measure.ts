@@ -43,6 +43,7 @@ import {
 import { checkPlanSanity, drawable } from '@ongrid/floorplan/geometry/rules/check'
 import { floorGraph, roomOutlines, type BlockedBy } from '@ongrid/floorplan/geometry/rules/graph'
 import { compassOf, type Compass } from '../describe/facts'
+import { ringSides, type RoomForm } from '../describe/sides'
 import { roomCalled, type Survey, type SurveyRoom } from './survey'
 import { walkRoute, type EndAt, type StairPassage, type StartAt, type WalkPoint, type WalkedLeg, type WalkGap } from './walked'
 
@@ -50,9 +51,13 @@ export const EMPTY_ROOM_RULE =
   'Measured in the empty room between wall faces: the fixtures the plan holds, furniture, radiators, door leaves and the space a person needs round them are not taken off.'
 
 export interface RoomSide {
+  /** The way it faces out of the room; for a curve, the way its middle faces. */
   readonly facing: Compass
+  /** Its length; for a curve, along the curve. */
   readonly length: number
   readonly wall: string | null
+  /** CMD-49: a curved side's circle, its sweep in degrees counter-clockwise positive (360 all the way round), or null for a straight side. */
+  readonly curve: { readonly centre: Vec2; readonly radius: number; readonly sweep: number } | null
 }
 
 export interface RoomMeasure {
@@ -69,31 +74,48 @@ export interface RoomMeasure {
   readonly widestCircle: number
   readonly circleAt: Vec2
   readonly sides: readonly RoomSide[]
+  /** CMD-49: its shape as a person names it (round, a band, turned, four-sided, with curves), or null when across and up say it. */
+  readonly form: RoomForm | null
 }
 
-function sidesOf(room: SurveyRoom): RoomSide[] {
-  return room.edges.map((edge) => {
-    // The side's own direction turned outward: the outline runs counter-clockwise.
-    const out = { x: edge.to.y - edge.from.y, y: -(edge.to.x - edge.from.x) }
-    return { facing: compassOf(out), length: edge.length, wall: edge.wall?.id ?? null }
+/**
+ * CMD-49: the sides of the room's outline, then of each hole, as a person names them: the
+ * pieces a curve is traced by are one curved side, split where the wall under them changes.
+ */
+export function sidesOf(room: SurveyRoom): RoomSide[] {
+  let offset = 0
+  return [room.polygon, ...room.holes].flatMap((ring) => {
+    const edges = room.edges.slice(offset, offset + ring.length)
+    offset += ring.length
+    return ringSides(ring, (i) => edges[i]?.wall?.id ?? null).map((side) => {
+      const walls = new Set(edges.slice(side.first, side.first + side.pieces).concat(side.first + side.pieces > ring.length ? edges.slice(0, side.first + side.pieces - ring.length) : []).map((edge) => edge.wall?.id ?? null))
+      return {
+        facing: compassOf(side.out),
+        length: side.length,
+        wall: walls.size === 1 ? [...walls][0]! : null,
+        curve: side.curve === null ? null : { centre: side.curve.centre, radius: side.curve.radius, sweep: (side.curve.sweep * 180) / Math.PI },
+      }
+    })
   })
 }
 
 export function measureRoom(room: SurveyRoom): RoomMeasure {
   const pole = poleOfInaccessibility(room.polygon, undefined, room.holes)
   const shape = room.facts.shape
+  const sides = sidesOf(room)
   return {
     id: room.facts.id,
     name: roomCalled(room.facts),
     floor: room.facts.floor,
     area: shape?.area ?? 0,
-    perimeter: room.edges.reduce((sum, edge) => sum + edge.length, 0),
+    perimeter: sides.reduce((sum, side) => sum + side.length, 0),
     across: shape?.across ?? 0,
     up: shape?.up ?? 0,
     rectangle: shape?.rectangle ?? false,
     widestCircle: 2 * pole.distance,
     circleAt: pole.point,
-    sides: sidesOf(room),
+    sides,
+    form: shape?.form ?? null,
   }
 }
 

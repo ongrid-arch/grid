@@ -530,6 +530,15 @@ into the room, looking ahead, as `walk-01.png`, `walk-02.png` and on, each named
 `--floor` and `--pictures` go with `--length walk` only. How a route's length is walked is in
 [tool-server.md](tool-server.md#a-routes-length-and-a-walk-through).
 
+A room that is not a rectangle square to the drawing is said by its shape (CMD-49), with the unit
+on every length: `round, 35.4 m across`; a curved band (a room between two curves on one centre)
+by its length along its middle and its width; a rectangle turned on the drawing by its own sides
+and its turn, `5 m × 3 m, turned 7° on the drawing`; any other four-sided room by its four sides
+going round; and any other room with a curve by its widest across and up, with each curve's
+radius and length. `--for agent` adds a token after the size (`round:`, `band:`, `turned:`,
+`sides:`, `curves:`, in its key line), and the walk says a round room and a band the same way
+where it stops in them.
+
 ## A plan from a phone room scan: `grid write --scan`
 
 `grid write --scan room.json` writes the plan from a room scanned with a phone (HND-12), and

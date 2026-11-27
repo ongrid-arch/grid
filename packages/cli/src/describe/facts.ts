@@ -45,6 +45,7 @@ import { DEFAULT_FLOOR_ID, heightByDefault, WALL_DEFAULTS, type BuildingType, ty
 import { outdoorKind } from '@ongrid/floorplan/geometry/outdoor'
 import { drawable } from '@ongrid/floorplan/geometry/rules/check'
 import { floorGraph, openingSides, roomOutlines, sidesAt, type RoomOutline } from '@ongrid/floorplan/geometry/rules/graph'
+import { roomForm, type RoomForm } from './sides'
 
 /** A direction on the drawing: north is up (+y), whatever north the plan states (CNT-3). */
 export type Compass = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW'
@@ -65,6 +66,8 @@ export interface RoomShape {
   /** Whether the inside is a rectangle square to the drawing, so across by up is its size. */
   readonly rectangle: boolean
   readonly area: number
+  /** CMD-49: its shape as a person names it (round, a band, turned, four-sided, with curves), or null when across and up say it. */
+  readonly form: RoomForm | null
 }
 
 export interface RoomFacts {
@@ -339,7 +342,7 @@ function usual(values: readonly number[]): number | null {
 }
 
 /** CNT-16: `columns` is the floor its columns take off `area`, which leaves its outline a rectangle. */
-function shapeOf(polygon: readonly Vec2[], area: number, columns = 0): RoomShape {
+function shapeOf(polygon: readonly Vec2[], area: number, columns = 0, holes: readonly (readonly Vec2[])[] = []): RoomShape {
   const xs = polygon.map((p) => p.x)
   const ys = polygon.map((p) => p.y)
   const minX = Math.min(...xs)
@@ -347,7 +350,7 @@ function shapeOf(polygon: readonly Vec2[], area: number, columns = 0): RoomShape
   const across = Math.max(...xs) - minX
   const up = Math.max(...ys) - minY
   const rectangle = polygon.length === 4 && Math.abs(across * up - (area + columns)) < 0.01
-  return { at: { x: minX, y: minY }, across, up, rectangle, area }
+  return { at: { x: minX, y: minY }, across, up, rectangle, area, form: rectangle ? null : roomForm(polygon, holes) }
 }
 
 /**
@@ -518,7 +521,7 @@ function floorFacts(plan: FloorPlan, floor: Floor, named: boolean): FloorFacts {
       name: room.name,
       ...(room.use === undefined ? {} : { use: room.use }),
       floor: floor.id,
-      shape: outline === undefined ? null : shapeOf(outline.polygon, roomArea(room, index), roomColumnArea(room, index)),
+      shape: outline === undefined ? null : shapeOf(outline.polygon, roomArea(room, index), roomColumnArea(room, index), outline.holes),
       neighbours: [...(next.get(room.id) ?? [])].sort(byText),
       ...(of === undefined ? {} : { zoneOf: of }),
       ...(outdoorKind(room) === null ? {} : { outdoor: outdoorKind(room)! }),
