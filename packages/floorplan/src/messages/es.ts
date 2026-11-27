@@ -1344,6 +1344,8 @@ export const es: Messages = {
   'door.leaves.active': "se juzga por la hoja que abre",
   'door.leaves.one': "hoja {each}; {how}",
   'door.leaves.many': "hojas {each}; {how}",
+  'brief.corridor.narrowest': "{room}, ancho de pasillo {asked}, dibujado {drawn} m en su punto más estrecho, en ({x}, {y}).",
+  'brief.corridor.widest': "{room}, ancho de pasillo {asked}, dibujado {drawn} m, el círculo más ancho que cabe porque Grid no encuentra dos extremos.",
   'report.brief.missed': "Valores propios de la persona no alcanzados ({count}), del encargo {file}: suyos, no de ningún código ni norma, medidos como los miden grid_write_brief y grid_measure what=access.",
   'report.brief.missedMore': "Y {count} más: grid_write_brief sin encargo los lista todos.",
   'report.brief.notRead': "El encargo junto al plano no se leyó, así que no se comprueba ninguno de los valores propios de la persona: {problem}.",
