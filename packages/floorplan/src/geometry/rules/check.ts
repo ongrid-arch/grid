@@ -11,7 +11,7 @@ import type { FloorPlan } from '../plan'
 import { floorOf, planFloors, planForFloor, wholePlan } from '../floors'
 import { validatePlan } from '../validate'
 import { floorElevations } from '../elevations'
-import { groundLevel, openingsBelowGround } from '../ground'
+import { groundLevel, openingPoint, openingsBelowGround } from '../ground'
 import { limit, tolerance } from '../tolerances'
 import type { BetweenLevels, ShortOf } from './graph'
 import { metresText } from '../rounding'
@@ -593,12 +593,31 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
   const outlines = new Map<string, Map<string, readonly Vec2[]>>()
   const leftOutOn = new Map<string, ReadonlySet<string>>()
   const drawnFloors = new Map<string, DrawnFloor>()
+  // CNT-49: on a slope, the doors out of a floor on the ground that open over the ground at their
+  // own place, by floor, each with its height over it: said, and never a way out.
+  const midAir = new Map<string, { room: string; opening: string; height: number }[]>()
+  const openingsOf = new Map(plan.openings.map((o) => [o.id, o] as const))
   for (const floor of floors) {
     const drawn = drawable(planForFloor(plan, floor.id))
     drawnFloors.set(floor.id, drawn)
     const { storey, leftOut } = drawn
     const index = indexPlan(storey)
-    const graph = floorGraph(storey, leftOut.rooms)
+    let graph = floorGraph(storey, leftOut.rooms)
+    if (site.under.has(floor.id) && !aboveGround(floor.id)) {
+      const up: { room: string; opening: string; height: number }[] = []
+      const exits = graph.exits.filter(({ room, opening }) => {
+        const door = openingsOf.get(opening)
+        const at = door === undefined ? null : openingPoint(plan, door)
+        const height = at === null ? 0 : site.aboveAt(floor.id, at)
+        if (!(height > limit('outsideDoorAboveGround'))) return true
+        up.push({ room, opening, height })
+        return false
+      })
+      if (up.length > 0) {
+        midAir.set(floor.id, up)
+        graph = { ...graph, exits }
+      }
+    }
     routes.set(floor.id, { id: floor.id, name: floorName(floor.id), graph, exitsCount: !aboveGround(floor.id) })
     // A door no person fits through (MSG-18), on every floor: it is why a room may have no door.
     const openingsById = new Map(storey.openings.map((o) => [o.id, o] as const))
@@ -721,6 +740,18 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
           elevation: Number(height)
         })
       }
+    }
+    for (const { room, opening, height } of midAir.get(floor.id) ?? []) {
+      const figure = metresText(height)
+      findings.push({
+        code: 'door_to_outside_above_ground',
+        ruleId: RULE_OF.door_to_outside_above_ground,
+        floor: floor.id,
+        rooms: [room],
+        openings: [opening],
+        message: messages.doorOutAboveGround(roomName(room), figure),
+        elevation: Number(figure)
+      })
     }
     // LVL-14: a floor above the ground with no stair or lift room and no stated stair to it is a
     // finding of its own. Its way out is still not followed, so the notice below stays.

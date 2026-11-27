@@ -165,6 +165,8 @@ export interface BuildingGround {
    * cutaway stands below the ground: the ground would hide the floor the view is of.
    */
   readonly pieces: SceneGround['pieces']
+  /** CNT-49: on a slope, the ground's rise over `y` at a point of the plan (`sceneGround`'s tilt). */
+  readonly tilt?: SceneGround['tilt']
 }
 
 /**
@@ -178,7 +180,7 @@ export function buildingGround(plan: FloorPlan, layout: BuildingLayout, elevatio
   // One storey is always the one shown, as a cutaway is.
   const focused = layout.focus === null ? undefined : elevations.floors.get(layout.focus)
   const buried = focused !== undefined && ground.level - focused.floorLevel > tolerance('sameFloorLevel')
-  return { y: ground.level - offset, pieces: buried ? [] : ground.pieces }
+  return { y: ground.level - offset, pieces: buried ? [] : ground.pieces, ...(ground.tilt === undefined ? {} : { tilt: ground.tilt }) }
 }
 
 type Vec3 = [number, number, number]

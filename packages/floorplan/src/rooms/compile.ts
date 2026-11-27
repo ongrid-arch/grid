@@ -34,6 +34,14 @@
  *       lengths may carry their unit, as a size's do: 10ft,0ft (WRT-62). The points are the room's
  *       place, from the drawing's origin (the unit's, in a unit): 'at', a side or a corner on the
  *       same line is refused, never read as a move (WRT-63)
+ *   room <id> "<name>" <use|-> circle <across> | circle radius <r> | oval <w> x <d> at x,y
+ *   room <id> "<name>" <use|-> band <r1> to <r2> [from <deg>] [sweep <deg>] at x,y
+ *   room <id> "<name>" <use|-> arc <deg> [<chord>] <north|south|east|west> of <room> [align ...] [shift <m>]
+ *       curved rooms (WRT-78, `curves.ts`), inside faces, placed by their centre; an oval is four
+ *       arcs that meet without a kink; a band is the floor between two radii, from <deg> (east is
+ *       0, counter-clockwise) turning <deg>, less than a whole turn; an arc is a round end on that
+ *       side of the room, its chord along it (as long as that side unless written, centred on it)
+ *       and its curve turning <deg> out. Walls on a curve are curved walls (C21's `arc`)
  *       <where>: at x,y (the south-west corner the size measures to: inside, unless centre or outside)
  *                <north|south|east|west> of <room or unit> [align <side|centre>] [shift <m>] [until [near] <room>] [open [<room>]]
  *                inside <room> corner <ne|nw|se|sw> [wall <t> [kind]] [open]  cuts that corner out of the room
@@ -65,6 +73,8 @@
  *   wall between <room> and <room> [<side>] [<t>] [kind|virtual|railing] [height <h>] [id <id>] [reversed]
  *   wall <room> <side> [<t>] [kind|virtual|railing] [height <h>] [id <id>] [reversed]  an outside wall,
  *       an open edge or a railing (WRT-76)
+ *   wall <room> <side> curve radius <r> [inward] [<t>] [kind] [height <h>]   the room's one straight
+ *       side facing that way bowed out (or in) to an arc of that radius (WRT-78)
  *   door|window|opening <id> ["<name>"] between <room> and <room>, <place>, <w> wide [...]
  *   door|window|opening <id> ["<name>"] in <room> <side>, <place>, <w> wide [...]
  *       the name is kept in the opening's facts (`properties.name`, WRT-55). Between two rooms a
@@ -76,6 +86,9 @@
  *                counted from the west, then the south; a bare word there is refused, except in a
  *                unit with one such side onto something outside it (WRT-51)
  *       <place>: centred | <m> from <north|south|east|west> [of <room>]
+ *       on a curved wall (WRT-78): centred on the curve's point facing the side named (between two
+ *       rooms, the middle of the curve they share), or <m> along the curve from its point facing
+ *       the side after 'from'; its offset and width are along the curve (C21)
  *       then:    sill <m>, height <m>, opens into <room>|in|out, hinged <direction>, no-swing
  *                hinged left|right [seen from <room>|outside]  as seen from the room it opens into
  *                unless named (CNT-14); a kind: single, double, sliding, pocket, folding, roller,
@@ -167,6 +180,7 @@ import { edgeWords, mirroredSide, OPEN_SIDES, outdoorWordKind, outsideEdge, type
 import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
 import { PARKING_LINE_WORDS, ParkingLines } from './parking'
 import { likelyMeant } from '../types/nearest'
+import { bandShape, bowedSide, circleShape, cornerCount, curvedArea, curveOfPiece, curveWalls, facingAngle, frameAt, ovalShape, segmentShape, stationAt, type CurveCircle, type CurvedShape, type CurvedWall } from './curves'
 import { readingNotes } from '../types/reading'
 
 type P = readonly [number, number]
@@ -302,6 +316,10 @@ const ROOM_LINE_WORDS: Readonly<Record<string, readonly string[]>> = {
   centre: [],
   outside: [],
   polygon: ['x,y', 'x,y', 'x,y'],
+  circle: ['<m>'],
+  oval: ['<m>', 'x', '<m>'],
+  arc: ['<degrees>'],
+  band: ['<m>', 'to', '<m>'],
   walls: ['<t>'],
   wall: ['<t>'],
   height: ['<m>'],
@@ -320,6 +338,9 @@ const ROOM_LINE_WORDS: Readonly<Record<string, readonly string[]>> = {
   dept: ['"<text>"'],
   facts: ['<name>=<value>'],
 }
+/** WRT-78: the words that start a curved room's shape on a room line. */
+const CURVE_ROOM_WORDS: readonly string[] = ['circle', 'oval', 'arc', 'band']
+
 /** The words agents write for a room line's own: a room's level above its storey is its `floor`. */
 const ROOM_LINE_MEANS: Readonly<Record<string, string>> = { level: 'floor', elevation: 'floor', offset: 'floor', ceiling: 'height', headroom: 'height', thickness: 'walls' }
 
@@ -561,7 +582,16 @@ interface RoomDraft {
   off?: Margins
   /** WRT-55: the rooms it was placed beside (`<side> of <room or unit>`), for advice that applies to it. */
   beside?: readonly string[]
+  /** WRT-78: the circles the pieces of its curved stretches lie on, its inside faces. */
+  curves?: CurveCircle[]
 }
+
+/** WRT-78: a curved room as its line writes it, before its place is known. */
+type CurveWords =
+  | { kind: 'circle'; d: number }
+  | { kind: 'oval'; w: number; d: number }
+  | { kind: 'arc'; sweep: number; chord: number | null }
+  | { kind: 'band'; r1: number; r2: number; from: number; sweep: number }
 
 /** WRT-52: how far a room's size, as written, runs past its inside faces on each side. */
 interface Margins {
@@ -604,7 +634,8 @@ interface FloorDraft {
    * the floor starts, so a room placed beside the other is placed against it, wherever the line is.
    */
   ahead: Set<string>
-  extover: Array<{ room: string; side: string; say: WallSay }>
+  /** WRT-78: `curve`, for a curved side's line: it applies to that curve's pieces. */
+  extover: Array<{ room: string; side: string; say: WallSay; curve?: CurveCircle }>
   openings: OpeningLine[]
   raw: { walls: unknown[]; rooms: unknown[]; openings: unknown[] }
   /** CNT-4: each placement of a flat type on this floor: its label, its unit, its rooms and whether it is mirrored. */
@@ -879,6 +910,8 @@ class Compiler {
    * line|room|side; asked about once the plan's kind of building is known (`askSizes`).
    */
   private readonly sides = new Map<string, { line: number; room: string; side: 'width' | 'depth'; length: number; how: 'bare' | 'stretched' | 'polygon' }>()
+  /** WRT-78: the curved walls worked out, by wall, for the openings placed along them. */
+  private readonly curvedWalls = new Map<DerivedWall, CurvedWall>()
 
   /** How the walls' ends and thicknesses are written: to a tenth of a millimetre, unless asked finer. */
   private readonly fix: (value: number) => number
@@ -1633,6 +1666,9 @@ class Compiler {
     let D: string | null = null
     let basis: SizeBasis | null = null
     let poly: P[] | null = null
+    // WRT-78: a curved room, its outline made once its place is known.
+    let curve: CurveWords | null = null
+    let curveSize: { w: number | null; d: number | null } | null = null
     // WRT-62: a polygon with a unit in its points is taken as meant, as a size with its unit is.
     let polyMeant = false
     const place: { at?: P; dir?: string; ref?: string; align?: string; shift?: number; until?: string; untilNear?: boolean; inside?: string; corner?: string; open?: boolean; openTo?: string; wallT?: number; wallKind?: WallKind | null } = {}
@@ -1671,6 +1707,11 @@ class Compiler {
           i++
         }
         if (poly.length < 3) this.stop('rooms/syntax', at, `line ${at}: a polygon needs at least three points written x,y with no space, in metres or with a unit, such as 3.2,0 or 10ft,0ft.`)
+      } else if (CURVE_ROOM_WORDS.includes(w)) {
+        const read = this.readCurveWords(t, i, at)
+        once(sizedBy, t.slice(i, read.next).join(' '), 'rooms.room.sizedTwice')
+        curve = read.curve
+        i = read.next
       } else if (w === 'at' && i + 1 < t.length) {
         once(placedBy, `at ${t[i + 1]}`, 'rooms.room.placedTwice')
         place.at = pointOf(t[i + 1]!, at, this.plain)
@@ -1779,6 +1820,15 @@ class Compiler {
       this.warn('rooms/conditioned-outdoor', at, english(said('rooms.room.conditionedNever', { line: at, room: sayName(id), word: room.conditioned ? 'conditioned' : 'unconditioned' })))
       room.conditioned = null
     }
+    if (curve !== null) {
+      const shaped = this.curvedRoom(room, curve, place, basis, placedBy, at, ctx)
+      if (shaped !== null) return shaped
+      curveSize = this.curveBox(curve, place, at)
+      basis = 'inside'
+      place.align ??= 'centre'
+      W = 'curve'
+      D = 'curve'
+    }
     if (poly !== null) {
       // WRT-63: a polygon's points are its place, from the drawing's origin or the unit's; a place
       // written beside them is refused, never read as a move or dropped.
@@ -1803,9 +1853,9 @@ class Compiler {
       return room
     }
     if (W === null || D === null) this.stop('rooms/size', at, `line ${at}: room '${id}' has no size. Write '<width> x <depth>' (metres, or with a unit such as 12ft), inside faces, or 'polygon ...'.`)
-    let Wn = W === '*' ? null : numberOf(W, at, this.plain)
-    let Dn = D === '*' ? null : numberOf(D, at, this.plain)
-    for (const [label, word, v] of [['width', W, Wn], ['depth', D, Dn]] as const) {
+    let Wn = curveSize !== null ? curveSize.w : W === '*' ? null : numberOf(W, at, this.plain)
+    let Dn = curveSize !== null ? curveSize.d : D === '*' ? null : numberOf(D, at, this.plain)
+    for (const [label, word, v] of curveSize !== null ? [] : ([['width', W, Wn], ['depth', D, Dn]] as const)) {
       if (v !== null && v <= 0) this.stop('rooms/size', at, `line ${at}: room '${id}' has a ${label} of ${v}. Sizes are above 0.`)
       // WRT-22: a length written with its unit is taken as meant; a bare one past a building's is asked about.
       if (v === null || hasUnit(word)) continue
@@ -1898,7 +1948,138 @@ class Compiler {
     room.poly = [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]]
     if (W === '*') this.side(at, id, 'width', box[2] - box[0], 'stretched')
     if (D === '*') this.side(at, id, 'depth', box[3] - box[1], 'stretched')
+    if (curve !== null) this.shapeInBox(room, curve, place.dir!)
     return room
+  }
+
+  /**
+   * WRT-78: the words of a curved room after its use: `circle <across>`, `circle radius <r>`,
+   * `oval <w> x <d>`, `arc <degrees> [<chord>]` or `band <r1> to <r2> [from <deg>] [sweep <deg>]`.
+   * Lengths are read as any size is; angles are plain degrees.
+   */
+  private readCurveWords(t: readonly string[], i: number, at: number): { curve: CurveWords; next: number } {
+    const w = t[i]!
+    const length = (k: number): number => {
+      if (k >= t.length || !isNumberWord(t[k]!)) this.stop('rooms/syntax', at, english(said('rooms.curve.form', { line: at })))
+      return numberOf(t[k]!, at, this.plain)
+    }
+    const degrees = (k: number): number => {
+      const word = t[k]
+      if (word === undefined || !/^[-+]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)$/.test(word)) this.stop('rooms/syntax', at, english(said('rooms.curve.degrees', { line: at, word: word ?? '', after: t[k - 1] ?? w })))
+      return Number(word)
+    }
+    let curve: CurveWords
+    let next: number
+    if (w === 'circle') {
+      if (t[i + 1] === 'radius') {
+        curve = { kind: 'circle', d: 2 * length(i + 2) }
+        next = i + 3
+      } else {
+        curve = { kind: 'circle', d: length(i + 1) }
+        next = i + 2
+      }
+    } else if (w === 'oval') {
+      const m = /^([^x]+)x([^x]+)$/.exec(t[i + 1] ?? '')
+      if (m !== null && isNumberWord(m[1]!) && isNumberWord(m[2]!)) {
+        curve = { kind: 'oval', w: numberOf(m[1]!, at, this.plain), d: numberOf(m[2]!, at, this.plain) }
+        next = i + 2
+      } else {
+        if (!['x', '×', 'by'].includes(t[i + 2] ?? '')) this.stop('rooms/syntax', at, english(said('rooms.curve.form', { line: at })))
+        curve = { kind: 'oval', w: length(i + 1), d: length(i + 3) }
+        next = i + 4
+      }
+    } else if (w === 'arc') {
+      const sweep = degrees(i + 1)
+      if (!(sweep > 0 && sweep < 360)) this.stop('rooms/syntax', at, english(said('rooms.curve.sweep', { line: at, sweep: String(sweep) })))
+      const chord = i + 2 < t.length && isNumberWord(t[i + 2]!) ? length(i + 2) : null
+      curve = { kind: 'arc', sweep, chord }
+      next = chord === null ? i + 2 : i + 3
+    } else {
+      const r1 = length(i + 1)
+      if (t[i + 2] !== 'to') this.stop('rooms/syntax', at, english(said('rooms.curve.form', { line: at })))
+      const r2 = length(i + 3)
+      next = i + 4
+      let from = 0
+      let sweep = 360
+      for (;;) {
+        if (t[next] === 'from') from = degrees(next + 1)
+        else if (t[next] === 'sweep') sweep = degrees(next + 1)
+        else break
+        next += 2
+      }
+      if (!(r1 > 0 && r2 > r1) || !(Math.abs(sweep) > 0 && Math.abs(sweep) < 360)) this.stop('rooms/size', at, english(said('rooms.curve.band', { line: at })))
+      curve = { kind: 'band', r1, r2, from, sweep }
+    }
+    const sizes = curve.kind === 'circle' ? [curve.d] : curve.kind === 'oval' ? [curve.w, curve.d] : curve.kind === 'arc' ? (curve.chord === null ? [] : [curve.chord]) : []
+    if (sizes.some((v) => !(v > 0))) this.stop('rooms/size', at, english(said('rooms.curve.size', { line: at, room: t[1]! })))
+    return { curve, next }
+  }
+
+  /**
+   * WRT-78: a curved room placed by its centre (`at x,y`), its outline made now; null when it is
+   * placed beside a room, and so is laid out as a box first (`curveBox`, `shapeInBox`).
+   */
+  private curvedRoom(room: RoomDraft, curve: CurveWords, place: { at?: P; dir?: string; inside?: string; until?: string; open?: boolean; openTo?: string }, basis: SizeBasis | null, placedBy: readonly string[], at: number, ctx: PlaceCtx | null): RoomDraft | null {
+    if (basis !== null && basis !== 'inside') this.stop('rooms/size', at, english(said('rooms.curve.inside', { line: at, room: room.id, word: basis })))
+    const shapeWord = curve.kind === 'circle' ? 'a circle' : curve.kind === 'oval' ? 'an oval' : curve.kind
+    if (curve.kind === 'arc') {
+      if (place.dir === undefined || place.inside !== undefined) this.stop('rooms/syntax', at, english(said('rooms.curve.placeArc', { line: at, room: room.id, sweep: String(curve.sweep) })))
+      return null
+    }
+    // A round room beside a straight side would touch it at one point only: it is placed by its centre.
+    if (place.at === undefined || place.inside !== undefined || place.until !== undefined) {
+      if (curve.kind === 'band') this.stop('rooms/syntax', at, english(said('rooms.curve.placeBand', { line: at, room: room.id })))
+      const written = placedBy[0] ?? (place.until !== undefined ? `until ${place.until}` : null)
+      this.stop('rooms/syntax', at, english(said('rooms.curve.placeCentre', { line: at, room: room.id, shape: shapeWord, place: written === null ? '' : said('rooms.curve.placeWritten', { place: written }) })))
+    }
+    let c: P = place.at
+    if (ctx?.mx === true) c = [-c[0], c[1]]
+    if (ctx?.my === true) c = [c[0], -c[1]]
+    let shape: CurvedShape
+    if (curve.kind === 'circle') {
+      shape = circleShape(c, curve.d)
+      this.guesses.push(english(said('rooms.curve.circleSaid', { line: at, room: room.id, across: num(f2(curve.d)), radius: num(f2(curve.d / 2)), centre: `${metres(c[0])},${metres(c[1])}` })))
+    } else if (curve.kind === 'oval') shape = ovalShape(c, curve.w, curve.d)
+    else {
+      let from = (curve.from * Math.PI) / 180
+      let sweep = (curve.sweep * Math.PI) / 180
+      // A band in a mirrored unit turns the other way round.
+      if (ctx?.mx === true) [from, sweep] = [Math.PI - from, -sweep]
+      if (ctx?.my === true) [from, sweep] = [-from, -sweep]
+      shape = bandShape(c, curve.r1, curve.r2, from, sweep)
+    }
+    room.poly = shape.poly.map((p) => [p[0], p[1]] as P)
+    room.curves = shape.curves
+    room.box = boxOf([room.poly])
+    if (place.open) this.openNamed(room, place.openTo, at, ctx)
+    return room
+  }
+
+  /** WRT-78: the box a round end placed on a side of a room is laid out in, inside faces. */
+  private curveBox(curve: CurveWords, place: { dir?: string; ref?: string }, at: number): { w: number | null; d: number | null } {
+    if (curve.kind !== 'arc') return { w: null, d: null }
+    // A round end: its chord along the side of the room it ends, as long as that side unless written.
+    const across = DIRS[place.dir!]![0] !== 0
+    let chord = curve.chord
+    if (chord === null) {
+      const { box } = this.lookup(place.ref!, at, null)
+      chord = across ? box[3] - box[1] : box[2] - box[0]
+    }
+    curve.chord = chord
+    const half = (curve.sweep * Math.PI) / 360
+    const depth = (chord / 2) * Math.tan(half / 2)
+    return across ? { w: depth, d: chord } : { w: chord, d: depth }
+  }
+
+  /** WRT-78: a round end placed on a side of a room, its outline made in the box it was placed in. */
+  private shapeInBox(room: RoomDraft, curve: CurveWords, dir: string): void {
+    if (curve.kind !== 'arc') return
+    const [x0, y0, x1, y1] = room.box
+    const chord: [P, P] = dir === 'east' ? [[x0, y0], [x0, y1]] : dir === 'west' ? [[x1, y1], [x1, y0]] : dir === 'north' ? [[x1, y0], [x0, y0]] : [[x0, y1], [x1, y1]]
+    const shape = segmentShape(chord[0], chord[1], (curve.sweep * Math.PI) / 180, DIRS[dir]!)
+    room.poly = shape.poly.map((p) => [p[0], p[1]] as P)
+    room.curves = shape.curves
+    room.box = boxOf([room.poly])
   }
 
   /**
@@ -2178,6 +2359,39 @@ class Compiler {
     return say
   }
 
+  /**
+   * WRT-78: `wall <room> <side> curve radius <r> [inward] [...]`: the room's one straight side
+   * facing that way bowed into an arc of that radius, out of the room unless `inward`; the
+   * wall line's other words (thickness, kind, height) apply to the curve's walls.
+   */
+  private curveSide(fl: FloorDraft, t: string[], at: number): void {
+    const [, rid, side] = t as [string, string, string]
+    const room = fl.rooms.get(rid)
+    if (room === undefined) this.stop('rooms/unknown-room', at, english(said('rooms.rawRoom.unknown', { line: at, room: rid, floor: fl.id, rooms: [...fl.rooms.keys()].join(', ') })))
+    if (t[4] !== 'radius' || t[5] === undefined || !isNumberWord(t[5])) this.stop('rooms/syntax', at, english(said('rooms.curve.wallForm', { line: at })))
+    const radius = numberOf(t[5], at, this.plain)
+    let k = 6
+    const inward = t[k] === 'inward' || t[k] === 'in'
+    if (inward || t[k] === 'outward' || t[k] === 'out') k++
+    const poly = room.poly
+    const facing = poly.flatMap((p, i) => {
+      const q = poly[(i + 1) % poly.length]!
+      if (curveOfPiece(room.curves, p, q) !== null) return []
+      const L = norm(sub(q, p))
+      const out: P = [(q[1] - p[1]) / L, -(q[0] - p[0]) / L]
+      return dot(out, DIRS[side]!) > 0.9 ? [i] : []
+    })
+    if (facing.length !== 1) this.stop('rooms/no-side', at, english(said('rooms.curve.wallSide', { line: at, room: rid, count: facing.length, side })))
+    const i = facing[0]!
+    const L = norm(sub(poly[(i + 1) % poly.length]!, poly[i]!))
+    const bowed = bowedSide(poly, i, radius, inward)
+    if (bowed === null) this.stop('rooms/size', at, english(said('rooms.curve.radiusShort', { line: at, side, room: rid, length: num(f2(L)), least: num(f2(L / 2)), radius: num(f2(radius)) })))
+    room.poly = bowed.poly.map((p) => [p[0], p[1]] as P)
+    room.curves = [...(room.curves ?? []), ...bowed.curves]
+    room.box = boxOf([room.poly])
+    if (k < t.length) fl.extover.push({ room: rid, side, say: this.wallSay(t.slice(k), at), curve: bowed.curves[0]! })
+  }
+
   private stWall(t: string[], at: number): void {
     const fl = this.floor()
     // WRT-48: a name that is no room yet is checked once every line is read (`wallRooms`).
@@ -2190,6 +2404,8 @@ class Compiler {
       if (side !== null) fl.betweenSide.set(`${pairKey(t[2]!, t[4]!)}\u0000${t[2]}\u0000${side}`, say)
       else fl.between.set(pairKey(t[2]!, t[4]!), say)
       if (say.kind === 'virtual') fl.open.add(pairKey(t[2]!, t[4]!))
+    } else if (t.length >= 4 && Object.hasOwn(DIRS, t[2]!) && t[3] === 'curve') {
+      this.curveSide(fl, t, at)
     } else if (t.length >= 3 && Object.hasOwn(COMPASS, t[2]!)) {
       fl.extover.push({ room: t[1]!, side: t[2]!, say: this.wallSay(t.slice(3), at) })
     } else {
@@ -2311,6 +2527,7 @@ class Compiler {
     const dy = box[1] - ub[1]
     for (const r of rooms) {
       r.poly = r.poly.map((p) => [p[0] + dx, p[1] + dy] as P)
+      if (r.curves !== undefined) r.curves = r.curves.map((k) => ({ c: [k.c[0] + dx, k.c[1] + dy] as P, r: k.r }))
       r.box = [r.box[0] + dx, r.box[1] + dy, r.box[2] + dx, r.box[3] + dy]
       if (r.drawn !== undefined) r.drawn = [r.drawn[0] + dx, r.drawn[1] + dy, r.drawn[2] + dx, r.drawn[3] + dy]
       this.addRoom(r, null)
@@ -2960,7 +3177,8 @@ class Compiler {
       }
       if (e.L - cur > eps()) gaps.push([cur, e.L])
       let say: WallSay | null = null
-      for (const x of fl.extover) if (x.room === A.id && dot(e.n, COMPASS[x.side]!) > 0.9) say = x.say
+      const onCurve = curveOfPiece(A.curves, e.p, e.q)
+      for (const x of fl.extover) if (x.room === A.id && (x.curve !== undefined ? onCurve === x.curve : onCurve === null && dot(e.n, COMPASS[x.side]!) > 0.9)) say = x.say
       // WRT-76: open, a railing or a wall, by the wall line, 'open <side>', 'edge' and whether it is outdoor space.
       const side = outsideEdge({
         outdoor: A.outdoor !== null,
@@ -3569,7 +3787,8 @@ class Compiler {
 
   /** WRT-51: a room's sides facing one way, in the order `<side>.<k>` counts them: from the west, then the south. */
   private static facing(edges: readonly Edge[], rid: string, side: string): Edge[] {
-    const hits = edges.filter((e) => e.room.id === rid && dot(e.n, COMPASS[side]!) > 0.9)
+    // WRT-78: a piece of a curve is no side of its own: a curved side is found by the way it faces.
+    const hits = edges.filter((e) => e.room.id === rid && dot(e.n, COMPASS[side]!) > 0.9 && curveOfPiece(e.room.curves, e.p, e.q) === null)
     return hits.sort((a, b) => a.p[0] + a.q[0] - (b.p[0] + b.q[0]) || a.p[1] + a.q[1] - (b.p[1] + b.q[1]))
   }
 
@@ -3655,7 +3874,9 @@ class Compiler {
     const mine = edges.filter((e) => e.room.id === rid)
     const hits = Compiler.facing(edges, rid, side)
     if (hits.length === 0) {
-      this.stop('rooms/no-side', at, `line ${at}: room '${rid}' has no side facing ${side}. Its sides: ${mine.map((e) => `${Compiler.sideWordOf(edges, e)} (${f2(e.L)} m)`).join(', ')}.`)
+      // WRT-78: a curve's pieces are no sides of their own.
+      const sides = mine.filter((e) => curveOfPiece(e.room.curves, e.p, e.q) === null)
+      this.stop('rooms/no-side', at, `line ${at}: room '${rid}' has no side facing ${side}. Its sides: ${sides.map((e) => `${Compiler.sideWordOf(edges, e)} (${f2(e.L)} m)`).join(', ')}.`)
     }
     if (hits.length === 1 && k === null) return hits[0]!
     if (k !== null && Number.isInteger(k) && k >= 1 && k <= hits.length) return hits[k - 1]!
@@ -3790,12 +4011,101 @@ class Compiler {
     }
   }
 
+  /**
+   * WRT-78: the curved wall of room `rid` that faces `side`: the one whose curve has a point
+   * looking that way, seen from inside the room; null when the room has none.
+   */
+  private curveFacing(fl: FloorDraft, edges: readonly Edge[], raws: readonly RawWall[], rid: string, side: string): { r: RawWall; curve: CurvedWall; room: RoomDraft; inside: boolean; angle: number } | null {
+    const room = fl.rooms.get(rid)
+    if (room?.curves === undefined || !Object.hasOwn(COMPASS, side)) return null
+    const look = COMPASS[side]!
+    // Where no curve faces that way and no straight side does, the end of a curve that comes nearest.
+    let nearest: { r: RawWall; curve: CurvedWall; room: RoomDraft; inside: boolean; angle: number; by: number } | null = null
+    const straight = Compiler.facing(edges, rid, side).length > 0
+    for (const r of raws) {
+      const curve = r.wall === undefined ? undefined : this.curvedWalls.get(r.wall)
+      if (curve === undefined) continue
+      for (const [idx] of r.sides) {
+        const edge = edges[idx]!
+        if (edge.room !== room) continue
+        const inside = dot(sub(mul(add(edge.p, edge.q), 0.5), curve.c), edge.n) > 0
+        const angle = facingAngle(curve, look, inside)
+        if (angle !== null) return { r, curve, room, inside, angle }
+        if (straight || curve.closed) continue
+        for (const s of [0, curve.length]) {
+          const out = frameAt(curve, s).outward
+          const seen: P = inside ? out : [-out[0], -out[1]]
+          const by = dot(seen, look)
+          if (by > 0 && (nearest === null || by > nearest.by)) nearest = { r, curve, room, inside, angle: Math.atan2(out[1], out[0]), by }
+        }
+      }
+    }
+    return nearest === null ? null : { r: nearest.r, curve: nearest.curve, room: nearest.room, inside: nearest.inside, angle: nearest.angle }
+  }
+
+  /**
+   * WRT-78: where an opening goes along a curved wall: `centred` on the point of the curve that
+   * faces the side named (between two rooms, the middle of the curve they share), or `<m> from
+   * <side>`, measured along the curve from its point that faces that side (or its end, where it
+   * ends before one), toward the opening's own point. Its offset and width are along the curve
+   * (C21); the frame returned is the curve's at the opening's middle, for its swing and hinge.
+   */
+  private alongCurve(
+    arcAt: { r: RawWall; curve: CurvedWall; room: RoomDraft; inside: boolean; angle: number | null },
+    between: boolean,
+    pos: OpeningWords['pos'],
+    width: number,
+    at: number,
+    kind: Opening['type'],
+    oid: string
+  ): { u: P; fromEnd: 'lo' | 'hi' | null; param: (p: P) => number; sideOf: (p: P) => number; P0: P; P1: P; e: Edge; offset: number } | null {
+    const { curve, inside, room } = arcAt
+    const L = curve.length
+    const target = between || arcAt.angle === null ? L / 2 : stationAt(curve, arcAt.angle)!
+    let offset: number
+    let fromEnd: 'lo' | 'hi' | null = null
+    // A place centred on a point near an end of the curve is moved along it until the opening fits.
+    if (pos.centred) offset = curve.closed ? target - width / 2 : Math.min(Math.max(target - width / 2, 0), Math.max(L - width, 0))
+    else {
+      if (pos.ref !== null) this.stop('rooms/syntax', at, english(said('rooms.curve.openingOf', { line: at, ref: pos.ref })))
+      if (!Object.hasOwn(COMPASS, pos.comp)) this.stop('rooms/syntax', at, english(said('rooms.curve.measureFrom', { line: at, word: pos.comp })))
+      const look = COMPASS[pos.comp]!
+      let from = stationAt(curve, inside ? Math.atan2(look[1], look[0]) : Math.atan2(-look[1], -look[0]))
+      if (from === null) from = dot(frameAt(curve, 0).point, look) >= dot(frameAt(curve, L).point, look) ? 0 : L
+      let d = target - from
+      if (curve.closed) d = ((((d + L / 2) % L) + L) % L) - L / 2
+      if (d >= 0) {
+        offset = from + pos.dist
+        fromEnd = 'lo'
+      } else {
+        offset = from - pos.dist - width
+        fromEnd = 'hi'
+      }
+      if (curve.closed) offset = ((offset % L) + L) % L
+    }
+    if (offset < -eps() || offset + width > L + eps()) {
+      this.problem('rooms/opening-fit', at, english(said('rooms.curve.openingFit', { line: at, kind, id: oid, width: f2(width), from: f2(offset), to: f2(offset + width), wall: arcAt.r.wall!.id, length: f2(L) })))
+      return null
+    }
+    const middle = offset + width / 2
+    const frame = frameAt(curve, middle)
+    const u = frame.along
+    const n: P = inside ? frame.outward : [-frame.outward[0], -frame.outward[1]]
+    const face = sub(frame.point, mul(n, arcAt.r.t / 2))
+    const P0 = sub(face, mul(u, width / 2))
+    const P1 = add(face, mul(u, width / 2))
+    const e: Edge = { room, i: -1, p: P0, q: P1, u, n, L: width, cands: [], cover: [], idx: -1 }
+    return { u, fromEnd, param: (p) => middle + dot(sub(p, frame.point), u), sideOf: (p) => cross(u, sub(p, frame.point)), P0, P1, e, offset }
+  }
+
   private resolveOpening(fl: FloorDraft, edges: Edge[], raws: RawWall[], t: string[], at: number, oid: string, wallHeight: number): Opening | null {
     const kind = t[0] as Opening['type']
     let i = 2
     let between: { A: string; B: string; r: RawWall } | null = null
     let e: Edge
     let stretch: [number, number]
+    // WRT-78: an opening on a curved wall, placed along the curve.
+    let arcAt: { r: RawWall; curve: CurvedWall; room: RoomDraft; inside: boolean; angle: number | null } | null = null
     if (i + 3 < t.length && t[i] === 'between' && t[i + 2] === 'and') {
       const A = t[i + 1]!
       const B = t[i + 3]!
@@ -3805,7 +4115,17 @@ class Compiler {
         const nb = [...new Set(raws.filter((r) => r.rooms.length === 2 && r.rooms.some((x) => x.id === A)).flatMap((r) => r.rooms.map((x) => x.id)))].filter((x) => x !== A).sort()
         this.stop('rooms/no-shared-wall', at, `line ${at}: '${A}' and '${B}' do not share a wall, so nothing can be put between them. '${A}' shares walls with: ${nb.join(', ') || 'no room'}.`)
       }
-      if (shared.length > 1) {
+      // WRT-78: the pieces of one curve two rooms share are one wall.
+      const oneCurve = new Set(shared.map((r) => r.wall)).size === 1 && this.curvedWalls.has(shared[0]!.wall!)
+      if (oneCurve) {
+        const r = shared[0]!
+        const room = fl.rooms.get(A)!
+        const sd = r.sides[r.rooms[0]!.id === A ? 0 : 1]!
+        const edge = edges[sd[0]]!
+        const curve = this.curvedWalls.get(r.wall!)!
+        arcAt = { r, curve, room, inside: dot(sub(mul(add(edge.p, edge.q), 0.5), curve.c), edge.n) > 0, angle: null }
+      }
+      if (shared.length > 1 && !oneCurve) {
         const desc = shared.map((r) => {
           const k = r.rooms[0]!.id === A ? 0 : 1
           const side = r.sides[k]!
@@ -3828,88 +4148,111 @@ class Compiler {
       between = { A, B, r }
       i += 4
     } else if (i + 2 < t.length && t[i] === 'in') {
-      e = this.pickEdge(fl, edges, raws, t, t[i + 1]!, t[i + 2]!, at)
+      arcAt = this.curveFacing(fl, edges, raws, t[i + 1]!, t[i + 2]!)
+      e = arcAt !== null ? edges[0]! : this.pickEdge(fl, edges, raws, t, t[i + 1]!, t[i + 2]!, at)
       stretch = [0, e.L]
       i += 3
     } else {
       this.stop('rooms/syntax', at, `line ${at}: after the id write 'between <room> and <room>' or 'in <room> <side>'.`)
     }
     const { pos, width, sill, height, opens, hinged, openingKind, seenFrom, part } = this.openingWords(t, i, at, kind, oid)
-    const u = e.u
-    // WRT-55: a place measured along the room's side, or along one stretch of it, from that stretch's end.
-    let alongStretch = false
-    const placeOn = (): { s: number; fromEnd: 'lo' | 'hi' | null } => {
-      if (pos.centred) return { s: (stretch[0] + stretch[1]) / 2 - width / 2, fromEnd: null }
-      const { dist, comp, ref } = pos
-      this.measuredFrom(u, comp, at)
-      let [lo, hi] = alongStretch ? stretch : [0, e.L]
-      if (ref !== null && ref !== e.room.id) {
-        if (!fl.rooms.has(ref)) this.stop('rooms/unknown-room', at, `line ${at}: there is no room '${ref}' on floor '${fl.id}'.`)
-        const cand = edges.filter((f) => f.room.id === ref && Math.abs(cross(f.u, u)) < tolerance('parallel') && (Math.abs(dot(sub(f.p, e.p), e.n)) <= tolerance('roomsWallWidest') + eps() || e.cover.some((c) => c.f === f)))
-        if (cand.length === 0) this.stop('rooms/no-side', at, `line ${at}: room '${ref}' has no side along this wall to measure from.`)
-        const f = cand.reduce((x, y) => (y.L > x.L ? y : x))
-        ;[lo, hi] = [dot(sub(f.p, e.p), u), dot(sub(f.q, e.p), u)].sort((x, y) => x - y) as [number, number]
+    let u: P
+    let s = 0
+    let fromEnd: 'lo' | 'hi' | null = null
+    let r: RawWall
+    let w: DerivedWall
+    let param: (p: P) => number
+    let sideOf: (p: P) => number
+    let P0: P
+    let P1: P
+    let o0: number
+    let o1: number
+    let offset: number
+    if (arcAt !== null) {
+      const placed = this.alongCurve(arcAt, between !== null, pos, width, at, kind, oid)
+      if (placed === null) return null
+      ;({ u, fromEnd, param, sideOf, P0, P1, e, offset } = placed)
+      o0 = offset
+      o1 = offset + width
+      r = arcAt.r
+      w = r.wall!
+    } else {
+      u = e.u
+      // WRT-55: a place measured along the room's side, or along one stretch of it, from that stretch's end.
+      let alongStretch = false
+      const placeOn = (): { s: number; fromEnd: 'lo' | 'hi' | null } => {
+        if (pos.centred) return { s: (stretch[0] + stretch[1]) / 2 - width / 2, fromEnd: null }
+        const { dist, comp, ref } = pos
+        this.measuredFrom(u, comp, at)
+        let [lo, hi] = alongStretch ? stretch : [0, e.L]
+        if (ref !== null && ref !== e.room.id) {
+          if (!fl.rooms.has(ref)) this.stop('rooms/unknown-room', at, `line ${at}: there is no room '${ref}' on floor '${fl.id}'.`)
+          const cand = edges.filter((f) => f.room.id === ref && Math.abs(cross(f.u, u)) < tolerance('parallel') && (Math.abs(dot(sub(f.p, e.p), e.n)) <= tolerance('roomsWallWidest') + eps() || e.cover.some((c) => c.f === f)))
+          if (cand.length === 0) this.stop('rooms/no-side', at, `line ${at}: room '${ref}' has no side along this wall to measure from.`)
+          const f = cand.reduce((x, y) => (y.L > x.L ? y : x))
+          ;[lo, hi] = [dot(sub(f.p, e.p), u), dot(sub(f.q, e.p), u)].sort((x, y) => x - y) as [number, number]
+        }
+        const fromHi = dot(u, COMPASS[comp]!) > 0
+        return { s: fromHi ? hi - dist - width : lo + dist, fromEnd: fromHi ? 'hi' : 'lo' }
       }
-      const fromHi = dot(u, COMPASS[comp]!) > 0
-      return { s: fromHi ? hi - dist - width : lo + dist, fromEnd: fromHi ? 'hi' : 'lo' }
-    }
-    let { s, fromEnd } = placeOn()
-    // Which stretch of wall holds it.
-    const mine: Array<[RawWall, [number, number, number]]> = []
-    for (const r of raws) for (const sd of r.sides) if (sd[0] === e.idx) mine.push([r, sd])
-    // WRT-55: between two rooms, a place measured along the room's side that falls outside the
-    // stretch they share is measured along that stretch, from its end on that side.
-    if (between !== null && !pos.centred && !(stretch[0] - eps() <= s && s + width <= stretch[1] + eps())) {
-      alongStretch = true
-      const tried = placeOn()
-      if (stretch[0] - eps() <= tried.s && tried.s + width <= stretch[1] + eps()) {
-        ;({ s, fromEnd } = tried)
-        this.guesses.push(english(said('rooms.door.alongShared', { line: at, id: oid, a: between.A, b: between.B, length: num(f2(stretch[1] - stretch[0])), comp: pos.comp })))
-      }
-    }
-    // WRT-55: a window written in a side that is partly the wall to another room goes in the side's
-    // outside stretch, placed along it, unless it already stands in an outside stretch.
-    if (kind === 'window' && between === null) {
-      const outward = mine.filter(([r]) => r.rooms.length === 1 || (r.rooms.length === 2 && facesOutdoor(r.rooms[0]!, r.rooms[1]!)))
-      const inOne = outward.some(([, sd]) => sd[1] - eps() <= s && s + width <= sd[2] + eps())
-      if (outward.length > 0 && outward.length < mine.length && !inOne) {
-        const [, sd] = outward.reduce((x, y) => (y[1][2] - y[1][1] > x[1][2] - x[1][1] ? y : x))
-        stretch = [sd[1], sd[2]]
+      ;({ s, fromEnd } = placeOn())
+      // Which stretch of wall holds it.
+      const mine: Array<[RawWall, [number, number, number]]> = []
+      for (const r of raws) for (const sd of r.sides) if (sd[0] === e.idx) mine.push([r, sd])
+      // WRT-55: between two rooms, a place measured along the room's side that falls outside the
+      // stretch they share is measured along that stretch, from its end on that side.
+      if (between !== null && !pos.centred && !(stretch[0] - eps() <= s && s + width <= stretch[1] + eps())) {
         alongStretch = true
-        ;({ s, fromEnd } = placeOn())
-        const inner = [...new Set(mine.filter(([r]) => !outward.some(([o]) => o === r)).flatMap(([r]) => r.rooms.map((x) => x.id)).filter((x) => x !== e.room.id))]
-        this.guesses.push(english(said('rooms.window.outsideStretch', { line: at, id: oid, room: e.room.id, side: Compiler.sideWordOf(edges, e), length: num(f2(sd[2] - sd[1])), rooms: inner.map((x) => `'${x}'`).join(', ') })))
+        const tried = placeOn()
+        if (stretch[0] - eps() <= tried.s && tried.s + width <= stretch[1] + eps()) {
+          ;({ s, fromEnd } = tried)
+          this.guesses.push(english(said('rooms.door.alongShared', { line: at, id: oid, a: between.A, b: between.B, length: num(f2(stretch[1] - stretch[0])), comp: pos.comp })))
+        }
       }
+      // WRT-55: a window written in a side that is partly the wall to another room goes in the side's
+      // outside stretch, placed along it, unless it already stands in an outside stretch.
+      if (kind === 'window' && between === null) {
+        const outward = mine.filter(([r]) => r.rooms.length === 1 || (r.rooms.length === 2 && facesOutdoor(r.rooms[0]!, r.rooms[1]!)))
+        const inOne = outward.some(([, sd]) => sd[1] - eps() <= s && s + width <= sd[2] + eps())
+        if (outward.length > 0 && outward.length < mine.length && !inOne) {
+          const [, sd] = outward.reduce((x, y) => (y[1][2] - y[1][1] > x[1][2] - x[1][1] ? y : x))
+          stretch = [sd[1], sd[2]]
+          alongStretch = true
+          ;({ s, fromEnd } = placeOn())
+          const inner = [...new Set(mine.filter(([r]) => !outward.some(([o]) => o === r)).flatMap(([r]) => r.rooms.map((x) => x.id)).filter((x) => x !== e.room.id))]
+          this.guesses.push(english(said('rooms.window.outsideStretch', { line: at, id: oid, room: e.room.id, side: Compiler.sideWordOf(edges, e), length: num(f2(sd[2] - sd[1])), rooms: inner.map((x) => `'${x}'`).join(', ') })))
+        }
+      }
+      let hold = mine.filter(([, sd]) => sd[1] - eps() <= s && s + width <= sd[2] + eps())
+      if (between !== null) hold = hold.filter(([r]) => r === between!.r)
+      if (hold.length === 0) {
+        const who = e.room.id
+        const parts = [...mine]
+          .sort((x, y) => x[1][1] - y[1][1])
+          .map(([r, sd]) => {
+            const other = r.rooms.map((x) => x.id).filter((x) => x !== who)
+            return `${f2(sd[1])} to ${f2(sd[2])} m (${other.length > 0 ? `wall to ${other[0]}` : 'outside wall'}, ${f2(sd[2] - sd[1])} m long)`
+          })
+        const startWord = Math.abs(u[0]) > Math.abs(u[1]) ? (u[0] > 0 ? 'west' : 'east') : u[1] > 0 ? 'south' : 'north'
+        this.problem(
+          'rooms/opening-fit',
+          at,
+          `Line ${at}: ${kind} '${oid}' (${f2(width)} m wide) would run from ${f2(s)} to ${f2(s + width)} m along the ${compassOf(e.n)} side of '${who}', which is ${f2(e.L)} m long${between ? `; the wall shared by '${between.A}' and '${between.B}' is only ${f2(stretch[1] - stretch[0])} m long` : ''}. It does not fit in one stretch of wall. Stretches on that side, measured from its ${startWord} end: ${parts.join('; ')}. A part that is meant to run past its wall can be written raw.`
+        )
+        return null
+      }
+      ;[r] = hold[0]!
+      w = r.wall!
+      const axStart: P = [w.json.start[0], w.json.start[1]]
+      const axDir = unit(sub([w.json.end[0], w.json.end[1]], axStart))
+      param = (p: P): number => dot(sub(p, axStart), axDir)
+      sideOf = (p: P): number => cross(axDir, sub(p, axStart))
+      P0 = add(e.p, mul(u, s))
+      P1 = add(e.p, mul(u, s + width))
+      o0 = param(P0)
+      o1 = param(P1)
+      offset = Math.min(o0, o1)
     }
-    let hold = mine.filter(([, sd]) => sd[1] - eps() <= s && s + width <= sd[2] + eps())
-    if (between !== null) hold = hold.filter(([r]) => r === between!.r)
-    if (hold.length === 0) {
-      const who = e.room.id
-      const parts = [...mine]
-        .sort((x, y) => x[1][1] - y[1][1])
-        .map(([r, sd]) => {
-          const other = r.rooms.map((x) => x.id).filter((x) => x !== who)
-          return `${f2(sd[1])} to ${f2(sd[2])} m (${other.length > 0 ? `wall to ${other[0]}` : 'outside wall'}, ${f2(sd[2] - sd[1])} m long)`
-        })
-      const startWord = Math.abs(u[0]) > Math.abs(u[1]) ? (u[0] > 0 ? 'west' : 'east') : u[1] > 0 ? 'south' : 'north'
-      this.problem(
-        'rooms/opening-fit',
-        at,
-        `Line ${at}: ${kind} '${oid}' (${f2(width)} m wide) would run from ${f2(s)} to ${f2(s + width)} m along the ${compassOf(e.n)} side of '${who}', which is ${f2(e.L)} m long${between ? `; the wall shared by '${between.A}' and '${between.B}' is only ${f2(stretch[1] - stretch[0])} m long` : ''}. It does not fit in one stretch of wall. Stretches on that side, measured from its ${startWord} end: ${parts.join('; ')}. A part that is meant to run past its wall can be written raw.`
-      )
-      return null
-    }
-    const [r] = hold[0]!
-    const w = r.wall!
-    const axStart: P = [w.json.start[0], w.json.start[1]]
-    const axDir = unit(sub([w.json.end[0], w.json.end[1]], axStart))
-    const param = (p: P): number => dot(sub(p, axStart), axDir)
-    const sideOf = (p: P): number => cross(axDir, sub(p, axStart))
-    const P0 = add(e.p, mul(u, s))
-    const P1 = add(e.p, mul(u, s + width))
-    const o0 = param(P0)
-    const o1 = param(P1)
-    const offset = Math.min(o0, o1)
     const other = r.rooms.filter((x) => x !== e.room)
     let openingSill: number
     let openingHeight: number
@@ -4002,7 +4345,8 @@ class Compiler {
     const joins = other.length > 0 ? `${e.room.id} and ${other[0]!.id}` : `${e.room.id} and the outside`
     const loName = compassOf([-u[0], -u[1]], DIRS)
     const hiName = compassOf(u, DIRS)
-    this.openingFacts.push(`${oid}: ${kind} ${f2(width)} m in ${w.id}, joins ${joins}; ${f2(s)} m from ${e.room.id}'s ${loName} corner, ${f2(e.L - s - width)} m from its ${hiName} corner${swing}`)
+    if (arcAt !== null) this.openingFacts.push(english(said('rooms.curve.openingFact', { id: oid, kind, width: f2(width), wall: w.id, joins, offset: f2(offset), swing })))
+    else this.openingFacts.push(`${oid}: ${kind} ${f2(width)} m in ${w.id}, joins ${joins}; ${f2(s)} m from ${e.room.id}'s ${loName} corner, ${f2(e.L - s - width)} m from its ${hiName} corner${swing}`)
     this.placedAt.set(at, other.length > 0 ? other[0]!.id : null)
     return item
   }
@@ -4234,6 +4578,8 @@ class Compiler {
       this.warn('rooms/id-changed', null, english(said(changed.length === 1 ? 'rooms.idChanged.one' : 'rooms.idChanged.many', { list })))
     }
     const trueAreas = new Map<string, number>()
+    // WRT-78: how far a curved room's pieces fall inside its curves, which Grid's own tracing of a curve may too.
+    const tracedSlack = new Map<string, number>()
     const rawRoomLines: Array<{ fl: FloorDraft; words: string[]; line: number; local: string; name?: string }> = []
     for (const fl of this.floors) {
       const wallPrefix = multi ? `${fl.id}-` : ''
@@ -4249,13 +4595,15 @@ class Compiler {
       } else {
         const { edges, raws } = this.derive(fl)
         if (this.problems.length > 0) continue
-        const built = this.buildWalls(fl, edges, raws, wallPrefix)
+        // WRT-78: the pieces of each curve between the same rooms are one curved wall.
+        const { walls: built, curved } = curveWalls(this.buildWalls(fl, edges, raws, wallPrefix), edges, this.fix)
+        for (const [w, curve] of curved) this.curvedWalls.set(w, curve)
         this.edgeNotes(fl, raws)
         // WRT-44: a wall worked out with its two ends at one point, as the file holds them, has
         // no length: two outside walls closer than their own thickness (the notch between two
         // flats of a row) cover its place. It is left out, so the plan never holds a wall the check
         // would leave out; the other walls keep their ids, as a plan written before has them.
-        const gone = new Set(built.filter((w) => noLength(w.json.start, w.json.end)).map((w) => w.json.id))
+        const gone = new Set(built.filter((w) => noLength(w.json.start, w.json.end, w.json.arc)).map((w) => w.json.id))
         const walls = built.filter((w) => !gone.has(w.json.id))
         worked = { edges, raws, gone }
         plan.walls.push(...walls.map((w) => w.json))
@@ -4291,8 +4639,10 @@ class Compiler {
             ...(room.facts !== null ? { properties: room.facts } : {}),
           }
           plan.rooms.push(item)
-          const area = Math.abs(signedArea(room.poly))
+          // WRT-78: a curved room's area is its curves', not its pieces'.
+          const area = room.curves === undefined ? Math.abs(signedArea(room.poly)) : curvedArea(room.poly, room.curves)
           trueAreas.set(id, area)
+          if (room.curves !== undefined) tracedSlack.set(id, Math.max(area - Math.abs(signedArea(room.poly)), area * tolerance('roomsCurveArea')))
           const b = boxOf([room.poly])
           const rect = room.poly.length === 4 && Math.abs(area - (b[2] - b[0]) * (b[3] - b[1])) < tolerance('areaEqual')
           this.roomFacts.push({
@@ -4302,7 +4652,7 @@ class Compiler {
             width: b[2] - b[0],
             depth: b[3] - b[1],
             area,
-            corners: rect ? 4 : room.poly.length,
+            corners: rect ? 4 : room.curves === undefined ? room.poly.length : cornerCount(room.poly, room.curves),
             ...(room.outdoor !== null ? { apart: 'outdoor' as const } : {}),
             basis: room.size?.basis ?? null,
             written: room.size ? { width: room.size.w, depth: room.size.d } : null,
@@ -4315,7 +4665,7 @@ class Compiler {
             kind: w.json.kind,
             virtual: w.virtual,
             thickness: w.json.thickness,
-            length: norm(sub(w.end, w.start)),
+            length: this.curvedWalls.get(w)?.length ?? norm(sub(w.end, w.start)),
             rooms: [...L, ...R],
             handles: [...new Set(w.raws.flatMap((r) => r.handles))],
             stretches: w.raws.flatMap((r) => r.handles.map((handle) => ({ handle, start: [r.a[0], r.a[1]] as const, end: [r.b[0], r.b[1]] as const }))),
@@ -4406,7 +4756,7 @@ class Compiler {
       if (poly === null) this.warn('rooms/not-drawn', null, `Grid cannot draw room '${room.id}' from the walls worked out for it; its inside area is ${truth.toFixed(2)} m².`)
       else {
         const area = Math.abs(signedArea(poly.map((p) => [p.x, p.y] as P)))
-        if (Math.abs(area - truth) > tolerance('areaReported')) this.warn('rooms/area-differs', null, `Grid measures room '${room.id}' at ${area.toFixed(2)} m², but its inside is ${truth.toFixed(2)} m².`)
+        if (Math.abs(area - truth) > tolerance('areaReported') + (tracedSlack.get(room.id) ?? 0)) this.warn('rooms/area-differs', null, `Grid measures room '${room.id}' at ${area.toFixed(2)} m², but its inside is ${truth.toFixed(2)} m².`)
       }
     }
     this.rawFacts(plan)

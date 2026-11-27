@@ -58,7 +58,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_move_room_side` | Moves one side of a room out or in, or to an inside size; walls ending on it, on its centre line or its face, follow, and openings keep their anchor or their place in the building. A move that would leave the drawing with a new problem, or a room on the wall less than 0.30 m across, is refused with the largest move that way that fits |
 | `grid_mirror` | Mirrors the plan left to right or top to bottom (`how`), or turns it a quarter or half round (`turn`: 90, 180, 270 or -90 degrees, counter-clockwise as Grid draws it); `keep_north` mirrors the building and leaves the stated north where it is, for a plan drawn the wrong way round |
 | `grid_merge_rooms` | Knocks two rooms into one, taking out the stretch of wall they share. Two rooms of different uses need `use`, or `zones` to keep both as zones of one open-plan room ([Zones inside one room](plan-file.md#zones-inside-one-room)); left out, the call is refused and asks. The verdict names any use the plan no longer has |
-| `grid_split_room` | Splits a room with a new wall, the new room taking one side, with a door in it |
+| `grid_split_room` | Splits a room with a new wall, the new room taking one side, with a door in it. It gives both measured areas and checks the remaining room for windows, including ones placed by a pattern |
 | `grid_add_room` | Builds a room against the outside of a side of a room, saying what happens to openings in the wall it covers |
 | `grid_stretch` | Makes the whole building wider or longer, at its outside wall or through a room |
 | `grid_rename_room` | Renames a room or changes its use, saying which checks now look at it, names its floor, wall, ceiling and skirting finishes, or says whether it is heated or cooled (`conditioned`, ARE-60) |
@@ -574,7 +574,9 @@ in another place is never "where it was": the verdict says it moved and how far,
 moved 2.88 m along its wall` when its wall stands where it stood, `window "w4" moved 0.60 m with
 its wall` when its wall moved, and counts more (`3 windows moved 0.30 m along their walls`).
 `grid_compare` lists each under "Openings changed", and its data gives `moved`, in metres, on
-each entry of `openingsChanged`.
+each entry of `openingsChanged`. When one opening changes its swing in an edit, the verdict
+names the opening and the side it opens into. A rooms-text rewrite measures the resulting plan
+with the columns and other parts that stay in the file.
 
 ## Use indicators: will it fit, can you turn, is the window blocked
 

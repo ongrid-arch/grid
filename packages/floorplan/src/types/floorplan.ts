@@ -70,7 +70,11 @@
  *   where the building sits: `origin`, a point of the plan, and where that point is on the earth
  *   (`latitude` and `longitude` in degrees, `elevation` in metres); it places nothing without
  *   `origin`. LVL-4 adds `site.ground`, the ground's level from the ground floor's (no `origin`
- *   needed). All four are optional and
+ *   needed). CNT-49 adds the ground on a slope: `site.groundSides`, a level for any of C4's four
+ *   sides of the building; `site.fall`, a slope in percent `toward` one of the eight compass
+ *   points of the drawing, through `ground` (else 0) at the middle of the building; and
+ *   `site.groundEdges`, the levels at the two corners of an edge of the plot (C13), a falling
+ *   street. Grid takes the one even slope that fits every stated level. All four are optional and
  *   never defaulted, so a plan that states none reads exactly as before (version 1): it has no
  *   north, and its y runs up (C4).
  *
@@ -1924,6 +1928,21 @@ export const SetbackSchema = z.object({
   source: z.enum(SETBACK_SOURCES).optional(),
 })
 
+/** CNT-49 (C7): the eight compass points of the drawing a fall runs toward, north up it (C4). */
+export const FALL_TOWARD = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'] as const
+export type FallToward = (typeof FALL_TOWARD)[number]
+
+/** CNT-49 (C7): the ground at the building's sides, each a level from the ground floor's floor level. */
+export const GroundSidesSchema = z
+  .object({ north: finite().optional(), east: finite().optional(), south: finite().optional(), west: finite().optional() })
+  .refine((sides) => Object.values(sides).some((v) => v !== undefined), { message: 'names no side: give a level for north, east, south or west' })
+
+/** CNT-49 (C7): a fall of the ground, `slope` in percent, falling `toward` a compass point of the drawing. */
+export const GroundFallSchema = z.object({ slope: finite().min(0).max(1000), toward: z.enum(FALL_TOWARD) })
+
+/** CNT-49 (C7): the ground along an edge of the plot: its level at the edge's first corner and its second. */
+export const GroundEdgeSchema = z.object({ edge: z.number().int().min(1), start: finite(), end: finite().optional() })
+
 /**
  * BRF-3: how many edges a boundary has: one per point, the last running back to the first. A
  * last point written on the first again closes the shape and adds no edge.
@@ -1949,8 +1968,15 @@ export function boundaryEdgeCount(points: readonly (readonly [number, number])[]
  * level (0), the same datum as a floor's `elevation` (not `site.elevation`, which is above sea
  * level): -0.15 for a floor 15 cm above the ground. It needs no `origin`. With it stated, a door
  * or window in an outside wall that lies below the ground is named, and the ground floor is the
- * floor nearest it. One level for the whole site: a ground level for each wall, for a slope,
- * comes later.
+ * floor nearest it.
+ *
+ * CNT-49: the ground on a slope, in the same datum. `groundSides` gives the ground at any of the
+ * building's four sides (C4: north is up the drawing, as the facades name them); `fall` a slope,
+ * in percent (rise over run, times 100), falling `toward` a compass point of the drawing, through
+ * `ground` (else 0) at the middle of the building; `groundEdges` the ground along edges of the
+ * plot, at the edge's first corner (`start`) and its second (`end`, else the same). Every check,
+ * the site measure and the pictures read the ground at each wall from the one even slope that fits
+ * them all (`geometry/groundSurface.ts`).
  *
  * BRF-3 (C13): `boundary`, `streets`, `setbacks` and `things`, the plot and what is on it.
  * A fault in one street, set-back or thing leaves that one out alone (`readParts.ts`).
@@ -1976,6 +2002,10 @@ export const SiteSchema = z
     setbacks: z.array(SetbackSchema).max(BOUNDARY_MAX).optional(),
     // BRF-3: the site's own things: fences, gates, paths, paving, trees and pools.
     things: z.array(SiteThingSchema).max(PARTS_MAX).optional(),
+    // CNT-49: the ground at the building's sides, a fall, and the ground along edges of the plot.
+    groundSides: GroundSidesSchema.optional(),
+    fall: GroundFallSchema.optional(),
+    groundEdges: z.array(GroundEdgeSchema).max(BOUNDARY_MAX).optional(),
   })
   .superRefine((site, ctx) => {
     const say = (path: (string | number)[], message: string): void => ctx.addIssue({ code: z.ZodIssueCode.custom, path, message })
@@ -2000,6 +2030,14 @@ export const SiteSchema = z
       if (problem !== null) say(['setbacks', i, 'from'], problem)
       else if (asked.has(key)) say(['setbacks', i, 'from'], `asks a second set-back from ${typeof setback.from === 'number' ? `edge ${key}` : key === 'all' ? 'every edge' : 'the street'}: give one`)
       else asked.add(key)
+    })
+    // CNT-49: a ground edge is an edge of the boundary, named once.
+    const leveled = new Set<number>()
+    site.groundEdges?.forEach((g, i) => {
+      const problem = edgeProblem(g.edge)
+      if (problem !== null) say(['groundEdges', i, 'edge'], problem)
+      else if (leveled.has(g.edge)) say(['groundEdges', i, 'edge'], `names edge ${g.edge} twice`)
+      else leveled.add(g.edge)
     })
     const ids = new Set<string>()
     site.things?.forEach((thing, i) => {
