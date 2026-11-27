@@ -555,6 +555,23 @@ describe('grid serve', () => {
     expect(reply.result.tools.map((tool) => tool.name)).toEqual(GRID_TOOLS.map((tool) => tool.name))
     expect(reply.result.tools.map((tool) => tool.name)).toContain('grid_export')
   }, 20_000)
+
+  // CMD-52: grid mcp --tools lists the groups named, with grid_project and grid_help.
+  it('lists the tool groups named with --tools, and refuses one it does not know', async () => {
+    const replies = await new Promise<string>((done, fail) => {
+      const child = spawn(process.execPath, [bundle, 'mcp', '--tools', 'view,areas'], { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'] })
+      let out = ''
+      child.stdout.on('data', (chunk: Buffer) => { out += chunk.toString() })
+      child.on('error', fail)
+      child.on('close', () => done(out))
+      child.stdin.end(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })}\n`)
+    })
+    const names = (JSON.parse(replies.trim()) as { result: { tools: Array<{ name: string }> } }).result.tools.map((tool) => tool.name)
+    expect(names.slice(0, 2)).toEqual(['grid_project', 'grid_help'])
+    expect(names).toEqual(expect.arrayContaining(['grid_view', 'grid_areas', 'grid_measure']))
+    expect(names).not.toContain('grid_write_rooms')
+    expectRefusal(grid('mcp', '--tools', 'view,plans'), 2, '--tools takes view, areas, write, edit')
+  }, 20_000)
 })
 
 describe('speed', () => {

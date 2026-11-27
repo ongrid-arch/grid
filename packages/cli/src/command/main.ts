@@ -32,6 +32,7 @@ import { inLanguage } from './words'
 import { startToolServer } from '../mcp/serve'
 import { PREVIEW_PORT, startLocalPreview } from '../preview/localServer'
 import { projectResources, projectTools } from '../mcp/serveTools'
+import { readToolGroups, TOOL_GROUPS } from '../mcp/toolGroups'
 import { CHECK_OPTIONS, checkFailOn, checkFails, checkJson, checkPlan, checkText, markNote, withSeen, type MarkAsk, type MarkDone } from './check'
 import { readSeen, SeenRefused } from '../seen/marks'
 import { firmForCheck } from '../firm/measure'
@@ -82,6 +83,12 @@ export interface CommandIo {
 class WriteFailed extends Error {}
 
 const HELP_FLAG: OptionSpecs = { '--help': { takesValue: false, help: 'Show this help.' } }
+
+/** CMD-52: the tool server's options: the project folder and the tool groups it lists. */
+const SERVE_OPTIONS: OptionSpecs = {
+  ...PROJECT_OPTION,
+  '--tools': { takesValue: true, help: `The tool groups to list, split at commas: ${TOOL_GROUPS.join(', ')}. grid_project and grid_help are always listed. Every tool when left out.` },
+}
 
 /** VEW-4: the local preview page's options. */
 const PREVIEW_OPTIONS: OptionSpecs = {
@@ -170,14 +177,14 @@ const COMMANDS = {
     options: PREVIEW_OPTIONS,
   },
   serve: {
-    usage: 'grid serve [--project <folder>]',
+    usage: 'grid serve [--project <folder>] [--tools <groups>]',
     summary: "Starts Grid's tool server on standard input and output, for an agent's host to talk to.",
-    options: PROJECT_OPTION,
+    options: SERVE_OPTIONS,
   },
   mcp: {
-    usage: 'grid mcp [--project <folder>]',
+    usage: 'grid mcp [--project <folder>] [--tools <groups>]',
     summary: 'The same as serve, under the name agents start it by: npx -y ongrid mcp.',
-    options: PROJECT_OPTION,
+    options: SERVE_OPTIONS,
   },
 } as const satisfies Record<string, { usage: string; summary: string; options: OptionSpecs }>
 
@@ -343,7 +350,9 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       if (!(error instanceof PathRefused) || projectOption !== undefined) throw error
       project = error
     }
-    startToolServer(projectTools(project), projectResources())
+    // CMD-52: the tool groups named, or every tool.
+    const groups = textOf(parsed, '--tools')
+    startToolServer(projectTools(project, groups === undefined ? undefined : readToolGroups(groups)), projectResources())
     return EXIT_OK
   }
 
