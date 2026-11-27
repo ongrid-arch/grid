@@ -395,7 +395,9 @@ export const TOLERANCES = {
     decides:
       'How far a corner of a run of short straight sides may lie off the circle through the ' +
       'run\'s ends and middle and still be a piece of that curve (VEW-79); also how near two curved ' +
-      'walls\' face radii, on one centre, must be to be one circle, dimensioned by one radius.',
+      'walls\' face radii, on one centre, must be to be one circle, dimensioned by one radius; and ' +
+      'how far past a curved wall\'s faces a stretch of the building\'s outline seen from above ' +
+      'may lie and still be that wall\'s one curved face on the site (CNT-56).',
     basis: own
   },
   radiusLineLongest: {

@@ -3,6 +3,8 @@ import { resolve } from 'path'
 import { describe, expect, it } from 'vitest'
 import type * as THREE from 'three'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
+import { refurbishment } from '@ongrid/floorplan/test-support/phases'
+import { PHASE_COLOURS } from '../../picture/phaseColour'
 import { buildScene, sceneShell } from '@ongrid/floorplan/geometry'
 import { toGlb } from '@ongrid/floorplan/geometry/export/gltf'
 import * as Three from 'three'
@@ -75,6 +77,23 @@ describe('planStill', () => {
       // Its lights are the app's, read from the scene rather than written down twice.
       const lights = still.scene.children.filter((object) => (object as THREE.Light).isLight)
       expect(lights.map((light) => light.type).sort()).toEqual(['DirectionalLight', 'HemisphereLight'])
+    } finally {
+      still.close()
+    }
+  })
+
+  it('tints new walls, room slabs and openings in the shared 3D scene', () => {
+    const plan = refurbishment()
+    const still = stillScene(plan, { colors: LIGHT_COLORS_3D, width: 300, height: 200 })
+    try {
+      const work: THREE.Mesh[] = []
+      still.scene.traverseVisible((object) => {
+        const mesh = object as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
+        if (mesh.isMesh && mesh.material.color?.getHexString() === PHASE_COLOURS.new.slice(1)) work.push(mesh)
+      })
+      expect(work.filter((mesh) => mesh.name === '')).toHaveLength(4) // one wall and three room slabs
+      expect(work.some((mesh) => mesh.parent?.name === 'door:d-study')).toBe(true)
+      expect(still.scene.getObjectByName('door:d-kitchen')).toBeUndefined()
     } finally {
       still.close()
     }

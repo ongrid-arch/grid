@@ -16,8 +16,8 @@
  * Pure: a plan and a brief in, lines out. Nothing here reads a file.
  */
 import { defaultFloor, floorElevations, floorOf, groundLevel, MEASURES, openingPoint, planFlats, planFloors, planForFloor, planSteps, roomFloorOffset, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
-import { factOf } from '@ongrid/floorplan/types/floorplan'
 import { lettableFigures } from '../quantities/lettable'
+import { roomGroupValue } from '../quantities/roomGroups'
 import { smallMetres } from '../quantities/units'
 import { planAreas, type RoomArea } from '../quantities/areas'
 import { measureRoom, roomHeight } from '../quantities/measure'
@@ -132,9 +132,12 @@ function onFloor(plan: FloorPlan, room: FloorPlan['rooms'][number], floor: strin
   return named !== undefined && same(named, floor)
 }
 
-/** ARE-69: whether a room carries a fact of the person's own, with the value named when one is. */
+/**
+ * ARE-69: whether a room carries a fact of the person's own, with the value named when one is.
+ * CNT-57: or its room type or tenure, read as the query tools read a room's group.
+ */
 function carries(room: FloorPlan['rooms'][number], fact: FactScope): boolean {
-  const value = factOf(room, fact.name)
+  const value = roomGroupValue(room, fact.name)
   if (value === undefined) return false
   if (fact.value === null) return true
   return typeof value === 'string' && typeof fact.value === 'string' ? same(value, fact.value) : value === fact.value

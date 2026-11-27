@@ -341,6 +341,8 @@ export interface UndrawnRoom {
 export interface PlanDrawing {
   readonly walls: readonly PlanWall[]
   readonly rooms: readonly PlanRoom[]
+  /** Before-work outlines available to the drawing when a demolished room is picked out. */
+  readonly demolishedRooms?: readonly PlanRoom[]
   readonly openings: readonly PlanOpening[]
   /**
    * Where a room at one level meets a room at another (LVL-7): a line across each door or
@@ -498,7 +500,8 @@ export function buildFloorPlan(plan: FloorPlan): PlanDrawing {
   const walls = [...before.walls.filter(demolished), ...after.walls]
   const openings = [...before.openings.filter(demolished), ...after.openings]
   const extent = [after.bounds.min, after.bounds.max, ...walls.filter(demolished).flatMap((wall) => [...wall.slices.flat(), ...wall.centerline, ...(wall.curve?.path ?? [])])]
-  return { ...after, walls, openings, bounds: computeBounds(after.walls.length + after.rooms.length + after.items.length + after.stairs.length === 0 ? extent.slice(2) : extent) }
+  const demolishedRooms = before.rooms.filter(demolished)
+  return { ...after, walls, openings, ...(demolishedRooms.length === 0 ? {} : { demolishedRooms }), bounds: computeBounds(after.walls.length + after.rooms.length + after.items.length + after.stairs.length === 0 ? extent.slice(2) : extent) }
 }
 
 function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issues: readonly Issue[], broken: ReadonlySet<string>, phases: ReadonlyMap<string, Phase> | null): PlanDrawing {

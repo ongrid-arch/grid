@@ -183,6 +183,22 @@ is one call for one request.
   its shaft, a void or outdoor space. `notCounted` lists each left out with `why` (`zone`,
   `shaft`, `void`, `outdoor`) and, for a shaft room, `with`, so a sum of `area` is
   `grid_areas`' net. `stairs: "per floor"` counts each floor's stair and lift rooms instead.
+  An area groups as the answer prints it: to the hundredth of a square metre, or to the whole
+  square foot on a plan read in square feet, whose groups and sums the text gives in square feet.
+
+### Rooms in groups
+
+Rooms are grouped by what the plan already holds (CNT-57): the firm's room type (`roomType`,
+asked as `room type`, `roomType` or `type`), the tenure, the flat and its type, or a fact of the
+person's own: a household, a department, a zone, a wing. "Sixty bedrooms by household" is
+`grid_set_facts` with `{ "set": { "household": "Oak" } }` on each household's rooms, then
+`grid_count` with `{ "kind": ["room"], "by": "household", "sum": ["area"] }`. `type` is the room
+type unless a part carries a fact named `type`, which then wins. `grid_fields` gives the room
+type, the tenure and the flat type the values the rooms state and how many state one (`values`,
+`count`), as it does for facts. The same names colour (`colour`) and crop (`crop: "tenure =
+private"`) a `grid_view`, scope a brief's wish (`fact: { "name": "tenure", "value": "private" }`),
+and on a plan where a room states a room type or tenure, `grid_schedule of=rooms` and the sheet's
+room schedule give each room's (`roomType`, `tenure`, and their CSV columns).
 
 Both take `kind`, `floor` and `room` (the room, the walls beside it and the openings into it) to
 narrow what is looked at. A condition is one line, a field or fact and a test: `is missing`,
@@ -192,6 +208,18 @@ with no value for a field meets only `is missing`. A fact is matched whatever it
 spaces, dashes or underscores; one with the name of a field of Grid's is asked for as
 `properties.<name>`. A field or fact the plan does not have is refused with the nearest name,
 never with the word sent.
+
+Use `phase` or its alias `stage` for walls, rooms, doors, windows and doorless openings.
+The values are `existing`, `demolished` and `new`. Openings inherit the phase of a demolished
+or new host wall unless they state a phase. Unmarked parts are existing in a plain plan, and
+unmarked parts of a fit-out are new. A phase filter, result field or group includes parts from
+both before and after the work. Area values are measured after the work, so demolished rooms
+have no area value. For example, `{ "kind": ["wall"], "by": "phase" }` counts walls by phase,
+and `{ "where": ["stage = demolished"] }` finds parts to pick out with the returned `view`.
+
+A plan view with `colour: "phase"` or `colour: "stage"` uses the same colours on every floor.
+Demolished room outlines appear when coloured by phase or highlighted by id. 3D views and
+working facades show the building after the work and tint new parts teal.
 
 Each answer carries a `view`, the arguments of `grid_view` that show it: `grid_find`'s picks its
 parts out in one colour (`highlight`, their ids), and `grid_count`'s colours each group of the
@@ -881,7 +909,35 @@ every floor at or above the ground floor, as one shape seen from above.
   The set-backs are the person's own figures, under their heading; no line says a distance is
   enough.
 - **Each face**: its way, its length and its distance to the edge of the boundary in front of
-  it, square to the face.
+  it, square to the face. A curved face (a bay, a round tower) is one face, with its radius and
+  the ways it turns from and to (`curve`), however many pieces its outline is drawn with (CNT-56).
+
+#### A site of several buildings, and the figures always given (CNT-56)
+
+On a plan that names buildings ([plan-file.md](plan-file.md)), each is measured on its own, and
+every line names the building it is about:
+
+- Each building's faces are measured square to them, and the tape stops at the first other
+  building in front of the face: the line says how far that building is and how far the edge
+  beyond it lies (`stops`, `at`, `toEdge`). No distance passes through another building, and no
+  building is measured against the others merged. The site's `faces` are the buildings' faces,
+  each with its `building`; each edge names the building nearest it (`building`).
+- How far the buildings stand apart, each pair, seen from above (`apart`).
+- The floors no building names are measured together as one more building, named as the floors
+  in no building (`rest`).
+
+Every answer, with buildings or without, ends with the site's figures, for the whole site and then
+each building (`figures`): the plot coverage, the gross external area of the floors at or above
+the ground floor, the floor area ratio (that area over the plot's), the homes (`floors[].homes`,
+else the flats listed), the homes per hectare and the parking per home (`floors[].parking`, else
+the bays drawn). An outbuilding is its own building on the same ground: its area, coverage and
+parking are its own and never the house's. A figure that cannot be measured says why
+(`notMeasured`). These are measures, never limits; the person's own limits follow below.
+
+```text
+  "House": plot coverage 9.1%; gross external area 182.32 m²; floor area ratio 0.18; homes 2 (as the floors state); 20.0 homes per hectare; parking 1 (as the floors state), 0.50 per home.
+  "Garage": plot coverage 2.6%; gross external area 25.76 m²; floor area ratio 0.03; homes not stated; homes per hectare not measured (no homes are stated); parking 2 (as the floors state), with no homes to share it.
+```
 
 North is read as `what=facing` reads it, and a plan that states none is answered with north as
 the top of the drawing, said first. The lab's house slid 2 m east in its 15 × 30 m plot, with 3 m
@@ -920,7 +976,7 @@ resizes and removes the site's things one at a time: `{"action": "move", "id": "
 The data holds `boundary` (`area`, `acres`, `problem`, and each edge's `edge`, `from`, `to`, `length`,
 `faces`, `bearing`, `street`, `name`, `setback`, `distance`, `past`, `short`, `face` and
 `floor`), `footprint` (`area`, `floors`), `coverage` (`ratio`, `percent`, `covered`, `plot`),
-`faces` and `things`. `grid_check` gives the same shortfall as a finding,
+`faces`, `figures`, `things` and, with buildings, `buildings` and `apart`. `grid_check` gives the same shortfall as a finding,
 `plan/setback-short`. The geometry is `siteMeasures` in `@ongrid/floorplan`
 (`src/geometry/site.ts`).
 

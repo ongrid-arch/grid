@@ -99,6 +99,8 @@ import {
   groupParts,
   meets,
   readCondition,
+  roomGroupValues,
+  isPhaseField,
   FACT_PART_KINDS,
   PART_KINDS,
   QUERY_RULE,
@@ -116,6 +118,7 @@ import {
 import { areaText, csv, csvLengths, csvLengthUnit, DISPLAY_UNITS, displayFor, lengthText, ownLengthText, sqFt } from '../quantities/units'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { PLACE_TEXT_MAX } from '@ongrid/floorplan/types/places'
+import { PHASE_COLOURS } from '@ongrid/viewer/src/picture/phaseColour'
 import { GROUP_COLOURS, HIGHLIGHT_COLOUR } from '@ongrid/viewer/src/picture/look'
 import { TILE_PX_PER_METRE, pictureFrame, pictureTiles } from '@ongrid/viewer/src/picture/planSvg'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
@@ -215,9 +218,9 @@ const FORMAT_ARG: ArgSpec = {
   examples: ['text', 'csv'],
 }
 
-function load(context: ToolContext, plan: unknown, floor?: unknown): { survey: Survey; floor: string | undefined; file: string } {
+function load(context: ToolContext, plan: unknown, floor?: unknown): { survey: Survey; floor: string | undefined; file: string; stated: FloorPlan } {
   const { loaded, file } = readPlan(context, plan)
-  return { survey: surveyPlan(loaded.plan), floor: floorArg(loaded.plan, floor), file }
+  return { survey: surveyPlan(loaded.plan), floor: floorArg(loaded.plan, floor), file, stated: loaded.plan }
 }
 
 /** ARE-68: the people the brief beside the plan says the building is for; none when it gives none or cannot be read. */
@@ -1208,6 +1211,9 @@ function listSchedule(survey: Survey, stated: FloorPlan, of: ScheduleOf, floor: 
     // CNT-4: on a plan that lists flats, the flat each room is in.
     const flatNames = new Map((survey.plan.flats ?? []).map((f) => [f.id, f.name ?? f.id] as const))
     const inFlat = (flat: string | null | undefined): string => (flat === undefined ? '' : flat === null ? s.say('tool.schedule.room.noFlat') : s.say('tool.schedule.room.flat', { flat: name(flatNames.get(flat) ?? flat) }))
+    // CNT-57: its room type and tenure, on a plan where a room states one.
+    const grouped = (r: (typeof r0.rows)[number]): string =>
+      `${r.roomType == null ? '' : s.say('tool.schedule.room.type', { type: q(r.roomType) })}${r.tenure == null ? '' : s.say('tool.schedule.room.tenure', { tenure: r.tenure })}`
     // CNT-27: a row in no total says why, so the rows that count add up to the totals.
     const floorNames = new Map(survey.facts.floors.map((f) => [f.id, f.name ?? f.id] as const))
     const rowNames = new Map(r0.rows.map((r) => [`${r.floor}\u0000${r.id}`, r.name] as const))
@@ -1218,7 +1224,7 @@ function listSchedule(survey: Survey, stated: FloorPlan, of: ScheduleOf, floor: 
       return s.say('tool.schedule.room.inNoTotal', { why: s.say(`tool.schedule.notCounted.${c.why}`) })
     }
     const roomsWord = (n: number): string => s.say(n === 1 ? 'tool.schedule.count.room.one' : 'tool.schedule.count.room', { count: n })
-    const lines = r0.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(roomCalled(r))}${r.use ? ` (${wordOfUse(r.use)})` : ''}, ${q(r.floorName)}: ${r.area === null ? s.say('tool.areas.room.notMeasured') : areaText(r.area, units)}, ${r.height === null ? s.say('tool.schedule.room.heightNotKnown') : s.say('tool.schedule.room.high', { height: lengthText(r.height, units) })}${r.state === 'not-proven' ? s.say('tool.areas.flat.notProven') : ''}${inFlat(r.flat)}${own(r.properties)}${left(r)}`)
+    const lines = r0.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(roomCalled(r))}${r.use ? ` (${wordOfUse(r.use)})` : ''}, ${q(r.floorName)}: ${r.area === null ? s.say('tool.areas.room.notMeasured') : areaText(r.area, units)}, ${r.height === null ? s.say('tool.schedule.room.heightNotKnown') : s.say('tool.schedule.room.high', { height: lengthText(r.height, units) })}${r.state === 'not-proven' ? s.say('tool.areas.flat.notProven') : ''}${inFlat(r.flat)}${grouped(r)}${own(r.properties)}${left(r)}`)
     for (const t of r0.floors) lines.push(s.say('tool.schedule.room.floorTotal', { floor: name(t.floorName!), rooms: roomsWord(t.rooms), area: `${areaText(t.area, units)}${stateText(t.state, several, s)}` }))
     lines.push(s.say('tool.schedule.room.allFloors', { rooms: roomsWord(r0.total.rooms), area: `${areaText(r0.total.area, units)}${stateText(r0.total.state, several, s)}` }), ...r0.rules.map((rule) => s.text(rule)))
     return { text: lines.join('\n'), data }
@@ -1481,12 +1487,14 @@ function partsWord(kinds: readonly PartKind[] | undefined, n: number): string {
 }
 
 /** A value in an answer's words: text quoted, a measure with its unit. */
-function valueText(field: Field, value: Value): string {
+function valueText(field: Field, value: Value, units?: Display): string {
   if (value === null || (Array.isArray(value) && value.length === 0)) return 'not stated'
   if (typeof value === 'string') return q(value)
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
   if (typeof value !== 'number') return (value as readonly string[]).map(q).join(', ')
   const unit = unitOf(field)
+  // CNT-57: an area in the plan's area unit, as grid_areas prints it.
+  if (unit === 'm²' && units?.area === 'ft2') return areaText(value, units)
   return unit === 'm' ? `${value.toFixed(3)} m` : unit === 'm²' ? `${value.toFixed(2)} m²` : String(shown(value))
 }
 
@@ -1516,7 +1524,7 @@ const fieldsTool: GridTool = {
   },
   outputSchema: objectSchema({
     kinds: listSchema(objectSchema({ kind: STRING, count: NUMBER })),
-    fields: listSchema(objectSchema({ name: STRING, type: STRING, unit: { type: ['string', 'null'] }, kinds: listSchema(STRING), from: STRING, about: STRING })),
+    fields: listSchema(objectSchema({ name: STRING, type: STRING, unit: { type: ['string', 'null'] }, kinds: listSchema(STRING), from: STRING, about: STRING, count: NUMBER, values: listSchema(STRING) }, ['name', 'type', 'unit', 'kinds', 'from', 'about'])),
     facts: listSchema(objectSchema({ name: STRING, type: STRING, unit: { type: ['string', 'null'] }, kinds: listSchema(STRING), from: STRING, count: NUMBER, values: listSchema(STRING), shadowed: { type: 'boolean' } }, ['name', 'type', 'kinds', 'count', 'values'])),
     rule: STRING,
     setBy: STRING,
@@ -1526,11 +1534,16 @@ const fieldsTool: GridTool = {
     const ask = askPlan(survey, { items: true })
     const kinds = kindsOf(args)
     const counts = PART_KINDS.filter((k) => kinds === undefined || kinds.includes(k)).map((kind) => ({ kind, count: ask.parts.filter((p) => p.kind === kind).length }))
-    const fields = GRID_FIELDS.filter((f) => kinds === undefined || f.kinds.some((k) => kinds.includes(k)))
+    // CNT-57: the groups the rooms state (room type, tenure, flat type), each with its values.
+    const groupValues = roomGroupValues(ask)
+    const fields = GRID_FIELDS.filter((f) => kinds === undefined || f.kinds.some((k) => kinds.includes(k))).map((f) => {
+      const stated = groupValues.get(f.name)
+      return stated === undefined ? f : { ...f, count: stated.count, values: stated.values }
+    })
     const facts = factInfos(ask, kinds)
     const lines = [
       `Parts: ${counts.map((c) => `${c.count} ${c.kind}${c.count === 1 ? '' : 's'}`).join(', ')}.`,
-      `Fields Grid states or works out: ${fields.map((f) => `${f.name}${f.unit === null ? '' : ` (${f.unit})`} for ${f.kinds.length === PART_KINDS.length ? 'every part' : f.kinds.join(', ')}`).join('; ')}.`,
+      `Fields Grid states or works out: ${fields.map((f) => `${f.name}${f.unit === null ? '' : ` (${f.unit})`} for ${f.kinds.length === PART_KINDS.length ? 'every part' : f.kinds.join(', ')}${'values' in f ? ` (on ${f.count} room${f.count === 1 ? '' : 's'}: ${f.values.map(q).join(', ')})` : ''}`).join('; ')}.`,
       facts.length === 0
         ? 'No part carries a fact of the person\'s own.'
         : `Facts of the person's own: ${facts.map((f) => `${q(f.name)} (${f.type}, on ${f.count} ${f.kinds.join(' and ')} part${f.count === 1 ? '' : 's'}${f.values.length > 0 ? `; ${f.values.map(q).join(', ')}` : ''}${f.shadowed ? `; ask it as ${q(`properties.${f.name}`)}` : ''})`).join('; ')}.`,
@@ -1570,16 +1583,17 @@ const findTool: GridTool = {
     rule: STRING,
   }),
   run(args, context) {
-    const { survey, floor } = load(context, args['plan'], args['floor'])
-    if (args['room'] !== undefined) roomArg(survey.plan, args['room'])
+    const { survey, stated, floor } = load(context, args['plan'], args['floor'])
+    const room = args['room'] === undefined ? undefined : roomArg(stated, args['room'])
     return asked(() => {
-      const ask = askPlan(survey, { items: true })
+      const ask = askPlan(survey, { items: true, stated })
       const kinds = kindsOf(args)
       const fields = ((args['fields'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `fields item ${i + 1}`))
       const found = select(ask, {
+        fields,
         ...(kinds === undefined ? {} : { kinds }),
         ...(floor === undefined ? {} : { floor }),
-        ...(args['room'] === undefined ? {} : { room: args['room'] as string }),
+        ...(room === undefined ? {} : { room }),
         ...(args['where'] === undefined ? {} : { where: args['where'] as string[] }),
       })
       const limit = Math.floor((args['limit'] as number | undefined) ?? 500)
@@ -1615,7 +1629,7 @@ const countTool: GridTool = {
     floor: FLOOR_ARG,
     room: ROOM_IN_ARG,
     where: WHERE_ARG,
-    by: { type: 'string', maxLength: 120, description: 'The field or fact to group by, by name, as grid_fields lists it: one group per value, and one for the parts that state none. One group of all of them when left out.', examples: ['department', 'fire rating', 'floor'] },
+    by: { type: 'string', maxLength: 120, description: 'The field or fact to group by, by name, as grid_fields lists it: one group per value, and one for the parts that state none. Rooms group by room type (type), tenure, flat or flat type, or by a fact of the person\'s own such as a household, department or zone (set with grid_set_facts). An area groups as it prints. One group of all of them when left out.', examples: ['department', 'type', 'household', 'fire rating', 'phase'] },
     sum: { type: 'array', description: 'Fields or facts of numbers to add up in each group, by name: area, width, head count.', examples: [['area'], ['area', 'head count']], items: { maxLength: 120 }, minItems: 1, maxItems: 10 },
     stairs: { type: 'string', enum: ['once', 'per floor'], description: 'once counts a stair or lift drawn as a room on floor after floor once, on the floor it rises from, as grid_areas does; per floor counts its room on every floor, with its area. once when left out.', examples: ['once', 'per floor'] },
   },
@@ -1630,18 +1644,19 @@ const countTool: GridTool = {
     rule: STRING,
   }),
   run(args, context) {
-    const { survey, floor } = load(context, args['plan'], args['floor'])
-    if (args['room'] !== undefined) roomArg(survey.plan, args['room'])
+    const { survey, stated, floor } = load(context, args['plan'], args['floor'])
+    const room = args['room'] === undefined ? undefined : roomArg(stated, args['room'])
     return asked(() => {
-      const ask = askPlan(survey, { items: true })
+      const ask = askPlan(survey, { items: true, stated })
       const kinds = kindsOf(args)
       const by = args['by'] === undefined ? null : fieldOf(ask, args['by'] as string, 'by')
       const sums = ((args['sum'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `sum item ${i + 1}`))
       checkSums(ask, sums)
       const picked = select(ask, {
+        fields: by === null ? [] : [by],
         ...(kinds === undefined ? {} : { kinds }),
         ...(floor === undefined ? {} : { floor }),
-        ...(args['room'] === undefined ? {} : { room: args['room'] as string }),
+        ...(room === undefined ? {} : { room }),
         ...(args['where'] === undefined ? {} : { where: args['where'] as string[] }),
       })
       // CNT-8: a zone's floor and facts are its room's to count, so a zone is counted in no group.
@@ -1661,18 +1676,20 @@ const countTool: GridTool = {
       })
       const others = notCountedParts.filter((p) => p.why !== 'zone')
       const shafts = perFloor ? found.filter((part) => ask.counting(part)?.why === 'shaft') : []
-      const groups = groupParts(ask, found, by, sums)
+      // CNT-57: an area groups and prints in the plan's area unit, to the figure it prints.
+      const display = displayFor(undefined, undefined, survey.plan)
+      const groups = groupParts(ask, found, by, sums, display.area)
       const [total] = groupParts(ask, found, null, sums)
       const units = Object.fromEntries(sums.map((field) => [fieldName(field), unitOf(field)]))
       const sumText = (group: { sums: Readonly<Record<string, number>>; missing: Readonly<Record<string, number>> }): string =>
         sums.map((field) => {
           const name = fieldName(field)
           const missing = group.missing[name] ?? 0
-          return `${q(name)} ${valueText(field, group.sums[name] ?? 0)}${missing > 0 ? ` (${missing} with none)` : ''}`
+          return `${q(name)} ${valueText(field, group.sums[name] ?? 0, display)}${missing > 0 ? ` (${missing} with none)` : ''}`
         }).join(', ')
       const lines = by === null
         ? []
-        : [`By ${q(fieldName(by))}:`, ...groups.slice(0, 40).map((g) => `  ${g.value === null ? 'not stated' : valueText(by, g.value)}: ${partsWord(kinds, g.count)}${sums.length === 0 ? '' : `, ${sumText(g)}`}`), ...(groups.length > 40 ? [`  … and ${groups.length - 40} more groups in the data.`] : [])]
+        : [`By ${q(fieldName(by))}:`, ...groups.slice(0, 40).map((g) => `  ${g.value === null ? 'not stated' : valueText(by, g.value, display)}: ${partsWord(kinds, g.count)}${sums.length === 0 ? '' : `, ${sumText(g)}`}`), ...(groups.length > 40 ? [`  … and ${groups.length - 40} more groups in the data.`] : [])]
       lines.push(`In all: ${partsWord(kinds, found.length)}${sums.length === 0 || total === undefined ? '' : `, ${sumText(total)}`}.`)
       if (zones.length > 0) lines.push(`Not counted: ${zones.length === 1 ? 'a zone' : `${zones.length} zones`} of a room, counted with the room: ${zones.slice(0, 20).map((p) => q(p.id)).join(', ')}${zones.length > 20 ? ', …' : ''}. grid_find lists ${zones.length === 1 ? 'it' : 'them'}.`)
       if (others.length > 0) {
@@ -1685,7 +1702,10 @@ const countTool: GridTool = {
         lines.push(`Not counted, as grid_areas counts them: ${kinds.join('; ')}.${others.some((p) => p.why === 'shaft') ? ' stairs=per floor counts each floor\'s stair and lift rooms.' : ''}`)
       }
       if (shafts.length > 0) lines.push(`Stairs and lifts are counted on every floor they are drawn on (stairs=per floor): an area sum holds ${shafts.length} stair or lift room${shafts.length === 1 ? '' : 's'} that grid_areas' net counts once, with the lowest room of ${shafts.length === 1 ? 'its' : 'their'} shaft.`)
-      const { view, floors } = viewOf(ask, found.map((p) => p.id), by === null ? { highlight: found.slice(0, 2000).map((p) => p.id) } : { colour: fieldName(by) })
+      const colour = by?.from === 'yours' && (args['by'] as string).trim().toLowerCase().startsWith('properties.')
+        ? `properties.${by.name}`
+        : by === null ? undefined : fieldName(by)
+      const { view, floors } = viewOf(ask, found.map((p) => p.id), colour === undefined ? { highlight: found.slice(0, 2000).map((p) => p.id) } : { colour })
       if (found.length > 0) lines.push(`To see ${by === null ? 'them picked out' : 'each group in its own colour'}, pass view to grid_view${floors.length > 1 ? `: they are on ${floors.length} floors, so draw each floor in turn` : ''}.`)
       lines.push(QUERY_RULE)
       return {
@@ -2515,15 +2535,15 @@ function paintOf(survey: Survey, floor: string, by: string | undefined, highligh
 } | null {
   if (by === undefined && highlight === undefined) return null
   return asked(() => {
-    const ask = askPlan(survey)
-    const onFloor = ask.parts.filter((p) => p.floor === floor && p.kind !== 'floor')
+    const ask = askPlan(survey, { stated })
     const paint = new Map<string, string>()
     const key: { colour: string; words: string }[] = []
     const groups: { colour: string; value: Value; words: string; ids: string[] }[] = []
     const lines: string[] = []
     if (by !== undefined) {
       const field = fieldOf(ask, by, 'colour')
-      const carrying = onFloor.filter((p) => {
+      const carrying = select(ask, { floor, fields: [field] }).filter((p) => {
+        if (p.kind === 'floor') return false
         const value = ask.value(p, field)
         return value !== null && !(Array.isArray(value) && value.length === 0)
       })
@@ -2531,7 +2551,8 @@ function paintOf(survey: Survey, floor: string, by: string | undefined, highligh
       // One colour per value; past the palette, the last colour stands for all the others.
       const own = found.length <= GROUP_COLOURS.length ? found.length : GROUP_COLOURS.length - 1
       found.forEach((group, i) => {
-        const colour = GROUP_COLOURS[Math.min(i, own)]!
+        const phase = isPhaseField(field) ? PHASES.find((value) => value === group.value) : undefined
+        const colour = phase === undefined ? GROUP_COLOURS[Math.min(i, own)]! : PHASE_COLOURS[phase]
         for (const id of group.ids) paint.set(id, colour)
         groups.push({ colour, value: group.value, words: valueWords(group.value), ids: [...group.ids] })
         if (i < own) key.push({ colour, words: `${fieldName(field)}: ${valueWords(group.value)}` })
@@ -2543,11 +2564,6 @@ function paintOf(survey: Survey, floor: string, by: string | undefined, highligh
     }
     if (highlight !== undefined) {
       const known = new Map(ask.parts.filter((p) => p.kind !== 'floor').map((p) => [p.id, p] as const))
-      // VEW-14: a part to be demolished is drawn, so it can be picked out; the survey reads the plan after the work.
-      const wallFloor = new Map(stated.walls.map((w) => [w.id, floorOf(w)] as const))
-      for (const room of stated.rooms) if (!known.has(room.id)) known.set(room.id, { kind: 'room', id: room.id, floor: floorOf(room), facts: {} })
-      for (const wall of stated.walls) if (!known.has(wall.id)) known.set(wall.id, { kind: 'wall', id: wall.id, floor: floorOf(wall), facts: {} })
-      for (const opening of stated.openings) if (!known.has(opening.id)) known.set(opening.id, { kind: opening.type, id: opening.id, floor: wallFloor.get(opening.wall) ?? 'ground', facts: {} })
       const missing = highlight.filter((id) => !known.has(id))
       if (missing.length > 0) {
         const near = likelyId(missing[0]!, [...known.keys()])
@@ -2758,7 +2774,7 @@ const viewTool: GridTool = {
     margin: { type: 'number', length: true, description: 'For plan, with crop or crop_box: metres of the plan kept round what is framed, on every side. 0.5 round a crop and none round a box when left out.', examples: [0.5, 2], minimum: 0, maximum: 100 },
     ids: { type: 'boolean', description: 'For plan: true to draw the id of every room, door and window on the picture, as the plan file holds them, and to list them in the text with the areas, what each door joins, the counts and the drawing\'s problems. false when left out.', examples: [true] },
     hide: { type: 'string', maxLength: 120, description: 'For plan: parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Everything is drawn when left out.', examples: ['areas,swings', 'sketch'] },
-    colour: { type: 'string', maxLength: 120, description: 'For plan: use fills each room by its use and lists the uses in the key; any other field or fact, by name as grid_fields lists it (department, fire rating), colours each room, wall, door and window by its value, with a key: grid_count\'s view passes it. One fill for every room when left out.', examples: ['use', 'department', 'fire rating'] },
+    colour: { type: 'string', maxLength: 120, description: 'For plan: use fills each room by its use and lists the uses in the key; any other field or fact, by name as grid_fields lists it (department, fire rating), colours each room, wall, door and window by its value, with a key: grid_count\'s view passes it. One fill for every room when left out.', examples: ['use', 'department', 'phase'] },
     highlight: { type: 'array', description: 'For plan: rooms, walls, doors, windows or openings to pick out, by id, in one colour with a key: grid_find\'s view passes its ids here. Nothing picked out when left out.', examples: [['d1', 'd4'], ['office-2']], items: { id: true }, minItems: 1, maxItems: 2000 },
     key: { type: 'boolean', description: 'For plan: true to add a key under the drawing, even where the plan asks for none.', examples: [true] },
     language: LANGUAGE_ARG,
