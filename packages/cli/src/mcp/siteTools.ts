@@ -27,7 +27,7 @@ const POINT_MAX = 60
 const LARGEST = 100_000
 
 /** A point written `x,y`, each length in metres or with its unit; refused naming the argument. */
-function pointArg(name: string, text: string): Pair {
+export function pointArg(name: string, text: string): Pair {
   const parts = text.split(',').map((p) => p.trim())
   const length = (part: string): number => {
     if (/^[-+]?(\d+\.?\d*|\.\d+)$/.test(part)) return Number(part)
