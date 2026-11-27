@@ -1217,3 +1217,16 @@ many short ones.
 
 Calls are still answered one after the other, in the order they came in: a call that works out a
 large plan runs to its end before the next is answered.
+
+## A sheet's progress
+
+A sheet is made from the plan the call read, frozen, so what the geometry works out for its
+drawings (the building's envelope, each elevation and each section) is kept with the plan in a
+store of its own (`KEPT_DRAWN` in `packages/floorplan/src/geometry/kept.ts`, `KEPT_DRAWN_PER_PLAN`
+answers per plan) and worked out once for the whole sheet (SHT-25). Each page's pictures are drawn
+once for the PDF and its preview.
+
+When a `grid_sheet` request's `_meta` carries a `progressToken` (a string of up to 64 characters
+or a whole number), the server sends one `notifications/progress` line per page before the answer:
+`progress` is the pages done, `total` the pages, and `message` "Page n of m" in the sheet's
+language. A request without a token gets none.

@@ -74,6 +74,7 @@ import { windowKindOf } from './openingKinds'
 import { curveFault, wallCurve } from './arc'
 import { outlineKnown, slabOutline } from './outline'
 import { buildingPlan, isOutdoor, outdoorOnlyWalls } from './outdoor'
+import { KEPT_DRAWN, keptIn } from './kept'
 
 /** The sides a facade is drawn for: the drawing's four (C4). */
 export const FACADE_SIDES = COMPASS_SIDES
@@ -819,6 +820,11 @@ const KIND_ORDER: Readonly<Record<FacadeFaceKind, number>> = { plinth: 0, slab: 
 
 /** The facade of one side of the building. See the module's header. */
 export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
+  // SHT-25: kept with a frozen plan: a sheet sizes each elevation on its page, then draws it.
+  return keptIn(KEPT_DRAWN, stated, `facade\u0000${side}`, () => workOutFacade(stated, side))
+}
+
+function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
   // CNT-10: the facade as it will be after the work.
   const plan = planInState(withPatterns(stated), 'after')
   const direction = SIDE_DIRECTION[side]

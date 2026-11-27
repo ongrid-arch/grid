@@ -68,6 +68,7 @@ import { tryRoomShape } from './room'
 import { roomFloorOffset } from './steps'
 import { brokenOnFloor } from './validate'
 import { tolerance } from './tolerances'
+import { KEPT_DRAWN, keptIn } from './kept'
 import { roomZones } from './zones'
 import { buildingPlan, isOutdoor, outdoorKind, outdoorRoofed } from './outdoor'
 import { inOpenSky, openBelow } from './openSky'
@@ -240,6 +241,15 @@ function openToTheSky(outline: FloorOutline | FloorOutlineUnknown, slice: FloorP
  * module's header for the rules. Never throws.
  */
 export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): PlanEnvelope {
+  // SHT-25: kept with a frozen plan, by the floors asked for and the levels given (by value:
+  // `floorElevations` hands out a copy each time), as every elevation, section and 3D view of a
+  // sheet asks for it again.
+  const levels = options.elevations === undefined ? '' : JSON.stringify([[...options.elevations.floors], options.elevations.roof])
+  const key = `envelope\u0000${options.floors?.join('\u0000') ?? ''}\u0001${levels}`
+  return keptIn(KEPT_DRAWN, stated, key, () => workOutEnvelope(stated, options))
+}
+
+function workOutEnvelope(stated: FloorPlan, options: EnvelopeOptions): PlanEnvelope {
   // CNT-10: the slabs and roofs of the building as it will be after the work.
   const plan = planInState(stated, 'after')
   const floors = planFloors(plan)

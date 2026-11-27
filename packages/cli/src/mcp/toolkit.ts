@@ -158,6 +158,8 @@ export interface ToolContext {
   readonly language?: Language
   /** MSG-34: what the call learnt of the plan it read (its display), filled in by `readPlan`. */
   readonly spoken?: Spoken
+  /** SHT-25: how far a long call has got, when the client asked (MCP's `progressToken`). */
+  readonly progress?: (progress: number, total: number, message: string) => void
 }
 
 const HINTS: Record<Hint, Record<string, boolean>> = {

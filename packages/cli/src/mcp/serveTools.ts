@@ -179,7 +179,12 @@ export function serverTool(tool: GridTool, context: ToolContext): ServerTool {
   const definition = toolDefinition(tool)
   return {
     definition,
-    call: (raw, request) => answer(tool, raw, request?.protocolVersion === undefined ? context : { ...context, protocolVersion: request.protocolVersion }),
+    call: (raw, request) => answer(tool, raw, {
+      ...context,
+      ...(request?.protocolVersion === undefined ? {} : { protocolVersion: request.protocolVersion }),
+      // SHT-25: how far a long call has got, when the client asked.
+      ...(request?.progress === undefined ? {} : { progress: request.progress }),
+    }),
   }
 }
 

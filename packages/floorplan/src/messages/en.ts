@@ -3641,6 +3641,7 @@ export const en = {
 
   /** The month names of the sheet's date, in order, between spaces. */
   'sheet.months': 'JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC',
+  'sheet.progress.page': 'Page {done} of {total}',
   'sheet.continued': '{title} (continued)',
   'sheet.undecided': 'A door drawn with a dashed line and "?" has no stated swing yet.',
   /** The note under a drawing: `{left}` is what this floor's drawing really leaves out (SHT-13). */
