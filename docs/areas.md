@@ -283,6 +283,30 @@ the gross external area, the floor area ratio, the homes, the homes per hectare 
 per home, for the whole site and each building on its own (CNT-56,
 [tool-server.md](tool-server.md#a-site-of-several-buildings-and-the-figures-always-given-cnt-56)).
 
+## Before and after the work
+
+On a plan with phases ([plan-file.md](plan-file.md#existing-demolished-and-new)), every measure
+reads the building after the work unless asked otherwise. `grid_areas`, `grid_schedule`,
+`grid_describe`, `grid_find` and `grid_export` take `state` (ARE-75): `before` reads the building
+as it stands before the work (its existing parts and those to be demolished), `after` as it will
+be (its existing and new parts), each as a plan of that state alone, with no phase, so every
+figure, row and part found is of that building. A plan with no phases reads the same with each.
+
+`grid_areas state=both` gives the area table of the work: each room's net area before
+(existing), after (proposed) and the change, after less before, then the same by use, by floor
+and for the net, gross internal and gross external totals. A room is the same room before and
+after by its id: one to be demolished has no floor after the work, a new one none before. Each
+side is measured exactly as `state=before` and `state=after` measure it. The data keeps the
+figures after the work and adds the table as `work`; `format=csv` gives the table with a row for
+each room, use, floor and total and the columns `existing m2`, `proposed m2`, `change m2` and
+`change sq ft`.
+
+`grid_view` draws the two drawings of the work by name: `state=demolition` the demolition plan
+(the building before the work, the parts to be demolished dashed and in the key) and
+`state=proposed` the proposed plan (the building after the work, its existing and new walls each
+drawn as the key shows). `before` and `after` draw each building plain. `grid_export state=before`
+writes `<plan>-before.<ext>` beside the export of the whole plan, never over it.
+
 ## Free floor
 
 Where fixtures stand (CNT-12, [plan-file.md](plan-file.md)), a room's free floor is given beside

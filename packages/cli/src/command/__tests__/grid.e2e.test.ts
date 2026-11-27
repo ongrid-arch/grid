@@ -635,6 +635,9 @@ describe('the built file', () => {
     // bytes, again with no new dependency.
     // 1 MB since VEW-80: the plan's geometry as data (GeoJSON and JSON) and the geometry fields of
     // grid_find take it to 953,961 bytes, again with no new dependency.
+    // 1,000 kB since ARE-75: the building read before and after the work, its area table and the
+    // demolition and proposed plans, with main at its merge, take it to 951,375 bytes, again with
+    // no new dependency.
     expect(statSync(bundle).size).toBeLessThan(1_000_000)
   })
 })

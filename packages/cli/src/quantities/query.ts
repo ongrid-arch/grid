@@ -598,6 +598,8 @@ export interface Selection {
   readonly room?: string
   readonly where?: readonly string[]
   readonly fields?: readonly Field[]
+  /** ARE-75: every part, before and after the work, as a question about phases picks them. */
+  readonly bothStates?: boolean
 }
 
 export function isPhaseField(field: Field): boolean {
@@ -611,7 +613,7 @@ export function select(asked: Asked, selection: Selection): Part[] {
     checkCondition(condition, `where item ${i + 1}`)
     return condition
   })
-  const includesDemolition = selection.fields?.some(isPhaseField) === true || conditions.some(({ field }) => isPhaseField(field))
+  const includesDemolition = selection.bothStates === true || selection.fields?.some(isPhaseField) === true || conditions.some(({ field }) => isPhaseField(field))
   const rooms: Field = { from: 'grid', info: GRID_FIELDS.find((f) => f.name === 'rooms')! }
   return asked.parts.filter((part) => {
     if (!includesDemolition && part.phase === 'demolished') return false
