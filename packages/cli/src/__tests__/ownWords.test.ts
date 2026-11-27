@@ -171,7 +171,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-75: grid_start_fit_out, its help, its arguments and its refusals.
   'packages/cli/src/mcp/fitOutTool.ts': [13, 'tools'],
   // CMD-42: grid_set, its help and its argument checks.
-  'packages/cli/src/mcp/setTool.ts': [13, 'tools'],
+  // WRT-79: two more, the roof argument and its refusal.
+  'packages/cli/src/mcp/setTool.ts': [15, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -212,7 +213,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-45: seven more, the items' topic.
   // CNT-46: eight more, the parking topic. CNT-47: three more, the rows topic and the item kinds.
   // SHT-22: eight more, the topic of writing on the drawing.
-  'packages/cli/src/mcp/roomsGrammar.ts': [99, 'tools'],
+  // WRT-79: nine more, the roofs and columns topics and the plinth line.
+  'packages/cli/src/mcp/roomsGrammar.ts': [108, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
@@ -234,7 +236,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
   'packages/cli/src/mcp/wordsTool.ts': [31, 'tools'],
-  'packages/cli/src/mcp/toolkit.ts': [28, 'agent'],
+  // MSG-33: one more, the head of a refusal that lists every fault of a call.
+  'packages/cli/src/mcp/toolkit.ts': [29, 'agent'],
   // CMD-39: the whole and page arguments every tool takes, and left_out in the output schemas.
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
   // WRT-73: the three phase tools, their arguments and refusals.

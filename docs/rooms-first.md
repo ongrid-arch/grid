@@ -180,7 +180,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   thickness (WRT-77).
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),
   or that leave a gap between indoor rooms are refused in plain words naming both
-  rooms. Every refusal has a code, such as `rooms/overlap`. Each gives the advice that applies
+  rooms. Every refusal has a code, such as `rooms/overlap`. A text with several mistakes is
+  refused with every one found on its own, each on its line (MSG-33): a size of 0, a length Grid
+  cannot read, a room that is not there and rooms that overlap, all in one answer. A line that
+  fails only because a refused line before it names a room (a room placed north of a refused
+  room, a door into it) is not listed; it reads once the first is put right. Each gives the advice that applies
   (WRT-55): a gap too wide for a wall is refused with the size of each room that closes it to the
   wall between them; `open` is offered to a room placed beside the other, `open <room>` to one
   placed by its corner, and a corner (`inside <room> corner`) only to a room that fits inside the
@@ -598,7 +602,7 @@ window w1 in apse east, centred, 1.5 wide
 
 ### Raw parts
 
-raw wall|room|opening|stair|bay|ramp {...} writes one part as Grid's own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms' boundaries name, or the one facing <side>). Columns, fixtures and structural grids are lists of the plan of their own, never rooms text; stairs, parking bays, ramps and the site have lines of their own (below).
+raw wall|room|opening|stair|bay|ramp {...} writes one part as Grid's own JSON, for what rooms lines cannot say: a free-standing wall, a room bounded by walls of its own (boundary: its wall ids in order round it), a room with a hole. A door line may name a raw room (the wall both rooms' boundaries name, or the one facing <side>). Structural grids are a list of the plan of its own, never rooms text; roofs, columns, stairs, fixtures, parking bays, ramps and the site have lines of their own (below).
 
 ```rooms
 raw wall {"id": "s", "start": [0, 0], "end": [4, 0], "thickness": 0.2, "height": 3, "kind": "exterior"}
@@ -648,12 +652,34 @@ wall between kitchen and dining virtual
 
 ### Roofs
 
-raw floor {"roof": {...}, "parapet": <m>} sets the floor's own fields rooms lines have no words for, after its floor line: its roof ("shape": flat, mono, gable or hip, "eaves" and "ridge" heights above the floor's level, "ridgeRuns": east-west or north-south, "rooflights"), its parapet height, its "outline", "homes" and "parking". On a copied floor, null takes a copied one off.
+roof <flat|gable|hip|mono-pitch> [pitch <degrees> | ridge <m>] eaves <m> [ridge runs east-west|north-south] [high <north|east|south|west>] under a floor's line is the roof over that floor, which its walls and rooms are cut to and the sections, elevations, 3D model and headroom read: its eaves and ridge are metres above the floor's level to the roof's underside, a sloped roof gives its pitch or its ridge (one of the two), a gable's ridge runs along the longer sides unless ridge runs says, and a mono-pitch roof rises to the side high names. roof none takes a roof copied from another floor off. rooflight <id> over <room>, <width> x <length> puts a roof light over the middle of a room written above it (rooflight <id> at x,y, ... at a point): its width along the eaves, its length up the slope, on one slope. raw floor {...} still sets a floor's parapet, outline, homes, parking and dormers in Grid's own JSON. grid_set roof writes the same roof on a floor already drawn.
 
 ```rooms
-floor ground "Ground floor" level 0
-room house "House" living 8.0 x 6.0 at 0,0
-raw floor {"roof": {"shape": "gable", "eaves": 2.7, "ridge": 5.2, "ridgeRuns": "east-west"}}
+walls outside 0.3 inside 0.1
+floor ground "Ground floor" level 0 height 2.6
+room living "Living room" living 6.0 x 5.0 at 0,0
+room kitchen "Kitchen" kitchen 3.0 x 5.0 east of living
+door front in living south, centred, 0.9 wide, opens in
+door d1 between living and kitchen, centred, 0.9 wide
+floor loft "Loft" level 1 height 2.4
+room bed "Bedroom" bedroom 9.0 x 2.5 at 0,0
+room study "Study" office 9.0 x 2.4 north of bed
+door d2 between bed and study, centred, 0.8 wide
+roof gable pitch 40 eaves 1.2 ridge runs east-west
+rooflight r1 over bed, 1.2 x 0.8
+rooflight r2 at 2,3.9, 0.8 x 0.8
+```
+
+### Columns
+
+column <id> [square|round] <width> [x <depth>] at x,y [turn <degrees>] [height <m>] [through <floor>] [on <floor>] ["<label>"] is one of the plan's columns, never a wall or a room: a round column's width is its diameter, a square one is as deep as wide unless x <depth> says, through stands it on every floor up to that one, height is its own (left out, its storey's). It stands on the floor whose line it is under unless on says. columns <group> [square|round] <width> at x,y, count <n> [x <m>], every <spacing> [x <spacing>] sets out a grid of them from the first one's middle, east then north, named <group>-1, <group>-2 and on. raw column {...} takes Grid's own JSON for one. A column takes its floor off the area of the room it stands in.
+
+```rooms
+walls outside 0.3 inside 0.1 height 4
+room hall "Warehouse" storage 24 x 16 at 0,0
+door d1 in hall south, centred, 3 wide, roller
+columns c round 0.5 at 6,5.3, count 3 x 2, every 6 x 5.4
+column k1 0.4 x 0.6 at 3,8 "Crane post"
 ```
 
 ### Repeats
@@ -744,7 +770,7 @@ ramp h "Helix" from b1 to g in spiral, 3.5 wide, helix, turns 1
 
 ### Site
 
-plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m> and site country <name> say where it is. ground <m> (or ground <m> below|above) is the ground outside, in metres from the ground floor's floor level, the level the sections, the 3D ground and the below-ground check read: ground -0.15 for a floor 15 cm above the ground. On a slope (CNT-49), ground north 0 south -4.6 gives the ground at the building's sides, ground slope 30% toward south (or slope 30% toward south) a fall through the ground level at the middle of the building, and ground edge 1 0 to -3 the ground along an edge of the plot, a falling street; every check and picture reads the ground at each wall. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
+plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m> and site country <name> say where it is. ground <m> (or ground <m> below|above) is the ground outside, in metres from the ground floor's floor level, the level the sections, the 3D ground and the below-ground check read: ground -0.15 for a floor 15 cm above the ground. plinth <m> says the same from the other side: the ground floor stands that far above the ground outside, a plinth or a raised floor (plinth 0.6 is ground -0.6). On a slope (CNT-49), ground north 0 south -4.6 gives the ground at the building's sides, ground slope 30% toward south (or slope 30% toward south) a fall through the ground level at the middle of the building, and ground edge 1 0 to -3 the ground along an edge of the plot, a falling street; every check and picture reads the ground at each wall. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
 
 ```rooms
 room house "House" living 8.0 x 9.0 at 0,0

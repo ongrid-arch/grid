@@ -6,6 +6,7 @@ export { compileRoomsText, SIZE_BASES, type CompileOptions, type DerivedWallFact
 export { layOut, LAYOUT_SHAPES, LayoutRefused, type Layout, type LayoutRequest, type LayoutRoom, type LayoutShape, type LayoutTouch, type PlacedRoom } from './layout'
 export { readRoomsText, type ReadOptions, type RoomsReading } from './read'
 export { problemLines, roomsAnswer } from './answer'
+export { everyProblem, EVERY_PROBLEM_ROUNDS } from './everyProblem'
 export { boundariesEdited, boundaryPrint, keptDerived, planRevision, stampFor, type WrittenStamp } from './stamp'
 export { carryFacts, type FactsCarried } from './facts'
 export { plainIdsFor, withPlainIds } from './ids'
@@ -18,3 +19,5 @@ export { BAY_AISLE, BAY_KINDS, BAY_ROWS, BAY_SIZES, BAYS_MOST, baysOfWords, bays
 export { givenIds, isAnnotation, noteLines, NoteLines, noteOfLine, noteOfWords, notePart, notePlaceOf, notePlaceText, NoteRefused, notesSummary, noteWhat, NOTE_KINDS, NOTE_LINE_WORDS, placedLine, ROUTE_CATEGORY, routeHead, routeShaft, type NoteKind, type NotePlace, type NoteWords } from './notes'
 export { groundLineOfWords, slopeLines, type GroundWords } from './ground'
 export { baseNamedIn, fitOutReading, ownParts, restOnBase, BASE_LINE_WORDS, type BasePlan } from './base'
+export { isRooflightLine, ROOF_LINE_WORDS, roofHasLines, RoofLines, roofLines, roofOfWords, rooflightOfWords, type RooflightWords } from './roofs'
+export { columnLine, columnLines, ColumnLines, COLUMN_LINE_WORDS, COLUMNS_MOST, type ColumnNote } from './columns'

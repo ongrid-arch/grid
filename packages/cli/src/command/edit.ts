@@ -120,7 +120,8 @@ export function withBooleanWords(args: readonly string[], tool: GridTool): strin
 export function asOptions(message: string, tool: GridTool): string {
   let text = message
   for (const name of Object.keys(tool.args)) {
-    text = text.replace(new RegExp(`^${name} `), `${optionOf(name)} `).replace(new RegExp(`^Pass ${name}:`), `Pass ${optionOf(name)}:`)
+    // MSG-33: a refusal of several faults says each on its own line, after "- ".
+    text = text.replace(new RegExp(`^(- )?${name} `, 'gm'), `$1${optionOf(name)} `).replace(new RegExp(`^(- )?Pass ${name}:`, 'gm'), `$1Pass ${optionOf(name)}:`)
   }
   return text
 }
