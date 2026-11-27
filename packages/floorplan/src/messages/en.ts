@@ -587,6 +587,10 @@ export const en = {
   // ARE-28: the route out from a floor above the ground that nothing joins to the ground floor.
   'route.notChecked.none': 'grid_check does not follow the way out of {floor} either: no stair joins it to the ground floor (a stair the plan states, or stair rooms one over the other), and its notes say so (no_stairs).',
   'route.notChecked.found': 'grid_check does not follow this way out: no stair joins {floor} to the ground floor (a stair the plan states, or stair rooms one over the other), and its notes say so (no_stairs).',
+  // ARE-70: a way out onto the building's common parts, and a front door up in the air that nothing marks.
+  'route.commonParts': 'the building\'s common parts',
+  'route.commonParts.onward': 'This way out ends on the building\'s common parts, which the plan does not draw: the way on from there (the landing, the stair) is not followed or measured. grid_check takes it as the way out too (way_out_through_common_parts).',
+  'route.doorOutAboveGround': 'The {kind} {via} from {room} leads outside {height} m above the ground, so it is not taken as a way out. If it is the front door onto the building\'s common landing, mark its wall {wall} separating (a party wall or a wall to the common parts) or beyond common, any number of walls in one grid_set call: it is then the way out.',
   'route.blockedDoorway': 'The {kind} {via} between {rooms} is closed: {items} leaves none of it clear.',
   'check.noStair.route': 'There is no way out from {floor}: it stands above the ground and nothing joins it to the ground floor, no room on it is used as a stair or a lift and no stair or ramp is stated to it, so no route from {room} goes down to a door out (grid check: floor/no-stair).',
   'check.outOfLine.stair': 'The stair {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so it does not join the two floors',
@@ -1255,7 +1259,7 @@ export const en = {
   'line.flat/no-front-door.needed': 'a front door onto a common part of the building, or to the outside',
   'line.flat/no-front-door.fix': 'Draw the landing or corridor it is entered from as a room in no flat, or mark the wall its front door is in as separating.',
   'line.opening/door-out-above-ground.needed': 'a way out at ground level, or a stair down to one',
-  'line.opening/door-out-above-ground.fix': 'If the door opens onto a balcony or a terrace, draw that space. It is not counted as a way out.',
+  'line.opening/door-out-above-ground.fix': 'If the door opens onto a balcony or a terrace, draw that space. It is not counted as a way out. If it is a front door onto the building\'s common landing, mark its wall separating (a party wall or a wall to the common parts) or beyond common, for any number of walls in one grid_set call: it is then the way out.',
   'line.opening/into-closed-court.found': 'walls close in the outside space past the door on every side, and no door leads on from it',
   'line.opening/into-closed-court.needed': 'a way on from that space to the open air, or another door to the outside',
   'line.opening/into-closed-court.fix': 'If the courtyard has a gate or a passage out, draw it as a door in its wall. Otherwise add a door to the outside elsewhere.',

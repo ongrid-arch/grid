@@ -550,6 +550,13 @@ keeps to its floor). A door in a curved wall is walked from either side of the c
 ARE-63: from a floor whose way out the check does not follow, because no stair joins it to the
 ground floor (its `no_stairs` note), the answer says so, found or not, and carries the note as
 `notChecked` (`reason`, `floor`): a basement car park left by a ramp for cars is such a floor.
+ARE-70: when no way out is reached, a door or open side onto the building's common parts (in a
+`separating` wall, or one with `beyond: "common"`) is the way out, as the check reads a flat's front
+door onto its landing: the last step goes `into` `common parts`, the answer carries
+`onto: "common parts"` and says that the way on from there is not followed, and a body or trolley
+is set against the way to that door. When none is found and a door leads outside from a floor
+above the ground, the answer names the door, its height and its wall, and says how to mark it as
+the front door onto the common landing.
 
 With `to=outside` (ARE-21) the route is walked to every way out on the floor, each by the way
 with the fewest rooms to its door, and the shortest by walked length is the answer. It names the
