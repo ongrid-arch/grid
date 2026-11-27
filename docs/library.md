@@ -210,7 +210,7 @@ These come with the checks every item has, in [plan-file.md](plan-file.md#fixtur
 
 ## The DXF: each door and fixture a block
 
-The DXF writes each door, window and opening as a block (one per kind and size), and each
+The DXF writes each door, window and opening as a block (one per schedule type, VEW-72), and each
 fixture and piece of furniture as one too: one block per library entry, or per kind and size for
 an item placed without one, named `GRID-DOUBLE-BED-1400x2000` or `GRID-TOILET-400x650`, drawn
 in the item's own frame and inserted at its middle on the fixtures layer, turned as the plan turns

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { pathProblem } from '../../fs/projectFiles'
 import { T1_PLAN_TEXT } from '../../fs/__tests__/attackCases'
-import { exportBaseOf, exportNameOf } from '../export'
+import { exportBaseOf, exportFloorId, exportNameOf, floorWord, sheetsText } from '../export'
 
 describe('export file names: sanitised, never refused', () => {
   it('keeps a plain plan file name, as before', () => {
@@ -50,4 +50,33 @@ describe('export file names: sanitised, never refused', () => {
 it('gives the base a sheet is named after (VEW-7)', () => {
   expect(exportBaseOf('My House.json')).toEqual({ base: 'my-house' })
   expect(exportBaseOf('approved-plan.json').base).toBe('floor-plan')
+})
+
+describe('VEW-72: a floor in an export', () => {
+  it('names the file after the floor, made safe as the plan file name is, else by its place', () => {
+    expect(floorWord({ id: 'f3', name: 'Third Floor' })).toBe('third-floor')
+    expect(floorWord({ id: 'f3' })).toBe('f3')
+    expect(floorWord({ id: 'f3', name: 'Ático' })).toBe('atico')
+    expect(floorWord({ id: 'f3', name: 'approved floor' })).toBeNull()
+    expect(floorWord({ id: 'f3', name: 'one two three four five six' })).toBeNull()
+    expect(floorWord({ id: '-', name: '' })).toBeNull()
+    expect(exportNameOf('house.json', 'dxf', 'third-floor')).toEqual({ fileName: 'house-third-floor.dxf' })
+  })
+
+  it('finds a floor by its id, else by its one name in any case', () => {
+    const plan = { version: '1', units: 'm', walls: [], rooms: [], openings: [], floors: [{ id: 'f1', name: 'Ground', level: 0 }, { id: 'f2', name: 'Upper', level: 1 }, { id: 'f3', name: 'upper', level: 2 }] } as never
+    expect(exportFloorId(plan, 'f1')).toBe('f1')
+    expect(exportFloorId(plan, ' ground ')).toBe('f1')
+    expect(exportFloorId(plan, 'Upper')).toBeUndefined()
+    expect(exportFloorId(plan, 'roof')).toBeUndefined()
+  })
+
+  it('says the scale and a floor that does not fit, and nothing at 1:100 when every floor fits', () => {
+    expect(sheetsText([])).toBeNull()
+    expect(sheetsText([{ floor: 'g', scale: 100, stated: false, fits: true, fitsAt: null }])).toBeNull()
+    expect(sheetsText([{ floor: 'g', scale: 500, stated: false, fits: true, fitsAt: null }])).toBe('Its sheets are A3 at 1:500, the largest standard scale the plan fits at.')
+    expect(sheetsText([{ floor: 'g', scale: 100, stated: true, fits: true, fitsAt: null }, { floor: 'p', scale: 100, stated: true, fits: false, fitsAt: 500 }])).toBe(
+      'Its sheets are A3 at 1:100, the scale stated. Floor "p" does not fit on A3 at 1:100: its sheet shows the middle of it. It fits at 1:500.'
+    )
+  })
 })

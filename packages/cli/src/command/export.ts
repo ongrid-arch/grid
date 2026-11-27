@@ -3,12 +3,12 @@
  * through the core's exporters.
  *
  * Written into the `exports/` folder beside the plan, as the app's "Open in" does, or to
- * `--out`. DXF holds one floor; IFC holds the whole building; OBJ and GLB hold the whole building,
- * each floor at its elevation, unless a floor is named (VEW-64). The tool server's `grid_export`
- * runs the same code, without `--out`.
+ * `--out`. IFC holds the whole building; DXF (VEW-72), OBJ and GLB (VEW-64) hold the whole building
+ * unless a floor is named, by its id or its name, and `--floor all` writes one file per floor. The
+ * tool server's `grid_export` runs the same code.
  */
 import path from 'path'
-import { GLB_BUILDING_NODE, metresText, planFloors, resolveFloor } from '@ongrid/floorplan/geometry'
+import { DXF_SCALE_RANGE, DXF_SHEET_SCALES, GLB_BUILDING_NODE, metresText, planFloors, resolveFloor, type DxfSheet, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type Said } from '@ongrid/floorplan/messages'
 import {
   EXPORT_FORMATS,
@@ -26,11 +26,14 @@ import { writeProjectExport } from '../export/projectExports'
 import { projectDxfProfile } from '../export/dxfProfile'
 import { PathRefused, type Project } from '../fs/projectFiles'
 import { floorOption, loadPlan, PlanRefused, type LoadedPlan } from './plan'
+import { openingSchedule } from '../quantities/schedule'
+import { surveyPlan } from '../quantities/survey'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 
 export const EXPORT_OPTIONS: OptionSpecs = {
   '--format': { takesValue: true, help: `The file format: ${EXPORT_FORMATS.join(', ')}.` },
-  '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export (a floor id from the plan). Left out, OBJ and GLB hold every floor at its elevation, and DXF the ground floor.' },
+  '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export, by its id or its name, or all for one file per floor. Left out, the file holds every floor: OBJ and GLB each at its elevation, DXF each on a layout of its own.' },
+  '--scale': { takesValue: true, help: 'DXF: the scale its sheets show the plan at, 200 or 1:200. Left out, the scale dxf-layers.json states, else the largest standard scale every floor fits on A3 at.' },
   '--date': { takesValue: true, help: 'IFC: the time stamp to write, a date (2026-01-31) or a time (2026-01-31T09:00:00Z). SOURCE_DATE_EPOCH when left out, else now. The same date gives the same file.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in the format\'s extension. exports/ beside the plan when left out.' },
   ...PROJECT_OPTION,
@@ -40,6 +43,8 @@ export interface ExportRequest {
   readonly format?: string
   readonly floor?: string
   readonly out?: string
+  /** VEW-72: the DXF's scale as given, `200` or `1:200`. */
+  readonly scale?: string
   /** CMD-26: the time stamp to write, as given. */
   readonly date?: string
 }
@@ -74,10 +79,41 @@ export function checkExportRequest(request: ExportRequest): ExportFormat {
   if (format === 'ifc' && request.floor !== undefined) {
     throw new UsageError('--floor does not apply to IFC, which holds every floor: leave --floor out.')
   }
+  exportScale(request, format)
+  if (request.floor === ALL_FLOORS && request.out !== undefined) {
+    throw new UsageError('--floor all writes one file per floor into exports/ beside the plan: leave --out out, or name one floor.')
+  }
   if (request.out !== undefined && path.extname(request.out).toLowerCase() !== `.${format}`) {
     throw new UsageError(`--out ${JSON.stringify(request.out)} does not end in .${format}: name a .${format} file.`)
   }
   return format
+}
+
+/** VEW-72: `--floor all`, one file per floor, unless the plan has a floor with that id. */
+export const ALL_FLOORS = 'all'
+
+/** VEW-72: the scale a DXF is asked for, as a number (200 for 1:200), or undefined when none is. */
+export function exportScale(request: Pick<ExportRequest, 'scale'>, format: ExportFormat): number | undefined {
+  if (request.scale === undefined) return undefined
+  if (format !== 'dxf') throw new UsageError('--scale applies to DXF only: leave it out for this format.')
+  const given = /^(?:1:)?([0-9]{1,4})$/.exec(request.scale.trim())
+  const scale = given === null ? Number.NaN : Number(given[1])
+  if (!(scale >= DXF_SCALE_RANGE.min && scale <= DXF_SCALE_RANGE.max)) {
+    throw new UsageError(`--scale ${JSON.stringify(request.scale)} is not a scale Grid draws: give a whole number from ${DXF_SCALE_RANGE.min} to ${DXF_SCALE_RANGE.max}, such as 200 or 1:200.`)
+  }
+  return scale
+}
+
+/**
+ * VEW-72: the floor an export names: the floor with that id, else the one floor whose name it is
+ * (any case, spaces round it aside). Undefined when it names none, or names two by one name.
+ */
+export function exportFloorId(plan: FloorPlan, text: string): string | undefined {
+  const floors = planFloors(plan)
+  if (floors.some((floor) => floor.id === text)) return text
+  const fold = (value: string): string => value.trim().toLowerCase()
+  const named = floors.filter((floor) => floor.name !== undefined && fold(floor.name) === fold(text))
+  return named.length === 1 ? named[0]!.id : undefined
 }
 
 /** The plan's name: the plan file's name without `.json`. */
@@ -141,16 +177,17 @@ export function exportBaseOf(planFile: string): { base: string; note?: string } 
  * - It is replaced by `floor-plan` when it is longer than five words or 40 characters, or
  *   holds a word in `WORDS_KEPT_OUT`: it would read as a sentence, a claim or an instruction.
  * - A name Windows keeps for a device (`con`, `nul`, `com1` ...) gets `plan-` in front.
- * - One floor of a plan with several is named by its place in the plan, `-floor-2`, not by the
- *   floor's own name or id, which are text from inside the plan.
+ * - VEW-72: one floor of a plan with several is named after the floor (`floorWord`): its name, else
+ *   its id, made safe as the plan file's name is; by its place in the plan, `-floor-2`, when what
+ *   is left of the name cannot be used.
  *
  * Grid sanitises rather than refuses: the export is still written, and `note` says what changed.
  */
-export function exportNameOf(planFile: string, format: ExportFormat, floorNumber: number | null): ExportName {
+export function exportNameOf(planFile: string, format: ExportFormat, floor: string | number | null): ExportName {
   const made = exportBaseOf(planFile)
   let base = made.base
   let note = made.note
-  if (floorNumber !== null) base = `${base}-floor-${floorNumber}`
+  if (floor !== null) base = typeof floor === 'number' ? `${base}-floor-${floor}` : `${base}-${floor}`
   if (WINDOWS_DEVICE.test(base)) {
     note = `${base} is a name Windows keeps for a device`
     base = `plan-${base}`
@@ -159,15 +196,32 @@ export function exportNameOf(planFile: string, format: ExportFormat, floorNumber
   return note === undefined ? { fileName } : { fileName, note: `Named the export ${fileName}: ${note}.` }
 }
 
-/** The floor's place in the plan, from 1, when an export holds one floor of several. */
-function floorNumberOf(loaded: LoadedPlan, format: ExportFormat, floorId: string | undefined): number | null {
-  if (format === 'ifc') return null
-  // VEW-64: an OBJ or GLB with no floor named holds the whole building.
-  if (floorId === undefined && format !== 'dxf') return null
+/**
+ * VEW-72: a floor's part of an export's name: its name, else its id, in lower-case letters, digits
+ * and hyphens; null when nothing is left, or when it is longer than a name or reads as a claim or
+ * an instruction (the plan file's own rules, `exportBaseOf`).
+ */
+export function floorWord(floor: { readonly id: string; readonly name?: string | undefined }): string | null {
+  const word = (floor.name || floor.id)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  const words = word.split('-')
+  if (word === '' || words.length > EXPORT_NAME_MAX_WORDS || word.length > EXPORT_NAME_MAX_LENGTH || words.some((one) => WORDS_KEPT_OUT.has(one))) return null
+  return word
+}
+
+/** The floor's part of the name when an export holds one floor of several: its word, else its place in the plan, from 1. */
+function floorPartOf(loaded: LoadedPlan, format: ExportFormat, floorId: string | undefined): string | number | null {
+  // VEW-64, VEW-72: a file with no floor named holds the whole building.
+  if (format === 'ifc' || floorId === undefined) return null
   const floors = planFloors(loaded.plan)
   if (floors.length <= 1) return null
   const id = resolveFloor(loaded.plan, floorId)
-  return floors.findIndex((floor) => floor.id === id) + 1
+  const at = floors.findIndex((floor) => floor.id === id)
+  return floorWord(floors[at]!) ?? at + 1
 }
 
 export interface MadeExport extends PlanExport {
@@ -230,7 +284,7 @@ export function floorsText(made: Pick<PlanExport, 'floors' | 'floorsLeftOut'>, f
   if (made.floorsLeftOut.length === 0) {
     return english(format === 'glb'
       ? said('drawing.export.floors.building.glb', { n: all, root: name(GLB_BUILDING_NODE) })
-      : said(`drawing.export.floors.building.${format === 'obj' ? 'obj' : 'ifc'}`, { n: all }))
+      : said(`drawing.export.floors.building.${format === 'obj' ? 'obj' : format === 'dxf' ? 'dxf' : 'ifc'}`, { n: all }))
   }
   const held = made.floors[0]!
   const left = made.floorsLeftOut.length
@@ -261,13 +315,82 @@ function nothingToExport(loaded: LoadedPlan, planFile: string, format: ExportFor
  * that file is wrong).
  */
 export function exportFile(project: Project, loaded: LoadedPlan, planFile: string, format: ExportFormat, request: ExportRequest): MadeExport {
-  const floorId = floorOption(loaded.plan, request.floor)
+  // VEW-72: a floor by its id or its name.
+  const floorId = request.floor === undefined ? undefined : (exportFloorId(loaded.plan, request.floor) ?? floorOption(loaded.plan, request.floor))
   const name = projectNameOf(planFile)
   const dxf = format === 'dxf' ? projectDxfProfile(project) : null
-  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
+  // VEW-72: the scale asked for, else the one the profile states; the largest that fits when neither.
+  const scale = exportScale(request, format) ?? (dxf?.scaleStated === true ? dxf.profile.scale : undefined)
+  // VEW-72: the schedules' marks and types, for the DXF's attributes and the IFC's tags.
+  const marks = format === 'dxf' || format === 'ifc' ? { openingMarks: new Map(openingSchedule(surveyPlan(loaded.plan)).rows.map((row) => [row.id, { mark: row.mark, type: row.typeKey }] as const)) } : {}
+  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...marks, ...(scale === undefined ? {} : { dxfScale: scale }), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
   const made = exportPlan(loaded.plan, format, loaded.faults === undefined ? options : { ...options, faults: loaded.faults })
   if (made.empty) throw new PlanRefused(nothingToExport(loaded, planFile, format, made, floorId))
-  return { ...made, name: exportNameOf(planFile, format, floorNumberOf(loaded, format, floorId)), dxfProfile: dxf?.file ?? null }
+  return { ...made, name: exportNameOf(planFile, format, floorPartOf(loaded, format, floorId)), dxfProfile: dxf?.file ?? null }
+}
+
+/** VEW-72: the files of one export: one, or with `--floor all` one per floor, and the floors that held nothing. */
+export interface MadeExports {
+  readonly made: readonly MadeExport[]
+  /** The ids of the floors `--floor all` wrote no file for: they hold nothing that can be drawn. */
+  readonly empty: readonly string[]
+}
+
+/**
+ * VEW-72: `--floor all` (when no floor has that id) makes one file per floor, lowest first, each
+ * named after its floor; a floor that holds nothing is skipped and named. Any other request
+ * makes one file.
+ */
+export function exportFiles(project: Project, loaded: LoadedPlan, planFile: string, format: ExportFormat, request: ExportRequest): MadeExports {
+  if (request.floor !== ALL_FLOORS || exportFloorId(loaded.plan, ALL_FLOORS) !== undefined) return { made: [exportFile(project, loaded, planFile, format, request)], empty: [] }
+  const floors = planFloors(loaded.plan).map((floor, order) => ({ floor, order })).sort((a, b) => a.floor.level - b.floor.level || a.order - b.order)
+  if (floors.length <= 1) return { made: [exportFile(project, loaded, planFile, format, { ...request, floor: undefined })], empty: [] }
+  const made: MadeExport[] = []
+  const empty: string[] = []
+  const taken = new Set<string>()
+  for (const { floor, order } of floors) {
+    let one: MadeExport
+    try {
+      one = exportFile(project, loaded, planFile, format, { ...request, floor: floor.id })
+    } catch (error) {
+      if (error instanceof PlanRefused) {
+        empty.push(floor.id)
+        continue
+      }
+      throw error
+    }
+    // Two floors of one name: the later is named by its place in the plan.
+    if (taken.has(one.name.fileName)) one = { ...one, name: exportNameOf(planFile, format, order + 1) }
+    taken.add(one.name.fileName)
+    made.push(one)
+  }
+  if (made.length === 0) throw new PlanRefused(`Nothing to export: ${planFile} has no wall, room or fixture that can be drawn on any floor. No file was written.`)
+  return { made, empty }
+}
+
+/** VEW-72: the line that names the floors `--floor all` wrote no file for, or null. */
+export function emptyFloorsText(empty: readonly string[]): string | null {
+  if (empty.length === 0) return null
+  return english(said(empty.length === 1 ? 'drawing.export.floors.empty.one' : 'drawing.export.floors.empty.many', { floors: joined(empty.map((id) => name(id)), 'join.and') }))
+}
+
+/**
+ * VEW-72: the line that says a DXF's scale, stated or the largest standard one it fits at, and
+ * each floor that does not fit at it, with the scale it fits at; null for the other formats, and
+ * for a DXF at Grid's first scale, 1:100, unstated, that every floor fits.
+ */
+export function sheetsText(sheets: readonly DxfSheet[]): string | null {
+  const first = sheets[0]
+  if (first === undefined || (!first.stated && first.scale === DXF_SHEET_SCALES[0] && sheets.every((sheet) => sheet.fits))) return null
+  const lines = [english(said(first.stated ? 'drawing.export.dxf.scale.stated' : 'drawing.export.dxf.scale.fit', { scale: first.scale }))]
+  const smallest = DXF_SHEET_SCALES[DXF_SHEET_SCALES.length - 1]!
+  for (const sheet of sheets) {
+    if (sheet.fits) continue
+    const head = sheets.length > 1 && sheet.floor !== null ? said('drawing.export.dxf.notFit.floor', { floor: name(sheet.floor), scale: sheet.scale }) : said('drawing.export.dxf.notFit.plan', { scale: sheet.scale })
+    const fit = sheet.fitsAt !== null ? said('drawing.export.dxf.fitsAt', { scale: sheet.fitsAt }) : sheet.scale < smallest ? said('drawing.export.dxf.fitsNone', { scale: smallest }) : null
+    lines.push(fit === null ? english(head) : `${english(head)} ${english(fit)}`)
+  }
+  return lines.join(' ')
 }
 
 /** HND-1: the line that says which profile a DXF's layers and pens came from. */
@@ -293,6 +416,8 @@ export interface ExportDone {
   /** VEW-64: the floors the file holds, with their elevations, and the plan's floors it does not hold. */
   readonly floors: PlanExport['floors']
   readonly floorsLeftOut: PlanExport['floorsLeftOut']
+  /** VEW-72: a DXF's sheets, one per floor it holds; empty for the other formats. */
+  readonly sheets: PlanExport['sheets']
   readonly note?: string
 }
 
@@ -306,10 +431,20 @@ function oneLine(text: string): string {
  */
 export function exportIntoProject(project: Project, planFile: string, format: ExportFormat, request: Omit<ExportRequest, 'out'>): ExportDone {
   const loaded = loadPlan(project, planFile)
-  const made = exportFile(project, loaded, planFile, format, request)
+  return writtenBesidePlan(project, loaded, planFile, exportFile(project, loaded, planFile, format, request))
+}
+
+function writtenBesidePlan(project: Project, loaded: LoadedPlan, planFile: string, made: MadeExport): ExportDone {
   const written = writeBesidePlan(project, planFile, made.name.fileName, made.data)
-  const done = { loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut }
+  const done = { loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut, sheets: made.sheets }
   return made.name.note === undefined ? done : { ...done, note: made.name.note }
+}
+
+/** VEW-72: as `exportIntoProject`, every file of the request: one per floor for `--floor all`. */
+export function exportsIntoProject(project: Project, planFile: string, format: ExportFormat, request: Omit<ExportRequest, 'out'>): { readonly done: readonly ExportDone[]; readonly empty: readonly string[] } {
+  const loaded = loadPlan(project, planFile)
+  const { made, empty } = exportFiles(project, loaded, planFile, format, request)
+  return { done: made.map((one) => writtenBesidePlan(project, loaded, planFile, one)), empty }
 }
 
 /**

@@ -46,7 +46,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/draw.ts': [46, 'command'],
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
   'packages/cli/src/command/edit.ts': [9, 'command'],
-  'packages/cli/src/command/export.ts': [20, 'command'],
+  // VEW-72: five more, the help of --scale, its refusals, --floor all with --out and a plan with nothing on any floor.
+  'packages/cli/src/command/export.ts': [25, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
@@ -235,7 +236,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-73: six more, the phase rules, the correction argument and its note, and keep_north.
   // VEW-64: one more, the floors an export holds.
   // CMD-43: six more, the from, layers and units arguments and their refusals.
-  'packages/cli/src/mcp/writeTools.ts': [158, 'tools'],
+  // VEW-72: three more, grid_export's scale and out and a file out cannot write.
+  'packages/cli/src/mcp/writeTools.ts': [161, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],

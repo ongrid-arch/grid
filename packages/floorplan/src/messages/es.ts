@@ -2892,6 +2892,8 @@ export const es: Messages = {
   'drawing.export.floors.building.dxf': 'Contiene las {n} plantas del plano, una al lado de otra en el espacio modelo desde la más baja, cada una en una presentación propia con el nombre de la planta.',
   'drawing.export.floors.others.one': 'la otra planta no está',
   'drawing.export.floors.others.many': 'las otras {n} plantas no están',
+  'drawing.export.floors.empty.one': 'La planta {floors} no contiene nada que se pueda dibujar: no se escribió ningún archivo para ella.',
+  'drawing.export.floors.empty.many': 'Las plantas {floors} no contienen nada que se pueda dibujar: no se escribió ningún archivo para ellas.',
   'drawing.export.dxf.scale.fit': 'Sus hojas son A3 a 1:{scale}, la mayor escala normalizada a la que cabe el plano.',
   'drawing.export.dxf.scale.stated': 'Sus hojas son A3 a 1:{scale}, la escala indicada.',
   'drawing.export.dxf.notFit.plan': 'El plano no cabe en un A3 a 1:{scale}: la hoja muestra su centro.',

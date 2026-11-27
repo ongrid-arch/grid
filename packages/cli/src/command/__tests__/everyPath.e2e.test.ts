@@ -244,7 +244,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_preview: [{ arg: 'plan', call: tool('grid_preview', { plan: '@', view: '2d', note: 'A look' }), given: asIs }],
   // VEW-4: the page's own call; its record is the plan's name beside the plan, never a path of its own.
   grid_preview_sync: [{ arg: 'plan', call: tool('grid_preview_sync', { plan: '@' }), given: asIs }],
-  grid_export: [{ arg: 'plan', call: tool('grid_export', { plan: '@', format: 'glb' }), given: asIs }],
+  grid_export: [
+    { arg: 'plan', call: tool('grid_export', { plan: '@', format: 'glb' }), given: asIs },
+    // VEW-72: the file to write, as grid export --out.
+    { arg: 'out', call: tool('grid_export', { plan: PLAN, format: 'dxf', out: '@.dxf' }), given: (p) => `${p}.dxf` },
+  ],
   grid_sheet: [{ arg: 'plan', call: tool('grid_sheet', { plan: '@', layout: 'check' }), given: asIs }],
   grid_mark_start: [{ arg: 'plan', call: tool('grid_mark_start', { plan: '@' }), given: asIs }],
   // MSG-10: its marks file is the plan's name beside the plan, never a path of its own.

@@ -2764,6 +2764,8 @@ export const en = {
   'drawing.export.floors.building.dxf': 'Holds all {n} floors of the plan, side by side in model space from the lowest, each on a paper layout of its own named after the floor.',
   'drawing.export.floors.others.one': 'the other floor is',
   'drawing.export.floors.others.many': 'the other {n} floors are',
+  'drawing.export.floors.empty.one': 'Floor {floors} holds nothing that can be drawn: no file was written for it.',
+  'drawing.export.floors.empty.many': 'Floors {floors} hold nothing that can be drawn: no file was written for them.',
   'drawing.export.dxf.scale.fit': 'Its sheets are A3 at 1:{scale}, the largest standard scale the plan fits at.',
   'drawing.export.dxf.scale.stated': 'Its sheets are A3 at 1:{scale}, the scale stated.',
   'drawing.export.dxf.notFit.plan': 'The plan does not fit on A3 at 1:{scale}: the sheet shows the middle of it.',

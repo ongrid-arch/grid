@@ -16,10 +16,10 @@ import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { EXPORT_FORMATS, isExportFormat } from '@ongrid/floorplan/export'
 import { inspectPlan } from '@ongrid/rules'
-import { approximatedText, checkExportRequest, dxfProfileLine, ExportWriteFailed, exportIntoProject, floorsText, leftOutText } from '../command/export'
+import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, emptyFloorsText, exportFile, exportFloorId, ExportWriteFailed, exportsIntoProject, floorsText, leftOutText, sheetsText, type ExportDone } from '../command/export'
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
-import { PlanRefused } from '../command/plan'
+import { loadPlan, PlanRefused } from '../command/plan'
 import { nameNotes } from '../command/planText'
 import { occupancyFileOf } from '../occupancy/occupancy'
 import { keepRoomNumbers } from '../edit/numbers'
@@ -83,7 +83,7 @@ export const EXPORT_TOOL_NAME = 'grid_export'
 
 /** The command's messages name its options; a tool names its arguments. */
 function asArguments(message: string): string {
-  return message.replace(/--(format|floor|layout|sheet)\b/g, '$1')
+  return message.replace(/--(format|floor|layout|sheet|scale|out)\b/g, '$1')
 }
 
 /** What a written file leaves out of the plan, for the agent. */
@@ -98,14 +98,16 @@ const exportTool: GridTool = {
   description:
     'Use this when the person wants the plan as a file to open in another program: dxf for AutoCAD and other 2D CAD programs (the nearest to DWG), ifc for BIM programs such as Revit, glb or obj for 3D. '
     + 'It writes the file into the exports folder beside the plan, replacing an earlier copy of the same export, and answers with the path it wrote and every part of the plan the file leaves out (the file says so too). It never changes the plan, and refuses a file that would hold nothing of it. '
-    + 'A glb or obj with no floor holds the whole building, each floor at its elevation (in a glb, a node per floor named by its id under one root node), and the answer says which floors a file holds as floors and which it does not as floorsLeftOut. '
-    + `A dxf is in metres, with doors and windows as blocks, filled walls, dimensions, room tags and an A3 sheet; it takes its layer names and pens from ${DXF_PROFILE_FILE} in the project folder when there is one, and answers with that file as dxfProfile. `
+    + 'A dxf, glb or obj with no floor holds the whole building: a glb or obj each floor at its elevation (in a glb, a node per floor named by its id under one root node), a dxf each floor side by side in model space and on a paper layout of its own named after the floor. floor all writes one file per floor, each named after its floor, listed as files. The answer says which floors a file holds as floors and which it does not as floorsLeftOut. '
+    + `A dxf is in metres, with doors and windows as blocks, one per schedule type, each insert carrying its MARK (the schedules' mark, the IFC's Tag), TYPE, WIDTH, HEIGHT and SILL, filled walls, dimensions, room tags and an A3 sheet per floor at the largest standard scale every floor fits at, or at scale; sheets says the scale and any floor that does not fit. It takes its layer names and pens from ${DXF_PROFILE_FILE} in the project folder when there is one, and answers with that file as dxfProfile. A door's hand is the side of its hinges seen from the side it opens toward, in the schedule, the dxf and the ifc alike. `
     + `${ROOM_NAMES_TRAVEL} `
     + 'Do not use for a picture to look at (grid_view). For a PDF to read or print, use grid_sheet; JPG is not made. The plan must be a file inside the project folder: any other path is refused.',
   args: {
     plan: { type: 'string', maxLength: PATH_MAX, required: true, description: 'The plan file, as a path inside the project folder.', examples: ['floor-plan.json', 'plan.json'] },
     format: { type: 'string', required: true, enum: EXPORT_FORMATS, description: 'The file format.', examples: ['dxf', 'ifc'] },
-    floor: { ...FLOOR_ARG, description: 'dxf, obj and glb only: a floor id from the plan\'s "floors", for that floor alone at its elevation. Left out, obj and glb hold every floor, and dxf the ground floor.' },
+    floor: { type: 'string', maxLength: 200, description: 'dxf, obj and glb only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation, or all for one file per floor. Left out, the file holds every floor.', examples: ['ground', 'all'] },
+    scale: { type: 'number', description: 'dxf only: N in 1:N, a whole number, such as 100 or 200, for its sheets. Left out, the scale the profile states, else the largest of 100, 200, 500 and 1000 every floor fits at on A3.', examples: [100, 200], minimum: 1, maximum: 1000 },
+    out: { type: 'string', maxLength: PATH_MAX, description: 'The file to write, inside the project folder, ending in the format\'s extension. The exports folder beside the plan when left out. Not with floor all.', examples: ['drawings/ground.dxf'] },
   },
   outputSchema: objectSchema({
     written: STRING,
@@ -119,6 +121,9 @@ const exportTool: GridTool = {
     // VEW-64: the floors the file holds, lowest first, each with its elevation in metres, and the plan's floors it does not hold.
     floors: listSchema(objectSchema({ id: STRING, elevation: NUMBER }, ['id', 'elevation'])),
     floorsLeftOut: listSchema(STRING),
+    // VEW-72: every file written, one per floor for floor all, and each DXF sheet's scale and fit.
+    files: listSchema(objectSchema({ written: STRING, floors: listSchema(STRING) }, ['written', 'floors'])),
+    sheets: listSchema(objectSchema({ floor: NULLABLE_STRING, scale: NUMBER, stated: { type: 'boolean' }, fits: { type: 'boolean' }, fitsAt: { type: ['number', 'null'] } }, ['floor', 'scale', 'stated', 'fits', 'fitsAt'])),
     note: { type: ['string', 'null'] },
     dxfProfile: { type: ['string', 'null'] },
     gridVersion: STRING,
@@ -128,26 +133,66 @@ const exportTool: GridTool = {
     const plan = args['plan'] as string
     const format = args['format'] as string
     const floor = args['floor'] as string | undefined
+    const scale = args['scale'] as number | undefined
+    const out = args['out'] as string | undefined
     if (!isExportFormat(format)) throw new ToolRefusal(`Pass format: one of ${EXPORT_FORMATS.join(', ')}.`)
     // The floor is checked against the plan first, so an unknown one is not repeated back (MS-19).
-    if (floor !== undefined) floorArg(readPlan(context, plan).loaded.plan, floor)
+    // VEW-72: by its id or its name, or all.
+    if (floor !== undefined && floor !== ALL_FLOORS) {
+      const stated = readPlan(context, plan).loaded.plan
+      if (exportFloorId(stated, floor) === undefined) floorArg(stated, floor)
+    }
     try {
-      checkExportRequest({ format, floor })
-      const done = exportIntoProject(project, plan, format, { floor })
-      const written = project.relative(done.written)
-      const lines = [`Wrote ${quoted(written)} in the project folder.`]
-      if (done.note) lines.push(done.note)
-      // HND-6: what this file leaves out, which the file says too.
-      const left = leftOutText(done.leftOut)
-      if (left !== null) lines.push(left)
-      const curves = approximatedText(done.approximated)
-      if (curves !== null) lines.push(curves)
-      // VEW-64: which floors the file holds, and which it does not.
-      const held = floorsText(done, format)
-      if (held !== null) lines.push(held)
+      const request = { format, floor, ...(scale === undefined ? {} : { scale: String(scale) }), ...(out === undefined ? {} : { out }) }
+      checkExportRequest(request)
+      let files: readonly ExportDone[]
+      let empty: readonly string[] = []
+      if (out === undefined) ({ done: files, empty } = exportsIntoProject(project, plan, format, request))
+      else {
+        // VEW-72: out, as grid export --out writes it.
+        const loaded = loadPlan(project, plan)
+        const made = exportFile(project, loaded, plan, format, request)
+        let written: string
+        try {
+          written = project.writeFile(out, made.data)
+        } catch (error) {
+          if (error instanceof PathRefused) throw error
+          throw new ExportWriteFailed(`Can't write ${quoted(out)}: ${(error as NodeJS.ErrnoException).code === 'ENOENT' ? 'its folder does not exist' : 'it cannot be written there'}. Nothing was written.`)
+        }
+        files = [{ loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut, sheets: made.sheets }]
+      }
+      const each = floor === ALL_FLOORS && files.length > 1
+      const lines: string[] = []
+      for (const done of files) {
+        lines.push(`Wrote ${quoted(project.relative(done.written))} in the project folder.`)
+        if (done.note) lines.push(done.note)
+        // HND-6: what this file leaves out, which the file says too.
+        const left = leftOutText(done.leftOut)
+        if (left !== null) lines.push(left)
+        const curves = approximatedText(done.approximated)
+        if (curves !== null) lines.push(curves)
+        // VEW-64: which floors the file holds, and which it does not; a file of each floor asked for says neither.
+        const held = each ? null : floorsText(done, format)
+        if (held !== null) lines.push(held)
+        // VEW-72: a DXF's scale, and a floor that does not fit at it.
+        const sheets = sheetsText(done.sheets)
+        if (sheets !== null) lines.push(sheets)
+      }
+      const nothing = emptyFloorsText(empty)
+      if (nothing !== null) lines.push(nothing)
+      const first = files[0]!
       // HND-1: a DXF names the project's profile when its layers and pens came from one.
-      if (done.dxfProfile !== null) lines.push(dxfProfileLine(done.dxfProfile))
-      return { text: lines.join('\n'), data: { written, format, leftOut: done.leftOut.length, leftOutParts: done.leftOut, approximated: done.approximated, floors: done.floors, floorsLeftOut: done.floorsLeftOut, note: done.note ?? null, dxfProfile: done.dxfProfile, gridVersion: version } }
+      if (first.dxfProfile !== null) lines.push(dxfProfileLine(first.dxfProfile))
+      const leftOutParts = files.flatMap((done) => done.leftOut)
+      return {
+        text: lines.join('\n'),
+        data: {
+          written: project.relative(first.written), format, leftOut: leftOutParts.length, leftOutParts, approximated: files.flatMap((done) => done.approximated),
+          floors: files.flatMap((done) => done.floors), floorsLeftOut: each ? [] : first.floorsLeftOut,
+          files: files.map((done) => ({ written: project.relative(done.written), floors: done.floors.map((held) => held.id) })),
+          sheets: files.flatMap((done) => done.sheets), note: files.map((done) => done.note).filter((note) => note !== undefined).join(' ') || null, dxfProfile: first.dxfProfile, gridVersion: version,
+        },
+      }
     } catch (error) {
       if (error instanceof PathRefused || error instanceof PlanRefused || error instanceof ExportWriteFailed || error instanceof DxfProfileRefused) throw new ToolRefusal(error.message)
       if (error instanceof UsageError) throw new ToolRefusal(asArguments(error.message))
