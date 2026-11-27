@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wallPointAt, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, eyeCamera, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -78,12 +78,15 @@ import { columnRule, parkingRule, planTakeoff, TAKEOFF_RULES, type BayCount, typ
 import { FINISH_RULE, FINISH_SURFACES, FINISH_UNITS, WALL_TYPE_RULE, planFinishes, wallTypeRuns, type FinishSurface } from '../quantities/finishes'
 import {
   askPlan,
+  checkCondition,
   checkSums,
   factInfos,
   fieldName,
   fieldOf,
   GRID_FIELDS,
   groupParts,
+  meets,
+  readCondition,
   FACT_PART_KINDS,
   PART_KINDS,
   QUERY_RULE,
@@ -2046,20 +2049,151 @@ function refuseLeftOutRoom(loaded: LoadedPlan, room: unknown, argument: string):
   if (why !== null) throw new ToolRefusal(`${argument} names ${why}. It is in no view or measure until that is corrected; grid_check says how.`)
 }
 
-/** The part a crop names on the floor: an id first, else a room's name (any case), else refused naming the rooms. */
-function cropPart(plan: FloorPlan, floor: string, crop: string, loaded: LoadedPlan): PartBounds {
+/** VEW-74: the space a crop keeps round its parts when no margin is named, in metres. */
+const CROP_MARGIN = 0.5
+
+/** VEW-74: what a crop framed: the floor drawn, the parts and the words that say so. */
+interface CropFound {
+  readonly floor: string
+  readonly parts: readonly PartBounds[]
+  readonly words: string
+}
+
+/**
+ * VEW-74: the parts a crop names, on the first of `floors` that holds them all; refused with what
+ * the first floor tried says. One term (an id, a room's name, a flat, a condition) is read whole
+ * first, so a name with a comma in it still crops; else each term between commas.
+ */
+function cropParts(plan: FloorPlan, survey: Survey, floors: readonly string[], crop: string, loaded: LoadedPlan): CropFound {
+  let first: unknown
+  for (const floor of floors) {
+    try {
+      return { floor, ...cropOnFloor(plan, survey, floor, crop, loaded) }
+    } catch (error) {
+      if (!(error instanceof ToolRefusal)) throw error
+      first ??= error
+    }
+  }
+  throw first
+}
+
+function cropOnFloor(plan: FloorPlan, survey: Survey, floor: string, crop: string, loaded: LoadedPlan): { parts: readonly PartBounds[]; words: string } {
   const parts = partBounds(plan, floor)
-  const byId = parts.find((p) => p.id === crop)
-  if (byId) return byId
-  const wanted = crop.trim().toLowerCase()
+  const whole = cropTerm(plan, survey, floor, crop, parts, loaded, null)
+  if (whole !== null) return whole
+  const terms = crop.split(',').map((term) => term.trim()).filter((term) => term !== '')
+  if (terms.length <= 1) return cropTerm(plan, survey, floor, terms[0] ?? crop, parts, loaded, 'crop')!
+  const found = terms.map((term, i) => cropTerm(plan, survey, floor, term, parts, loaded, `crop's item ${i + 1}`)!)
+  const byId = new Map(found.flatMap((one) => one.parts).map((part) => [part.id, part]))
+  return { parts: [...byId.values()], words: `${terms.length} parts together: ${found.map((one) => one.words).join(', ')}` }
+}
+
+const CONDITION = /(!=|>=|<=|=|>|<)|\s+is\s+(missing|not set|set)$|\s+contains\s+/i
+
+/**
+ * One term of a crop on the floor: a part's id, a room's name (any case), a flat's id or name, or
+ * the rooms meeting a condition. With `place` null, null when it names nothing; else refused,
+ * naming the floor's rooms, by `place`.
+ */
+function cropTerm(plan: FloorPlan, survey: Survey, floor: string, term: string, parts: readonly PartBounds[], loaded: LoadedPlan, place: string | null): { parts: readonly PartBounds[]; words: string } | null {
+  const byId = parts.find((p) => p.id === term)
+  if (byId) return { parts: [byId], words: `${byId.kind} ${q(byId.id)}` }
+  const wanted = term.trim().toLowerCase()
   const named = plan.rooms.filter((r) => floorOf(r) === floor && r.name.trim().toLowerCase() === wanted)
   if (named.length > 1) throw new ToolRefusal(`${named.length} rooms on that floor are named so: crop by id, one of ${named.map((r) => q(r.id)).join(', ')}.`)
   const room = named[0] && parts.find((p) => p.id === named[0]!.id)
-  if (room) return room
-  refuseLeftOutRoom(loaded, named[0]?.id ?? crop, 'crop')
+  if (room) return { parts: [room], words: `${room.kind} ${q(room.id)}` }
+  // A flat, by its id or its name: its rooms on this floor.
+  const flat = planFlats(plan).find((f) => f.id === term.trim() || f.name.trim().toLowerCase() === wanted)
+  if (flat !== undefined) {
+    const rooms = flat.rooms.filter((r) => r.floor === floor).map((r) => parts.find((p) => p.id === r.id)).filter((p): p is PartBounds => p !== undefined)
+    if (rooms.length > 0) return { parts: rooms, words: `flat ${q(flat.id)} (${rooms.length === 1 ? 'one room' : `${rooms.length} rooms`} on this floor)` }
+    throw new ToolRefusal(`Flat ${q(flat.id)} has no room drawn on floor ${q(floor)}: its floors are ${flat.floors.map(q).join(', ') || 'none'}.`)
+  }
+  // The rooms that meet a condition on a field or fact, as grid_find reads one.
+  if (CONDITION.test(term)) {
+    const asked = askPlan(survey)
+    let condition
+    try {
+      condition = readCondition(asked, term, place ?? 'crop')
+      checkCondition(condition, place ?? 'crop')
+    } catch (error) {
+      if (!(error instanceof QueryRefused)) throw error
+      if (place === null) return null
+      throw new ToolRefusal(error.message)
+    }
+    const met = asked.parts.filter((part) => part.kind === 'room' && part.floor === floor && meets(asked, part, condition)).map((part) => parts.find((p) => p.id === part.id)).filter((p): p is PartBounds => p !== undefined)
+    if (met.length > 0) return { parts: met, words: `the ${met.length === 1 ? 'one room' : `${met.length} rooms`} where ${fieldName(condition.field)} ${condition.test}${condition.value === null ? '' : ` ${condition.value}`}` }
+    if (place === null) return null
+    throw new ToolRefusal(`No room drawn on floor ${q(floor)} meets ${place}'s condition: grid_find with where finds the rooms that do, on every floor.`)
+  }
+  if (place === null) return null
+  refuseLeftOutRoom(loaded, named[0]?.id ?? term, place)
   const onFloor = plan.rooms.filter((r) => floorOf(r) === floor)
-  const rooms = nearestList(crop, onFloor.map((r) => ({ id: r.id, note: r.name.trim() === '' ? ' (no name)' : ` (${q(r.name)})` })))
-  throw new ToolRefusal(`crop names no room, door, window or wall drawn on floor ${q(floor)}, nor a room's name. Its nearest rooms: ${onFloor.length === 0 ? 'none' : rooms}.`)
+  const rooms = nearestList(term, onFloor.map((r) => ({ id: r.id, note: r.name.trim() === '' ? ' (no name)' : ` (${q(r.name)})` })))
+  throw new ToolRefusal(`${place} names no room, door, window, wall or item drawn on floor ${q(floor)}, nor a room's or a flat's name. Its nearest rooms: ${onFloor.length === 0 ? 'none' : rooms}.`)
+}
+
+/** VEW-74: a box of the plan to frame, its corners in order. */
+interface CropBox {
+  readonly minX: number
+  readonly minY: number
+  readonly maxX: number
+  readonly maxY: number
+}
+
+function cropBoxArg(value: unknown): CropBox {
+  const given = value as Record<string, unknown>
+  const extra = Object.keys(given).filter((key) => key !== 'from' && key !== 'to')
+  if (extra.length > 0) throw new ToolRefusal(`crop_box takes from and to, not ${extra.length > 3 ? 'others' : extra.map((key) => (key.length <= 64 && /^[A-Za-z0-9._-]+$/.test(key) ? q(key) : 'others')).join(', ')}.`)
+  const point = (name: 'from' | 'to'): [number, number] => {
+    const p = given[name]
+    if (!Array.isArray(p) || p.length !== 2 || !p.every((v) => typeof v === 'number' && Number.isFinite(v))) throw new ToolRefusal(`crop_box.${name} takes a corner as [x, y] in metres, for example [0, 0].`)
+    return [p[0] as number, p[1] as number]
+  }
+  const [a, b] = [point('from'), point('to')]
+  const box = { minX: Math.min(a[0], b[0]), minY: Math.min(a[1], b[1]), maxX: Math.max(a[0], b[0]), maxY: Math.max(a[1], b[1]) }
+  if (!(box.maxX - box.minX > 0) || !(box.maxY - box.minY > 0)) throw new ToolRefusal('crop_box has no size: from and to must differ in both x and y.')
+  return box
+}
+
+/** The frame for a box, with `margin` metres round it. */
+function cropBoxFrame(box: CropBox, margin: number): Bounds {
+  const min = { x: box.minX - margin, y: box.minY - margin }
+  const max = { x: box.maxX + margin, y: box.maxY + margin }
+  return { min, max, width: max.x - min.x, height: max.y - min.y }
+}
+
+/** A length in metres for the answer, to the centimetre, with no trailing zeros. */
+function metres(value: number): string {
+  return String(Number(value.toFixed(2)))
+}
+
+/**
+ * VEW-74: every floor of the plan side by side, the lowest on the left, at one scale, each under
+ * its name and framed to the same part of the plan: the sheet that puts plans side by side.
+ */
+async function allFloorsAnswer(plan: FloorPlan, asked: LookName, look: string, dimensions: boolean, language: Language): Promise<ViewAnswer> {
+  const floors = planFloors(plan)
+  const frames = floors.map((f) => pictureFrame(plan, { floor: f.id, showDimensions: dimensions })).filter((b) => b.width > 0 && b.height > 0)
+  const min = { x: Math.min(...frames.map((b) => b.min.x)), y: Math.min(...frames.map((b) => b.min.y)) }
+  const max = { x: Math.max(...frames.map((b) => b.max.x)), y: Math.max(...frames.map((b) => b.max.y)) }
+  const frame: Bounds = { min, max, width: max.x - min.x, height: max.y - min.y }
+  const named = (f: (typeof floors)[number]): string => (f.name.trim() === '' ? f.id : f.name)
+  const { sheetView } = await import('../draw/views')
+  const sheet = await sheetView(floors.map((f) => ({ plan, title: named(f), floor: f.id, frame, showDimensions: dimensions })), asked, language === 'en' ? undefined : language)
+  const list = floors.map((f) => (named(f) === f.id ? q(f.id) : `${q(named(f))} (${q(f.id)})`)).join(', ')
+  const lines = [
+    `Every floor of the plan side by side, the lowest on the left, ${floors.length === 1 ? 'one floor' : `${floors.length} floors`}, each under its name: ${list}. Drawn in the ${look} look${dimensions ? ', with inside sizes' : ', without sizes'}: ${sheet.width} × ${sheet.height} px, all at one scale, 1 m = ${sheet.pxPerMetre.toFixed(1)} px.`,
+    `Each floor is framed to the same part of the plan, x ${frame.min.x.toFixed(2)} to ${frame.max.x.toFixed(2)} and y ${frame.min.y.toFixed(2)} to ${frame.max.y.toFixed(2)} m, so a part above another stands over it. North is the top of each drawing.`,
+    'For one floor drawn large, with each part\'s box, its problems marked, crop or tile, name its id in floor. Look at the picture before you describe it.',
+  ]
+  return {
+    text: lines.join('\n'),
+    data: { kind: 'plan', floor: null, floors: floors.map((f) => f.id), camera: null, view: null, pxPerMetre: sheet.pxPerMetre, sills: [], ids: [], boxes: [] },
+    image: { data: sheet.png, mimeType: 'image/png' },
+    picture: { bounds: null },
+  }
 }
 
 /** The rooms, doors and windows of one floor, by id, as the check view draws them. */
@@ -2313,7 +2447,7 @@ const viewTool: GridTool = {
     out: { type: 'string', maxLength: PATH_MAX, description: 'A .png, .svg or .pdf file to write the picture to, inside the project folder: a bare name goes into the exports folder beside the plan. A .view.json is written beside it with its size, pixels per metre and, for a plan, the plan\'s metres it covers. svg is not made for 3d or eye. Nothing is written when left out.', examples: ['plan-ground.png', 'exports/south.svg'] },
     kind: { type: 'string', required: true, enum: ['plan', 'facade', '3d', 'eye', 'section'], description: 'plan, facade, 3d, eye or section.', examples: ['plan', 'facade', 'section'] },
     side: { type: 'string', enum: FACADE_SIDES, description: 'For facade: the side of the drawing whose facade to draw: north (its top), east, south or west. Required for facade.', examples: ['south', 'east'] },
-    floor: { ...FLOOR_ARG, description: 'For plan: the floor to draw, the lowest when left out. For 3d: that floor cut away, the whole building when left out (with room, on a plan of several floors, that room\'s floor).' },
+    floor: { ...FLOOR_ARG, description: 'For plan: the floor to draw, the lowest when left out; all draws every floor side by side, the lowest on the left, at one scale, each named and framed to the same part of the plan (with look and dimensions only). For 3d: that floor cut away, the whole building when left out (with room, on a plan of several floors, that room\'s floor).' },
     from: { type: 'string', enum: SIDES, description: 'For 3d: the side or corner of the drawing the camera stands on, or above (north is the top of the drawing here). south-east when left out. Not with bearing.', examples: ['south', 'above'] },
     bearing: { type: 'number', description: 'For 3d: the compass bearing from what the camera is pointed at to the camera, in degrees clockwise from the north the plan states, or from the top of the drawing when it states none (the record says which). Not with from.', examples: [135, 200], minimum: 0, maximum: 360 },
     tilt: { type: 'number', description: 'For 3d: degrees the camera looks down at what it is pointed at; below 0 it looks up. 30 when left out (80 from above).', examples: [30, 10], minimum: -limit('cameraTilt'), maximum: limit('cameraTilt') },
@@ -2331,7 +2465,15 @@ const viewTool: GridTool = {
     look: { type: 'string', enum: LOOKS, description: 'For plan, facade and section: working (the default for a plan and a facade: clear labels and strong contrast), technical for black on white as on a sheet, with lines in millimetres at the scale and doors with no stated swing marked "?" (the default for a section, as for a drawing file). A picture is always on light paper, so dark, the app\'s screen theme, draws working. light and mono are older names for working and technical.', examples: ['working', 'technical'] },
     dimensions: { type: 'boolean', description: 'For plan: false to leave the sizes off, for a clean drawing. true when left out.', examples: [true, false] },
     tile: { type: 'number', description: 'For plan: on a floor far longer than it is wide, which the answer says is drawn in pieces, the piece to draw, from 1 at its left (or top) end; each overlaps the next and is drawn large enough to read. The whole floor when left out. Not with crop.', examples: [1, 2], minimum: 1, maximum: 1000 },
-    crop: { type: 'string', maxLength: 120, description: 'For plan: frame just this part: a room, door, window or wall id, or a room\'s name. The whole floor when left out.', examples: ['kitchen', 'front-door'] },
+    crop: { type: 'string', maxLength: 600, description: 'For plan: frame just these parts: a room, door, window, wall or item id, a room\'s name, a flat by its id or name, or the rooms that meet a condition on a field or fact as grid_find writes one (household = Rose); several of these joined by commas are framed together. A zone is a room, by its id. With no floor named, the first floor that holds them all is drawn. The whole floor when left out. Not with crop_box or tile.', examples: ['kitchen', 'kitchen, lounge', 'flat-2', 'household = Rose'] },
+    crop_box: {
+      type: 'object',
+      description: 'For plan: frame this box of the floor, from one corner to the other, x and y in metres. Not with crop or tile.',
+      examples: [{ from: [0, 0], to: [8, 6] }],
+      schema: objectSchema({ from: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 }, to: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 } }),
+      read: (value) => cropBoxArg(value),
+    },
+    margin: { type: 'number', length: true, description: 'For plan, with crop or crop_box: metres of the plan kept round what is framed, on every side. 0.5 round a crop and none round a box when left out.', examples: [0.5, 2], minimum: 0, maximum: 100 },
     ids: { type: 'boolean', description: 'For plan: true to draw the id of every room, door and window on the picture, as the plan file holds them, and to list them in the text with the areas, what each door joins, the counts and the drawing\'s problems. false when left out.', examples: [true] },
     hide: { type: 'string', maxLength: 120, description: 'For plan: parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Everything is drawn when left out.', examples: ['areas,swings', 'sketch'] },
     colour: { type: 'string', maxLength: 120, description: 'For plan: use fills each room by its use and lists the uses in the key; any other field or fact, by name as grid_fields lists it (department, fire rating), colours each room, wall, door and window by its value, with a key: grid_count\'s view passes it. One fill for every room when left out.', examples: ['use', 'department', 'fire rating'] },
@@ -2354,7 +2496,7 @@ const viewTool: GridTool = {
     },
     marks: { type: 'array', description: 'For plan: marks for the plan\'s other drawings: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of cut and the way toward looks), schedule (each room\'s and opening\'s mark in the schedules, tied to its row in grid_schedule). None when left out.', examples: [['levels', 'elevations'], ['section'], ['schedule']], items: { enum: MARK_WORDS }, minItems: 1, maxItems: 4 },
   },
-  outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes']),
+  outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, floors: listSchema(STRING), camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes']),
   async run(args, context) {
     const out = args['out'] as string | undefined
     // VEW-62: the name is checked before anything is drawn.
@@ -2389,17 +2531,23 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     const language = await languageFor(askedLanguage(args['language'], 'language'), read.plan)
     const loaded = spokenPlan(read, language)
     const survey = surveyPlan(loaded.plan)
-    const floor = floorArg(loaded.plan, args['floor'])
+    // VEW-74: floor=all is every floor, unless a floor of the plan has that id.
+    const allFloors = args['floor'] === 'all' && !planFloors(loaded.plan).some((f) => f.id === 'all')
+    const floor = allFloors ? undefined : floorArg(loaded.plan, args['floor'])
     const kind = args['kind'] as 'plan' | 'facade' | '3d' | 'eye' | 'section'
     const allowed: Record<string, readonly string[]> = {
-      plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
+      plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
       facade: ['side', 'look'],
       '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit'],
       eye: ['room', 'toward', 'eye_height', 'stand_at'],
       section: ['cut', 'toward', 'look'],
     }
-    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'look', 'dimensions', 'ids', 'crop', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
+    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
+    // VEW-74: every floor side by side, for a plan only, with its look and sizes.
+    if (allFloors && kind !== 'plan') throw new ToolRefusal(`floor=all draws every floor's plan side by side: it is for kind=plan. kind=${kind} takes one floor's id.`)
+    const besideAll = allFloors ? ['ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'].filter((key) => args[key] !== undefined) : []
+    if (besideAll.length > 0) throw new ToolRefusal(`floor=all takes look and dimensions, not ${besideAll.join(', ')}: name one floor for those.`)
     const plan = survey.plan
     const inTongue = language === 'en' ? {} : { language }
     // VEW-20: a section or a facade writes its levels in the units asked for, else the plan's display.
@@ -2429,15 +2577,23 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       const look = asked === pictureLook(asked) ? asked : `${pictureLook(asked)} (asked as ${asked})`
       const { planView } = await import('../draw/views')
       const withIds = args['ids'] === true
-      const shown = floor ?? survey.facts.floors[0]?.id ?? 'ground'
+      const lowest = floor ?? survey.facts.floors[0]?.id ?? 'ground'
       // VEW-14: drawn as stated, as grid draw draws it: parts to be demolished are in the picture.
       const stated = loaded.plan
-      const crop = args['crop'] === undefined ? null : cropPart(stated, shown, args['crop'] as string, loaded)
+      // VEW-74: a crop of several parts, a flat or a condition; with no floor named, the first floor holding them.
+      const box = args['crop_box'] as CropBox | undefined
+      if (box !== undefined && args['crop'] !== undefined) throw new ToolRefusal('Pass crop or crop_box, not both: each frames part of the floor.')
+      if (box !== undefined && args['tile'] !== undefined) throw new ToolRefusal('Pass crop_box or tile, not both: each frames part of the floor.')
+      if (args['margin'] !== undefined && args['crop'] === undefined && box === undefined) throw new ToolRefusal('margin is the space kept round a crop: pass it with crop or crop_box.')
+      const floorsToTry = floor !== undefined ? [floor] : [lowest, ...planFloors(stated).map((f) => f.id).filter((id) => id !== lowest)]
+      const crop = args['crop'] === undefined ? null : cropParts(stated, survey, floorsToTry, args['crop'] as string, loaded)
+      const shown = crop?.floor ?? lowest
       // What went wrong, numbered as grid_check numbers it, marked on the drawing (MSG-8).
       // VEW-15: from the file's text and its base, as grid_check reads them, so the fields the reading adds are no notes.
       const faults = inspectPlan(loaded.text ?? plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
       // CMD-45: a plan with nothing in it is refused, not drawn as a blank page.
       if (nothingToDraw(stated, faults)) throw new ToolRefusal(say('en', 'plan.notAPlan.nothingToDraw', { file: project.relative(read.file) }))
+      if (allFloors) return allFloorsAnswer(stated, asked, look, args['dimensions'] !== false, language)
       const display = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
       // SHT-7: what the picture shows, read as grid draw reads --hide, --colour and --key.
       let shownParts
@@ -2455,11 +2611,14 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       // HND-10: the plan's trace image under the floor drawn, read from the project folder.
       const trace = readTrace(project, stated, shown, language)
       // VEW-26: a floor far longer than it is wide is drawn in pieces, one at a time.
-      const tiling = tilesOf(stated, shown, dimensions, crop !== null, args['tile'] as number | undefined)
-      const frame = crop ? cropFrame(crop) : tiling.frame
+      const tiling = tilesOf(stated, shown, dimensions, crop !== null || box !== undefined, args['tile'] as number | undefined)
+      const margin = args['margin'] as number | undefined
+      const frame = crop ? cropFrame(crop.parts, 2, margin ?? CROP_MARGIN) : box ? cropBoxFrame(box, margin ?? 0) : tiling.frame
+      const framedWords = crop ? `, cropped to ${crop.words}` : box ? `, cropped to x ${box.minX.toFixed(2)} to ${box.maxX.toFixed(2)} and y ${box.minY.toFixed(2)} to ${box.maxY.toFixed(2)} m` : ''
+      const marginWords = crop || box ? (margin ?? (crop ? CROP_MARGIN : 0)) > 0 ? ` with ${metres(margin ?? CROP_MARGIN)} m round it` : '' : ''
       const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(frame ? { frame } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}) })
       const work = planHasPhases(stated) ? phaseCounts(stated) : null
-      const lines = [`Plan of floor ${q(shown)}${crop ? `, cropped to ${crop.kind} ${q(crop.id)}` : ''}${tiling.piece === null ? '' : `, piece ${tiling.piece} of ${tiling.tiles.length} along its length`}, ${look}${args['dimensions'] === false ? ', without sizes' : ', with inside sizes'}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${plan.north === undefined ? 'North is the top of the drawing; the plan holds no real north.' : `The north arrow in its top-right corner points to the north the plan states, ${northWords(wrapDegrees(plan.north))}; the sides named in other answers are the drawing's, north at the top.`} Look at the picture before you describe it.`]
+      const lines = [`Plan of floor ${q(shown)}${framedWords}${marginWords}${tiling.piece === null ? '' : `, piece ${tiling.piece} of ${tiling.tiles.length} along its length`}, ${look}${args['dimensions'] === false ? ', without sizes' : ', with inside sizes'}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${plan.north === undefined ? 'North is the top of the drawing; the plan holds no real north.' : `The north arrow in its top-right corner points to the north the plan states, ${northWords(wrapDegrees(plan.north))}; the sides named in other answers are the drawing's, north at the top.`} Look at the picture before you describe it.`]
       lines.push(...tiling.lines)
       const ids = withIds ? idsOnFloor(stated, shown) : []
       const undecided = view.undecidedDoors ?? []
