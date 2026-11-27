@@ -14,6 +14,7 @@ import { addFixtureSet, typicalRoomOf } from '../edit/fixtureSets'
 import { libraryFor } from '../library/office'
 import { BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, objectSchema, PLAN_ARG, planFileOf, projectOf, STRING, ToolRefusal, type ArgSpecs, type GridTool, type ToolContext } from './toolkit'
 import { EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
+import { readSet } from './factsTool'
 
 const PLACE_ARGS: ArgSpecs = {
   room: { type: 'string', id: true, description: 'The room it stands in, whose side against names. With x and y, only to say its floor.', examples: ['bathroom', 'bed1'] },
@@ -89,12 +90,12 @@ function rowOf(args: Record<string, unknown>): RowWords | undefined {
 
 export const addItemTool: GridTool = {
   name: 'grid_add_item',
-  title: 'Add a fixture or furniture against a wall',
+  title: 'Add a fixture, furniture or a point',
   hint: 'change-plan',
   description:
-    'Use this when the person asks for a fixture or a piece of furniture against a wall of a room: "a bath along the north wall of the bathroom, in the west corner", "a WC 0.3 m from the west end of the south wall", "a built-in wardrobe the full width of the bedroom\'s east wall", "a sofa against the living room\'s west wall". '
-    + 'Give name (a library entry such as bath, wc, double-bed, wardrobe, sofa-3, rack, seat, pew, fume-cupboard; grid_measure what=library lists them; or a kind: toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant, and the equipment rack, generator, pump, tank, seat, pew, altar, fume-cupboard, lab-bench, safety-shower, kennel, exam-table, clinical-sink, or equipment for any other thing, given its width, depth, height and label), room and against: its back goes on that side\'s inside face and its turn is worked out, so it faces into the room. end puts it in a corner, from and distance that far from one, full_width makes it the length of the side; centred otherwise. Or give x and y (its middle) and turn. '
-    + 'width, depth, height, clearance and label are its own figures in place of the entry\'s; a kind with no size is Grid\'s first entry of that kind. It answers with the room it stands in and whether it fits (a wall it runs into, an item it stands in, the clear floor kept on a side of one that something blocks). Rooms text writes the same: item tub bath in bathroom against north, at west. '
+    'Use this when the person asks for a fixture or a piece of furniture against a wall of a room: "a bath along the north wall of the bathroom, in the west corner", "a WC 0.3 m from the west end of the south wall", "a built-in wardrobe the full width of the bedroom\'s east wall", "a sofa against the living room\'s west wall", or for a point: "an extinguisher by the stair door", "the assembly point in the car park", "a spawn point here". '
+    + 'Give name (a library entry such as bath, wc, double-bed, wardrobe, sofa-3, rack, seat, pew, fume-cupboard; grid_measure what=library lists them; or a kind: toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant, and the equipment rack, generator, pump, tank, seat, pew, altar, fume-cupboard, lab-bench, safety-shower, kennel, exam-table, clinical-sink, or equipment for any other thing, given its width, depth, height and label; and the points extinguisher, aed, call-point, first-aid, sensor, desk-point, spawn, camera and the fire and wayfinding set you-are-here, hose-reel, fire-door, exit, refuge, assembly-point, each placed at x and y, on a wall or outside, and drawn with its symbol and keyed), room and against: its back goes on that side\'s inside face and its turn is worked out, so it faces into the room. end puts it in a corner, from and distance that far from one, full_width makes it the length of the side; centred otherwise. Or give x and y (its middle) and turn. '
+    + 'width, depth, height, clearance and label are its own figures in place of the entry\'s; a kind with no size is Grid\'s first entry of that kind. facts gives it facts of the person\'s own (an extinguisher\'s type and service date). It answers with the room it stands in and whether it fits (a wall it runs into, an item it stands in, the clear floor kept on a side of one that something blocks; a point is in no one\'s way). Rooms text writes the same: item tub bath in bathroom against north, at west. '
     + 'repeat lays out that many side by side along their backs, every metres apart (their width unstated), and rows that many rows, row_every apart, in front of the first (behind with behind, at a point): 200 racks, 1,800 seats or a bank of kennels in one call, ids <id>-<n> or <id>-<row>-<n>; rooms text writes the same with row r rack in hall against north, repeat 20, 10 rows every 2.4. '
     + 'A room\'s usual fixtures in one call: name a typical room (kitchen, bathroom, shower-room, cloakroom, or the office\'s own) with room and no against, x or y, and each of its items is set out against a side of that room where Grid\'s checks find it clear of the walls, the doors and the other fixtures, a smaller one of the same thing (a shower for a bath, a 2.4 m kitchen run for a 3 m one) when it fits nowhere; a kind the room holds already is not added again, and notPlaced lists what fits nowhere. '
     + 'Do not use to set a typical room out at a point as it is drawn (grid_place_item), or to move or take out an item already placed (grid_move_item, grid_remove_item). It replaces the plan file unless out is given. Lengths are metres, or text with their unit.',
@@ -117,6 +118,13 @@ export const addItemTool: GridTool = {
     rows: { type: 'number', description: 'With repeat: how many rows, each in front of the last.', examples: [10], minimum: 1, maximum: PARTS_MAX },
     row_every: { type: 'number', length: true, description: 'With rows: metres from one row to the next. Their depth and the clear floor in front, the aisle, when left out.', examples: [2.4, 0.9], minimum: 0.01, maximum: 1000 },
     behind: { type: 'boolean', description: 'With rows, at a point: each row behind the last in place of in front of it.', examples: [true] },
+    facts: {
+      type: 'object',
+      description: 'Facts of the person\'s own the item carries, by name: text, a number, or true or false (an extinguisher\'s type, a sensor\'s address). grid_find, grid_count and grid_schedule of=items read them.',
+      examples: [{ type: 'CO2', serviced: '2026-09' }, { address: 'S-14' }],
+      schema: { type: 'object', properties: {}, additionalProperties: { type: ['string', 'number', 'boolean'], maxLength: NAME_MAX }, maxProperties: 30 },
+      read: (value) => readSet(value),
+    },
     out: OUT_ARG,
   },
   outputSchema: { ...ITEM_OUTPUT, properties: { ...ITEM_OUTPUT.properties, placed: listSchema(STRING) } },
@@ -138,7 +146,7 @@ export const addItemTool: GridTool = {
       // CNT-48: a typical room named with a room and no place: its usual fixtures, each where it fits.
       const set = args['room'] !== undefined && args['against'] === undefined && args['x'] === undefined && args['y'] === undefined ? typicalRoomOf(library, args['name'] as string) : undefined
       if (set !== undefined) {
-        const own = ['id', 'label', 'width', 'depth', 'height', 'clearance', 'clear_back', 'clear_left', 'clear_right', 'end', 'from', 'distance', 'full_width', 'turn', 'floor', 'repeat', 'every', 'rows', 'row_every', 'behind'].filter((key) => args[key] !== undefined)
+        const own = ['id', 'label', 'facts', 'width', 'depth', 'height', 'clearance', 'clear_back', 'clear_left', 'clear_right', 'end', 'from', 'distance', 'full_width', 'turn', 'floor', 'repeat', 'every', 'rows', 'row_every', 'behind'].filter((key) => args[key] !== undefined)
         if (own.length > 0) throw new ToolRefusal(`${JSON.stringify(args['name'])} is a typical room of several items, each set out where it fits, so it takes no ${own.join(', ')}: give name and room alone, or add its items one by one.`)
         return addFixtureSet(survey, library, { name: args['name'] as string, room: args['room'] as string })
       }
@@ -153,6 +161,7 @@ export const addItemTool: GridTool = {
         ...(args['clearance'] === undefined ? {} : { clearance: args['clearance'] as number }),
         ...(Object.keys(clearSides).length === 0 ? {} : { clearSides }),
         ...(row === undefined ? {} : { row }),
+        ...(args['facts'] === undefined ? {} : { facts: args['facts'] as Record<string, string | number | boolean> }),
         ...placeOf(args),
         ...(floor === undefined ? {} : { floor }),
       })

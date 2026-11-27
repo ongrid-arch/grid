@@ -32,7 +32,7 @@ import { wallPlanSlices } from './wall'
 import { nearestFloorId } from './levels'
 import { metresText } from './rounding'
 import type { Issue } from './validate'
-import { ITEM_KIND_DEFINITIONS, isItemKind, isOwnItemKind, itemKindDefinition, itemKinds, liesUnderfoot, takesFloor, type ItemBlock, type ItemSymbol, type SymbolPen } from './itemKinds'
+import { ITEM_KIND_DEFINITIONS, isItemKind, isOwnItemKind, isPointKind, itemKindDefinition, itemKinds, liesUnderfoot, takesFloor, type ItemBlock, type ItemSymbol, type SymbolPen } from './itemKinds'
 import { BUILT_IN_ITEMS, builtInItem } from '../library/builtIn'
 import { likelyId } from '../types/nearest'
 
@@ -365,7 +365,8 @@ function roomHeightOf(room: Room | null, index: PlanIndex, floorHeight: number |
  * The drawing's checks on the plan's fixtures. Errors (the item is left out of every view, measure
  * and export, and its id goes into `broken`): a number Grid does not accept, a kind this version
  * does not hold, an id another part has, a floor the plan does not have. Warnings: a fixture in
- * no room, one that runs into a wall, one taller than its room.
+ * no room, one that runs into a wall, one taller than its room. CNT-52: a point (an extinguisher,
+ * an exit) is checked for its numbers, kind, id, floor and height only.
  */
 export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string>): Issue[] {
   const items = plan.items ?? []
@@ -447,14 +448,17 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
     }
   }
 
+  // CNT-52: a point stands where it is put, on a wall or outside, and in no one's way.
+  const placed = sound.filter((item) => !isPointKind(item.kind))
   for (const item of sound) {
     const noun = itemNounSaid(item)
     const room = itemRoom(item, rooms)
-    if (room === null && rooms.some(({ room: r }) => floorOf(r) === floorOf(item))) {
+    const point = isPointKind(item.kind)
+    if (!point && room === null && rooms.some(({ room: r }) => floorOf(r) === floorOf(item))) {
       const at = pointSaid(metresText(item.at[0]), metresText(item.at[1]))
       issues.push(issue(item.id, 'item/outside-rooms', said('issue.item/outside-rooms', { item: noun, at }), 'warning'))
     }
-    const into = wallsRunInto(itemFootprint(item), wallsByFloor.get(floorOf(item)) ?? [])
+    const into = point ? [] : wallsRunInto(itemFootprint(item), wallsByFloor.get(floorOf(item)) ?? [])
     if (into.length > 0) {
       const named = joined(
         into.slice(0, 3).map((w) => said('issue.item/into-wall.by', { wall: name(w.wall), depth: m(w.depth) })),
@@ -465,7 +469,7 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
       issues.push(issue(item.id, 'item/into-wall', said(key, { item: noun, walls: named, more }), 'warning'))
     }
     // CNT-21: the part of its footprint past the room's floor where no wall stands.
-    if (room !== null) {
+    if (!point && room !== null) {
       const shape = rooms.find((r) => r.room === room)!.shape
       const outside = footprintOutside(itemFootprint(item), shape, wallsByFloor.get(floorOf(item)) ?? [])
       if (outside > tolerance('itemLeavesRoom')) {
@@ -502,7 +506,7 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
   }
 
   // CNT-20: items standing in each other, and the clear floor an item keeps in front of it.
-  const footprints = sound.map((item) => ({ item, footprint: itemFootprint(item), box: boundsOf(itemFootprint(item)) }))
+  const footprints = placed.map((item) => ({ item, footprint: itemFootprint(item), box: boundsOf(itemFootprint(item)) }))
   for (let i = 0; i < footprints.length; i++) {
     const a = footprints[i]!
     for (let j = 0; j < i; j++) {

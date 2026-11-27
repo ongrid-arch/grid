@@ -158,9 +158,12 @@ function personFixtures(counts: Fixtures['counts'], w: Words): string {
   const comma = say(w.language, 'join.comma')
   const fixed = listOf('fixture')
   const furniture = listOf('furniture')
+  // CNT-52: then the points, `Points: 4 extinguishers, 1 AED`.
+  const points = listOf('point')
   return [
-    ...(fixed.length > 0 || furniture.length === 0 ? [say(w.language, 'describe.fixtures', { list: fixed.join(comma) }, w.options)] : []),
+    ...(fixed.length > 0 || (furniture.length === 0 && points.length === 0) ? [say(w.language, 'describe.fixtures', { list: fixed.join(comma) }, w.options)] : []),
     ...(furniture.length === 0 ? [] : [say(w.language, 'describe.furniture', { list: furniture.join(comma) }, w.options)]),
+    ...(points.length === 0 ? [] : [say(w.language, 'describe.points', { list: points.join(comma) }, w.options)]),
   ].join(' ')
 }
 
@@ -181,6 +184,6 @@ function describeBody(loaded: LoadedPlan, length: DescribeLength, audience: Desc
   const fixtures = planFixtures(loaded.plan)
   if (fixtures.rows.length === 0) return text
   if (audience === 'person') return `${text}${personFixtures(fixtures.counts, w)}\n`
-  const named = fixtures.rows.some((row) => row.group === 'furniture') ? 'Fixtures and furniture' : 'Fixtures'
+  const named = fixtures.rows.some((row) => row.group === 'point') ? 'Items' : fixtures.rows.some((row) => row.group === 'furniture') ? 'Fixtures and furniture' : 'Fixtures'
   return `${text}${named}: ${fixtureCountText(fixtures.counts)}. grid_schedule lists each with its room and size.\n`
 }
