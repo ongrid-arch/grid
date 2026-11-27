@@ -3,9 +3,9 @@
  * the wall face to plaster, and per floor the slab and the roof (LVL-4), each with the rule it is
  * measured by.
  *
- * Every figure comes from the plan's own walls and openings. The plan holds no finishes, so a
- * ceiling is the floor area under it, at the room's height or its lowered zones', and nothing is
- * taken off for a kitchen unit or a bath.
+ * Every figure comes from the plan's own walls and openings. A ceiling is the floor area under it,
+ * at the room's height or its lowered zones', and nothing is taken off for a kitchen unit or a bath.
+ * A room that states no skirting (CNT-51) is taken off with none.
  *
  * The plan states no slab and no roof: Grid works them out from each floor's outline
  * (`planEnvelope`). So every slab and roof line is marked assumed, with what was assumed (lab
@@ -278,6 +278,38 @@ export function roomTakeoff(
   }
 }
 
+/** CNT-51 (C24): one part of a room's skirting: the room's own rest or a zone's part, its finish, or none stated as none. */
+export interface SkirtingPart {
+  /** The zone this part is, or null for the room itself. */
+  readonly zone: string | null
+  readonly finish: string | null
+  /** The room or zone states no skirting: nothing is measured for it. */
+  readonly none: boolean
+  readonly quantity: number
+}
+
+/**
+ * CNT-51 (C24): a room's skirting as its finishes and its zones' say: each zone that names a
+ * skirting or states none takes its part of the room's, and the rest is the room's own, none
+ * where the room states none. `whole` is the room's skirting as measured.
+ */
+export function skirtingParts(survey: Survey, room: SurveyRoom, whole: number): SkirtingPart[] {
+  const stated = (id: string): string | false | undefined => survey.plan.rooms.find((r) => r.id === id)?.finishes?.skirting
+  const parts: SkirtingPart[] = []
+  let left = whole
+  for (const zone of survey.rooms) {
+    if (zone.facts.zoneOf !== room.facts.id || zone.facts.floor !== room.facts.floor || zone.facts.shape === null || zone.polygon.length < 3) continue
+    const skirting = stated(zone.facts.id)
+    if (skirting === undefined) continue
+    const quantity = Math.min(left, roomTakeoff(zone).skirting)
+    left -= quantity
+    parts.push({ zone: zone.facts.id, finish: skirting === false ? null : skirting, none: skirting === false, quantity: skirting === false ? 0 : quantity })
+  }
+  const own = stated(room.facts.id)
+  parts.push({ zone: null, finish: typeof own === 'string' ? own : null, none: own === false, quantity: own === false ? 0 : Math.max(0, left) })
+  return parts
+}
+
 /** What Grid takes for a floor's slab and roof that the plan does not state. */
 function assumptions(env: FloorEnvelope, thicknessStated: boolean): string[] {
   const out: string[] = []
@@ -375,7 +407,12 @@ export function planTakeoff(survey: Survey, floors?: readonly string[], rooms?: 
   const ceilingOf = ceilings(survey)
   const list = survey.rooms
     .filter((room) => onFloor(room.facts.floor) && (rooms === undefined ? room.facts.zoneOf === undefined : rooms.includes(room.facts.id)))
-    .map((room) => roomTakeoff(room, ceilingOf, survey.plan))
+    .map((room) => {
+      const t = roomTakeoff(room, ceilingOf, survey.plan)
+      // CNT-51: skirting where the room, or a zone of it, states none is measured as none.
+      const skirting = room.facts.zoneOf === undefined ? skirtingParts(survey, room, t.skirting).reduce((sum, part) => sum + part.quantity, 0) : survey.plan.rooms.find((r) => r.id === room.facts.id)?.finishes?.skirting === false ? 0 : t.skirting
+      return skirting === t.skirting ? t : { ...t, skirting }
+    })
   const total = (key: 'floorArea' | 'ceiling' | 'skirting' | 'wallFace'): number => list.reduce((sum, room) => sum + room[key], 0)
   const columns = columnRuns(survey.plan, onFloor)
   const { bays, ramps } = parkingFigures(survey.plan, onFloor)

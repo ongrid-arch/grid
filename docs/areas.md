@@ -390,12 +390,22 @@ finishes plan, the take-off and the estimate measure them from the same rows
 - the floor and the ceiling are the net area, the walls the inside wall face less openings, the
   skirting the inside perimeter less doorways, as `grid_takeoff` measures each room;
 - a surface no room or zone names a finish for is listed as not stated, never given one, and
-  never read from the room's use.
+  never read from the room's use;
+- a band of finish (CNT-51) is its length on the room's inside faces (behind an item, the length
+  of the item's back against them) times the height it takes under the wall's top, less the part
+  of each opening in it; a wall face finished apart is that wall's face in the room less its
+  openings and the bands on it. Both come off the room's walls finish, so the walls shares add up
+  to the take-off's wall face. A splashback 600 high behind a 2.4 m kitchen run is about 1.4 m²,
+  not the kitchen's whole wall face;
+- a room or zone that states no skirting has none, in the take-off and the estimate too.
 
 `grid_takeoff` gives, on a plan that names any, `wallTypes` (each named wall type's walls: how
 many, their gross and net length, their face on one side, the type's material and whether it is
-glazed) and `finishes` (each finish's total by surface, with the rooms and zones it covers).
-`grid_schedule of=finishes` gives them room by room.
+glazed) and `finishes` (each finish's total by surface, with the rooms and zones it covers), and
+`bands` and `faces` (each band and wall face finished apart, with its room, place and area).
+`grid_schedule of=finishes` gives them room by room. `grid_find` and `grid_count` ask by `floor
+finish`, `wall finish`, `ceiling finish`, `skirting finish` (`none` for no skirting) and `band
+finishes`.
 
 ## Quantities for a first estimate
 

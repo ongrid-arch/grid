@@ -85,6 +85,12 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'wall', type: 'text', unit: null, kinds: OPENINGS, from: 'grid', about: 'The id of the wall it is in.' },
   { name: 'rooms', type: 'list', unit: null, kinds: ['wall', ...OPENINGS, ...ITEMS], from: 'grid', about: 'The ids of the rooms beside it; an opening\'s two sides, "outside" where no room is; the room an item stands in.' },
   { name: 'level', type: 'number', unit: null, kinds: ['floor'], from: 'grid', about: 'The floor\'s place in the stack: 0 the ground floor, 1 the floor above.' },
+  // CNT-51: a room's or zone's finishes, as the plan states them.
+  { name: 'floor finish', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The finish of its floor, as the plan names it.' },
+  { name: 'wall finish', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The finish of its walls\' inside faces, as the plan names it.' },
+  { name: 'ceiling finish', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The finish of its ceiling, as the plan names it.' },
+  { name: 'skirting finish', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'Its skirting as the plan names it; none when it states no skirting.' },
+  { name: 'band finishes', type: 'list', unit: null, kinds: ['room'], from: 'grid', about: 'The finishes of its bands and of the wall faces finished apart, each once.' },
   // CNT-45: the plan's fixtures and furniture.
   { name: 'item kind', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the item is: toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug or plant.' },
   { name: 'label', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the drawing calls the item, its own or its library entry\'s.' },
@@ -253,6 +259,11 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
       if (name === 'flat type') return flatOf(room.id)?.type ?? null
       if (name === 'area') return areaOf(part)
       if (name === 'height') return roomHeight(storey(part.floor), part.id).value
+      if (name === 'floor finish') return room.finishes?.floor ?? null
+      if (name === 'wall finish') return room.finishes?.walls ?? null
+      if (name === 'ceiling finish') return room.finishes?.ceiling ?? null
+      if (name === 'skirting finish') return room.finishes?.skirting === false ? 'none' : room.finishes?.skirting ?? null
+      if (name === 'band finishes') return [...new Set([...(room.finishes?.bands ?? []).map((band) => band.finish), ...(room.finishes?.faces ?? []).map((face) => face.finish)])]
       return null
     }
     if (part.kind === 'wall') {
