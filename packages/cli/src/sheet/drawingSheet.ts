@@ -22,6 +22,7 @@ import { el, toSvg, type SvgChild, type SvgNode } from '@ongrid/viewer/src/pictu
 import { TEXT_PX } from '@ongrid/viewer/src/picture/look'
 import type { LoadedPlan } from '../command/plan'
 import { planFacts } from '../describe/facts'
+import { projectWithPlace } from '../describe/site'
 import { notShownNote } from './limits'
 import { SHEET_LOOK, sheetDate } from './pages'
 import { COMMON_SCALES, PAPERS, PAPER_NAMES, SCALES_TRIED, scaleText, type PaperName } from './drawingPapers'
@@ -390,7 +391,8 @@ function floorToDraw(loaded: LoadedPlan, floorId: string, request: DrawingReques
       ...(north === null ? [say(language, 'sheet.north.notStated')] : []),
     ]
     return {
-      project: options.project,
+      // CNT-50: the site's name and address after the project's, as the plan states them.
+      project: projectWithPlace(options.project, plan, language),
       drawing: options.drawing ?? say(language, 'sheet.drawing.title', { floor: floor.name }),
       caption,
       scale: scaleOn,

@@ -269,7 +269,8 @@ export function pageFile(stem: string, pages: number, index: number, extension: 
 
 /**
  * SHT-6: reads the plan and makes the drawing at a true scale. The project's name is the sheet
- * words' name (`sheet.json`), else the plan's title, else the export name of the plan's file.
+ * words' name (`sheet.json`), else the plan's title, else the site's name (CNT-50), else the
+ * export name of the plan's file.
  * SHT-20: every floor when none is asked for, all at one scale on one paper.
  */
 export async function makeDrawing(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string): Promise<MadeDrawing> {
@@ -279,7 +280,8 @@ export async function makeDrawing(project: Project, planFile: string, request: D
   const loaded = spokenPlan(read, lang)
   const floor = floorOption(loaded.plan, request.floor)
   const named = drawingStem(planFile, loaded, floor === undefined ? planFloors(loaded.plan).map((f) => f.id) : [floor])
-  const projectName = words?.name ?? loaded.plan.title ?? exportBaseOf(planFile).base
+  // CNT-50: else the site's own name.
+  const projectName = words?.name ?? loaded.plan.title ?? loaded.plan.site?.name ?? exportBaseOf(planFile).base
   const { DrawingDoesNotFit, drawingSheets } = await import('./drawingSheet')
   const { drawingSheetFiles, sheetMeasure } = await import('./drawingFiles')
   let set: DrawingSet

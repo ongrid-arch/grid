@@ -451,6 +451,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_change_site', { plan: '@', action: 'add', kind: 'tree', at: '1,1' }), given: asIs },
     { arg: 'out', call: tool('grid_change_site', { plan: PLAN, action: 'add', kind: 'tree', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CNT-50: the plan's own settings.
+  grid_set_plan: [
+    { arg: 'plan', call: tool('grid_set_plan', { plan: '@', address: '1 Main Street' }), given: asIs },
+    { arg: 'out', call: tool('grid_set_plan', { plan: PLAN, address: '1 Main Street', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // VEW-67: the trace image, its picture resolved from the project folder like the plan.
   grid_place_trace: [
     // Written beside the plan, so the plans other tests trace keep the picture they name.

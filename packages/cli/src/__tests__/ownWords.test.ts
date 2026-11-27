@@ -219,7 +219,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
   // CNT-49: ten more, the ground on a slope in grid_set_site's help, arguments and refusals.
-  'packages/cli/src/mcp/siteTools.ts': [55, 'tools'],
+  // CNT-50: two more, the site's address and its own name.
+  'packages/cli/src/mcp/siteTools.ts': [57, 'tools'],
+  // CNT-50: grid_set_plan, its description, arguments and refusals.
+  'packages/cli/src/mcp/planTool.ts': [21, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // LVL-23: grid_set_building, its description, arguments and answer.
