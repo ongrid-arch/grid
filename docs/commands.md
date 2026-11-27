@@ -8,6 +8,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 - [The commands](#the-commands)
 - [Options and exit codes](#options-and-exit-codes)
 - [Starting a project: `grid init`](#starting-a-project-grid-init)
+- [The reading tools as commands: `grid areas`, `grid find` and the others](#the-reading-tools-as-commands-grid-areas-grid-find-and-the-others)
 - [The project folder](#the-project-folder)
 - [The report, short or full, and notes seen: `grid check`](#the-report-short-or-full-and-notes-seen-grid-check)
 - [Describing a plan: `grid describe`](#describing-a-plan-grid-describe)
@@ -38,6 +39,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid export [<plan>] --format dxf\|ifc\|glb\|obj [--floor <id>] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
 | `grid sheet [<plan>] [--layout client\|check] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
 | `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--split] [--room-sizes on\|off] [--out <file.pdf>]` | Writes every floor (or one) at one true scale as a vector PDF of a page each, and an SVG and a PNG of each page, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
+| `grid areas`, `grid schedule`, `grid takeoff`, `grid measure <what>`, `grid count`, `grid find`, `grid fields`, `grid compare <plan> <plan>...`, `grid brief` | Each runs the reading tool of that name (`grid brief` is `grid_write_brief` reading the brief, never writing it) with the tool's own arguments as options, and prints its text; `--json` prints exactly its structured answer, `--csv` a table where there is one, and `--fail-on` exits 3 when the answer holds a condition, for CI (see [below](#the-reading-tools-as-commands-grid-areas-grid-find-and-the-others)) |
 | `grid edit <verb> [<plan>] [options]` | Changes the plan, one sentence of request a command: `opening`, `wall` (one wall's thickness), `type` (one named wall, door or window type, which every part of it takes; a list option such as `--parts` takes its items split at commas), `move-side`, `merge`, `split`, `add-room`, `stretch`, `rename`, `mirror` (`--how left-right`, or `--turn 90` to turn the plan a quarter, counter-clockwise as Grid draws it), `square` (squares a scanned plan and says how far each wall moved), `place` (a fixture, furniture or a typical room from the library by name, [library.md](library.md)), `add-opening` (a door, window or doorless opening in a side of a room or the wall between two rooms), `phase` (walls, doors, windows and rooms marked existing, demolished or new), `start-works` (the plan as it stands marked existing), `phase-from` (one plan with phases from `--before` and `--after`), `trace` (the trace image under the plan set, placed, scaled and turned) and `fit-out` (a fit-out started on `--base`, the base's rooms as its own), each the tool of that name in [the tool server](tool-server.md) with the same options (`grid edit <verb> --help`), and the same lines of [the brief](brief.md) |
 | `grid mark [<name>] [<plan.json>] [--plan <plan.json>] [--remove] [--who <name>] [--note <text>]` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside it, for `grid diff` to compare with: no git needed. The latest 20, the oldest rolling off (see below) |
 | `grid diff [<plan>] [--since <version>] [--to <version>] [--rooms <ids>] [--show all\|summary\|changes\|issues\|facts\|history] [--picture\|--out <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
@@ -60,9 +62,42 @@ rooms as rooms text and run `grid write`, or, for a picture, lay it under a plan
 
 Every command also takes `--project <folder>` (see below). An unknown, repeated or
 meaningless option is refused by name. The command exits 0 when it did its work, 1 when the
-plan or a path was refused or a file could not be written, and 2 when the command line was
-refused. A refusal is one line on standard error. Findings in a report are not a refusal:
-`grid check` still exits 0.
+plan or a path was refused or a file could not be written, 2 when the command line was
+refused, and 3 when the answer holds the condition `--fail-on` named. A refusal is one line on
+standard error. Findings in a report are not a refusal: `grid check` still exits 0, unless it is
+given `--fail-on problems` (a problem to act on) or `--fail-on notes` (a note not set aside as
+seen), when it exits 3 after printing the report.
+
+## The reading tools as commands: `grid areas`, `grid find` and the others
+
+Each of these commands runs one reading tool of [the tool server](tool-server.md), the way the
+server runs it, so a shell, a script or CI gets the answer an agent gets:
+
+| Command | Tool | `--csv` | `--fail-on` |
+|---|---|---|---|
+| `grid areas` | `grid_areas` | the tool's CSV | `unproven`: a figure is not proven from the drawing |
+| `grid schedule` | `grid_schedule` | the tool's CSV | `found` or `none`: the schedule has a row, or none |
+| `grid takeoff` | `grid_takeoff` | the tool's CSV | `assumed`: a line of the bill is assumed (with `--for`) |
+| `grid measure <what>` | `grid_measure` | | `short`: for `fit`, `narrow`, `route` and `use`, the answer falls short |
+| `grid count` | `grid_count` | the groups | `found` or `none`: a part is counted, or none |
+| `grid find` | `grid_find` | the rows | `found` or `none`: a part is found, or none |
+| `grid fields` | `grid_fields` | | |
+| `grid compare <plan> <plan>...` | `grid_compare` | | `differs`: a plan is not the same building as the first |
+| `grid brief` | `grid_write_brief`, reading only | | `missed` or `open`: a line of the brief is missed, or open |
+
+- A command's options are its tool's arguments, with dashes for underscores (`--narrower-than`
+  for `narrower_than`), and a list option takes its items split at commas (`--kind door,window`).
+  `grid <command> --help` lists them with the tool's own words. The plan is the one file named,
+  or the project's `plan.json`; `grid compare` takes 2 to 6 plan files, and `grid measure` what
+  to measure as its first word (or `--what`).
+- Without options of its own a command prints the tool's text. `--json` prints exactly the
+  tool's structured answer, the record the server sends as `structuredContent`, with the label
+  and the plan's revision, and never shortened. `--csv` is the same as `--format csv` where the
+  tool writes CSV; for `find` and `count` it writes the rows or the groups, the label first.
+- `--fail-on` prints the answer and then exits 3 when it holds, so a build can stop on it:
+  `grid find --kind door --where "width < 0.8" --fail-on found`. A condition the command does not
+  take, or one that means nothing for the call, is refused before anything runs.
+- A refusal of the tool is exit 1, in one line, with its arguments spelt as options.
 
 ## Starting a project: `grid init`
 

@@ -1,7 +1,8 @@
 /**
  * The `grid` command, which `ongrid` runs too: `init`, `write`, `edit`, `mark`, `diff`, `check`,
- * `describe`, `draw`, `export`, `tidy`, `occupancy`, `serve` and `mcp`, the same server under the name an
- * agent's host types (`npx -y ongrid mcp`, CMD-9).
+ * `describe`, the reading tools' commands (`areas`, `schedule`, `takeoff`, `measure`, `count`, `find`,
+ * `fields`, `compare` and `brief`, CMD-48, `read.ts`), `draw`, `export`, `tidy`, `occupancy`, `serve`
+ * and `mcp`, the same server under the name an agent's host types (`npx -y ongrid mcp`, CMD-9).
  *
  * A thin front end. Each command reads its own options strictly (see `options.ts`), reads the
  * plan, hands it to Grid's packages, and writes what comes back. `serve` starts the tool server
@@ -14,8 +15,8 @@
  * (`init.ts`).
  *
  * Exit codes: 0 when the command did its work, 1 when the plan or a path was refused or a file
- * could not be written, 2 when the command line was refused. Every refusal is one line on
- * standard error, with its cause first.
+ * could not be written, 2 when the command line was refused, 3 when the answer holds the condition
+ * `--fail-on` named (CMD-48). Every refusal is one line on standard error, with its cause first.
  */
 import { planFloors } from '@ongrid/floorplan/geometry'
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
@@ -31,11 +32,12 @@ import { inLanguage } from './words'
 import { startToolServer } from '../mcp/serve'
 import { PREVIEW_PORT, startLocalPreview } from '../preview/localServer'
 import { projectResources, projectTools } from '../mcp/serveTools'
-import { CHECK_OPTIONS, checkJson, checkPlan, checkText, markNote, withSeen, type MarkAsk, type MarkDone } from './check'
+import { CHECK_OPTIONS, checkFailOn, checkFails, checkJson, checkPlan, checkText, markNote, withSeen, type MarkAsk, type MarkDone } from './check'
 import { readSeen, SeenRefused } from '../seen/marks'
 import { firmForCheck } from '../firm/measure'
 import { briefMissedText } from '../brief/answer'
 import { EDIT_SUMMARY, EDIT_USAGE, EditCommandRefused, runEdit } from './edit'
+import { isReadCommand, READ_COMMANDS, ReadCommandRefused, runRead } from './read'
 import { checkDescribeRequest, DESCRIBE_OPTIONS, describePlan, describeRooms, describeWalk, walkOf } from './describe'
 import { walkPictures } from '../describe/walkPictures'
 import type { WalkStop } from '../describe/walk'
@@ -62,6 +64,8 @@ import { writeDrawingIntoProject } from '../drawing/fromDrawing'
 export const EXIT_OK = 0
 export const EXIT_REFUSED = 1
 export const EXIT_USAGE = 2
+/** CMD-48: the answer holds the condition `--fail-on` names, for CI to stop on. */
+export const EXIT_FAILED_ON = 3
 
 export interface CommandIo {
   readonly stdout: (data: string | Uint8Array) => void
@@ -81,6 +85,9 @@ const PREVIEW_OPTIONS: OptionSpecs = {
   '--port': { takesValue: true, help: `The port on 127.0.0.1 to serve the page on, from 1 to 65535. ${PREVIEW_PORT} when left out, or another one free when that is in use.` },
   ...PROJECT_OPTION,
 }
+
+/** CMD-48: a reading command's line in the overview; each takes its tool's options (`read.ts`). */
+const readEntry = (name: string): { usage: string; summary: string; options: OptionSpecs } => ({ usage: READ_COMMANDS[name]!.usage, summary: READ_COMMANDS[name]!.summary, options: {} })
 
 const COMMANDS = {
   init: {
@@ -119,6 +126,16 @@ const COMMANDS = {
     summary: 'Describes the plan in a few lines: its rooms, which rooms each opening joins, and its walls with --length walls, and with --length walk the plan walked room by room from its way in, with --pictures a picture from each doorway. --for agent adds the ids. --as rooms reads it back as rooms text to change and write again.',
     options: DESCRIBE_OPTIONS,
   },
+  // CMD-48: the tool server's reading tools, each a command.
+  areas: readEntry('areas'),
+  schedule: readEntry('schedule'),
+  takeoff: readEntry('takeoff'),
+  measure: readEntry('measure'),
+  count: readEntry('count'),
+  find: readEntry('find'),
+  fields: readEntry('fields'),
+  compare: readEntry('compare'),
+  brief: readEntry('brief'),
   draw: {
     usage: 'grid draw [<plan.json>] [--png | --3d | --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use] [--key] [--ids] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left|right]] [--out <file>] [--floor <id>] [--scale <n>] [--lang en|es] [--project <folder>]',
     summary: 'Draws one floor of a plan as an SVG picture, or a PNG with --png, in the technical look unless --look names another, with what grid check finds marked on it by its numbers and listed under it. With --section, draws a section along a line through every floor instead. With --3d, draws the 3D model as the app opens it, as a PNG. With --facade north (east, south or west), draws that side of the building in elevation, every floor at its level.',
@@ -301,6 +318,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     await runEdit(args, io.cwd, (text) => io.stdout(text))
     return EXIT_OK
   }
+  if (isReadCommand(name)) return (await runRead(name, args, io.cwd, (text) => io.stdout(text))) ? EXIT_FAILED_ON : EXIT_OK
   const command = COMMANDS[name]
   const parsed = parseOptions(name, args, { ...command.options, ...HELP_FLAG })
   if (parsed.values.has('--help')) {
@@ -420,6 +438,8 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   if (name === 'check') {
     const json = parsed.values.has('--json')
     const ask = markAsk(parsed)
+    // CMD-48: what fails a build, read before the plan is.
+    const failOn = checkFailOn(textOf(parsed, '--fail-on'))
     const project = openProject(projectOption, io.cwd)
     const loaded = loadPlan(project, planFile)
     const country = textOf(parsed, '--country')
@@ -442,7 +462,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       // The label stays the first line; what was marked comes right after it.
       io.stdout(done === null ? text : text.replace('\n', `\n${done.text}\n`))
     }
-    return EXIT_OK
+    return failOn !== null && checkFails(result, failOn) ? EXIT_FAILED_ON : EXIT_OK
   }
 
   if (name === 'diff') {
@@ -665,7 +685,7 @@ export async function runGrid(argv: readonly string[], io: CommandIo): Promise<n
       io.stderr(`grid: ${error.message}\n`)
       return EXIT_USAGE
     }
-    if (error instanceof PlanRefused || error instanceof DxfProfileRefused || error instanceof RoomsRefused || error instanceof EditCommandRefused || error instanceof PathRefused || error instanceof TextNotDecoded || error instanceof WriteFailed || error instanceof ExportWriteFailed || error instanceof InitRefused || error instanceof OccupancyRefused || error instanceof SeenRefused || error instanceof MarkerRefused || error instanceof GitUnread || error instanceof CanvasMissing || error instanceof FontsMissing) {
+    if (error instanceof PlanRefused || error instanceof DxfProfileRefused || error instanceof RoomsRefused || error instanceof EditCommandRefused || error instanceof ReadCommandRefused || error instanceof PathRefused || error instanceof TextNotDecoded || error instanceof WriteFailed || error instanceof ExportWriteFailed || error instanceof InitRefused || error instanceof OccupancyRefused || error instanceof SeenRefused || error instanceof MarkerRefused || error instanceof GitUnread || error instanceof CanvasMissing || error instanceof FontsMissing) {
       io.stderr(`grid: ${error.message}\n`)
       return EXIT_REFUSED
     }
