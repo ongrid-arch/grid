@@ -5,6 +5,7 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 [README](../README.md#installing-grid-in-an-agent).
 
 - [The tools](#the-tools)
+- [A short tool list, grid_help and tool groups](#a-short-tool-list-grid_help-and-tool-groups)
 - [Asking across the parts: fields, find and count](#asking-across-the-parts-fields-find-and-count)
 - [The label, and retelling a report](#the-label-and-retelling-a-report)
 - [A camera you can set, and saved views](#a-camera-you-can-set-and-saved-views)
@@ -22,7 +23,8 @@ and `grid mcp` start the same server; the lines that install it in an agent are 
 Its tools are listed in a fixed order: first those that read the plan, in the order of the
 requests people make most, with the problem report last of them, then the preview and the preview page's own call, the export, the sheet, the start marker, the seen mark, the brief and Grid's words in the person's language, undo and restore, and last the twenty-seven that
 change the plan, writing it rooms first leading, then the facts, the stair's two, the buildings' five, the parking two, the site's two after them, the trace image and saving a view last. Every tool has a title, a read-only or destructive hint, an input schema with an example
-and the allowed values of each argument, and an output schema. A call with several mistakes is
+and the allowed values of each argument, and an output schema; `tools/list` gives each short,
+with no output schema, and `grid_help` gives it whole ([below](#a-short-tool-list-grid_help-and-tool-groups)). A call with several mistakes is
 refused with all of them (MSG-33): every argument the tool does not take, each required one left
 out and each value it cannot read, one line each after a first line that says how many; a call
 with one mistake is refused in that one sentence. Each answer is short text with
@@ -31,6 +33,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | Tool | Answers |
 |---|---|
 | `grid_project` | What the project folder holds, for the first call (CMD-18): the plan files in it, the plan Grid uses when none is named (`plan.json` in the folder, with or without `grid.json`) and whether it is there, and beside each plan its brief, markers, change log and checkpoints, seen marks, preview record, scan and occupancy files. Reads names only, writes nothing |
+| `grid_help` | One tool whole (CMD-52): its description, every argument with its description and examples, and its input and output schemas; with no `tool`, the tool groups and every tool by group, saying which this server lists ([below](#a-short-tool-list-grid_help-and-tool-groups)) |
 | `grid_compare` | Options side by side (net, gross internal, gross external, circulation, the lettable area, the core and efficiency, area by use, and by room type and tenure where the plan states them, and the area per person with `people` or each plan's brief), and what differs by room name, walls and openings; a plan mirrored or moved is said to be so. With `picture`, one sheet at one scale. With `rates`, the [estimate change](areas.md#pricing-the-change-between-versions) from the first option to each later one |
 | `grid_diff` | What changed since the start marker or the last commit, by what stands where, not by ids: issues first (a door that now joins other rooms, a wall that now meets an opening, notes that came and went), the verdict room by room with how many ids were only renamed, then the changes one line each; with `rooms`, the changes outside them; with a picture unless `picture: false` (see below). With `rates`, prices the [estimate change](areas.md#pricing-the-change-between-versions) |
 | `grid_areas` | Each room's size and net area (and, with `as_written`, its area to its walls' centre lines), totals by floor and by use (and by room type and tenure where a room states one), the lettable area, the core and efficiency per floor, floor type and in all, and the area per person with `people` or the brief's ([areas.md](areas.md#lettable-area-the-core-and-efficiency)), gross internal and gross external area (the one usual in the plan's `site.country`, or in `country` which overrides it, first, or as `gross` asks; see [areas.md](areas.md)), each flat's area from the plan's flats list and the rooms in no flat, each to the middle of its party walls too (ARE-14), the outdoor space listed apart by kind, roofed or open (CNT-7), left out of every total unless `outdoor_rules` states a rule that counts part of it, the free floor beside the floor area where fixtures stand, the rooms in `apart_rooms` measured apart as one building from another (ARE-20), and under a roof the floor states the floor by headroom band, in metres or feet, as text or CSV, each figure with its rule stated |
@@ -155,6 +158,38 @@ floor that is not there is refused with the ids of the plan's floors in level or
 An answer that names a room by its name says its floor beside it whenever a room of another floor
 has the same name (`Key 122 (Second floor)`), and `grid_compare` sums the rooms of one name floor
 by floor, so copied floors are told apart.
+
+## A short tool list, grid_help and tool groups
+
+A host reads the tool list on every turn, so `tools/list` gives each tool short (CMD-52,
+`packages/cli/src/mcp/toolList.ts`): its title and hints, the first sentence of its description
+(the "Use this when…" one), and each argument's name, type, allowed values and range, the first
+sentence of its description and one short example; an argument that is an object lists its fields'
+names and types. Arguments many tools share (`plan`, `out`, `decimal`, `whole`, `page`, `language`,
+`based_on`, `who`) get a shorter line still. No output schema is listed: the answers carry the same
+`structuredContent`. The list of every tool is about 39,000 tokens, where it was about 185,000.
+
+`grid_help` gives the rest. With `tool`, that tool whole, from the same definition the list is made
+from: its whole description, every argument with its whole description and examples, and in its
+data `input_schema` and `output_schema`. With no `tool`, the groups below and every tool in them.
+Pass `whole: true` for a tool as long as `grid_write_rooms`, whose rooms argument carries the
+whole grammar.
+
+`grid mcp --tools <groups>` (and `grid serve --tools`) lists the groups named, split at commas, for
+an app or an agent that needs one part of Grid. `grid_project` and `grid_help` are always listed,
+and every tool when `--tools` is left out. A group Grid does not know is refused, naming the four.
+
+| Group | Its tools | About |
+|---|---|---|
+| `view` | describe, view, check, compare, diff, report a problem, the preview and its page's call, export, sheet, the seen mark, Grid's words and saved views | 7,900 tokens |
+| `areas` | areas, take-off, schedules, fields, find, count and measure | 5,800 tokens |
+| `write` | write rooms, the brief, set and write a building, levels, a fit-out, the plan's settings, the site and the trace image | 6,600 tokens |
+| `edit` | every other change: openings, walls, types, rooms, items, stairs, parking, phases, facts, finishes, tidy, the start marker, undo and restore | 20,200 tokens |
+
+A tool another change adds and the table does not name goes in the group of its hint: a reading
+tool in `view`, a file written beside the plan in `write`, a change to the plan in `edit`
+(`toolGroups.ts`). `src/mcp/__tests__/toolList.test.ts` holds every list under a ceiling in tokens,
+counted as four characters a token.
 
 ## Asking across the parts: fields, find and count
 
