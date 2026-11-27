@@ -26,6 +26,7 @@ import type { BuildObjects } from './buildFrame3d'
 import { applyFrame, openingOutline, pulseHeight } from './buildFrame3d'
 import { cutOpening } from './cutWall'
 import { createSceneMemo, type StoreyLayout } from './building'
+import { CUT_WALL_COLOR } from './Site3D'
 
 type ObjectMap = Map<string, THREE.Object3D>
 
@@ -167,7 +168,8 @@ export function Storey3D({
       {scene.walls.map((wall) => {
         const geometry = wallGeometries.get(wall.id)
         const work = workColour(wall.id)
-        const color = work ?? wallExposureColor(wall.exposure, palette)
+        // CNT-60: a party wall is drawn as a cut.
+        const color = work ?? (wall.cut === true ? tone(CUT_WALL_COLOR) : wallExposureColor(wall.exposure, palette))
         // VEW-78: a wall of a glazed type is glass, see-through, as a window's glass is.
         if (geometry && wall.glazed === true) {
           return (

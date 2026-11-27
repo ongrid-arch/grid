@@ -75,8 +75,8 @@ describe('the tool server', () => {
     // CMD-41: the plan's revision is the last text block of every answer about a plan.
     expect(replies[2]).toMatchObject({ result: { content: [{ type: 'text', text: expect.stringMatching(/^General guidance, not your local rules\nShowing floor "ground" in 3d\. [^]*@napi-rs\/canvas/) }, { type: 'text', text: expect.stringMatching(/^"plan\.json" is at revision [0-9a-f]{12}\./) }] } })
     expect(replies[3]).toMatchObject({ result: { isError: true, content: [{ type: 'text', text: 'That floor is not in this plan. Its floors: "ground".' }] } })
-    // CMD-52: 67 with grid_help.
-    expect((replies[4] as { result: { tools: unknown[] } }).result.tools).toHaveLength(67)
+    // CMD-52: 67 with grid_help; CNT-60: 69 with grid_set_party_wall and grid_change_neighbour.
+    expect((replies[4] as { result: { tools: unknown[] } }).result.tools).toHaveLength(69)
   }, 30_000)
 
   // npm test builds the command first; the picture needs the native canvas from node_modules.
