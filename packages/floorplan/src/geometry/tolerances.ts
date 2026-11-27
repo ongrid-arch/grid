@@ -1456,6 +1456,13 @@ export const TOLERANCES = {
     decides: 'A trace image with no scale of its own is drawn at this many metres a pixel, and said to be unscaled (HND-10).',
     basis: own
   },
+  lintelBearing: {
+    kind: 'limit',
+    value: 0.15,
+    unit: 'm',
+    decides: 'The bearing taken at each end of a lintel over a new opening cut through a wall that stays, when the work is costed: the plan holds no lintels, so the line is marked assumed (ARE-71).',
+    basis: own
+  },
 
   // ── Arithmetic: rounding noise, not adjustable ────────────────────────────────────────────
   noLength: {

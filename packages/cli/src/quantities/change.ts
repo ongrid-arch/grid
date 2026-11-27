@@ -7,9 +7,14 @@
  * (`demolish:wall:interior:0.1`, `make_good:infill:exterior:0.3`, `new:door:0.9x2.1`; a shorter
  * key covers longer ones, so `demolish` prices every demolition line), a quantity, its rule in
  * one sentence and no price. Pure: a plan in, lines out.
+ *
+ * ARE-71: a new opening in a wall that stays is cut through it: the hole taken out
+ * (`demolish:cut:<kind>:<thickness>`), its reveals and a lintel (`new:lintel:<kind>:<thickness>`,
+ * in metres, assumed: the plan holds no lintels).
  */
 import {
   dot,
+  limit,
   partPhases,
   planHasPhases,
   sub,
@@ -39,10 +44,12 @@ export const CHANGE_RULES = {
   demolishOpening: 'Each door, window and doorless opening to be demolished, its own or in a wall to be demolished, counted once by the size of its hole.',
   floor: 'The floor where a solid wall to be demolished stood, to be made good: its centre-line length times its thickness.',
   wallEnd: 'Where a wall to be demolished ended on a wall that stays, the face of the wall that stays to be made good: its height, once for each such end.',
+  cut: 'Each new door, window and doorless opening cut through a wall that stays, by the wall\'s kind and thickness: its hole, less the part of it an opening to be demolished in the same wall leaves open already.',
   infill: 'Each opening to be demolished in a wall that stays, filled in to the wall\'s kind and thickness: its hole, less the part of it a new opening in the same wall takes.',
-  reveals: 'Round each new door and window cut in a wall that stays, its two sides and its head, and its sill when it has one, times the thickness of the wall.',
+  reveals: 'Round each new door, window and doorless opening cut in a wall that stays, its two sides and its head, and its sill when it has one, times the thickness of the wall.',
   newWall: 'Each new wall, by the kind and thickness the plan states: its centre-line length times its height, less the openings in it.',
   newOpening: 'Each new door, window and doorless opening, counted once by the size of its hole.',
+  lintel: `Assumed: a lintel over each new door, window and doorless opening cut through a wall that stays whose head is below the wall's top, by the wall's kind and thickness, its width and ${limit('lintelBearing')} m bearing at each end, because the plan holds no lintels.`,
   newFloor: 'The net floor area of the new rooms of this use, as grid_areas measures it after the work; the plan holds no finishes, so which finish goes down is the person\'s.',
 } as const
 
@@ -110,15 +117,15 @@ export function planChange(plan: FloorPlan, options: { floors?: readonly string[
   const inWall = (wall: Wall): Opening[] => openings.filter((o) => o.wall === wall.id)
   const notes: string[] = []
 
-  type Bucket = { key: string; what: string; quantity: number; unit: QuantityUnit; rule: string; list: ChangeList; order: readonly (number | string)[] }
+  type Bucket = { key: string; what: string; quantity: number; unit: QuantityUnit; rule: string; list: ChangeList; order: readonly (number | string)[]; assumed?: true }
   const buckets = new Map<string, Bucket>()
   const add = (bucket: Omit<Bucket, 'quantity'>, quantity: number): void => {
     const was = buckets.get(bucket.key)
     buckets.set(bucket.key, { ...bucket, quantity: (was?.quantity ?? 0) + quantity })
   }
-  const wallLine = (list: ChangeList, prefix: string, wall: Wall, rule: string, words: string, quantity: number): void => {
+  const wallLine = (list: ChangeList, prefix: string, wall: Wall, rule: string, words: string, quantity: number, unit: QuantityUnit = 'm2', assumed = false): void => {
     const kind = wall.kind
-    add({ key: `${prefix}:${kind}:${size(wall.thickness)}`, what: `${words}, ${kind} ${metres(wall.thickness)} m thick`, unit: 'm2', rule, list, order: [KIND_ORDER[kind], wall.thickness] }, quantity)
+    add({ key: `${prefix}:${kind}:${size(wall.thickness)}`, what: `${words}, ${kind} ${metres(wall.thickness)} m thick`, unit, rule, list, order: [KIND_ORDER[kind], wall.thickness], ...(assumed ? { assumed: true as const } : {}) }, quantity)
   }
   const openingLine = (list: ChangeList, prefix: string, opening: Opening, rule: string, words: string): void => {
     add({ key: `${prefix}:${opening.type}:${size(opening.width)}x${size(opening.height)}`, what: `${words} ${TYPE_WORDS[opening.type].toLowerCase()} ${metres(opening.width)} × ${metres(opening.height)} m`, unit: 'nr', rule, list, order: [['door', 'window', 'opening'].indexOf(opening.type), opening.width, opening.height] }, 1)
@@ -156,8 +163,19 @@ export function planChange(plan: FloorPlan, options: { floors?: readonly string[
       }
     } else if (p === 'new') {
       openingLine('new', 'new', opening, CHANGE_RULES.newOpening, 'New')
-      if (phase(wall.id) === 'existing' && wall.virtual !== true && opening.type !== 'opening') {
-        const height = Math.max(0, Math.min(opening.sill + opening.height, rise(wall)) - opening.sill)
+      if (phase(wall.id) === 'existing' && wall.virtual !== true) {
+        // ARE-71: cut through a wall that stays: the hole taken out, its reveals (a doorless
+        // opening's too) and a lintel over it, assumed, where its head is below the wall's top.
+        const top = rise(wall)
+        const height = Math.max(0, Math.min(opening.sill + opening.height, top) - opening.sill)
+        const open = inWall(wall).filter((o) => phase(o.id) === 'demolished').reduce((sum, o) => sum + overlap(opening, o), 0)
+        const cut = Math.max(0, hole(opening, top) - open)
+        if (cut > tolerance('areaEqual')) {
+          wallLine('demolish', 'demolish:cut', wall, CHANGE_RULES.cut, 'Openings cut through walls that stay', cut)
+          if (opening.sill + opening.height < top - tolerance('noLength')) {
+            wallLine('new', 'new:lintel', wall, CHANGE_RULES.lintel, 'Lintels over openings cut through walls that stay', opening.width + 2 * limit('lintelBearing'), 'm', true)
+          }
+        }
         const reveals = (2 * height + opening.width * (opening.sill > tolerance('noLength') ? 2 : 1)) * wall.thickness
         add({ key: 'make_good:reveals', what: 'Reveals of new openings cut in walls that stay', unit: 'm2', rule: CHANGE_RULES.reveals, list: 'make good', order: [3] }, reveals)
       }
@@ -183,11 +201,13 @@ export function planChange(plan: FloorPlan, options: { floors?: readonly string[
     }
     return 0
   }
-  const rank = (b: Bucket): number => CHANGE_LISTS.indexOf(b.list) * 10 + (b.key.includes(':wall:') || b.key.startsWith('make_good:floor') ? 0 : b.key.startsWith('make_good:wall_end') ? 1 : b.key.includes(':infill:') ? 2 : b.key.startsWith('make_good:reveals') ? 3 : b.key.startsWith('new:floor') ? 5 : 4)
+  const rank = (b: Bucket): number =>
+    CHANGE_LISTS.indexOf(b.list) * 10 +
+    (b.key.includes(':wall:') || b.key.startsWith('make_good:floor') ? 0 : b.key.startsWith('make_good:wall_end') ? 1 : b.key.includes(':infill:') ? 2 : b.key.startsWith('make_good:reveals') ? 3 : b.key.startsWith('new:floor') ? 6 : b.key.includes(':cut:') || b.key.includes(':lintel:') ? 5 : 4)
   const lines: ChangeLine[] = [...buckets.values()]
     .filter((b) => b.quantity > tolerance('areaEqual'))
     .sort((a, b) => rank(a) - rank(b) || compare(a.order, b.order) || a.key.localeCompare(b.key))
-    .map(({ key, what, quantity, unit, rule, list }) => ({ key, what, quantity, unit, rule, assumed: false, list }))
+    .map(({ key, what, quantity, unit, rule, list, assumed }) => ({ key, what, quantity, unit, rule, assumed: assumed === true, list }))
   if (lines.length === 0) notes.push('The plan states phases, but nothing in it is to be demolished or new.')
   return { lines, notes }
 }
