@@ -107,6 +107,7 @@ export const FACT_COVERAGE = {
   'openings.properties': { shown: 'drawn and tabled' },
   'walls.properties': { shown: 'not shown', why: 'The sheet has no wall schedule; grid_find and the IFC and DXF files give a wall\'s facts.' },
   'floors.properties': { shown: 'not shown', why: 'Each floor page shows its plan and areas; grid_find and the IFC and DXF files give a floor\'s facts.' },
+  'items.properties': { shown: 'not shown', why: 'The sheet draws each item by its symbol; grid_schedule of=items, grid_find and the IFC and DXF files give an item\'s facts.' },
 } as const satisfies Record<FactField, Coverage>
 
 /**

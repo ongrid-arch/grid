@@ -1168,6 +1168,28 @@ function listSchedule(survey: Survey, of: ScheduleOf, floor: string | undefined,
   return { text: lines.join('\n'), data }
 }
 
+/** CNT-52: grid_schedule of=items: every item, points too, numbered in plan order, with its place and facts. */
+function itemSchedule(survey: Survey, floor: string | undefined, units: Display, asCsv: boolean): Answer {
+  const f = planFixtures(survey.plan, floor === undefined ? undefined : [floor])
+  const rows = f.rows.map((r, i) => ({ number: i + 1, id: r.id, kind: r.kind, group: r.group, label: r.label, floor: r.floor, room: r.room, at: r.at, size: r.size, height: r.height, turn: r.turn, properties: r.properties }))
+  const counts = Object.fromEntries(Object.entries(f.counts).filter(([, n]) => n > 0))
+  const data = { rows, counts, leftOut: f.leftOut, rule: FIXTURE_RULES.count }
+  const name = (id: string): string => (survey.facts.rooms.has(id) ? q(roomCalled(survey.facts.rooms.get(id)!)) : q(id))
+  if (asCsv) {
+    const cells = rows.map((r) => [r.number, r.id, r.kind, r.group, r.label, r.floor, r.room ?? '', r.at[0], r.at[1], r.size[0], r.size[1], r.height, r.turn, factsText(r.properties)])
+    return { text: csv(['number', 'id', 'kind', 'group', 'label', 'floor', 'room', 'x m', 'y m', 'width m', 'depth m', 'height m', 'turn', 'facts'], cells), data }
+  }
+  const several = survey.facts.floors.length > 1
+  const lines = [rows.length === 0 ? `The plan has no items${floor === undefined ? '' : ' on that floor'}.` : `Items: ${fixtureCountText(f.counts)}.`]
+  for (const r of rows) {
+    const facts = Object.keys(r.properties).length === 0 ? '' : `; ${factsText(r.properties)}`
+    lines.push(`${r.number}. ${r.label} ${q(r.id)} (${r.kind}), ${r.room === null ? 'in no room' : `in ${name(r.room)}`}${several ? `, floor ${q(r.floor)}` : ''}, at ${lengthText(r.at[0], units)}, ${lengthText(r.at[1], units)}${facts}`)
+  }
+  if (f.leftOut.length > 0) lines.push(`Left out, as grid_check says: ${f.leftOut.map(q).join(', ')}.`)
+  lines.push(FIXTURE_RULES.count)
+  return { text: lines.join('\n'), data }
+}
+
 /**
  * CMD-17: what grid_schedule answers, one schema for each `of` and one for the grouped default,
  * because the rows of each are a different thing (a room, an opening, a flat, a type, a room's
@@ -1192,6 +1214,13 @@ const SCHEDULE_OUTPUT: Record<string, unknown> = {
       fixtures: listSchema(objectSchema({ id: STRING, kind: STRING, label: STRING, floor: STRING, room: NULLABLE_STRING, size: { type: 'array' }, height: NUMBER })),
       fixtureCounts: { type: 'object' },
     }, ['rows', 'counts', 'rule']),
+    // of=items (CNT-52): every item with its place and facts, and the count of each kind.
+    objectSchema({
+      rows: listSchema(objectSchema({ number: NUMBER, id: STRING, kind: STRING, group: STRING, label: STRING, floor: STRING, room: NULLABLE_STRING, at: { type: 'array' }, size: { type: 'array' }, height: NUMBER, turn: NUMBER, properties: FACTS_OUTPUT }, ['number', 'id', 'kind', 'group', 'label', 'floor', 'room', 'at', 'size', 'height', 'turn', 'properties'])),
+      counts: { type: 'object' },
+      leftOut: listSchema(STRING),
+      rule: STRING,
+    }, ['rows', 'counts', 'leftOut', 'rule']),
     // of=rooms (ARE-12): the room schedule and its totals.
     objectSchema({
       rows: listSchema(objectSchema({ number: NUMBER, roomNumber: NULLABLE_STRING, mark: STRING, id: STRING, name: STRING, use: NULLABLE_STRING, floor: STRING, floorName: STRING, area: NULLABLE_NUMBER, state: STATE_OUTPUT, height: NULLABLE_NUMBER, properties: FACTS_OUTPUT, flat: NULLABLE_STRING, zones: { type: 'array' }, notCounted: { type: 'object' } }, ['number', 'roomNumber', 'mark', 'id', 'name', 'use', 'floor', 'floorName', 'area', 'height', 'properties'])),
@@ -1233,14 +1262,14 @@ const scheduleTool: GridTool = {
   title: 'Door and window schedule',
   hint: 'read',
   description:
-    'Use this when the person asks for the doors and windows by size, how many of each, a door schedule or window schedule, which doors are narrower than a width, how many toilets, basins, showers, baths or kitchen runs there are and where, or for the flats, the area of each flat or the unit mix. '
+    'Use this when the person asks for the doors and windows by size, how many of each, a door schedule or window schedule, which doors are narrower than a width, how many toilets, basins, showers, baths or kitchen runs there are and where, a list of the extinguishers, cameras or other points with their facts, or for the flats, the area of each flat or the unit mix. '
     + 'It groups every door, window and doorless opening by type, kind (sliding, double, fixed… when the plan states one) and size, each listed once with the two rooms it joins. Sizes are the hole in the wall: the plan holds no frame, so a clear width is not known. '
-    + 'With of=rooms it gives the room schedule instead: every room numbered in one order whatever the file\'s order, with its name, use, net area, height, floor and, on a plan that lists flats, its flat, and the totals for each floor and for all floors, a room in no total (a stair or lift over the lowest room of its shaft, a void, outdoor space) marked with why; with of=openings, every door, window and doorless opening once, numbered, with its size, its kind, the part that opens and its handing where the plan states them, and the rooms on its two sides; with of=flats, every flat the plan lists with its type, rooms, bedrooms and net area, and the unit mix by type (how many of each, how many mirrored, their bedrooms and area); with of=doors or of=windows, the door or window schedule a supplier needs: the doors, or the windows, grouped into types (the plan\'s own named types first, with their names and materials, then by kind and size and the part that opens), each type with its count and the marks of its openings; with of=finishes, the finishes plan: each room\'s floor, wall, ceiling and skirting finish with its quantity, a zone with its own finish as its part of its room, and each finish\'s total. Every room and opening has a mark (the room\'s number; D1, W1, O1 for openings) that grid_view kind=plan with marks schedule draws on the plan, one mark for each row. All as text or CSV. '
+    + 'With of=rooms it gives the room schedule instead: every room numbered in one order whatever the file\'s order, with its name, use, net area, height, floor and, on a plan that lists flats, its flat, and the totals for each floor and for all floors, a room in no total (a stair or lift over the lowest room of its shaft, a void, outdoor space) marked with why; with of=openings, every door, window and doorless opening once, numbered, with its size, its kind, the part that opens and its handing where the plan states them, and the rooms on its two sides; with of=flats, every flat the plan lists with its type, rooms, bedrooms and net area, and the unit mix by type (how many of each, how many mirrored, their bedrooms and area); with of=doors or of=windows, the door or window schedule a supplier needs: the doors, or the windows, grouped into types (the plan\'s own named types first, with their names and materials, then by kind and size and the part that opens), each type with its count and the marks of its openings; with of=finishes, the finishes plan: each room\'s floor, wall, ceiling and skirting finish with its quantity, a zone with its own finish as its part of its room, and each finish\'s total; with of=items, every fixture, piece of furniture and point (an extinguisher, an AED, a camera, an exit) numbered, with its kind, room, place on the plan and facts of the person\'s own, and how many of each kind. Every room and opening has a mark (the room\'s number; D1, W1, O1 for openings) that grid_view kind=plan with marks schedule draws on the plan, one mark for each row. All as text or CSV. '
     + 'Do not use for wall or plaster quantities (grid_takeoff). Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
     floor: FLOOR_ARG,
-    of: { type: 'string', enum: ['rooms', 'openings', 'flats', 'doors', 'windows', 'finishes', 'fixtures'], description: 'fixtures for every fixture and piece of furniture with its kind, room and size (as types=fixture), rooms for the room schedule, openings for one row per door, window and opening, flats for the flats and the unit mix by type, doors or windows for the door or window schedule by type with each type\'s marks, finishes for each room\'s floor, wall, ceiling and skirting finishes with their quantities and each finish\'s total. Grouped by type and size when left out.', examples: ['rooms', 'openings', 'flats', 'doors', 'finishes'] },
+    of: { type: 'string', enum: ['rooms', 'openings', 'flats', 'doors', 'windows', 'finishes', 'fixtures', 'items'], description: 'fixtures for every fixture and piece of furniture with its kind, room and size (as types=fixture), items for every item, points too (an extinguisher, a camera, an exit), numbered, with its kind, room, place on the plan and facts, and the count of each kind, rooms for the room schedule, openings for one row per door, window and opening, flats for the flats and the unit mix by type, doors or windows for the door or window schedule by type with each type\'s marks, finishes for each room\'s floor, wall, ceiling and skirting finishes with their quantities and each finish\'s total. Grouped by type and size when left out.', examples: ['rooms', 'openings', 'flats', 'doors', 'finishes'] },
     types: { type: 'array', description: 'Only these kinds: door, window, opening, or fixture for the toilets, basins, showers, baths and kitchen runs. All of them when left out.', examples: [['door'], ['door', 'opening'], ['fixture']], items: { enum: ['door', 'window', 'opening', 'fixture'] }, minItems: 1, maxItems: 4 },
     narrower_than: { type: 'number', length: true, description: 'Only openings narrower than this many metres, for example 0.8.', examples: [0.8, 0.9], minimum: 0.1, maximum: 10 },
     units: UNITS_ARG,
@@ -1252,10 +1281,11 @@ const scheduleTool: GridTool = {
   run(args, context) {
     const { survey, floor } = load(context, args['plan'], args['floor'])
     const units = displayFor(args['units'], args['decimal'], survey.plan)
-    const of = args['of'] as ScheduleOf | 'fixtures' | undefined
+    const of = args['of'] as ScheduleOf | 'fixtures' | 'items' | undefined
     if (of !== undefined) {
       const stray = ['types', 'narrower_than'].filter((name) => args[name] !== undefined)
       if (stray.length > 0) throw new ToolRefusal(`of=${of} takes no ${stray.join(' or ')}.`)
+      if (of === 'items') return itemSchedule(survey, floor, units, args['format'] === 'csv')
       if (of !== 'fixtures') return listSchedule(survey, of, floor, units, args['format'] === 'csv')
     }
     // CNT-45: of=fixtures is the fixtures and furniture alone.
@@ -1321,8 +1351,8 @@ export const KIND_ARG: ArgSpec = {
 /** CNT-45: grid_fields, grid_find and grid_count ask of the fixtures and furniture too. */
 const QUERY_KIND_ARG: ArgSpec = {
   ...KIND_ARG,
-  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run) or furniture (a bed, a sofa, a table), or item for every fixture and piece of furniture. Every kind when left out.',
-  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item']],
+  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run), furniture (a bed, a sofa, a table) or point (an extinguisher, a camera, an exit), or item for every fixture, piece of furniture and point. Every kind when left out.',
+  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item'], ['point']],
   items: { enum: [...PART_KINDS, 'item'] },
   maxItems: PART_KINDS.length + 1,
 }
@@ -1347,12 +1377,12 @@ export const ROOM_IN_ARG: ArgSpec = {
 const kindsOf = (args: Record<string, unknown>): readonly PartKind[] | undefined => {
   const kinds = args['kind'] as Array<PartKind | 'item'> | undefined
   // ARE-67: item is every fixture and piece of furniture.
-  return kinds === undefined ? undefined : [...new Set(kinds.flatMap((kind): PartKind[] => (kind === 'item' ? ['fixture', 'furniture'] : [kind])))]
+  return kinds === undefined ? undefined : [...new Set(kinds.flatMap((kind): PartKind[] => (kind === 'item' ? ['fixture', 'furniture', 'point'] : [kind])))]
 }
 
 function partsWord(kinds: readonly PartKind[] | undefined, n: number): string {
-  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture' }
-  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture' }
+  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture', point: 'points' }
+  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture', point: 'point' }
   if (kinds !== undefined && kinds.length === 1) return `${n} ${n === 1 ? one[kinds[0]!] : plural[kinds[0]!]}`
   return `${n} part${n === 1 ? '' : 's'}`
 }
@@ -1482,7 +1512,7 @@ const countTool: GridTool = {
   title: 'Count and sum parts by group',
   hint: 'read',
   description:
-    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room). '
+    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room), "how many extinguishers on each floor" (kind=point, where item kind = extinguisher, by floor). '
     + 'It groups the parts that meet every condition by the field named in by, and gives each group its count, the sum of each field named in sum, and its ids, with a view argument to pass to grid_view so each group is shown in its own colour. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
     + 'Rooms are counted as grid_areas counts them, so an area sum is its net: a zone with its room, a stair or lift drawn on floor after floor once, on the floor it rises from (stairs=per floor counts it on each floor), and no void or outdoor space; the answer lists each room left out, with why. '
     + 'Call grid_fields first for the names. Do not use for the list of parts itself (grid_find), for the plan\'s areas by use (grid_areas) or for a door schedule (grid_schedule). Areas are square metres, lengths metres.',

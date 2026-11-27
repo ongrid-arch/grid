@@ -125,6 +125,21 @@ describe('Grid\'s built-in library', () => {
       kennel: ['kennel', 0.9, 0.9, 0.9, 0],
       'exam-table': ['exam-table', 1.2, 0.6, 0.9, 0.8],
       'clinical-sink': ['clinical-sink', 0.9, 0.6, 0.9, 0.6],
+      // CNT-52: the points.
+      extinguisher: ['extinguisher', 0.4, 0.4, 1, 0],
+      aed: ['aed', 0.4, 0.4, 1.2, 0],
+      'call-point': ['call-point', 0.3, 0.3, 1.4, 0],
+      'first-aid': ['first-aid', 0.4, 0.4, 1.4, 0],
+      sensor: ['sensor', 0.3, 0.3, 2.4, 0],
+      'desk-point': ['desk-point', 0.4, 0.4, 0.75, 0],
+      spawn: ['spawn', 0.6, 0.6, 0.05, 0],
+      camera: ['camera', 0.3, 0.3, 2.6, 0],
+      'you-are-here': ['you-are-here', 0.5, 0.5, 1.6, 0],
+      'hose-reel': ['hose-reel', 0.5, 0.5, 1.4, 0],
+      'fire-door': ['fire-door', 0.4, 0.4, 2.1, 0],
+      exit: ['exit', 0.4, 0.4, 2.2, 0],
+      refuge: ['refuge', 0.5, 0.5, 1.2, 0],
+      'assembly-point': ['assembly-point', 0.6, 0.6, 2, 0],
     })
   })
 

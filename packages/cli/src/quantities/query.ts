@@ -26,10 +26,16 @@ import type { Survey } from './survey'
 
 /** The parts that carry facts of the person's own (`grid_set_facts`). */
 export const FACT_PART_KINDS = ['wall', 'door', 'window', 'opening', 'room', 'floor'] as const
-/** CNT-45: and the plan's fixtures and furniture, which the query tools ask of too. */
-export const PART_KINDS = [...FACT_PART_KINDS, 'fixture', 'furniture'] as const
+/** CNT-45: and the plan's fixtures and furniture, which the query tools ask of too; CNT-52: and its points. */
+export const PART_KINDS = [...FACT_PART_KINDS, 'fixture', 'furniture', 'point'] as const
 export type PartKind = (typeof PART_KINDS)[number]
-const ITEMS: readonly PartKind[] = ['fixture', 'furniture']
+const ITEMS: readonly PartKind[] = ['fixture', 'furniture', 'point']
+/** CNT-52: the kind of part an item is asked of as, by its group. */
+const itemPart = (kind: string): PartKind => {
+  const group = itemKindDefinition(kind)?.group
+  return group === 'furniture' ? 'furniture' : group === 'point' ? 'point' : 'fixture'
+}
+const isItemPart = (kind: PartKind): boolean => kind === 'fixture' || kind === 'furniture' || kind === 'point'
 
 export type FieldType = 'text' | 'number' | 'yes-no' | 'list'
 export type Value = string | number | boolean | readonly string[] | null
@@ -92,7 +98,7 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'skirting finish', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'Its skirting as the plan names it; none when it states no skirting.' },
   { name: 'band finishes', type: 'list', unit: null, kinds: ['room'], from: 'grid', about: 'The finishes of its bands and of the wall faces finished apart, each once.' },
   // CNT-45: the plan's fixtures and furniture.
-  { name: 'item kind', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the item is: toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug or plant.' },
+  { name: 'item kind', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the item is: a fixture (toilet, basin, shower, bath, kitchen-run, or equipment such as rack or seat), furniture (bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant) or a point (extinguisher, aed, call-point, first-aid, sensor, desk-point, spawn, camera, you-are-here, hose-reel, fire-door, exit, refuge, assembly-point).' },
   { name: 'label', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the drawing calls the item, its own or its library entry\'s.' },
   { name: 'library', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'The library entry it was placed from, by name.' },
   { name: 'room', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'The id of the room it stands in: the one that holds the middle of its footprint.' },
@@ -143,7 +149,8 @@ function openingKind(type: 'door' | 'window' | 'opening'): PartKind {
 
 /**
  * Every part of the plan, in one order whatever the file's: floors, then each kind by id. CNT-45:
- * with `items`, its fixtures and furniture last; a change of facts leaves them out, as they carry none.
+ * with `items`, its fixtures, furniture and points (CNT-52) last, with their facts; a change of facts
+ * leaves them out: an item is given its facts as it is added (`grid_add_item`).
  */
 export function askPlan(survey: Survey, options: { readonly items?: boolean } = {}): Asked {
   const plan = survey.plan
@@ -159,7 +166,7 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
   for (const wall of byId(plan.walls)) parts.push({ kind: 'wall', id: wall.id, floor: floorOf(wall), facts: wall.properties ?? {} })
   for (const opening of byId(plan.openings)) parts.push({ kind: openingKind(opening.type), id: opening.id, floor: wallFloor.get(opening.wall) ?? 'ground', facts: opening.properties ?? {} })
   const items = new Map((options.items === true ? plan.items ?? [] : []).map((item) => [item.id, item] as const))
-  for (const item of byId([...items.values()])) parts.push({ kind: itemKindDefinition(item.kind)?.group === 'furniture' ? 'furniture' : 'fixture', id: item.id, floor: floorOf(item), facts: {} })
+  for (const item of byId([...items.values()])) parts.push({ kind: itemPart(item.kind), id: item.id, floor: floorOf(item), facts: item.properties ?? {} })
   let shapes: ReturnType<typeof roomShapes> | null = null
   const roomOfItem = (id: string): string | null => {
     shapes ??= roomShapes(indexPlan(plan))
@@ -231,7 +238,7 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
     if (name === 'floor') return part.floor
     if (name === 'seats' || name === 'desks' || name === 'covers' || name === 'item zone') {
       const counted = seatingNow()
-      if (part.kind === 'fixture' || part.kind === 'furniture') {
+      if (isItemPart(part.kind)) {
         if (name === 'item zone') return counted.itemZones.get(part.id) ?? null
         return counted.byItem.get(part.id)?.[name] ?? 0
       }
@@ -277,7 +284,7 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
       if (name === 'rooms') return roomsBeside(wall.id)
       return null
     }
-    if (part.kind === 'fixture' || part.kind === 'furniture') {
+    if (isItemPart(part.kind)) {
       const item = items.get(part.id)!
       if (name === 'item kind') return item.kind
       if (name === 'label') return item.label ?? null

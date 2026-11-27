@@ -1113,12 +1113,19 @@ wardrobe, a cupboard, shelves, a TV unit), an armchair, a stool, a desk, a rug o
 (CNT-42), or equipment: a rack, a generator, a pump, a tank, a fixed seat, a pew, an altar, a
 fume cupboard, a lab bench, a safety shower, a kennel, an exam table, a clinical sink, and
 `equipment` for any other thing, a plain box called by its label (CNT-47). Equipment is a
-fixture: it takes the floor it stands on. Each has a `kind`, `at` (the middle of its footprint), a
+fixture: it takes the floor it stands on. Or a point (CNT-52): an `extinguisher`, an `aed`, a
+`call-point`, a `first-aid` point, a `sensor`, a `desk-point`, a game's `spawn` point, a
+`camera`, and the fire and wayfinding set `you-are-here`, `hose-reel`, `fire-door` (the mark by a
+fire door; the door is an opening of its wall), `exit`, `refuge` and `assembly-point`. A point
+takes no floor and is in no item's way: Grid says nothing of a point on a wall, outside or on
+another item. Its `size` is the size its symbol is drawn at and its `height` the height it is
+shown at; its library entry, by its kind's name, gives both. A drawing that shows a point keys
+each kind by its symbol. Each has a `kind`, `at` (the middle of its footprint), a
 `size` (its width along its back and its depth to its front), a `height`, and may have a `turn`
 (degrees, counter-clockwise; unturned, its back faces down the drawing), a `label`, a
 `floor`, a `clearance` (metres of clear floor kept in front of it) and `clearSides` (CNT-47:
 `back`, `left` and `right`, the same behind it and at its own left and right, facing out of its
-front). An item may instead name
+front), and `properties`, facts of the person's own (CNT-52, as below). An item may instead name
 a library entry in `library`, which gives what it leaves out (CNT-20, C30: [library.md](library.md)).
 Every other figure is the author's.
 
@@ -1352,8 +1359,8 @@ every drawing and the DXF show the arrow; the read-back writes such a line as a 
 
 ## Facts of your own, and room numbers
 
-A wall, a door, a window, a doorless opening, a room and a floor may carry facts of the
-person's own, in `properties` (CNT-9): a name and a value each, the value text, a number, or
+A wall, a door, a window, a doorless opening, a room, a floor and an item (CNT-52: an
+extinguisher's type and service date) may carry facts of the person's own, in `properties` (CNT-9): a name and a value each, the value text, a number, or
 true or false. A room may state its number in `number`, as text.
 
 ```json
