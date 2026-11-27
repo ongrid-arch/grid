@@ -19,6 +19,9 @@ import { lengthText, lookWithColors, PICTURE_FONT, type Look, type PlanLook } fr
 import type { PictureKey } from './faults'
 import { planPicture, type Picture } from './planSvg'
 import { el, type SvgNode } from './svgNode'
+import { drawingText, saidText, wordsOf, type DrawingWords } from './words'
+import type { Language, Said } from '@ongrid/floorplan/messages'
+import { statedDisplay } from '@ongrid/floorplan/types/units'
 
 /** The colours of a comparison: removed, added and changed, each with the pale tint of its fill. */
 export const COMPARISON_COLORS = {
@@ -56,6 +59,8 @@ export interface ComparisonPictureOptions {
   readonly floor?: string | null
   /** Width in pixels. 1200 by default. */
   readonly width?: number
+  /** MSG-34: the language of its key, labels and caption; the later plan's own display language when left out. */
+  readonly language?: Language
 }
 
 const LABEL_PX = 13
@@ -141,13 +146,13 @@ function labelAt(at: Vec2, text: string, colour: string, mpp: number, dy: number
   ])
 }
 
-/** The key in a band under the drawing, so it never covers the plan's corner (VEW-17). */
-function keyBand(): PictureKey {
+/** The key in a band under the drawing, so it never covers the plan's corner (VEW-17); MSG-34: in the drawing's language. */
+function keyBand(words: DrawingWords): PictureKey {
   const entries: Array<[string, string]> = [
-    ['Removed', COMPARISON_COLORS.removed],
-    ['Added', COMPARISON_COLORS.added],
-    ['Changed', COMPARISON_COLORS.changed],
-    ['Unchanged', UNCHANGED_COLORS.wallExterior]
+    [drawingText(words, 'drawing.comparison.key.removed'), COMPARISON_COLORS.removed],
+    [drawingText(words, 'drawing.comparison.key.added'), COMPARISON_COLORS.added],
+    [drawingText(words, 'drawing.comparison.key.changed'), COMPARISON_COLORS.changed],
+    [drawingText(words, 'drawing.comparison.key.unchanged'), UNCHANGED_COLORS.wallExterior]
   ]
   const children: SvgNode[] = []
   entries.forEach(([words, colour], i) => {
@@ -161,6 +166,8 @@ function keyBand(): PictureKey {
 /** The comparison as a picture of one floor. `earlier` is the earlier plan laid on `later` (`BuildingComparison.aligned`). */
 export function comparisonPicture(earlier: FloorPlan, later: FloorPlan, marks: ComparisonMarks, options: ComparisonPictureOptions = {}): Picture {
   const floor = resolveFloor(later, options.floor)
+  // MSG-34: the words of the later plan's display, in the language asked for when one is.
+  const words = wordsOf(statedDisplay({ ...(later.display ?? {}), ...(options.language === undefined ? {} : { language: options.language }) }))
   const before = drawingOf(earlier, floor)
   const after = drawingOf(later, floor)
   const box = computeBounds([...pointsOf(before), ...pointsOf(after)])
@@ -176,10 +183,11 @@ export function comparisonPicture(earlier: FloorPlan, later: FloorPlan, marks: C
     showDimensions: false,
     frame,
     ...(options.width === undefined ? {} : { width: options.width }),
+    ...(words.language === 'en' ? {} : { language: words.language }),
     show: { title: false, key: false, notes: false, sketch: false, areas: false, warnings: false, above: false }
   })
   const mpp = base.view.width / base.width
-  const changed = new Map(marks.changedRooms.map((r) => [r.room, r.label] as const))
+  const changed = new Map(marks.changedRooms.map((r) => [r.room, saidText(words, r.label, (r as { readonly said?: Said }).said)] as const))
   const nodes: SvgNode[] = [
     ...base.nodes,
     ...markNodes(after, { walls: [], openings: [], rooms: [...changed.keys()] }, COMPARISON_COLORS.changed, COMPARISON_COLORS.changedFill, mpp, 'changed'),
@@ -198,7 +206,7 @@ export function comparisonPicture(earlier: FloorPlan, later: FloorPlan, marks: C
   }
   const removedRooms = new Set(marks.removed.rooms)
   for (const room of before.rooms) {
-    if (removedRooms.has(room.id)) nodes.push(labelAt(room.labelAt, `${room.name || room.id}: removed`, COMPARISON_COLORS.removed, mpp, 18, 'removed-label'))
+    if (removedRooms.has(room.id)) nodes.push(labelAt(room.labelAt, drawingText(words, 'drawing.comparison.removed', { name: room.name || room.id }), COMPARISON_COLORS.removed, mpp, 18, 'removed-label'))
   }
-  return { ...base, look: COMPARISON_LOOK, nodes, key: keyBand() }
+  return { ...base, look: COMPARISON_LOOK, nodes, key: keyBand(words) }
 }

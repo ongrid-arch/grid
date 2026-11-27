@@ -255,7 +255,7 @@ function baseOfText(project: Project, text: string, planFile: string): BasePlan 
   }
 }
 
-export function writeRoomsIntoProject(project: Project, text: string, planFile: string, options: { readonly replace?: boolean; readonly brief?: boolean; readonly facts?: PartFacts } = {}): WriteDone {
+export function writeRoomsIntoProject(project: Project, text: string, planFile: string, options: { readonly replace?: boolean; readonly brief?: boolean; readonly facts?: PartFacts; readonly language?: string } = {}): WriteDone {
   if (!planFile.toLowerCase().endsWith('.json')) throw new RoomsRefused('rooms/plan-file', `The plan to write must be a .json file: got ${JSON.stringify(planFile)}.`)
   // WRT-13: grid.json and the files kept beside a plan are never written as a plan.
   refuseGridFile(project.shown(project.resolve(planFile)), planFile)
@@ -355,6 +355,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // WRT-7: a `display` line sets how the person reads lengths; without one, the file's stays.
   // MSG-24: the file's language and its own words (C32) stay too, as rooms text holds neither.
   if (plan.display !== undefined) next['display'] = { ...keptWords(raw['display']), ...plan.display }
+  // MSG-34: the person's language, when the call records one (the tool decides when).
+  if (options.language !== undefined) next['display'] = { ...((next['display'] as Record<string, unknown> | undefined) ?? {}), language: options.language }
   // WRT-6: a height the text did not state stays out of the file; the reading fills it again.
   next['walls'] = plan.walls.map(statedWall)
   next['rooms'] = plan.rooms

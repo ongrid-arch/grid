@@ -40,8 +40,15 @@ A wording holds named placeholders, `{width}`. `say(language, key, values)` fill
 
 A plan may state its language in its `display` (`"display": { "language": "es" }`), and a
 command or a tool call may ask for one (`--lang es` on `grid check`, `describe`, `draw` and
-`sheet`; `language: "es"` on `grid_check`, `grid_describe`, `grid_view` and `grid_sheet`), which
-wins. Any BCP-47 language is taken (`de`, `fr`, `pt-BR`, `zh`); a word that is no language tag is
+`sheet`; `language: "es"` on every tool, MSG-34), which wins. `grid_set_plan` sets the plan's
+language; `grid_write_rooms` records it when the plan states none, from the call's `language` or
+the language the rooms' names are plainly in (`languageOfNames` in `uses.ts`). Every tool's answer
+is in the language: `grid_check`, `grid_describe`, `grid_view`, `grid_sheet`, `grid_areas` and
+`grid_schedule` in their own words, and every other tool, whose sentences are English yet, closes
+with one line in the language saying so ([the tool server](tool-server.md#the-language-of-an-answer)).
+An answer writes every figure with one decimal mark (`speaker.ts`): a sentence made elsewhere in
+English is said in the language when it is a key's whole wording (a rule), else with the answer's
+decimal mark in its figures. Any BCP-47 language is taken (`de`, `fr`, `pt-BR`, `zh`); a word that is no language tag is
 refused by name. Spanish is loaded only when it is asked for (`loadLanguage`). English is the
 default. A language with a decimal comma (Spanish) writes one unless the display's `decimal`
 says otherwise. Lengths stay as the display states them, on the sheet too (in Spanish, a sheet in

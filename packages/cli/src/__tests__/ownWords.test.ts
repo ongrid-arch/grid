@@ -19,7 +19,7 @@ const PACKAGES = ['floorplan', 'rules', 'viewer', 'cli']
 
 /** Why a file still holds English sentences. */
 const WHY = {
-  tools: "The tool server's tools: their descriptions and argument schemas are for the agent and stay in English by design (the agent retells the coded results in the person's language). grid_check, grid_describe, grid_view and grid_sheet answer in the language asked for; the other tools' answers are not moved yet.",
+  tools: "The tool server's tools: their descriptions and argument schemas are for the agent and stay in English by design (the agent retells the coded results in the person's language). grid_check, grid_describe, grid_view, grid_sheet, grid_areas and grid_schedule answer in the language asked for, else the plan's (MSG-34); the other tools' answers are not moved yet, and say so in the language.",
   agent: 'Written for the agent, not the person: the protocol, the argument checks, the retelling rules and the lookup prompt. English by design.',
   command: "The command line's help, usage and refusals of a mistyped command. Not moved yet.",
   developer: "For people who build or install Grid: the tolerance table's own descriptions (docs/tolerances.md), the sheet's coverage table, install and programming errors. English by design.",
@@ -200,7 +200,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-68: seven more, the lettable, people, as_written and frontage arguments and frontage's refusals.
   // CNT-51: four more, the take-off's and the finishes schedule's bands and faces.
   // CNT-52: two more, grid_schedule of=items' lines.
-  'packages/cli/src/mcp/readTools.ts': [424, 'tools'],
+  // MSG-34: thirty-four fewer, grid_areas' and grid_schedule's lines in the message files.
+  'packages/cli/src/mcp/readTools.ts': [390, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -214,7 +215,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   // CMD-38: two more, the rooms grammar resource's title and description.
-  'packages/cli/src/mcp/serveTools.ts': [3, 'tools'],
+  // MSG-34: one more, the refusal of a language that is no language tag.
+  'packages/cli/src/mcp/serveTools.ts': [4, 'tools'],
   // CMD-38: the whole rooms grammar, by topic, for the agent.
   // WRT-74: one more, the example of a room line with its number and facts.
   // CNT-41: four more, the site's lines.
@@ -256,6 +258,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/toolkit.ts': [29, 'agent'],
   // CMD-39: the whole and page arguments every tool takes, and left_out in the output schemas.
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
+  // MSG-34: the description of the language every tool takes.
+  'packages/cli/src/mcp/answerLanguage.ts': [1, 'tools'],
   // WRT-73: the three phase tools, their arguments and refusals.
   'packages/cli/src/mcp/phaseTools.ts': [26, 'tools'],
   // CMD-44: grid_undo and grid_restore, their descriptions and argument schemas.
@@ -286,7 +290,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/fixtures.ts': [1, 'notYet'],
   // ARE-68: the refusals of a figure for who the building is for, in the call and the brief.
   'packages/cli/src/quantities/lettable.ts': [6, 'agent'],
-  'packages/cli/src/quantities/limits.ts': [29, 'notYet'],
+  // MSG-34: two fewer, the storeys line in the message files.
+  'packages/cli/src/quantities/limits.ts': [27, 'notYet'],
   'packages/cli/src/quantities/measure.ts': [3, 'notYet'],
   // ARE-61: four more, the room type, tenure, flat and flat type fields' descriptions for the agent.
   // CNT-45: seven more, the items' kinds and fields.
@@ -297,10 +302,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-67: the seat count's rule and its answer.
   'packages/cli/src/quantities/seats.ts': [4, 'notYet'],
   // CNT-27: one more, the CSV's column for the rows in no total.
-  'packages/cli/src/quantities/schedule.ts': [16, 'notYet'],
+  // MSG-34: four fewer, the CSV heads name their length unit.
+  'packages/cli/src/quantities/schedule.ts': [12, 'notYet'],
   // CNT-41: two more, what the coverage counts.
   'packages/cli/src/quantities/site.ts': [23, 'notYet'],
-  'packages/cli/src/quantities/state.ts': [3, 'notYet'],
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
   'packages/cli/src/quantities/takeoff.ts': [10, 'notYet'],
   'packages/cli/src/quantities/use.ts': [32, 'notYet'],
@@ -355,7 +360,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
   // VEW-71: one more, the projected roof edge in elevation.
   // LVL-24: one more, a wall lower than storeyLowest set against its floor's height.
-  'packages/floorplan/src/geometry/tolerances.ts': [349, 'developer'],
+  // MSG-34: two more, what languageNamesLeast decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [351, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
