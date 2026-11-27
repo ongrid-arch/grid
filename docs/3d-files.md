@@ -43,10 +43,21 @@ would give one name.
 | `item_<item id>` | A fixture or a piece of furniture, as plain blocks |
 | `frame_<opening id>`, `leaf_<opening id>`, `glass_<opening id>` | A door's or window's frame, its leaves and its glass |
 | `slab_<floor id>`, `roof_<floor id>`, `parapet_<floor id>` | The slab a floor stands on, its roof and the parapet round it |
+| `ground_site` | The ground, cut to the plot, over every pool and over the floors that go down into it (GLB of the whole building, with a plot stated) |
+| `neighbour_<id>` | A neighbouring building or other shape of context, from the ground or its floor to its height |
+| `fence_<id>`, `gate_<id>`, `path_<id>`, `paving_<id>` | The site's fences and gates at their height, its paths and paving on the ground |
+| `trunk_<id>`, `crown_<id>` | A tree's trunk and its crown |
+| `water_<id>` | A pool's water, sunk into the ground below its edge |
 
 In a GLB of the whole building the root node is `building`, with a child node per floor named by
 the floor's id (`extras.gridFloor`, `extras.gridElevation`), and each floor's parts under it. A
-GLB of one floor has that floor's node as its root. The OBJ has no nodes: each floor's objects
+GLB of one floor has that floor's node as its root. CNT-60: a GLB of the whole building holds
+the site too, in one node `site` under `building`, at the datum: the ground at the site's level
+(`site.ground`, on a slope as the site states it) when the plot is stated, and the neighbours,
+fences, gates, paths, paving, trees and pools, each on the ground at its middle. Where the site
+states no height, depth or canopy, the figures drawn are Grid's own (`fenceDrawnHeight`,
+`treeDrawnHeight`, `treeDrawnCanopy`, `poolDrawnDepth` and the others in
+[tolerances.md](tolerances.md)). A GLB of one floor holds no site. The OBJ has no nodes: each floor's objects
 follow a comment line `# grid-floor "<id>" elevation=<metres>`.
 
 What the file leaves out, and the curves it writes as straight pieces, are in the GLB's
@@ -69,6 +80,12 @@ reaches every part of that kind:
 | `stair` | Stairs |
 | `column` | Columns |
 | `item` | Fixtures and furniture |
+| `cut` | Party walls (CNT-60: a separating wall, or one with a neighbour beyond it), drawn as cut |
+| `ground` | The ground |
+| `site` | Fences, gates, paths and paving |
+| `planting` | Trees |
+| `water` | Pools' water, seen through |
+| `context` | Neighbouring buildings and other shapes of context |
 
 The colours are plain and only tell the kinds apart; no material is metallic. A GLB lists only
 the materials it uses, always in this order. An OBJ names them with `usemtl <material>` after each

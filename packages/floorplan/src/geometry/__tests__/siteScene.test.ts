@@ -55,6 +55,8 @@ describe('the site in 3D', () => {
     expect(cut).toBeGreaterThan(0)
     expect(multiArea(sceneGround(plot, 40).pieces)).toBeCloseTo(20 * 18 - cut)
     expect(inPieces(sceneGround(plot, 40).pieces, { x: 20, y: 0 })).toBe(false)
+    expect(sceneGround(plot, 40).plot).toBe(true)
+    expect(sceneGround(flat(), 10).plot).toBeUndefined()
   })
 
   it('stands a neighbour on the ground, and one on a floor 4 m up at that floor', () => {

@@ -44,6 +44,8 @@ export interface SceneGround {
    * Each piece counter-clockwise with its holes clockwise.
    */
   readonly pieces: MultiPolygon
+  /** CNT-60: the ground is the plot the site states, not the square round the building. */
+  readonly plot?: true
 }
 
 /**
@@ -83,11 +85,12 @@ export function sceneGround(plan: FloorPlan, reach: number, elevations: Building
     // Nothing is cut: the ground lies whole round the building.
   }
 
-  const square = plotOf(plan) ?? groundSquare(plan, reach)
+  const plot = plotOf(plan)
+  const square = plot ?? groundSquare(plan, reach)
   // CNT-60: the pools are holes in the ground.
   for (const pool of poolOutlines(plan)) outlines.push([[[...pool.map((p): [number, number] => [p.x, p.y]), [pool[0]!.x, pool[0]!.y]]]])
   const pieces = outlines.length === 0 ? [square] : (cutOutline('difference', [square], outlines) ?? [square])
-  return { level, stated, ...(tilt === undefined ? {} : { tilt }), into, pieces }
+  return { level, stated, ...(tilt === undefined ? {} : { tilt }), into, pieces, ...(plot === null ? {} : { plot: true as const }) }
 }
 
 /** CNT-60: the plot's boundary as a closed ring, counter-clockwise; null when the site states none. */

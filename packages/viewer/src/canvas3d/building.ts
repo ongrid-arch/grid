@@ -179,6 +179,8 @@ export interface BuildingGround {
    * water, their heights moved as the ground's are, so they stand on it.
    */
   readonly site: readonly SiteBlock[]
+  /** CNT-60: the pieces are the plot the site states, drawn in the ground's own colour (`PLOT_COLOR`). */
+  readonly plot?: true
 }
 
 /**
@@ -198,7 +200,7 @@ export function buildingGround(plan: FloorPlan, layout: BuildingLayout, elevatio
   } catch {
     // No site drawn.
   }
-  return { y: ground.level - offset, pieces: buried ? [] : ground.pieces, ...(ground.tilt === undefined ? {} : { tilt: ground.tilt }), site }
+  return { y: ground.level - offset, pieces: buried ? [] : ground.pieces, ...(ground.tilt === undefined ? {} : { tilt: ground.tilt }), site, ...(ground.plot === true ? { plot: true as const } : {}) }
 }
 
 type Vec3 = [number, number, number]

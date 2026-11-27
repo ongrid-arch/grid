@@ -76,6 +76,8 @@ const ORDER = [
   'grid_add_ramp',
   'grid_set_site',
   'grid_change_site',
+  'grid_set_party_wall',
+  'grid_change_neighbour',
   'grid_set_plan',
   'grid_place_trace',
   'grid_annotate',
@@ -83,7 +85,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_set_finishes', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_write_building', 'grid_add_storey', 'grid_remove_building', 'grid_place_building', 'grid_set_levels', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_set_plan', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_set_finishes', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_write_building', 'grid_add_storey', 'grid_remove_building', 'grid_place_building', 'grid_set_levels', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_set_party_wall', 'grid_change_neighbour', 'grid_set_plan', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -193,7 +195,9 @@ describe('tools/list', () => {
     // elevation summed by hand (a tower's height came out wrong first every time).
     // 66 since CNT-51: the finishes of many rooms in one call, per wall face and in height bands,
     // which agents set one room a call and could not lay as a band (a splashback priced as the wall).
-    expect((await listed()).length).toBeLessThanOrEqual(66)
+    // 68 since CNT-60: party walls by a room's side and the neighbours round the plan, which agents
+    // could only write as the plan file's JSON, so the 3D views showed a terrace house free-standing.
+    expect((await listed()).length).toBeLessThanOrEqual(68)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -230,7 +234,7 @@ describe('tools/list', () => {
 
   it('says the units are metres wherever a tool takes or gives a length', async () => {
     for (const tool of await listed()) {
-      if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room', 'grid_project', 'grid_words', 'grid_remove_item', 'grid_add_storey', 'grid_remove_building'].includes(tool.name)) continue
+      if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room', 'grid_project', 'grid_words', 'grid_remove_item', 'grid_add_storey', 'grid_remove_building', 'grid_set_party_wall'].includes(tool.name)) continue
       expect(tool.description, tool.name).toMatch(/metres/)
     }
   })
@@ -350,6 +354,8 @@ describe('the tools on a two-bedroom flat', () => {
     grid_add_ramp: { plan: 'house.json', id: 'r', from: 'ground', to: 'first', width: 1.2, run: ['1.2,0.5', '1.2,4.5'], out: 'ramp.json' },
     grid_set_site: { plot_width: 15, plot_depth: 20, streets: ['south'], setbacks: ['all 2'], north: 30, out: 'sited.json' },
     grid_change_site: { action: 'add', kind: 'tree', at: '1,-2', canopy: 4, out: 'treed.json' },
+    grid_set_party_wall: { room: 'bed2', side: 'north', out: 'party.json' },
+    grid_change_neighbour: { action: 'add', id: 'no-12', at: '-8,0', width: 6, depth: 8, height: 9, out: 'neighboured.json' },
     grid_set_plan: { site_name: 'Harbour House', address: '12 Harbour Road', language: 'es', units: 'mm', floor_names: ['ground=Planta baja'], out: 'named.json' },
     grid_place_trace: { image: 'scan.png', calibrate_from: '0,0', calibrate_to: '100,0', length: 5, at: '-1,8', out: 'traced.json' },
     grid_annotate: { kind: 'tag', text: 'You are here', room: 'bed2', lines: ['route exit 1,1 1,-1'], out: 'annotated.json' },
@@ -409,7 +415,7 @@ describe('the tools on a two-bedroom flat', () => {
     const withFloor = GRID_TOOLS.filter((tool) => 'floor' in tool.args).map((tool) => tool.name)
     expect(withFloor.length).toBeGreaterThanOrEqual(6)
     for (const name of withFloor) {
-      const args = name === 'grid_stretch' ? { side: 'east', by: 0.3, floor: 'basement-99' } : name === 'grid_view' ? { kind: 'plan', floor: 'basement-99' } : name === 'grid_export' ? { plan: 'plan.json', format: 'dxf', floor: 'basement-99' } : name === 'grid_compare' ? { plans: ['plan.json', 'flat.json'], picture: true, floor: 'basement-99' } : name === 'grid_place_item' || name === 'grid_add_item' ? { name: 'wc', x: 1, y: 1, floor: 'basement-99' } : name === 'grid_move_item' ? { id: 'robe', x: 1, y: 1, floor: 'basement-99' } : name === 'grid_sheet' ? { plan: 'plan.json', layout: 'drawing', floor: 'basement-99' } : name === 'grid_place_bays' ? { group: 'p', room: 'bed2', floor: 'basement-99' } : { floor: 'basement-99' }
+      const args = name === 'grid_stretch' ? { side: 'east', by: 0.3, floor: 'basement-99' } : name === 'grid_view' ? { kind: 'plan', floor: 'basement-99' } : name === 'grid_export' ? { plan: 'plan.json', format: 'dxf', floor: 'basement-99' } : name === 'grid_compare' ? { plans: ['plan.json', 'flat.json'], picture: true, floor: 'basement-99' } : name === 'grid_place_item' || name === 'grid_add_item' ? { name: 'wc', x: 1, y: 1, floor: 'basement-99' } : name === 'grid_move_item' ? { id: 'robe', x: 1, y: 1, floor: 'basement-99' } : name === 'grid_sheet' ? { plan: 'plan.json', layout: 'drawing', floor: 'basement-99' } : name === 'grid_place_bays' ? { group: 'p', room: 'bed2', floor: 'basement-99' } : name === 'grid_change_neighbour' ? { action: 'add', points: ['20,0', '25,0', '25,5'], floor: 'basement-99' } : { floor: 'basement-99' }
       const reply = await b.call(name, args)
       expect(reply.isError, name).toBe(true)
       expect(reply.text, name).not.toContain('basement-99')
