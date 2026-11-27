@@ -146,6 +146,9 @@ is not asked whether it was typed in feet.
 | `leafThickness` | limit | 0.04 m | How thick a door leaf or panel is drawn in 3D, hung from the face of the wall it opens toward (CNT-14) |
 | `glassThickness` | limit | 0.02 m | How thick a window's glass is drawn in 3D, in the middle of its frame (CNT-14), and how far apart its two panes are on a plan drawn in detail (SHT-10) |
 | `floorLift` | limit | 0.005 m | How far a room's floor is raised above the slab it stands on in an OBJ or GLB, so the two never share a plane and flicker in a viewer (VEW-73) |
+| `wallPieceShortest` | limit | 0.05 m | The shortest piece a GLB writes a wall split at the rooms beside it as; a shorter stretch joins the piece before it (VEW-82) |
+| `doorOpenAngle` | limit | 90 degree | How far a GLB written with its doors open turns each swinging leaf on its hinge (VEW-82) |
+| `cameraNear` | limit | 0.05 m | How near a GLB's camera, made from a saved view, starts to see: its near plane (VEW-82) |
 | `liningOnFace` | tolerance | 0.02 m | How far a side of a room's inside outline may be from a wall's face and still be drawn as that face, tinted by the room's wall finish in 3D (VEW-78) |
 | `liningOffset` | limit | 0.002 m | How far into the room a wall finish is drawn off its wall's face in 3D, and a ceiling under the slab above, so each shows over what it covers; a band twice as far (VEW-78) |
 | `sillProjection` | limit | 0.03 m | How far a window's sill stands out from each face of its wall, and past each side of its hole, on a plan drawn in detail (SHT-10) |
