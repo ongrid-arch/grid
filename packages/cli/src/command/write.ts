@@ -13,7 +13,7 @@
  *
  * The tool server's `grid_write_rooms` does the same through `writeRoomsIntoProject`.
  */
-import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planFloors, roomShapes, validatePlan, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
+import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planFloors, roomShapes, validatePlan, withPatterns, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
 import { english, name, said, type Said } from '@ongrid/floorplan/messages'
 import { baseNamedIn, carryFacts, compileRoomsText, itemsFollowWalls, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedItem, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
@@ -404,7 +404,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const nextPlan = withShell(safeParseFloorPlan(next) ?? plan)
   const taped = tapedRows(nextPlan)
 
-  const verdict = before === null || own === null || nothingToLose(own) ? null : comparePlans(surveyPlan(before), surveyPlan(shelled), ['the plan before', 'the plan now']).verdict
+  const verdict = before === null || own === null || nothingToLose(own) ? null : comparePlans(surveyPlan(withPatterns(before)), surveyPlan(withPatterns(nextPlan)), ['the plan before', 'the plan now']).verdict
   // WRT-4 with LVL-8: the file's opening patterns are kept and name their walls by id, so the plan
   // written is counted with them, and what the new walls keep from being placed is said here.
   const patterns = before?.patterns ?? []

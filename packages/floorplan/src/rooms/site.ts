@@ -33,13 +33,13 @@
  */
 import { SITE_THING_KINDS, SiteSchema, type FloorPlan, type Site, type SiteThing, type SiteThingKind } from '../types/floorplan'
 import { metres, numberOf, pointOf, isPointWord, RoomsStop, type LineWord, type PlainNumbers, PLAIN_METRES } from './words'
-import { GROUND_LINE_WORD, groundOfWords } from './ground'
+import { GROUND_LINE_WORD, SLOPE_LINE_WORD, fallOfWords, groundLineOfWords, slopeLines, type GroundWords } from './ground'
 import { english, said } from '../messages/say'
 
 type P = readonly [number, number]
 
 /** The first words of the lines this file reads. */
-export const SITE_LINE_WORDS: readonly string[] = ['site', 'plot', 'street', 'streets', 'setback', 'setbacks', 'north', GROUND_LINE_WORD]
+export const SITE_LINE_WORDS: readonly string[] = ['site', 'plot', 'street', 'streets', 'setback', 'setbacks', 'north', GROUND_LINE_WORD, SLOPE_LINE_WORD]
 
 /** The sides of the drawing a street or a set-back may name (C4: north is up the drawing). */
 export const DRAWING_SIDES: Readonly<Record<string, P>> = { north: [0, 1], south: [0, -1], east: [1, 0], west: [-1, 0] }
@@ -265,6 +265,8 @@ export class SiteLines {
   private north: Written<number> | null = null
   private readonly fields = new Map<string, Written<unknown>>()
   private readonly things: Array<Written<SiteThing>> = []
+  // CNT-49: the ground along edges of the plot, one line each.
+  private readonly groundEdges: Array<Written<{ edge: number; start: number; end?: number }>> = []
   private readonly lines: number[] = []
 
   /** Whether the text writes any site line, north among them. */
@@ -290,8 +292,9 @@ export class SiteLines {
       return
     }
     if (kw === 'plot') return this.readPlot(t.slice(1), at, plain)
-    // ARE-62: `ground <m>`, the field `site ground <m>` writes too.
-    if (kw === GROUND_LINE_WORD) return this.ground(groundOfWords(t.slice(1), at, plain), at)
+    // ARE-62: `ground <m>`, the field `site ground <m>` writes too. CNT-49: and the ground on a slope.
+    if (kw === GROUND_LINE_WORD) return this.groundLine(groundLineOfWords(t.slice(1), at, plain), at)
+    if (kw === SLOPE_LINE_WORD) return this.groundLine({ kind: 'fall', fall: fallOfWords(t.slice(1), at) }, at)
     // `site ...`
     const what = t[1]
     if (what === 'plot') return this.readPlot(t.slice(2), at, plain)
@@ -320,12 +323,25 @@ export class SiteLines {
       return field('location', parts)
     }
     if (what === 'elevation' && rest.length === 1) return field(what, numberOf(rest[0]!, at, plain))
-    if (what === 'ground') return this.ground(groundOfWords(rest, at, plain), at)
+    if (what === 'ground') return this.groundLine(groundLineOfWords(rest, at, plain), at)
     if (what === 'country' && rest.length > 0) {
       const named = words.slice(2).map((w) => w.text).join(' ')
       return field('country', named)
     }
     stop(at, `write 'site boundary x,y x,y x,y ...', 'site origin x,y', 'site location <latitude>,<longitude>', 'site elevation <m>', 'ground <m>', 'site country <name>' or one of the site's things: 'site <${SITE_THING_KINDS.join('|')}> ...'.`)
+  }
+
+  /** CNT-49: a `ground` line: its level, or the sides or the fall (each written once), or an edge's levels. */
+  private groundLine(words: GroundWords, at: number): void {
+    if (words.kind === 'level') return this.ground(words.level, at)
+    if (words.kind === 'edge') {
+      this.groundEdges.push({ value: words.edge, line: at })
+      return
+    }
+    const key = words.kind === 'sides' ? 'groundSides' : 'fall'
+    const had = this.fields.get(key)
+    if (had !== undefined) throw new RoomsStop('rooms/site', english(said('rooms.ground.once', { line: String(at), first: String(had.line) })), at)
+    this.fields.set(key, { value: words.kind === 'sides' ? words.sides : words.fall, line: at })
   }
 
   /** The ground's level, from a `ground` or a `site ground` line, written once. */
@@ -408,6 +424,7 @@ export class SiteLines {
       } else site[key] = value
     }
     if (this.things.length > 0) site['things'] = this.things.map((t) => t.value)
+    if (this.groundEdges.length > 0) site['groundEdges'] = this.groundEdges.map((g) => g.value)
     const checked = SiteSchema.safeParse(site)
     if (!checked.success) {
       for (const issue of checked.error.issues) {
@@ -415,6 +432,8 @@ export class SiteLines {
         const line =
           head === 'things' && typeof index === 'number'
             ? this.things[index]?.line
+            : head === 'groundEdges' && typeof index === 'number'
+              ? this.groundEdges[index]?.line
             : head === 'setbacks' && typeof index === 'number'
               ? this.setbacks[Math.min(index, this.setbacks.length - 1)]?.line
               : head === 'streets'
@@ -470,6 +489,7 @@ export function siteLines(plan: Pick<FloorPlan, 'site' | 'north'>): string[] {
   if (site.latitude !== undefined && site.longitude !== undefined) lines.push(`site location ${site.latitude},${site.longitude}`)
   if (site.elevation !== undefined) lines.push(`site elevation ${metres(site.elevation)}`)
   if (site.ground !== undefined) lines.push(`ground ${metres(site.ground)}`)
+  lines.push(...slopeLines(site))
   if (site.country !== undefined) lines.push(`site country ${quote(site.country)}`)
   for (const thing of site.things ?? []) lines.push(thingLine(thing))
   return lines

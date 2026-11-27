@@ -31,6 +31,13 @@ export function groundGeometry(ground: BuildingGround): THREE.BufferGeometry {
       return shape
     })
   const geometry = new THREE.ShapeGeometry(shapes)
+  // CNT-49: on a slope, each point of the sheet lifted to the ground there, before it is turned.
+  const tilt = ground.tilt
+  if (tilt !== undefined) {
+    const position = geometry.getAttribute('position')
+    for (let i = 0; i < position.count; i++) position.setZ(i, tilt.at + tilt.x * position.getX(i) + tilt.y * position.getY(i))
+    position.needsUpdate = true
+  }
   geometry.applyMatrix4(MODEL_TO_THREE)
   geometry.translate(0, ground.y + GROUND_FILL.y, 0)
   return geometry

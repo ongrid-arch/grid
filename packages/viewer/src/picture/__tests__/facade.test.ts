@@ -232,3 +232,18 @@ describe('a doorless opening (reveals)', () => {
     expect(svg).not.toContain('fill-rule="evenodd"')
   })
 })
+
+describe('the ground on a slope (CNT-49)', () => {
+  it('draws the ground line and the paper under it following the ground along the face', () => {
+    const level = facadeToSvg(house(), { side: 'east', look: 'technical' })
+    const sloped = facadeToSvg({ ...house(), site: { groundSides: { north: 0, south: -2 } } }, { side: 'east', look: 'technical' })
+    const line = (svg: string): number[] => {
+      const tag = tags(svg, 'facade-ground')[0]!
+      return ['y1', 'y2'].map((k) => Number(new RegExp(`${k}="([^"]+)"`).exec(tag)![1]))
+    }
+    expect(line(level)[0]).toBe(line(level)[1])
+    expect(line(sloped)[0]).not.toBeCloseTo(line(sloped)[1]!, 3)
+    expect(tags(level, 'facade-below-ground')[0]).toMatch(/^<rect /)
+    expect(tags(sloped, 'facade-below-ground')[0]).toMatch(/^<path /)
+  })
+})

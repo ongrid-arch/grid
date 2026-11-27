@@ -66,3 +66,37 @@ describe('the ground level in rooms text', () => {
     expect(() => groundOfWords(['x'], 3)).toThrow(/line 3/)
   })
 })
+
+describe('the ground on a slope in rooms text (CNT-49)', () => {
+  const site = (...lines: string[]): unknown => {
+    const result = write(...lines)
+    expect(result.problems).toEqual([])
+    return result.plan!.site
+  }
+
+  it('reads the ground at the sides, a fall and the ground along an edge of the plot', () => {
+    expect(site('ground north 0 south -4.6')).toEqual({ groundSides: { north: 0, south: -4.6 } })
+    expect(site('ground -1', 'ground slope 30% toward south')).toEqual({ ground: -1, fall: { slope: 30, toward: 'south' } })
+    expect(site('slope 12 toward north-east')).toEqual({ fall: { slope: 12, toward: 'north-east' } })
+    expect(site('plot 15 x 30 at -3,-10', 'ground edge 1 0 to -3', 'ground edge 2 -3')).toMatchObject({ groundEdges: [{ edge: 1, start: 0, end: -3 }, { edge: 2, start: -3 }] })
+  })
+
+  it('refuses a line it cannot read, naming the forms it takes', () => {
+    expect(refused('ground north 0 north 1')).toMatch(/^Line 4: write the ground at the building's sides/)
+    expect(refused('ground slope 30% downhill')).toMatch(/^Line 4: write a fall as 'ground slope <percent> toward <point>'/)
+    expect(refused('ground edge x 0')).toMatch(/^Line 4: write the ground along an edge of the plot/)
+    expect(refused('ground north 0', 'ground south -1')).toBe("Line 5: the ground level is written on line 4 already: write it once, as 'ground <m>'.")
+    expect(refused('plot 15 x 30 at -3,-10', 'ground edge 9 0')).toMatch(/names edge 9, but the boundary has 4 edges/)
+  })
+
+  it('is read back as its lines, and writing them again gives the same plan', () => {
+    const first = write('plot 15 x 30 at -3,-10', 'ground -0.5', 'ground north 0 south -2.8', 'ground slope 10% toward south-west', 'ground edge 1 0 to -3')
+    expect(first.problems).toEqual([])
+    const plan = safeParseFloorPlan(first.plan)!
+    const back = readRoomsText(plan)
+    expect(back.text).toContain('ground -0.5\nground north 0 south -2.8\nground slope 10% toward south-west\nground edge 1 0 to -3')
+    const again = compileRoomsText(back.text)
+    expect(again.problems).toEqual([])
+    expect(again.plan!.site).toEqual(plan.site)
+  })
+})
