@@ -8,7 +8,7 @@ section explains. Rooms text, the main way to write a plan, is in
 
 - [What a plan file may hold](#what-a-plan-file-may-hold)
 - [What kind of building it is, and what each room is for](#what-kind-of-building-it-is-and-what-each-room-is-for): `plan/not-checked-sizes-for-building`, `plan/not-checked-escapes-for-building`, `floor/not-checked-sizes-for-building`, `floor/not-checked-escapes-for-building`, `plan/unknown-use`
-- [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
+- [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/wall-heights-differ`, `floor/height-past-next`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `floor/gap-under-slab`, `floor/walls-past-floor`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
@@ -273,11 +273,28 @@ the building's box, which the 3D view frames, still ends on the highest storey t
 that is on, so a loft stated inside a taller storey does not shrink it. The 3D view, the IFC export
 and the sheet all read the floors' heights from this one rule.
 
+A floor's floor-to-floor is the distance from its level to the level of the floor over it in its
+building, and the top floor's to the top of its roof slab, so a building's height is its floors'
+floor-to-floor summed (LVL-24). The plan holds no field for it: it is the difference of two
+floors' `elevation`, which is how `grid_set_levels` writes it. Given a floor-to-floor for every
+floor, one building's or the floors listed, it keeps the lowest floor at or above level 0 where it
+stands, stands each floor over it its floor-to-floor over the one under it (and each basement its
+floor-to-floor under the one over it), and gives each floor set the floor-to-floor less the slab
+over it as its `height`, so its walls meet that slab; a ceiling under the slab is the rooms'
+`height`. Its answer, and the answer to writing a plan of more than one level, lists each floor's
+level, floor-to-floor and clear height, and the building's height with the datum it is measured
+from: the ground floor's floor level, the site's ground or a building's pad.
+
 The drawing's checks ask about levels that do not add up, as warnings: a missing level
 (`plan/level-gap`, a flat on level 3 drawn alone stands on the ground until it states its
 elevation), two floors at one level one over the other (`plan/same-level`), an empty top floor
 that still counts as a storey (`floor/empty-top`), a wall taller than the height its floor states
-(`wall/above-storey`) and a floor height far outside a storey's (`floor/size-question`): higher
+(`wall/above-storey`), walls a storey high (at least `storeyLowest`) that state another height of
+their own than the one their floor states, said once for the floor with which won: each wall stands
+at its own, and the floor's stacks the storey (`floor/wall-heights-differ`), a clear height that
+with the slab of the floor over it runs past that floor's level, a floor-to-floor written as the
+height (`floor/height-past-next`; walls that rise past it are said as `floor/walls-past-floor`
+instead), and a floor height far outside a storey's (`floor/size-question`): higher
 than a wall is asked about, or lower than a storey a person stands in (`storeyLowest`, 2 m, Grid's
 own size). A floor with another floor over it that states no height is asked about when its
 tallest wall, which then sets its storey, is lower than that (the top floor is not: its low walls

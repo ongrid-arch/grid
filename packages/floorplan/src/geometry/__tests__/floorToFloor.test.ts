@@ -65,12 +65,12 @@ describe('floor-to-floor read from where the floors stand', () => {
 describe('the levels a floor-to-floor gives', () => {
   const forty = Array.from({ length: 40 }, (_, i) => ({ id: `l${i}`, level: i }))
 
-  it('stacks forty storeys at 3.9 m to 156 m, every floor stated but the first, each clear to the slab over it', () => {
+  it('stacks forty storeys at 3.9 m to 156 m, every floor stated but the first, each high to the slab over it', () => {
     const plan = tower(forty)
     const { set, problems } = levelsSetTo(plan, { floorToFloor: 3.9 })
     expect(problems).toEqual([])
-    expect(set.find((s) => s.floor === 'l0')).toEqual({ floor: 'l0', height: 3.65, clear: 'filled' })
-    expect(set.find((s) => s.floor === 'l39')).toEqual({ floor: 'l39', elevation: 152.1, height: 3.65, clear: 'filled' })
+    expect(set.find((s) => s.floor === 'l0')).toEqual({ floor: 'l0', height: 3.65, was: null, set: true })
+    expect(set.find((s) => s.floor === 'l39')).toEqual({ floor: 'l39', elevation: 152.1, height: 3.65, was: null, set: true })
     const after = applied(plan, set)
     expect(buildingHeight(after)!.height).toBeCloseTo(156, 6)
     expect(planLevels(after).every((l) => Math.abs(l.floorToFloor - 3.9) < 1e-9)).toBe(true)
@@ -78,30 +78,30 @@ describe('the levels a floor-to-floor gives', () => {
   })
 
   it('sets one floor and moves the floors over it, keeping theirs', () => {
-    const plan = applied(tower(forty.slice(0, 3)), levelsSetTo(tower(forty.slice(0, 3)), { floorToFloor: 3 }).set)
+    const three = tower(forty.slice(0, 3))
+    const plan = applied(three, levelsSetTo(three, { floorToFloor: 3 }).set)
     const { set } = levelsSetTo(plan, { floorToFloor: 4.5, floors: ['l0'] })
     expect(set).toEqual([
-      { floor: 'l0', clear: 'kept' },
-      { floor: 'l1', elevation: 4.5, clear: 'untouched' },
-      { floor: 'l2', elevation: 7.5, clear: 'untouched' },
+      { floor: 'l0', height: 4.25, was: 2.75, set: true },
+      { floor: 'l1', elevation: 4.5, set: false },
+      { floor: 'l2', elevation: 7.5, set: false },
     ])
   })
 
-  it('keeps a stated clear height, or sets the one given', () => {
+  it('wins over a height the floor stated, and says what it was', () => {
     const plan = tower([{ id: 'g', level: 0, height: 2.7 }, { id: 'f', level: 1 }])
     expect(levelsSetTo(plan, { floorToFloor: 3.9 }).set).toEqual([
-      { floor: 'g', clear: 'kept' },
-      { floor: 'f', elevation: 3.9, height: 3.65, clear: 'filled' },
+      { floor: 'g', height: 3.65, was: 2.7, set: true },
+      { floor: 'f', elevation: 3.9, height: 3.65, was: null, set: true },
     ])
-    expect(levelsSetTo(plan, { floorToFloor: 3.9, clear: 2.6 }).set.map((s) => s.height)).toEqual([2.6, 2.6])
   })
 
   it('hangs a basement its floor-to-floor under the ground floor', () => {
     const plan = tower([{ id: 'b', level: -1 }, { id: 'g', level: 0 }])
     const { set } = levelsSetTo(plan, { floorToFloor: 3.2 })
     expect(set).toEqual([
-      { floor: 'b', elevation: -3.2, height: 2.95, clear: 'filled' },
-      { floor: 'g', height: 2.95, clear: 'filled' },
+      { floor: 'b', elevation: -3.2, height: 2.95, was: null, set: true },
+      { floor: 'g', height: 2.95, was: null, set: true },
     ])
     expect(planLevels(applied(plan, set)).map((l) => l.floorLevel)).toEqual([-3.2, 0])
   })
@@ -111,11 +111,11 @@ describe('the levels a floor-to-floor gives', () => {
     expect(levelsSetTo(plan, { floorToFloor: 4, building: 'b' }).set.map((s) => s.floor)).toEqual(['b0', 'b1'])
   })
 
-  it('refuses a floor-to-floor no taller than the slab, and a clear height that does not fit', () => {
+  it('refuses a floor-to-floor no taller than the slab, and a ceiling that does not fit', () => {
     const plan = tower([{ id: 'g', level: 0 }, { id: 'f', level: 1, slab: 0.3 }])
     expect(levelsSetTo(plan, { floorToFloor: 0.3 }).problems[0]).toEqual({ kind: 'no-room', floor: 'g', slab: 0.3 })
-    expect(levelsSetTo(plan, { floorToFloor: 3, clear: 2.8 }).problems[0]).toEqual({ kind: 'clear-too-tall', floor: 'g', fits: 2.7 })
-    expect(levelsSetTo(plan, { floorToFloor: 3, clear: 2.8 }).set).toEqual([])
+    expect(levelsSetTo(plan, { floorToFloor: 3, ceiling: 2.8 }).problems[0]).toEqual({ kind: 'ceiling-too-tall', floor: 'g', fits: 2.7 })
+    expect(levelsSetTo(plan, { floorToFloor: 3, ceiling: 2.8 }).set).toEqual([])
   })
 })
 

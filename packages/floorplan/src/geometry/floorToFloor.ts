@@ -122,35 +122,37 @@ export interface FloorToFloorRequest {
   readonly floors?: readonly string[]
   /** The building whose floors it is set on, by id; every building when left out. */
   readonly building?: string
-  /** A clear height set on the same floors, m. */
-  readonly clear?: number
+  /** The rooms' height on the same floors, floor to ceiling, m: checked to fit under the slab over them. */
+  readonly ceiling?: number
 }
 
-/** What one floor is set to: its new elevation (when it moves or must be stated) and its clear height. */
+/** What one floor is set to: its new elevation (when it moves or must be stated) and its height. */
 export interface FloorSet {
   readonly floor: string
   readonly elevation?: number
+  /** The floor-to-floor less the slab over it, so its walls with no height of their own meet that slab. */
   readonly height?: number
-  /** How its height was come by: given, filled (floor-to-floor less the slab over it, where it stated none) or kept as stated. */
-  readonly clear: 'given' | 'filled' | 'kept' | 'untouched'
+  /** The height it stated before, when it stated another; null when it stated none. Left out for a floor not set. */
+  readonly was?: number | null
+  /** Whether the floor-to-floor is set on it, or it only moves with the floors under it. */
+  readonly set: boolean
 }
 
 /** Why a floor-to-floor cannot be set, with the figures. */
 export type FloorToFloorProblem =
   | { readonly kind: 'no-room'; readonly floor: string; readonly slab: number }
-  | { readonly kind: 'clear-too-tall'; readonly floor: string; readonly fits: number }
+  | { readonly kind: 'ceiling-too-tall'; readonly floor: string; readonly fits: number }
 
 /**
- * The elevations and clear heights a floor-to-floor gives (`request`), per building: the lowest
- * level at or above 0 (else the highest below it) keeps where it stands, each level above it stands
- * its floor-to-floor over the one under it and each level below it its own floor-to-floor under the
- * one over it. The levels set take `request.floorToFloor`; the others keep the floor-to-floor they
- * have now, so a call for one floor moves the floors over it with it. Every floor that moves, and
- * every floor of a level set but the one that keeps its place, gets its elevation stated. A floor
- * set takes `request.clear` as its height when given; else one that states no height takes its
- * floor-to-floor less the slab over it, so its walls meet that slab; one that states a height keeps
- * it. Problems (a floor-to-floor no taller than the slab over it, a clear height that with that slab
- * runs past it) are returned instead, and nothing is set.
+ * The elevations and heights a floor-to-floor gives (`request`), per building: the lowest level at
+ * or above 0 (else the highest below it) keeps where it stands, each level above it stands its
+ * floor-to-floor over the one under it and each level below it its own floor-to-floor under the one
+ * over it. The levels set take `request.floorToFloor`; the others keep the floor-to-floor they have
+ * now, so a call for one floor moves the floors over it with it. Every floor that moves, and every
+ * floor of a level set but the one that keeps its place, gets its elevation stated. A floor set
+ * takes the floor-to-floor less the slab over it as its height, so its walls meet that slab, and
+ * says the height it stated before. Problems (a floor-to-floor no taller than the slab over it, a
+ * ceiling that with that slab runs past it) are returned instead, and nothing is set.
  */
 export function levelsSetTo(plan: FloorPlan, request: FloorToFloorRequest): { readonly set: readonly FloorSet[]; readonly problems: readonly FloorToFloorProblem[] } {
   const elevations = floorElevations(plan)
@@ -169,7 +171,7 @@ export function levelsSetTo(plan: FloorPlan, request: FloorToFloorRequest): { re
       if (!hit[i]) continue
       const first = read.get(levels[i]![0]!.id)!
       if (ftf[i]! <= first.slabOver) problems.push({ kind: 'no-room', floor: first.floor, slab: first.slabOver })
-      else if (request.clear !== undefined && request.clear + first.slabOver > ftf[i]! + 1e-9) problems.push({ kind: 'clear-too-tall', floor: first.floor, fits: mm(ftf[i]! - first.slabOver) })
+      else if (request.ceiling !== undefined && request.ceiling + first.slabOver > ftf[i]! + 1e-9) problems.push({ kind: 'ceiling-too-tall', floor: first.floor, fits: mm(ftf[i]! - first.slabOver) })
     }
     const baseAt = levels.findIndex((fs) => levelOf(fs[0]!) >= 0)
     const base = baseAt < 0 ? levels.length - 1 : baseAt
@@ -182,15 +184,12 @@ export function levelsSetTo(plan: FloorPlan, request: FloorToFloorRequest): { re
         if (now === undefined) continue
         const moves = Math.abs(now.floorLevel - at[i]!) > 1e-9
         const elevation = moves || (hit[i] && i !== base) ? at[i]! : undefined
-        let height: number | undefined
-        let clear: FloorSet['clear'] = 'untouched'
-        if (hit[i]) {
-          if (request.clear !== undefined) [height, clear] = [request.clear, 'given']
-          else if (!now.heightStated) [height, clear] = [mm(ftf[i]! - now.slabOver), 'filled']
-          else clear = 'kept'
+        if (!hit[i]) {
+          if (elevation !== undefined) set.push({ floor: floor.id, elevation, set: false })
+          continue
         }
-        if (elevation === undefined && height === undefined && clear === 'untouched') continue
-        set.push({ floor: floor.id, ...(elevation === undefined ? {} : { elevation }), ...(height === undefined ? {} : { height }), clear })
+        const was = finite(floor.height) && floor.height > 0 ? floor.height : null
+        set.push({ floor: floor.id, ...(elevation === undefined ? {} : { elevation }), height: mm(ftf[i]! - now.slabOver), was, set: true })
       }
     })
   }

@@ -163,7 +163,7 @@ is not asked whether it was typed in feet.
 | `wallHigherThanTypical` | limit | 4 ratio | A wall this many times higher than the typical one on its floor (with three others or more) is questioned |
 | `openingNarrowest` | limit | 0.2 m | A narrower opening is questioned; whether a door is a way through is `passableWidth` |
 | `openingLowest` | limit | 0.2 m | A lower opening is questioned |
-| `storeyLowest` | limit | 2 m | Grid's own size, not a code figure: a floor stating a lower height is questioned, and one under another floor stating none whose tallest wall is lower; a floor under a roof of its own only below `wallLowest` (LVL-18) |
+| `storeyLowest` | limit | 2 m | Grid's own size, not a code figure: a floor stating a lower height is questioned, and one under another floor stating none whose tallest wall is lower; a floor under a roof of its own only below `wallLowest` (LVL-18); a lower wall is no storey high, and its own height is not set against its floor's (LVL-24) |
 | `stairDoorLowest` | limit | 1.8 m | Grid's own size, not a code figure: a lower door or doorless opening onto a room used as a stair or a lift is questioned (LVL-18) |
 | `roomLargest` | limit | 50000 m² (1000 in a home, 500000 in a hall) | A larger room is questioned |
 | `typicalHeightLowest` | limit | 1.8 m | The units question: the typical wall height of a building, from this… |

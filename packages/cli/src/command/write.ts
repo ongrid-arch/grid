@@ -32,6 +32,7 @@ import { refuseGridFile } from './planFile'
 import { nameNotes, PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
 import { PROJECT_OPTION, type OptionSpecs } from './options'
 import { droppedWords, floorsDropped, type DroppedFloor } from './writeLoss'
+import { levelLines } from '../edit/levels'
 
 export const WRITE_OPTIONS: OptionSpecs = {
   '--plan': {
@@ -423,6 +424,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     // CMD-30: a new name that reads as an instruction or holds a person's name, said gently.
     ...nameNotes(next, before === null ? null : raw, occupancyFileOf(written)).map(english),
     ...(verdict === null ? [] : [verdict]),
+    // LVL-24: every floor's level and floor-to-floor, and the height from its datum, for a plan of more than one level.
+    ...levelLines(nextPlan),
     ...(dropped.length === 0 ? [] : [`Floors dropped, as asked: ${dropped.slice(0, 10).map(droppedWords).join('; ')}${dropped.length > 10 ? ` and ${dropped.length - 10} more` : ''}.`]),
     ...(carried === null || carried.kept === 0 ? [] : [`Facts of your own and room numbers kept by id on ${carried.kept} part${carried.kept === 1 ? '' : 's'}.`]),
     ...(carried === null || carried.lost.length === 0 ? [] : [`Not in the text, so their facts and numbers are gone with them: ${carried.lost.slice(0, 10).join(', ')}${carried.lost.length > 10 ? ` and ${carried.lost.length - 10} more` : ''}.`]),
