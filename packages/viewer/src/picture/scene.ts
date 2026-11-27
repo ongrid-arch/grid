@@ -23,7 +23,7 @@
  * Pure: no DOM, no React.
  */
 import type { Dimension, Ghosts, OpeningSymbol, PlanAbove, PlanDrawing, PlanOpening, PlanRoom, PlanWall, ScheduleMark, SymbolPart, Vec2, WallDrawnKind } from '@ongrid/floorplan/geometry'
-import { boundsWithDimensions, guessedDoorKind, hatchLines, openingDetail, openingSymbol, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
+import { boundsWithDimensions, guessedDoorKind, hatchLines, openingDetail, openingSymbol, roomDimensions, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
 import type { DoorHanding } from '../canvas2d/doorHanding'
 import { doorSymbolOf } from '../canvas2d/doorSymbol'
 import { openingAt, stripAcross } from '../canvas2d/strip'
@@ -45,8 +45,10 @@ import {
   placeDimensionLabel,
   placeRoomLabels,
   roomNumbers,
+  sizeText,
   withDisplay,
 } from '../canvas2d/labelPlacement'
+import { showArea } from '@ongrid/floorplan/types/units'
 import type { Viewport } from '../canvas2d/viewport'
 import { FRAME_MARGIN, pathOf, roomPathOf } from '../canvas2d/viewport'
 import type { Look, PlanLook } from './look'
@@ -742,7 +744,7 @@ function tintOf(look: Look, by: SceneShow['colourBy'], id: string, input: SceneI
 function labelNode(label: PlacedLabel, name: string, area: string[] | null, opacity: number | undefined, mpp: number, paint: Paints, key: string): SvgNode {
   const { form } = label
   const transform = `${labelTransform(label.at, mpp)}${form.angle === 0 ? '' : ` rotate(${-form.angle})`}`
-  if (form.scale === 1 && !form.keyed && form.names.length === 1 && form.area !== null) {
+  if (form.scale === 1 && !form.keyed && form.names.length === 1 && form.area !== null && (form.more ?? []).length === 0) {
     return el(
       'g',
       { transform, opacity },
@@ -760,7 +762,9 @@ function labelNode(label: PlacedLabel, name: string, area: string[] | null, opac
     { transform, opacity, ...(form.keyed ? { 'data-keyed': form.names[0]!, 'data-name': name } : {}) },
     [
       ...form.names.map((line, i) => el('text', { 'data-part': 'label', ...(i === 0 ? {} : { dy: lengthText(lines.names[i]!) }), ...size(paint.label, TEXT_PX.roomName) }, [line])),
-      ...(form.area === null || area === null || lines.area === null ? [] : [el('text', { 'data-part': 'area', dy: lengthText(lines.area), ...size(paint.area, TEXT_PX.roomArea) }, area)])
+      ...(form.area === null || area === null || lines.area === null ? [] : [el('text', { 'data-part': 'area', dy: lengthText(lines.area), ...size(paint.area, TEXT_PX.roomArea) }, area)]),
+      // VEW-76: the room's sizes under its area.
+      ...(form.more ?? []).map((line, i) => el('text', { 'data-part': 'size', dy: lengthText(lines.more[i]!), ...size(paint.area, TEXT_PX.roomArea) }, [line]))
     ],
     key
   )
@@ -779,7 +783,7 @@ export function roomKeyOf(nodes: readonly SvgNode[]): { readonly number: string;
 }
 
 export function planScene(input: SceneInput): SvgNode[] {
-  return withDisplay(input.labels?.display, () => planSceneIn(input))
+  return withDisplay(input.labels?.display, () => planSceneIn(input), input.labels?.alsoIn)
 }
 
 function planSceneIn(input: SceneInput): SvgNode[] {
@@ -796,7 +800,9 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   const picked = show.paint ?? null
   const fillOf = (room: PlanRoom): Attrs => {
     const colour = picked?.get(room.id)
-    const base = { ...(room.outdoor ? paint.outdoorRoom : paint.room), ...tintOf(look, show.colourBy, room.id, input) }
+    // VEW-76: in a look for people an outdoor space keeps its own green, never a use's grey.
+    const tint = room.outdoor && look.forPeople !== undefined ? {} : tintOf(look, show.colourBy, room.id, input)
+    const base = { ...(room.outdoor ? paint.outdoorRoom : paint.room), ...tint }
     return colour === undefined ? base : { ...base, fill: colour, 'fill-opacity': 0.45 }
   }
   // SHT-10: the detail a drawing at 1:50 or larger shows, in a look that has it.
@@ -1377,13 +1383,16 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     )
   })
 
+  // VEW-76: the area again in a second display, after the drawing's own.
+  const also = style.alsoIn
+  const alsoArea = (area: number): string => (also === undefined ? '' : ` (${showArea(area, also, also.area === 'ft2' ? 0 : 1)})`)
   // Measure the text as drawn, including the wider area line on a review picture.
   const areaText = (room: PlanRoom): string => {
     if (!show.areas) return ''
     const change = live.areaChange(room.id)
     return change
       ? `${areaNumber(change.before, decimals)} → ${areaNumber(change.after, decimals)} ${areaUnit()}`
-      : formatArea(room.area, decimals)
+      : `${formatArea(room.area, decimals)}${alsoArea(room.area)}`
   }
   // The same text in the pieces the app has always drawn it in, one text node each.
   const areaPieces = (room: PlanRoom): string[] => {
@@ -1391,7 +1400,15 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     const change = live.areaChange(room.id)
     return change
       ? [areaNumber(change.before, decimals), ' → ', areaNumber(change.after, decimals), ` ${areaUnit()}`]
-      : [areaNumber(room.area, decimals), ` ${areaUnit()}`]
+      : [areaNumber(room.area, decimals), ` ${areaUnit()}`, ...(also === undefined ? [] : [alsoArea(room.area)])]
+  }
+  // VEW-76: a rectangular room's width × depth, from the core's room dimensions, on a line under its area.
+  const sizeLines = (room: PlanRoom): string[] => {
+    if (!style.sizes) return []
+    const sides = roomDimensions(room, drawing.walls)
+    const width = sides.find((dim) => dim.id === `${room.id}-width`)
+    const depth = sides.find((dim) => dim.id === `${room.id}-depth`)
+    return width === undefined || depth === undefined ? [] : [sizeText(width.value, depth.value, also)]
   }
   // WRT-43: a room with no name is labelled with its id, so it is never drawn as a blank.
   const names = drawing.rooms.map((room, index) => {
@@ -1466,7 +1483,9 @@ function planSceneIn(input: SceneInput): SvgNode[] {
         ? `${numbers[index]} ${names[index]}`
         : names[index]!,
       areaText: areaText(room),
-      number: numbers[index]!
+      number: numbers[index]!,
+      ...(style.sizes ? { more: sizeLines(room) } : {}),
+      ...(style.large ? { large: true } : {})
     })),
     labelObstacles,
     mpp,

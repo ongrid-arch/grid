@@ -6,7 +6,7 @@
 import type { FloorPlan } from '@ongrid/floorplan/geometry'
 import { levelText, type SectionLine } from '@ongrid/floorplan/geometry/section'
 import { sectionView } from '../draw/views'
-import { namedLook, type LookName } from '../draw/viewNames'
+import { drawingLook, type LookName } from '../draw/viewNames'
 import { m, type Answer } from './toolkit'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { DEFAULT_LANGUAGE, say, type Language } from '@ongrid/floorplan/messages'
@@ -16,7 +16,7 @@ const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : '
 
 /** MSG-11: the picture's own words are in `language`; the answer's text stays the tool's English, as a facade's does. */
 export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: LookName, language?: Language, display?: Display): Promise<Answer & { readonly image: NonNullable<Answer['image']>; readonly picture: { readonly svg?: () => string; readonly bounds: null } }> {
-  const look = asked === namedLook(asked) ? asked : `${namedLook(asked)} (asked as ${asked})`
+  const look = asked === drawingLook(asked) ? asked : `${drawingLook(asked)} (asked as ${asked})`
   const view = await sectionView(plan, line, asked, language, display)
   const { section } = view
   const walls = section.parts.filter((p) => p.kind === 'wall').length

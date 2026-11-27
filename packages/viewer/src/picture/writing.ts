@@ -222,17 +222,30 @@ const HATCH_SWATCH_PX = 3
  * the title on the first line, then the key's entries side by side, wrapping. Null with neither.
  * The title is the plan's own, as written; the key's heading is in `words`' language.
  */
-export function writingBand(title: string | null, entries: readonly KeyEntry[], width: number, look: PlanLook, words: DrawingWords = ENGLISH_WORDS, notes: readonly string[] = []): PictureKey | null {
-  if (title === null && entries.length === 0 && notes.length === 0) return null
+export function writingBand(title: string | null, entries: readonly KeyEntry[], width: number, look: PlanLook, words: DrawingWords = ENGLISH_WORDS, notes: readonly string[] = [], totals: readonly string[] = [], textScale = 1): PictureKey | null {
+  if (title === null && entries.length === 0 && notes.length === 0 && totals.length === 0) return null
   const nodes: SvgNode[] = []
   let y = MARGIN_PX
+  // VEW-76: the title and the totals larger in large print.
+  const titlePx = TEXT_PX.title * textScale
   if (title !== null) {
-    const lines = wrapText(title, TEXT_PX.title, Math.max(width - 2 * MARGIN_PX, 80))
+    const lines = wrapText(title, titlePx, Math.max(width - 2 * MARGIN_PX, 80))
     lines.forEach((line) => {
-      y += TEXT_PX.title
-      nodes.push(el('text', { 'data-part': 'title', x: MARGIN_PX, y: n(y), fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.title }, [line]))
+      y += titlePx
+      nodes.push(el('text', { 'data-part': 'title', x: MARGIN_PX, y: n(y), fill: look.label, 'font-family': look.font, 'font-size': n(titlePx) }, [line]))
       y += 6
     })
+  }
+  // VEW-76: the floor's totals with their rule, under the title, on a picture for people.
+  if (totals.length > 0) {
+    const totalPx = TEXT_PX.note * textScale
+    y += 4
+    for (const total of totals) {
+      for (const line of wrapText(total, totalPx, Math.max(width - 2 * MARGIN_PX, 80))) {
+        nodes.push(el('text', { 'data-part': 'total', x: MARGIN_PX, y: n(y + totalPx), fill: look.label, 'font-family': look.font, 'font-size': n(totalPx) }, [line]))
+        y += LINE_PX_KEY * textScale
+      }
+    }
   }
   if (entries.length > 0) {
     y += 8

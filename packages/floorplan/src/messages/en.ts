@@ -2775,6 +2775,9 @@ export const en = {
   'drawing.picture.empty': 'Floor plan',
   'drawing.key': 'Key',
   'drawing.notes': 'Notes',
+  // VEW-76: the floor's total under a picture for people, with its rule, in the drawing's units and the other.
+  'drawing.total': 'Floor area {area}{also}: the floor inside each room\'s walls, added up (net area)',
+  'drawing.total.outdoor': 'Outdoor space {area}{also}, not in the floor area',
   'drawing.key.rooms': 'Rooms',
   'drawing.key.outsideWall': 'Outside wall',
   'drawing.key.insideWall': 'Inside wall',
