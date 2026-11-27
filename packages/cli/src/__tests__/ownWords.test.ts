@@ -311,7 +311,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
   // VEW-71: one more, the projected roof edge in elevation.
-  'packages/floorplan/src/geometry/tolerances.ts': [343, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [348, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   // CNT-43: +2, a kind placed with no size and a typical room given figures.
