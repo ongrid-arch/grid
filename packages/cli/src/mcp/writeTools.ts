@@ -841,6 +841,11 @@ const writeRoomsTool: GridTool = {
   },
   outputSchema: objectSchema({
     written: STRING,
+    origin: objectSchema({
+      drawing: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 },
+      wallBoundsCorner: { type: ['array', 'null'], items: NUMBER, minItems: 2, maxItems: 2 },
+      site: { type: ['array', 'null'], items: NUMBER, minItems: 2, maxItems: 2 },
+    }),
     rooms: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, width: { type: 'number' }, depth: { type: 'number' }, area: { type: 'number' }, basis: { type: ['string', 'null'] } })),
     walls: { type: 'number' },
     openings: { type: 'number' },
@@ -908,6 +913,7 @@ const writeRoomsTool: GridTool = {
           text: done.lines.join('\n').replace(/--replace/g, 'replace=true').replace(/grid check/g, 'grid_check'),
           data: {
             written: done.written,
+            origin: done.origin,
             rooms: c.roomFacts.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
             walls: c.plan.walls.length,
             openings: c.plan.openings.length,
@@ -950,6 +956,7 @@ const writeRoomsTool: GridTool = {
           text: read.lines.join('\n').replace(/--replace/g, 'replace=true').replace(/grid write (\S+\.rooms)/g, 'grid_write_rooms roomsFile=$1'),
           data: {
             written: done.written,
+            origin: done.origin,
             rooms: r.rooms.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
             walls: r.walls.length,
             openings: r.openings.length,
@@ -992,6 +999,7 @@ const writeRoomsTool: GridTool = {
         text: [...(laid?.lines ?? done.lines), ...onCircleLines(done.plan, context.language ?? 'en'), ...languageLine].join('\n'),
         data: {
           written: done.written,
+          origin: done.origin,
           rooms: r.rooms.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
           walls: r.walls.length,
           openings: r.openings.length,

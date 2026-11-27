@@ -418,6 +418,37 @@ edit and be in every export. A facade or a section asked for in either look is d
 working look, and the answer says so. `grid draw --look simple` and `--look large` write the same
 pictures to a file.
 
+## Floor frames and pixel coordinates
+
+Draw each floor with `grid_view kind=plan floor=<id>` to make aligned maps. The default
+`frame=building` uses the extent of every floor at the same drawing settings, so a lift
+or other point at the same plan coordinates has identical pixels across floors.
+`frame=floor` fits just the selected floor. Crops and tiles use their own frames.
+`floor=all` makes one side-by-side picture with a shared frame inside each panel.
+
+For a single orthographic drawing, `pixelToMetres` gives six coefficients
+`[a, b, c, d, e, f]`. A pixel position `(x, y)` measured right and down from the
+image's top-left edge maps to `(a*x + b*y + e, c*x + d*y + f)` in metres.
+`area` is the part of the image covered by the drawing, in pixels, excluding keys and
+captions. The `space` is `plan` for drawing x and y, `section` for horizontal position
+on the cut and height, or `facade` for horizontal position along the elevation and
+height. The first pixel centre is at `(0.5, 0.5)`. In `floor=all`, each entry in
+`panels` gives the floor and its transform from the full image's top-left edge.
+Perspective pictures give their camera and a null `pixelToMetres` value.
+
+When `out` is given, the same transform or panel transforms go into the `.view.json`.
+A PNG of a single orthographic drawing also gets a `.pgw` world file in the same
+folder, with its path in `worldFile`. The world file uses the first pixel centre
+and the drawing's metre coordinates. For a world file per floor, write each floor
+as a separate PNG. Grid asks for a fresh PNG name when a view without a single
+transform would reuse an existing world file.
+
+`grid_write_rooms` reports `origin` in metres, with the fixed drawing origin
+`drawing`, the lower-left corner of the walls' centre-line bounds
+`wallBoundsCorner`, and the optional `site` reference point. The rooms-text line
+`site origin x,y` sets the reference used by exports at survey coordinates. The picture
+transform uses the plan's drawing coordinates.
+
 ## A camera you can set, and saved views
 
 Read this when the person asks for a 3D view from somewhere in particular ("the living room from
