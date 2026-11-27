@@ -274,6 +274,10 @@ function onward(floor: FloorRoutes): { readonly room: string; readonly opening: 
   return [...graph.undrawn, ...graph.common, ...edges]
 }
 
+/** ARE-70: whether a floor has a way on onto the building's common parts: a door, or an open side. */
+const reachesCommon = (floor: FloorRoutes): boolean =>
+  floor.graph.common.length > 0 || floor.graph.openEdges.some((e) => e.beyond === 'common')
+
 /** CNT-6: whether every way on from these floors is onto the building's common parts. */
 const throughCommonParts = (floor: FloorRoutes): boolean =>
   floor.graph.undrawn.length === 0 && !floor.graph.openEdges.some((e) => e.beyond === 'undrawn')
@@ -577,8 +581,9 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
   // third). With the site's ground level stated (LVL-4, lab VE-7), the floor nearest the ground,
   // and a floor stands above the ground by its height over that level. A floor a stair joins to
   // it, directly or through other floors, is checked with it, its routes followed down the stair
-  // to a door (LVL-3, lab VE-1). Any other floor is said to be unchecked, never passed: a balcony
-  // door upstairs is not a way out.
+  // to a door (LVL-3, lab VE-1). A floor whose way on is onto the common parts is checked from
+  // there (ARE-70). Any other floor is said to be unchecked, never passed: a balcony door
+  // upstairs is not a way out.
   const elevations = floorElevations(plan)
   const site = groundLevel(plan, elevations)
   const standsAt = (id: string): number => site.above.get(id) ?? 0
@@ -655,6 +660,12 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
   }
   for (const { ends: [a, b] } of stairLinks) group.set(find(a.floor), find(b.floor))
   const checkedGroups = new Set([...groundIds].map(find))
+  // ARE-70: a flat drawn on its own up in a building leaves by its front door onto the common
+  // landing. A group of floors no stair joins to a ground floor, whose ways on reach the common
+  // parts, is checked from those ways, as a flat entered from a landing on the ground floor is.
+  const fromCommon = new Set(floors.filter((f) => !checkedGroups.has(find(f.id)) && reachesCommon(routes.get(f.id)!)).map((f) => f.id))
+  for (const id of fromCommon) checkedGroups.add(find(id))
+  const startsHere = (id: string): boolean => groundIds.has(id) || fromCommon.has(id)
 
   const doorless = new Set<string>()
   for (const floor of floors) {
@@ -676,7 +687,7 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
       members,
       stairLinks.filter((l) => memberIds.has(l.ends[0].floor)),
       doorless,
-      members.filter((m) => groundIds.has(m.id)),
+      members.filter((m) => startsHere(m.id)),
       roomName,
       (member) =>
         [...member.graph.tooSmall, ...member.graph.blocked]
@@ -700,7 +711,7 @@ export function checkPlanSanity(plan: FloorPlan, options: SanityOptions = {}): R
     if (found.wayOutNotDrawn) {
       for (const member of members) {
         const ways = onward(member)
-        if (!groundIds.has(member.id) || ways.length === 0) continue
+        if (!startsHere(member.id) || ways.length === 0) continue
         // CNT-6 (lab R-10): a floor whose ways on are all onto the common parts, as a flat entered
         // from a landing is, says so, and never that its door leads to a space not drawn.
         const common = throughCommonParts(member)

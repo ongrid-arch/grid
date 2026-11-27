@@ -61,6 +61,8 @@ import {
   roomHeight,
   roomThing,
   floorsNotChecked,
+  COMMON_PARTS,
+  OUTSIDE,
   routeBetween,
   wallLengths,
   wallThing,
@@ -2047,9 +2049,10 @@ const measureTool: GridTool = {
         // ARE-63: from a floor the way-out check does not follow (no stair to the ground floor), the answer says so too.
         const notChecked = to === 'outside' && noStair === undefined ? notCheckedOf(survey, room.facts.floor) : null
         const unchecked = notChecked === null ? [] : [say('en', 'route.notChecked.none', { floor: { name: floorNameOf(survey, notChecked.floor) } })]
-        return { text: [...said, `There is no way from ${q(roomCalled(room.facts))} to ${to === 'outside' ? 'the outside' : q(roomCalledById(survey, to))} through the plan's doors and openings.`, ...shutLines, ...why, ...unchecked, EMPTY_ROOM_RULE].join('\n'), data: { what, answer: { found: false, ...(noStair === undefined ? {} : { noStair }), ...(notChecked === null ? {} : { notChecked }), ...(shut.length === 0 ? {} : { blocked: shut }), ...zones }, rule: EMPTY_ROOM_RULE } }
+        const upLines = to === 'outside' ? doorsOutAboveGround(survey, room.facts.floor) : []
+        return { text: [...said, `There is no way from ${q(roomCalled(room.facts))} to ${to === 'outside' ? 'the outside' : q(roomCalledById(survey, to))} through the plan's doors and openings.`, ...shutLines, ...why, ...upLines, ...unchecked, EMPTY_ROOM_RULE].join('\n'), data: { what, answer: { found: false, ...(noStair === undefined ? {} : { noStair }), ...(notChecked === null ? {} : { notChecked }), ...(shut.length === 0 ? {} : { blocked: shut }), ...zones }, rule: EMPTY_ROOM_RULE } }
       }
-      const name = (id: string): string => (id === 'outside' ? 'outside' : q(roomCalledById(survey, id)))
+      const name = (id: string): string => (id === 'outside' ? 'outside' : id === COMMON_PARTS ? say('en', 'route.commonParts') : q(roomCalledById(survey, id)))
       // ARE-63: a way out from a floor the way-out check does not follow is said as such.
       const notChecked = to === 'outside' ? notCheckedOf(survey, room.facts.floor) : null
       const steps = route.steps.map((s) => `${s.type} ${q(s.via)}${s.width === null ? '' : ` ${L(s.width)}`} into ${name(s.into)}`).join(', then ')
@@ -2064,6 +2067,8 @@ const measureTool: GridTool = {
         ...(route.exit === undefined
           ? []
           : [`Nearest way out: ${route.steps.at(-1)!.type} ${q(route.exit)}, the shortest walked of ${(route.otherExits?.length ?? 0) + 1}.${route.otherExits && route.otherExits.length > 0 ? ` Others: ${route.otherExits.map((e) => `${e.type} ${q(e.via)} ${e.length === null ? 'not measured' : L(e.length)}`).join(', ')}.` : ''}`]),
+        // ARE-70: a way out onto the common parts, a flat's front door onto its landing, ends there.
+        ...(route.onto === COMMON_PARTS ? [say('en', 'route.commonParts.onward')] : []),
         ...(notChecked === null ? [] : [say('en', 'route.notChecked.found', { floor: { name: floorNameOf(survey, notChecked.floor) } })]),
         ...(route.startPoint === null || route.endPoint === null ? [] : [`Walked from ${L(route.startPoint.point.x)}, ${L(route.startPoint.point.y)} (${route.startPoint.at}) to ${L(route.endPoint.point.x)}, ${L(route.endPoint.point.y)} (${route.endPoint.at}).`]),
         route.narrowestPassage ? `Narrowest door or opening on the way: ${q(route.narrowestPassage.via)}, ${L(route.narrowestPassage.width)}.` : 'No door or opening on the way, only open sides.',
@@ -2079,7 +2084,7 @@ const measureTool: GridTool = {
       // down stairs is not measured for a body: its widths are not worked out here.
       const figure = figureOf(args['width'], 'usePassageWidth')
       const onStairs = new Set(route.floors).size > 1
-      const wide = onStairs ? null : wideRoute(survey, room.facts.id, to, figure.value)
+      const wide = onStairs ? null : wideRoute(survey, room.facts.id, to, figure.value, route.onto)
       const body = wide === null
         ? { code: 'use/passage-width', figure, width: figure.value, through: null, way: null, shortest: null, narrower: [] }
         : { code: 'use/passage-width', figure, ...wide }
@@ -2106,6 +2111,26 @@ const measureTool: GridTool = {
  * ARE-18: why a route's walked length is not given, with the room it stops at: no outline Grid
  * can draw (which grid_check names), a doorway not found on its side, or no line across its floor.
  */
+/**
+ * ARE-70: the doors out of a floor above the ground, each said with how to mark it when it is the
+ * front door onto the common landing: a door the plan does not mark is read as one to the outside.
+ */
+function doorsOutAboveGround(survey: Survey, floor: string): string[] {
+  const site = groundLevel(survey.plan)
+  if (!site.aboveGround(floor)) return []
+  const { next, openings } = wayGraph(survey, floor)
+  const height = num(metresText(site.above.get(floor) ?? 0))
+  const lines: string[] = []
+  for (const [room, ways] of [...next].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    for (const w of ways) {
+      const opening = openings.get(w.via)
+      if (w.room !== OUTSIDE || opening === undefined || opening.type !== 'door') continue
+      lines.push(say('en', 'route.doorOutAboveGround', { kind: 'door', via: name(opening.id), room: name(roomCalledById(survey, room)), height, wall: name(opening.wall) }))
+    }
+  }
+  return lines
+}
+
 /** ARE-63: the way-out check's note on a floor whose way out it does not follow, or null. */
 function notCheckedOf(survey: Survey, floor: string): { reason: 'no_stairs'; floor: string } | null {
   return floorsNotChecked(survey).has(floor) ? { reason: 'no_stairs', floor } : null

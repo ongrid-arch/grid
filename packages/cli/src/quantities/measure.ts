@@ -182,7 +182,15 @@ export interface Route {
   readonly exit?: string
   /** ARE-21: the other ways out, nearest first, each with the length of its own route (null when it cannot be measured). */
   readonly otherExits?: readonly { readonly via: string; readonly type: RouteStep['type']; readonly rooms: readonly string[]; readonly length: number | null }[]
+  /**
+   * ARE-70, a route to `outside` only: set when it ends on the building's common parts, which the
+   * plan does not draw (a flat's front door onto its landing): its last step goes `into` them.
+   */
+  readonly onto?: typeof COMMON_PARTS
 }
+
+/** ARE-70: where the last step of a way out onto the common parts goes (`RouteStep.into`). */
+export const COMMON_PARTS = 'common parts'
 
 /** The way out of every room, as a step past the last room of a route to `outside`. */
 export const OUTSIDE = '\u0000outside'
@@ -191,7 +199,7 @@ export const OUTSIDE = '\u0000outside'
  * The ways from room to room on one floor: for each room, the rooms (or `OUTSIDE`) a door, a
  * doorless opening or a dividing line (`via`) leads to, as the way-out check reads them.
  */
-export function wayGraph(survey: Survey, floor: string): { next: Map<string, Array<{ room: string; via: string }>>; openings: Map<string, Opening>; blocked: readonly BlockedBy[] } {
+export function wayGraph(survey: Survey, floor: string): { next: Map<string, Array<{ room: string; via: string }>>; openings: Map<string, Opening>; blocked: readonly BlockedBy[]; common: ReadonlyArray<{ room: string; via: string }> } {
   const { storey, leftOut } = drawable(planForFloor(survey.plan, floor))
   const graph = floorGraph(storey, leftOut.rooms)
   const openings = new Map(storey.openings.map((o) => [o.id, o]))
@@ -205,8 +213,11 @@ export function wayGraph(survey: Survey, floor: string): { next: Map<string, Arr
     join(l.rooms[1], l.rooms[0], l.via)
   }
   for (const exit of graph.exits) join(exit.room, OUTSIDE, exit.opening)
+  // ARE-70: the doors and open sides onto the common parts, as the way-out check reads them: no
+  // step in `next`, the way out only when no door to the open air is reached (`routeBetween`).
+  const common = [...graph.common.map((c) => ({ room: c.room, via: c.opening })), ...graph.openEdges.filter((e) => e.beyond === 'common').map((e) => ({ room: e.room, via: e.edge }))]
   // ARE-46: a doorway an item leaves no clear width in is no way; it is kept to say why.
-  return { next, openings, blocked: graph.blocked }
+  return { next, openings, blocked: graph.blocked, common }
 }
 
 /** A door a person comes in by: into `room` from outside, straight, or `through` an outdoor space that reaches outside (ARE-36). */
@@ -253,17 +264,30 @@ interface RouteNode {
  * door or opening on a floor that does not stand above the ground (`groundLevel`). A balcony door
  * upstairs is no way out. A way between two rooms keeps to their floor, and so does the way out
  * with `acrossFloors` false: any door out of the floor, as before.
+ *
+ * ARE-70: when no way out is reached, a way onto the building's common parts is the way out, as
+ * the check reads a flat's front door onto its landing: the route says so (`onto`). `onlyCommon`
+ * looks for that way out only, so a body's way (`wideRoute`) ends where the route it widens does.
  */
-export function routeBetween(survey: Survey, from: string, to: string, acrossFloors = true, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}): Route | null {
-  const first = routeSearch(survey, from, to, acrossFloors, null, ends)
+export function routeBetween(survey: Survey, from: string, to: string, acrossFloors = true, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}, onlyCommon = false): Route | null {
+  let common = false
+  let first = onlyCommon ? null : routeSearch(survey, from, to, acrossFloors, null, ends, false)
+  if (first === null && to === 'outside') {
+    first = routeSearch(survey, from, to, acrossFloors, null, ends, true)
+    common = first !== null
+  }
   if (first === null || to !== 'outside') return first
   // ARE-21: every way out the search can reach, each by the way with the fewest rooms to it; the
   // shortest walked is the answer and the others are listed, not the one met first.
   const doors = new Set<string>()
-  for (const floor of planFloors(survey.plan)) for (const ways of wayGraph(survey, floor.id).next.values()) for (const w of ways) if (w.room === OUTSIDE) doors.add(w.via)
+  for (const floor of planFloors(survey.plan)) {
+    const graph = wayGraph(survey, floor.id)
+    if (common) for (const w of graph.common) doors.add(w.via)
+    else for (const ways of graph.next.values()) for (const w of ways) if (w.room === OUTSIDE) doors.add(w.via)
+  }
   const routes: Route[] = []
   for (const via of [...doors].sort()) {
-    const r = routeSearch(survey, from, to, acrossFloors, via, ends)
+    const r = routeSearch(survey, from, to, acrossFloors, via, ends, common)
     if (r !== null && r.steps.at(-1)?.via === via) routes.push(r)
   }
   if (routes.length === 0) return first
@@ -290,8 +314,8 @@ export function floorsNotChecked(survey: Survey): ReadonlySet<string> {
   return new Set(checkPlanSanity(survey.plan).notChecked.filter((n) => n.reason === 'no_stairs').map((n) => n.floor))
 }
 
-/** One search; `onlyExit` limits the way out to that doorway (ARE-21). */
-function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}): Route | null {
+/** One search; `onlyExit` limits the way out to that doorway (ARE-21); `common`, the ways out are onto the common parts (ARE-70). */
+function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}, common = false): Route | null {
   const fromFloor = survey.byId.get(from)!.facts.floor
   const out = to === 'outside'
   const floorsToo = out && acrossFloors
@@ -324,6 +348,8 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
       if (at.floor !== fromFloor && !out) continue
       onward.push({ node: { floor: at.floor, room: step.room }, via: step.via, stair: false })
     }
+    // ARE-70: onto the common parts, on any floor: a flat's front door onto its landing.
+    if (out && common) for (const step of graphOf(at.floor).common) if (step.room === at.room && (onlyExit === null || step.via === onlyExit)) onward.push({ node: null, via: step.via, stair: false })
     for (const join of joins) {
       for (const [a, b] of [[join.lower, join.upper], [join.upper, join.lower]] as const) {
         if (a.floor === at.floor && a.room === at.room) onward.push({ node: b, via: join.via, stair: true })
@@ -354,7 +380,7 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
       via: prev.via,
       type: prev.stair ? 'stair' : (opening?.type ?? 'open side'),
       width: prev.stair ? (stairWidth.get(prev.via) ?? null) : (opening?.width ?? null),
-      into: node === undefined ? 'outside' : node.room,
+      into: node === undefined ? (common ? COMMON_PARTS : 'outside') : node.room,
     })
     if (node !== undefined) {
       rooms.unshift(node.room)
@@ -394,6 +420,7 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
     gap: walked.gap,
     startPoint: walked.walked?.start ?? null,
     endPoint: walked.walked?.end ?? null,
+    ...(common ? { onto: COMMON_PARTS } : {}),
   }
 }
 
