@@ -10,7 +10,7 @@
  *
  * Pure but for `firmForCheck`, which reads the firm's file beside the plan through the project.
  */
-import { doorwayClearance, fixtureSpace, itemNameSaid, turningSpace, type FloorPlan, type Item, type Vec2 } from '@ongrid/floorplan/geometry'
+import { doorwayClearance, fixtureSpace, itemKindDefinition, itemNameSaid, turningSpace, type FloorPlan, type Item, type Vec2 } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type Said, type Value } from '@ongrid/floorplan/messages'
 import type { FirmInput, FirmMeasured, FirmStandard } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
@@ -19,6 +19,7 @@ import { measureRoom } from '../quantities/measure'
 import { surveyPlan, type Survey, type SurveyRoom } from '../quantities/survey'
 import { corridorEnds } from '../quantities/access'
 import { fixturesOf } from '../quantities/use'
+import { activityZones, type ZoneFigure } from '../quantities/activity'
 import { readFirm } from './standards'
 
 /** MSG-11: where a part was measured, by key (`line.part.firm.*`), with its English as `said`. */
@@ -107,6 +108,19 @@ export function firmMeasures(plan: FloorPlan, standards: readonly FirmStandard[]
         return
       }
       case 'fixture_clearance': {
+        if (standard.width !== undefined) {
+          // ARE-73: the zone on each fixture's centre line, as wide as the firm's width and as deep as its figure.
+          const width = standard.width
+          const wanted = (item: Item): ZoneFigure | null =>
+            standard.kinds.length > 0 && !standard.kinds.includes(item.kind) ? null : itemKindDefinition(item.kind)?.group === 'fixture' || standard.kinds.includes(item.kind) ? { front: standard.value, width, from: 'person', widthGiven: true } : null
+          const open = (v: number | null): Value => (v === null ? said('activity.open') : said('line.part.firm.at.zoneSide', { value: fig(v) }))
+          for (const zone of activityZones(survey, {}, wanted).zones) {
+            const room = survey.byId.get(zone.room)!
+            const at = said('line.part.firm.at.zone', { room: name(room.facts.name), width: fig(width), left: open(zone.measured.left), leftWay: said(`describe.way.${zone.ways.left}`), right: open(zone.measured.right), rightWay: said(`describe.way.${zone.ways.right}`) })
+            out.push({ standard: i, thing: { kind: 'item', id: zone.items[0]! }, floor: zone.floor, measured: zone.band, precision: 0, ...where(at), also: [room.facts.id, ...zone.items.slice(1)] })
+          }
+          return
+        }
         const { rows, items, obstacles } = fixturesOf(survey)
         for (const row of rows) {
           if (standard.kinds.length > 0 && !standard.kinds.includes(row.kind)) continue

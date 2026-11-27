@@ -7,6 +7,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FIRM_MEASURE_NAMES } from '@ongrid/rules'
+import { itemKinds } from '@ongrid/floorplan/geometry'
 import { openProject, PathRefused, type Project } from '../../fs/projectFiles'
 import { FIRM_FILE, firmFileOf, FirmRefused, parseFirmStandards, readFirm, STANDARDS_MAX } from '../standards'
 
@@ -81,7 +82,16 @@ describe('the firm\'s standards file (COD-8)', () => {
     expect(refusal(one({ measure: 'door_clear_width', value: 200_000, unit: 'mm' }))).toBe('standards[0].value must be a number of millimetres above 0 and at most 100,000')
     expect(refusal(one({ measure: 'room_area', value: 9, unit: 'm²', uses: ['ballroom'] }))).toMatch(/^standards\[0\]\.uses\[0\] must be one of the room uses: bedroom, /)
     expect(refusal(one({ measure: 'room_area', value: 9, unit: 'm²', uses: [] }))).toBe('standards[0].uses must be a list of room uses, with at least one')
-    expect(refusal(one({ measure: 'fixture_clearance', value: 0.8, unit: 'm', kinds: ['desk'] }))).toBe('standards[0].kinds[0] must be one of the fixture kinds: toilet, basin, shower, bath, kitchen-run')
+    expect(refusal(one({ measure: 'fixture_clearance', value: 0.8, unit: 'm', kinds: ['desk'] }))).toBe(`standards[0].kinds[0] must be one of the fixture kinds: ${itemKinds('fixture').join(', ')}`)
+  })
+
+  it('ARE-73: reads a fixture clearance\'s width in its unit, any fixture kind the registry holds, and refuses a width elsewhere', () => {
+    const [zone] = parseFirmStandards(one({ measure: 'fixture_clearance', value: 700, width: 800, unit: 'mm', kinds: ['toilet', 'rack'] }))
+    expect(zone).toMatchObject({ value: 0.7, width: 0.8, kinds: ['toilet', 'rack'] })
+    const [plain] = parseFirmStandards(one({ measure: 'fixture_clearance', value: 0.7, unit: 'm' }))
+    expect(plain!.width).toBeUndefined()
+    expect(refusal(one({ measure: 'fixture_clearance', value: 0.7, width: 0, unit: 'm' }))).toBe("standards[0].width must be a number of metres above 0 and at most 100: the width of the zone on the fixture's centre line")
+    expect(refusal(one({ measure: 'corridor_width', value: 1.5, width: 1, unit: 'm' }))).toMatch(/^standards\[0\] holds a field Grid does not know \("width"\)/)
   })
 
   it('refuses a name or a note it would not keep, never repeating it', () => {

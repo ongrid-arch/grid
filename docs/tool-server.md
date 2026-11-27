@@ -719,6 +719,35 @@ holds (`items`); furniture, radiators and the swing of a leaf are not in the pla
 | Does anything block the window? | `what=use`, `room` | `use/window-blocked`: how much of a window's width a fixture higher than its sill stands in front of |
 | Does a 0.7 m wheelchair get from the bedroom to the front door? | `what=route`, `room`, `to`, `width` | `use/passage-width` along the way: each doorway's clear width and the way through each room; when the way with the fewest rooms is too narrow, what stops it and another way that is wide enough, if one is |
 
+### Activity zones in front of fixtures, per kind
+
+`grid_measure what=activity` (ARE-73) answers "is there a 400 mm zone either side of the WC's
+centre line, 700 mm deep?" and "which fixtures in this block lack their clear floor?". Each
+fixture gets a zone: a box on its centre line from its front out, as deep as its front figure and
+as wide as its width figure, the width shared either side of the centre line.
+
+- Figures: `per_kind` by kind, `{"toilet": {"front": 0.7, "width": 0.8}, "basin": 0.6}` (a number
+  alone is the depth); `clearance` and `width` for every kind `per_kind` leaves out; else the
+  item's own `clearance` (stated, or from its library entry), else the first library entry of its
+  kind, else `useClearSpace`. Unstated, the width is the fixture's own. The kinds are the kinds
+  registry's, so a kind added to it is taken with no change; a kind `per_kind` names gets a zone
+  whatever it is, and furniture, points and rugs get none otherwise. Each zone says whose figure it is.
+- Measured: the clear depth straight out across the part of the width that is clear, and the
+  clear width to each side of the centre line, square to it within the zone's depth, to the
+  room's outline (wall faces and doorway lines), its holes and the other fixtures; each side and
+  the front by compass, from the plan's north (the top of the drawing when it states none, and the
+  answer says so). An exact fit reads as at least its figure. Also named: the fixtures standing in
+  it (`itemOverlap`), the doors whose swing reaches into it (`swingContact`; a door that states no
+  swing is counted as left out) and the other zones it overlaps.
+- Units side by side with one front, of kinds that keep no floor at their sides (`sides: false`
+  in the registry, such as a kitchen run or a shower), are one run with one zone as wide as the
+  run, so a unit does not read as 0 mm to its neighbour. WCs side by side keep a zone each.
+- `room` is optional: without it, every room. Only the zones short of their figure, with
+  something in them or overlapping are listed; the rest are counted, and `all: true` lists them.
+- The answer closes with one sentence on what it took off each zone and what it left out. Its
+  data lists each zone's `items`, `room`, `figure`, `measured`, `ways`, `short`, `standing`,
+  `doors` and `overlaps`.
+
 The way through a room is measured on a grid of points `useRaster` (2 cm) apart, so a width is
 found to within a few centimetres; where the way starts or ends it may start anywhere in the
 room. A room bigger than `useRasterCells` points is measured on a coarser grid. `grid_check`

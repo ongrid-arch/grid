@@ -148,7 +148,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
   'packages/cli/src/export/dxfProfile.ts': [5, 'command'],
   'packages/cli/src/export/projectExports.ts': [2, 'command'],
-  'packages/cli/src/firm/standards.ts': [18, 'command'],
+  // ARE-73: one more, the refusal of a zone's width.
+  'packages/cli/src/firm/standards.ts': [19, 'command'],
   // CMD-30: one more, the refusal of a read-only file.
   // CMD-41: one more, a lock that is a folder.
   'packages/cli/src/fs/projectFiles.ts': [51, 'command'],
@@ -212,7 +213,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-78: one more, the eye view's room with no glazed door.
   // MSG-35: one more, the route measure's travel distance and nearest exit.
   // MSG-34: thirty-four fewer, grid_areas' and grid_schedule's lines in the message files.
-  'packages/cli/src/mcp/readTools.ts': [398, 'tools'],
+  // ARE-73: one more, what=activity's per_kind and all arguments.
+  'packages/cli/src/mcp/readTools.ts': [399, 'tools'],
+  // ARE-73: grid_measure what=activity's per_kind argument and its refusals.
+  'packages/cli/src/mcp/activityArg.ts': [7, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.

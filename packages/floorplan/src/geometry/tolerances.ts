@@ -251,7 +251,8 @@ export const TOLERANCES = {
     decides:
       'How far a wall must reach into a door\'s swing before it is in the way, and how wide the ' +
       'overlap of two swings must be before they collide. A wall that touches the jamb or rests ' +
-      'against the open leaf is not in the way.',
+      'against the open leaf is not in the way. ARE-73: how far a swing must reach into an ' +
+      'activity zone to be named.',
     basis: own
   },
   stepPastFace: {
@@ -828,7 +829,8 @@ export const TOLERANCES = {
     unit: 'm',
     decides:
       'How far one item may reach into another, or into the clear floor another keeps in front of it, ' +
-      'and still stand against it. Past it, both are named.',
+      'and still stand against it. Past it, both are named. ARE-73: the same for a fixture in an ' +
+      'activity zone and for two activity zones that overlap.',
     basis: own
   },
   // CNT-21: an item hanging out of its room.
