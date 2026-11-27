@@ -72,7 +72,10 @@ const pad4 = (n: number): number => (n + 3) & ~3
  * zeros. The total length is written after both paddings are known.
  */
 function encodeGlb(document: object, binary: Uint8Array | null): Uint8Array {
-  const json = new TextEncoder().encode(JSON.stringify(document))
+  // VEW-82: the nodes carry the plan's own text (room names, the person's facts). Markup and the
+  // characters that turn text round are written as \u escapes: the same strings to any JSON
+  // reader, never markup to a tool that reads the file's bytes as text.
+  const json = new TextEncoder().encode(JSON.stringify(document).replace(/[<>&\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`))
   const jsonLength = pad4(json.byteLength)
   const binLength = binary ? pad4(binary.byteLength) : 0
 

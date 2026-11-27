@@ -130,6 +130,23 @@ describe('VEW-82: each node says what it is in its extras', () => {
     expect(named(glb, 'item_sink').extras).toEqual({ gridId: 'sink', gridKind: 'item', gridFloor: 'ground', gridRooms: ['kitchen'], gridName: 'Sink', gridType: 'sink', gridProperties: { tap: 'mixer' } })
   })
 
+  it('writes markup in a name as escapes in the file, the same name to a JSON reader', () => {
+    const plan = twoRooms()
+    const name = '<b>Kitchen</b> & \u202eevil'
+    const data = exportPlan({ ...plan, rooms: plan.rooms.map((r) => (r.id === 'kitchen' ? { ...r, name } : r)) }, 'glb', ids).data as Uint8Array
+    // The JSON chunk's text: its length after the 12-byte header, its bytes after the chunk's 8.
+    const jsonText = new TextDecoder().decode(data.subarray(20, 20 + new DataView(data.buffer, data.byteOffset).getUint32(12, true)))
+    expect(jsonText).not.toMatch(/[<>&\u202e]/)
+    expect(named(parseGlb(data), 'floor_kitchen').extras!['gridName']).toBe(name)
+  })
+
+  it('gives no facts to a wall that cannot be drawn, and writes the rest', () => {
+    const plan = twoRooms()
+    const glb = glbOf({ ...plan, walls: plan.walls.map((w) => (w.id === 'w2' ? { ...w, end: w.start } : w)) })
+    expect(nodes(glb).some((n) => n.name === 'wall_w2')).toBe(false)
+    expect(named(glb, 'wall_w1').extras!['gridId']).toBe('w1')
+  })
+
   it('groups each floor\'s parts by kind, each group saying its floor and kind', () => {
     const ground = named(glb, 'ground')
     const groups = ground.children!.map((i) => nodes(glb)[i]!)

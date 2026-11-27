@@ -29,5 +29,7 @@
   empty node `door_<id>` with `gridWidth` and `gridHeight`. Each saved view is a perspective camera
   in `cameras`, its node `view_<name>` a root of the scene with `gridView`, `gridTarget` and
   `gridRoom`.
+- A glb's JSON writes `<`, `>`, `&` and the characters that turn text round as `\u` escapes, the
+  same strings to any JSON reader. A part that cannot be drawn has no node and no facts, as before.
 - New tolerance table rows: `wallPieceShortest`, `doorOpenAngle`, `cameraNear`.
 - No new code in the record.

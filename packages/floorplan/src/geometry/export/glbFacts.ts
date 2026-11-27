@@ -12,6 +12,7 @@ import type { FloorPlan, Opening, Room, Wall } from '../plan'
 import type { Item } from '../../types/floorplan'
 import { indexPlan } from '../plan'
 import { planInState } from '../phases'
+import { validatePlan } from '../validate'
 import { stretchAt, wallSides, type WallStretch } from '../exposure'
 import { itemRoom, roomShapes } from '../items'
 import { columnRoom } from '../columns'
@@ -98,7 +99,11 @@ function sidesOver(stretches: readonly WallStretch[]): { left: string[]; right: 
 
 /** One floor's facts: `plan` is the floor's own plan (`planForFloor`), as its scene was built from. */
 export function glbFacts(floorPlan: FloorPlan): GlbFacts {
-  const plan = planInState(floorPlan, 'after')
+  const after = planInState(floorPlan, 'after')
+  // The parts the scene leaves out (a wall of no length, a room or opening on one) have no node,
+  // and cannot be measured: they are left out here too, as `buildScene` leaves them out.
+  const { broken } = validatePlan(after)
+  const plan = broken.size === 0 ? after : { ...after, walls: after.walls.filter((w) => !broken.has(w.id)), rooms: after.rooms.filter((r) => !broken.has(r.id)), openings: after.openings.filter((o) => !broken.has(o.id)) }
   const index = indexPlan(plan)
   const byId = new Map(plan.rooms.map((room) => [room.id, room] as const))
 
