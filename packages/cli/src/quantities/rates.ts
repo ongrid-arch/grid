@@ -411,21 +411,43 @@ function amountCell(row: number, what: string, value: number | null): number | n
 }
 
 /**
+ * VEW-83: the decimals a currency's amounts are written with: its smallest unit for an ISO 4217
+ * code (two for EUR, none for JPY, three for KWD), else two.
+ */
+export function currencyDigits(currency: string): number {
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2
+  } catch {
+    return 2
+  }
+}
+
+/** VEW-83: an amount rounded to its currency's smallest unit; a missing one stays missing. */
+function money(value: number | null, digits: number): number | null {
+  if (value === null || !Number.isFinite(value)) return value
+  const scale = 10 ** digits
+  const rounded = Math.round(value * scale) / scale
+  return rounded === 0 ? 0 : rounded
+}
+
+/**
  * The bill as CSV: one row per line, with its rule and assumed mark; with rates, the rate, the
  * amount and the state of each, then the total; then the orders. Amounts are values, never
- * formulas: a cell a spreadsheet would read as a formula is written as text (`units.ts`).
+ * formulas: a cell a spreadsheet would read as a formula is written as text (`units.ts`). VEW-83:
+ * each amount and the total are rounded to the currency's smallest unit; a rate is as given.
  */
 export function estimateCsv(estimate: Estimate, pricing: Pricing | null): string {
   const lines: readonly (EstimateLine & Partial<PricedLine>)[] = pricing?.lines ?? estimate.lines
   const per = (unit: QuantityUnit): string | null => (pricing === null ? null : `${pricing.currency}/${unit}`)
+  const digits = pricing === null ? 2 : currencyDigits(pricing.currency)
   const rows: Cell[][] = lines.map((line, i) => [
     'line', line.key, line.what, amountCell(i + 1, 'quantity', line.quantity), line.unit, line.assumed ? 'assumed' : '',
     amountCell(i + 1, 'rate', line.rate ?? null), line.rate === null || line.rate === undefined ? null : per(line.unit),
-    line.given?.waste ? line.given.waste : null, amountCell(i + 1, 'amount', line.amount ?? null), line.rateKey ?? null,
+    line.given?.waste ? line.given.waste : null, money(amountCell(i + 1, 'amount', line.amount ?? null), digits), line.rateKey ?? null,
     line.state ?? 'no rate', line.rule,
   ])
   if (pricing !== null) {
-    rows.push(['total', '', 'Total of the priced lines', null, '', '', null, null, null, amountCell(rows.length + 1, 'total', pricing.total), null, pricing.complete ? 'complete' : 'not every line priced', ''])
+    rows.push(['total', '', 'Total of the priced lines', null, '', '', null, null, null, money(amountCell(rows.length + 1, 'total', pricing.total), digits), null, pricing.complete ? 'complete' : 'not every line priced', ''])
     for (const order of pricing.orders) {
       rows.push(['order', order.name, `${order.packs} ${order.pack}`, amountCell(rows.length + 1, 'quantity', order.needed), order.unit, order.assumed ? 'assumed' : '', null, null, null, null, null, '', order.rule])
     }

@@ -23,7 +23,7 @@ const WHY = {
   agent: 'Written for the agent, not the person: the protocol, the argument checks, the retelling rules and the lookup prompt. English by design.',
   command: "The command line's help, usage and refusals of a mistyped command. Not moved yet.",
   developer: "For people who build or install Grid: the tolerance table's own descriptions (docs/tolerances.md), the sheet's coverage table, install and programming errors. English by design.",
-  notWords: 'Not words: CSS class names and a font.',
+  notWords: "Not words: CSS class names, a font and a workbook's XML.",
   provenance: "A figure's provenance as recorded: its document, edition, clause and what it measures, as data.",
   agentForm: "grid describe --for agent: a fixed format for agents, of tokens and ids. Its label is in the person's language.",
   notYet: 'Shown to the person, not moved yet: rooms text and its errors, the edit receipts, the measuring and quantity reports, the notes, export file texts, schema refusals and the other commands.',
@@ -56,13 +56,15 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-73: five more, the help of --no-roofs and --arc-segments and their refusals.
   // CNT-58: one more, sun refused for a format other than glb.
   // VEW-82: four more, the help of --doors and --walls and their refusals.
-  'packages/cli/src/command/export.ts': [35, 'command'],
+  // VEW-83: four more, the help of --what, --csv, --units and --decimal.
+  'packages/cli/src/command/export.ts': [39, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
   // CMD-52: one more, the help of --tools.
+  // VEW-83: three more, a table's refusals of options of the other kind and of no --what.
   // CMD-54: one more, the refusal of --dry-run beside --layout, --scan or --from.
-  'packages/cli/src/command/main.ts': [64, 'command'],
+  'packages/cli/src/command/main.ts': [67, 'command'],
   'packages/cli/src/command/options.ts': [9, 'command'],
   'packages/cli/src/command/plan.ts': [27, 'command'],
   // CMD-30: one more, the refusal of an invisible character.
@@ -115,7 +117,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/fill.ts': [28, 'notYet'],
   'packages/cli/src/edit/fit.ts': [4, 'notYet'],
   // CNT-43: +1, the item at the size given.
-  'packages/cli/src/edit/place.ts': [12, 'notYet'],
+  // CNT-61: two more, a list's receipt and an id an entry before it holds.
+  'packages/cli/src/edit/place.ts': [14, 'notYet'],
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   // WRT-59: one more, a plan with nothing to mirror or turn.
   // WRT-73: one more, a mirror's line when it keeps the north.
@@ -146,6 +149,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/buildingParts.ts': [2, 'notYet'],
   // CNT-48: a typical room's usual fixtures set out in a room, its receipts and refusals.
   'packages/cli/src/edit/fixtureSets.ts': [10, 'notYet'],
+  // CNT-61: rooms furnished with their usual sets, room by room, and its refusals.
+  'packages/cli/src/edit/furnish.ts': [19, 'notYet'],
   // CNT-45: the items' receipts and refusals. CNT-47: two more, a row's receipt and its taken id.
   // CNT-52: one more, a point's receipt.
   // CNT-55: one more, how high an item hangs in its receipt.
@@ -156,6 +161,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/stretch.ts': [10, 'notYet'],
   'packages/cli/src/export/dxfProfile.ts': [5, 'command'],
   'packages/cli/src/export/projectExports.ts': [2, 'command'],
+  // VEW-83: a workbook's XML parts.
+  'packages/cli/src/export/table.ts': [3, 'notWords'],
   // ARE-73: one more, the refusal of a zone's width.
   'packages/cli/src/firm/standards.ts': [19, 'command'],
   // CMD-30: one more, the refusal of a read-only file.
@@ -187,7 +194,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
   // CNT-44: 23 more, grid_fill_room's help.
   // CMD-50: one more, grid_stretch's help on a building turned on the drawing.
-  'packages/cli/src/mcp/editTools.ts': [138, 'tools'],
+  // CNT-61: six more, grid_place_item's list of entries and its refusals.
+  'packages/cli/src/mcp/editTools.ts': [144, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // CNT-51: grid_set_finishes, its help and its argument checks.
@@ -280,7 +288,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
   // CNT-52: one more, the facts argument's help.
   // CNT-55: one more, the elevation argument's help.
-  'packages/cli/src/mcp/itemTools.ts': [55, 'tools'],
+  // CNT-61: eleven more, grid_furnish_rooms.
+  'packages/cli/src/mcp/itemTools.ts': [66, 'tools'],
   // ARE-68: the lettable_uses, lettable_tenures and people arguments and the brief's people schema.
   'packages/cli/src/mcp/lettableArgs.ts': [7, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
@@ -289,10 +298,13 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/traceTool.ts': [26, 'tools'],
   // WRT-36: grid tidy on the tool server, its description, arguments, answer and refusals.
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
+  // VEW-83: a table written as a file: its refusals of floor all, out, state and an unknown tool.
+  'packages/cli/src/mcp/tableExport.ts': [5, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
   'packages/cli/src/mcp/wordsTool.ts': [31, 'tools'],
   // MSG-33: one more, the head of a refusal that lists every fault of a call.
-  'packages/cli/src/mcp/toolkit.ts': [29, 'agent'],
+  // CNT-61: two more, an entry of a list argument refused.
+  'packages/cli/src/mcp/toolkit.ts': [31, 'agent'],
   // CMD-39: the whole and page arguments every tool takes, and left_out in the output schemas.
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
   // MSG-34: the description of the language every tool takes.
@@ -319,8 +331,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-75: one more, grid_export's state.
   // CNT-58: two more, grid_export's sun and its refusal for another format.
   // VEW-82: three more, grid_export's glb for a game engine and its doors and walls.
+  // VEW-83: nine more, grid_export's tables: what, units, decimal, their refusals and the answer.
   // CMD-54: three more, grid_write_rooms's dry_run, its description and its refusal.
-  'packages/cli/src/mcp/writeTools.ts': [174, 'tools'],
+  'packages/cli/src/mcp/writeTools.ts': [183, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -663,10 +676,12 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // (mcp/toolGroups.ts 7) and the help of --tools (command/main.ts 1) (odd/tasks/CMD-52.md).
     // and VEW-82 11: grid export's and grid_export's doors and walls (command/export.ts 4,
     // mcp/writeTools.ts 3) and what their figures decide (geometry/tolerances.ts 4) (odd/tasks/VEW-82.md).
+    // and VEW-83 24: a table as a CSV or XLSX file (command/export.ts 4, command/main.ts 3, mcp/writeTools.ts 9,
+    // mcp/tableExport.ts 5) and a workbook's XML (export/table.ts 3) (odd/tasks/VEW-83.md).
     // and ARE-76 5: the ground a building's height is measured from (mcp/buildingTools.ts 1) and
     // what the same-footprint share decides (geometry/tolerances.ts 4) (odd/tasks/ARE-76.md).
     // and CMD-53 4: the columns' and a standing part's room fields (quantities/query.ts 4) (odd/tasks/CMD-53.md).
-    expect(left).toBeLessThanOrEqual(2777)
+    expect(left).toBeLessThanOrEqual(2801)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

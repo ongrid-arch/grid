@@ -18,12 +18,12 @@ import { squarePlan } from '../edit/square'
 import { stretchPlan } from '../edit/stretch'
 import { SIDE_WORDS, type SideWord } from '../edit/sideNames'
 import { limit } from '@ongrid/floorplan/geometry'
-import type { OwnFigures } from '@ongrid/floorplan/library'
+import type { OwnFigures, PlaceRequest } from '@ongrid/floorplan/library'
 import { placeItems } from '../edit/place'
 import { FILL_AISLE, FILL_DOOR_CLEARANCE, FILL_MOST, fillRoom, type FillRequest } from '../edit/fill'
 import { surveyPlan } from '../quantities/survey'
 import { libraryFor } from '../library/office'
-import { FLOOR_ARG, BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, NULLABLE_NUMBER, NUMBER, objectSchema, PLAN_ARG, planFileOf, projectOf, readPlan, roomArg, STRING, ToolRefusal, type GridTool } from './toolkit'
+import { FLOOR_ARG, BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, NULLABLE_NUMBER, NUMBER, objectSchema, PLAN_ARG, planFileOf, projectOf, entrySchema, readEntry, readPlan, roomArg, STRING, ToolRefusal, type ArgSpecs, type GridTool } from './toolkit'
 import { EditRefused } from '../edit/refused'
 import { CORRECTION_ARG, EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 
@@ -261,10 +261,10 @@ const squareTool: GridTool = {
 }
 
 /** CNT-43: an item's own figures from the place tool's arguments; width and depth come together. */
-function ownFigures(args: Readonly<Record<string, unknown>>): OwnFigures {
+function ownFigures(args: Readonly<Record<string, unknown>>, where = ''): OwnFigures {
   const width = args['width'] as number | undefined
   const depth = args['depth'] as number | undefined
-  if ((width === undefined) !== (depth === undefined)) throw new ToolRefusal(`Give width and depth together: the item's own size is both. Only ${width === undefined ? 'depth' : 'width'} was given.`)
+  if ((width === undefined) !== (depth === undefined)) throw new ToolRefusal(`${where}Give width and depth together: the item's own size is both. Only ${width === undefined ? 'depth' : 'width'} was given.`)
   return {
     ...(width !== undefined && depth !== undefined ? { size: [width, depth] as const } : {}),
     ...(args['height'] !== undefined ? { height: args['height'] as number } : {}),
@@ -273,7 +273,41 @@ function ownFigures(args: Readonly<Record<string, unknown>>): OwnFigures {
   }
 }
 
-// CNT-20 (C30): a library item or a typical room placed by name.
+/** The most entries one grid_place_item call places (CNT-61). */
+export const PLACE_LIST_MOST = 200
+
+/** CNT-61: what one placing names, for one call and for each entry of items alike. */
+const PLACE_ENTRY_ARGS: ArgSpecs = {
+  name: { type: 'string', id: true, required: true, description: 'The library entry: an item (double-bed, wc, bath) or a typical room (bathroom, double-bedroom), or an office\'s own.', examples: ['double-bed', 'bathroom'] },
+  x: { type: 'number', length: true, required: true, description: 'Where on the drawing, in metres: an item\'s middle, or a typical room\'s inside back-left corner.', examples: [2.5], minimum: -limit('largest'), maximum: limit('largest') },
+  y: { type: 'number', length: true, required: true, description: 'Where on the drawing, in metres, with x.', examples: [1.2], minimum: -limit('largest'), maximum: limit('largest') },
+  turn: { type: 'number', description: 'Degrees counter-clockwise: 0 puts an item\'s back to -y, 90 to +x, 180 to +y, 270 to -x. 0 when left out.', examples: [0, 90, 180], minimum: -360, maximum: 360 },
+  floor: { ...FLOOR_ARG, description: 'A floor id from the plan\'s "floors". The ground floor when left out.', examples: ['first'] },
+  id: { type: 'string', id: true, description: 'For an item: its id. Unstated, its library name, made unique.', examples: ['bed-main'] },
+  width: { type: 'number', length: true, description: 'For an item: its own width along its back, in metres, in place of the entry\'s (with depth). Needed when name is a kind.', examples: [1.4], minimum: 0.01, maximum: 100 },
+  depth: { type: 'number', length: true, description: 'For an item: its own depth from its back to its front, in metres, with width.', examples: [0.7], minimum: 0.01, maximum: 100 },
+  height: { type: 'number', length: true, description: 'For an item: its own height from the floor, in metres. Needed when name is a kind.', examples: [0.35], minimum: 0.01, maximum: 100 },
+  clearance: { type: 'number', length: true, description: 'For an item: the clear floor it keeps in front of it, in metres (0 for none), in place of the entry\'s.', examples: [0.6], minimum: 0, maximum: 100 },
+  label: NAME('For an item: what the drawing calls it, in place of the entry\'s label.', 'Kennel'),
+}
+
+/** The JSON Schema of one entry of items, from the same specs the call's own arguments are checked by. */
+const PLACE_ENTRY_SCHEMA = entrySchema(PLACE_ENTRY_ARGS)
+
+/** CNT-61: the place request of one call or one entry, its floor read against the plan. */
+function placeRequest(plan: Parameters<typeof floorArg>[0], args: Readonly<Record<string, unknown>>, where = ''): PlaceRequest {
+  const floor = floorArg(plan, args['floor'])
+  return {
+    name: args['name'] as string,
+    at: [args['x'] as number, args['y'] as number],
+    ...(args['turn'] !== undefined ? { turn: args['turn'] as number } : {}),
+    ...(floor !== undefined ? { floor } : {}),
+    ...(args['id'] !== undefined ? { id: args['id'] as string } : {}),
+    own: ownFigures(args, where),
+  }
+}
+
+// CNT-20 (C30): a library item or a typical room placed by name; CNT-61: or a list of them.
 const placeTool: GridTool = {
   name: 'grid_place_item',
   title: 'Place a fixture, furniture or a typical room from the library',
@@ -283,20 +317,22 @@ const placeTool: GridTool = {
     + 'It places a library entry by name (grid_measure what=library lists them: Grid\'s own sizes, the office\'s files in the library folder beside the plan, and the plan\'s own), so a double bed is the same bed every time, with its size, height and the clear floor it keeps in front, and answers with the room it landed in and whether it fits: a wall it runs into, an item it stands in, the clear floor kept in front of one that something blocks. '
     + 'x and y are the middle of an item, or the inside back-left corner of a typical room, whose items are set out from there; unturned, an item\'s back faces -y (down the drawing), and turn turns it counter-clockwise. An entry from the office\'s folder is copied into the plan, so the plan reads the same without the folder.'
     + 'For an odd size, give the item its own width, depth, height, clearance or label: they are written on it and the entry fills the rest (a 1.40 × 0.70 desk from desk, a WC at 0.35 m high). A thing the library has no entry for is placed by its kind (storage, table, bed, toilet) with its width, depth and height: a 1.2 × 0.9 kennel as storage. '
+    + `Many at once: items is a list of entries, each with the fields one call takes (name, x, y, and turn, floor, id, width, depth, height, clearance, label), up to ${PLACE_LIST_MOST}, placed in order as one change, in place of name, x and y; one entry refused refuses the list, naming it, and nothing is written. To furnish whole rooms by their use, use grid_furnish_rooms. `
     + 'Do not use to move or size an item already placed, or to add a room (grid_add_room). It replaces the plan file unless out is given. Lengths are metres, or text with their unit; angles are degrees.',
   args: {
     plan: PLAN_ARG,
-    name: { type: 'string', id: true, required: true, description: 'The library entry: an item (double-bed, wc, bath) or a typical room (bathroom, double-bedroom), or an office\'s own.', examples: ['double-bed', 'bathroom'] },
-    x: { type: 'number', length: true, required: true, description: 'Where on the drawing, in metres: an item\'s middle, or a typical room\'s inside back-left corner.', examples: [2.5], minimum: -limit('largest'), maximum: limit('largest') },
-    y: { type: 'number', length: true, required: true, description: 'Where on the drawing, in metres, with x.', examples: [1.2], minimum: -limit('largest'), maximum: limit('largest') },
-    turn: { type: 'number', description: 'Degrees counter-clockwise: 0 puts an item\'s back to -y, 90 to +x, 180 to +y, 270 to -x. 0 when left out.', examples: [0, 90, 180], minimum: -360, maximum: 360 },
-    floor: { ...FLOOR_ARG, description: 'A floor id from the plan\'s "floors". The ground floor when left out.', examples: ['first'] },
-    id: { type: 'string', id: true, description: 'For an item: its id. Unstated, its library name, made unique.', examples: ['bed-main'] },
-    width: { type: 'number', length: true, description: 'For an item: its own width along its back, in metres, in place of the entry\'s (with depth). Needed when name is a kind.', examples: [1.4], minimum: 0.01, maximum: 100 },
-    depth: { type: 'number', length: true, description: 'For an item: its own depth from its back to its front, in metres, with width.', examples: [0.7], minimum: 0.01, maximum: 100 },
-    height: { type: 'number', length: true, description: 'For an item: its own height from the floor, in metres. Needed when name is a kind.', examples: [0.35], minimum: 0.01, maximum: 100 },
-    clearance: { type: 'number', length: true, description: 'For an item: the clear floor it keeps in front of it, in metres (0 for none), in place of the entry\'s.', examples: [0.6], minimum: 0, maximum: 100 },
-    label: NAME('For an item: what the drawing calls it, in place of the entry\'s label.', 'Kennel'),
+    ...Object.fromEntries(Object.entries(PLACE_ENTRY_ARGS).map(([key, spec]) => [key, ['name', 'x', 'y'].includes(key) ? { ...spec, required: false, description: `${spec.description} Needed unless items is given.` } : spec])),
+    items: {
+      type: 'object',
+      description: `Many entries placed in order as one change, in place of name, x and y: each an object with the fields one call takes (name, x and y needed). Up to ${PLACE_LIST_MOST}.`,
+      examples: [[{ name: 'double-bed', x: 2, y: 1.2 }, { name: 'bedside-table', x: 1.05, y: 0.4 }, { name: 'wardrobe', x: 3.5, y: 2.7, turn: 180 }]],
+      schema: { type: 'array', items: PLACE_ENTRY_SCHEMA, minItems: 1, maxItems: PLACE_LIST_MOST },
+      read: (value) => {
+        const list = value as readonly unknown[]
+        if (list.length < 1 || list.length > PLACE_LIST_MOST) throw new ToolRefusal(`items takes a list of 1 to ${PLACE_LIST_MOST} entries.`)
+        return list.map((entry, n) => readEntry(`entry ${n + 1} of items`, PLACE_ENTRY_ARGS, entry))
+      },
+    },
     out: OUT_ARG,
   },
   outputSchema: {
@@ -309,19 +345,19 @@ const placeTool: GridTool = {
     },
   },
   run(args, context) {
+    const list = args['items'] as readonly Record<string, unknown>[] | undefined
+    const single = Object.keys(PLACE_ENTRY_ARGS).filter((key) => args[key] !== undefined)
+    if (list !== undefined && single.length > 0) throw new ToolRefusal(`Give items, or name, x and y for one entry, not both: ${single.join(', ')} ${single.length === 1 ? 'goes' : 'go'} in each entry of items.`)
+    if (list === undefined) {
+      const missing = ['name', 'x', 'y'].filter((key) => args[key] === undefined)
+      if (missing.length > 0) throw new ToolRefusal(`Pass ${missing.join(', ')}: the library entry and where it goes, or items for several.`)
+    }
     const project = projectOf(context)
     const file = planFileOf(project, args['plan'])
     return writeChange(context, args, (survey) => {
-      const floor = floorArg(survey.plan, args['floor'])
       const { library, problems } = libraryFor(project, file, survey.plan)
-      return placeItems(survey, library, {
-        name: args['name'] as string,
-        at: [args['x'] as number, args['y'] as number],
-        ...(args['turn'] !== undefined ? { turn: args['turn'] as number } : {}),
-        ...(floor !== undefined ? { floor } : {}),
-        ...(args['id'] !== undefined ? { id: args['id'] as string } : {}),
-        own: ownFigures(args),
-      }, problems)
+      const requests = list === undefined ? placeRequest(survey.plan, args) : list.map((entry, n) => placeRequest(survey.plan, entry, list.length > 1 ? `Entry ${n + 1} of items: ` : ''))
+      return placeItems(survey, library, requests, problems)
     })
   },
 }
