@@ -7,9 +7,10 @@
  * Pure: plans and patches in, problems and figures out.
  */
 import { dot, sub, tolerance, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
-import { insideAcross, moveRoomSide, type Direction, type Patch } from './edits'
+import { insideAcross, moveRoomSide, type Patch } from './edits'
 import { EditRefused } from './refused'
-import { COMPASS } from './seat'
+import { roomSide } from './sideNames'
+import type { Vec2 } from '@ongrid/floorplan/geometry'
 import type { Survey } from '../quantities/survey'
 
 /** The narrowest a room is left across the side that moves: the least inside size `grid_move_room_side` takes. */
@@ -85,7 +86,9 @@ export function largestFit(asked: number, fits: (by: number) => boolean): number
  * with a new problem or cannot be made, saying why and the largest move the same way that fits:
  * in metres to move it, and the room's inside size it leaves.
  */
-export function sideMoveThatFits(survey: Survey, roomId: string, side: Direction, by: number, problemsOf: ProblemsOf): Patch {
+export function sideMoveThatFits(survey: Survey, roomId: string, side: string, by: number, problemsOf: ProblemsOf): Patch {
+  // CMD-50: the side as rooms text names it; a name the room has no side for is refused here, listing its sides.
+  const out = roomSide(survey, roomId, side).out
   const move = (distance: number): { patch: Patch; problems: DrawingIssue[] } | { refused: string } => {
     try {
       const patch = moveRoomSide(survey, roomId, side, distance)
@@ -95,7 +98,7 @@ export function sideMoveThatFits(survey: Survey, roomId: string, side: Direction
       throw error
     }
   }
-  const [least, most] = roomsAcross(survey, roomId, side)
+  const [least, most] = roomsAcross(survey, roomId, out)
   const leavesRoom = (distance: number): boolean => distance >= least - tolerance('noLength') && distance <= most + tolerance('noLength')
   const asked = move(by)
   if ('patch' in asked && asked.problems.length === 0 && leavesRoom(by)) return asked.patch
@@ -105,7 +108,7 @@ export function sideMoveThatFits(survey: Survey, roomId: string, side: Direction
     const tried = move(distance)
     return 'patch' in tried && tried.problems.length === 0
   })
-  const now = insideAcross(survey, roomId, side)
+  const now = insideAcross(survey, roomId, out)
   const offer = best === null ? 'No move that way fits.' : `The largest move that fits is by ${best.toFixed(2)} m, to ${(now + best).toFixed(2)} m inside.`
   throw new EditRefused(`${why} ${offer}`)
 }
@@ -115,8 +118,7 @@ export function sideMoveThatFits(survey: Survey, roomId: string, side: Direction
  * `NARROWEST_ACROSS` inside across the side that moves. A room on the same side of the wall as
  * the room named grows with the move, one on the other side shrinks.
  */
-function roomsAcross(survey: Survey, roomId: string, side: Direction): [number, number] {
-  const out = COMPASS[side]
+function roomsAcross(survey: Survey, roomId: string, out: Vec2): [number, number] {
   const facing = (edge: { from: { x: number; y: number }; to: { x: number; y: number }; length: number }): number => {
     const d = sub(edge.to, edge.from)
     return dot({ x: d.y / edge.length, y: -d.x / edge.length }, out)
@@ -127,7 +129,7 @@ function roomsAcross(survey: Survey, roomId: string, side: Direction): [number, 
   let most = Infinity
   for (const room of survey.rooms) {
     if (room.polygon.length < 3) continue
-    const across = insideAcross(survey, room.facts.id, side)
+    const across = insideAcross(survey, room.facts.id, out)
     for (const edge of room.edges) {
       if (edge.wall === null || !walls.has(edge.wall.id)) continue
       const f = facing(edge)

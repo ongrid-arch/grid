@@ -114,7 +114,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   // WRT-59: one more, a plan with nothing to mirror or turn.
   // WRT-73: one more, a mirror's line when it keeps the north.
-  'packages/cli/src/edit/edits.ts': [66, 'notYet'],
+  // CMD-50: two fewer, a side named as rooms text names it is refused from the message files.
+  'packages/cli/src/edit/edits.ts': [64, 'notYet'],
   // WRT-59: the notes an edit caused, opening its answer.
   'packages/cli/src/edit/caused.ts': [1, 'notYet'],
   'packages/cli/src/edit/merge.ts': [32, 'notYet'],
@@ -174,7 +175,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-60: two more, grid_rename_room's conditioned.
   // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
   // CNT-44: 23 more, grid_fill_room's help.
-  'packages/cli/src/mcp/editTools.ts': [137, 'tools'],
+  // CMD-50: one more, grid_stretch's help on a building turned on the drawing.
+  'packages/cli/src/mcp/editTools.ts': [138, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // CNT-51: grid_set_finishes, its help and its argument checks.

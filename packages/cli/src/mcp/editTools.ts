@@ -16,6 +16,7 @@ import { renameRoom, type UseOrNone } from '../edit/rename'
 import { splitRoom } from '../edit/split'
 import { squarePlan } from '../edit/square'
 import { stretchPlan } from '../edit/stretch'
+import { SIDE_WORDS, type SideWord } from '../edit/sideNames'
 import { limit } from '@ongrid/floorplan/geometry'
 import type { OwnFigures } from '@ongrid/floorplan/library'
 import { placeItems } from '../edit/place'
@@ -172,11 +173,12 @@ const stretchTool: GridTool = {
   description:
     'Use this when the person asks for the whole building, flat or house wider, longer or deeper: "the flat 30 cm wider", "the house 1 m longer to the north, through the kitchen". '
     + 'Everything beyond a line across the building moves out by the distance: the line is just inside the outside wall on that side, or through the middle of a room with through. Walls across the line get longer and the rooms they bound grow, and the columns, parking bays, stairs, ramps, structural grids and site things beyond it move with them, an opening pattern keeping its pitch (what stays behind is named); every floor moves together unless floor names one. Doors and windows keep their anchor or their place in the building, so one in a wall that grows at its start does not slide. '
+    + 'A building turned on the drawing, with no wall facing the way asked, is stretched along its own axis nearest that way, and the answer says so. A stretch that would turn a wall crossing the line at an angle (a room losing its shape) is refused, naming the walls. '
     + 'Do not use for one room (grid_move_room_side). In a plan with phases the change is building work; pass correction to fix the survey instead (grid_start_works and grid_set_phase set phases). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
-    side: { type: 'string', enum: DIRECTIONS, required: true, description: 'Which way it grows: north is the top of the drawing.', examples: ['east'] },
+    side: { type: 'string', enum: SIDE_WORDS, required: true, description: 'Which way it grows: north is the top of the drawing; ne, nw, se or sw for a way at 45 degrees.', examples: ['east'] },
     by: { type: 'number', length: true, required: true, description: 'Metres to grow; negative to shrink.', examples: [0.3, -0.2], minimum: -50, maximum: 50 },
     through: { type: 'string', id: true, description: 'A room the line runs through, across its middle: it and the rooms in line with it grow.', examples: ['living'] },
     floor: { type: 'string', id: true, description: 'A floor id from the plan\'s "floors": stretch that floor only. Every floor when left out.', examples: ['ground'] },
@@ -189,7 +191,7 @@ const stretchTool: GridTool = {
     return writeChange(context, args, (survey) => {
       const floor = floorArg(survey.plan, args['floor'])
       const through = args['through'] === undefined ? undefined : roomArg(survey.plan, args['through'], 'through room')
-      return stretchPlan(survey, { side: args['side'] as Direction, by: args['by'] as number, ...(through !== undefined ? { through } : {}), ...(floor !== undefined ? { floor } : {}) })
+      return stretchPlan(survey, { side: args['side'] as SideWord, by: args['by'] as number, ...(through !== undefined ? { through } : {}), ...(floor !== undefined ? { floor } : {}) })
     })
   },
 }
