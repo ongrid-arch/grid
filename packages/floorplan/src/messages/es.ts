@@ -3337,6 +3337,7 @@ export const es: Messages = {
   'sheet.nothingFound': 'Eso solo significa que estas comprobaciones no encontraron nada, no que el plano se ajuste a ninguna norma.',
   'sheet.roomSchedule': 'Cuadro de estancias',
   'sheet.roomSchedule.heading': 'Cuadro de estancias / {unit}',
+  'schedule.openings.removals': 'Por retirar',
   'sheet.openingSchedule': 'Cuadro de puertas y ventanas',
   'sheet.openingSchedule.heading': 'Cuadro de puertas y ventanas / unidades',
   'sheet.useNotSaid': 'uso sin indicar',
