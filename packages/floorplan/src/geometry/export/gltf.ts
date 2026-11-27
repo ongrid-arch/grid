@@ -219,13 +219,13 @@ function sunNode(sun: GlbSun): object {
 const SUN_LUX = 100000
 
 /** The document with the sun's light: the extension's one light, its node a root of the scene. */
-function withSun(document: Record<string, unknown>, sun: GlbSun | undefined): Record<string, unknown> {
-  if (sun === undefined) return document
-  const nodes = (document['nodes'] as object[] | undefined) ?? []
-  const scenes = (document['scenes'] as { nodes?: number[] }[] | undefined) ?? [{}]
+function withSun(gltf: Record<string, unknown>, sun: GlbSun | undefined): Record<string, unknown> {
+  if (sun === undefined) return gltf
+  const nodes = (gltf['nodes'] as object[] | undefined) ?? []
+  const scenes = (gltf['scenes'] as { nodes?: number[] }[] | undefined) ?? [{}]
   const roots = scenes[0]?.nodes ?? []
   return {
-    ...document,
+    ...gltf,
     extensionsUsed: ['KHR_lights_punctual'],
     extensions: { KHR_lights_punctual: { lights: [{ name: GLB_SUN_NODE, type: 'directional', color: [1, 1, 1], intensity: sun.elevation > 0 ? SUN_LUX : 0 }] } },
     nodes: [...nodes, sunNode(sun)],
