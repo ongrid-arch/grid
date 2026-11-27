@@ -226,6 +226,21 @@ is one call for one request.
   An area groups as the answer prints it: to the hundredth of a square metre, or to the whole
   square foot on a plan read in square feet, whose groups and sums the text gives in square feet.
 
+### What stands in a room
+
+The fixtures, furniture and points (`kind` `fixture`, `furniture`, `point`, or `item` for all
+three) and (CMD-53) the columns (`kind: ["column"]`) are asked of as any other part. Each has
+`room`, the id of the room that holds its middle, and `room name` and `room use`, that room's name
+and use, so a question by the kind of room needs no ids: "how many basins in the toilets" is
+`grid_count` with `{ "kind": ["fixture"], "where": ["item kind = basin", "room use = toilet"] }`,
+and "which columns stand in the meeting rooms" `grid_find` with `{ "kind": ["column"], "where":
+["room use = meeting"] }`. A column gives its `column shape` (`square` or `round`), `width`,
+`depth`, `turn`, `label`, `height` (how high it rises above its own floor), `floors` (the floors
+it stands on: its own, then each it rises `through`) and `rooms` (every room it stands in on any
+of them; a column on a room line is in both). `floor` picks a column on every floor it stands on.
+A column carries no facts of the person's own, and one the drawing's checks leave out is not
+listed.
+
 ### Rooms in groups
 
 Rooms are grouped by what the plan already holds (CNT-57): the firm's room type (`roomType`,
@@ -240,8 +255,8 @@ private"`) a `grid_view`, scope a brief's wish (`fact: { "name": "tenure", "valu
 and on a plan where a room states a room type or tenure, `grid_schedule of=rooms` and the sheet's
 room schedule give each room's (`roomType`, `tenure`, and their CSV columns).
 
-Both take `kind`, `floor` and `room` (the room, the walls beside it and the openings into it) to
-narrow what is looked at. A condition is one line, a field or fact and a test: `is missing`,
+Both take `kind`, `floor` and `room` (the room, the walls beside it, the openings into it and the
+items and columns standing in it) to narrow what is looked at. A condition is one line, a field or fact and a test: `is missing`,
 `is set`, `=` and `!=` (text in any capitals; `yes` or `no`; a list holds the value), `<`, `<=`,
 `>` and `>=` (numbers; a length may give its unit, as `width < 900 mm`), and `contains`. A part
 with no value for a field meets only `is missing`. A fact is matched whatever its capitals,

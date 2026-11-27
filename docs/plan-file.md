@@ -1259,6 +1259,8 @@ comes off the room's area, exports as a column and draws as one.
   layer (`GRID-COLUMNS`), a round one as a true circle; the OBJ and the GLB hold a solid for each
   (`column_<id>`); the 3D view and the sheet's still show it. `grid_takeoff` counts the columns by
   shape and size, with their metres and volume, and `grid describe` says each floor's.
+  `grid_find` and `grid_count` take `kind: ["column"]` and ask of them by room, room use, shape
+  and size (CMD-53, [the tool server](tool-server.md#what-stands-in-a-room)).
 
 A structural grid is a named set of lines the columns are set out on. Its `x` lines run along the
 grid's own y, the first through `origin`, each `spacing` metres past the one before; its `y` lines

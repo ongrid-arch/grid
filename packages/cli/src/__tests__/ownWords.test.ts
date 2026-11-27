@@ -341,7 +341,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-67: four more, the zone, seats, desks and covers fields.
   // CNT-51: five more, the finish fields.
   // VEW-80: eight more, the geometry fields' descriptions and the refusals of a test, a group and a sum of coordinates.
-  'packages/cli/src/quantities/query.ts': [54, 'tools'],
+  'packages/cli/src/quantities/query.ts': [58, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   // ARE-67: the seat count's rule and its answer.
   'packages/cli/src/quantities/seats.ts': [4, 'notYet'],
@@ -660,7 +660,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // (mcp/toolGroups.ts 7) and the help of --tools (command/main.ts 1) (odd/tasks/CMD-52.md).
     // and VEW-82 11: grid export's and grid_export's doors and walls (command/export.ts 4,
     // mcp/writeTools.ts 3) and what their figures decide (geometry/tolerances.ts 4) (odd/tasks/VEW-82.md).
-    expect(left).toBeLessThanOrEqual(2768)
+    // and CMD-53 4: the columns' and a standing part's room fields (quantities/query.ts 4) (odd/tasks/CMD-53.md).
+    expect(left).toBeLessThanOrEqual(2772)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
