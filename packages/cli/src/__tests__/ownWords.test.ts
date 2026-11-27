@@ -37,7 +37,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
   'packages/cli/src/brief/lines.ts': [30, 'notYet'],
-  'packages/cli/src/command/check.ts': [10, 'command'],
+  // CMD-48: two more, the help and the refusal of --fail-on.
+  'packages/cli/src/command/check.ts': [12, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
   // CMD-32: one fewer, --floor no longer needs --picture.
   // CMD-44: three more, the help of --to, --who and --note.
@@ -55,6 +56,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/plan.ts': [27, 'command'],
   // CMD-30: one more, the refusal of an invisible character.
   'packages/cli/src/command/planText.ts': [20, 'command'],
+  // CMD-48: the reading commands' summaries, their --fail-on conditions and refusals.
+  'packages/cli/src/command/read.ts': [34, 'command'],
   'packages/cli/src/command/scan.ts': [22, 'command'],
   'packages/cli/src/command/section.ts': [6, 'command'],
   // SHT-6: four more, the help of --scale, --paper, --floor and --room-sizes.
@@ -517,7 +520,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // (edit/annotate.ts 7) (odd/tasks/SHT-22.md).
     // and CNT-48 10: a typical room's usual fixtures set out in a room (edit/fixtureSets.ts).
     // and LVL-23 23: a building's changes (edit/buildings.ts 9) and its tool (mcp/buildingTools.ts 14).
-    expect(left).toBeLessThanOrEqual(2424)
+    // and CMD-48 36: the reading commands (command/read.ts 34) and grid check's --fail-on (command/check.ts 2).
+    expect(left).toBeLessThanOrEqual(2460)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
