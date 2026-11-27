@@ -1,0 +1,10 @@
+# 2026-11-27: edits name and move angled sides, and refuse a stretch that would distort (CMD-50)
+
+## For people
+
+- Moving a side of a room now takes the side the way rooms text names it: `ne`, `se` and the other diagonals for an angled side such as a chamfer, `east.2` when two sides face east, a wall's id, or "facing" a room beside it. A side at an angle moves along its own line out of the room, and the walls that meet it keep their direction, so the corners keep their angles. Stretching a building turned on the drawing runs along the building's own axis instead of pulling one corner out, and a stretch that would bend a room out of shape is refused, naming the walls (CMD-50).
+
+## For agents
+
+- `grid_move_room_side`: `side` is a string, no longer the four compass words only: `north`, `east`, `south`, `west`, `ne`, `nw`, `se`, `sw` (`north-east` and `northeast` read the same), `<word>.<k>` for the k-th side facing that way counted from the west then the south, a wall id on the room's outline, or `facing <room>` (`the side facing <room>`, by id or name). An angled side moves along its own normal (`by` positive is out of the room; the receipt says `… m out` or `… m in`), a wall that ends on it at an angle slides along its own line (a `changed` line says so), and `to` is the inside size along the side's normal. A name the room has no side for, or one naming two sides not in one line, is refused with `Its sides: <word> (<length> m, wall "<id>"), …`. A side square to the drawing moves exactly as before.
+- `grid_stretch`: `side` takes `ne`, `nw`, `se` and `sw` too. With no straight wall facing the way asked, the stretch runs along the building's own axis nearest it and `guessed` says `No wall of the plan faces <way>: … <deg>° from <way>.`; two axes as near (a building turned 45 degrees) is refused naming both. A stretch that would turn a wall crossing its line is refused, `Stretching the plan <way> would turn wall "<id>" by <deg>°, …`, where before it was written with the room out of shape. No new code in the check record.

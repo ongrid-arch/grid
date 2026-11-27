@@ -17,33 +17,76 @@
  *
  * Pure: a survey in, a patch out.
  */
-import { gridLineNames, planGrid, tolerance, wallLength, type FloorPlan, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { dot, gridLineNames, planGrid, tolerance, wallAxis, wallLength, type FloorPlan, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said as sentence, type MessageKey, type Value } from '@ongrid/floorplan/messages'
 import { quoted } from '../fs/projectFiles'
 import type { Survey } from '../quantities/survey'
-import { listed, refuseCurved, type Direction, type OpeningChange, type PartList, type Patch } from './edits'
+import { listed, refuseCurved, type OpeningChange, type PartList, type Patch } from './edits'
 import { EditRefused } from './refused'
-import { COMPASS, r3, seatOpenings } from './seat'
+import { r3, seatOpenings } from './seat'
+import { COMPASS8, nearestWord, type SideWord } from './sideNames'
 
 export interface StretchRequest {
-  readonly side: Direction
+  /** CMD-50: any of the eight ways rooms text names a side. */
+  readonly side: SideWord
   readonly by: number
   /** A room the line runs through, across its middle. */
   readonly through?: string
   readonly floor?: string
 }
 
+/** CMD-50: a stretch's way is the building's own axis when it is within this of the way asked, as a cosine (45 degrees). */
+const AXIS_COS = Math.SQRT1_2
+/** CMD-50: two of the building's axes this near in cosine (about 0.4 degrees at 45) are as near the way asked: a plan drawn to the millimetre is that far off. */
+const TIE_COS = 0.005
+/** CMD-50: a wall whose moved end leaves its own line by more than this, in metres, turns. */
+const TURNS_M = 0.001
+
+/**
+ * CMD-50: the way a stretch runs. The way asked, when a straight wall faces it exactly; else the
+ * building's own axis nearest it (the walls' normals), said; refused when two are as near, or
+ * none is within 45 degrees.
+ */
+function stretchWay(walls: readonly Wall[], side: SideWord): { dir: Vec2; guessed: string | null } {
+  const asked = COMPASS8[side]
+  const askedWord = say(`edit.side.word.${side}` as MessageKey)
+  const normals = walls.flatMap((w) => {
+    if (w.arc !== undefined || wallLength(w) <= tolerance('noLength')) return []
+    const n = wallAxis(w).normal
+    return [n, { x: -n.x, y: -n.y }]
+  })
+  if (normals.some((n) => dot(n, asked) > 0.999)) return { dir: asked, guessed: null }
+  if (normals.length === 0) throw new EditRefused(say('edit.stretch.noAxis', { asked: askedWord }))
+  const best = Math.max(...normals.map((n) => dot(n, asked)))
+  if (best < AXIS_COS - TIE_COS) throw new EditRefused(say('edit.stretch.noAxis', { asked: askedWord }))
+  const near = normals.filter((n) => dot(n, asked) > best - TIE_COS)
+  const dir = near[0]!
+  const other = near.find((n) => dot(n, dir) < 0.999)
+  if (other !== undefined) {
+    const [a, b] = [nearestWord(dir), nearestWord(other)].map((w) => say(`edit.side.word.${w}` as MessageKey))
+    throw new EditRefused(say('edit.stretch.axisTie', { asked: askedWord, a: a!, b: b! }))
+  }
+  const degrees = (Math.acos(Math.min(1, best)) * 180) / Math.PI
+  return { dir, guessed: say('edit.stretch.axis', { asked: askedWord, degrees: num(degrees.toFixed(1)) }) }
+}
+
 export function stretchPlan(survey: Survey, request: StretchRequest): Patch {
   const plan = survey.plan
   const { side, by } = request
-  const out = COMPASS[side]
-  const across = side === 'east' || side === 'west'
-  const sign = side === 'east' || side === 'north' ? 1 : -1
-  const coord = (p: readonly [number, number] | Vec2): number => (Array.isArray(p) ? (across ? p[0] : p[1]) : across ? (p as Vec2).x : (p as Vec2).y)
   const onFloor = (floor: string | undefined): boolean => request.floor === undefined || (floor ?? 'ground') === request.floor
   const walls = plan.walls.filter((w) => onFloor(w.floor))
   if (walls.length === 0) throw new EditRefused('That floor has no walls to stretch.')
-  const guessed: string[] = []
+  const way = stretchWay(walls, side)
+  const out = way.dir
+  // Square to the drawing, the stretch measures along x or y as it always has; at an angle, along its own way.
+  const cardinal = side === 'north' || side === 'east' || side === 'south' || side === 'west' ? side : null
+  const square = cardinal !== null && way.guessed === null
+  const across = square ? cardinal === 'east' || cardinal === 'west' : false
+  const axis: Vec2 = square ? (across ? { x: 1, y: 0 } : { x: 0, y: 1 }) : out
+  const sign = square ? (cardinal === 'east' || cardinal === 'north' ? 1 : -1) : 1
+  const sideWords = square ? cardinal! : say(`edit.side.word.${side}` as MessageKey)
+  const coord = (p: readonly [number, number] | Vec2): number => (Array.isArray(p) ? p[0] * axis.x + p[1] * axis.y : (p as Vec2).x * axis.x + (p as Vec2).y * axis.y)
+  const guessed: string[] = way.guessed === null ? [] : [way.guessed]
   let line: number
   let where: string
   if (request.through !== undefined) {
@@ -56,8 +99,8 @@ export function stretchPlan(survey: Survey, request: StretchRequest): Patch {
   } else {
     const values = walls.flatMap((w) => [coord(w.start), coord(w.end)])
     line = sign > 0 ? Math.max(...values) - 0.01 : Math.min(...values) + 0.01
-    where = `at its ${side} outside wall`
-    guessed.push(`Only the rooms along the ${side} side grow: the ${side} outside wall moves out. Pass through with a room to stretch the building through that room instead.`)
+    where = `at its ${sideWords} outside wall`
+    guessed.push(`Only the rooms along the ${sideWords} side grow: the ${sideWords} outside wall moves out. Pass through with a room to stretch the building through that room instead.`)
   }
   const beyond = (p: readonly [number, number] | Vec2): boolean => sign * (coord(p) - line) > 0
   const v = { x: out.x * by, y: out.y * by }
@@ -66,6 +109,20 @@ export function stretchPlan(survey: Survey, request: StretchRequest): Patch {
   const changes = new Map<string, { start?: [number, number]; end?: [number, number] }>()
   const moved: string[] = []
   const longer: string[] = []
+  // CMD-50: a wall across the line must lie along the stretch, or its moved end turns it, and the
+  // rooms it bounds lose their shape (a kite of a room turned on the drawing): refused, named.
+  const turned: Value[] = []
+  for (const w of walls) {
+    if (beyond(w.start) === beyond(w.end) || w.arc !== undefined) continue
+    const d = { x: w.end[0] - w.start[0], y: w.end[1] - w.start[1] }
+    const length = Math.hypot(d.x, d.y)
+    if (length <= tolerance('noLength') || Math.abs(d.x * v.y - d.y * v.x) / length <= TURNS_M) continue
+    const sign = beyond(w.end) ? 1 : -1
+    const after = { x: d.x + sign * v.x, y: d.y + sign * v.y }
+    const degrees = (Math.abs(Math.atan2(d.x * after.y - d.y * after.x, d.x * after.x + d.y * after.y)) * 180) / Math.PI
+    turned.push(sentence('edit.stretch.turned', { wall: name(w.id), degrees: num(degrees.toFixed(1)) }))
+  }
+  if (turned.length > 0) throw new EditRefused(say('edit.stretch.turns', { asked: say(`edit.side.word.${side}` as MessageKey), walls: joined(turned, 'join.comma', 'join.and') }))
   for (const w of walls) {
     const s = beyond(w.start)
     const e = beyond(w.end)
@@ -78,14 +135,14 @@ export function stretchPlan(survey: Survey, request: StretchRequest): Patch {
     changes.set(w.id, change)
     ;(s && e ? moved : longer).push(w.id)
   }
-  if (changes.size === 0) throw new EditRefused(`Nothing of the plan lies ${side} of that line, so nothing would move.`)
+  if (changes.size === 0) throw new EditRefused(`Nothing of the plan lies ${sideWords} of that line, so nothing would move.`)
   const floors = new Set(walls.map((w) => w.floor ?? 'ground'))
   if (request.floor === undefined && floors.size > 1) guessed.push(`All ${floors.size} floors are stretched together; pass floor to stretch one.`)
 
   const seated = seatOpenings(survey, changes, (p) => (beyond(p) ? { x: p.x + v.x, y: p.y + v.y } : p), { shift: v, what: 'stretching it' })
   const openings = new Map<string, OpeningChange>()
   const said = [
-    `Stretched the plan ${Math.abs(by).toFixed(2)} m ${by >= 0 ? `to the ${side}` : `back from the ${side}`}, ${where}: ${moved.length} wall${moved.length === 1 ? '' : 's'} moved and ${longer.length} ${by >= 0 ? 'longer' : 'shorter'}${floors.size > 1 && request.floor === undefined ? `, on all ${floors.size} floors` : ''}.`,
+    `Stretched the plan ${Math.abs(by).toFixed(2)} m ${by >= 0 ? `to the ${sideWords}` : `back from the ${sideWords}`}, ${where}: ${moved.length} wall${moved.length === 1 ? '' : 's'} moved and ${longer.length} ${by >= 0 ? 'longer' : 'shorter'}${floors.size > 1 && request.floor === undefined ? `, on all ${floors.size} floors` : ''}.`,
   ]
   const stayed: string[] = []
   for (const [id, offset] of seated.offsets) {
@@ -101,7 +158,7 @@ export function stretchPlan(survey: Survey, request: StretchRequest): Patch {
     if (onFloor(item.floor) && beyond(item.at)) items.set(item.id, { at: move(item.at), turn: item.turn ?? 0 })
   }
   if (items.size > 0) said.push(`${items.size} fixture${items.size === 1 ? '' : 's'} beyond the line moved with ${items.size === 1 ? 'it' : 'them'}.`)
-  const carried = carryParts(plan, { beyond, move, by, coord, onFloor, changes, sign, across, line, single: request.floor !== undefined })
+  const carried = carryParts(plan, { beyond, move, by, coord, onFloor, changes, sign, axis, line, single: request.floor !== undefined })
   said.push(...carried.said)
   if (stayed.length > 0) said.push(`${listed(stayed)} ${stayed.length === 1 ? 'stays where it was: its wall grew at its start, so its offset is' : 'stay where they were: their walls grew at their start, so their offsets are'} ${Math.abs(by).toFixed(2)} m ${by >= 0 ? 'longer' : 'shorter'}.`)
   return {
@@ -129,7 +186,8 @@ interface Carry {
   readonly onFloor: (floor: string | undefined) => boolean
   readonly changes: ReadonlyMap<string, { start?: Pair; end?: Pair }>
   readonly sign: number
-  readonly across: boolean
+  /** CMD-50: the unit axis `coord` measures along: x or y square to the drawing, else the stretch's own way. */
+  readonly axis: Vec2
   readonly line: number
   /** One floor is stretched, not every one. */
   readonly single: boolean
@@ -228,7 +286,7 @@ function carryParts(plan: FloorPlan, c: Carry): { parts: Map<PartList, Map<strin
 /** WRT-24: the structural grids beyond the line; how many moved. */
 function carryGrids(plan: FloorPlan, c: Carry, put: Put, said: string[], notKept: string[]): number {
   const allFloors = [...new Set(plan.walls.map((w) => w.floor ?? 'ground'))]
-  const axis = { x: c.across ? 1 : 0, y: c.across ? 0 : 1 }
+  const axis = c.axis
   let n = 0
   for (const grid of plan.grids ?? []) {
     const drawn = planGrid(grid)
@@ -242,8 +300,9 @@ function carryGrids(plan: FloorPlan, c: Carry, put: Put, said: string[], notKept
     // How far along the stretch each set's lines step: the x lines along the grid's x, the y lines along its y.
     const kx = Math.cos(turn) * axis.x + Math.sin(turn) * axis.y
     const ky = -Math.sin(turn) * axis.x + Math.cos(turn) * axis.y
-    // Square to the stretch only when turned by a whole number of quarter turns, as stated.
-    const square = (grid.turn ?? 0) % 90 === 0
+    // Square to the stretch only when one set's lines step along it. CMD-50: square to the drawing,
+    // that is a whole number of quarter turns, as stated; else the grid turned as the stretch is.
+    const square = c.axis.x === 0 || c.axis.y === 0 ? (grid.turn ?? 0) % 90 === 0 : Math.abs(Math.abs(kx) - 1) < 0.0001 || Math.abs(Math.abs(ky) - 1) < 0.0001
     const which = !square ? null : Math.abs(kx) > Math.abs(ky) ? 'x' : 'y'
     if (which === null) {
       notKept.push(say('edit.stretch.stays.gridTurned', { grid: label }))

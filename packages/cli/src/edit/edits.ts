@@ -10,18 +10,25 @@
  * Pure: no file is read or written here. A change that can't be made is refused with
  * `EditRefused`, saying why and what would fit; nothing is half done.
  */
-import { planHasTypes, cameraRecord, compassBearing, doorKindOf, dot, drawingBearing, handingFromRooms, kindFits, kindWords, planOrientation, statedKind, storedView, sub, swingNeeds, tolerance, viewSetting, wallAxis, wallLength, wrapDegrees, type FloorPlan, type HandSide, type Opening, type OpeningAnchor, type Room, type StoredView, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
-import { english, name, said as sentence } from '@ongrid/floorplan/messages'
+import { add, planHasTypes, cameraRecord, compassBearing, doorKindOf, dot, drawingBearing, handingFromRooms, kindFits, kindWords, planOrientation, statedKind, storedView, sub, swingNeeds, tolerance, viewSetting, wallAxis, wallLength, wrapDegrees, type FloorPlan, type HandSide, type Opening, type OpeningAnchor, type Room, type StoredView, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
+import { english, joined, name, said as sentence, type MessageKey, type Value } from '@ongrid/floorplan/messages'
 import { DOOR_KINDS, FloorPlanSchema, WINDOW_KINDS, centreFromFace, faceFromCentre, statedItem, statedOpening, statedWall, wallWithEnds, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { EditRefused } from './refused'
 import { COMPASS, pt, r3, roomFaceAlong, seatOpenings } from './seat'
+import { insideAlong, roomSide } from './sideNames'
 
 export { EditRefused }
 
 type Pair = [number, number]
 type RawRecord = Record<string, unknown>
+
+/** CMD-50: a sentence of the message files, in English as the edits answer. */
+const say = (key: MessageKey, values?: Record<string, Value>): string => english(sentence(key, values))
+/** A part's id or a room's name as a value of a sentence, where `name` is a room's quoted name. */
+const nameValue = name
+const upper = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1)
 
 /** A change to one opening. `null` takes a key out. */
 export type OpeningChange = Partial<{ [K in 'offset' | 'type' | 'hinge' | 'swing' | 'wall' | 'phase']: Opening[K] }> & {
@@ -580,30 +587,36 @@ export function changeOpening(survey: Survey, id: string, request: OpeningChange
   return patch
 }
 
-/** The size of a room's inside outline across one side: east-west for east or west, north-south for north or south. */
-export function insideAcross(survey: Survey, roomId: string, side: Direction): number {
-  const polygon = survey.byId.get(roomId)!.polygon
-  const values = polygon.map((p) => (side === 'east' || side === 'west' ? p.x : p.y))
-  return Math.max(...values) - Math.min(...values)
+/**
+ * The size of a room's inside outline across one side: east-west for east or west, north-south
+ * for north or south; CMD-50: for any other side, along its way out.
+ */
+export function insideAcross(survey: Survey, roomId: string, side: Direction | Vec2): number {
+  return insideAlong(survey.byId.get(roomId)!.polygon, typeof side === 'string' ? COMPASS[side] : side)
 }
+
+/** CMD-50: the least cosine between a wall that ends on a side and the side's way out: a wall nearer the side's own line cannot follow it. */
+const FOLLOW_COS = 0.2
 
 /**
  * Moves the wall on one side of a room straight out (or in, with a negative distance). Walls
  * that end on it follow, so the rooms beside it grow or shrink with it, and its openings move
  * with it. Openings on the walls that follow keep their anchor or their place in the building,
- * and a door that would join other rooms follows the move where it can (WRT-3). Only a side
- * square to the drawing can move: north, east, south or west.
+ * and a door that would join other rooms follows the move where it can (WRT-3).
+ *
+ * CMD-50: the side is named as rooms text names it (`sideNames.ts`): a compass word (`se` for a
+ * chamfer), a wall id or `facing <room>`, and moves along its own normal. A wall that ends on it at
+ * an angle keeps its direction: its end slides along its own line, so it keeps its offset from the
+ * side's line, and the side's end at that corner moves with it. A wall square to it moves exactly
+ * as before.
  */
-export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by: number): Patch {
+export function moveRoomSide(survey: Survey, roomId: string, sideName: string, by: number): Patch {
   const room = survey.byId.get(roomId)!
-  const out = COMPASS[side]
-  const edges = room.edges.filter((edge) => {
-    const d = sub(edge.to, edge.from)
-    const n = { x: d.y / edge.length, y: -d.x / edge.length }
-    return edge.wall !== null && Math.abs(dot(n, out) - 1) < 1e-3
-  })
+  const found = roomSide(survey, roomId, sideName)
+  const out = found.out
+  const edges = found.edges
+  const called = found.called
   const name = quoted(room.facts.name)
-  if (edges.length === 0) throw new EditRefused(`${name} has no side facing ${side}: its sides face ${[...new Set(room.edges.map((e) => compass(e)))].join(', ')}.`)
   // WRT-59: the room's outline runs a side split into walls in one line as one edge, which names one
   // of them: the others are the room's walls in line with it that lie along the edge.
   const named = [...new Set(edges.map((edge) => edge.wall!))]
@@ -620,7 +633,7 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
   const together = survey.plan.walls.filter((w) => roomWalls.includes(w.id) && inLineWith(w) && within(w))
   const walls = [...new Set([...named, ...together])]
   const wall = walls[0]!
-  if (walls.some((w) => w.virtual === true)) throw new EditRefused(`The ${side} side of ${name} is a dividing line, not a wall.`)
+  if (walls.some((w) => w.virtual === true)) throw new EditRefused(`${upper(called)} of ${name} is a dividing line, not a wall.`)
   refuseCurved(walls, 'moveSide')
   const v = { x: out.x * by, y: out.y * by }
   const plan: FloorPlan = survey.plan
@@ -633,7 +646,7 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
   const alongBase = (p: Vec2): number => dot(sub(p, baseStart), baseAxis.dir)
   const offBase = (p: Vec2): number => Math.abs(dot(sub(p, baseStart), baseAxis.normal))
   if (walls.length > 1 && !walls.every((w) => (w.floor ?? 'ground') === floor && offBase(pt(w.start)) < reach && offBase(pt(w.end)) < reach)) {
-    throw new EditRefused(`The ${side} side of ${name} is made of ${walls.length} walls that are not in one line; move one wall at a time is not offered yet.`)
+    throw new EditRefused(`${upper(called)} of ${name} is made of ${walls.length} walls that are not in one line; move one wall at a time is not offered yet.`)
   }
   const spans = walls.flatMap((w) => [alongBase(pt(w.start)), alongBase(pt(w.end))])
   const lo = Math.min(...spans)
@@ -652,16 +665,17 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
     const along = other.thickness / 2 + 0.02
     return off < reach && t > -along && t < axis.length + along
   }
-  const moved = (p: Vec2): Pair => [r3(p.x + v.x), r3(p.y + v.y)]
+  const shifted = (p: Vec2, by: Vec2): Pair => [r3(p.x + by.x), r3(p.y + by.y)]
   const patchWalls = new Map<string, { start?: Pair; end?: Pair }>()
-  for (const w of walls) patchWalls.set(w.id, { start: moved(pt(w.start)), end: moved(pt(w.end)) })
   const followers: string[] = []
+  const slid: string[] = []
+  /** CMD-50: where each follower's end on the side lies, and how far beyond the side's own move it slid along the side. */
+  const corners: { at: Vec2; extra: Vec2; wall: string; thickness: number }[] = []
   const inLine: Wall[] = []
   for (const other of plan.walls) {
     if (sideIds.has(other.id) || (other.floor ?? 'ground') !== floor) continue
     const s = pt(other.start)
     const e = pt(other.end)
-    const change: { start?: Pair; end?: Pair } = {}
     // A wall in line with the side that runs on past the room is not one that ends on it: it keeps
     // its place, and the walls that meet the side square carry its end (checked below).
     const straight = other.arc === undefined
@@ -669,21 +683,43 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
       inLine.push(other)
       continue
     }
-    if (onAxis(s, other) && !onAxis(e, other)) change.start = moved(s)
-    if (onAxis(e, other) && !onAxis(s, other)) change.end = moved(e)
-    if (!change.start && !change.end) continue
+    const atStart = onAxis(s, other) && !onAxis(e, other)
+    const atEnd = onAxis(e, other) && !onAxis(s, other)
+    if (!atStart && !atEnd) continue
     refuseCurved([other], 'moveSide')
+    const oldAxis = wallAxis(other)
+    // Square to the side, its end moves with the side; at an angle, it slides along its own line
+    // as far as keeps it the same distance from the side's line.
+    const square = Math.abs(dot(oldAxis.dir, axis.dir)) < tolerance('parallel')
+    const cosine = dot(oldAxis.dir, out)
+    if (!square && Math.abs(cosine) < FOLLOW_COS) throw new EditRefused(say('edit.side.grazing', { wall: nameValue(other.id), side: called, room: nameValue(room.facts.name) }))
+    const move = square ? v : { x: (oldAxis.dir.x * by) / cosine, y: (oldAxis.dir.y * by) / cosine }
+    const change: { start?: Pair; end?: Pair } = atStart ? { start: shifted(s, move) } : { end: shifted(e, move) }
     const ns = change.start ? pt(change.start) : s
     const ne = change.end ? pt(change.end) : e
-    const oldAxis = wallAxis(other)
     const nd = sub(ne, ns)
     const nl = Math.hypot(nd.x, nd.y)
-    if (nl < 0.05) throw new EditRefused(`Moving it ${by.toFixed(2)} m would leave wall ${quoted(other.id)} with no length.`)
-    if (Math.abs(dot({ x: nd.x / nl, y: nd.y / nl }, oldAxis.dir) - 1) > 1e-6) {
-      throw new EditRefused(`Wall ${quoted(other.id)} ends on it at an angle, and would turn; Grid moves only walls that meet it square.`)
-    }
+    if (nl < 0.05 || dot(nd, oldAxis.dir) <= 0) throw new EditRefused(`Moving it ${by.toFixed(2)} m would leave wall ${quoted(other.id)} with no length.`)
     patchWalls.set(other.id, change)
     followers.push(other.id)
+    if (!square) slid.push(other.id)
+    corners.push({ at: atStart ? s : e, extra: sub(move, v), wall: other.id, thickness: other.thickness })
+  }
+  // The side's own ends move with it, and along it with a wall that slid at that corner.
+  const extraAt = (p: Vec2): Vec2 => {
+    const meeting = corners.filter((c) => Math.hypot(c.at.x - p.x, c.at.y - p.y) < reach + c.thickness / 2 + 0.02)
+    const angled = meeting.filter((c) => Math.hypot(c.extra.x, c.extra.y) > tolerance('noLength'))
+    if (angled.length === 0) return { x: 0, y: 0 }
+    const extra = angled[0]!.extra
+    if (meeting.some((c) => Math.hypot(c.extra.x - extra.x, c.extra.y - extra.y) > tolerance('noLength'))) {
+      throw new EditRefused(say('edit.side.twoWays', { walls: joined(meeting.map((c) => nameValue(c.wall)), 'join.comma', 'join.and'), side: called, room: nameValue(room.facts.name) }))
+    }
+    return extra
+  }
+  for (const w of walls) {
+    const s = pt(w.start)
+    const e = pt(w.end)
+    patchWalls.set(w.id, { start: shifted(s, add(v, extraAt(s))), end: shifted(e, add(v, extraAt(e))) })
   }
   // An in-line wall that touches an end of the side stays put, so a wall that meets the side square
   // must carry that end; with none, moving would leave a step nothing closes.
@@ -695,7 +731,7 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
         const f = plan.walls.find((w) => w.id === id)!
         return [pt(f.start), pt(f.end)].some((p) => Math.hypot(p.x - end.x, p.y - end.y) < reach)
       })
-      if (!carried) throw new EditRefused(`Wall ${quoted(other.id)} runs on in line with the ${side} side of ${name} and meets it with no wall across, so moving the side ${by.toFixed(2)} m would leave a step in the line. Move wall ${quoted(other.id)} with it (grid_move_room_side on the room it bounds), or add a wall across first.`)
+      if (!carried) throw new EditRefused(`Wall ${quoted(other.id)} runs on in line with ${called} of ${name} and meets it with no wall across, so moving the side ${by.toFixed(2)} m would leave a step in the line. Move wall ${quoted(other.id)} with it (grid_move_room_side on the room it bounds), or add a wall across first.`)
     }
   }
   // A point on the moved wall moves with it; everything else stays where it is.
@@ -705,9 +741,11 @@ export function moveRoomSide(survey: Survey, roomId: string, side: Direction, by
     const o = plan.openings.find((x) => x.id === id)!
     if (Math.abs(offset - o.offset) > tolerance('noLength')) patchOpenings.set(id, { offset })
   }
+  const way = found.cardinal !== null ? (by >= 0 ? found.cardinal : `back from the ${found.cardinal}`) : say(by >= 0 ? 'edit.side.way.out' : 'edit.side.way.in')
   const said = [
-    `Moved ${walls.length === 1 ? `wall ${quoted(wall.id)}` : `walls ${listed(walls.map((w) => quoted(w.id)))}, in one line`}, the ${side} side of ${name}, ${Math.abs(by).toFixed(2)} m ${by >= 0 ? side : `back from the ${side}`}${followers.length > 0 ? `; walls that end on it followed: ${listed(followers.map((id) => quoted(id)))}` : ''}.`,
+    `Moved ${walls.length === 1 ? `wall ${quoted(wall.id)}` : `walls ${listed(walls.map((w) => quoted(w.id)))}, in one line`}, ${called} of ${name}, ${Math.abs(by).toFixed(2)} m ${way}${followers.length > 0 ? `; walls that end on it followed: ${listed(followers.map((id) => quoted(id)))}` : ''}.`,
   ]
+  if (slid.length > 0) said.push(say(slid.length === 1 ? 'edit.side.slid.one' : 'edit.side.slid.many', { walls: joined(slid.map((id) => nameValue(id)), 'join.comma', 'join.and') }))
   const others = survey.rooms.filter((r) => r.facts.id !== roomId && r.edges.some((edge) => edge.wall !== null && sideIds.has(edge.wall.id))).map((r) => quoted(r.facts.name))
   const guessed = [...seated.guessed]
   if (others.length > 0) guessed.unshift(`${others.length > 2 ? `${others[0]} and ${others.length - 1} other rooms` : others.join(' and ')} ${by >= 0 ? (others.length === 1 ? 'gives' : 'give') : others.length === 1 ? 'takes' : 'take'} the ${Math.abs(by).toFixed(2)} m: the wall is ${others.length === 1 ? 'its' : 'their'} side too.`)
@@ -765,16 +803,6 @@ export function changeWallThickness(survey: Survey, wallId: string, thickness: n
     : `The face its file places it by stays where it is; the wall ${thickness > wall.thickness ? 'grows' : 'shrinks'} on its other side.`
   const said = [`Wall ${quoted(wall.id)}: ${thickness.toFixed(2)} m thick, ${was}. ${kept}${carried.length > 0 ? ` Walls that ended in it were carried to its new centre line, so they stay joined: ${listed(carried)}.` : ''}`]
   return { ...emptyPatch(said), walls }
-}
-
-function compass(edge: { from: Vec2; to: Vec2; length: number }): string {
-  const d = sub(edge.to, edge.from)
-  const n = { x: d.y / edge.length, y: -d.x / edge.length }
-  if (n.y > 0.99) return 'north'
-  if (n.y < -0.99) return 'south'
-  if (n.x > 0.99) return 'east'
-  if (n.x < -0.99) return 'west'
-  return 'at an angle'
 }
 
 export const MIRRORS = ['left-right', 'top-bottom'] as const

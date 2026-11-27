@@ -25,6 +25,7 @@ import { occupancyFileOf } from '../occupancy/occupancy'
 import { keepRoomNumbers } from '../edit/numbers'
 import { PlanBusy, withPlanLock } from '../edit/revision'
 import { changeOpening, changeWallThickness, listed, DIRECTIONS, EditRefused, FROMS, insideAcross, KEEPS, MIRRORS, mirrorPlan, applyPatch, readingAfter, TURNS, turnPlanBy, type Direction, type From, type Mirror, type Patch, type Turn } from '../edit/edits'
+import { roomSide } from '../edit/sideNames'
 import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
 import { parseSheetWordsChecked } from '../sheet/claims'
 import { SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
@@ -664,14 +665,14 @@ const moveSideTool: GridTool = {
   description:
     'Use this when the person asks to make a room deeper or wider by moving one of its walls, or to build out: "go out 3 m at the back, full width", "make the kitchen 1 m longer", "bring the bedroom wall in 0.5 m". '
     + 'It moves the wall on the named side of the room straight out (a positive distance) or in (negative), or to give the room an inside size (to: "the kitchen 4 m deep"); walls that end on it follow, and its doors and windows move with it. Doors and windows on the walls that grow keep their anchor or their place in the building, and a door that would end up between other rooms follows the wall where it can. It answers with every room whose area changed, what it guessed and what it could not keep. A move that would leave the drawing with a new problem is refused with the largest move that way that fits; call again with that by. '
-    + 'Only a side square to the drawing moves: north is the top of the drawing. Do not use to add a separate room or to split one. In a plan with phases the change is building work; pass correction to fix the survey instead (grid_start_works and grid_set_phase set phases). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
+    + 'Name the side as rooms text does: north (the top of the drawing), east, south, west, or ne, nw, se, sw for an angled side such as a chamfer; east.2 when more than one side faces east; a wall id on the room\'s outline; or facing <room> for the side it shares with that room. A side at an angle moves along its own normal, and walls that meet it at an angle keep their direction. A name the room has no side for is refused with its sides listed. Do not use to add a separate room or to split one. In a plan with phases the change is building work; pass correction to fix the survey instead (grid_start_works and grid_set_phase set phases). It replaces the plan file unless out is given. Lengths are metres, or text with their unit (12\'6", 360 cm).',
   args: {
     plan: PLAN_ARG,
     decimal: DECIMAL_IN_ARG,
     room: { type: 'string', id: true, required: true, description: 'The room whose side moves.', examples: ['kitchen', 'bed1'] },
-    side: { type: 'string', enum: DIRECTIONS, required: true, description: 'Which side of the room: north (the top of the drawing), east, south or west.', examples: ['north', 'east'] },
+    side: { type: 'string', required: true, description: 'Which side of the room, as rooms text names it: north (the top of the drawing), east, south, west; ne, nw, se or sw for an angled side; east.2 for the second of two facing east; a wall id; or facing <room>.', examples: ['north', 'se', 'facing hall'] },
     by: { type: 'number', length: true, description: 'Metres to move it: positive makes the room bigger, negative smaller. Pass by or to.', examples: [3, -0.5], minimum: -50, maximum: 50 },
-    to: { type: 'number', length: true, description: 'The room\'s inside size across that side after the move, in metres: its depth for north or south, its width for east or west. Pass by or to.', examples: [4, 3.2], minimum: NARROWEST_ACROSS, maximum: 100 },
+    to: { type: 'number', length: true, description: 'The room\'s inside size across that side after the move, in metres: its depth for north or south, its width for east or west, its size along the normal of an angled side. Pass by or to.', examples: [4, 3.2], minimum: NARROWEST_ACROSS, maximum: 100 },
     correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
@@ -684,11 +685,12 @@ const moveSideTool: GridTool = {
       const id = roomArg(survey.plan, args['room'])
       const room = survey.byId.get(id)
       if (!room || room.polygon.length < 3) throw new EditRefused('That room has no outline Grid can measure; grid_check says why.')
-      const side = args['side'] as Direction
+      const side = args['side'] as string
       if (args['to'] === undefined) return sideMoveThatFits(survey, id, side, args['by'] as number, problemsOf)
-      const now = insideAcross(survey, id, side)
+      const found = roomSide(survey, id, side)
+      const now = insideAcross(survey, id, found.out)
       const by = (args['to'] as number) - now
-      const across = side === 'north' || side === 'south' ? 'depth (north-south)' : 'width (east-west)'
+      const across = found.cardinal === 'north' || found.cardinal === 'south' ? 'depth (north-south)' : found.cardinal !== null ? 'width (east-west)' : english(sentence('edit.side.across', { side: found.called }))
       if (Math.abs(by) < 0.0005) throw new EditRefused(`${JSON.stringify(room.facts.name)} is ${now.toFixed(2)} m inside already, its ${across}.`)
       const patch = sideMoveThatFits(survey, id, side, by, problemsOf)
       return { ...patch, said: [`${JSON.stringify(room.facts.name)}: inside ${across} ${now.toFixed(2)} → ${(args['to'] as number).toFixed(2)} m.`, ...patch.said] }
