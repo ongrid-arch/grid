@@ -71,4 +71,21 @@ describe('the picture of a comparison', () => {
     const svg = pictureToSvg(comparisonPicture(compared.aligned, plan, compared.marks))
     expect(svg).not.toMatch(/data-part="(removed|added|changed)-/)
   })
+
+  it('draws a curve bent the other way at its new place in amber, its old curve outlined under it (WRT-86)', () => {
+    const wall = (id: string, start: [number, number], end: [number, number], arc?: { centre: [number, number]; sweep: number }) => ({ id, start, end, thickness: 0.2, height: 3, kind: 'exterior' as const, ...(arc === undefined ? {} : { arc }) })
+    const room = (sweep: number): FloorPlan => parseFloorPlan({
+      version: '1',
+      units: 'm',
+      walls: [wall('s', [1, 0], [6, 0]), wall('apse', [6, 0], [6, 4], { centre: [6, 2], sweep }), wall('n', [6, 4], [0, 4]), wall('w', [0, 4], [1, 0])],
+      rooms: [{ id: 'hall', name: 'Hall', boundary: ['s', 'apse', 'n', 'w'] }],
+      openings: []
+    })
+    const before = room(180)
+    const after = room(-180)
+    const compared = compareBuildings(before, after)
+    const svg = pictureToSvg(comparisonPicture(compared.aligned, after, compared.marks))
+    expect(svg).toMatch(/data-part="changed-was-wall" data-id="apse"[^>]*fill="none"/)
+    expect(svg).toMatch(new RegExp(`data-part="changed-wall" data-id="apse"[^>]*fill="${COMPARISON_COLORS.changed}"`))
+  })
 })

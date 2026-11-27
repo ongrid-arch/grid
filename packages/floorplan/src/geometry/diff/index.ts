@@ -21,5 +21,8 @@ export {
   type OpeningMovedWith,
   type RoomStatus,
   type RoomVerdict,
-  type WallStretchMark
+  type WallStretchMark,
+  type CurveChange
 } from './building'
+export { compareTypes, finishChanges, type TypeChange, type FinishChange } from './typesAndFinishes'
+export { curveFigures, type CurveFigures } from './curves'
