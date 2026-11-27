@@ -89,6 +89,21 @@ export const BUILT_IN_ITEMS: readonly LibraryItem[] = [
   entry('kennel', 'kennel', 'Kennel', [0.9, 0.9], 0.9),
   entry('exam-table', 'exam-table', 'Exam table', [1.2, 0.6], 0.9, 0.8),
   entry('clinical-sink', 'clinical-sink', 'Clinical sink', [0.9, 0.6], 0.9, 0.6),
+  // CNT-52: points, one of each kind: the size its symbol is drawn at and the height it is shown at.
+  entry('extinguisher', 'extinguisher', 'Extinguisher', [0.4, 0.4], 1),
+  entry('aed', 'aed', 'AED', [0.4, 0.4], 1.2),
+  entry('call-point', 'call-point', 'Call point', [0.3, 0.3], 1.4),
+  entry('first-aid', 'first-aid', 'First aid', [0.4, 0.4], 1.4),
+  entry('sensor', 'sensor', 'Sensor', [0.3, 0.3], 2.4),
+  entry('desk-point', 'desk-point', 'Desk', [0.4, 0.4], 0.75),
+  entry('spawn', 'spawn', 'Spawn', [0.6, 0.6], 0.05),
+  entry('camera', 'camera', 'Camera', [0.3, 0.3], 2.6),
+  entry('you-are-here', 'you-are-here', 'You are here', [0.5, 0.5], 1.6),
+  entry('hose-reel', 'hose-reel', 'Hose reel', [0.5, 0.5], 1.4),
+  entry('fire-door', 'fire-door', 'Fire door', [0.4, 0.4], 2.1),
+  entry('exit', 'exit', 'Exit', [0.4, 0.4], 2.2),
+  entry('refuge', 'refuge', 'Refuge', [0.5, 0.5], 1.2),
+  entry('assembly-point', 'assembly-point', 'Assembly point', [0.6, 0.6], 2),
 ]
 
 /** One item of a typical room: a library item by name, where it stands in the room and its turn. */

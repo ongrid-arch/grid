@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FACT_FIELDS, PHASE_FIELDS, FloorPlanFieldsSchema, FloorSchema, OpeningFieldsSchema, RoomSchema, WallSchema } from '@ongrid/floorplan/types/floorplan'
+import { FACT_FIELDS, PHASE_FIELDS, FloorPlanFieldsSchema, FloorSchema, ItemSchema, OpeningFieldsSchema, RoomSchema, WallSchema } from '@ongrid/floorplan/types/floorplan'
 import { FACT_COVERAGE, OUTLINE_COVERAGE, PHASE_COVERAGE, SHEET_COVERAGE } from '../coverage'
 
 describe('the sheet covers every part of a plan (VEW-7)', () => {
@@ -19,6 +19,8 @@ describe('the sheet covers every part of a plan (VEW-7)', () => {
       openings: OpeningFieldsSchema.shape,
       rooms: RoomSchema.shape,
       floors: FloorSchema.shape,
+      // CNT-52: an item's fields are under the reading that fills it from its library entry.
+      items: (ItemSchema as unknown as { _def: { schema: { shape: Record<string, unknown> } } })._def.schema.shape,
     }
     for (const field of FACT_FIELDS) {
       const [list, key] = field.split('.') as [string, string]

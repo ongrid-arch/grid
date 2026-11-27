@@ -26,7 +26,7 @@ type Part = {
   readonly id: string
   readonly properties?: Readonly<Record<string, string | number | boolean>> | undefined
   readonly number?: string | undefined
-  readonly finishes?: Readonly<Record<string, string | undefined>> | undefined
+  readonly finishes?: Readonly<Record<string, unknown>> | undefined
   readonly wallType?: string | undefined
   readonly doorType?: string | undefined
   readonly windowType?: string | undefined
