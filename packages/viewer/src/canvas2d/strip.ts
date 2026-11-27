@@ -28,3 +28,15 @@ export function stripAcross(from: Vec2, to: Vec2, normal: Vec2, thickness: numbe
     { x: from.x - nx, y: from.y - ny }
   ]
 }
+
+/**
+ * VEW-77: the strip an opening's gap fills, edge to edge: along its path (`PlanOpening.path`) on
+ * a curve or across a joint, so the fill follows the wall's faces, else across its one line.
+ */
+export function openingStrip(opening: PlanOpening): Vec2[] {
+  const path = opening.path
+  if (path === undefined || path.length < 3) return stripAcross(opening.from, opening.to, opening.normal, opening.thickness)
+  const half = opening.thickness / 2
+  const side = (by: number) => path.map(({ point, normal }) => ({ x: point.x + normal.x * by, y: point.y + normal.y * by }))
+  return [...side(half), ...side(-half).reverse()]
+}

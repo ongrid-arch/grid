@@ -199,22 +199,57 @@ function doorSymbol(opening: PlanOpening, values: DoorValues): OpeningSymbol | n
   return { kind, pieces }
 }
 
+/**
+ * VEW-77: the point `t` of the way along an opening's path (by its length along the run), moved
+ * `by` metres along the normal there.
+ */
+function pathAt(path: NonNullable<PlanOpening['path']>, t: number, by: number): Vec2 {
+  const first = path[0]!
+  const last = path[path.length - 1]!
+  const u = first.at + (last.at - first.at) * t
+  let k = 0
+  while (k + 2 < path.length && path[k + 1]!.at < u) k++
+  const a = path[k]!
+  const b = path[k + 1]!
+  const share = b.at === a.at ? 0 : Math.max(0, Math.min(1, (u - a.at) / (b.at - a.at)))
+  const p = lerp(a.point, b.point, share)
+  const n = lerp(a.normal, b.normal, share)
+  const size = Math.hypot(n.x, n.y) || 1
+  return { x: p.x + (n.x / size) * by, y: p.y + (n.y / size) * by }
+}
+
+/**
+ * A window's line `by` metres off its axis between `t0` and `t1`: one line on a straight
+ * opening, one per facet along its path on a curve or across a joint (VEW-77), so the lines lie
+ * on the wall's faces as they bow.
+ */
+function alongWindow(opening: PlanOpening, part: SymbolPart, by: number, t0 = 0, t1 = 1, above = false): SymbolLine[] {
+  const path = opening.path
+  if (path === undefined || path.length < 3) return [across(opening, part, by, t0, t1, above)]
+  const first = path[0]!.at
+  const whole = path[path.length - 1]!.at - first
+  if (!(whole > 0)) return [across(opening, part, by, t0, t1, above)]
+  const ts = [t0, ...path.map((p) => (p.at - first) / whole).filter((t) => t > t0 && t < t1), t1]
+  return ts.slice(1).map((t, i) => line(part, pathAt(path, ts[i]!, by), pathAt(path, t, by), above))
+}
+
 function windowSymbol(opening: PlanOpening): OpeningSymbol {
   const kind = windowKindOf(opening.kind)
   const half = opening.thickness / 2
   const high = kind === 'high-level'
-  const faces = [across(opening, 'face', half, 0, 1, high), across(opening, 'face', -half, 0, 1, high)]
+  const faces = [...alongWindow(opening, 'face', half, 0, 1, high), ...alongWindow(opening, 'face', -half, 0, 1, high)]
   if (kind === 'sliding') {
     const by = track(opening, PANE_TRACK)
-    return { kind, pieces: [...faces, across(opening, 'glass', by, 0, 1 / 2 + SLIDE_OVERLAP), across(opening, 'glass', -by, 1 / 2 - SLIDE_OVERLAP, 1)] }
+    return { kind, pieces: [...faces, ...alongWindow(opening, 'glass', by, 0, 1 / 2 + SLIDE_OVERLAP), ...alongWindow(opening, 'glass', -by, 1 / 2 - SLIDE_OVERLAP, 1)] }
   }
-  const pieces: SymbolPiece[] = [...faces, across(opening, 'glass', 0, 0, 1, high)]
+  const pieces: SymbolPiece[] = [...faces, ...alongWindow(opening, 'glass', 0, 0, 1, high)]
   if (kind === 'double') {
     const width = distance(opening.from, opening.to)
     const startHung = (opening.hinge ?? 'start') === 'start'
     const split = width > 0 ? pairLeaves(width, opening.opens)[0] / width : 1 / 2
     const s = startHung ? split : 1 - split
-    pieces.push(line('face', at(opening, s, half), at(opening, s, -half)))
+    const path = opening.path
+    pieces.push(path !== undefined && path.length >= 3 ? line('face', pathAt(path, s, half), pathAt(path, s, -half)) : line('face', at(opening, s, half), at(opening, s, -half)))
   }
   return { kind, pieces }
 }

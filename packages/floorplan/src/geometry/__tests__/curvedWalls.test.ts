@@ -165,8 +165,11 @@ describe('a round room drawn as one arc wall', () => {
     const scene = buildScene(roundRoom())
     const [w] = scene.walls
     expect(w!.pieces!.length).toBeGreaterThan(200)
+    // VEW-77: the lintel follows the curve in pieces, as the wall does.
     const lintels = w!.pieces!.filter((piece) => piece.elevation.outline[0]!.y > 0)
-    expect(lintels).toHaveLength(1)
+    expect(lintels.length).toBeGreaterThan(1)
+    const lintelLength = lintels.reduce((sum, piece) => sum + piece.elevation.length, 0)
+    expect(lintelLength).toBeCloseTo(0.9, 3)
     // Unrolled, the wall's elevation keeps its door.
     expect(elevationArea(w!.elevation)).toBeCloseTo(6 * Math.PI * 2.7 - 0.9 * 2.1, 9)
   })
@@ -301,9 +304,13 @@ describe('the curve in the rest of the geometry', () => {
     expect(Math.abs(roomArea(line.rooms[0]!, indexPlan(line)) - toLine) / toLine).toBeLessThan(0.002)
   })
 
-  it('refuses an opening that runs past the end of the curve', () => {
+  it('refuses an opening that runs past the end of the curve and of the wall it carries on into', () => {
     const plan = bayRoom()
-    plan.openings.push({ id: 'far', wall: 'bay', type: 'window', offset: 5.9, width: 1, sill: 0.9, height: 1.2 })
+    // VEW-77: the bay meets the west wall without a kink, so a window may run on into it, but
+    // not past its corner with the south wall.
+    plan.openings.push({ id: 'on', wall: 'bay', type: 'window', offset: 5.9, width: 1, sill: 0.9, height: 1.2 })
+    expect(validatePlan(plan).issues.filter((i) => i.id === 'on').map((i) => i.code)).not.toContain('opening/out-of-wall')
+    plan.openings.push({ id: 'far', wall: 'bay', type: 'window', offset: 5.9, width: 4, sill: 0.9, height: 1.2 })
     expect(validatePlan(plan).issues.find((i) => i.id === 'far')?.code).toBe('opening/out-of-wall')
   })
 })
