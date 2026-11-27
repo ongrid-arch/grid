@@ -124,7 +124,6 @@ import {
   NULLABLE_STRING,
   NUMBER,
   objectSchema,
-  openingArg,
   PLAN_ARG,
   projectOf,
   readPlan,
