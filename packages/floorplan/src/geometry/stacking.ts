@@ -380,6 +380,8 @@ export function stackingIssues(plan: FloorPlan, spaces: readonly FloorSpaces[]):
  * and facades close by drawing them up to it; walls that rise past the floor level of `over` stand
  * in the storey above (`floor/walls-past-floor`). Walls that run into the slab and stop in it are
  * not said: stating a storey's walls floor to floor, slab included, is a way of writing heights.
+ * LVL-24: a floor that states its clear height, which with the slab of `over` reaches past the
+ * floor level of `over`, wrote its floor-to-floor as its height (`floor/height-past-next`).
  * A floor that draws no wall, or whose levels are not numbers, is not set against anything.
  */
 function storeyTops(plan: FloorPlan, over: Floor, below: readonly Floor[], elevations: BuildingElevations, floors: readonly Floor[]): Issue[] {
@@ -404,7 +406,25 @@ function storeyTops(plan: FloorPlan, over: Floor, below: readonly Floor[], eleva
     } else if (top - upper.floorLevel > same) {
       const sentence = said('issue.floor/walls-past-floor', { ...values, past: at(top - upper.floorLevel) })
       issues.push(withSaid({ entity: 'floor', id: floor.id, code: 'floor/walls-past-floor', severity: 'warning', message: english(sentence) }, sentence))
+      continue
     }
+    // LVL-24: a clear height stated as if it were the floor-to-floor, so that with the slab over it
+    // it runs past the floor over it. Not said where its walls already rise past that floor.
+    const clear = floor.height !== undefined && Number.isFinite(floor.height) && floor.height > 0 ? floor.height : null
+    if (clear === null) continue
+    const reach = storey.floorLevel + clear + slab
+    if (reach - upper.floorLevel <= same) continue
+    const sentence = said('issue.floor/height-past-next', {
+      floor: values.floor,
+      over: values.over,
+      height: at(clear),
+      slab: at(slab),
+      reach: at(reach),
+      past: at(reach - upper.floorLevel),
+      level: values.level,
+      fits: at(Math.max(0, upper.floorLevel - slab - storey.floorLevel)),
+    })
+    issues.push(withSaid({ entity: 'floor', id: floor.id, code: 'floor/height-past-next', severity: 'warning', message: english(sentence) }, sentence))
   }
   return issues
 }
