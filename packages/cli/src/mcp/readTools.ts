@@ -2882,7 +2882,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       : `Windows and glazed doors in the room, sill and top against the eye at ${m(height)} m: ${sills.map((s) => `${s.type === 'door' ? 'glazed door ' : ''}${q(s.id)} sill ${m(s.sill)}, top ${m(s.top)} (${s.sill < height ? 'the eye is above the sill' : 'the sill is at or above the eye'})`).join('; ')}.`
     return {
       text: [
-        `Standing in ${q(roomCalled(room.facts))} at (${m(camera.position[0])}, ${m(camera.position[1])}), eye ${m(height)} m above the room's own floor, looking level toward ${looking} (heading ${heading.toFixed(0)}° from the top of the drawing), 90° across. ${sillText} Its rooms have their ceilings, their floors and walls are tinted by their finishes where a finish's name gives a colour, glass is see-through, and outside it is a plain sky over plain ground; the plan's fixtures and furniture stand in it as plain blocks. Look at the picture before you describe it.`,
+        `Standing in ${q(roomCalled(room.facts))} at (${m(camera.position[0])}, ${m(camera.position[1])}), eye ${m(height)} m above the room's own floor, looking level toward ${looking} (heading ${heading.toFixed(0)}° from the top of the drawing), 90° across. ${sillText} The plan's fixtures and furniture stand in it as plain blocks; its rooms have their ceilings, their floors and walls are tinted by their finishes where a finish's name gives a colour, glass is see-through, and outside it is a plain sky over plain ground. Look at the picture before you describe it.`,
         ...cameraLines(plan, camera),
       ].join('\n'),
       data: { kind, floor: room.facts.floor, camera, view: null, pxPerMetre: null, sills, ids: [], boxes: [] },

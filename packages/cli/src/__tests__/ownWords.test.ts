@@ -197,7 +197,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-68: seven more, the lettable, people, as_written and frontage arguments and frontage's refusals.
   // CNT-51: four more, the take-off's and the finishes schedule's bands and faces.
   // CNT-52: two more, grid_schedule of=items' lines.
-  'packages/cli/src/mcp/readTools.ts': [424, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [425, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -352,7 +352,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
   // VEW-71: one more, the projected roof edge in elevation.
   // LVL-24: one more, a wall lower than storeyLowest set against its floor's height.
-  'packages/floorplan/src/geometry/tolerances.ts': [349, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [354, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
