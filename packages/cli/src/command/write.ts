@@ -15,7 +15,7 @@
  */
 import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planFloors, roomShapes, validatePlan, withPatterns, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
 import { english, name, said, type Said } from '@ongrid/floorplan/messages'
-import { baseNamedIn, carryFacts, compileRoomsText, itemsFollowWalls, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
+import { baseNamedIn, carryFacts, compileRoomsText, everyProblem, itemsFollowWalls, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedItem, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
@@ -265,7 +265,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // CMD-30: names in one form (NFC), so a letter typed with a combining accent is the one the plan holds.
   const result = compileRoomsText(text.normalize('NFC'), base === null ? {} : { base })
   if (result.plan === null) {
-    const lines = problemLines(result)
+    // MSG-33: every independent problem of the text, not only the first the compiler stopped at.
+    const lines = problemLines(everyProblem(text.normalize('NFC'), result, base === null ? {} : { base }))
     const more = lines.length > 1 ? ` (${lines.length - 1} more: ${lines.slice(1).join(' | ')})` : ''
     throw new RoomsRefused(result.problems[0]?.code ?? 'rooms/syntax', `The rooms text was not written, and the plan is as it was: ${lines[0] ?? 'it could not be read'}${more}`, lines)
   }

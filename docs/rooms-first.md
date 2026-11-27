@@ -180,7 +180,11 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   thickness (WRT-77).
 - Rooms that overlap, that touch with no wall between them (unless one is `open` to the other),
   or that leave a gap between indoor rooms are refused in plain words naming both
-  rooms. Every refusal has a code, such as `rooms/overlap`. Each gives the advice that applies
+  rooms. Every refusal has a code, such as `rooms/overlap`. A text with several mistakes is
+  refused with every one found on its own, each on its line (MSG-33): a size of 0, a length Grid
+  cannot read, a room that is not there and rooms that overlap, all in one answer. A line that
+  fails only because a refused line before it names a room (a room placed north of a refused
+  room, a door into it) is not listed; it reads once the first is put right. Each gives the advice that applies
   (WRT-55): a gap too wide for a wall is refused with the size of each room that closes it to the
   wall between them; `open` is offered to a room placed beside the other, `open <room>` to one
   placed by its corner, and a corner (`inside <room> corner`) only to a room that fits inside the
