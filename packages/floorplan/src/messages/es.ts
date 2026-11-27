@@ -3581,6 +3581,7 @@ export const es: Messages = {
   'view.frame.crop': 'Omite frame al dibujar un recorte o una sección en mosaico.',
   'view.files.distinct': 'Usa nombres distintos para la imagen, sus archivos asociados y el plano.',
   'view.transform.help': 'Una vista ortográfica devuelve pixelToMetres y la imagen PNG lleva un archivo .pgw de georreferenciación. Las vistas lado a lado dan la transformación de cada dibujo en panels. Una perspectiva devuelve su cámara y una transformación nula.',
+  'view.worldFile.stale': 'Elige otro nombre para este PNG para que no use el archivo de georreferenciación {file}.',
   'view.worldFile': 'Se escribió el archivo de georreferenciación {file}.',
   'view.frame.shared': 'Todas las plantas usan el mismo encuadre del edificio con estos ajustes de dibujo.',
   'write.toLookAt': 'Por revisar: {before} → {after}, de ellos problemas en el dibujo {drawingBefore} → {drawingAfter}. Ejecuta grid check para ver las notas.',

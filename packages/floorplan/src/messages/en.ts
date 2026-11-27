@@ -3455,6 +3455,7 @@ export const en = {
   'view.frame.shared': 'Every floor uses the same building frame at these drawing settings.',
   'view.files.distinct': 'Use distinct names for the picture, its companion files and the plan.',
   'view.transform.help': 'An orthographic view returns pixelToMetres and a PNG has a .pgw world file. A side-by-side view gives the transform for each drawing in panels. A perspective view gives its camera and a null transform.',
+  'view.worldFile.stale': 'Choose another name for this PNG so it does not pick up the world file {file}.',
   'view.worldFile': 'Wrote the world file {file}.',
   'write.toLookAt': 'To look at: {before} → {after}, of them problems in the drawing {drawingBefore} → {drawingAfter}. Run grid check for the notes.',
   // WRT-82: the new problems a write leaves, by code and part, after their count.

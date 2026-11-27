@@ -431,13 +431,14 @@ When `out` is given, the same transform or panel transforms go into the `.view.j
 A PNG of a single orthographic drawing also gets a `.pgw` world file in the same
 folder, with its path in `worldFile`. The world file uses the first pixel centre
 and the drawing's metre coordinates. For a world file per floor, write each floor
-as a separate PNG.
+as a separate PNG. Grid asks for a fresh PNG name when a view without a single
+transform would reuse an existing world file.
 
 `grid_write_rooms` reports `origin` in metres, with the fixed drawing origin
 `drawing`, the lower-left corner of the walls' centre-line bounds
 `wallBoundsCorner`, and the optional `site` reference point. The rooms-text line
-`site origin x,y` sets the reference used by exports at survey coordinates. Drawing
-coordinates in the picture and transform stay as they are in the plan.
+`site origin x,y` sets the reference used by exports at survey coordinates. The picture
+transform uses the plan's drawing coordinates.
 
 ## A camera you can set, and saved views
 

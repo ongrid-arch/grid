@@ -87,10 +87,14 @@ export function writePicture(
   const name = recordName(out)
   const plain = path.basename(out) === out && !out.includes('\\')
   const json = JSON.stringify({ file: path.basename(out), ...record, ...(record.bounds === null ? {} : { pixel: 'x = (worldX - bounds.minX) * pxPerMetre, y = (bounds.maxY - worldY) * pxPerMetre, from the top-left corner' }), gridVersion }, null, 2) + '\n'
-  const world = path.extname(out).toLowerCase() === '.png' && record.pixelToMetres !== null
-    ? { name: worldFileName(out), text: worldFileText(record.pixelToMetres) }
+  const worldName = path.extname(out).toLowerCase() === '.png' ? worldFileName(out) : null
+  const world = worldName !== null && record.pixelToMetres !== null
+    ? { name: worldName, text: worldFileText(record.pixelToMetres) }
     : null
   const target = (given: string): string => plain ? path.join(path.dirname(planFile), EXPORTS_DIR, given) : given
+  if (world === null && worldName !== null && project.exists(target(worldName))) {
+    throw new PictureOutRefused(say('en', 'view.worldFile.stale', { file: project.shown(target(worldName)) }))
+  }
   const paths = [out, name, ...(world === null ? [] : [world.name])].map((given) => project.writable(target(given)))
   if (new Set(paths).size !== paths.length || paths.includes(project.resolve(planFile))) {
     throw new PictureOutRefused(say('en', 'view.files.distinct'))

@@ -545,8 +545,11 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     if (request.out === undefined) {
       io.stdout(picture)
     } else {
-      const world = drawsPng(request) && pixelToMetres !== undefined ? worldFileName(request.out) : null
-      if (world !== null) {
+      const world = drawsPng(request) ? worldFileName(request.out) : null
+      if (world !== null && pixelToMetres === undefined && project.exists(world)) {
+        throw new UsageError(say('en', 'view.worldFile.stale', { file: project.shown(world) }))
+      }
+      if (world !== null && pixelToMetres !== undefined) {
         checkWritable(project, world)
         const targets = [request.out, world, loaded.file].map((file) => project.resolve(file))
         if (new Set(targets).size !== targets.length) throw new UsageError(say('en', 'view.files.distinct'))
