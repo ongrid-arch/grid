@@ -40,7 +40,7 @@ const PART_LINES: ReadonlySet<string> = new Set(['room', 'door', 'window', 'open
 const NAMING_LINES: ReadonlySet<string> = new Set(['door', 'window', 'opening', 'wall', 'rename', 'remove'])
 
 /** The words a room's id follows on a line that names rooms, so `between phase and hall` names a room called phase. */
-const BEFORE_ID: ReadonlySet<string> = new Set(['between', 'and', 'of', 'in', 'into', 'until', 'near', 'inside', 'open', 'wall', 'room', 'door', 'window', 'opening', 'rename', 'remove', 'as', 'place', 'repeat', 'from'])
+const BEFORE_ID: ReadonlySet<string> = new Set(['between', 'and', 'of', 'in', 'into', 'until', 'near', 'inside', 'open', 'wall', 'room', 'door', 'window', 'opening', 'rename', 'remove', 'as', 'place', 'repeat', 'from', 'to', 'floor', 'copy', 'through', 'on', 'unit', 'column', 'item', 'stair', 'bay', 'ramp'])
 
 const stands = (phase: Phase, state: State): boolean => (state === 'before' ? phase !== 'new' : phase !== 'demolished')
 
