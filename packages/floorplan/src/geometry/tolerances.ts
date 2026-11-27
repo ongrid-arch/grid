@@ -841,6 +841,16 @@ export const TOLERANCES = {
       'named. Past it, the item is named with the room and the floor outside.',
     basis: own
   },
+  itemRaised: {
+    kind: 'tolerance',
+    value: 1,
+    unit: 'm',
+    decides:
+      'How high an item\'s underside may be above the floor and still stand on it. From it up, the ' +
+      'item hangs above the plan\'s cut (a wall unit, a hood): it is drawn dashed, takes no floor and ' +
+      'stands in no clear floor another keeps.',
+    basis: own
+  },
   itemAboveRoom: {
     kind: 'tolerance',
     value: 0.001,

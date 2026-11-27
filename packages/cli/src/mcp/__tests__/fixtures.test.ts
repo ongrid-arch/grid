@@ -74,8 +74,8 @@ describe('count by kind (grid_schedule)', () => {
     expect(reply.text).toContain('Fixtures: 1 toilet, 1 basin, 2 kitchen runs.')
     expect(reply.text).toContain('Island "island" (kitchen-run), in "Kitchen"')
     expect(reply.text).not.toContain('In all:')
-    // CNT-20: every kind the registry holds is counted, furniture too (CNT-52: and the points).
-    expect(reply.data!['fixtureCounts']).toEqual({ toilet: 1, basin: 1, shower: 0, bath: 0, 'kitchen-run': 2, bed: 0, table: 0, chair: 0, sofa: 0, storage: 0, armchair: 0, stool: 0, desk: 0, rug: 0, plant: 0, rack: 0, generator: 0, pump: 0, tank: 0, seat: 0, pew: 0, altar: 0, 'fume-cupboard': 0, 'lab-bench': 0, 'safety-shower': 0, kennel: 0, 'exam-table': 0, 'clinical-sink': 0, equipment: 0, extinguisher: 0, aed: 0, 'call-point': 0, 'first-aid': 0, sensor: 0, 'desk-point': 0, spawn: 0, camera: 0, 'you-are-here': 0, 'hose-reel': 0, 'fire-door': 0, exit: 0, refuge: 0, 'assembly-point': 0 })
+    // CNT-20: every kind the registry holds is counted, furniture too (CNT-52: and the points; CNT-55: and the fittings).
+    expect(reply.data!['fixtureCounts']).toEqual({ toilet: 1, basin: 1, shower: 0, bath: 0, 'kitchen-run': 2, bed: 0, table: 0, chair: 0, sofa: 0, storage: 0, armchair: 0, stool: 0, desk: 0, rug: 0, plant: 0, rack: 0, generator: 0, pump: 0, tank: 0, seat: 0, pew: 0, altar: 0, 'fume-cupboard': 0, 'lab-bench': 0, 'safety-shower': 0, kennel: 0, 'exam-table': 0, 'clinical-sink': 0, equipment: 0, bidet: 0, urinal: 0, vanity: 0, 'double-basin': 0, 'towel-radiator': 0, 'shower-screen': 0, sink: 0, hob: 0, oven: 0, fridge: 0, 'tall-unit': 0, 'wall-unit': 0, range: 0, fryer: 0, 'prep-table': 0, dishwasher: 0, hood: 0, extinguisher: 0, aed: 0, 'call-point': 0, 'first-aid': 0, sensor: 0, 'desk-point': 0, spawn: 0, camera: 0, 'you-are-here': 0, 'hose-reel': 0, 'fire-door': 0, exit: 0, refuge: 0, 'assembly-point': 0 })
     const rooms = (reply.data!['fixtures'] as { id: string; room: string }[]).map((f) => [f.id, f.room])
     expect(rooms).toEqual([['run', 'kitchen'], ['island', 'kitchen'], ['wc', 'bath'], ['basin', 'bath']])
   })

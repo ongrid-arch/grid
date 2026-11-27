@@ -165,14 +165,14 @@ describe('how an item is drawn', () => {
 describe('the IFC', () => {
   const count = (ifc: string, type: string): number => ifc.split('\n').filter((line) => line.includes(`=${type}(`)).length
 
-  it('exports every fixture as furnishing and never as a wall', () => {
+  it('exports every fixture as furnishing (CNT-55: a sanitary one as a flow terminal) and never as a wall', () => {
     const before = toIfc(flat())
     const after = toIfc(withItems(fixtures()))
-    expect(count(after, 'IFCFURNISHINGELEMENT')).toBe(5)
+    expect(count(after, 'IFCFURNISHINGELEMENT') + count(after, 'IFCFLOWTERMINAL')).toBe(5)
     expect(count(after, 'IFCWALLSTANDARDCASE')).toBe(count(before, 'IFCWALLSTANDARDCASE'))
     expect(count(after, 'IFCSPACE')).toBe(count(before, 'IFCSPACE'))
     expect(count(after, 'IFCSLAB')).toBe(count(before, 'IFCSLAB'))
-    const wc = after.split('\n').find((line) => line.includes('IFCFURNISHINGELEMENT') && line.includes("'wc'"))!
+    const wc = after.split('\n').find((line) => line.includes('IFCFLOWTERMINAL') && line.includes("'wc'"))!
     expect(wc).toContain("'WC',$,'toilet'")
     // Written after everything else: the file without fixtures is the start of the file with them.
     const data = (ifc: string): string[] => ifc.split('\n').filter((line) => line.startsWith('#'))

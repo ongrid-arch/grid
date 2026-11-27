@@ -45,6 +45,8 @@ export interface AddItemRequest extends ItemPlace {
   readonly size?: Pair
   readonly depth?: number
   readonly height?: number
+  /** CNT-55: metres from the floor to its underside: a wall unit, a wall-hung WC. */
+  readonly elevation?: number
   readonly clearance?: number
   /** CNT-47: the clear floor kept behind it and at its left and right. */
   readonly clearSides?: ClearSides
@@ -131,6 +133,9 @@ function againstSaid(made: ItemMade, place: ItemPlace): string {
   return ` against the ${place.against} side of room ${quoted(made.room)}${along}, facing into the room,`
 }
 
+/** CNT-55: how high an item hangs, for its receipt: empty for one on the floor. */
+const hungSaid = (item: Item): string => (item.elevation !== undefined && item.elevation > 0 ? `, hung ${n2(item.elevation)} m above the floor` : '')
+
 /** An item added by its words: a library entry or a kind, against a side of a room or at a point. */
 export function addItem(survey: Survey, library: Library, request: AddItemRequest): Patch {
   const plan = survey.plan
@@ -146,6 +151,7 @@ export function addItem(survey: Survey, library: Library, request: AddItemReques
     ...(request.size === undefined ? {} : { size: request.size }),
     ...(request.depth === undefined ? {} : { depth: request.depth }),
     ...(request.height === undefined ? {} : { height: request.height }),
+    ...(request.elevation === undefined ? {} : { elevation: request.elevation }),
     ...(request.clearance === undefined ? {} : { clearance: request.clearance }),
     ...(request.clearSides === undefined ? {} : { clearSides: request.clearSides }),
     ...placeWords(request),
@@ -155,7 +161,7 @@ export function addItem(survey: Survey, library: Library, request: AddItemReques
   const item = (after.items ?? []).find((i) => i.id === id) ?? made.item
   const fit = fitLines(after, new Set([id]))
   const said = [
-    `Placed ${itemKindWord(item.kind)} ${quoted(id)}${item.library === undefined ? '' : ` from ${quoted(item.library)}`} (${n2(item.size[0])} × ${n2(item.size[1])} m, ${n2(item.height)} m high)${againstSaid(made, request)} ${whereSaid(after, item)}.`,
+    `Placed ${itemKindWord(item.kind)} ${quoted(id)}${item.library === undefined ? '' : ` from ${quoted(item.library)}`} (${n2(item.size[0])} × ${n2(item.size[1])} m, ${n2(item.height)} m high${hungSaid(item)})${againstSaid(made, request)} ${whereSaid(after, item)}.`,
     ...made.guesses.map(sentence),
     ...fit.lines,
     ...(made.copy.length === 0 ? [] : [`The plan now holds ${made.copy.map((entry) => quoted(entry.name)).join(', ')} in its own library, so it reads the same without the library folder.`]),
@@ -185,6 +191,7 @@ function addRow(survey: Survey, library: Library, request: AddItemRequest, row: 
     ...(request.size === undefined ? {} : { size: request.size }),
     ...(request.depth === undefined ? {} : { depth: request.depth }),
     ...(request.height === undefined ? {} : { height: request.height }),
+    ...(request.elevation === undefined ? {} : { elevation: request.elevation }),
     ...(request.clearance === undefined ? {} : { clearance: request.clearance }),
     ...(request.clearSides === undefined ? {} : { clearSides: request.clearSides }),
     ...placeWords(request),
@@ -206,7 +213,7 @@ function addRow(survey: Survey, library: Library, request: AddItemRequest, row: 
   const rows = row.rows ?? 1
   const word = itemKindWord(item.kind)
   const said = [
-    `Laid out ${made.length} × ${word}${item.library === undefined ? '' : ` from ${quoted(item.library)}`} (${n2(item.size[0])} × ${n2(item.size[1])} m, ${n2(item.height)} m high)${rows > 1 ? `, ${rows} rows of ${row.count}` : ` in a row of ${row.count}`}, ${quoted(ids[0]!)} to ${quoted(ids[ids.length - 1]!)}${againstSaid(first, request)} the first ${whereSaid(after, item)}.`,
+    `Laid out ${made.length} × ${word}${item.library === undefined ? '' : ` from ${quoted(item.library)}`} (${n2(item.size[0])} × ${n2(item.size[1])} m, ${n2(item.height)} m high${hungSaid(item)})${rows > 1 ? `, ${rows} rows of ${row.count}` : ` in a row of ${row.count}`}, ${quoted(ids[0]!)} to ${quoted(ids[ids.length - 1]!)}${againstSaid(first, request)} the first ${whereSaid(after, item)}.`,
     ...first.guesses.map(sentence),
     ...fit.lines,
     ...(copy.length === 0 ? [] : [`The plan now holds ${copy.map((entry) => quoted(entry.name)).join(', ')} in its own library, so it reads the same without the library folder.`]),

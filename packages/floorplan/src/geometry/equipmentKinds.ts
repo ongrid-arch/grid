@@ -11,7 +11,7 @@
  * Pure: plain data and functions of an item.
  */
 
-import type { ItemBlock, ItemKindDefinition, ItemSymbol, SymbolPen } from './itemKinds'
+import type { ItemBlock, ItemIfcType, ItemKindDefinition, ItemSymbol, SymbolPen } from './itemKinds'
 import type { ItemKind } from '../types/floorplan'
 import { said } from '../messages/say'
 import type { Vec2 } from './vec2'
@@ -20,6 +20,8 @@ const outline = (p: SymbolPen): Vec2[] => p.box(-0.5, -0.5, 0.5, 0.5)
 const short = (p: SymbolPen): number => Math.min(p.width, p.depth)
 const block = (shape: readonly Vec2[], bottom: number, top: number): ItemBlock => ({ outline: shape, bottom, top })
 const about = (kind: ItemKind): ReturnType<typeof said> => said(`kind.about.${kind}`)
+/** CNT-55: written to IFC as a sanitary terminal of this kind. */
+const sanitary = (predefined: string): ItemIfcType => ({ type: 'IFCSANITARYTERMINALTYPE', predefined })
 
 /** A seat or a pew: its back along its back, the seat in front of it at half its height. */
 const seat = (p: SymbolPen, h: number): ItemBlock[] => [block(p.box(-0.5, -0.5, 0.5, -0.3), 0, h), block(p.box(-0.5, -0.3, 0.5, 0.5), 0, h * 0.5)]
@@ -135,6 +137,7 @@ export const EQUIPMENT_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   {
     kind: 'safety-shower',
     group: 'fixture',
+    ifc: sanitary('SHOWER'),
     sides: false,
     word: 'safety shower',
     about: about('safety-shower'),
@@ -167,6 +170,7 @@ export const EQUIPMENT_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   {
     kind: 'clinical-sink',
     group: 'fixture',
+    ifc: sanitary('SINK'),
     word: 'clinical sink',
     about: about('clinical-sink'),
     symbol: sink,
