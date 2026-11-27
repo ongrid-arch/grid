@@ -25,7 +25,7 @@ import { askedAnswerLanguage, LANGUAGE_ARG_NAME, loadShipped, serverReadsLanguag
 import { diffTool, markStartTool } from './diffTools'
 import { shapedData } from './figures'
 import { checkPage, PageRefused, PAGE_ARG_NAME, WHOLE_ARG_NAME, withinBudget } from './budget'
-import { labelled, LABEL_SILENT_TOOLS, readArgs, toolDefinition, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
+import { labelled, LABEL_SILENT_TOOLS, readArgs, ToolRefusal, type GridTool, type ToolContext } from './toolkit'
 import { WRITE_TOOLS } from './writeTools'
 import { guideResources } from '../guide/resources'
 import { roomsGrammarMarkdown, ROOMS_GRAMMAR_URI } from './roomsGrammar'
@@ -50,6 +50,9 @@ import { PARKING_TOOLS } from './parkingTools'
 import { placeTraceTool } from './traceTool'
 import { annotateTool } from './annotateTool'
 import { VERSION_TOOLS } from './versionTools'
+import { helpTool } from './helpTool'
+import { commonArgDescriptions, listedDefinition } from './toolList'
+import { inGroups, type ToolGroup } from './toolGroups'
 
 export { EXPORT_TOOL_NAME } from './writeTools'
 export { PREVIEW_TOOL_NAME } from './previewTools'
@@ -58,6 +61,8 @@ export { PREVIEW_TOOL_NAME } from './previewTools'
 export const GRID_TOOLS: readonly GridTool[] = [
   // CMD-18: what the folder holds, the first call of a session.
   projectTool,
+  // CMD-52: what the short tool list leaves out, and the tool groups: listed by every server.
+  helpTool,
   // WRT-8: what a change did, right after the comparison of separate plans it is told apart from.
   READ_TOOLS[0]!,
   diffTool,
@@ -175,8 +180,16 @@ function notInLanguage(language: Language, keys: ReadonlyMap<Language, ReadonlyS
 /** MSG-34: keys that frame an answer (a note about it, the language a write recorded) and say nothing of whether its own words are in the language. */
 const FRAME_KEYS: readonly string[] = ['tool.answer.', 'tool.budget.', 'write.language.']
 
+let common: ReadonlySet<string> | undefined
+/** CMD-52: the arguments many tools describe alike, listed short, worked out once over every tool. */
+function commonDescriptions(): ReadonlySet<string> {
+  common ??= commonArgDescriptions(GRID_TOOLS)
+  return common
+}
+
 export function serverTool(tool: GridTool, context: ToolContext): ServerTool {
-  const definition = toolDefinition(tool)
+  // CMD-52: the list gives each tool short; grid_help gives it whole (toolDefinition).
+  const definition = listedDefinition(tool, commonDescriptions())
   return {
     definition,
     call: (raw, request) => answer(tool, raw, request?.protocolVersion === undefined ? context : { ...context, protocolVersion: request.protocolVersion }),
@@ -185,11 +198,13 @@ export function serverTool(tool: GridTool, context: ToolContext): ServerTool {
 
 /**
  * The tools for a project folder, or for the reason there is none: then every call that needs
- * a file answers with that reason.
+ * a file answers with that reason. CMD-52: with groups, the tools of those groups only
+ * (`grid mcp --tools`), grid_project and grid_help always.
  */
-export function projectTools(project: Project | PathRefused): ServerTool[] {
-  const context: ToolContext = { project }
-  return GRID_TOOLS.map((tool) => serverTool(tool, context))
+export function projectTools(project: Project | PathRefused, groups?: readonly ToolGroup[]): ServerTool[] {
+  const listed = GRID_TOOLS.filter((tool) => inGroups(tool, groups))
+  const context: ToolContext = { project, tools: { all: GRID_TOOLS, listed: new Set(listed.map((tool) => tool.name)), groups: groups === undefined ? null : [...groups] } }
+  return listed.map((tool) => serverTool(tool, context))
 }
 
 /**
