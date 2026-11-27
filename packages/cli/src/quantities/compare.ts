@@ -669,6 +669,7 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   const moves: OpeningMove[] = []
   // The openings with a change other than where they are: "N openings changed" counts these.
   const otherChanged = new Set<string>()
+  let swingChanged: { id: string; detail: string } | undefined
   if (likeness === null) {
     for (const pair of paired.pairs) {
       const oa = a.plan.openings.find((o) => o.id === pair.a)!
@@ -687,7 +688,9 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
       const hingeA = oa.hinge === undefined ? undefined : flipped ? (oa.hinge === 'start' ? 'end' : 'start') : oa.hinge
       if (swingA !== ob.swing) {
         const intoB = opensInto(b, pair.b)
-        changes.push(`now opens into ${intoB === null ? 'a side not said' : JSON.stringify(intoB)}${intoA(a, pair.a)}`)
+        const detail = `now opens into ${intoB === null ? 'a side not said' : JSON.stringify(intoB)}${intoA(a, pair.a)}`
+        changes.push(detail)
+        swingChanged = { id: pair.b, detail }
       }
       if (hingeA !== ob.hinge && swingA === ob.swing) changes.push('hung from the other side')
       // CNT-14: a door or window of another kind.
@@ -730,7 +733,9 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
     const moved = movedPart(moves)
     if (moved !== null) parts.push(moved)
     if (inPlace) {
-      if (otherChanged.size > 0) parts.push(openingWords(otherChanged.size, 'changed'))
+      if (otherChanged.size === 1 && swingChanged !== undefined) {
+        parts.push(`1 opening changed (${JSON.stringify(swingChanged.id)} ${swingChanged.detail})`)
+      } else if (otherChanged.size > 0) parts.push(openingWords(otherChanged.size, 'changed'))
       if (openingsOut.length > 0) parts.push(openingWords(openingsOut.length, 'taken out'))
       if (openingsNew.length > 0) parts.push(openingWords(openingsNew.length, 'new'))
     } else if (openingsOut.length + openingsNew.length + otherChanged.size > 0) parts.push(`openings: ${openingsOut.length} out, ${openingsNew.length} new, ${otherChanged.size} changed`)

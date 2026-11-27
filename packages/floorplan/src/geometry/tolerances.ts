@@ -368,6 +368,25 @@ export const TOLERANCES = {
       'refused unless the rooms are said to be open to each other.',
     basis: own
   },
+  roomsCurveJoint: {
+    kind: 'tolerance',
+    value: 0.001,
+    unit: 'm',
+    decides:
+      'Two pieces of a curve written rooms first (WRT-78) whose ends are closer than this meet, ' +
+      'and are one curved wall; a wall that ends this near a joint of the curve ends on the curve.',
+    basis: own
+  },
+  roomsCurveArea: {
+    kind: 'tolerance',
+    value: 0.001,
+    unit: 'ratio',
+    decides:
+      'The share of a curved room\'s true area that the area Grid measures from its walls may differ ' +
+      'by before the rooms-first answer says so: a curve is traced by short straight pieces, and ' +
+      'where a curve meets a wall at a slant its end runs on to that wall\'s middle line.',
+    basis: own
+  },
   roomsFaceSkew: {
     kind: 'tolerance',
     value: 0.02,

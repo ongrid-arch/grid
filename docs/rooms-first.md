@@ -583,12 +583,17 @@ door d1 between lobby and hall, centred, 1.8 wide, double
 
 ### Curves
 
-A curved wall is written raw, as Grid's own JSON: raw wall {"id", "start", "end", "thickness", "kind", "arc": {"centre": [x, y], "sweep": <degrees>}}. The wall turns sweep degrees round the centre from start to end, counter-clockwise positive; its radius is the distance from the centre to start, and end lies on that circle; 360 is a whole circle with start and end one point. It is a true arc, never a polyline. A raw room names curved walls in its boundary as it names straight ones.
+room <id> "<name>" <use|-> circle <across> | circle radius <r> | oval <w> x <d> at x,y draws a round or oval room by its centre, to its inside faces (an oval is four arcs that meet without a kink). band <r1> to <r2> [from <degrees>] [sweep <degrees>] at x,y is the floor between two radii round that centre, from (east is 0, counter-clockwise) turning sweep degrees, less than a whole turn. arc <degrees> [<chord>] <side> of <room> is a round end on that side of a room: its chord along that side (as long as it unless written) and its curve turning that many degrees out. wall <room> <side> curve radius <r> [inward] bows a straight outside side. Grid writes true curved walls, one wall where two rooms share a curve, and doors and windows go on them like any other: centred on the curve's point facing the side, or <m> from <side> along the curve. A curved wall may also be written raw: raw wall {..., "arc": {"centre": [x, y], "sweep": <degrees>}}, counter-clockwise positive, 360 a whole circle.
 
 ```rooms
-raw wall {"id": "apse", "start": [4, 0], "end": [-4, 0], "thickness": 0.3, "height": 4, "kind": "exterior", "arc": {"centre": [0, 0], "sweep": 180}}
-raw wall {"id": "chord", "start": [-4, 0], "end": [4, 0], "thickness": 0.3, "height": 4, "kind": "exterior"}
-raw room {"id": "apse-room", "name": "Apse", "use": "assembly", "boundary": ["apse", "chord"]}
+room nave "Nave" assembly 20 x 10 at 0,0
+room apse "Apse" assembly arc 180 east of nave
+wall nave south curve radius 14
+room pav "Pavilion" assembly circle 12 at 40,5
+room ring "Ring" corridor band 6.1 to 9 from 0 sweep 180 at 40,5
+door d1 between nave and apse, centred, 2 wide
+door d2 between pav and ring, centred, 1.2 wide
+window w1 in apse east, centred, 1.5 wide
 ```
 
 ### Raw parts
@@ -739,7 +744,7 @@ ramp h "Helix" from b1 to g in spiral, 3.5 wide, helix, turns 1
 
 ### Site
 
-plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m> and site country <name> say where it is. ground <m> (or ground <m> below|above) is the ground outside, in metres from the ground floor's floor level, the level the sections, the 3D ground and the below-ground check read: ground -0.15 for a floor 15 cm above the ground. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
+plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m> and site country <name> say where it is. ground <m> (or ground <m> below|above) is the ground outside, in metres from the ground floor's floor level, the level the sections, the 3D ground and the below-ground check read: ground -0.15 for a floor 15 cm above the ground. On a slope (CNT-49), ground north 0 south -4.6 gives the ground at the building's sides, ground slope 30% toward south (or slope 30% toward south) a fall through the ground level at the middle of the building, and ground edge 1 0 to -3 the ground along an edge of the plot, a falling street; every check and picture reads the ground at each wall. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
 
 ```rooms
 room house "House" living 8.0 x 9.0 at 0,0

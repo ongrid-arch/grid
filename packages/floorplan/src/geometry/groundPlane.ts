@@ -9,8 +9,9 @@
  * such floor, so a floor shown as a cutaway is seen through the hole and the rest of what is buried
  * is seen through the ground.
  *
- * One level for the whole site, as the schema has it: the ground on each side of a house on a slope
- * is not here. Pure, and never throws.
+ * CNT-49: on a slope (`groundSurface`) the sheet is tilted: `tilt` is the ground's level at a point
+ * over `level`, `at + x * x + y * y`, and a floor goes down into the ground when its slab's underside
+ * lies below the highest ground under its walls. Pure, and never throws.
  */
 
 import type { MultiPolygon, Polygon } from 'polygon-clipping'
@@ -28,6 +29,8 @@ export interface SceneGround {
   /** The ground's level: as the site states it, else 0. */
   readonly level: number
   readonly stated: boolean
+  /** CNT-49: on a slope, the ground's rise over `level` at a point of the plan, `at + x * px + y * py`. */
+  readonly tilt?: { readonly at: number; readonly x: number; readonly y: number }
   /** The floors that go down into the ground, their slab's underside below it, in plan order. */
   readonly into: readonly string[]
   /**
@@ -44,10 +47,16 @@ export interface SceneGround {
 export function sceneGround(plan: FloorPlan, reach: number, elevations: BuildingElevations = floorElevations(plan)): SceneGround {
   let level = 0
   let stated = false
+  let tilt: SceneGround['tilt']
+  let highUnder: (floor: string) => number = () => level
   try {
     const ground = groundLevel(plan, elevations)
     level = ground.level
     stated = ground.stated
+    if (ground.surface !== null) {
+      tilt = { at: ground.surface.c - level, x: ground.surface.gradient.x, y: ground.surface.gradient.y }
+      highUnder = (floor) => ground.under.get(floor)?.high ?? level
+    }
   } catch {
     // The ground at 0, as with none stated.
   }
@@ -60,7 +69,7 @@ export function sceneGround(plan: FloorPlan, reach: number, elevations: Building
       if (storey === undefined) continue
       const thickness = shell.slab === null ? 0 : Math.max(0, shell.slab.thickness)
       const foot = (shell.slab?.top ?? storey.floorLevel) - thickness
-      if (!(level - foot > tolerance('sameFloorLevel'))) continue
+      if (!(highUnder(shell.floor) - foot > tolerance('sameFloorLevel'))) continue
       into.push(shell.floor)
       if (shell.outline !== null && shell.outline.length > 0) outlines.push(shell.outline)
     }
@@ -70,7 +79,7 @@ export function sceneGround(plan: FloorPlan, reach: number, elevations: Building
 
   const square = groundSquare(plan, reach)
   const pieces = outlines.length === 0 ? [square] : (cutOutline('difference', [square], outlines) ?? [square])
-  return { level, stated, into, pieces }
+  return { level, stated, ...(tilt === undefined ? {} : { tilt }), into, pieces }
 }
 
 /** The square `reach` past the plan's bounds, counter-clockwise; round the origin when there are none. */

@@ -8,8 +8,8 @@
  * A point is text, `x,y`, as rooms text writes it (a tool's lists hold text): each length in
  * metres, or with its unit (`40ft,0`). The changes are `edit/site.ts`.
  */
-import { SITE_THING_KINDS, type SiteThingKind } from '@ongrid/floorplan/types/floorplan'
-import { NORTH_WAYS, setbackOfWords, streetsOfWords, type SetbackWords } from '@ongrid/floorplan/rooms'
+import { FALL_TOWARD, SITE_THING_KINDS, type FallToward, type SiteThingKind } from '@ongrid/floorplan/types/floorplan'
+import { groundLineOfWords, NORTH_WAYS, setbackOfWords, streetsOfWords, type SetbackWords } from '@ongrid/floorplan/rooms'
 import { siteThingsText } from '@ongrid/floorplan/geometry'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
 import { changeSiteThing, setSite, SITE_ACTIONS, SITE_FIELDS, type SiteAction, type SiteField } from '../edit/site'
@@ -73,8 +73,9 @@ export const setSiteTool: GridTool = {
   title: 'Set the plot, its streets and set-backs, and north',
   hint: 'change-plan',
   description:
-    'Use this when the person gives the plot or where the building stands: "the plot is 12 by 25 m", "the street is to the south", "keep 5 m from the street and 2 m from the other sides", "a 40 m coastal set-back on the west", "north is to the top right", a north arrow on a sketch, or where the ground outside is: "the floor is 15 cm above the ground", "the basement is 3 m below ground". '
+    'Use this when the person gives the plot or where the building stands: "the plot is 12 by 25 m", "the street is to the south", "keep 5 m from the street and 2 m from the other sides", "a 40 m coastal set-back on the west", "north is to the top right", a north arrow on a sketch, or where the ground outside is: "the floor is 15 cm above the ground", "the basement is 3 m below ground", "the site falls 4.6 m from the north side to the south", "a 30% slope down to the south", "the street falls from 0 to -3 m along the front". '
     + 'It sets the plot\'s boundary (its corners, or plot_width by plot_depth from its south-west corner, centred on the building when plot_x and plot_y are left out, and said), the edges on a street, the set-backs the person asked for (their own figures, never a code\'s), north, where the building is on the earth, and the ground level (ground), each only when given; remove takes a field out. '
+    + 'On a slope, give the ground at the building\'s sides (ground_north, ground_east, ground_south, ground_west), a fall (slope, in percent, toward a compass point; through ground, else 0, at the middle of the building) or the ground along edges of the plot (ground_edges, a street that falls along its edge): Grid takes the one even slope that fits them, says how far it is off any it cannot meet, and every check (below the ground, the way out), the footprint, the storeys, the height, the facades, the sections and the 3D ground read it at each wall. '
     + 'Sides are the sides of the drawing, north up it, as in rooms text: street "south" is every edge facing down the drawing. Edge 1 runs from the first corner to the second; a plot\'s edges are 1 south, 2 east, 3 north, 4 west. '
     + 'It answers with the plot\'s area (in acres too on a plan shown in feet and inches), the plot coverage and what it counts (roofed porches and carports in, open decks and terraces out), and each edge\'s distance to the building against its set-back, as grid_measure what=site does. '
     + 'Do not use for trees, paths, pools, fences or gates (grid_change_site), or to draw a path or a jetty as a room. Rooms text says the same in lines: plot 12 x 25, street south, setback all 2, north 135, ground -0.15. It replaces the plan file unless out is given. Lengths are metres, or text with their unit.',
@@ -95,6 +96,13 @@ export const setSiteTool: GridTool = {
     longitude: number('Degrees east positive, with latitude.', [121.4737], -180, 180, false),
     elevation: number('The origin\'s height above sea level, in metres.', [12], -500, 9000),
     ground: number('The ground outside, in metres from the ground floor\'s floor level, the level the sections, the 3D ground and the below-ground check read: -0.15 for a floor 15 cm above the ground, 0 for one at it. A basement is set by its floor\'s elevation below the ground floor, not here.', [-0.15, 0], -100, 100),
+    ground_north: number('The ground at the building\'s north side (up the drawing), from the ground floor\'s floor level, on a slope.', [0], -100, 100),
+    ground_east: number('The ground at the building\'s east side, on a slope.', [-1.2], -100, 100),
+    ground_south: number('The ground at the building\'s south side, on a slope.', [-4.6], -100, 100),
+    ground_west: number('The ground at the building\'s west side, on a slope.', [-1.2], -100, 100),
+    slope: number('A fall of the ground, in percent (rise over run, times 100), with toward: 30 for 30%.', [30, 8], 0, 1000, false),
+    toward: { type: 'string', enum: [...FALL_TOWARD], description: 'The compass point of the drawing the ground falls toward, with slope.', examples: ['south'] },
+    ground_edges: { type: 'array', items: { maxLength: 60 }, minItems: 1, maxItems: POINTS_MAX, description: 'The ground along edges of the plot, each "<edge> <level> [to <level>]": its level at the edge\'s first corner and, when it falls along it, at its second. Replaces those edges\' levels.', examples: [['1 0 to -3'], ['2 -0.5']] },
     country: { type: 'string', maxLength: NAME_MAX, description: 'Where it will be built: a country\'s name or its two- or three-letter code. grid_check applies the figures that hold there.', examples: ['ES', 'United States'] },
     remove: { type: 'array', items: { enum: SITE_FIELDS }, minItems: 1, maxItems: SITE_FIELDS.length, description: 'Fields to take out: the boundary takes its streets and set-backs with it; location is latitude and longitude.', examples: [['north'], ['setbacks']] },
     out: OUT_ARG,
@@ -110,6 +118,16 @@ export const setSiteTool: GridTool = {
     const streets = given('streets') ? (args['streets'] as string[]).flatMap((s) => siteWords(() => streetsOfWords(words(s)))) : undefined
     const setbacks: SetbackWords[] | undefined = given('setbacks') ? (args['setbacks'] as string[]).map((s) => siteWords(() => setbackOfWords(words(s)))) : undefined
     const north = given('north_points') ? NORTH_WAYS[args['north_points'] as string]! : (args['north'] as number | undefined)
+    // CNT-49: the ground on a slope.
+    if (given('slope') !== given('toward')) throw new ToolRefusal('Give slope and toward together: how steep the ground falls and the way it falls.')
+    const sides = Object.fromEntries((['north', 'east', 'south', 'west'] as const).filter((side) => given(`ground_${side}`)).map((side) => [side, args[`ground_${side}`] as number]))
+    const groundEdges = given('ground_edges')
+      ? (args['ground_edges'] as string[]).map((g) => {
+          const read = siteWords(() => groundLineOfWords(['edge', ...words(g)], 1))
+          if (read.kind !== 'edge') throw new ToolRefusal('ground_edges takes "<edge> <level> [to <level>]" for each edge.')
+          return read.edge
+        })
+      : undefined
     const changed = writeChange(context, args, (survey) =>
       setSite(survey, {
         ...(boundary === undefined ? {} : { boundary }),
@@ -122,6 +140,9 @@ export const setSiteTool: GridTool = {
         ...(given('longitude') ? { longitude: args['longitude'] as number } : {}),
         ...(given('elevation') ? { elevation: args['elevation'] as number } : {}),
         ...(given('ground') ? { ground: args['ground'] as number } : {}),
+        ...(Object.keys(sides).length === 0 ? {} : { groundSides: sides }),
+        ...(given('slope') ? { fall: { slope: args['slope'] as number, toward: args['toward'] as FallToward } } : {}),
+        ...(groundEdges === undefined ? {} : { groundEdges }),
         ...(given('country') ? { country: args['country'] as string } : {}),
         ...(given('remove') ? { remove: args['remove'] as SiteField[] } : {}),
       })

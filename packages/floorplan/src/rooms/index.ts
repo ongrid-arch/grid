@@ -16,4 +16,5 @@ export { ITEM_LINE_WORDS, ITEM_SIDES, itemLine, itemLines, ItemLines, itemOfWord
 export { itemAndRowLines, layRow, rowItemId, itemRowLine, rowOfWords, ROW_LINE_WORDS, type RowWords } from './rows'
 export { BAY_AISLE, BAY_KINDS, BAY_ROWS, BAY_SIZES, BAYS_MOST, baysOfWords, baysSummary, bayOfWords, helixRun, layBay, layBays, layRamp, numberAfter, numbersSaid, parkingLines, ParkingLines, ParkingRefused, PARKING_WAYS, rampLine, rampOfWords, rampSummary, rampWordsOf, rowBays, rowLine, type BayKind, type BayRows, type BaysMade, type BaysWords, type BayWords, type ParkingWay, type RampMade, type RampWords, type RowSpec } from './parking'
 export { givenIds, isAnnotation, noteLines, NoteLines, noteOfLine, noteOfWords, notePart, notePlaceOf, notePlaceText, NoteRefused, notesSummary, noteWhat, NOTE_KINDS, NOTE_LINE_WORDS, placedLine, ROUTE_CATEGORY, routeHead, routeShaft, type NoteKind, type NotePlace, type NoteWords } from './notes'
+export { groundLineOfWords, slopeLines, type GroundWords } from './ground'
 export { baseNamedIn, fitOutReading, ownParts, restOnBase, BASE_LINE_WORDS, type BasePlan } from './base'

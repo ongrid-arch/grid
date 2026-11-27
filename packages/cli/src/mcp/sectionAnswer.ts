@@ -28,7 +28,7 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
       : `It cuts ${count(walls, 'wall')}${stairs > 0 ? `, ${count(stairs, 'stair')}` : ''} and ${count(section.rooms.length, 'room')}; the cut parts join into ${count(section.cut.length, 'shape')}.`,
     ...(section.reach.startInside ? [say(DEFAULT_LANGUAGE, 'drawing.section.reach.startInside')] : []),
     ...(section.reach.endInside ? [say(DEFAULT_LANGUAGE, 'drawing.section.reach.endInside')] : []),
-    `Levels: ${section.levels.map((l) => `${q(l.name || l.floor)} ${levelText(l.level, display)}${l.source === 'worked-out' ? ' (worked out)' : ''}`).join(', ')}${section.roofs.length === 0 ? '' : `; roof ${section.roofs.map((r) => levelText(r.level, display)).join(', ')}`}; ground ${levelText(section.ground.level, display)}${section.ground.stated ? '' : ' (not stated)'}.`,
+    `Levels: ${section.levels.map((l) => `${q(l.name || l.floor)} ${levelText(l.level, display)}${l.source === 'worked-out' ? ' (worked out)' : ''}`).join(', ')}${section.roofs.length === 0 ? '' : `; roof ${section.roofs.map((r) => levelText(r.level, display)).join(', ')}`}; ground ${section.ground.fall === undefined ? levelText(section.ground.level, display) : `from ${levelText(section.ground.fall.at, display)} to ${levelText(section.ground.fall.at + section.ground.fall.perMetre * section.length, display)} along the line, on the slope the site states`}${section.ground.stated ? '' : ' (not stated)'}.`,
     ...(section.rooms.length === 0 ? [] : [`Rooms cut, floor to ceiling: ${section.rooms.map((r) => `${q(r.name || r.room)} ${m(r.height)} m${r.heightStated ? '' : ' (not stated)'}`).join(', ')}.`]),
     ...(section.assumed.length === 0 ? [] : ['Taken by Grid, not stated in the plan (dashed on the drawing where marked so, and listed under it):', ...section.assumed.map((a) => `  ${a.hatched ? 'dashed' : 'listed'}: ${a.words}${a.kind === 'ground' ? ` ${say(DEFAULT_LANGUAGE, 'site.ground.how')}` : ''}`)]),
   ]
@@ -41,7 +41,7 @@ export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: L
         levels: section.levels,
         roofs: section.roofs,
         // VEW-65: how deep the earth is drawn, and the walls cut below the ground that hold it back.
-        ground: { level: section.ground.level, stated: section.ground.stated, earthBottom: section.ground.earth.bottom, retaining: section.parts.filter((p) => p.retaining === true).map((p) => p.id) },
+        ground: { level: section.ground.level, stated: section.ground.stated, ...(section.ground.fall === undefined ? {} : { fall: section.ground.fall }), earthBottom: section.ground.earth.bottom, retaining: section.parts.filter((p) => p.retaining === true).map((p) => p.id) },
         rooms: section.rooms.map((r) => ({ room: r.room, floor: r.floor, name: r.name, floorLevel: r.floorLevel, height: r.height, heightStated: r.heightStated })),
         cut: section.parts.map((p) => ({ kind: p.kind, id: p.id, floor: p.floor })),
         shapes: section.cut.length,

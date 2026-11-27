@@ -33,6 +33,27 @@ beforeAll(async () => {
 afterAll(() => b.close())
 
 describe('grid_set_site', () => {
+  it('sets the ground on a slope: at the sides, a fall and along an edge, said with the slope it takes (CNT-49)', async () => {
+    const sides = await ok('grid_set_site', { plan: 'house.json', ground_north: 0, ground_south: -2, out: 'slope.json' })
+    expect(site('slope.json')).toEqual({ groundSides: { north: 0, south: -2 } })
+    expect(sides.text).toContain("The ground at the building's sides: north 0.00 m, south -2.00 m.")
+    expect(sides.text).toContain('So the ground under the building runs from -2.00 m to 0.00 m, falling 20.6%: every check and picture reads it at each wall.')
+    const fall = await ok('grid_set_site', { plan: 'house.json', ground: -0.5, slope: 30, toward: 'south', out: 'fall.json' })
+    expect(site('fall.json')).toEqual({ ground: -0.5, fall: { slope: 30, toward: 'south' } })
+    expect(fall.text).toContain('The ground falls 30% toward the south.')
+    await ok('grid_set_site', { plan: 'house.json', plot_width: 15, plot_depth: 30, plot_x: -3, plot_y: -10, ground_edges: ['1 0 to -3'], out: 'street.json' })
+    expect(site('street.json')['groundEdges']).toEqual([{ edge: 1, start: 0, end: -3 }])
+    const off = await ok('grid_set_site', { plan: 'slope.json', ground: 3, out: 'off.json' })
+    expect(off.text).not.toContain('no one even slope')
+    const uneven = await ok('grid_set_site', { plan: 'off.json', ground_east: 4 })
+    expect(uneven.text).toMatch(/The levels given lie on no one even slope: Grid takes the even slope nearest them, [\d.]+ m off the furthest\./)
+    const removed = await ok('grid_set_site', { plan: 'off.json', remove: ['groundSides'] })
+    expect(removed.isError).toBe(false)
+    expect(site('off.json')).toEqual({ ground: 3 })
+    expect((await b.call('grid_set_site', { plan: 'house.json', slope: 30 })).text).toContain('Give slope and toward together')
+    expect((await b.call('grid_set_site', { plan: 'house.json', ground_edges: ['1 0'] })).text).toContain("The ground along an edge is read from the plot's boundary")
+  })
+
   it('writes the plot, its street, set-backs and north, and answers with the plot as measured', async () => {
     const reply = await ok('grid_set_site', { plan: 'house.json', plot_width: 15, plot_depth: 30, streets: ['south'], setbacks: ['street 5', 'all 3', 'west 40 assumed'], north_points: 'up-right', out: 'sited.json' })
     expect(site('sited.json')).toEqual({
