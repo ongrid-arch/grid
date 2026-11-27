@@ -191,7 +191,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-45: five more, the kinds fixture and furniture, the items grid_view draws and of=fixtures.
   // CNT-49: one more, the facade's ground falling along the face.
   // VEW-74: nineteen more, grid_view's floor=all, crop of several parts, crop_box, margin and their refusals.
-  'packages/cli/src/mcp/readTools.ts': [411, 'tools'],
+  // ARE-68: seven more, the lettable, people, as_written and frontage arguments and frontage's refusals.
+  'packages/cli/src/mcp/readTools.ts': [418, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -232,6 +233,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/levelsTool.ts': [10, 'tools'],
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
   'packages/cli/src/mcp/itemTools.ts': [53, 'tools'],
+  // ARE-68: the lettable_uses, lettable_tenures and people arguments and the brief's people schema.
+  'packages/cli/src/mcp/lettableArgs.ts': [7, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
   'packages/cli/src/mcp/annotateTool.ts': [23, 'tools'],
   // VEW-67: the trace image's tool.
@@ -272,6 +275,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
   // ARE-14: the free floor rule is one of the area measures now, in the message files.
   'packages/cli/src/quantities/fixtures.ts': [1, 'notYet'],
+  // ARE-68: the refusals of a figure for who the building is for, in the call and the brief.
+  'packages/cli/src/quantities/lettable.ts': [6, 'agent'],
   'packages/cli/src/quantities/limits.ts': [29, 'notYet'],
   'packages/cli/src/quantities/measure.ts': [3, 'notYet'],
   // ARE-61: four more, the room type, tenure, flat and flat type fields' descriptions for the agent.
