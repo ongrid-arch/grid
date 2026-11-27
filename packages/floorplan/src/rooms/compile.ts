@@ -5376,7 +5376,9 @@ function compiled(text: string, options: CompileOptions): { result: RoomsResult;
       fills.set(line, b.value + step)
       refilled = true
     }
-    if ((!moved && !refilled) || plan === null) break
+    // A round refused only for what its guesses left (a room of a stack placed by walls taken to
+    // be outside walls ends short of its neighbours) is placed again with the walls it found.
+    if (!moved && !refilled) break
     assumed = new Map([...assumed, ...compiler.found])
   }
   const c = compiler!
