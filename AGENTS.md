@@ -66,6 +66,12 @@ Notes for agents and people changing this repository.
   largest raster picture, `pdfImage.ts`, VEW-67) and says what became of it; the viewer's `planPicture` draws it, given as a `data:` address, over the rooms'
   fills and under every line, and reads no file. A path that is not a picture inside the project
   folder is never followed: `loadPlan` reads the plan without it and `grid check` says why (MSG-20).
+- The site in 3D (CNT-60): `packages/floorplan/src/geometry/siteScene.ts` gives the site's
+  things and the context shapes as plain blocks on the ground (neighbours, fences, paths, paving,
+  trees, pools' water), `groundPlane.ts` cuts the ground to the plot and over the pools, and a
+  party wall (`partyWall` in `scene3d.ts`) is drawn as a cut. The viewer's `canvas3d/Site3D.tsx`
+  draws the blocks in the app and every still; a GLB of the whole building writes them in its
+  `site` node (`toBuildingGlb`'s `site`).
 - The sun (CNT-58): `packages/floorplan/src/astronomy/sunPosition.ts` works out where the sun is
   for a day, a time and a place (its series' coefficients are astronomy, not tolerances, so they
   live there and not in the tolerance table); `geometry/sunShade.ts` turns it onto the plan by its
@@ -165,7 +171,7 @@ Notes for agents and people changing this repository.
   `bin/grid.mjs`, a committed launcher that runs it, because npm links bins at install time. Its end-to-end tests run that file as a
   child process; `npm test` builds it first. Every option is strict: an unknown, repeated or
   meaningless one is refused by name.
-- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 68 tools named
+- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 70 tools named
   `grid_…`, in a fixed order (`grid_project` first, `projectTool.ts` (CMD-18); `grid_help` second (CMD-52, `helpTool.ts`); then reading tools by the requests they answer, the problem report
   last of them (CMD-13, `src/report/`, which sends nothing), then the preview and the preview
   page's own call (VEW-4, `previewTools.ts`), the
@@ -177,14 +183,14 @@ Notes for agents and people changing this repository.
   moved and taken out, and rooms furnished with their usual sets (CNT-45, `itemTools.ts`, its changes `edit/items.ts`, CNT-61's `edit/furnish.ts`, its rooms text line
   `packages/floorplan/src/rooms/items.ts`, which also moves an item with the wall it stands against), parking bays placed in rows and a ramp between two floors (CNT-46,
   `parkingTools.ts`, its changes `edit/parking.ts`, its rooms text lines `packages/floorplan/src/rooms/parking.ts`), the plot, north and the site's things (CNT-41, `siteTools.ts`, the changes in
-  `src/edit/site.ts`, the lines in `packages/floorplan/src/rooms/site.ts`), the plan's name, the site's name and address, its language, units, north and floor names in one call (CNT-50, `planTool.ts`, its change `edit/plan.ts`), the trace image set, placed, scaled and turned (VEW-67, `traceTool.ts`, its change `edit/trace.ts`), notes, tags, symbols, routes and sketch lines on the drawing (SHT-22, `annotateTool.ts`, its change `edit/annotate.ts`, the lines in `packages/floorplan/src/rooms/notes.ts`) and then the saved views last (VEW-3, `viewTool.ts`)).
+  `src/edit/site.ts`, the lines in `packages/floorplan/src/rooms/site.ts`), party walls by a room's side and the neighbours round the plan (CNT-60, `contextTools.ts`, its changes `edit/context.ts`), the plan's name, the site's name and address, its language, units, north and floor names in one call (CNT-50, `planTool.ts`, its change `edit/plan.ts`), the trace image set, placed, scaled and turned (VEW-67, `traceTool.ts`, its change `edit/trace.ts`), notes, tags, symbols, routes and sketch lines on the drawing (SHT-22, `annotateTool.ts`, its change `edit/annotate.ts`, the lines in `packages/floorplan/src/rooms/notes.ts`) and then the saved views last (VEW-3, `viewTool.ts`)).
   CMD-52: `tools/list` gives each tool short (`toolList.ts`, made mechanically from `toolDefinition`,
   so a new tool's text needs no edit there) and `grid_help` gives it whole; `--tools` lists only the
   groups named (`toolGroups.ts`, a tool not named there goes by its hint), and
   `__tests__/toolList.test.ts` holds each list under a ceiling in tokens.
   Every answer goes through `budget.ts` (CMD-39), which keeps it to about 20 KB and adds `whole`
   and, on the reading tools, `page` to every tool's arguments.
-  Each is written once in `readTools.ts`, `writeTools.ts`, `previewTools.ts`, `reportTool.ts`, `seenTool.ts`, `briefTool.ts`, `wordsTool.ts`, `tidyTool.ts`, `fitOutTool.ts`, `setTool.ts`, `factsTool.ts`, `finishesTool.ts`, `stairTools.ts`, `levelsTool.ts`, `itemTools.ts`, `parkingTools.ts`, `siteTools.ts`, `planTool.ts`, `traceTool.ts`, `annotateTool.ts`, `versionTools.ts` or `viewTool.ts`; `toolkit.ts` turns its argument list into both the input schema and the
+  Each is written once in `readTools.ts`, `writeTools.ts`, `previewTools.ts`, `reportTool.ts`, `seenTool.ts`, `briefTool.ts`, `wordsTool.ts`, `tidyTool.ts`, `fitOutTool.ts`, `setTool.ts`, `factsTool.ts`, `finishesTool.ts`, `stairTools.ts`, `levelsTool.ts`, `itemTools.ts`, `parkingTools.ts`, `siteTools.ts`, `contextTools.ts`, `planTool.ts`, `traceTool.ts`, `annotateTool.ts`, `versionTools.ts` or `viewTool.ts`; `toolkit.ts` turns its argument list into both the input schema and the
   check. The measuring is in `src/quantities/` (CNT-9's asking across parts by their fields and
   facts, for `grid_fields`, `grid_find` and `grid_count`, in `query.ts`), the changes in `src/edit/`, the views in
   `src/draw/views.ts`. A 3D picture is taken from one camera record (VEW-3,

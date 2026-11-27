@@ -369,7 +369,7 @@ export function planEnvelope(stated: FloorPlan, options: EnvelopeOptions = {}): 
         const along = band.length === 0 ? [] : cutOutline('intersection', pieces, [union(band)])
         if (along !== null && along.length > 0) parapet = { height, pieces: along }
       }
-      const { facets, rooflights } = roofPieces(shape, pieces, clear)
+      const { facets, rooflights } = roofPieces(shape, pieces, clear, shape === null ? raisedRooms(sliceOf(floor.id), clear) : [])
       roof = {
         pieces,
         area: multiArea(pieces),
@@ -440,10 +440,20 @@ const samePlane = (a: RoofPlane, b: RoofPlane): boolean =>
  * and the rooflights that lie wholly on the roof. With no roof stated, one level set of pieces at the
  * floor's clear height, as LVL-4 laid it.
  */
-function roofPieces(shape: RoofShapeOverFloor | null, pieces: MultiPolygon, clearHeight: number): { facets: RoofFacetPieces[]; rooflights: RooflightPlace[] } {
+function roofPieces(shape: RoofShapeOverFloor | null, pieces: MultiPolygon, clearHeight: number, raised: readonly RaisedRoom[] = []): { facets: RoofFacetPieces[]; rooflights: RooflightPlace[] } {
   if (shape === null) {
-    const area = multiArea(pieces)
-    return { facets: [{ plane: { z0: clearHeight, gx: 0, gy: 0 }, pieces, area, slopeArea: area }], rooflights: [] }
+    // LVL-26: the flat roof steps up over each room that rises past the storey, to the room's top.
+    let rest = pieces
+    const over: RoofFacetPieces[] = []
+    for (const room of raised) {
+      const under = cutOutline('intersection', pieces, [room.pieces])
+      if (under === null || under.length === 0) continue
+      rest = cutOutline('difference', rest, [room.pieces]) ?? rest
+      const area = multiArea(under)
+      over.push({ plane: { z0: room.top, gx: 0, gy: 0 }, pieces: under, area, slopeArea: area })
+    }
+    const area = multiArea(rest)
+    return { facets: [{ plane: { z0: clearHeight, gx: 0, gy: 0 }, pieces: rest, area, slopeArea: area }, ...over], rooflights: [] }
   }
   const rooflights = (shape.roof.rooflights ?? []).flatMap((rooflight) => {
     const place = rooflightPlace(shape, rooflight)
@@ -454,6 +464,24 @@ function roofPieces(shape: RoofShapeOverFloor | null, pieces: MultiPolygon, clea
     return inside !== null && Math.abs(multiArea(inside) - whole) <= tolerance('areaReported') ? [place] : []
   })
   return { facets: roofFacetsOver(shape, pieces, rooflights), rooflights }
+}
+
+/** LVL-26: a room that rises past its storey: its footprint and its top above the storey's floor. */
+interface RaisedRoom {
+  readonly pieces: MultiPolygon
+  readonly top: number
+}
+
+/** LVL-26: the rooms of a floor that state a height taking them past its clear height (no void, zone or outdoor space). */
+function raisedRooms(sliced: { readonly slice: FloorPlan; readonly index: PlanIndex }, clear: number): RaisedRoom[] {
+  const zones = roomZones(sliced.index).zoneOf
+  return sliced.slice.rooms.flatMap((room): RaisedRoom[] => {
+    if (room.height === undefined || !Number.isFinite(room.height) || room.void === true || isOutdoor(room) || zones.has(room.id)) return []
+    const top = roomFloorOffset(room) + room.height
+    if (top <= clear + tolerance('sameFloorLevel')) return []
+    const pieces = roomPieces(room, sliced.index)
+    return pieces === null ? [] : [{ pieces, top }]
+  })
 }
 
 /** Cut roof planes to the supplied footprint and the openings on each plane. */
