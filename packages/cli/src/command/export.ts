@@ -9,7 +9,7 @@
  * tool server's `grid_export` runs the same code.
  */
 import path from 'path'
-import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, floorElevations, GLB_BUILDING_NODE, inIdOrder, metresText, OBJ_MATERIALS_FILE, planFloors, resolveFloor, type DxfSheet, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, floorElevations, GLB_BUILDING_NODE, inIdOrder, metresText, OBJ_MATERIALS_FILE, planFloors, resolveFloor, type DxfSheet, type FloorPlan, type PlanState } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type Said } from '@ongrid/floorplan/messages'
 import {
   EXPORT_FORMATS,
@@ -32,6 +32,7 @@ import { floorOption, loadPlan, PlanRefused, type LoadedPlan } from './plan'
 import { floorAsked } from '@ongrid/floorplan/geometry/floorAsked'
 import { openingSchedule } from '../quantities/schedule'
 import { surveyPlan } from '../quantities/survey'
+import { loadedInState } from '../quantities/phaseState'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 
 /** VEW-80: the formats Grid exports: the core's files, then the plan's geometry as data. */
@@ -505,11 +506,23 @@ function writtenBesidePlan(project: Project, loaded: LoadedPlan, planFile: strin
   return made.name.note === undefined ? done : { ...done, note: made.name.note }
 }
 
-/** VEW-72: as `exportIntoProject`, every file of the request: one per floor for `--floor all`. */
-export function exportsIntoProject(project: Project, planFile: string, format: ExportFormat, request: Omit<ExportRequest, 'out'>): { readonly done: readonly ExportDone[]; readonly empty: readonly string[] } {
-  const loaded = loadPlan(project, planFile)
+/**
+ * VEW-72: as `exportIntoProject`, every file of the request: one per floor for `--floor all`.
+ * ARE-75: with a state, of the building as it stands before or after the work, each file named
+ * for it (`plan-before.dxf`), so it is written beside the export of the whole plan, not over it.
+ */
+export function exportsIntoProject(project: Project, planFile: string, format: ExportFormat, request: Omit<ExportRequest, 'out'>, state?: PlanState): { readonly done: readonly ExportDone[]; readonly empty: readonly string[] } {
+  const read = loadPlan(project, planFile)
+  const loaded = state === undefined ? read : loadedInState(read, state)
   const { made, empty } = exportFiles(project, loaded, planFile, format, request)
-  return { done: made.map((one) => writtenBesidePlan(project, loaded, planFile, one)), empty }
+  const named = state === undefined || loaded === read ? made : made.map((one) => ({ ...one, name: { ...one.name, fileName: exportNameInState(one.name.fileName, state) } }))
+  return { done: named.map((one) => writtenBesidePlan(project, loaded, planFile, one)), empty }
+}
+
+/** ARE-75: an export's file name for the building in one state: `plan.dxf` as `plan-before.dxf`. */
+export function exportNameInState(fileName: string, state: PlanState): string {
+  const dot = fileName.lastIndexOf('.')
+  return dot <= 0 ? `${fileName}-${state}` : `${fileName.slice(0, dot)}-${state}${fileName.slice(dot)}`
 }
 
 /**

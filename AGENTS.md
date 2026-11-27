@@ -112,6 +112,10 @@ Notes for agents and people changing this repository.
   base walls their faces lie on, which are never written into the fit-out. Rooms text writes
   phases with `phase <word>` (WRT-81, `packages/floorplan/src/rooms/phases.ts`): the text is
   written before and after the work and the two made one plan, walls by what stands in each.
+  ARE-75: the reading tools' `state` (`src/mcp/stateArg.ts`) reads the building before or after
+  the work as a plan of that state alone (`planAsItStands`, `packages/cli/src/quantities/phaseState.ts`,
+  kept with the frozen plan, never changing it), and `phaseAreas` there is `grid_areas state=both`'s
+  area table of the work.
 - A survey drawn from its own numbers (HND-11): a wall may be placed by a face (`face` in
   `types/floorplan.ts`); the reading moves it to its centre line and records `placedBy`, and
   `statedWall` writes the face back. Every change that moves a wall end goes through

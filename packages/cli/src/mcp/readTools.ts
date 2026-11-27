@@ -38,7 +38,7 @@ import { DESCRIBE_AUDIENCES, DESCRIBE_LENGTHS } from '../describe/card'
 import { LOOKS, SIDES, drawingLook, pictureLook, type LookName, type Side } from '../draw/viewNames'
 import { MARK_WORDS, marksAsked, readMarks, sectionLineOf, towardOf } from '../command/section'
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
-import { AREA_RULES, notCounted, planAreas, type AreaSureness, type NotCounted, type RoomArea, type RoomNotCounted } from '../quantities/areas'
+import { AREA_RULES, notCounted, planAreas, type AreasRequest, type AreaSureness, type NotCounted, type RoomArea, type RoomNotCounted } from '../quantities/areas'
 import { OUTDOOR_RULES_ARG, type OutdoorRules } from './outdoorRulesArg'
 import { LETTABLE_TENURES_ARG, LETTABLE_USES_ARG, PEOPLE_ARG, type PeopleFigures } from './lettableArgs'
 import { AS_WRITTEN_RULE, asWrittenAreas, asWrittenText, lettableAnswer, lettableFloorText, lettableLines, netToGrossNote, peopleLines, withAsWritten } from './lettableAnswer'
@@ -46,6 +46,8 @@ import { lettableRules } from '../quantities/lettable'
 import { FRONTAGE_BANDS, FRONTAGE_BANDS_MAX, FRONTAGE_DEPTH, frontageSide, frontageZones } from '../quantities/frontage'
 import { PHASES, type OpeningKind, type RoomTenure, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { stateText } from '../quantities/state'
+import { loadedFor, stateArg, stateLine, viewLoadedFor, VIEW_STATE_ARG, withStateLine } from './stateArg'
+import { phaseAreasAnswer } from './phaseAreasAnswer'
 import { comparePlans, optionRow, type Comparison, type OptionRow } from '../quantities/compare'
 import {
   distanceBetween,
@@ -224,9 +226,11 @@ const FORMAT_ARG: ArgSpec = {
   examples: ['text', 'csv'],
 }
 
-function load(context: ToolContext, plan: unknown, floor?: unknown): { survey: Survey; floor: string | undefined; file: string; stated: FloorPlan } {
-  const { loaded, file } = readPlan(context, plan)
-  return { survey: surveyPlan(loaded.plan), floor: floorArg(loaded.plan, floor), file, stated: loaded.plan }
+function load(context: ToolContext, plan: unknown, floor?: unknown, state?: unknown): { survey: Survey; floor: string | undefined; file: string; stated: FloorPlan; asRead: FloorPlan } {
+  const { loaded: read, file } = readPlan(context, plan)
+  // ARE-75: before or after the work, the plan as it stands then.
+  const loaded = loadedFor(read, state)
+  return { survey: surveyPlan(loaded.plan), floor: floorArg(loaded.plan, floor), file, stated: loaded.plan, asRead: read.plan }
 }
 
 /** ARE-68: the people the brief beside the plan says the building is for; none when it gives none or cannot be read. */
@@ -440,6 +444,7 @@ const areasTool: GridTool = {
     lettable_tenures: LETTABLE_TENURES_ARG,
     people: PEOPLE_ARG,
     as_written: { type: 'boolean', description: 'true to give each room\'s area as written, to the middle of every wall it lies on, beside its net: the nominal size of a stand or a module. false when left out.', examples: [true] },
+    state: stateArg('gives the area table of the work: each room, use, floor and the net and gross totals before the work (existing), after it (proposed) and the change, with the figures after the work in the data and the table in work', 'the building after the work'),
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
@@ -493,9 +498,12 @@ const areasTool: GridTool = {
     // ARE-68: the lettable area, the core and efficiency, per floor, floor type and in all; the area per person, only with a figure.
     lettable: objectSchema({ lettable: NUMBER, core: NUMBER, grossInternal: NULLABLE_NUMBER, efficiency: NULLABLE_NUMBER, coreShare: NULLABLE_NUMBER, floors: { type: 'array' }, floorTypes: { type: 'array' }, lettableByUse: { type: 'object' }, notLettable: { type: 'object' }, chosen: { type: ['object', 'null'] }, states: { type: 'object' }, rules: { type: 'object' } }, ['lettable', 'core', 'efficiency', 'coreShare', 'floors', 'floorTypes', 'rules']),
     people: listSchema(objectSchema({ kind: STRING, count: NUMBER, from: STRING, rooms: listSchema(STRING), per: { type: 'object' } })),
-  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial', 'byRoomType', 'byTenure', 'people']),
+    // ARE-75: the state asked, and with both the area table of the work.
+    state: STRING,
+    work: objectSchema({ rooms: { type: 'array' }, byUse: { type: 'object' }, floors: { type: 'array' }, net: { type: 'object' }, grossInternal: { type: 'object' }, grossExternal: { type: 'object' }, rule: STRING }),
+  }), ['flats', 'notInFlats', 'notInFlatsToPartyWalls', 'buildings', 'fixtures', 'free', 'outdoor', 'apart', 'partial', 'byRoomType', 'byTenure', 'people', 'state', 'work']),
   run(args, context) {
-    const { survey, floor, file } = load(context, args['plan'], args['floor'])
+    const { survey, floor, file, stated, asRead } = load(context, args['plan'], args['floor'], args['state'])
     const outside = (args['outside_rooms'] as string[] | undefined) ?? []
     for (const id of outside) roomArg(survey.plan, id, 'outside_rooms item')
     const apart = (args['apart_rooms'] as string[] | undefined) ?? []
@@ -511,14 +519,15 @@ const areasTool: GridTool = {
     const heights = new Map(buildingHeights(survey.plan, storeys).map((b) => [b.id, b] as const))
     const grounds = groundLevel(survey.plan).buildings
     const outdoorRules = args['outdoor_rules'] as OutdoorRules | undefined
-    const areas = planAreas(survey, {
+    const request: AreasRequest = {
       outside: new Set(outside),
       ...(floor === undefined ? {} : { floors: [floor] }),
       ...(country === undefined ? {} : { country }),
       ...(gross === undefined ? {} : { gross }),
       ...(outdoorRules === undefined ? {} : { outdoorWeights: outdoorRules }),
       ...(apart.length === 0 ? {} : { apart: new Set(apart) }),
-    })
+    }
+    const areas = planAreas(survey, request)
     // ARE-68: the lettable area, the core, efficiency and the area per person; the brief's people when the call gives none.
     const letting = lettableAnswer(survey, areas, {
       choice: { ...(args['lettable_uses'] === undefined ? {} : { uses: args['lettable_uses'] as string[] }), ...(args['lettable_tenures'] === undefined ? {} : { tenures: args['lettable_tenures'] as RoomTenure[] }) },
@@ -567,6 +576,12 @@ const areasTool: GridTool = {
       ...(areas.apart === undefined ? {} : { apart: areas.apart }),
       lettable: letting.lettable,
       ...(letting.people.length === 0 ? {} : { people: letting.people }),
+      ...(args['state'] === undefined ? {} : { state: args['state'] as string }),
+    }
+    // ARE-75: both, the area table of the work, with the figures after it in the data.
+    if (args['state'] === 'both') {
+      const work = phaseAreasAnswer(stated, request, units, args['format'] === 'csv', speakerFor(language, units.decimal))
+      return { text: work.text, data: { ...data, work: work.data } }
     }
     if (args['format'] === 'csv') {
       // MSG-34: lengths in the display's unit, named in the head; areas in both m2 and sq ft, as before.
@@ -590,7 +605,8 @@ const areasTool: GridTool = {
     const wordOfUse = (use: string): string => (language === 'en' ? use : labelOfUse(language, use as RoomUse))
     const grossWord = (m: 'grossInternal' | 'grossExternal', value: string): string => s.say(m === 'grossInternal' ? 'tool.areas.grossInternal.figure' : 'tool.areas.grossExternal.figure', { area: value })
     const notKnown = s.say('tool.areas.notKnown')
-    const lines: string[] = []
+    const opening = stateLine(asRead, args['state'], s)
+    const lines: string[] = opening === null ? [] : [opening]
     const several = survey.facts.floors.length > 1
     for (const f of areas.floors) {
       if (several) lines.push(s.say('tool.areas.floor.heading', { floor: name(f.floor) }))
@@ -1415,6 +1431,7 @@ const scheduleTool: GridTool = {
     of: { type: 'string', enum: ['rooms', 'openings', 'flats', 'doors', 'windows', 'finishes', 'fixtures', 'items'], description: 'fixtures for every fixture and piece of furniture with its kind, room and size (as types=fixture), items for every item, points too (an extinguisher, a camera, an exit), numbered, with its kind, room, place on the plan and facts, and the count of each kind, rooms for the room schedule, openings for one row per door, window and opening, flats for the flats and the unit mix by type, doors or windows for the door or window schedule by type with each type\'s marks, finishes for each room\'s floor, wall, ceiling and skirting finishes with their quantities and each finish\'s total. Grouped by type and size when left out.', examples: ['rooms', 'openings', 'flats', 'doors', 'finishes'] },
     types: { type: 'array', description: 'Only these kinds: door, window, opening, or fixture for the toilets, basins, showers, baths and kitchen runs. All of them when left out.', examples: [['door'], ['door', 'opening'], ['fixture']], items: { enum: ['door', 'window', 'opening', 'fixture'] }, minItems: 1, maxItems: 4 },
     narrower_than: { type: 'number', length: true, description: 'Only openings narrower than this many metres, for example 0.8.', examples: [0.8, 0.9], minimum: 0.1, maximum: 10 },
+    state: stateArg('is the building after the work, with the openings to be demolished listed apart as removals', 'as both'),
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
     format: FORMAT_ARG,
@@ -1422,19 +1439,22 @@ const scheduleTool: GridTool = {
   },
   outputSchema: SCHEDULE_OUTPUT,
   run(args, context) {
-    const { loaded } = readPlan(context, args['plan'])
+    const { loaded: read } = readPlan(context, args['plan'])
+    // ARE-75: before or after the work, the plan as it stands then.
+    const loaded = loadedFor(read, args['state'])
     const floor = floorArg(loaded.plan, args['floor'])
     const survey = surveyPlan(loaded.plan)
     // MSG-34: the call's language, else the plan's, with the display's decimal mark throughout.
     const language = toolLanguage(context, survey.plan)
     const units = displayFor(args['units'], args['decimal'], survey.plan, language)
     const s = speakerFor(language, units.decimal)
+    const told = <A extends Answer>(answer: A): A => withStateLine(answer, stateLine(read.plan, args['state'], s), args['state'], args['format'] === 'csv')
     const of = args['of'] as ScheduleOf | 'fixtures' | 'items' | undefined
     if (of !== undefined) {
       const stray = ['types', 'narrower_than'].filter((name) => args[name] !== undefined)
       if (stray.length > 0) throw new ToolRefusal(`of=${of} takes no ${stray.join(' or ')}.`)
-      if (of === 'items') return itemSchedule(survey, floor, units, args['format'] === 'csv', s)
-      if (of !== 'fixtures') return listSchedule(survey, loaded.plan, of, floor, units, args['format'] === 'csv', s)
+      if (of === 'items') return told(itemSchedule(survey, floor, units, args['format'] === 'csv', s))
+      if (of !== 'fixtures') return told(listSchedule(survey, loaded.plan, of, floor, units, args['format'] === 'csv', s))
     }
     // CNT-45: of=fixtures is the fixtures and furniture alone.
     const types = of === 'fixtures' ? ['fixture' as const] : (args['types'] as ('door' | 'window' | 'opening' | 'fixture')[] | undefined)
@@ -1456,7 +1476,7 @@ const scheduleTool: GridTool = {
       const rows = sched.rows.flatMap((row) => row.items.map((item) => [row.type, ...(kinds ? [row.kind ?? ''] : []), item.id, ...csvLengths(units, [row.width, row.height, row.sill]), item.floor, roomName(item.between[0]).replace(/"/g, ''), roomName(item.between[1]).replace(/"/g, '')]))
       for (const r of f?.rows ?? []) rows.push([r.kind, ...(kinds ? [''] : []), r.id, ...csvLengths(units, [r.size[0], r.height]), '', r.floor, r.room === null ? 'no room' : roomName(r.room).replace(/"/g, ''), ''])
       const unit = csvLengthUnit(units)
-      return { text: csv(['type', ...(kinds ? ['kind'] : []), 'id', `width ${unit}`, `height ${unit}`, `sill ${unit}`, 'floor', 'side 1', 'side 2'], rows), data }
+      return told({ text: csv(['type', ...(kinds ? ['kind'] : []), 'id', `width ${unit}`, `height ${unit}`, `sill ${unit}`, 'floor', 'side 1', 'side 2'], rows), data })
     }
     const lines = types?.length === 1 && types[0] === 'fixture' ? [] : sched.rows.map((row) => `${row.count} × ${kindIn(s, row.type, row.kind)} ${s.say('tool.schedule.size', { width: lengthText(row.width, units), height: lengthText(row.height, units) })}${row.type === 'window' ? s.say('tool.schedule.sill', { sill: lengthText(row.sill, units, 'height') }) : ''}: ${row.items.map((item) => `${q(item.id)} (${sideIn(s, roomName(item.between[0]))} ↔ ${sideIn(s, roomName(item.between[1]))})`).join(', ')}`)
     const onlyFixtures = types !== undefined && types.every((t) => t === 'fixture')
@@ -1471,7 +1491,7 @@ const scheduleTool: GridTool = {
       if (f.leftOut.length > 0) lines.push(s.say('tool.schedule.leftOut', { ids: f.leftOut.map(q).join(', ') }))
       lines.push(s.text(FIXTURE_RULES.count))
     }
-    return { text: lines.join('\n'), data }
+    return told({ text: lines.join('\n'), data })
   },
 }
 
@@ -1624,6 +1644,7 @@ const findTool: GridTool = {
     where: WHERE_ARG,
     fields: { type: 'array', description: 'The fields and facts to give for each part found, by name, as grid_fields lists them. Only the ids when left out.', examples: [['fire rating'], ['name', 'area', 'department']], items: { maxLength: 120 }, minItems: 1, maxItems: 30 },
     limit: { type: 'number', description: 'The most parts to list; count still counts them all. 500 when left out.', examples: [100, 500], minimum: 1, maximum: 5000 },
+    state: stateArg('finds among every part of both, each with its phase, as a question about the phase field does', 'among the parts after the work, unless the question is about the phase'),
   },
   outputSchema: objectSchema({
     count: NUMBER,
@@ -1636,9 +1657,11 @@ const findTool: GridTool = {
     rule: STRING,
   }),
   run(args, context) {
-    const { survey, stated, floor } = load(context, args['plan'], args['floor'])
+    const { survey, stated, floor, asRead } = load(context, args['plan'], args['floor'], args['state'])
     const room = args['room'] === undefined ? undefined : roomArg(stated, args['room'])
-    return asked(() => {
+    // ARE-75: read in a state, it says so, and its view draws that state.
+    const state = args['state'] as string | undefined
+    return withStateLine(asked(() => {
       const ask = askPlan(survey, { items: true, stated })
       const kinds = kindsOf(args)
       const fields = ((args['fields'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `fields item ${i + 1}`))
@@ -1648,6 +1671,7 @@ const findTool: GridTool = {
         ...(floor === undefined ? {} : { floor }),
         ...(room === undefined ? {} : { room }),
         ...(args['where'] === undefined ? {} : { where: args['where'] as string[] }),
+        ...(state === 'both' ? { bothStates: true } : {}),
       })
       const limit = Math.floor((args['limit'] as number | undefined) ?? 500)
       const listed = found.slice(0, limit)
@@ -1662,8 +1686,8 @@ const findTool: GridTool = {
         ...(found.length === 0 ? [] : [`To see them picked out, pass view to grid_view${floors.length > 1 ? `: they are on ${floors.length} floors, so draw each floor in turn` : ''}.`]),
         QUERY_RULE,
       ]
-      return { text: lines.join('\n'), data: { count: found.length, ids, rows, fields: fields.map(fieldName), more: Math.max(0, found.length - limit), floors, view, rule: QUERY_RULE } }
-    })
+      return { text: lines.join('\n'), data: { count: found.length, ids, rows, fields: fields.map(fieldName), more: Math.max(0, found.length - limit), floors, view: state === undefined ? view : { ...view, state }, rule: QUERY_RULE } }
+    }), stateLine(asRead, state, ENGLISH_SPEAKER), state)
   },
 }
 
@@ -2865,6 +2889,7 @@ const viewTool: GridTool = {
       schema: objectSchema({ from: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 }, to: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 } }),
       read: (value) => cutArg(value),
     },
+    state: VIEW_STATE_ARG,
     marks: { type: 'array', description: 'For plan: marks for the plan\'s other drawings: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of cut and the way toward looks), schedule (each room\'s and opening\'s mark in the schedules, tied to its row in grid_schedule). None when left out.', examples: [['levels', 'elevations'], ['section'], ['schedule']], items: { enum: MARK_WORDS }, minItems: 1, maxItems: 4 },
   },
   outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, floors: listSchema(STRING), camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING, worldFile: NULLABLE_STRING, pixelToMetres: { ...PIXEL_TRANSFORM, type: ['object', 'null'] }, panels: listSchema(objectSchema({ floor: NULLABLE_STRING, pixelToMetres: PIXEL_TRANSFORM })) }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes', 'pixelToMetres']),
@@ -2873,7 +2898,8 @@ const viewTool: GridTool = {
     // VEW-62: the name is checked before anything is drawn.
     const ext = out === undefined ? null : asToolArg(() => pictureExtension(out))
     if (ext === '.svg' && (args['kind'] === '3d' || args['kind'] === 'eye')) throw new ToolRefusal(`kind=${args['kind'] as string} is a picture of pixels, so it is not made as an svg: name a .png or .pdf file.`)
-    const { picture, ...answer } = await drawView(args, context)
+    // ARE-75: a drawing of one state, or the demolition or proposed plan, says which first.
+    const { picture, ...answer } = withStateLine(await drawView(args, context), stateLine(readPlan(context, args['plan']).loaded.plan, args['state'], ENGLISH_SPEAKER), args['state'])
     const pixelToMetres = picture?.pixelToMetres ?? null
     const panels = picture?.panels
     const data: Record<string, unknown> = { ...answer.data, pixelToMetres, ...(panels === undefined ? {} : { panels }) }
@@ -2899,12 +2925,14 @@ const viewTool: GridTool = {
 
 async function drawView(args: Record<string, unknown>, context: ToolContext): Promise<ViewAnswer> {
   {
-    const { project, loaded: read } = readPlan(context, args['plan'])
+    const { project, loaded: asRead } = readPlan(context, args['plan'])
+    // ARE-75: the building in the state asked, or the demolition or proposed plan, and the state its measures read.
+    const { drawn: read, measured } = viewLoadedFor(asRead, args['state'])
     // MSG-11: the drawing's own words in the language asked for, else the plan's own. MSG-22: the
     // floor the plan names in no list, named in it.
     const language = await languageFor(askedLanguage(args['language'], 'language'), read.plan)
     const loaded = spokenPlan(read, language)
-    const survey = surveyPlan(loaded.plan)
+    const survey = surveyPlan(measured === read ? loaded.plan : spokenPlan(measured, language).plan)
     // VEW-74: floor=all is every floor, unless a floor of the plan has that id.
     const allFloors = args['floor'] === 'all' && !planFloors(loaded.plan).some((f) => f.id === 'all')
     const floor = allFloors ? undefined : floorArg(loaded.plan, args['floor'])
@@ -3180,21 +3208,26 @@ const describeTool: GridTool = {
     floor: { ...FLOOR_ARG, description: 'For length=walk: the floor to walk. Every floor when left out, a floor laid out like an earlier one said once.' },
     pictures: { type: 'boolean', description: 'For length=walk: true to add a picture at eye height from each doorway, looking ahead, in the order of the walk. false when left out.', examples: [true, false] },
     language: LANGUAGE_ARG,
+    state: stateArg('describes the building before the work and then after it, each headed; with as=rooms or length=walk, as left out', 'the building after the work, with its work counted (as=rooms writes every part with its phase)'),
   },
   outputSchema: objectSchema({ length: { type: ['string', 'null'] }, for: { type: ['string', 'null'] }, as: { type: ['string', 'null'] }, text: STRING, pictures: { type: 'array' } }, ['length', 'for', 'as', 'text']),
   async run(args, context) {
     if (args['as'] !== undefined && (args['length'] !== undefined || args['for'] !== undefined || args['floor'] !== undefined || args['pictures'] !== undefined)) {
       throw new ToolRefusal('as=rooms reads the plan back as rooms text, which has no length or for: leave them out.')
     }
-    const { loaded: read } = readPlan(context, args['plan'])
+    const { loaded: asRead } = readPlan(context, args['plan'])
+    // ARE-75: before or after the work, the plan as it stands then.
+    const read = loadedFor(asRead, args['state'])
     // MSG-11: the description in the language asked for, else the plan's own.
     const language = await languageFor(askedLanguage(args['language'], 'language'), read.plan)
     // MSG-22: the floor the plan names in no list, named in that language.
     const loaded = spokenPlan(read, language)
+    const s = speakerFor(language, read.plan.display?.decimal ?? 'point')
+    const told = <A extends Answer>(answer: A): A => withStateLine(answer, stateLine(asRead.plan, args['state'], s), args['state'])
     if (args['building'] !== undefined && args['as'] !== 'rooms') throw new ToolRefusal('building goes with as=rooms: it reads one building back as rooms text.')
     if (args['as'] === 'rooms') {
       const text = args['building'] === undefined ? describeRooms(loaded, { language }) : describeBuilding(loaded, args['building'] as string, language)
-      return { text, data: { length: null, for: null, as: 'rooms', text } }
+      return told({ text, data: { length: null, for: null, as: 'rooms', text } })
     }
     const length = (args['length'] as (typeof DESCRIBE_LENGTHS)[number] | undefined) ?? 'rooms'
     const audience = (args['for'] as (typeof DESCRIBE_AUDIENCES)[number] | undefined) ?? 'agent'
@@ -3214,14 +3247,20 @@ const describeTool: GridTool = {
       const more = args['pictures'] === true && stops > shots.length ? `\nPictures of the first ${shots.length} doorways of ${stops}: pass floor to walk one floor at a time.` : ''
       const text = `${describeWalk(survey, walk, audience, names, { language }).trimEnd()}${more}`
       const pictures = shots.map((shot, i) => ({ picture: i + 1, room: shot.stop.room, floor: shot.stop.floor, eyeHeight: WALK_EYE_HEIGHT, heading: shot.stop.heading }))
-      return {
+      return told({
         text,
         data: { length, for: audience, as: null, text, pictures },
         ...(shots.length === 0 ? {} : { images: shots.map((shot) => ({ data: shot.png, mimeType: 'image/png' as const })) }),
-      }
+      })
+    }
+    // ARE-75: both, on a plan with phases, the building before the work and then after it.
+    if (args['state'] === 'both' && planHasPhases(asRead.plan)) {
+      const each = (['before', 'after'] as const).map((state) => `${stateLine(asRead.plan, state, s)!}\n${describePlan(spokenPlan(loadedFor(asRead, state), language), length, audience, { language }).trimEnd()}`)
+      const text = each.join('\n\n')
+      return { text, data: { length, for: audience, as: null, text, state: 'both' } }
     }
     const text = describePlan(loaded, length, audience, { language })
-    return { text, data: { length, for: audience, as: null, text } }
+    return told({ text, data: { length, for: audience, as: null, text } })
   },
 }
 
