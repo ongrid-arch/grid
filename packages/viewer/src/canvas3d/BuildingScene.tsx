@@ -40,6 +40,8 @@ export interface BuildingSceneProps {
   pointer?: StoreyPointer
   /** VEW-66: the ground, drawn as a surface the floors below it show faded through. None when left out. */
   ground?: BuildingGround | null
+  /** VEW-78: whether the rooms' ceilings are drawn, for a camera standing in a room. Not when left out. */
+  ceilings?: boolean
 }
 
 /**
@@ -56,7 +58,8 @@ export function BuildingScene({
   highlightRoom = null,
   hovered = null,
   pointer,
-  ground = null
+  ground = null,
+  ceilings = false
 }: BuildingSceneProps): JSX.Element {
   const { shadow } = frame
   const { roof } = layout
@@ -92,6 +95,7 @@ export function BuildingScene({
             hovered={storey.floorId === hovered}
             castShadow={!layout.single}
             pointer={pointer}
+            ceilings={ceilings}
           />
         )
       )}

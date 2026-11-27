@@ -27,6 +27,11 @@ export interface StillSceneOptions {
   readonly camera?: CameraRecord
   /** VEW-19: whether the roof is drawn. The app's own rule when left out: only for the whole of several floors. */
   readonly roof?: boolean
+  /**
+   * VEW-78: the camera stands in a room: the floor it stands on is drawn whole, its walls uncut
+   * (the floors above are left out, as for a cutaway), and with the rooms' ceilings. No when left out.
+   */
+  readonly inside?: boolean
 }
 
 export interface StillScene {
@@ -63,7 +68,8 @@ export function stillScene(plan: FloorPlan, options: StillSceneOptions): StillSc
   }
   const focus = options.focus ?? null
   const elevations = floorElevations(plan)
-  const layout = buildingLayout(plan, focus, elevations, options.roof)
+  const inside = options.inside === true
+  const layout = buildingLayout(plan, focus, elevations, options.roof, inside)
   const frame = buildingFrame(plan, elevations, focus, options.roof)
   const ground = buildingGround(plan, layout, elevations)
 
@@ -80,7 +86,7 @@ export function stillScene(plan: FloorPlan, options: StillSceneOptions): StillSc
 
   let store: ReturnType<typeof root.render> | undefined
   flushSync(() => {
-    store = root.render(<BuildingScene floorPlan={plan} layout={layout} frame={frame} colors={options.colors} ground={ground} />)
+    store = root.render(<BuildingScene floorPlan={plan} layout={layout} frame={frame} colors={options.colors} ground={ground} ceilings={inside} />)
   })
   const state: RootState = store!.getState()
   // One frame, as the app draws before anything is seen: it puts every part at rest.

@@ -345,6 +345,19 @@ The roof a still draws is the one the GLB and the section have: the roof a floor
 mono-pitch, gable or hip), and a flat one over every other part with nothing above. The answer
 says which: the stated roof by its shape and floor, or that the model is drawn open.
 
+Glass, ceilings and finishes (VEW-78). Glass is drawn see-through and tinted, in the 3D view, the
+stills and the preview: every window's, a door's whose type is glazed (`glazed`, or a glass
+`material`, set with `grid_change_type`; its leaves are glass) and a wall's whose type is glazed
+(a curtain wall, a glass partition). A door with no glazed type is drawn solid, and `kind=eye` says
+so when it is a room's only opening to the outside. A room's floor, its wall faces (a feature
+wall's face in its own finish, each band over its height) and its ceiling are tinted by their
+finishes (`grid_set_finishes`) where a finish's name gives a colour or a material ("Oak boards",
+"Grey tile", "Sage paint"); a name with neither keeps the model's colour. A camera standing in a
+room (`kind=eye`, or a camera whose `standingIn` is a room) draws its floor whole, not cut away,
+with each room's ceiling at the room's height (its lowered zones lower), and a plain sky over
+plain ground through the glass. `kind=eye` lists a glazed door with the windows, sill and top
+against the eye, and its `sills` give each one's `type`.
+
 Every 3D and eye picture comes back with its camera record in `camera`: the setting (`target`,
 `bearing`, `bearingFrom`, `north`, `tilt`, `distance`, `lens`, `cut`), what follows from it on
 this plan (`eyeHeight` above `floor`, the `floors` drawn, and `standingIn`, the room the camera
@@ -681,14 +694,16 @@ line of the table starts "Geometry,", after the label and the north.
 |---|---|
 | Window wall | A stretch of outside wall with a window in it, behind the room, as `what=facing` finds it |
 | Faces, bearing | The way the wall's outside face looks: the bearing in degrees clockwise from north and the nearest of the eight points of the compass, turned by the plan's `north` |
-| Windows | Each window in that stretch: its hole in the wall, width by height, and that area, with no frame taken off |
+| Windows | Each window in that stretch, and each glazed door (VEW-78): its hole in the wall, width by height, and that area, with no frame taken off |
 | Window area against floor area | The windows' areas added up for the room, and that as a share of the room's net floor area (`windowToFloor`, a ratio in the data, a percentage in the text) |
 | Depth | The distance, square to the window wall, from its inside face to the farthest point of the room's floor. An L-shaped room is as deep as the leg that runs farthest from the wall |
 
 North is read from the plan as `what=facing` reads it. A plan that states no north is answered
 with north as the top of the drawing, and the line after the label says so first; each window
-wall's line then says "if the top of the drawing is north". Doors and openings are not counted,
-glazed or not, because the plan does not say which are glazed. A room with no window in an
+wall's line then says "if the top of the drawing is north". A door counts with the windows only
+when its door type is glazed (`glazed`, or a glass `material`: `grid_change_type`), marked
+"(glazed door)" and `door: true` in the data; any other door and a doorless opening is not
+counted. A window whose type says it is not glazed is not counted either. A room with no window in an
 outside wall gets one line saying so. For the lab's two-bed flat with `"north": 30`:
 
 ```text

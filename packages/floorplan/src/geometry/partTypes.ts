@@ -52,6 +52,32 @@ export function openingTypeOf(plan: Pick<FloorPlan, 'types'>, opening: Pick<Open
   return null
 }
 
+/** VEW-78: a material named as glass ("Glass", "Clear glazing"), in the plan's own words. */
+const GLASS_MATERIAL = /\b(glass|glazed|glazing)\b/i
+
+/** VEW-78: whether a type says it is glass: `glazed`, else a glass material; null when it says neither. */
+function typeIsGlass(type: { readonly glazed?: boolean | undefined; readonly material?: string | undefined } | null): boolean | null {
+  if (type === null) return null
+  if (type.glazed !== undefined) return type.glazed
+  return type.material !== undefined && GLASS_MATERIAL.test(type.material) ? true : null
+}
+
+/**
+ * VEW-78: whether a door or window is glazed, as the 3D view draws it and the sun table and the
+ * eye view's window list count it. A window is, unless its type says it is not; a door only when
+ * its type says it is (`glazed`, or a glass material). A doorless opening is a hole, not glass.
+ */
+export function openingGlazed(plan: Pick<FloorPlan, 'types'>, opening: Pick<Opening, 'type' | 'doorType' | 'windowType'>): boolean {
+  if (opening.type === 'opening') return false
+  const stated = typeIsGlass(openingTypeOf(plan, opening))
+  return stated ?? opening.type === 'window'
+}
+
+/** VEW-78: whether a wall is glass (a curtain wall, a glazed partition): its type says so. */
+export function wallGlazed(plan: Pick<FloorPlan, 'types'>, wall: Pick<Wall, 'wallType' | 'virtual'>): boolean {
+  return typeIsGlass(wallTypeOf(plan, wall)) === true
+}
+
 /** A type's material as the person names it, or null when it states none. */
 export function typeMaterial(type: { readonly material?: string | undefined } | null): string | null {
   return type?.material ?? null

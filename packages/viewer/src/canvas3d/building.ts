@@ -94,7 +94,9 @@ export function buildingLayout(
   plan: FloorPlan,
   focus: string | null,
   elevations: BuildingElevations = floorElevations(plan),
-  roofAsked?: boolean
+  roofAsked?: boolean,
+  /** VEW-78: a camera stands in a room of the focused floor: its walls are drawn whole, not cut. */
+  inside = false
 ): BuildingLayout {
   const floors = floorsOf(plan)
   const single = floors.length <= 1
@@ -119,7 +121,7 @@ export function buildingLayout(
       base: single ? 0 : (storey?.floorLevel ?? 0),
       clearHeight: storey?.clearHeight ?? 0,
       look,
-      cut: focus !== null && floor.id === resolved ? limit('planCutHeight') : null
+      cut: focus !== null && floor.id === resolved && !inside ? limit('planCutHeight') : null
     }
   })
 
@@ -311,7 +313,8 @@ export function createSceneMemo(): (slice: FloorPlan) => Scene3D {
     // LVL-4: the slab and roof come from this floor's outline and the floors' next to it.
     const shell = sceneShell(slice)
     // CNT-42: and the items, so a moved chair is raised where it now stands.
-    const key = JSON.stringify([slice.walls, slice.rooms, slice.openings, stairs, shell, slice.items ?? []])
+    // VEW-78: and the types, which say which walls and doors are glass.
+    const key = JSON.stringify([slice.walls, slice.rooms, slice.openings, stairs, shell, slice.items ?? [], slice.types ?? null])
     if (last?.key !== key) last = { key, scene: buildScene(slice, { shell }) }
     return last.scene
   }

@@ -1080,6 +1080,26 @@ export const TOLERANCES = {
       'two panes are drawn on a plan drawn in detail (SHT-10). It only draws the model and the plan.',
     basis: own
   },
+  // VEW-78: a room's side lies on a wall's face, for the lining its finish is drawn on in 3D.
+  liningOnFace: {
+    kind: 'tolerance',
+    value: 0.02,
+    unit: 'm',
+    decides:
+      'How far a side of a room\'s inside outline may be from a wall\'s face and still be drawn as ' +
+      'that face, tinted by the room\'s wall finish in 3D. It only draws the model.',
+    basis: own
+  },
+  liningOffset: {
+    kind: 'limit',
+    value: 0.002,
+    unit: 'm',
+    decides:
+      'How far into the room a wall finish is drawn off its wall\'s face in 3D, and a ceiling under ' +
+      'the slab above, so each shows over the surface it covers; a band is drawn twice as far. It ' +
+      'only draws the model.',
+    basis: own
+  },
   sillProjection: {
     kind: 'limit',
     value: 0.03,

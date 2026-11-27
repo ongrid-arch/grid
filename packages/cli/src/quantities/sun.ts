@@ -16,7 +16,7 @@ import { roomCalled } from './survey'
 export const SUN_RULE =
   'This is geometry, not a daylight or sunlight result: Grid works out no sun path, shade, sky, glass or reflection, and checks no rule. '
   + 'A window wall is a stretch of outside wall with a window in it, and it faces the way of its outside face, turned by the plan\'s north. '
-  + 'A window\'s area is its hole in the wall, width by height, with no frame taken off; doors and openings are not counted, glazed or not. '
+  + 'A window\'s area is its hole in the wall, width by height, with no frame taken off; a door counts with the windows only when its type is glazed, and a doorless opening never. '
   + 'The floor area is the room\'s net area inside its wall faces. '
   + 'The depth from a window wall is the distance, square to that wall, from its inside face to the farthest point of the room\'s floor.'
 
@@ -50,7 +50,7 @@ export function sunAnswer(plan: FloorPlan, display: Display, room?: string): Sun
   const label = (r: SunRoom): string => `${q(name.get(r.room) ?? r.room)} (${q(r.room)})`
 
   const wallLine = (r: SunRoom, w: SunWall): string => {
-    const windows = w.windows.map((o) => `${q(o.id)} ${L(o.width)} wide × ${L(o.height)} high, ${A(o.area)}`).join('; ')
+    const windows = w.windows.map((o) => `${q(o.id)}${o.door ? ' (glazed door)' : ''} ${L(o.width)} wide × ${L(o.height)} high, ${A(o.area)}`).join('; ')
     const way = stated ? `faces ${w.faces}` : `faces ${w.faces} if the top of the drawing is north`
     return `Geometry, ${label(r)}, window wall ${q(w.wall)}: ${way} (bearing ${deg(w.bearing)}°); windows ${windows}; the room runs ${L(w.depth)} deep from its inside face.`
   }
@@ -83,7 +83,7 @@ export function sunAnswer(plan: FloorPlan, display: Display, room?: string): Sun
         to: round(w.to),
         faces: w.faces,
         bearing: deg(w.bearing),
-        windows: w.windows.map((o) => ({ id: o.id, width: round(o.width), height: round(o.height), area: round(o.area) })),
+        windows: w.windows.map((o) => ({ id: o.id, width: round(o.width), height: round(o.height), area: round(o.area), ...(o.door && { door: true }) })),
         windowArea: round(w.windowArea),
         depth: round(w.depth),
       })),
