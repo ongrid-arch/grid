@@ -37,7 +37,8 @@ export function lettableAnswer(survey: Survey, areas: PlanAreas, ask: LettableAs
 /** A floor's lettable area and core, after its line in `grid_areas`. */
 export function lettableFloorText(answer: LettableAnswer, floor: string, units: Display): string {
   const f = answer.lettable.floors.find((row) => row.floor === floor)
-  if (f === undefined) return ''
+  // A floor with nothing lettable and no core, such as massing, says nothing of either.
+  if (f === undefined || (f.lettable === 0 && f.core === 0)) return ''
   return english(said('lettable.floor', { area: areaText(f.lettable, units), efficiency: percent(f.efficiency), core: areaText(f.core, units), coreShare: percent(f.coreShare) }))
 }
 

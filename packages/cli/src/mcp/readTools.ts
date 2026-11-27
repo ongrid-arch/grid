@@ -229,7 +229,7 @@ function optionLine(row: OptionRow, units: Display): string {
   const unknown = english(said('sheet.notKnown'))
   const air = row.underAirFirst ? `${english(said('areas.compare.underAir', { conditioned: row.conditioned === null ? unknown : areaText(row.conditioned, units), underRoof: row.underRoof === null ? unknown : areaText(row.underRoof, units) }))}; ` : ''
   // ARE-68: the lettable area and efficiency beside net to gross, and the area per person where a figure is given.
-  const letting = english(said('compare.lettable', { area: areaText(row.lettable, units), efficiency: percent(row.efficiency), core: areaText(row.core, units), coreShare: percent(row.coreShare) }))
+  const letting = english(said('compare.lettable', { area: areaText(row.lettable, units), efficiency: percent(row.efficiency), core: row.core > 0 ? said('compare.core', { core: areaText(row.core, units), coreShare: percent(row.coreShare) }) : '' }))
   const people = (row.people ?? []).map((ratio) => ` ${peopleLines([ratio], units)[0]}`).join('')
   return `${row.label}: ${air}net ${areaText(row.net, units)}, ${gross}; circulation ${row.circulation.toFixed(2)} m² (${percent(row.circulationShare)} of gross internal); net to gross ${percent(row.netToGross)}; ${letting}; ${row.rooms} rooms, ${row.bedrooms} bedrooms. By use, m²: ${uses || 'no uses said'}.${groupLine('room type', row.byRoomType)}${groupLine('tenure', row.byTenure)}${people}`
 }
@@ -328,9 +328,12 @@ const compareTool: GridTool = {
     const choice = { ...(args['lettable_uses'] === undefined ? {} : { uses: args['lettable_uses'] as string[] }), ...(args['lettable_tenures'] === undefined ? {} : { tenures: args['lettable_tenures'] as RoomTenure[] }) }
     const options = surveys.map((survey, i) => optionRow(labels[i]!, survey, { choice, ...(args['people'] === undefined ? {} : { people: args['people'] as PeopleFigures }), ...briefPeopleOf(context, loaded[i]!.file) }))
     const comparisons = surveys.slice(1).map((survey, i) => ({ before: labels[0]!, after: labels[i + 1]!, ...comparePlans(surveys[0]!, survey, [labels[0]!, labels[i + 1]!]) }))
+    const letRules = lettableRules(Object.keys(choice).length === 0 ? null : choice)
+    const lettingRules = [letRules.lettable, letRules.core, letRules.efficiency]
     // ARE-60: the area under air's rules, where an option leads with it.
-    const rules = [...Object.values(AREA_RULES), ...(options.some((row) => row.underAirFirst) ? [MEASURES.conditioned.measures, MEASURES.underRoof.measures] : []), ...Object.values(lettableRules(Object.keys(choice).length === 0 ? null : choice)), ...(options.some((row) => row.people !== undefined) ? [english(said('people.rule'))] : [])]
-    const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...rules]
+    const rules = [...Object.values(AREA_RULES), ...(options.some((row) => row.underAirFirst) ? [MEASURES.conditioned.measures, MEASURES.underRoof.measures] : []), ...lettingRules, ...(options.some((row) => row.people !== undefined) ? [english(said('people.rule'))] : [])]
+    // ARE-68: the lettable rules are in the data, so the table stays short.
+    const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...rules.filter((rule) => !lettingRules.includes(rule))]
     let image
     if (args['picture'] === true) {
       const floor = args['floor']

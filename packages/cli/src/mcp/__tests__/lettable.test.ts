@@ -72,7 +72,7 @@ describe('ARE-68: grid_compare', () => {
     const options = (reply.data as { options: { lettable: number; efficiency: number; people: unknown[] }[] }).options
     expect(options[1]!.lettable).toBeCloseTo(120, 6)
     expect(options.every((o) => o.people.length === 1)).toBe(true)
-    expect(reply.text).toMatch(/A: .*net to gross [\d.]+%; lettable [\d.]+ m² \([\d.]+% of gross internal\), core/)
+    expect(reply.text).toMatch(/A: .*net to gross [\d.]+%; lettable [\d.]+ m² \([\d.]+%\), core [\d.]+ m² \([\d.]+%\)/)
     expect(reply.text).toContain('Per key, for 4 keys: gross internal')
   })
 })
