@@ -63,7 +63,8 @@ export function stillScene(plan: FloorPlan, options: StillSceneOptions): StillSc
   }
   const focus = options.focus ?? null
   const elevations = floorElevations(plan)
-  const layout = buildingLayout(plan, focus, elevations, options.roof)
+  // VEW-75: a camera standing in a room sees its walls whole, not cut below the eye.
+  const layout = buildingLayout(plan, focus, elevations, options.roof, options.camera !== undefined && options.camera.standingIn.room !== null)
   const frame = buildingFrame(plan, elevations, focus, options.roof)
   const ground = buildingGround(plan, layout, elevations)
 

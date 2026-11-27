@@ -2029,6 +2029,13 @@ export const en = {
   'describe.room': '{room}: {size}, {area} m², at {at}.',
   'describe.room.next': ' Next to {rooms}.',
   'describe.room.odd': 'not a rectangle, {size} at its widest',
+  // CMD-49: a room said by the shape a person names, not the box round it.
+  'describe.room.round': 'round, {across} m across',
+  'describe.room.band': 'a curved band, {long} m long along its middle and {wide} m wide',
+  'describe.room.turned': '{across} m × {up} m, turned {degrees}° on the drawing',
+  'describe.room.four': 'four-sided, its sides {sides} m going round',
+  'describe.room.curved': 'not a rectangle, {size} at its widest, with {curves}',
+  'describe.room.curve': 'a curved side of radius {radius} m, {length} m long',
   'describe.room.unmeasured': "{room}: can't be measured, so nothing is said about it; grid check says why.",
   'describe.room.open': 'Open to {room}, with no wall between.',
   'describe.room.opening': '{what} {width}{to}, {face} side{corners}.',
@@ -3300,6 +3307,8 @@ export const en = {
   'describe.walk.start.firstRoom': 'No door leads in from outside and no room is a stair: it starts in the first room of the floor.',
   'describe.walk.start.none': 'It has no room to walk.',
   'describe.walk.stop': '{n}. {room}{came}. Facing {facing}, it is {across} m across and {deep} m deep, {area} m².',
+  'describe.walk.stop.round': '{n}. {room}{came}. Facing {facing}; it is round, {across} m across, {area} m².',
+  'describe.walk.stop.band': '{n}. {room}{came}. Facing {facing}; it is a curved band, {long} m long along its middle and {wide} m wide, {area} m².',
   'describe.walk.came.start': ', where the walk starts, standing in its middle',
   'describe.walk.came.outside': ', in from outside{via}',
   'describe.walk.came.room': ', from {room}{via}',
@@ -3863,6 +3872,13 @@ export const en = {
   'frontage.rule': 'Frontage zones cut the room\'s floor as drawn by lines parallel to its frontage, every band\'s depth into the room: the bands, then the rest beyond them, add up to the floor. The frontage is the side on the wall named, else on the wall with the most opening width the room opens through, else its longest side on an outside wall. Grid\'s default band depth is {depth} m (20 ft), the depth shops are often zoned by, in {bands} bands; no band is weighted: the bands are measured, not valued. Columns and fixtures are not taken off.',
   'frontage.line': '{room}: frontage {width} on {wall} ({found}); bands of {depth}: {bands}; {area} in all.',
   'frontage.band': '{name} {area} ({sqFt} sq ft)',
+  // CMD-49: grid_measure what=room, a curve as one side and a room by the shape a person names.
+  'measure.side.curve': '{facing} a curved side, radius {radius}, {length} long',
+  'measure.side.round': 'a curved side all the way round, radius {radius}, {length} long',
+  'measure.size.round': 'round, {across} across',
+  'measure.size.band': 'a curved band {long} long along its middle and {wide} wide',
+  'measure.size.turned': '{across} × {up}, turned {degrees}° on the drawing',
+  'measure.size.four': 'four sides going round, {sides}',
   'frontage.found.named': 'the wall named',
   'frontage.found.openings': 'the wall it opens through most',
   'frontage.found.outside': 'its longest side on an outside wall',
@@ -3942,6 +3958,14 @@ export const en = {
   'plan.fileKind.occupancy': 'a file Grid keeps beside a plan (the occupancy figures)',
   'plan.fileKind.sheet': 'a file Grid keeps beside a plan (the sheet\'s words)',
   'plan.fileKind.firm': 'the file that holds the firm\'s own standards',
+  // --- Phases in rooms text (WRT-81, `rooms/phases.ts`) and the refusal of grid write (`command/write.ts`)
+  'rooms.phase.state.before': 'Read as the building before the work (its existing and demolished parts): {problem}',
+  'rooms.phase.state.after': 'Read as the building after the work (its existing and new parts): {problem}',
+  'rooms.phase.unknown': 'Line {line}: a phase is existing, demolished or new, not {word}. Write phase existing, phase demolished or phase new.',
+  'rooms.phase.alone': 'Line {line}: a phase line is phase existing, phase demolished or phase new alone, and sets the phase of the room and opening lines after it.',
+  'rooms.phase.where': 'Line {line}: a phase goes on a room, wall, door, window, opening, place or repeat line, or alone on a line. A {kind} line takes none: it stands after the work.',
+  'rooms.phase.base': 'Line {line}: a fit-out is the work itself, its rooms and openings new on its base\'s existing walls, so it takes no phase. Take the phase words out, or write the plan without its base line.',
+  'write.phases.none': '{file} states its parts\' phases (existing, demolished or new), and this rooms text states none, so writing it would write every part with none, and so would --replace. Read the plan back as rooms text (grid describe --as rooms), which writes each part\'s phase (phase existing, phase demolished, phase new), and change that; or write the phases in this text; or add --replace to write it with no phases.',
 } as const satisfies Record<string, string>
 
 export type MessageKey = keyof typeof en

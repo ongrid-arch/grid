@@ -273,6 +273,22 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
     ],
   },
   {
+    topic: 'phases',
+    says: 'phase existing|demolished|new on a room, door, window, opening, place or repeat line says what the work does with it; alone on a line it holds for the room and opening lines after it (phase existing at the top makes a survey). Grid writes the text as the building before the work (existing and demolished) and after it (existing and new): a wall in both is existing, one only before is demolished, one only after is new, and a door into a demolished room goes with it. A room the work changes the walls of is new, and its old self <id>-before demolished. phase <word> on a wall line marks that wall whatever its rooms say. Place a new room beside rooms that stand after the work, or at x,y. grid_describe as=rooms writes these words back.',
+    example: [
+      'walls outside 0.3 inside 0.1 height 2.6',
+      'phase existing',
+      'room front "Front room" living 4.0 x 4.0 at 0,0',
+      'room back "Back room" bedroom 4.0 x 4.0 east of front phase demolished',
+      'room bath "Bathroom" bathroom 4.0 x 1.8 east of front phase new',
+      'room study "Study" office 4.0 x 2.1 north of bath phase new',
+      'door d1 between front and back, centred, 0.9 wide',
+      'door d2 between front and study, centred, 0.9 wide, phase new',
+      'door d3 between study and bath, centred, 0.8 wide',
+      'door entry in front south, centred, 0.9 wide',
+    ],
+  },
+  {
     topic: 'fit-out',
     says: 'base <base plan> names the plan this one is fitted out in, as the project knows it (base shell.json; in quotes when the name holds a space): the shell, whose walls, doors and windows are read in as existing, drawn, measured and checked with the fit-out, and never written into it. Write the rooms by their inside faces as always: a wall Grid works out whose room faces lie on a base wall\'s faces is the base\'s, and the room names it by the base\'s id. Put a room\'s face on the base wall\'s face (a 0.3 m wall on x = 0 has its faces at -0.15 and 0.15) to rest it there; a face a little off one is said, with how far. A door or window in a base wall is refused, as the shell is read-only: its doors and windows are the base\'s. grid_start_fit_out starts a fit-out with the base\'s rooms as its own.',
     example: [

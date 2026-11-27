@@ -168,3 +168,60 @@ describe('grid_export holds the whole building in a glb or obj (VEW-64)', () => 
     }
   })
 })
+
+describe('grid_export: materials, roofs and curves in a glb or obj (VEW-73)', () => {
+  const drum = {
+    version: '1',
+    units: 'm',
+    walls: [{ id: 'round', start: [8, 5], end: [8, 5], thickness: 0.2, height: 2.7, kind: 'exterior', arc: { centre: [5, 5], sweep: 360 } }],
+    rooms: [{ id: 'drum', name: 'Drum', boundary: ['round'] }],
+    openings: [],
+  }
+  const b = bench({ 'plan.json': sample, 'drum.json': drum })
+  afterAll(() => b.close())
+
+  type Doc = { meshes: { name: string; primitives: { attributes: Record<string, number>; indices: number; material: number }[] }[]; materials: { name: string }[]; accessors: { count: number }[] }
+  const docOf = (file: string): Doc => glbJson(readFileSync(join(b.folder, file))) as unknown as Doc
+
+  it('writes grid.mtl beside an obj and answers with it', async () => {
+    const reply = await b.call('grid_export', { plan: 'plan.json', format: 'obj' })
+    expect(reply.isError).toBe(false)
+    expect(reply.data!['materials']).toBe('exports/grid.mtl')
+    expect(reply.text).toContain('Wrote "exports/grid.mtl" in the project folder.')
+    expect(readFileSync(join(b.folder, 'exports', 'plan.obj'), 'utf8')).toMatch(/^mtllib grid\.mtl$/m)
+    expect(readFileSync(join(b.folder, 'exports', 'grid.mtl'), 'utf8')).toMatch(/^newmtl wall$/m)
+    // Beside out too.
+    const out = await b.call('grid_export', { plan: 'plan.json', format: 'obj', out: 'model.obj' })
+    expect(out.data!['materials']).toBe('grid.mtl')
+    expect(existsSync(join(b.folder, 'grid.mtl'))).toBe(true)
+  })
+
+  it('answers no materials file for a glb, whose materials are inside it', async () => {
+    const reply = await b.call('grid_export', { plan: 'plan.json', format: 'glb' })
+    expect(reply.data!['materials']).toBeNull()
+    const doc = docOf('exports/plan.glb')
+    expect(doc.materials.map((m) => m.name)).toContain('wall')
+    expect(doc.meshes.some((m) => m.name.startsWith('roof_'))).toBe(true)
+    expect(Object.keys(doc.meshes[0]!.primitives[0]!.attributes)).toEqual(['POSITION', 'NORMAL', 'TEXCOORD_0'])
+  })
+
+  it('leaves the roofs out with roofs false', async () => {
+    const reply = await b.call('grid_export', { plan: 'plan.json', format: 'glb', roofs: false, out: 'open.glb' })
+    expect(reply.isError).toBe(false)
+    expect(docOf('open.glb').meshes.some((m) => m.name.startsWith('roof_'))).toBe(false)
+  })
+
+  it('writes a round wall lighter with arcSegments', async () => {
+    await b.call('grid_export', { plan: 'drum.json', format: 'glb', arcSegments: 24, out: 'light.glb' })
+    const doc = docOf('light.glb')
+    const wall = doc.meshes.find((m) => m.name === 'wall_round')!.primitives[0]!
+    expect(doc.accessors[wall.indices]!.count).toBe(24 * 12 * 3)
+  })
+
+  it('refuses either for a dxf or an ifc, by the argument name', async () => {
+    const roofs = await b.call('grid_export', { plan: 'plan.json', format: 'dxf', roofs: false })
+    expect(roofs).toMatchObject({ isError: true, text: 'roofs false applies to GLB and OBJ only: leave it out for this format.' })
+    const arcs = await b.call('grid_export', { plan: 'plan.json', format: 'ifc', arcSegments: 32 })
+    expect(arcs).toMatchObject({ isError: true, text: 'arcSegments applies to GLB and OBJ only: leave it out for this format.' })
+  })
+})

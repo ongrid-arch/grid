@@ -11,6 +11,7 @@ import { indexPlan } from '../plan'
 import { validatePlan } from '../validate'
 import { diffPlans } from '../diff'
 import { floorMesh } from '../export/mesh'
+import { tolerance } from '../tolerances'
 import { parseFloorPlan, safeParseFloorPlan } from '../../types/floorplan'
 import { ballroomWithStage, edit, genkanFlat } from '../../test-support/plans'
 
@@ -59,7 +60,8 @@ describe('LVL-7 a genkan 0.18 m off its storey (R-4)', () => {
     expect(genkan.offset).toBe(0.18)
     expect(hall).not.toHaveProperty('offset')
     const mesh = floorMesh(genkan)!
-    expect(Math.max(...mesh.points.map((p) => p.z))).toBeCloseTo(0.18, 9)
+    // VEW-73: its top lifted off the slab, as every room's floor in a 3D file.
+    expect(Math.max(...mesh.points.map((p) => p.z))).toBeCloseTo(0.18 + tolerance('floorLift'), 9)
     expect(Math.min(...mesh.points.map((p) => p.z))).toBe(0)
   })
 

@@ -46,7 +46,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_report_problem` | A draft issue about a failure the agent met, for the person to file or not: Grid sends nothing (see below) |
 | `grid_preview` | Shows the person a floor in 2d or 3d in Grid's preview, a room framed, parts picked out and a note, and answers with the picture the preview shows; with no argument but `plan`, reads what the person selected by clicking (see [below](#the-preview-shared-with-the-person)) |
 | `grid_preview_sync` | The preview page's own call, which a host that shows MCP Apps lists for the page only: the drawing, the shared record, and what the person did there. Not for an agent |
-| `grid_export` | Writes DXF, IFC, GLB or OBJ into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF with no `floor` holds every floor, each on a layout of its own, at the largest standard scale it fits on A3 or at `scale`; `floor` takes a floor's id or name, or `all` for one file per floor (`files`), `out` names the file to write, and `sheets` says each sheet's scale and whether its floor fits ([every floor in one DXF](commands.md#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)) |
+| `grid_export` | Writes DXF, IFC, GLB or OBJ into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF with no `floor` holds every floor, each on a layout of its own, at the largest standard scale it fits on A3 or at `scale`; `floor` takes a floor's id or name, or `all` for one file per floor (`files`), `out` names the file to write, and `sheets` says each sheet's scale and whether its floor fits ([every floor in one DXF](commands.md#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)). A GLB or OBJ takes `roofs: false` to leave the roofs out and `arcSegments`, the pieces a whole circle of curved wall is written with; an OBJ's `grid.mtl` is written beside it and answered as `materials` ([3D files](3d-files.md)) |
 | `grid_sheet` | Writes the plan as an A3 PDF into `exports/`, a client or check sheet answering with a small picture of each page (VEW-62): layout `client` (cover, a page per floor, the words as `sheet`) or `check` (every id, use and finding); or layout `drawing`, every floor (or the `floor` asked for) at one true scale (`scale`, `paper`, `split`, `roomSizes`) as a vector PDF of a page each and an SVG and a PNG of each page, with the PNGs in the answer |
 | `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with, with `who` set it and a `note`; or takes one off. The latest 20, the oldest rolling off |
 | `grid_mark_seen` | Sets a note of `grid_check` aside as seen, with the person's reason and the name or role they give, in `plan.seen.json` beside the plan; or takes the mark off (see below) |
@@ -387,6 +387,32 @@ same record. A name already saved is refused unless `replace` is true. The app's
 at a record handed to it (`Canvas3D`'s `camera`), and the stills are taken with the same
 settings (`recordCamera`), so the person and the agent see the same picture.
 
+### Standing in a room: kind=eye
+
+Read this when the person asks what a room looks like from inside ("stand me in the kitchen
+looking at the garden", "from the doorway", "sitting on the sofa"). `grid_view kind=eye` stands
+in `room` with the eye `eye_height` above that room's own floor (1.6 m when left out), and takes
+(VEW-75):
+
+| Argument | What it sets |
+|---|---|
+| `at` | Where to stand: a door or opening of the room by id (in its doorway, just inside the room), an item by id (0.5 m in front of it, looking the way it faces) or a corner of the room (`north-east`, `south-east`, `south-west`, `north-west`; north is the drawing's top), tucked in clear of its walls. Not with `stand_at` |
+| `stand_at` | A point to stand on, `{ x, y }` in metres, on the room's clear floor |
+| `toward` | An opening or item by id, or a direction, to look at |
+| `look_at` | A point to look at, `{ x, y }` in metres. Not with `toward` |
+| `lens` | The focal length in millimetres on a 36 × 24 mm sensor: 18 (90° across) when left out |
+| `tilt` | Degrees the eye looks down, below 0 up; level when left out. The camera stays at the eye |
+| `perspective` | `two-point`: level, looking across a corner of the room at least 25° off square to its walls, so they run away to both sides and upright lines stay upright; with no `toward` it looks at the far corner, with one it turns just enough and says by how much. `one-point`: level and square on the wall it faces. Neither takes a tilt |
+
+Left out, the eye stands on the room's middle line, back from what it looks at, and looks at the
+room's first window. In a room under 9 m² with a door it stands in that doorway instead, as a
+person would look in, and looks diagonally across to the far corner; standing at a door or a
+corner it does the same unless `toward` or `look_at` says otherwise. It never stands inside a
+fixture or a piece of furniture taller than 0.3 m: a place Grid picks is moved to the nearest
+clear floor and the answer says from what, and a `stand_at` inside one is refused naming it. The
+walls of the room stand their full height round the eye, though its floor is drawn as a
+cutaway. `from` is for kind=3d; kind=eye refuses it and names `at`.
+
 ## The preview, shared with the person
 
 Read this when the person should see the plan while you talk ("show me", "where is that?"), or
@@ -457,6 +483,20 @@ wall's length on its centre line and the length of its face in each room beside 
 its floor states (LVL-20), also its height along its length: `top`, the points where its top turns
 (metres along it from its start, and its height there), `low`, `high`, and `cut`, `roof` when the
 roof cuts it or `raised` when, an outside wall, it rises to the roof past the height it states.
+
+`what=room` lists a room's sides going round as a person names them (CMD-49). A curve, which the
+outline follows by short straight pieces, is one side: the way its middle faces, its radius on
+the inside face and its length along the curve (`S a curved side, radius 17.70 m, 55.61 m long`),
+split only where the wall under it changes; a round room on one wall is `a curved side all the
+way round`. Each side's `curve` in the data gives its `centre`, `radius` and `sweep` (degrees,
+counter-clockwise positive), `null` for a straight side, and the perimeter is measured along the
+curves. The room's size is by its shape when across and up the drawing do not say it: `round,
+35.40 m across`, a curved band by its length along its middle and its width, a rectangle turned
+on the drawing by its own sides and its turn (`5.00 m × 3.00 m, turned 7° on the drawing`), and
+any other four-sided room by its four sides; `form` in the data says which. Pieces are one curve
+when at least three of them, each turning no more than 10 degrees from the last and 5 degrees in
+all, have their corners within 1 cm of one circle, so a curve drawn as many short walls reads the
+same.
 
 A room may state its height, floor to ceiling, in metres:
 

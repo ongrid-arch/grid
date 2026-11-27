@@ -25,7 +25,8 @@ import { statedOpening, throughIssues, wallRise, wallStandsOn } from './through'
 import { stackingIssues } from './stacking'
 import { area } from './vec2'
 import { openingSpan, wallLength } from './wall'
-import { curveFault } from './arc'
+import { curveFault, wallCurve } from './arc'
+import { openingReach, openingsCutting, runGuests } from './openingRun'
 import { RoomOutlineError, roomNesting, roomPolygon } from './room'
 import type { FloorPiece, FloorSpaces, RoomMismatch } from './spaces'
 import { planSpaces, spacesKnown } from './spaces'
@@ -398,7 +399,11 @@ function validateOpening(
   const before = -span.from
   const after = span.to - wallLength
 
-  if (before > overrun || after > overrun) {
+  // VEW-77: on a whole circle an opening may run round past its start, as long as it is no wider
+  // than the circle; past an end of a wall that carries on as a smooth run, it runs on along it.
+  const fitsRound = wallCurve(wall)?.closed === true && opening.width <= wallLength + overrun
+  const fitsRun = (): boolean => openingReach(index.plan.walls.filter((w) => !brokenWalls.has(w.id)), opening, wall) !== null
+  if ((before > overrun || after > overrun) && !fitsRound && !fitsRun()) {
     const past = after >= before ? said('issue.opening/out-of-wall.pastEnd', { by: millimetres(after) }) : said('issue.opening/out-of-wall.beforeStart', { by: millimetres(before) })
     const fits = wallLength - opening.width
     // MSG-7 (lab MS-13): what would be right, not only what is wrong. Keeping its width, the
@@ -564,9 +569,11 @@ function validateOpeningKind(opening: Opening, issues: Issue[]): void {
  * farthest end, not only the previous span, catches an opening inside a wider one.
  */
 function validateOverlaps(index: PlanIndex, broken: Set<string>, issues: Issue[]): void {
+  // VEW-77: an opening that runs on onto the next wall of a smooth run shares that wall's stretch.
+  const guests = runGuests(index.plan.walls.filter((wall) => !broken.has(wall.id)), index.plan.openings.filter((opening) => !broken.has(opening.id)))
   for (const wall of index.plan.walls) {
     if (broken.has(wall.id)) continue
-    const spans = openingsOf(index, wall.id)
+    const spans = openingsCutting(openingsOf(index, wall.id), guests, wall.id)
       .filter((opening) => !broken.has(opening.id))
       .map(openingSpan)
     // LVL-5 (C19): a wall through floors holds a window on each floor, one over the other: two

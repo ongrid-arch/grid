@@ -47,8 +47,9 @@ import { wallTopProfile, type RoofPlane, type WallTopPoint } from './roofs'
 import { piecesAsRings } from './polygons'
 import type { MultiPolygon } from 'polygon-clipping'
 import type { OpeningKind } from '../types/floorplan'
-import type { OpeningPartKind } from './openingParts'
+import type { OpeningBox, OpeningPartKind } from './openingParts'
 import { openingParts } from './openingParts'
+import { openingAxis, openingsCutting, runGuests, type AxisPoint } from './openingRun'
 import { statedKind } from './openingKinds'
 
 /** A point in model space: XY is the plan, Z is height. */
@@ -313,17 +314,28 @@ export interface SceneOpening {
   readonly parts: readonly SceneOpeningPart[]
 }
 
-/** CNT-14: a door's or window's boxes on the plan, from its wall's terms (`openingParts`). */
-export function sceneOpening(opening: Opening, wall: Wall): SceneOpening | null {
+/**
+ * CNT-14: a door's or window's boxes on the plan, from its wall's terms (`openingParts`). VEW-77:
+ * `walls` are the walls about it, for an opening that runs on past its wall's end along a smooth
+ * run (`openingRun.ts`).
+ */
+export function sceneOpening(opening: Opening, wall: Wall, walls: readonly Wall[] = [wall]): SceneOpening | null {
   if (opening.type === 'opening') return null
   const parts = openingParts(opening, wall)
   if (parts.length === 0) return null
-  // CNT-18: in a curved wall the hole is the straight chord between the opening's edges (C21), so
-  // the parts stand square to it, their places along the curve drawn in to the chord.
   const span = openingSpan(opening)
-  const line = wall.arc === undefined ? wallAxis(wall) : openingChord(wall, span.from, span.to)
-  const from = wall.arc === undefined ? 0 : span.from
-  const along = wall.arc === undefined ? 1 : line.length / (span.to - span.from)
+  const axis = openingAxis(walls, opening, wall)
+  // VEW-77: a window on a curve, or across a joint, follows it facet by facet, each box on the
+  // chord between two of the axis's points, so its frame and glass stay inside the wall's faces.
+  if (opening.type === 'window' && axis !== null && axis.bends) {
+    return { id: opening.id, wallId: wall.id, type: opening.type, kind: statedKind(opening.type, opening.kind), parts: parts.flatMap((p) => facetBoxes(p, axis.points)) }
+  }
+  // CNT-18: a door's leaves are rigid, so in a curved wall (or across a joint) its parts stand
+  // square to the straight chord between its edges, their places along the curve drawn in to it.
+  const curved = wall.arc !== undefined || (axis?.bends ?? false)
+  const line = !curved ? wallAxis(wall) : axis?.bends === true ? axis.chord : openingChord(wall, span.from, span.to)
+  const from = !curved ? 0 : span.from
+  const along = !curved ? 1 : line.length / (span.to - span.from)
   const point = (at: number, across: number): Vec2 => ({
     x: line.start.x + line.dir.x * (at - from) * along + line.normal.x * across,
     y: line.start.y + line.dir.y * (at - from) * along + line.normal.y * across
@@ -341,6 +353,33 @@ export function sceneOpening(opening: Opening, wall: Wall): SceneOpening | null 
       top: p.up[1]
     }))
   }
+}
+
+/**
+ * VEW-77: one box of an opening split along its axis's points: a box on each chord between two
+ * points that its `along` covers, the chord's normal the axis's side of its own wall's left face.
+ */
+function facetBoxes(p: OpeningBox, points: readonly AxisPoint[]): SceneOpeningPart[] {
+  const out: SceneOpeningPart[] = []
+  const none = tolerance('noLength')
+  for (let k = 0; k + 1 < points.length; k++) {
+    const a = points[k]!
+    const b = points[k + 1]!
+    const t0 = Math.max(p.along[0], a.at)
+    const t1 = Math.min(p.along[1], b.at)
+    if (t1 - t0 <= none || b.at - a.at <= none) continue
+    const dir = normalize(sub(b.point, a.point))
+    const normal = { x: -dir.y, y: dir.x }
+    const on = (t: number, across: number): Vec2 => {
+      const share = (t - a.at) / (b.at - a.at)
+      return {
+        x: a.point.x + (b.point.x - a.point.x) * share + normal.x * across,
+        y: a.point.y + (b.point.y - a.point.y) * share + normal.y * across
+      }
+    }
+    out.push({ part: p.part, outline: [on(t0, p.across[0]), on(t1, p.across[0]), on(t1, p.across[1]), on(t0, p.across[1])], bottom: p.up[0], top: p.up[1] })
+  }
+  return out
 }
 
 /**
@@ -483,20 +522,20 @@ function basisOf(from: Vec2, to: Vec2): WallBasis {
 }
 
 /**
- * A curved wall's straight pieces in 3D (CNT-18). Each run of `wallParts` is followed by chords:
- * a solid run by its stations, an opening's lintel and sill by the one chord its hole is, so the
- * hole stays straight. Where two chords meet, both are mitred on the line that halves the turn,
+ * A curved wall's straight pieces in 3D (CNT-18). Each run of `wallParts` is followed by chords
+ * at the curve's stations: a solid run, and (VEW-77) an opening's lintel and sill too, so the
+ * wall over and under a wide window bows with the rest of it. Where two chords meet, both are mitred on the line that halves the turn,
  * so their faces meet edge to edge; at an end of the wall, the joint's reach is taken along the
  * end chord.
  */
-export function curvedWallPieces(wall: Wall, openings: readonly Opening[] = [], ends: WallEnds = SQUARE_ENDS): SceneWallPiece[] {
+export function curvedWallPieces(wall: Wall, openings: readonly Opening[] = [], ends: WallEnds = SQUARE_ENDS, perCircle?: number): SceneWallPiece[] {
   const curve = wallCurve(wall)
   if (curve === null || wall.virtual) return []
   const parts = wallParts(wall, openings)
   // Every chord, by where it runs along the curve; a lintel and its sill share theirs.
   const runs: { from: number; to: number; zFrom: number; zTo: number }[] = []
   for (const part of parts) {
-    const stations = part.kind === 'solid' ? curveStationsBetween(curve, part.from, part.to) : [part.from, part.to]
+    const stations = curveStationsBetween(curve, part.from, part.to, perCircle)
     for (let k = 0; k + 1 < stations.length; k++) runs.push({ from: stations[k]!, to: stations[k + 1]!, zFrom: part.zFrom, zTo: part.zTo })
   }
   const breaks = [...new Set(runs.flatMap((run) => [run.from, run.to]))].sort((a, b) => a - b)
@@ -591,6 +630,11 @@ export function elevationArea(elevation: WallElevation): number {
 export interface SceneOptions {
   /** The shell, when the caller has worked it out already (`sceneShell`). */
   readonly shell?: SceneShell | null
+  /**
+   * VEW-73: the straight pieces a whole circle of curved wall is raised with, for a 3D file asked
+   * to be lighter or finer (`ARC_SEGMENTS_RANGE`); left out, as many as the plan is traced with.
+   */
+  readonly arcSegments?: number
 }
 
 export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene3D {
@@ -605,7 +649,10 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
   const extent: Vec2[] = []
   let height = 0
   // The corners, joined as the drawing joins them (SHT-2).
-  const joints = wallJoints(plan.walls.filter((wall) => !broken.has(wall.id)))
+  const sound = plan.walls.filter((wall) => !broken.has(wall.id))
+  const joints = wallJoints(sound)
+  // VEW-77: the openings that run on from one wall of a smooth run onto the next.
+  const guests = runGuests(sound, plan.openings.filter((o) => !broken.has(o.id)))
 
   for (const wall of plan.walls) {
     if (broken.has(wall.id)) continue
@@ -620,7 +667,7 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
 
     // LVL-5 (C19): a wall through floors is raised once, whole, from its own floor, with its
     // openings as stated; on the floors above it is there already.
-    const whole = wholeWall(wall, openingsOf(index, wall.id).filter((o) => !broken.has(o.id)))
+    const whole = wholeWall(wall, openingsCutting(openingsOf(index, wall.id).filter((o) => !broken.has(o.id)), guests, wall.id))
     if (whole === null) continue
     const usable = whole.openings
     const ends = joints.get(wall.id)
@@ -634,11 +681,13 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
       basis: wallBasis(wall),
       exposure: wallExposure(index, wall.id),
       revision: wallRevision(whole.wall, usable, ends, top),
-      ...(wall.arc !== undefined && { pieces: curvedWallPieces(whole.wall, usable, ends) })
+      ...(wall.arc !== undefined && { pieces: curvedWallPieces(whole.wall, usable, ends, options.arcSegments) })
     })
     if (elevation.height > height) height = elevation.height
     for (const opening of usable) {
-      const parts = sceneOpening(opening, wall)
+      // A copy cut from another wall's opening is drawn there, once.
+      if (opening.wall !== wall.id) continue
+      const parts = sceneOpening(opening, wall, sound)
       if (parts !== null) openings.push(parts)
     }
   }

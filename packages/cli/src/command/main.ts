@@ -46,7 +46,7 @@ import { recorded } from '../versions/history'
 import { MARKERS_MAX, MarkerRefused } from '../versions/markers'
 import { GitUnread } from '../versions/git'
 import { checkDrawRequest, DRAW_OPTIONS, drawFormat, drawFile, drawsPng, PNG_TO_TERMINAL, undecidedNote } from './draw'
-import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, emptyFloorsText, EXPORT_OPTIONS, exportFile, exportsIntoProject, ExportWriteFailed, floorsText, leftOutText, sheetsText } from './export'
+import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, emptyFloorsText, EXPORT_OPTIONS, exportFile, exportsIntoProject, ExportWriteFailed, floorsText, leftOutText, sheetsText, writeMaterialsBeside } from './export'
 import { DxfProfileRefused } from '../export/dxfProfile'
 import type { LeftOutPart } from '@ongrid/floorplan/export'
 import { INIT_OPTIONS, initFolder, initProject, InitRefused, initText, PROJECT_FILE, PROJECT_PLAN, projectPlanFile, missingDefaultPlan } from './init'
@@ -142,7 +142,7 @@ const COMMANDS = {
     options: DRAW_OPTIONS,
   },
   export: {
-    usage: 'grid export [<plan.json>] --format dxf|ifc|glb|obj [--floor <id>] [--out <file>] [--project <folder>]',
+    usage: 'grid export [<plan.json>] --format dxf|ifc|glb|obj [--floor <id>] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--out <file>] [--project <folder>]',
     summary: 'Writes the plan as a file for another program, into exports/ beside the plan unless --out names one.',
     options: EXPORT_OPTIONS,
   },
@@ -626,7 +626,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     return EXIT_OK
   }
 
-  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date'), scale: textOf(parsed, '--scale') }
+  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date'), scale: textOf(parsed, '--scale'), arcSegments: textOf(parsed, '--arc-segments'), ...(parsed.values.has('--no-roofs') ? { roofs: false } : {}) }
   const format = checkExportRequest(request)
   const project = openProject(projectOption, io.cwd)
   if (request.out === undefined) {
@@ -645,6 +645,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       if (done.note) io.stderr(`${done.note}\n`)
       if (done.dxfProfile !== null) io.stderr(`${dxfProfileLine(done.dxfProfile)}\n`)
       io.stdout(`Wrote ${project.shown(done.written)}\n`)
+      if (done.materials !== null) io.stdout(`Wrote ${project.shown(done.materials)}\n`)
     }
     const nothing = emptyFloorsText(empty)
     if (nothing !== null) io.stderr(`${nothing}\n`)
@@ -660,7 +661,11 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   const curves = approximatedText(made.approximated)
   if (curves !== null) io.stderr(`${curves}\n`)
   if (made.dxfProfile !== null) io.stderr(`${dxfProfileLine(made.dxfProfile)}\n`)
-  io.stdout(`Wrote ${project.shown(write(project, request.out, made.data))}\n`)
+  const written = write(project, request.out, made.data)
+  io.stdout(`Wrote ${project.shown(written)}\n`)
+  // VEW-73: the OBJ's materials, beside the file named.
+  const materials = writeMaterialsBeside(project, written, made)
+  if (materials !== null) io.stdout(`Wrote ${project.shown(materials)}\n`)
   return EXIT_OK
 }
 

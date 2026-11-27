@@ -1,6 +1,7 @@
 /**
  * `grid export <plan> --format dxf|ifc|glb|obj`: the plan as a file for another program,
- * through the core's exporters.
+ * through the core's exporters. VEW-73: a GLB or OBJ may leave its roofs out (`--no-roofs`) and
+ * write curved walls lighter (`--arc-segments`); an OBJ comes with `grid.mtl` beside it.
  *
  * Written into the `exports/` folder beside the plan, as the app's "Open in" does, or to
  * `--out`. IFC holds the whole building; DXF (VEW-72), OBJ and GLB (VEW-64) hold the whole building
@@ -8,7 +9,7 @@
  * tool server's `grid_export` runs the same code.
  */
 import path from 'path'
-import { DXF_SCALE_RANGE, DXF_SHEET_SCALES, GLB_BUILDING_NODE, metresText, planFloors, resolveFloor, type DxfSheet, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, GLB_BUILDING_NODE, metresText, OBJ_MATERIALS_FILE, planFloors, resolveFloor, type DxfSheet, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type Said } from '@ongrid/floorplan/messages'
 import {
   EXPORT_FORMATS,
@@ -34,6 +35,8 @@ export const EXPORT_OPTIONS: OptionSpecs = {
   '--format': { takesValue: true, help: `The file format: ${EXPORT_FORMATS.join(', ')}.` },
   '--floor': { takesValue: true, help: 'DXF, OBJ and GLB: the floor to export, by its id or its name, or all for one file per floor. Left out, the file holds every floor: OBJ and GLB each at its elevation, DXF each on a layout of its own.' },
   '--scale': { takesValue: true, help: 'DXF: the scale its sheets show the plan at, 200 or 1:200. Left out, the scale dxf-layers.json states, else the largest standard scale every floor fits on A3 at.' },
+  '--no-roofs': { takesValue: false, help: 'GLB and OBJ: leave out every roof and the parapets on them, to look into the model or walk through it.' },
+  '--arc-segments': { takesValue: true, help: `GLB and OBJ: the straight pieces a whole circle of curved wall is written with, a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}, such as 32 for a light model. Left out, as finely as the plan is measured.` },
   '--date': { takesValue: true, help: 'IFC: the time stamp to write, a date (2026-01-31) or a time (2026-01-31T09:00:00Z). SOURCE_DATE_EPOCH when left out, else now. The same date gives the same file.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in the format\'s extension. exports/ beside the plan when left out.' },
   ...PROJECT_OPTION,
@@ -47,6 +50,10 @@ export interface ExportRequest {
   readonly scale?: string
   /** CMD-26: the time stamp to write, as given. */
   readonly date?: string
+  /** VEW-73: false leaves the roofs out of a GLB or OBJ (`--no-roofs`). */
+  readonly roofs?: boolean
+  /** VEW-73: the pieces a whole circle of curved wall is written with, as given. */
+  readonly arcSegments?: string
 }
 
 /**
@@ -80,6 +87,7 @@ export function checkExportRequest(request: ExportRequest): ExportFormat {
     throw new UsageError('--floor does not apply to IFC, which holds every floor: leave --floor out.')
   }
   exportScale(request, format)
+  exportShape(request, format)
   if (request.floor === ALL_FLOORS && request.out !== undefined) {
     throw new UsageError('--floor all writes one file per floor into exports/ beside the plan: leave --out out, or name one floor.')
   }
@@ -102,6 +110,23 @@ export function exportScale(request: Pick<ExportRequest, 'scale'>, format: Expor
     throw new UsageError(`--scale ${JSON.stringify(request.scale)} is not a scale Grid draws: give a whole number from ${DXF_SCALE_RANGE.min} to ${DXF_SCALE_RANGE.max}, such as 200 or 1:200.`)
   }
   return scale
+}
+
+/**
+ * VEW-73: what a GLB or OBJ is asked to leave out or write lighter: the roofs, and the pieces to a
+ * whole circle of curved wall. Either is refused for DXF and IFC, and a count that is not a whole
+ * number in `ARC_SEGMENTS_RANGE` is refused by name.
+ */
+export function exportShape(request: Pick<ExportRequest, 'roofs' | 'arcSegments'>, format: ExportFormat): { roofs?: false; arcSegments?: number } {
+  const threeD = format === 'glb' || format === 'obj'
+  if (request.roofs === false && !threeD) throw new UsageError('--no-roofs applies to GLB and OBJ only: leave it out for this format.')
+  if (request.arcSegments === undefined) return request.roofs === false ? { roofs: false } : {}
+  if (!threeD) throw new UsageError('--arc-segments applies to GLB and OBJ only: leave it out for this format.')
+  const count = /^[0-9]{1,4}$/.test(request.arcSegments.trim()) ? Number(request.arcSegments.trim()) : Number.NaN
+  if (!(count >= ARC_SEGMENTS_RANGE.min && count <= ARC_SEGMENTS_RANGE.max)) {
+    throw new UsageError(`--arc-segments ${JSON.stringify(request.arcSegments)} is not a number of pieces Grid writes: give a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}, such as 32.`)
+  }
+  return { ...(request.roofs === false ? { roofs: false as const } : {}), arcSegments: count }
 }
 
 /**
@@ -323,7 +348,7 @@ export function exportFile(project: Project, loaded: LoadedPlan, planFile: strin
   const scale = exportScale(request, format) ?? (dxf?.scaleStated === true ? dxf.profile.scale : undefined)
   // VEW-72: the schedules' marks and types, for the DXF's attributes and the IFC's tags.
   const marks = format === 'dxf' || format === 'ifc' ? { openingMarks: new Map(openingSchedule(surveyPlan(loaded.plan)).rows.map((row) => [row.id, { mark: row.mark, type: row.typeKey }] as const)) } : {}
-  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...marks, ...(scale === undefined ? {} : { dxfScale: scale }), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
+  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...marks, ...exportShape(request, format), ...(scale === undefined ? {} : { dxfScale: scale }), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
   const made = exportPlan(loaded.plan, format, loaded.faults === undefined ? options : { ...options, faults: loaded.faults })
   if (made.empty) throw new PlanRefused(nothingToExport(loaded, planFile, format, made, floorId))
   return { ...made, name: exportNameOf(planFile, format, floorPartOf(loaded, format, floorId)), dxfProfile: dxf?.file ?? null }
@@ -418,6 +443,8 @@ export interface ExportDone {
   readonly floorsLeftOut: PlanExport['floorsLeftOut']
   /** VEW-72: a DXF's sheets, one per floor it holds; empty for the other formats. */
   readonly sheets: PlanExport['sheets']
+  /** VEW-73: the real path of the OBJ's `grid.mtl`, written beside it; null for the other formats. */
+  readonly materials: string | null
   readonly note?: string
 }
 
@@ -436,7 +463,9 @@ export function exportIntoProject(project: Project, planFile: string, format: Ex
 
 function writtenBesidePlan(project: Project, loaded: LoadedPlan, planFile: string, made: MadeExport): ExportDone {
   const written = writeBesidePlan(project, planFile, made.name.fileName, made.data)
-  const done = { loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut, sheets: made.sheets }
+  // VEW-73: the OBJ's materials, beside it in exports/.
+  const materials = made.materials === null ? null : writeBesidePlan(project, planFile, OBJ_MATERIALS_FILE, made.materials)
+  const done = { loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut, sheets: made.sheets, materials }
   return made.name.note === undefined ? done : { ...done, note: made.name.note }
 }
 
@@ -445,6 +474,15 @@ export function exportsIntoProject(project: Project, planFile: string, format: E
   const loaded = loadPlan(project, planFile)
   const { made, empty } = exportFiles(project, loaded, planFile, format, request)
   return { done: made.map((one) => writtenBesidePlan(project, loaded, planFile, one)), empty }
+}
+
+/**
+ * VEW-73: an OBJ's `grid.mtl` written into the folder of the file written at `written` (a real
+ * path, inside the project), for `--out`; null when the export has none.
+ */
+export function writeMaterialsBeside(project: Project, written: string, made: Pick<PlanExport, 'materials'>): string | null {
+  if (made.materials === null) return null
+  return project.writeFile(path.join(path.dirname(written), OBJ_MATERIALS_FILE), made.materials)
 }
 
 /**

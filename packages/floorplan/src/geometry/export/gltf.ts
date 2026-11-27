@@ -11,14 +11,19 @@
  * `(x, y, z) → (x, z, -y)`: a rotation, not a mirror, so faces keep facing
  * outward and nothing needs re-winding.
  *
+ * VEW-73: every primitive carries flat normals and box-projected UVs in metres, and is drawn in
+ * the material of its kind (`MESH_MATERIALS`), named so; `docs/3d-files.md` says it all for a
+ * person.
+ *
  * GLB, not `.gltf`: one binary file with no base64 and no second file, which is
  * the form SketchUp documents. The result is bytes because a file is bytes; the
  * caller decides where they go.
  */
 
 import type { Scene3D } from '../scene3d'
-import { OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
-import type { Mesh } from './mesh'
+import { MESH_MATERIALS, OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, materialOf, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
+import type { Mesh, MeshMaterial } from './mesh'
+import type { Vec3 } from '../scene3d'
 import type { StoreyScene } from './obj'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { english, name, said } from '../../messages/say'
@@ -42,24 +47,15 @@ const CHUNK_HEADER_BYTES = 8
 const GENERATOR = 'Grid'
 
 /**
- * One plain grey for everything. It is not styling: a primitive with no material
- * gets glTF's default, which is fully metallic and renders dark in several
- * viewers. Not double-sided on purpose, so a winding mistake shows as a missing
- * face instead of being hidden.
+ * VEW-73: a glTF material for each of the kinds (`MESH_MATERIALS`), named by its kind. Not
+ * metallic: a primitive with no material gets glTF's default, which is fully metallic and renders
+ * dark in several viewers. Not double-sided on purpose, so a winding mistake shows as a missing
+ * face instead of being hidden; glass is double-sided and blended, as CNT-14 wrote it.
  */
-const MATERIAL = {
-  pbrMetallicRoughness: { baseColorFactor: [0.8, 0.8, 0.8, 1], metallicFactor: 0, roughnessFactor: 1 }
-}
-
-/**
- * CNT-14: the glass of the windows and of a door's fixed panel, pale and seen through. Written only
- * when the file holds glass, so a file with none is as before.
- */
-const GLASS = {
-  name: 'glass',
-  pbrMetallicRoughness: { baseColorFactor: [0.7, 0.82, 0.9, 0.35], metallicFactor: 0, roughnessFactor: 0.1 },
-  alphaMode: 'BLEND',
-  doubleSided: true
+function gltfMaterial(kind: MeshMaterial): object {
+  const material = MESH_MATERIALS.find((m) => m.name === kind)!
+  const pbr = { baseColorFactor: [...material.colour, material.opacity], metallicFactor: 0, roughnessFactor: kind === 'glass' ? 0.1 : 1 }
+  return material.opacity < 1 ? { name: kind, pbrMetallicRoughness: pbr, alphaMode: 'BLEND', doubleSided: true } : { name: kind, pbrMetallicRoughness: pbr }
 }
 
 /** Rounds up to a multiple of 4, which GLB chunks and glTF views need. */
@@ -106,8 +102,8 @@ function encodeGlb(document: object, binary: Uint8Array | null): Uint8Array {
 interface Part {
   readonly name: string
   readonly mesh: Mesh
-  /** CNT-14: drawn in the glass material. */
-  readonly glass?: true
+  /** VEW-73: the material it is drawn in, by its kind. */
+  readonly material: MeshMaterial
   /** CNT-7 (C26): an outdoor space's floor says so in its node's `extras` (lab EL-18). */
   readonly outdoor?: { readonly kind: string; readonly roofed: boolean }
 }
@@ -121,38 +117,38 @@ function partsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => string 
   const parts: Part[] = []
   for (const wall of scene.walls) {
     const mesh = wallMesh(wall)
-    if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh })
+    if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: 'wall' })
   }
   for (const slab of scene.slabs) {
     const mesh = floorMesh(slab)
-    if (mesh) parts.push({ name: nameOf('floor', slab.roomId), mesh, ...(slab.outdoor === undefined ? {} : { outdoor: slab.outdoor }) })
+    if (mesh) parts.push({ name: nameOf('floor', slab.roomId), mesh, material: 'floor', ...(slab.outdoor === undefined ? {} : { outdoor: slab.outdoor }) })
   }
   for (const stair of scene.stairs) {
     const mesh = stairMesh(stair)
-    if (mesh) parts.push({ name: nameOf('stair', stair.id), mesh })
+    if (mesh) parts.push({ name: nameOf('stair', stair.id), mesh, material: 'stair' })
   }
   // CNT-16: each column, once, whole.
   for (const column of scene.columns ?? []) {
     const mesh = columnMesh(column)
-    if (mesh) parts.push({ name: nameOf('column', column.id), mesh })
+    if (mesh) parts.push({ name: nameOf('column', column.id), mesh, material: 'column' })
   }
   // CNT-42: each fixture and piece of furniture, as its kind's blocks.
   for (const item of scene.items ?? []) {
     const mesh = itemMesh(item)
-    if (mesh) parts.push({ name: nameOf('item', item.id), mesh })
+    if (mesh) parts.push({ name: nameOf('item', item.id), mesh, material: 'item' })
   }
-  // CNT-14: each door's and window's frame, leaves and glass; the glass in its own material.
+  // CNT-14: each door's and window's frame, leaves and glass, each in its kind's material.
   for (const opening of scene.openings) {
     for (const kind of OPENING_PART_KINDS) {
       const mesh = openingPartMesh(opening, kind)
-      if (mesh) parts.push({ name: nameOf(kind, opening.id), mesh, ...(kind === 'glass' ? { glass: true as const } : {}) })
+      if (mesh) parts.push({ name: nameOf(kind, opening.id), mesh, material: materialOf(kind) })
     }
   }
   // LVL-4: the slab the floor stands on, its roof and its parapet.
   const shell = scene.shell
   if (shell !== null) {
     const add = (prefix: string, mesh: Mesh | null): void => {
-      if (mesh) parts.push({ name: nameOf(prefix, shell.floor), mesh })
+      if (mesh) parts.push({ name: nameOf(prefix, shell.floor), mesh, material: materialOf(prefix) })
     }
     add('slab', shellMesh(shell.slab))
     if (shell.roof) add('roof', shellMesh([shell.roof]))
@@ -219,14 +215,91 @@ interface Written {
   readonly bufferViews: object[]
   readonly meshes: object[]
   readonly nodes: object[]
+  /** VEW-73: the materials the parts use, in `MESH_MATERIALS` order; a primitive's index is into these. */
+  readonly materials: readonly MeshMaterial[]
+}
+
+/** A mesh as glTF draws it: flat normals and box-projected UVs, each point once per normal it carries. */
+interface FlatMesh {
+  /** glTF's frame: Y up. */
+  readonly positions: readonly (readonly [number, number, number])[]
+  readonly normals: readonly (readonly [number, number, number])[]
+  readonly uvs: readonly (readonly [number, number])[]
+  readonly indices: readonly number[]
+}
+
+const UP: Vec3 = { x: 0, y: 0, z: 1 }
+
+/** A face's unit normal in the model's frame, from its winding; up for a face of no area. */
+function faceNormal(a: Vec3, b: Vec3, c: Vec3): Vec3 {
+  const u = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }
+  const v = { x: c.x - a.x, y: c.y - a.y, z: c.z - a.z }
+  const n = { x: u.y * v.z - u.z * v.y, y: u.z * v.x - u.x * v.z, z: u.x * v.y - u.y * v.x }
+  const length = Math.hypot(n.x, n.y, n.z)
+  return length > 0 && Number.isFinite(length) ? { x: n.x / length, y: n.y / length, z: n.z / length } : UP
+}
+
+/**
+ * VEW-73: a point's texture coordinates on a face, in metres, projected along the axis the face's
+ * normal is nearest to (box projection), in the model's frame. Seen from the side the face faces,
+ * u runs to the right and v down the picture (glTF's v), so a texture stands upright on a wall and
+ * is not mirrored; on a floor or roof north is up the picture. `0 - …` so no -0 is stored.
+ */
+export function boxUv(p: Vec3, n: Vec3): readonly [number, number] {
+  const [ax, ay, az] = [Math.abs(n.x), Math.abs(n.y), Math.abs(n.z)]
+  if (az >= ax && az >= ay) return n.z >= 0 ? [p.x, 0 - p.y] : [0 - p.x, 0 - p.y]
+  if (ax >= ay) return n.x >= 0 ? [p.y, 0 - p.z] : [0 - p.y, 0 - p.z]
+  return n.y >= 0 ? [0 - p.x, 0 - p.z] : [p.x, 0 - p.z]
+}
+
+/** Z up to Y up: (x, y, z) → (x, z, -y). A rotation, so winding is kept; `0 - y` so y = 0 is not -0. */
+const yUp = (p: Vec3): [number, number, number] => [p.x, p.z, 0 - p.y]
+
+/**
+ * The mesh with flat normals: each face's corners carry its normal and the UV it projects them
+ * to, and a point is written once for each normal it carries, so the faces of one plane share
+ * their points and an edge between two planes stays sharp.
+ */
+function flatMesh(mesh: Mesh): FlatMesh {
+  const positions: [number, number, number][] = []
+  const normals: [number, number, number][] = []
+  const uvs: (readonly [number, number])[] = []
+  const indices: number[] = []
+  const seen = new Map<string, number>()
+  // Normals and UVs are worked out from the points as stored, 32 bits each, so two meshes whose
+  // stored points are the same give the same file, whatever their last digits were.
+  const stored = mesh.points.map((p) => ({ x: Math.fround(p.x), y: Math.fround(p.y), z: Math.fround(p.z) }))
+  for (const face of mesh.faces) {
+    const [a, b, c] = face.map((i) => stored[i]!) as [Vec3, Vec3, Vec3]
+    const n = faceNormal(a, b, c)
+    // Faces of one plane share their points: their normals agree to the ten-thousandth, whatever
+    // the 32-bit rounding of their points gave each face.
+    const key = yUp(n).map((c) => Math.round(c * 1e4)).join(',')
+    for (const i of face) {
+      const at = `${i}|${key}`
+      let k = seen.get(at)
+      if (k === undefined) {
+        k = positions.length
+        seen.set(at, k)
+        const p = stored[i]!
+        positions.push(yUp(p))
+        normals.push(yUp(n))
+        uvs.push(boxUv(p, n))
+      }
+      indices.push(k)
+    }
+  }
+  return { positions, normals, uvs, indices }
 }
 
 function writeParts(parts: readonly Part[]): Written {
-  // Per mesh: its positions, then its indices. Both are 4 bytes a component, so
-  // every view and accessor stays 4-byte aligned with no padding in between.
-  const size = parts.reduce((sum, p) => sum + p.mesh.points.length * 12 + p.mesh.faces.length * 12, 0)
+  const flats = parts.map((part) => flatMesh(part.mesh))
+  // Per mesh: its positions, its normals, its UVs, then its indices. Every component is 4 bytes,
+  // so every view and accessor stays 4-byte aligned with no padding in between.
+  const size = flats.reduce((sum, f) => sum + f.positions.length * (12 + 12 + 8) + f.indices.length * 4, 0)
   const binary = new Uint8Array(size)
   const view = new DataView(binary.buffer)
+  const used = MESH_MATERIALS.map((m) => m.name).filter((name) => parts.some((part) => part.material === name))
 
   const accessors: object[] = []
   const bufferViews: object[] = []
@@ -234,16 +307,14 @@ function writeParts(parts: readonly Part[]): Written {
   const nodes: object[] = []
   let at = 0
 
-  for (const [index, { name, mesh }] of parts.entries()) {
-    const lo = [Infinity, Infinity, Infinity]
-    const hi = [-Infinity, -Infinity, -Infinity]
-    const positionStart = at
-    for (const p of mesh.points) {
-      // Z up to Y up: (x, y, z) → (x, z, -y). A rotation, so winding is kept.
-      // `0 - y` and not `-y`: the latter turns y = 0 into -0, which JSON prints
-      // as 0 and the stored data would not match.
-      const coords = [p.x, p.z, 0 - p.y]
-      for (const [k, value] of coords.entries()) {
+  /** Writes rows of floats as one view and one accessor, the bounds when asked; returns the accessor's index. */
+  const floats = (rows: readonly (readonly number[])[], type: 'VEC2' | 'VEC3', bounds: boolean): number => {
+    const start = at
+    const width = type === 'VEC2' ? 2 : 3
+    const lo = Array<number>(width).fill(Infinity)
+    const hi = Array<number>(width).fill(-Infinity)
+    for (const row of rows) {
+      for (const [k, value] of row.entries()) {
         // The bounds describe what is stored, which is the 32-bit value.
         const stored = Math.fround(value)
         view.setFloat32(at, stored, true)
@@ -252,53 +323,44 @@ function writeParts(parts: readonly Part[]): Written {
         hi[k] = Math.max(hi[k]!, stored)
       }
     }
-    const indexStart = at
-    for (const face of mesh.faces) {
-      for (const i of face) {
-        view.setUint32(at, i, true)
-        at += 4
-      }
-    }
+    bufferViews.push({ buffer: 0, byteOffset: start, byteLength: at - start, target: ARRAY_BUFFER })
+    accessors.push({ bufferView: bufferViews.length - 1, componentType: FLOAT, count: rows.length, type, ...(bounds ? { min: lo, max: hi } : {}) })
+    return accessors.length - 1
+  }
 
-    bufferViews.push(
-      { buffer: 0, byteOffset: positionStart, byteLength: indexStart - positionStart, target: ARRAY_BUFFER },
-      { buffer: 0, byteOffset: indexStart, byteLength: at - indexStart, target: ELEMENT_ARRAY_BUFFER }
-    )
-    accessors.push(
-      {
-        bufferView: index * 2,
-        componentType: FLOAT,
-        count: mesh.points.length,
-        type: 'VEC3',
-        min: lo,
-        max: hi
-      },
-      {
-        bufferView: index * 2 + 1,
-        componentType: UNSIGNED_INT,
-        count: mesh.faces.length * 3,
-        type: 'SCALAR'
-      }
-    )
+  for (const [index, part] of parts.entries()) {
+    const flat = flats[index]!
+    const position = floats(flat.positions, 'VEC3', true)
+    const normal = floats(flat.normals, 'VEC3', false)
+    const uv = floats(flat.uvs, 'VEC2', false)
+    const indexStart = at
+    for (const i of flat.indices) {
+      view.setUint32(at, i, true)
+      at += 4
+    }
+    bufferViews.push({ buffer: 0, byteOffset: indexStart, byteLength: at - indexStart, target: ELEMENT_ARRAY_BUFFER })
+    accessors.push({ bufferView: bufferViews.length - 1, componentType: UNSIGNED_INT, count: flat.indices.length, type: 'SCALAR' })
+    const indices = accessors.length - 1
+    const name = part.name
     meshes.push({
       name,
-      primitives: [{ attributes: { POSITION: index * 2 }, indices: index * 2 + 1, material: parts[index]!.glass ? 1 : 0 }]
+      primitives: [{ attributes: { POSITION: position, NORMAL: normal, TEXCOORD_0: uv }, indices, material: used.indexOf(part.material) }]
     })
-    const outdoor = parts[index]!.outdoor
+    const outdoor = part.outdoor
     nodes.push(outdoor === undefined ? { name, mesh: index } : { name, mesh: index, extras: { gridOutdoor: outdoor.kind, gridRoofed: outdoor.roofed } })
   }
-  return { binary, accessors, bufferViews, meshes, nodes }
+  return { binary, accessors, bufferViews, meshes, nodes, materials: used }
 }
 
 /** The document around written parts, with `extra` nodes after the parts' and the scene's roots. */
-function documentOf(asset: object, parts: readonly Part[], written: Written, extra: readonly object[], roots: readonly number[]): object {
+function documentOf(asset: object, written: Written, extra: readonly object[], roots: readonly number[]): object {
   return {
     asset,
     scene: 0,
     scenes: [{ nodes: roots }],
     nodes: [...written.nodes, ...extra],
     meshes: written.meshes,
-    materials: parts.some((part) => part.glass) ? [MATERIAL, GLASS] : [MATERIAL],
+    materials: written.materials.map(gltfMaterial),
     accessors: written.accessors,
     bufferViews: written.bufferViews,
     buffers: [{ byteLength: written.binary.byteLength }]
@@ -323,7 +385,7 @@ export function toGlb(scene: Scene3D, options: GlbOptions = {}): Uint8Array {
   // HND-11: a model built near zero is held by one node, moved to where the plan's zero is.
   // `0 - y`, as for the points, so y = 0 is not written as -0.
   const holder = moved === null ? [] : [{ name: GLB_ORIGIN_NODE, translation: [moved[0], 0, 0 - moved[1]], children: nodes.map((_, i) => i) }]
-  return encodeGlb(documentOf(asset, parts, written, holder, moved === null ? nodes.map((_, i) => i) : [nodes.length]), written.binary)
+  return encodeGlb(documentOf(asset, written, holder, moved === null ? nodes.map((_, i) => i) : [nodes.length]), written.binary)
 }
 
 export interface BuildingGlbOptions extends GlbOptions {
@@ -375,7 +437,7 @@ export function toBuildingGlb(storeys: readonly StoreyScene[], options: Building
     })
   }
   const floorIndex = (k: number): number => written.nodes.length + k
-  if (asOne) return encodeGlb(documentOf(asset, parts, written, floors, [floorIndex(0)]), written.binary)
+  if (asOne) return encodeGlb(documentOf(asset, written, floors, [floorIndex(0)]), written.binary)
   const root = { name: GLB_BUILDING_NODE, ...translation(ox, 0, oy), children: storeys.map((_, k) => floorIndex(k)) }
-  return encodeGlb(documentOf(asset, parts, written, [...floors, root], [floorIndex(storeys.length)]), written.binary)
+  return encodeGlb(documentOf(asset, written, [...floors, root], [floorIndex(storeys.length)]), written.binary)
 }

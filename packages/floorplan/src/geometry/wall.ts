@@ -348,6 +348,22 @@ export function openingSpan(opening: Opening): OpeningSpan {
   return { opening, from: opening.offset, to: opening.offset + opening.width }
 }
 
+/**
+ * VEW-77: an opening's span on a whole circle `total` long, brought round to start on it, and cut
+ * in two where it runs past the circle's start.
+ */
+function roundTheStart(span: OpeningSpan, total: number): OpeningSpan[] {
+  const shift = Math.floor(span.from / total) * total
+  const from = span.from - shift
+  const to = span.to - shift
+  const none = tolerance('noLength')
+  if (to <= total + none) return [{ ...span, from, to }]
+  return [
+    { ...span, from, to: total },
+    { ...span, from: 0, to: Math.min(to - total, from) }
+  ]
+}
+
 export type WallPartKind = 'solid' | 'lintel' | 'sill'
 
 /**
@@ -384,9 +400,12 @@ export function wallParts(wall: Wall, openings: readonly Opening[] = []): WallPa
 
   const total = wallLength(wall)
   // An opening may run `openingOverrun` past an end of its wall (validate.ts); it is drawn
-  // within the wall, so nothing pokes out of it.
+  // within the wall, so nothing pokes out of it. VEW-77: on a whole circle it may run round past
+  // the start instead, and leaves its gap on both sides of it.
+  const closed = wallCurve(wall)?.closed === true
   const spans = openings
     .map(openingSpan)
+    .flatMap((span) => (closed ? roundTheStart(span, total) : [span]))
     .map((span) => ({ ...span, from: Math.max(0, span.from), to: Math.min(total, span.to) }))
     .sort((a, b) => a.from - b.from)
   const parts: WallPart[] = []

@@ -1030,10 +1030,23 @@ and `grid check` says so (`plan/value-left-out`).
 
 The wall grows half its thickness either side of its curve, as a straight wall does of its line
 (C1); its `left` face is the one on the left going from `start` to `end`, the inside of a
-counter-clockwise curve. An opening's `offset` and `width` are measured along the curve (C2), so
-`offset + width` is never more than the wall's length along it; its hole is straight between its
-two edges, as a door's leaf is, so a 0.90 m door on a 3 m radius is a hole 0.897 m across. The
-door swings from that straight edge.
+counter-clockwise curve. An opening's `offset` and `width` are measured along the curve (C2). A
+window follows the curve (VEW-77): the gap it leaves, its lines in plan and the wall over and under
+it bow with the wall, and in 3D its frame and glass are split into facets at the curve's stations,
+each inside the wall's faces, so a wide window in a bay no longer flattens it. A door's leaf is
+rigid: it stands straight between the two edges, so a 0.90 m door on a 3 m radius has a leaf
+0.897 m across, and swings from that straight edge.
+
+An opening may carry on past the end of its wall onto the next wall when the two are one smooth
+run (VEW-77): they meet end to end with no third wall at the joint, turn by no more than
+`smoothRunTurn` (5 degrees) there, and are as thick and as high, both walls or both dividing
+lines. Its `offset` and `width` are measured on along the run from its own wall's start (a
+negative `offset` runs back past the start). So a 0.90 m door fits on an outline traced by many
+short walls, and a window where two arcs of an oval meet crosses the joint. Each wall of the run
+leaves its gap, and the opening is drawn and counted once, on its own wall. Past the end of the
+run, or at a corner, `opening/out-of-wall` refuses it as before. On a whole circle an opening may
+run round past the circle's start (`offset + width` more than its length, or a negative
+`offset`); only one wider than the whole circle is refused.
 
 Grid works the room's outline out along the inside face of the curve, piece by straight piece,
 each no more than `arcSagitta` (1 mm) off the curve and turning no more than `arcStep` (0.03

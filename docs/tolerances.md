@@ -41,6 +41,7 @@ is not asked whether it was typed in feet.
 | `arcPiecesMost` | limit | 1000 count | The most straight pieces one curved wall is traced with; a longer curve is traced with this many, a little further off it |
 | `polygonOnCircle` | tolerance | 0.02 m | How far each corner of a room drawn with straight walls may lie off one circle and still read as a curve written as a polygon, whose answer says how to write it as a circle |
 | `polygonOnCircleCorners` | limit | 12 count | The fewest corners a room on one circle has before it reads as a curve written as a polygon, so a hexagon or octagon drawn on purpose does not |
+| `smoothRunTurn` | tolerance | 5 degree | The most two walls meeting end to end may turn where they meet and still be one smooth run, which a door or window may cross (VEW-77); a sharper turn is a corner |
 | `gap` | tolerance | 0.02 m | A wall reaches the wall it meets when its end is within half the thicker wall plus this. The spaces check lengthens every wall by this much at both ends; the wall faults name a gap or an overrun past it, and two walls on top of each other when their bodies overlap by more than this |
 | `wallContact` | tolerance | 0.01 m | Slack past the walls' bodies when a room outline is traced: walls that touch, carry on in a row or reach a corner |
 | `strayCorner` | tolerance | 1 m | A room corner further than this from both its walls is not a corner, and the wall list is out of order |
@@ -67,6 +68,7 @@ is not asked whether it was typed in feet.
 | `roomsWallWidest` | tolerance | 0.6 m | The widest gap inferred as one wall in rooms text without a wider thickness stated |
 | `roomsTouch` | tolerance | 0.02 m | Rooms written rooms first closer than this touch with no wall between them, refused unless they are open to each other |
 | `roomsCurveJoint` | tolerance | 0.001 m | Two pieces of a curve written rooms first whose ends are closer than this meet and are one curved wall; a wall ending this near a joint of the curve ends on the curve |
+| `curveSweep` | tolerance | 0.001 radian | Two curved sides of a room whose turns round their centre differ by less than this turn through the same angle, so a room between them is a curved band; a curved side this near a whole turn goes all the way round (CMD-49) |
 | `roomsCurveArea` | tolerance | 0.001 ratio | The share of a curved room's true area the area measured from its walls may differ by before the rooms-first answer says so |
 | `roomsFaceSkew` | tolerance | 0.02 m | Faces of rooms written rooms first that run the opposite way and whose distance apart changes by no more than this along the shorter face each other, as on an angled side written to the centimetre |
 | `roomsFaceTurn` | tolerance | 0.0872 sine | Faces of rooms written rooms first that run the opposite way within about 5 degrees of parallel, and no further apart than a wall at both ends of what they share, are one wall's two faces, drawn along their middle line (WRT-56) |
@@ -139,6 +141,7 @@ is not asked whether it was typed in feet.
 | `frameDepth` | limit | 0.07 m | How deep a window's frame is drawn in 3D and on a plan drawn in detail, in the middle of its wall; a door's frame lines the wall's whole depth (CNT-14, SHT-10) |
 | `leafThickness` | limit | 0.04 m | How thick a door leaf or panel is drawn in 3D, hung from the face of the wall it opens toward (CNT-14) |
 | `glassThickness` | limit | 0.02 m | How thick a window's glass is drawn in 3D, in the middle of its frame (CNT-14), and how far apart its two panes are on a plan drawn in detail (SHT-10) |
+| `floorLift` | limit | 0.005 m | How far a room's floor is raised above the slab it stands on in an OBJ or GLB, so the two never share a plane and flicker in a viewer (VEW-73) |
 | `sillProjection` | limit | 0.03 m | How far a window's sill stands out from each face of its wall, and past each side of its hole, on a plan drawn in detail (SHT-10) |
 | `facadeFacing` | tolerance | 0.0175 sine | A face of the building is drawn on a facade when it turns at least this much (about one degree) toward the side the facade is seen from (LVL-8) |
 | `facadeOnFace` | tolerance | 0.01 m | A wall whose outside face lies within this of a stretch of the floor's outline is the wall that stretch of a facade shows, with its height and openings (LVL-8) |

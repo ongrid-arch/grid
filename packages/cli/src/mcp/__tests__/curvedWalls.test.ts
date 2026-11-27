@@ -211,7 +211,7 @@ describe('a curved wall in the parts merged from main (VEW-9, CNT-10)', () => {
     expect(reply.text).toContain('Walked, 3.07 m')
     const walk = await b.call('grid_describe', { plan: 'plan.json', length: 'walk' })
     expect(walk.isError, walk.text).toBe(false)
-    expect(walk.text).toContain('3 drum <OUT d1 d0.9 | SW 5.8x5.77 26.42')
+    expect(walk.text).toContain('3 drum <OUT d1 d0.9 | SW 5.8x5.77 round:5.8 26.42')
   })
 
   it('crosses a curved dividing line at the middle of the stretch two rooms share, along the curve (VEW-9)', () => {

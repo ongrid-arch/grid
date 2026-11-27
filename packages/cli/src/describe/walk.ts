@@ -31,7 +31,11 @@ import { crossingOf } from '../quantities/walked'
 import type { Survey, SurveyRoom } from '../quantities/survey'
 import { compassOf, type Compass } from './facts'
 import { DEFAULT_LANGUAGE, num, say, type MessageKey, type Value, type Values } from '@ongrid/floorplan/messages'
-import { PersonNames, type DescribeAudience, type Words } from './card'
+import { agentForm, PersonNames, type DescribeAudience, type Words } from './card'
+import type { RoomForm } from './sides'
+
+/** CMD-49: the shapes the walk says a room by: round, or a curved band. */
+const walkForm = (form: RoomForm | null): RoomForm | null => (form?.kind === 'round' || form?.kind === 'band' ? form : null)
 
 const ENGLISH: Words = { language: DEFAULT_LANGUAGE, options: {} }
 
@@ -81,6 +85,8 @@ export interface WalkStop {
   readonly across: number
   readonly deep: number
   readonly area: number
+  /** CMD-49: a round room or a curved band, said by its shape; null for any other room. */
+  readonly form: RoomForm | null
   /** How far the wall ahead, on your left and on your right is, straight out from where you stand. */
   readonly reach: { readonly ahead: number | null; readonly left: number | null; readonly right: number | null }
   readonly ahead: readonly WalkThing[]
@@ -374,6 +380,7 @@ function stopAt(survey: Survey, ways: Ways, room: SurveyRoom, from: string | nul
     // From a doorway, as deep as the room goes ahead of you; from its middle, the whole room.
     deep: crossing === null ? Math.max(...ahead) - Math.min(...ahead) : Math.max(...ahead) - Math.max(0, Math.min(...ahead)),
     area: room.facts.shape?.area ?? 0,
+    form: walkForm(room.facts.shape?.form ?? null),
     reach: {
       ahead: rayReach(room, stand, f),
       left: mirror < 0 ? reachRight : reachLeft,
@@ -517,16 +524,14 @@ function personStop(n: number, stop: WalkStop, names: PersonNames, w: Words): st
         ? t(w, 'describe.walk.via.openSide')
         : t(w, `describe.walk.via.${stop.viaKind === 'door' ? 'door' : 'opening'}${stop.viaWidth === null ? '' : '.wide'}` as MessageKey, wide)
   const came = stop.from === null ? t(w, 'describe.walk.came.start') : stop.from === 'outside' ? t(w, 'describe.walk.came.outside', { via }) : t(w, 'describe.walk.came.room', { room: names.room(stop.from), via })
+  const head = { n, room: names.room(stop.room), came, facing: t(w, `describe.c.${stop.facing}` as MessageKey), area: num((Math.round(stop.area * 10) / 10).toFixed(1)) }
+  // CMD-49: a round room and a curved band by their shape, not the box you see from the doorway.
   lines.push(
-    t(w, 'describe.walk.stop', {
-      n,
-      room: names.room(stop.room),
-      came,
-      facing: t(w, `describe.c.${stop.facing}` as MessageKey),
-      across: fig(stop.across),
-      deep: fig(stop.deep),
-      area: num((Math.round(stop.area * 10) / 10).toFixed(1)),
-    })
+    stop.form?.kind === 'round'
+      ? t(w, 'describe.walk.stop.round', { ...head, across: fig(stop.form.across) })
+      : stop.form?.kind === 'band'
+        ? t(w, 'describe.walk.stop.band', { ...head, long: fig(stop.form.long), wide: fig(stop.form.wide) })
+        : t(w, 'describe.walk.stop', { ...head, across: fig(stop.across), deep: fig(stop.deep) })
   )
   const list = (things: readonly WalkThing[], where: (t: WalkThing) => string): string =>
     things.length === 0 ? t(w, 'describe.walk.plainWall') : things.map((thing) => t(w, 'describe.walk.item', { thing: personThing(thing, names, w), where: where(thing) })).join(t(w, 'join.semicolon'))
@@ -561,7 +566,7 @@ function agentStop(n: number, stop: WalkStop): string {
     `${letter}${reach === null ? '' : m(reach)} ${things.length === 0 ? '-' : things.map((t) => `${agentThing(t)} ${where(t)}`).join('; ')}`
   return [
     `${n} ${stop.room} ${came}`,
-    `${stop.facing} ${m(stop.across)}x${m(stop.deep)} ${m(stop.area)}`,
+    `${stop.facing} ${m(stop.across)}x${m(stop.deep)}${agentForm(stop.form)} ${m(stop.area)}`,
     group('A', stop.reach.ahead, stop.ahead, (t) => lr(t.across)),
     group('L', stop.reach.left, stop.left, (t) => `+${m(Math.max(0, t.ahead))}`),
     group('R', stop.reach.right, stop.right, (t) => `+${m(Math.max(0, t.ahead))}`),
@@ -604,7 +609,7 @@ export function walkText(survey: Survey, walk: PlanWalk, audience: DescribeAudie
     lines.push('')
     lines.push(t(w, 'describe.walk.close'))
   } else {
-    lines.push('KEY walk: n room <from via(OUT=outside, START=no doorway) | facing WxD(across x deep from the doorway) m2 | A(head) wall dist: things, left (L) or right (R) of you, 0=straight | L(eft wall) dist, R(ight wall) dist: things, +metres ahead | B(ehind, the wall you stand in): things L/R | F(ree, clear of the walls, when any): fixtures +metres ahead (- behind) to the near side, X=across your way else L/R to the near side. Thing: id d/w/o/v(open side)/f(fixture) width >other side. Ways on are walked left to right, depth first.')
+    lines.push('KEY walk: n room <from via(OUT=outside, START=no doorway) | facing WxD(across x deep from the doorway; then round:across or band:long along its middle x wide for a round room or a curved band) m2 | A(head) wall dist: things, left (L) or right (R) of you, 0=straight | L(eft wall) dist, R(ight wall) dist: things, +metres ahead | B(ehind, the wall you stand in): things L/R | F(ree, clear of the walls, when any): fixtures +metres ahead (- behind) to the near side, X=across your way else L/R to the near side. Thing: id d/w/o/v(open side)/f(fixture) width >other side. Ways on are walked left to right, depth first.')
     if (walk.mirrored) lines.push('Y DOWN: the drawing is the building mirrored; L and R are the building\'s.')
     for (const floor of walk.floors) {
       if (floor.repeats !== null) {
