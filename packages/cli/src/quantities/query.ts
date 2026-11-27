@@ -18,11 +18,13 @@
 import { compareIds, flatOfRoom, floorOf, indexPlan, itemKindDefinition, itemRoom, planFlats, planFloors, planForFloor, roomShapes, tolerance, wallLength } from '@ongrid/floorplan/geometry'
 import { factKey, factOf, factText, type FactValue } from '@ongrid/floorplan/types/floorplan'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
-import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
+import { LengthRefused, readLength, type AreaUnit } from '@ongrid/floorplan/types/units'
 import { notCountedRooms, planAreas, roomKey, type RoomNotCounted } from './areas'
 import { roomHeight } from './measure'
+import { roomGroupField } from './roomGroups'
 import { planSeating, seatingOf, type Seating } from './seats'
 import type { Survey } from './survey'
+import { sqFt } from './units'
 
 /** The parts that carry facts of the person's own (`grid_set_facts`). */
 export const FACT_PART_KINDS = ['wall', 'door', 'window', 'opening', 'room', 'floor'] as const
@@ -361,6 +363,32 @@ export function factInfos(asked: Asked, kinds?: readonly PartKind[]): FactInfo[]
   }))
 }
 
+/** CNT-57: the fields a room is grouped by that Grid states, whose values grid_fields lists. */
+export const ROOM_GROUP_FIELDS = ['room type', 'tenure', 'flat type'] as const
+
+/**
+ * CNT-57: the values the rooms state for each of `ROOM_GROUP_FIELDS`, most stated first, with how
+ * many rooms state one; a zone is its room's, so it is left out. Only the fields a room states.
+ */
+export function roomGroupValues(asked: Asked): Map<string, { count: number; values: string[] }> {
+  const out = new Map<string, { count: number; values: string[] }>()
+  for (const name of ROOM_GROUP_FIELDS) {
+    const field: Field = { from: 'grid', info: GRID_FIELDS.find((f) => f.name === name)! }
+    const seen = new Map<string, number>()
+    let count = 0
+    for (const part of asked.parts) {
+      if (part.kind !== 'room' || part.zoneOf !== undefined) continue
+      const value = asked.value(part, field)
+      if (typeof value !== 'string') continue
+      count += 1
+      seen.set(value, (seen.get(value) ?? 0) + 1)
+    }
+    if (count === 0) continue
+    out.set(name, { count, values: [...seen.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, FACT_VALUES_SHOWN).map(([value]) => value) })
+  }
+  return out
+}
+
 /** Every name a question may use, for a refusal's nearest name. */
 function knownNames(asked: Asked): string[] {
   return [...GRID_FIELDS.map((f) => f.name), ...factInfos(asked).map((f) => f.name)]
@@ -377,6 +405,9 @@ export function fieldOf(asked: Asked, name: string, argument: string): Field {
   if (grid !== undefined) return { from: 'grid', info: grid }
   const fact = factInfos(asked).find((f) => factKey(f.name) === factKey(wanted))
   if (fact !== undefined) return { from: 'yours', name: fact.name }
+  // CNT-57: a room's group by the word a person uses (`type` for the room type), a fact's name first.
+  const group = roomGroupField(wanted)
+  if (group !== null) return { from: 'grid', info: GRID_FIELDS.find((f) => f.name === group)! }
   const near = likelyId(wanted, knownNames(asked))
   throw new QueryRefused(`${argument} names no field of the plan and no fact any part carries.${near === null ? '' : ` The nearest is ${JSON.stringify(near)}.`} grid_fields lists them.`)
 }
@@ -564,8 +595,10 @@ export interface Group {
  * hundredth of a square metre (`areaReported`'s figure) and a length to the millimetre; any other
  * number keeps the four decimals `shown` gives.
  */
-export function printedValue(field: Field | null, value: number): number {
+export function printedValue(field: Field | null, value: number, areaUnit: AreaUnit = 'm2'): number {
   const unit = field === null ? null : unitOf(field)
+  // CNT-57: on a plan read in square feet an area prints, so groups, to the whole square foot.
+  if (unit === 'm²' && areaUnit === 'ft2') return Math.round(Math.round(sqFt(value)) / sqFt(1) * 10000) / 10000
   const decimals = unit === 'm²' ? 2 : unit === 'm' ? 3 : 4
   const scale = 10 ** decimals
   // Round the digits that print, not the binary value: 13.495 prints as 13.50 whatever its error.
@@ -577,11 +610,11 @@ export function printedValue(field: Field | null, value: number): number {
  * The parts grouped by one field's value, each group with its count, its sums and its ids, the
  * largest first and "not stated" last; one group of all of them when no field is given.
  */
-export function groupParts(asked: Asked, parts: readonly Part[], by: Field | null, sums: readonly Field[]): Group[] {
+export function groupParts(asked: Asked, parts: readonly Part[], by: Field | null, sums: readonly Field[], areaUnit: AreaUnit = 'm2'): Group[] {
   const groups = new Map<string, { value: Value; parts: Part[] }>()
   for (const part of parts) {
     const raw = by === null ? null : asked.value(part, by)
-    const value = typeof raw === 'number' ? printedValue(by, raw) : raw
+    const value = typeof raw === 'number' ? printedValue(by, raw, areaUnit) : raw
     if (Array.isArray(value)) throw new QueryRefused(`by names a field that holds a list (${JSON.stringify(fieldName(by!))}): group by a field with one value per part, or find by it with where.`)
     const key = value === null ? '\u0000none' : typeof value === 'string' ? `t:${fold(value)}` : `${typeof value}:${String(value)}`
     const group = groups.get(key) ?? { value, parts: [] }

@@ -171,6 +171,22 @@ is one call for one request.
   its shaft, a void or outdoor space. `notCounted` lists each left out with `why` (`zone`,
   `shaft`, `void`, `outdoor`) and, for a shaft room, `with`, so a sum of `area` is
   `grid_areas`' net. `stairs: "per floor"` counts each floor's stair and lift rooms instead.
+  An area groups as the answer prints it: to the hundredth of a square metre, or to the whole
+  square foot on a plan read in square feet, whose groups and sums the text gives in square feet.
+
+### Rooms in groups
+
+Rooms are grouped by what the plan already holds (CNT-57): the firm's room type (`roomType`,
+asked as `room type`, `roomType` or `type`), the tenure, the flat and its type, or a fact of the
+person's own: a household, a department, a zone, a wing. "Sixty bedrooms by household" is
+`grid_set_facts` with `{ "set": { "household": "Oak" } }` on each household's rooms, then
+`grid_count` with `{ "kind": ["room"], "by": "household", "sum": ["area"] }`. `type` is the room
+type unless a part carries a fact named `type`, which then wins. `grid_fields` gives the room
+type, the tenure and the flat type the values the rooms state and how many state one (`values`,
+`count`), as it does for facts. The same names colour (`colour`) and crop (`crop: "tenure =
+private"`) a `grid_view`, scope a brief's wish (`fact: { "name": "tenure", "value": "private" }`),
+and on a plan where a room states a room type or tenure, `grid_schedule of=rooms` and the sheet's
+room schedule give each room's (`roomType`, `tenure`, and their CSV columns).
 
 Both take `kind`, `floor` and `room` (the room, the walls beside it and the openings into it) to
 narrow what is looked at. A condition is one line, a field or fact and a test: `is missing`,

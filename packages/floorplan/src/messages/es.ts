@@ -2040,6 +2040,9 @@ export const es: Messages = {
   'tool.schedule.flats.each': ", {area} cada una de media",
   'tool.schedule.room.noFlat': ", en ninguna vivienda",
   'tool.schedule.room.flat': ", vivienda {flat}",
+  // CNT-57: a room's room type and tenure in the room schedule.
+  'tool.schedule.room.type': ", tipo de estancia {type}",
+  'tool.schedule.room.tenure': ", régimen {tenure}",
   'tool.schedule.room.countedWith': "; en ningún total: contada una sola vez con {room} en {floor}",
   'tool.schedule.room.inNoTotal': "; en ningún total: {why}",
   'tool.schedule.notCounted.zone': "zona de una estancia, contada con la estancia",
@@ -3331,6 +3334,9 @@ export const es: Messages = {
   'sheet.useNotSaid': 'uso sin indicar',
   'sheet.heightNotKnown': 'altura sin dato',
   'sheet.high': '{height} de alto',
+  // CNT-57: a room's room type and tenure on the sheet's room schedule.
+  'sheet.roomType': 'tipo de estancia {type}',
+  'sheet.tenure': 'régimen {tenure}',
   'sheet.total': 'Total',
   'sheet.total.floor': 'Total, {floor}',
   'sheet.total.all': 'Total, todas las plantas',

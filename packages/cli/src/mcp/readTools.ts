@@ -97,6 +97,7 @@ import {
   groupParts,
   meets,
   readCondition,
+  roomGroupValues,
   FACT_PART_KINDS,
   PART_KINDS,
   QUERY_RULE,
@@ -1206,6 +1207,9 @@ function listSchedule(survey: Survey, stated: FloorPlan, of: ScheduleOf, floor: 
     // CNT-4: on a plan that lists flats, the flat each room is in.
     const flatNames = new Map((survey.plan.flats ?? []).map((f) => [f.id, f.name ?? f.id] as const))
     const inFlat = (flat: string | null | undefined): string => (flat === undefined ? '' : flat === null ? s.say('tool.schedule.room.noFlat') : s.say('tool.schedule.room.flat', { flat: name(flatNames.get(flat) ?? flat) }))
+    // CNT-57: its room type and tenure, on a plan where a room states one.
+    const grouped = (r: (typeof r0.rows)[number]): string =>
+      `${r.roomType == null ? '' : s.say('tool.schedule.room.type', { type: q(r.roomType) })}${r.tenure == null ? '' : s.say('tool.schedule.room.tenure', { tenure: r.tenure })}`
     // CNT-27: a row in no total says why, so the rows that count add up to the totals.
     const floorNames = new Map(survey.facts.floors.map((f) => [f.id, f.name ?? f.id] as const))
     const rowNames = new Map(r0.rows.map((r) => [`${r.floor}\u0000${r.id}`, r.name] as const))
@@ -1216,7 +1220,7 @@ function listSchedule(survey: Survey, stated: FloorPlan, of: ScheduleOf, floor: 
       return s.say('tool.schedule.room.inNoTotal', { why: s.say(`tool.schedule.notCounted.${c.why}`) })
     }
     const roomsWord = (n: number): string => s.say(n === 1 ? 'tool.schedule.count.room.one' : 'tool.schedule.count.room', { count: n })
-    const lines = r0.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(roomCalled(r))}${r.use ? ` (${wordOfUse(r.use)})` : ''}, ${q(r.floorName)}: ${r.area === null ? s.say('tool.areas.room.notMeasured') : areaText(r.area, units)}, ${r.height === null ? s.say('tool.schedule.room.heightNotKnown') : s.say('tool.schedule.room.high', { height: lengthText(r.height, units) })}${r.state === 'not-proven' ? s.say('tool.areas.flat.notProven') : ''}${inFlat(r.flat)}${own(r.properties)}${left(r)}`)
+    const lines = r0.rows.map((r) => `${r.roomNumber === null ? r.number : q(shownNumber(r))}. ${q(roomCalled(r))}${r.use ? ` (${wordOfUse(r.use)})` : ''}, ${q(r.floorName)}: ${r.area === null ? s.say('tool.areas.room.notMeasured') : areaText(r.area, units)}, ${r.height === null ? s.say('tool.schedule.room.heightNotKnown') : s.say('tool.schedule.room.high', { height: lengthText(r.height, units) })}${r.state === 'not-proven' ? s.say('tool.areas.flat.notProven') : ''}${inFlat(r.flat)}${grouped(r)}${own(r.properties)}${left(r)}`)
     for (const t of r0.floors) lines.push(s.say('tool.schedule.room.floorTotal', { floor: name(t.floorName!), rooms: roomsWord(t.rooms), area: `${areaText(t.area, units)}${stateText(t.state, several, s)}` }))
     lines.push(s.say('tool.schedule.room.allFloors', { rooms: roomsWord(r0.total.rooms), area: `${areaText(r0.total.area, units)}${stateText(r0.total.state, several, s)}` }), ...r0.rules.map((rule) => s.text(rule)))
     return { text: lines.join('\n'), data }
@@ -1479,12 +1483,14 @@ function partsWord(kinds: readonly PartKind[] | undefined, n: number): string {
 }
 
 /** A value in an answer's words: text quoted, a measure with its unit. */
-function valueText(field: Field, value: Value): string {
+function valueText(field: Field, value: Value, units?: Display): string {
   if (value === null || (Array.isArray(value) && value.length === 0)) return 'not stated'
   if (typeof value === 'string') return q(value)
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
   if (typeof value !== 'number') return (value as readonly string[]).map(q).join(', ')
   const unit = unitOf(field)
+  // CNT-57: an area in the plan's area unit, as grid_areas prints it.
+  if (unit === 'm²' && units?.area === 'ft2') return areaText(value, units)
   return unit === 'm' ? `${value.toFixed(3)} m` : unit === 'm²' ? `${value.toFixed(2)} m²` : String(shown(value))
 }
 
@@ -1514,7 +1520,7 @@ const fieldsTool: GridTool = {
   },
   outputSchema: objectSchema({
     kinds: listSchema(objectSchema({ kind: STRING, count: NUMBER })),
-    fields: listSchema(objectSchema({ name: STRING, type: STRING, unit: { type: ['string', 'null'] }, kinds: listSchema(STRING), from: STRING, about: STRING })),
+    fields: listSchema(objectSchema({ name: STRING, type: STRING, unit: { type: ['string', 'null'] }, kinds: listSchema(STRING), from: STRING, about: STRING, count: NUMBER, values: listSchema(STRING) }, ['name', 'type', 'unit', 'kinds', 'from', 'about'])),
     facts: listSchema(objectSchema({ name: STRING, type: STRING, unit: { type: ['string', 'null'] }, kinds: listSchema(STRING), from: STRING, count: NUMBER, values: listSchema(STRING), shadowed: { type: 'boolean' } }, ['name', 'type', 'kinds', 'count', 'values'])),
     rule: STRING,
     setBy: STRING,
@@ -1524,11 +1530,16 @@ const fieldsTool: GridTool = {
     const ask = askPlan(survey, { items: true })
     const kinds = kindsOf(args)
     const counts = PART_KINDS.filter((k) => kinds === undefined || kinds.includes(k)).map((kind) => ({ kind, count: ask.parts.filter((p) => p.kind === kind).length }))
-    const fields = GRID_FIELDS.filter((f) => kinds === undefined || f.kinds.some((k) => kinds.includes(k)))
+    // CNT-57: the groups the rooms state (room type, tenure, flat type), each with its values.
+    const groupValues = roomGroupValues(ask)
+    const fields = GRID_FIELDS.filter((f) => kinds === undefined || f.kinds.some((k) => kinds.includes(k))).map((f) => {
+      const stated = groupValues.get(f.name)
+      return stated === undefined ? f : { ...f, count: stated.count, values: stated.values }
+    })
     const facts = factInfos(ask, kinds)
     const lines = [
       `Parts: ${counts.map((c) => `${c.count} ${c.kind}${c.count === 1 ? '' : 's'}`).join(', ')}.`,
-      `Fields Grid states or works out: ${fields.map((f) => `${f.name}${f.unit === null ? '' : ` (${f.unit})`} for ${f.kinds.length === PART_KINDS.length ? 'every part' : f.kinds.join(', ')}`).join('; ')}.`,
+      `Fields Grid states or works out: ${fields.map((f) => `${f.name}${f.unit === null ? '' : ` (${f.unit})`} for ${f.kinds.length === PART_KINDS.length ? 'every part' : f.kinds.join(', ')}${'values' in f ? ` (on ${f.count} room${f.count === 1 ? '' : 's'}: ${f.values.map(q).join(', ')})` : ''}`).join('; ')}.`,
       facts.length === 0
         ? 'No part carries a fact of the person\'s own.'
         : `Facts of the person's own: ${facts.map((f) => `${q(f.name)} (${f.type}, on ${f.count} ${f.kinds.join(' and ')} part${f.count === 1 ? '' : 's'}${f.values.length > 0 ? `; ${f.values.map(q).join(', ')}` : ''}${f.shadowed ? `; ask it as ${q(`properties.${f.name}`)}` : ''})`).join('; ')}.`,
@@ -1613,7 +1624,7 @@ const countTool: GridTool = {
     floor: FLOOR_ARG,
     room: ROOM_IN_ARG,
     where: WHERE_ARG,
-    by: { type: 'string', maxLength: 120, description: 'The field or fact to group by, by name, as grid_fields lists it: one group per value, and one for the parts that state none. One group of all of them when left out.', examples: ['department', 'fire rating', 'floor'] },
+    by: { type: 'string', maxLength: 120, description: 'The field or fact to group by, by name, as grid_fields lists it: one group per value, and one for the parts that state none. Rooms group by room type (type), tenure, flat or flat type, or by a fact of the person\'s own such as a household, department or zone (set with grid_set_facts). An area groups as it prints. One group of all of them when left out.', examples: ['department', 'type', 'household', 'fire rating', 'floor'] },
     sum: { type: 'array', description: 'Fields or facts of numbers to add up in each group, by name: area, width, head count.', examples: [['area'], ['area', 'head count']], items: { maxLength: 120 }, minItems: 1, maxItems: 10 },
     stairs: { type: 'string', enum: ['once', 'per floor'], description: 'once counts a stair or lift drawn as a room on floor after floor once, on the floor it rises from, as grid_areas does; per floor counts its room on every floor, with its area. once when left out.', examples: ['once', 'per floor'] },
   },
@@ -1659,18 +1670,20 @@ const countTool: GridTool = {
       })
       const others = notCountedParts.filter((p) => p.why !== 'zone')
       const shafts = perFloor ? found.filter((part) => ask.counting(part)?.why === 'shaft') : []
-      const groups = groupParts(ask, found, by, sums)
+      // CNT-57: an area groups and prints in the plan's area unit, to the figure it prints.
+      const display = displayFor(undefined, undefined, survey.plan)
+      const groups = groupParts(ask, found, by, sums, display.area)
       const [total] = groupParts(ask, found, null, sums)
       const units = Object.fromEntries(sums.map((field) => [fieldName(field), unitOf(field)]))
       const sumText = (group: { sums: Readonly<Record<string, number>>; missing: Readonly<Record<string, number>> }): string =>
         sums.map((field) => {
           const name = fieldName(field)
           const missing = group.missing[name] ?? 0
-          return `${q(name)} ${valueText(field, group.sums[name] ?? 0)}${missing > 0 ? ` (${missing} with none)` : ''}`
+          return `${q(name)} ${valueText(field, group.sums[name] ?? 0, display)}${missing > 0 ? ` (${missing} with none)` : ''}`
         }).join(', ')
       const lines = by === null
         ? []
-        : [`By ${q(fieldName(by))}:`, ...groups.slice(0, 40).map((g) => `  ${g.value === null ? 'not stated' : valueText(by, g.value)}: ${partsWord(kinds, g.count)}${sums.length === 0 ? '' : `, ${sumText(g)}`}`), ...(groups.length > 40 ? [`  … and ${groups.length - 40} more groups in the data.`] : [])]
+        : [`By ${q(fieldName(by))}:`, ...groups.slice(0, 40).map((g) => `  ${g.value === null ? 'not stated' : valueText(by, g.value, display)}: ${partsWord(kinds, g.count)}${sums.length === 0 ? '' : `, ${sumText(g)}`}`), ...(groups.length > 40 ? [`  … and ${groups.length - 40} more groups in the data.`] : [])]
       lines.push(`In all: ${partsWord(kinds, found.length)}${sums.length === 0 || total === undefined ? '' : `, ${sumText(total)}`}.`)
       if (zones.length > 0) lines.push(`Not counted: ${zones.length === 1 ? 'a zone' : `${zones.length} zones`} of a room, counted with the room: ${zones.slice(0, 20).map((p) => q(p.id)).join(', ')}${zones.length > 20 ? ', …' : ''}. grid_find lists ${zones.length === 1 ? 'it' : 'them'}.`)
       if (others.length > 0) {
