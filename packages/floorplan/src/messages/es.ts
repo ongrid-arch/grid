@@ -1855,6 +1855,7 @@ export const es: Messages = {
   'report.rooms.byNone': '; no las miró ninguna: {ids}',
   'tool.check.needed': ' Hace falta: {needed}.',
   // --- CMD-39: una respuesta del tamaño que acepta el anfitrión del agente -------------------
+  'tool.floor.among': 'Más de una planta responde a eso: {floors}. Nombra una por su id.',
   'tool.budget.cut': 'Esta respuesta ocupa {whole} KB entera, más de los {budget} KB a los que se limita una respuesta, así que se acorta: {what}.{how}',
   'tool.budget.lines': 'se muestran {shown} de sus {of} líneas de texto',
   'tool.budget.lists': 'las listas más largas de los datos se cortan a sus primeros elementos, cada una nombrada en left_out',

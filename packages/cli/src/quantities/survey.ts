@@ -115,10 +115,13 @@ export function surveyPlan(stated: FloorPlan): Survey {
 
 /**
  * WRT-43: what an answer calls a room: its name, or its id when its name is blank, so a room
- * with no name is never written as "" and lost among the others.
+ * with no name is never written as "" and lost among the others; LVL-25: with its floor beside
+ * the name when a room of another floor has the same name.
  */
-export function roomCalled(room: { readonly id: string; readonly name: string }): string {
-  return room.name.trim() === '' ? room.id : room.name
+export function roomCalled(room: { readonly id: string; readonly name: string; readonly nameFloor?: string }): string {
+  if (room.name.trim() === '') return room.id
+  // LVL-25: a name a room of another floor has too is said with the room's floor.
+  return room.nameFloor === undefined ? room.name : `${room.name} (${room.nameFloor})`
 }
 
 /** A room of the survey by id, as `roomCalled` calls it; the id itself when no room has it. */

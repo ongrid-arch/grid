@@ -9,6 +9,7 @@
  */
 import { LANGUAGES, say } from '@ongrid/floorplan/messages'
 import { GENERAL_GUIDANCE_LABEL, planFloors, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { floorAsked } from '@ongrid/floorplan/geometry/floorAsked'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
 import { ID_PATTERN as PLAIN_ID_PATTERN, plainId, readPlainId, ROOM_USES, readUse } from '@ongrid/floorplan/types/floorplan'
 import { likelyId, nearestIds } from '@ongrid/floorplan/types/nearest'
@@ -425,10 +426,10 @@ export function asRefusal(error: unknown): unknown {
   return error
 }
 
-/** The floors of a plan, quoted, for a refusal: ids are text from the plan file. */
-function floorList(plan: FloorPlan): string {
-  const floors = planFloors(plan)
-  const shown = floors.slice(0, 20).map((floor) => quoted(floor.id))
+/** The floors of a plan, in level order, quoted, each with its own name (LVL-25), for a refusal: ids are text from the plan file. */
+function floorList(plan: FloorPlan, only?: readonly string[]): string {
+  const floors = planFloors(plan).filter((floor) => only === undefined || only.includes(floor.id))
+  const shown = floors.slice(0, 20).map((floor) => (floor.name === undefined || floor.name === floor.id ? quoted(floor.id) : `${quoted(floor.id)} (${quoted(floor.name)})`))
   return `${listOf(shown)}${floors.length > 20 ? ` and ${floors.length - 20} more` : ''}`
 }
 
@@ -453,6 +454,10 @@ export function floorArg(plan: FloorPlan, floor: unknown): string | undefined {
   const floors = planFloors(plan)
   const found = idInPlan(floors.map((f) => f.id), floor)
   if (found !== undefined) return found
+  // LVL-25: a floor by its name, its level, a word of its name or an ordinal, as the person names it.
+  const asked = typeof floor === 'string' ? floorAsked(plan, floor) : null
+  if (asked !== null && 'id' in asked) return asked.id
+  if (asked !== null) throw new ToolRefusal(say('en', 'tool.floor.among', { floors: floorList(plan, asked.among) }))
   const nearest = nearestIdText(floor, floors.map((f) => f.id))
   throw new ToolRefusal(`That floor is not in this plan.${nearest} Its floors: ${floorList(plan)}.`)
 }
@@ -537,11 +542,12 @@ export const PLAN_ARG: ArgSpec = {
   maxLength: PATH_MAX,
 }
 
-export const FLOOR_ARG: ArgSpec = {
+/** LVL-25: a floor by its id, its name, its level or a word of its name: never held to an id's letters. */
+export const FLOOR_ARG: Extract<ArgSpec, { readonly type: 'string' }> = {
   type: 'string',
-  id: true,
-  description: 'A floor id from the plan\'s "floors". Every floor when left out.',
-  examples: ['ground', 'first'],
+  description: 'A floor of the plan\'s "floors": its id, its name, its level (2, level 2) or a word of its name (third). Every floor when left out.',
+  examples: ['ground', 'first', 'Second floor', '2'],
+  maxLength: ID_MAX,
 }
 
 /** Metres to two places, as every answer writes them. */

@@ -12,6 +12,7 @@
  */
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { mergeBase, planFloors, validatePlan, withPatterns, type Issue } from '@ongrid/floorplan/geometry'
+import { floorAsked } from '@ongrid/floorplan/geometry/floorAsked'
 import { FloorPlanSchema, quoted, type FloorPlan, type PlanSchemaIssue } from '@ongrid/floorplan/types/floorplan'
 import { readPlanText, type UnfinishedMerge } from '@ongrid/floorplan/types/jsonText'
 import { readPlanParts, type LeftOutPart, type ReadFault } from '@ongrid/floorplan/types/readParts'
@@ -332,6 +333,9 @@ export function floorOption(plan: FloorPlan, floor: string | undefined): string 
   if (floor === undefined) return undefined
   const floors = planFloors(plan)
   if (floors.some((f) => f.id === floor)) return floor
+  // LVL-25: by its name, its level or a word of its name too; one two floors answer to is refused.
+  const asked = floorAsked(plan, floor)
+  if (asked !== null && 'id' in asked) return asked.id
   // Quoted: a floor id is text from the plan file, and may hold anything.
   const known = floors.map((f) => JSON.stringify(f.id)).join(', ')
   throw new UsageError(`--floor ${JSON.stringify(floor)} is not a floor of this plan. Its floors: ${known || 'none'}.`)
