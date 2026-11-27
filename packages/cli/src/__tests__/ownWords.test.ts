@@ -38,7 +38,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
   // ARE-67: four more, the seats, desks and covers lines.
-  'packages/cli/src/brief/lines.ts': [34, 'notYet'],
+  // ARE-66: the corridor width wording now comes from the message files.
+  'packages/cli/src/brief/lines.ts': [33, 'notYet'],
   // CMD-48: two more, the help and the refusal of --fail-on.
   'packages/cli/src/command/check.ts': [12, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],

@@ -1330,6 +1330,8 @@ export const en = {
   'door.leaves.active': "judged by the leaf that opens",
   'door.leaves.one': "leaf {each}; {how}",
   'door.leaves.many': "leaves {each}; {how}",
+  'brief.corridor.narrowest': "{room} corridor width {asked}, drawn {drawn} m, at its narrowest, at ({x}, {y}).",
+  'brief.corridor.widest': "{room} corridor width {asked}, drawn {drawn} m, the widest circle it holds, for Grid finds no two ends.",
   'report.brief.missed': "The person's own figures missed ({count}), from the brief {file}: theirs, not from any code or standard, measured as grid_write_brief and grid_measure what=access measure them.",
   'report.brief.missedMore': "And {count} more: grid_write_brief with no brief lists them all.",
   'report.brief.notRead': "The brief beside the plan was not read, so none of the person's own figures is checked: {problem}.",

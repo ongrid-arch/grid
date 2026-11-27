@@ -20,6 +20,7 @@ import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { openProject, type Project } from '../../fs/projectFiles'
 import { tmpdir } from 'os'
 import { briefReminder, isSurvey } from '../answer'
+import type { AccessData } from '../../quantities/access'
 
 const LAB = resolve(__dirname, '../../../../../scoreboard/data/lab-plans.ndjson.gz')
 
@@ -287,11 +288,14 @@ describe('no line met reads as approval, and the first write is reminded, never 
 describe('ARE-17: a corridor is judged by its narrowest point', () => {
   const rooms = (polygon: string): string => `walls outside 0.3 inside 0.1 height 2.6\nroom hall "Hall" corridor polygon ${polygon}\nroom study "Study" other 3 x 3 south of hall\ndoor d1 between hall and study, centred, 0.9 wide, opens into study\n`
   const asked = { figures: { corridor_width: { value: 1.2, level: 'must', source: 'given', quote: 'a hall I can pass along' } } }
-  const run = async (polygon: string): Promise<BriefLine[]> => {
-    const compiled = compileRoomsText(rooms(polygon))
+  const run = async (polygon: string, value = 1.2, moreRooms = ''): Promise<BriefLine[]> => {
+    const compiled = compileRoomsText(rooms(polygon) + moreRooms)
     expect(compiled.problems).toEqual([])
     b = bench({ 'probe.json': compiled.plan })
-    const reply = await b.call('grid_write_brief', { plan: 'probe.json', brief: asked })
+    const reply = await b.call('grid_write_brief', {
+      plan: 'probe.json',
+      brief: { figures: { corridor_width: { ...asked.figures.corridor_width, value } } },
+    })
     expect(reply.isError, reply.text).toBe(false)
     return (reply.data as { lines: BriefLine[] }).lines.filter((l) => l.wish === 'corridor_width')
   }
@@ -313,6 +317,47 @@ describe('ARE-17: a corridor is judged by its narrowest point', () => {
   it('meets it when the whole hall is wide enough', async () => {
     const lines = await run('0,0 8,0 8,1.3 0,1.3')
     expect(lines.map((l) => l.state)).toEqual(['met'])
+  })
+
+  it('gives the narrowest width and its location for each corridor, including one that meets the figure', async () => {
+    const lines = await run('0,0 9,0 9,1.6 8,1.6 8,0.9 0,0.9', 1.2,
+      'room gallery "Gallery" corridor polygon 12,0 20,0 20,1.3 12,1.3\n')
+    const access = await b!.call('grid_measure', { plan: 'probe.json', what: 'access' })
+    expect(access.isError, access.text).toBe(false)
+    const { corridors } = (access.data as { answer: AccessData }).answer
+    expect(corridors.map((c) => c.room).sort()).toEqual(['gallery', 'hall'])
+    expect(lines).toHaveLength(corridors.length)
+    for (const corridor of corridors) {
+      const line = lines.find((l) => l.parts.some((p) => p.id === corridor.room))
+      expect(line).toMatchObject({
+        state: corridor.room === 'hall' ? 'missed' : 'met',
+        drawn: corridor.narrowest!.toFixed(2),
+      })
+      const name = corridor.room === 'hall' ? 'Hall' : 'Gallery'
+      const location = access.text.split('\n').find((text) => text.trimStart().startsWith(`"${name}":`))
+        ?.match(/at \([^)]+\)/)?.[0]
+      expect(location).toBeDefined()
+      expect(line!.text).toContain(`at its narrowest, ${location}`)
+    }
+  })
+
+  it('agrees with access when the width is within the drawing tolerance of the figure', async () => {
+    const lines = await run('0,0 8,0 8,1.2 0,1.2', 1.2000005)
+    const access = await b!.call('grid_measure', { plan: 'probe.json', what: 'access' })
+    expect(access.isError, access.text).toBe(false)
+    const hall = (access.data as { answer: AccessData }).answer.corridors.find((c) => c.room === 'hall')
+    expect(hall!.against.map((a) => a.short)).toEqual([false])
+    expect(lines[0]).toMatchObject({ state: 'met', drawn: '1.20' })
+  })
+
+  it('says why it reports the widest circle when there are no two ends', async () => {
+    const lines = await run('0,0 2,0 2,2 0,2')
+    const access = await b!.call('grid_measure', { plan: 'probe.json', what: 'access' })
+    expect(access.isError, access.text).toBe(false)
+    const hall = (access.data as { answer: AccessData }).answer.corridors.find((c) => c.room === 'hall')!
+    expect(hall.narrowest).toBeNull()
+    expect(lines[0]).toMatchObject({ state: 'met', drawn: hall.widest.toFixed(2) })
+    expect(lines[0]!.text).toContain('the widest circle it holds, for Grid finds no two ends')
   })
 })
 
