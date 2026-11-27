@@ -26,7 +26,7 @@ import type { Dimension, Ghosts, OpeningSymbol, PlanAbove, PlanDrawing, PlanOpen
 import { boundsWithDimensions, guessedDoorKind, hatchLines, openingDetail, openingSymbol, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
 import type { DoorHanding } from '../canvas2d/doorHanding'
 import { doorSymbolOf } from '../canvas2d/doorSymbol'
-import { openingAt, stripAcross } from '../canvas2d/strip'
+import { openingAt, openingStrip, stripAcross } from '../canvas2d/strip'
 import type { Box, LabelStyle, PlacedLabel } from '../canvas2d/labelPlacement'
 import {
   DIMENSION_DY,
@@ -469,7 +469,7 @@ function openingShape(opening: PlanOpening, attrs: Attrs, key?: string): SvgNode
   return el(
     'path',
     {
-      d: pathOf(stripAcross(opening.from, opening.to, opening.normal, opening.thickness)),
+      d: pathOf(openingStrip(opening)),
       'data-part': 'opening',
       'data-type': opening.type,
       ...attrs
@@ -575,6 +575,18 @@ function windowSymbol(opening: PlanOpening, paint: Paints, panes = false, above 
     { x: a.x, y: -a.y },
     { x: b.x, y: -b.y }
   ]
+  // VEW-77: a window on a curve, or across a joint, follows it: its lines as the core's symbol
+  // lays them along the opening's path, facet by facet.
+  const bent = opening.path === undefined ? null : openingSymbol(opening)
+  if (bent !== null) {
+    const lines = bent.pieces.flatMap((piece) => (piece.shape === 'line' && (piece.part === 'face' || piece.part === 'glass') ? [piece] : []))
+    return el(
+      'g',
+      { 'data-part': 'window-symbol', 'data-opening': opening.id, 'data-above': above ? 'true' : undefined, 'pointer-events': 'none', 'aria-hidden': 'true' },
+      lines.map((piece) => lineEl(piece.part === 'face' ? 'window-face' : 'window-glass', flip([piece.from, piece.to]), { ...(piece.part === 'face' ? paint.windowFace : paint.glass), ...dash })),
+      `${opening.id}:window`
+    )
+  }
   // SHT-10: in a detailed drawing, its glass as the core lays out its two panes (`openingDetail`).
   const glass = panes ? openingDetail(opening).glass.map((pane) => lineEl('window-glass', flip(pane), { ...paint.glass, ...dash })) : [lineEl('window-glass', across(opening, 0), { ...paint.glass, ...dash })]
   return el(
@@ -848,7 +860,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
         el(
           'path',
           {
-            d: pathOf(stripAcross(opening.from, opening.to, opening.normal, opening.thickness)),
+            d: pathOf(openingStrip(opening)),
             'data-part': 'opening',
             'data-type': opening.type,
             'data-id': opening.id,
@@ -1180,7 +1192,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
       el(
         'path',
         {
-          d: pathOf(stripAcross(span.from, span.to, opening.normal, opening.thickness)),
+          d: pathOf(opened === null ? openingStrip(opening) : stripAcross(span.from, span.to, opening.normal, opening.thickness)),
           'data-part': 'opening',
           'data-type': opening.type,
           'data-id': opening.id,
@@ -1241,7 +1253,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   // wall, a widened door's old opening inside the new one. Drawing, not a target.
   for (const opening of drawing.openings) {
     if (opening.phase !== 'demolished') continue
-    out.push(el('path', { d: pathOf(stripAcross(opening.from, opening.to, opening.normal, opening.thickness)), 'data-part': 'demolished-opening', 'data-type': opening.type, 'data-id': opening.id, 'pointer-events': 'none', ...paint.demolished }, [], `demolished-${opening.id}`))
+    out.push(el('path', { d: pathOf(openingStrip(opening)), 'data-part': 'demolished-opening', 'data-type': opening.type, 'data-id': opening.id, 'pointer-events': 'none', ...paint.demolished }, [], `demolished-${opening.id}`))
   }
 
   // WRT-6 (lab WR-15): what the plan marks assumed, drawn in its own style: a dashed line round
@@ -1273,7 +1285,7 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     for (const opening of drawing.openings) {
       const colour = picked.get(opening.id)
       if (colour === undefined) continue
-      out.push(el('path', { d: pathOf(stripAcross(opening.from, opening.to, opening.normal, opening.thickness)), 'data-part': 'picked', 'data-id': opening.id, fill: colour, 'fill-opacity': 0.85, stroke: colour, 'stroke-width': pen, 'pointer-events': 'none' }, [], `picked:${opening.id}`))
+      out.push(el('path', { d: pathOf(openingStrip(opening)), 'data-part': 'picked', 'data-id': opening.id, fill: colour, 'fill-opacity': 0.85, stroke: colour, 'stroke-width': pen, 'pointer-events': 'none' }, [], `picked:${opening.id}`))
     }
   }
 

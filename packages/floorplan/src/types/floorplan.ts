@@ -211,8 +211,10 @@
  *   the circle where the sweep takes `start` (`wall/arc-ends-apart`). C1 holds about the curve:
  *   the wall grows thickness/2 on each side of it, `left` is the side on the left going from
  *   `start` to `end`. C2 holds along the curve: an opening's `offset` and `width` are measured
- *   along it, and its hole is straight between its two edges, as a door's leaf is. Optional and
- *   never defaulted, so a plan with no curved wall reads exactly as before (version 1).
+ *   along it; a window follows the curve, and a door's leaf is straight between its two edges.
+ *   An opening may run on past an end of its wall along a smooth run of walls, and round a whole
+ *   circle's start (VEW-77). Optional and never defaulted, so a plan with no curved wall reads
+ *   exactly as before (version 1).
  *
  * C23 · A plan that is part of a larger building (CNT-6, lab EL-4, R-10, S-3, EL-17, AC-7)
  *   A wall MAY be `separating`: a party wall, or a wall between a home and the building's common
