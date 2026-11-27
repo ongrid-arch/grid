@@ -531,3 +531,129 @@ export function facingAngle(curve: CurvedWall, look: P, roomInside: boolean): nu
   if (!curve.closed && (s < onCircle() || s > curve.length - onCircle())) return null
   return a
 }
+
+// ---------------------------------------------------------------------------------------------
+// A curved raw wall written by its ends (WRT-82)
+
+/** Why a raw wall's curve, written by its ends, names no curve. */
+export type ArcFormFault = 'mixed' | 'twice' | 'ends' | 'point' | 'line' | 'radius' | 'side' | 'bulge'
+
+/** A raw wall as rooms text reads it: the plan file's JSON, its fields not yet checked. */
+type RawWall = Record<string, unknown>
+
+const isPoint = (v: unknown): v is [number, number] => Array.isArray(v) && v.length === 2 && v.every((x) => typeof x === 'number' && Number.isFinite(x))
+/** To the micrometre (or micro-degree), with no negative zero. */
+const keep6 = (v: number): number => Math.round(v * 1e6) / 1e6 + 0
+
+/**
+ * The centre and sweep (C21, degrees counter-clockwise positive) of the arc from `s` to `e` that
+ * turns `sweep` radians, signed, its size under a whole turn: the centre is off the chord's
+ * middle to its left by half the chord over the tangent of half the sweep.
+ */
+function arcOfSweep(s: P, e: P, sweep: number): { centre: [number, number]; sweep: number } {
+  const L = dist(s, e)
+  const left: P = [-(e[1] - s[1]) / L, (e[0] - s[0]) / L]
+  const back = L / 2 / Math.tan(sweep / 2)
+  const c: P = [(s[0] + e[0]) / 2 + left[0] * back, (s[1] + e[1]) / 2 + left[1] * back]
+  const centre: [number, number] = [keep6(c[0]), keep6(c[1])]
+  // The sweep as the written centre gives it, so the end lies where the sweep takes the start.
+  const turned = wrap(angleOf(centre, e) - angleOf(centre, s))
+  const written = sweep > 0 ? turned : turned - TURN
+  return { centre, sweep: keep6((written * 180) / Math.PI) }
+}
+
+/**
+ * The arc from `s` to `e` through `t`, by its ends and a point on it; from `s` to `e` at radius
+ * `r`, bowing to `side` going from start to end, the shorter way; or by its `bulge`, the tangent
+ * of a quarter of its sweep, positive counter-clockwise, as CAD drawings store it (0 is straight:
+ * null). A fault when the words name no curve.
+ */
+export function arcOfEnds(
+  s: P,
+  e: P,
+  form: { readonly through: P } | { readonly radius: number; readonly side: 'left' | 'right' } | { readonly bulge: number }
+): { centre: [number, number]; sweep: number } | null | { fault: ArcFormFault } {
+  const L = dist(s, e)
+  if (L < none()) return { fault: 'ends' }
+  if ('through' in form) {
+    const t = form.through
+    if (dist(t, s) < onCircle() || dist(t, e) < onCircle()) return { fault: 'point' }
+    const cross = (e[0] - s[0]) * (t[1] - s[1]) - (e[1] - s[1]) * (t[0] - s[0])
+    if (Math.abs(cross) / L < onCircle()) return { fault: 'line' }
+    // A point to the right of start to end is on a counter-clockwise arc, as a positive bulge is.
+    const ccw = cross < 0
+    // The angle at the point on the arc is π less half the sweep: the inscribed angle.
+    const u: P = [s[0] - t[0], s[1] - t[1]]
+    const v: P = [e[0] - t[0], e[1] - t[1]]
+    const inscribed = Math.acos(Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1]) / (Math.hypot(...u) * Math.hypot(...v)))))
+    const size = 2 * (Math.PI - inscribed)
+    return arcOfSweep(s, e, ccw ? size : -size)
+  }
+  if ('radius' in form) {
+    if (!(form.radius > 0) || form.radius < L / 2 - none()) return { fault: 'radius' }
+    const size = 2 * Math.asin(Math.min(1, L / (2 * form.radius)))
+    return arcOfSweep(s, e, form.side === 'right' ? size : -size)
+  }
+  if (form.bulge === 0) return null
+  return arcOfSweep(s, e, 4 * Math.atan(form.bulge))
+}
+
+/**
+ * A raw wall with its ends and curve as the plan file holds them: `from` and `to` read as
+ * `start` and `end` (on the wall or in its `arc`), a `bulge` on the wall read as the arc's, and an
+ * arc written `through` a point, by `radius` and `side`, or by `bulge` turned into its centre and
+ * sweep. A wall written the plan file's way is returned as it was; a fault when the words name
+ * no curve or say it two ways.
+ */
+export function rawWallEnds(part: RawWall): { part: RawWall } | { fault: ArcFormFault } {
+  let wall: RawWall = { ...part }
+  const arcIn = wall['arc']
+  let arc: Record<string, unknown> | null = typeof arcIn === 'object' && arcIn !== null && !Array.isArray(arcIn) ? { ...(arcIn as Record<string, unknown>) } : null
+  if (wall['bulge'] !== undefined) {
+    if (arc !== null) return { fault: 'twice' }
+    arc = { bulge: wall['bulge'] }
+    delete wall['bulge']
+  }
+  const ends = (from: Record<string, unknown>, into: RawWall): { fault: ArcFormFault } | null => {
+    for (const [word, field] of [['from', 'start'], ['to', 'end']] as const) {
+      if (from[word] === undefined) continue
+      if (into[field] !== undefined && into[field] !== from[word]) return { fault: 'twice' }
+      into[field] = from[word]
+      delete from[word]
+    }
+    return null
+  }
+  const onWall = ends(wall, wall)
+  if (onWall !== null) return onWall
+  if (arc !== null) {
+    const inArc = ends(arc, wall)
+    if (inArc !== null) return inArc
+  }
+  if (arc === null) return { part: wall }
+  const forms = [arc['centre'] !== undefined || arc['sweep'] !== undefined, arc['through'] !== undefined, arc['radius'] !== undefined || arc['side'] !== undefined, arc['bulge'] !== undefined].filter(Boolean).length
+  if (forms > 1) return { fault: 'mixed' }
+  if (forms === 0 || arc['centre'] !== undefined || arc['sweep'] !== undefined) return { part: { ...wall, arc } }
+  const s = wall['start']
+  const e = wall['end']
+  if (!isPoint(s) || !isPoint(e)) return { fault: 'ends' }
+  const { through, radius, side, bulge, ...rest } = arc
+  let made: ReturnType<typeof arcOfEnds>
+  if (through !== undefined) {
+    if (!isPoint(through)) return { fault: 'point' }
+    made = arcOfEnds(s, e, { through })
+  } else if (bulge !== undefined) {
+    if (typeof bulge !== 'number' || !Number.isFinite(bulge)) return { fault: 'bulge' }
+    made = arcOfEnds(s, e, { bulge })
+  } else {
+    if (side !== 'left' && side !== 'right') return { fault: 'side' }
+    if (typeof radius !== 'number' || !Number.isFinite(radius)) return { fault: 'radius' }
+    made = arcOfEnds(s, e, { radius, side })
+  }
+  if (made !== null && 'fault' in made) return made
+  if (made === null) {
+    delete wall['arc']
+    return { part: wall }
+  }
+  wall = { ...wall, arc: { ...rest, centre: made.centre, sweep: made.sweep } }
+  return { part: wall }
+}

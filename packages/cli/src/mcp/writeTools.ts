@@ -841,7 +841,8 @@ const writeRoomsTool: GridTool = {
     guesses: listSchema(STRING),
     warnings: listSchema(STRING),
     verdict: { type: ['string', 'null'] },
-    drawingProblems: objectSchema({ before: { type: 'number' }, after: { type: 'number' } }),
+    // WRT-82: the problems the write added, by code and part, with their sentences.
+    drawingProblems: objectSchema({ before: { type: 'number' }, after: { type: 'number' }, new: listSchema(objectSchema({ code: STRING, id: STRING, message: STRING })) }, ['before', 'after']),
     // WRT-57: what grid_check lists (the record's count), before and after; null for a scan.
     toLookAt: { type: ['object', 'null'], properties: { before: { type: 'number' }, after: { type: 'number' } }, required: ['before', 'after'] },
     // WRT-57: each door that joins other rooms than before, one that no longer leads outside first.

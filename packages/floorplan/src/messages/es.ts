@@ -93,6 +93,7 @@ export const es: Messages = {
   'issue.wall/arc-too-tight.noRadius': 'El muro {wall} se curva en torno a su propio inicio: su centro está donde empieza, así que no tiene radio. El centro es el punto medio del círculo del que forma parte el muro',
   'issue.wall/arc-too-tight': 'El muro {wall} se curva con un radio de {radius} m, no mayor que la mitad de su espesor de {thickness} m, así que su cara interior no tiene curva que seguir. Cabe un radio de más de {half} m',
   'issue.wall/arc-ends-apart': 'El muro {wall} gira {sweep}° en torno a {centre} desde su inicio, lo que lo lleva a {meant}, pero su final está en {end}, a {apart} m de la curva. Lleve su final allí, o dé el ángulo de giro que lo alcanza',
+  'issue.wall/arc-ends-apart.reach': 'El muro {wall} gira {sweep}° en torno a {centre} desde su inicio, lo que lo lleva a {meant}, pero su final está en {end}, sobre el mismo círculo, a {apart} m a lo largo de él. El ángulo de giro que alcanza su final es {reach} (grados, positivos en sentido antihorario): dé ese, o lleve su final a donde llega la curva',
   'issue.wall/no-thickness': 'El muro {wall} tiene espesor {thickness}; solo un muro virtual puede tener cero',
   'issue.wall/no-height': 'El muro {wall} tiene altura {height}; solo un muro virtual puede tener cero',
   'issue.wall/kind-differs.kept':
@@ -2310,6 +2311,19 @@ export const es: Messages = {
   'rooms.raw.openingFloor':
     "Línea {line}: el raw opening '{id}' está escrito bajo la planta '{under}', pero su muro '{wall}' está en la planta '{floor}', y una abertura está en la planta de su muro. Escríbala bajo la planta '{floor}', o nombre un muro de la planta '{under}'.",
   'rooms.raw.openingFact': '{id}: {type} de {width} m en {wall}, escrita en crudo',
+  // WRT-82: a curved raw wall written by its ends and a point, a radius and a side, or a bulge.
+  'rooms.raw.arc':
+    'Línea {line}: el muro raw \'{id}\' {why}. Escriba su curva de una forma: "arc": {"centre": [x, y], "sweep": <grados>}; {"through": [x, y]}, un punto de la curva entre sus extremos; {"radius": <m>, "side": "left" o "right"}, el lado hacia el que se curva yendo del principio al final, por el camino más corto; o {"bulge": <b>}, la tangente de un cuarto de su ángulo de giro, positiva en sentido antihorario. Grid calcula el centro y el giro a partir de los extremos.',
+  'rooms.raw.arc.mixed': 'escribe su "arc" de más de una forma',
+  'rooms.raw.arc.twice': 'da sus extremos o su curva dos veces: "from" y "to" se leen como "start" y "end", y un "bulge" en el muro como el de su arco',
+  'rooms.raw.arc.ends': 'necesita un "start" y un "end" en dos puntos distintos, [x, y], para calcular su curva',
+  'rooms.raw.arc.point': 'tiene un "through" que no es un punto [x, y] distinto de sus dos extremos',
+  'rooms.raw.arc.line': 'tiene su punto "through" alineado con sus dos extremos, lo que es un muro recto: quite "arc" para uno',
+  'rooms.raw.arc.radius': 'tiene un "radius" que no es un número de al menos la mitad de la distancia entre sus extremos',
+  'rooms.raw.arc.side': 'tiene un "side" que no es "left" ni "right"',
+  'rooms.raw.arc.bulge': 'tiene un "bulge" que no es un número',
+  'rooms.raw.arc.worked': "Línea {line}: el muro raw '{id}' se curva en torno a {centre} girando {sweep} grados del principio al final, calculado a partir de sus extremos; el archivo del plano lo guarda como ese centro y ese giro.",
+  'rooms.raw.arc.straight': "Línea {line}: el muro raw '{id}' tiene un bulge de 0, así que es recto.",
   'rooms.raw.zeroLength':
     "Línea {line}: el raw wall '{id}' empieza y termina en el mismo punto, ({x}, {y}), así que no tiene longitud. Dele un principio y un final en puntos distintos, o quítelo y quite su id del contorno de toda estancia que lo nombre.",
   // WRT-48: borrador.
@@ -2318,7 +2332,7 @@ export const es: Messages = {
   'rooms.raw.unknownField.named': 'el campo "{field}"',
   'rooms.raw.unknownField.unnamed': 'un campo cuyo nombre Grid no repite',
   'rooms.raw.unknownField.in': ' en su "{place}"',
-  'rooms.raw.unknownField.arc': 'Un muro curvo indica "arc": {"centre": [x, y], "sweep": <grados>}, el centro de su curva y los grados que gira del principio al final, positivos en sentido antihorario.',
+  'rooms.raw.unknownField.arc': 'Un muro curvo indica "arc": {"centre": [x, y], "sweep": <grados>}, el centro de su curva y los grados que gira del principio al final, positivos en sentido antihorario; o "arc": {"through": [x, y]}, {"radius": <m>, "side": "left" o "right"} o {"bulge": <b>}, a partir de los cuales Grid los calcula.',
   'rooms.raw.unknownField.properties': 'Los datos propios van en "properties": {"<nombre>": <valor>}, que Grid guarda y con los que no comprueba nada.',
   'rooms.raw.unknownField.nearest': '¿Quería decir "{nearest}"?',
   'rooms.raw.unknownField.written': 'También tiene "{nearest}", que es lo que Grid lee: quite "{field}".',
@@ -3180,6 +3194,10 @@ export const es: Messages = {
   'write.base.changed': '{file} es un acondicionamiento sobre el plano base {was}, y este texto de estancias nombra {now}, así que escribirlo movería el acondicionamiento a otra envolvente. Nombre {was} en la línea base, o añada --replace para escribirlo sobre {now}.',
   'write.base.dropped': '{file} es un acondicionamiento sobre el plano base {was}, y este texto de estancias no nombra ninguna base, así que escribirlo perdería su envolvente. Añada la línea base {was} (grid describe --as rooms la escribe), o añada --replace para escribirlo como un plano propio.',
   'write.toLookAt': 'Por revisar: {before} → {after}, de ellos problemas en el dibujo {drawingBefore} → {drawingAfter}. Ejecuta grid check para ver las notas.',
+  // WRT-82: the new problems a write leaves, by code and part, after their count.
+  'write.newProblems': 'Nuevo en el dibujo: {problems}{more}',
+  'write.newProblems.one': '{code} en {id}: {message}.',
+  'write.newProblems.more': ' Y {n} más: grid check los enumera.',
   'write.door.notOut': 'Ya no da al exterior: {change}.',
   'write.items.looksMore': 'Y {n} elementos conservados más chocan con un muro o no están en ninguna estancia: grid check los nombra.',
   'edit.idTaken.item': '{kind} {id} en ({x}, {y}) en la estancia {room}{floor}',
