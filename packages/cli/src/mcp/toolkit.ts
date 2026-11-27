@@ -354,10 +354,13 @@ export function readArgs(tool: GridTool, raw: unknown): Record<string, unknown> 
     throw new ToolRefusal(`Pass the arguments of ${tool.name} as an object${names.length > 0 ? `: ${listOf(names)}` : ''}.`)
   }
   const given = raw as Record<string, unknown>
+  // MSG-33: every fault of the call in one refusal: the arguments it does not take, each one
+  // missing and each value refused, so the agent puts them all right in one more call.
+  const faults: string[] = []
   const unknown = Object.keys(given).filter((key) => !Object.hasOwn(specs, key))
   if (unknown.length > 0) {
     const shown = unknown.length > 3 ? `${unknown.length} others` : unknown.every((key) => key.length <= ID_MAX && ID.test(key)) ? listOf(unknown.map(quoted)) : 'others'
-    throw new ToolRefusal(`${tool.name} takes ${names.length > 0 ? listOf(names) : 'no arguments'}, not ${shown}.`)
+    faults.push(`${tool.name} takes ${names.length > 0 ? listOf(names) : 'no arguments'}, not ${shown}.`)
   }
   const args: Record<string, unknown> = {}
   readings = []
@@ -366,13 +369,25 @@ export function readArgs(tool: GridTool, raw: unknown): Record<string, unknown> 
   for (const [name, spec] of order) {
     const value = given[name]
     if (value === undefined || value === null) {
-      if (spec.required) throw new ToolRefusal(`Pass ${name}: ${spec.description.split('. ')[0]!.replace(/\.$/, '')}.`)
+      if (spec.required) faults.push(`Pass ${name}: ${spec.description.split('. ')[0]!.replace(/\.$/, '')}.`)
       continue
     }
-    args[name] = checkOne(name, spec, value, args)
+    try {
+      args[name] = checkOne(name, spec, value, args)
+    } catch (error) {
+      if (!(error instanceof ToolRefusal)) throw error
+      faults.push(error.message)
+    }
   }
+  if (faults.length === 1) throw new ToolRefusal(faults[0]!)
+  if (faults.length > 1) throw new ToolRefusal(faultsText(tool.name, faults))
   if (readings.length > 0) USES_READ.set(args, readings)
   return args
+}
+
+/** MSG-33: several faults of one call, as one refusal: how many, then one line each. */
+export function faultsText(toolName: string, faults: readonly string[]): string {
+  return [`${toolName} was not run: put these ${faults.length} right and call it again.`, ...faults.map((fault) => `- ${fault}`)].join('\n')
 }
 
 /** The project, or a refusal that says how to start the server with one. */

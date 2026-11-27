@@ -6,7 +6,7 @@
  * file as written (`Patch.lists`). The parts are found by `buildingParts.ts`.
  */
 import { floorOf, planBuildings, planFloors, type FloorPlan } from '@ongrid/floorplan/geometry'
-import { compileRoomsText, planRevision, problemLines } from '@ongrid/floorplan/rooms'
+import { compileRoomsText, everyProblem, planRevision, problemLines } from '@ongrid/floorplan/rooms'
 import { safeParseFloorPlan, statedItem, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
 import type { Survey } from '../quantities/survey'
 import { buildingNamed, buildingPlan, buildingParts, freeId, idOnFloor, movedBy, ON_A_FLOOR, OTHER_LISTS, planIdsIn, refuseTaken, renamedIds, type BuildingParts, type RawRecord } from './buildingParts'
@@ -84,8 +84,9 @@ export function writeBuildingText(survey: Survey, request: BuildingTextRequest):
   const known = planBuildings(plan).find((b) => b.id === request.building)
   const result = compileRoomsText(request.text.normalize('NFC'))
   if (result.plan === null) {
-    const lines = problemLines(result)
-    throw new EditRefused(`The rooms text was not written: ${lines[0] ?? 'it could not be read'}${lines.length > 1 ? ` (${lines.length - 1} more: ${lines.slice(1, 4).join(' | ')})` : ''}.`)
+    // MSG-33: every independent problem of the text, each one listed.
+    const lines = problemLines(everyProblem(request.text.normalize('NFC'), result))
+    throw new EditRefused(`The rooms text was not written: ${lines[0] ?? 'it could not be read'}${lines.length > 1 ? ` (${lines.length - 1} more: ${lines.slice(1).join(' | ')})` : ''}.`)
   }
   const text = safeParseFloorPlan(result.plan)
   if (text === null) throw new EditRefused('The rooms text was not written: the plan it makes does not fit the plan\'s format.')
