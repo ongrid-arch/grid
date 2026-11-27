@@ -215,7 +215,12 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // MSG-35: one more, the route measure's travel distance and nearest exit.
   // MSG-34: thirty-four fewer, grid_areas' and grid_schedule's lines in the message files.
   // ARE-73: one more, what=activity's per_kind and all arguments.
-  'packages/cli/src/mcp/readTools.ts': [399, 'tools'],
+  // ARE-75: seven more, what the state argument means on grid_areas, grid_schedule, grid_find and grid_describe.
+  'packages/cli/src/mcp/readTools.ts': [406, 'tools'],
+  // ARE-75: the state argument the reading tools share, and grid_view's demolition and proposed plans.
+  'packages/cli/src/mcp/stateArg.ts': [2, 'tools'],
+  // ARE-75: the head of the area table of the work as CSV.
+  'packages/cli/src/mcp/phaseAreasAnswer.ts': [1, 'tools'],
   // ARE-73: grid_measure what=activity's per_kind argument and its refusals.
   'packages/cli/src/mcp/activityArg.ts': [7, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
@@ -293,7 +298,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-43: six more, the from, layers and units arguments and their refusals.
   // VEW-72: three more, grid_export's scale and out and a file out cannot write.
   // VEW-73: three more, grid_export's 3D files and its roofs and arcSegments.
-  'packages/cli/src/mcp/writeTools.ts': [164, 'tools'],
+  // ARE-75: one more, grid_export's state.
+  'packages/cli/src/mcp/writeTools.ts': [165, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
