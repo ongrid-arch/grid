@@ -194,7 +194,7 @@ describe('AC-2: a cost only from the person\'s own rates', () => {
     expect(() => parseRates({ rates: { floor: { rate: 10, unit: 'm2' } } }, 'rates.json')).toThrow(RatesRefused)
     expect(() => parseRates({ currency: '  ', rates: {} }, 'rates.json')).toThrow(/names no currency/)
     expect(() => parseRates({ currency: 'TST', rates: { door: { rate: -5, unit: 'nr' } } }, 'rates.json')).toThrow(/below 0/)
-    expect(() => parseRates({ currency: 'TST', rates: { door: { rate: 5, unit: 'each' } } }, 'rates.json')).toThrow(/unit must be one of m2, m, nr, ft2, ft/)
+    expect(() => parseRates({ currency: 'TST', rates: { door: { rate: 5, unit: 'each' } } }, 'rates.json')).toThrow(/unit must be one of m2, m, nr, m3, ft2, ft/)
     expect(() => parseRates({ currency: 'TST', rates: { 'Door Sizes': { rate: 5, unit: 'nr' } } }, 'rates.json')).toThrow(/not a key/)
   })
 
