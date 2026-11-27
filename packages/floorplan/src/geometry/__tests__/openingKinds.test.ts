@@ -360,7 +360,7 @@ describe('kinds on a curved wall (CNT-18)', () => {
     for (const id of ['sliding', 'pocket', 'roller', 'garage']) expect(drawn.openings.find((o) => o.id === id)!.kind).toBeDefined()
   })
 
-  it('raises each door and window in 3D square to its straight hole, within the wall', () => {
+  it('raises each door in 3D square to its straight hole, and each window along the curve, within the wall', () => {
     const plan = drum()
     const scene = buildScene(plan)
     expect(scene.openings.map((o) => o.id).sort()).toEqual(plan.openings.map((o) => o.id).sort())
@@ -368,6 +368,19 @@ describe('kinds on a curved wall (CNT-18)', () => {
     for (const opening of scene.openings) {
       const span = openingSpan(plan.openings.find((o) => o.id === opening.id)!)
       const chord = openingChord(round, span.from, span.to)
+      if (opening.type === 'window') {
+        // VEW-77: a window follows the curve in facets, each inside the wall's faces.
+        for (const point of opening.parts.flatMap((part) => part.outline)) {
+          const r = Math.hypot(point.x - 5, point.y - 5)
+          expect(Math.abs(r - 3)).toBeLessThanOrEqual(round.thickness / 2 + 1e-9)
+          // Round the curve, between its edges (the drum starts at angle 0 and turns counter-clockwise),
+          // to the millimetre: a facet's edge stands square to its chord, not quite on the radius.
+          const along = ((Math.atan2(point.y - 5, point.x - 5) + 2 * Math.PI) % (2 * Math.PI)) * 3
+          expect(along).toBeGreaterThanOrEqual(span.from - 1e-3)
+          expect(along).toBeLessThanOrEqual(span.to + 1e-3)
+        }
+        continue
+      }
       for (const part of opening.parts) {
         for (const point of part.outline) {
           const d = sub(point, chord.start)

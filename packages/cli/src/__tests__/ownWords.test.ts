@@ -114,7 +114,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-38: seven more, the receipt and refusals of one wall's thickness.
   // WRT-59: one more, a plan with nothing to mirror or turn.
   // WRT-73: one more, a mirror's line when it keeps the north.
-  'packages/cli/src/edit/edits.ts': [66, 'notYet'],
+  // CMD-50: two fewer, a side named as rooms text names it is refused from the message files.
+  'packages/cli/src/edit/edits.ts': [64, 'notYet'],
   // WRT-59: the notes an edit caused, opening its answer.
   'packages/cli/src/edit/caused.ts': [1, 'notYet'],
   'packages/cli/src/edit/merge.ts': [32, 'notYet'],
@@ -174,7 +175,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-60: two more, grid_rename_room's conditioned.
   // CNT-43: +7, grid_place_item's own figures and the width-and-depth refusal.
   // CNT-44: 23 more, grid_fill_room's help.
-  'packages/cli/src/mcp/editTools.ts': [137, 'tools'],
+  // CMD-50: one more, grid_stretch's help on a building turned on the drawing.
+  'packages/cli/src/mcp/editTools.ts': [138, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
   // CNT-51: grid_set_finishes, its help and its argument checks.
@@ -371,8 +373,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-24: one more, a wall lower than storeyLowest set against its floor's height.
   // CMD-49: three more, curveSweep's description.
   // VEW-73: two more, what floorLift decides.
+  // VEW-77: three more, what smoothRunTurn decides.
   // MSG-34: two more, what languageNamesLeast decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [356, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [359, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

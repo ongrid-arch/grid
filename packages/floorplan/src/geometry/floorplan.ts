@@ -13,6 +13,7 @@ import { add, centroid, dot, fromTuple, intersectLines, scale, sub } from './vec
 import { limit, tolerance } from './tolerances'
 import { typeMaterial, wallTypeOf } from './partTypes'
 import type { SliceSide, WallAxis } from './wall'
+import { openingAxis, openingsCutting, runGuests, type AxisPoint } from './openingRun'
 import { openingChord, openingSpan, wallAxis, wallCenterline, wallParts, wallPath, wallPlanSlices, wallSegments, wallSliceShape } from './wall'
 import { wallCurve } from './arc'
 import { wallJoints } from './joints'
@@ -152,6 +153,13 @@ export interface PlanOpening {
   readonly to: Vec2
   /** Unit normal of the wall: which way a door symbol swings. */
   readonly normal: Vec2
+  /**
+   * VEW-77: on a curved wall, or across the joint of a smooth run, the axis from `from` to `to`
+   * through the curve's stations, with the normal at each point: a window's lines and the gap's
+   * fill follow it. Left out where the opening lies on one straight line, `from` to `to`, which
+   * are then the chord across its edges.
+   */
+  readonly path?: readonly AxisPoint[]
   readonly thickness: number
   readonly width: number
   /** The jamb a door hangs from, when the plan states it (C2: `start` is nearer `wall.start`). */
@@ -502,12 +510,17 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
   const openings: PlanOpening[] = []
   const extent: Vec2[] = []
   // The corners, joined once for the walls this drawing holds (SHT-2).
-  const joints = wallJoints(plan.walls.filter((wall) => !broken.has(wall.id)))
+  const sound = plan.walls.filter((wall) => !broken.has(wall.id))
+  const joints = wallJoints(sound)
+  // VEW-77: the openings that run on from one wall of a smooth run onto the next.
+  const guests = runGuests(sound, plan.openings.filter((o) => !broken.has(o.id)))
 
   for (const wall of plan.walls) {
     if (broken.has(wall.id)) continue
 
-    const usable = openingsOf(index, wall.id).filter((o) => !broken.has(o.id))
+    const own = openingsOf(index, wall.id).filter((o) => !broken.has(o.id))
+    // Each wall leaves the gaps of its own openings and of those that run onto it.
+    const usable = openingsCutting(own, guests, wall.id)
     const ends = joints.get(wall.id)
     const slices = wall.virtual ? [] : wallPlanSlices(wall, usable, ends)
     const curve = wallCurve(wall)
@@ -553,10 +566,12 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
     for (const slice of slices) extent.push(...slice)
     extent.push(...path)
 
-    for (const opening of usable) {
+    for (const opening of own) {
       const span = openingSpan(opening)
-      // The hole is straight between its edges (C21): on a curved wall, the chord between them.
-      const hole = openingChord(wall, span.from, span.to)
+      // The line between its edges (C21): on a curved wall, or along a smooth run (VEW-77), the
+      // chord between them, and the axis it follows.
+      const axis = openingAxis(sound, opening, wall)
+      const hole = axis?.bends === true ? axis.chord : openingChord(wall, span.from, span.to)
       const kind = statedKind(opening.type, opening.kind)
       openings.push({
         id: opening.id,
@@ -565,6 +580,7 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
         from: hole.start,
         to: hole.end,
         normal: hole.normal,
+        ...(axis?.bends === true && { path: axis.points }),
         // A dividing line has no width, so neither has a gap in it: it must not paint the
         // written thickness across the floor.
         thickness: wall.virtual ? 0 : wall.thickness,

@@ -116,6 +116,16 @@ export const TOLERANCES = {
       'can follow within `arcSagitta` is traced with this many, a little further off it.',
     basis: own
   },
+  smoothRunTurn: {
+    kind: 'tolerance',
+    value: 5,
+    unit: 'degree',
+    decides:
+      'The most two walls that meet end to end may turn where they meet and still be one smooth ' +
+      'run, which a door or window may cross from one onto the other (VEW-77): a curve traced by ' +
+      'short pieces, or two arcs that meet without a kink. A sharper turn is a corner.',
+    basis: own
+  },
 
   // ── Walls that meet ───────────────────────────────────────────────────────────────────────
   gap: {

@@ -28,6 +28,7 @@
 import type { Issue } from './validate'
 import type { FloorPlan, Opening, PlanIndex, Wall } from './plan'
 import { openingsOf } from './plan'
+import { openingReach } from './openingRun'
 import { floorOf } from './floors'
 import { cross, sub } from './vec2'
 import type { WallSegment } from './wall'
@@ -217,6 +218,9 @@ export function openingPlaceIssues(plan: FloorPlan, index: PlanIndex, broken: Re
         if (broken.has(opening.id)) continue
         const what = said(`issue.part.Named.${opening.type}`, { id: name(opening.id) })
         const span = openingSpan(opening)
+        // VEW-77: an opening that runs on past an end of its wall along a smooth run crosses the
+        // walls of that run by design, and leaves its wall's ends standing past its own.
+        const run = span.from < -overrun || span.to > axis.length + overrun ? (openingReach(walls, opening, wall) ?? []).map((stretch) => stretch.wall.id) : []
 
         if (wall.virtual && opening.type !== 'opening') {
           issues.push(
@@ -230,7 +234,7 @@ export function openingPlaceIssues(plan: FloorPlan, index: PlanIndex, broken: Re
           )
         }
 
-        if (span.from <= overrun && span.to >= axis.length - overrun) {
+        if (run.length <= 1 && span.from <= overrun && span.to >= axis.length - overrun) {
           issues.push(
             warning(
               'opening',
@@ -244,7 +248,11 @@ export function openingPlaceIssues(plan: FloorPlan, index: PlanIndex, broken: Re
         }
 
         for (const cover of here) {
-          const into = Math.min(span.to, cover.to) - Math.max(span.from, cover.from)
+          // A wall met past an end that the run carries the opening over is met beyond the joint.
+          if (run.includes(cover.wall) || (run.length > 1 && (cover.at <= overrun || cover.at >= axis.length - overrun))) continue
+          // Past its wall's ends it is the next walls' to cut: here, only its own wall's stretch.
+          const [from, to] = run.length > 1 ? [Math.max(span.from, 0), Math.min(span.to, axis.length)] : [span.from, span.to]
+          const into = Math.min(to, cover.to) - Math.max(from, cover.from)
           if (!(into > overrun)) continue
           // A wall no higher than the sill stands under the window, not across it.
           if (cover.height <= opening.sill + overrun) continue
