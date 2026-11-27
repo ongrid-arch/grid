@@ -3922,4 +3922,11 @@ export const es: Messages = {
   'plan.fileKind.occupancy': 'un archivo que Grid guarda junto a un plano (las cifras de ocupación)',
   'plan.fileKind.sheet': 'un archivo que Grid guarda junto a un plano (los textos de la lámina)',
   'plan.fileKind.firm': 'el archivo con las normas propias del estudio',
+  'rooms.phase.state.before': 'Leído como el edificio antes de la obra (sus partes existentes y a demoler): {problem}',
+  'rooms.phase.state.after': 'Leído como el edificio después de la obra (sus partes existentes y nuevas): {problem}',
+  'rooms.phase.unknown': 'Línea {line}: una fase es existing, demolished o new, no {word}. Escriba phase existing, phase demolished o phase new.',
+  'rooms.phase.alone': 'Línea {line}: una línea de fase es phase existing, phase demolished o phase new sola, y fija la fase de las líneas de estancias y aberturas que la siguen.',
+  'rooms.phase.where': 'Línea {line}: una fase va en una línea room, wall, door, window, opening, place o repeat, o sola en una línea. Una línea {kind} no lleva ninguna: queda en pie después de la obra.',
+  'rooms.phase.base': 'Línea {line}: un acondicionamiento es la obra misma, sus estancias y aberturas nuevas sobre los muros existentes de su base, así que no lleva fase. Quite las palabras de fase, o escriba el plano sin su línea base.',
+  'write.phases.none': '{file} indica la fase de sus partes (existente, a demoler o nueva), y este texto de estancias no indica ninguna, así que escribirlo dejaría todas las partes sin fase, y también --replace. Lea el plano como texto de estancias (grid describe --as rooms), que escribe la fase de cada parte (phase existing, phase demolished, phase new), y cambie eso; o escriba las fases en este texto; o añada --replace para escribirlo sin fases.',
 }
