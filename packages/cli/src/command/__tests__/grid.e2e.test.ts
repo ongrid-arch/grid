@@ -620,6 +620,9 @@ describe('the built file', () => {
     // building's ground, height, site measures and IFC building) with main's parking, items and
     // rows at 7f41cfdf made it 806,092 bytes, again with no new dependency.
     // SHT-23's elevations and sections pages stay under the same cap.
-    expect(statSync(bundle).size).toBeLessThan(850_000)
+    // 900 kB since CMD-47: one building of a site of many read, written, added to, taken out and
+    // placed again (four tools) with main at its merge take it to 855,776 bytes, again with no new
+    // dependency.
+    expect(statSync(bundle).size).toBeLessThan(900_000)
   })
 })

@@ -26,7 +26,7 @@ import { english, joined, name, said, type Value } from '@ongrid/floorplan/messa
 import type { ReadFault } from '@ongrid/floorplan/types/readParts'
 
 export const FIXTURE_RULES = {
-  count: 'Fixtures and furniture are the plan\'s items, counted by kind; the room each is in is the one that holds the middle of its footprint. Furniture takes no free floor: it can be moved. Points and seats come later.',
+  count: 'Fixtures and furniture are the plan\'s items, counted by kind; the room each is in is the one that holds the middle of its footprint. Furniture takes no free floor: it can be moved. Its seats, desks and covers: grid_measure what=seats.',
   // ARE-14: one of the area measures, said in its words.
   free: MEASURES.freeFloor.measures,
 } as const

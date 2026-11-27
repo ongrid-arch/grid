@@ -147,7 +147,7 @@ Notes for agents and people changing this repository.
   `bin/grid.mjs`, a committed launcher that runs it, because npm links bins at install time. Its end-to-end tests run that file as a
   child process; `npm test` builds it first. Every option is strict: an unknown, repeated or
   meaningless one is refused by name.
-- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 59 tools named
+- `grid serve` (CMD-5, `packages/cli/src/mcp/`) is the tool server an agent uses: 63 tools named
   `grid_…`, in a fixed order (`grid_project` first, `projectTool.ts` (CMD-18); then reading tools by the requests they answer, the problem report
   last of them (CMD-13, `src/report/`, which sends nothing), then the preview and the preview
   page's own call (VEW-4, `previewTools.ts`), the
@@ -155,7 +155,7 @@ Notes for agents and people changing this repository.
   `briefTool.ts`), Grid's words in the person's language (MSG-24, `wordsTool.ts`), the last change undone and an earlier version restored (CMD-44, `versionTools.ts`), and the tools that change the plan, tidy's fixes where walls meet (WRT-36,
   `tidyTool.ts`), a fit-out started on a base plan (WRT-75, `fitOutTool.ts`, its plan `edit/fitOut.ts`), any other field of a part set by id (CMD-42, `setTool.ts`, its change `edit/set.ts`), facts of the person's own and a room's number (WRT-74, `factsTool.ts`, its change
   `edit/facts.ts`), a stair between two floors (LVL-21, `stairTools.ts`, its changes `edit/stairs.ts`,
-  its rooms text line `packages/floorplan/src/rooms/stairs.ts`), fixtures and furniture added against a wall,
+  its rooms text line `packages/floorplan/src/rooms/stairs.ts`), the buildings of a site (LVL-23, `buildingTools.ts`, its change `edit/buildings.ts`) and one of them read back, written, added to, taken out and placed again (CMD-47, the changes in `edit/buildingEdits.ts`, its parts found by `edit/buildingParts.ts`), fixtures and furniture added against a wall,
   moved and taken out (CNT-45, `itemTools.ts`, its changes `edit/items.ts`, its rooms text line
   `packages/floorplan/src/rooms/items.ts`, which also moves an item with the wall it stands against), parking bays placed in rows and a ramp between two floors (CNT-46,
   `parkingTools.ts`, its changes `edit/parking.ts`, its rooms text lines `packages/floorplan/src/rooms/parking.ts`), the plot, north and the site's things (CNT-41, `siteTools.ts`, the changes in
