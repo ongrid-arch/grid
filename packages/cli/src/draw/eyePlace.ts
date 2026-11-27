@@ -133,7 +133,10 @@ export function itemAt(items: readonly { id: string; footprint: readonly Vec2[] 
  */
 export function clearOfItems(room: Pick<SurveyRoom, 'polygon' | 'holes'>, items: readonly { id: string; footprint: readonly Vec2[] }[], p: Vec2): Vec2 | null {
   if (itemAt(items, p) === null) return p
-  for (let r = CLEAR_STEP; r <= CLEAR_SEARCH + 1e-9; r += CLEAR_STEP) {
+  // Counted in whole steps, so no rounding of the radius can skip the last ring.
+  const rings = Math.round(CLEAR_SEARCH / CLEAR_STEP)
+  for (let ring = 1; ring <= rings; ring++) {
+    const r = ring * CLEAR_STEP
     for (let i = 0; i < CLEAR_DIRECTIONS; i++) {
       const a = (i * 360) / CLEAR_DIRECTIONS
       const q = { x: p.x + Math.sin(a * DEG) * r, y: p.y + Math.cos(a * DEG) * r }
