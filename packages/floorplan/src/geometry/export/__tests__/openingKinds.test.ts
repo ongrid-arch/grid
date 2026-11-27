@@ -49,15 +49,16 @@ describe('OBJ and GLB', () => {
     }
   })
 
-  it('draws the glass in a material of its own, seen through, and keeps one material when there is no glass', () => {
+  it('draws the glass in a material of its own, seen through, and writes none when there is no glass', () => {
     const glb = parseGlb(toGlb(buildScene(plan())))
     const materials = glb.json.materials as { name?: string; alphaMode?: string }[]
-    expect(materials).toHaveLength(2)
-    expect(materials[1]).toMatchObject({ name: 'glass', alphaMode: 'BLEND' })
     const glass = (glb.json.meshes as { name?: string; primitives: { material?: number }[] }[]).find((m) => m.name === 'glass_win')!
-    expect(glass.primitives[0]!.material).toBe(1)
+    expect(materials[glass.primitives[0]!.material!]).toMatchObject({ name: 'glass', alphaMode: 'BLEND' })
+    // VEW-73: every other material is its kind's, and none is seen through.
+    for (const material of materials) if (material.name !== 'glass') expect(material.alphaMode).toBeUndefined()
     const noWindow = { ...plan(), openings: [plan().openings[0]!] }
-    expect(parseGlb(toGlb(buildScene(noWindow))).json.materials).toHaveLength(1)
+    const left = parseGlb(toGlb(buildScene(noWindow))).json.materials as { name?: string }[]
+    expect(left.map((m) => m.name)).not.toContain('glass')
   })
 
   it('gives a pair two leaves, a sliding door two leaves in the wall, and a fixed window glass with no sash', () => {

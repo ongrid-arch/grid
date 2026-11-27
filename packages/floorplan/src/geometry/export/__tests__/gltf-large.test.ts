@@ -19,7 +19,9 @@ vi.mock('../mesh', async (original) => {
   return {
     ...real,
     floorMesh: () => ({
-      points: Array.from({ length: COUNT }, (_, i) => ({ x: i * 0.001, y: (i % 7) * 0.5, z: 0 })),
+      // VEW-73: round a circle, so every face of the fan faces up and the writer, which writes a
+      // point once per normal it carries, keeps one point each.
+      points: Array.from({ length: COUNT }, (_, i) => ({ x: 100 * Math.cos((2 * Math.PI * i) / COUNT), y: 100 * Math.sin((2 * Math.PI * i) / COUNT), z: 0 })),
       // A fan over every vertex, so indices 65,535 and above are all used.
       faces: Array.from({ length: COUNT - 2 }, (_, i) => [0, i + 1, i + 2] as const)
     })

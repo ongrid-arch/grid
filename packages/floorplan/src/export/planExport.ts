@@ -12,6 +12,9 @@
  *
  * LVL-8: opening patterns are expanded into plain openings before any format reads the plan.
  *
+ * VEW-73: OBJ and GLB may leave the roofs out (`roofs: false`) and write curved walls with a given
+ * number of pieces to a whole circle (`arcSegments`); an OBJ comes with its materials (`materials`).
+ *
  * HND-6: every export also says what it leaves out (`leftOut`), and the file says it too, each
  * format in its own way (see `geometry/export/leftOut.ts`). `empty` says the file holds nothing
  * of the plan: the library still writes it, and the command and the tool server refuse it.
@@ -19,7 +22,8 @@
 import type { FloorPlan } from '../types/floorplan'
 import type { ReadFault } from '../types/readParts'
 import { buildFloorPlan, buildScene, dxfFactsOf, dxfSheets, floorElevations, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toBuildingGlb, toBuildingObj, toDxfFloors, toIfc, withPatterns } from '../geometry'
-import type { StoreyScene } from '../geometry/export/obj'
+import { toMtl, type StoreyScene } from '../geometry/export/obj'
+import type { Scene3D } from '../geometry/scene3d'
 import type { DxfProfile } from '../geometry/export/dxfProfile'
 import type { DxfFloor, DxfOpeningFacts, DxfSheet } from '../geometry/export/dxf'
 import type { ApproximatedPart, Approximations, LeftOutPart } from '../geometry/export/leftOut'
@@ -70,6 +74,10 @@ export interface PlanExportOptions {
    * TYPE attributes and the IFC's Tag. Left out, an opening is marked by its id.
    */
   readonly openingMarks?: ReadonlyMap<string, { readonly mark: string; readonly type: string | null }>
+  /** VEW-73: OBJ and GLB: false leaves every roof and its parapet out. Left out, they are in. */
+  readonly roofs?: boolean
+  /** VEW-73: OBJ and GLB: the straight pieces a whole circle of curved wall is written with (`ARC_SEGMENTS_RANGE`). */
+  readonly arcSegments?: number
 }
 
 export interface PlanExport {
@@ -91,6 +99,8 @@ export interface PlanExport {
   readonly floorsLeftOut: readonly string[]
   /** VEW-72: a DXF's sheets, one per floor it holds: the scale, whether stated, and whether the floor fits. Empty for the other formats. */
   readonly sheets: readonly DxfSheet[]
+  /** VEW-73: an OBJ's materials, the text of `OBJ_MATERIALS_FILE`, to write beside it; null for the other formats. */
+  readonly materials: string | null
 }
 
 /** VEW-64: a floor an export holds, and where its floor level stands above the ground floor's. */
@@ -106,10 +116,12 @@ export interface HeldFloor {
  * slabs as pieces; the OBJ and the GLB are triangles, so their walls are flat facets and their
  * floors' outlines pieces.
  */
-function approximationsOf(plan: FloorPlan, format: ExportFormat, contents: ExportContents): Approximations {
+function approximationsOf(plan: FloorPlan, format: ExportFormat, contents: ExportContents, perCircle?: number): Approximations {
   const parts = format === 'dxf' ? contents.curved.rooms : [...contents.curved.walls, ...contents.curved.rooms]
   if (parts.length === 0) return { parts, off: 0 }
-  const off = Math.max(0, ...plan.walls.filter((wall) => wall.arc !== undefined).map(curveDeviation))
+  // VEW-73: measured at the pieces the walls are written with.
+  const pieces = format === 'obj' || format === 'glb' ? perCircle : undefined
+  const off = Math.max(0, ...plan.walls.filter((wall) => wall.arc !== undefined).map((wall) => curveDeviation(wall, pieces)))
   return { parts, off }
 }
 
@@ -148,10 +160,15 @@ function floorsUp(plan: FloorPlan): string[] {
  * root node moves it back (`nearOrigin`, `GlbOptions.origin`). The OBJ writes its numbers as
  * text and keeps them as they are.
  */
-function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean): { storeys: StoreyScene[]; origin: readonly [number, number] } {
+function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, asked: Pick<PlanExportOptions, 'roofs' | 'arcSegments'> = {}): { storeys: StoreyScene[]; origin: readonly [number, number] } {
   const moved = near ? nearOrigin(plan) : { plan, at: [0, 0] as const }
   const levels = floorElevations(moved.plan).floors
-  const storeys = floorIds.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0, scene: buildScene(planForFloor(moved.plan, id)) }))
+  const sceneOf = (id: string): Scene3D => {
+    const scene = buildScene(planForFloor(moved.plan, id), asked.arcSegments === undefined ? {} : { arcSegments: asked.arcSegments })
+    // VEW-73: roofs left out, and the parapets that stand on them.
+    return asked.roofs === false && scene.shell !== null ? { ...scene, shell: { ...scene.shell, roof: null, parapet: null } } : scene
+  }
+  const storeys = floorIds.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0, scene: sceneOf(id) }))
   return { storeys, origin: moved.at }
 }
 
@@ -168,7 +185,7 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
     const data = toIfc(plan, { projectId: options.projectId, projectName: plan.name ?? plan.title ?? options.projectName, timestamp: options.now, leftOut: contents.leftOut, approximations, ...marks })
     const levels = floorElevations(ordered).floors
     const floors = floorsUp(ordered).map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
-    return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut: [], sheets: [] }
+    return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut: [], sheets: [], materials: null }
   }
 
   // VEW-64: OBJ and GLB hold every floor unless one is named; VEW-72: and so does DXF, each floor
@@ -178,7 +195,7 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const allFloors = floorsUp(ordered)
   const held = whole ? allFloors : [floorId]
   const contents = exportContents(ordered, held, options.faults)
-  const approximations = approximationsOf(ordered, format, contents)
+  const approximations = approximationsOf(ordered, format, contents, options.arcSegments)
   const note = { leftOut: contents.leftOut, approximations }
   let data: string | Uint8Array
   let floors: HeldFloor[]
@@ -205,7 +222,7 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
     sheets = dxfSheets(dxfFloors, scale)
     floors = held.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
   } else {
-    const { storeys, origin } = storeysOf(ordered, held, format === 'glb')
+    const { storeys, origin } = storeysOf(ordered, held, format === 'glb', options)
     data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor' })
     floors = storeys.map(({ id, elevation }) => ({ id, elevation }))
   }
@@ -214,5 +231,5 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const planFloorList = planFloors(plan)
   const floor = planFloorList.find((f) => f.id === floorId)
   const floorName = !whole && planFloorList.length > 1 ? (floor?.name || floorId) : null
-  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut, sheets }
+  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut, sheets, materials: format === 'obj' ? toMtl() : null }
 }

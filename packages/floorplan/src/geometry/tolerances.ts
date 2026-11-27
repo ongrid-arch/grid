@@ -1080,6 +1080,15 @@ export const TOLERANCES = {
       'two panes are drawn on a plan drawn in detail (SHT-10). It only draws the model and the plan.',
     basis: own
   },
+  floorLift: {
+    kind: 'limit',
+    value: 0.005,
+    unit: 'm',
+    decides:
+      'How far a room\'s floor is raised above the slab it stands on in an OBJ or GLB (VEW-73), so ' +
+      'the two never share a plane and flicker in a viewer. It only draws the model.',
+    basis: own
+  },
   sillProjection: {
     kind: 'limit',
     value: 0.03,
