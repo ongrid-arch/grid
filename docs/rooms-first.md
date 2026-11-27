@@ -549,6 +549,11 @@ refused by the check with its own code, `room/derived-edited`. Grid's own edits 
 Change the rooms and write them again, or take `written` out to keep the plan as a hand-written
 one.
 
+The write answer states the drawing origin on every floor and locates the lower-left
+corner of the wall centre-line bounds relative to it. A `site origin x,y` line records
+a reference point for exports at survey coordinates. Use the rooms' placement and
+outline coordinates to place the drawing relative to `(0, 0)`.
+
 ## The whole grammar
 
 Every line rooms text takes, by topic, each with one example Grid writes with no problem. The tool server serves this section as `grid://guide/rooms` and carries it in the `rooms` argument of `grid_write_rooms`; it is written once, and a test holds the two equal.
@@ -806,11 +811,6 @@ ramp h "Helix" from b1 to g in spiral, 3.5 wide, helix, turns 1
 ### Site
 
 plot <width> x <depth> [at x,y] (its south-west corner; centred on the building when left out) or site boundary x,y x,y x,y ... writes the plot; street <north|south|east|west|edge n> names the edges on a street, by the side of the drawing they face; setback <all|street|side|edge n> <m> [assumed] the person's own set-backs; north <degrees> (counter-clockwise from up the drawing, or <degrees> clockwise) or north <up|left|up-right|...> where the arrow points. site origin x,y, site location <latitude>,<longitude>, site elevation <m> and site country <name> say where it is; site address "<address>" and site name "<name>" keep the site's address and its own name as written, never looked up (CNT-50). ground <m> (or ground <m> below|above) is the ground outside, in metres from the ground floor's floor level, the level the sections, the 3D ground and the below-ground check read: ground -0.15 for a floor 15 cm above the ground. plinth <m> says the same from the other side: the ground floor stands that far above the ground outside, a plinth or a raised floor (plinth 0.6 is ground -0.6). On a slope (CNT-49), ground north 0 south -4.6 gives the ground at the building's sides, ground slope 30% toward south (or slope 30% toward south) a fall through the ground level at the middle of the building, and ground edge 1 0 to -3 the ground along an edge of the plot, a falling street; every check and picture reads the ground at each wall. site <kind> [<id>] <at x,y | points> [width <m>] [canopy <m>] [height <m>] ["<label>"] is one of the site's things, drawn only, its kind one grid_change_site lists: a tree, paving, a pool, a fence, a gate, or a walk, drive or jetty with its width, never a room. grid_set_site and grid_change_site write the same.
-
-The write answer states the drawing origin on every floor and locates the lower-left
-corner of the wall centre-line bounds relative to it. A `site origin x,y` line records
-a reference point for exports at survey coordinates. Use the rooms' placement and
-outline coordinates to place the drawing relative to `(0, 0)`.
 
 ```rooms
 room house "House" living 8.0 x 9.0 at 0,0
