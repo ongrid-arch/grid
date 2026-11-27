@@ -86,7 +86,7 @@ answer lists them under it. Grid knows five sizes, all in metres, four site limi
 | Figure | Measured as | Short of it |
 |---|---|---|
 | `door_width` | the clear width every door and doorless opening leaves, leaf by leaf, as `grid_measure what=access` gives it; with `measure`, `leaf` (the leaf it opens by) or `hole` (the hole in the wall) instead | narrower |
-| `corridor_width` | each room used as a corridor at its narrowest point from end to end, clear of fixtures, the figure `grid_measure what=access` gives; the line says where it is | less |
+| `corridor_width` | each room used as a corridor at its narrowest point from end to end, clear of fixtures, the figure `grid_measure what=access` gives, with a line saying where it is and whether it meets the figure for each measured corridor | less |
 | `turning_circle` | the widest circle each room holds, in the empty room; `rooms` names the rooms it is for, every room when left out | less |
 | `step` | the sill of every door and doorless opening above its floor; 0 for none | higher |
 | `ceiling_height` | each room's height, as `grid_measure` gives it | lower |
@@ -117,6 +117,9 @@ with the reason. Grid brings no limit of its own, and no line says a plan is all
 clear width past its leaf), `corridor_width` (by a corridor's narrowest point), `turning_circle`
 and `step`, and says each as "your figure" (CNT-17,
 [the tool server](tool-server.md#accessibility-measurements-as-numbers)).
+
+When Grid finds no two ends of a corridor, both the brief and the access measure give the widest
+circle it holds and say why.
 
 A door is judged by one rule wherever a figure meets it (ARE-27): the brief's lines,
 `grid_measure what=access`, a firm's `door_clear_width` and `grid check` read the same width, and

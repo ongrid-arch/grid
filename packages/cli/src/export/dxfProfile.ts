@@ -22,8 +22,12 @@ export class DxfProfileRefused extends Error {
   override readonly name = 'DxfProfileRefused'
 }
 
-/** The project's profile and its file, or null when the project has none. */
-export function projectDxfProfile(project: Project): { readonly profile: DxfProfile; readonly file: string } | null {
+/**
+ * The project's profile and its file, or null when the project has none. VEW-72: `scaleStated`
+ * says whether the file states its scale; one that does not leaves the DXF to the largest
+ * standard scale the plan fits at.
+ */
+export function projectDxfProfile(project: Project): { readonly profile: DxfProfile; readonly file: string; readonly scaleStated: boolean } | null {
   const file = path.join(project.folder, DXF_PROFILE_FILE)
   const refuse = (why: string): never => {
     throw new DxfProfileRefused(`${DXF_PROFILE_FILE} in the project folder ${why}. Fix it, or move it away to use Grid's own layers; no file was written.`)
@@ -47,5 +51,6 @@ export function projectDxfProfile(project: Project): { readonly profile: DxfProf
   }
   const reading = readDxfProfile(value)
   if ('problems' in reading) return refuse(`is not a profile Grid can use: ${reading.problems.join('; ')}`)
-  return { profile: reading.profile, file: project.relative(read.real) }
+  const scaleStated = typeof value === 'object' && value !== null && Object.hasOwn(value, 'scale')
+  return { profile: reading.profile, file: project.relative(read.real), scaleStated }
 }

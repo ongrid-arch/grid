@@ -40,10 +40,12 @@ describe('the floor taken when none is named', () => {
     expect(plain).not.toBe(await drawPlan(house, { format: 'svg', floor: 'basement' }))
   })
 
-  it('exports the ground floor, and the basement when it is named', () => {
-    expect(dxf().data).toBe(dxf('ground').data)
-    expect(dxf().data).not.toBe(dxf('basement').data)
-    expect(dxf().fileName).toBe(dxf('ground').fileName)
+  // VEW-72: a DXF with no floor named holds every floor, lowest first; a floor named is that floor alone.
+  it('exports every floor, and the basement alone when it is named', () => {
+    expect(dxf().floors.map((floor) => floor.id)).toEqual(['basement', 'ground'])
+    expect(dxf('basement').floors.map((floor) => floor.id)).toEqual(['basement'])
+    expect(dxf('ground').data).not.toBe(dxf('basement').data)
+    expect(dxf().fileName).toBe('house.dxf')
   })
 
   describe('the brief\'s footprint', () => {

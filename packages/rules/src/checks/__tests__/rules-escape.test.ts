@@ -370,13 +370,54 @@ describe('ARE-19 an opening below the ground is not a way out', () => {
     expect(escapes(dug([win('o1', 1.0, 1.2, 0.2), win('o2', 1.0, 1.2, 0.9, 1.8)], 0.5))).toEqual([])
   })
 
-  it('is counted when a drawn outdoor space, a light well, is in front of it', () => {
+  const withWell = (floorOffset: number): FloorPlan => {
     const plan = dug([good], 3, true)
-    // The wall to the well is stated interior, so the below-ground check may not name it at all;
-    // make it exterior so both checks read it, and the well alone keeps it counted.
-    const exterior = { ...plan, walls: plan.walls.map((w) => (w.id === 'b-w0' ? { ...w, kind: 'exterior' as const } : w)) }
-    expect(openingsBelowGround(exterior).map((o) => o.opening)).toEqual(['o1'])
-    expect(escapes(exterior)).toEqual([])
+    return {
+      ...plan,
+      walls: plan.walls.map((w) => (w.id === 'b-w0' ? { ...w, kind: 'exterior' } : w)),
+      rooms: plan.rooms.map((r) => (r.id === 'h' ? { ...r, floorOffset } : r))
+    }
+  }
+
+  it('counts a window when the light well floor reaches its sill', () => {
+    const plan = withWell(good.sill)
+    expect(openingsBelowGround(plan).map((o) => o.opening)).toEqual(['o1'])
+    expect(inspectPlan(plan).lines.some((line) => line.code === 'opening/below-ground')).toBe(false)
+    expect(escapes(plan)).toEqual([])
+  })
+
+  it('excludes a window when the light well floor stands above its sill', () => {
+    const plan = withWell(1.1)
+    const lines = inspectPlan(plan).lines
+    const below = lines.find((line) => line.code === 'opening/below-ground')
+    expect(below?.thing.id).toBe('o1')
+    expect(lines.find((line) => line.code === 'room/no-escape-opening')).toMatchObject({
+      thing: { kind: 'room', id: 'b' },
+      also: ['o1'],
+      found: 'its outside openings lie below the ground level the site states: see the note on each'
+    })
+  })
+
+  it('counts a door that the below-ground check clears at the foot of a ramp', () => {
+    const plan = dug([door('out')], 1.2)
+    plan.floors!.push({ id: 'up', name: 'Upper floor', level: 3 })
+    plan.ramps = [{ id: 'ramp', from: 'f', to: 'up', width: 1, run: [[2.35, -0.1], [2.35, -10]] }]
+    expect(openingsBelowGround(plan).map((o) => o.opening)).toEqual(['out'])
+    expect(checkLocalRules(plan).findings.some((f) => f.code === 'opening_below_ground')).toBe(false)
+    expect(escapes(plan)).toEqual([])
+  })
+
+  it('excludes an uphill window and counts the same window on the downhill wall', () => {
+    const plan = dug([good], null)
+    plan.site = { ...plan.site, groundSides: { north: 5.9, south: 0 } }
+    plan.openings[0]!.wall = 'b-w2'
+    const lines = inspectPlan(plan).lines
+    expect(lines.find((line) => line.code === 'opening/below-ground')?.message).toContain('its top is 3.80 m under the ground')
+    expect(lines.find((line) => line.code === 'room/no-escape-opening')?.also).toEqual(['o1'])
+
+    plan.openings.push({ ...good, id: 'o2', wall: 'b-w0' })
+    expect(checkLocalRules(plan).findings.filter((f) => f.code === 'opening_below_ground').flatMap((f) => f.openings)).toEqual(['o1'])
+    expect(escapes(plan)).toEqual([])
   })
 
   it('says the same in the result line, which names the note on the opening', () => {

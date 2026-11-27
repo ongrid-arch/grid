@@ -46,7 +46,7 @@ import { recorded } from '../versions/history'
 import { MARKERS_MAX, MarkerRefused } from '../versions/markers'
 import { GitUnread } from '../versions/git'
 import { checkDrawRequest, DRAW_OPTIONS, drawFormat, drawFile, drawsPng, PNG_TO_TERMINAL, undecidedNote } from './draw'
-import { approximatedText, checkExportRequest, dxfProfileLine, EXPORT_OPTIONS, exportFile, exportIntoProject, ExportWriteFailed, floorsText, leftOutText } from './export'
+import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, emptyFloorsText, EXPORT_OPTIONS, exportFile, exportsIntoProject, ExportWriteFailed, floorsText, leftOutText, sheetsText } from './export'
 import { DxfProfileRefused } from '../export/dxfProfile'
 import type { LeftOutPart } from '@ongrid/floorplan/export'
 import { INIT_OPTIONS, initFolder, initProject, InitRefused, initText, PROJECT_FILE, PROJECT_PLAN, projectPlanFile, missingDefaultPlan } from './init'
@@ -626,20 +626,28 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     return EXIT_OK
   }
 
-  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date') }
+  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date'), scale: textOf(parsed, '--scale') }
   const format = checkExportRequest(request)
   const project = openProject(projectOption, io.cwd)
   if (request.out === undefined) {
-    const done = exportIntoProject(project, planFile, format, request)
-    warnLeftOut(io, done.loaded, done.leftOut)
-    // VEW-64: which floors the file holds, and which it does not.
-    const held = floorsText(done, format)
-    if (held !== null) io.stderr(`${held}\n`)
-    const curves = approximatedText(done.approximated)
-    if (curves !== null) io.stderr(`${curves}\n`)
-    if (done.note) io.stderr(`${done.note}\n`)
-    if (done.dxfProfile !== null) io.stderr(`${dxfProfileLine(done.dxfProfile)}\n`)
-    io.stdout(`Wrote ${project.shown(done.written)}\n`)
+    // VEW-72: one file, or with --floor all one per floor.
+    const { done: files, empty } = exportsIntoProject(project, planFile, format, request)
+    for (const done of files) {
+      warnLeftOut(io, done.loaded, done.leftOut)
+      // VEW-64: which floors the file holds, and which it does not; a file of each floor asked for says neither.
+      const held = request.floor === ALL_FLOORS && files.length > 1 ? null : floorsText(done, format)
+      if (held !== null) io.stderr(`${held}\n`)
+      // VEW-72: a DXF's scale, and a floor that does not fit at it.
+      const sheets = sheetsText(done.sheets)
+      if (sheets !== null) io.stderr(`${sheets}\n`)
+      const curves = approximatedText(done.approximated)
+      if (curves !== null) io.stderr(`${curves}\n`)
+      if (done.note) io.stderr(`${done.note}\n`)
+      if (done.dxfProfile !== null) io.stderr(`${dxfProfileLine(done.dxfProfile)}\n`)
+      io.stdout(`Wrote ${project.shown(done.written)}\n`)
+    }
+    const nothing = emptyFloorsText(empty)
+    if (nothing !== null) io.stderr(`${nothing}\n`)
     return EXIT_OK
   }
   const loaded = loadPlan(project, planFile)
@@ -647,6 +655,8 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   warnLeftOut(io, loaded, made.leftOut)
   const held = floorsText(made, format)
   if (held !== null) io.stderr(`${held}\n`)
+  const sheets = sheetsText(made.sheets)
+  if (sheets !== null) io.stderr(`${sheets}\n`)
   const curves = approximatedText(made.approximated)
   if (curves !== null) io.stderr(`${curves}\n`)
   if (made.dxfProfile !== null) io.stderr(`${dxfProfileLine(made.dxfProfile)}\n`)

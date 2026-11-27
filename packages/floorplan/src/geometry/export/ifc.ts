@@ -110,6 +110,11 @@ export interface IfcOptions {
    * `Grid_Approximated`. None, and the file is as it was.
    */
   readonly approximations?: Approximations
+  /**
+   * VEW-72: each door's and window's mark in the schedules (`D1`, `W1`), by opening id, written as
+   * its Tag, as the DXF's MARK attribute writes it. An opening not here is tagged by its id.
+   */
+  readonly marks?: ReadonlyMap<string, string>
 }
 
 /** The project identity used when the caller supplies none. */
@@ -379,6 +384,8 @@ interface Context {
   readonly phaseOf: ReadonlyMap<string, Phase>
   /** CNT-10: the elements whose part has a phase, in the order they were written (`writePhases`). */
   readonly phases: PhaseOn[]
+  /** VEW-72: each door's and window's mark, its Tag, by opening id. */
+  readonly marks: ReadonlyMap<string, string>
 }
 
 /** CNT-10: an element and its part's phase. */
@@ -1212,11 +1219,13 @@ function doorOperation(opening: Opening): DoorOperation | null {
 }
 
 const HANDING_WORDS: Record<DoorOperation | 'NOTDEFINED', string> = {
-  SINGLE_SWING_LEFT: 'single swing, left',
-  SINGLE_SWING_RIGHT: 'single swing, right',
+  // VEW-72: in Grid's one convention (`doorHand`): IFC's left, looking the way the door opens, is
+  // the right hand seen from the side it opens toward.
+  SINGLE_SWING_LEFT: 'single swing, right hand',
+  SINGLE_SWING_RIGHT: 'single swing, left hand',
   DOUBLE_DOOR_SINGLE_SWING: 'double, single swing',
-  FOLDING_TO_LEFT: 'folding, to the left',
-  FOLDING_TO_RIGHT: 'folding, to the right',
+  FOLDING_TO_LEFT: 'folding, right hand',
+  FOLDING_TO_RIGHT: 'folding, left hand',
   SLIDING_TO_LEFT: 'pocket, sliding to the left',
   SLIDING_TO_RIGHT: 'pocket, sliding to the right',
   DOUBLE_DOOR_SLIDING: 'sliding, two leaves',
@@ -1309,7 +1318,8 @@ function writeOpeningStyles(c: Context): void {
   )
   for (const [key, entry] of entries) {
     const tag = entry.named === null ? styleTag(entry.type, entry.kind, entry.width, entry.height) : `${entry.type}-type:${entry.named.id}`
-    const note = entry.named === null ? STYLE_NOTE : NAMED_STYLE_NOTE
+    // VEW-72: a door type's note names the hand's convention and how IFC's operation reads it.
+    const note = `${entry.named === null ? STYLE_NOTE : NAMED_STYLE_NOTE}${entry.type === 'door' ? ` ${english(said('handing.convention'))} ${english(said('handing.ifc'))}` : ''}`
     const style =
       entry.type === 'door'
         ? // IfcDoorStyle: GlobalId, OwnerHistory, Name, Description, ApplicableOccurrence,
@@ -1459,7 +1469,7 @@ function writeOpening(c: Context, element: WallElement, opening: Opening): numbe
     NULL,
     ref(fillerPlacement),
     ref(fillerShape),
-    str(opening.id),
+    str(c.marks.get(opening.id) ?? opening.id),
     real(opening.height),
     real(width)
   )
@@ -2532,7 +2542,8 @@ function buildDocument(given: FloorPlan, options: IfcOptions): string {
     issuer,
     facts: [],
     phaseOf: partPhases(plan),
-    phases: []
+    phases: [],
+    marks: options.marks ?? new Map()
   }
 
   // The fixed entities (project, site, building) use their own kind as the id.
