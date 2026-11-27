@@ -270,3 +270,38 @@ describe('a curved wall in every language (MSG-11 with CNT-18)', () => {
     expect(reply.text).toContain('en curva de 180° en sentido antihorario en torno a 2; 3 (radio 2, 6,28 a lo largo de la curva)')
   })
 })
+
+// WRT-82: a write that leaves a curved wall whose sweep misses its end names it, and the sweep that reaches it.
+describe('a curved raw wall written with the wrong sweep (WRT-82)', () => {
+  const b = bench({})
+  afterAll(() => b.close())
+
+  it('lists the new problem by code and wall, with the sweep that reaches the end', async () => {
+    const a = (102.68 * Math.PI) / 180
+    const end = [Number((10 * Math.cos(a)).toFixed(6)), Number((10 * Math.sin(a)).toFixed(6))]
+    const rooms = [
+      'walls outside 0.3 inside 0.1 height 3',
+      'room hall "Hall" living 5 x 4 at 30,0',
+      `raw wall {"id": "sweep", "start": [10, 0], "end": [${end.join(', ')}], "thickness": 0.2, "height": 3, "kind": "exterior", "arc": {"centre": [0, 0], "sweep": -102.68}}`,
+    ].join('\n')
+    const reply = await b.call('grid_write_rooms', { plan: 'plan.json', rooms })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.text).toMatch(/New in the drawing: wall\/arc-ends-apart on "sweep": .*The sweep that reaches its end is \+102\.68 /)
+    const problems = reply.data!['drawingProblems'] as { new: Array<{ code: string; id: string }> }
+    expect(problems.new).toContainEqual(expect.objectContaining({ code: 'wall/arc-ends-apart', id: 'sweep' }))
+  })
+
+  it('writes a curve given through a point as its centre and sweep, and says them', async () => {
+    const rooms = [
+      'walls outside 0.3 inside 0.1 height 3',
+      'room hall "Hall" living 5 x 4 at 30,0',
+      'raw wall {"id": "bow", "start": [10, 0], "end": [16, 0], "thickness": 0.2, "height": 3, "kind": "exterior", "arc": {"through": [13, -3]}}',
+    ].join('\n')
+    const reply = await b.call('grid_write_rooms', { plan: 'bow.json', rooms })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.text).toMatch(/raw wall 'bow' curves round 13,0 turning \+180 degrees/)
+    const written = JSON.parse(readFileSync(join(b.folder, 'bow.json'), 'utf8')) as { walls: Array<{ id: string; arc?: unknown }> }
+    expect(written.walls.find((w) => w.id === 'bow')!.arc).toEqual({ centre: [13, 0], sweep: 180 })
+    expect(reply.text).not.toMatch(/New in the drawing/)
+  })
+})
