@@ -65,7 +65,9 @@ describe('T-9: what held', () => {
       if (format === 'dxf' || format === 'ifc') expect(out, format).not.toMatch(/[\u0001\u000c]/)
       if (format === 'obj' || format === 'glb') {
         expect(out, format).not.toContain('<script>')
-        expect(out.split('\n').some((line) => line.startsWith('mtllib') || line.startsWith('v 9 9 9')), format).toBe(false)
+        expect(out.split('\n').some((line) => line.startsWith('v 9 9 9')), format).toBe(false)
+        // VEW-73: the one materials line is Grid's own, never one a name forged.
+        expect(out.split('\n').filter((line) => line.startsWith('mtllib')), format).toEqual(format === 'obj' ? ['mtllib grid.mtl'] : [])
       }
       if (format === 'ifc') {
         const ends = (ifc: string): number => ifc.split('\n').filter((line) => line === 'ENDSEC;').length

@@ -242,8 +242,8 @@ describe('exports and --out land only under the project', () => {
 
   it('with the folder Grid runs in as the project', () => {
     const run = grid(['export', 'plans/flat.json', '--format', 'obj'])
-    expect([run.status, run.err, run.out]).toEqual([0, '', `Wrote ${join('plans', 'exports', 'flat.obj')}\n`])
-    expect(tree(join(project, 'plans'))).toEqual(['.gitignore', 'exports/flat.obj', 'flat.json'])
+    expect([run.status, run.err, run.out]).toEqual([0, '', `Wrote ${join('plans', 'exports', 'flat.obj')}\nWrote ${join('plans', 'exports', 'grid.mtl')}\n`])
+    expect(tree(join(project, 'plans'))).toEqual(['.gitignore', 'exports/flat.obj', 'exports/grid.mtl', 'flat.json'])
   })
 
   it('and never outside it, by .. or by an absolute path', () => {
@@ -336,7 +336,7 @@ describe('export names from the plan file (T-4) and from inside the plan (T-1)',
     expect(run.out).toBe(`Wrote ${join('exports', 'house-floor-2.dxf')}\n`)
     const [answer] = await serve([{ plan: 'house.json', format: 'obj', floor: 'ground' }])
     expect(answer).toEqual({
-      text: 'General guidance, not your local rules\nWrote "exports/house-ground.obj" in the project folder.\n'
+      text: 'General guidance, not your local rules\nWrote "exports/house-ground.obj" in the project folder.\nWrote "exports/grid.mtl" in the project folder.\n'
         + 'Holds floor "ground" only, written at its elevation, 0.00 m; the other floor is not in this file: leave the floor out to export the whole building.',
       isError: false
     })

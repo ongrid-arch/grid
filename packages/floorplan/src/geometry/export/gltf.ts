@@ -266,19 +266,22 @@ function flatMesh(mesh: Mesh): FlatMesh {
   const uvs: (readonly [number, number])[] = []
   const indices: number[] = []
   const seen = new Map<string, number>()
+  // Normals and UVs are worked out from the points as stored, 32 bits each, so two meshes whose
+  // stored points are the same give the same file, whatever their last digits were.
+  const stored = mesh.points.map((p) => ({ x: Math.fround(p.x), y: Math.fround(p.y), z: Math.fround(p.z) }))
   for (const face of mesh.faces) {
-    const [a, b, c] = face.map((i) => mesh.points[i]!) as [Vec3, Vec3, Vec3]
+    const [a, b, c] = face.map((i) => stored[i]!) as [Vec3, Vec3, Vec3]
     const n = faceNormal(a, b, c)
-    // Faces of one plane share their points: their normals agree to the millionth, whatever
-    // rounding the plane's turn gave each face.
-    const key = yUp(n).map((c) => Math.round(c * 1e6)).join(',')
+    // Faces of one plane share their points: their normals agree to the ten-thousandth, whatever
+    // the 32-bit rounding of their points gave each face.
+    const key = yUp(n).map((c) => Math.round(c * 1e4)).join(',')
     for (const i of face) {
       const at = `${i}|${key}`
       let k = seen.get(at)
       if (k === undefined) {
         k = positions.length
         seen.set(at, k)
-        const p = mesh.points[i]!
+        const p = stored[i]!
         positions.push(yUp(p))
         normals.push(yUp(n))
         uvs.push(boxUv(p, n))

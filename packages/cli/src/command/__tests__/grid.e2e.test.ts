@@ -97,12 +97,14 @@ describe('grid export: writing into exports/ beside the plan', () => {
     const run = grid('export', 'two-bed-flat.json', '--format', format)
     expect(run.err).toBe('')
     expect(run.status).toBe(0)
-    expect(run.out).toBe(`Wrote ${join('exports', `two-bed-flat.${format}`)}\n`)
+    // VEW-73: an OBJ's materials, beside it.
+    const mtl = format === 'obj' ? `Wrote ${join('exports', 'grid.mtl')}\n` : ''
+    expect(run.out).toBe(`Wrote ${join('exports', `two-bed-flat.${format}`)}\n${mtl}`)
     const data = readFileSync(join(dir, 'exports', `two-bed-flat.${format}`))
     expect(data.length).toBeGreaterThan(100)
     looksRight(data)
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('exports/\n')
-    expect(filesIn(join(dir, 'exports'))).toEqual([`two-bed-flat.${format}`])
+    expect(filesIn(join(dir, 'exports'))).toEqual(format === 'obj' ? ['grid.mtl', 'two-bed-flat.obj'] : [`two-bed-flat.${format}`])
   })
 
   it('replaces an earlier copy, leaves no temporary file, and adds the ignore line once', () => {
@@ -112,7 +114,7 @@ describe('grid export: writing into exports/ beside the plan', () => {
     expect(grid('export', 'two-bed-flat.json', '--format', 'obj').status).toBe(0)
     expect(grid('export', 'two-bed-flat.json', '--format', 'obj').status).toBe(0)
     expect(readFileSync(join(dir, 'exports', 'two-bed-flat.obj'), 'utf8')).not.toBe('old')
-    expect(filesIn(join(dir, 'exports'))).toEqual(['two-bed-flat.obj'])
+    expect(filesIn(join(dir, 'exports'))).toEqual(['grid.mtl', 'two-bed-flat.obj'])
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('node_modules/\nexports/\n')
   })
 
