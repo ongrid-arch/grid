@@ -191,6 +191,7 @@ import { readRowLine, ROW_LINE_WORDS } from './rows'
 import { NOTE_LINE_WORDS, NoteLines } from './notes'
 import { BASE_LINE_WORDS, BaseLine, restOnBase, type BasePlan } from './base'
 import { edgeWords, mirroredSide, OPEN_SIDES, outdoorWordKind, outsideEdge, type EdgeWord } from './edges'
+import { countedLabel, hasLevelMark, withLevel } from './levels'
 import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
 import { PARKING_LINE_WORDS, ParkingLines } from './parking'
 import { isRooflightLine, ROOF_LINE_WORDS, RoofLines, roofOfWords, rooflightOfWords } from './roofs'
@@ -643,6 +644,12 @@ interface FloorDraft {
   copied: { from: string; openings: boolean } | null
   rooms: Map<string, RoomDraft>
   inst: Map<string, string[]>
+  /**
+   * LVL-25: the placements whose label was written with the floor's level (`{level}01`): the label
+   * as written, its place in its row, the row's count and its openings' ids, so a copy of the floor
+   * numbers them by its own level.
+   */
+  labels: Map<string, LevelLabel>
   between: Map<string, WallSay>
   /** What the text says about one of several walls two rooms share: keyed by the pair, a room and its side. */
   betweenSide: Map<string, WallSay>
@@ -662,6 +669,14 @@ interface FloorDraft {
   rule: WallsRule
   /** WRT-55: the rows of units repeated on this floor, so a room placed beside one is held to it. */
   rows: Array<{ line: number; unit: string; count: number; d: string; rooms: RoomDraft[]; fill: number | null }>
+}
+
+/** LVL-25: a placement's label as written, before its count and its floor's level fill it. */
+interface LevelLabel {
+  readonly written: string
+  readonly k: number
+  readonly count: number
+  readonly openings: readonly string[]
 }
 
 /** WRT-47: a walls line's figures, and the line that stated them (null for Grid's own). */
@@ -2543,9 +2558,10 @@ class Compiler {
     })
   }
 
-  private placeUnit(name: string, label: string, place: UnitPlace, params: Map<string, string>, mx: boolean, my: boolean, at: number): void {
+  private placeUnit(name: string, label: string, place: UnitPlace, params: Map<string, string>, mx: boolean, my: boolean, at: number, written: Omit<LevelLabel, 'openings'> | null = null): void {
     const fl = this.floor()
-    if (fl.inst.has(label) || fl.rooms.has(label)) this.stop('rooms/duplicate-id', at, `line ${at}: the label '${label}' is already used on this floor.`)
+    // LVL-25: a label is not a room's id: only another placement's label is taken.
+    if (fl.inst.has(label)) this.stop('rooms/duplicate-id', at, `line ${at}: the label '${label}' is already used on this floor.`)
     const ctx: PlaceCtx = { local: new Map(), mx, my }
     const pending: OpeningLine[] = []
     const lines = this.expand(name, label, params, mx, my, at)
@@ -2608,6 +2624,7 @@ class Compiler {
       this.addRoom(r, null)
     }
     fl.inst.set(label, rooms.map((r) => r.id))
+    if (written !== null && hasLevelMark(written.written)) fl.labels.set(label, { ...written, openings: pending.map((o) => o.words[1]!) })
     // CNT-4: a placement of a flat type is a flat, mirrored when it is placed mirrored (WRT-4).
     if (this.flatTypes.has(name)) fl.flats.push({ label, unit: name, mirrored: mx !== my, rooms })
     fl.openings.push(...pending)
@@ -2706,7 +2723,8 @@ class Compiler {
   private stPlace(t: string[], at: number): void {
     if (t.length < 4 || t[2] !== 'as') this.stop('rooms/syntax', at, `line ${at}: write 'place <unit> as <label> <where> [mirror east-west] [name=value]'.`)
     const { place, params, mx, my } = this.readPlace(t.slice(4), at)
-    this.placeUnit(t[1]!, t[3]!, place, params, mx, my, at)
+    // LVL-25: `{level}` in the label is the floor's level.
+    this.placeUnit(t[1]!, withLevel(t[3]!, this.floor().level), place, params, mx, my, at, { written: t[3]!, k: 0, count: 1 })
   }
 
   /**
@@ -2755,14 +2773,14 @@ class Compiler {
     }
     const labels: string[] = []
     // WRT-55: a label counts from its digits and keeps their width (001, 002; A01, A02); one with none takes a number after it.
-    const digits = /^(.*?)(\d+)$/.exec(label)
+    // LVL-25: counted as written, then `{level}` filled with the floor's level ({level}01, {level}02: 101, 102).
     for (let k = 0; k < n; k++) {
-      const lab = digits !== null ? `${digits[1]}${String(Number(digits[2]) + k).padStart(digits[2]!.length, '0')}` : n > 1 ? `${label}${k + 1}` : label
+      const lab = withLevel(countedLabel(label, k, n), this.floor().level)
       const settings = new Map(params)
       if (k === 0) for (const [key, value] of ends.first) settings.set(key, value)
       if (k === n - 1) for (const [key, value] of ends.last) settings.set(key, value)
       const where: UnitPlace = named ? { ...place, dir: d, ref: ref! } : k === 0 ? place : { dir: d, ref: ref!, ...(place.gap === undefined ? {} : { gap: place.gap }), ...(place.openSides === undefined ? {} : { openSides: place.openSides }) }
-      this.placeUnit(t[1]!, lab, where, settings, mx, my, at)
+      this.placeUnit(t[1]!, lab, where, settings, mx, my, at, { written: label, k, count: n })
       labels.push(lab)
       ref = lab
     }
@@ -2840,7 +2858,7 @@ class Compiler {
 
   private stCopy(t: string[], at: number, nth: { words: CopyWords; k: number; about: P } | null = null): void {
     if (t.length < 2) this.stop('rooms/syntax', at, `line ${at}: write 'copy <floor id> [with openings]', on a line of its own or at the end of the floor line.`)
-    const src = this.floors.find((f) => f.id === t[1])
+    const src = this.floorNamed(t[1]!)
     if (!src) this.stop('rooms/unknown-floor', at, `line ${at}: there is no floor '${t[1]}'. Floors so far: ${this.floors.map((f) => f.id).join(', ')}.`)
     const fl = this.floor()
     if (fl === src) this.stop('rooms/syntax', at, `line ${at}: a floor cannot copy itself. Start the new floor with a 'floor' line first.`)
@@ -2887,7 +2905,48 @@ class Compiler {
         fl.openings.push({ words: tr === null ? o.words : turnedOpeningWords(o.words, polys, tr), line: o.line, ...(o.name === undefined ? {} : { name: o.name }) })
       }
     }
+    this.renumbered(src, fl)
     fl.copied = { from: src.id, openings: words.openings }
+  }
+
+  /** LVL-25: a floor by its id, else by its one name (`copy "First floor"`), in any capitals. */
+  private floorNamed(word: string): FloorDraft | undefined {
+    const byId = this.floors.find((f) => f.id === word)
+    if (byId !== undefined) return byId
+    const fold = (text: string): string => text.trim().replace(/\s+/g, ' ').toLowerCase()
+    const named = this.floors.filter((f) => fold(f.name) === fold(word))
+    return named.length === 1 ? named[0] : undefined
+  }
+
+  /**
+   * LVL-25: a copy numbers by its own level what its floor numbered by a level: each label written
+   * with `{level}`, the ids made from it (`room-101` is `room-201`), its rooms' and openings' names
+   * and its flats. A label written without one is kept, and a room that rose through is not renamed.
+   */
+  private renumbered(src: FloorDraft, fl: FloorDraft): void {
+    const labels = new Map<string, string>()
+    const rooms = new Map<string, string>()
+    const openings = new Map<string, string>()
+    for (const [label, spec] of src.labels) {
+      const fresh = withLevel(countedLabel(spec.written, spec.k, spec.count), fl.level)
+      const swap = (id: string): string => (id.endsWith(`-${label}`) ? `${id.slice(0, id.length - label.length)}${fresh}` : id)
+      fl.labels.set(fresh, { ...spec, openings: spec.openings.map(swap) })
+      if (fresh === label) continue
+      labels.set(label, fresh)
+      for (const id of src.inst.get(label) ?? []) {
+        const room = fl.rooms.get(id)
+        if (room === undefined || room.risenFrom !== null) continue
+        rooms.set(id, swap(id))
+        room.name = room.name.split(label).join(fresh)
+      }
+      for (const id of spec.openings) openings.set(id, swap(id))
+      const mine = new Set(spec.openings)
+      fl.openings = fl.openings.map((o) => (mine.has(o.words[1]!) && o.name !== undefined ? { ...o, name: o.name.split(label).join(fresh) } : o))
+    }
+    if (labels.size === 0) return
+    this.renameOnFloor(fl, rooms, openings)
+    fl.inst = new Map([...fl.inst].map(([k, ids]) => [labels.get(k) ?? k, ids.map((id) => rooms.get(id) ?? id)]))
+    fl.flats = fl.flats.map((flat) => ({ ...flat, label: labels.get(flat.label) ?? flat.label }))
   }
 
   /** LVL-22: a floor field copied with a turn: the outline turned with the rooms, a sloped roof kept and said. */
@@ -2904,7 +2963,7 @@ class Compiler {
   /** LVL-22: `repeat floors <n> from <floor> ...`: n floors, each the floor copied once more turned, moved, scaled and raised. */
   private stRepeatFloors(t: string[], at: number): void {
     const words = readRepeatFloors(t, at, this.plain)
-    const src = this.floors.find((f) => f.id === words.from)
+    const src = this.floorNamed(words.from)
     if (!src) this.stop('rooms/unknown-floor', at, english(said('rooms.repeatFloors.noFloor', { line: at, floor: words.from, floors: this.floors.map((f) => f.id).join(', ') || '-' })))
     if (!this.explicitFloors) this.stop('rooms/syntax', at, `line ${at}: ${english(said('rooms.floor.roomsFirst'))}`)
     let base = src.elevation
@@ -2944,20 +3003,30 @@ class Compiler {
       if (roomUseOf(use) === null) this.stop('rooms/unknown-use', at, `line ${at}: '${use}' is not a room use Grid knows. Use one of: ${USES.join(', ')}; or '-'.`)
       r.use = roomUseOf(use)!
     }
-    r.id = fresh
     r.name = name
-    fl.rooms = new Map([...fl.rooms].map(([k, v]) => [k === old ? fresh : k, v]))
-    const swap = (key: string): string => key.split('\u0000').map((x) => (x === old ? fresh : x)).reduce((a, b) => pairKey(a, b))
+    this.renameOnFloor(fl, new Map([[old, fresh]]))
+  }
+
+  /** Rooms (and openings) of one floor given new ids, in everything the floor's lines said of them. */
+  private renameOnFloor(fl: FloorDraft, rooms: ReadonlyMap<string, string>, openings: ReadonlyMap<string, string> = new Map()): void {
+    const one = (x: string): string => rooms.get(x) ?? x
+    fl.rooms = new Map(
+      [...fl.rooms].map(([k, v]) => {
+        if (rooms.has(k)) v.id = one(k)
+        return [one(k), v]
+      })
+    )
+    const swap = (key: string): string => key.split('\u0000').map(one).reduce((a, b) => pairKey(a, b))
     fl.between = new Map([...fl.between].map(([k, v]) => [swap(k), v]))
     fl.betweenSide = new Map(
       [...fl.betweenSide].map(([k, v]) => {
         const [a, b, room, side] = k.split('\u0000') as [string, string, string, string]
-        return [`${swap(pairKey(a, b))}\u0000${room === old ? fresh : room}\u0000${side}`, v]
+        return [`${swap(pairKey(a, b))}\u0000${one(room)}\u0000${side}`, v]
       })
     )
     fl.open = new Set([...fl.open].map(swap))
-    fl.extover = fl.extover.map((e) => ({ ...e, room: e.room === old ? fresh : e.room }))
-    fl.openings = fl.openings.map((o) => ({ ...o, words: o.words.map((w, i) => (w === old && i > 1 ? fresh : w)) }))
+    fl.extover = fl.extover.map((e) => ({ ...e, room: one(e.room) }))
+    fl.openings = fl.openings.map((o) => ({ ...o, words: o.words.map((w, i) => (i === 1 ? (openings.get(w) ?? w) : i > 1 ? one(w) : w)) }))
   }
 
   private stRemove(t: string[], at: number): void {
@@ -4699,7 +4768,7 @@ class Compiler {
           const id = idOf(fl, room.id)
           const item: Room = {
             id,
-            name: room.name,
+            name: withLevel(room.name, fl.level),
             ...(room.use !== undefined ? { use: room.use } : {}),
             boundary,
             ...(this.explicitFloors ? { floor: fl.id } : {}),
@@ -4722,7 +4791,7 @@ class Compiler {
           const rect = room.poly.length === 4 && Math.abs(area - (b[2] - b[0]) * (b[3] - b[1])) < tolerance('areaEqual')
           this.roomFacts.push({
             id,
-            name: room.name,
+            name: withLevel(room.name, fl.level),
             floor: fl.id,
             width: b[2] - b[0],
             depth: b[3] - b[1],
@@ -4773,7 +4842,7 @@ class Compiler {
           // WRT-44: an opening that lands in a wall left out for having no length has no wall.
           if (item && worked?.gone.has(item.wall) === true) this.problem('rooms/opening-fit', o.line, english(said('rooms.opening.noLength', { line: o.line, id: local, wall: item.wall })))
           else if (item) {
-            plan.openings.push(o.name === undefined ? item : { ...item, properties: { ...item.properties, name: o.name } })
+            plan.openings.push(o.name === undefined ? item : { ...item, properties: { ...item.properties, name: withLevel(o.name, fl.level) } })
             this.openingLines.set(item.id, o.line)
             this.openingLocal.set(item.id, local)
           }
@@ -4795,7 +4864,7 @@ class Compiler {
         try {
           const item = this.resolveRawRoomOpening(written, fl, words, line, idOf(fl, local), (x) => idOf(fl, x))
           if (item) {
-            plan.openings.push(name === undefined ? item : { ...item, properties: { ...item.properties, name } })
+            plan.openings.push(name === undefined ? item : { ...item, properties: { ...item.properties, name: withLevel(name, fl.level) } })
             this.openingLines.set(item.id, line)
           }
         } catch (error) {
@@ -5124,7 +5193,7 @@ class Compiler {
         const id = labels.get(flat.label) === fl.id ? flat.label : `${fl.id}-${flat.label}`
         flats.push({
           id,
-          ...(type.flatName === null ? {} : { name: type.flatName.split('{n}').join(flat.label) }),
+          ...(type.flatName === null ? {} : { name: withLevel(type.flatName.split('{n}').join(flat.label), fl.level) }),
           type: flat.unit,
           rooms,
           ...(flat.mirrored ? { mirrored: true } : {}),
@@ -5232,6 +5301,7 @@ function newFloor(id: string, name: string, level: number, rule: WallsRule): Flo
     copied: null,
     rooms: new Map(),
     inst: new Map(),
+    labels: new Map(),
     between: new Map(),
     betweenSide: new Map(),
     open: new Set(),

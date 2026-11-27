@@ -29,6 +29,7 @@ import { METRES } from '@ongrid/floorplan/types/units'
 import { say } from '@ongrid/floorplan/messages'
 import { isSiteFigure, siteLimits } from '../quantities/limits'
 import { planSeating, type Seating } from '../quantities/seats'
+import { homeLacks, planHomes, usesInName, type UsualRoom } from '../quantities/homes'
 import { EXACT_FIGURES, FIGURES, FIGURES_HEADING, isSeatingFigure, SEATING_WHATS, type Brief, type FactScope, type FigureWish, type Level, type RoomWish, type SeatingTarget, type SeatingWhat, type Source } from './brief'
 
 /** How a line stands: `met`, `missed`, `open` (nothing to measure yet), or `differs` (a size in a room's name). */
@@ -863,6 +864,56 @@ function nameLines(c: Context, brief: Brief | null): BriefLine[] {
 }
 
 // ---------------------------------------------------------------------------------------------
+// ARE-72: the usual rooms of a home, assumed
+
+/**
+ * ARE-49: whether the plan records what stands rather than what a person asked for: it keeps taped
+ * lengths, every part is existing, or every mark says measured or scanned. A survey has no wishes.
+ */
+export function isSurvey(plan: FloorPlan): boolean {
+  if ((plan.taped?.length ?? 0) > 0) return true
+  const parts = [...plan.walls, ...plan.openings, ...plan.rooms]
+  if (parts.length > 0 && parts.every((p) => p.phase === 'existing')) return true
+  const marks = plan.marks ?? []
+  return marks.length > 0 && marks.every((m) => m.source === 'measured' || m.source === 'scanned')
+}
+
+/** A wish's words for a way into a home, in its name or the person's quote. */
+const WAY_IN_WORDS = /\b(?:entrance|entry|front door|way in)\b/i
+
+/** Whether the brief says anything of a usual room: a room wish of its use, or whose name says it, at any level. */
+function briefSays(brief: Brief | null, usual: UsualRoom): boolean {
+  return (brief?.rooms ?? []).some((wish) => {
+    if (usual === 'entrance') return WAY_IN_WORDS.test(wish.name ?? '') || WAY_IN_WORDS.test(wish.quote ?? '')
+    return wish.use === usual || (wish.name !== null && usesInName(wish.name).includes(usual))
+  })
+}
+
+/**
+ * ARE-72: a bathroom, a kitchen and a way in, assumed for every home the plan has, said only where
+ * a home lacks one and the brief says nothing of it: a line for the agent to confirm with the
+ * person. A survey records what stands, and is left alone.
+ */
+function usualLines(c: Context, brief: Brief | null): BriefLine[] {
+  if (c.empty || isSurvey(c.plan)) return []
+  const homes = planHomes(c.survey)
+  if (homes.length === 0) return []
+  const lacking = homes.map((home) => ({ home, lacks: homeLacks(c.survey, home) }))
+  const out: BriefLine[] = []
+  const said = { level: 'should' as const, source: 'assumed' as const, quote: null }
+  for (const usual of ['bathroom', 'kitchen', 'entrance'] as const) {
+    if (briefSays(brief, usual)) continue
+    const without = lacking.filter((h) => h.lacks.includes(usual)).map((h) => h.home)
+    if (without.length === 0) continue
+    const names = without.map((h) => (h.name === null ? say('en', 'home.whole') : q(h.name)))
+    const homesSaid = `${names.slice(0, 12).join(', ')}${names.length > 12 ? `, and ${names.length - 12} more` : ''}`
+    const parts = without.flatMap((h) => h.rooms.map((id): BriefPart => ({ kind: 'room', id })))
+    out.push(line('missed', said, 'room', say('en', 'brief.usual', { what: say('en', `brief.usual.${usual}`), homes: homesSaid }), { parts: parts.slice(0, 50) }))
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------------------------
 
 /** Every line of the brief against the plan, then the sizes in room names it does not cover. No plan yet is a plan with nothing drawn. */
 export function briefLines(plan: FloorPlan | null, brief: Brief | null): BriefLine[] {
@@ -883,7 +934,7 @@ export function briefLines(plan: FloorPlan | null, brief: Brief | null): BriefLi
     }
     brief.open.forEach((wish, i) => lines.push({ ...line('open', { level: null, source: 'given', quote: wish.quote }, 'open', `${q(wish.quote)}${wish.about === null ? '' : `: still to ask, ${wish.about}`}.`), where: `open[${i}]` }))
   }
-  lines.push(...nameLines(c, brief))
+  lines.push(...usualLines(c, brief), ...nameLines(c, brief))
   return lines
 }
 
@@ -901,11 +952,12 @@ export function briefText(lines: readonly BriefLine[], file: string | null, opti
   const max = options.max ?? Infinity
   const shown = sorted.slice(0, max)
   const own = (l: BriefLine): boolean => l.wish in FIGURES
-  const out: string[] = [file === null ? 'Sizes in room names, against the drawing (there is no brief yet):' : `The brief (${q(file)}), each line ${BRIEF_RULE}`]
-  const say = (l: BriefLine): string => `  ${l.text}${options.quotes === true && l.quote !== null && l.wish !== 'open' ? ` Their words: ${q(l.quote)}.` : ''}`
-  out.push(...shown.filter((l) => !own(l)).map(say))
+  const assumed = lines.some((l) => l.source === 'assumed' && l.where === null)
+  const out: string[] = [file === null ? (assumed ? say('en', 'brief.heading.assumed') : 'Sizes in room names, against the drawing (there is no brief yet):') : `The brief (${q(file)}), each line ${BRIEF_RULE}`]
+  const said = (l: BriefLine): string => `  ${l.text}${options.quotes === true && l.quote !== null && l.wish !== 'open' ? ` Their words: ${q(l.quote)}.` : ''}`
+  out.push(...shown.filter((l) => !own(l)).map(said))
   const figures = shown.filter(own)
-  if (figures.length > 0) out.push(`  ${FIGURES_HEADING}`, ...figures.map((l) => `  ${say(l)}`))
+  if (figures.length > 0) out.push(`  ${FIGURES_HEADING}`, ...figures.map((l) => `  ${said(l)}`))
   if (sorted.length > shown.length) out.push(`  And ${sorted.length - shown.length} more lines: grid_write_brief with no brief lists them all.`)
   if (file !== null) out.push(`  ${MET_IS_NOT_ALLOWED}`)
   return out

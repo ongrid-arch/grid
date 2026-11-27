@@ -253,6 +253,35 @@ document. When the drawn size is further than 2% from the size named (`nameSize`
 says so: `differs: "6 tatami room" is named 6 mats; drawn 5.80 mats (9.40 m², a mat taken as
 0.90 × 1.80 m), net area.`
 
+## The rooms every home is assumed to have
+
+A home is each flat the plan lists, or, with no flats, the whole plan when a room in it is used
+as a bedroom or a living room (ARE-72). Grid assumes every home has a bathroom, a kitchen and a
+way in: a room used as one or named so ("Kitchen / living" has a kitchen), and a door, opening or
+open edge from one of its rooms to the outside or to a room that is not the home's (a flat's way
+in is through the common corridor). When a home lacks one and the brief says nothing of it, the
+brief's lines offer it as an assumed line, with or without a brief yet:
+
+`missed (should, assumed): a kitchen in every home, Grid's assumption, missing from the home: …`
+
+It is the agent's to confirm with the person. A room wish of that use, or whose name says it, at
+any level (`avoid` when the home has none on purpose), is the person's word and ends the line; for
+a way in, a wish whose name or words say entrance, entry, front door or way in. The line has
+`source: "assumed"` and `where: null`. A survey, which records what stands, gets none.
+
+## Questions about homes after the check
+
+After `grid check` and `grid_check`, brief or none and with no place needed, Grid asks about the
+plan's homes under "Worth a look in the homes": each home lacking a bathroom, a kitchen or a way
+in; a bedroom, living room or dining room under 4 m² of net floor or narrower than 1.8 m, and a
+kitchen, bathroom or toilet under 0.8 m² or narrower than 0.6 m, a room's width being the widest
+circle it holds as `grid_measure` gives it (`homeRoomSmallest`, `homeRoomNarrowest`,
+`homeWetRoomSmallest`, `homeWetRoomNarrowest` in [tolerances.md](tolerances.md)); and a room whose
+name says one use ("Bedroom 2") while its use says another (`living`). Near uses are not asked
+about: a WC used as a bathroom, a dining room used as living, a study as an office, a store as a
+utility room or a garage. Each is a question in Grid's own figures, never a rule, and the check's
+record and count are unchanged. The measures are `packages/cli/src/quantities/homes.ts`.
+
 ## The first plan with no brief
 
 When a plan is first written (`grid_write_rooms` or `grid write` on a plan that is not there, is

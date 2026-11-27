@@ -12,7 +12,7 @@ import { PathRefused } from '../fs/projectFiles'
 import { addItem, moveItem, removeItems, type ItemPlace } from '../edit/items'
 import { addFixtureSet, typicalRoomOf } from '../edit/fixtureSets'
 import { libraryFor } from '../library/office'
-import { BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, objectSchema, PLAN_ARG, planFileOf, projectOf, STRING, ToolRefusal, type ArgSpecs, type GridTool, type ToolContext } from './toolkit'
+import { FLOOR_ARG, BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, objectSchema, PLAN_ARG, planFileOf, projectOf, STRING, ToolRefusal, type ArgSpecs, type GridTool, type ToolContext } from './toolkit'
 import { EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 import { readSet } from './factsTool'
 
@@ -26,7 +26,7 @@ const PLACE_ARGS: ArgSpecs = {
   x: { type: 'number', length: true, description: 'In place of against: its middle on the drawing, in metres, with y.', examples: [2.5], minimum: -limit('largest'), maximum: limit('largest') },
   y: { type: 'number', length: true, description: 'In place of against: its middle on the drawing, in metres, with x.', examples: [1.2], minimum: -limit('largest'), maximum: limit('largest') },
   turn: { type: 'number', description: 'With x and y: degrees counter-clockwise; 0 puts its back to -y, 90 to +x, 180 to +y, 270 to -x.', examples: [0, 90], minimum: -360, maximum: 360 },
-  floor: { type: 'string', id: true, description: 'With x and y: a floor id from the plan\'s "floors". The ground floor, or room\'s, when left out.', examples: ['first'] },
+  floor: { ...FLOOR_ARG, description: 'With x and y: a floor id from the plan\'s "floors". The ground floor, or room\'s, when left out.', examples: ['first'] },
 }
 
 const ITEM_OUTPUT = {

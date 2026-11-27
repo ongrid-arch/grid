@@ -220,7 +220,7 @@ describe('a step-free way needs levels, and a lift or a ramp between floors (LVL
     const way = found.data.ways[0]!
     expect(way.joins.map((j) => j.kind)).toEqual(['lift', 'lift'])
     expect(way.steps).toEqual([])
-    expect(found.lines.join('\n')).toContain('to "Room": door "front" into "Hall", door "ground-d" into "Stair"; the lift drawn as rooms "ground-stair" and "first-stair", between "Ground floor" and "First floor"; the lift drawn as rooms "first-stair" and "second-stair", between "First floor" and "Second floor"; door "second-d" into "Room"; no step on it that the plan shows;')
+    expect(found.lines.join('\n')).toContain('to "Room (Second floor)": door "front" into "Hall", door "ground-d" into "Stair (Ground floor)"; the lift drawn as rooms "ground-stair" and "first-stair", between "Ground floor" and "First floor"; the lift drawn as rooms "first-stair" and "second-stair", between "First floor" and "Second floor"; door "second-d" into "Room (Second floor)"; no step on it that the plan shows;')
     expect(found.lines.join('\n')).toContain('Grid measures no lift car or its doors.')
   })
 
@@ -234,7 +234,7 @@ describe('a step-free way needs levels, and a lift or a ramp between floors (LVL
   it('says it cannot tell the steps of a stair drawn only as rooms', () => {
     const found = measure({ ...stairRoomHouse(), accessible: { rooms: ['first-main'] } })
     expect(found.data.ways[0]!.steps).toEqual([{ kind: 'stair', at: 'ground-stair|first-stair', height: null, count: null, up: true, rooms: ['ground-stair', 'first-stair'] }])
-    expect(found.lines.join('\n')).toContain('the stair drawn as rooms "Stair" and "Stair", up: Grid cannot tell how many steps it has or how high they are, as the plan states no stair there')
+    expect(found.lines.join('\n')).toContain('the stair drawn as rooms "Stair (Ground floor)" and "Stair (First floor)", up: Grid cannot tell how many steps it has or how high they are, as the plan states no stair there')
   })
 
   it('says it cannot tell the way where no stair or lift joins the floors', () => {
