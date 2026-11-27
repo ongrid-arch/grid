@@ -206,6 +206,28 @@ door entry in b1 south, centred, 0.9 wide, opens in, hinged west
     expect(page.notes.find((n) => n.startsWith('Also: '))).toMatch(/cell|seats/)
   })
 
+  it('gives a row of split-level houses up a street the storeys, floor to floor and height of one house', () => {
+    // ARE-76: six houses stepping 0.6 m up the street, each a street half and a garden half a level
+    // up, each with a bedroom floor a storey over it; every house a building of the plan.
+    const houses = Array.from({ length: 6 }, (_, n) => n)
+    const floor = (n: number, part: string, i: number, room: string): string => {
+      const y = i % 2 === 0 ? 0 : 4
+      const depth = i % 2 === 0 ? 4 : 4.5
+      return `floor h${n}${part} "House ${n + 1} ${part}" level ${n * 2 + i / 2} elevation ${Math.round((n * 0.6 + i * 1.4) * 1000) / 1000} height 2.5\nroom h${n}${part}r "${room}" ${room === 'Bedroom' ? 'bedroom' : 'living'} 5 x ${depth} at ${n * 5},${y}\n`
+    }
+    const text = `plan "Rising street"\nbuilding home\nwalls outside 0.3 inside 0.1\n${houses.map((n) => floor(n, 'f0', 0, 'Living') + floor(n, 'b0', 1, 'Living') + floor(n, 'f1', 2, 'Bedroom') + floor(n, 'b1', 3, 'Bedroom')).join('')}`
+    const loaded = load(text, (raw) => {
+      raw['buildings'] = houses.map((n) => ({ id: `h${n}`, name: `House ${n + 1}`, floors: ['f0', 'b0', 'f1', 'b1'].map((p) => `h${n}${p}`) }))
+      raw.site = { ground: -0.15 }
+    })
+    const { figure } = cover(loaded)
+    expect(figure('floors')).toBe('2')
+    expect(figure('buildings')).toBe('6')
+    expect(figure('floor to floor')).toBe('2.80 m')
+    // 0.15 m of ground, three half levels of 1.4 m, the top floor's 2.5 m and its roof slab: the same for every house.
+    expect(figure('height to the roof')).toBe('7.10 m')
+  })
+
   it('says its one rounding rule once, on the cover', () => {
     const { page } = cover(load(OFFICE))
     expect(page.notes.filter((n) => n.startsWith('Rounding: '))).toEqual(['Rounding: areas to 0.1 m², or to more places where the rows of a table need them to add up to its total; lengths to the centimetre, ratios to two places, counts whole.'])

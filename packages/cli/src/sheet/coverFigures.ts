@@ -9,11 +9,13 @@
  * openings): nothing is measured here.
  *
  * Floors are counted, and floor to floor taken, by whole storeys only: a floor that stands inside
- * another storey's height (a mezzanine in a shed, a terrace in a hall) gives no step of its own.
+ * another storey's height (a mezzanine in a shed, a terrace in a hall, a half level) gives no step
+ * of its own. ARE-76: the storeys are the core's (`planStoreys`), per building, the floor to floor
+ * runs between storeys over the same footprint, and the height to the roof is each building's own,
+ * from its own ground (`buildingHeights`), a range when they differ.
  */
-import { buildingOfFloor, floorElevations, type StoreyLevel } from '@ongrid/floorplan/geometry'
+import { buildingHeight, buildingHeights, floorElevations, planStoreys, type PlanStoreys } from '@ongrid/floorplan/geometry'
 import { fixedText, metresText } from '@ongrid/floorplan/geometry/rounding'
-import { tolerance } from '@ongrid/floorplan/geometry/tolerances'
 import { signedArea } from '@ongrid/floorplan/geometry/vec2'
 import type { MessageKey } from '@ongrid/floorplan/messages'
 import type { BuildingType, FloorPlan, RoomUse } from '@ongrid/floorplan/types/floorplan'
@@ -106,31 +108,17 @@ function counts(survey: Survey): Readonly<Record<Count, number>> {
   return out
 }
 
-/** The storeys of one stack, whole ones only: a floor inside another storey's height is set aside. */
-function wholeStoreys(storeys: readonly StoreyLevel[]): StoreyLevel[] {
-  const same = tolerance('sameFloorLevel')
-  const sorted = [...storeys].sort((a, b) => a.floorLevel - b.floorLevel || b.clearHeight - a.clearHeight)
-  const whole: StoreyLevel[] = []
-  for (const storey of sorted) {
-    const inside = whole.some((t) => storey.floorLevel > t.floorLevel + same && storey.floorLevel < t.floorLevel + t.clearHeight - same)
-    const level = whole.some((t) => Math.abs(t.floorLevel - storey.floorLevel) <= same)
-    if (!inside && !level) whole.push(storey)
-  }
-  return whole
+/** ARE-76: each building's storeys, above and below its ground floor together, by building (null for the floors no building names). */
+function storeysPerBuilding(storeys: PlanStoreys): Map<string | null, number> {
+  const out = new Map<string | null, number>()
+  for (const storey of storeys.storeys) out.set(storey.building, (out.get(storey.building) ?? 0) + 1)
+  return out
 }
 
-/** The plan's stacks of floors: one per building it names, and one of the floors no building holds. */
-function stacks(plan: FloorPlan): StoreyLevel[][] {
-  const levels = floorElevations(plan).floors
-  let holder: ReadonlyMap<string, string> = new Map()
-  try {
-    holder = (plan.buildings ?? []).length === 0 ? new Map() : buildingOfFloor(plan)
-  } catch {
-    holder = new Map()
-  }
-  const groups = new Map<string, StoreyLevel[]>()
-  for (const [floor, level] of levels) groups.set(holder.get(floor) ?? '', [...(groups.get(holder.get(floor) ?? '') ?? []), level])
-  return [...groups.values()].map(wholeStoreys)
+/** ARE-76: each building's height from its own ground, or the plan's when it names none. */
+function heightsToRoof(plan: FloorPlan, storeys: PlanStoreys): number[] {
+  const heights = (plan.buildings ?? []).length === 0 ? [buildingHeight(plan, storeys)] : buildingHeights(plan, storeys).map((b) => b.height)
+  return heights.flatMap((h) => (h === null || !(h.height > 0) ? [] : [h.height]))
 }
 
 export interface CoverFigures {
@@ -182,21 +170,26 @@ export function coverFigures(survey: Survey, areas: PlanAreas, headline: readonl
     count(what, what === 'bedrooms' && kinds.some((kind) => HOMES.has(kind)))
   }
 
-  const piles = stacks(plan).filter((pile) => pile.length > 0)
-  const storeys = Math.max(0, ...piles.map((pile) => pile.length))
+  const read = planStoreys(plan)
+  const piles = storeysPerBuilding(read)
+  const storeys = Math.max(0, ...piles.values())
   figures.push({ value: String(storeys), label: w.say(storeys === 1 ? 'sheet.figure.floors.one' : 'sheet.figure.floors.many') })
-  if (piles.length > 1) figures.push({ value: String(piles.length), label: w.say('sheet.figure.buildings') })
-  const steps = piles.flatMap((pile) => pile.slice(1).map((storey, i) => storey.floorLevel - pile[i]!.floorLevel))
+  if (piles.size > 1) figures.push({ value: String(piles.size), label: w.say('sheet.figure.buildings') })
+  // A range of figures, or one when they print the same.
+  const range = (values: readonly number[], as?: 'height'): string => {
+    const low = Math.min(...values)
+    const high = Math.max(...values)
+    return units.length(low, as) === units.length(high, as) ? units.length(low, as) : units.metric ? `${units.mark(metresText(low))}–${units.mark(metresText(high))} m` : `${units.length(low, as)}–${units.length(high, as)}`
+  }
+  const steps = read.storeys.flatMap((storey) => (storey.floorToFloor === null ? [] : [storey.floorToFloor]))
   if (steps.length > 0) {
-    const low = Math.min(...steps)
-    const high = Math.max(...steps)
-    const value = units.length(low) === units.length(high) ? units.length(low) : units.metric ? `${units.mark(metresText(low))}–${units.mark(metresText(high))} m` : `${units.length(low)}–${units.length(high)}`
-    figures.push({ value, label: w.say('sheet.figure.floorToFloor') })
-    const roof = floorElevations(plan).roof.top
-    if (roof > 0) figures.push({ value: units.length(roof, 'height'), label: w.say('sheet.figure.heightToRoof') })
+    figures.push({ value: range(steps), label: w.say('sheet.figure.floorToFloor') })
+    const roofs = heightsToRoof(plan, read)
+    if (roofs.length > 0) figures.push({ value: range(roofs, 'height'), label: w.say('sheet.figure.heightToRoof') })
   } else if (!roomHeight) {
-    const only = piles[0]?.[0]
-    if (only) figures.push({ value: units.length(only.clearHeight), label: w.say('sheet.figure.clearHeight') })
+    const only = read.storeys[0]?.floors[0]
+    const clear = only === undefined ? undefined : floorElevations(plan).floors.get(only)?.clearHeight
+    if (clear !== undefined) figures.push({ value: units.length(clear), label: w.say('sheet.figure.clearHeight') })
   }
   if (!areas.underAir.first && areas.grossExternal !== null) figures.push({ value: `${units.area(areas.grossExternal)} ${units.areaUnit}`, label: w.say('sheet.figure.grossExternal') })
   // The floor area ratio: the gross external area over the site's, with a boundary stated.

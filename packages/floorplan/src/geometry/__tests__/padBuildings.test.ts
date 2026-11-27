@@ -65,8 +65,8 @@ describe('LVL-23 buildings on their own pads', () => {
   it('measures two identical rows on different pads to the same height, each from its pad, with its own storeys', () => {
     const heights = buildingHeights(pads())
     expect(heights.map((b) => [b.id, b.height!.height, b.height!.from, b.storeys])).toEqual([
-      ['a', expect.closeTo(5.9, 9), 'pad', { above: 2, below: 0 }],
-      ['b', expect.closeTo(5.9, 9), 'pad', { above: 2, below: 0 }],
+      ['a', expect.closeTo(5.9, 9), 'pad', { above: 2, below: 0, split: 0 }],
+      ['b', expect.closeTo(5.9, 9), 'pad', { above: 2, below: 0, split: 0 }],
     ])
   })
 
@@ -113,7 +113,7 @@ describe('LVL-23 a stepped row with no pad', () => {
     const heights = buildingHeights(houses(true))
     expect(heights.map((b) => b.height!.from)).toEqual(Array(6).fill('floor'))
     for (const b of heights) expect(b.height!.height).toBeCloseTo(5.9, 9)
-    expect(heights.map((b) => b.storeys)).toEqual(Array(6).fill({ above: 2, below: 0 }))
+    expect(heights.map((b) => b.storeys)).toEqual(Array(6).fill({ above: 2, below: 0, split: 0 }))
   })
 
   it('checks every house\'s way out from its own street floor and sets no floor against a neighbour', () => {

@@ -10,8 +10,11 @@
  *
  * Floors are read per building (CNT-6, LVL-23; the floors no building names together), each
  * building's levels in the order of `level`. Floors sharing a level share a place in the order.
- * The top level's floor-to-floor runs to the top of its roof slab (its level, its clear height and
- * `SLAB_THICKNESS`), so the building's height is its floors' floor-to-floor summed from its first.
+ * ARE-76: a floor's floor-to-floor runs to the nearest floor over it in its building that stands
+ * over the same footprint (`sharesFootprint`), so a half level beside it is never the floor over
+ * it; with none, to the top of its roof slab (its level, its clear height and `SLAB_THICKNESS`).
+ * So the building's height is the floor-to-floor summed up the floors over one footprint. Setting
+ * a floor-to-floor still stacks level on level (`levelsSetTo`).
  *
  * Pure: a plan in, plain data out. Never throws on a plan the schema reads.
  */
@@ -19,6 +22,9 @@ import { floorElevations, SLAB_THICKNESS, type BuildingElevations } from './elev
 import { groundFloor, planFloors } from './floors'
 import { planBuildings } from './buildings'
 import type { Floor, FloorPlan } from './plan'
+import { outlineKnown, slabOutline } from './outline'
+import { intersectionArea } from './polygons'
+import { tolerance } from './tolerances'
 
 /** One floor's place in its building's stack. */
 export interface FloorLevel {
@@ -35,11 +41,11 @@ export interface FloorLevel {
   /** Its clear height, floor to ceiling, m: stated, or worked out from its walls. */
   readonly clearHeight: number
   readonly heightStated: boolean
-  /** The slab over it, m: the next level's slab, or the roof's. */
+  /** The slab over it, m: the slab of the floor over it, or the roof's. */
   readonly slabOver: number
-  /** To the next level's floor level, or to the top of its roof slab when none is over it. */
+  /** ARE-76: to the floor level of the nearest floor over its footprint, or to the top of its roof slab when none is over it. */
   readonly floorToFloor: number
-  /** The floors of the next level up, by id; empty for the top level, whose floor-to-floor runs to its roof. */
+  /** ARE-76: the floors of the nearest level up that stand over its footprint, by id; empty when none does, and its floor-to-floor runs to its roof. */
   readonly over: readonly string[]
 }
 
@@ -80,21 +86,65 @@ function byLevel(floors: readonly Floor[]): Floor[][] {
   return [...levels.entries()].sort((a, b) => a[0] - b[0]).map(([, fs]) => fs)
 }
 
+/** ARE-76: a floor's slab outline, or null when it has none or it cannot be worked out. */
+export type FloorFootprint = ReturnType<typeof slabOutline> | null
+
+/** ARE-76: each floor's outline, worked out once and only when asked for. */
+export function footprints(plan: FloorPlan, broken: ReadonlySet<string> = new Set()): (floor: string) => FloorFootprint {
+  const known = new Map<string, FloorFootprint>()
+  return (floor) => {
+    if (!known.has(floor)) {
+      let outline: FloorFootprint = null
+      try {
+        outline = slabOutline(plan, floor, broken)
+      } catch {
+        outline = null
+      }
+      known.set(floor, outline)
+    }
+    return known.get(floor)!
+  }
+}
+
+/**
+ * ARE-76: whether two floors stand over the same footprint: their outlines share more than
+ * `sameFootprintShare` of the smaller one's area. A floor whose outline is not known, or holds no
+ * floor, shares every footprint, so a plan drawn without walls stacks level on level as before.
+ */
+export function sharesFootprint(a: FloorFootprint, b: FloorFootprint): boolean {
+  if (a === null || b === null || !outlineKnown(a) || !outlineKnown(b)) return true
+  const smaller = Math.min(a.area, b.area)
+  if (!(smaller > 0)) return true
+  let shared: number
+  try {
+    shared = intersectionArea(a.pieces, b.pieces)
+  } catch {
+    return true
+  }
+  return shared > tolerance('sameFootprintShare') * smaller
+}
+
 /**
  * Every floor's level, clear height and floor-to-floor, by building (in the order the plan lists
- * them, the floors no building names first), each building's floors lowest level first.
+ * them, the floors no building names first), each building's floors lowest level first. ARE-76:
+ * each floor's floor-to-floor to the nearest level up holding a floor over its footprint.
  */
-export function planLevels(plan: FloorPlan, elevations: BuildingElevations = floorElevations(plan)): FloorLevel[] {
+export function planLevels(plan: FloorPlan, elevations: BuildingElevations = floorElevations(plan), outlineOf: (floor: string) => FloorFootprint = footprints(plan)): FloorLevel[] {
   const out: FloorLevel[] = []
   for (const [building, floors] of floorGroups(plan)) {
     const levels = byLevel(floors)
     levels.forEach((here, i) => {
-      const next = levels[i + 1]
       for (const floor of here) {
         const at = elevations.floors.get(floor.id)
         if (at === undefined) continue
-        const nextLevel = next === undefined ? undefined : elevations.floors.get(next[0]!.id)?.floorLevel
-        const slabOver = next === undefined ? SLAB_THICKNESS : slabOf(next[0]!)
+        // The levels up from it, nearest first, until one holds a floor over its footprint.
+        let over: Floor[] = []
+        for (const up of levels.slice(i + 1)) {
+          over = up.filter((f) => elevations.floors.has(f.id) && sharesFootprint(outlineOf(floor.id), outlineOf(f.id)))
+          if (over.length > 0) break
+        }
+        const nextLevel = over.length === 0 ? undefined : Math.min(...over.map((f) => elevations.floors.get(f.id)!.floorLevel))
+        const slabOver = over.length === 0 ? SLAB_THICKNESS : slabOf(over[0]!)
         out.push({
           floor: floor.id,
           name: floor.name,
@@ -106,8 +156,27 @@ export function planLevels(plan: FloorPlan, elevations: BuildingElevations = flo
           heightStated: finite(floor.height) && floor.height > 0,
           slabOver,
           floorToFloor: mm(nextLevel === undefined ? at.clearHeight + slabOver : nextLevel - at.floorLevel),
-          over: next === undefined ? [] : next.map((f) => f.id),
+          over: over.map((f) => f.id),
         })
+      }
+    })
+  }
+  return out
+}
+
+/** LVL-24: each floor's step to the next level of its building, footprint or not, as levels are set: by floor id. */
+function levelSteps(plan: FloorPlan, elevations: BuildingElevations): Map<string, { readonly floorLevel: number; readonly slabOver: number; readonly floorToFloor: number }> {
+  const out = new Map<string, { floorLevel: number; slabOver: number; floorToFloor: number }>()
+  for (const floors of floorGroups(plan).values()) {
+    const levels = byLevel(floors)
+    levels.forEach((here, i) => {
+      const next = levels[i + 1]
+      for (const floor of here) {
+        const at = elevations.floors.get(floor.id)
+        if (at === undefined) continue
+        const nextLevel = next === undefined ? undefined : elevations.floors.get(next[0]!.id)?.floorLevel
+        const slabOver = next === undefined ? SLAB_THICKNESS : slabOf(next[0]!)
+        out.set(floor.id, { floorLevel: mm(at.floorLevel), slabOver, floorToFloor: mm(nextLevel === undefined ? at.clearHeight + slabOver : nextLevel - at.floorLevel) })
       }
     })
   }
@@ -156,7 +225,8 @@ export type FloorToFloorProblem =
  */
 export function levelsSetTo(plan: FloorPlan, request: FloorToFloorRequest): { readonly set: readonly FloorSet[]; readonly problems: readonly FloorToFloorProblem[] } {
   const elevations = floorElevations(plan)
-  const read = new Map(planLevels(plan, elevations).map((l) => [l.floor, l] as const))
+  // ARE-76: level on level, so a half level keeps its place half a storey up.
+  const read = levelSteps(plan, elevations)
   const chosen = request.floors === undefined ? null : new Set(request.floors)
   const set: FloorSet[] = []
   const problems: FloorToFloorProblem[] = []
@@ -170,8 +240,9 @@ export function levelsSetTo(plan: FloorPlan, request: FloorToFloorRequest): { re
     for (let i = 0; i < levels.length; i++) {
       if (!hit[i]) continue
       const first = read.get(levels[i]![0]!.id)!
-      if (ftf[i]! <= first.slabOver) problems.push({ kind: 'no-room', floor: first.floor, slab: first.slabOver })
-      else if (request.ceiling !== undefined && mm(request.ceiling + first.slabOver) > mm(ftf[i]!)) problems.push({ kind: 'ceiling-too-tall', floor: first.floor, fits: mm(ftf[i]! - first.slabOver) })
+      const floor = levels[i]![0]!.id
+      if (ftf[i]! <= first.slabOver) problems.push({ kind: 'no-room', floor, slab: first.slabOver })
+      else if (request.ceiling !== undefined && mm(request.ceiling + first.slabOver) > mm(ftf[i]!)) problems.push({ kind: 'ceiling-too-tall', floor, fits: mm(ftf[i]! - first.slabOver) })
     }
     const baseAt = levels.findIndex((fs) => levelOf(fs[0]!) >= 0)
     const base = baseAt < 0 ? levels.length - 1 : baseAt

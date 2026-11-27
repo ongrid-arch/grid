@@ -997,6 +997,17 @@ export const TOLERANCES = {
       'set against the other as a floor below it.',
     basis: own
   },
+  sameFootprintShare: {
+    kind: 'tolerance',
+    value: 0.25,
+    unit: 'ratio',
+    decides:
+      'Two floors of one building stand over the same footprint when their outlines share more ' +
+      'than this share of the smaller one (ARE-76): a floor\'s floor to floor runs to the nearest ' +
+      'such floor over it, so a half level beside it, which shares no more than the wall between ' +
+      'them, is not the floor over it.',
+    basis: own
+  },
   floorOffsetLargest: {
     kind: 'limit',
     value: 1.5,

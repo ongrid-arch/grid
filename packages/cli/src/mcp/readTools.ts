@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, shadowPlan, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, traceFloor, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix, type PlanSun } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, shadowPlan, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, type HeightFrom, metresText, slopeText, tolerance, traceFloor, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix, type PlanSun } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -495,7 +495,7 @@ const areasTool: GridTool = {
     outdoor: { type: 'object' },
     // CNT-6, only on a plan that names buildings: each building's own floors' figures and its height.
     // LVL-23: its ground (its pad, the site's ground or its ground floor's level, `from`), which its height is measured from, and its own storeys.
-    buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER, ground: NUMBER, from: { type: 'string', enum: ['pad', 'site', 'floor'] }, storeys: { type: 'object', properties: { above: NUMBER, below: NUMBER } } }, ['id', 'name', 'floors', 'net'])),
+    buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER, ground: NUMBER, from: { type: 'string', enum: ['pad', 'site', 'floor', 'under'] }, storeys: { type: 'object', properties: { above: NUMBER, below: NUMBER, split: NUMBER } } }, ['id', 'name', 'floors', 'net'])),
     // ARE-20, only when apart_rooms is given: those rooms' net and their area to the middle of the walls they share.
     apart: objectSchema({ rooms: listSchema(STRING), net: NUMBER, byFloor: { type: 'object' }, toPartyWalls: { type: ['object', 'null'], properties: { grossInternal: NUMBER, grossExternal: NUMBER } }, notCounted: listSchema(STRING), state: { type: 'object' } }, ['rooms', 'net', 'toPartyWalls']),
     // ARE-68: the lettable area, the core and efficiency, per floor, floor type and in all; the area per person, only with a figure.
@@ -538,11 +538,12 @@ const areasTool: GridTool = {
       ...briefPeopleOf(context, file),
     })
     const written = args['as_written'] === true ? asWrittenAreas(survey) : null
-    // LVL-23: each building measured from its own ground, with its own storeys.
+    // LVL-23: each building measured from its own ground, with its own storeys; ARE-76: the ground its height is measured from, and its split levels.
     const buildings = areas.buildings.map((b) => {
       const own = heights.get(b.id)
-      const ground = grounds.get(b.id) ?? { level: 0, from: 'floor' as const }
-      return { ...b, height: own?.height?.height ?? null, ground: ground.level, from: ground.from, storeys: own?.storeys ?? { above: 0, below: 0 } }
+      const measured = own?.height ?? null
+      const ground: { level: number; from: HeightFrom } = measured === null ? (grounds.get(b.id) ?? { level: 0, from: 'floor' }) : { level: measured.ground, from: measured.from }
+      return { ...b, height: measured?.height ?? null, ground: ground.level, from: ground.from, storeys: own?.storeys ?? { above: 0, below: 0, split: 0 } }
     })
     const data = {
       floors: written === null ? areas.floors : withAsWritten(areas.floors, written),
@@ -663,7 +664,9 @@ const areasTool: GridTool = {
       for (const b of buildings) {
         const gross = areas.reader.gross.map((m) => grossWord(m, b[m] === null ? notKnown : areaText(b[m]!, units)))
         const storeys = b.storeys.above + b.storeys.below
-        const counted = said(storeys === 1 ? 'areas.building.storeys.one' : 'areas.building.storeys', { count: storeys })
+        const whole = said(storeys === 1 ? 'areas.building.storeys.one' : 'areas.building.storeys', { count: storeys })
+        // ARE-76: half levels counted as split levels of the storeys they stand in.
+        const counted = b.storeys.split === 0 ? whole : said(b.storeys.split === 1 ? 'areas.building.splitLevels.one' : 'areas.building.splitLevels', { storeys: whole, count: b.storeys.split })
         const from = said(`areas.building.from.${b.from}` as MessageKey, { level: levelText(b.ground, units) })
         const high = b.height === null ? '' : s.say('tool.areas.building.high', { height: lengthText(b.height, units), from: s.value(from) })
         lines.push(`  ${s.say(b.floors.length === 1 ? 'tool.areas.building.one' : 'tool.areas.building', { building: name(b.name), count: b.floors.length, storeys: s.value(counted), net: areaText(b.net, units), gross: gross.join(', '), high })}`)
