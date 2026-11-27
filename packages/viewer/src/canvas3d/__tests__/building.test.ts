@@ -214,6 +214,14 @@ describe('buildingLayout: the cut walls (VEW-58)', () => {
     expect(buildingLayout(plan, null).storeys.map((s) => s.cut)).toEqual([null, null])
     expect(buildingLayout(plan, 'nowhere').storeys.map((s) => s.cut)).toEqual([null, null])
   })
+
+  it('keeps the cutaway\'s walls whole for a camera standing in one of its rooms (VEW-75)', () => {
+    const plan = building([
+      [GROUND, 3],
+      [FIRST, 3]
+    ])
+    expect(buildingLayout(plan, 'first', undefined, undefined, true).storeys.map((s) => s.cut)).toEqual([null, null])
+  })
 })
 
 describe('buildingLayout: the roof asked for (VEW-19)', () => {

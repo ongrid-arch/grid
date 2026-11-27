@@ -387,6 +387,32 @@ same record. A name already saved is refused unless `replace` is true. The app's
 at a record handed to it (`Canvas3D`'s `camera`), and the stills are taken with the same
 settings (`recordCamera`), so the person and the agent see the same picture.
 
+### Standing in a room: kind=eye
+
+Read this when the person asks what a room looks like from inside ("stand me in the kitchen
+looking at the garden", "from the doorway", "sitting on the sofa"). `grid_view kind=eye` stands
+in `room` with the eye `eye_height` above that room's own floor (1.6 m when left out), and takes
+(VEW-75):
+
+| Argument | What it sets |
+|---|---|
+| `at` | Where to stand: a door or opening of the room by id (in its doorway, just inside the room), an item by id (0.5 m in front of it, looking the way it faces) or a corner of the room (`north-east`, `south-east`, `south-west`, `north-west`; north is the drawing's top), tucked in clear of its walls. Not with `stand_at` |
+| `stand_at` | A point to stand on, `{ x, y }` in metres, on the room's clear floor |
+| `toward` | An opening or item by id, or a direction, to look at |
+| `look_at` | A point to look at, `{ x, y }` in metres. Not with `toward` |
+| `lens` | The focal length in millimetres on a 36 × 24 mm sensor: 18 (90° across) when left out |
+| `tilt` | Degrees the eye looks down, below 0 up; level when left out. The camera stays at the eye |
+| `perspective` | `two-point`: level, looking across a corner of the room at least 25° off square to its walls, so they run away to both sides and upright lines stay upright; with no `toward` it looks at the far corner, with one it turns just enough and says by how much. `one-point`: level and square on the wall it faces. Neither takes a tilt |
+
+Left out, the eye stands on the room's middle line, back from what it looks at, and looks at the
+room's first window. In a room under 9 m² with a door it stands in that doorway instead, as a
+person would look in, and looks diagonally across to the far corner; standing at a door or a
+corner it does the same unless `toward` or `look_at` says otherwise. It never stands inside a
+fixture or a piece of furniture taller than 0.3 m: a place Grid picks is moved to the nearest
+clear floor and the answer says from what, and a `stand_at` inside one is refused naming it. The
+walls of the room stand their full height round the eye, though its floor is drawn as a
+cutaway. `from` is for kind=3d; kind=eye refuses it and names `at`.
+
 ## The preview, shared with the person
 
 Read this when the person should see the plan while you talk ("show me", "where is that?"), or
