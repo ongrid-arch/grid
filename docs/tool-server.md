@@ -181,6 +181,18 @@ spaces, dashes or underscores; one with the name of a field of Grid's is asked f
 `properties.<name>`. A field or fact the plan does not have is refused with the nearest name,
 never with the word sent.
 
+Use `phase` or its alias `stage` for walls, rooms, doors, windows and doorless openings.
+The values are `existing`, `demolished` and `new`. Openings inherit the phase of a demolished
+or new host wall unless they state a phase. Unmarked parts are existing in a plain plan, and
+unmarked parts of a fit-out are new. A phase filter, result field or group includes parts from
+both before and after the work. Area values are measured after the work, so demolished rooms
+have no area value. For example, `{ "kind": ["wall"], "by": "phase" }` counts walls by phase,
+and `{ "where": ["stage = demolished"] }` finds parts to pick out with the returned `view`.
+
+A plan view with `colour: "phase"` or `colour: "stage"` uses the same colours on every floor.
+Demolished room outlines appear when coloured by phase or highlighted by id. 3D views and
+working facades show the building after the work and tint new parts teal.
+
 Each answer carries a `view`, the arguments of `grid_view` that show it: `grid_find`'s picks its
 parts out in one colour (`highlight`, their ids), and `grid_count`'s colours each group of the
 floor by its value (`colour`, the field it grouped by), with a key. The `floor` is the one that

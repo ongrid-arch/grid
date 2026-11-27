@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
-import { buildScene, planForFloor, sceneInterior } from '@ongrid/floorplan/geometry'
+import { buildScene, partPhases, planForFloor, sceneInterior } from '@ongrid/floorplan/geometry'
 import type { PlaybackClock } from '../preview/playback'
 import type { PlanBuild } from '../preview/useBuildFrame'
 import { useBuildStep } from '../preview/useBuildFrame'
@@ -17,6 +17,7 @@ import { Shell3D } from './Shell3D'
 import { Divider3D } from './Divider3D'
 import { RoomMarker3D } from './RoomMarker3D'
 import { Interior3D } from './Interior3D'
+import { PHASE_COLOURS } from '../picture/phaseColour'
 import { GLASS } from './finishTint'
 import { buildWallGeometry, useWallGeometries } from './useWallGeometries'
 import { hoverColor, mutedColor, mutedGlow, toThree, wallExposureColor } from './convert'
@@ -92,6 +93,7 @@ export function Storey3D({
   const plan = useMemo(() => planForFloor(source, floorId), [source, floorId])
   const memo = useRef(createSceneMemo()).current
   const scene = useMemo(() => memo(plan), [memo, plan])
+  const phases = useMemo(() => partPhases(plan), [plan])
   const wallGeometries = useWallGeometries(scene, storey.cut)
   // VEW-78: the rooms' ceilings and the linings their wall finishes are drawn on. A floor shown
   // as a cutaway is open above and has its walls lowered, so it has neither.
@@ -108,6 +110,7 @@ export function Storey3D({
     floor: tone(colors.floor),
     note: colors.note
   }), [colors, tone])
+  const workColour = (id: string): string | undefined => phases.get(id) === 'new' ? tone(PHASE_COLOURS.new) : undefined
   const shadows = castShadow && look === 'solid'
   const glow = mutedGlow(look, colors.mutedWash)
 
@@ -163,11 +166,13 @@ export function Storey3D({
     >
       {scene.walls.map((wall) => {
         const geometry = wallGeometries.get(wall.id)
+        const work = workColour(wall.id)
+        const color = work ?? wallExposureColor(wall.exposure, palette)
         // VEW-78: a wall of a glazed type is glass, see-through, as a window's glass is.
         if (geometry && wall.glazed === true) {
           return (
             <mesh key={wall.id} ref={register(objects.walls, wall.id)} geometry={geometry} name="glass">
-              <meshStandardMaterial color={GLASS.color} transparent opacity={GLASS.opacity} depthWrite={false} roughness={0.1} metalness={0} side={THREE.DoubleSide} />
+              <meshStandardMaterial color={work ?? GLASS.color} transparent opacity={GLASS.opacity} depthWrite={false} roughness={0.1} metalness={0} side={THREE.DoubleSide} />
             </mesh>
           )
         }
@@ -180,8 +185,8 @@ export function Storey3D({
             receiveShadow
           >
             <meshStandardMaterial
-              color={wallExposureColor(wall.exposure, palette)}
-              emissive={wallExposureColor(wall.exposure, palette)}
+              color={color}
+              emissive={color}
               emissiveIntensity={glow}
               roughness={0.85}
               metalness={0}
@@ -194,7 +199,7 @@ export function Storey3D({
         <Slab3D
           key={slab.roomId}
           slab={slab}
-          color={slab.roomId === highlightRoom ? palette.note : palette.floor}
+          color={slab.roomId === highlightRoom ? palette.note : workColour(slab.roomId) ?? palette.floor}
           meshRef={register(objects.slabs, slab.roomId)}
           castShadow={shadows}
           glow={glow}
@@ -209,18 +214,21 @@ export function Storey3D({
       {(scene.items ?? []).map((item) => (
         <Item3D key={`item:${item.id}`} item={item} color={palette.wallInterior} cut={storey.cut} castShadow={shadows} glow={glow} />
       ))}
-      {scene.openings.map((opening) => (
-        <Opening3D
-          key={`opening:${opening.id}`}
-          opening={storey.cut === null ? opening : cutOpening(opening, storey.cut)}
-          colors={{ frame: palette.wallExterior, leaf: palette.floor }}
-          glow={glow}
-        />
-      ))}
+      {scene.openings.map((opening) => {
+        const work = workColour(opening.id)
+        return (
+          <Opening3D
+            key={`opening:${opening.id}`}
+            opening={storey.cut === null ? opening : cutOpening(opening, storey.cut)}
+            colors={work === undefined ? { frame: palette.wallExterior, leaf: palette.floor } : { frame: work, leaf: work, glass: work }}
+            glow={glow}
+          />
+        )
+      })}
       {scene.dividers.map((divider) => (
-        <Divider3D key={`divider:${divider.wallId}`} divider={divider} color={colors.gridSection} />
+        <Divider3D key={`divider:${divider.wallId}`} divider={divider} color={workColour(divider.wallId) ?? colors.gridSection} />
       ))}
-      {interior !== null && <Interior3D interior={interior} ceilings={ceilings} ceilingColor={colors.wallInterior} tone={tone} glow={glow} />}
+      {interior !== null && <Interior3D interior={interior} ceilings={ceilings} ceilingColor={colors.wallInterior} tone={tone} phases={phases} glow={glow} />}
       {scene.shell !== null && <Shell3D shell={scene.shell} roof={roof} color={palette.floor} castShadow={shadows} glow={glow} />}
       {scene.slabs
         .filter((slab) => slab.roomId === highlightRoom)

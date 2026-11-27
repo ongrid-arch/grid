@@ -15,14 +15,15 @@
  *
  * Pure: a survey in, plain data out.
  */
-import { compareIds, flatOfRoom, floorOf, indexPlan, itemKindDefinition, itemRoom, planFlats, planFloors, planForFloor, roomShapes, tolerance, wallLength } from '@ongrid/floorplan/geometry'
-import { factKey, factOf, factText, type FactValue } from '@ongrid/floorplan/types/floorplan'
+import { compareIds, flatOfRoom, floorOf, indexPlan, itemKindDefinition, itemRoom, phaseReading, planFlats, planFloors, planForFloor, roomShapes, tolerance, wallLength } from '@ongrid/floorplan/geometry'
+import { factKey, factOf, factText, type FloorPlan, type FactValue, type Phase } from '@ongrid/floorplan/types/floorplan'
+import { say } from '@ongrid/floorplan/messages'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
 import { notCountedRooms, planAreas, roomKey, type RoomNotCounted } from './areas'
 import { roomHeight } from './measure'
 import { planSeating, seatingOf, type Seating } from './seats'
-import type { Survey } from './survey'
+import { surveyPlan, type Survey } from './survey'
 
 /** The parts that carry facts of the person's own (`grid_set_facts`). */
 export const FACT_PART_KINDS = ['wall', 'door', 'window', 'opening', 'room', 'floor'] as const
@@ -67,6 +68,7 @@ export const FACT_VALUES_SHOWN = 12
 
 const OPENINGS: readonly PartKind[] = ['door', 'window', 'opening']
 const ALL: readonly PartKind[] = PART_KINDS
+const PHASE_KINDS: readonly PartKind[] = ['wall', ...OPENINGS, 'room']
 
 /** The fields Grid states or works out, in the order `grid_fields` lists them. */
 export const GRID_FIELDS: readonly FieldInfo[] = [
@@ -91,6 +93,8 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'wall', type: 'text', unit: null, kinds: OPENINGS, from: 'grid', about: 'The id of the wall it is in.' },
   { name: 'rooms', type: 'list', unit: null, kinds: ['wall', ...OPENINGS, ...ITEMS], from: 'grid', about: 'The ids of the rooms beside it; an opening\'s two sides, "outside" where no room is; the room an item stands in.' },
   { name: 'level', type: 'number', unit: null, kinds: ['floor'], from: 'grid', about: 'The floor\'s place in the stack: 0 the ground floor, 1 the floor above.' },
+  { name: 'phase', type: 'text', unit: null, kinds: PHASE_KINDS, from: 'grid', about: say('en', 'query.field.phase') },
+  { name: 'stage', type: 'text', unit: null, kinds: PHASE_KINDS, from: 'grid', about: say('en', 'query.field.stage') },
   // CNT-51: a room's or zone's finishes, as the plan states them.
   { name: 'floor finish', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The finish of its floor, as the plan names it.' },
   { name: 'wall finish', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The finish of its walls\' inside faces, as the plan names it.' },
@@ -118,6 +122,7 @@ export interface Part {
   readonly id: string
   readonly floor: string
   readonly facts: Readonly<Record<string, FactValue>>
+  readonly phase?: Phase
   /** CNT-8, only on a zone: the room it is part of. It has no number of its own and is counted in no total. */
   readonly zoneOf?: string
 }
@@ -152,19 +157,24 @@ function openingKind(type: 'door' | 'window' | 'opening'): PartKind {
  * with `items`, its fixtures, furniture and points (CNT-52) last, with their facts; a change of facts
  * leaves them out: an item is given its facts as it is added (`grid_add_item`).
  */
-export function askPlan(survey: Survey, options: { readonly items?: boolean } = {}): Asked {
+export function askPlan(survey: Survey, options: { readonly items?: boolean; readonly stated?: FloorPlan } = {}): Asked {
   const plan = survey.plan
-  const wallFloor = new Map(plan.walls.map((w) => [w.id, floorOf(w)] as const))
+  const stated = options.stated ?? plan
+  const phases = phaseReading(stated)
+  let before: Survey | undefined
+  const beforeWork = (): Survey => (before ??= surveyPlan(stated, 'before'))
+  const wallFloor = new Map(stated.walls.map((w) => [w.id, floorOf(w)] as const))
   const parts: Part[] = []
   const byId = <T extends { id: string }>(list: readonly T[]): T[] => [...list].sort((a, b) => compareIds(a.id, b.id))
-  for (const floor of planFloors(plan)) parts.push({ kind: 'floor', id: floor.id, floor: floor.id, facts: floor.properties ?? {} })
+  for (const floor of planFloors(stated)) parts.push({ kind: 'floor', id: floor.id, floor: floor.id, facts: floor.properties ?? {} })
   const zoneOf = new Map(survey.rooms.flatMap((room) => (room.facts.zoneOf === undefined ? [] : [[room.facts.id, room.facts.zoneOf] as const])))
-  for (const room of byId(plan.rooms)) {
-    const of = zoneOf.get(room.id)
-    parts.push({ kind: 'room', id: room.id, floor: floorOf(room), facts: room.properties ?? {}, ...(of === undefined ? {} : { zoneOf: of }) })
+  for (const room of byId(stated.rooms)) {
+    const phase = phases.room(room)
+    const of = zoneOf.get(room.id) ?? (phase === 'demolished' && room.partOf !== undefined ? beforeWork().byId.get(room.id)?.facts.zoneOf : undefined)
+    parts.push({ kind: 'room', id: room.id, floor: floorOf(room), facts: room.properties ?? {}, phase, ...(of === undefined ? {} : { zoneOf: of }) })
   }
-  for (const wall of byId(plan.walls)) parts.push({ kind: 'wall', id: wall.id, floor: floorOf(wall), facts: wall.properties ?? {} })
-  for (const opening of byId(plan.openings)) parts.push({ kind: openingKind(opening.type), id: opening.id, floor: wallFloor.get(opening.wall) ?? 'ground', facts: opening.properties ?? {} })
+  for (const wall of byId(stated.walls)) parts.push({ kind: 'wall', id: wall.id, floor: floorOf(wall), facts: wall.properties ?? {}, phase: phases.wall(wall) })
+  for (const opening of byId(stated.openings)) parts.push({ kind: openingKind(opening.type), id: opening.id, floor: wallFloor.get(opening.wall) ?? 'ground', facts: opening.properties ?? {}, phase: phases.opening(opening) })
   const items = new Map((options.items === true ? plan.items ?? [] : []).map((item) => [item.id, item] as const))
   for (const item of byId([...items.values()])) parts.push({ kind: itemPart(item.kind), id: item.id, floor: floorOf(item), facts: item.properties ?? {} })
   let shapes: ReturnType<typeof roomShapes> | null = null
@@ -173,14 +183,14 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
     return itemRoom(items.get(id)!, shapes)?.id ?? null
   }
 
-  const walls = new Map(plan.walls.map((w) => [w.id, w] as const))
-  const rooms = new Map(plan.rooms.map((r) => [r.id, r] as const))
-  const openings = new Map(plan.openings.map((o) => [o.id, o] as const))
-  const floors = new Map(planFloors(plan).map((f) => [f.id, f] as const))
+  const walls = new Map(stated.walls.map((w) => [w.id, w] as const))
+  const rooms = new Map(stated.rooms.map((r) => [r.id, r] as const))
+  const openings = new Map(stated.openings.map((o) => [o.id, o] as const))
+  const floors = new Map(planFloors(stated).map((f) => [f.id, f] as const))
   let areas: Map<string, number | null> | null = null
   let floorAreas: Map<string, number> | null = null
   let left: Map<string, RoomNotCounted> | null = null
-  let beside: Map<string, string[]> | null = null
+  const beside = new Map<Survey, Map<string, string[]>>()
   let flatsOf: ReturnType<typeof flatOfRoom> | null = null
   let flatTypes: Map<string, string | null> | null = null
   let seating: Seating | null = null
@@ -202,16 +212,18 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
     const m = measured()
     return part.kind === 'floor' ? m.floorAreas.get(part.id) ?? null : m.areas.get(roomKey(part.floor, part.id)) ?? null
   }
-  const roomsBeside = (wall: string): string[] => {
-    if (beside === null) {
-      beside = new Map()
-      for (const room of survey.rooms) {
+  const roomsBeside = (wall: string, state: Survey): string[] => {
+    let byWall = beside.get(state)
+    if (byWall === undefined) {
+      byWall = new Map()
+      for (const room of state.rooms) {
         for (const id of new Set(room.edges.flatMap((edge) => (edge.wall === null ? [] : [edge.wall.id])))) {
-          beside.set(id, [...(beside.get(id) ?? []), room.facts.id])
+          byWall.set(id, [...(byWall.get(id) ?? []), room.facts.id])
         }
       }
+      beside.set(state, byWall)
     }
-    return [...(beside.get(wall) ?? [])].sort(compareIds)
+    return [...(byWall.get(wall) ?? [])].sort(compareIds)
   }
   // CNT-4: the flat a room is in, by the plan's flats list; the one whose id comes first when two hold it.
   const flatOf = (room: string): { id: string; type: string | null } | null => {
@@ -236,6 +248,7 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
     if (name === 'id') return part.id
     if (name === 'kind') return part.kind
     if (name === 'floor') return part.floor
+    if (name === 'phase' || name === 'stage') return part.phase ?? null
     if (name === 'seats' || name === 'desks' || name === 'covers' || name === 'item zone') {
       const counted = seatingNow()
       if (isItemPart(part.kind)) {
@@ -265,7 +278,10 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
       if (name === 'flat') return flatOf(room.id)?.id ?? null
       if (name === 'flat type') return flatOf(room.id)?.type ?? null
       if (name === 'area') return areaOf(part)
-      if (name === 'height') return roomHeight(storey(part.floor), part.id).value
+      if (name === 'height') {
+        const slice = part.phase === 'demolished' ? planForFloor(beforeWork().plan, part.floor) : storey(part.floor)
+        return roomHeight(slice, part.id).value
+      }
       if (name === 'floor finish') return room.finishes?.floor ?? null
       if (name === 'wall finish') return room.finishes?.walls ?? null
       if (name === 'ceiling finish') return room.finishes?.ceiling ?? null
@@ -281,7 +297,7 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
       if (name === 'height') return wall.height
       if (name === 'wall kind') return wall.kind
       if (name === 'virtual') return wall.virtual === true
-      if (name === 'rooms') return roomsBeside(wall.id)
+      if (name === 'rooms') return roomsBeside(wall.id, part.phase === 'demolished' ? beforeWork() : survey)
       return null
     }
     if (isItemPart(part.kind)) {
@@ -304,7 +320,8 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean } = 
     if (name === 'sill') return opening.sill
     if (name === 'wall') return opening.wall
     if (name === 'rooms') {
-      const sides = survey.facts.openings.get(opening.id)?.sides
+      const state = part.phase === 'demolished' ? beforeWork() : survey
+      const sides = state.facts.openings.get(opening.id)?.sides
       if (sides === undefined) return []
       return sides.map((side) => (typeof side === 'object' ? side.room : side))
     }
@@ -513,17 +530,24 @@ export interface Selection {
   /** A room by id: the room, the walls beside it and the openings into it. */
   readonly room?: string
   readonly where?: readonly string[]
+  readonly fields?: readonly Field[]
 }
 
-/** The parts a selection picks, in the parts' order. */
+export function isPhaseField(field: Field): boolean {
+  return field.from === 'grid' && (field.info.name === 'phase' || field.info.name === 'stage')
+}
+
+/** The parts a selection picks, in the parts' order. Phase questions include both states. */
 export function select(asked: Asked, selection: Selection): Part[] {
   const conditions = (selection.where ?? []).map((text, i) => {
     const condition = readCondition(asked, text, `where item ${i + 1}`)
     checkCondition(condition, `where item ${i + 1}`)
     return condition
   })
+  const includesDemolition = selection.fields?.some(isPhaseField) === true || conditions.some(({ field }) => isPhaseField(field))
   const rooms: Field = { from: 'grid', info: GRID_FIELDS.find((f) => f.name === 'rooms')! }
   return asked.parts.filter((part) => {
+    if (!includesDemolition && part.phase === 'demolished') return false
     if (selection.kinds !== undefined && !selection.kinds.includes(part.kind)) return false
     if (selection.floor !== undefined && part.floor !== selection.floor) return false
     if (selection.room !== undefined) {

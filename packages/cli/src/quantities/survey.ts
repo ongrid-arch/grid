@@ -11,6 +11,7 @@ import {
   dot,
   indexPlan,
   planInState,
+  type PlanState,
   phaseClashes,
   type PhaseClash,
   planForFloor,
@@ -57,7 +58,7 @@ export interface Survey {
   /** Rooms in plan order, floor by floor. */
   readonly rooms: readonly SurveyRoom[]
   readonly byId: ReadonlyMap<string, SurveyRoom>
-  /** ARE-54: the parts that stand when their wall does not, worked out from the plan as stated (the survey's own plan is the state after the work). */
+  /** ARE-54: the parts that stand when their wall does not, worked out from the plan as stated (the survey defaults to the state after the work). */
   readonly phaseClashes: readonly PhaseClash[]
 }
 
@@ -85,11 +86,11 @@ function wallOfEdge(from: Vec2, to: Vec2, walls: readonly Wall[]): Wall | null {
   return null
 }
 
-export function surveyPlan(stated: FloorPlan): Survey {
+export function surveyPlan(stated: FloorPlan, state: PlanState = 'after'): Survey {
   // CNT-10: every measure is of the building as it will be after the work (`planInState`).
-  const plan = planInState(stated, 'after')
+  const plan = planInState(stated, state)
   // Its facts count the work too (`PlanFacts.work`), from the plan as stated.
-  const facts = planFacts(stated)
+  const facts = planFacts(stated, state)
   const rooms: SurveyRoom[] = []
   for (const floor of facts.floors) {
     const { storey, leftOut } = drawable(planForFloor(plan, floor.id))

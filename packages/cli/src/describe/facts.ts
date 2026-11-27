@@ -38,6 +38,7 @@ import {
   type FloorPlan,
   type Opening,
   type PlanIndex,
+  type PlanState,
   type Vec2,
   type Wall,
 } from '@ongrid/floorplan/geometry'
@@ -689,10 +690,10 @@ function heightsOf(plan: FloorPlan, floors: readonly FloorFacts[]): Heights {
 }
 
 /** Everything `grid describe` says, from a plan that passed the schema. */
-export function planFacts(stated: FloorPlan): PlanFacts {
-  // CNT-10: the building as it will be after the work; the work itself is counted apart.
+export function planFacts(stated: FloorPlan, state: PlanState = 'after'): PlanFacts {
+  // CNT-10: the building after the work by default; the work itself is counted apart.
   const work = planHasPhases(stated) ? { counts: phaseCounts(stated), base: stated.base ?? null } : null
-  const plan = planInState(stated, 'after')
+  const plan = planInState(stated, state)
   const registered = new Set((plan.floors ?? []).map((floor) => floor.id))
   const layouts = new Map<string, { floor: string; ids: string[] }>()
   const floors: FloorFacts[] = planFloors(plan).map((floor) => {

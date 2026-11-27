@@ -3296,6 +3296,8 @@ export const en = {
   // ── After merging main at fbe5160e: CNT-10's phases, VEW-9's walk-through, WRT-7's sheet units ──
   'issue.opening/phase-wall': 'Opening {part} is {phase}, so it stands {states}, but its wall {wall} is {wallPhase} and stands {wallStates}',
   'issue.room/phase-wall': 'Room {part} is {phase}, so it stands {states}, but its wall {wall} is {wallPhase} and stands {wallStates}',
+  'query.field.phase': 'Existing, demolished or new',
+  'query.field.stage': 'Alias of phase',
   'issue.part.phase.existing': 'existing',
   'issue.part.phase.demolished': 'to be demolished',
   'issue.part.phase.new': 'new',
