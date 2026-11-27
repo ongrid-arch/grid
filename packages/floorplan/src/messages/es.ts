@@ -3463,6 +3463,7 @@ export const es: Messages = {
   'drawing.mark.faces.north-west': 'NO',
 
   'sheet.months': 'ENE FEB MAR ABR MAY JUN JUL AGO SEP OCT NOV DIC',
+  'sheet.progress.page': 'Página {done} de {total}',
   'sheet.continued': '{title} (continuación)',
   'sheet.undecided': 'Una puerta dibujada con línea discontinua y "?" aún no tiene sentido de apertura indicado.',
   'sheet.limits': 'Dibujado solo a partir del plano. No se muestran {left}.',

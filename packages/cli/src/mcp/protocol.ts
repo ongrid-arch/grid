@@ -153,6 +153,41 @@ async function readResource(id: Id, params: Record<string, unknown>, resources: 
 /** What one request names about itself. The server keeps nothing between requests. */
 export interface CallRequest {
   readonly protocolVersion?: string
+  /**
+   * SHT-25: how a long call reports how far it has got, when the request's `_meta` carries a
+   * `progressToken` and the server can send lines of its own: each report goes out at once as a
+   * `notifications/progress` line, before the answer.
+   */
+  readonly progress?: (progress: number, total: number, message: string) => void
+}
+
+/** SHT-25: sends one line to the client at once, beside the answers (`serve.ts` writes it out). */
+export type Notify = (line: string) => void
+
+/** SHT-25: the request's progress token: a string no longer than an id may be, or a whole number. */
+function progressTokenOf(params: Record<string, unknown>): string | number | null {
+  const meta = params['_meta']
+  if (!isObject(meta)) return null
+  const token = meta['progressToken']
+  if (typeof token === 'string' && token.length <= REQUEST_ID_MAX) return token
+  if (typeof token === 'number' && Number.isSafeInteger(token)) return token
+  return null
+}
+
+/** SHT-25: the request as the tool sees it, with `progress` when the client asked for it and lines can be sent. */
+function withProgress(request: CallRequest, params: Record<string, unknown>, notify: Notify | undefined): CallRequest {
+  const token = progressTokenOf(params)
+  if (token === null || notify === undefined) return request
+  let last = 0
+  return {
+    ...request,
+    progress: (progress, total, message) => {
+      // The protocol asks progress to grow with each report: a report that does not is not sent.
+      if (!(progress > last)) return
+      last = progress
+      notify(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress, total, message } }))
+    },
+  }
 }
 
 function reply(id: Id, result: unknown): string {
@@ -202,7 +237,7 @@ function complete(result: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** One request of a 2026-07-28 client, which names its version in its own `_meta`. */
-function perRequest(id: Id, method: unknown, params: Record<string, unknown>, tools: readonly ServerTool[], resources: readonly ServerResource[]): string | Promise<string> {
+function perRequest(id: Id, method: unknown, params: Record<string, unknown>, tools: readonly ServerTool[], resources: readonly ServerResource[], notify?: Notify): string | Promise<string> {
   const meta = isObject(params['_meta']) ? params['_meta'] : {}
   const asked = meta[META_VERSION]
   if (typeof asked !== 'string') {
@@ -237,7 +272,7 @@ function perRequest(id: Id, method: unknown, params: Record<string, unknown>, to
       const tool = tools.find((t) => t.definition.name === params['name'])
       if (!tool) return fail(id, -32602, 'Unknown tool')
       // The version is one Grid speaks, checked above: it may be repeated.
-      return runTool(id, tool, params['arguments'], complete, { protocolVersion: asked })
+      return runTool(id, tool, params['arguments'], complete, withProgress({ protocolVersion: asked }, params, notify))
     }
     case 'resources/list':
       if (resources.length === 0) return fail(id, -32601, `Method not found. ${VERSIONS_SPOKEN}`)
@@ -311,9 +346,10 @@ function byteLength(line: string): number {
 
 /**
  * One JSON-RPC line in, one line out, or null when nothing should be sent. A tool call that
- * draws a picture answers later, so a call may give a promise of its line.
+ * draws a picture answers later, so a call may give a promise of its line. SHT-25: with `notify`,
+ * a call whose request carries a progress token may send progress lines through it before then.
  */
-export function handleLine(line: string, tools: readonly ServerTool[] = [], resources: readonly ServerResource[] = []): string | null | Promise<string> {
+export function handleLine(line: string, tools: readonly ServerTool[] = [], resources: readonly ServerResource[] = [], notify?: Notify): string | null | Promise<string> {
   if (byteLength(line) > LINE_MAX_BYTES) {
     return fail(idOfUnreadLine(line), -32600, `Request refused unread: the line is longer than ${LINE_MAX_BYTES} bytes (1 MiB), the most Grid's tool server reads.`)
   }
@@ -343,7 +379,7 @@ export function handleLine(line: string, tools: readonly ServerTool[] = [], reso
 
   // A request that names its version, or asks what the server speaks, is of the 2026-07-28 era.
   if (message['method'] === 'server/discover' || (isObject(params['_meta']) && params['_meta'][META_VERSION] !== undefined)) {
-    return perRequest(id, message['method'], params, tools, resources)
+    return perRequest(id, message['method'], params, tools, resources, notify)
   }
 
   switch (message['method']) {
@@ -364,7 +400,7 @@ export function handleLine(line: string, tools: readonly ServerTool[] = [], reso
     case 'tools/call': {
       const tool = tools.find((t) => t.definition.name === params['name'])
       if (!tool) return fail(id, -32602, 'Unknown tool')
-      return runTool(id, tool, params['arguments'])
+      return runTool(id, tool, params['arguments'], undefined, withProgress({}, params, notify))
     }
     case 'resources/list':
       if (resources.length === 0) return fail(id, -32601, `Method not found. ${VERSIONS_SPOKEN}`)

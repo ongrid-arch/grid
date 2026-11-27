@@ -15,7 +15,23 @@ import { tolerancesChanged } from './tolerances'
 /** How many answers are kept per frozen plan, the oldest dropped first. */
 export const KEPT_PER_PLAN = 32
 
-const kept = new WeakMap<object, Map<string, unknown>>()
+/** A store of answers kept against frozen owners, each owner's answers in the order kept. */
+export type KeptStore = WeakMap<object, Map<string, unknown>>
+
+const kept: KeptStore = new WeakMap()
+
+/**
+ * SHT-25: what the drawings of a whole building are made from (its envelope, its facades and
+ * sections) and the sheet's pictures of them, kept apart from `keptFor`'s store, so a tall plan's many floor slices never push them
+ * out between one drawing of a sheet and the next.
+ */
+export const KEPT_DRAWN: KeptStore = new WeakMap()
+
+/**
+ * SHT-25: how many answers `KEPT_DRAWN` keeps per frozen plan: a sheet tries its elevations and
+ * sections at several scales before one fits, and each try's pictures are kept.
+ */
+export const KEPT_DRAWN_PER_PLAN = 96
 
 /** `value` and everything it holds, frozen; a set or a map is left as it is. */
 export function deepFreeze<T>(value: T): T {
@@ -36,15 +52,21 @@ export function deepFreeze<T>(value: T): T {
  * frozen, worked out afresh every time.
  */
 export function keptFor<T>(owner: object, key: string, work: () => T, freeze = true): T {
+  return keptIn(kept, owner, key, work, freeze)
+}
+
+/** `keptFor` in a store of its own (SHT-25: `KEPT_DRAWN`), with the same rules. */
+export function keptIn<T>(store: KeptStore, owner: object, key: string, work: () => T, freeze = true): T {
+  const most = store === KEPT_DRAWN ? KEPT_DRAWN_PER_PLAN : KEPT_PER_PLAN
   if (!Object.isFrozen(owner) || tolerancesChanged()) return work()
-  let mine = kept.get(owner)
+  let mine = store.get(owner)
   if (mine === undefined) {
     mine = new Map()
-    kept.set(owner, mine)
+    store.set(owner, mine)
   }
   if (mine.has(key)) return mine.get(key) as T
   const value = freeze ? deepFreeze(work()) : work()
   mine.set(key, value)
-  if (mine.size > KEPT_PER_PLAN) mine.delete(mine.keys().next().value!)
+  if (mine.size > most) mine.delete(mine.keys().next().value!)
   return value
 }
