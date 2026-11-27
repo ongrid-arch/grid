@@ -22,8 +22,10 @@
 import type { FloorPlan } from '../types/floorplan'
 import type { ReadFault } from '../types/readParts'
 import { buildFloorPlan, buildScene, dxfFactsOf, dxfSheets, floorElevations, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toBuildingGlb, toBuildingObj, toDxfFloors, toIfc, withPatterns } from '../geometry'
-import { toMtl, type StoreyScene } from '../geometry/export/obj'
-import type { GlbNorth, GlbSun } from '../geometry/export/gltf'
+import { toMtl } from '../geometry/export/obj'
+import type { GlbNorth, GlbStorey, GlbSun } from '../geometry/export/gltf'
+import { glbFacts } from '../geometry/export/glbFacts'
+import { viewCameras, type GlbDoorMode, type GlbWallMode } from '../geometry/export/glbNodes'
 import { planOrientation } from '../geometry/orientation'
 import { planPlace, type PlanSun } from '../geometry/sunShade'
 import type { Scene3D } from '../geometry/scene3d'
@@ -85,6 +87,10 @@ export interface PlanExportOptions {
   readonly arcSegments?: number
   /** CNT-58: GLB: the sun at a moment, written as a directional light node named `sun`. None when left out. */
   readonly sun?: { readonly sun: PlanSun; readonly utcOffset: number | null }
+  /** VEW-82: GLB: what each door is written as (`GLB_DOOR_MODES`); `closed` when left out. */
+  readonly doors?: GlbDoorMode
+  /** VEW-82: GLB: each straight wall whole or in a piece per stretch between its rooms (`GLB_WALL_MODES`); `whole` when left out. */
+  readonly walls?: GlbWallMode
 }
 
 /** CNT-58: the north and place a GLB carries, when the plan states either. */
@@ -194,15 +200,19 @@ function floorsUp(plan: FloorPlan): string[] {
  * root node moves it back (`nearOrigin`, `GlbOptions.origin`). The OBJ writes its numbers as
  * text and keeps them as they are.
  */
-function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, asked: Pick<PlanExportOptions, 'roofs' | 'arcSegments'> = {}): { storeys: StoreyScene[]; origin: readonly [number, number] } {
+function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, asked: Pick<PlanExportOptions, 'roofs' | 'arcSegments'> = {}): { storeys: GlbStorey[]; origin: readonly [number, number] } {
   const moved = near ? nearOrigin(plan) : { plan, at: [0, 0] as const }
   const levels = floorElevations(moved.plan).floors
-  const sceneOf = (id: string): Scene3D => {
-    const scene = buildScene(planForFloor(moved.plan, id), asked.arcSegments === undefined ? {} : { arcSegments: asked.arcSegments })
+  const sceneOf = (slice: FloorPlan): Scene3D => {
+    const scene = buildScene(slice, asked.arcSegments === undefined ? {} : { arcSegments: asked.arcSegments })
     // VEW-73: roofs left out, and the parapets that stand on them.
     return asked.roofs === false && scene.shell !== null ? { ...scene, shell: { ...scene.shell, roof: null, parapet: null } } : scene
   }
-  const storeys = floorIds.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0, scene: sceneOf(id) }))
+  // VEW-82: the GLB's nodes carry each floor's facts; the OBJ reads only the scene.
+  const storeys = floorIds.map((id) => {
+    const slice = planForFloor(moved.plan, id)
+    return { id, elevation: levels.get(id)?.floorLevel ?? 0, scene: sceneOf(slice), ...(near ? { facts: glbFacts(slice) } : {}) }
+  })
   return { storeys, origin: moved.at }
 }
 
@@ -210,6 +220,12 @@ function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, 
 function withNorthAndSun(plan: FloorPlan, options: PlanExportOptions): { north?: GlbNorth; sun?: GlbSun } {
   const north = glbNorth(plan)
   return { ...(north === undefined ? {} : { north }), ...(options.sun === undefined ? {} : { sun: glbSun(options.sun) }) }
+}
+
+/** VEW-82: the GLB's doors, walls and cameras, each only when there is one to say. */
+function glbAsk(plan: FloorPlan, options: PlanExportOptions): { doors?: GlbDoorMode; walls?: GlbWallMode; views?: ReturnType<typeof viewCameras> } {
+  const views = viewCameras(plan)
+  return { ...(options.doors === undefined ? {} : { doors: options.doors }), ...(options.walls === undefined ? {} : { walls: options.walls }), ...(views.length === 0 ? {} : { views }) }
 }
 
 export function exportPlan(stated: FloorPlan, format: ExportFormat, options: PlanExportOptions): PlanExport {
@@ -266,7 +282,7 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
     floors = held.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
   } else {
     const { storeys, origin } = storeysOf(ordered, held, format === 'glb', options)
-    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor', ...withNorthAndSun(plan, options) })
+    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor', ...withNorthAndSun(plan, options), ...glbAsk(plan, options) })
     floors = storeys.map(({ id, elevation }) => ({ id, elevation }))
   }
   const heldIds = new Set(held)

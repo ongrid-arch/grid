@@ -28,6 +28,11 @@ import type { StoreyScene } from './obj'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { english, name, said } from '../../messages/say'
 import { approximationLines, leftOutLines, leftOutSummary, NO_APPROXIMATIONS, type Approximations, type LeftOutPart } from './leftOut'
+import type { GlbFacts, GlbPartFacts } from './glbFacts'
+import { pieceLabel, wallPieces } from './wallPieces'
+import { doorMarker, leafHinge, leafMotion, openAngle, turnAboutUp, type GlbDoorMode, type GlbWallMode, type ViewCamera } from './glbNodes'
+
+export { GLB_DOOR_MODES, GLB_WALL_MODES, type GlbDoorMode, type GlbWallMode } from './glbNodes'
 
 const MAGIC = 0x46546c67 // "glTF"
 const VERSION = 2
@@ -106,6 +111,148 @@ interface Part {
   readonly material: MeshMaterial
   /** CNT-7 (C26): an outdoor space's floor says so in its node's `extras` (lab EL-18). */
   readonly outdoor?: { readonly kind: string; readonly roofed: boolean }
+  /** VEW-82: what its node's `extras` say of it; the outdoor marks are then among them. */
+  readonly extras?: Readonly<Record<string, unknown>>
+  /** VEW-82: the kind its node is grouped under on its floor. */
+  readonly group?: GroupKind
+  /** VEW-82: the point its node stands at (a leaf's hinge), in the model's frame; its points are written from it. */
+  readonly pivot?: Vec3
+  /** VEW-82: its node's turn about that point (an open leaf), a unit quaternion. */
+  readonly rotation?: readonly number[]
+}
+
+/** VEW-82: the kinds a floor's parts are grouped by, in the order the groups are written, each with its node's word. */
+const GROUPS = [
+  ['wall', 'walls'],
+  ['room', 'rooms'],
+  ['stair', 'stairs'],
+  ['column', 'columns'],
+  ['item', 'items'],
+  ['door', 'doors'],
+  ['window', 'windows'],
+  ['shell', 'shell']
+] as const
+type GroupKind = (typeof GROUPS)[number][0]
+
+/** VEW-82: a node with no mesh that stands for a door (`doors: 'markers'`). */
+interface Marker {
+  readonly name: string
+  readonly at: Vec3
+  readonly turn: number
+  readonly extras: Readonly<Record<string, unknown>>
+}
+
+/** VEW-82: what a building's GLB writes of one floor's parts, past their meshes. */
+interface GameAsk {
+  readonly floor: string
+  readonly facts?: GlbFacts
+  readonly doors: GlbDoorMode
+  readonly walls: GlbWallMode
+}
+
+/** VEW-82: a node's extras for a part: its id, kind and floor, then what the plan states of it. */
+function extrasOf(kind: string, id: string, floor: string, facts: GlbPartFacts | undefined, more: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
+  const extras: Record<string, unknown> = { gridId: id, gridKind: kind, gridFloor: floor }
+  if (facts?.rooms !== undefined) extras['gridRooms'] = facts.rooms
+  if (facts?.name !== undefined) extras['gridName'] = facts.name
+  if (facts?.number !== undefined) extras['gridNumber'] = facts.number
+  if (facts?.use !== undefined) extras['gridUse'] = facts.use
+  if (facts?.finish !== undefined) extras['gridFinish'] = facts.finish
+  if (facts?.type !== undefined) extras['gridType'] = facts.type
+  if (facts?.properties !== undefined) extras['gridProperties'] = facts.properties
+  return { ...extras, ...more }
+}
+
+/** VEW-82: a wall's finishes kept to the rooms beside one piece of it. */
+function finishFor(finish: unknown, rooms: readonly string[]): Record<string, string> | undefined {
+  if (finish === undefined || finish === null || typeof finish !== 'object') return undefined
+  const kept = Object.entries(finish as Record<string, string>).filter(([room]) => rooms.includes(room))
+  return kept.length === 0 ? undefined : Object.fromEntries(kept)
+}
+
+/**
+ * VEW-82: a floor's parts for a building's GLB: as `partsOf` lists them, each with its extras and
+ * its group, the walls whole or in pieces at their rooms, and the doors as `doors` asks.
+ */
+function gamePartsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => string, ask: GameAsk): { parts: Part[]; markers: Marker[] } {
+  const parts: Part[] = []
+  const markers: Marker[] = []
+  const { floor, facts } = ask
+  for (const wall of scene.walls) {
+    const own = facts?.walls.get(wall.id)
+    const pieces = ask.walls === 'rooms' ? wallPieces(wall, facts?.stretches.get(wall.id) ?? []) : null
+    if (pieces === null) {
+      const mesh = wallMesh(wall)
+      if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: 'wall', group: 'wall', extras: extrasOf('wall', wall.id, floor, own) })
+      continue
+    }
+    for (const piece of pieces) {
+      const mesh = wallMesh({ ...wall, elevation: piece.elevation })
+      if (!mesh) continue
+      const rooms = { left: piece.left, right: piece.right }
+      const finish = finishFor(own?.finish, [...piece.left, ...piece.right])
+      const facts = { ...own, rooms, finish }
+      parts.push({ name: nameOf('wall', pieceLabel(wall.id, piece)), mesh, material: 'wall', group: 'wall', extras: extrasOf('wall', wall.id, floor, facts, { gridPiece: { from: piece.from, to: piece.to } }) })
+    }
+  }
+  for (const slab of scene.slabs) {
+    const mesh = floorMesh(slab)
+    const outdoor = slab.outdoor === undefined ? {} : { gridOutdoor: slab.outdoor.kind, gridRoofed: slab.outdoor.roofed }
+    if (mesh) parts.push({ name: nameOf('floor', slab.roomId), mesh, material: 'floor', group: 'room', extras: extrasOf('room', slab.roomId, floor, facts?.rooms.get(slab.roomId), outdoor) })
+  }
+  for (const stair of scene.stairs) {
+    const mesh = stairMesh(stair)
+    if (mesh) parts.push({ name: nameOf('stair', stair.id), mesh, material: 'stair', group: 'stair', extras: extrasOf('stair', stair.id, floor, undefined, { gridName: stair.name }) })
+  }
+  for (const column of scene.columns ?? []) {
+    const mesh = columnMesh(column)
+    if (mesh) parts.push({ name: nameOf('column', column.id), mesh, material: 'column', group: 'column', extras: extrasOf('column', column.id, floor, facts?.columns.get(column.id)) })
+  }
+  for (const item of scene.items ?? []) {
+    const mesh = itemMesh(item)
+    if (mesh) parts.push({ name: nameOf('item', item.id), mesh, material: 'item', group: 'item', extras: extrasOf('item', item.id, floor, facts?.items.get(item.id)) })
+  }
+  for (const opening of scene.openings) {
+    const own = facts?.openings.get(opening.id)
+    const door = opening.type === 'door'
+    const doorFacts = door ? { ...(own?.swing === undefined ? {} : { gridSwing: own.swing }), ...(opening.kind === null ? {} : { gridDoorKind: opening.kind }) } : {}
+    if (door && ask.doors === 'markers') {
+      const marker = doorMarker(opening)
+      if (marker !== null) {
+        markers.push({ name: nameOf('door', opening.id), at: marker.at, turn: marker.turn, extras: extrasOf('door', opening.id, floor, own, { ...doorFacts, gridWidth: marker.width, gridHeight: marker.height }) })
+      }
+      continue
+    }
+    const motion = door ? leafMotion(opening) : null
+    for (const kind of OPENING_PART_KINDS) {
+      if (door && ask.doors === 'gaps' && kind !== 'frame') continue
+      const extras = (more: Readonly<Record<string, unknown>> = {}): Record<string, unknown> => extrasOf(opening.type, opening.id, floor, own, { ...doorFacts, gridPart: kind, ...more })
+      if (door && kind === 'leaf' && motion === 'swings') {
+        // Each swinging leaf a node of its own, standing on its hinge.
+        for (const leaf of opening.parts.filter((p) => p.part === 'leaf' && p.top > p.bottom)) {
+          const mesh = openingPartMesh({ ...opening, parts: [leaf] }, 'leaf')
+          if (!mesh) continue
+          const hinge = leafHinge(opening, leaf, own?.swing)
+          const turned = ask.doors === 'open' ? { rotation: turnAboutUp(hinge.opens * openAngle()) } : {}
+          parts.push({ name: nameOf('leaf', opening.id), mesh, material: 'door', group: 'door', pivot: hinge.at, ...turned, extras: extras({ gridMotion: motion, gridOpens: hinge.opens }) })
+        }
+        continue
+      }
+      const mesh = openingPartMesh(opening, kind)
+      const moves = kind === 'leaf' && motion !== null ? { gridMotion: motion } : {}
+      if (mesh) parts.push({ name: nameOf(kind, opening.id), mesh, material: materialOf(kind), group: opening.type, extras: extras(moves) })
+    }
+  }
+  const shell = scene.shell
+  if (shell !== null) {
+    const add = (prefix: string, mesh: Mesh | null): void => {
+      if (mesh) parts.push({ name: nameOf(prefix, shell.floor), mesh, material: materialOf(prefix), group: 'shell', extras: extrasOf(prefix, shell.floor, floor, undefined) })
+    }
+    add('slab', shellMesh(shell.slab))
+    if (shell.roof) add('roof', shellMesh([shell.roof]))
+    if (shell.parapet) add('parapet', shellMesh([shell.parapet]))
+  }
+  return { parts, markers }
 }
 
 /**
@@ -324,7 +471,7 @@ const yUp = (p: Vec3): [number, number, number] => [p.x, p.z, 0 - p.y]
  * to, and a point is written once for each normal it carries, so the faces of one plane share
  * their points and an edge between two planes stays sharp.
  */
-function flatMesh(mesh: Mesh): FlatMesh {
+function flatMesh(mesh: Mesh, pivot?: Vec3): FlatMesh {
   const positions: [number, number, number][] = []
   const normals: [number, number, number][] = []
   const uvs: (readonly [number, number])[] = []
@@ -346,7 +493,8 @@ function flatMesh(mesh: Mesh): FlatMesh {
         k = positions.length
         seen.set(at, k)
         const p = stored[i]!
-        positions.push(yUp(p))
+        // VEW-82: a part on a pivot is written from it; its texture stays where it lies in the world.
+        positions.push(yUp(pivot === undefined ? p : { x: p.x - pivot.x, y: p.y - pivot.y, z: p.z - pivot.z }))
         normals.push(yUp(n))
         uvs.push(boxUv(p, n))
       }
@@ -357,7 +505,7 @@ function flatMesh(mesh: Mesh): FlatMesh {
 }
 
 function writeParts(parts: readonly Part[]): Written {
-  const flats = parts.map((part) => flatMesh(part.mesh))
+  const flats = parts.map((part) => flatMesh(part.mesh, part.pivot))
   // Per mesh: its positions, its normals, its UVs, then its indices. Every component is 4 bytes,
   // so every view and accessor stays 4-byte aligned with no padding in between.
   const size = flats.reduce((sum, f) => sum + f.positions.length * (12 + 12 + 8) + f.indices.length * 4, 0)
@@ -411,7 +559,14 @@ function writeParts(parts: readonly Part[]): Written {
       primitives: [{ attributes: { POSITION: position, NORMAL: normal, TEXCOORD_0: uv }, indices, material: used.indexOf(part.material) }]
     })
     const outdoor = part.outdoor
-    nodes.push(outdoor === undefined ? { name, mesh: index } : { name, mesh: index, extras: { gridOutdoor: outdoor.kind, gridRoofed: outdoor.roofed } })
+    const extras = part.extras ?? (outdoor === undefined ? undefined : { gridOutdoor: outdoor.kind, gridRoofed: outdoor.roofed })
+    nodes.push({
+      name,
+      mesh: index,
+      ...(part.pivot === undefined ? {} : { translation: yUp(part.pivot) }),
+      ...(part.rotation === undefined ? {} : { rotation: part.rotation }),
+      ...(extras === undefined ? {} : { extras })
+    })
   }
   return { binary, accessors, bufferViews, meshes, nodes, materials: used }
 }
@@ -458,6 +613,30 @@ export interface BuildingGlbOptions extends GlbOptions {
    * its elevation. `floor`: one floor asked for alone, its node the root, carrying its elevation.
    */
   readonly root: 'building' | 'floor'
+  /** VEW-82: what the file writes for each door; `closed` when left out. */
+  readonly doors?: GlbDoorMode
+  /** VEW-82: whether a straight wall is one mesh or a piece per stretch between its rooms; `whole` when left out. */
+  readonly walls?: GlbWallMode
+  /** VEW-82: the plan's saved views, written as cameras, each a root of the scene. */
+  readonly views?: readonly ViewCamera[]
+}
+
+/** VEW-82: a floor of a building's GLB: its scene, and what its parts' extras say (`glbFacts`). */
+export interface GlbStorey extends StoreyScene {
+  readonly facts?: GlbFacts
+}
+
+/** VEW-82: the saved views' camera nodes, the n-th holding the n-th camera, and the cameras. */
+function cameraNodes(views: readonly ViewCamera[], nameOf: (prefix: string, id: string) => string): { nodes: object[]; cameras: object[] } {
+  const cameras = views.map((view) => ({ name: view.name, type: 'perspective', perspective: { yfov: view.yfov, aspectRatio: view.aspectRatio, znear: view.znear } }))
+  const nodes = views.map((view, k) => ({
+    name: nameOf('view', view.name),
+    camera: k,
+    translation: [...view.translation],
+    rotation: [...view.rotation],
+    extras: { gridView: view.name, gridTarget: [...view.target], ...(view.room === undefined ? {} : { gridRoom: view.room }) }
+  }))
+  return { nodes, cameras }
 }
 
 /** A translation, or none when it moves nothing. `0 - y`, as for the points, so y = 0 is not -0. */
@@ -472,36 +651,79 @@ function translation(x: number, up: number, y: number): { translation?: number[]
  * one. With `root: 'floor'` a single floor is the root itself, carrying the offset and its
  * elevation, so a file of one floor lands where that floor stands in the building.
  *
+ * VEW-82: under each floor's node its parts are grouped by kind (`walls_ground`, `doors_ground` ...,
+ * `GROUPS`), each group with `gridFloor` and `gridKind`, and every part's node carries its extras
+ * (`extrasOf`). A swinging leaf is a node on its hinge; `doors` and `walls` choose what a door and
+ * a straight wall are written as, and each saved view is a camera, a root of the scene.
+ *
  * Pure and total, as `toGlb`: the same storeys give the same bytes.
  */
-export function toBuildingGlb(storeys: readonly StoreyScene[], options: BuildingGlbOptions): Uint8Array {
+export function toBuildingGlb(storeys: readonly GlbStorey[], options: BuildingGlbOptions): Uint8Array {
   const nameOf = makeNamer()
-  const perFloor = storeys.map((storey) => partsOf(storey.scene, nameOf))
-  const parts = perFloor.flat()
+  const ask = { doors: options.doors ?? 'closed', walls: options.walls ?? 'whole' } as const
+  const perFloor = storeys.map((storey) => gamePartsOf(storey.scene, nameOf, { ...ask, floor: storey.id, ...(storey.facts === undefined ? {} : { facts: storey.facts }) }))
+  const parts = perFloor.flatMap((floor) => floor.parts)
   const moved = movedBy(options.origin)
   const asOne = options.root === 'floor' && storeys.length === 1
   const holderName = asOne ? storeys[0]!.id : GLB_BUILDING_NODE
   const asset = assetOf(options.leftOut ?? [], moved, options.approximations ?? NO_APPROXIMATIONS, holderName, options.north)
-  if (parts.length === 0) return encodeGlb(withSun({ asset, scene: 0, scenes: [{}] }, options.sun), null)
+  const views = cameraNodes(options.views ?? [], nameOf)
+  const withViews = (gltf: Record<string, unknown>, first: number): Record<string, unknown> => {
+    if (views.nodes.length === 0) return gltf
+    const scenes = gltf['scenes'] as { nodes?: number[] }[]
+    const roots = scenes[0]?.nodes ?? []
+    return {
+      ...gltf,
+      scenes: [{ ...scenes[0], nodes: [...roots, ...views.nodes.map((_, k) => first + k)] }],
+      nodes: [...((gltf['nodes'] as object[] | undefined) ?? []), ...views.nodes],
+      cameras: views.cameras
+    }
+  }
+  if (parts.length === 0) {
+    return encodeGlb(withSun(withViews({ asset, scene: 0, scenes: [{}] }, 0), options.sun), null)
+  }
   const written = writeParts(parts)
   const [ox, oy] = moved ?? [0, 0]
 
-  const floors: object[] = []
+  // After the parts' nodes: each floor's door markers, then its groups, then the floors, the root.
+  const extra: object[] = []
+  const at = (): number => written.nodes.length + extra.length
+  const groupsOf: number[][] = []
   let first = 0
   for (const [k, storey] of storeys.entries()) {
-    const count = perFloor[k]!.length
-    const children = Array.from({ length: count }, (_, i) => first + i)
-    first += count
+    const { parts: own, markers } = perFloor[k]!
+    const markerAt = new Map<Marker, number>()
+    for (const marker of markers) {
+      markerAt.set(marker, at())
+      extra.push({ name: marker.name, translation: yUp(marker.at), rotation: turnAboutUp(marker.turn), extras: marker.extras })
+    }
+    const groups: number[] = []
+    for (const [kind, word] of GROUPS) {
+      const children = [
+        ...own.flatMap((part, i) => (part.group === kind ? [first + i] : [])),
+        ...(kind === 'door' ? markers.map((marker) => markerAt.get(marker)!) : [])
+      ]
+      if (children.length === 0) continue
+      groups.push(at())
+      extra.push({ name: nameOf(word, storey.id), children, extras: { gridFloor: storey.id, gridKind: kind } })
+    }
+    groupsOf.push(groups)
+    first += own.length
+  }
+  const floorAt: number[] = []
+  for (const [k, storey] of storeys.entries()) {
     const lift = asOne ? translation(ox, storey.elevation, oy) : translation(0, storey.elevation, 0)
-    floors.push({
+    const children = groupsOf[k]!
+    floorAt.push(at())
+    extra.push({
       name: storey.id,
       ...lift,
       ...(children.length === 0 ? {} : { children }),
       extras: { gridFloor: storey.id, gridElevation: storey.elevation }
     })
   }
-  const floorIndex = (k: number): number => written.nodes.length + k
-  if (asOne) return encodeGlb(withSun(documentOf(asset, written, floors, [floorIndex(0)]), options.sun), written.binary)
-  const root = { name: GLB_BUILDING_NODE, ...translation(ox, 0, oy), children: storeys.map((_, k) => floorIndex(k)) }
-  return encodeGlb(withSun(documentOf(asset, written, [...floors, root], [floorIndex(storeys.length)]), options.sun), written.binary)
+  if (asOne) return encodeGlb(withSun(withViews(documentOf(asset, written, extra, [floorAt[0]!]), at()), options.sun), written.binary)
+  const rootAt = at()
+  extra.push({ name: GLB_BUILDING_NODE, ...translation(ox, 0, oy), children: floorAt })
+  return encodeGlb(withSun(withViews(documentOf(asset, written, extra, [rootAt]), at()), options.sun), written.binary)
 }

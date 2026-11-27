@@ -11,7 +11,7 @@ import { baseRefusal, baseTouched, phasedPatch } from '../edit/phases'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { DOOR_KINDS, OPENING_KINDS, WINDOW_KINDS, WallKindSchema, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
-import { ARC_SEGMENTS_RANGE, limit, planFloors, phaseCounts, planInState, polygonsOnCircles, validatePlan, type FloorPlan, type PlanState } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, GLB_DOOR_MODES, GLB_WALL_MODES, limit, planFloors, phaseCounts, planInState, polygonsOnCircles, validatePlan, type FloorPlan, type PlanState } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { inspectPlan } from '@ongrid/rules'
@@ -85,7 +85,7 @@ export const EXPORT_TOOL_NAME = 'grid_export'
 
 /** The command's messages name its options; a tool names its arguments. */
 function asArguments(message: string): string {
-  return message.replace(/--no-roofs\b/g, 'roofs false').replace(/--arc-segments\b/g, 'arcSegments').replace(/--(format|floor|layout|sheet|scale|out)\b/g, '$1')
+  return message.replace(/--no-roofs\b/g, 'roofs false').replace(/--arc-segments\b/g, 'arcSegments').replace(/--(format|floor|layout|sheet|scale|out|doors|walls)\b/g, '$1')
 }
 
 /** What a written file leaves out of the plan, for the agent. */
@@ -103,6 +103,7 @@ const exportTool: GridTool = {
     + 'A dxf, glb or obj with no floor holds the whole building: a glb or obj each floor at its elevation (in a glb, a node per floor named by its id under one root node), a dxf each floor side by side in model space and on a paper layout of its own named after the floor. floor all writes one file per floor, each named after its floor, listed as files. The answer says which floors a file holds as floors and which it does not as floorsLeftOut. '
     + `A dxf is in metres, with doors and windows as blocks, one per schedule type, each insert carrying its MARK (the schedules' mark, the IFC's Tag), TYPE, WIDTH, HEIGHT and SILL, filled walls, dimensions, room tags and an A3 sheet per floor at the largest standard scale every floor fits at, or at scale; sheets says the scale and any floor that does not fit. It takes its layer names and pens from ${DXF_PROFILE_FILE} in the project folder when there is one, and answers with that file as dxfProfile. A door's hand is the side of its hinges seen from the side it opens toward, in the schedule, the dxf and the ifc alike. `
     + 'A glb has flat normals, UVs in metres and a material named for each kind of part (wall, floor, door, frame, glass, slab, roof, stair, column, item), and is Y up; an obj is Z up, names the same materials and comes with grid.mtl beside it, answered as materials. Room floors stand a few millimetres above the slab. roofs false leaves the roofs out; arcSegments writes a whole circle of curved wall with that many pieces, for a lighter model. '
+    + 'A glb is ready for a game engine or a renderer: every part\'s node carries gridId, gridKind, gridFloor, gridRooms and, when the plan states them, gridUse, gridFinish, gridType and gridProperties in its extras; each floor\'s parts are grouped by kind under it (walls_ground, doors_ground ...); a swinging door leaf stands on its hinge, turned open about its Y axis the way gridOpens says; doors and walls choose what a door and a straight wall are written as; and every saved view is a camera. '
     + 'A geojson or json holds every floor in one frame, the plan\'s x and y in metres, each part with its floor and elevation: each room\'s polygon, holes, centre (a point on its floor), centroid and net area; each door, window and opening\'s centre, along and across directions, hole, width, clear width, rooms on each side, sill, height, kind, hinge, swing, opensInto and sweeps (the floor its leaves sweep, as polygons); each wall\'s solid runs, centre line, thickness, height, kind and glazed; each item\'s footprint; and every part\'s facts. A door\'s state and a keep-out zone are facts the person keeps with grid_set_facts (door state: open, closed, automatic or held open; keep out: true), written as state, automatic and keepOut. A geojson is one FeatureCollection whose coordinates are plan metres, not longitude and latitude. For one part\'s geometry, use grid_find with fields polygon, centre, centroid or clear width. '
     + `${ROOM_NAMES_TRAVEL} `
     + 'Do not use for a picture to look at (grid_view). For a PDF to read or print, use grid_sheet; JPG is not made. The plan must be a file inside the project folder: any other path is refused.',
@@ -116,6 +117,9 @@ const exportTool: GridTool = {
     sun: { ...SUN_VIEW_ARG, description: 'glb only: a moment, "YYYY-MM-DD HH:MM" in the site\'s solar time or with the clock\'s offset after it ("2026-06-21 18:30 +02:00"), written as a directional light node named sun (KHR_lights_punctual) shining the way the sun shines then, its bearing and elevation in the node\'s extras. Needs the site\'s latitude and longitude. The plan\'s north and place go into asset.extras.gridNorth whenever it states them.' },
     roofs: { type: 'boolean', description: 'glb and obj only: false leaves out every roof and the parapets on it, to look into the model or walk through it. Left out, the roofs are in.', examples: [false] },
     arcSegments: { type: 'number', description: `glb and obj only: the straight pieces a whole circle of curved wall is written with, a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}. Left out, as finely as the plan is measured.`, examples: [32], minimum: ARC_SEGMENTS_RANGE.min, maximum: ARC_SEGMENTS_RANGE.max },
+    // VEW-82: a glb for a game engine or a renderer.
+    doors: { type: 'string', enum: GLB_DOOR_MODES, description: 'glb only: closed keeps each leaf shut on its hinge; open turns every swinging leaf open, for renders and walk-throughs; gaps leaves the leaves out and keeps the frames, a level to walk through; markers writes no door, an empty node in each door\'s place with its width, height and kind, for an engine\'s own door. Left out, closed.', examples: ['open', 'markers'] },
+    walls: { type: 'string', enum: GLB_WALL_MODES, description: 'glb only: rooms writes each straight wall as a piece for each stretch between the rooms beside it, named by its wall and those rooms, never cut through a door or window; whole keeps a wall one mesh. Left out, whole.', examples: ['rooms'] },
     state: stateArg('is every part with its phase, as each format writes phases', 'as both'),
   },
   outputSchema: objectSchema({
@@ -149,6 +153,8 @@ const exportTool: GridTool = {
     const roofs = args['roofs'] as boolean | undefined
     const arcSegments = args['arcSegments'] as number | undefined
     const sun = args['sun'] as string | undefined
+    const doors = args['doors'] as string | undefined
+    const walls = args['walls'] as string | undefined
     // ARE-75: before or after the work, the building as it stands then; both, as left out, every part with its phase.
     const state = args['state'] === 'before' || args['state'] === 'after' ? (args['state'] as PlanState) : undefined
     if (!isGridExportFormat(format)) throw new ToolRefusal(`Pass format: one of ${GRID_EXPORT_FORMATS.join(', ')}.`)
@@ -164,7 +170,7 @@ const exportTool: GridTool = {
       sunOfArg(readPlan(context, plan).loaded.plan, sun)
     }
     try {
-      const request = { format, floor, ...(scale === undefined ? {} : { scale: String(scale) }), ...(out === undefined ? {} : { out }), ...(roofs === false ? { roofs } : {}), ...(sun === undefined ? {} : { sun }), ...(arcSegments === undefined ? {} : { arcSegments: String(arcSegments) }) }
+      const request = { format, floor, ...(scale === undefined ? {} : { scale: String(scale) }), ...(out === undefined ? {} : { out }), ...(roofs === false ? { roofs } : {}), ...(sun === undefined ? {} : { sun }), ...(arcSegments === undefined ? {} : { arcSegments: String(arcSegments) }), ...(doors === undefined ? {} : { doors }), ...(walls === undefined ? {} : { walls }) }
       checkExportRequest(request)
       let files: readonly ExportDone[]
       let empty: readonly string[] = []

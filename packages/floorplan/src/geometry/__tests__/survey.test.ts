@@ -270,7 +270,9 @@ describe('lab MS-12: the GLB of a plan at survey coordinates', () => {
   it('writes a plan near the origin as before, with no node to move it', () => {
     const near = labPlan(AS_TAPED)
     const glb = parseGlb(exportPlan(near, 'glb', ids).data as Uint8Array)
-    expect(glb.json.nodes!.some((node) => node.name === 'origin' || node.translation !== undefined)).toBe(false)
+    // VEW-82: a door's leaf stands on its hinge, which moves the leaf and nothing else.
+    const onHinge = (node: object): boolean => (node as { extras?: { gridPart?: string } }).extras?.gridPart === 'leaf'
+    expect(glb.json.nodes!.some((node) => node.name === 'origin' || (node.translation !== undefined && !onHinge(node)))).toBe(false)
     // VEW-64: one root, the building, which moves nothing.
     expect(glb.json.scenes![0]!.nodes).toEqual([glb.json.nodes!.findIndex((node) => node.name === 'building')])
     expect((glb.json.asset as { extras?: Record<string, unknown> }).extras).not.toHaveProperty('gridOrigin')

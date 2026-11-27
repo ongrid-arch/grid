@@ -55,7 +55,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-72: five more, the help of --scale, its refusals, --floor all with --out and a plan with nothing on any floor.
   // VEW-73: five more, the help of --no-roofs and --arc-segments and their refusals.
   // CNT-58: one more, sun refused for a format other than glb.
-  'packages/cli/src/command/export.ts': [31, 'command'],
+  // VEW-82: four more, the help of --doors and --walls and their refusals.
+  'packages/cli/src/command/export.ts': [35, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
@@ -307,7 +308,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-80: one more, grid_export's description of the geometry as data.
   // ARE-75: one more, grid_export's state.
   // CNT-58: two more, grid_export's sun and its refusal for another format.
-  'packages/cli/src/mcp/writeTools.ts': [168, 'tools'],
+  // VEW-82: three more, grid_export's glb for a game engine and its doors and walls.
+  'packages/cli/src/mcp/writeTools.ts': [171, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -412,7 +414,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-73: two more, what itemOverlap and swingContact decide of an activity zone.
   // WRT-83: two more, what gridArcStep decides.
   // CNT-58: seventeen more, what the sun's figures decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [413, 'developer'],
+  // VEW-82: four more, what wallPieceShortest, doorOpenAngle and cameraNear decide.
+  'packages/floorplan/src/geometry/tolerances.ts': [417, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -641,7 +644,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-58 75: the sun's path and shadows (quantities/sunPath.ts 36, mcp/sunArgs.ts 12), grid_view's,
     // grid_export's and eye's sun and compass words (mcp/readTools.ts 5, mcp/writeTools.ts 2, mcp/eyeAnswer.ts 2,
     // command/export.ts 1) and what the sun's figures decide (geometry/tolerances.ts 17) (odd/tasks/CNT-58.md).
-    expect(left).toBeLessThanOrEqual(2672)
+    // and VEW-82 11: grid export's and grid_export's doors and walls (command/export.ts 4,
+    // mcp/writeTools.ts 3) and what their figures decide (geometry/tolerances.ts 4) (odd/tasks/VEW-82.md).
+    expect(left).toBeLessThanOrEqual(2683)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

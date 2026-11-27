@@ -45,12 +45,70 @@ would give one name.
 | `slab_<floor id>`, `roof_<floor id>`, `parapet_<floor id>` | The slab a floor stands on, its roof and the parapet round it |
 
 In a GLB of the whole building the root node is `building`, with a child node per floor named by
-the floor's id (`extras.gridFloor`, `extras.gridElevation`), and each floor's parts under it. A
-GLB of one floor has that floor's node as its root. The OBJ has no nodes: each floor's objects
+the floor's id (`extras.gridFloor`, `extras.gridElevation`), and each floor's parts under it,
+grouped by kind (VEW-82): `walls_<floor>`, `rooms_<floor>`, `stairs_<floor>`, `columns_<floor>`,
+`items_<floor>`, `doors_<floor>`, `windows_<floor>` and `shell_<floor>` (slab, roof, parapet), each
+with `extras.gridFloor` and `extras.gridKind`, and only the kinds the floor has. A GLB of one floor
+has that floor's node as its root. The OBJ has no nodes: each floor's objects
 follow a comment line `# grid-floor "<id>" elevation=<metres>`.
 
 What the file leaves out, and the curves it writes as straight pieces, are in the GLB's
 `asset.extras` (`gridLeftOut`, `gridApproximated`) and in the OBJ's header comments.
+
+## For a game engine or a renderer
+
+A GLB carries what Grid knows of each part in its node's `extras` (VEW-82), which Godot, Unity
+(glTFast), Unreal and Blender keep as the node's metadata or custom properties:
+
+| Key | What it is |
+|---|---|
+| `gridId` | The part's id in the plan; a door's or window's frame, leaves and glass carry the opening's, a slab, roof or parapet its floor's |
+| `gridKind` | `wall`, `room` (a room's floor), `door`, `window`, `stair`, `column`, `item`, `slab`, `roof` or `parapet` |
+| `gridFloor` | The floor it stands on |
+| `gridRooms` | The rooms it stands in (a room, an item, a column) or between: a wall's and an opening's as `{ "left": [...], "right": [...] }`, by the wall's faces, `left` the face 90 degrees counter-clockwise from its start to its end |
+| `gridPart` | A door's or window's `frame`, `leaf` or `glass` |
+| `gridName`, `gridNumber`, `gridUse` | A room's name, the number the plan states and its use; an item's or a column's label |
+| `gridFinish` | A room's finishes as the plan states them; a wall's, the finish of its face in each room beside it, by room id |
+| `gridType` | The wall, door, window or room type it takes; an item's kind; a column's shape |
+| `gridProperties` | The person's own facts on it (`grid_set_facts`) |
+| `gridSwing`, `gridDoorKind`, `gridMotion`, `gridOpens` | A door's side it swings to and its kind as the plan states them, how its leaves move (`swings`, `slides`, `folds`, `rolls`), and for a swinging leaf which way it opens |
+| `gridOutdoor`, `gridRoofed` | An outdoor space's kind and whether a roof covers it |
+
+A key is there only when the plan states it.
+
+### Doors
+
+A swinging leaf (a single or a pair) is a node of its own whose origin is its hinge, on the leaf's
+centre line at its foot: turning the node about its Y axis swings the leaf, and turning it by a
+positive angle times `gridOpens` (+1 or -1) opens it toward the face the door swings to (the
+wall's left face for a door that does not say). `--doors` (`doors` for `grid_export`) chooses what
+a door is in the file:
+
+| `--doors` | A door is |
+|---|---|
+| `closed` (left out) | Its frame and its leaves, shut, each swinging leaf on its hinge |
+| `open` | The same, each swinging leaf turned open 90 degrees (`doorOpenAngle` in [the tolerances](tolerances.md)), for renders and walk-throughs |
+| `gaps` | Its frame alone: no leaves and no door glass, a level to walk through |
+| `markers` | No geometry: an empty node `door_<opening id>` at the middle of its threshold, turned so its +X runs along the wall, with `gridWidth`, `gridHeight` and the door's other extras, for the engine to place a door of its own |
+
+### Walls split at their rooms
+
+`--walls rooms` (`walls: rooms`) writes each straight wall as a piece for each stretch between the
+rooms beside it, so a game engine gets the walls of each room, not one mesh as long as the
+building. A piece is named `wall_<wall id>_<left rooms>.<right rooms>` (`outside` for none, `+`
+between two rooms on one face, written `_`) and carries `gridRooms` as `{ left, right }` and
+`gridPiece` (`from` and `to` along the wall). Each piece is a closed solid; where another wall
+meets the wall, the cut runs down that wall's centre line. A cut never runs through a door or a
+window, and a stretch shorter than `wallPieceShortest` joins its neighbour. A curved wall stays
+whole. `--walls whole`, the default, keeps every wall one mesh.
+
+### Saved views as cameras
+
+Each of the plan's saved views (`grid_save_view`) is a perspective camera, `view_<name>`, a root of
+the scene: it stands where the view stands, looks where it looks (a glTF camera looks down its
+-Z, its +Y up), with the view's vertical field of view and aspect ratio and a near plane of
+`cameraNear`. Its extras name the view (`gridView`), the point it is pointed at (`gridTarget`, plan
+metres, z up) and its room (`gridRoom`).
 
 ## Materials
 
@@ -105,4 +163,5 @@ set above or below its floor (a stage, a sunken room) is raised from its own lev
   and still reads as round. The file says how far the pieces stand off the curve. Room floors
   along the wall keep the finer outline, which runs into the wall, so no gap shows.
 
-Neither applies to DXF or IFC, and both are refused for them.
+Neither applies to DXF or IFC, and both are refused for them. `--doors` and `--walls` apply to a
+GLB only.
