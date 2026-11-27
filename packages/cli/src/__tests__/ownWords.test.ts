@@ -114,7 +114,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/rename.ts': [9, 'notYet'],
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
   // CNT-41: the plot's and the site's things' receipts and refusals.
-  'packages/cli/src/edit/site.ts': [35, 'notYet'],
+  // CNT-49: seven more, the ground on a slope set, said and refused.
+  'packages/cli/src/edit/site.ts': [42, 'notYet'],
   // VEW-67: the trace image's receipts and refusals.
   'packages/cli/src/edit/trace.ts': [21, 'notYet'],
   // CNT-46: the bays' and the ramp's receipts and refusals.
@@ -182,7 +183,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-60: one more, grid_areas' area under air.
   // WRT-74: one more, grid_fields' line on how facts are set.
   // CNT-45: five more, the kinds fixture and furniture, the items grid_view draws and of=fixtures.
-  'packages/cli/src/mcp/readTools.ts': [391, 'tools'],
+  // CNT-49: one more, the facade's ground falling along the face.
+  'packages/cli/src/mcp/readTools.ts': [392, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -209,7 +211,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
-  'packages/cli/src/mcp/siteTools.ts': [45, 'tools'],
+  // CNT-49: ten more, the ground on a slope in grid_set_site's help, arguments and refusals.
+  'packages/cli/src/mcp/siteTools.ts': [55, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // LVL-23: grid_set_building, its description, arguments and answer.
@@ -357,7 +360,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/scan/roomModel.ts': [22, 'notYet'],
   'packages/floorplan/src/scan/toPlan.ts': [30, 'notYet'],
   // LVL-20: one more, the most dormers one roof lists, as the rooflights' is worded.
-  'packages/floorplan/src/types/floorplan.ts': [61, 'notYet'],
+  // CNT-49: one more, ground sides that name no side.
+  'packages/floorplan/src/types/floorplan.ts': [62, 'notYet'],
   'packages/floorplan/src/types/places.ts': [7, 'notYet'],
   // CMD-7: the plan JSON Schema's title, its description, and the error for a schema part it cannot write.
   'packages/floorplan/src/types/planSchema.ts': [3, 'developer'],
@@ -529,7 +533,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // brief/lines.ts 4, mcp/briefTool.ts 8, quantities/query.ts 4, quantities/seats.ts 4) (odd/tasks/ARE-67.md).
     // and CMD-47 76: one building's changes (edit/buildingEdits.ts 31, edit/buildingParts.ts 2), their
     // tools (mcp/buildingTools.ts 40) and describe's building (mcp/readTools.ts 3) (odd/tasks/CMD-47.md).
-    expect(left).toBeLessThanOrEqual(2526)
+    // and CNT-49 8: the ground on a slope set and said (edit/site.ts 7) and a refusal (types/floorplan.ts 1).
+    expect(left).toBeLessThanOrEqual(2534)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

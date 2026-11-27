@@ -15,7 +15,7 @@
  *
  * Pure: a plan and a brief in, lines out. Nothing here reads a file.
  */
-import { defaultFloor, floorElevations, floorOf, groundLevel, MEASURES, planFloors, planForFloor, planSteps, roomFloorOffset, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
+import { defaultFloor, floorElevations, floorOf, groundLevel, MEASURES, openingPoint, planFloors, planForFloor, planSteps, roomFloorOffset, tolerance, wallPolygon, computeBounds, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import { smallMetres } from '../quantities/units'
 import { planAreas, type RoomArea } from '../quantities/areas'
 import { measureRoom, roomHeight } from '../quantities/measure'
@@ -503,7 +503,10 @@ function figureLines(c: Context, wish: FigureWish): BriefLine[] {
         if (seen.has(e.via)) continue
         seen.add(e.via)
         const room = c.plan.rooms.find((r) => r.id === (e.through ?? e.room))
-        const above = (ground.above.get(entrance.floor) ?? 0) + (room === undefined ? 0 : roomFloorOffset(room))
+        // CNT-49: on a slope, the ground at the door.
+        const door = c.plan.openings.find((o) => o.id === e.via)
+        const at = ground.surface === null || door === undefined ? null : openingPoint(c.plan, door)
+        const above = (at === null ? (ground.above.get(entrance.floor) ?? 0) : ground.aboveAt(entrance.floor, at)) + (room === undefined ? 0 : roomFloorOffset(room))
         if (Math.abs(above) <= wish.value + eps) continue
         miss(`${c.survey.facts.openings.get(e.via)?.type ?? 'door'} ${q(e.via)} step ${asked}, drawn ${n2(Math.abs(above))} m ${above > 0 ? 'up' : 'down'} from the ground outside to the floor inside.`, Math.abs(above), { kind: 'opening', id: e.via })
       }

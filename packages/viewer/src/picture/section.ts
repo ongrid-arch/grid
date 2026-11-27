@@ -25,7 +25,7 @@
  */
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { Bounds, PlanSection, SectionLine, SectionPiece, Vec2 } from '@ongrid/floorplan/geometry'
-import { hatchRings, levelText, metresText, planSection, sectionEarth } from '@ongrid/floorplan/geometry'
+import { hatchRings, levelText, metresText, planSection, sectionEarth, sectionGroundAt } from '@ongrid/floorplan/geometry'
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import { FRAME_MARGIN, fitTo, pathOf } from '../canvas2d/viewport'
 import { labelObstacles, placeLabel } from './sectionLabels'
@@ -322,7 +322,8 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   // VEW-65: out to the picture's edges with the earth.
   const g = section.ground
   if (earth.segments.length > 0) {
-    const d = earth.segments.map(([a, b]) => lineOf({ x: a, y: g.level }, { x: b, y: g.level })).join('')
+    // CNT-49: on a slope, the line follows the ground along the cut.
+    const d = earth.segments.map(([a, b]) => lineOf({ x: a, y: sectionGroundAt(g, a) }, { x: b, y: sectionGroundAt(g, b) })).join('')
     nodes.push(el('path', { 'data-part': 'section-ground', 'data-stated': String(g.stated), d, fill: 'none', stroke: look.ink, 'stroke-width': n(lines.width('elevationGround')), 'stroke-linecap': 'butt' }))
   }
 

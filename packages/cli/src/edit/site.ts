@@ -9,9 +9,9 @@
  * Sides are the drawing's, as in rooms text and every edit (C4: north is up the drawing); the
  * reading of them is rooms text's own (`rooms/site.ts`), so the two read a side the same way.
  */
-import { metresText, pointInPolygon, SITE_THING_WORDS, tolerance } from '@ongrid/floorplan/geometry'
+import { groundSurface, metresText, pointInPolygon, SITE_THING_WORDS, tolerance } from '@ongrid/floorplan/geometry'
 import { northWordsOf, plotCorners, siteEdges, type SetbackWords } from '@ongrid/floorplan/rooms'
-import { SiteSchema, SiteThingSchema, boundaryEdgeCount, type FloorPlan, type Site, type SiteThing, type SiteThingKind } from '@ongrid/floorplan/types/floorplan'
+import { SiteSchema, SiteThingSchema, boundaryEdgeCount, type FallToward, type FloorPlan, type Site, type SiteThing, type SiteThingKind } from '@ongrid/floorplan/types/floorplan'
 import type { Survey } from '../quantities/survey'
 import { emptyPatch, type Patch } from './edits'
 import { EditRefused } from './refused'
@@ -19,7 +19,7 @@ import { EditRefused } from './refused'
 type Pair = [number, number]
 
 /** The fields `grid_set_site` can take out. */
-export const SITE_FIELDS = ['boundary', 'streets', 'setbacks', 'north', 'origin', 'location', 'elevation', 'ground', 'country', 'things'] as const
+export const SITE_FIELDS = ['boundary', 'streets', 'setbacks', 'north', 'origin', 'location', 'elevation', 'ground', 'groundSides', 'fall', 'groundEdges', 'country', 'things'] as const
 export type SiteField = (typeof SITE_FIELDS)[number]
 
 export interface SiteRequest {
@@ -33,6 +33,10 @@ export interface SiteRequest {
   readonly longitude?: number
   readonly elevation?: number
   readonly ground?: number
+  /** CNT-49: the ground at the building's sides, a fall, and the ground along edges of the plot. */
+  readonly groundSides?: Partial<Record<'north' | 'east' | 'south' | 'west', number>>
+  readonly fall?: { readonly slope: number; readonly toward: FallToward }
+  readonly groundEdges?: readonly { readonly edge: number; readonly start: number; readonly end?: number }[]
   readonly country?: string
   readonly remove?: readonly SiteField[]
 }
@@ -79,7 +83,7 @@ export function setSite(survey: Survey, request: SiteRequest): Patch {
       said.push('Took north out: the ways are read with north up the drawing again, said as not known.')
       continue
     }
-    const keys = field === 'location' ? ['latitude', 'longitude'] : field === 'boundary' ? ['boundary', 'streets', 'setbacks'] : [field]
+    const keys = field === 'location' ? ['latitude', 'longitude'] : field === 'boundary' ? ['boundary', 'streets', 'setbacks', 'groundEdges'] : [field]
     for (const key of keys) delete site[key]
     said.push(field === 'boundary' ? "Took the plot's boundary out, with its streets and set-backs, which are measured from it." : `Took the site's ${field} out.`)
   }
@@ -158,6 +162,30 @@ export function setSite(survey: Survey, request: SiteRequest): Patch {
   if (request.ground !== undefined) {
     site['ground'] = request.ground
     said.push(`The ground outside: ${M(request.ground)} from the ground floor's floor level.`)
+  }
+  // CNT-49: the ground on a slope.
+  if (request.groundSides !== undefined) {
+    site['groundSides'] = { ...((site['groundSides'] as object | undefined) ?? {}), ...request.groundSides }
+    said.push(`The ground at the building's sides: ${Object.entries(site['groundSides'] as Record<string, number>).map(([side, level]) => `${side} ${M(level)}`).join(', ')}.`)
+  }
+  if (request.fall !== undefined) {
+    site['fall'] = { slope: request.fall.slope, toward: request.fall.toward }
+    said.push(`The ground falls ${short(request.fall.slope)}% toward the ${request.fall.toward}.`)
+  }
+  if (request.groundEdges !== undefined) {
+    if (site['boundary'] === undefined) throw new EditRefused("The ground along an edge is read from the plot's boundary, which the site does not state: give boundary, or plot_width and plot_depth, with it.")
+    const others = ((site['groundEdges'] as NonNullable<Site['groundEdges']> | undefined) ?? []).filter((g) => !request.groundEdges!.some((r) => r.edge === g.edge))
+    const edges = [...others, ...request.groundEdges.map((g) => ({ edge: g.edge, start: g.start, ...(g.end === undefined ? {} : { end: g.end }) }))].sort((a, b) => a.edge - b.edge)
+    if (edges.length === 0) delete site['groundEdges']
+    else site['groundEdges'] = edges
+    for (const g of request.groundEdges) said.push(`The ground along edge ${g.edge}: ${M(g.start)}${g.end === undefined ? '' : ` at its first corner, ${M(g.end)} at its second`}.`)
+  }
+  if (request.groundSides !== undefined || request.fall !== undefined || request.groundEdges !== undefined) {
+    const surface = SiteSchema.safeParse(site).success ? groundSurface({ ...plan, site: site as Site }) : null
+    if (surface !== null) {
+      said.push(`So the ground under the building runs from ${M(surface.low)} to ${M(surface.high)}${surface.toward === null ? ', level' : `, falling ${Math.round(surface.slope * 10) / 10 + 0}%`}: every check and picture reads it at each wall.`)
+      if (surface.offBy > 0) said.push(`The levels given lie on no one even slope: Grid takes the even slope nearest them, ${M(surface.offBy)} off the furthest.`)
+    }
   }
   if (request.country !== undefined) {
     site['country'] = request.country
