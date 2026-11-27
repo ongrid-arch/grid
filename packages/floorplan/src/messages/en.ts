@@ -91,6 +91,7 @@ export const en = {
   'issue.wall/arc-too-tight.noRadius': 'Wall {wall} curves round its own start: its centre is where it starts, so it has no radius. The centre is the middle of the circle the wall is part of',
   'issue.wall/arc-too-tight': 'Wall {wall} curves round a radius of {radius} m, no more than half its thickness of {thickness} m, so its inside face has no curve to follow. A radius over {half} m fits',
   'issue.wall/arc-ends-apart': 'Wall {wall} turns {sweep}° round {centre} from its start, which takes it to {meant}, but its end is at {end}, {apart} m off the curve. Move its end there, or give the sweep that reaches it',
+  'issue.wall/arc-ends-apart.reach': 'Wall {wall} turns {sweep}° round {centre} from its start, which takes it to {meant}, but its end is at {end}, on the same circle {apart} m along it. The sweep that reaches its end is {reach} (degrees, counter-clockwise positive): give that, or move its end to where the curve reaches',
   'issue.wall/no-thickness': 'Wall {wall} has thickness {thickness}; only a virtual wall may be zero',
   'issue.wall/no-height': 'Wall {wall} has height {height}; only a virtual wall may be zero',
   'issue.wall/kind-differs.kept':
@@ -2310,6 +2311,19 @@ export const en = {
   'rooms.raw.openingFloor':
     "Line {line}: raw opening '{id}' is written under floor '{under}', but its wall '{wall}' is on floor '{floor}', and an opening is on its wall's floor. Write it under floor '{floor}', or name a wall of floor '{under}'.",
   'rooms.raw.openingFact': '{id}: {type} {width} m in {wall}, written raw',
+  // WRT-82: a curved raw wall written by its ends and a point, a radius and a side, or a bulge.
+  'rooms.raw.arc':
+    'Line {line}: raw wall \'{id}\' {why}. Write its curve one way: "arc": {"centre": [x, y], "sweep": <degrees>}; {"through": [x, y]}, a point on the curve between its ends; {"radius": <m>, "side": "left" or "right"}, the side it bows to going from start to end, the shorter way; or {"bulge": <b>}, the tangent of a quarter of its sweep, positive counter-clockwise. Grid works out the centre and sweep from the ends.',
+  'rooms.raw.arc.mixed': 'writes its "arc" more than one way',
+  'rooms.raw.arc.twice': 'gives its ends or its curve twice: "from" and "to" are read as "start" and "end", and a "bulge" on the wall as its arc\'s',
+  'rooms.raw.arc.ends': 'needs a "start" and an "end" at two different points, [x, y], to work its curve out from',
+  'rooms.raw.arc.point': 'has a "through" that is not a point [x, y] apart from both its ends',
+  'rooms.raw.arc.line': 'has its "through" point in line with its two ends, which is a straight wall: take "arc" out for one',
+  'rooms.raw.arc.radius': 'has a "radius" that is not a number at least half the distance between its ends',
+  'rooms.raw.arc.side': 'has a "side" that is not "left" or "right"',
+  'rooms.raw.arc.bulge': 'has a "bulge" that is not a number',
+  'rooms.raw.arc.worked': "Line {line}: raw wall '{id}' curves round {centre} turning {sweep} degrees from start to end, worked out from its ends; the plan file holds it as that centre and sweep.",
+  'rooms.raw.arc.straight': "Line {line}: raw wall '{id}' has a bulge of 0, so it is straight.",
   // WRT-44: a wall with no length is refused with its line, never thrown on.
   'rooms.raw.zeroLength':
     "Line {line}: raw wall '{id}' starts and ends at the same point, ({x}, {y}), so it has no length. Give it a start and an end at different points, or leave it out and take its id out of the boundary of any room that names it.",
@@ -2319,7 +2333,7 @@ export const en = {
   'rooms.raw.unknownField.named': 'the field "{field}"',
   'rooms.raw.unknownField.unnamed': 'a field whose name Grid does not repeat',
   'rooms.raw.unknownField.in': ' in its "{place}"',
-  'rooms.raw.unknownField.arc': 'A curved wall states "arc": {"centre": [x, y], "sweep": <degrees>}, the centre of its curve and the degrees it turns through from start to end, counter-clockwise positive.',
+  'rooms.raw.unknownField.arc': 'A curved wall states "arc": {"centre": [x, y], "sweep": <degrees>}, the centre of its curve and the degrees it turns through from start to end, counter-clockwise positive; or "arc": {"through": [x, y]}, {"radius": <m>, "side": "left" or "right"} or {"bulge": <b>}, from which Grid works them out.',
   'rooms.raw.unknownField.properties': 'Facts of your own go in "properties": {"<name>": <value>}, which Grid keeps and checks nothing against.',
   'rooms.raw.unknownField.nearest': 'Did you mean "{nearest}"?',
   'rooms.raw.unknownField.written': 'It has "{nearest}" too, which is what Grid reads: take "{field}" out.',
@@ -3060,6 +3074,10 @@ export const en = {
   'write.base.changed': '{file} is a fit-out on the base plan {was}, and this rooms text names {now}, so writing it would move the fit-out into another shell. Name {was} on the base line, or add --replace to write it on {now}.',
   'write.base.dropped': '{file} is a fit-out on the base plan {was}, and this rooms text names no base, so writing it would lose its shell. Add the line base {was} (grid describe --as rooms writes it), or add --replace to write it as a plan of its own.',
   'write.toLookAt': 'To look at: {before} → {after}, of them problems in the drawing {drawingBefore} → {drawingAfter}. Run grid check for the notes.',
+  // WRT-82: the new problems a write leaves, by code and part, after their count.
+  'write.newProblems': 'New in the drawing: {problems}{more}',
+  'write.newProblems.one': '{code} on {id}: {message}.',
+  'write.newProblems.more': ' And {n} more: grid check lists them.',
   'write.door.notOut': 'No longer leads outside: {change}.',
   'write.items.looksMore': 'And {n} more kept items run into a wall or stand in no room: grid check names them.',
   'edit.idTaken.item': '{kind} {id} at ({x}, {y}) in room {room}{floor}',

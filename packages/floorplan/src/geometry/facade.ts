@@ -742,6 +742,79 @@ function windowSeen(seen: FacadeOpening, opening: Opening, wall: Wall, direction
   }
 }
 
+/** A face as it is drawn, with what it was found from and its depth. */
+interface DrawnFace {
+  readonly s: Seen
+  readonly face: FacadeFace
+  readonly depth: number
+}
+
+/**
+ * VEW-79: the faces of one curved wall on one floor that follow each other across the view, joined
+ * into one face: the union of their outlines (its silhouette, with no line where one straight piece
+ * of the curve meets the next), their openings once each, and the depth and order of the nearest.
+ * Faces whose union is not one ring with no hole are left as they are.
+ */
+function joinCurvedFaces(drawn: readonly DrawnFace[], curved: ReadonlySet<string>): DrawnFace[] {
+  const near = tolerance('facadeOnFace')
+  const groups = new Map<string, DrawnFace[]>()
+  const out: DrawnFace[] = []
+  for (const one of drawn) {
+    const { face } = one
+    if (face.kind !== 'wall' || face.wall === null || !curved.has(face.wall)) {
+      out.push(one)
+      continue
+    }
+    const key = `${face.floor}|${face.wall}`
+    groups.set(key, [...(groups.get(key) ?? []), one])
+  }
+  for (const group of groups.values()) {
+    const across = [...group].sort((x, y) => x.face.u0 - y.face.u0)
+    let run: DrawnFace[] = []
+    const flush = (): void => {
+      if (run.length > 0) out.push(...joinRun(run))
+      run = []
+    }
+    for (const one of across) {
+      if (run.length > 0 && one.face.u0 > Math.max(...run.map((r) => r.face.u1)) + near) flush()
+      run.push(one)
+    }
+    flush()
+  }
+  return out
+}
+
+/** One run of a curved wall's faces as one face, or as they are when they make no single ring. */
+function joinRun(run: readonly DrawnFace[]): DrawnFace[] {
+  if (run.length < 2) return [...run]
+  let union: MultiPolygon
+  try {
+    const shapes: Polygon[] = run.map(({ face }) => [closedRing(face.outline)])
+    union = polygonClipping.union(shapes[0]!, ...shapes.slice(1))
+  } catch {
+    return [...run]
+  }
+  if (union.length !== 1 || union[0]!.length !== 1) return [...run]
+  const ring = union[0]![0]!
+  const outline = ring.slice(0, -1).map(([u, z]) => [fine(u), fine(z)] as const)
+  const nearest = run.reduce((best, one) => (one.depth < best.depth ? one : best), run[0]!)
+  const openings = new Map<string, FacadeOpening>()
+  for (const { face } of run) for (const o of face.openings) if (!openings.has(o.id)) openings.set(o.id, o)
+  const us = outline.map(([u]) => u)
+  const zs = outline.map(([, z]) => z)
+  const face: FacadeFace = {
+    ...nearest.face,
+    u0: Math.min(...us),
+    u1: Math.max(...us),
+    bottom: Math.min(...zs),
+    top: Math.max(...zs),
+    outline,
+    openings: [...openings.values()]
+  }
+  const order = Math.min(...run.map(({ s }) => s.order))
+  return [{ s: { ...nearest.s, order }, face, depth: nearest.depth }]
+}
+
 const KIND_ORDER: Readonly<Record<FacadeFaceKind, number>> = { plinth: 0, slab: 1, wall: 2, roof: 3, 'roof-plane': 4, parapet: 5 }
 
 /** The facade of one side of the building. See the module's header. */
@@ -949,6 +1022,13 @@ export function planFacade(stated: FloorPlan, side: FacadeSide): Facade {
     })
     .filter(({ face }) => face.u1 - face.u0 > tolerance('noLength'))
     .sort((x, y) => y.face.depth - x.face.depth || KIND_ORDER[x.face.kind] - KIND_ORDER[y.face.kind] || x.s.order - y.s.order)
+  // VEW-79: a curved wall is one face across the view, its silhouette, not one per piece.
+  const curved = new Set(plan.walls.filter((w) => w.arc !== undefined).map((w) => w.id))
+  if (curved.size > 0) {
+    const joinedCurves = joinCurvedFaces(drawn, curved)
+    drawn.length = 0
+    drawn.push(...joinedCurves.sort((x, y) => y.face.depth - x.face.depth || KIND_ORDER[x.face.kind] - KIND_ORDER[y.face.kind] || x.s.order - y.s.order))
+  }
   const kept = seenWalls(drawn.map(({ face }) => face))
   const shown = drawn.filter((_, i) => kept[i] !== null)
   const tiers = tiersOf(shown.map(({ depth }) => depth))

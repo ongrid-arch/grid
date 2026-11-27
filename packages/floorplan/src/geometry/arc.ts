@@ -200,17 +200,37 @@ export function curveFault(wall: Wall): { readonly code: 'wall/arc-too-tight' | 
   const apart = Math.max(Math.abs(endRadius - curve.radius), along)
   if (apart > tolerance('arcEnds')) {
     const meant = curvePointAt({ ...curve, sweep: stated }, curve.radius * Math.abs(stated))
-    return {
-      code: 'wall/arc-ends-apart',
-      said: said('issue.wall/arc-ends-apart', {
-        wall: id,
-        sweep: degrees(stated),
-        centre: at(curve.centre.x, curve.centre.y),
-        meant: at(meant.x, meant.y),
-        end: at(wall.end[0], wall.end[1]),
-        apart: m3(apart)
-      })
+    const words = {
+      wall: id,
+      sweep: degrees(stated),
+      centre: at(curve.centre.x, curve.centre.y),
+      meant: at(meant.x, meant.y),
+      end: at(wall.end[0], wall.end[1]),
+      apart: m3(apart),
     }
+    // WRT-82: an end on the circle is reached by a sweep one way round or the other: named, to copy.
+    const onCircle = Math.abs(endRadius - curve.radius) <= tolerance('arcEnds')
+    if (!onCircle) return { code: 'wall/arc-ends-apart', said: said('issue.wall/arc-ends-apart', words) }
+    return { code: 'wall/arc-ends-apart', said: said('issue.wall/arc-ends-apart.reach', { ...words, reach: num(sweepText(reachingSweep(curve, wall, stated))) }) }
   }
   return null
+}
+
+/**
+ * WRT-82: the sweep in degrees that takes `start` round to where `end` lies seen from the centre,
+ * counter-clockwise or clockwise, whichever is nearer the stated sweep's size (so a sweep given
+ * with the wrong sign, or in radians, is answered with the one meant).
+ */
+function reachingSweep(curve: WallCurve, wall: Wall, stated: number): number {
+  const endAngle = Math.atan2(wall.end[1] - curve.centre.y, wall.end[0] - curve.centre.x)
+  const left = (((endAngle - curve.startAngle) % TURN) + TURN) % TURN
+  const ways = left <= tolerance('sameAngle') ? [TURN, -TURN] : [left, left - TURN]
+  const best = ways.reduce((a, b) => (Math.abs(Math.abs(b) - Math.abs(stated)) < Math.abs(Math.abs(a) - Math.abs(stated)) ? b : a))
+  return (best * 180) / Math.PI
+}
+
+/** A sweep to copy into a plan: signed, to four decimals of a degree, so its end lands within `arcEnds` on any building's radius. */
+const sweepText = (deg: number): string => {
+  const text = String(Math.round(deg * 1e4) / 1e4)
+  return deg > 0 ? `+${text}` : text
 }

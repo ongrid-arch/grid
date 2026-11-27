@@ -314,7 +314,8 @@ pen its own way, one floor or every floor ([above](#every-floor-in-one-dxf-at-a-
   `GRID-OPENINGS-ABOVE`.
 - **Dimensions** are dimension entities on `GRID-DIMENSIONS`, in the style `GRID` (ticks, metres
   to two places): the chains outside the plan and the room sizes inside it that the drawing
-  shows ([the sizes on a drawing](#the-sizes-on-a-drawing)).
+  shows ([the sizes on a drawing](#the-sizes-on-a-drawing)); a curve's radius is a radial
+  dimension, its centre and a point on the curve, written `R 6.00`, and its chord an aligned one.
 - **Room tags.** Each room gets the block `GRID-ROOM-TAG` on `GRID-ROOM-TAGS`, with the attributes
   `NUMBER` (the number the room states, else Grid's count, as in the schedule), `NAME` and `AREA`
   (the net area, `12.40 m²`).
@@ -886,6 +887,15 @@ by the box it makes on the page.
   box round its outline. A chain keeps no point closer than `chainSliver` to the one before it,
   so a wall a little off square leaves no sliver, and a wall thinner than `chainThinWall` that
   meets a facade is marked at its centre line.
+- Curves (VEW-79) are dimensioned as curves, never one size per straight piece they are traced
+  or written by. Each circle a curved wall lies on gets one radius, `R 6.00`, from its centre
+  (marked with a cross) to the face that looks at the centre, and each curve that is not a whole
+  circle its chord once, pushed out past its bulge. A room's sides along a curve get no size of
+  their own. A run of three or more short straight sides turning the same way by no more than
+  `curvePieceTurn`, their corners within `curveFit` of one circle, is a curve too: it gets its
+  radius and chord, and its walls get no chains of their own outside the plan. A radius longer
+  than `radiusLineLongest` is drawn as that much of its line by the curve, with no centre mark,
+  and still says the whole radius. In an SVG these are `data-kind="radius"` and `"chord"`.
 - Every size measures to a wall's face, or to the line of a dividing line (or of a thin wall),
   which has no faces. A plan records no finishes, so none measures to a finish yet. In an SVG each
   dimension's `data-measured-to` says it, for its two ends: `face`, `centre-line` or `finish`.
@@ -1115,6 +1125,12 @@ windows (VEW-25): the building's own outside walls, and on a floor with outdoor 
 round it too: a porch's front under the porch's roof, a terrace's parapet, a stair enclosure
 standing on a roof terrace, and the front of a floor set back behind a terrace. A wall, or a door
 or window, that nearer faces hide whole is left out of the drawing and of the facade's lists.
+
+A curved wall (VEW-79) is one face, its silhouette, with no line where one of the straight
+pieces Grid traces it by meets the next, so a round drum is not drawn fluted and a bay not as
+boxes laid over each other; its windows stand where they are, narrower the further the curve
+turns away. A section draws a curved wall beyond its cut the same way, one face for each run of
+it that faces the person looking.
 
 Each window is drawn as it is built (VEW-63): its frame, a sash for each part that opens, its
 glass in a tone of its own (a pale grey in the technical look) with a bar where two panes meet, a

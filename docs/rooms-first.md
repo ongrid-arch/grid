@@ -262,7 +262,10 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   from where it stands, as an edit does; one that no longer leads outside comes first, said so
   ("No longer leads outside: …"). Its count is what `grid check` will list, the routes out
   included, beside the drawing problems: `To look at: 0 → 2, of them problems in the drawing
-  0 → 0`; the data has `toLookAt` and `doors` (WRT-57).
+  0 → 0`; the data has `toLookAt` and `doors` (WRT-57). The drawing's problems the write added
+  follow by code and part, with their sentences (`New in the drawing: wall/arc-ends-apart on
+  "bay": …`, at most five, then how many more), and in the data as `drawingProblems.new`
+  (WRT-82).
 - What Grid writes passes its own check (WRT-17). It reads the plan back as `grid check` will
   before writing it, so the walls it works out close every corner and join only where walls meet.
   Each wall end reaches the centre line of the wall it meets however thick the two are (a 1.8 m
@@ -342,8 +345,14 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   whose rooms are all raw reads its door and window lines like any other.
 - Nothing raw is dropped in silence (WRT-48). A raw part's field the plan file does not have is
   refused with its line, the nearest field Grid knows and the fields that place has: a curve is
-  `"arc": {"centre": [x, y], "sweep": <degrees>}`, never `bulge` or `spline`, and facts of your
-  own go in `"properties"`. A `raw floor` field the floor does not take is named too (a height is
+  `"arc": {"centre": [x, y], "sweep": <degrees>}`, never `spline`, and facts of your
+  own go in `"properties"`. A curve may instead be given by the wall's ends (WRT-82): `"arc":
+  {"through": [x, y]}`, a point on it; `{"radius": <m>, "side": "left"}`, the shorter arc bowing
+  to that side going from start to end; or `{"bulge": <b>}`, the tangent of a quarter of the
+  sweep, positive counter-clockwise, as CAD drawings store it (on the wall too, and 0 is
+  straight). `"from"` and `"to"` are read as `"start"` and `"end"`. Grid writes the centre and
+  sweep it works out and says them in the answer; words that name no curve, or name it two
+  ways, are refused with the line (`rooms/raw`). A `raw floor` field the floor does not take is named too (a height is
   written on the floor line). Raw takes `wall`, `room`, `opening`, `floor` or `stair`: `raw door` is told
   it is a raw opening, `raw column` and `raw fixture` that the plan file
   holds them in its own lists, `raw staircase` how a stair is written, and `raw site` that the site has lines of its own (`rooms/raw`), however `raw` is written: `Raw stair {...}` and
@@ -587,7 +596,7 @@ door d1 between lobby and hall, centred, 1.8 wide, double
 
 ### Curves
 
-room <id> "<name>" <use|-> circle <across> | circle radius <r> | oval <w> x <d> at x,y draws a round or oval room by its centre, to its inside faces (an oval is four arcs that meet without a kink). band <r1> to <r2> [from <degrees>] [sweep <degrees>] at x,y is the floor between two radii round that centre, from (east is 0, counter-clockwise) turning sweep degrees, less than a whole turn. arc <degrees> [<chord>] <side> of <room> is a round end on that side of a room: its chord along that side (as long as it unless written) and its curve turning that many degrees out. wall <room> <side> curve radius <r> [inward] bows a straight outside side. Grid writes true curved walls, one wall where two rooms share a curve, and doors and windows go on them like any other: centred on the curve's point facing the side, or <m> from <side> along the curve. A curved wall may also be written raw: raw wall {..., "arc": {"centre": [x, y], "sweep": <degrees>}}, counter-clockwise positive, 360 a whole circle.
+room <id> "<name>" <use|-> circle <across> | circle radius <r> | oval <w> x <d> at x,y draws a round or oval room by its centre, to its inside faces (an oval is four arcs that meet without a kink). band <r1> to <r2> [from <degrees>] [sweep <degrees>] at x,y is the floor between two radii round that centre, from (east is 0, counter-clockwise) turning sweep degrees, less than a whole turn. arc <degrees> [<chord>] <side> of <room> is a round end on that side of a room: its chord along that side (as long as it unless written) and its curve turning that many degrees out. wall <room> <side> curve radius <r> [inward] bows a straight outside side. Grid writes true curved walls, one wall where two rooms share a curve, and doors and windows go on them like any other: centred on the curve's point facing the side, or <m> from <side> along the curve. A curved wall may also be written raw: raw wall {..., "arc": {"centre": [x, y], "sweep": <degrees>}}, counter-clockwise positive, 360 a whole circle; or by its start and end (or from and to) with "arc": {"through": [x, y]} (a point on the curve), {"radius": <m>, "side": "left"|"right"} (the side it bows to going from start to end, the shorter way) or {"bulge": <b>} (as CAD stores it: the tangent of a quarter of the sweep), and Grid works out the centre and sweep and says them. When a sweep misses its end, wall/arc-ends-apart names the sweep that reaches it.
 
 ```rooms
 room nave "Nave" assembly 20 x 10 at 0,0

@@ -358,6 +358,37 @@ export const TOLERANCES = {
       '(VEW-22). One way holding half the length or more is the plan\'s main directions.',
     basis: own
   },
+  curvePieceTurn: {
+    kind: 'tolerance',
+    value: 20,
+    unit: 'degree',
+    decides:
+      'The most a room\'s outline may turn at a corner between two short straight sides that are ' +
+      'pieces of one curve (VEW-79). Three sides or more that turn the same way by no more than ' +
+      'this, their corners on one circle (`curveFit`), are dimensioned as a curve, by one radius ' +
+      'and one chord, never piece by piece.',
+    basis: own
+  },
+  curveFit: {
+    kind: 'tolerance',
+    value: 0.02,
+    unit: 'm',
+    decides:
+      'How far a corner of a run of short straight sides may lie off the circle through the ' +
+      'run\'s ends and middle and still be a piece of that curve (VEW-79); also how near two curved ' +
+      'walls\' face radii, on one centre, must be to be one circle, dimensioned by one radius.',
+    basis: own
+  },
+  radiusLineLongest: {
+    kind: 'tolerance',
+    value: 10,
+    unit: 'm',
+    decides:
+      'The longest a radius dimension\'s line is drawn (VEW-79). A larger radius is drawn as this ' +
+      'much of its line next to the curve, with no centre mark, so a distant centre does not ' +
+      'stretch the drawing; its figure is still the whole radius.',
+    basis: own
+  },
 
   // ── Writing a plan rooms first (rooms/, WRT-2) ────────────────────────────────────────────
   roomsWallWidest: {

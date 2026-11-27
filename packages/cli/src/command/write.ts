@@ -85,7 +85,7 @@ export interface WriteDone {
   readonly plan: FloorPlan
   /** The comparison with the plan before, or null when there was none. */
   readonly verdict: string | null
-  readonly drawingProblems: { readonly before: number; readonly after: number }
+  readonly drawingProblems: { readonly before: number; readonly after: number; readonly new: ReadonlyArray<{ readonly code: string; readonly id: string; readonly message: string }> }
   /** WRT-57: what grid check lists (the record's count, routes out and all), before and after. */
   readonly toLookAt: { readonly before: number; readonly after: number }
   /** WRT-57: each door that joins other rooms than it did before, one that no longer leads outside first. */
@@ -120,11 +120,11 @@ const ITEMS_LISTED_MAX = 10
 const ITEM_LOOKS_MAX = 5
 
 /** WRT-46: the items the plan as written keeps, with their rooms and the checks on them. */
-function keptItems(plan: FloorPlan): { readonly items: KeptItem[]; readonly problems: number } {
+function keptItems(plan: FloorPlan): { readonly items: KeptItem[]; readonly problems: number; readonly issues: readonly DrawingIssue[] } {
   const items = plan.items ?? []
   const index = indexPlan(plan)
   const { issues, broken } = validatePlan(plan, index)
-  if (items.length === 0) return { items: [], problems: issues.length }
+  if (items.length === 0) return { items: [], problems: issues.length, issues }
   const rooms = roomShapes(index, broken)
   const looks = new Map<string, string[]>()
   for (const issue of issues) if (KEPT_ITEM_CODES.has(issue.code)) looks.set(issue.id, [...(looks.get(issue.id) ?? []), issue.message])
@@ -132,7 +132,35 @@ function keptItems(plan: FloorPlan): { readonly items: KeptItem[]; readonly prob
     const room = itemRoom(item, rooms)
     return { id: item.id, kind: item.kind, at: [item.at[0], item.at[1]], floor: floorOf(item), room: room === null ? null : room.name || room.id, worthALook: looks.get(item.id) ?? [] }
   })
-  return { items: kept, problems: issues.length }
+  return { items: kept, problems: issues.length, issues }
+}
+
+type DrawingIssue = ReturnType<typeof validatePlan>['issues'][number]
+
+/** WRT-82: the most new problems the answer lists, each by code and part with its sentence. */
+const NEW_PROBLEMS_LISTED = 5
+
+/**
+ * WRT-82: the drawing's problems after the write that it did not have before, matched by code and
+ * part and counted, so one that only changes its figures is not new.
+ */
+function freshIssues(was: readonly DrawingIssue[], now: readonly DrawingIssue[]): DrawingIssue[] {
+  const key = (issue: DrawingIssue): string => `${issue.code}|${issue.id}`
+  const had = new Map<string, number>()
+  for (const issue of was) had.set(key(issue), (had.get(key(issue)) ?? 0) + 1)
+  return now.filter((issue) => {
+    const left = had.get(key(issue)) ?? 0
+    if (left > 0) had.set(key(issue), left - 1)
+    return left === 0
+  })
+}
+
+/** WRT-82: the line naming the new problems, by code and part, or none. */
+function freshLine(fresh: readonly DrawingIssue[]): string[] {
+  if (fresh.length === 0) return []
+  const listed = fresh.slice(0, NEW_PROBLEMS_LISTED).map((issue) => english(said('write.newProblems.one', { code: issue.code, id: name(issue.id), message: issue.message.replace(/\.\s*$/, '') })))
+  const more = fresh.length > NEW_PROBLEMS_LISTED ? said('write.newProblems.more', { n: fresh.length - NEW_PROBLEMS_LISTED }) : ''
+  return [english(said('write.newProblems', { problems: listed.join(' '), more }))]
 }
 
 /** WRT-46: the lines on the items kept: how many and which, then each one the new walls put in the way. */
@@ -415,7 +443,9 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // WRT-46: the plan as written, with the items, columns and other parts the file keeps, is the one
   // counted after, as the plan before was counted with them; its items are said with their rooms.
   const items = keptItems(withShell(safeParseFloorPlan(next) ?? kept))
-  const drawingProblems = { before: before === null ? 0 : validatePlan(before).issues.length, after: items.problems }
+  const issuesBefore = before === null ? [] : validatePlan(before).issues
+  const fresh = freshIssues(issuesBefore, items.issues)
+  const drawingProblems = { before: issuesBefore.length, after: items.problems, new: fresh.map((issue) => ({ code: issue.code, id: issue.id, message: issue.message })) }
   // WRT-57: what grid check will list, as an edit counts it, so a write that leaves no way out says so;
   // and the doors that now join other rooms, from where each stands.
   const toLookAt = { before: before === null ? 0 : inspectPlan(raw, beforeBase === undefined ? {} : { base: beforeBase }).count, after: inspectPlan(next, base === null ? {} : { base: base.plan }).count }
@@ -442,6 +472,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(plan.flats !== undefined || (before?.flats ?? []).length === 0 ? [] : [`Kept the plan's ${before!.flats!.length === 1 ? 'flat' : `${before!.flats!.length} flats`} as the file has ${before!.flats!.length === 1 ? 'it' : 'them'}: this rooms text places no flat type. grid check names a room a flat lists that the text no longer has.`]),
     ...doors,
     english(said('write.toLookAt', { before: toLookAt.before, after: toLookAt.after, drawingBefore: drawingProblems.before, drawingAfter: drawingProblems.after })),
+    ...freshLine(fresh),
     ...noStairLines(shelled),
     ...brief.text,
     ...(reminder === null ? [] : [reminder]),

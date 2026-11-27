@@ -121,7 +121,9 @@
  *       `phases.ts`). The text is written before and after the work and made one plan: a wall in
  *       both states is existing, one only before demolished, one only after new; on a wall line
  *       it is that wall's phase whatever its rooms give it
- *   raw wall|room|opening { ...Grid's own JSON... }     a part written the Grid way
+ *   raw wall|room|opening { ...Grid's own JSON... }     a part written the Grid way; a raw wall's
+ *       curve may be given by its ends, "arc": {"through": [x, y]} | {"radius": <m>, "side": "left"|"right"}
+ *       | {"bulge": <b>}, and its ends as "from" and "to": `rawWallEnds` in `curves.ts` (WRT-82)
  *   raw floor { "roof": {...}, "parapet": <m> }         the floor's fields rooms text has no words for (LVL-6);
  *                                                      BRF-4 adds "outline", "homes" and "parking";
  *                                                      null takes a copied one off (LVL-16)
@@ -194,7 +196,7 @@ import { PARKING_LINE_WORDS, ParkingLines } from './parking'
 import { isRooflightLine, ROOF_LINE_WORDS, RoofLines, roofOfWords, rooflightOfWords } from './roofs'
 import { COLUMN_LINE_WORDS, ColumnLines } from './columns'
 import { likelyMeant } from '../types/nearest'
-import { bandShape, bowedSide, circleShape, cornerCount, curvedArea, curveOfPiece, curveWalls, facingAngle, frameAt, ovalShape, segmentShape, stationAt, type CurveCircle, type CurvedShape, type CurvedWall } from './curves'
+import { bandShape, bowedSide, circleShape, rawWallEnds, cornerCount, curvedArea, curveOfPiece, curveWalls, facingAngle, frameAt, ovalShape, segmentShape, stationAt, type CurveCircle, type CurvedShape, type CurvedWall } from './curves'
 import { readingNotes } from '../types/reading'
 
 type P = readonly [number, number]
@@ -1180,6 +1182,9 @@ class Compiler {
     // WRT-27: a raw wall or room with no floor is on the floor of the floor line above it, as a
     // room line is. An opening is on its wall's floor and states none.
     if (kind !== 'opening' && this.explicitFloors && part['floor'] === undefined) part = { ...part, floor: fl.id }
+    // WRT-82: a curve written by its ends and a point, a radius and a side, or a bulge, and ends
+    // written `from` and `to`, become the plan file's start, end, centre and sweep, said in the answer.
+    if (kind === 'wall') part = this.rawWallCurve(part, at)
     // WRT-44: a raw wall whose two ends are one point has no length: refused with its line, never
     // left for a later step to throw on.
     if (kind === 'wall' && noLength(part['start'], part['end'], part['arc'])) {
@@ -1191,6 +1196,29 @@ class Compiler {
     list.push(part)
     this.rawIds.add(part['id'] as string)
     this.rawParts.push({ kind, part, line: at, under: fl.id })
+  }
+
+  /**
+   * WRT-82: a raw wall's ends and curve in the plan file's terms (`rawWallEnds`). A curve worked
+   * out from other words is said with its centre and sweep; one that names no curve is refused
+   * with its line and the ways to write one, and the wall read on straight so nothing else trips on it.
+   */
+  private rawWallCurve(part: Record<string, unknown>, at: number): Record<string, unknown> {
+    const read = rawWallEnds(part)
+    const id = String(part['id'])
+    if ('fault' in read) {
+      this.problem('rooms/raw', at, english(said('rooms.raw.arc', { line: at, id, why: said(`rooms.raw.arc.${read.fault}`) })))
+      const straight = Object.fromEntries(Object.entries(part).filter(([k]) => !['arc', 'bulge', 'from', 'to'].includes(k)))
+      return { ...straight, start: part['start'] ?? part['from'], end: part['end'] ?? part['to'] }
+    }
+    const was = part['arc'] as Record<string, unknown> | undefined
+    const now = read.part['arc'] as { centre: [number, number]; sweep: number } | undefined
+    const restated = part['bulge'] !== undefined || (was !== undefined && was['centre'] === undefined && was['sweep'] === undefined)
+    if (restated && now !== undefined) {
+      const sweep = `${now.sweep > 0 ? '+' : ''}${now.sweep}`
+      this.guesses.push(english(said('rooms.raw.arc.worked', { line: at, id, centre: `${metres(now.centre[0])},${metres(now.centre[1])}`, sweep: num(sweep) })))
+    } else if (restated) this.guesses.push(english(said('rooms.raw.arc.straight', { line: at, id })))
+    return read.part
   }
 
   /**

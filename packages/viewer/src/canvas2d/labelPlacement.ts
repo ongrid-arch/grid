@@ -17,7 +17,7 @@
  * Pure: no DOM measuring, so it runs in tests and on every render without layout reads.
  */
 import type { Dimension, PlanOpening, Rect, Vec2 } from '@ongrid/floorplan/geometry'
-import { areaText, doorSwing, metresText, openingSymbol, rectOf, rectTouchesPolygon, spotsInside, symbolPoints, tolerance } from '@ongrid/floorplan/geometry'
+import { areaText, doorSwing, metresText, openingSymbol, RADIUS_MARK, rectOf, rectTouchesPolygon, spotsInside, symbolPoints, tolerance } from '@ongrid/floorplan/geometry'
 import { TEXT_PX } from '../picture/look'
 import { METRES, showArea, showLength, type Display } from '@ongrid/floorplan/types/units'
 import type { DoorHanding } from './doorHanding'
@@ -130,9 +130,11 @@ export function areaUnit(): string {
 export function dimensionText(value: number, kind?: Dimension['kind']): string {
   // VEW-76: a drawing for people writes its overall sizes with their unit, then in the second display.
   if (drawingAlso !== null && kind === 'overall') return `${showLength(value, drawingDisplay ?? METRES)} (${showLength(value, drawingAlso)})`
-  if (drawingDisplay !== null) return showLength(value, drawingDisplay, { unit: false })
+  // VEW-79: a radius is written after the drafting mark for one.
+  const mark = kind === 'radius' ? RADIUS_MARK : ''
+  if (drawingDisplay !== null) return `${mark}${showLength(value, drawingDisplay, { unit: false })}`
   // A grid's spacings are set out to the millimetre, so they are drawn so and add up to the overall (VEW-46).
-  return metresText(value, kind === 'grid' ? 3 : 2)
+  return `${mark}${metresText(value, kind === 'grid' ? 3 : 2)}`
 }
 
 /**
