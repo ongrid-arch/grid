@@ -13,14 +13,34 @@
  * Coordinates are the model's own: metres, X and Y as on the plan, Z up (C4).
  * OBJ has no unit or axis field, so the header comment says so; an importer that
  * wants Y up has to turn the model itself, as it would for any Z-up source.
+ *
+ * VEW-73: each object is drawn in the material of its kind (`usemtl wall` and so on), from
+ * `grid.mtl` (`OBJ_MATERIALS_FILE`, `toMtl`), which the export writes beside the OBJ. The name
+ * is fixed because the materials are: every OBJ Grid writes can share one file.
  */
 
 import type { Scene3D } from '../scene3d'
-import { OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
+import { MESH_MATERIALS, OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, materialOf, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
 import type { Mesh } from './mesh'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { approximationLines, leftOutLines, leftOutSummary, type Approximations, type LeftOutPart } from './leftOut'
 import { english, said } from '../../messages/say'
+
+/** VEW-73: the materials file every OBJ names (`mtllib`), written beside it. */
+export const OBJ_MATERIALS_FILE = 'grid.mtl'
+
+/**
+ * VEW-73: the text of `grid.mtl`: a material for each kind (`MESH_MATERIALS`), by its name, in the
+ * same colours as the GLB's, glass seen through. The same text every time.
+ */
+export function toMtl(): string {
+  const lines = [`# ${GENERAL_GUIDANCE_LABEL}`]
+  for (const material of MESH_MATERIALS) {
+    const [r, g, b] = material.colour.map((c) => c.toFixed(3))
+    lines.push('', `newmtl ${material.name}`, 'Ka 0.000 0.000 0.000', `Kd ${r} ${g} ${b}`, 'Ks 0.000 0.000 0.000', `d ${material.opacity.toFixed(3)}`, 'illum 1')
+  }
+  return `${lines.join('\n')}\n`
+}
 
 /** Avoids `-0.000000`, which readers parse and nobody wants to read. */
 function num(value: number): string {
@@ -48,7 +68,7 @@ function writeScene(scene: Scene3D, lines: string[], nameOf: (prefix: string, id
   const write = (prefix: string, id: string, mesh: Mesh | null): void => {
     if (!mesh) return
 
-    lines.push(`o ${nameOf(prefix, id)}`)
+    lines.push(`o ${nameOf(prefix, id)}`, `usemtl ${materialOf(prefix)}`)
     for (const p of mesh.points) lines.push(`v ${num(p.x)} ${num(p.y)} ${num(p.z + lift)}`)
     // OBJ indices are 1-based and global across the whole file.
     for (const [a, b, c] of mesh.faces) {
@@ -82,7 +102,7 @@ function writeScene(scene: Scene3D, lines: string[], nameOf: (prefix: string, id
 
 /** The header, and what the file leaves out and writes as pieces, as comments. */
 function headerOf(options: ObjOptions): string[] {
-  const lines = [`# ${GENERAL_GUIDANCE_LABEL}`, '# Grid floor plan', '# Units: metres. X and Y are the plan, Z is up.']
+  const lines = [`# ${GENERAL_GUIDANCE_LABEL}`, '# Grid floor plan', '# Units: metres. X and Y are the plan, Z is up.', `mtllib ${OBJ_MATERIALS_FILE}`]
   // HND-6: what the file leaves out, as comments after the header. Only when something is.
   const leftOut = options.leftOut ?? []
   if (leftOut.length > 0) lines.push(...[leftOutSummary(leftOut), ...leftOutLines(leftOut)].map(objComment))

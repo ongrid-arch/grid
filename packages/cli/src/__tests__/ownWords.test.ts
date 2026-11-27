@@ -53,7 +53,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
   'packages/cli/src/command/edit.ts': [9, 'command'],
   // VEW-72: five more, the help of --scale, its refusals, --floor all with --out and a plan with nothing on any floor.
-  'packages/cli/src/command/export.ts': [25, 'command'],
+  // VEW-73: five more, the help of --no-roofs and --arc-segments and their refusals.
+  'packages/cli/src/command/export.ts': [30, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
@@ -156,7 +157,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-7: the guide for agents, its shared paragraphs and its two resources, written for the agent.
   // MSG-22: eighteen fewer, none moved: the uses table no longer nests a template in a template, which the count read as more.
   // CMD-40: the one-line descriptions of the documentation pages, as the tool server lists them.
-  'packages/cli/src/guide/docPages.ts': [21, 'agent'],
+  // VEW-73: one more, the 3D files page's.
+  'packages/cli/src/guide/docPages.ts': [22, 'agent'],
   // CNT-46: ten more, the car park's question.
   'packages/cli/src/guide/guide.ts': [90, 'agent'],
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
@@ -276,7 +278,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-64: one more, the floors an export holds.
   // CMD-43: six more, the from, layers and units arguments and their refusals.
   // VEW-72: three more, grid_export's scale and out and a file out cannot write.
-  'packages/cli/src/mcp/writeTools.ts': [161, 'tools'],
+  // VEW-73: three more, grid_export's 3D files and its roofs and arcSegments.
+  'packages/cli/src/mcp/writeTools.ts': [164, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -362,7 +365,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-71: one more, the projected roof edge in elevation.
   // LVL-24: one more, a wall lower than storeyLowest set against its floor's height.
   // CMD-49: three more, curveSweep's description.
-  'packages/floorplan/src/geometry/tolerances.ts': [352, 'developer'],
+  // VEW-73: two more, what floorLift decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [354, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

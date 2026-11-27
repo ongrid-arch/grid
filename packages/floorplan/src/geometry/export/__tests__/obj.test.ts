@@ -4,6 +4,7 @@ import type { Scene3D, Vec3 } from '../../scene3d'
 import { buildScene, elevationArea } from '../../scene3d'
 import { signedArea } from '../../vec2'
 import { toObj } from '../obj'
+import { tolerance } from '../../tolerances'
 
 /**
  * OBJ export.
@@ -17,28 +18,51 @@ import { toObj } from '../obj'
 
 interface Group {
   readonly name: string
+  /** VEW-73: the material its `usemtl` names. */
+  readonly material: string | null
   readonly faces: readonly (readonly [number, number, number])[]
 }
 
 interface Obj {
+  /** VEW-73: the materials file its `mtllib` names. */
+  readonly mtllib: string | null
   readonly vertices: readonly Vec3[]
   readonly groups: readonly Group[]
 }
 
-/** Strict: anything but a comment, `o`, `v` or a triangular `f` is an error. */
+/**
+ * Strict: anything but a comment, `o`, `v`, a triangular `f`, one `mtllib` before any object and
+ * a `usemtl` right after each `o` (VEW-73) is an error.
+ */
 function parseObj(text: string): Obj {
   const vertices: Vec3[] = []
-  const groups: { name: string; faces: [number, number, number][] }[] = []
+  const groups: { name: string; material: string | null; faces: [number, number, number][] }[] = []
+  let mtllib: string | null = null
+  let last = ''
 
   for (const [index, line] of text.split('\n').entries()) {
     if (line === '' || line.startsWith('#')) continue
     const parts = line.split(' ')
     const where = `line ${index + 1}: ${line}`
 
+    const previous = last
+    last = parts[0]!
     switch (parts[0]) {
+      case 'mtllib': {
+        expect(parts, where).toHaveLength(2)
+        expect(mtllib === null && groups.length === 0 && vertices.length === 0, `one mtllib, before any object: ${where}`).toBe(true)
+        mtllib = parts[1]!
+        break
+      }
+      case 'usemtl': {
+        expect(parts, where).toHaveLength(2)
+        expect(previous, `usemtl right after its o: ${where}`).toBe('o')
+        groups[groups.length - 1]!.material = parts[1]!
+        break
+      }
       case 'o': {
         expect(parts, where).toHaveLength(2)
-        groups.push({ name: parts[1]!, faces: [] })
+        groups.push({ name: parts[1]!, material: null, faces: [] })
         break
       }
       case 'v': {
@@ -62,7 +86,7 @@ function parseObj(text: string): Obj {
         throw new Error(`unexpected statement — ${where}`)
     }
   }
-  return { vertices, groups }
+  return { mtllib, vertices, groups }
 }
 
 const sub = (a: Vec3, b: Vec3): Vec3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z })
@@ -284,7 +308,7 @@ describe('each wall is a closed solid', () => {
 })
 
 describe('floors', () => {
-  it('lie flat at z = 0 facing up, and cover the room exactly', () => {
+  it('lie flat just above z = 0, off the slab, facing up, and cover the room exactly', () => {
     const scene = buildScene(samplePlan())
     const obj = parseObj(toObj(scene))
     const floor = floorGroups(obj)[0]!
@@ -292,7 +316,8 @@ describe('floors', () => {
     let covered = 0
     for (const face of floor.faces) {
       const [a, b, c] = corners(obj, face)
-      for (const v of [a, b, c]) expect(v.z).toBeCloseTo(0, 9)
+      // VEW-73: lifted off the slab, so the two never share a plane.
+      for (const v of [a, b, c]) expect(v.z).toBeCloseTo(tolerance('floorLift'), 9)
       const normal = crossV(sub(b, a), sub(c, a))
       expect(normal.z).toBeGreaterThan(0)
       covered += faceArea(obj, face)

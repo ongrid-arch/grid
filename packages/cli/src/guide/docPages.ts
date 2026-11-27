@@ -76,6 +76,11 @@ export const DOC_PAGES: Readonly<Record<string, DocPage>> = {
     description: 'The exact figure behind each drawing check, and when Grid asks whether a size is meant.',
     load: () => import('../../../../docs/tolerances.md'),
   },
+  '3d-files': {
+    title: '3D files: GLB and OBJ',
+    description: 'Before opening a GLB or OBJ from Grid elsewhere: which way is up, the units, what each node and object is called, the materials, normals and UVs, and how to make the file lighter.',
+    load: () => import('../../../../docs/3d-files.md'),
+  },
   'result-contract': {
     title: 'The result contract',
     description: 'What grid_check and grid check return: the record, refusals, receipts and every message code.',

@@ -20,8 +20,36 @@ import type { OpeningPartKind } from '../openingParts'
 import { alongFace } from '../scene3d'
 import { triangulate } from '../triangulate'
 import { planeAt } from '../roofs'
+import { tolerance } from '../tolerances'
 
 export type Face = readonly [number, number, number]
+
+/**
+ * VEW-73: the materials the 3D files draw in, one per kind of part, in the order a file lists
+ * them. Plain colours, not styling: they tell the kinds apart, and a person swaps a material once
+ * in their program to change every part of its kind. Glass alone is seen through.
+ */
+export const MESH_MATERIALS = [
+  { name: 'wall', colour: [0.86, 0.85, 0.82], opacity: 1 },
+  { name: 'floor', colour: [0.72, 0.63, 0.5], opacity: 1 },
+  { name: 'door', colour: [0.6, 0.45, 0.3], opacity: 1 },
+  { name: 'frame', colour: [0.35, 0.35, 0.36], opacity: 1 },
+  { name: 'glass', colour: [0.7, 0.82, 0.9], opacity: 0.35 },
+  { name: 'slab', colour: [0.62, 0.62, 0.6], opacity: 1 },
+  { name: 'roof', colour: [0.55, 0.3, 0.25], opacity: 1 },
+  { name: 'stair', colour: [0.7, 0.7, 0.68], opacity: 1 },
+  { name: 'column', colour: [0.75, 0.75, 0.73], opacity: 1 },
+  { name: 'item', colour: [0.9, 0.9, 0.9], opacity: 1 }
+] as const satisfies readonly { readonly name: string; readonly colour: readonly [number, number, number]; readonly opacity: number }[]
+
+export type MeshMaterial = (typeof MESH_MATERIALS)[number]['name']
+
+/** The material for a part named by its prefix (`wall`, `leaf`, `parapet` ...): a parapet is wall, a door's leaf `door`. */
+export function materialOf(prefix: string): MeshMaterial {
+  if (prefix === 'parapet') return 'wall'
+  if (prefix === 'leaf') return 'door'
+  return MESH_MATERIALS.find((material) => material.name === prefix)?.name ?? 'wall'
+}
 
 export interface Mesh {
   readonly points: readonly Vec3[]
@@ -133,17 +161,19 @@ function elevationMesh(elevation: WallElevation, basis: WallBasis): Mesh | null 
 
 /**
  * A room's floor: a flat surface at its height, facing up, open over its holes (ARE-6). That is
- * z = 0, or the room's `offset` when it is set off its storey (LVL-7). Then a band of quads runs
+ * z = 0, or the room's `offset` when it is set off its storey (LVL-7), raised by `floorLift`
+ * (VEW-73) off the slab. Then, for a room set off its storey, a band of quads runs
  * round its edge, and round each hole's, down (or up) to the storey's floor, so a stage is a
  * platform with sides and a sunken room has a sill round it, facing into the room.
  */
 export function floorMesh(floor: SceneSlab): Mesh | null {
   const { vertices, triangles } = triangulate(floor.polygon, floor.holes)
   if (triangles.length === 0) return null
-  const top = floor.offset ?? 0
+  // VEW-73: lifted off the slab under it, so the two never share a plane and flicker.
+  const top = (floor.offset ?? 0) + tolerance('floorLift')
   const points: Vec3[] = vertices.map((v) => ({ x: v.x, y: v.y, z: top }))
   const faces: Face[] = [...triangles]
-  if (top !== 0) {
+  if (floor.offset !== undefined && floor.offset !== 0) {
     // The polygon winds counter-clockwise and each hole clockwise, so outside the floor lies to
     // the right of every edge. With the top above the base these faces point out of the platform,
     // with it below into the room.

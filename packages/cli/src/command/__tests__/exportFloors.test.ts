@@ -51,3 +51,34 @@ describe('grid export holds the whole building (VEW-64)', () => {
     expect(run.err).toContain('Holds floor "ground" only, written at its elevation, 0.00 m; the other floor is not in this file: leave the floor out to export the whole building.\n')
   })
 })
+
+describe('grid export: materials, roofs and curves (VEW-73)', () => {
+  it('writes grid.mtl beside an OBJ, into exports/ and beside --out', async () => {
+    const dir = folder()
+    const run = await grid(dir, 'export', 'house.json', '--format', 'obj')
+    expect(run.status).toBe(0)
+    expect(run.out).toContain(join('exports', 'grid.mtl'))
+    expect(existsSync(join(dir, 'exports', 'grid.mtl'))).toBe(true)
+    const out = await grid(dir, 'export', 'house.json', '--format', 'obj', '--out', 'model.obj')
+    expect(out.status).toBe(0)
+    expect(existsSync(join(dir, 'grid.mtl'))).toBe(true)
+  })
+
+  it('takes --no-roofs and --arc-segments for a GLB, and writes no materials file for it', async () => {
+    const dir = folder()
+    const run = await grid(dir, 'export', 'house.json', '--format', 'glb', '--no-roofs', '--arc-segments', '32')
+    expect(run.status).toBe(0)
+    expect(existsSync(join(dir, 'exports', 'grid.mtl'))).toBe(false)
+  })
+
+  it('refuses them for DXF and IFC, and a count of pieces it does not write', async () => {
+    const dir = folder()
+    expect((await grid(dir, 'export', 'house.json', '--format', 'dxf', '--no-roofs')).err).toContain('--no-roofs applies to GLB and OBJ only')
+    expect((await grid(dir, 'export', 'house.json', '--format', 'ifc', '--arc-segments', '32')).err).toContain('--arc-segments applies to GLB and OBJ only')
+    for (const bad of ['2', '1001', '12.5', 'many']) {
+      const run = await grid(dir, 'export', 'house.json', '--format', 'glb', '--arc-segments', bad)
+      expect(run.status).not.toBe(0)
+      expect(run.err).toContain('give a whole number from 3 to 1000')
+    }
+  })
+})
