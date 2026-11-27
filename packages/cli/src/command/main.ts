@@ -106,8 +106,8 @@ const COMMANDS = {
     options: INIT_OPTIONS,
   },
   write: {
-    usage: 'grid write <plan.rooms> | --layout tidy|sizes | --scan <scan.json> | --from <drawing.dxf|.ifc> [--layers <map>] [--units <unit>] [--plan <plan.json>] [--replace] [--json] [--project <folder>]',
-    summary: 'Writes a plan from rooms text: name the rooms with their sizes and neighbours, and Grid works out the walls. The main way to write a plan. With --layout, a first layout from the brief beside the plan; --scan writes it from a phone room scan instead; --from reads a DXF or IFC drawing into rooms text beside the plan and writes the plan from it.',
+    usage: 'grid write <plan.rooms> | --layout tidy|sizes | --scan <scan.json> | --from <drawing.dxf|.ifc> [--layers <map>] [--units <unit>] [--plan <plan.json>] [--replace] [--dry-run] [--json] [--project <folder>]',
+    summary: 'Writes a plan from rooms text: name the rooms with their sizes and neighbours, and Grid works out the walls. The main way to write a plan; --dry-run tries the text and writes nothing. With --layout, a first layout from the brief beside the plan; --scan writes it from a phone room scan instead; --from reads a DXF or IFC drawing into rooms text beside the plan and writes the plan from it.',
     options: WRITE_OPTIONS,
   },
   edit: {
@@ -367,6 +367,12 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     if (alone !== undefined) throw new UsageError(`${alone} goes with --from: it says how to read a DXF drawing.`)
   }
 
+  // CMD-54: a dry run tries rooms text only; the others write files of their own beside the plan.
+  if (name === 'write' && parsed.values.has('--dry-run')) {
+    const other = ['--layout', '--scan', '--from'].find((option) => parsed.values.has(option))
+    if (other !== undefined) throw new UsageError(`--dry-run goes with a rooms text file, not ${other}: it tries rooms text and writes nothing.`)
+  }
+
   if (name === 'write' && parsed.values.has('--from')) {
     // CMD-43: a DXF or IFC drawing, read into rooms text beside the plan.
     const other = ['--layout', '--scan'].find((option) => parsed.values.has(option))
@@ -411,13 +417,15 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const project = openProject(projectOption, io.cwd)
     const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
     const options = { replace: parsed.values.has('--replace') }
-    const { laid, done } = await recorded(project, target, { tool: shape === undefined ? 'write' : 'write --layout', via: 'grid write' }, () => {
+    // CMD-54: a dry run writes nothing, so there is no change to log.
+    const dryRun = parsed.values.has('--dry-run')
+    const { laid, done } = dryRun ? { laid: null, done: writeRoomsIntoProject(project, readRoomsFile(project, roomsFile!), target, { ...options, dryRun }) } : await recorded(project, target, { tool: shape === undefined ? 'write' : 'write --layout', via: 'grid write' }, () => {
       const laid = shape === undefined ? null : writeLayout(project, target, shape as LayoutShape, options)
       return { laid, done: laid?.done ?? writeRoomsIntoProject(project, readRoomsFile(project, roomsFile!), target, options) }
     })
     if (parsed.values.has('--json')) {
       const r = done.result
-      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, origin: done.origin, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, toLookAt: done.toLookAt, doors: done.doors, itemsKept: done.itemsKept, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
+      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, dryRun: done.dryRun, origin: done.origin, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, toLookAt: done.toLookAt, doors: done.doors, itemsKept: done.itemsKept, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
     } else io.stdout(`${[GENERAL_GUIDANCE_LABEL, ...(laid?.lines ?? done.lines)].join('\n')}\n`)
     return EXIT_OK
   }

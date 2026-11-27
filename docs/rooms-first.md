@@ -543,6 +543,13 @@ drop with its rooms, outline, homes and parking (WRT-16): read the whole plan ba
 add `--replace` to drop them, which the answer then lists. Rooms text with no rooms is refused
 even with `--replace`.
 
+To try rooms text before writing it (to learn a line of the grammar, or to see what a change
+would do to the plan), add `--dry-run` (`dry_run=true` for `grid_write_rooms`) (CMD-54). Grid
+compiles the text against the plan as it is and answers as the write would, every problem of the
+text, every refusal and what would change against the plan now included, and writes nothing: no
+plan file, no change log entry, no checkpoint. So a draft needs no scratch plan in the person's
+folder. A dry run takes rooms text only, not `--layout`, `--scan` or `--from`.
+
 Some parts are derived: Grid works them out and no one writes them. In a plan written rooms
 first (it records this in `written`), each room's boundary is derived, and one edited by hand is
 refused by the check with its own code, `room/derived-edited`. Grid's own edits keep it derived.

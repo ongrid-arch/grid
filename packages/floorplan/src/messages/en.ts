@@ -3529,6 +3529,8 @@ export const en = {
   'write.base.refused': 'The rooms text was not written, and the plan is as it was: {why}',
   'write.base.changed': '{file} is a fit-out on the base plan {was}, and this rooms text names {now}, so writing it would move the fit-out into another shell. Name {was} on the base line, or add --replace to write it on {now}.',
   'write.base.dropped': '{file} is a fit-out on the base plan {was}, and this rooms text names no base, so writing it would lose its shell. Add the line base {was} (grid describe --as rooms writes it), or add --replace to write it as a plan of its own.',
+  // CMD-54: rooms text tried with a dry run, nothing written.
+  'write.dryRun': 'Dry run: tried the rooms text against {file} and wrote nothing, so the plan, its change log and the folder are as they were. This is what writing it would do; write it again without the dry run to keep it.',
   'write.origin.drawing': 'The drawing origin is (0, 0) m on every floor, with x increasing to the right and y increasing up the plan.',
   'write.origin.extent': 'The lower-left corner of the wall centre-line bounds is at ({x}, {y}) m from the drawing origin.',
   'write.origin.unset': 'Use a site origin x,y line to set a reference point for exports of a plan at survey coordinates.',
