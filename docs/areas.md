@@ -314,6 +314,14 @@ error naming the row; it is never left out in silence. `grid sheet --layout chec
 both schedules as tables, the opening schedule by mark, and the door and window types.
 
 
+## Take-off
+
+A void contributes zero floor, ceiling and skirting to `grid_takeoff`. The take-off
+gives the length of its open edge for a guard, including doorways and doorless
+openings in the surrounding walls. In CSV, each void has a `guard` row with the
+measurement in the length column. A column through the void leaves the full
+opening deducted from the gross floor areas.
+
 ## Finishes and wall types
 
 A room or a zone may name its floor, wall, ceiling and skirting finishes, and a wall its named type
