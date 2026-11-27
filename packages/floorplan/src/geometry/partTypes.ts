@@ -59,12 +59,18 @@ export function typeMaterial(type: { readonly material?: string | undefined } | 
 
 /** The four finishes a room names, each null when it names none. */
 export function roomFinishes(room: Pick<Room, 'finishes'>): Readonly<Record<FinishSurface, string | null>> {
-  return Object.fromEntries(FINISH_SURFACES.map((surface) => [surface, room.finishes?.[surface] ?? null])) as Record<FinishSurface, string | null>
+  // CNT-51: skirting false is no skirting, so no named one.
+  return Object.fromEntries(FINISH_SURFACES.map((surface) => { const finish = room.finishes?.[surface]; return [surface, typeof finish === 'string' ? finish : null] })) as Record<FinishSurface, string | null>
 }
 
-/** Whether any room or zone of the plan names a finish. */
+/** CNT-51 (C24): whether the room or zone states it has no skirting. */
+export function roomHasNoSkirting(room: Pick<Room, 'finishes'>): boolean {
+  return room.finishes?.skirting === false
+}
+
+/** Whether any room or zone of the plan names a finish, a finished face or a band, or states no skirting. */
 export function planHasFinishes(plan: Pick<FloorPlan, 'rooms'>): boolean {
-  return plan.rooms.some((room) => FINISH_SURFACES.some((surface) => room.finishes?.[surface] !== undefined))
+  return plan.rooms.some((room) => FINISH_SURFACES.some((surface) => room.finishes?.[surface] !== undefined) || (room.finishes?.faces?.length ?? 0) > 0 || (room.finishes?.bands?.length ?? 0) > 0)
 }
 
 // ---------------------------------------------------------------------------------------------

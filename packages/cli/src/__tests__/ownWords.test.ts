@@ -168,6 +168,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/editTools.ts': [137, 'tools'],
   // WRT-74: grid_set_facts, its help and its argument checks.
   'packages/cli/src/mcp/factsTool.ts': [13, 'tools'],
+  // CNT-51: grid_set_finishes, its help and its argument checks.
+  'packages/cli/src/mcp/finishesTool.ts': [23, 'tools'],
   // WRT-75: grid_start_fit_out, its help, its arguments and its refusals.
   'packages/cli/src/mcp/fitOutTool.ts': [13, 'tools'],
   // CMD-42: grid_set, its help and its argument checks.
@@ -192,7 +194,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-49: one more, the facade's ground falling along the face.
   // VEW-74: nineteen more, grid_view's floor=all, crop of several parts, crop_box, margin and their refusals.
   // ARE-68: seven more, the lettable, people, as_written and frontage arguments and frontage's refusals.
-  'packages/cli/src/mcp/readTools.ts': [418, 'tools'],
+  // CNT-51: four more, the take-off's and the finishes schedule's bands and faces.
+  'packages/cli/src/mcp/readTools.ts': [422, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -282,7 +285,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-61: four more, the room type, tenure, flat and flat type fields' descriptions for the agent.
   // CNT-45: seven more, the items' kinds and fields.
   // ARE-67: four more, the zone, seats, desks and covers fields.
-  'packages/cli/src/quantities/query.ts': [41, 'tools'],
+  // CNT-51: five more, the finish fields.
+  'packages/cli/src/quantities/query.ts': [46, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   // ARE-67: the seat count's rule and its answer.
   'packages/cli/src/quantities/seats.ts': [4, 'notYet'],
