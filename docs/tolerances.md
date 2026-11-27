@@ -65,6 +65,7 @@ is not asked whether it was typed in feet.
 | `roomsWallWidest` | tolerance | 0.6 m | The widest gap inferred as one wall in rooms text without a wider thickness stated |
 | `roomsTouch` | tolerance | 0.02 m | Rooms written rooms first closer than this touch with no wall between them, refused unless they are open to each other |
 | `roomsCurveJoint` | tolerance | 0.001 m | Two pieces of a curve written rooms first whose ends are closer than this meet and are one curved wall; a wall ending this near a joint of the curve ends on the curve |
+| `curveSweep` | tolerance | 0.001 radian | Two curved sides of a room whose turns round their centre differ by less than this turn through the same angle, so a room between them is a curved band; a curved side this near a whole turn goes all the way round (CMD-49) |
 | `roomsCurveArea` | tolerance | 0.001 ratio | The share of a curved room's true area the area measured from its walls may differ by before the rooms-first answer says so |
 | `roomsFaceSkew` | tolerance | 0.02 m | Faces of rooms written rooms first that run the opposite way and whose distance apart changes by no more than this along the shorter face each other, as on an angled side written to the centimetre |
 | `roomsFaceTurn` | tolerance | 0.0872 sine | Faces of rooms written rooms first that run the opposite way within about 5 degrees of parallel, and no further apart than a wall at both ends of what they share, are one wall's two faces, drawn along their middle line (WRT-56) |
