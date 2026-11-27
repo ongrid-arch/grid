@@ -183,6 +183,22 @@ is one call for one request.
   its shaft, a void or outdoor space. `notCounted` lists each left out with `why` (`zone`,
   `shaft`, `void`, `outdoor`) and, for a shaft room, `with`, so a sum of `area` is
   `grid_areas`' net. `stairs: "per floor"` counts each floor's stair and lift rooms instead.
+  An area groups as the answer prints it: to the hundredth of a square metre, or to the whole
+  square foot on a plan read in square feet, whose groups and sums the text gives in square feet.
+
+### Rooms in groups
+
+Rooms are grouped by what the plan already holds (CNT-57): the firm's room type (`roomType`,
+asked as `room type`, `roomType` or `type`), the tenure, the flat and its type, or a fact of the
+person's own: a household, a department, a zone, a wing. "Sixty bedrooms by household" is
+`grid_set_facts` with `{ "set": { "household": "Oak" } }` on each household's rooms, then
+`grid_count` with `{ "kind": ["room"], "by": "household", "sum": ["area"] }`. `type` is the room
+type unless a part carries a fact named `type`, which then wins. `grid_fields` gives the room
+type, the tenure and the flat type the values the rooms state and how many state one (`values`,
+`count`), as it does for facts. The same names colour (`colour`) and crop (`crop: "tenure =
+private"`) a `grid_view`, scope a brief's wish (`fact: { "name": "tenure", "value": "private" }`),
+and on a plan where a room states a room type or tenure, `grid_schedule of=rooms` and the sheet's
+room schedule give each room's (`roomType`, `tenure`, and their CSV columns).
 
 Both take `kind`, `floor` and `room` (the room, the walls beside it and the openings into it) to
 narrow what is looked at. A condition is one line, a field or fact and a test: `is missing`,
@@ -192,6 +208,18 @@ with no value for a field meets only `is missing`. A fact is matched whatever it
 spaces, dashes or underscores; one with the name of a field of Grid's is asked for as
 `properties.<name>`. A field or fact the plan does not have is refused with the nearest name,
 never with the word sent.
+
+Use `phase` or its alias `stage` for walls, rooms, doors, windows and doorless openings.
+The values are `existing`, `demolished` and `new`. Openings inherit the phase of a demolished
+or new host wall unless they state a phase. Unmarked parts are existing in a plain plan, and
+unmarked parts of a fit-out are new. A phase filter, result field or group includes parts from
+both before and after the work. Area values are measured after the work, so demolished rooms
+have no area value. For example, `{ "kind": ["wall"], "by": "phase" }` counts walls by phase,
+and `{ "where": ["stage = demolished"] }` finds parts to pick out with the returned `view`.
+
+A plan view with `colour: "phase"` or `colour: "stage"` uses the same colours on every floor.
+Demolished room outlines appear when coloured by phase or highlighted by id. 3D views and
+working facades show the building after the work and tint new parts teal.
 
 Each answer carries a `view`, the arguments of `grid_view` that show it: `grid_find`'s picks its
 parts out in one colour (`highlight`, their ids), and `grid_count`'s colours each group of the

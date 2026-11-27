@@ -37,6 +37,16 @@ describe('groupParts by a measure', () => {
     expect(groups.map((g) => [g.value, g.count])).toEqual([[0.9, 2], [0.901, 1]])
   })
 
+  it('CNT-57: groups areas to the whole square foot on a plan read in square feet', () => {
+    // 10.00 m² is 107.6 sq ft and 10.03 m² 107.96: both print 108 sq ft, so one group there, two in m².
+    const values = { a: 10, b: 10.03 }
+    expect(groupParts(asked(values), parts(['a', 'b']), area, [])).toHaveLength(2)
+    const feet = groupParts(asked(values), parts(['a', 'b']), area, [area], 'ft2')
+    expect(feet.map((g) => g.count)).toEqual([2])
+    expect(Math.round((feet[0]!.value as number) / 0.3048 ** 2)).toBe(108)
+    expect(feet[0]!.sums['area']).toBeCloseTo(20.03, 4)
+  })
+
   it('leaves a number with no unit as it was', () => {
     const groups = groupParts(asked({ a: 1, b: 1.0004 }), parts(['a', 'b']), level, [])
     expect(groups.map((g) => g.value).sort()).toEqual([1, 1.0004])

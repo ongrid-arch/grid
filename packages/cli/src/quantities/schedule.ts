@@ -109,6 +109,10 @@ export interface RoomScheduleRow {
   readonly properties: Facts
   /** CNT-4, only on a plan that lists flats: the id of the flat the room is in, or null. */
   readonly flat?: string | null
+  /** CNT-57, only on a plan where a room states one: the firm's room type of the room, or null. */
+  readonly roomType?: string | null
+  /** CNT-57, only on a plan where a room states one: who the room is for (CNT-5), or null. */
+  readonly tenure?: string | null
   /**
    * CNT-8, only on a room with zones: each zone, measured, by id. A zone is no row of
    * its own: its floor is in its room's area, so a column of areas adds up to the total.
@@ -229,6 +233,9 @@ export function roomSchedule(survey: Survey, options: { floors?: readonly string
   // CNT-4: on a plan that lists flats, each row says which flat its room is in.
   const listsFlats = (survey.plan.flats ?? []).length > 0
   const flatOf = flatOfRoom(planFlats(survey.plan))
+  // CNT-57: on a plan where a room states its room type or tenure, each row gives its own.
+  const listsTypes = survey.plan.rooms.some((r) => r.roomType !== undefined)
+  const listsTenures = survey.plan.rooms.some((r) => r.tenure !== undefined)
   const rows: RoomScheduleRow[] = []
   const floors: RoomScheduleTotal[] = []
   for (const floor of order) {
@@ -263,6 +270,8 @@ export function roomSchedule(survey: Survey, options: { floors?: readonly string
         height: roomHeight(storey, room.id).value,
         properties: own.get(id)?.properties ?? {},
         ...(listsFlats ? { flat: flatOf.get(room.id) ?? null } : {}),
+        ...(listsTypes ? { roomType: own.get(id)?.roomType ?? null } : {}),
+        ...(listsTenures ? { tenure: own.get(id)?.tenure ?? null } : {}),
         ...(zones.length === 0 ? {} : { zones }),
         ...(why === null ? {} : { notCounted: { why, ...(room.countedWith === undefined ? {} : { with: room.countedWith }) } }),
       })
@@ -594,6 +603,9 @@ export function roomScheduleCsv(schedule: RoomSchedule, display?: Pick<Display, 
   const columns = factColumns(schedule.rows)
   // CNT-4: a flat column only on a plan that lists flats, so every other schedule is as it was.
   const flats = schedule.rows.some((r) => r.flat !== undefined)
+  // CNT-57: room type and tenure columns only on a plan where a room states one.
+  const types = schedule.rows.some((r) => r.roomType !== undefined)
+  const tenures = schedule.rows.some((r) => r.tenure !== undefined)
   // CNT-27: a column for the rows in no total only when there is one, so every other schedule is as it was.
   const left = schedule.rows.some((r) => r.notCounted !== undefined)
   const rows: Cell[][] = schedule.rows.map((r, i) => {
@@ -603,15 +615,17 @@ export function roomScheduleCsv(schedule: RoomSchedule, display?: Pick<Display, 
       r.roomNumber ?? numberCell(name, n, 'number', r.number, false), textCell(name, n, 'room id', r.id), textCell(name, n, 'name', r.name), r.use,
       area, area === null ? null : sqFt(area), csvLengths(display, [numberCell(name, n, 'height', r.height, true)])[0]!, textCell(name, n, 'floor', r.floorName), r.state,
       ...(flats ? [r.flat ?? null] : []),
+      ...(types ? [r.roomType ?? null] : []),
+      ...(tenures ? [r.tenure ?? null] : []),
       ...(left ? [r.notCounted?.why ?? null] : []),
       ...factCells(r.properties, columns),
     ]
   })
   const totals = [...schedule.floors, schedule.total].map((t): Cell[] => {
     const area = numberCell(name, rows.length + 1, 'total area', t.area, false)!
-    return [null, '', t.floor === null ? 'Total, all floors' : `Total, ${t.floorName}`, null, area, sqFt(area), null, t.floorName ?? 'all', t.state.state, ...(flats ? [null] : []), ...(left ? [null] : []), ...columns.map(() => null)]
+    return [null, '', t.floor === null ? 'Total, all floors' : `Total, ${t.floorName}`, null, area, sqFt(area), null, t.floorName ?? 'all', t.state.state, ...(flats ? [null] : []), ...(types ? [null] : []), ...(tenures ? [null] : []), ...(left ? [null] : []), ...columns.map(() => null)]
   })
-  return csv(['number', 'room id', 'name', 'use', 'area m2', 'area sq ft', `height ${csvLengthUnit(display)}`, 'floor', 'state', ...(flats ? ['flat'] : []), ...(left ? ['not in totals'] : []), ...columns], [...rows, ...totals])
+  return csv(['number', 'room id', 'name', 'use', 'area m2', 'area sq ft', `height ${csvLengthUnit(display)}`, 'floor', 'state', ...(flats ? ['flat'] : []), ...(types ? ['room type'] : []), ...(tenures ? ['tenure'] : []), ...(left ? ['not in totals'] : []), ...columns], [...rows, ...totals])
 }
 
 /** The opening schedule as CSV: one row per opening, each listed once. */

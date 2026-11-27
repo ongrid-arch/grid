@@ -610,6 +610,9 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
       r.use === null ? w.say('sheet.useNotSaid') : w.use(r.use),
       r.height === null ? w.say('sheet.heightNotKnown') : w.say('sheet.high', { height: units.length(r.height) }),
       ...(several ? [r.floorName] : []),
+      // CNT-57: its room type and tenure, on a plan where a room states one.
+      ...(r.roomType == null ? [] : [w.say('sheet.roomType', { type: r.roomType })]),
+      ...(r.tenure == null ? [] : [w.say('sheet.tenure', { tenure: r.tenure })]),
       ...(Object.keys(r.properties).length > 0 ? [factsText(r.properties)] : []),
     ].join(w.say('join.comma')),
     area: r.area === null ? w.say('sheet.notMeasured') : units.area(r.area),

@@ -11,8 +11,10 @@
  *
  * Pure: no DOM, no React. `pictureToSvg` writes it out with the label (MSG-3), as it does a plan.
  */
+import type { Phase } from '@ongrid/floorplan/types/floorplan'
+import { PHASE_COLOURS } from './phaseColour'
 import type { Bounds } from '@ongrid/floorplan/geometry'
-import { facadeGroundAt, hatchLines, levelText, planFacade, type Facade, type FacadeFace, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { facadeGroundAt, hatchLines, levelText, partPhases, planFacade, withPatterns, type Facade, type FacadeFace, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { fitTo } from '../canvas2d/viewport'
 import type { LinePart, Look } from './look'
 import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
@@ -109,7 +111,7 @@ export function facadeCaption(facade: Facade, words: DrawingWords = ENGLISH_WORD
  * The elements of a facade, in plan screen terms: `x` is `u`, across the facade, and `y` is minus
  * the height, as SVG runs down the page. Widths in metres from the look's lines at this zoom.
  */
-export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, paperScale?: number, words: DrawingWords = ENGLISH_WORDS, units: Display = METRES): SvgNode[] {
+export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, paperScale?: number, words: DrawingWords = ENGLISH_WORDS, units: Display = METRES, phases?: ReadonlyMap<string, Phase>): SvgNode[] {
   const lines = lineMetres(look, metresPerPixel, paperScale)
   const width = (part: LinePart): string => lengthText(lines.width(part))
   const nodes: SvgNode[] = []
@@ -168,20 +170,22 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
   const glass = look.colors.window === look.colors.paper ? GLASS_ON_PAPER : look.colors.window
   const box = (part: string, r: FacadeRect, fill: string, ink: string): SvgNode =>
     el('rect', { 'data-part': part, x: lengthText(r.u0), y: lengthText(-r.top), width: lengthText(r.u1 - r.u0), height: lengthText(r.top - r.bottom), fill, stroke: ink, 'stroke-width': width('elevationOpening') })
-  const windowParts = (opening: FacadeOpening, hole: SvgNode, ink: string): SvgNode => {
+  const newWork = (id: string | null): string | undefined => id !== null && phases?.get(id) === 'new' ? PHASE_COLOURS.new : undefined
+  const windowParts = (opening: FacadeOpening, hole: SvgNode, ink: string, wallFill: string): SvgNode => {
     const w = opening.window!
+    const frameFill = newWork(opening.id) ?? look.colors.paper
     return el('g', { 'data-part': 'facade-window', 'data-id': opening.id, 'data-kind': w.kind }, [
-      ...(w.head === null ? [] : [box('facade-window-head', w.head, look.colors.room, ink)]),
+      ...(w.head === null ? [] : [box('facade-window-head', w.head, wallFill, ink)]),
       hole,
       ...w.lights.map((light) => box('facade-window-light', light, glass, ink)),
-      ...w.members.map((member) => box('facade-window-frame', member, look.colors.paper, ink)),
-      ...(w.sill === null ? [] : [box('facade-window-sill', w.sill, look.colors.paper, ink)])
+      ...w.members.map((member) => box('facade-window-frame', member, frameFill, ink)),
+      ...(w.sill === null ? [] : [box('facade-window-sill', w.sill, frameFill, ink)])
     ])
   }
 
   const faces = facade.faces.map((face, i) => {
     const ink = face.tier === 2 ? look.colors.labelSoft : look.ink
-    const windowNode = (opening: FacadeOpening, hole: SvgNode): SvgNode => windowParts(opening, hole, ink)
+    const wallFill = newWork(face.wall) ?? look.colors.room
     // VEW-49: a doorless opening is a void: a hole in the face's path, the wall's edges stepping
     // back to an inner edge (its reveals), and what stands behind it seen through it.
     const voids = face.openings.filter((o) => o.type === 'opening' && o.u0 >= face.u0 && o.u1 <= face.u1 && o.bottom >= face.bottom && o.top <= face.top)
@@ -196,11 +200,11 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
         y: lengthText(-opening.top),
         width: lengthText(opening.u1 - opening.u0),
         height: lengthText(opening.top - opening.bottom),
-        fill: isVoid ? 'none' : opening.type === 'window' ? look.colors.window : look.colors.paper,
+        fill: isVoid ? 'none' : opening.type === 'window' ? look.colors.window : newWork(opening.id) ?? look.colors.paper,
         stroke: ink,
         'stroke-width': width('elevationOpening')
       })
-      if (opening.window !== undefined) return [windowNode(opening, rect)]
+      if (opening.window !== undefined) return [windowParts(opening, rect, ink, wallFill)]
       if (!isVoid) return [rect]
       const w = opening.u1 - opening.u0
       const h = opening.top - opening.bottom
@@ -230,7 +234,7 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
         el('path', {
           d: `M${face.outline.map(([u, z]) => `${lengthText(u)},${lengthText(-z)}`).join('L')}Z${holes.join('')}`,
           ...(holes.length === 0 ? {} : { 'fill-rule': 'evenodd' }),
-          fill: look.colors.room,
+          fill: wallFill,
           stroke: ink,
           'stroke-width': width(TIER_PARTS[face.tier]!),
           'stroke-linejoin': 'miter'
@@ -311,7 +315,8 @@ function pixels(name: string, value: number): number {
 
 /** Lays out one facade of a plan as a picture. Opening patterns are expanded by the core. */
 export function facadePicture(plan: Parameters<typeof planFacade>[0], options: FacadePictureOptions): FacadePicture {
-  const facade = planFacade(plan, options.side)
+  const expanded = withPatterns(plan)
+  const facade = planFacade(expanded, options.side)
   const look = lookOf(options.look)
   const framed = facadeFraming(facade)
   const width = pixels('width', options.width ?? DEFAULT_WIDTH)
@@ -323,7 +328,7 @@ export function facadePicture(plan: Parameters<typeof planFacade>[0], options: F
   }
   const shown = displayOfPicture(plan, { ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { labels: { display: options.display } }) })
   const words: DrawingWords = wordsOf(shown)
-  const nodes = facadeScene(facade, look, view.width / width, options.paperScale, words, { ...(shown ?? METRES), decimal: words.decimal })
+  const nodes = facadeScene(facade, look, view.width / width, options.paperScale, words, { ...(shown ?? METRES), decimal: words.decimal }, look.lines.unit === 'mm' ? undefined : partPhases(expanded))
   const floors = facade.levels.length
   const title = drawingText(words, floors === 1 ? 'drawing.facade.title.one' : 'drawing.facade.title.many', { facade: said(`drawing.facade.name.${facade.side}`), count: floors })
   const picture = { width, height, view, look, rooms: 0, undecidedDoors: [], nodes, key: null, title, facade }

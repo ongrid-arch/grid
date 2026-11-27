@@ -2080,6 +2080,9 @@ export const en = {
   'tool.schedule.flats.each': ", {area} each on average",
   'tool.schedule.room.noFlat': ", in no flat",
   'tool.schedule.room.flat': ", flat {flat}",
+  // CNT-57: a room's room type and tenure in the room schedule.
+  'tool.schedule.room.type': ", room type {type}",
+  'tool.schedule.room.tenure': ", tenure {tenure}",
   'tool.schedule.room.countedWith': "; in no total: counted once with {room} on {floor}",
   'tool.schedule.room.inNoTotal': "; in no total: {why}",
   'tool.schedule.notCounted.zone': "zone of a room, counted with the room",
@@ -3610,6 +3613,9 @@ export const en = {
   'sheet.useNotSaid': 'use not said',
   'sheet.heightNotKnown': 'height not known',
   'sheet.high': '{height} high',
+  // CNT-57: a room's room type and tenure on the sheet's room schedule.
+  'sheet.roomType': 'room type {type}',
+  'sheet.tenure': 'tenure {tenure}',
   'sheet.total': 'Total',
   'sheet.total.floor': 'Total, {floor}',
   'sheet.total.all': 'Total, all floors',
@@ -3629,6 +3635,8 @@ export const en = {
   // ── After merging main at fbe5160e: CNT-10's phases, VEW-9's walk-through, WRT-7's sheet units ──
   'issue.opening/phase-wall': 'Opening {part} is {phase}, so it stands {states}, but its wall {wall} is {wallPhase} and stands {wallStates}',
   'issue.room/phase-wall': 'Room {part} is {phase}, so it stands {states}, but its wall {wall} is {wallPhase} and stands {wallStates}',
+  'query.field.phase': 'Existing, demolished or new',
+  'query.field.stage': 'Alias of phase',
   'issue.part.phase.existing': 'existing',
   'issue.part.phase.demolished': 'to be demolished',
   'issue.part.phase.new': 'new',
