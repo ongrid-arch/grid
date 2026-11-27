@@ -230,7 +230,7 @@ describe('exports and --out land only under the project', () => {
     // Outside the folder Grid runs in, a path is shown in full.
     expect(runs[0]!.out).toBe(`Wrote ${join(real, 'plans', 'exports', 'flat.dxf')}\n`)
     expect(tree(project)).toEqual([
-      'pictures/flat.glb', 'pictures/flat.png', 'pictures/flat.svg',
+      'pictures/flat.glb', 'pictures/flat.pgw', 'pictures/flat.png', 'pictures/flat.svg',
       'plans/.gitignore', 'plans/exports/flat.dxf', 'plans/exports/flat.ifc', 'plans/flat.json',
       'two-bed-flat.json',
     ])
