@@ -144,6 +144,18 @@ pieces (CNT-18), each with its `kind`, `id` and `floor`; empty for a plan with n
 `grid draw --ids` draws the same check view for a person: each room's id in brackets after its
 name, and each door's and window's id beside it, upright.
 
+### A floor by its name or its level
+
+Every tool that takes a `floor`, and every command's `--floor`, takes the floor the way the person
+names it (LVL-25): its id (`l2`), its name in any capitals (`Second floor`), its level (`2`,
+`level 2`, `L2`, `3rd`), a word of its name (`second`, `mezzanine`) or an ordinal for its level
+(`third`, `ground`), tried in that order. A word two floors answer to is refused with both; a
+floor that is not there is refused with the ids of the plan's floors in level order.
+
+An answer that names a room by its name says its floor beside it whenever a room of another floor
+has the same name (`Key 122 (Second floor)`), and `grid_compare` sums the rooms of one name floor
+by floor, so copied floors are told apart.
+
 ## Asking across the parts: fields, find and count
 
 Walls, doors, windows, rooms and floors may carry facts of the person's own: a fire rating, a

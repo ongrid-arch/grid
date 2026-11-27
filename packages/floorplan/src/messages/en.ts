@@ -1845,6 +1845,7 @@ export const en = {
   'report.rooms.byNone': '; looked at by none: {ids}',
   'tool.check.needed': ' Needed: {needed}.',
   // --- CMD-39: an answer kept to the size an agent's host takes ----------------------------
+  'tool.floor.among': 'More than one floor answers to that: {floors}. Name one of them by its id.',
   'tool.budget.cut': 'This answer is {whole} KB whole, more than the {budget} KB an answer is kept to, so it is shortened: {what}.{how}',
   'tool.budget.lines': '{shown} of its {of} lines of text are shown',
   'tool.budget.lists': 'the longest lists in the data are cut to their first items, each named in left_out',

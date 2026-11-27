@@ -432,6 +432,17 @@ the ids it had.
 - An id written on several floors stays as written on the first floor that writes it, and takes
   its floor's id in front on the others (`l4-room-301`), so a copy never renames the floor it
   copies; the answer names each one.
+- `{level}` (or `{floor}`, the same) is the floor's level, in a room's name, a unit's room and
+  opening names, a flat's name and a placement's label (LVL-25): `repeat guest 6 east as {level}01
+  ...` places 101 to 106 on level 1, with ids `room-101` to `room-106` and names `Room 101` to
+  `Room 106`. A label counts as written and is then filled (`{level}01`, `{level}02`), so
+  `as {level}07` goes on from 07, as `as A7` goes on from 7. A copy of the floor (`copy`, `floor ...
+  copy`, `repeat floors`) numbers by its own level what was numbered by one: on level 2 the same
+  lines give `room-201`, `Room 201`, `door-201` and `Flat 201`, and the lines after the copy name
+  them so. A label written without `{level}` is kept on every copy, with its floor's id in front
+  of its ids. `copy` and `repeat floors ... from` take a floor by its id or its name.
+- A placement's label is not a room id: a unit may be placed as `A` beside a room whose id is
+  `A`, and `<side> of A` then names the room. Only a label placed twice on a floor is refused.
 - `through <floor>` on a room line stands the room, and so its walls, on every floor written
   after its own up to that floor, in the same place: a stair or lift core, a shaft, a block's
   outside walls. What the text says about the walls between such rooms comes with them, and so
