@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { drawPlan } from '../../draw/drawPlan'
 import { openProject } from '../../fs/projectFiles'
 import { GRID_TOOLS } from '../serveTools'
+import { readArgs } from '../toolkit'
 
 /**
  * VEW-6: every plan picture comes with each part's box in image pixels, and can be cropped to
@@ -78,5 +79,86 @@ describe('boxes on the picture', () => {
   it('refuses a crop that names nothing on the floor, naming the rooms', async () => {
     await expect(view.run({ plan: 'plan.json', kind: 'plan', crop: 'attic' }, context())).rejects.toThrow(/Its nearest rooms: .*"bed2" \("Bedroom 2"\)/)
     await expect(view.run({ plan: 'plan.json', kind: '3d', crop: 'kitchen' }, context())).rejects.toThrow(/not crop/)
+  })
+})
+
+/** VEW-74: the flat with a flat, a household fact and a plan of two floors, written into a project. */
+function contextWith(edit: (plan: Record<string, unknown>) => void, file = sample) {
+  const dir = mkdtempSync(join(tmpdir(), 'grid-crop-many-'))
+  made.push(dir)
+  const plan = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+  edit(plan)
+  writeFileSync(join(dir, 'plan.json'), JSON.stringify(plan))
+  return { project: openProject(dir, dir) }
+}
+
+const withFlatAndHousehold = (plan: Record<string, unknown>): void => {
+  plan['flats'] = [{ id: 'flat-a', name: 'Left flat', rooms: ['bed2', 'bath'] }]
+  for (const room of plan['rooms'] as { id: string; properties?: Record<string, string> }[]) {
+    if (room.id === 'bed1' || room.id === 'bed2') room.properties = { household: 'Rose' }
+  }
+}
+
+const call = async (raw: Record<string, unknown>, ctx = contextWith(withFlatAndHousehold)) => view.run(readArgs(view, { plan: 'plan.json', kind: 'plan', ...raw }), ctx)
+const px = (answer: { data: Record<string, unknown> }): number => answer.data['pxPerMetre'] as number
+const boxOf = (answer: { data: Record<string, unknown> }, id: string) => (answer.data['boxes'] as Box[]).find((b) => b.id === id)?.box
+
+describe('a crop of several parts, a flat, a condition or a box (VEW-74)', () => {
+  it('frames several parts named together, wider than either alone, each whole in the picture', async () => {
+    const kitchen = await call({ crop: 'kitchen' })
+    const both = await call({ crop: 'kitchen, Bedroom 1' })
+    expect(both.text).toContain('cropped to 2 parts together: room "kitchen", room "bed1"')
+    expect(px(both)).toBeLessThan(px(kitchen))
+    for (const id of ['kitchen', 'bed1']) {
+      const box = boxOf(both, id)!
+      expect(box.x).toBeGreaterThan(0)
+      expect(box.y).toBeGreaterThan(0)
+    }
+  })
+
+  it('keeps half a metre round a crop, and the margin asked for', async () => {
+    const kitchen = await call({ crop: 'kitchen' })
+    const wide = await call({ crop: 'kitchen', margin: 2 })
+    expect(kitchen.text).toContain('with 0.5 m round it')
+    expect(wide.text).toContain('with 2 m round it')
+    expect(px(wide)).toBeLessThan(px(kitchen))
+    // The room no longer meets the picture's edge.
+    expect(boxOf(kitchen, 'kitchen')!.x).toBeGreaterThan(0)
+  })
+
+  it('frames a flat by its name and the rooms meeting a fact', async () => {
+    const flat = await call({ crop: 'Left flat' })
+    expect(flat.text).toContain('cropped to flat "flat-a" (2 rooms on this floor)')
+    expect(boxOf(flat, 'bed2')).toBeDefined()
+    expect(boxOf(flat, 'bath')).toBeDefined()
+    const household = await call({ crop: 'household = Rose' })
+    expect(household.text).toContain('cropped to the 2 rooms where household = Rose')
+    expect(boxOf(household, 'bed1')!.x).toBeGreaterThan(0)
+    expect(boxOf(household, 'bed2')!.x).toBeGreaterThan(0)
+  })
+
+  it('frames a box of the plan, with no margin unless asked', async () => {
+    const whole = await call({})
+    const box = await call({ crop_box: { from: [3, 3], to: [0, 0] } })
+    expect(box.text).toContain('cropped to x 0.00 to 3.00 and y 0.00 to 3.00 m,')
+    expect(px(box)).toBeGreaterThan(px(whole))
+    const bounds = (await call({ crop_box: { from: [0, 0], to: [3, 3] }, margin: 1 })).text
+    expect(bounds).toContain('with 1 m round it')
+  })
+
+  it('draws the floor that holds the parts when no floor is named', async () => {
+    const ctx = contextWith(() => undefined, resolve(__dirname, '../../../fixtures/two-floor-house.json'))
+    const answer = await call({ crop: 'study' }, ctx)
+    expect(answer.data['floor']).toBe('first')
+    expect(answer.text).toContain('Plan of floor "first", cropped to room "study"')
+    await expect(call({ crop: 'study', floor: 'ground' }, ctx)).rejects.toThrow(/names no room, door, window, wall or item drawn on floor "ground"/)
+  })
+
+  it('refuses a crop it cannot frame, saying which part', async () => {
+    await expect(call({ crop: 'kitchen', crop_box: { from: [0, 0], to: [3, 3] } })).rejects.toThrow(/crop or crop_box, not both/)
+    await expect(call({ crop_box: { from: [1, 1], to: [1, 4] } })).rejects.toThrow(/crop_box has no size/)
+    await expect(call({ crop: 'kitchen, attic' })).rejects.toThrow(/crop's item 2 names no room/)
+    await expect(call({ crop: 'household = Lily' })).rejects.toThrow(/No room drawn on floor "ground" meets crop's condition/)
+    await expect(call({ margin: 1 })).rejects.toThrow(/pass it with crop or crop_box/)
   })
 })

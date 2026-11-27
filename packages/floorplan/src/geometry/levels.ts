@@ -18,7 +18,7 @@ import type { Said, Value } from '../messages/say'
 import { english, joined, name, num, said } from '../messages/say'
 import { withSaid } from './issueWords'
 import { closestId, idEdits } from '../types/nearest'
-import { WALL_DEFAULTS } from '../types/floorplan'
+import { WALL_DEFAULTS, heightStated } from '../types/floorplan'
 import { wallPath } from './wall'
 import { curveFault } from './arc'
 
@@ -300,6 +300,55 @@ function wallsAboveStorey(plan: FloorPlan, floors: readonly Floor[], broken: Rea
 }
 
 /**
+ * LVL-24: a floor that states its height, and walls on it, a storey high, that state another of
+ * their own (lower than it, or higher by no more than `wall/above-storey` lets pass). Each wall's
+ * own height wins and the floor's stacks the storey, so the walls and the storey disagree: said
+ * once per floor, with the walls' figures and how many walls take the floor's. A wall lower than
+ * `storeyLowest` (a dwarf wall, a parapet, a fence) is not a storey high and is not counted, nor is
+ * a wall through floors or one under a roof the floor states (LVL-6: the roof cuts it).
+ */
+function wallHeightsDiffer(plan: FloorPlan, floors: readonly Floor[], broken: ReadonlySet<string>, issues: Issue[]): void {
+  const stated = new Map<string, number>()
+  for (const floor of floors) {
+    if (floor.roof !== undefined) continue
+    if (floor.height !== undefined && Number.isFinite(floor.height) && floor.height > 0) stated.set(floor.id, floor.height)
+  }
+  if (stated.size === 0) return
+  const same = tolerance('sameFloorLevel')
+  const lowest = limit('storeyLowest')
+  const own = new Map<string, number[]>()
+  const taking = new Map<string, number>()
+  for (const wall of plan.walls) {
+    if (wall.virtual || broken.has(wall.id) || !Number.isFinite(wall.height) || wall.through !== undefined || sharedPart(wall) !== null) continue
+    const floor = floorOf(wall)
+    const storey = stated.get(floor)
+    if (storey === undefined) continue
+    if (!heightStated(wall)) {
+      taking.set(floor, (taking.get(floor) ?? 0) + 1)
+      continue
+    }
+    if (wall.height < lowest || Math.abs(wall.height - storey) <= same || wall.height > storey + tolerance('wallAboveStorey')) continue
+    own.set(floor, [...(own.get(floor) ?? []), wall.height])
+  }
+  for (const floor of floors) {
+    const heights = own.get(floor.id)
+    if (heights === undefined) continue
+    const figures = [...new Set(heights.map((h) => metresText(h)))].sort()
+    const shown = figures.slice(0, 3).map((f) => num(f))
+    const others = taking.get(floor.id) ?? 0
+    const takes = others === 0 ? '' : said(`issue.floor/wall-heights-differ.takes.${oneOrMany(others)}`, { count: others })
+    issues.push(
+      issue(
+        'floor',
+        floor.id,
+        'floor/wall-heights-differ',
+        said(`issue.floor/wall-heights-differ.${oneOrMany(heights.length)}`, { floor: name(floor.id), height: m(stated.get(floor.id)!), count: heights.length, heights: and(shown), takes })
+      )
+    )
+  }
+}
+
+/**
  * A floor's stated height far outside a storey's: higher than a wall is asked about, or lower than
  * a storey a person stands in (LVL-18, `storeyLowest`). A floor under a roof of its own may state a
  * low eaves height, so it is asked about only below `wallLowest`, as a wall is.
@@ -359,6 +408,7 @@ export function levelIssues(
     emptyTop(plan, floors, issues)
   }
   wallsAboveStorey(plan, floors, broken, issues)
+  wallHeightsDiffer(plan, floors, broken, issues)
   floorHeightQuestions(floors, building, issues)
   floorOffsetQuestions(plan, floors, broken, issues)
   return issues
