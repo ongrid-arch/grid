@@ -157,6 +157,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/guide.ts': [90, 'agent'],
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
+  // VEW-75: kind=eye's camera: where it stands and looks, its lens, tilt and perspective, and their refusals.
+  'packages/cli/src/mcp/eyeAnswer.ts': [25, 'tools'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   // ARE-67: eight more, the seats, desks and covers keys' help.
   'packages/cli/src/mcp/briefTool.ts': [58, 'tools'],
@@ -190,7 +192,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-74: one more, grid_fields' line on how facts are set.
   // CNT-45: five more, the kinds fixture and furniture, the items grid_view draws and of=fixtures.
   // CNT-49: one more, the facade's ground falling along the face.
-  'packages/cli/src/mcp/readTools.ts': [392, 'tools'],
+  // VEW-75: one more, kind=eye's at, look_at and perspective arguments and its refusal of from; its answer moved to eyeAnswer.ts.
+  'packages/cli/src/mcp/readTools.ts': [393, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.

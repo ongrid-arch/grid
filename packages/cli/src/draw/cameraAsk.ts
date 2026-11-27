@@ -224,13 +224,15 @@ function rayHit(polygon: readonly Vec2[], from: Vec2, dir: Vec2): number | null 
 }
 
 /**
- * Standing in a room at `stand`, the eye `height` above its floor, looking level toward a point or
- * a heading (degrees clockwise from the top of the drawing): the eye view's camera. It points at
- * what it looks at: the point, or where the line of sight meets the room's outline.
+ * Standing in a room at `stand`, the eye `height` above its floor, looking toward a point or a
+ * heading (degrees clockwise from the top of the drawing): the eye view's camera. It points at
+ * what it looks at: the point, or where the line of sight meets the room's outline. VEW-75: through
+ * `lens` (18 mm when left out) and tilted `tilt` degrees down (level when left out; below 0 up),
+ * the camera still standing at the eye.
  */
 export function eyeCamera(
   plan: FloorPlan,
-  options: { room: string; polygon: readonly Vec2[]; stand: Vec2; height: number; toward: Vec2 | number },
+  options: { room: string; polygon: readonly Vec2[]; stand: Vec2; height: number; toward: Vec2 | number; lens?: number; tilt?: number },
 ): CameraRecord {
   const orientation = planOrientation(plan)
   const room = plan.rooms.find((r) => r.id === options.room)!
@@ -244,13 +246,15 @@ export function eyeCamera(
   const distance = typeof options.toward === 'number'
     ? (rayHit(options.polygon, options.stand, along) ?? 3)
     : Math.hypot(options.toward.x - options.stand.x, options.toward.y - options.stand.y)
-  const point: Point3 = [options.stand.x + along.x * distance, options.stand.y + along.y * distance, eye]
+  const tilt = options.tilt ?? 0
+  // Tilted, the point looked at moves down the line of sight, so the camera stays at the eye.
+  const point: Point3 = [options.stand.x + along.x * distance, options.stand.y + along.y * distance, eye - distance * Math.tan(tilt * DEG)]
   return cameraRecord(plan, {
     target: { room: options.room, point },
     bearing: compassBearing(heading + 180, orientation),
-    tilt: 0,
-    distance,
-    focalLength: EYE_FOCAL_LENGTH,
+    tilt,
+    distance: distance / Math.cos(tilt * DEG),
+    focalLength: options.lens ?? EYE_FOCAL_LENGTH,
     cut: floor,
   })
 }
