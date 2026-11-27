@@ -232,7 +232,7 @@ export function furnishRooms(survey: Survey, library: Library, request: FurnishR
       continue
     }
     try {
-      const patch = addFixtureSet({ ...survey, plan: stated }, library, { name: choices[0]!, room: id }, added)
+      const patch = addFixtureSet(survey, library, { name: choices[0]!, room: id }, added)
       const records = (patch.addItems ?? []) as RawRecord[]
       const ids = records.map((record) => record['id'] as string)
       for (const record of records) added.push(record)
