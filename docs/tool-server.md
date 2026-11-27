@@ -209,6 +209,18 @@ spaces, dashes or underscores; one with the name of a field of Grid's is asked f
 `properties.<name>`. A field or fact the plan does not have is refused with the nearest name,
 never with the word sent.
 
+Use `phase` or its alias `stage` for walls, rooms, doors, windows and doorless openings.
+The values are `existing`, `demolished` and `new`. Openings inherit the phase of a demolished
+or new host wall unless they state a phase. Unmarked parts are existing in a plain plan, and
+unmarked parts of a fit-out are new. A phase filter, result field or group includes parts from
+both before and after the work. Area values are measured after the work, so demolished rooms
+have no area value. For example, `{ "kind": ["wall"], "by": "phase" }` counts walls by phase,
+and `{ "where": ["stage = demolished"] }` finds parts to pick out with the returned `view`.
+
+A plan view with `colour: "phase"` or `colour: "stage"` uses the same colours on every floor.
+Demolished room outlines appear when coloured by phase or highlighted by id. 3D views and
+working facades show the building after the work and tint new parts teal.
+
 Each answer carries a `view`, the arguments of `grid_view` that show it: `grid_find`'s picks its
 parts out in one colour (`highlight`, their ids), and `grid_count`'s colours each group of the
 floor by its value (`colour`, the field it grouped by), with a key. The `floor` is the one that
@@ -747,6 +759,35 @@ holds (`items`); furniture, radiators and the swing of a leaf are not in the pla
 | Does anything block the window? | `what=use`, `room` | `use/window-blocked`: how much of a window's width a fixture higher than its sill stands in front of |
 | Does a 0.7 m wheelchair get from the bedroom to the front door? | `what=route`, `room`, `to`, `width` | `use/passage-width` along the way: each doorway's clear width and the way through each room; when the way with the fewest rooms is too narrow, what stops it and another way that is wide enough, if one is |
 
+### Activity zones in front of fixtures, per kind
+
+`grid_measure what=activity` (ARE-73) answers "is there a 400 mm zone either side of the WC's
+centre line, 700 mm deep?" and "which fixtures in this block lack their clear floor?". Each
+fixture gets a zone: a box on its centre line from its front out, as deep as its front figure and
+as wide as its width figure, the width shared either side of the centre line.
+
+- Figures: `per_kind` by kind, `{"toilet": {"front": 0.7, "width": 0.8}, "basin": 0.6}` (a number
+  alone is the depth); `clearance` and `width` for every kind `per_kind` leaves out; else the
+  item's own `clearance` (stated, or from its library entry), else the first library entry of its
+  kind, else `useClearSpace`. Unstated, the width is the fixture's own. The kinds are the kinds
+  registry's, so a kind added to it is taken with no change; a kind `per_kind` names gets a zone
+  whatever it is, and furniture, points and rugs get none otherwise. Each zone says whose figure it is.
+- Measured: the clear depth straight out across the part of the width that is clear, and the
+  clear width to each side of the centre line, square to it within the zone's depth, to the
+  room's outline (wall faces and doorway lines), its holes and the other fixtures; each side and
+  the front by compass, from the plan's north (the top of the drawing when it states none, and the
+  answer says so). An exact fit reads as at least its figure. Also named: the fixtures standing in
+  it (`itemOverlap`), the doors whose swing reaches into it (`swingContact`; a door that states no
+  swing is counted as left out) and the other zones it overlaps.
+- Units side by side with one front, of kinds that keep no floor at their sides (`sides: false`
+  in the registry, such as a kitchen run or a shower), are one run with one zone as wide as the
+  run, so a unit does not read as 0 mm to its neighbour. WCs side by side keep a zone each.
+- `room` is optional: without it, every room. Only the zones short of their figure, with
+  something in them or overlapping are listed; the rest are counted, and `all: true` lists them.
+- The answer closes with one sentence on what it took off each zone and what it left out. Its
+  data lists each zone's `items`, `room`, `figure`, `measured`, `ways`, `short`, `standing`,
+  `doors` and `overlaps`.
+
 The way through a room is measured on a grid of points `useRaster` (2 cm) apart, so a width is
 found to within a few centimetres; where the way starts or ends it may start anywhere in the
 room. A room bigger than `useRasterCells` points is measured on a coarser grid. `grid_check`
@@ -868,7 +909,35 @@ every floor at or above the ground floor, as one shape seen from above.
   The set-backs are the person's own figures, under their heading; no line says a distance is
   enough.
 - **Each face**: its way, its length and its distance to the edge of the boundary in front of
-  it, square to the face.
+  it, square to the face. A curved face (a bay, a round tower) is one face, with its radius and
+  the ways it turns from and to (`curve`), however many pieces its outline is drawn with (CNT-56).
+
+#### A site of several buildings, and the figures always given (CNT-56)
+
+On a plan that names buildings ([plan-file.md](plan-file.md)), each is measured on its own, and
+every line names the building it is about:
+
+- Each building's faces are measured square to them, and the tape stops at the first other
+  building in front of the face: the line says how far that building is and how far the edge
+  beyond it lies (`stops`, `at`, `toEdge`). No distance passes through another building, and no
+  building is measured against the others merged. The site's `faces` are the buildings' faces,
+  each with its `building`; each edge names the building nearest it (`building`).
+- How far the buildings stand apart, each pair, seen from above (`apart`).
+- The floors no building names are measured together as one more building, named as the floors
+  in no building (`rest`).
+
+Every answer, with buildings or without, ends with the site's figures, for the whole site and then
+each building (`figures`): the plot coverage, the gross external area of the floors at or above
+the ground floor, the floor area ratio (that area over the plot's), the homes (`floors[].homes`,
+else the flats listed), the homes per hectare and the parking per home (`floors[].parking`, else
+the bays drawn). An outbuilding is its own building on the same ground: its area, coverage and
+parking are its own and never the house's. A figure that cannot be measured says why
+(`notMeasured`). These are measures, never limits; the person's own limits follow below.
+
+```text
+  "House": plot coverage 9.1%; gross external area 182.32 m²; floor area ratio 0.18; homes 2 (as the floors state); 20.0 homes per hectare; parking 1 (as the floors state), 0.50 per home.
+  "Garage": plot coverage 2.6%; gross external area 25.76 m²; floor area ratio 0.03; homes not stated; homes per hectare not measured (no homes are stated); parking 2 (as the floors state), with no homes to share it.
+```
 
 North is read as `what=facing` reads it, and a plan that states none is answered with north as
 the top of the drawing, said first. The lab's house slid 2 m east in its 15 × 30 m plot, with 3 m
@@ -907,7 +976,7 @@ resizes and removes the site's things one at a time: `{"action": "move", "id": "
 The data holds `boundary` (`area`, `acres`, `problem`, and each edge's `edge`, `from`, `to`, `length`,
 `faces`, `bearing`, `street`, `name`, `setback`, `distance`, `past`, `short`, `face` and
 `floor`), `footprint` (`area`, `floors`), `coverage` (`ratio`, `percent`, `covered`, `plot`),
-`faces` and `things`. `grid_check` gives the same shortfall as a finding,
+`faces`, `figures`, `things` and, with buildings, `buildings` and `apart`. `grid_check` gives the same shortfall as a finding,
 `plan/setback-short`. The geometry is `siteMeasures` in `@ongrid/floorplan`
 (`src/geometry/site.ts`).
 

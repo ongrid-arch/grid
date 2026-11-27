@@ -9,12 +9,13 @@
  * a distance is enough. The ways are read by the plan's north, and a plan that states none is
  * answered with north as the top of the drawing, said first (`northLine`).
  */
-import { areaText as areaFigure, isOutdoor, metresText, outdoorRoofed, planFacing, siteMeasures, siteThingsText, type BuildingSite, type EdgeDistance, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { areaText as areaFigure, isOutdoor, metresText, outdoorRoofed, planFacing, siteMeasures, siteThingsText, type BuildingSite, type EdgeDistance, type FloorPlan, type FootprintFace } from '@ongrid/floorplan/geometry'
 import { english, name, said, type Said } from '@ongrid/floorplan/messages'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { FIGURES_HEADING } from '../brief/brief'
 import { northData, northLine } from './facing'
 import { areaText, lengthText } from './units'
+import { siteFigureData, siteFigureLine, siteFigures } from './siteFigures'
 
 export const SITE_RULE =
   'The building is measured from its outside face, the walls\' outer faces of every floor at or above the ground floor, joined into one shape seen from above; a floor below the ground floor is left out, and nothing outside the walls (eaves, steps) is drawn to measure. '
@@ -68,6 +69,9 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
   const lines = [northLine(facing)]
   const boundary = site.boundary
   const things = plan.site?.things ?? []
+  // CNT-56: a building by its name, from its id.
+  const called = (id: string): string => site.buildings?.find((b) => b.id === id)?.name ?? id
+  const figures = siteFigures(plan, site)
 
   if (boundary === null) {
     lines.push('The site states no boundary, so no distance to it and no plot coverage are measured: set it with grid_set_site (boundary, or plot_width and plot_depth), or write \'plot <width> x <depth>\' or \'site boundary x,y ...\' in rooms text.')
@@ -84,19 +88,29 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
       lines.push(coverageCountsLine(plan))
       if (boundary.edges.some((e) => e.setback !== null)) lines.push(FIGURES_HEADING)
       lines.push('From each edge of the boundary, the least distance to the building:')
-      for (const at of site.edges) lines.push(`  ${edgeLine(at, L, site.withOpen?.edges.find((o) => o.edge.edge === at.edge.edge))}`)
-      lines.push('From each face of the building, square to it, to the edge of the boundary in front of it:')
-      for (const face of site.faces) {
-        const edge = boundary.edges[face.edge - 1]!
-        lines.push(`  The ${face.faces} face, ${L(face.length)} long: ${L(face.distance)} to ${edge.name}.`)
-      }
+      // CNT-56: on a plan that names buildings, each edge names the building nearest it.
+      for (const at of site.edges) lines.push(`  ${edgeLine(at, L, site.withOpen?.edges.find((o) => o.edge.edge === at.edge.edge))}${at.building === undefined ? '' : ` ${english(said('site.edge.nearest', { building: name(called(at.building)) }))}`}`)
+      lines.push(english(said('site.faces.heading')))
+      for (const face of site.faces) lines.push(`  ${english(faceLine(face, boundary.edges[face.edge - 1]!.name, L, called))}`)
       // LVL-23: each building the plan names, on its own.
       if (site.buildings !== undefined) {
         lines.push(english(said('site.buildings.heading')))
         for (const b of site.buildings) lines.push(`  ${english(buildingSiteLine(b, L, A))}`)
       }
+      // CNT-56: how far the buildings stand apart.
+      if (site.apart !== undefined && site.apart.length > 0) {
+        lines.push(english(said('site.apart.heading')))
+        for (const p of site.apart) {
+          const pair = { a: name(called(p.a)), b: name(called(p.b)) }
+          lines.push(`  ${english(p.distance <= 0 ? said('site.apart.touch', pair) : said('site.apart.line', { ...pair, distance: L(p.distance) }))}`)
+        }
+      }
     }
   }
+  // CNT-56: the site's figures, always: the whole site, then each building on its own.
+  lines.push(english(said('site.figures.heading')))
+  for (const f of [figures.site, ...figures.buildings]) lines.push(`  ${english(siteFigureLine(f, display, percentText))}`)
+  lines.push(english(said('site.figures.rule')))
   if (things.length > 0) lines.push(`The site's things, drawn only and never measured: ${siteThingsText(things)}.`)
 
   const data = {
@@ -128,6 +142,7 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
                 short: at?.short == null ? null : round(at.short),
                 face: at?.face ?? null,
                 floor: at?.floor ?? null,
+                ...(at?.building === undefined ? {} : { building: at.building }),
               }
             }),
           },
@@ -136,7 +151,9 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
     why: site.why,
     coverage: site.coverage === null || site.covered === null || boundary === null ? null : { ratio: round(site.coverage), percent: percentText(site.coverage), covered: round(site.covered), plot: round(boundary.area), ...(site.withOpen === null ? {} : { openOutdoorLeftOut: true }) },
     coverageWithOpenOutdoor: site.withOpen === null || site.withOpen.coverage === null || site.withOpen.covered === null || boundary === null ? null : { ratio: round(site.withOpen.coverage), percent: percentText(site.withOpen.coverage), covered: round(site.withOpen.covered), plot: round(boundary.area) },
-    faces: site.faces.map((f) => ({ face: f.face, from: [round(f.from.x), round(f.from.y)], to: [round(f.to.x), round(f.to.y)], length: round(f.length), faces: f.faces, edge: f.edge, distance: round(f.distance) })),
+    faces: site.faces.map(faceData),
+    // CNT-56: always, for the whole site and each building.
+    figures: { plot: figures.plot === null ? null : round(figures.plot), site: siteFigureData(figures.site), buildings: figures.buildings.map(siteFigureData) },
     things: things.map((t) => ({ id: t.id, kind: t.kind, ...(t.label === undefined ? {} : { label: t.label }) })),
     // LVL-23: only on a plan that names buildings.
     ...(site.buildings === undefined
@@ -147,11 +164,47 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
             name: b.name,
             footprint: b.footprint === null ? null : { area: round(b.footprint.area), floors: b.footprint.floors },
             why: b.why,
+            ...(b.rest === true ? { rest: true } : {}),
             edges: b.edges.map((at) => ({ edge: at.edge.edge, distance: round(at.distance), past: round(at.past), short: at.short === null ? null : round(at.short), face: at.face, floor: at.floor })),
+            faces: b.faces.map(faceData),
+            coverage: b.coverage === null ? null : round(b.coverage),
           })),
+          apart: (site.apart ?? []).map((p) => ({ a: p.a, b: p.b, distance: round(p.distance) })),
         }),
   }
   return { lines, data }
+}
+
+/** CNT-56: a face as data: where it stops, the edge beyond, its building and its curve. */
+function faceData(f: FootprintFace): Record<string, unknown> {
+  return {
+    face: f.face,
+    ...(f.building === undefined ? {} : { building: f.building }),
+    from: [round(f.from.x), round(f.from.y)],
+    to: [round(f.to.x), round(f.to.y)],
+    length: round(f.length),
+    faces: f.faces,
+    edge: f.edge,
+    distance: round(f.distance),
+    stops: f.stops,
+    at: f.at,
+    toEdge: f.toEdge === null ? null : round(f.toEdge),
+    curve: f.curve === null ? null : { ...f.curve, radius: round(f.curve.radius) },
+  }
+}
+
+/** CNT-56: one face: how far square to it, to the edge in front or the first building on the way, named by its building on a plan that names them. */
+function faceLine(f: FootprintFace, edge: string, L: (v: number) => string, called: (id: string) => string): Said {
+  const which = f.curve === null
+    ? said('site.face.straight', { faces: f.faces })
+    : f.curve.closed
+      ? said('site.face.round', { radius: L(f.curve.radius) })
+      : said('site.face.curved', { radius: L(f.curve.radius), from: f.curve.from, to: f.curve.to })
+  const face = f.building === undefined ? which : said('site.face.of', { building: name(called(f.building)), face: which })
+  const values = { face, length: L(f.length), distance: L(f.distance), edge }
+  if (f.at === null) return said('site.face.edge', values)
+  const other = name(called(f.at))
+  return f.toEdge === null ? said('site.face.stopsNoEdge', { ...values, other }) : said('site.face.stops', { ...values, other, beyond: L(f.toEdge) })
 }
 
 /** LVL-23: one building on its own: its footprint and the edge it comes nearest, or why it was not measured. */

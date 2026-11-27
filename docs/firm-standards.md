@@ -25,7 +25,8 @@ of it, and no export, sheet or drawing reads it.
     { "measure": "corridor_width", "value": 1.5, "unit": "m", "name": "Corridors" },
     { "measure": "door_clear_width", "value": 850, "unit": "mm", "note": "Our office guide, part 3" },
     { "measure": "room_area", "value": 9, "unit": "m²", "uses": ["office"] },
-    { "measure": "fixture_clearance", "value": 0.8, "unit": "m", "kinds": ["toilet"] }
+    { "measure": "fixture_clearance", "value": 0.8, "unit": "m", "kinds": ["toilet"] },
+    { "measure": "fixture_clearance", "value": 0.7, "width": 0.8, "unit": "m", "kinds": ["toilet"] }
   ]
 }
 ```
@@ -38,7 +39,11 @@ of it, and no export, sheet or drawing reads it.
   what the firm calls the standard, and where it comes from.
 - `uses` limits a measure about rooms to the rooms of those uses (`office`, `meeting`, …, the
   room uses of [plan-file.md](plan-file.md)). `kinds` limits the floor in front of a fixture to
-  those fixture kinds (`toilet`, `basin`, `shower`, `bath`, `kitchen-run`).
+  those fixture kinds: any fixture kind the kinds registry holds (`toilet`, `basin`, `shower`,
+  `bath`, `kitchen-run`, the equipment and any kind added to it).
+- `width` (ARE-73), on `fixture_clearance` only, in the standard's unit: the floor in front of each
+  fixture is then an activity zone on its centre line, as wide as this and as deep as `value`, as
+  `grid_measure what=activity` measures it ([tool-server.md](tool-server.md#activity-zones-in-front-of-fixtures-per-kind)).
 
 Every figure in the file is the firm's own. It cites no document and has no status: a field that
 a code's figure carries (`document`, `edition`, `clause`, `source`, `status`, …) is refused and
@@ -55,7 +60,7 @@ drawing are measured the same way as everywhere else.
 | `corridor_width` | The narrowest point of each room used as a corridor (or each room of `uses`) from end to end, as `grid_measure what=access` gives it ([tool-server.md](tool-server.md#accessibility-measurements-as-numbers)): its ends are the sides of its outline no wider than it that turn into it at both corners, farthest apart, and the width is the widest body or trolley that gets from one to the other, clear of its walls and fixtures. A door does not narrow it; a door is `door_clear_width`. A grid of points finds where it is narrowest, and the width there is measured to the walls and fixtures themselves, so a corridor whose walls stand 1.5 m apart measures 1.5 m. With no two ends, the widest circle it holds. | m |
 | `door_clear_width` | What each door and doorless opening leaves clear, leaf by leaf: the leaf it opens by, or both leaves of a pair that states none, less what an open leaf and its stop take for a door that swings or folds, and what fixtures stand in front of it. The same width the brief and `grid_measure what=access` judge a door by ([brief.md](brief.md)) | m |
 | `turning_circle` | The widest circle each room's free floor holds, clear of its walls and fixtures | m |
-| `fixture_clearance` | The clear floor straight out from the front of each fixture to the nearest wall face, doorway or other fixture | m |
+| `fixture_clearance` | The clear floor straight out from the front of each fixture to the nearest wall face, doorway or other fixture. With `width`, the clear floor straight out over a zone that wide on the fixture's centre line, a part of it on no free floor read as nothing, and the line gives the clear width to each side of the centre line by compass; units side by side in one run are one zone | m |
 | `room_area` | Each room's net area, to the faces of its walls, as `grid_areas` gives it | m² |
 | `room_width` | The widest circle each empty room holds between its wall faces: for a rectangle, its shorter side | m |
 

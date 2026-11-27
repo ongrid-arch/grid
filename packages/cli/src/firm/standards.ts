@@ -11,7 +11,8 @@
  *       { "measure": "corridor_width", "value": 1.5, "unit": "m", "name": "Corridors" },
  *       { "measure": "door_clear_width", "value": 850, "unit": "mm", "note": "Our office guide, part 3" },
  *       { "measure": "room_area", "value": 9, "unit": "m²", "uses": ["office"] },
- *       { "measure": "fixture_clearance", "value": 0.8, "unit": "m", "kinds": ["toilet"] }
+ *       { "measure": "fixture_clearance", "value": 0.8, "unit": "m", "kinds": ["toilet"] },
+ *       { "measure": "fixture_clearance", "value": 0.7, "width": 0.8, "unit": "m", "kinds": ["toilet"] }
  *     ]
  *   }
  *
@@ -21,7 +22,8 @@
  * knows. A refusal names the place and the limit, and never repeats the text (MSG-9).
  */
 import path from 'path'
-import { FIXTURE_KINDS, ROOM_USES } from '@ongrid/floorplan/types/floorplan'
+import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
+import { itemKinds } from '@ongrid/floorplan/geometry'
 import { FIRM_MEASURE_NAMES, FIRM_MEASURES, FIRM_ROOM_MEASURES, type FirmMeasure, type FirmStandard } from '@ongrid/rules'
 import { PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { TextNotDecoded } from '../fs/textEncoding'
@@ -102,7 +104,7 @@ function standard(raw: unknown, where: string): FirmStandard {
     throw new FirmRefused(`${where}.measure names a measure Grid does not know${named}. The measures it knows: ${listOf([...FIRM_MEASURE_NAMES])}`)
   }
   const measure = measureRaw as FirmMeasure
-  const keys = ['measure', 'value', 'unit', 'name', 'note', ...(FIRM_ROOM_MEASURES.includes(measure) ? ['uses'] : []), ...(measure === 'fixture_clearance' ? ['kinds'] : [])]
+  const keys = ['measure', 'value', 'unit', 'name', 'note', ...(FIRM_ROOM_MEASURES.includes(measure) ? ['uses'] : []), ...(measure === 'fixture_clearance' ? ['kinds', 'width'] : [])]
   onlyKeys(raw, keys, where)
   const area = FIRM_MEASURES[measure].unit === 'm²'
   const units: readonly string[] = area ? AREA_UNITS : LENGTH_UNITS
@@ -114,6 +116,11 @@ function standard(raw: unknown, where: string): FirmStandard {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > max) {
     throw new FirmRefused(`${where}.value must be a number of ${written === 'mm' ? 'millimetres' : written === 'm' ? 'metres' : 'square metres'} above 0 and at most ${max.toLocaleString('en-US')}`)
   }
+  // ARE-73: a fixture's clear floor as a zone on its centre line, as wide as this, in the standard's unit.
+  const widthRaw = raw['width']
+  if (widthRaw !== undefined && (typeof widthRaw !== 'number' || !Number.isFinite(widthRaw) || widthRaw <= 0 || widthRaw > max)) {
+    throw new FirmRefused(`${where}.width must be a number of ${written === 'mm' ? 'millimetres' : 'metres'} above 0 and at most ${max.toLocaleString('en-US')}: the width of the zone on the fixture's centre line`)
+  }
   const name = raw['name'] === undefined || raw['name'] === null ? null : words(raw['name'], `${where}.name`, NAME_MAX)
   const note = raw['note'] === undefined || raw['note'] === null ? null : words(raw['note'], `${where}.note`, NOTE_MAX)
   return {
@@ -123,7 +130,9 @@ function standard(raw: unknown, where: string): FirmStandard {
     name,
     note,
     uses: wordList(raw['uses'], `${where}.uses`, ROOM_USES, 'room uses'),
-    kinds: wordList(raw['kinds'], `${where}.kinds`, FIXTURE_KINDS, 'fixture kinds'),
+    // ARE-73: the registry's fixture kinds, so a kind added to it is taken with no change here.
+    kinds: wordList(raw['kinds'], `${where}.kinds`, itemKinds('fixture'), 'fixture kinds'),
+    ...(typeof widthRaw === 'number' ? { width: written === 'mm' ? widthRaw / 1000 : widthRaw } : {}),
   }
 }
 

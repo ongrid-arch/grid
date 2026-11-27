@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { GENERAL_GUIDANCE_LABEL } from '@ongrid/floorplan/geometry'
+import { PHASE_COLOURS } from '../phaseColour'
 import { facadePicture, facadeToSvg } from '../facade'
 import { PAPER_PENS, TECHNICAL_LOOK, WORKING_LOOK, lineMetres, paperScaleOf, penSetFor } from '../look'
 import { pictureToSvg } from '../planSvg'
@@ -56,6 +57,19 @@ describe('a facade as a picture', () => {
     expect(svg).toContain('±0.000 Ground floor')
     expect(svg).toContain('+2.950 First floor')
     expect(svg).toContain('aria-label="South facade of the plan, 2 floors at their levels"')
+  })
+
+  it('tints a new facade wall and its patterned window frames in the working look', () => {
+    const plan = house()
+    plan.walls.find((wall) => wall.id === 'fs')!.phase = 'new'
+    plan.rooms.find((room) => room.id === 'f')!.phase = 'new'
+    const working = facadeToSvg(plan, { side: 'south', look: 'working' })
+    expect(working).toMatch(new RegExp(`data-wall="fs"[^>]*><path [^>]*fill="${PHASE_COLOURS.new}"`))
+    expect(working).toMatch(new RegExp(`data-wall="gs"[^>]*><path [^>]*fill="${WORKING_LOOK.colors.room}"`))
+    expect(tags(working, 'facade-window-frame').length).toBeGreaterThan(0)
+    expect(tags(working, 'facade-window-frame').every((frame) => frame.includes(`fill="${PHASE_COLOURS.new}"`))).toBe(true)
+    const technical = facadeToSvg(plan, { side: 'south', look: 'technical' })
+    expect(technical).not.toContain(PHASE_COLOURS.new)
   })
 
   it('draws a porch\'s front wall with its door, in front of the house wall it hides (VEW-25)', () => {

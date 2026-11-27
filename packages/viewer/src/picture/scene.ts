@@ -1309,9 +1309,20 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   // colour. Drawing, not a target: clicks reach the part underneath.
   if (picked !== null && picked.size > 0) {
     const pen = lengthText(3 * mpp)
+    const dashed = (id: string, d: string, stroke: string, key: string): SvgNode =>
+      el('path', { d, 'data-part': 'picked', 'data-id': id, ...paint.demolished, stroke, 'stroke-width': pen, 'pointer-events': 'none' }, [], key)
+    for (const room of drawing.demolishedRooms ?? []) {
+      const colour = picked.get(room.id)
+      if (colour !== undefined) out.push(dashed(room.id, roomPathOf(room), colour, `picked:${room.id}`))
+    }
     for (const wall of drawing.walls) {
       const colour = picked.get(wall.id)
       if (colour === undefined) continue
+      if (wall.phase === 'demolished') {
+        const paths = wall.virtual || wall.railing ? [virtualPath(linePoints(wall))] : wall.slices.map((slice) => pathOf(slice))
+        paths.forEach((d, i) => out.push(dashed(wall.id, d, colour, `picked:${wall.id}:${i}`)))
+        continue
+      }
       if (wall.virtual) {
         out.push(el('path', { d: virtualPath(linePoints(wall)), 'data-part': 'picked', 'data-id': wall.id, fill: 'none', stroke: colour, 'stroke-width': pen, 'pointer-events': 'none' }, [], `picked:${wall.id}`))
         continue
@@ -1321,6 +1332,10 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     for (const opening of drawing.openings) {
       const colour = picked.get(opening.id)
       if (colour === undefined) continue
+      if (opening.phase === 'demolished') {
+        out.push(dashed(opening.id, pathOf(openingStrip(opening)), colour, `picked:${opening.id}`))
+        continue
+      }
       out.push(el('path', { d: pathOf(openingStrip(opening)), 'data-part': 'picked', 'data-id': opening.id, fill: colour, 'fill-opacity': 0.85, stroke: colour, 'stroke-width': pen, 'pointer-events': 'none' }, [], `picked:${opening.id}`))
     }
   }

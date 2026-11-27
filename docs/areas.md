@@ -278,7 +278,10 @@ never rooms. The plot coverage, the building's shape seen from above against the
 not one of these figures: `grid_measure` with `what=site` gives it, from the outside face of every
 floor at or above the ground floor ([tool-server.md](tool-server.md#the-plot-distances-to-the-boundary-and-the-coverage)).
 A floor area ratio the person gives is measured there too, by the gross measure they name: the
-figure's name and what it measures are said with it.
+figure's name and what it measures are said with it. The same answer always gives the coverage,
+the gross external area, the floor area ratio, the homes, the homes per hectare and the parking
+per home, for the whole site and each building on its own (CNT-56,
+[tool-server.md](tool-server.md#a-site-of-several-buildings-and-the-figures-always-given-cnt-56)).
 
 ## Free floor
 

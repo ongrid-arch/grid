@@ -80,6 +80,8 @@ import { SITE_RULE, siteAnswer } from '../quantities/site'
 import { LIMITS_RULE, massingLines, siteLimits, storeysText } from '../quantities/limits'
 import { figureOf, roomIndicators, USE_RULE, wideRoute, wideRouteLines } from '../quantities/use'
 import { ACCESS_RULE, accessAnswer } from '../quantities/access'
+import { activityLines, activityZones, zoneData, zoneFindings } from '../quantities/activity'
+import { PER_KIND_ARG } from './activityArg'
 import { FIGURES_HEADING, readBrief } from '../brief/brief'
 import { roomCalled, roomCalledById, surveyPlan, sideNames, type Survey, type SurveyRoom } from '../quantities/survey'
 import { planEstimate, WHOLE_BUILDING_KEY, type Estimate, type EstimateLine, type QuantityUnit } from '../quantities/estimate'
@@ -98,6 +100,7 @@ import {
   meets,
   readCondition,
   roomGroupValues,
+  isPhaseField,
   FACT_PART_KINDS,
   PART_KINDS,
   QUERY_RULE,
@@ -115,6 +118,7 @@ import {
 import { areaText, csv, csvLengths, csvLengthUnit, DISPLAY_UNITS, displayFor, lengthText, ownLengthText, sqFt } from '../quantities/units'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { PLACE_TEXT_MAX } from '@ongrid/floorplan/types/places'
+import { PHASE_COLOURS } from '@ongrid/viewer/src/picture/phaseColour'
 import { GROUP_COLOURS, HIGHLIGHT_COLOUR } from '@ongrid/viewer/src/picture/look'
 import { TILE_PX_PER_METRE, pictureFrame, pictureTiles } from '@ongrid/viewer/src/picture/planSvg'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
@@ -214,9 +218,9 @@ const FORMAT_ARG: ArgSpec = {
   examples: ['text', 'csv'],
 }
 
-function load(context: ToolContext, plan: unknown, floor?: unknown): { survey: Survey; floor: string | undefined; file: string } {
+function load(context: ToolContext, plan: unknown, floor?: unknown): { survey: Survey; floor: string | undefined; file: string; stated: FloorPlan } {
   const { loaded, file } = readPlan(context, plan)
-  return { survey: surveyPlan(loaded.plan), floor: floorArg(loaded.plan, floor), file }
+  return { survey: surveyPlan(loaded.plan), floor: floorArg(loaded.plan, floor), file, stated: loaded.plan }
 }
 
 /** ARE-68: the people the brief beside the plan says the building is for; none when it gives none or cannot be read. */
@@ -1579,16 +1583,17 @@ const findTool: GridTool = {
     rule: STRING,
   }),
   run(args, context) {
-    const { survey, floor } = load(context, args['plan'], args['floor'])
-    if (args['room'] !== undefined) roomArg(survey.plan, args['room'])
+    const { survey, stated, floor } = load(context, args['plan'], args['floor'])
+    const room = args['room'] === undefined ? undefined : roomArg(stated, args['room'])
     return asked(() => {
-      const ask = askPlan(survey, { items: true })
+      const ask = askPlan(survey, { items: true, stated })
       const kinds = kindsOf(args)
       const fields = ((args['fields'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `fields item ${i + 1}`))
       const found = select(ask, {
+        fields,
         ...(kinds === undefined ? {} : { kinds }),
         ...(floor === undefined ? {} : { floor }),
-        ...(args['room'] === undefined ? {} : { room: args['room'] as string }),
+        ...(room === undefined ? {} : { room }),
         ...(args['where'] === undefined ? {} : { where: args['where'] as string[] }),
       })
       const limit = Math.floor((args['limit'] as number | undefined) ?? 500)
@@ -1624,7 +1629,7 @@ const countTool: GridTool = {
     floor: FLOOR_ARG,
     room: ROOM_IN_ARG,
     where: WHERE_ARG,
-    by: { type: 'string', maxLength: 120, description: 'The field or fact to group by, by name, as grid_fields lists it: one group per value, and one for the parts that state none. Rooms group by room type (type), tenure, flat or flat type, or by a fact of the person\'s own such as a household, department or zone (set with grid_set_facts). An area groups as it prints. One group of all of them when left out.', examples: ['department', 'type', 'household', 'fire rating', 'floor'] },
+    by: { type: 'string', maxLength: 120, description: 'The field or fact to group by, by name, as grid_fields lists it: one group per value, and one for the parts that state none. Rooms group by room type (type), tenure, flat or flat type, or by a fact of the person\'s own such as a household, department or zone (set with grid_set_facts). An area groups as it prints. One group of all of them when left out.', examples: ['department', 'type', 'household', 'fire rating', 'phase'] },
     sum: { type: 'array', description: 'Fields or facts of numbers to add up in each group, by name: area, width, head count.', examples: [['area'], ['area', 'head count']], items: { maxLength: 120 }, minItems: 1, maxItems: 10 },
     stairs: { type: 'string', enum: ['once', 'per floor'], description: 'once counts a stair or lift drawn as a room on floor after floor once, on the floor it rises from, as grid_areas does; per floor counts its room on every floor, with its area. once when left out.', examples: ['once', 'per floor'] },
   },
@@ -1639,18 +1644,19 @@ const countTool: GridTool = {
     rule: STRING,
   }),
   run(args, context) {
-    const { survey, floor } = load(context, args['plan'], args['floor'])
-    if (args['room'] !== undefined) roomArg(survey.plan, args['room'])
+    const { survey, stated, floor } = load(context, args['plan'], args['floor'])
+    const room = args['room'] === undefined ? undefined : roomArg(stated, args['room'])
     return asked(() => {
-      const ask = askPlan(survey, { items: true })
+      const ask = askPlan(survey, { items: true, stated })
       const kinds = kindsOf(args)
       const by = args['by'] === undefined ? null : fieldOf(ask, args['by'] as string, 'by')
       const sums = ((args['sum'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `sum item ${i + 1}`))
       checkSums(ask, sums)
       const picked = select(ask, {
+        fields: by === null ? [] : [by],
         ...(kinds === undefined ? {} : { kinds }),
         ...(floor === undefined ? {} : { floor }),
-        ...(args['room'] === undefined ? {} : { room: args['room'] as string }),
+        ...(room === undefined ? {} : { room }),
         ...(args['where'] === undefined ? {} : { where: args['where'] as string[] }),
       })
       // CNT-8: a zone's floor and facts are its room's to count, so a zone is counted in no group.
@@ -1696,7 +1702,10 @@ const countTool: GridTool = {
         lines.push(`Not counted, as grid_areas counts them: ${kinds.join('; ')}.${others.some((p) => p.why === 'shaft') ? ' stairs=per floor counts each floor\'s stair and lift rooms.' : ''}`)
       }
       if (shafts.length > 0) lines.push(`Stairs and lifts are counted on every floor they are drawn on (stairs=per floor): an area sum holds ${shafts.length} stair or lift room${shafts.length === 1 ? '' : 's'} that grid_areas' net counts once, with the lowest room of ${shafts.length === 1 ? 'its' : 'their'} shaft.`)
-      const { view, floors } = viewOf(ask, found.map((p) => p.id), by === null ? { highlight: found.slice(0, 2000).map((p) => p.id) } : { colour: fieldName(by) })
+      const colour = by?.from === 'yours' && (args['by'] as string).trim().toLowerCase().startsWith('properties.')
+        ? `properties.${by.name}`
+        : by === null ? undefined : fieldName(by)
+      const { view, floors } = viewOf(ask, found.map((p) => p.id), colour === undefined ? { highlight: found.slice(0, 2000).map((p) => p.id) } : { colour })
       if (found.length > 0) lines.push(`To see ${by === null ? 'them picked out' : 'each group in its own colour'}, pass view to grid_view${floors.length > 1 ? `: they are on ${floors.length} floors, so draw each floor in turn` : ''}.`)
       lines.push(QUERY_RULE)
       return {
@@ -1767,24 +1776,26 @@ const measureTool: GridTool = {
   description:
     'Use this when the person asks will something fit, how wide, long or high a room is, how long a wall is, how far a door is from a corner or one wall from another, can a wheelchair turn, is the way wide enough, which doors or rooms are narrower than their own figure, or how to get from one room to another. '
     + 'For travel distance or walking distance to the nearest exit on an escape or evacuation route, call grid_measure with {"what":"route","room":"bed1","to":"outside"}. '
-    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand; what=frontage gives a shop\'s floor (room) in bands of depth from its frontage, A, B, C and the rest, in m² and sq ft: the frontage on the wall named, else on the wall it opens through most, at depth (Grid\'s own 6.1 m, 20 ft, when left out) in bands bands (3), measured and never weighted. '
+    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand; what=frontage gives a shop\'s floor (room) in bands of depth from its frontage, A, B, C and the rest, in m² and sq ft: the frontage on the wall named, else on the wall it opens through most, at depth (Grid\'s own 6.1 m, 20 ft, when left out) in bands bands (3), measured and never weighted; what=activity gives the activity zone in front of each fixture (ARE-73), a box on its centre line as deep as front and as wide as width, per kind (per_kind, such as a WC\'s 0.7 m front and 0.8 m width) or for every kind (clearance, width), else the item\'s own clearance, its library entry or Grid\'s own indicator: the clear depth, the clear width to each side of the centre line by compass, what stands in it, the doors that swing into it and the zones it overlaps, a run of units side by side as one zone, in one room (room) or every room, only the zones short or with something in them unless all. '
     + 'It measures the room between wall faces: what=fit, what=use and what=route with width keep clear of the room\'s fixtures, the other measures take none off, the plan holds no furniture or door leaves, and the answer says so. It checks no rule: a figure the person gives is their own. Do not use for floor areas (grid_areas), for what a building code asks (grid_check), or to say a plan is accessible: what=access measures, it never says so. Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
-    what: { type: 'string', required: true, enum: ['room', 'between', 'wall', 'fit', 'route', 'narrow', 'facing', 'sun', 'site', 'use', 'access', 'library', 'seats', 'frontage'], description: 'What to measure: room, between, wall, fit, route, narrow, facing, sun, site, use, access, library, seats or frontage.', examples: ['between', 'fit', 'route', 'use', 'access', 'library', 'seats', 'frontage'] },
+    what: { type: 'string', required: true, enum: ['room', 'between', 'wall', 'fit', 'route', 'narrow', 'facing', 'sun', 'site', 'use', 'access', 'library', 'seats', 'frontage', 'activity'], description: 'What to measure: room, between, wall, fit, route, narrow, facing, sun, site, use, access, library, seats, frontage or activity.', examples: ['between', 'fit', 'route', 'use', 'access', 'library', 'seats', 'frontage'] },
     // CNT-20: a library entry, for fit and library.
     name: { type: 'string', id: true, description: 'For fit, instead of width and depth: a library item or typical room by name (double-bed, bathroom). For library: one entry only.', examples: ['double-bed', 'double-bedroom'] },
-    room: { type: 'string', id: true, description: 'For room, fit, use, frontage and route: the room id, where the route starts. For facing and sun: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
+    room: { type: 'string', id: true, description: 'For room, fit, use, frontage and route: the room id, where the route starts. For facing, sun and activity: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
     from: { type: 'string', id: true, description: 'For between: the id of a wall, door, window, opening, fixture or room to measure from. For route: the room it starts in, as room.', examples: ['front-door', 'w-west'] },
     to: { type: 'string', id: true, description: 'For between: the id of the wall, door, window, opening, fixture or room to measure to. For route: the room id where it ends, or "outside" for the nearest way out.', examples: ['w-west', 'bed1', 'outside'] },
     x: { type: 'number', length: true, description: 'For between, instead of to: a point\'s x on the drawing in metres, such as an inside corner. The plan names no points.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
     y: { type: 'number', length: true, description: 'For between, with x: the point\'s y on the drawing in metres.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
     wall: { type: 'string', id: true, description: 'For wall: the wall id. For frontage: the wall the shop front stands on; the wall the room opens through most when left out.', examples: ['w-south'] },
-    width: { type: 'number', length: true, description: 'For fit: the box\'s width in metres; a table of 1.8 × 0.9 m with 0.75 m round it for chairs is 3.3. For route and use: the width of the body or trolley that must get through, such as 0.7 for a wheelchair; for use, Grid\'s own indicator when left out.', examples: [3.3, 0.7], minimum: 0.05, maximum: 100 },
+    width: { type: 'number', length: true, description: 'For fit: the box\'s width in metres; a table of 1.8 × 0.9 m with 0.75 m round it for chairs is 3.3. For route and use: the width of the body or trolley that must get through, such as 0.7 for a wheelchair; for use, Grid\'s own indicator when left out. For activity: the zone\'s width on each fixture\'s centre line, for every kind per_kind names none for; the fixture\'s own width when left out.', examples: [3.3, 0.7], minimum: 0.05, maximum: 100 },
     depth: { type: 'number', length: true, description: 'For fit: the box\'s depth in metres. It is tried both ways round. For frontage: each band\'s depth from the frontage, in metres; Grid\'s own 6.1 m (20 ft) when left out.', examples: [2.4, 0.6], minimum: 0.05, maximum: 100 },
     bands: { type: 'number', description: 'For frontage: how many bands of depth before the rest; 3 (A, B and C) when left out.', examples: [3, 2], minimum: 1, maximum: FRONTAGE_BANDS_MAX },
     diameter: { type: 'number', length: true, description: 'For fit: a circle instead of a box, such as 1.5 for a wheelchair turning circle. For use: the turning circle to set the room against; Grid\'s own indicator when left out.', examples: [1.5], minimum: 0.05, maximum: 100 },
-    clearance: { type: 'number', length: true, description: 'For use: the clear floor wanted in front of and beside each fixture, in metres, such as 0.7 beside a bath; Grid\'s own indicator when left out.', examples: [0.7], minimum: 0.05, maximum: 100 },
+    clearance: { type: 'number', length: true, description: 'For use: the clear floor wanted in front of and beside each fixture, in metres, such as 0.7 beside a bath; Grid\'s own indicator when left out. For activity: the zone\'s depth in front, for every kind per_kind names none for.', examples: [0.7], minimum: 0.05, maximum: 100 },
+    per_kind: PER_KIND_ARG,
+    all: { type: 'boolean', description: 'For activity: list every zone, not only those short of their figure, with something in them or overlapping another.', examples: [true] },
     under: { type: 'number', length: true, description: 'For narrow: the person\'s figure in metres, such as 0.8 for a door or 1.5 for a turning circle; width does the same.', examples: [0.8, 1.5], minimum: 0.05, maximum: 100 },
     start: { type: 'string', enum: ['middle', 'door', 'farthest corner'], description: 'For route: where it starts in its room: the middle of the widest circle (the default), the door it leaves by, or the room\'s corner farthest from that door. A point of your own: x and y instead.', examples: ['door', 'farthest corner'] },
     end: { type: 'string', enum: ['middle', 'door'], description: 'For route: where it ends in its last room: the middle, or the doorway into it. Left out, a stair or lift room is ended at its door and any other room at its middle; to outside it always ends at the outside face of the door out.', examples: ['door', 'middle'] },
@@ -1794,7 +1805,7 @@ const measureTool: GridTool = {
   outputSchema: objectSchema({ what: STRING, answer: { type: 'object' }, rule: STRING }),
   run(args, context) {
     // CMD-51: the arguments are checked before the plan is read and surveyed.
-    const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library' | 'seats' | 'frontage'
+    const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library' | 'seats' | 'frontage' | 'activity'
     // CMD-29: the same thing goes by the same name in every mode: a route goes from a room, and
     // a narrow measure takes the width the way route and use do.
     if (what === 'route' && args['from'] !== undefined) {
@@ -1820,8 +1831,9 @@ const measureTool: GridTool = {
       library: ['name'],
       seats: ['room'],
       frontage: ['room', 'wall', 'depth', 'bands'],
+      activity: ['room', 'clearance', 'width', 'per_kind', 'all'],
     }
-    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'bands'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
+    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'bands', 'per_kind', 'all'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`what=${what} takes ${allowed[what]!.length === 0 ? 'no other argument' : allowed[what]!.join(', ')}, not ${stray.join(', ')}.`)
     if (MEASURES_OF_A_ROOM.has(what) && args['room'] === undefined) throw needsRoom(what)
     const { survey, file } = load(context, args['plan'])
@@ -1902,6 +1914,23 @@ const measureTool: GridTool = {
         area: areaText(zones.area, units),
       }))
       return { text: [text, zones.rule].join('\n'), data: { what, answer: zones, rule: zones.rule } }
+    }
+    if (what === 'activity') {
+      // ARE-73: the activity zone in front of each fixture, per kind; only the zones with findings unless all.
+      const id = args['room'] === undefined ? undefined : wholeOf(roomOf()).room.facts.id
+      const all = args['all'] === true
+      const found = activityZones(survey, {
+        ...(id === undefined ? {} : { room: id }),
+        ...(typeof args['clearance'] === 'number' ? { clearance: args['clearance'] } : {}),
+        ...(typeof args['width'] === 'number' ? { width: args['width'] } : {}),
+        ...(args['per_kind'] === undefined ? {} : { perKind: args['per_kind'] as Record<string, { front?: number; width?: number }> }),
+      })
+      const listed = all ? found.zones : found.zones.filter(zoneFindings)
+      const rule = english(said('activity.rule'))
+      return {
+        text: [...activityLines(survey, found, all, L), rule].join('\n'),
+        data: { what, answer: { zones: listed.map(zoneData), measured: found.zones.length, listed: listed.length, northStated: found.northStated, leftOut: { noRoom: found.noRoom, noSwing: found.noSwing } }, rule },
+      }
     }
     if (what === 'seats') {
       // ARE-67: the seats, desks and covers counted from the furniture, once.
@@ -2506,15 +2535,15 @@ function paintOf(survey: Survey, floor: string, by: string | undefined, highligh
 } | null {
   if (by === undefined && highlight === undefined) return null
   return asked(() => {
-    const ask = askPlan(survey)
-    const onFloor = ask.parts.filter((p) => p.floor === floor && p.kind !== 'floor')
+    const ask = askPlan(survey, { stated })
     const paint = new Map<string, string>()
     const key: { colour: string; words: string }[] = []
     const groups: { colour: string; value: Value; words: string; ids: string[] }[] = []
     const lines: string[] = []
     if (by !== undefined) {
       const field = fieldOf(ask, by, 'colour')
-      const carrying = onFloor.filter((p) => {
+      const carrying = select(ask, { floor, fields: [field] }).filter((p) => {
+        if (p.kind === 'floor') return false
         const value = ask.value(p, field)
         return value !== null && !(Array.isArray(value) && value.length === 0)
       })
@@ -2522,7 +2551,8 @@ function paintOf(survey: Survey, floor: string, by: string | undefined, highligh
       // One colour per value; past the palette, the last colour stands for all the others.
       const own = found.length <= GROUP_COLOURS.length ? found.length : GROUP_COLOURS.length - 1
       found.forEach((group, i) => {
-        const colour = GROUP_COLOURS[Math.min(i, own)]!
+        const phase = isPhaseField(field) ? PHASES.find((value) => value === group.value) : undefined
+        const colour = phase === undefined ? GROUP_COLOURS[Math.min(i, own)]! : PHASE_COLOURS[phase]
         for (const id of group.ids) paint.set(id, colour)
         groups.push({ colour, value: group.value, words: valueWords(group.value), ids: [...group.ids] })
         if (i < own) key.push({ colour, words: `${fieldName(field)}: ${valueWords(group.value)}` })
@@ -2534,11 +2564,6 @@ function paintOf(survey: Survey, floor: string, by: string | undefined, highligh
     }
     if (highlight !== undefined) {
       const known = new Map(ask.parts.filter((p) => p.kind !== 'floor').map((p) => [p.id, p] as const))
-      // VEW-14: a part to be demolished is drawn, so it can be picked out; the survey reads the plan after the work.
-      const wallFloor = new Map(stated.walls.map((w) => [w.id, floorOf(w)] as const))
-      for (const room of stated.rooms) if (!known.has(room.id)) known.set(room.id, { kind: 'room', id: room.id, floor: floorOf(room), facts: {} })
-      for (const wall of stated.walls) if (!known.has(wall.id)) known.set(wall.id, { kind: 'wall', id: wall.id, floor: floorOf(wall), facts: {} })
-      for (const opening of stated.openings) if (!known.has(opening.id)) known.set(opening.id, { kind: opening.type, id: opening.id, floor: wallFloor.get(opening.wall) ?? 'ground', facts: {} })
       const missing = highlight.filter((id) => !known.has(id))
       if (missing.length > 0) {
         const near = likelyId(missing[0]!, [...known.keys()])
@@ -2749,7 +2774,7 @@ const viewTool: GridTool = {
     margin: { type: 'number', length: true, description: 'For plan, with crop or crop_box: metres of the plan kept round what is framed, on every side. 0.5 round a crop and none round a box when left out.', examples: [0.5, 2], minimum: 0, maximum: 100 },
     ids: { type: 'boolean', description: 'For plan: true to draw the id of every room, door and window on the picture, as the plan file holds them, and to list them in the text with the areas, what each door joins, the counts and the drawing\'s problems. false when left out.', examples: [true] },
     hide: { type: 'string', maxLength: 120, description: 'For plan: parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Everything is drawn when left out.', examples: ['areas,swings', 'sketch'] },
-    colour: { type: 'string', maxLength: 120, description: 'For plan: use fills each room by its use and lists the uses in the key; any other field or fact, by name as grid_fields lists it (department, fire rating), colours each room, wall, door and window by its value, with a key: grid_count\'s view passes it. One fill for every room when left out.', examples: ['use', 'department', 'fire rating'] },
+    colour: { type: 'string', maxLength: 120, description: 'For plan: use fills each room by its use and lists the uses in the key; any other field or fact, by name as grid_fields lists it (department, fire rating), colours each room, wall, door and window by its value, with a key: grid_count\'s view passes it. One fill for every room when left out.', examples: ['use', 'department', 'phase'] },
     highlight: { type: 'array', description: 'For plan: rooms, walls, doors, windows or openings to pick out, by id, in one colour with a key: grid_find\'s view passes its ids here. Nothing picked out when left out.', examples: [['d1', 'd4'], ['office-2']], items: { id: true }, minItems: 1, maxItems: 2000 },
     key: { type: 'boolean', description: 'For plan: true to add a key under the drawing, even where the plan asks for none.', examples: [true] },
     language: LANGUAGE_ARG,

@@ -94,6 +94,8 @@ export interface FirmStandard {
   readonly uses: readonly string[]
   /** For the floor in front of a fixture: the fixture kinds it is for. Empty for every fixture. */
   readonly kinds: readonly string[]
+  /** ARE-73: for the floor in front of a fixture, the width of the zone on its centre line, in metres; unstated, the floor straight out from its front as before. */
+  readonly width?: number
 }
 
 /** One part measured for one standard, by the caller. */
@@ -150,6 +152,8 @@ export interface FirmUsed {
     readonly note: string | null
     readonly uses: readonly string[]
     readonly kinds: readonly string[]
+    /** ARE-73: the zone's width, for a fixture's clear floor that states one. */
+    readonly width?: number
     /** How many parts it was set against. */
     readonly lookedAt: number
     /** How many of them are short of it: its lines. */
@@ -181,6 +185,7 @@ export function firmUsed(input: FirmInput): FirmUsed {
         note: standard.note,
         uses: standard.uses,
         kinds: standard.kinds,
+        ...(standard.width === undefined ? {} : { width: standard.width }),
         lookedAt: parts.length,
         notes: parts.filter((m) => firmShort(m, standard)).length
       }

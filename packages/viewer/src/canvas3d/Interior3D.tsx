@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { limit, type SceneCeiling, type SceneInterior, type SceneLining, type Vec2 } from '@ongrid/floorplan/geometry'
+import type { Phase } from '@ongrid/floorplan/types/floorplan'
+import { PHASE_COLOURS } from '../picture/phaseColour'
 import { toThree } from './convert'
 import { finishTint } from './finishTint'
 
@@ -89,34 +91,35 @@ export interface Interior3DProps {
   /** A colour as the storey shows it: muted below the focused floor, tinted while hovered. */
   readonly tone: (color: string) => string
   readonly glow?: number
+  readonly phases?: ReadonlyMap<string, Phase>
 }
 
-export function Interior3D({ interior, ceilings, ceilingColor, tone, glow = 0 }: Interior3DProps): JSX.Element {
+export function Interior3D({ interior, ceilings, ceilingColor, tone, glow = 0, phases }: Interior3DProps): JSX.Element {
   const linings = useMemo(
     () =>
       interior.linings.flatMap((lining) => {
-        const tint = finishTint(lining.finish)
+        const tint = phases?.get(lining.wall) === 'new' ? PHASE_COLOURS.new : finishTint(lining.finish)
         const geometry = tint === null ? null : liningGeometry(lining)
         return geometry === null || tint === null ? [] : [{ geometry, tint, key: `${lining.room}:${lining.wall}:${lining.band ? `band:${lining.bottom}` : 'face'}:${lining.from.x},${lining.from.y}` }]
       }),
-    [interior]
+    [interior, phases]
   )
   const tops = useMemo(
     () =>
       ceilings
         ? interior.ceilings.flatMap((ceiling, i) =>
-            ceilingGeometries(ceiling).map((geometry, k) => ({ geometry, tint: finishTint(ceiling.finish), key: `${ceiling.room}:${i}:${k}` }))
+            ceilingGeometries(ceiling).map((geometry, k) => ({ geometry, tint: phases?.get(ceiling.room) === 'new' ? PHASE_COLOURS.new : finishTint(ceiling.finish), key: `${ceiling.room}:${i}:${k}` }))
           )
         : [],
-    [interior, ceilings]
+    [interior, ceilings, phases]
   )
   const floors = useMemo(
     () =>
       interior.floors.flatMap((floor, i) => {
-        const tint = finishTint(floor.finish)
+        const tint = phases?.get(floor.room) === 'new' ? PHASE_COLOURS.new : finishTint(floor.finish)
         return tint === null ? [] : ceilingGeometries(floor, false).map((geometry, k) => ({ geometry, tint, key: `${floor.room}:${i}:${k}` }))
       }),
-    [interior]
+    [interior, phases]
   )
   useEffect(() => () => floors.forEach(({ geometry }) => geometry.dispose()), [floors])
   useEffect(() => () => linings.forEach(({ geometry }) => geometry.dispose()), [linings])

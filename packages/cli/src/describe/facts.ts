@@ -707,7 +707,7 @@ function withFloorNames(floors: FloorFacts[]): FloorFacts[] {
 
 /** Everything `grid describe` says, from a plan that passed the schema. */
 export function planFacts(stated: FloorPlan, state: PlanState = 'after'): PlanFacts {
-  // CNT-10: the work is counted apart from the state being read.
+  // CNT-10: the building after the work by default; the work itself is counted apart.
   const work = planHasPhases(stated) ? { counts: phaseCounts(stated), base: stated.base ?? null } : null
   const plan = planInState(stated, state)
   const registered = new Set((plan.floors ?? []).map((floor) => floor.id))

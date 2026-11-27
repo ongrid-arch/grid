@@ -18,6 +18,7 @@ import { GLASS } from './finishTint'
 export interface OpeningColors {
   readonly frame: string
   readonly leaf: string
+  readonly glass?: string
 }
 
 /** Whether a part is drawn as glass: its glass, and a glazed door's leaves. */
@@ -37,7 +38,7 @@ export function Opening3D({ opening, colors, glow = 0 }: { opening: SceneOpening
       {parts.map(({ part, geometry }, i) =>
         drawnAsGlass(opening, part) ? (
           <mesh key={i} name="glass" geometry={geometry}>
-            <meshStandardMaterial color={GLASS.color} transparent opacity={GLASS.opacity} depthWrite={false} roughness={0.1} metalness={0} side={THREE.DoubleSide} />
+            <meshStandardMaterial color={colors.glass ?? GLASS.color} transparent opacity={GLASS.opacity} depthWrite={false} roughness={0.1} metalness={0} side={THREE.DoubleSide} />
           </mesh>
         ) : (
           <mesh key={i} name={part} geometry={geometry} castShadow receiveShadow>
