@@ -424,7 +424,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-58: seventeen more, what the sun's figures decide.
   // VEW-82: four more, what wallPieceShortest, doorOpenAngle and cameraNear decide.
   // CNT-60: nine more, what the site's figures drawn in 3D decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [426, 'developer'],
+  // LVL-26: two more, what sameSpaceAlong decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [428, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -444,7 +445,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-55: nine fewer, the gap, touching, overlap and wall-line refusals moved too.
   // WRT-66: one fewer, the corner cut's refusal that does not fit moved too.
   // WRT-69: one fewer, the walls line's word it cannot read moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [102, 'notYet'],
+  'packages/floorplan/src/rooms/compile.ts': [101, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   // WRT-81: one more, a part read back in another phase.

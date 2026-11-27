@@ -112,7 +112,8 @@ describe("a room line's edge words (WRT-76)", () => {
   it("says that an outdoor space's walls and low height set none of its edges", () => {
     const { result, plan } = write(['room living "Living room" living 5 x 4 at 0,0', 'room terrace "Terrace" - 5 x 3 north of living outdoor terrace walls 0.1 height 0.45'])
     expect(codes(result)).toContain('rooms/walls-unused')
-    expect(codes(result)).toContain('rooms/outdoor-height')
+    // LVL-26: 'height' straight after the walls' words is the walls' height, not the room's.
+    expect(codes(result)).not.toContain('rooms/outdoor-height')
     expect(plan.walls.filter((w) => w.virtual !== true).every((w) => w.thickness === 0.3)).toBe(true)
     const heightOnly = write(['room living "Living room" living 5 x 4 at 0,0', 'room terrace "Terrace" - 5 x 3 north of living outdoor terrace height 0.45'])
     expect(heightOnly.result.warnings.find((w) => w.code === 'rooms/outdoor-height')?.message).toContain("'edge wall 0.45'")

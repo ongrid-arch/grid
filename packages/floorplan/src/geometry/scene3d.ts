@@ -407,8 +407,18 @@ function facetBoxes(p: OpeningBox, points: readonly AxisPoint[]): SceneOpeningPa
 function roofSolidOf(roof: FloorRoof, base: number): SceneSolid {
   const sloped = roof.facets.some((f) => f.plane.gx !== 0 || f.plane.gy !== 0)
   if (!sloped) {
+    const bottom = roof.bottom - base
+    // LVL-26: a flat roof stepped up over a room that rises past the storey: each piece over such a
+    // room is raised by how far that room's top is above the storey's.
+    if (roof.facets.length > 1) {
+      const pieces = roof.facets.flatMap((facet) => {
+        const up = facet.plane.z0 - bottom
+        return scenePieces(facet.pieces).map((piece) => (Math.abs(up) <= tolerance('sameFloorLevel') ? piece : { ...piece, rise: { z0: up, gx: 0, gy: 0 } }))
+      })
+      return { pieces, bottom, top: bottom + roof.thickness }
+    }
     const pieces = roof.facets.length === 1 ? roof.facets[0]!.pieces : roof.pieces
-    return { pieces: scenePieces(pieces), bottom: roof.bottom - base, top: roof.bottom - base + roof.thickness }
+    return { pieces: scenePieces(pieces), bottom, top: bottom + roof.thickness }
   }
   const pieces = roof.facets.flatMap((facet) => scenePieces(facet.pieces).map((piece) => ({ ...piece, rise: facet.plane })))
   return { pieces, bottom: 0, top: roof.thickness }

@@ -102,6 +102,7 @@ is not asked whether it was typed in feet.
 | `setbackShort` | tolerance | 0.005 m | The building stands short of a set-back the person asked for when its outside face is more than this nearer the boundary than their figure; less rounds to the figure (`plan/setback-short`, BRF-3) |
 | `pastBoundary` | tolerance | 0.005 m | The building stands over an edge of the plot's boundary when its outside face reaches more than this past it (`plan/over-boundary`, BRF-3) |
 | `wallAboveStorey` | tolerance | 0.001 m | How far a wall may rise past the height its floor states; past it, `wall/above-storey` names both heights |
+| `sameSpaceAlong` | tolerance | 0.05 m | Two walls of two floors, one rising past the other floor's level, stand in the same space when they lie along each other, their bodies overlapping, for more than this (`wall/same-space`, LVL-26) |
 | `sameLevelOverlap` | tolerance | 0.5 ratio | Two floors at one level whose walls' boxes share more than this of the smaller one stand one over the other (`plan/same-level`) |
 | `outsideDoorAboveGround` | limit | 2 m | A door to the outside on a floor higher than this above the ground (the level the site states, else the ground floor's) is named and is not a way out |
 | `openingBelowGround` | tolerance | 0.005 m | A door or window in an outside wall whose foot lies less than this under the site's stated ground level stands at the ground; further down, `opening/below-ground` names it |

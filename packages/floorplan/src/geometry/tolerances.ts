@@ -724,6 +724,15 @@ export const TOLERANCES = {
       'Past it, the wall is named with both heights.',
     basis: own
   },
+  sameSpaceAlong: {
+    kind: 'tolerance',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'Two walls of two floors, one rising past the other floor\'s level, stand in the same space ' +
+      'when they lie along each other, their bodies overlapping, for more than this (LVL-26).',
+    basis: own
+  },
   sameLevelOverlap: {
     kind: 'tolerance',
     value: 0.5,
