@@ -62,7 +62,7 @@ describe('CNT-60: the site in a GLB', () => {
 
   it('writes a party wall in the cut material and the others in the wall material', () => {
     const glb = glbOf(sitedPlan())
-    const walls = glb.json.meshes!.map((m) => (m as { name: string }).name).filter((n) => n.startsWith('wall_'))
+    const walls = glb.json.meshes!.map((m) => (m as unknown as { name: string }).name).filter((n) => n.startsWith('wall_'))
     const cut = walls.filter((n) => materialOfMesh(glb, n) === 'cut')
     expect(cut).toHaveLength(1)
     expect(walls.length).toBeGreaterThan(1)
