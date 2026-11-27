@@ -68,3 +68,36 @@ describe('the sun table (planSunTable)', () => {
     expect(room).toMatchObject({ room: 'l', windowArea: 0, windowToFloor: 0, walls: [] })
   })
 })
+
+describe('VEW-78: a glazed door in the sun table', () => {
+  it('counts a door whose type is glazed with the windows, marked as a door, and no other door', () => {
+    const glazed = lShaped({
+      types: { doors: [{ id: 'slider', name: 'Glazed slider', kind: 'sliding', glazed: true }] },
+      openings: [
+        { id: 'south-1', wall: 'a', type: 'window', offset: 1, width: 1.2, height: 1.5, sill: 0.9 },
+        { id: 'patio', wall: 'a', type: 'door', offset: 3, width: 2.4, height: 2.1, doorType: 'slider' },
+        { id: 'entry', wall: 'e', type: 'door', offset: 1, width: 0.9, height: 2.1 },
+      ],
+    })
+    const [room] = planSunTable(glazed).rooms
+    const south = room!.walls.find((w) => w.wall === 'a')!
+    expect(south.windows.map((o) => [o.id, o.door === true])).toEqual([['south-1', false], ['patio', true]])
+    expect(room!.windowArea).toBeCloseTo(1.8 + 2.4 * 2.1, 9)
+    expect(room!.walls.some((w) => w.windows.some((o) => o.id === 'entry'))).toBe(false)
+  })
+
+  it('counts a door whose type is made of glass, and leaves out a window whose type says it is not glazed', () => {
+    const plan = lShaped({
+      types: {
+        doors: [{ id: 'glass', name: 'Frameless', material: 'Toughened glass' }],
+        windows: [{ id: 'panel', name: 'Solid panel', glazed: false }],
+      },
+      openings: [
+        { id: 'south-1', wall: 'a', type: 'window', offset: 1, width: 1.2, height: 1.5, sill: 0.9, windowType: 'panel' },
+        { id: 'patio', wall: 'a', type: 'door', offset: 3, width: 1, height: 2.1, doorType: 'glass' },
+      ],
+    })
+    const [room] = planSunTable(plan).rooms
+    expect(room!.walls.flatMap((w) => w.windows.map((o) => o.id))).toEqual(['patio'])
+  })
+})
