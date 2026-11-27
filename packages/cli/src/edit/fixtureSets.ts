@@ -22,7 +22,7 @@ import { emptyPatch, listed, readingAfter, type Patch } from './edits'
 import { FIT_CODES } from './place'
 import { EditRefused } from './refused'
 
-type RawRecord = Record<string, unknown>
+export type RawRecord = Record<string, unknown>
 
 /** What the call names: the typical room and the room it is set out in. */
 export interface FixtureSetRequest {
@@ -81,9 +81,14 @@ function fitNotes(plan: FloorPlan, id: string): Issue[] {
   return validatePlan(plan).issues.filter((issue) => DOES_NOT_FIT.has(issue.code) && (issue.id === id || ((issue as { readonly hits?: readonly string[] }).hits ?? []).includes(id)))
 }
 
-/** A typical room's items, each against a side of `request.room` where it fits. */
-export function addFixtureSet(survey: Survey, library: Library, request: FixtureSetRequest): Patch {
-  const plan = survey.plan
+/**
+ * A typical room's items, each against a side of `request.room` where it fits. CNT-61: `before`
+ * holds the items already added in the same call (furnishing several rooms), so the ids and the
+ * checks see them; the patch adds only this set's.
+ */
+export function addFixtureSet(survey: Survey, library: Library, request: FixtureSetRequest, before: readonly RawRecord[] = []): Patch {
+  const stated = survey.plan
+  const plan = before.length === 0 ? stated : readingAfter(stated, { ...emptyPatch([]), addItems: [...before] })
   const found = typicalRoomOf(library, request.name)
   if (found === undefined) throw new EditRefused(`No library holds a typical room named ${quoted(request.name)}.`)
   const room = plan.rooms.find((r) => r.id === request.room)
@@ -146,8 +151,8 @@ export function addFixtureSet(survey: Survey, library: Library, request: Fixture
             if (error instanceof ItemRefused) continue
             throw error
           }
-          const patch: Patch = { ...emptyPatch([]), addItems: [...added, { ...made.record }] }
-          const after = readingAfter(plan, patch)
+          const patch: Patch = { ...emptyPatch([]), addItems: [...before, ...added, { ...made.record }] }
+          const after = readingAfter(stated, patch)
           const notes = fitNotes(after, id)
           const where = `against the ${against} side${end === undefined ? ', centred on it' : `, in its ${end} corner`}`
           const trial: Trial = { made, plan: after, notes, where, tried }

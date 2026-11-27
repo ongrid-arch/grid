@@ -74,6 +74,7 @@ const ORDER = [
   'grid_add_item',
   'grid_move_item',
   'grid_remove_item',
+  'grid_furnish_rooms',
   'grid_place_bays',
   'grid_add_ramp',
   'grid_set_site',
@@ -87,7 +88,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_help', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_set_finishes', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_write_building', 'grid_add_storey', 'grid_remove_building', 'grid_place_building', 'grid_set_levels', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_set_party_wall', 'grid_change_neighbour', 'grid_set_plan', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_set_finishes', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_write_building', 'grid_add_storey', 'grid_remove_building', 'grid_place_building', 'grid_set_levels', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_furnish_rooms', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_set_party_wall', 'grid_change_neighbour', 'grid_set_plan', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -120,7 +121,8 @@ function allowed(property: Record<string, unknown>): boolean {
   if (property['type'] === 'object') return typeof property['properties'] === 'object'
   if (property['type'] === 'array') {
     const items = property['items'] as Record<string, unknown> | undefined
-    return items !== undefined && typeof property['maxItems'] === 'number' && (Array.isArray(items['enum']) || typeof items['pattern'] === 'string' || typeof items['maxLength'] === 'number')
+    // CNT-61: a list of objects says what each holds.
+    return items !== undefined && typeof property['maxItems'] === 'number' && (Array.isArray(items['enum']) || typeof items['pattern'] === 'string' || typeof items['maxLength'] === 'number' || (items['type'] === 'object' && typeof items['properties'] === 'object'))
   }
   return false
 }
@@ -205,7 +207,9 @@ describe('tools/list', () => {
     // 67 since CMD-52: grid_help, which gives a tool whole, so the list can give each tool short.
     // 69 since CNT-60: party walls by a room's side and the neighbours round the plan, which agents
     // could only write as the plan file's JSON, so the 3D views showed a terrace house free-standing.
-    expect((await listed()).length).toBeLessThanOrEqual(69)
+    // 70 since CNT-61: every room of a house furnished with its use's usual set in one call, which
+    // agents did one piece of furniture a call, and gave up before every room was furnished.
+    expect((await listed()).length).toBeLessThanOrEqual(70)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -359,6 +363,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_add_item: { name: 'wardrobe', id: 'robe', room: 'bed2', against: 'north', end: 'west', out: 'robe.json' },
     grid_move_item: { plan: 'robe.json', id: 'robe', against: 'north', end: 'east', out: 'robe-moved.json' },
     grid_remove_item: { plan: 'robe.json', ids: ['robe'], out: 'robe-gone.json' },
+    grid_furnish_rooms: { out: 'furnished.json' },
     grid_place_bays: { plan: 'house.json', group: 'p', room: 'hall', along: 'west', kind: 'motorcycle', out: 'bays.json' },
     grid_add_ramp: { plan: 'house.json', id: 'r', from: 'ground', to: 'first', width: 1.2, run: ['1.2,0.5', '1.2,4.5'], out: 'ramp.json' },
     grid_set_site: { plot_width: 15, plot_depth: 20, streets: ['south'], setbacks: ['all 2'], north: 30, out: 'sited.json' },

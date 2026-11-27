@@ -1,7 +1,7 @@
 /**
  * The items' tools (CNT-45): `grid_add_item` puts a fixture or a piece of furniture against a
  * side of a room, its turn worked out, or at a point; `grid_move_item` moves or turns one;
- * `grid_remove_item` takes items out. Each goes through `writeChange`, as every change does, and
+ * `grid_remove_item` takes items out; `grid_furnish_rooms` (CNT-61) furnishes rooms with their usual sets. Each goes through `writeChange`, as every change does, and
  * answers with the room the item stands in and what Grid's checks say of it. The words are rooms
  * text's own (`item tub bath in bathroom against north, at west`); the changes are `edit/items.ts`.
  */
@@ -12,7 +12,8 @@ import { PathRefused } from '../fs/projectFiles'
 import { addItem, moveItem, removeItems, type ItemPlace } from '../edit/items'
 import { addFixtureSet, typicalRoomOf } from '../edit/fixtureSets'
 import { libraryFor } from '../library/office'
-import { FLOOR_ARG, BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, objectSchema, PLAN_ARG, planFileOf, projectOf, STRING, ToolRefusal, type ArgSpecs, type GridTool, type ToolContext } from './toolkit'
+import { FLOOR_ARG, BOOLEAN, DECIMAL_IN_ARG, floorArg, ID_MAX, ID_PATTERN, listSchema, NULLABLE_STRING, objectSchema, PLAN_ARG, planFileOf, projectOf, roomArg, STRING, ToolRefusal, type ArgSpecs, type GridTool, type ToolContext } from './toolkit'
+import { furnishRooms, USUAL_SETS } from '../edit/furnish'
 import { EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 import { readSet } from './factsTool'
 
@@ -224,4 +225,56 @@ export const removeItemTool: GridTool = {
   },
 }
 
-export const ITEM_TOOLS: readonly GridTool[] = [addItemTool, moveItemTool, removeItemTool]
+/** CNT-61: the most rooms one furnishing names. */
+const FURNISH_ROOMS_MOST = 500
+
+export const furnishRoomsTool: GridTool = {
+  name: 'grid_furnish_rooms',
+  title: 'Furnish rooms with their usual sets',
+  hint: 'change-plan',
+  description:
+    'Use this when the person asks to furnish a plan or several rooms at once: "furnish the house", "put beds in the bedrooms and fit out the bathrooms and the kitchen", "furnish bed1 and the living room". '
+    + `Each room in rooms, or when rooms is left out every room whose use has a usual set and that holds no item yet, takes a typical room's set from the library: a bedroom ${USUAL_SETS.bedroom!.join(' (then ')}), a bathroom ${USUAL_SETS.bathroom!.join(' (then ')}), a toilet ${USUAL_SETS.toilet!.join(', ')}, a kitchen ${USUAL_SETS.kitchen!.join(', ')}, a living room ${USUAL_SETS.living!.join(', ')} and a dining room ${USUAL_SETS.dining!.join(', ')}; sets names another typical room for a room (an office's own among them). `
+    + 'A set is placed as it is drawn, its back against a side of the room (centred, then at each end), where Grid\'s fit checks find every item clear of the walls, the doors and the other items; a set of fixtures that fits nowhere so is set out item by item against the sides, and furniture that fits nowhere is left out and said why. Kinds a room holds already are left out of its set. It answers room by room with the set, where it went and what was left out. '
+    + 'Do not use for one item or a list of them at points (grid_place_item items), or for desks or seats repeated at a pitch (grid_fill_room). Sizes are the library\'s, in metres. It replaces the plan file unless out is given.',
+  args: {
+    plan: PLAN_ARG,
+    rooms: { type: 'array', description: 'The rooms to furnish, by id. Left out, every room whose use has a usual set and that holds no item yet.', examples: [['bed1', 'bed2', 'bath', 'kitchen', 'living']], items: { id: true }, minItems: 1, maxItems: FURNISH_ROOMS_MOST },
+    sets: {
+      type: 'object',
+      description: 'A typical room\'s name for a room, by the room\'s id, in place of its use\'s usual set: {"bed3": "single-bedroom", "study": "double-bedroom"}. grid_measure what=library lists them.',
+      examples: [{ bed3: 'single-bedroom' }],
+      schema: { type: 'object', properties: {}, additionalProperties: { type: 'string', pattern: ID_PATTERN, maxLength: ID_MAX }, maxProperties: FURNISH_ROOMS_MOST },
+      read: (value) => {
+        const entries = Object.entries(value as Record<string, unknown>)
+        if (entries.length > FURNISH_ROOMS_MOST) throw new ToolRefusal(`sets names at most ${FURNISH_ROOMS_MOST} rooms.`)
+        for (const [room, set] of entries) if (typeof set !== 'string' || set === '') throw new ToolRefusal(`sets gives each room a typical room's name: ${JSON.stringify(room)} has none.`)
+        return Object.fromEntries(entries)
+      },
+    },
+    out: OUT_ARG,
+  },
+  outputSchema: {
+    ...EDIT_OUTPUT,
+    properties: {
+      ...(EDIT_OUTPUT['properties'] as Record<string, unknown>),
+      placed: listSchema(STRING),
+      fits: BOOLEAN,
+      notFurnished: listSchema(STRING),
+      rooms: listSchema(objectSchema({ room: STRING, set: NULLABLE_STRING, how: { type: 'string', enum: ['as-drawn', 'item-by-item', 'not-furnished'] }, placed: listSchema(STRING) })),
+    },
+  },
+  run(args, context) {
+    outFirst(context, args)
+    const project = projectOf(context)
+    const file = planFileOf(project, args['plan'])
+    return writeChange(context, args, (survey) => {
+      const { library, problems } = libraryFor(project, file, survey.plan)
+      const rooms = args['rooms'] === undefined ? undefined : (args['rooms'] as string[]).map((room) => roomArg(survey.plan, room, 'each item of rooms'))
+      const sets = args['sets'] === undefined ? undefined : Object.fromEntries(Object.entries(args['sets'] as Record<string, string>).map(([room, set]) => [roomArg(survey.plan, room, 'each room of sets'), set]))
+      return furnishRooms(survey, library, { ...(rooms === undefined ? {} : { rooms }), ...(sets === undefined ? {} : { sets }) }, problems)
+    })
+  },
+}
+
+export const ITEM_TOOLS: readonly GridTool[] = [addItemTool, moveItemTool, removeItemTool, furnishRoomsTool]
