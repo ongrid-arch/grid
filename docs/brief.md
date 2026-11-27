@@ -71,7 +71,11 @@ here too, as by every tool, and no brief is written.
   what is still to ask in `about`.
 
 A wish Grid cannot read is refused naming its place (`rooms[2].area must be a number of square
-metres above 0…`), never repeating the person's words, and nothing is written.
+metres above 0…`), never repeating the person's words. It names every fault of that wish, not
+the first, joined by `;` (MSG-33). The wish is left out and returned in `refused`; the other
+wishes are written. A field the brief does not take (`notes`), a list that is no list and figures
+that are no object are refused lines of their own the same way, and the rest is kept. Only a
+brief with no wish Grid can read, or a wrong `version`, writes nothing.
 
 ## The person's own figures
 

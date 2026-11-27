@@ -6,6 +6,7 @@ export { compileRoomsText, SIZE_BASES, type CompileOptions, type DerivedWallFact
 export { layOut, LAYOUT_SHAPES, LayoutRefused, type Layout, type LayoutRequest, type LayoutRoom, type LayoutShape, type LayoutTouch, type PlacedRoom } from './layout'
 export { readRoomsText, type ReadOptions, type RoomsReading } from './read'
 export { problemLines, roomsAnswer } from './answer'
+export { everyProblem, EVERY_PROBLEM_ROUNDS } from './everyProblem'
 export { boundariesEdited, boundaryPrint, keptDerived, planRevision, stampFor, type WrittenStamp } from './stamp'
 export { carryFacts, type FactsCarried } from './facts'
 export { plainIdsFor, withPlainIds } from './ids'

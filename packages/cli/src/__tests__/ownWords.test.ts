@@ -230,7 +230,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/tidyTool.ts': [15, 'tools'],
   // MSG-24: grid_words, its description, arguments, answers, refusals and the hint other answers add.
   'packages/cli/src/mcp/wordsTool.ts': [31, 'tools'],
-  'packages/cli/src/mcp/toolkit.ts': [28, 'agent'],
+  // MSG-33: one more, the head of a refusal that lists every fault of a call.
+  'packages/cli/src/mcp/toolkit.ts': [29, 'agent'],
   // CMD-39: the whole and page arguments every tool takes, and left_out in the output schemas.
   'packages/cli/src/mcp/budget.ts': [3, 'agent'],
   // WRT-73: the three phase tools, their arguments and refusals.
