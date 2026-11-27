@@ -3496,6 +3496,7 @@ export const en = {
   'sheet.nothingFound': 'That only means these checks found nothing, not that the plan meets any rule.',
   'sheet.roomSchedule': 'Room schedule',
   'sheet.roomSchedule.heading': 'Room schedule / {unit}',
+  'schedule.openings.removals': 'To be removed',
   'sheet.openingSchedule': 'Door and window schedule',
   'sheet.openingSchedule.heading': 'Door and window schedule / count',
   'sheet.useNotSaid': 'use not said',
