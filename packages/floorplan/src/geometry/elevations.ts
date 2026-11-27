@@ -15,6 +15,7 @@ import { planBuildings } from './buildings'
 import { outdoorOnlyWalls } from './outdoor'
 import { tolerance, tolerancesAsStated } from './tolerances'
 import { landscapeWalls } from './landscape'
+import { raisedByRoom } from './roomTops'
 import type { PlanEnvelope } from './envelope'
 import { inPieces } from './polygons'
 import { wallLength, wallPointAt } from './wall'
@@ -180,11 +181,17 @@ export function tallestDrawnWall(plan: FloorPlan, floor: Floor): number {
     const landscape = landscapeWalls(slice, index)
     const open = { has: (id: string): boolean => fenced.has(id) || landscape.has(id) }
     let tallest = 0
+    // LVL-26: a wall a room's own height raises or stops is the room's: the storey is as tall as
+    // the other walls, unless every wall is a room's.
+    let ownRooms = 0
     for (const wall of slice.walls) {
       // LVL-6: a wall the floor's roof cuts is as tall as the roof leaves it.
-      if (isDrawnWall(wall, broken) && !open.has(wall.id)) tallest = Math.max(tallest, wallPeak(slice, wall))
+      if (!isDrawnWall(wall, broken) || open.has(wall.id)) continue
+      const peak = wallPeak(slice, wall)
+      if (raisedByRoom(wall, index)) ownRooms = Math.max(ownRooms, peak)
+      else tallest = Math.max(tallest, peak)
     }
-    return tallest
+    return tallest > 0 ? tallest : ownRooms
   } catch {
     return 0
   }

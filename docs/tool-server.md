@@ -95,6 +95,8 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_add_ramp` | Adds a ramp between two floors (`from`, `to`, `width`), by the same words as a rooms text `ramp` line: straight in its room (`room`, `runs`, `along`), a helix (`shape` helix, `at`, `radius`, `turns`, `starts`, `clockwise`) or along its own middle line (`run`); answers with its rise, its length along the middle line and its slope, and refuses one that does not fit its room |
 | `grid_set_site` | Sets the plot's boundary (its corners, or a width and depth, centred on the building when not placed, and said), the edges on a street (by the side of the drawing they face, or by number), the person's own set-backs, north (degrees, or where the arrow points) and where the building is on the earth, each only when given, `remove` taking one out; answers with the plot as `grid_measure what=site` gives it: its area (in acres too on a plan in feet and inches), the coverage and what it counts, and each edge's distance against its set-back ([below](#the-plot-distances-to-the-boundary-and-the-coverage)) |
 | `grid_change_site` | Adds, moves (`by` or `to`), resizes or removes one of the site's things, a tree, a path, paving, a pool, a fence or a gate, keeping the rest of it as written, and says when it stands outside the plot's boundary. Things are drawn only ([below](#the-plot-distances-to-the-boundary-and-the-coverage)) |
+| `grid_set_party_wall` | Makes the walls on a room's side (`room`, `side`, as rooms text names a side), or the `walls` named by id, party walls (CNT-60): kind `separating`, with `beyond` a `neighbour` (the default) or a `common` part of the building not drawn; `clear` makes them ordinary walls again, outside or inside as their rooms give them. The 3D views and the GLB draw a party wall as a cut |
+| `grid_change_neighbour` | Adds, moves (`by` or `to`), resizes or removes one neighbouring building or other shape drawn round the plan for context (CNT-60, `context` in the plan): its outline (`points`, or a box by `at`, `width` and `depth`), its `height`, the `floor` it stands on (left out, the ground) and its `name`. Drawn only: a mass in the 3D views and the GLB, in no area, check or count |
 | `grid_set_plan` | Sets what the person says about the plan as a whole in one call (CNT-50): the plan's `name`, the site's own name (`site_name`) and `address`, kept as written and never looked up, the `country`, north (`north` or `north_points`), the `language` Grid writes in, how lengths (`units`: m, cm, mm or ft-in) and areas (`area`) are shown, the `decimal_mark` and the `precision`, which never change a stored number, and floor names (`floor_names`, each `<floor id>=<name>`); each only when given, `remove` taking one out. Answers with the settings as the plan now holds them (`settings`). `grid_set_site` takes `address` and `site_name` too |
 | `grid_place_trace` | Sets the plan's trace image (`image`, a `.png`, `.jpg`, `.jpeg` or a `.pdf` with its `pdf_page`, inside the project folder), the floor it lies under and its `opacity`, and places, scales and turns it: `at` and `rotation`; `scale` in metres per pixel, or `calibrate_from`, `calibrate_to` and `length` (two pixels on it, such as a scale bar's ends, and how far apart they are on the building), or `pin_pixels` with `pin_points` (two of its pixels and the two points of the plan they show, which set its corner, turn and scale together); keeps what a call does not give, `remove` takes it out, and answers with where it now lies, as `grid_view` says it ([a trace image under the plan](plan-file.md#a-trace-image-under-the-plan)) |
 | `grid_annotate` | Places notes, tags, symbols, the key, routes drawn as arrows and sketch items on the drawing, by floor, in a room or at a point: one from its own arguments (`kind`, `text`, `at`, `room`, `points`, `category`, ...) or many as rooms text lines (`lines`), and takes them out by id (`remove`); answers with each entry placed, its id, what it is, where and on which floor, and what each floor carries. Drawn and exported only ([plan-file.md](plan-file.md#writing-on-the-drawing-and-the-sketch-layer)) |
@@ -1267,3 +1269,16 @@ many short ones.
 
 Calls are still answered one after the other, in the order they came in: a call that works out a
 large plan runs to its end before the next is answered.
+
+## A sheet's progress
+
+A sheet is made from the plan the call read, frozen, so what the geometry works out for its
+drawings (the building's envelope, each elevation and each section) is kept with the plan in a
+store of its own (`KEPT_DRAWN` in `packages/floorplan/src/geometry/kept.ts`, `KEPT_DRAWN_PER_PLAN`
+answers per plan) and worked out once for the whole sheet (SHT-25). Each page's pictures are drawn
+once for the PDF and its preview.
+
+When a `grid_sheet` request's `_meta` carries a `progressToken` (a string of up to 64 characters
+or a whole number), the server sends one `notifications/progress` line per page before the answer:
+`progress` is the pages done, `total` the pages, and `message` "Page n of m" in the sheet's
+language. A request without a token gets none.

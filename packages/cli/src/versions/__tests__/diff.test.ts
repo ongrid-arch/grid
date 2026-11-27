@@ -4,6 +4,8 @@ import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
+import { indexPlan, validatePlan } from '@ongrid/floorplan/geometry'
+import { parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { runGrid } from '../../command/main'
 import { openProject } from '../../fs/projectFiles'
 import { bench } from '../../mcp/__tests__/replay/harness'
@@ -247,8 +249,17 @@ describe('a mezzanine written again lower down (WRT-25)', () => {
     const run = await grid(dir, 'diff')
     expect(run.status, run.err).toBe(0)
     // VEW-33: the ground floor's walls now rise past the lowered mezzanine, and the check says so.
-    expect(run.out).toContain('Verdict: 2 issues to look at first. 1 change, room by room: Floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m; 2 rooms as they were.')
+    // LVL-26: and the 13 m south and west walls of the ground floor run through the mezzanine's own
+    // south and west walls (same line, both 0.3 m thick, for 6.30 m and 4.30 m), one wall counted on
+    // two floors: two more, wall/same-space.
+    expect(run.out).toContain('Verdict: 4 issues to look at first. 1 change, room by room: Floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m; 2 rooms as they were.')
     expect(run.out).not.toContain('wall or opening change')
+    const doubled = (elevation: string): string[] => {
+      const plan = parseFloorPlan(compileRoomsText(text(elevation)).plan)
+      return validatePlan(plan, indexPlan(plan)).issues.filter((i) => i.code === 'wall/same-space').map((i) => i.id).sort()
+    }
+    expect(doubled('4.25')).toEqual(['ground-ext-south', 'ground-ext-west'])
+    expect(doubled('13.75')).toEqual([])
     const data = JSON.parse((await grid(dir, 'diff', '--json')).out) as { sameBuilding: boolean; floors: unknown[] }
     expect(data.sameBuilding).toBe(false)
     expect(data.floors).toEqual([expect.objectContaining({ floor: 'mezz', elevation: { before: 13.75, after: 4.25 }, stands: { before: 13.75, after: 4.25 } })])

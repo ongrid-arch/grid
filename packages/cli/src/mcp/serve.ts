@@ -16,7 +16,8 @@ export function startToolServer(tools: readonly ServerTool[] = [], resources: re
   let queue: Promise<void> = Promise.resolve()
 
   lines.on('line', (line) => {
-    const out = handleLine(line, tools, resources)
+    // SHT-25: a progress line goes out at once, while the call it is about is still worked out.
+    const out = handleLine(line, tools, resources, (note) => process.stdout.write(`${note}\n`))
     queue = queue.then(async () => {
       const answer = await out
       if (answer !== null) process.stdout.write(`${answer}\n`)

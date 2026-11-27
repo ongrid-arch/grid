@@ -468,6 +468,15 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_change_site', { plan: '@', action: 'add', kind: 'tree', at: '1,1' }), given: asIs },
     { arg: 'out', call: tool('grid_change_site', { plan: PLAN, action: 'add', kind: 'tree', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // CNT-60: party walls and the buildings round the plan, written into the plan.
+  grid_set_party_wall: [
+    { arg: 'plan', call: tool('grid_set_party_wall', { plan: '@', room: 'kitchen', side: 'east' }), given: asIs },
+    { arg: 'out', call: tool('grid_set_party_wall', { plan: PLAN, room: 'kitchen', side: 'east', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  grid_change_neighbour: [
+    { arg: 'plan', call: tool('grid_change_neighbour', { plan: '@', action: 'add', at: '20,0', width: 6, depth: 9 }), given: asIs },
+    { arg: 'out', call: tool('grid_change_neighbour', { plan: PLAN, action: 'add', at: '20,0', width: 6, depth: 9, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-50: the plan's own settings.
   grid_set_plan: [
     { arg: 'plan', call: tool('grid_set_plan', { plan: '@', address: '1 Main Street' }), given: asIs },

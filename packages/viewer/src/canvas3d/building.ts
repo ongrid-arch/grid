@@ -11,7 +11,9 @@ import {
   planStairs,
   sceneGround,
   sceneShell,
+  siteScene,
   type BuildingElevations,
+  type SiteBlock,
   type Scene3D,
   type SceneGround
 } from '@ongrid/floorplan/geometry'
@@ -172,6 +174,13 @@ export interface BuildingGround {
   readonly pieces: SceneGround['pieces']
   /** CNT-49: on a slope, the ground's rise over `y` at a point of the plan (`sceneGround`'s tilt). */
   readonly tilt?: SceneGround['tilt']
+  /**
+   * CNT-60: the site's blocks (`siteScene`): neighbours, fences, paths, paving, trees and pools'
+   * water, their heights moved as the ground's are, so they stand on it.
+   */
+  readonly site: readonly SiteBlock[]
+  /** CNT-60: the pieces are the plot the site states, drawn in the ground's own colour (`PLOT_COLOR`). */
+  readonly plot?: true
 }
 
 /**
@@ -185,7 +194,13 @@ export function buildingGround(plan: FloorPlan, layout: BuildingLayout, elevatio
   // One storey is always the one shown, as a cutaway is.
   const focused = layout.focus === null ? undefined : elevations.floors.get(layout.focus)
   const buried = focused !== undefined && ground.level - focused.floorLevel > tolerance('sameFloorLevel')
-  return { y: ground.level - offset, pieces: buried ? [] : ground.pieces, ...(ground.tilt === undefined ? {} : { tilt: ground.tilt }) }
+  let site: readonly SiteBlock[] = []
+  try {
+    site = siteScene(plan, elevations).blocks.map((block) => (offset === 0 ? block : { ...block, bottom: block.bottom - offset, top: block.top - offset }))
+  } catch {
+    // No site drawn.
+  }
+  return { y: ground.level - offset, pieces: buried ? [] : ground.pieces, ...(ground.tilt === undefined ? {} : { tilt: ground.tilt }), site, ...(ground.plot === true ? { plot: true as const } : {}) }
 }
 
 type Vec3 = [number, number, number]

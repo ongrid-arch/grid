@@ -70,8 +70,9 @@ export interface Patch {
    * Walls changed, by id: their centre line's new ends, as Grid reads the plan, and their kind.
    * HND-11: `mirrored` turns a wall placed by its face over to its other face, as a mirror does.
    * CNT-18: `arc`, a curved wall's new centre and sweep. CMD-47: `through`, the floor it now rises through.
+   * CNT-60: `beyond`, what lies past a party wall.
    */
-  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null; properties?: Readonly<Record<string, string | number | boolean>> | null; through?: string }>
+  readonly walls: ReadonlyMap<string, { start?: Pair; end?: Pair; kind?: Wall['kind'] | null; beyond?: Wall['beyond'] | null; mirrored?: boolean; arc?: { centre: Pair; sweep: number }; phase?: Wall['phase']; wallType?: string | null; thickness?: number | null; height?: null; properties?: Readonly<Record<string, string | number | boolean>> | null; through?: string }>
   readonly openings: ReadonlyMap<string, OpeningChange>
   readonly removeOpenings: ReadonlySet<string>
   readonly rooms: ReadonlyMap<string, RoomChange>

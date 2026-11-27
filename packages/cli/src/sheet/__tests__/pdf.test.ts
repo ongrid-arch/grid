@@ -85,6 +85,44 @@ describe('the sheet as a PDF (VEW-7)', () => {
     expect(pageCount((await sheetPdf(plan, sheet)).pdf)).toBe((await layoutSheet(sheet)).pages.length)
   }, 60_000)
 
+  it('wraps a text that fits its line whole to that one line, and every text to the lines word by word gives (SHT-25)', async () => {
+    const canvas = await loadCanvas()
+    registerSheetFonts(canvas)
+    const ctx = canvas.createCanvas(10, 10).getContext('2d')
+    // The greedy wrap word by word, as the sheet wrapped every text before SHT-25.
+    const byWords = (text: string, width: number): string[] => {
+      const lines: string[] = []
+      let line = ''
+      for (const word of text.split(' ')) {
+        const parts: string[] = []
+        if (ctx.measureText(word).width > width) {
+          let part = ''
+          for (const char of word) {
+            if (part && ctx.measureText(part + char).width > width) { parts.push(part); part = char } else part += char
+          }
+          if (part) parts.push(part)
+        } else parts.push(word)
+        for (const [i, part] of parts.entries()) {
+          const joined = line ? `${line} ${part}` : part
+          if (i === 0 && ctx.measureText(joined).width <= width) { line = joined; continue }
+          if (line) lines.push(line)
+          line = part
+        }
+      }
+      if (line) lines.push(line)
+      return lines
+    }
+    const texts = ['Office · office 16.00 m² · r0_1_2', 'Kitchen', '', ' A leading space', 'Two  spaces between', 'A trailing space ', 'Wall w12 meets wall w13 at a corner that is not drawn, so the room is left open on that side.', 'W'.repeat(60)]
+    for (const width of [40, 120, 300, 900]) {
+      for (const [family, size] of [[SANS, 11], [SERIF, 34]] as const) {
+        ctx.font = `${size}px "${family}"`
+        for (const text of texts) expect(wrapLines(ctx, text, width), `${text} at ${width}`).toEqual(byWords(text, width))
+      }
+    }
+    ctx.font = `11px "${SANS}"`
+    expect(wrapLines(ctx, 'Office · office 16.00 m²', 900)).toEqual(['Office · office 16.00 m²'])
+  }, 30_000)
+
   it('keeps every floor picture above the footer, at one size, when a floor title wraps', async () => {
     const base = checkSheet()
     const long = 'Wide floor name '.repeat(8).slice(0, 120)

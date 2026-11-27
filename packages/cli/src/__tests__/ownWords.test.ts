@@ -118,6 +118,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-59: one more, a plan with nothing to mirror or turn.
   // WRT-73: one more, a mirror's line when it keeps the north.
   // CMD-50: two fewer, a side named as rooms text names it is refused from the message files.
+  // CNT-60: party walls and neighbours changed, their receipts and refusals.
+  'packages/cli/src/edit/context.ts': [24, 'notYet'],
   'packages/cli/src/edit/edits.ts': [64, 'notYet'],
   // WRT-59: the notes an edit caused, opening its answer.
   'packages/cli/src/edit/caused.ts': [1, 'notYet'],
@@ -261,6 +263,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-49: ten more, the ground on a slope in grid_set_site's help, arguments and refusals.
   // CNT-50: two more, the site's address and its own name.
   'packages/cli/src/mcp/siteTools.ts': [57, 'tools'],
+  // CNT-60: grid_set_party_wall and grid_change_neighbour.
+  'packages/cli/src/mcp/contextTools.ts': [29, 'tools'],
   // CNT-50: grid_set_plan, its description, arguments and refusals.
   'packages/cli/src/mcp/planTool.ts': [21, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
@@ -419,7 +423,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-83: two more, what gridArcStep decides.
   // CNT-58: seventeen more, what the sun's figures decide.
   // VEW-82: four more, what wallPieceShortest, doorOpenAngle and cameraNear decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [417, 'developer'],
+  // CNT-60: nine more, what the site's figures drawn in 3D decide.
+  // LVL-26: two more, what sameSpaceAlong decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [428, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -439,7 +445,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-55: nine fewer, the gap, touching, overlap and wall-line refusals moved too.
   // WRT-66: one fewer, the corner cut's refusal that does not fit moved too.
   // WRT-69: one fewer, the walls line's word it cannot read moved into the message files.
-  'packages/floorplan/src/rooms/compile.ts': [102, 'notYet'],
+  'packages/floorplan/src/rooms/compile.ts': [101, 'notYet'],
   'packages/floorplan/src/rooms/layout.ts': [4, 'notYet'],
   // WRT-42: one fewer, the raw floor's comment line, now in the messages.
   // WRT-81: one more, a part read back in another phase.
@@ -648,12 +654,14 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-58 75: the sun's path and shadows (quantities/sunPath.ts 36, mcp/sunArgs.ts 12), grid_view's,
     // grid_export's and eye's sun and compass words (mcp/readTools.ts 5, mcp/writeTools.ts 2, mcp/eyeAnswer.ts 2,
     // command/export.ts 1) and what the sun's figures decide (geometry/tolerances.ts 17) (odd/tasks/CNT-58.md).
+    // and CNT-60 62: party walls and neighbours changed (edit/context.ts 24), their tools
+    // (mcp/contextTools.ts 29) and what the site's figures drawn in 3D decide (geometry/tolerances.ts 9) (odd/tasks/CNT-60.md).
     // and CMD-52 23: grid_help (mcp/helpTool.ts 15), the tool groups and --tools's refusals
     // (mcp/toolGroups.ts 7) and the help of --tools (command/main.ts 1) (odd/tasks/CMD-52.md).
     // and VEW-82 11: grid export's and grid_export's doors and walls (command/export.ts 4,
     // mcp/writeTools.ts 3) and what their figures decide (geometry/tolerances.ts 4) (odd/tasks/VEW-82.md).
     // and CMD-53 4: the columns' and a standing part's room fields (quantities/query.ts 4) (odd/tasks/CMD-53.md).
-    expect(left).toBeLessThanOrEqual(2710)
+    expect(left).toBeLessThanOrEqual(2772)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

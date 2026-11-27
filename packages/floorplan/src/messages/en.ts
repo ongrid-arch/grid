@@ -263,6 +263,8 @@ export const en = {
   'issue.floor/empty-top.default': '{height} m high, the default',
   'issue.wall/above-storey':
     'Wall {wall} is {height} m high, {over} m higher than floor {floor}, which states it is {storey} m high. The storey and the roof stay where the floor puts them; if the wall really is taller, raise the floor\'s height.',
+  'issue.wall/same-space':
+    'Wall {wall} on floor {floor} is {height} m high, so it rises {past} m past the level of floor {over}, where wall {other} stands in the same place for {along} m: the two floors count one wall twice. Stop wall {wall} at its storey, or take wall {other} out.',
   'issue.floor/size-question':
     'Floor {floor} states it is {height} m high: is that meant? Grid asks about a storey {bound}{home}, and its walls with no height of their own take it.',
   'issue.floor/size-question.higher': 'higher than {limit} m',
@@ -1097,6 +1099,9 @@ export const en = {
   'line.wall/above-storey.says': '{label} is higher than the storey its floor states',
   'line.wall/above-storey.needed': 'walls no higher than their floor\'s stated height',
   'line.wall/above-storey.fix': 'Lower the wall, or raise the floor\'s height if the wall really is taller.',
+  'line.wall/same-space.says': '{label} rises into the space of a wall on a floor above it',
+  'line.wall/same-space.needed': 'each wall standing on one floor only',
+  'line.wall/same-space.fix': 'Stop the lower wall at its storey, or take the wall above out of its floor.',
   'line.opening/too-large.says': '{label} has a number Grid does not accept',
   'line.opening/too-large.needed': 'finite numbers within the size Grid accepts',
   'line.opening/too-large.fix': 'Correct the number. Every size is in metres.',
@@ -2310,6 +2315,7 @@ export const en = {
   'describe.beyond.nothing': 'nothing drawn',
   'describe.beyond.left': 'a room left out',
   'describe.room': '{room}: {size}, {area} m², at {at}.',
+  'describe.room.level': ' Its floor is at {level} m and it is {height} m high to its ceiling.',
   'describe.room.next': ' Next to {rooms}.',
   'describe.room.odd': 'not a rectangle, {size} at its widest',
   // CMD-49: a room said by the shape a person names, not the box round it.
@@ -2570,6 +2576,11 @@ export const en = {
     "Line {line}: this walls line comes after rooms of floor '{floor}', which keeps the walls it started with (outside {outside} m, inside {inside} m). It is for the floors written after it; to change floor '{floor}' too, write it before that floor's first room.",
   'rooms.wallsLate.height':
     "Line {line}: this walls line comes after rooms of floor '{floor}', which keeps the walls it started with (outside {outside} m, inside {inside} m, height {height} m). It is for the floors written after it; to change floor '{floor}' too, write it before that floor's first room.",
+  // LVL-26: a walltype line, and a room that would rise into a floor written above it.
+  'rooms.walltype.syntax':
+    "line {line}: write 'walltype <thickness> <interior|partition|exterior> [height <h>]': every inside wall of that thickness gets that kind, and every wall of it that height.",
+  'rooms.heightIntoFloor':
+    "Line {line}: room '{room}' is {height} m high, so it rises past floor '{floor}', {level} m above its floor, where room '{other}' (line {otherLine}) stands over {area} m² of it. The two would stand in the same space. Lower the room's height to its storey, write that part of floor '{floor}' as a void, or move room '{other}'.",
   'rooms.wallsHeight':
     "Floor '{floor}' states its height, {floorHeight} m, so its walls are {floorHeight} m high, not the {height} m of the walls line (line {line}). The walls line's height is for floors that state none; to give this floor's walls {height} m, write 'height {height}' on its floor line.",
   // CNT-36: a dividing line or an open side needs a side the two rooms share.
@@ -3641,6 +3652,7 @@ export const en = {
 
   /** The month names of the sheet's date, in order, between spaces. */
   'sheet.months': 'JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC',
+  'sheet.progress.page': 'Page {done} of {total}',
   'sheet.continued': '{title} (continued)',
   'sheet.undecided': 'A door drawn with a dashed line and "?" has no stated swing yet.',
   /** The note under a drawing: `{left}` is what this floor's drawing really leaves out (SHT-13). */
