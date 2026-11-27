@@ -1272,6 +1272,23 @@ centre lines). Both looks draw it, so it is on the screen, in every picture, on 
 with the other dimensions. It is in no measure, check or count, and places no column: a column
 states its own `at`.
 
+A grid may be radial (WRT-83): it states `polar` with its first ring's `radius`. Its `origin` is
+then its centre, its `x` lines are rays out from it, the first at `turn` degrees and each `spacing`
+degrees counter-clockwise past the one before (less than 360 in all, else refused), and its `y`
+lines are rings, the first `radius` metres out and each `spacing` metres past the one before.
+
+```json
+{ "id": "P", "origin": [15, 10], "turn": 0, "x": { "spacing": [45, 45, 45, 45, 45, 45, 45] }, "y": { "spacing": [3] }, "polar": { "radius": 5.9 } }
+```
+
+Each ray runs from `gridOverrun` inside the first ring to past the last, named past its outer end.
+Each ring is an arc from before the first ray to past the last, named past both ends, drawn and
+exported in pieces of at most `gridArcStep` (5 degrees); when the rays go all the way round (the
+gap after the last ray is no wider than the widest between rays), each ring is a whole circle,
+named once in that gap. The rings are dimensioned ring to ring along the first ray. A stretch moves
+a radial grid whole with its centre, or leaves it. Rooms text writes both kinds and sets columns
+out on them ([rooms-first.md](rooms-first.md#structural-grids)).
+
 ## Parking bays and ramps
 
 Read this when the plan holds a car park: a basement, a podium, a garage. A parking bay and a ramp

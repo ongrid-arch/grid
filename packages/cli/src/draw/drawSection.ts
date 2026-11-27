@@ -8,6 +8,7 @@ import type { PlanSection, SectionLine } from '@ongrid/floorplan/geometry/sectio
 import { fileLookOf, pictureToSvg } from '@ongrid/viewer/src/picture/planSvg'
 import { sectionPicture, type SectionPictureOptions } from '@ongrid/viewer/src/picture/section'
 import { pictureToPng } from './drawPlan'
+import { pixelTransform, type PixelTransform } from './pictureTransform'
 import { DEFAULT_LANGUAGE, joined, said, say, type Language } from '@ongrid/floorplan/messages'
 
 export type DrawSectionOptions = SectionPictureOptions & ({ readonly format: 'svg' } | { readonly format: 'png'; readonly scale?: number })
@@ -16,11 +17,12 @@ export type DrawSectionOptions = SectionPictureOptions & ({ readonly format: 'sv
  * The section as a file's text (SVG) or bytes (PNG), with the section it was drawn from and the
  * line `grid draw` prints on standard error about what it took.
  */
-export async function drawSection(plan: FloorPlan, line: SectionLine, options: DrawSectionOptions): Promise<{ file: string | Uint8Array; section: PlanSection; note: string | null }> {
+export async function drawSection(plan: FloorPlan, line: SectionLine, options: DrawSectionOptions): Promise<{ file: string | Uint8Array; section: PlanSection; note: string | null; pixelToMetres: PixelTransform }> {
   // SHT-10: a file is drawn on light paper, whatever the screen's theme.
   const picture = sectionPicture(plan, line, { ...options, look: fileLookOf(options.look) })
-  const file = options.format === 'svg' ? pictureToSvg(picture) : await pictureToPng(picture, { scale: options.scale ?? 1 })
-  return { file, section: picture.section, note: sectionNote(picture.section, picture.language ?? DEFAULT_LANGUAGE) }
+  const scale = options.format === 'png' ? options.scale ?? 1 : 1
+  const file = options.format === 'svg' ? pictureToSvg(picture) : await pictureToPng(picture, { scale })
+  return { file, pixelToMetres: pixelTransform(picture, 'section', { scale }), section: picture.section, note: sectionNote(picture.section, picture.language ?? DEFAULT_LANGUAGE) }
 }
 
 /**

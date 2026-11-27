@@ -72,12 +72,12 @@ describe('the app and grid draw draw the same SVG', () => {
 
   it('through the function grid draw calls, with what went wrong, where the floor drawn has nothing to mark', async () => {
     // `drawFile` marks the result record's lines on the drawing and lists them under it (MSG-8);
-    // the app marks none. On a floor with none of them, the drawing is the app's, byte for byte.
+    // The app uses the selected floor's frame and draws no check marks. Compare with that frame.
     let compared = 0
     for (const name of BUILDINGS) {
       const plan = building(name)
       const loaded = { file: name, plan, issues: [], broken: new Set<string>() }
-      const file = String((await drawFile(loaded, { png: false }, 1)).file)
+      const file = String((await drawFile(loaded, { png: false, frame: 'floor' }, 1)).file)
       const app = appDrawing(plan, 'technical')
       // The plan sits in its own frame above the key and the caption.
       const drawing = FRAMED.exec(file)?.[2]

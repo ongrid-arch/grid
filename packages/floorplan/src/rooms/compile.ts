@@ -137,6 +137,12 @@
  *   column <id> [square|round] <w> [x <d>] at x,y [turn <deg>] [height <m>] [through <floor>] [on <floor>]
  *   columns <group> ... at x,y, count <n> [x <m>], every <s> [x <s>]   raw column { ... }
  *                                                      the plan's columns (WRT-79): `columns.ts`
+ *   columns <group> <w> on grid <grid>   column [<id>] <w> at grid [<grid>] <x>/<y>
+ *   columns [<group>] ring <n> radius <r> [at x,y] [start <deg>] <w>   columns on a grid or in a ring (WRT-83)
+ *   grid <id> ["<name>"] [at x,y] [turn <deg>] x <s> ... [names ...] y <s> ... [names ...] [floors ...]
+ *   grid <id> polar [at x,y] rings <r> ... rays <deg> ...   raw grid { ... }
+ *                                                      the plan's structural grids (WRT-83): `grids.ts`
+ *   module <length>                                     a planning module: a length `5mod` is five of it (WRT-83)
  *   stair <id> ["<name>"] from <floor|room> to <floor|room> in <room>, <w> wide, straight|L|U, runs <side>
  *         [then <side>] [along <side>] [risers <n>]   or   ..., <w> wide, run x,y x,y ...
  *   raw stair { ...Grid's own JSON for a stair... }     the plan's stairs (LVL-21): `stairs.ts`
@@ -196,6 +202,7 @@ import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repea
 import { PARKING_LINE_WORDS, ParkingLines } from './parking'
 import { isRooflightLine, ROOF_LINE_WORDS, RoofLines, roofOfWords, rooflightOfWords } from './roofs'
 import { COLUMN_LINE_WORDS, ColumnLines } from './columns'
+import { GRID_LINE_WORDS, GridLines } from './grids'
 import { likelyMeant } from '../types/nearest'
 import { bandShape, bowedSide, circleShape, rawWallEnds, cornerCount, curvedArea, curveOfPiece, curveWalls, facingAngle, frameAt, ovalShape, segmentShape, stationAt, type CurveCircle, type CurvedShape, type CurvedWall } from './curves'
 import { readingNotes } from '../types/reading'
@@ -208,7 +215,7 @@ type WrittenWall = Omit<Wall, 'height' | 'unstated'> & { height?: number }
 export const RAW_FLOOR_KEYS: readonly string[] = ['roof', 'parapet', 'outline', 'homes', 'parking']
 
 /** WRT-68: the kinds a `raw` line takes, written after it in small letters. */
-const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS, 'bay', 'ramp', 'note', 'sketch', 'column']
+const RAW_KINDS: readonly string[] = ['wall', 'room', 'opening', 'floor', 'stair', ...RAW_ITEM_KINDS, 'bay', 'ramp', 'note', 'sketch', 'column', 'grid']
 
 /**
  * WRT-48: where a part a `raw` line cannot hold goes instead, by the word written after `raw`:
@@ -239,7 +246,6 @@ const RAW_ELSEWHERE: Readonly<Record<string, Said>> = {
   bay: said('rooms.raw.kind.bay'),
   stall: said('rooms.raw.kind.bay'),
   ramp: said('rooms.raw.kind.ramp'),
-  grid: said('rooms.raw.kind.list', { list: 'grids' }),
 }
 
 /** WRT-48: words agents write on a raw wall for a curve, which Grid states as `arc`. */
@@ -979,6 +985,8 @@ class Compiler {
   private readonly roofLines = new RoofLines()
   /** WRT-79: the columns, from their own lines and `raw column` (`columns.ts`). */
   private readonly columnLines = new ColumnLines()
+  /** WRT-83: the structural grids, from their own lines and `raw grid` (`grids.ts`). */
+  private readonly gridLines = new GridLines()
 
   private stop(code: string, at: number | null, message: string): never {
     throw new RoomsStop(code, message, at)
@@ -1025,6 +1033,7 @@ class Compiler {
         else if (kind === 'bay' || kind === 'ramp') this.parkingLines.raw(kind, rest, at)
         else if (kind === 'note' || kind === 'sketch') this.noteLines.raw(kind, rest, at)
         else if (kind === 'column') this.columnLines.raw(rest, at)
+        else if (kind === 'grid') this.gridLines.raw(rest, at)
         else this.rawKind(kind, at)
         continue
       }
@@ -1242,13 +1251,26 @@ class Compiler {
    * own JSON, in metres.
    */
   private plainNumbers(): PlainNumbers {
-    let plain = PLAIN_METRES
+    let plain: PlainNumbers = PLAIN_METRES
     this.lines.forEach((text, i) => {
       if (!/^\s*display\b/.test(text)) return
       const { display, numbers } = displayOfWords(wordsOf(text, i + 1), i + 1)
       plain = { display: display.length ?? 'm', numbers }
     })
-    return plain
+    // WRT-83: the planning module, so every length written `5mod` on any line is five of it.
+    let moduleLine: number | null = null
+    let module: number | undefined
+    this.lines.forEach((text, i) => {
+      if (!/^\s*module\b/.test(text)) return
+      const at = i + 1
+      const t = wordsOf(text, at)
+      if (moduleLine !== null) throw new RoomsStop('rooms/module', english(said('rooms.module.twice', { line: at, first: moduleLine })), at)
+      if (t.length !== 2 || /mod/.test(t[1]!)) throw new RoomsStop('rooms/module', english(said('rooms.module.usage', { line: at })), at)
+      module = numberOf(t[1]!, at, plain)
+      if (!(module > 0)) throw new RoomsStop('rooms/module', english(said('rooms.module.usage', { line: at })), at)
+      moduleLine = at
+    })
+    return module === undefined ? plain : { ...plain, module }
   }
 
   /** WRT-27: a raw wall or room that names a floor the text does not write is refused with its line. */
@@ -1281,6 +1303,9 @@ class Compiler {
     // WRT-79: the floor's roof and its roof lights (`roofs.ts`), and the columns (`columns.ts`).
     if (ROOF_LINE_WORDS.includes(kw)) return this.roofLine(t, at)
     if (COLUMN_LINE_WORDS.includes(kw)) return this.columnLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
+    // WRT-83: a structural grid, straight or radial (`grids.ts`); the planning module is read up front.
+    if (GRID_LINE_WORDS.includes(kw)) return this.gridLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain)
+    if (kw === 'module') return
     switch (kw) {
       case 'plan':
         this.name = t[1] ?? null
@@ -4943,9 +4968,17 @@ class Compiler {
 
   /** WRT-79: the column lines into the plan's `columns`, their ids and floors checked. */
   private emitColumns(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    // WRT-83: the grid lines first, so the columns on a grid are set out on it.
+    const floorIds = (plan.floors ?? []).map((f) => f.id)
+    if (this.gridLines.written) {
+      const grids = this.gridLines.finish(floorIds)
+      this.problems.push(...grids.problems)
+      if (grids.grids !== undefined) plan.grids = grids.grids
+    }
     if (!this.columnLines.written) return
     const taken = new Set([...plan.walls, ...plan.rooms, ...plan.openings, ...(plan.stairs ?? [])].map((x) => x.id))
-    const made = this.columnLines.finish(taken, (plan.floors ?? []).map((f) => f.id))
+    const levels = new Map((plan.floors ?? []).map((f) => [f.id, f.level] as const))
+    const made = this.columnLines.finish(taken, floorIds, this.gridLines.grids(), levels)
     this.problems.push(...made.problems)
     if (made.columns !== undefined) plan.columns = made.columns
   }

@@ -971,9 +971,15 @@ plan.png` as a PNG (`--png` is not needed: the file's ending names the format, a
 needs a browser or the app: both are plain function calls in Node, which a program can make too
 (`drawPlan` in the `ongrid` package; `planToSvg` in `@ongrid/viewer` for the SVG alone).
 
-The drawing is the app's own. The app's 2D view and `grid draw` lay a floor out with one
-function, `planScene` in `@ongrid/viewer`: for the same plan, size and look, the elements the
-app's view holds are, byte for byte, the ones in the SVG file, which only adds its own root and
+Each uncropped floor plan uses the whole building's frame by default. Draw each floor
+with the same look, dimension settings and scale to align the pictures. Use
+`--frame floor` to fit one floor closely. With `--out`, a floor plan, section or
+facade PNG gets a `.pgw` world file beside it. The world file maps pixel centres to
+metres in the plan, section or elevation and follows the PNG's `--scale` setting.
+
+The app's 2D view and `grid draw` lay a floor out with one function, `planScene` in
+`@ongrid/viewer`. With a floor frame and the same plan, size and look, the elements the
+app's view holds are, byte for byte, the ones in the SVG file, which adds its own root and
 a sheet of paper (a test holds this for the lab's eight buildings, in each look). What the
 command adds on top, the marks of what went wrong and the key under them, is in
 [What went wrong, on the drawing](#what-went-wrong-on-the-drawing-grid-draw).

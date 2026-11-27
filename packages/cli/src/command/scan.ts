@@ -26,7 +26,7 @@ import { surveyPlan } from '../quantities/survey'
 import { loadPlan } from './plan'
 import { refuseGridFile } from './planFile'
 import { PLAN_FILE_MAX_BYTES, planTextProblem } from './planText'
-import { differenceLine, nothingToLose, oneLine, refuseReadOnly, RoomsRefused } from './write'
+import { differenceLine, nothingToLose, oneLine, refuseReadOnly, RoomsRefused, originOfWrite, writeOriginLines, type WriteOrigin } from './write'
 import type { TapedRow } from '@ongrid/floorplan/geometry'
 import { TAPED_ROWS_IN_AN_EDIT, tapedRows, tapedTable } from '../taped/table'
 
@@ -40,6 +40,7 @@ export function scanFileOf(planFile: string): string {
 }
 
 export interface ScanWriteDone {
+  readonly origin: WriteOrigin
   readonly written: string
   /** The evidence file, in the project. */
   readonly evidence: string
@@ -171,10 +172,12 @@ export function writeScanIntoProject(project: Project, scanFile: string, planFil
   // HND-11: what was taped on site stays beside the plan, and is held against the scan's walls.
   const taped = tapedRows(now)
 
+  const origin = originOfWrite(now)
   const c = conversion
   const doors = c.plan.openings.length
   const lines = [
     `Wrote ${written} from the scan ${project.shown(project.resolve(scanFile))}: ${count(c.rooms.length, 'room')}, ${count(c.plan.walls.length, 'wall')} (${c.paired.length} between two scanned faces, ${c.oneSided.length} scanned from one side), ${count(doors, 'door or window', 'doors and windows')}${(c.plan.items?.length ?? 0) > 0 ? `, ${count(c.plan.items!.length, 'fixture')}` : ''}.`,
+    ...writeOriginLines(origin),
     `Each room's area against the scan's: ${c.rooms.map((r) => `${JSON.stringify(r.name)} ${m2(r.area)} (the scan's ${r.from} ${m2(r.scanArea)}, ${pct(r.difference)} apart)`).join('; ')}.`,
     `Kept the scan beside the plan as ${evidence}, keyed by its own ids: a re-scan keeps the plan's ids for the parts it finds again.`,
     ...(previous === null ? [] : [matchLine(c, previous.problem)]),
@@ -190,7 +193,7 @@ export function writeScanIntoProject(project: Project, scanFile: string, planFil
     ...brief.text,
     ...(reminder === null ? [] : [reminder]),
   ]
-  return { written, evidence, conversion, plan: now, verdict, drawingProblems, brief: brief.data, reminder, taped, lines }
+  return { written, origin, evidence, conversion, plan: now, verdict, drawingProblems, brief: brief.data, reminder, taped, lines }
 }
 
 function count(n: number, one: string, many = `${one}s`): string {

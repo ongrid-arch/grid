@@ -6,6 +6,9 @@
  *          [through <floor>] [on <floor>] ["<label>"]
  *   columns <group> [square|round] <width> [x <depth>] at x,y, count <n> [x <m>],
  *          every <spacing> [x <spacing>] [turn ...] [height ...] [through ...] [on ...] ["<label>"]
+ *   columns <group> [square|round] <width> [x <depth>] on grid <grid> [...]
+ *   column [<id>] [square|round] <width> [x <depth>] at grid [<grid>] <x line>/<y line> [...]
+ *   columns [<group>] ring <n> radius <r> [at x,y] [start <degrees>] [square|round] <width> [...]
  *   raw column { ...Grid's own JSON for a column... }
  *
  * A round column's width is its diameter; a square one is as deep as it is wide unless `x <depth>`
@@ -14,16 +17,29 @@
  * `<group>-2` and on, row by row from the south-west. `pillar` and `pillars` are read as `column`
  * and `columns`. A column stands on the floor `on` names, else on the floor whose line it is
  * under; on the ground floor, unless `on` says it, the floor is left unstated, as C5 reads it.
+ * WRT-83: a column with no floor, in a text whose floors include no `ground`, stands on the floor
+ * at level 0 (else the lowest), never on a floor the plan does not have.
+ *
+ * WRT-83: `on grid <grid>` stands a column at every crossing of that grid's lines (`grids.ts`),
+ * named `<group>-<x line>-<y line>` (the group `c` when none is written); `at grid 7/B` at one
+ * crossing, on the text's one grid with lines of those names, or the grid named before it (`c-7-B`
+ * when no id is written). On a radial grid the x lines are its rays and the y lines its rings.
+ * `ring <n> radius <r>` sets out n columns evenly round a circle, counter-clockwise from `start`
+ * degrees (from east), round `at`, else round the text's one radial grid's centre, named
+ * `<group>-1` and on (the group `ring` when none is written). A square column on a grid is turned
+ * as the grid is, or as its ray; in a ring, to face the centre. A grid may be written after the
+ * columns on it.
  *
  * The read-back writes each column as a column line in its floor's block (`columnLines`), and
  * raw when its words would not give it back as it is.
  *
  * Pure: words in, columns out, or the reason there are none.
  */
-import { ColumnSchema, COLUMN_SHAPES, DEFAULT_FLOOR_ID, type Column } from '../types/floorplan'
+import { ColumnSchema, COLUMN_SHAPES, DEFAULT_FLOOR_ID, FULL_TURN, type Column, type StructuralGrid } from '../types/floorplan'
+import { gridCrossings, gridLineNames, type GridCrossing } from '../geometry/structuralGrid'
 import { english, said, type MessageKey, type Values } from '../messages/say'
 import { plainId } from '../types/planText'
-import { isPointWord, metres, numberOf, pointOf, RoomsStop, type LineWord, type PlainNumbers } from './words'
+import { isNumberWord, isPointWord, metres, numberOf, pointOf, RoomsStop, type LineWord, type PlainNumbers } from './words'
 
 type P = readonly [number, number]
 
@@ -44,12 +60,34 @@ const refuse = (at: number, key: MessageKey, values: Values = {}): never => {
   throw new RoomsStop('rooms/column', english(said(key, { line: String(at), ...values })), at)
 }
 
+/** WRT-83: the words that may follow `column` or `columns` straight away when no id is written. */
+const NO_ID_WORDS: readonly string[] = ['at', 'on', 'ring', ...COLUMN_SHAPES]
+
+/** WRT-83: a crossing as an id's part: plain letters, digits, `.`, `_` and `-`. */
+const idPart = (name: string): string => plainId(name).replace(/[^A-Za-z0-9._-]/g, '')
+
+/** WRT-83: where a column line's columns go once the grids are known: every crossing, one, or a ring. */
+type Placing =
+  | { readonly kind: 'crossings'; readonly grid: string }
+  | { readonly kind: 'crossing'; readonly grid: string | null; readonly x: string; readonly y: string; readonly ref: string }
+  | { readonly kind: 'ring'; readonly count: number; readonly radius: number; readonly centre: P | null; readonly start: number }
+
+/** What one column or columns line writes, before its floor is known: its columns, or how to place them on a grid. */
+interface ColumnWords {
+  readonly columns: Omit<Column, 'floor'>[]
+  readonly on?: string
+  /** WRT-83: the columns placed once the grids are known. */
+  readonly place?: (grids: readonly StructuralGrid[]) => Omit<Column, 'floor'>[]
+}
+
 /** The columns one column or columns line writes, before their floor is known. */
-function columnsOfWords(t: readonly string[], quoted: readonly LineWord[], at: number, plain: PlainNumbers): { columns: Omit<Column, 'floor'>[]; on?: string } {
+function columnsOfWords(t: readonly string[], quoted: readonly LineWord[], at: number, plain: PlainNumbers): ColumnWords {
   const grid = t[0] === 'columns' || t[0] === 'pillars'
   const forms = said('rooms.column.forms')
-  const id = t[1]
-  if (id === undefined || quoted[1]?.quoted === true) return refuse(at, 'rooms.column.usage', { forms })
+  // WRT-83: `column at grid 7/B ...`, `columns ring 8 ...`, `columns 0.4 on grid G`: no id written.
+  const unnamed = t[1] !== undefined && quoted[1]?.quoted !== true && (NO_ID_WORDS.includes(t[1]) || isNumberWord(t[1]))
+  const id = unnamed ? undefined : t[1]
+  if (!unnamed && (id === undefined || quoted[1]?.quoted === true)) return refuse(at, 'rooms.column.usage', { forms })
   let shape: Column['shape'] | undefined
   let size: [number, number | undefined] | undefined
   let point: P | undefined
@@ -60,6 +98,10 @@ function columnsOfWords(t: readonly string[], quoted: readonly LineWord[], at: n
   let label: string | undefined
   let count: [number, number] | undefined
   let every: [number, number] | undefined
+  let placing: Placing | undefined
+  let ring: number | undefined
+  let radius: number | undefined
+  let start: number | undefined
   const twice = (word: string, set: unknown): void => {
     if (set !== undefined) refuse(at, 'rooms.column.twice', { word })
   }
@@ -68,7 +110,7 @@ function columnsOfWords(t: readonly string[], quoted: readonly LineWord[], at: n
     if (!Number.isInteger(n) || n < 1) return refuse(at, 'rooms.column.grid')
     return n
   }
-  let i = 2
+  let i = unnamed ? 1 : 2
   while (i < t.length) {
     const w = t[i]!
     const next = t[i + 1]
@@ -80,8 +122,38 @@ function columnsOfWords(t: readonly string[], quoted: readonly LineWord[], at: n
       twice(w, shape)
       shape = w as Column['shape']
       i += 1
+    } else if (w === 'at' && next === 'grid') {
+      // WRT-83: `at grid [<grid>] 7/B`, one crossing.
+      twice('at', point ?? placing)
+      const named = t[i + 2] !== undefined && !t[i + 2]!.includes('/') ? t[i + 2]! : null
+      const ref = t[i + (named === null ? 2 : 3)]
+      const parts = ref?.split('/') ?? []
+      if (ref === undefined || parts.length !== 2 || parts.some((part) => part === '')) return refuse(at, 'rooms.column.gridRef')
+      placing = { kind: 'crossing', grid: named, x: parts[0]!, y: parts[1]!, ref }
+      i += named === null ? 3 : 4
+    } else if (w === 'on' && next === 'grid') {
+      // WRT-83: `on grid <grid>`, every crossing.
+      twice('on grid', placing)
+      if (t[i + 2] === undefined) return refuse(at, 'rooms.column.gridRef')
+      placing = { kind: 'crossings', grid: t[i + 2]! }
+      i += 3
+    } else if (grid && w === 'ring') {
+      twice('ring', ring)
+      ring = whole(next)
+      i += 2
+    } else if (grid && w === 'radius') {
+      twice('radius', radius)
+      if (next === undefined) return refuse(at, 'rooms.column.ring')
+      radius = numberOf(next, at, plain)
+      i += 2
+    } else if (grid && w === 'start') {
+      twice('start', start)
+      const value = next === undefined ? NaN : Number(next.replace(/(°|deg|degrees)$/, ''))
+      if (!Number.isFinite(value)) return refuse(at, 'rooms.column.takes.turn')
+      start = value
+      i += 2
     } else if (w === 'at') {
-      twice('at', point)
+      twice('at', point ?? placing)
       if (next === undefined || !isPointWord(next)) return refuse(at, 'rooms.column.takes.point')
       point = pointOf(next, at, plain)
       i += 2
@@ -132,7 +204,13 @@ function columnsOfWords(t: readonly string[], quoted: readonly LineWord[], at: n
     } else return refuse(at, 'rooms.column.word', { word: w, forms })
   }
   if (size === undefined || !(size[0] > 0) || (size[1] !== undefined && !(size[1] > 0))) return refuse(at, 'rooms.column.size')
-  if (point === undefined) return refuse(at, 'rooms.column.takes.point')
+  // WRT-83: a ring is set out round its centre, `at` or the radial grid's.
+  if (ring !== undefined || radius !== undefined || start !== undefined) {
+    if (ring === undefined || radius === undefined || !(radius > 0) || placing !== undefined || count !== undefined || every !== undefined) return refuse(at, 'rooms.column.ring')
+    placing = { kind: 'ring', count: ring, radius, centre: point ?? null, start: start ?? 0 }
+    point = undefined
+  }
+  if (point === undefined && placing === undefined) return refuse(at, 'rooms.column.takes.point')
   const form = shape ?? 'square'
   if (form === 'round' && size[1] !== undefined) return refuse(at, 'rooms.column.roundDepth', { width: metres(size[0]) })
   if (height !== undefined && !(height > 0)) return refuse(at, 'rooms.column.takes.length', { word: 'height' })
@@ -147,10 +225,42 @@ function columnsOfWords(t: readonly string[], quoted: readonly LineWord[], at: n
     ...(through === undefined ? {} : { through }),
     ...(label === undefined ? {} : { label }),
   })
+  const stands = on === undefined ? {} : { on }
+  if (placing !== undefined) {
+    if (count !== undefined || every !== undefined || point !== undefined || (placing.kind !== 'ring' && (placing.kind === 'crossings') !== grid)) return refuse(at, 'rooms.column.usage', { forms })
+    // A square column turned as the grid's line it stands on, or to face a ring's centre, unless `turn` says.
+    const turned = (cid: string, middle: P, angle: number): Omit<Column, 'floor'> => {
+      const made = one(cid, middle)
+      const way = ((angle % 90) + 90) % 90
+      // A square one as deep as wide looks the same a quarter turn round, so it takes no turn then.
+      return turn !== undefined || form === 'round' || (way === 0 && size![1] === undefined) || angle === 0 ? made : withTurn(made, angle)
+    }
+    const how = placing
+    const place = (grids: readonly StructuralGrid[]): Omit<Column, 'floor'>[] => {
+      if (how.kind === 'ring') {
+        const centre = how.centre ?? ringCentre(grids, at)
+        const r = (v: number): number => Math.round(v * 1e6) / 1e6
+        const group = id ?? 'ring'
+        return Array.from({ length: how.count }, (_, k) => {
+          const angle = how.start + (FULL_TURN * k) / how.count
+          const a = (angle * Math.PI) / 180
+          return turned(`${group}-${k + 1}`, [r(centre[0] + how.radius * Math.cos(a)), r(centre[1] + how.radius * Math.sin(a))], angle)
+        })
+      }
+      const crossings = how.kind === 'crossings' ? gridCrossings(gridNamed(grids, how.grid, at)) : [crossingOf(grids, how, at)]
+      const group = id ?? 'c'
+      const r = (v: number): number => Math.round(v * 1e6) / 1e6
+      return crossings.map((c) => turned(how.kind === 'crossing' && id !== undefined ? id : `${group}-${idPart(c.x)}-${idPart(c.y)}`, [r(c.at.x), r(c.at.y)], c.turn))
+    }
+    return { columns: [], ...stands, place }
+  }
+  const middle = point!
   if (!grid) {
     if (count !== undefined || every !== undefined) return refuse(at, 'rooms.column.usage', { forms })
-    return { columns: [one(id, point)], ...(on === undefined ? {} : { on }) }
+    if (id === undefined) return refuse(at, 'rooms.column.usage', { forms })
+    return { columns: [one(id, middle)], ...stands }
   }
+  if (id === undefined) return refuse(at, 'rooms.column.usage', { forms })
   if (count === undefined || (every === undefined && count[0] * count[1] > 1)) return refuse(at, 'rooms.column.grid')
   const n = count[0] * count[1]
   if (n > COLUMNS_MOST) return refuse(at, 'rooms.column.most', { most: String(COLUMNS_MOST), count: String(n) })
@@ -158,14 +268,49 @@ function columnsOfWords(t: readonly string[], quoted: readonly LineWord[], at: n
   const columns: Omit<Column, 'floor'>[] = []
   const r = (v: number): number => Math.round(v * 1e6) / 1e6
   for (let row = 0; row < count[1]; row++) {
-    for (let k = 0; k < count[0]; k++) columns.push(one(`${id}-${columns.length + 1}`, [r(point[0] + k * step[0]), r(point[1] + row * step[1])]))
+    for (let k = 0; k < count[0]; k++) columns.push(one(`${id}-${columns.length + 1}`, [r(middle[0] + k * step[0]), r(middle[1] + row * step[1])]))
   }
-  return { columns, ...(on === undefined ? {} : { on }) }
+  return { columns, ...stands }
+}
+
+/** WRT-83: a column with `turn` set, in the schema's order of fields. */
+function withTurn(column: Omit<Column, 'floor'>, turn: number): Omit<Column, 'floor'> {
+  const { height, through, label, ...rest } = column
+  return { ...rest, turn, ...(height === undefined ? {} : { height }), ...(through === undefined ? {} : { through }), ...(label === undefined ? {} : { label }) }
+}
+
+/** WRT-83: the grid of an id, or refused with the grids the text has. */
+function gridNamed(grids: readonly StructuralGrid[], id: string, at: number): StructuralGrid {
+  const found = grids.find((g) => g.id === id)
+  if (found !== undefined) return found
+  return grids.length === 0 ? refuse(at, 'rooms.column.noGrids') : refuse(at, 'rooms.column.noGrid', { grid: id, grids: grids.map((g) => g.id).join(', ') })
+}
+
+/** WRT-83: one crossing, `7/B` or `B/7`, on the named grid or the one grid that has it. */
+function crossingOf(grids: readonly StructuralGrid[], how: { readonly grid: string | null; readonly x: string; readonly y: string; readonly ref: string }, at: number): GridCrossing {
+  const on = how.grid === null ? grids : [gridNamed(grids, how.grid, at)]
+  if (on.length === 0) return refuse(at, 'rooms.column.noGrids')
+  const found: Array<{ grid: StructuralGrid; crossing: GridCrossing }> = []
+  for (const g of on) {
+    const crossing = gridCrossings(g).find((c) => (c.x === how.x && c.y === how.y) || (c.x === how.y && c.y === how.x))
+    if (crossing !== undefined) found.push({ grid: g, crossing })
+  }
+  if (found.length === 1) return found[0]!.crossing
+  if (found.length > 1) return refuse(at, 'rooms.column.whichGrid', { ref: how.ref, grids: found.map((f) => f.grid.id).join(', ') })
+  const g = on[0]!
+  return refuse(at, 'rooms.column.noCrossing', { ref: how.ref, grid: on.length === 1 ? g.id : on.map((x) => x.id).join(', '), xs: gridLineNames(g.x, 'x').join(', '), ys: gridLineNames(g.y, 'y').join(', ') })
+}
+
+/** WRT-83: a ring's centre when its line gives none: the text's one radial grid's. */
+function ringCentre(grids: readonly StructuralGrid[], at: number): P {
+  const radial = grids.filter((g) => g.polar !== undefined)
+  if (radial.length !== 1) return refuse(at, 'rooms.column.ringCentre', { count: String(radial.length) })
+  return radial[0]!.origin
 }
 
 /** The column lines of a text, read as they come, and given their floors and checked at the end. */
 export class ColumnLines {
-  private readonly entries: Array<{ readonly line: number; readonly columns: readonly Column[] }> = []
+  private readonly entries: Array<{ readonly line: number; readonly columns: readonly Column[]; readonly place?: (grids: readonly StructuralGrid[]) => Column[] }> = []
 
   get written(): boolean {
     return this.entries.length > 0
@@ -173,11 +318,12 @@ export class ColumnLines {
 
   /** A column or columns line, under the floor line of `floor` (null: no floor line above it). */
   read(t: readonly string[], quoted: readonly LineWord[], at: number, plain: PlainNumbers, floor: string | null): void {
-    const { columns, on } = columnsOfWords(t, quoted, at, plain)
+    const { columns, on, place } = columnsOfWords(t, quoted, at, plain)
     const stands = on ?? floor
     // C5: on the ground floor, unless `on` says it, the floor is left unstated.
     const stated = stands === null || (stands === DEFAULT_FLOOR_ID && on === undefined) ? undefined : stands
-    this.entries.push({ line: at, columns: columns.map((c) => (stated === undefined ? c : withFloor(c, stated))) })
+    const floored = (made: readonly Omit<Column, 'floor'>[]): Column[] => made.map((c) => (stated === undefined ? c : withFloor(c, stated)))
+    this.entries.push({ line: at, columns: floored(columns), ...(place === undefined ? {} : { place: (grids: readonly StructuralGrid[]) => floored(place(grids)) }) })
   }
 
   /** `raw column {...}`: Grid's own JSON for a column, taken as it is. */
@@ -201,7 +347,7 @@ export class ColumnLines {
    * another part (`taken`), and each floor the plan does not have (`floors`, empty when it has
    * no floor list) named on its line.
    */
-  finish(taken: ReadonlySet<string>, floors: readonly string[]): { columns?: Column[]; problems: ColumnNote[] } {
+  finish(taken: ReadonlySet<string>, floors: readonly string[], grids: readonly StructuralGrid[] = [], levels: ReadonlyMap<string, number> = new Map()): { columns?: Column[]; problems: ColumnNote[] } {
     const problems: ColumnNote[] = []
     if (this.entries.length === 0) return { problems }
     const columns: Column[] = []
@@ -210,8 +356,24 @@ export class ColumnLines {
       const message = english(said(key, { line: String(line), ...values }))
       problems.push({ code: key === 'rooms.column.unknownFloor' ? 'rooms/unknown-floor' : 'rooms/duplicate-id', line, message: message.charAt(0).toUpperCase() + message.slice(1) })
     }
-    for (const { line, columns: made } of this.entries) {
-      for (const column of made) {
+    // WRT-83: a column with no floor stands on the ground floor (C5); a text with floors and no
+    // `ground` stands it on the floor at level 0, else the lowest, so it is never left out.
+    const ground = floors.length === 0 || floors.includes(DEFAULT_FLOOR_ID) ? null : (floors.find((f) => levels.get(f) === 0) ?? [...floors].sort((a, b) => (levels.get(a) ?? 0) - (levels.get(b) ?? 0))[0]!)
+    for (const entry of this.entries) {
+      const { line } = entry
+      let made: readonly Column[] = entry.columns
+      if (entry.place !== undefined) {
+        try {
+          made = entry.place(grids)
+        } catch (error) {
+          if (!(error instanceof RoomsStop)) throw error
+          const message = error.message
+          problems.push({ code: 'rooms/column', line, message: message.charAt(0).toUpperCase() + message.slice(1) })
+          continue
+        }
+      }
+      for (const stated of made) {
+        const column = ground !== null && stated.floor === undefined ? withFloor(stated, ground) : stated
         const had = first.get(column.id)
         if (had !== undefined) note(line, 'rooms.column.duplicate.line', { id: column.id, first: String(had) })
         else if (taken.has(column.id)) note(line, 'rooms.column.duplicate.part', { id: column.id })

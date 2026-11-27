@@ -206,7 +206,12 @@ export type PlainUnit = (typeof PLAIN_UNITS)[number]
 export interface PlainNumbers {
   readonly display: LengthUnit
   readonly numbers: PlainUnit | null
+  /** WRT-83: the planning module a `module` line sets, in metres, so `5mod` is five of it. */
+  readonly module?: number
 }
+
+/** WRT-83: a length in planning modules: `5mod`, `2.5mod`, `3modules`. */
+const MODULE_WORD = /^([0-9]*\.?[0-9]+)(mod|mods|module|modules)$/
 
 /** A text with no display line: a plain number is metres. */
 export const PLAIN_METRES: PlainNumbers = { display: 'm', numbers: null }
@@ -238,6 +243,12 @@ function plainLength(word: string, value: number, at: number, plain: PlainNumber
  * `plain` says (WRT-34), metres in a text with no display line.
  */
 export function numberOf(word: string, at: number, plain: PlainNumbers = PLAIN_METRES): number {
+  const modules = MODULE_WORD.exec(word)
+  if (modules) {
+    if (plain.module === undefined) throw new RoomsStop('rooms/module', english(said('rooms.module.none', { line: String(at), word })), at)
+    // To the micrometre, so 3mod of 1.2 is 3.6 and not 3.5999999999999996.
+    return Math.round(Number(modules[1]) * plain.module * 1e6) / 1e6
+  }
   if (/^[0-9.+\-*/() ]+$/.test(word)) {
     const value = evaluate(word)
     if (value !== null) return plainLength(word, value, at, plain)
@@ -278,6 +289,7 @@ export function pointHasUnit(word: string): boolean {
 
 /** Is this word a number as `numberOf` reads it? */
 export function isNumberWord(word: string): boolean {
+  if (MODULE_WORD.test(word)) return true
   if (/^[0-9.+\-*/()]+$/.test(word)) return evaluate(word) !== null
   // A word that starts as a length with its unit is one, so a wrong one is refused as a length.
   return UNIT_WORD.test(word)

@@ -19,7 +19,8 @@ import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
 import { planStill, stillRoofShown, type SceneSun } from '@ongrid/viewer/src/still'
 import { loadCanvas } from './canvas'
 import { registerScriptFonts } from '../sheet/fonts'
-import { drawPlan, pictureToPng } from './drawPlan'
+import { pictureToPng } from './drawPlan'
+import { pixelTransform, type PixelTransform } from './pictureTransform'
 import { partBounds, pixelBoxes, type PartBox } from './partBoxes'
 import { forSkia } from './skiaText'
 import { captionHeight, captioned, withLabelMetadata } from './stamp'
@@ -44,6 +45,7 @@ export interface PlanView {
   readonly svg?: () => string
   /** Plan views: the plan's metres the picture covers, y up as the plan states it (VEW-62). */
   readonly bounds?: WorldBounds
+  readonly pixelToMetres?: PixelTransform
 }
 
 /** VEW-62: the part of the plan, in metres, that a plan picture covers. */
@@ -79,9 +81,9 @@ export async function planView(
     ...(options.trace ? { trace: options.trace } : {}),
   }
   const picture = planPicture(plan, { floor: options.floor ?? null, look: lookOf(options.look), showDimensions: options.dimensions, ...extra })
-  const png = await drawPlan(plan, { format: 'png', floor: options.floor, look: lookOf(options.look), showDimensions: options.dimensions, ...extra })
+  const png = await pictureToPng(picture)
   const boxes = pixelBoxes(partBounds(plan, options.floor), picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, boxes, undecidedDoors: picture.undecidedDoors, svg: svgOf(picture),
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, boxes, undecidedDoors: picture.undecidedDoors, svg: svgOf(picture), pixelToMetres: pixelTransform(picture, 'plan'),
     // The view is in screen coordinates, y down: the plan's y runs the other way.
     bounds: { minX: picture.view.x, minY: -(picture.view.y + picture.view.height), maxX: picture.view.x + picture.view.width, maxY: -picture.view.y } }
 }
@@ -105,7 +107,7 @@ export async function sectionView(plan: FloorPlan, line: SectionLine, look: Look
   // MSG-11: the drawing's own words in the language asked for, else the plan's own.
   const picture = sectionPicture(plan, line, { look: drawingLook(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }) })
   const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section, svg: svgOf(picture) }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section, pixelToMetres: pixelTransform(picture, 'section'), svg: svgOf(picture) }
 }
 
 /**
@@ -115,7 +117,7 @@ export async function sectionView(plan: FloorPlan, line: SectionLine, look: Look
 export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; look: LookName; language?: Language; display?: Display }): Promise<PlanView & { readonly facade: Facade }> {
   const picture = facadePicture(plan, { side: options.side, look: drawingLook(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
   const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade, svg: svgOf(picture) }
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade, pixelToMetres: pixelTransform(picture, 'facade'), svg: svgOf(picture) }
 }
 
 /**
@@ -151,7 +153,7 @@ const FLOOR_NAME = 30
  * VEW-74: an entry may give the part of the plan to frame and whether to draw its sizes, so the
  * floors of one plan side by side all frame the same part of it.
  */
-export async function sheetView(plans: readonly SheetEntry[], look: LookName, language?: Language): Promise<PlanView> {
+export async function sheetView(plans: readonly SheetEntry[], look: LookName, language?: Language): Promise<PlanView & { readonly panels: readonly { floor: string | null; pixelToMetres: PixelTransform }[] }> {
   const tongue = language === undefined ? {} : { language }
   const canvasModule = await loadCanvas()
   const { createCanvas, loadImage, GlobalFonts } = canvasModule
@@ -172,6 +174,7 @@ export async function sheetView(plans: readonly SheetEntry[], look: LookName, la
   let x = 0
   let tallest = 0
   const parts: string[] = []
+  const panels: { floor: string | null; pixelToMetres: PixelTransform }[] = []
   plans.forEach((p, i) => {
     const columnWidth = Math.max(1, Math.round(Math.max(...first[i]!.map((picture) => picture.view.width)) * pxPerMetre))
     let y = TITLE
@@ -186,7 +189,9 @@ export async function sheetView(plans: readonly SheetEntry[], look: LookName, la
       }
       // One label for the whole sheet, stamped below, not one per plan (MSG-3).
       const svg = pictureToSvg({ ...picture, nodes: forSkia(picture.nodes, installed) }, 1, { label: false })
-      parts.push(svg.replace(/^<svg /, `<svg x="${x + Math.round((columnWidth - width) / 2)}" y="${y}" `))
+      const left = x + Math.round((columnWidth - width) / 2)
+      parts.push(svg.replace(/^<svg /, `<svg x="${left}" y="${y}" `))
+      panels.push({ floor: f.id, pixelToMetres: pixelTransform(picture, 'plan', { x: left, y }) })
       // The drawing's own band of title and key sits under it: count it, so it is never cut off.
       y += fullHeight(picture) + (f.name !== null ? 8 : 0)
     })
@@ -207,7 +212,7 @@ export async function sheetView(plans: readonly SheetEntry[], look: LookName, la
   context.drawImage(image, 0, 0, width, height)
   // VEW-17: one label for the whole sheet, in a caption band under the plans.
   const captionedSheet = captioned(createCanvas, canvas, { paper, ink: PICTURE_LOOKS[lookOf(look)].colors.labelSoft }, language)
-  return { png: withLabelMetadata(await captionedSheet.encode('png'), language), width, height: captionedSheet.height, pxPerMetre }
+  return { png: withLabelMetadata(await captionedSheet.encode('png'), language), width, height: captionedSheet.height, pxPerMetre, panels }
 }
 
 const STILL_W = 1200
