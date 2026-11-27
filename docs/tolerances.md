@@ -187,3 +187,4 @@ is not asked whether it was typed in feet.
 | `roomsSideBare` | limit | 2000 m | A room side written rooms first as a bare number longer than this is refused as most likely millimetres (`rooms/size`); written with its unit it is taken (WRT-22) |
 | `openingWidest` | limit | 1000 m | The widest door, window or opening an edit takes; below it the wall decides, and an opening that does not fit is refused with the free stretches (WRT-22) |
 | `traceUnscaled` | limit | 0.01 m | A trace image with no scale of its own is drawn at this many metres a pixel, and said to be unscaled (HND-10) |
+| `lintelBearing` | limit | 0.15 m | The bearing taken at each end of a lintel over a new opening cut through a wall that stays, when the work is costed (`grid_takeoff` with `for: "change"`); the plan holds no lintels, so the line is marked assumed (ARE-71) |
