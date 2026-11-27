@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, shadowPlan, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix, type PlanSun } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -75,6 +75,9 @@ import { factsText, flatSchedule, flatScheduleCsv, openingSchedule, openingSched
 import { fixtureCountText, fixturesLeftOut, fixturesLeftOutLine, FIXTURE_RULES, planFixtures } from '../quantities/fixtures'
 import { FACING_RULE, facingAnswer, northWords } from '../quantities/facing'
 import { SUN_RULE, sunAnswer } from '../quantities/sun'
+import { SUN_PATH_RULE, dayText, sceneSunOf, shadowPlanLines, sunPathAnswer, sunSentence, timeText } from '../quantities/sunPath'
+import { SHADE_COLOUR } from '@ongrid/viewer/src/picture/scene'
+import { SUN_MEASURE_ARGS, SUN_VIEW_ARG, sunArg, sunOfArg, sunPathAsk } from './sunArgs'
 import { SEATING_RULE, seatingAnswer } from '../quantities/seats'
 import { SITE_RULE, siteAnswer } from '../quantities/site'
 import { LIMITS_RULE, massingLines, siteLimits, storeysText } from '../quantities/limits'
@@ -1825,7 +1828,7 @@ const measureTool: GridTool = {
   description:
     'Use this when the person asks will something fit, how wide, long or high a room is, how long a wall is, how far a door is from a corner or one wall from another, can a wheelchair turn, is the way wide enough, which doors or rooms are narrower than their own figure, or how to get from one room to another. '
     + 'For travel distance or walking distance to the nearest exit on an escape or evacuation route, call grid_measure with {"what":"route","room":"bed1","to":"outside"}. '
-    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand; what=frontage gives a shop\'s floor (room) in bands of depth from its frontage, A, B, C and the rest, in m² and sq ft: the frontage on the wall named, else on the wall it opens through most, at depth (Grid\'s own 6.1 m, 20 ft, when left out) in bands bands (3), measured and never weighted; what=activity gives the activity zone in front of each fixture (ARE-73), a box on its centre line as deep as front and as wide as width, per kind (per_kind, such as a WC\'s 0.7 m front and 0.8 m width) or for every kind (clearance, width), else the item\'s own clearance, its library entry or Grid\'s own indicator: the clear depth, the clear width to each side of the centre line by compass, what stands in it, the doors that swing into it and the zones it overlaps, a run of units side by side as one zone, in one room (room) or every room, only the zones short or with something in them unless all. '
+    + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room (or to "outside") with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; with date (YYYY-MM-DD) and the site\'s latitude and longitude it works the sun out (CNT-58): at time, or over hours (and from date to until), its compass bearing and height, sunrise, solar noon and sunset, which faces of each building (from the floors\' outlines, a courtyard\'s sides too) it is on and for how long, how much of each face\'s foot is in another\'s shadow, and the share of each open outdoor space, paving, pool and any patch named in areas (a planting bed) in sun, so the noon sun on a courtyard is never worked out by hand; grid_view with sun draws the shadow plan; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand; what=frontage gives a shop\'s floor (room) in bands of depth from its frontage, A, B, C and the rest, in m² and sq ft: the frontage on the wall named, else on the wall it opens through most, at depth (Grid\'s own 6.1 m, 20 ft, when left out) in bands bands (3), measured and never weighted; what=activity gives the activity zone in front of each fixture (ARE-73), a box on its centre line as deep as front and as wide as width, per kind (per_kind, such as a WC\'s 0.7 m front and 0.8 m width) or for every kind (clearance, width), else the item\'s own clearance, its library entry or Grid\'s own indicator: the clear depth, the clear width to each side of the centre line by compass, what stands in it, the doors that swing into it and the zones it overlaps, a run of units side by side as one zone, in one room (room) or every room, only the zones short or with something in them unless all. '
     + 'It measures the room between wall faces: what=fit, what=use and what=route with width keep clear of the room\'s fixtures, the other measures take none off, the plan holds no furniture or door leaves, and the answer says so. It checks no rule: a figure the person gives is their own. Do not use for floor areas (grid_areas), for what a building code asks (grid_check), or to say a plan is accessible: what=access measures, it never says so. Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     plan: PLAN_ARG,
@@ -1848,6 +1851,8 @@ const measureTool: GridTool = {
     under: { type: 'number', length: true, description: 'For narrow: the person\'s figure in metres, such as 0.8 for a door or 1.5 for a turning circle; width does the same.', examples: [0.8, 1.5], minimum: 0.05, maximum: 100 },
     start: { type: 'string', enum: ['middle', 'door', 'farthest corner'], description: 'For route: where it starts in its room: the middle of the widest circle (the default), the door it leaves by, or the room\'s corner farthest from that door. A point of your own: x and y instead.', examples: ['door', 'farthest corner'] },
     end: { type: 'string', enum: ['middle', 'door'], description: 'For route: where it ends in its last room: the middle, or the doorway into it. Left out, a stair or lift room is ended at its door and any other room at its middle; to outside it always ends at the outside face of the door out.', examples: ['door', 'middle'] },
+    // CNT-58: the sun's path and shadows, with a date.
+    ...SUN_MEASURE_ARGS,
     units: UNITS_ARG,
     decimal: DECIMAL_ARG,
   },
@@ -1873,7 +1878,7 @@ const measureTool: GridTool = {
       route: ['room', 'from', 'to', 'width', 'x', 'y', 'start', 'end'],
       narrow: ['under', 'width'],
       facing: ['room'],
-      sun: ['room'],
+      sun: ['room', 'date', 'until', 'time', 'hours', 'utc_offset', 'areas'],
       site: [],
       use: ['room', 'width', 'diameter', 'clearance'],
       access: [],
@@ -1882,7 +1887,7 @@ const measureTool: GridTool = {
       frontage: ['room', 'wall', 'depth', 'bands'],
       activity: ['room', 'clearance', 'width', 'per_kind', 'all'],
     }
-    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'bands', 'per_kind', 'all'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
+    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'bands', 'per_kind', 'all', 'date', 'until', 'time', 'hours', 'utc_offset', 'areas'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`what=${what} takes ${allowed[what]!.length === 0 ? 'no other argument' : allowed[what]!.join(', ')}, not ${stray.join(', ')}.`)
     if (MEASURES_OF_A_ROOM.has(what) && args['room'] === undefined) throw needsRoom(what)
     const { survey, file } = load(context, args['plan'])
@@ -1988,6 +1993,12 @@ const measureTool: GridTool = {
       return { text: [...found.lines, SEATING_RULE].join('\n'), data: { what, answer: found.data, rule: SEATING_RULE } }
     }
     if (what === 'sun') {
+      // CNT-58: with a date, where the sun is, the faces it is on and each open space's share in sun.
+      const path = sunPathAsk(args)
+      if (path !== null) {
+        const found = sunArg(() => sunPathAnswer(survey.plan, units, path))
+        return { text: [...found.lines, SUN_PATH_RULE].join('\n'), data: { what, answer: found.data, rule: SUN_PATH_RULE } }
+      }
       // BRF-5: which rooms get the sun, as a table of geometry: window walls, window area, depth.
       const id = args['room'] === undefined ? undefined : roomArg(survey.plan, args['room'])
       const sun = sunAnswer(survey.plan, units, id)
@@ -2786,6 +2797,7 @@ const viewTool: GridTool = {
     + 'To show the plan to a person (a buyer, a client, a family, a listing or a brochure), draw kind=plan with look=simple, and look=large for someone who reads small print badly; keep working for checking the drawing. '
     + 'kind=plan draws one floor from above with its sizes; kind=facade draws one side of the drawing (side: north, east, south or west; north is the top of the drawing) in elevation, every floor at its level, its doors and windows, the ground line heaviest and faces set back lighter; kind=3d draws the model through a camera: from a side or corner of the drawing (from), or a compass bearing from the plan\'s stated north (bearing), with tilt, distance, eye_height, lens, a room to point at and a floor cut away; kind=eye stands in a room, on its middle line (in a small room, in its doorway), at a door, an item or a corner of the room (at) or at a point (stand_at), with the eye eye_height above that room\'s own floor, never inside a fixture, and looks toward an opening, an item or a direction (toward) or a point (look_at), through lens and with tilt, in a one-point or two-point perspective if asked, and lists the window sills against that eye height; kind=section cuts every floor along a line (cut) and looks to one side of it (toward), with the levels, the room heights, and what Grid takes that the plan does not state dashed and listed. '
     + 'Every 3d and eye picture comes back with its camera record (camera: target, bearing, tilt, distance, eye height, lens in mm on a 36 × 24 mm sensor, cut, floors, where it stands, and position, direction, up and field of view as the BCF format writes them). To change the view, send camera back with turn, tilt_by or changed numbers; view calls up one saved with grid_save_view. '
+    + 'With sun, a moment (CNT-58), kind=plan draws the shadow plan, the shadows the plan casts then shaded on the ground or on the floor\'s open spaces, and 3d and eye are lit from the sun then; both need the site\'s latitude and longitude. '
     + 'It returns the picture with the numbers that made it; look at the picture before you describe it. It changes nothing in the plan. It writes no file unless you pass out: a .png, .svg or .pdf name, written inside the project (a bare name goes into the exports folder beside the plan), with the path in the answer and, beside it, a .view.json with the picture\'s size, its pixels per metre and, for a plan, the plan\'s metres it covers; svg is not made for 3d or eye. Do not use for a file to hand on to another program (grid_export), to move the person\'s live preview (grid_preview) or to save a view (grid_save_view). The 3d model and the facade draw the roof each floor of the plan states (flat, mono-pitch, gable or hip, with its pitch), so a pitched roof the plan holds is drawn pitched; only where the plan states no roof is a flat one taken over the part with nothing above. The 3d model shows its roof from outside, or when a floor states one; a floor cut away is drawn open, and roof shows or hides it. Fixtures and furniture stand as plain blocks, in the 3d and eye pictures and cut in a section; it has no glass or door leaves. The drawing\'s figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
     units: UNITS_ARG,
@@ -2807,7 +2819,7 @@ const viewTool: GridTool = {
     roof: { type: 'string', enum: ['show', 'hide'], description: 'For 3d: show or hide the roof. Left out, it is shown from outside or when a floor states its roof, and hidden with a floor cut away.', examples: ['hide', 'show'] },
     tilt_by: { type: 'number', description: 'For 3d: degrees to add to the tilt: below 0 the camera comes lower and looks less steeply down, above 0 higher.', examples: [-10, 15], minimum: -178, maximum: 178 },
     room: { type: 'string', id: true, description: 'For eye: the room to stand in. For 3d: the room to point the camera at, the middle of its floor half way up its storey.', examples: ['kitchen', 'living'] },
-    toward: { type: 'string', maxLength: 64, description: 'For eye: an opening or item id to look at, or a direction (north, north-east, east, south-east, south, south-west, west, north-west). The room\'s first window when left out; standing in a doorway or a corner, the far corner of the room, diagonally across; in front of an item, the way it faces. Not with look_at. For section, and for plan with marks section: left or right, the side of the cut the section looks toward, walking from its from point to its to point; left when left out.', examples: ['back-door', 'north', 'left'] },
+    toward: { type: 'string', maxLength: 64, description: 'For eye: an opening or item id to look at, or a compass direction (north, north-east, east, south-east, south, south-west, west, north-west), by the north the plan states, or with north the top of the drawing when it states none. The room\'s first window when left out; standing in a doorway or a corner, the far corner of the room, diagonally across; in front of an item, the way it faces. Not with look_at. For section, and for plan with marks section: left or right, the side of the cut the section looks toward, walking from its from point to its to point; left when left out.', examples: ['back-door', 'north', 'left'] },
     eye_height: { type: 'number', length: true, description: 'For eye: metres above the room\'s own floor (its storey and its floor offset), 0.3 to 3; 1.6 standing when left out; about 1.2 seated. For 3d: metres from the floor of the room pointed at (or the floor cut away, or the ground floor) up to the camera: with a tilt the camera stands back until it is that high; level, or with a distance, the point it looks at moves to meet it.', examples: [1.6, 1.2], minimum: 0, maximum: 10000 },
     look: { type: 'string', enum: LOOKS, description: 'For plan, facade and section: working (the default for a plan and a facade: clear labels and strong contrast, for checking the drawing), simple for a picture to show a person (rooms coloured by use, each room\'s width × depth and area in two units, the overall sizes only, the title and the floor\'s total, none of grid_check\'s notes), large for large print (big names, no dimensions), technical for black on white as on a sheet, with lines in millimetres at the scale and doors with no stated swing marked "?" (the default for a section, as for a drawing file). A picture is always on light paper, so dark, the app\'s screen theme, draws working; a facade and a section draw simple and large as working. light and mono are older names for working and technical.', examples: ['simple', 'working', 'technical'] },
     dimensions: { type: 'boolean', description: 'For plan: false to leave the sizes off, for a clean drawing. true when left out.', examples: [true, false] },
@@ -2850,6 +2862,8 @@ const viewTool: GridTool = {
       schema: objectSchema({ from: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 }, to: { type: 'array', items: NUMBER, minItems: 2, maxItems: 2 } }),
       read: (value) => cutArg(value),
     },
+    // CNT-58: the sun at a moment: the shadow plan, or the model lit from it.
+    sun: SUN_VIEW_ARG,
     marks: { type: 'array', description: 'For plan: marks for the plan\'s other drawings: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of cut and the way toward looks), schedule (each room\'s and opening\'s mark in the schedules, tied to its row in grid_schedule). None when left out.', examples: [['levels', 'elevations'], ['section'], ['schedule']], items: { enum: MARK_WORDS }, minItems: 1, maxItems: 4 },
   },
   outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, floors: listSchema(STRING), camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes']),
@@ -2892,18 +2906,18 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     const floor = allFloors ? undefined : floorArg(loaded.plan, args['floor'])
     const kind = args['kind'] as 'plan' | 'facade' | '3d' | 'eye' | 'section'
     const allowed: Record<string, readonly string[]> = {
-      plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'],
+      plan: ['floor', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward', 'sun'],
       facade: ['side', 'look'],
-      '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit'],
-      eye: ['room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'lens', 'tilt', 'perspective'],
+      '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit', 'sun'],
+      eye: ['room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'lens', 'tilt', 'perspective', 'sun'],
       section: ['cut', 'toward', 'look'],
     }
-    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'perspective', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
+    const stray = ['floor', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'perspective', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile', 'sun'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (kind === 'eye' && args['from'] !== undefined) throw new ToolRefusal('For kind=eye, at says where to stand (a door or opening of the room, an item, or a corner such as south-west) and stand_at a point; from is for kind=3d.')
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
     // VEW-74: every floor side by side, for a plan only, with its look and sizes.
     if (allFloors && kind !== 'plan') throw new ToolRefusal(`floor=all draws every floor's plan side by side: it is for kind=plan. kind=${kind} takes one floor's id.`)
-    const besideAll = allFloors ? ['ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward'].filter((key) => args[key] !== undefined) : []
+    const besideAll = allFloors ? ['ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward', 'sun'].filter((key) => args[key] !== undefined) : []
     if (besideAll.length > 0) throw new ToolRefusal(`floor=all takes look and dimensions, not ${besideAll.join(', ')}: name one floor for those.`)
     const plan = survey.plan
     // MSG-34: always the language worked out, so English asked on a plan in another language is English.
@@ -2967,6 +2981,13 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       // CNT-9: parts picked out by id, or coloured by a field or fact, from grid_find's and grid_count's view.
       const painted = paintOf(survey, shown, colour === 'use' ? undefined : colour, args['highlight'] as string[] | undefined, stated)
       if (painted !== null) shownParts = { ...shownParts, show: { ...shownParts.show, paint: painted.paint, paintKey: painted.key } }
+      // CNT-58: the shadow plan: the shadows at that moment, shaded, with their key.
+      const sun = sunOfArg(plan, args['sun'])
+      const shadows = sun === null ? null : shadowPlan(plan, sun, shown)
+      if (sun !== null && shadows !== null) {
+        const words = sun.up ? `Shadow at ${timeText(sun.moment.minutes)} on ${dayText(sun.moment.day)}, the sun from the ${sun.compass}` : `The sun down at ${timeText(sun.moment.minutes)} on ${dayText(sun.moment.day)}`
+        shownParts = { ...shownParts, show: { ...shownParts.show, shade: shadows.shade, paintKey: [...(shownParts.show.paintKey ?? []), { colour: SHADE_COLOUR, words }] } }
+      }
       const dimensions = args['dimensions'] !== false && shownParts.showDimensions
       // HND-10: the plan's trace image under the floor drawn, read from the project folder.
       const trace = readTrace(project, stated, shown, language)
@@ -3006,6 +3027,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       if (withIds) lines.push(...checkViewText(loaded, shown))
       if (painted !== null) lines.push(...painted.lines)
       if (marksOnPlan !== undefined) lines.push(marksText(marksOnPlan))
+      if (sun !== null && shadows !== null) lines.push(...shadowPlanLines(sun, shadows, display ?? displayFor(undefined, undefined, plan, language)))
       return {
         text: lines.join('\n'),
         data: { kind, floor: shown, camera: null, view: null, pxPerMetre: view.pxPerMetre, sills: [], ids, boxes: view.boxes ?? [], ...(painted === null ? {} : { painted: painted.groups }) },
@@ -3057,7 +3079,9 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       // VEW-19: the roof is drawn from outside or when a floor states one, and not with a floor cut
       // away, unless roof says otherwise; the GLB and the section have it whatever the camera.
       const asked = args['roof'] as 'show' | 'hide' | undefined
-      const view = await cameraView(plan, camera, language, asked === undefined ? undefined : asked === 'show')
+      // CNT-58: lit from the sun at the moment asked.
+      const sun = sunOfArg(plan, args['sun'])
+      const view = await cameraView(plan, camera, language, asked === undefined ? undefined : asked === 'show', sun === null ? undefined : sceneSunOf(sun))
       const stated = statedRoofWords(plan, camera.floors)
       const roof = !view.roof
         ? stated === ''
@@ -3071,6 +3095,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
         text: [
           `${what}${camera.cut ? `, floor ${q(camera.cut)} cut away` : ''}. ${roof} Look at the picture before you describe it.`,
           ...cameraLines(plan, camera),
+          ...(sun === null ? [] : [litLine(sun, plan)]),
           ...fitLines(framed),
           ...savedViewsLine(plan),
         ].join('\n'),
@@ -3101,7 +3126,9 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       ...(args['tilt'] !== undefined ? { tilt: args['tilt'] as number } : {}),
       ...(args['perspective'] !== undefined ? { perspective: args['perspective'] as 'one-point' | 'two-point' } : {}),
     })
-    const view = await cameraView(plan, camera, language)
+    // CNT-58: lit from the sun at the moment asked.
+    const sun = sunOfArg(plan, args['sun'])
+    const view = await cameraView(plan, camera, language, undefined, sun === null ? undefined : sceneSunOf(sun))
     const sills = windows.map((w) => ({ id: w.id, type: w.type, sill: w.sill, top: w.sill + w.height, seenOver: w.sill < height }))
     const plainDoors = room.openings.some((o) => o.type === 'door' && !glazedIn(o))
     const sillText = sills.length === 0
@@ -3109,13 +3136,21 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       : `Windows and glazed doors in the room, sill and top against the eye at ${m(height)} m: ${sills.map((s) => `${s.type === 'door' ? 'glazed door ' : ''}${q(s.id)} sill ${m(s.sill)}, top ${m(s.top)} (${s.sill < height ? 'the eye is above the sill' : 'the sill is at or above the eye'})`).join('; ')}.`
     return {
       text: [
-        `${sentence} ${sillText} The plan's fixtures and furniture stand in it as plain blocks; its rooms have their ceilings, their floors and walls are tinted by their finishes where a finish's name gives a colour, glass is see-through, and outside it is a plain sky over plain ground. Look at the picture before you describe it.`,
+        `${sentence} ${sillText}${sun === null ? '' : ` ${litLine(sun, plan)}`} The plan's fixtures and furniture stand in it as plain blocks; its rooms have their ceilings, their floors and walls are tinted by their finishes where a finish's name gives a colour, glass is see-through, and outside it is a plain sky over plain ground. Look at the picture before you describe it.`,
         ...cameraLines(plan, camera),
       ].join('\n'),
       data: { kind, floor: room.facts.floor, camera, view: null, pxPerMetre: null, sills, ids: [], boxes: [] },
       image: { data: view.png, mimeType: 'image/png' },
     }
   }
+}
+
+/** CNT-58: how a 3d or eye picture is lit by the sun asked for. */
+function litLine(sun: PlanSun, plan: FloorPlan): string {
+  const said = sunSentence(sun, displayFor(undefined, undefined, plan))
+  return sun.position.elevation > 0
+    ? `${said} The model is lit from the sun then, warmer when it is low; it casts no shadows in this picture (grid_view kind=plan with sun draws them).`
+    : `${said} The model is lit by the sky alone.`
 }
 
 // ---------------------------------------------------------------------------------------------

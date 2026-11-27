@@ -169,6 +169,68 @@ export interface GlbOptions {
    * about seven digits, so the points stay small and the offset, a JSON number, stays exact.
    */
   readonly origin?: readonly [number, number]
+  /** CNT-58: the plan's north and where it is, written into `asset.extras.gridNorth`. */
+  readonly north?: GlbNorth
+  /** CNT-58: the sun at a moment, written as a directional light node named `sun` (`KHR_lights_punctual`). */
+  readonly sun?: GlbSun
+}
+
+/** CNT-58: the north the plan states (degrees counter-clockwise from +y on the plan, null for none), which way its y runs, and its place on the earth. */
+export interface GlbNorth {
+  readonly north: number | null
+  readonly yAxis: 'up' | 'down'
+  readonly latitude?: number
+  readonly longitude?: number
+}
+
+/** CNT-58: the sun: the way toward it in the file's axes (x, up, -y of the plan), a unit vector, and what it was worked out for. */
+export interface GlbSun {
+  readonly toward: readonly [number, number, number]
+  readonly azimuth: number
+  readonly elevation: number
+  readonly date: string
+  readonly time: string
+  readonly utcOffset: number | null
+}
+
+/** CNT-58: the name of the sun's light node. */
+export const GLB_SUN_NODE = 'sun'
+
+/**
+ * The sun's node: a directional light shines down its node's -Z, so the node is turned from -Z
+ * onto the way the sun's rays run, away from the sun. Its intensity is in lux, as the extension
+ * reads it, for a clear day's direct sun; none with the sun down.
+ */
+function sunNode(sun: GlbSun): object {
+  const r = [-sun.toward[0], -sun.toward[1], -sun.toward[2]]
+  // The turn from (0, 0, -1) to r: its axis (0, 0, -1) × r, its half angle from 1 + (0, 0, -1) · r.
+  const w = 1 - r[2]!
+  const q = w <= 0 ? [1, 0, 0, 0] : [r[1]!, -r[0]!, 0, w]
+  const length = Math.hypot(...q)
+  const rotation = q.map((v) => Math.round((v / length) * 1e9) / 1e9 + 0)
+  return {
+    name: GLB_SUN_NODE,
+    rotation,
+    extensions: { KHR_lights_punctual: { light: 0 } },
+    extras: { gridSun: { azimuth: sun.azimuth, elevation: sun.elevation, date: sun.date, time: sun.time, utcOffset: sun.utcOffset } },
+  }
+}
+
+const SUN_LUX = 100000
+
+/** The document with the sun's light: the extension's one light, its node a root of the scene. */
+function withSun(document: Record<string, unknown>, sun: GlbSun | undefined): Record<string, unknown> {
+  if (sun === undefined) return document
+  const nodes = (document['nodes'] as object[] | undefined) ?? []
+  const scenes = (document['scenes'] as { nodes?: number[] }[] | undefined) ?? [{}]
+  const roots = scenes[0]?.nodes ?? []
+  return {
+    ...document,
+    extensionsUsed: ['KHR_lights_punctual'],
+    extensions: { KHR_lights_punctual: { lights: [{ name: GLB_SUN_NODE, type: 'directional', color: [1, 1, 1], intensity: sun.elevation > 0 ? SUN_LUX : 0 }] } },
+    nodes: [...nodes, sunNode(sun)],
+    scenes: [{ ...scenes[0], nodes: [...roots, nodes.length] }],
+  }
 }
 
 /** The name of the node that holds the model when it is moved to where the plan's zero is. */
@@ -186,9 +248,11 @@ const movedBy = (origin: readonly [number, number] | undefined): readonly [numbe
  * says so: a note in words, the count, and each part. `extras` is glTF's place for data of an
  * application's own, which every reader keeps and none acts on. JSON escapes the ids.
  */
-function assetOf(leftOut: readonly LeftOutPart[], origin: readonly [number, number] | null, approximations: Approximations, holder: string = GLB_ORIGIN_NODE): object {
+function assetOf(leftOut: readonly LeftOutPart[], origin: readonly [number, number] | null, approximations: Approximations, holder: string = GLB_ORIGIN_NODE, north?: GlbNorth): object {
   // MSG-3: the label travels in the file, where glTF keeps data of the file's own.
   const extras: Record<string, unknown> = { label: GENERAL_GUIDANCE_LABEL }
+  // CNT-58: the plan's north and place, so a renderer can turn the model to the compass.
+  if (north !== undefined) extras['gridNorth'] = north
   if (origin !== null) {
     extras['gridOrigin'] = {
       x: origin[0],
@@ -353,7 +417,7 @@ function writeParts(parts: readonly Part[]): Written {
 }
 
 /** The document around written parts, with `extra` nodes after the parts' and the scene's roots. */
-function documentOf(asset: object, written: Written, extra: readonly object[], roots: readonly number[]): object {
+function documentOf(asset: object, written: Written, extra: readonly object[], roots: readonly number[]): Record<string, unknown> {
   return {
     asset,
     scene: 0,
@@ -378,14 +442,14 @@ function documentOf(asset: object, written: Written, extra: readonly object[], r
 export function toGlb(scene: Scene3D, options: GlbOptions = {}): Uint8Array {
   const parts = partsOf(scene)
   const moved = movedBy(options.origin)
-  const asset = assetOf(options.leftOut ?? [], moved, options.approximations ?? NO_APPROXIMATIONS)
-  if (parts.length === 0) return encodeGlb({ asset, scene: 0, scenes: [{}] }, null)
+  const asset = assetOf(options.leftOut ?? [], moved, options.approximations ?? NO_APPROXIMATIONS, GLB_ORIGIN_NODE, options.north)
+  if (parts.length === 0) return encodeGlb(withSun({ asset, scene: 0, scenes: [{}] }, options.sun), null)
   const written = writeParts(parts)
   const nodes = written.nodes
   // HND-11: a model built near zero is held by one node, moved to where the plan's zero is.
   // `0 - y`, as for the points, so y = 0 is not written as -0.
   const holder = moved === null ? [] : [{ name: GLB_ORIGIN_NODE, translation: [moved[0], 0, 0 - moved[1]], children: nodes.map((_, i) => i) }]
-  return encodeGlb(documentOf(asset, written, holder, moved === null ? nodes.map((_, i) => i) : [nodes.length]), written.binary)
+  return encodeGlb(withSun(documentOf(asset, written, holder, moved === null ? nodes.map((_, i) => i) : [nodes.length]), options.sun), written.binary)
 }
 
 export interface BuildingGlbOptions extends GlbOptions {
@@ -417,8 +481,8 @@ export function toBuildingGlb(storeys: readonly StoreyScene[], options: Building
   const moved = movedBy(options.origin)
   const asOne = options.root === 'floor' && storeys.length === 1
   const holderName = asOne ? storeys[0]!.id : GLB_BUILDING_NODE
-  const asset = assetOf(options.leftOut ?? [], moved, options.approximations ?? NO_APPROXIMATIONS, holderName)
-  if (parts.length === 0) return encodeGlb({ asset, scene: 0, scenes: [{}] }, null)
+  const asset = assetOf(options.leftOut ?? [], moved, options.approximations ?? NO_APPROXIMATIONS, holderName, options.north)
+  if (parts.length === 0) return encodeGlb(withSun({ asset, scene: 0, scenes: [{}] }, options.sun), null)
   const written = writeParts(parts)
   const [ox, oy] = moved ?? [0, 0]
 
@@ -437,7 +501,7 @@ export function toBuildingGlb(storeys: readonly StoreyScene[], options: Building
     })
   }
   const floorIndex = (k: number): number => written.nodes.length + k
-  if (asOne) return encodeGlb(documentOf(asset, written, floors, [floorIndex(0)]), written.binary)
+  if (asOne) return encodeGlb(withSun(documentOf(asset, written, floors, [floorIndex(0)]), options.sun), written.binary)
   const root = { name: GLB_BUILDING_NODE, ...translation(ox, 0, oy), children: storeys.map((_, k) => floorIndex(k)) }
-  return encodeGlb(documentOf(asset, written, [...floors, root], [floorIndex(storeys.length)]), written.binary)
+  return encodeGlb(withSun(documentOf(asset, written, [...floors, root], [floorIndex(storeys.length)]), options.sun), written.binary)
 }

@@ -10,7 +10,7 @@ import * as THREE from 'three'
 import { _roots, advance, createRoot, extend, flushSync, type RootState } from '@react-three/fiber'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { floorElevations } from '@ongrid/floorplan/geometry'
-import { BuildingScene } from '../canvas3d/BuildingScene'
+import { BuildingScene, type SceneSun } from '../canvas3d/BuildingScene'
 import { buildingFrame, buildingGround, buildingLayout, type BuildingFrame, type BuildingGround, type BuildingLayout } from '../canvas3d/building'
 import type { CameraRecord } from '@ongrid/floorplan/geometry'
 import { openingCamera, recordCamera } from '../canvas3d/camera'
@@ -32,6 +32,8 @@ export interface StillSceneOptions {
    * (the floors above are left out, as for a cutaway), and with the rooms' ceilings. No when left out.
    */
   readonly inside?: boolean
+  /** CNT-58: the sun the light shines from; Grid's fixed light when left out. */
+  readonly sun?: SceneSun | null
 }
 
 export interface StillScene {
@@ -87,7 +89,7 @@ export function stillScene(plan: FloorPlan, options: StillSceneOptions): StillSc
 
   let store: ReturnType<typeof root.render> | undefined
   flushSync(() => {
-    store = root.render(<BuildingScene floorPlan={plan} layout={layout} frame={frame} colors={options.colors} ground={ground} ceilings={inside} />)
+    store = root.render(<BuildingScene floorPlan={plan} layout={layout} frame={frame} colors={options.colors} ground={ground} ceilings={inside} sun={options.sun ?? null} />)
   })
   const state: RootState = store!.getState()
   // One frame, as the app draws before anything is seen: it puts every part at rest.

@@ -54,7 +54,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/edit.ts': [9, 'command'],
   // VEW-72: five more, the help of --scale, its refusals, --floor all with --out and a plan with nothing on any floor.
   // VEW-73: five more, the help of --no-roofs and --arc-segments and their refusals.
-  'packages/cli/src/command/export.ts': [30, 'command'],
+  // CNT-58: one more, sun refused for a format other than glb.
+  'packages/cli/src/command/export.ts': [31, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
@@ -167,7 +168,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/paragraphs.ts': [16, 'agent'],
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
   // VEW-75: kind=eye's camera: where it stands and looks, its lens, tilt and perspective, and their refusals.
-  'packages/cli/src/mcp/eyeAnswer.ts': [25, 'tools'],
+  // CNT-58: two more, toward by the compass once north is stated, or the drawing's top with none.
+  'packages/cli/src/mcp/eyeAnswer.ts': [27, 'tools'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   // ARE-67: eight more, the seats, desks and covers keys' help.
   // ARE-69: thirty more, the description and schema of totals, scopes, the three figures and add, remove and update.
@@ -215,7 +217,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // MSG-35: one more, the route measure's travel distance and nearest exit.
   // MSG-34: thirty-four fewer, grid_areas' and grid_schedule's lines in the message files.
   // ARE-73: one more, what=activity's per_kind and all arguments.
-  'packages/cli/src/mcp/readTools.ts': [399, 'tools'],
+  // CNT-58: five more, grid_view's sun and the light the model is lit by.
+  'packages/cli/src/mcp/readTools.ts': [404, 'tools'],
   // ARE-73: grid_measure what=activity's per_kind argument and its refusals.
   'packages/cli/src/mcp/activityArg.ts': [7, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
@@ -254,6 +257,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/planTool.ts': [21, 'tools'],
   // LVL-21: grid_add_stair and grid_change_stair, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
+  // CNT-58: the sun's arguments, their help and refusals.
+  'packages/cli/src/mcp/sunArgs.ts': [12, 'tools'],
   // LVL-23: grid_set_building, its description, arguments and answer.
   'packages/cli/src/mcp/buildingTools.ts': [54, 'tools'],
   // LVL-24: grid_set_levels, its description and arguments.
@@ -293,7 +298,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-43: six more, the from, layers and units arguments and their refusals.
   // VEW-72: three more, grid_export's scale and out and a file out cannot write.
   // VEW-73: three more, grid_export's 3D files and its roofs and arcSegments.
-  'packages/cli/src/mcp/writeTools.ts': [164, 'tools'],
+  // CNT-58: two more, grid_export's sun and its refusal for another format.
+  'packages/cli/src/mcp/writeTools.ts': [166, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -327,6 +333,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-56: one fewer, the face lines now come from the message files.
   'packages/cli/src/quantities/site.ts': [22, 'notYet'],
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
+  // CNT-58: the sun's path, the faces it is on, the shares in sun and the shadow plan.
+  'packages/cli/src/quantities/sunPath.ts': [36, 'notYet'],
   'packages/cli/src/quantities/takeoff.ts': [10, 'notYet'],
   'packages/cli/src/quantities/use.ts': [32, 'notYet'],
   'packages/cli/src/quantities/walked.ts': [3, 'notYet'],
@@ -392,7 +400,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-55: three more, what itemRaised decides.
   // CNT-56: two more, what curveFit decides on the site.
   // ARE-73: two more, what itemOverlap and swingContact decide of an activity zone.
-  'packages/floorplan/src/geometry/tolerances.ts': [394, 'developer'],
+  // CNT-58: seventeen more, what the sun's figures decide.
+  'packages/floorplan/src/geometry/tolerances.ts': [411, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -616,7 +625,10 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // of=items (mcp/readTools.ts 2) and an item's facts on the sheet (sheet/coverage.ts 1) (odd/tasks/CNT-52.md).
     // and CNT-55 7: what itemRaised decides (geometry/tolerances.ts 3), an item line's above (rooms/items.ts 2),
     // a hung item's receipt (edit/items.ts 1) and grid_add_item's elevation (mcp/itemTools.ts 1) (odd/tasks/CNT-55.md).
-    expect(left).toBeLessThanOrEqual(2597)
+    // and CNT-58 75: the sun's path and shadows (quantities/sunPath.ts 36, mcp/sunArgs.ts 12), grid_view's,
+    // grid_export's and eye's sun and compass words (mcp/readTools.ts 5, mcp/writeTools.ts 2, mcp/eyeAnswer.ts 2,
+    // command/export.ts 1) and what the sun's figures decide (geometry/tolerances.ts 17) (odd/tasks/CNT-58.md).
+    expect(left).toBeLessThanOrEqual(2672)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

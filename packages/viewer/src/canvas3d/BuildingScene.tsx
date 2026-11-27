@@ -42,6 +42,33 @@ export interface BuildingSceneProps {
   ground?: BuildingGround | null
   /** VEW-78: whether the rooms' ceilings are drawn, for a camera standing in a room. Not when left out. */
   ceilings?: boolean
+  /**
+   * CNT-58: the sun at a moment the core worked out, which the directional light then shines from
+   * in place of the fixed one. Grid's own light when left out.
+   */
+  sun?: SceneSun | null
+}
+
+/** CNT-58: the sun for the scene's light: the way toward it in Three's axes (a unit vector) and its elevation in degrees. */
+export interface SceneSun {
+  readonly toward: readonly [number, number, number]
+  readonly elevation: number
+}
+
+/** How bright the sun's light is, full above `SUN_FULL_ABOVE`° and fading to none at the horizon; warmer the lower it is. */
+const SUN_INTENSITY = 1.3
+const SUN_FULL_ABOVE = 10
+const SUN_WHITE = '#ffffff'
+const SUN_LOW = '#ffc58a'
+
+function sunLight(sun: SceneSun, from: readonly [number, number, number]): { position: [number, number, number]; intensity: number; color: string } {
+  const reach = Math.hypot(from[0], from[1], from[2])
+  const share = Math.max(0, Math.min(1, sun.elevation / SUN_FULL_ABOVE))
+  return {
+    position: [sun.toward[0] * reach, sun.toward[1] * reach, sun.toward[2] * reach],
+    intensity: sun.elevation <= 0 ? 0 : SUN_INTENSITY * Math.max(share, 0.35),
+    color: share >= 1 ? SUN_WHITE : SUN_LOW
+  }
 }
 
 /**
@@ -59,18 +86,21 @@ export function BuildingScene({
   hovered = null,
   pointer,
   ground = null,
-  ceilings = false
+  ceilings = false,
+  sun = null
 }: BuildingSceneProps): JSX.Element {
   const { shadow } = frame
   const { roof } = layout
+  const light = sun === null ? { position: shadow.position, intensity: SUN_INTENSITY, color: SUN_WHITE } : sunLight(sun, shadow.position)
 
   return (
     <>
       <color attach="background" args={[colors.background]} />
       <hemisphereLight args={['#fdfbf5', '#6b6553', 2.2]} />
       <directionalLight
-        position={shadow.position}
-        intensity={1.3}
+        position={light.position}
+        intensity={light.intensity}
+        color={light.color}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0005}

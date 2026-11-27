@@ -23,6 +23,9 @@ import type { FloorPlan } from '../types/floorplan'
 import type { ReadFault } from '../types/readParts'
 import { buildFloorPlan, buildScene, dxfFactsOf, dxfSheets, floorElevations, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toBuildingGlb, toBuildingObj, toDxfFloors, toIfc, withPatterns } from '../geometry'
 import { toMtl, type StoreyScene } from '../geometry/export/obj'
+import type { GlbNorth, GlbSun } from '../geometry/export/gltf'
+import { planOrientation } from '../geometry/orientation'
+import { planPlace, type PlanSun } from '../geometry/sunShade'
 import type { Scene3D } from '../geometry/scene3d'
 import type { DxfProfile } from '../geometry/export/dxfProfile'
 import type { DxfFloor, DxfOpeningFacts, DxfSheet } from '../geometry/export/dxf'
@@ -78,6 +81,35 @@ export interface PlanExportOptions {
   readonly roofs?: boolean
   /** VEW-73: OBJ and GLB: the straight pieces a whole circle of curved wall is written with (`ARC_SEGMENTS_RANGE`). */
   readonly arcSegments?: number
+  /** CNT-58: GLB: the sun at a moment, written as a directional light node named `sun`. None when left out. */
+  readonly sun?: { readonly sun: PlanSun; readonly utcOffset: number | null }
+}
+
+/** CNT-58: the north and place a GLB carries, when the plan states either. */
+function glbNorth(plan: FloorPlan): GlbNorth | undefined {
+  const orientation = planOrientation(plan)
+  const place = planPlace(plan)
+  if (orientation.north === null && place === null && !orientation.yAxisStated) return undefined
+  return { north: orientation.north, yAxis: orientation.yAxis, ...(place === null ? {} : { latitude: place.latitude, longitude: place.longitude }) }
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/** CNT-58: the sun as the GLB writes it, in the file's axes (x, up, -y). */
+function glbSun(asked: NonNullable<PlanExportOptions['sun']>): GlbSun {
+  const { sun, utcOffset } = asked
+  const e = (sun.position.elevation * Math.PI) / 180
+  const d = sun.moment.day
+  const minutes = ((Math.round(sun.moment.minutes) % 1440) + 1440) % 1440
+  const r = (v: number): number => Math.round(v * 1e9) / 1e9 + 0
+  return {
+    toward: [r(Math.cos(e) * sun.toward.x), r(Math.sin(e)), r(-Math.cos(e) * sun.toward.y)],
+    azimuth: Math.round(sun.position.azimuth * 10) / 10,
+    elevation: Math.round(sun.position.elevation * 10) / 10,
+    date: `${String(d.year).padStart(4, '0')}-${pad2(d.month)}-${pad2(d.day)}`,
+    time: `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`,
+    utcOffset,
+  }
 }
 
 export interface PlanExport {
@@ -172,6 +204,12 @@ function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, 
   return { storeys, origin: moved.at }
 }
 
+/** CNT-58: the GLB's north and sun options, each only when there is one. */
+function withNorthAndSun(plan: FloorPlan, options: PlanExportOptions): { north?: GlbNorth; sun?: GlbSun } {
+  const north = glbNorth(plan)
+  return { ...(north === undefined ? {} : { north }), ...(options.sun === undefined ? {} : { sun: glbSun(options.sun) }) }
+}
+
 export function exportPlan(stated: FloorPlan, format: ExportFormat, options: PlanExportOptions): PlanExport {
   // LVL-8: every format reads plain openings; a pattern is expanded into them first, so a plan
   // with a pattern exports exactly what the same plan with those openings written out does.
@@ -223,7 +261,7 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
     floors = held.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
   } else {
     const { storeys, origin } = storeysOf(ordered, held, format === 'glb', options)
-    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor' })
+    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor', ...withNorthAndSun(plan, options) })
     floors = storeys.map(({ id, elevation }) => ({ id, elevation }))
   }
   const heldIds = new Set(held)

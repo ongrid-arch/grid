@@ -16,7 +16,7 @@ import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
 import { sectionPicture } from '@ongrid/viewer/src/picture/section'
 import type { PlanSection, SectionLine } from '@ongrid/floorplan/geometry/section'
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
-import { planStill, stillRoofShown } from '@ongrid/viewer/src/still'
+import { planStill, stillRoofShown, type SceneSun } from '@ongrid/viewer/src/still'
 import { loadCanvas } from './canvas'
 import { registerScriptFonts } from '../sheet/fonts'
 import { drawPlan, pictureToPng } from './drawPlan'
@@ -237,12 +237,12 @@ export interface CameraView {
  * the same record. A camera outside every room sees the ground grid; one in a room does not.
  * VEW-19: the roof is drawn as `roof` says, else as every still decides (`stillRoofShown`).
  */
-export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language, roof?: boolean): Promise<CameraView> {
+export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language, roof?: boolean, sun?: SceneSun): Promise<CameraView> {
   const drawn = roof ?? stillRoofShown(plan, { focus: camera.cut, inside: camera.standingIn.room !== null })
   // VEW-17: the caption band under the still is part of its size.
   // VEW-26: a record framed in portrait (a tower) is drawn standing up, as many pixels.
   const [width, height] = camera.aspectRatio < 1 ? [STILL_H, STILL_W] : [STILL_W, STILL_H]
-  const image = planStill(plan, { camera, width, height: height - captionHeight(width), look: 'light', supersample: 2, roof: drawn })
+  const image = planStill(plan, { camera, width, height: height - captionHeight(width), look: 'light', supersample: 2, roof: drawn, ...(sun === undefined ? {} : { sun }) })
   return { png: await png(image, language), camera, roof: drawn }
 }
 

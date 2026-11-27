@@ -359,6 +359,34 @@ export function shareInSun(surface: SunSurface, shadow: MultiPolygon, sun: PlanS
   return Math.min(1, Math.max(0, multiArea(lit) / surface.area))
 }
 
+// ─── The shadow plan ─────────────────────────────────────────────────────────────────────────
+
+/** The shadow plan of one floor at a moment: the shadows on the ground round the building, or on an upper floor's open spaces, and each of its spaces' share in sun. */
+export interface ShadowPlan {
+  readonly shade: MultiPolygon
+  readonly level: number
+  readonly onGround: boolean
+  readonly spaces: readonly { readonly surface: SunSurface; readonly inSun: number }[]
+}
+
+export function shadowPlan(plan: FloorPlan, sun: PlanSun, floor: string): ShadowPlan {
+  const casters = sunCasters(plan)
+  const floorLevel = floorElevations(plan).floors.get(floor)?.floorLevel ?? casters.ground
+  const onGround = floorLevel <= casters.ground
+  const level = onGround ? casters.ground : floorLevel
+  const shadow = shadowsOn(casters, sun, level)
+  const surfaces = sunSurfaces(plan).filter((s) => (onGround ? s.level === casters.ground : s.floor === floor))
+  const spaces = surfaces.map((surface) => ({ surface, inSun: shareInSun(surface, shadow, sun) }))
+  if (shadow.length === 0) return { shade: [], level, onGround, spaces }
+  // On the ground the shadows are drawn round the building, not over its rooms; above it, on its open spaces only.
+  const standing = casters.casters.filter((c) => c.kind === 'floor' && c.bottom <= level && level < c.top).map((c) => c.pieces)
+  const shade = onGround
+    ? cutOutline('difference', shadow, standing) ?? shadow
+    : surfaces.length === 0 ? [] : cutOutline('intersection', shadow, [cutOutline('union', surfaces[0]!.pieces, surfaces.slice(1).map((s) => s.pieces)) ?? []]) ?? []
+  return { shade, level, onGround, spaces }
+}
+
+
 // ─── Faces ───────────────────────────────────────────────────────────────────────────────────
 
 /** One face of a building's footprint. */
