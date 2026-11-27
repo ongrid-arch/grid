@@ -366,7 +366,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-24: one more, a wall lower than storeyLowest set against its floor's height.
   // CMD-49: three more, curveSweep's description.
   // VEW-73: two more, what floorLift decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [354, 'developer'],
+  // VEW-77: three more, what smoothRunTurn decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [357, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
