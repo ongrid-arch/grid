@@ -130,6 +130,15 @@ export async function comparisonView(comparison: Pick<BuildingComparison, 'align
   return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, floor: shown }
 }
 
+/** One drawing of a sheet: a plan, its title, the floor drawn and (VEW-74) its frame and sizes. */
+export interface SheetEntry {
+  readonly plan: FloorPlan
+  readonly title: string
+  readonly floor?: string
+  readonly frame?: Bounds
+  readonly showDimensions?: boolean
+}
+
 const SHEET_WIDTH = 2400
 const GAP = 40
 const TITLE = 48
@@ -138,8 +147,10 @@ const FLOOR_NAME = 30
 /**
  * Several plans side by side, every one at the same scale, each under its title. MSG-11: the
  * plans' own words and the label in `language`; each plan's own display language when left out.
+ * VEW-74: an entry may give the part of the plan to frame and whether to draw its sizes, so the
+ * floors of one plan side by side all frame the same part of it.
  */
-export async function sheetView(plans: readonly { plan: FloorPlan; title: string; floor?: string }[], look: LookName, language?: Language): Promise<PlanView> {
+export async function sheetView(plans: readonly SheetEntry[], look: LookName, language?: Language): Promise<PlanView> {
   const tongue = language === undefined ? {} : { language }
   const canvasModule = await loadCanvas()
   const { createCanvas, loadImage, GlobalFonts } = canvasModule
@@ -152,7 +163,8 @@ export async function sheetView(plans: readonly { plan: FloorPlan; title: string
     const floors = p.floor ? [p.floor] : planFloors(p.plan).length > 1 ? [...planFloors(p.plan)].reverse().map((f) => f.id) : [null]
     return floors.map((id) => ({ id, name: id === null || floors.length === 1 ? null : (planFloors(p.plan).find((f) => f.id === id)?.name ?? id) }))
   })
-  const first = plans.map((p, i) => columns[i]!.map((f) => planPicture(p.plan, { floor: f.id, look: lookOf(look), ...tongue })))
+  const own = (p: SheetEntry) => ({ ...(p.frame === undefined ? {} : { frame: p.frame }), ...(p.showDimensions === undefined ? {} : { showDimensions: p.showDimensions }) })
+  const first = plans.map((p, i) => columns[i]!.map((f) => planPicture(p.plan, { floor: f.id, look: lookOf(look), ...own(p), ...tongue })))
   // One scale for every floor of every option: the columns' widths, in metres, fill the sheet.
   const metres = first.reduce((sum, pictures) => sum + Math.max(...pictures.map((picture) => picture.view.width)), 0)
   const pxPerMetre = (SHEET_WIDTH - GAP * (plans.length - 1)) / metres
@@ -166,7 +178,7 @@ export async function sheetView(plans: readonly { plan: FloorPlan; title: string
       const view = first[i]![j]!.view
       const width = Math.max(1, Math.round(view.width * pxPerMetre))
       const height = Math.max(1, Math.round(view.height * pxPerMetre))
-      const picture = planPicture(p.plan, { floor: f.id, look: lookOf(look), width, height, ...tongue })
+      const picture = planPicture(p.plan, { floor: f.id, look: lookOf(look), width, height, ...own(p), ...tongue })
       if (f.name !== null) {
         parts.push(toSvg(forSkia([el('text', { x: x + columnWidth / 2, y: y + FLOOR_NAME - 8, 'text-anchor': 'middle', 'font-family': PICTURE_FONT, 'font-size': 20, fill: '#000000' }, [f.name])], installed)))
         y += FLOOR_NAME

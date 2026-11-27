@@ -190,7 +190,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-74: one more, grid_fields' line on how facts are set.
   // CNT-45: five more, the kinds fixture and furniture, the items grid_view draws and of=fixtures.
   // CNT-49: one more, the facade's ground falling along the face.
-  'packages/cli/src/mcp/readTools.ts': [392, 'tools'],
+  // VEW-74: nineteen more, grid_view's floor=all, crop of several parts, crop_box, margin and their refusals.
+  'packages/cli/src/mcp/readTools.ts': [411, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
