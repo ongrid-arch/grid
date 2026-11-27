@@ -8,7 +8,8 @@
  * from that text through `writeRoomsIntoProject`, so everything that holds for rooms text holds:
  * a plan changed since is refused unless `replace`, the answer is the same, and writing
  * `<plan>.rooms` again changes nothing. The walls' and openings' sources go on the plan as facts
- * by id (`handle` or `guid`), which a later write keeps (CNT-9).
+ * by id (`handle` or `guid`), which a later write keeps (CNT-9); from an IFC, each part's GlobalId,
+ * Name and Tag as its `identity` too (CNT-59).
  *
  * A rooms text the compile refuses is still written beside the plan, and the refusal names it, so
  * the agent changes the lines it names and writes it with `grid write`.
@@ -114,7 +115,7 @@ export function writeDrawingIntoProject(project: Project, file: string, planFile
 
   let done: WriteDone
   try {
-    done = writeRoomsIntoProject(project, reading.text, planFile, { replace: options.replace === true, brief: options.brief === true, facts: reading.facts })
+    done = writeRoomsIntoProject(project, reading.text, planFile, { replace: options.replace === true, brief: options.brief === true, facts: { ...reading.facts, identities: reading.identities } })
   } catch (error) {
     if (error instanceof RoomsRefused) {
       throw new RoomsRefused(error.code, `Read ${shownDrawing} into rooms text, written to ${writtenRooms}, but the plan was not written: ${error.message} Change the lines it names in ${writtenRooms} and write it with grid write ${writtenRooms}.`, error.problems)

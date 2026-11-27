@@ -1,12 +1,19 @@
 /**
  * CMD-43: a drawing as Grid reads it, the same for a DXF and an IFC file, before it is written
  * as rooms text (`toRooms.ts`). Lengths are in metres, points on the plan (x east, y north, C4);
- * every part keeps the DXF handle or IFC GlobalId it came from (`source`).
+ * every part keeps the DXF handle or IFC GlobalId it came from (`source`), and (CNT-59) an IFC
+ * element its Name and Tag (`kept`), which the plan keeps as the part's `identity`.
  *
  * Pure: types and the small geometry the readers share.
  */
 
 export type P = readonly [number, number]
+
+/** CNT-59: an IFC element's own Name and Tag, as the file states them; null for none. */
+export interface KeptNames {
+  readonly name: string | null
+  readonly tag: string | null
+}
 
 /** What a DXF layer, or an IFC class, was read as. */
 export const LAYER_ROLES = ['walls', 'doors', 'windows', 'openings', 'rooms', 'names', 'nothing'] as const
@@ -30,6 +37,7 @@ export interface DrawnFloor {
   /** The ceiling height its spaces are drawn to, when they say. */
   readonly height: number | null
   readonly source: string | null
+  readonly kept?: KeptNames
 }
 
 /** A room as drawn: its inside faces, counter-clockwise, and what its label says. */
@@ -43,6 +51,7 @@ export interface DrawnRoom {
   /** The use the file states for it (an IFC space's object type), when it states one. */
   readonly use?: string | null
   readonly source: string | null
+  readonly kept?: KeptNames
   /** How the outline was read: a closed outline on a rooms layer, an IFC space, or the faces of the walls round it. */
   readonly from: 'outline' | 'space' | 'faces'
 }
@@ -60,6 +69,7 @@ export interface DrawnOpening {
   readonly height: number | null
   readonly sill: number | null
   readonly source: string | null
+  readonly kept?: KeptNames
   /** A gap in the wall's faces, an insert placed with no gap, or an IFC element. */
   readonly how: 'gap' | 'insert' | 'element'
 }
@@ -71,6 +81,7 @@ export interface DrawnWall {
   readonly faces: readonly (readonly [P, P])[]
   readonly footprint: readonly P[] | null
   readonly height: number | null
+  readonly kept?: KeptNames
 }
 
 /** The length unit a drawing was read in. */

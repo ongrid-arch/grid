@@ -101,7 +101,9 @@ describe('room edits on a plan with phases (WRT-15)', () => {
   it('adds a room against an existing wall: the wall\'s pieces stay existing and the room it is built against stays', async () => {
     const reply = await edit('add.json', PLAN, 'grid_add_room', { room: 'ext', against: 'living', side: 'north', width: 3, depth: 3, name: 'Extension', use: 'living', opening_width: 2 })
     const file = onDisk('add.json')
-    expect(phases(file.walls)).toMatchObject({ 'n1-a': 'existing', 'n1-b': 'existing', 'n1-c': 'existing', 'ext-north': 'new' })
+    // CNT-59: the longest piece, between the two rooms, keeps the wall's id.
+    expect(phases(file.walls)).toMatchObject({ 'n1-a': 'existing', n1: 'existing', 'n1-c': 'existing', 'ext-north': 'new' })
+    expect(file.walls.some((w) => w.id === 'n1-b')).toBe(false)
     expect(phases(file.rooms)).toEqual({ living: 'existing', kitchen: 'existing', ext: 'new' })
     expect(file.openings.find((o) => o.id === 'pass-ext')?.phase).toBe('new')
     expect(reply.text).not.toContain('Stood before the work')
@@ -110,7 +112,8 @@ describe('room edits on a plan with phases (WRT-15)', () => {
   it('adds a room over a door it takes out: the door is kept, to be demolished, on the piece of wall that holds it', async () => {
     await edit('add-door.json', PLAN, 'grid_add_room', { room: 'porch', against: 'living', side: 'south', width: 3, depth: 3, name: 'Porch', use: 'living', in_the_way: 'remove', door_width: 0.9, opening_width: 1 })
     const front = onDisk('add-door.json').openings.find((o) => o.id === 'front')!
-    expect([front.phase, front.wall]).toEqual(['demolished', 's1-b'])
+    // CNT-59: the piece that holds it is the longest, which keeps the wall's id.
+    expect([front.phase, front.wall]).toEqual(['demolished', 's1'])
     // Where it stood: 1 m from the old wall's start at x = 4, so x = 3; the piece starts at x = 3.7.
     expect(front.offset).toBeCloseTo(0.7, 6)
   })

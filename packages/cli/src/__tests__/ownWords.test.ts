@@ -335,7 +335,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/seen/marks.ts': [24, 'notYet'],
   // CNT-16: +1, the columns' place on the sheet ("drawn and tabled").
   // CNT-52: one more, an item's facts.
-  'packages/cli/src/sheet/coverage.ts': [31, 'developer'],
+  // CNT-59: four more, another tool's identity of a wall, an opening, a room and a floor.
+  'packages/cli/src/sheet/coverage.ts': [35, 'developer'],
   // SHT-6: the refusal of a floor too large for the paper.
   'packages/cli/src/sheet/drawingSheet.ts': [3, 'command'],
   'packages/cli/src/sheet/fonts.ts': [1, 'developer'],
@@ -437,7 +438,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/floorplan/src/scan/toPlan.ts': [30, 'notYet'],
   // LVL-20: one more, the most dormers one roof lists, as the rooflights' is worded.
   // CNT-49: one more, ground sides that name no side.
-  'packages/floorplan/src/types/floorplan.ts': [62, 'notYet'],
+  // CNT-59: one more, a guid that is not a GlobalId.
+  'packages/floorplan/src/types/floorplan.ts': [63, 'notYet'],
   'packages/floorplan/src/types/places.ts': [7, 'notYet'],
   // CMD-7: the plan JSON Schema's title, its description, and the error for a schema part it cannot write.
   'packages/floorplan/src/types/planSchema.ts': [3, 'developer'],
@@ -617,6 +619,7 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // of=items (mcp/readTools.ts 2) and an item's facts on the sheet (sheet/coverage.ts 1) (odd/tasks/CNT-52.md).
     // and CNT-55 7: what itemRaised decides (geometry/tolerances.ts 3), an item line's above (rooms/items.ts 2),
     // a hung item's receipt (edit/items.ts 1) and grid_add_item's elevation (mcp/itemTools.ts 1) (odd/tasks/CNT-55.md).
+    // and CNT-59 1: a guid that is not a GlobalId (types/floorplan.ts 1), within the ceiling (odd/tasks/CNT-59.md).
     expect(left).toBeLessThanOrEqual(2597)
   })
 

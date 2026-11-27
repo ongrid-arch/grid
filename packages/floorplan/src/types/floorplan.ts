@@ -96,6 +96,10 @@
  *   count). They sit in that one object, never as loose fields, so a misspelt field of the
  *   format is still named (MSG-4). A room MAY state its room number in `number`. Grid checks
  *   nothing against a fact. Optional and never defaulted (version 1).
+ *   CNT-59 widens it: a wall, an opening, a room and a floor MAY state what another tool calls
+ *   it in `identity` (`guid`, an IFC GlobalId or a UUID; `name`; `tag`), kept from an import and
+ *   written into the IFC and the DXF in place of Grid's own. The id stays Grid's. Optional and
+ *   never defaulted (version 1).
  *
  * C10 · The place (COD-3)
  *   `site.country` names the country the building will be built in, by a name or a code on
@@ -365,6 +369,7 @@
 import { z } from 'zod'
 import { limit } from '../geometry/tolerances'
 import { BOUNDARY_MAX, PARTS_MAX, PROPERTIES_MAX, textProblem, type TextKind } from './planText'
+import { isOutsideGuid } from './identity'
 import { factKey } from './facts'
 import { placeProblem } from './places'
 import { roofFrame, roofTop } from './roofFrame'
@@ -377,6 +382,7 @@ import { builtInItem } from '../library/builtIn'
 
 export * from './planText'
 export * from './facts'
+export * from './identity'
 
 /**
  * The error `parseFloorPlan` throws and one problem it lists. Callers take them from here and
@@ -454,6 +460,19 @@ export const PropertiesSchema = z
       else ctx.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: 'names the same fact as another name on this part, in other capitals or spaces' })
     }
   })
+
+/**
+ * CNT-59 (C9): what another tool calls the part: its GlobalId (IFC's 22-character form or a
+ * UUID), its name and its tag, each optional, kept from an import and written into the IFC and
+ * the DXF in place of Grid's own. Strict, so a misspelt field is named. Grid's id stays the id.
+ */
+export const IdentitySchema = z
+  .object({
+    guid: text('id').pipe(z.string().refine(isOutsideGuid, { message: 'is not a GlobalId: give IFC\'s 22-character form or a UUID' })).optional(),
+    name: text('name').pipe(z.string().min(1)).optional(),
+    tag: text('id').pipe(z.string().min(1)).optional(),
+  })
+  .strict()
 
 /** C5: the floor an entity belongs to when it does not name one. */
 export const DEFAULT_FLOOR_ID = 'ground'
@@ -653,6 +672,8 @@ export const FloorSchema = z.object({
   overhang: z.enum(OVERHANG_MEANT).optional(),
   // CNT-9 (C9): facts of the person's own. Optional and never defaulted (version 1).
   properties: PropertiesSchema.optional(),
+  // CNT-59 (C9): what another tool calls it (IdentitySchema). Optional and never defaulted (version 1).
+  identity: IdentitySchema.optional(),
   // BRF-4 (C17): the floor's outside face, its corners in order round it, either way round; a
   // last point on the first closes it. Joined with what the walls enclose for the slab, the roof
   // and the gross external area. Optional and never defaulted (version 1).
@@ -1002,6 +1023,8 @@ export const WallSchema = z.preprocess(
       arc: WallArcSchema.optional(),
       // CNT-9 (C9): facts of the person's own. Optional and never defaulted (version 1).
       properties: PropertiesSchema.optional(),
+      // CNT-59 (C9): what another tool calls it (IdentitySchema). Optional and never defaulted (version 1).
+      identity: IdentitySchema.optional(),
       // CNT-10 (C16): what the work does to it. Optional and never defaulted (version 1).
       phase: PhaseSchema.optional(),
       // CNT-6 (C23): what lies past its side with no room drawn on it, along every stretch with a
@@ -1429,6 +1452,8 @@ export const RoomSchema = z.object({
   number: text('id').pipe(z.string().refine((value) => value.trim().length > 0, { message: 'is blank: leave the number out instead' })).optional(),
   // CNT-9 (C9): facts of the person's own. Optional and never defaulted (version 1).
   properties: PropertiesSchema.optional(),
+  // CNT-59 (C9): what another tool calls it (IdentitySchema). Optional and never defaulted (version 1).
+  identity: IdentitySchema.optional(),
   // CNT-10 (C16): what the work does to it. Optional and never defaulted (version 1).
   phase: PhaseSchema.optional(),
   // CNT-15 (C24): its floor, wall, ceiling and skirting finishes, by the person's own names. A
@@ -1537,6 +1562,8 @@ export const OpeningFieldsSchema = z.object({
   anchor: OpeningAnchorSchema.optional(),
   // CNT-9 (C9): facts of the person's own. Optional and never defaulted (version 1).
   properties: PropertiesSchema.optional(),
+  // CNT-59 (C9): what another tool calls it (IdentitySchema). Optional and never defaulted (version 1).
+  identity: IdentitySchema.optional(),
   // CNT-10 (C16): what the work does to it; unstated, its wall's when that is demolished or new.
   // Optional and never defaulted (version 1).
   phase: PhaseSchema.optional(),

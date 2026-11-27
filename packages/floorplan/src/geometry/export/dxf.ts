@@ -66,6 +66,7 @@ import { approximationLines, kindLabel, leftOutByKind, leftOutSummary, NO_APPROX
 import type { PlanCurve } from '../floorplan'
 import type { FloorPlan } from '../../types/floorplan'
 import { factOf, factText, ROOM_NUMBER_FACT } from '../../types/facts'
+import { hasIdentity, IDENTITY_FACTS, type Identity } from '../../types/identity'
 import { indexPlan } from '../plan'
 import { roomZones } from '../zones'
 import { DXF_CATEGORIES, DXF_LINETYPES, NEUTRAL_DXF_PROFILE, type DxfCategory, type DxfLinetype, type DxfPen, type DxfProfile } from './dxfProfile'
@@ -942,6 +943,11 @@ function factLines(drawing: PlanDrawing, facts: DxfFacts | undefined, frame: Bou
     const pairs: [string, string][] = []
     if (own.number !== undefined && factOf(own, ROOM_NUMBER_FACT) === undefined) pairs.push([ROOM_NUMBER_FACT, own.number])
     for (const [name, value] of Object.entries(own.properties ?? {})) pairs.push([name, factText(value)])
+    // CNT-59: what another tool calls the part, after its facts.
+    for (const field of ['guid', 'name', 'tag'] as const) {
+      const value = own.identity?.[field]
+      if (value !== undefined) pairs.push([IDENTITY_FACTS[field], value])
+    }
     pairs.forEach(([name, value], n) => lines.push({ at: { x: at.x, y: at.y - step * (first + n) }, text: dxfFactText(id, name, value) }))
   }
   const byId = new Map(facts.parts.map((part) => [part.id, part]))
@@ -956,7 +962,8 @@ function factLines(drawing: PlanDrawing, facts: DxfFacts | undefined, frame: Bou
   // CNT-52: an item's facts at its middle.
   for (const item of drawing.items) place(item.id, item.at, byId.get(item.id))
   if (facts.floor !== null && writablePoints([frame.min, frame.max])) {
-    const corner = { x: frame.min.x, y: frame.max.y + step * (Object.keys(facts.floor.properties ?? {}).length + 1) }
+    const ownLines = Object.keys(facts.floor.properties ?? {}).length + Object.values(facts.floor.identity ?? {}).filter((value) => value !== undefined).length
+    const corner = { x: frame.min.x, y: frame.max.y + step * (ownLines + 1) }
     place(facts.floor.id, corner, facts.floor)
   }
   return lines.filter((line) => writablePoints([line.at]) && dxfText(line.text).length > 0)
@@ -969,11 +976,12 @@ function noteText(note: PlanDrawing['notes'][number]): string | null {
   return note.text
 }
 
-/** CNT-9: what one part states of its own: its facts, and a room's number. */
+/** CNT-9: what one part states of its own: its facts, and a room's number. CNT-59: what another tool calls it. */
 export interface FactsOf {
   readonly id: string
   readonly number?: string | undefined
   readonly properties?: Readonly<Record<string, string | number | boolean>> | undefined
+  readonly identity?: Identity | undefined
 }
 
 /** CNT-9: the facts of one floor's parts, and of the floor itself, for the `GRID-FACTS` layer. */
@@ -987,10 +995,10 @@ export interface DxfFacts {
  * rooms' (CNT-52: and items'), and its own. A zone (CNT-8) is numbered by its room, so a number it states is not
  * written: it keeps its facts only.
  */
-export function dxfFactsOf(plan: FloorPlan, floor: { readonly id: string; readonly properties?: FactsOf['properties'] } | null): DxfFacts {
-  const carries = (part: FactsOf): boolean => part.number !== undefined || Object.keys(part.properties ?? {}).length > 0
+export function dxfFactsOf(plan: FloorPlan, floor: { readonly id: string; readonly properties?: FactsOf['properties']; readonly identity?: Identity | undefined } | null): DxfFacts {
+  const carries = (part: FactsOf): boolean => part.number !== undefined || Object.keys(part.properties ?? {}).length > 0 || hasIdentity(part)
   const zoneOf = plan.rooms.some((room) => room.partOf !== undefined) ? roomZones(indexPlan(plan)).zoneOf : null
-  const rooms = plan.rooms.map((room): FactsOf => (zoneOf?.has(room.id) === true && room.number !== undefined ? { id: room.id, properties: room.properties } : room))
+  const rooms = plan.rooms.map((room): FactsOf => (zoneOf?.has(room.id) === true && room.number !== undefined ? { id: room.id, properties: room.properties, identity: room.identity } : room))
   const parts = [...plan.walls, ...plan.openings, ...rooms, ...(plan.items ?? [])].filter(carries)
   return { parts, floor: floor !== null && carries(floor) ? floor : null }
 }

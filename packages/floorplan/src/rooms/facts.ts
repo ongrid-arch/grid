@@ -18,9 +18,15 @@
  * WRT-70: a type the part took from the plan's defaults (`types.defaults`) is not its own, so it is
  * not carried; a part the text writes with no type of its own takes the default as the reading
  * does, recorded in `typed`, so the file names a type only on the parts that named one.
+ *
+ * CNT-59: so does what another tool calls a part (`identity`). A wall whose id the text no longer
+ * writes, because the text cuts it in pieces, gives its identity to the longest piece on its line
+ * that has none, so its GlobalId stays on the wall the other tool knows and on no other.
  */
-import { WallKindSchema, type FloorPlan, type TypedValue, type WallKind } from '../types/floorplan'
+import { WallKindSchema, type FloorPlan, type TypedValue, type Wall, type WallKind } from '../types/floorplan'
 import { planDoorTypes, planWallTypes, planWindowTypes } from '../geometry/partTypes'
+import { tolerance } from '../geometry/tolerances'
+import { hasIdentity, type Identity } from '../types/identity'
 
 type Part = {
   readonly id: string
@@ -31,6 +37,7 @@ type Part = {
   readonly doorType?: string | undefined
   readonly windowType?: string | undefined
   readonly typed?: readonly TypedValue[] | undefined
+  readonly identity?: Identity | undefined
 }
 
 export interface FactsCarried {
@@ -46,6 +53,7 @@ export interface FactsCarried {
 const named = (part: Part, field: 'wallType' | 'doorType' | 'windowType'): string | undefined => (part.typed?.includes(field) === true ? undefined : part[field])
 
 const carries = (part: Part): boolean =>
+  hasIdentity(part) ||
   part.number !== undefined || Object.keys(part.properties ?? {}).length > 0 || part.finishes !== undefined || named(part, 'wallType') !== undefined || named(part, 'doorType') !== undefined || named(part, 'windowType') !== undefined
 
 /** The values of a part its type gives the same, which the type is left to give. */
@@ -55,6 +63,50 @@ function sameAsType(part: Record<string, unknown>, type: Readonly<Record<string,
 }
 
 const withTyped = <T>(part: T, typed: readonly TypedValue[]): T => (typed.length === 0 ? part : ({ ...part, typed } as T))
+
+/** The piece of `wall` along `piece`, in metres, when `piece` lies on its line; else 0. */
+function alongLine(wall: Wall, piece: Wall): number {
+  if (wall.arc !== undefined || piece.arc !== undefined || (wall.floor ?? 'ground') !== (piece.floor ?? 'ground')) return 0
+  const dx = wall.end[0] - wall.start[0]
+  const dy = wall.end[1] - wall.start[1]
+  const length = Math.hypot(dx, dy)
+  if (length === 0) return 0
+  const ux = dx / length
+  const uy = dy / length
+  const off = (p: readonly [number, number]): number => Math.abs((p[0] - wall.start[0]) * uy - (p[1] - wall.start[1]) * ux)
+  if (off(piece.start) > tolerance('diffSameLine') || off(piece.end) > tolerance('diffSameLine')) return 0
+  const at = (p: readonly [number, number]): number => (p[0] - wall.start[0]) * ux + (p[1] - wall.start[1]) * uy
+  const [lo, hi] = [at(piece.start), at(piece.end)].sort((a, b) => a - b) as [number, number]
+  return Math.max(0, Math.min(length, hi) - Math.max(0, lo))
+}
+
+/**
+ * CNT-59: each wall of `before` with an identity whose id `walls` no longer has gives it to the
+ * longest of `walls` on its line with none; the wall is then kept, not lost. Pure.
+ */
+function identitiesOnPieces<T extends Wall>(before: readonly Wall[], walls: readonly T[], lost: string[]): T[] {
+  const ids = new Set(walls.map((wall) => wall.id))
+  const out = [...walls]
+  for (const was of before) {
+    if (!hasIdentity(was) || ids.has(was.id)) continue
+    let best = -1
+    let most = 0
+    out.forEach((piece, i) => {
+      if (piece.identity !== undefined) return
+      const shared = alongLine(was, piece)
+      if (shared > most + tolerance('diffSameLine')) {
+        most = shared
+        best = i
+      }
+    })
+    if (best < 0) continue
+    out[best] = { ...out[best]!, identity: was.identity }
+    const at = lost.indexOf(`wall ${JSON.stringify(was.id)}`)
+    // Kept on its piece, so not lost, unless it carried facts the piece does not take.
+    if (at >= 0 && !((was.properties !== undefined && Object.keys(was.properties).length > 0) || was.wallType !== undefined)) lost.splice(at, 1)
+  }
+  return out
+}
 
 export function carryFacts(before: FloorPlan, written: FloorPlan): FactsCarried {
   let kept = 0
@@ -73,6 +125,7 @@ export function carryFacts(before: FloorPlan, written: FloorPlan): FactsCarried 
       const next: Record<string, unknown> = { ...part }
       let changed = false
       if (part.properties === undefined && was.properties !== undefined) { next['properties'] = was.properties; changed = true }
+      if (part.identity === undefined && was.identity !== undefined) { next['identity'] = was.identity; changed = true }
       if (kind === 'room' && part.number === undefined && was.number !== undefined) { next['number'] = was.number; changed = true }
       if (kind === 'room' && part.finishes === undefined && was.finishes !== undefined) { next['finishes'] = was.finishes; changed = true }
       // CNT-15: the type, and what the text writes that the type gives the same.
@@ -124,7 +177,7 @@ export function carryFacts(before: FloorPlan, written: FloorPlan): FactsCarried 
   const plan: FloorPlan = {
     ...written,
     ...(written.types === undefined && before.types !== undefined ? { types: before.types } : {}),
-    walls: leftToType('wall', carry('wall', before.walls, written.walls)),
+    walls: leftToType('wall', identitiesOnPieces(before.walls, carry('wall', before.walls, written.walls), lost)),
     openings: leftToType('opening', carry('opening', before.openings, written.openings)),
     rooms: carry('room', before.rooms, written.rooms),
     ...(written.floors === undefined ? {} : { floors: carry('floor', before.floors ?? [], written.floors) }),

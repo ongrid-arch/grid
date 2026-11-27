@@ -1465,6 +1465,39 @@ or a wall meets one, and no check reads one. What Grid does with them:
 A fact travels with the plan into every export, like a room's name: keep people's names out of
 facts too ([People are kept out of the plan](#people-are-kept-out-of-the-plan)).
 
+## What another tool calls a part
+
+A wall, a door, a window, a doorless opening, a room and a floor may keep what a consultant's
+model calls it, in `identity` (CNT-59): its `guid`, its `name` and its `tag`, each optional. The
+id stays Grid's: every tool and edit takes the id, and the identity sits beside it.
+
+```json
+{ "id": "w-hall-office", "start": [3.05, 0], "end": [3.05, 4], "thickness": 0.1,
+  "identity": { "guid": "2O2Fr$t4X7Zf8NOew3FLOH", "name": "Basic Wall:Interior 100", "tag": "348112" } }
+```
+
+- `guid` is an IFC GlobalId, 22 characters of IFC's alphabet starting `0` to `3`, or a UUID
+  (with or without dashes and braces), which the IFC writes in IFC's 22-character form. Other
+  text, or an `identity` with a misspelt field, is left out with a `plan/value-left-out` line.
+- **An import keeps it.** `grid write --from model.ifc` sets each part's identity from its
+  element: a wall's, door's, window's and opening's GlobalId, Name and Tag, a room's space's
+  GlobalId and Name, a floor's storey's GlobalId and Name. A wall drawn as one element that Grid
+  writes as several keeps the element's identity on the longest of them. A DXF's handles are not
+  GlobalIds, so a DXF import sets none (its handles stay facts, `handle`). Writing the rooms text
+  again keeps every identity by id; a wall the text now cuts in pieces gives its identity to its
+  longest piece on its line.
+- **Edits keep it on one wall.** An edit that cuts a wall in pieces (a room built against it, two
+  rooms merged across part of it) keeps the wall's id and identity on its longest piece; the
+  other pieces are new walls with new ids and the wall's facts, but no identity, so a GlobalId is
+  never on two walls. `grid_set` sets a wall's, a room's or a floor's identity as any other field.
+- **Exports give it back.** The IFC writes `guid` as the element's GlobalId (a door's or window's
+  on the door or window, a doorless opening's on its void), `name` as its Name and `tag` as its
+  Tag (a door's or window's in place of its schedule mark). A space and a storey have no Tag in
+  IFC2X3, so theirs is the fact `tag` in their `Grid_Properties`. No other element is given a
+  kept GlobalId, and one two parts state (a copied building) is written on the first only. The
+  DXF writes a door's or window's tag as its block's `MARK`, a room's as its tag's `NUMBER`, and
+  each part's identity on `GRID-FACTS` after its facts, as `GUID`, `name` and `tag`.
+
 ## Kinds of door and window, their handing and the part that opens
 
 A door or a window may state its `kind`, and the part of it that opens, `opens` (CNT-14). Both

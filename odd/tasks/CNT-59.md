@@ -52,7 +52,9 @@ id and never replaces it.
   DXF import sets none.
 - Edits: `edit/merge.ts` gains `pieceIds`, which gives the longest piece the wall's own id, and
   `cutWall` then changes that wall's ends and adds the other pieces without its identity;
-  `edit/addRoom.ts` and the merge use it.
+  `edit/addRoom.ts` and the merge use it. `edit/phases.ts` reads a wall shortened on its line
+  with pieces added along it as cut where it stood, so in a plan with phases the pieces stay
+  existing, as they did when every piece took a new id.
 - Decisions: `identity` is one object, not three loose fields, because a room and a floor already
   have a `name` of their own (the person's), which an outside tool's name must not overwrite. The
   other pieces of a cut wall keep its facts (as before) but no identity: they are new elements to
@@ -60,15 +62,15 @@ id and never replaces it.
 
 ## Done
 
-- `types/__tests__/identity.test.ts`: the schema takes a GlobalId and a UUID and refuses other
+- `export/__tests__/identity.test.ts` (with the exports): the schema takes a GlobalId and a UUID and refuses other
   text and a misspelt field; a UUID gives its IFC form.
-- `geometry/export/__tests__/ifcIdentity.test.ts`: a wall, door, room and floor with an identity
+- The same file: a wall, door, room and floor with an identity
   are written with its GlobalId, Name and Tag; no other GlobalId equals a kept one; a GlobalId two
   parts state is written once.
-- `geometry/export/__tests__/dxfIdentity.test.ts` (or the DXF export test): the MARK is the tag
+- The same file: the DXF MARK and room NUMBER are the tags
   and the facts layer carries the GUID.
-- `rooms/__tests__/facts.test.ts`: identities are carried by id when the text is written again.
-- `cli/src/edit/__tests__`: adding a room against a wall with an identity leaves the wall's id
+- `rooms/__tests__/identity.test.ts`: identities are carried by id when the text is written again.
+- `cli/src/edit/__tests__/identity.test.ts`: adding a room against a wall with an identity leaves the wall's id
   and GUID on the longest piece and no other piece with it; a merge the same.
 - `cli/src/drawing/__tests__/fromDrawing.test.ts`: a plan written from an IFC keeps the
   GlobalIds, and its IFC export writes them back.

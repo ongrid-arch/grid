@@ -16,7 +16,7 @@
 import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planFloors, roomShapes, validatePlan, withPatterns, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
 import { english, name, said, type Said } from '@ongrid/floorplan/messages'
 import { baseNamedIn, carryFacts, compileRoomsText, everyProblem, itemsFollowWalls, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
-import { FloorPlanSchema, safeParseFloorPlan, statedItem, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
+import { FloorPlanSchema, safeParseFloorPlan, statedItem, statedOpening, statedWall, type Identity } from '@ongrid/floorplan/types/floorplan'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { briefAnswer, briefReminder, type BriefData } from '../brief/answer'
@@ -258,6 +258,8 @@ export const ROOMS_LISTED_MAX = 12
 export interface PartFacts {
   readonly walls?: Readonly<Record<string, Readonly<Record<string, string>>>>
   readonly openings?: Readonly<Record<string, Readonly<Record<string, string>>>>
+  /** CNT-59: what the drawing calls each part, by list and id, set as its `identity` over the one it kept. */
+  readonly identities?: Readonly<Partial<Record<'walls' | 'openings' | 'rooms' | 'floors', Readonly<Record<string, Identity>>>>>
 }
 
 /**
@@ -509,5 +511,14 @@ function withPartFacts(plan: FloorPlan, facts: PartFacts): FloorPlan {
       const was = typeof part.properties === 'object' && part.properties !== null ? (part.properties as Record<string, unknown>) : {}
       return { ...part, properties: { ...was, ...own } }
     })
-  return { ...plan, walls: set(plan.walls, facts.walls), openings: set(plan.openings, facts.openings) }
+  const named = <T extends { readonly id: string; readonly identity?: Identity | undefined }>(parts: readonly T[], given: Readonly<Record<string, Identity>> | undefined): T[] =>
+    parts.map((part) => (given?.[part.id] === undefined ? part : { ...part, identity: given[part.id] }))
+  const own = facts.identities ?? {}
+  return {
+    ...plan,
+    walls: named(set(plan.walls, facts.walls), own.walls),
+    openings: named(set(plan.openings, facts.openings), own.openings),
+    rooms: named(plan.rooms, own.rooms),
+    ...(plan.floors === undefined ? {} : { floors: named(plan.floors, own.floors) }),
+  }
 }

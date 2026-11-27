@@ -210,9 +210,12 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
       // CNT-9: the DXF writes the facts of the floor's parts and of the floor itself.
       const facts = dxfFactsOf(storey, stated ?? null)
       // HND-1: each room's tag carries its number, counted across the whole building (ARE-12).
-      const numbers = new Map(numbered.filter((n) => n.floor === id).map((n) => [n.id, shownRoomNumber(n)]))
-      // VEW-72: each opening's mark, type, height and sill for its block's attributes.
-      const openings = new Map(storey.openings.map((o) => [o.id, { mark: options.openingMarks?.get(o.id)?.mark ?? o.id, type: options.openingMarks?.get(o.id)?.type ?? null, height: o.height, sill: o.sill } satisfies DxfOpeningFacts] as const))
+      // CNT-59: a room's tag from another tool in its place.
+      const tagOf = new Map(storey.rooms.flatMap((room) => (room.identity?.tag === undefined ? [] : [[room.id, room.identity.tag] as const])))
+      const numbers = new Map(numbered.filter((n) => n.floor === id).map((n) => [n.id, tagOf.get(n.id) ?? shownRoomNumber(n)]))
+      // VEW-72: each opening's mark, type, height and sill for its block's attributes. CNT-59: a
+      // tag from another tool is its mark.
+      const openings = new Map(storey.openings.map((o) => [o.id, { mark: o.identity?.tag ?? options.openingMarks?.get(o.id)?.mark ?? o.id, type: options.openingMarks?.get(o.id)?.type ?? null, height: o.height, sill: o.sill } satisfies DxfOpeningFacts] as const))
       // HND-6, CNT-18: in a file of several floors, each floor names what it leaves out of itself.
       const own = <T extends { readonly floor: string | null }>(parts: readonly T[]): T[] => (held.length === 1 ? [...parts] : parts.filter((part) => part.floor === id || (part.floor === null && id === held[0])))
       return { id, name: stated?.name || id, drawing: buildFloorPlan(storey), leftOut: own(contents.leftOut), approximations: { ...approximations, parts: own(approximations.parts) }, facts, roomNumbers: numbers, openings }

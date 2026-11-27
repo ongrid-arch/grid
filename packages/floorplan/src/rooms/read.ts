@@ -154,7 +154,7 @@ function roomDiffers(a: Room, b: Room): string | null {
  * CNT-9: the facts of the person's own, and a room's stated number, are kept by id when the text
  * is written again (`carryFacts`), so they are no difference here: the read-back stays rooms first.
  */
-const FACTS_CARRIED = ['properties'] as const
+const FACTS_CARRIED = ['properties', 'identity'] as const
 
 /**
  * Any other key of a part, as the schema reads it: a key rooms text does not write (one a later

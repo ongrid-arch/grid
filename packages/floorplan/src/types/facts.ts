@@ -23,7 +23,8 @@ export type FactList = (typeof FACT_LISTS)[number]
  * The fields CNT-9 adds to the parts of a plan, as `<list>.<field>`. The sheet says what it does
  * with each (`packages/cli/src/sheet/coverage.ts`), and its test holds this list to the schema.
  */
-export const FACT_FIELDS = ['walls.properties', 'openings.properties', 'rooms.properties', 'rooms.number', 'floors.properties', 'items.properties'] as const
+// CNT-59: and what another tool calls a wall, an opening, a room or a floor (`identity`).
+export const FACT_FIELDS = ['walls.properties', 'openings.properties', 'rooms.properties', 'rooms.number', 'floors.properties', 'items.properties', 'walls.identity', 'openings.identity', 'rooms.identity', 'floors.identity'] as const
 export type FactField = (typeof FACT_FIELDS)[number]
 
 /**

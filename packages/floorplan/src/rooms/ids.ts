@@ -70,7 +70,7 @@ export function plainIdsFor(plan: object): ReadonlyMap<string, string> {
 }
 
 /** The fields that hold the person's words, never an id: left as written. */
-const WORDS = new Set(['name', 'label', 'text', 'use', 'number', 'properties', 'written'])
+const WORDS = new Set(['name', 'label', 'text', 'use', 'number', 'properties', 'identity', 'written'])
 
 function renamed(value: unknown, plain: ReadonlyMap<string, string>): unknown {
   if (typeof value === 'string') return plain.get(value) ?? value
