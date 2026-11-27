@@ -17,6 +17,22 @@ function figure(value: unknown, where: string): number {
   return value
 }
 
+/** One kind's figures: a depth alone, or front and width. */
+const KIND_FIGURE = {
+  anyOf: [
+    { type: 'number', minimum: FIGURE_MIN, maximum: FIGURE_MAX },
+    {
+      type: 'object',
+      properties: {
+        front: { type: 'number', minimum: FIGURE_MIN, maximum: FIGURE_MAX },
+        width: { type: 'number', minimum: FIGURE_MIN, maximum: FIGURE_MAX },
+      },
+      additionalProperties: false,
+      minProperties: 1,
+    },
+  ],
+} as const
+
 export const PER_KIND_ARG: ArgSpec = {
   type: 'object',
   description:
@@ -25,21 +41,10 @@ export const PER_KIND_ARG: ArgSpec = {
   examples: [{ toilet: { front: 0.7, width: 0.8 }, basin: 0.6 }],
   schema: {
     type: 'object',
+    // The kinds the registry holds when the server starts; a kind registered later is read too.
+    properties: Object.fromEntries(itemKinds().map((kind) => [kind, KIND_FIGURE])),
     propertyNames: { pattern: '^[a-z][a-z0-9-]{0,39}$' },
-    additionalProperties: {
-      anyOf: [
-        { type: 'number', minimum: FIGURE_MIN, maximum: FIGURE_MAX },
-        {
-          type: 'object',
-          properties: {
-            front: { type: 'number', minimum: FIGURE_MIN, maximum: FIGURE_MAX },
-            width: { type: 'number', minimum: FIGURE_MIN, maximum: FIGURE_MAX },
-          },
-          additionalProperties: false,
-          minProperties: 1,
-        },
-      ],
-    },
+    additionalProperties: KIND_FIGURE,
     minProperties: 1,
   },
   read(value) {

@@ -554,12 +554,12 @@ function whoseOf(figure: ZoneFigure): Said {
 export function zoneLine(survey: Survey, zone: ActivityZone, L: Length): string {
   const { itemById } = fixturesOf(survey)
   const room = survey.byId.get(zone.room)
-  const open = (v: number | null): Value => (v === null ? said('activity.open') : L(v))
+  const clearOr = (v: number | null): Value => (v === null ? said('activity.open') : L(v))
   const half = zone.figure.width / 2
   const shortList: Value[] = zone.short.map((part) =>
     part === 'front'
-      ? said('activity.short.front', { measured: open(zone.measured.front), figure: L(zone.figure.front) })
-      : said('activity.short.side', { measured: open(zone.measured[part]), way: way(zone.ways[part]), figure: L(half) })
+      ? said('activity.short.front', { measured: clearOr(zone.measured.front), figure: L(zone.figure.front) })
+      : said('activity.short.side', { measured: clearOr(zone.measured[part]), way: way(zone.ways[part]), figure: L(half) })
   )
   const found: Value[] = [
     ...(shortList.length > 0 ? [said('activity.found.short', { list: joined(shortList, 'join.comma', 'join.and') })] : []),
@@ -574,11 +574,11 @@ export function zoneLine(survey: Survey, zone: ActivityZone, L: Length): string 
       front: L(zone.figure.front),
       width: L(zone.figure.width),
       whose: whoseOf(zone.figure),
-      depth: open(zone.measured.front),
+      depth: clearOr(zone.measured.front),
       frontWay: way(zone.ways.front),
-      left: open(zone.measured.left),
+      left: clearOr(zone.measured.left),
       leftWay: way(zone.ways.left),
-      right: open(zone.measured.right),
+      right: clearOr(zone.measured.right),
       rightWay: way(zone.ways.right),
       found: found.length === 0 ? said('activity.found.clear') : joined(found, 'join.space'),
     })

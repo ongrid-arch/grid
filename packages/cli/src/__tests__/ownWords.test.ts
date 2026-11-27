@@ -389,7 +389,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-71: one more, what lintelBearing decides.
   // ARE-72: eight more, what the four limits for a home's rooms decide.
   // CNT-55: three more, what itemRaised decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [390, 'developer'],
+  // ARE-73: two more, what itemOverlap and swingContact decide of an activity zone.
+  'packages/floorplan/src/geometry/tolerances.ts': [392, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

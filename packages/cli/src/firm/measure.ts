@@ -113,10 +113,10 @@ export function firmMeasures(plan: FloorPlan, standards: readonly FirmStandard[]
           const width = standard.width
           const wanted = (item: Item): ZoneFigure | null =>
             standard.kinds.length > 0 && !standard.kinds.includes(item.kind) ? null : itemKindDefinition(item.kind)?.group === 'fixture' || standard.kinds.includes(item.kind) ? { front: standard.value, width, from: 'person', widthGiven: true } : null
-          const open = (v: number | null): Value => (v === null ? said('activity.open') : said('line.part.firm.at.zoneSide', { value: fig(v) }))
+          const clearOr = (v: number | null): Value => (v === null ? said('activity.open') : said('line.part.firm.at.zoneSide', { value: fig(v) }))
           for (const zone of activityZones(survey, {}, wanted).zones) {
             const room = survey.byId.get(zone.room)!
-            const at = said('line.part.firm.at.zone', { room: name(room.facts.name), width: fig(width), left: open(zone.measured.left), leftWay: said(`describe.way.${zone.ways.left}`), right: open(zone.measured.right), rightWay: said(`describe.way.${zone.ways.right}`) })
+            const at = said('line.part.firm.at.zone', { room: name(room.facts.name), width: fig(width), left: clearOr(zone.measured.left), leftWay: said(`describe.way.${zone.ways.left}`), right: clearOr(zone.measured.right), rightWay: said(`describe.way.${zone.ways.right}`) })
             out.push({ standard: i, thing: { kind: 'item', id: zone.items[0]! }, floor: zone.floor, measured: zone.band, precision: 0, ...where(at), also: [room.facts.id, ...zone.items.slice(1)] })
           }
           return
