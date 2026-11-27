@@ -89,12 +89,16 @@ function resolveFocus(floorIds: readonly string[], focus: string | null): string
  * One floor keeps base 0 whatever its level, as a one-storey plan always drew.
  * A floor sharing the focused storey's level is hidden: it would stand in the
  * same place and draw over the cutaway.
+ *
+ * VEW-75: `wholeWalls` keeps the cutaway's walls their full height, for a camera that stands in
+ * one of its rooms: walls lowered to the plan's cut would stand below the eye.
  */
 export function buildingLayout(
   plan: FloorPlan,
   focus: string | null,
   elevations: BuildingElevations = floorElevations(plan),
-  roofAsked?: boolean
+  roofAsked?: boolean,
+  wholeWalls = false
 ): BuildingLayout {
   const floors = floorsOf(plan)
   const single = floors.length <= 1
@@ -119,7 +123,7 @@ export function buildingLayout(
       base: single ? 0 : (storey?.floorLevel ?? 0),
       clearHeight: storey?.clearHeight ?? 0,
       look,
-      cut: focus !== null && floor.id === resolved ? limit('planCutHeight') : null
+      cut: focus !== null && floor.id === resolved && !wholeWalls ? limit('planCutHeight') : null
     }
   })
 
