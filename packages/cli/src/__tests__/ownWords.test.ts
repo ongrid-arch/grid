@@ -51,7 +51,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
   'packages/cli/src/command/edit.ts': [9, 'command'],
   // VEW-72: five more, the help of --scale, its refusals, --floor all with --out and a plan with nothing on any floor.
-  'packages/cli/src/command/export.ts': [25, 'command'],
+  // VEW-73: five more, the help of --no-roofs and --arc-segments and their refusals.
+  'packages/cli/src/command/export.ts': [30, 'command'],
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
@@ -251,7 +252,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-64: one more, the floors an export holds.
   // CMD-43: six more, the from, layers and units arguments and their refusals.
   // VEW-72: three more, grid_export's scale and out and a file out cannot write.
-  'packages/cli/src/mcp/writeTools.ts': [161, 'tools'],
+  // VEW-73: three more, grid_export's 3D files and its roofs and arcSegments.
+  'packages/cli/src/mcp/writeTools.ts': [164, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -331,7 +333,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
   // VEW-71: one more, the projected roof edge in elevation.
-  'packages/floorplan/src/geometry/tolerances.ts': [348, 'developer'],
+  // VEW-73: two more, what floorLift decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [350, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   'packages/floorplan/src/library/builtIn.ts': [1, 'provenance'],
   // CNT-43: +2, a kind placed with no size and a typical room given figures.

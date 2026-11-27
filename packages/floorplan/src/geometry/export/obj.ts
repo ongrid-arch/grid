@@ -34,7 +34,7 @@ export const OBJ_MATERIALS_FILE = 'grid.mtl'
  * same colours as the GLB's, glass seen through. The same text every time.
  */
 export function toMtl(): string {
-  const lines = [`# ${GENERAL_GUIDANCE_LABEL}`, '# Grid materials, one per kind of part']
+  const lines = [`# ${GENERAL_GUIDANCE_LABEL}`]
   for (const material of MESH_MATERIALS) {
     const [r, g, b] = material.colour.map((c) => c.toFixed(3))
     lines.push('', `newmtl ${material.name}`, 'Ka 0.000 0.000 0.000', `Kd ${r} ${g} ${b}`, 'Ks 0.000 0.000 0.000', `d ${material.opacity.toFixed(3)}`, 'illum 1')

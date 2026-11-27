@@ -122,6 +122,7 @@ Each page answers one kind of question, so read only the one you need.
 | Set a firm's own standards, such as corridors at least 1.5 m, against its plans, apart from the code figures; the skills a firm can own | [docs/firm-standards.md](docs/firm-standards.md) |
 | Place a fixture, furniture or a typical room by name; keep an office's own library; add a kind of thing | [docs/library.md](docs/library.md) |
 | Know what an area figure means: net, gross internal and gross external, and which comes first where; the room schedule and the door and window schedule | [docs/areas.md](docs/areas.md) |
+| Open a GLB or OBJ in a game engine, a renderer or a headset: its axes, units, node and object names, materials, normals and UVs, and leaving the roofs out | [docs/3d-files.md](docs/3d-files.md) |
 | Know the figure behind a check, and when Grid asks whether a size is meant | [docs/tolerances.md](docs/tolerances.md) |
 | Read what `grid check` and `grid_check` return: the record and every message code | [docs/result-contract.md](docs/result-contract.md) |
 | Add or change a sentence Grid writes, or add a language: the message files, `--lang`, room uses by language | [docs/languages.md](docs/languages.md) |
