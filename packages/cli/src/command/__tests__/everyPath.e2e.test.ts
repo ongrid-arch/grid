@@ -171,6 +171,23 @@ const COMMAND_SLOTS: Readonly<Record<string, readonly CommandSlot[]>> = {
     { label: 'the plan', args: (p) => ['edit', 'rename', p, '--room', 'lounge', '--name', 'Lounge'], given: asIs },
     { label: '--out', args: (p) => ['edit', 'rename', PLAN, '--room', 'lounge', '--name', 'Lounge', '--out', `${p}.json`], given: (p) => `${p}.json` },
   ],
+  // CMD-48: the reading tools' commands read the plan as their tools do; takeoff reads a rates file too.
+  areas: [{ label: 'the plan', args: (p) => ['areas', p], given: asIs }],
+  schedule: [{ label: 'the plan', args: (p) => ['schedule', p], given: asIs }],
+  takeoff: [
+    { label: 'the plan', args: (p) => ['takeoff', p], given: asIs },
+    { label: '--rates', args: (p) => ['takeoff', PLAN, '--for', 'estimate', '--rates', p], given: asIs },
+  ],
+  measure: [{ label: 'the plan', args: (p) => ['measure', 'narrow', p, '--under', '0.8'], given: asIs }],
+  count: [{ label: 'the plan', args: (p) => ['count', p], given: asIs }],
+  find: [{ label: 'the plan', args: (p) => ['find', p], given: asIs }],
+  fields: [{ label: 'the plan', args: (p) => ['fields', p], given: asIs }],
+  compare: [
+    { label: 'the first plan', args: (p) => ['compare', p, PLAN], given: asIs },
+    { label: 'another plan', args: (p) => ['compare', PLAN, p], given: asIs },
+  ],
+  // Its brief is the plan's name beside the plan, never a path of its own.
+  brief: [{ label: 'the plan', args: (p) => ['brief', p], given: asIs }],
   // HND-9: its occupancy file is the plan's name beside the plan, never a path of its own.
   occupancy: [{ label: 'the plan', args: (p) => ['occupancy', p], given: asIs }],
   // VEW-4: the plan is refused before the page's server starts; its preview record is the plan's name beside it.
@@ -190,6 +207,9 @@ const PLAN_READERS: ReadonlyArray<readonly [label: string, args: (plan: string) 
   ['sheet', (p) => ['sheet', p, '--layout', 'check']],
   ['tidy', (p) => ['tidy', p]],
   ['occupancy', (p) => ['occupancy', p]],
+  // CMD-48: the reading tools' commands.
+  ['areas', (p) => ['areas', p]],
+  ['compare', (p) => ['compare', p, p]],
   ['mark', (p) => ['mark', 'start', '--plan', p]],
   ['diff', (p) => ['diff', p]],
   ['write --replace', (p) => ['write', ROOMS, '--plan', p, '--replace']],
@@ -244,7 +264,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_preview: [{ arg: 'plan', call: tool('grid_preview', { plan: '@', view: '2d', note: 'A look' }), given: asIs }],
   // VEW-4: the page's own call; its record is the plan's name beside the plan, never a path of its own.
   grid_preview_sync: [{ arg: 'plan', call: tool('grid_preview_sync', { plan: '@' }), given: asIs }],
-  grid_export: [{ arg: 'plan', call: tool('grid_export', { plan: '@', format: 'glb' }), given: asIs }],
+  grid_export: [
+    { arg: 'plan', call: tool('grid_export', { plan: '@', format: 'glb' }), given: asIs },
+    // VEW-72: the file to write, as grid export --out.
+    { arg: 'out', call: (p) => ({ name: 'grid_export', arguments: { plan: PLAN, format: 'dxf', out: `${p}.dxf` } }), given: (p) => `${p}.dxf` },
+  ],
   grid_sheet: [{ arg: 'plan', call: tool('grid_sheet', { plan: '@', layout: 'check' }), given: asIs }],
   grid_mark_start: [{ arg: 'plan', call: tool('grid_mark_start', { plan: '@' }), given: asIs }],
   // MSG-10: its marks file is the plan's name beside the plan, never a path of its own.

@@ -54,6 +54,8 @@ export const CHECK_OPTIONS: OptionSpecs = {
     help: 'Where the plan will be built, for this check, in place of the plan\'s site.country: a country\'s name or its two- or three-letter code, such as US, USA, United States or Spain.',
   },
   '--json': { takesValue: false, help: 'Print the report as JSON.' },
+  // CMD-48: what fails a build: exit 3 after the report.
+  '--fail-on': { takesValue: true, help: 'Exit 3, after printing the report, when problems: there is a problem to act on; notes: there is a note not set aside as seen.' },
   // MSG-10: the report is short by default; this gives every section.
   '--full': { takesValue: false, help: 'Print the whole report: the checks run, every figure, what each check looked at part by part, and what these checks never look at.' },
   // MSG-10: a note set aside as seen, with the person's reason and name, in the marks file beside the plan.
@@ -118,6 +120,20 @@ export interface CheckSeen {
 /** MSG-10: the check with how each of its lines stands against the marks read beside the plan. */
 export function withSeen(result: CheckResult, loaded: Pick<LoadedPlan, 'plan' | 'text'>, read: SeenRead): CheckResult {
   return { ...result, seen: { file: read.file, problem: read.problem, states: seenStates(loaded, result.result.lines, read.marks) } }
+}
+
+/** CMD-48: what `--fail-on` stops a build on. */
+export type CheckFailOn = 'problems' | 'notes'
+
+export function checkFailOn(word: string | undefined): CheckFailOn | null {
+  if (word === undefined) return null
+  if (word === 'problems' || word === 'notes') return word
+  throw new UsageError('--fail-on takes problems or notes.')
+}
+
+/** CMD-48: whether the check holds what `--fail-on` named: a problem to act on, or a note not seen. */
+export function checkFails(result: CheckResult, failOn: CheckFailOn): boolean {
+  return failOn === 'problems' ? result.result.problems > 0 : result.result.count - seenCount(result) > 0
 }
 
 /** MSG-10: how many of the check's lines are seen, with a mark that still holds. */

@@ -24,6 +24,7 @@ import { entryWays, OUTSIDE, wayGraph } from '../quantities/measure'
 import { doorClearanceOf, doorLeavesSaid, doorWidthFor, DOOR_MEASURE_NAMES, DOOR_MEASURE_RULES } from '../quantities/doorWidth'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { METRES } from '@ongrid/floorplan/types/units'
+import { say } from '@ongrid/floorplan/messages'
 import { isSiteFigure, siteLimits } from '../quantities/limits'
 import { planSeating, type Seating } from '../quantities/seats'
 import { FIGURES, FIGURES_HEADING, isSeatingFigure, SEATING_WHATS, type Brief, type FigureWish, type Level, type RoomWish, type SeatingTarget, type SeatingWhat, type Source } from './brief'
@@ -457,7 +458,22 @@ function figureLines(c: Context, wish: FigureWish): BriefLine[] {
   const short: BriefLine[] = []
   const eps = tolerance('lengthEqual')
   const roomName = (id: string): string => (c.survey.facts.rooms.has(id) ? q(c.survey.facts.rooms.get(id)!.name) : id)
-  if (wish.figure === 'door_width') {
+  if (wish.figure === 'corridor_width') {
+    const corridors: BriefLine[] = []
+    for (const room of c.survey.rooms) {
+      if (room.facts.use !== 'corridor' || room.polygon.length < 3) continue
+      const { narrowest, at, widest } = corridorNarrowestOf(c.survey, room)
+      const width = narrowest ?? widest
+      const state = width + tolerance('joint') < wish.value ? 'missed' : 'met'
+      const drawn = n2(width)
+      const values = { room: { name: room.facts.name }, asked, drawn }
+      const body = at === null
+        ? say('en', 'brief.corridor.widest', values)
+        : say('en', 'brief.corridor.narrowest', { ...values, x: at.x.toFixed(2), y: at.y.toFixed(2) })
+      corridors.push(line(state, wish, wish.figure, body, { asked: limit, drawn, unit: 'm', parts: [{ kind: 'room', id: room.facts.id }] }))
+    }
+    if (corridors.length > 0) return corridors
+  } else if (wish.figure === 'door_width') {
     // ARE-27: every door judged as the access measure judges it, by the width the figure is for.
     const measure = wish.door ?? 'clear'
     const width = DOOR_MEASURE_NAMES[measure]
@@ -518,17 +534,12 @@ function figureLines(c: Context, wish: FigureWish): BriefLine[] {
       short.push(line('missed', wish, wish.figure, `${q(room.name)} ceiling height ${asked}, drawn ${n2(height)} m.`, { asked: limit, drawn: n2(height), unit: 'm', parts: [{ kind: 'room', id: room.id }] }))
     }
   } else {
-    const corridor = wish.figure === 'corridor_width'
     const wanted = wish.rooms.length > 0 ? new Set(wish.rooms.flatMap((name) => roomsNamed(c.plan, name).map((r) => r.id))) : null
     for (const room of c.survey.rooms) {
-      if (room.polygon.length < 3) continue
-      if (corridor ? room.facts.use !== 'corridor' : wanted !== null && !wanted.has(room.facts.id)) continue
-      // A corridor is judged by its narrowest point from end to end, the figure `what=access` gives.
-      const found = corridor ? corridorNarrowestOf(c.survey, room) : null
-      const drawn = found === null ? measureRoom(room).widestCircle : (found.narrowest ?? found.widest)
+      if (room.polygon.length < 3 || (wanted !== null && !wanted.has(room.facts.id))) continue
+      const drawn = measureRoom(room).widestCircle
       if (drawn >= wish.value - tolerance('noLength')) continue
-      const place = found === null ? null : found.narrowest === null ? ', the widest circle it holds, for Grid finds no two ends' : `, at its narrowest, at (${found.at!.x.toFixed(2)}, ${found.at!.y.toFixed(2)})`
-      const body = `${q(room.facts.name)} ${corridor ? 'corridor width' : 'turning circle'} ${asked}, drawn ${n2(drawn)} m${place ?? ', the widest circle it holds'}.`
+      const body = `${q(room.facts.name)} turning circle ${asked}, drawn ${n2(drawn)} m, the widest circle it holds.`
       short.push(line('missed', wish, wish.figure, body, { asked: limit, drawn: n2(drawn), unit: 'm', parts: [{ kind: 'room', id: room.facts.id }] }))
     }
   }

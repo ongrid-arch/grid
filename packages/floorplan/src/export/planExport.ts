@@ -2,8 +2,8 @@
  * Turns a saved plan into the bytes of an export file. The caller names a format and a
  * floor, and gets the file's bytes back.
  *
- * DXF is what the 2D view draws, one floor at a time, so it exports the floor the user is looking
- * at. IFC is the whole building, one storey per floor. OBJ and GLB (VEW-64) are the whole building
+ * DXF is what the 2D view draws: the floor named, or (VEW-72) every floor when none is, each on a
+ * layout of its own at the largest standard scale it fits at. IFC is the whole building, one storey per floor. OBJ and GLB (VEW-64) are the whole building
  * as the 3D view stacks it when no floor is named, each floor at its elevation, and one floor at
  * its elevation when one is.
  *
@@ -18,9 +18,10 @@
  */
 import type { FloorPlan } from '../types/floorplan'
 import type { ReadFault } from '../types/readParts'
-import { buildFloorPlan, buildScene, dxfFactsOf, floorElevations, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toBuildingGlb, toBuildingObj, toDxf, toIfc, withPatterns } from '../geometry'
+import { buildFloorPlan, buildScene, dxfFactsOf, dxfSheets, floorElevations, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toBuildingGlb, toBuildingObj, toDxfFloors, toIfc, withPatterns } from '../geometry'
 import type { StoreyScene } from '../geometry/export/obj'
 import type { DxfProfile } from '../geometry/export/dxfProfile'
+import type { DxfFloor, DxfOpeningFacts, DxfSheet } from '../geometry/export/dxf'
 import type { ApproximatedPart, Approximations, LeftOutPart } from '../geometry/export/leftOut'
 import { curveDeviation } from '../geometry/arc'
 import { exportContents, type ExportContents } from './leftOut'
@@ -59,6 +60,16 @@ export interface PlanExportOptions {
   readonly faults?: readonly ReadFault[]
   /** HND-1: the DXF's layers, pens and scale; Grid's neutral profile when left out. */
   readonly dxfProfile?: DxfProfile
+  /**
+   * VEW-72: the DXF's scale as stated, 100 for 1:100; left out, the largest standard scale every
+   * floor fits at. The profile's scale is not read here: the caller states it when its file does.
+   */
+  readonly dxfScale?: number
+  /**
+   * VEW-72: each opening's mark and schedule type, by id, from the schedules: the DXF's MARK and
+   * TYPE attributes and the IFC's Tag. Left out, an opening is marked by its id.
+   */
+  readonly openingMarks?: ReadonlyMap<string, { readonly mark: string; readonly type: string | null }>
 }
 
 export interface PlanExport {
@@ -78,6 +89,8 @@ export interface PlanExport {
   readonly floors: readonly HeldFloor[]
   /** VEW-64: the ids of the plan's floors the file does not hold, lowest level first. */
   readonly floorsLeftOut: readonly string[]
+  /** VEW-72: a DXF's sheets, one per floor it holds: the scale, whether stated, and whether the floor fits. Empty for the other formats. */
+  readonly sheets: readonly DxfSheet[]
 }
 
 /** VEW-64: a floor an export holds, and where its floor level stands above the ground floor's. */
@@ -151,15 +164,16 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   if (format === 'ifc') {
     const contents = exportContents(ordered, planFloors(ordered).map((floor) => floor.id), options.faults)
     const approximations = approximationsOf(ordered, format, contents)
-    const data = toIfc(plan, { projectId: options.projectId, projectName: plan.name ?? plan.title ?? options.projectName, timestamp: options.now, leftOut: contents.leftOut, approximations })
+    const marks = options.openingMarks === undefined ? {} : { marks: new Map([...options.openingMarks].map(([id, own]) => [id, own.mark] as const)) }
+    const data = toIfc(plan, { projectId: options.projectId, projectName: plan.name ?? plan.title ?? options.projectName, timestamp: options.now, leftOut: contents.leftOut, approximations, ...marks })
     const levels = floorElevations(ordered).floors
     const floors = floorsUp(ordered).map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
-    return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut: [] }
+    return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut: [], sheets: [] }
   }
 
-  // VEW-64: OBJ and GLB hold every floor unless one is named; DXF holds one, the ground floor's
-  // when none is named. A stale id falls back to the ground floor.
-  const whole = format !== 'dxf' && (options.floorId === undefined || options.floorId === null)
+  // VEW-64: OBJ and GLB hold every floor unless one is named; VEW-72: and so does DXF, each floor
+  // on a layout of its own. A stale id falls back to the ground floor.
+  const whole = options.floorId === undefined || options.floorId === null
   const floorId = resolveFloor(plan, options.floorId)
   const allFloors = floorsUp(ordered)
   const held = whole ? allFloors : [floorId]
@@ -168,15 +182,28 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const note = { leftOut: contents.leftOut, approximations }
   let data: string | Uint8Array
   let floors: HeldFloor[]
+  let sheets: DxfSheet[] = []
   if (format === 'dxf') {
-    const storey = planForFloor(ordered, floorId)
-    // CNT-9: the DXF writes the facts of the floor's parts and of the floor itself.
-    const facts = dxfFactsOf(storey, planFloors(ordered).find((f) => f.id === floorId) ?? null)
-    // HND-1: each room's tag carries its number, counted across the whole building (ARE-12).
-    const numbers = new Map(roomNumbers(ordered).filter((n) => n.floor === floorId).map((n) => [n.id, shownRoomNumber(n)]))
-    const profile = options.dxfProfile === undefined ? {} : { profile: options.dxfProfile }
-    data = toDxf(buildFloorPlan(storey), { ...note, facts, roomNumbers: numbers, ...profile })
-    floors = [{ id: floorId, elevation: floorElevations(ordered).floors.get(floorId)?.floorLevel ?? 0 }]
+    const levels = floorElevations(ordered).floors
+    const numbered = roomNumbers(ordered)
+    const listed = planFloors(ordered)
+    const dxfFloors = held.map((id): DxfFloor => {
+      const storey = planForFloor(ordered, id)
+      const stated = listed.find((f) => f.id === id)
+      // CNT-9: the DXF writes the facts of the floor's parts and of the floor itself.
+      const facts = dxfFactsOf(storey, stated ?? null)
+      // HND-1: each room's tag carries its number, counted across the whole building (ARE-12).
+      const numbers = new Map(numbered.filter((n) => n.floor === id).map((n) => [n.id, shownRoomNumber(n)]))
+      // VEW-72: each opening's mark, type, height and sill for its block's attributes.
+      const openings = new Map(storey.openings.map((o) => [o.id, { mark: options.openingMarks?.get(o.id)?.mark ?? o.id, type: options.openingMarks?.get(o.id)?.type ?? null, height: o.height, sill: o.sill } satisfies DxfOpeningFacts] as const))
+      // HND-6, CNT-18: in a file of several floors, each floor names what it leaves out of itself.
+      const own = <T extends { readonly floor: string | null }>(parts: readonly T[]): T[] => (held.length === 1 ? [...parts] : parts.filter((part) => part.floor === id || (part.floor === null && id === held[0])))
+      return { id, name: stated?.name || id, drawing: buildFloorPlan(storey), leftOut: own(contents.leftOut), approximations: { ...approximations, parts: own(approximations.parts) }, facts, roomNumbers: numbers, openings }
+    })
+    const scale = options.dxfScale ?? 'fit'
+    data = toDxfFloors(dxfFloors, { scale, ...(options.dxfProfile === undefined ? {} : { profile: options.dxfProfile }) })
+    sheets = dxfSheets(dxfFloors, scale)
+    floors = held.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
   } else {
     const { storeys, origin } = storeysOf(ordered, held, format === 'glb')
     data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor' })
@@ -187,5 +214,5 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const planFloorList = planFloors(plan)
   const floor = planFloorList.find((f) => f.id === floorId)
   const floorName = !whole && planFloorList.length > 1 ? (floor?.name || floorId) : null
-  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut }
+  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut, sheets }
 }
