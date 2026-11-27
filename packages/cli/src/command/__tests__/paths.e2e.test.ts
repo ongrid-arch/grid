@@ -320,7 +320,9 @@ describe('export names from the plan file (T-4) and from inside the plan (T-1)',
     expect(run.out).toBe(`Wrote ${join('exports', 'plan-aux.dxf')}\n`)
   })
 
-  it('never names a file after a floor\'s name, which is text from inside the plan', async () => {
+  // VEW-72: a file is named after its floor now, made safe as the plan file's name is; a name that
+  // reads as an instruction is not used, and the floor's place names the file instead.
+  it('never names a file after a floor\'s name that reads as an instruction, which is text from inside the plan', async () => {
     const plan = twoBedFlat()
     const upstairs = plan.walls.map((wall) => ({ ...wall, id: `${wall.id}-up`, floor: 'first' }))
     writeFileSync(join(project, 'house.json'), JSON.stringify({
@@ -334,7 +336,7 @@ describe('export names from the plan file (T-4) and from inside the plan (T-1)',
     expect(run.out).toBe(`Wrote ${join('exports', 'house-floor-2.dxf')}\n`)
     const [answer] = await serve([{ plan: 'house.json', format: 'obj', floor: 'ground' }])
     expect(answer).toEqual({
-      text: 'General guidance, not your local rules\nWrote "exports/house-floor-1.obj" in the project folder.\n'
+      text: 'General guidance, not your local rules\nWrote "exports/house-ground.obj" in the project folder.\n'
         + 'Holds floor "ground" only, written at its elevation, 0.00 m; the other floor is not in this file: leave the floor out to export the whole building.',
       isError: false
     })

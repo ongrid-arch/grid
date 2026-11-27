@@ -247,7 +247,7 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_export: [
     { arg: 'plan', call: tool('grid_export', { plan: '@', format: 'glb' }), given: asIs },
     // VEW-72: the file to write, as grid export --out.
-    { arg: 'out', call: tool('grid_export', { plan: PLAN, format: 'dxf', out: '@.dxf' }), given: (p) => `${p}.dxf` },
+    { arg: 'out', call: (p) => ({ name: 'grid_export', arguments: { plan: PLAN, format: 'dxf', out: `${p}.dxf` } }), given: (p) => `${p}.dxf` },
   ],
   grid_sheet: [{ arg: 'plan', call: tool('grid_sheet', { plan: '@', layout: 'check' }), given: asIs }],
   grid_mark_start: [{ arg: 'plan', call: tool('grid_mark_start', { plan: '@' }), given: asIs }],

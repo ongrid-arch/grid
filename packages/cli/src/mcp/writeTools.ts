@@ -105,7 +105,7 @@ const exportTool: GridTool = {
   args: {
     plan: { type: 'string', maxLength: PATH_MAX, required: true, description: 'The plan file, as a path inside the project folder.', examples: ['floor-plan.json', 'plan.json'] },
     format: { type: 'string', required: true, enum: EXPORT_FORMATS, description: 'The file format.', examples: ['dxf', 'ifc'] },
-    floor: { type: 'string', maxLength: 200, description: 'dxf, obj and glb only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation, or all for one file per floor. Left out, the file holds every floor.', examples: ['ground', 'all'] },
+    floor: { type: 'string', maxLength: 200, description: 'dxf, obj and glb only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation, or all for each floor on its own. Left out, every floor.', examples: ['ground', 'all'] },
     scale: { type: 'number', description: 'dxf only: N in 1:N, a whole number, such as 100 or 200, for its sheets. Left out, the scale the profile states, else the largest of 100, 200, 500 and 1000 every floor fits at on A3.', examples: [100, 200], minimum: 1, maximum: 1000 },
     out: { type: 'string', maxLength: PATH_MAX, description: 'The file to write, inside the project folder, ending in the format\'s extension. The exports folder beside the plan when left out. Not with floor all.', examples: ['drawings/ground.dxf'] },
   },
