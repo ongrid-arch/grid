@@ -35,11 +35,11 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_diff` | What changed since the start marker or the last commit, by what stands where, not by ids: issues first (a door that now joins other rooms, a wall that now meets an opening, notes that came and went), the verdict room by room with how many ids were only renamed, then the changes one line each; with `rooms`, the changes outside them; with a picture unless `picture: false` (see below) |
 | `grid_areas` | Each room's size and net area (and, with `as_written`, its area to its walls' centre lines), totals by floor and by use (and by room type and tenure where a room states one), the lettable area, the core and efficiency per floor, floor type and in all, and the area per person with `people` or the brief's ([areas.md](areas.md#lettable-area-the-core-and-efficiency)), gross internal and gross external area (the one usual in the plan's `site.country`, or in `country` which overrides it, first, or as `gross` asks; see [areas.md](areas.md)), each flat's area from the plan's flats list and the rooms in no flat, each to the middle of its party walls too (ARE-14), the outdoor space listed apart by kind, roofed or open (CNT-7), left out of every total unless `outdoor_rules` states a rule that counts part of it, the free floor beside the floor area where fixtures stand, the rooms in `apart_rooms` measured apart as one building from another (ARE-20), and under a roof the floor states the floor by headroom band, in metres or feet, as text or CSV, each figure with its rule stated |
 | `grid_takeoff` | Metres of wall by kind, per room floor, ceiling (with its height and lowered zones), skirting and wall face less openings, and per floor the slab and the roof over every part with nothing above, marked assumed, with the rules stated; with `for=estimate` the bill of quantities for a first estimate, each line with its key, rule and assumed mark, priced only from the person's rates file or given as a rate card ([areas.md](areas.md#quantities-for-a-first-estimate)); with `for=change` a plan's work as three lists, demolish, make good and new, priced the same way ([plan-file.md](plan-file.md#existing-demolished-and-new)); on a plan that names wall types or finishes, the walls of each named type and each finish's total too, and the estimate prices them by type and by finish ([areas.md](areas.md#finishes-and-wall-types)); text or CSV |
-| `grid_schedule` | Doors, windows and openings by type and size, with the rooms each joins; with `of=rooms` the room schedule (number, name, use, area, height, floor, and the totals), with `of=openings` each opening once, with `of=flats` each flat and the unit mix by type, with `of=doors` or `of=windows` the door or window schedule by type (the plan's named types first, with their names and materials, then by kind and size) with each type's marks, with `of=finishes` the finishes plan, room by room, with each finish's total ([areas.md](areas.md#schedules)), with `of=items` every item, points too, with its kind, room, place and facts (CNT-52); a room's stated number and each part's facts of the person's own go with them; text or CSV |
+| `grid_schedule` | Doors, windows and openings by type and size, with the rooms each joins; with `of=rooms` the room schedule (number, name, use, area, height, floor, and the totals), with `of=openings` each opening once, with `of=flats` each flat and the unit mix by type, with `of=doors` or `of=windows` the door or window schedule by type (the plan's named types first, with their names and materials, then by kind and size) with each type's marks, with `of=finishes` the finishes plan, room by room, with each finish's total ([areas.md](areas.md#schedules)), with `of=items` every item, points too, with its kind, room, place and facts (CNT-52); a room's stated number and each part's facts of the person's own go with them; the opening, door and window schedules include phases and a removal section (CNT-53); text or CSV |
 | `grid_fields` | What can be asked of the plan: the fields Grid works out for each kind of part, with their units, and the facts of the person's own the parts carry, with how many carry each and their values (see below) |
 | `grid_find` | The walls, doors, windows, openings, rooms or floors that meet every condition, by id, with only the fields asked for, and a `view` for `grid_view` that picks them out |
 | `grid_count` | The parts that meet every condition, grouped by a field or fact, each group with its count, its sums and its ids, and a `view` for `grid_view` that colours each group |
-| `grid_measure` | A room's sizes, height and widest circle; the clear distance between two walls, doors, windows or rooms, or to a point, from their faces; a wall's length; whether a box or a circle fits; the way between rooms with every door on it and how far it is walked, and whether a body or a trolley of a given width gets through, clear of the fixtures; a room's use indicators (turning circle, doorways' clear widths, the way through, the floor round each fixture, a window a fixture stands in front of); what is narrower than the person's own figure; which way each room, outside wall and window faces by the plan's north; which rooms get the sun, as a table of geometry per room (each window wall's way, the window area against the floor area, the depth from each window wall); the plot: how far the building stands from each edge of the site's boundary against the set-back the person asked for, each face's distance to the edge in front of it, and the plot coverage; and the accessibility measurements, as numbers (each door's clear width, each corridor's narrowest point, turning space, and the steps on the way in from the entrance); the library `grid_place_item` places from (`what=library`), and whether a library entry fits by its name (`what=fit` with `name`) ([library.md](library.md)); the seats, desks and covers the furniture gives, per plan, floor, room and zone (`what=seats`, [below](#seats-desks-and-covers-counted-from-the-furniture)); a shop's floor in bands of depth from its frontage, in m² and sq ft (`what=frontage`, [areas.md](areas.md#frontage-zones)) |
+| `grid_measure` | A room's sizes, height and widest circle; the clear distance between two walls, doors, windows or rooms, or to a point, from their faces; a wall's length; whether a box or a circle fits; the way between rooms with every door on it, walking distance and travel distance to the nearest exit for escape or evacuation, and whether a body or a trolley of a given width gets through, clear of the fixtures; a room's use indicators (turning circle, doorways' clear widths, the way through, the floor round each fixture, a window a fixture stands in front of); what is narrower than the person's own figure; which way each room, outside wall and window faces by the plan's north; which rooms get the sun, as a table of geometry per room (each window wall's way, the window area against the floor area, the depth from each window wall); the plot: how far the building stands from each edge of the site's boundary against the set-back the person asked for, each face's distance to the edge in front of it, and the plot coverage; and the accessibility measurements, as numbers (each door's clear width, each corridor's narrowest point, turning space, and the steps on the way in from the entrance); the library `grid_place_item` places from (`what=library`), and whether a library entry fits by its name (`what=fit` with `name`) ([library.md](library.md)); the seats, desks and covers the furniture gives, per plan, floor, room and zone (`what=seats`, [below](#seats-desks-and-covers-counted-from-the-furniture)); a shop's floor in bands of depth from its frontage, in m² and sq ft (`what=frontage`, [areas.md](areas.md#frontage-zones)) |
 | `grid_view` | A floor plan (in the working look or black and white, always on light paper: `look` `dark` draws the working look and says so (SHT-10); `look` `simple` for a picture to show a person and `large` for large print, VEW-76, [below](#a-picture-to-show-a-person), with or without sizes, and with `ids` the check view: every room, door and window id on the picture and in the text, with areas, what each door joins, counts and the drawing's problems; with `crop` just the parts named: a room, door, window, wall or item by id or a room's name, a flat by id or name, the rooms that meet a condition as `grid_find` writes one (`household = Rose`), or several of these joined by commas, framed together with `margin` metres round them (0.5 when left out) and, with no floor named, on the first floor that holds them all; with `crop_box` (`{ "from": [x, y], "to": [x, y] }` in metres) a box of the floor (VEW-74); with `floor` `all` every floor side by side in one picture, the lowest on the left, at one scale, each under its name and framed to the same part of the plan, with `look` and `dimensions` only and no part boxes (VEW-74); a floor far longer than it is wide, too long to read whole, is said to be drawn in pieces, and `tile` draws one piece at a time, each overlapping the next, at 12 px a metre or more (VEW-26); with `hide`, `colour` and `key` what it shows, as `grid draw --hide`, `--colour` and `--key`, and with `colour` set to a field or fact, or `highlight` set to ids, the parts picked out (see below); always with each part's box in image pixels; with `out`, a `.png`, `.svg` or `.pdf` name, the picture is also written inside the project, a bare name into `exports/` beside the plan, with a `.view.json` beside it giving its size, its pixels per metre and, for a plan, the plan's metres it covers, VEW-62), a facade (`kind=facade` with `side`: one side of the drawing in elevation, every floor at its level, as `grid draw --facade`, with the walls, openings and levels it shows in `facade`), the model through a camera you set (a side or corner, or a bearing from the plan's north, with tilt, distance, eye height, lens and a room to point at), a saved view by name, or an eye-level view in a room with the window sills against the eye; every 3D picture with its camera record ([below](#a-camera-you-can-set-and-saved-views)); or with `kind` `section` a section along a line through every floor (`cut`, `toward`; drawn in the technical look unless `look` asks for the working one, VEW-60), its levels, room heights and what Grid takes dashed and listed in the picture, the text and `section` (LVL-9); a plan takes `marks` (`levels`, `elevations`, `section`, `schedule`) to mark them, as `grid draw --marks`; `schedule` draws each room's and opening's mark in the schedules; a plan with a trace image has it drawn under the floor, and the text says where it lies, its scale and how a pixel of it maps to the plan, or why it is not drawn ([a trace image under the plan](plan-file.md#a-trace-image-under-the-plan)) |
 | `grid_describe` | The plan in room terms, as `grid describe`; with `length=walk`, walked room by room from its way in, standing in each doorway, with `pictures` a picture at eye height from each ([below](#a-routes-length-and-a-walk-through)); with `as=rooms`, as rooms text to change and write again; with `as=rooms building=<id>`, one building of a site of many alone ([below](#one-building-of-a-site-of-many)) |
 | `grid_check` | The check, short and about this plan unless `full`, always labelled "General guidance, not your local rules", then the place the figures were for (the plan's `site.country`, or `country`; with none, no figure is applied); the notes the person set aside are listed under Seen; with `firm-standards.json` beside the plan, the firm's own standards' notes (`firm/…`) under their own heading, apart from the code figures ([firm-standards.md](firm-standards.md)) |
@@ -265,6 +265,28 @@ stretch of each list its data was cut in (`from` in `left_out` says where it sta
 together hold all of it. A tool that changes the plan takes no `page`, because calling it again
 would change the plan again: its change is made in full, and `grid_describe` and `grid_check` read
 the plan as it is now. A tool that takes `floor` answers one floor, which is often the better ask.
+
+## The language of an answer
+
+Every tool takes `language`, a language tag (`es`, `es-MX`, `de`), beside its own arguments, as
+it takes `whole` (MSG-34, `src/mcp/answerLanguage.ts`). Left out, the answer is in the plan's own
+language (`display.language`, which `grid_set_plan` sets), else in English. A tool with a
+`language` of its own keeps its meaning: `grid_check`, `grid_describe`, `grid_view`, `grid_export`
+and `grid_sheet` write their words in it, `grid_set_plan` sets the plan's language, and
+`grid_words` names the language its words are for. Codes, ids, values and the data's figures are
+the same in every language. See [Languages](languages.md#the-language-setting).
+
+- `grid_check`, `grid_describe`, `grid_view`, `grid_sheet`, `grid_areas` and `grid_schedule`
+  answer in the language, the drawing list of `grid_check`, the pictures of `grid_diff`,
+  `grid_compare` and the walk too.
+- Every other tool's own sentences are English yet. Its answer in another language closes with
+  one line in that language saying so, for the agent to retell it in the person's language.
+- An answer writes every figure with one decimal mark: the display's, which is the language's
+  own (a comma in Spanish) unless the display states one. A CSV cell always takes a point, and its
+  lengths are in the display's length unit, named in the column's head (`across ft`).
+- `grid_write_rooms` records the person's language when the plan states none: the call's
+  `language`, else the language the rooms' names are plainly in (two or more names that are one
+  language's word for a use, such as "Cocina" and "Dormitorio", and none another's), and says so.
 
 ## One building of a site of many
 
@@ -575,6 +597,11 @@ keeps to its floor). A door in a curved wall is walked from either side of the c
 ARE-63: from a floor whose way out the check does not follow, because no stair joins it to the
 ground floor (its `no_stairs` note), the answer says so, found or not, and carries the note as
 `notChecked` (`reason`, `floor`): a basement car park left by a ramp for cars is such a floor.
+
+For travel distance (walking distance) to the nearest exit on an escape or evacuation route,
+call `grid_measure` with `{"what":"route","room":"bed1","to":"outside"}`, using the id of the
+room where the route starts. Read `answer.exit` for the chosen exit and `answer.length` for the
+walked distance.
 
 With `to=outside` (ARE-21) the route is walked to every way out on the floor, each by the way
 with the fewest rooms to its door, and the shortest by walked length is the answer. It names the
@@ -989,3 +1016,30 @@ level names one (so a client waiting for that id is answered), and null when it 
 A refusal for a path outside the project never prints the project folder's place on the disk.
 `what=route` takes `from` for the room it starts in (as `room`), and `what=narrow` takes `width`
 (as `under`).
+
+## Later calls on the same plan
+
+The server keeps the plan it read, per version, for its next calls (CMD-51,
+`packages/cli/src/mcp/planCache.ts`): the plan as read, its validation and what the geometry
+works out from it and keeps against its parts (`packages/floorplan/src/geometry/kept.ts`: its
+index, each floor's slice, its validation, the survey the measures read), and the answer of
+`grid_check` and the notes `grid_view` marks, for the same arguments in English. A second
+`grid_check` of a plan of 40 floors takes a small share of the first's time. A version is the plan
+file's text together with every other file its reading looked at, a fit-out's base plan and
+whether its trace image is there: each call reads them again and compares the content, never a
+modification time, so a change by Grid or by anything else is read afresh and no answer is about
+an earlier version. A plan kept is frozen, so no call can change what another is given. The last
+`PLAN_VERSIONS_KEPT` (4) versions are kept, the least recently used dropped first, and a plan that
+is refused is not kept.
+
+The plan's validation is worked out when an answer first needs it, so a call refused for its
+arguments is refused at once, before any geometry: a floor the plan does not have, and a measure
+of `grid_measure` that needs a room (`room`, `use`, `frontage`, `fit` and `route`) without one.
+
+A room written as a polygon whose corners, 12 or more (`polygonOnCircleCorners`), lie on one
+circle within `polygonOnCircle` (docs/tolerances.md) is answered by `grid_write_rooms` with one
+line saying so and the `circle <across> at x,y` that draws it round, as one curved wall instead of
+many short ones.
+
+Calls are still answered one after the other, in the order they came in: a call that works out a
+large plan runs to its end before the next is answered.

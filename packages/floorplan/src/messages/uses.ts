@@ -18,6 +18,7 @@
  */
 import type { RoomUse } from '../types/floorplan'
 import { isLanguage, type Language, type ShippedLanguage } from './languages'
+import { limit } from '../geometry/tolerances'
 
 export const USE_LABELS: Readonly<Record<ShippedLanguage, Readonly<Record<RoomUse, string>>>> = {
   en: {
@@ -280,4 +281,39 @@ const BY_LABEL: ReadonlyMap<string, RoomUse> = new Map([
 export function roomUseOfLabel(word: string): RoomUse | null {
   const folded = foldLabel(word)
   return folded === '' ? null : (BY_LABEL.get(folded) ?? null)
+}
+
+/** MSG-34: each language's words for the uses, folded: its labels and its own words for them. */
+function wordsByLanguage(): ReadonlyMap<string, ReadonlySet<string>> {
+  const out = new Map<string, Set<string>>()
+  const add = (language: string, word: string): void => {
+    const folded = foldLabel(word)
+    if (folded === '') return
+    if (!out.has(language)) out.set(language, new Set())
+    out.get(language)!.add(folded)
+  }
+  for (const [language, labels] of Object.entries(USE_LABELS)) for (const label of Object.values(labels)) add(language, label)
+  for (const [language, words] of Object.entries(USE_WORDS_BY_LANGUAGE)) for (const word of Object.keys(words)) add(language, word)
+  return out
+}
+
+/**
+ * MSG-34: the language a plan's room names are plainly in, when it is not English: at least two
+ * names that are one language's word for a use (`Cocina`, `Dormitorio`, `Baño`), and none that is
+ * only another language's (English's too). Null when the names say no one language. A name that
+ * is a word in several languages counts for each.
+ */
+export function languageOfNames(names: readonly string[]): Language | null {
+  const words = wordsByLanguage()
+  const hits = new Map<string, number>()
+  const heard: Set<string>[] = []
+  for (const name of names) {
+    const folded = foldLabel(name)
+    const languages = new Set([...words].filter(([, set]) => set.has(folded)).map(([language]) => language))
+    if (languages.size === 0) continue
+    heard.push(languages)
+    for (const language of languages) hits.set(language, (hits.get(language) ?? 0) + 1)
+  }
+  const found = [...hits].filter(([language, count]) => language !== 'en' && count >= limit('languageNamesLeast') && heard.every((languages) => languages.has(language)))
+  return found.length === 1 ? found[0]![0] : null
 }

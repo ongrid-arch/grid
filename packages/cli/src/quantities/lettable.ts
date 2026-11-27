@@ -20,7 +20,7 @@
  *
  * Pure: the area figures in, square metres and shares out. The words are in the message files.
  */
-import { english, said } from '@ongrid/floorplan/messages'
+import { ENGLISH_SPEAKER, type Speaker } from '@ongrid/floorplan/messages'
 import type { RoomTenure } from '@ongrid/floorplan/types/floorplan'
 import { notCounted, type PlanAreas, type RoomArea } from './areas'
 import type { SeatingTotal } from './seats'
@@ -123,14 +123,14 @@ function byUse(rooms: readonly RoomArea[]): Record<string, number> {
 const roomOf = (room: RoomArea): LettableRoom => ({ floor: room.floor, id: room.id, name: room.name, use: room.use, area: room.net })
 
 /** The rules, in Grid's own words, said with the figures. */
-export function lettableRules(choice: LettableChoice | null): LettableFigures['rules'] {
+export function lettableRules(choice: LettableChoice | null, s: Speaker = ENGLISH_SPEAKER): LettableFigures['rules'] {
   const lettable = choice === null
-    ? english(said('lettable.rule.plan', { uses: NOT_LETTABLE_USES.join(', ') }))
-    : english(said('lettable.rule.chosen', { chosen: [...(choice.uses ?? []).map((use) => `use ${use}`), ...(choice.tenures ?? []).map((tenure) => `tenure ${tenure}`)].join(', ') }))
+    ? s.say('lettable.rule.plan', { uses: NOT_LETTABLE_USES.join(', ') })
+    : s.say('lettable.rule.chosen', { chosen: [...(choice.uses ?? []).map((use) => `use ${use}`), ...(choice.tenures ?? []).map((tenure) => `tenure ${tenure}`)].join(', ') })
   return {
     lettable,
-    core: english(said('lettable.rule.core', { uses: CORE_USES.join(', ') })),
-    efficiency: english(said('lettable.rule.efficiency')),
+    core: s.say('lettable.rule.core', { uses: CORE_USES.join(', ') }),
+    efficiency: s.say('lettable.rule.efficiency'),
   }
 }
 

@@ -121,6 +121,14 @@ describe('tools/list', () => {
     expect((await listed()).map((tool) => tool.name)).toEqual(ORDER)
   })
 
+  it('shows how to measure travel distance to the nearest exit', async () => {
+    const tool = (await listed()).find(({ name }) => name === 'grid_measure')
+    for (const phrase of ['travel distance', 'walking distance', 'escape', 'evacuation', 'nearest exit']) {
+      expect(tool?.description, phrase).toContain(phrase)
+    }
+    expect(tool?.description).toContain('{"what":"route","room":"bed1","to":"outside"}')
+  })
+
   it('keeps about a dozen tools', async () => {
     // 15 since WRT-2: writing rooms first, the main way to write a plan, has its own tool.
     // 20 since WRT-3: one sentence of request is one call (lab WR-2), so merge, split, add a

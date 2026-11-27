@@ -13,6 +13,7 @@ import type {
   Room,
   Wall as AppWall
 } from '../types/floorplan'
+import { keptFor } from './kept'
 
 export type { Dormer, Floor, Opening, OpeningAnchor, OpeningType, Roof, Rooflight, RoofShape, Room, Stair, WallKind } from '../types/floorplan'
 
@@ -39,6 +40,11 @@ export interface PlanIndex {
 }
 
 export function indexPlan(plan: FloorPlan): PlanIndex {
+  // CMD-51: one index per frozen plan, so what the geometry keeps against it lasts between calls.
+  return keptFor(plan, 'index', () => indexOf(plan), false)
+}
+
+function indexOf(plan: FloorPlan): PlanIndex {
   const wallsById = new Map<string, Wall>()
   for (const wall of plan.walls) wallsById.set(wall.id, wall)
 

@@ -20,7 +20,8 @@ import { reportProblemTool } from './reportTool'
 import { markSeenTool } from './seenTool'
 import { writeBriefTool } from './briefTool'
 import { wordsHint, wordsTool, WORDS_TOOL_NAME } from './wordsTool'
-import { hasWording, listenForKeys, setPlanWords } from '@ongrid/floorplan/messages'
+import { DEFAULT_LANGUAGE, hasWording, listenForKeys, say, setPlanWords, type Language, type MessageKey } from '@ongrid/floorplan/messages'
+import { askedAnswerLanguage, LANGUAGE_ARG_NAME, loadShipped, serverReadsLanguage, type Spoken } from './answerLanguage'
 import { diffTool, markStartTool } from './diffTools'
 import { shapedData } from './figures'
 import { checkPage, PageRefused, PAGE_ARG_NAME, WHOLE_ARG_NAME, withinBudget } from './budget'
@@ -121,20 +122,32 @@ async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promi
     const page = Object.hasOwn(tool.args, PAGE_ARG_NAME) ? undefined : checkPage(args)
     if (!Object.hasOwn(tool.args, WHOLE_ARG_NAME)) delete args[WHOLE_ARG_NAME]
     if (!Object.hasOwn(tool.args, PAGE_ARG_NAME)) delete args[PAGE_ARG_NAME]
+    // MSG-34: the answer's language, read here for a tool with no language of its own, and the
+    // languages Grid ships loaded, so the plan's own can be said as soon as the tool reads it.
+    const own = !serverReadsLanguage(tool)
+    const asked = askedAnswerLanguage(own ? undefined : args[LANGUAGE_ARG_NAME])
+    if (asked === null) throw new ToolRefusal(`language takes a language tag, such as en, es, de or pt-BR: ${JSON.stringify(String(args[LANGUAGE_ARG_NAME]).slice(0, 32))} is none.`)
+    if (!own) delete args[LANGUAGE_ARG_NAME]
+    await loadShipped(asked ?? (own ? askedAnswerLanguage(args[LANGUAGE_ARG_NAME]) ?? undefined : undefined))
+    const spoken: Spoken = {}
+    const call: ToolContext = { ...context, ...(asked === undefined ? {} : { language: asked }), spoken }
     // MSG-24: no call says another plan's words: the plan a call reads hands its own (`languageFor`).
     setPlanWords(undefined)
     // CMD-41: the plan's revision on every answer about it; a change queued, locked and held to based_on.
     // The words tool writes the plan's display, so it is a change here too.
     const writes = tool.hint === 'change-plan' || tool.name === WORDS_TOOL_NAME
     // MSG-24: the keys Grid said in a language with no word for them are said once, at the end.
-    const guarded = await guardedRun(tool, args, context, writes, () => listenForKeys(() => tool.run(args, context)))
+    const guarded = await guardedRun(tool, args, call, writes, () => listenForKeys(() => tool.run(args, call)))
     const { result: made, keys } = guarded.answer
-    const hint = tool.name === WORDS_TOOL_NAME ? null : wordsHint(keys, hasWording)
-    const result = labelled(hint === null ? made : { ...made, text: `${made.text}\n${hint}` }, !LABEL_SILENT_TOOLS.has(tool.name))
+    // MSG-34: the language the answer is in: the one asked, else the plan's, else English.
+    const language: Language = (own ? askedAnswerLanguage(args[LANGUAGE_ARG_NAME]) : asked) ?? spoken.display?.language ?? DEFAULT_LANGUAGE
+    // grid_words lists Grid's words for the agent to translate: it closes with neither line.
+    const closing = tool.name === WORDS_TOOL_NAME ? [] : [wordsHint(keys, hasWording), notInLanguage(language, keys)].filter((line): line is string => line !== null)
+    const result = labelled(closing.length === 0 ? made : { ...made, text: [made.text, ...closing].join('\n') }, !LABEL_SILENT_TOOLS.has(tool.name))
     // CMD-22: the figures in the data are written as the text writes them, once, here.
     const shaped = shapedData(tool, args, result.data)
-    // CMD-39: kept to the size an agent's host takes, unless asked for whole.
-    const bounded = whole ? { text: result.text, data: shaped } : withinBudget(tool, args, result.text, shaped, page)
+    // CMD-39: kept to the size an agent's host takes, unless asked for whole; its notes in the answer's language.
+    const bounded = whole ? { text: result.text, data: shaped } : withinBudget(tool, { ...args, [LANGUAGE_ARG_NAME]: language }, result.text, shaped, page)
     const revised = guarded.revision === null || guarded.file === null ? null : { revision: guarded.revision, footnote: revisionLine(guarded.file, guarded.revision) }
     return {
       text: bounded.text,
@@ -148,6 +161,19 @@ async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promi
     throw error
   }
 }
+
+/**
+ * MSG-34: the one line an answer in a language other than English closes with when the tool said
+ * none of its own words in it: its sentences are still English, and the codes and figures are
+ * the same in every language.
+ */
+function notInLanguage(language: Language, keys: ReadonlyMap<Language, ReadonlySet<MessageKey>>): string | null {
+  if (language === DEFAULT_LANGUAGE || [...(keys.get(language) ?? [])].some((key) => !FRAME_KEYS.some((prefix) => key.startsWith(prefix)))) return null
+  return say(language, 'tool.answer.inEnglish')
+}
+
+/** MSG-34: keys that frame an answer (a note about it, the language a write recorded) and say nothing of whether its own words are in the language. */
+const FRAME_KEYS: readonly string[] = ['tool.answer.', 'tool.budget.', 'write.language.']
 
 export function serverTool(tool: GridTool, context: ToolContext): ServerTool {
   const definition = toolDefinition(tool)

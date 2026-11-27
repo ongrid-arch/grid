@@ -38,6 +38,7 @@ import {
   type FloorPlan,
   type Opening,
   type PlanIndex,
+  type PlanState,
   type Vec2,
   type Wall,
 } from '@ongrid/floorplan/geometry'
@@ -693,7 +694,6 @@ function heightsOf(plan: FloorPlan, floors: readonly FloorFacts[]): Heights {
   }
 }
 
-/** Everything `grid describe` says, from a plan that passed the schema. */
 /** LVL-25: each room whose name a room of another floor has, with its floor's name (`RoomFacts.nameFloor`). */
 function withFloorNames(floors: FloorFacts[]): FloorFacts[] {
   const on = new Map<string, Set<string>>()
@@ -705,10 +705,11 @@ function withFloorNames(floors: FloorFacts[]): FloorFacts[] {
   }))
 }
 
-export function planFacts(stated: FloorPlan): PlanFacts {
-  // CNT-10: the building as it will be after the work; the work itself is counted apart.
+/** Everything `grid describe` says, from a plan that passed the schema. */
+export function planFacts(stated: FloorPlan, state: PlanState = 'after'): PlanFacts {
+  // CNT-10: the work is counted apart from the state being read.
   const work = planHasPhases(stated) ? { counts: phaseCounts(stated), base: stated.base ?? null } : null
-  const plan = planInState(stated, 'after')
+  const plan = planInState(stated, state)
   const registered = new Set((plan.floors ?? []).map((floor) => floor.id))
   const layouts = new Map<string, { floor: string; ids: string[] }>()
   const floors: FloorFacts[] = withFloorNames(planFloors(plan).map((floor) => {

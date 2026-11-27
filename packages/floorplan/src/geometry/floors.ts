@@ -14,6 +14,7 @@ import { DEFAULT_FLOOR_ID, type BuildingType, type Floor } from '../types/floorp
 import type { FloorPlan, Opening, Wall } from './plan'
 import { hasWallsThrough, storeyWalls, throughFloorParts, wallStandsOn } from './through'
 import { sliceColumns } from './columns'
+import { keptFor } from './kept'
 import { DEFAULT_LANGUAGE, GROUND_FLOOR_NAME, type Language } from '../messages/languages'
 import { groundFloorName } from '../messages/words'
 
@@ -162,6 +163,11 @@ function collidingWallIds(plan: FloorPlan): ReadonlySet<string> {
  * the collision as `plan/duplicate-id` so it is not silent.
  */
 export function planForFloor(plan: FloorPlan, floorId: string): FloorPlan {
+  // CMD-51: a frozen plan's slice is kept with it, frozen, so what is kept against it lasts too.
+  return keptFor(plan, `floor ${floorId}`, () => floorSlice(plan, floorId))
+}
+
+function floorSlice(plan: FloorPlan, floorId: string): FloorPlan {
   // LVL-5 (C19): a wall through floors stands on each floor it rises through, as its stretch
   // there, with the part of each of its openings that lies in it (`throughFloorParts`).
   if (hasWallsThrough(plan)) {

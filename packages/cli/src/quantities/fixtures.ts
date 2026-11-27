@@ -22,7 +22,7 @@ import {
   type Item,
   type ItemGroup,
 } from '@ongrid/floorplan/geometry'
-import { english, joined, name, said, type Value } from '@ongrid/floorplan/messages'
+import { ENGLISH_SPEAKER, english, joined, name, said, type Speaker, type Value } from '@ongrid/floorplan/messages'
 import type { ReadFault } from '@ongrid/floorplan/types/readParts'
 
 export const FIXTURE_RULES = {
@@ -110,13 +110,13 @@ export function planFixtures(plan: FloorPlan, floors?: readonly string[]): Fixtu
   return { rows, counts, taken: itemFloorTaken(sound, shapes), zoneTaken: zoneShapes.length === 0 ? new Map() : itemFloorTaken(sound, zoneShapes), leftOut }
 }
 
-/** "2 toilets, 1 basin", kinds with none left out; "no fixtures" when there are none. */
-export function fixtureCountText(counts: Readonly<Record<string, number>>): string {
+/** "2 toilets, 1 basin", kinds with none left out; "no fixtures" when there are none. MSG-34: the kinds' words are English yet. */
+export function fixtureCountText(counts: Readonly<Record<string, number>>, s: Speaker = ENGLISH_SPEAKER): string {
   const parts = itemKinds().filter((kind) => (counts[kind] ?? 0) > 0).map((kind) => {
     const word = itemKindWord(kind)
     return `${counts[kind]} ${word}${counts[kind] === 1 ? '' : 's'}`
   })
-  return parts.length === 0 ? 'no fixtures' : parts.join(', ')
+  return parts.length === 0 ? s.say('fixtures.none') : parts.join(', ')
 }
 
 /** ARE-26: a fixture a measure left out, and why. */

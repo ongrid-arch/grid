@@ -11,6 +11,7 @@ import { GitUnread } from '../versions/git'
 import { DEFAULT_MARKER, MARKER_BY_MAX, MARKER_NAME, MARKER_NOTE_MAX, MARKERS_MAX, MarkerRefused, removeMarker, setMarker } from '../versions/markers'
 import { DIFF_SHOWS, diffData, diffSince, diffText, type DiffShow } from '../versions/diff'
 import { SEEN_NEW_OUTPUT } from '../edit/seen'
+import { toolLanguage } from './answerLanguage'
 import { asRefusal, BOOLEAN, FLOOR_ARG, floorArg, listSchema, NULLABLE_STRING, NUMBER, objectSchema, PLAN_ARG, projectOf, planFileOf, readPlan, STRING, ToolRefusal, type GridTool } from './toolkit'
 
 const MARKER_ARG = {
@@ -98,7 +99,8 @@ export const diffTool: GridTool = {
       const changedFloor = c.diff.changes[0]?.floor
       const floor = asked ?? changedFloor
       const { comparisonView } = await import('../draw/views')
-      const view = await comparisonView(c, run.later.plan, floor)
+      // MSG-34: the picture's key, its labels and its caption in the call's language, else the plan's.
+      const view = await comparisonView(c, run.later.plan, floor, toolLanguage(context, run.later.plan))
       image = { data: view.png, mimeType: 'image/png' as const }
       picture = { floor: view.floor, width: view.width, height: view.height, pxPerMetre: view.pxPerMetre }
       text.push(`The picture: floor ${JSON.stringify(view.floor)}, removed in red, added in green, what changed in amber (a wall or opening at its new place with its old place outlined, a room with its old and new area), the rest pale; ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. Look at it before you describe it.`)

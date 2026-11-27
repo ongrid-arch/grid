@@ -76,6 +76,22 @@ export function areaText(m2: number, display: Display): string {
   return showArea(m2, display)
 }
 
+/**
+ * MSG-34: the length unit a CSV table's lengths are written in, named in its column heads: the
+ * display's (m, cm, mm), feet for feet and inches (a spreadsheet adds decimal feet, not 8'-6").
+ */
+export function csvLengthUnit(display: Pick<Display, 'length'> = METRES): 'm' | 'cm' | 'mm' | 'ft' {
+  return display.length === 'ft-in' ? 'ft' : display.length
+}
+
+const PER_METRE: Readonly<Record<'m' | 'cm' | 'mm' | 'ft', number>> = { m: 1, cm: 100, mm: 1000, ft: 1 / 0.3048 }
+
+/** MSG-34: lengths in metres as a CSV table writes them, in `csvLengthUnit`; a missing one stays missing. A cell's decimal mark is always a point. */
+export function csvLengths(display: Pick<Display, 'length'> = METRES, metres: readonly (number | null)[]): (number | null)[] {
+  const per = PER_METRE[csvLengthUnit(display)]
+  return metres.map((value) => (value === null ? null : per === 1 ? value : value * per))
+}
+
 /** One CSV field. A field that a spreadsheet would read as a formula is written as text. */
 function csvField(value: string | number | null): string {
   if (value === null) return ''

@@ -58,7 +58,8 @@ describe('names written to look like markup, file syntax or control characters',
   it('stay one name in OBJ and GLB: the forged lines become part of a safe object name', () => {
     const obj = text(hostile, 'obj').split('\n')
     expect(obj).not.toContain('v 9 9 9')
-    expect(obj.some((line) => line.startsWith('mtllib'))).toBe(false)
+    // VEW-73: the one mtllib line is Grid's own, naming the materials file beside the OBJ.
+    expect(obj.filter((line) => line.startsWith('mtllib'))).toEqual(['mtllib grid.mtl'])
     expect(obj.join('\n')).toContain('wall_s_v_9_9_9_mtllib_evil.mtl')
     expect(text(hostile, 'glb')).toContain('wall_s_v_9_9_9_mtllib_evil.mtl')
   })

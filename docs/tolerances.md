@@ -39,6 +39,8 @@ is not asked whether it was typed in feet.
 | `arcSagitta` | tolerance | 0.001 m | How far the straight pieces a curved wall is traced, checked and drawn with may stand off its curve at their middle |
 | `arcStep` | tolerance | 0.03 radian | The most a curved wall turns along one straight piece, so a small round room still measures within a few hundredths of a percent of its true area |
 | `arcPiecesMost` | limit | 1000 count | The most straight pieces one curved wall is traced with; a longer curve is traced with this many, a little further off it |
+| `polygonOnCircle` | tolerance | 0.02 m | How far each corner of a room drawn with straight walls may lie off one circle and still read as a curve written as a polygon, whose answer says how to write it as a circle |
+| `polygonOnCircleCorners` | limit | 12 count | The fewest corners a room on one circle has before it reads as a curve written as a polygon, so a hexagon or octagon drawn on purpose does not |
 | `smoothRunTurn` | tolerance | 5 degree | The most two walls meeting end to end may turn where they meet and still be one smooth run, which a door or window may cross (VEW-77); a sharper turn is a corner |
 | `gap` | tolerance | 0.02 m | A wall reaches the wall it meets when its end is within half the thicker wall plus this. The spaces check lengthens every wall by this much at both ends; the wall faults name a gap or an overrun past it, and two walls on top of each other when their bodies overlap by more than this |
 | `wallContact` | tolerance | 0.01 m | Slack past the walls' bodies when a room outline is traced: walls that touch, carry on in a row or reach a corner |
@@ -154,6 +156,7 @@ is not asked whether it was typed in feet.
 | `facadeHeadDepth` | limit | 0.15 m | How deep a window's head is drawn on a facade, over its hole and as wide as it, no higher than its wall (VEW-63) |
 | `columnRoundPieces` | limit | 32 count | How many straight sides a round column is drawn and exported with, and cut to its room with; its own area, and what it takes off a room it stands wholly in, is the true circle's (CNT-16) |
 | `gridLinesMost` | limit | 100 count | The most lines one set of a structural grid may have; a set with more is refused (CNT-16) |
+| `languageNamesLeast` | limit | 2 count | The fewest room names that are one language's word for a use, and none another's, before writing rooms text records that language as the plan's own (MSG-34) |
 | `gridOverrun` | limit | 1.5 m | How far a structural grid's lines are drawn past the outermost line across them, where their names are written and their spacing is dimensioned (CNT-16) |
 | `bayOverlap` | tolerance | 0.01 m² | Two parking bays of one floor that share more floor than this overlap: each is still counted, and the warning says the floor holds fewer bays than it counts (CNT-19) |
 | `rampSlopeDiffers` | tolerance | 0.5 % | A ramp's stated slope further than this, in percentage points, from the slope its two levels and its run give is worth a look; both are kept and returned (CNT-19) |
