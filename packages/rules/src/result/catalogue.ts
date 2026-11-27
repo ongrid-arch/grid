@@ -603,6 +603,9 @@ export const CODES = {
   // VEW-33: a floor's walls set against the slab of the floor over it: a gap under it, or walls past its level.
   'floor/gap-under-slab': {},
   'floor/walls-past-floor': {},
+  // LVL-24: a clear height that, with the slab over it, runs past the floor over it; walls whose own height differs from their floor's.
+  'floor/height-past-next': {},
+  'floor/wall-heights-differ': {},
   'floor/past-outline': {},
   'floor/empty-top': {},
   'floor/rooflight-misplaced': {},

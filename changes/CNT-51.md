@@ -11,7 +11,7 @@
 
 ## For agents
 
-- New tool `grid_set_finishes` (the tool server now lists 64), after `grid_set_facts`: `rooms`
+- New tool `grid_set_finishes` (the tool server now lists 66), after `grid_set_facts`: `rooms`
   (ids, or `all`: every room that is not a zone, a void or outdoor space), `uses`, `floor`,
   `except` (ids or uses; `wet` for bathroom, toilet and utility), `floor_finish`, `wall_finish`,
   `ceiling_finish`, `skirting_finish` (a name, `unset`, or on skirting `none` for no skirting),

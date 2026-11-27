@@ -74,9 +74,11 @@
  *   sides of the building; `site.fall`, a slope in percent `toward` one of the eight compass
  *   points of the drawing, through `ground` (else 0) at the middle of the building; and
  *   `site.groundEdges`, the levels at the two corners of an edge of the plot (C13), a falling
- *   street. Grid takes the one even slope that fits every stated level. All four are optional and
- *   never defaulted, so a plan that states none reads exactly as before (version 1): it has no
- *   north, and its y runs up (C4).
+ *   street. Grid takes the one even slope that fits every stated level. CNT-50 adds
+ *   `site.address` and `site.name`, the site's address and its own name in the person's words:
+ *   one line each, kept as written and never looked up or checked against a map. All of them are
+ *   optional and never defaulted, so a plan that states none reads exactly as before (version 1):
+ *   it has no north, and its y runs up (C4).
  *
  * C8 · Where a value came from (WRT-6, lab WR-15, AE-4, AU3-6)
  *   A value may say where it came from: given by the person, measured, scanned or assumed, and
@@ -2008,6 +2010,10 @@ export function boundaryEdgeCount(points: readonly (readonly [number, number])[]
  *
  * BRF-3 (C13): `boundary`, `streets`, `setbacks` and `things`, the plot and what is on it.
  * A fault in one street, set-back or thing leaves that one out alone (`readParts.ts`).
+ *
+ * CNT-50: `address` and `name`, the site's address and its own name ("Harbour House") as the
+ * person gives them, free text kept as written. Grid never looks an address up: `latitude` and
+ * `longitude` are the only place on the earth it reads.
  */
 export const SiteSchema = z
   .object({
@@ -2021,6 +2027,9 @@ export const SiteSchema = z
     // apply; with none stated, no figure is applied. Kept as written; a report names the place
     // from the list, never from this text.
     country: placeText().optional(),
+    // CNT-50: the site's address and its own name, in the person's words, never looked up.
+    address: text('name').pipe(z.string().min(1)).optional(),
+    name: text('name').pipe(z.string().min(1)).optional(),
     // BRF-3 (C13): the plot's boundary, its corners in plan metres, in order round it; edge 1
     // runs from the first point to the second, and the last edge back to the first point.
     boundary: z.array(Vec2).min(3).max(BOUNDARY_MAX).optional(),

@@ -20,6 +20,8 @@
  *   ground <m> [below|above]              the ground outside, from the ground floor's floor level
  *                                         (ARE-62, `ground.ts`); `site ground <m>` is the same field
  *   site country <name or code>           where it will be built (C10)
+ *   site address "<address>"              the site's address, as the person writes it (CNT-50)
+ *   site name "<name>"                    the site's own name: "Harbour House" (CNT-50)
  *   site <fence|gate|path|paving|tree|pool> [<id>] <points | at x,y> [width <m>] [canopy <m>]
  *        [height <m>] [id <id>] ["<label>"]
  *                                         one of the site's things, never a wall or a room
@@ -330,7 +332,9 @@ export class SiteLines {
       const named = words.slice(2).map((w) => w.text).join(' ')
       return field('country', named)
     }
-    stop(at, `write 'site boundary x,y x,y x,y ...', 'site origin x,y', 'site location <latitude>,<longitude>', 'site elevation <m>', 'ground <m>', 'site country <name>' or one of the site's things: 'site <${SITE_THING_KINDS.join('|')}> ...'.`)
+    // CNT-50: the site's address and its own name, kept as written: never looked up.
+    if ((what === 'address' || what === 'name') && rest.length > 0) return field(what, words.slice(2).map((w) => w.text).join(' '))
+    stop(at, `write 'site boundary x,y x,y x,y ...', 'site origin x,y', 'site location <latitude>,<longitude>', 'site elevation <m>', 'ground <m>', 'site country <name>', 'site address "<address>"', 'site name "<name>"' or one of the site's things: 'site <${SITE_THING_KINDS.join('|')}> ...'.`)
   }
 
   /** CNT-49: a `ground` line: its level, or the sides or the fall (each written once), or an edge's levels. */
@@ -493,6 +497,8 @@ export function siteLines(plan: Pick<FloorPlan, 'site' | 'north'>): string[] {
   if (site.ground !== undefined) lines.push(`ground ${metres(site.ground)}`)
   lines.push(...slopeLines(site))
   if (site.country !== undefined) lines.push(`site country ${quote(site.country)}`)
+  if (site.name !== undefined) lines.push(`site name ${quote(site.name)}`)
+  if (site.address !== undefined) lines.push(`site address ${quote(site.address)}`)
   for (const thing of site.things ?? []) lines.push(thingLine(thing))
   return lines
 }

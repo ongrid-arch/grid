@@ -256,9 +256,11 @@ export function planTextProblem(raw: Record<string, unknown>, options: PlanTextO
   }
   // COD-3: the place is a name or a code; one Grid does not know is left out when the plan is read.
   const site = raw['site']
-  if (isObject(site) && typeof site['country'] === 'string') {
-    const problem = textProblem(site['country'], 'name')
-    if (problem) return `site.country ${problem}`
+  // CNT-50: and the site's address and its own name, free text kept as written.
+  for (const field of ['country', 'address', 'name']) {
+    if (!isObject(site) || typeof site[field] !== 'string') continue
+    const problem = textProblem(site[field], 'name')
+    if (problem) return `site.${field} ${problem}`
   }
   // BRF-3: the plot's boundary and the site's things, each with an id and a label.
   if (isObject(site)) {

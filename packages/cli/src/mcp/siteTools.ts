@@ -74,7 +74,7 @@ export const setSiteTool: GridTool = {
   hint: 'change-plan',
   description:
     'Use this when the person gives the plot or where the building stands: "the plot is 12 by 25 m", "the street is to the south", "keep 5 m from the street and 2 m from the other sides", "a 40 m coastal set-back on the west", "north is to the top right", a north arrow on a sketch, or where the ground outside is: "the floor is 15 cm above the ground", "the basement is 3 m below ground", "the site falls 4.6 m from the north side to the south", "a 30% slope down to the south", "the street falls from 0 to -3 m along the front". '
-    + 'It sets the plot\'s boundary (its corners, or plot_width by plot_depth from its south-west corner, centred on the building when plot_x and plot_y are left out, and said), the edges on a street, the set-backs the person asked for (their own figures, never a code\'s), north, where the building is on the earth, and the ground level (ground), each only when given; remove takes a field out. '
+    + 'It sets the plot\'s boundary (its corners, or plot_width by plot_depth from its south-west corner, centred on the building when plot_x and plot_y are left out, and said), the edges on a street, the set-backs the person asked for (their own figures, never a code\'s), north, where the building is on the earth, its address and own name (address, site_name: kept as written, never looked up), and the ground level (ground), each only when given; remove takes a field out. '
     + 'On a slope, give the ground at the building\'s sides (ground_north, ground_east, ground_south, ground_west), a fall (slope, in percent, toward a compass point; through ground, else 0, at the middle of the building) or the ground along edges of the plot (ground_edges, a street that falls along its edge): Grid takes the one even slope that fits them, says how far it is off any it cannot meet, and every check (below the ground, the way out), the footprint, the storeys, the height, the facades, the sections and the 3D ground read it at each wall. '
     + 'Sides are the sides of the drawing, north up it, as in rooms text: street "south" is every edge facing down the drawing. Edge 1 runs from the first corner to the second; a plot\'s edges are 1 south, 2 east, 3 north, 4 west. '
     + 'It answers with the plot\'s area (in acres too on a plan shown in feet and inches), the plot coverage and what it counts (roofed porches and carports in, open decks and terraces out), and each edge\'s distance to the building against its set-back, as grid_measure what=site does. '
@@ -104,6 +104,9 @@ export const setSiteTool: GridTool = {
     toward: { type: 'string', enum: [...FALL_TOWARD], description: 'The compass point of the drawing the ground falls toward, with slope.', examples: ['south'] },
     ground_edges: { type: 'array', items: { maxLength: 60 }, minItems: 1, maxItems: POINTS_MAX, description: 'The ground along edges of the plot, each "<edge> <level> [to <level>]": its level at the edge\'s first corner and, when it falls along it, at its second. Replaces those edges\' levels.', examples: [['1 0 to -3'], ['2 -0.5']] },
     country: { type: 'string', maxLength: NAME_MAX, description: 'Where it will be built: a country\'s name or its two- or three-letter code. grid_check applies the figures that hold there.', examples: ['ES', 'United States'] },
+    // CNT-50: the site's address and its own name, kept as written and never looked up.
+    address: { type: 'string', maxLength: NAME_MAX, description: 'The site\'s address, one line, as the person writes it; never looked up (latitude and longitude place it).', examples: ['12 Harbour Road, Bristol'] },
+    site_name: { type: 'string', maxLength: NAME_MAX, description: 'The site\'s own name, in the person\'s words.', examples: ['Harbour House'] },
     remove: { type: 'array', items: { enum: SITE_FIELDS }, minItems: 1, maxItems: SITE_FIELDS.length, description: 'Fields to take out: the boundary takes its streets and set-backs with it; location is latitude and longitude.', examples: [['north'], ['setbacks']] },
     out: OUT_ARG,
   },
@@ -144,6 +147,8 @@ export const setSiteTool: GridTool = {
         ...(given('slope') ? { fall: { slope: args['slope'] as number, toward: args['toward'] as FallToward } } : {}),
         ...(groundEdges === undefined ? {} : { groundEdges }),
         ...(given('country') ? { country: args['country'] as string } : {}),
+        ...(given('address') ? { address: args['address'] as string } : {}),
+        ...(given('site_name') ? { name: args['site_name'] as string } : {}),
         ...(given('remove') ? { remove: args['remove'] as SiteField[] } : {}),
       })
     )

@@ -8,7 +8,7 @@ section explains. Rooms text, the main way to write a plan, is in
 
 - [What a plan file may hold](#what-a-plan-file-may-hold)
 - [What kind of building it is, and what each room is for](#what-kind-of-building-it-is-and-what-each-room-is-for): `plan/not-checked-sizes-for-building`, `plan/not-checked-escapes-for-building`, `floor/not-checked-sizes-for-building`, `floor/not-checked-escapes-for-building`, `plan/unknown-use`
-- [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
+- [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/wall-heights-differ`, `floor/height-past-next`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `floor/gap-under-slab`, `floor/walls-past-floor`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
@@ -64,6 +64,7 @@ file never reaches the exports with its letters turned into question marks. A fi
 | an id: of a wall, room, opening, floor, stair, rooflight or opening pattern, a wall a room, an opening or a pattern names, a part's floor, the floors a stair joins or a pattern repeats on, the room a zone is part of, a flat's id, type and rooms, a flat type's id, a building's id and floors, a context shape's id and floor, a column's id, floor and `through`, a structural grid's id and floors, a parking bay's id, number and floor, a ramp's id and the floors it joins | 64 characters | the same |
 | the trace image's path, the base plan's path | 1,024 characters | the same |
 | the place, `site.country` | 120 characters, and then a name or a code on Grid's list ([the place](#the-place)) | the same |
+| the site's address and its own name, `site.address` and `site.name` (CNT-50) | 120 characters each | the same |
 | a fact's name, or its value when it is text (CNT-9); a room's number | 120 characters; a number 64 | the same |
 | a named type's id, and the type a wall, door, window or default names (CNT-15); a type's name, its material, a room's finish | 64 characters; 120 | the same |
 | the wall types, door types or window types | 50,000 of each | |
@@ -273,11 +274,28 @@ the building's box, which the 3D view frames, still ends on the highest storey t
 that is on, so a loft stated inside a taller storey does not shrink it. The 3D view, the IFC export
 and the sheet all read the floors' heights from this one rule.
 
+A floor's floor-to-floor is the distance from its level to the level of the floor over it in its
+building, and the top floor's to the top of its roof slab, so a building's height is its floors'
+floor-to-floor summed (LVL-24). The plan holds no field for it: it is the difference of two
+floors' `elevation`, which is how `grid_set_levels` writes it. Given a floor-to-floor for every
+floor, one building's or the floors listed, it keeps the lowest floor at or above level 0 where it
+stands, stands each floor over it its floor-to-floor over the one under it (and each basement its
+floor-to-floor under the one over it), and gives each floor set the floor-to-floor less the slab
+over it as its `height`, so its walls meet that slab; a ceiling under the slab is the rooms'
+`height`. Its answer, and the answer to writing a plan of more than one level, lists each floor's
+level, floor-to-floor and clear height, and the building's height with the datum it is measured
+from: the ground floor's floor level, the site's ground or a building's pad.
+
 The drawing's checks ask about levels that do not add up, as warnings: a missing level
 (`plan/level-gap`, a flat on level 3 drawn alone stands on the ground until it states its
 elevation), two floors at one level one over the other (`plan/same-level`), an empty top floor
 that still counts as a storey (`floor/empty-top`), a wall taller than the height its floor states
-(`wall/above-storey`) and a floor height far outside a storey's (`floor/size-question`): higher
+(`wall/above-storey`), walls a storey high (at least `storeyLowest`) that state another height of
+their own than the one their floor states, said once for the floor with which won: each wall stands
+at its own, and the floor's stacks the storey (`floor/wall-heights-differ`), a clear height that
+with the slab of the floor over it runs past that floor's level, a floor-to-floor written as the
+height (`floor/height-past-next`; walls that rise past it are said as `floor/walls-past-floor`
+instead), and a floor height far outside a storey's (`floor/size-question`): higher
 than a wall is asked about, or lower than a storey a person stands in (`storeyLowest`, 2 m, Grid's
 own size). A floor with another floor over it that states no height is asked about when its
 tallest wall, which then sets its storey, is lower than that (the top floor is not: its low walls
@@ -1900,7 +1918,7 @@ before, with no north and y up the page.
 | `north` | Where north lies on the drawing, in degrees counter-clockwise from its top (+y), as a north symbol's `turn` is: 0 is up the drawing, 90 to the left (-x), -90 or 270 to the right (+x). Rooms text writes it as `north 30`, `north 30 clockwise` or `north up-left`, and `grid_set_site` as `north` or `north_points` (CNT-41) |
 | `yAxis` | Which way +y runs on the page with +x to the right: `up`, as Grid draws every plan, or `down`, as a screen or an image's pixels run. Unstated, it is `up` |
 | `front` | The part whose outside face is the front of the building: `wall`, a wall's id, or `opening`, an opening's id such as the front door, by the wall it is in. One of the two |
-| `site` | Where the building sits: `origin`, a point of the plan in metres, and, if known, where that point is on the earth: `latitude` and `longitude` in degrees (north and east positive, given together) and `elevation`, metres above sea level. Each is optional, but nothing is placed on the earth without `origin`; a field Grid does not hold is named and read without. A plan kept at survey coordinates states a point near the building as `origin`, and is measured and exported from it ([survey coordinates at a stored origin](#survey-coordinates-at-a-stored-origin)). `site` also holds `ground`, the level of the ground outside ([slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground)), which needs no `origin`. `country` is [the place](#the-place) the figure checks are for, and `boundary`, `streets`, `setbacks` and `things` are [the plot](#the-plot-its-boundary-set-backs-and-what-is-on-it) |
+| `site` | Where the building sits: `origin`, a point of the plan in metres, and, if known, where that point is on the earth: `latitude` and `longitude` in degrees (north and east positive, given together) and `elevation`, metres above sea level. Each is optional, but nothing is placed on the earth without `origin`; a field Grid does not hold is named and read without. A plan kept at survey coordinates states a point near the building as `origin`, and is measured and exported from it ([survey coordinates at a stored origin](#survey-coordinates-at-a-stored-origin)). `site` also holds `ground`, the level of the ground outside ([slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground)), which needs no `origin`. `country` is [the place](#the-place) the figure checks are for, and `boundary`, `streets`, `setbacks` and `things` are [the plot](#the-plot-its-boundary-set-backs-and-what-is-on-it). `address` and `name` (CNT-50) are the site's address and its own name ("Harbour House") in the person's words, one line each, kept as written: Grid never looks an address up or checks it against a map, and only `latitude` and `longitude` place the building on the earth. `grid describe`, the sheets and the band under a drawing show them; `grid_set_plan` and `grid_set_site` set them, and rooms text writes them as `site address "..."` and `site name "..."` |
 
 North is drawn and written where the plan states it:
 
