@@ -101,6 +101,7 @@ import {
   fieldName,
   fieldOf,
   GRID_FIELDS,
+  isCoordinates,
   groupParts,
   meets,
   readCondition,
@@ -1541,6 +1542,8 @@ function valueText(field: Field, value: Value, units?: Display): string {
   if (value === null || (Array.isArray(value) && value.length === 0)) return 'not stated'
   if (typeof value === 'string') return q(value)
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
+  // VEW-80: coordinates as the data gives them.
+  if (isCoordinates(value)) return JSON.stringify(value)
   if (typeof value !== 'number') return (value as readonly string[]).map(q).join(', ')
   const unit = unitOf(field)
   // CNT-57: an area in the plan's area unit, as grid_areas prints it.

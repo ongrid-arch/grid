@@ -6,8 +6,7 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFile
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { EXPORT_FORMATS } from '@ongrid/floorplan/export'
-import { exportIntoProject } from '../../command/export'
+import { exportIntoProject, GRID_EXPORT_FORMATS } from '../../command/export'
 import { runGrid } from '../../command/main'
 import { loadPlan } from '../../command/plan'
 import { openProject, PathRefused, type Project } from '../../fs/projectFiles'
@@ -113,7 +112,8 @@ describe('the occupancy file', () => {
 })
 
 describe('the exports', () => {
-  it.each(EXPORT_FORMATS)('%s carries no occupant name, and does carry a room name or id', (format) => {
+  // VEW-80: the plan's geometry as data too.
+  it.each(GRID_EXPORT_FORMATS)('%s carries no occupant name, and does carry a room name or id', (format) => {
     const done = exportIntoProject(project, PLAN, format, {})
     const bytes = readFileSync(done.written)
     // Searched as bytes in UTF-8 and in Latin-1, so a name with an accent is found either way.
@@ -128,7 +128,7 @@ describe('the exports', () => {
     // What the guide warns of: the DXF writes each room's name, the IFC its name and id, OBJ
     // and GLB its id. A name put in either would travel.
     const room = planRooms[0]!
-    if (format === 'dxf' || format === 'ifc') expect(asText[0]).toContain(room.name)
+    if (format === 'dxf' || format === 'ifc' || format === 'geojson' || format === 'json') expect(asText[0]).toContain(room.name)
     if (format !== 'dxf') expect(asText[1]).toContain(room.id)
   })
 })

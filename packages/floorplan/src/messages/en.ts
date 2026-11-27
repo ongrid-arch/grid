@@ -3403,6 +3403,8 @@ export const en = {
   'drawing.obj.stacked': "Each floor is written at its elevation: Z is the height above the ground floor's floor level.",
   'drawing.export.floors.building.glb': 'Holds all {n} floors of the plan, each a node named by its id and raised to its elevation, under one root node, {root}.',
   'drawing.export.floors.building.obj': "Holds all {n} floors of the plan, each written at its elevation: Z is the height above the ground floor's floor level.",
+  'drawing.export.floors.building.data': 'Holds all {n} floors of the plan in one frame, the plan\'s x and y in metres, each part with its floor and elevation.',
+  'drawing.export.floors.one.data': 'Holds floor {floor} only, its parts at its elevation, {elevation} m, in the plan\'s frame; {others} not in this file: leave the floor out for every floor in one file.',
   'drawing.export.floors.building.ifc': 'Holds all {n} floors of the plan, one storey each.',
   'drawing.export.floors.one.glb': 'Holds floor {floor} only, its root node raised to its elevation, {elevation} m; {others} not in this file: leave the floor out to export the whole building.',
   'drawing.export.floors.one.obj': 'Holds floor {floor} only, written at its elevation, {elevation} m; {others} not in this file: leave the floor out to export the whole building.',

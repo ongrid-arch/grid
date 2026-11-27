@@ -25,6 +25,7 @@ import { roomHeight } from './measure'
 import { roomGroupField } from './roomGroups'
 import { planSeating, seatingOf, type Seating } from './seats'
 import { surveyPlan, type Survey } from './survey'
+import { doorStateOf, KEPT_FACTS, partGeometry, type Point, type Ring } from './geometry'
 import { sqFt } from './units'
 
 /** The parts that carry facts of the person's own (`grid_set_facts`). */
@@ -40,8 +41,14 @@ const itemPart = (kind: string): PartKind => {
 }
 const isItemPart = (kind: PartKind): boolean => kind === 'fixture' || kind === 'furniture' || kind === 'point'
 
-export type FieldType = 'text' | 'number' | 'yes-no' | 'list'
-export type Value = string | number | boolean | readonly string[] | null
+/** VEW-80: `point` and `polygon` are coordinates in metres, which only `is set` and `is missing` test. */
+export type FieldType = 'text' | 'number' | 'yes-no' | 'list' | 'point' | 'polygon'
+export type Value = string | number | boolean | readonly string[] | Point | readonly Ring[] | null
+
+/** VEW-80: a field whose values are coordinates. */
+export function isGeometryField(field: Field): boolean {
+  return field.from === 'grid' && (field.info.type === 'point' || field.info.type === 'polygon')
+}
 
 /** A field that can be asked about. */
 export interface FieldInfo {
@@ -71,6 +78,7 @@ export const FACT_VALUES_SHOWN = 12
 const OPENINGS: readonly PartKind[] = ['door', 'window', 'opening']
 const ALL: readonly PartKind[] = PART_KINDS
 const PHASE_KINDS: readonly PartKind[] = ['wall', ...OPENINGS, 'room']
+const GEOMETRY_KINDS: readonly PartKind[] = ['room', 'wall', ...OPENINGS, ...ITEMS]
 
 /** The fields Grid states or works out, in the order `grid_fields` lists them. */
 export const GRID_FIELDS: readonly FieldInfo[] = [
@@ -116,6 +124,13 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'seats', type: 'number', unit: null, kinds: [...ITEMS, 'room', 'floor'], from: 'grid', about: 'The seats an item gives (a chair one, a sofa or pew one per 0.6 m of width unless its label says), or a room\'s, zone\'s or floor\'s total of them, as grid_measure what=seats counts them.' },
   { name: 'desks', type: 'number', unit: null, kinds: [...ITEMS, 'room', 'floor'], from: 'grid', about: 'A desk is one; a room\'s, zone\'s or floor\'s total of them.' },
   { name: 'covers', type: 'number', unit: null, kinds: [...ITEMS, 'room', 'floor'], from: 'grid', about: 'The seats an item gives when it stands at a table; a room\'s, zone\'s or floor\'s total of them.' },
+  // VEW-80: each part's geometry in the plan's frame (`geometry.ts`), as grid_export format=geojson writes it.
+  { name: 'polygon', type: 'polygon', unit: 'm', kinds: GEOMETRY_KINDS, from: 'grid', about: 'Its outline as rings of [x, y] in metres, in the plan\'s frame: a room\'s inside outline then its holes, a wall\'s solid runs with the openings taken out, an opening\'s hole through its wall, an item\'s footprint.' },
+  { name: 'centre', type: 'point', unit: 'm', kinds: GEOMETRY_KINDS, from: 'grid', about: 'A point [x, y]: on a room\'s floor where its name is drawn, halfway along a wall, an opening\'s middle on its wall\'s centre line, an item\'s middle.' },
+  { name: 'centroid', type: 'point', unit: 'm', kinds: GEOMETRY_KINDS, from: 'grid', about: 'The middle of its area [x, y], which may lie outside a room that is not convex.' },
+  { name: 'clear width', type: 'number', unit: 'm', kinds: ['door', 'opening'], from: 'grid', about: 'What the open door leaves clear, past its open leaf and any fixture in front of it, as grid_measure what=access measures it; a doorless opening\'s free width.' },
+  { name: 'glazed', type: 'yes-no', unit: null, kinds: ['wall', 'door', 'window'], from: 'grid', about: 'yes for glass: a window unless its type says not, a door or wall whose type is glazed or of glass.' },
+  { name: 'door state', type: 'text', unit: null, kinds: ['door'], from: 'grid', about: 'Whether it is normally open, closed, automatic or held open, as the fact door state the person sets with grid_set_facts gives it.' },
 ]
 
 /** One part of the plan, as the query tools see it. */
@@ -247,6 +262,15 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean; rea
   }
 
   const gridValue = (part: Part, name: string): Value => {
+    if (name === 'polygon' || name === 'centre' || name === 'centroid') {
+      // VEW-80: of the building after the work; a demolished part has none.
+      const geometry = partGeometry(survey)
+      const shape = part.kind === 'room' ? geometry.room(part.id) : part.kind === 'wall' ? geometry.wall(part.id) : isItemPart(part.kind) ? geometry.item(part.id) : geometry.opening(part.id)
+      return shape === null ? null : shape[name]
+    }
+    if (name === 'clear width') return partGeometry(survey).opening(part.id)?.clearWidth ?? null
+    if (name === 'glazed') return part.kind === 'wall' ? partGeometry(survey).wall(part.id)?.glazed ?? null : partGeometry(survey).opening(part.id)?.glazed ?? null
+    if (name === 'door state') return doorStateOf({ properties: part.facts })
     if (name === 'id') return part.id
     if (name === 'kind') return part.kind
     if (name === 'floor') return part.floor
@@ -366,7 +390,9 @@ export function factInfos(asked: Asked, kinds?: readonly PartKind[]): FactInfo[]
       found.set(key, entry)
     }
   }
-  const grid = new Set(GRID_FIELDS.map((f) => factKey(f.name)))
+  // VEW-80: a field that reads a fact of the same name does not hide it.
+  const kept = new Set(Object.values(KEPT_FACTS).map(factKey))
+  const grid = new Set(GRID_FIELDS.map((f) => factKey(f.name)).filter((key) => !kept.has(key)))
   return [...found.values()].map((entry) => ({
     name: entry.name,
     type: entry.types.size === 1 ? ([...entry.types][0] as FieldType) : 'mixed',
@@ -466,7 +492,11 @@ export function readCondition(asked: Asked, text: string, place: string): Condit
     return { field: fieldOf(asked, word[1]!, place), test, value: null }
   }
   const contains = /^(.+?)\s+contains\s+(.+)$/i.exec(line)
-  if (contains !== null) return { field: fieldOf(asked, contains[1]!, place), test: 'contains', value: contains[2]!.trim() }
+  if (contains !== null) {
+    const field = fieldOf(asked, contains[1]!, place)
+    if (isGeometryField(field)) throw new QueryRefused(geometryTests(field, place))
+    return { field, test: 'contains', value: contains[2]!.trim() }
+  }
   const compared = TESTS.exec(line)
   if (compared === null) {
     throw new QueryRefused(`${place} is not a condition Grid reads: write a field and a test, as "fire rating is missing", "department = Sales", "area >= 20" or "name contains office".`)
@@ -474,10 +504,16 @@ export function readCondition(asked: Asked, text: string, place: string): Condit
   const field = fieldOf(asked, compared[1]!, place)
   const test = compared[2] as Test
   const type = fieldType(asked, field)
+  if (isGeometryField(field)) throw new QueryRefused(geometryTests(field, place))
   if ((test === '<' || test === '<=' || test === '>' || test === '>=') && type !== 'number' && type !== 'mixed') {
     throw new QueryRefused(`${place} compares ${JSON.stringify(fieldName(field))} as a number, but it holds ${type === 'list' ? 'a list' : type === 'yes-no' ? 'yes or no' : 'text'}: use = or != instead.`)
   }
   return { field, test, value: compared[3]!.trim() }
+}
+
+/** VEW-80: a condition on coordinates, refused with the two tests that apply. */
+function geometryTests(field: Field, place: string): string {
+  return `${place} tests ${JSON.stringify(fieldName(field))}, which holds coordinates: only "is set" and "is missing" test it. Ask for it in fields instead.`
 }
 
 // CMD-30: in one form (NFC) on both sides, so a name written before with a combining accent is still found.
@@ -503,7 +539,7 @@ function yesNo(text: string): boolean | null {
 }
 
 function equal(field: Field, value: Exclude<Value, null>, wanted: string): boolean {
-  if (Array.isArray(value)) return value.some((item) => fold(item) === fold(wanted))
+  if (Array.isArray(value)) return (value as readonly unknown[]).some((item) => typeof item === 'string' && fold(item) === fold(wanted))
   if (typeof value === 'number') {
     const n = numberOf(field, wanted)
     if (n === null) return false
@@ -595,9 +631,15 @@ export function shown(value: Value): Value {
   return value
 }
 
+/** VEW-80: whether a value is coordinates (a point, or rings of points) rather than a list of words. */
+export function isCoordinates(value: Value): value is Point | readonly Ring[] {
+  return Array.isArray(value) && value.length > 0 && typeof value[0] !== 'string'
+}
+
 /** A group's value as text, for the answer and the key: "not stated" for none. */
 export function valueWords(value: Value): string {
   if (value === null) return 'not stated'
+  if (isCoordinates(value)) return JSON.stringify(value)
   if (Array.isArray(value)) return value.join(', ')
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
   return String(value)
@@ -635,6 +677,7 @@ export function printedValue(field: Field | null, value: number, areaUnit: AreaU
  * largest first and "not stated" last; one group of all of them when no field is given.
  */
 export function groupParts(asked: Asked, parts: readonly Part[], by: Field | null, sums: readonly Field[], areaUnit: AreaUnit = 'm2'): Group[] {
+  if (by !== null && isGeometryField(by)) throw new QueryRefused(`by names a field of coordinates (${JSON.stringify(fieldName(by))}): group by a field with one value per part, and ask for it in grid_find's fields.`)
   const groups = new Map<string, { value: Value; parts: Part[] }>()
   for (const part of parts) {
     const raw = by === null ? null : asked.value(part, by)
@@ -668,7 +711,7 @@ export function groupParts(asked: Asked, parts: readonly Part[], by: Field | nul
 export function checkSums(asked: Asked, fields: readonly Field[]): void {
   for (const field of fields) {
     const type = fieldType(asked, field)
-    if (type !== 'number' && type !== 'mixed') throw new QueryRefused(`sum names ${JSON.stringify(fieldName(field))}, which holds ${type === 'list' ? 'a list' : type === 'yes-no' ? 'yes or no' : 'text'}: only a field of numbers can be summed. Count the parts by it with by instead.`)
+    if (type !== 'number' && type !== 'mixed') throw new QueryRefused(`sum names ${JSON.stringify(fieldName(field))}, which holds ${type === 'list' ? 'a list' : type === 'yes-no' ? 'yes or no' : type === 'point' || type === 'polygon' ? 'coordinates' : 'text'}: only a field of numbers can be summed. Count the parts by it with by instead.`)
   }
 }
 
