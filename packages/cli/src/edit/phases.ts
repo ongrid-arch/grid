@@ -4,7 +4,8 @@
  *
  * A fit-out's base is read-only (`baseTouched`): a change that would move, cut or take out one of
  * the base's walls or openings, or put an opening in a base wall, is refused, naming them, and
- * nothing is written. The base's parts are never in the file, so no change can write them.
+ * nothing is written. WRT-85: so is one that would move, change or take out a base fixture,
+ * column, structural grid or stair. The base's parts are never in the file, so no change can write them.
  *
  * In a plan that states phases (`phasedPatch`), an edit is the work: what it adds is new, what it
  * takes out of what stood before stays in the plan, to be demolished, and a door or window it
@@ -43,14 +44,32 @@ import {
 } from '@ongrid/floorplan/geometry'
 import { statedWall } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
-import { listed, readingAfter, type OpeningChange, type Patch, type RoomChange } from './edits'
+import { listed, readingAfter, type OpeningChange, type PartList, type Patch, type RoomChange } from './edits'
 
 type RawRecord = Record<string, unknown>
 type Pair = [number, number]
 
-/** The base's walls and openings a patch would change, by id; empty when it leaves them as they are. */
-export function baseTouched(patch: Patch, base: { readonly walls: ReadonlySet<string>; readonly openings: ReadonlySet<string> }): string[] {
+/** The ids of the parts a base gave its fit-out: WRT-85's lists are left out by a base read before them. */
+export interface BaseIds {
+  readonly walls: ReadonlySet<string>
+  readonly openings: ReadonlySet<string>
+  readonly columns?: ReadonlySet<string>
+  readonly grids?: ReadonlySet<string>
+  readonly stairs?: ReadonlySet<string>
+  readonly items?: ReadonlySet<string>
+}
+
+/** The base's parts a patch would change, by id; empty when it leaves them as they are. */
+export function baseTouched(patch: Patch, base: BaseIds): string[] {
   const touched = new Set<string>()
+  // WRT-85: the base's fixtures, columns, grids and stairs are the shell's too.
+  const lists = { items: base.items, columns: base.columns, grids: base.grids, stairs: base.stairs } as const
+  for (const id of [...(patch.items?.keys() ?? []), ...(patch.removeItems ?? [])]) if (base.items?.has(id) === true) touched.add(id)
+  for (const [list, ids] of Object.entries(lists)) {
+    if (ids === undefined || ids.size === 0) continue
+    for (const id of patch.parts?.get(list as PartList)?.keys() ?? []) if (ids.has(id)) touched.add(id)
+    for (const id of patch.lists?.get(list)?.remove ?? []) if (ids.has(id)) touched.add(id)
+  }
   for (const id of [...patch.walls.keys(), ...(patch.removeWalls ?? [])]) if (base.walls.has(id)) touched.add(id)
   for (const id of [...patch.openings.keys(), ...patch.removeOpenings]) if (base.openings.has(id)) touched.add(id)
   // An opening put in a base wall, or moved into one, cuts the shell.

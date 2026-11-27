@@ -13,7 +13,7 @@
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { mergeBase, planFloors, validatePlan, withPatterns, type Issue } from '@ongrid/floorplan/geometry'
 import { floorAsked } from '@ongrid/floorplan/geometry/floorAsked'
-import { FloorPlanSchema, quoted, type FloorPlan, type PlanSchemaIssue } from '@ongrid/floorplan/types/floorplan'
+import { FloorPlanSchema, quoted, type Floor, type FloorPlan, type PlanSchemaIssue } from '@ongrid/floorplan/types/floorplan'
 import { readPlanText, type UnfinishedMerge } from '@ongrid/floorplan/types/jsonText'
 import { readPlanParts, type LeftOutPart, type ReadFault } from '@ongrid/floorplan/types/readParts'
 import type { TraceLeftOut } from '@ongrid/rules'
@@ -72,6 +72,13 @@ export interface LoadedBase {
   readonly openings: ReadonlySet<string>
   /** WRT-75: the floors that came from the base, which the plan does not list. */
   readonly floors: ReadonlySet<string>
+  /** WRT-85: the columns, structural grids, stairs and fixtures that came from the base: read-only too. */
+  readonly columns: ReadonlySet<string>
+  readonly grids: ReadonlySet<string>
+  readonly stairs: ReadonlySet<string>
+  readonly items: ReadonlySet<string>
+  /** WRT-85: each floor the plan lists that took a value from the base's, as the plan states it. */
+  readonly ownFloors: ReadonlyMap<string, Floor>
 }
 
 export interface LoadOptions {
@@ -203,7 +210,8 @@ function traceImageCheck(project: Project, plan: FloorPlan): TraceLeftOut | null
  * CNT-10 (lab CP4-4): the base plan a fit-out names. Its path, written in the plan, is resolved
  * like the trace image's, from the project folder and inside it (CMD-15); the file is read as any
  * plan is, and must name no base of its own. Its walls and openings are read into the plan as
- * existing (`mergeBase`); one whose id the plan uses for a part of its own refuses the plan.
+ * existing (`mergeBase`), with its columns, grids, stairs and fixtures (WRT-85); one whose id the
+ * plan uses for a part of its own refuses the plan.
  */
 function readBase(project: Project, file: string, plan: FloorPlan): { plan: FloorPlan; base: LoadedBase } {
   const named = plan.base!
@@ -211,9 +219,9 @@ function readBase(project: Project, file: string, plan: FloorPlan): { plan: Floo
   const merged = mergeBase(plan, loaded.plan)
   if (merged.clashes.length > 0) {
     const ids = merged.clashes.slice(0, 5).map(quoted).join(', ')
-    throw new PlanRefused(`${file} can't be used: it gives ${merged.clashes.length === 1 ? 'a part' : 'parts'} of its own the ${merged.clashes.length === 1 ? 'id' : 'ids'} ${ids}${merged.clashes.length > 5 ? ` and ${merged.clashes.length - 5} more` : ''} of the base plan ${quoted(named)}'s walls and openings. Rename ${merged.clashes.length === 1 ? 'it' : 'them'} in this plan.`)
+    throw new PlanRefused(`${file} can't be used: it gives ${merged.clashes.length === 1 ? 'a part' : 'parts'} of its own the ${merged.clashes.length === 1 ? 'id' : 'ids'} ${ids}${merged.clashes.length > 5 ? ` and ${merged.clashes.length - 5} more` : ''} of the base plan ${quoted(named)}'s parts. Rename ${merged.clashes.length === 1 ? 'it' : 'them'} in this plan.`)
   }
-  return { plan: merged.plan, base: { file: named, plan: loaded.plan, walls: merged.walls, openings: merged.openings, floors: merged.floors } }
+  return { plan: merged.plan, base: { file: named, plan: loaded.plan, walls: merged.walls, openings: merged.openings, floors: merged.floors, columns: merged.columns, grids: merged.grids, stairs: merged.stairs, items: merged.items, ownFloors: merged.ownFloors } }
 }
 
 /**
