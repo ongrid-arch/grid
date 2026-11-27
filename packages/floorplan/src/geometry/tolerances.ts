@@ -25,8 +25,8 @@
 
 export type ToleranceKind = 'tolerance' | 'limit' | 'arithmetic'
 
-/** What an entry is in. A `ratio`, a `sine` and a `count` have no unit; `mm` is a lens's focal length (VEW-3); `%` a slope's percentage points (CNT-19). */
-export type ToleranceUnit = 'm' | 'm²' | 'mm' | 'degree' | 'radian' | 'sine' | 'ratio' | 'count' | '%'
+/** What an entry is in. A `ratio`, a `sine` and a `count` have no unit; `mm` is a lens's focal length (VEW-3); `%` a slope's percentage points (CNT-19); `minute` and `day` the steps the sun is worked out at (CNT-58). */
+export type ToleranceUnit = 'm' | 'm²' | 'mm' | 'degree' | 'radian' | 'sine' | 'ratio' | 'count' | '%' | 'minute' | 'day'
 
 /** The kinds of building a limit can depend on, as the plan says it (`buildingKind`). */
 export type BuildingKind = 'any' | 'home' | 'hall'
@@ -1313,6 +1313,87 @@ export const TOLERANCES = {
     decides:
       'A ramp\'s stated slope further than this, in percentage points, from the slope its two ' +
       'levels and its run give is worth a look; both are kept and returned.',
+    basis: own
+  },
+
+  // ── The sun and its shadows (CNT-58) ──────────────────────────────────────────────────────
+  sunLowest: {
+    kind: 'tolerance',
+    value: 0.5,
+    unit: 'degree',
+    decides:
+      'The sun lower than this above the horizon casts no shadow Grid works out: everything is ' +
+      'taken as in shade, as a shadow that low runs on past any plot.',
+    basis: own
+  },
+  sunStepMinutes: {
+    kind: 'limit',
+    value: 30,
+    unit: 'minute',
+    decides:
+      'The time between the moments the sun is worked out at over a range of hours, when the ' +
+      'call gives none.',
+    basis: own
+  },
+  sunStepDays: {
+    kind: 'limit',
+    value: 7,
+    unit: 'day',
+    decides:
+      'The days between the dates the sun is worked out on over a range of dates, when the call ' +
+      'gives none; the last date is always one of them.',
+    basis: own
+  },
+  sunMomentsMost: {
+    kind: 'limit',
+    value: 2000,
+    unit: 'count',
+    decides:
+      'The most moments one call works the sun and its shadows out at: dates times hours; more is ' +
+      'refused with the step that fits.',
+    basis: own
+  },
+  sunFaceFoot: {
+    kind: 'tolerance',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'How far in front of a building face its foot is taken, to say how much of it lies in the ' +
+      'shadow of something else, clear of the face\'s own corner.',
+    basis: own
+  },
+  sunFaceShortest: {
+    kind: 'tolerance',
+    value: 0.5,
+    unit: 'm',
+    decides:
+      'A straight stretch of a building\'s outline shorter than this is no face of its own when the ' +
+      'sun on the faces is said: the step where walls of two thicknesses meet, or a corner made good.',
+    basis: own
+  },
+  fenceCasts: {
+    kind: 'tolerance',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'The thickness a site fence with a height is taken as when it casts a shadow, as the site ' +
+      'states its line alone.',
+    basis: own
+  },
+  treeCrownBase: {
+    kind: 'tolerance',
+    value: 0.4,
+    unit: 'ratio',
+    decides:
+      'Where a tree\'s crown starts, as a share of its height, when it casts a shadow: its canopy ' +
+      'is taken as a disc of that width from there to its top, and its trunk casts none.',
+    basis: own
+  },
+  canopySides: {
+    kind: 'limit',
+    value: 24,
+    unit: 'count',
+    decides: 'The straight sides a tree\'s round canopy is traced with when it casts a shadow.',
     basis: own
   },
 
