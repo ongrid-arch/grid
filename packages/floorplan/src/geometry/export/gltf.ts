@@ -21,7 +21,9 @@
  */
 
 import type { Scene3D } from '../scene3d'
-import { MESH_MATERIALS, OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, materialOf, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
+import { MESH_MATERIALS, OPENING_PART_KINDS, columnMesh, floorMesh, groundMesh, itemMesh, makeNamer, materialOf, openingPartMesh, shellMesh, siteMaterial, siteMesh, stairMesh, wallMesh } from './mesh'
+import type { SceneGround } from '../groundPlane'
+import type { SiteBlock } from '../siteScene'
 import type { Mesh, MeshMaterial } from './mesh'
 import type { Vec3 } from '../scene3d'
 import type { StoreyScene } from './obj'
@@ -117,7 +119,8 @@ function partsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => string 
   const parts: Part[] = []
   for (const wall of scene.walls) {
     const mesh = wallMesh(wall)
-    if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: 'wall' })
+    // CNT-60: a party wall is drawn as a cut.
+    if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: wall.cut === true ? 'cut' : 'wall' })
   }
   for (const slab of scene.slabs) {
     const mesh = floorMesh(slab)
@@ -458,6 +461,32 @@ export interface BuildingGlbOptions extends GlbOptions {
    * its elevation. `floor`: one floor asked for alone, its node the root, carrying its elevation.
    */
   readonly root: 'building' | 'floor'
+  /**
+   * CNT-60: the site, written as one node `site` (`GLB_SITE_NODE`), a child of the building's root:
+   * the ground (null for none) and the site's blocks (`siteScene`), in the floors' own datum. A
+   * file of one floor carries none.
+   */
+  readonly site?: { readonly ground: Pick<SceneGround, 'level' | 'tilt' | 'pieces'> | null; readonly blocks: readonly SiteBlock[] }
+}
+
+/** CNT-60: the name of the site's node. */
+export const GLB_SITE_NODE = 'site'
+
+/** CNT-60: the site's parts: its ground, then its blocks, each thing's blocks of one material together. */
+function siteParts(site: NonNullable<BuildingGlbOptions['site']>, nameOf: (prefix: string, id: string) => string): Part[] {
+  const parts: Part[] = []
+  const ground = site.ground === null ? null : groundMesh(site.ground)
+  if (ground !== null) parts.push({ name: nameOf('ground', 'site'), mesh: ground, material: 'ground' })
+  const groups = new Map<string, SiteBlock[]>()
+  for (const block of site.blocks) {
+    const key = `${block.kind}\u0000${block.id}`
+    groups.set(key, [...(groups.get(key) ?? []), block])
+  }
+  for (const blocks of groups.values()) {
+    const mesh = siteMesh(blocks)
+    if (mesh) parts.push({ name: nameOf(blocks[0]!.kind, blocks[0]!.id), mesh, material: siteMaterial(blocks[0]!.kind) })
+  }
+  return parts
 }
 
 /** A translation, or none when it moves nothing. `0 - y`, as for the points, so y = 0 is not -0. */
@@ -477,9 +506,10 @@ function translation(x: number, up: number, y: number): { translation?: number[]
 export function toBuildingGlb(storeys: readonly StoreyScene[], options: BuildingGlbOptions): Uint8Array {
   const nameOf = makeNamer()
   const perFloor = storeys.map((storey) => partsOf(storey.scene, nameOf))
-  const parts = perFloor.flat()
-  const moved = movedBy(options.origin)
   const asOne = options.root === 'floor' && storeys.length === 1
+  const ofSite = options.site === undefined || asOne ? [] : siteParts(options.site, nameOf)
+  const parts = [...perFloor.flat(), ...ofSite]
+  const moved = movedBy(options.origin)
   const holderName = asOne ? storeys[0]!.id : GLB_BUILDING_NODE
   const asset = assetOf(options.leftOut ?? [], moved, options.approximations ?? NO_APPROXIMATIONS, holderName, options.north)
   if (parts.length === 0) return encodeGlb(withSun({ asset, scene: 0, scenes: [{}] }, options.sun), null)
@@ -502,6 +532,10 @@ export function toBuildingGlb(storeys: readonly StoreyScene[], options: Building
   }
   const floorIndex = (k: number): number => written.nodes.length + k
   if (asOne) return encodeGlb(withSun(documentOf(asset, written, floors, [floorIndex(0)]), options.sun), written.binary)
-  const root = { name: GLB_BUILDING_NODE, ...translation(ox, 0, oy), children: storeys.map((_, k) => floorIndex(k)) }
-  return encodeGlb(withSun(documentOf(asset, written, [...floors, root], [floorIndex(storeys.length)]), options.sun), written.binary)
+  // CNT-60: the site's parts, after every floor's, held by one node at the datum.
+  const siteFrom = written.nodes.length - ofSite.length
+  const site = ofSite.length === 0 ? [] : [{ name: GLB_SITE_NODE, children: ofSite.map((_, i) => siteFrom + i) }]
+  const siteIndex = floorIndex(storeys.length)
+  const root = { name: GLB_BUILDING_NODE, ...translation(ox, 0, oy), children: [...storeys.map((_, k) => floorIndex(k)), ...(site.length === 0 ? [] : [siteIndex])] }
+  return encodeGlb(withSun(documentOf(asset, written, [...floors, ...site, root], [floorIndex(storeys.length + site.length)]), options.sun), written.binary)
 }

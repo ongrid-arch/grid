@@ -21,9 +21,10 @@
  */
 import type { FloorPlan } from '../types/floorplan'
 import type { ReadFault } from '../types/readParts'
-import { buildFloorPlan, buildScene, dxfFactsOf, dxfSheets, floorElevations, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toBuildingGlb, toBuildingObj, toDxfFloors, toIfc, withPatterns } from '../geometry'
+import { buildFloorPlan, buildScene, sceneGround, siteScene, dxfFactsOf, dxfSheets, floorElevations, inIdOrder, nearOrigin, planFloors, planForFloor, resolveFloor, roomNumbers, shownRoomNumber, toBuildingGlb, toBuildingObj, toDxfFloors, toIfc, withPatterns } from '../geometry'
 import { toMtl, type StoreyScene } from '../geometry/export/obj'
-import type { GlbNorth, GlbSun } from '../geometry/export/gltf'
+import type { BuildingGlbOptions, GlbNorth, GlbSun } from '../geometry/export/gltf'
+import type { Vec2 } from '../geometry/vec2'
 import { planOrientation } from '../geometry/orientation'
 import { planPlace, type PlanSun } from '../geometry/sunShade'
 import type { Scene3D } from '../geometry/scene3d'
@@ -206,6 +207,29 @@ function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, 
   return { storeys, origin: moved.at }
 }
 
+/**
+ * CNT-60: the site a GLB of the whole building carries: its blocks (`siteScene`) and, when the site
+ * states a plot, the ground cut to it (`sceneGround`), moved by `at` as the storeys were
+ * (`nearOrigin`), so they land where the building does. None when the plan has neither.
+ */
+function glbSite(plan: FloorPlan, at: readonly [number, number]): BuildingGlbOptions['site'] {
+  const blocks = siteScene(plan).blocks
+  const ground = plan.site?.boundary === undefined ? null : sceneGround(plan, 0)
+  if (blocks.length === 0 && ground === null) return undefined
+  const [dx, dy] = at
+  if (dx === 0 && dy === 0) return { ground, blocks }
+  const shift = (p: Vec2): Vec2 => ({ x: p.x - dx, y: p.y - dy })
+  const moved = ground === null
+    ? null
+    : {
+        level: ground.level,
+        // The slope's rise at a point is read where the point was.
+        ...(ground.tilt === undefined ? {} : { tilt: { ...ground.tilt, at: ground.tilt.at + ground.tilt.x * dx + ground.tilt.y * dy } }),
+        pieces: ground.pieces.map((polygon) => polygon.map((ring) => ring.map(([x, y]): [number, number] => [x - dx, y - dy])))
+      }
+  return { ground: moved, blocks: blocks.map((block) => ({ ...block, outline: block.outline.map(shift) })) }
+}
+
 /** CNT-58: the GLB's north and sun options, each only when there is one. */
 function withNorthAndSun(plan: FloorPlan, options: PlanExportOptions): { north?: GlbNorth; sun?: GlbSun } {
   const north = glbNorth(plan)
@@ -266,7 +290,8 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
     floors = held.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
   } else {
     const { storeys, origin } = storeysOf(ordered, held, format === 'glb', options)
-    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor', ...withNorthAndSun(plan, options) })
+    const site = format === 'glb' && whole ? glbSite(ordered, origin) : undefined
+    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor', ...withNorthAndSun(plan, options), ...(site === undefined ? {} : { site }) })
     floors = storeys.map(({ id, elevation }) => ({ id, elevation }))
   }
   const heldIds = new Set(held)

@@ -143,6 +143,16 @@ export interface SceneWall {
   readonly pieces?: readonly SceneWallPiece[]
   /** VEW-78: the wall's type is glass (`wallGlazed`): a curtain wall or a glazed partition. */
   readonly glazed?: true
+  /**
+   * CNT-60: a party wall (C23: `separating`, or a neighbour stated beyond it): the building goes on
+   * past it, so it is drawn as a cut (`partyWall`).
+   */
+  readonly cut?: true
+}
+
+/** CNT-60: whether a wall is drawn as a cut: a separating wall, or one with a neighbour stated beyond it. */
+export function partyWall(wall: Pick<Wall, 'kind' | 'beyond'>): boolean {
+  return wall.kind === 'separating' || wall.beyond === 'neighbour'
 }
 
 /** One straight piece of a curved wall in 3D (CNT-18): a rectangle on its own basis, no holes. */
@@ -690,7 +700,8 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
       exposure: wallExposure(index, wall.id),
       revision: wallRevision(whole.wall, usable, ends, top),
       ...(wall.arc !== undefined && { pieces: curvedWallPieces(whole.wall, usable, ends, options.arcSegments) }),
-      ...(wallGlazed(plan, wall) && { glazed: true as const })
+      ...(wallGlazed(plan, wall) && { glazed: true as const }),
+      ...(partyWall(wall) && { cut: true as const })
     })
     if (elevation.height > height) height = elevation.height
     for (const opening of usable) {
