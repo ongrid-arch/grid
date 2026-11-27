@@ -34,7 +34,9 @@
  * - Dimensions as dimension entities, with the core's chains outside the plan and its room
  *   dimensions inside (SHT-4: `buildDimensions`), each drawn in its own block as a dimension is.
  * - Fixtures and furniture as blocks (CNT-20): one block per library entry, or per kind and size,
- *   drawn in the item's own frame and inserted at its middle, turned as the plan turns it.
+ *   drawn in the item's own frame and inserted at its middle, turned as the plan turns it. CNT-55:
+ *   one hung above the plan's cut on a dashed layer of its own, and a commercial kitchen's piece
+ *   with its label at its middle.
  * - A tag in each room: a block with its number, name and area as attributes.
  * - A paper layout: an A3 sheet in millimetres with one viewport showing the plan at the profile's
  *   scale, and every text sized for that scale.
@@ -96,6 +98,8 @@ export const DXF_LAYERS = {
   // pocket, a garage door open overhead, a high-level window), dashed.
   openingsAbove: neutral('openings-above'),
   fixtures: neutral('fixtures'),
+  // CNT-55: an item hung above the plan's cut, dashed.
+  fixturesAbove: neutral('fixtures-above'),
   columns: neutral('columns'),
   structuralGrid: neutral('structural-grid'),
   dimensions: neutral('dimensions'),
@@ -649,6 +653,10 @@ interface ItemPlace {
   readonly key: string
   readonly at: Vec2
   readonly rotation: number
+  /** CNT-55: it hangs above the plan's cut, so it goes on the dashed layer. */
+  readonly raised: boolean
+  /** CNT-55: the label written at its middle, for a kind drawn with its label; null for none. */
+  readonly label: string | null
 }
 
 /** A block name's part from a name of the plan's: letters and digits kept, the rest dashes. */
@@ -674,7 +682,7 @@ function itemBlocks(drawings: readonly PlanDrawing[]): { blocks: ItemBlock[]; pl
       const base = blockWord(item.library ?? item.kind)
       const key = `${base}|${num(item.size[0])}|${num(item.size[1])}|${shape}`
       if (!blocks.has(key)) blocks.set(key, { key, base, width: item.size[0], depth: item.size[1], rings, lines })
-      placed.push({ key, at: item.at, rotation: item.turn })
+      placed.push({ key, at: item.at, rotation: item.turn, raised: item.raised === true, label: item.labelled === true && item.label !== '' ? item.label : null })
     }
     return placed
   })
@@ -1309,8 +1317,10 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
 
   // CNT-12: each fixture's symbol as the 2D plan draws it. CNT-20: as its block, inserted at its
   // middle and turned as the plan turns it.
+  // CNT-55: one hung above the cut on the dashed layer, and a labelled kind's label at its middle.
   for (const place of parts.items.places) {
-    space.insert(space.layer('fixtures'), parts.items.names.get(place.key)!, place.at, place.rotation)
+    space.insert(space.layer(place.raised ? 'fixtures-above' : 'fixtures'), parts.items.names.get(place.key)!, place.at, place.rotation)
+    if (place.label !== null) space.text(space.layer(place.raised ? 'fixtures-above' : 'fixtures'), place.at, place.label, size.fact)
   }
 
   // Each wall: its fill, then its outlines over the fill, one closed outline per solid run

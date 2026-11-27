@@ -45,7 +45,8 @@ const OFFICES = compiled([
 ])
 
 const said = { level: 'must', source: 'given', quote: 'what they said' } as const
-const linesFor = (plan: FloorPlan, brief: Record<string, unknown>): BriefLine[] => briefLines(plan, parseBrief(brief, { versionNeeded: false }))
+// ARE-72: without the usual rooms Grid assumes for a home, which no wish here gives.
+const linesFor = (plan: FloorPlan, brief: Record<string, unknown>): BriefLine[] => briefLines(plan, parseBrief(brief, { versionNeeded: false })).filter((l) => !(l.source === 'assumed' && l.where === null))
 
 describe('a total per use, and wishes per floor or department', () => {
   it('measures "about 84 m² of offices" as one line for the offices together', () => {

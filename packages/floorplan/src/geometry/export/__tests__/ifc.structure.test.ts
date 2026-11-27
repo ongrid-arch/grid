@@ -86,9 +86,10 @@ const OPTIONS = { projectId: 'structure', projectName: 'Structure', timestamp: n
 // ---------------------------------------------------------------------------
 
 /** IfcRoot's subtypes Grid writes that are objects (they can hold properties, types and materials). */
-const ELEMENTS = new Set(['IFCWALLSTANDARDCASE', 'IFCWALL', 'IFCDOOR', 'IFCWINDOW', 'IFCSLAB', 'IFCROOF', 'IFCCOVERING', 'IFCFURNISHINGELEMENT', 'IFCSTAIR', 'IFCSTAIRFLIGHT', 'IFCOPENINGELEMENT'])
+// CNT-55: and a sanitary fixture or a towel radiator, a flow terminal.
+const ELEMENTS = new Set(['IFCWALLSTANDARDCASE', 'IFCWALL', 'IFCDOOR', 'IFCWINDOW', 'IFCSLAB', 'IFCROOF', 'IFCCOVERING', 'IFCFURNISHINGELEMENT', 'IFCFLOWTERMINAL', 'IFCSTAIR', 'IFCSTAIRFLIGHT', 'IFCOPENINGELEMENT'])
 const SPATIAL = new Set(['IFCPROJECT', 'IFCSITE', 'IFCBUILDING', 'IFCBUILDINGSTOREY', 'IFCSPACE'])
-const TYPES = new Set(['IFCWALLTYPE', 'IFCDOORSTYLE', 'IFCWINDOWSTYLE'])
+const TYPES = new Set(['IFCWALLTYPE', 'IFCDOORSTYLE', 'IFCWINDOWSTYLE', 'IFCSANITARYTERMINALTYPE', 'IFCSPACEHEATERTYPE'])
 const RELATIONS = new Set([
   'IFCRELAGGREGATES',
   'IFCRELCONTAINEDINSPATIALSTRUCTURE',
@@ -116,8 +117,8 @@ const AGGREGATES: Readonly<Record<string, ReadonlySet<string>>> = {
   IFCROOF: new Set(['IFCSLAB'])
 }
 /** What a storey contains: LVL-4's roof, its parapet (an IfcWall) and the ceilings among them. */
-const CONTAINED = new Set(['IFCWALLSTANDARDCASE', 'IFCWALL', 'IFCDOOR', 'IFCWINDOW', 'IFCSLAB', 'IFCROOF', 'IFCCOVERING', 'IFCFURNISHINGELEMENT', 'IFCSTAIR'])
-const TYPED: Readonly<Record<string, string>> = { IFCWALLTYPE: 'IFCWALLSTANDARDCASE', IFCDOORSTYLE: 'IFCDOOR', IFCWINDOWSTYLE: 'IFCWINDOW' }
+const CONTAINED = new Set(['IFCWALLSTANDARDCASE', 'IFCWALL', 'IFCDOOR', 'IFCWINDOW', 'IFCSLAB', 'IFCROOF', 'IFCCOVERING', 'IFCFURNISHINGELEMENT', 'IFCFLOWTERMINAL', 'IFCSTAIR'])
+const TYPED: Readonly<Record<string, string>> = { IFCWALLTYPE: 'IFCWALLSTANDARDCASE', IFCDOORSTYLE: 'IFCDOOR', IFCWINDOWSTYLE: 'IFCWINDOW', IFCSANITARYTERMINALTYPE: 'IFCFLOWTERMINAL', IFCSPACEHEATERTYPE: 'IFCFLOWTERMINAL' }
 
 // ---------------------------------------------------------------------------
 // Reading what an object carries

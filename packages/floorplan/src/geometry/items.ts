@@ -32,12 +32,38 @@ import { wallPlanSlices } from './wall'
 import { nearestFloorId } from './levels'
 import { metresText } from './rounding'
 import type { Issue } from './validate'
-import { ITEM_KIND_DEFINITIONS, isItemKind, isOwnItemKind, isPointKind, itemKindDefinition, itemKinds, liesUnderfoot, takesFloor, type ItemBlock, type ItemSymbol, type SymbolPen } from './itemKinds'
+import { ITEM_KIND_DEFINITIONS, isInsetKind, isItemKind, isOwnItemKind, isPointKind, itemKindDefinition, itemKinds, liesUnderfoot, takesFloor, type ItemBlock, type ItemSymbol, type SymbolPen } from './itemKinds'
 import { BUILT_IN_ITEMS, builtInItem } from '../library/builtIn'
 import { likelyId } from '../types/nearest'
 
 export { ITEM_KINDS, type Item, type ItemKind } from '../types/floorplan'
 export { isItemKind, type ItemBlock, type ItemSymbol } from './itemKinds'
+
+// ── How high it is ───────────────────────────────────────────────────────────────────────────
+
+/** CNT-55: metres from the floor of its room to the item's underside: its `elevation`, else 0. */
+export function itemElevation(item: Pick<Item, 'elevation'>): number {
+  return item.elevation !== undefined && item.elevation > 0 ? item.elevation : 0
+}
+
+/** CNT-55: metres from the floor of its room to the item's top: its elevation and its height. */
+export function itemTop(item: Pick<Item, 'elevation' | 'height'>): number {
+  return itemElevation(item) + item.height
+}
+
+/**
+ * CNT-55: whether the item hangs above the plan's cut (its underside `itemRaised` or more above
+ * the floor, a wall unit, a hood): it is drawn dashed, takes no floor, and stands in no clear
+ * floor another keeps.
+ */
+export function isRaised(item: Pick<Item, 'elevation'>): boolean {
+  return itemElevation(item) >= tolerance('itemRaised')
+}
+
+/** CNT-55: how far two items' heights meet, in metres: 0 when one is wholly above the other. */
+function heightsMeet(a: Item, b: Item): number {
+  return Math.min(itemTop(a), itemTop(b)) - Math.max(itemElevation(a), itemElevation(b))
+}
 
 /** What a person calls each of Grid's own kinds, in a sentence (`itemKindWord` for any kind). */
 export const ITEM_KIND_WORDS: Readonly<Record<ItemKind, string>> = Object.fromEntries(ITEM_KIND_DEFINITIONS.map((d) => [d.kind, d.word])) as Record<ItemKind, string>
@@ -196,7 +222,8 @@ export function itemBlockSymbol(item: Item): ItemSymbol | null {
  * its footprint, between the floor it stands on (0) and its height. Unless the kind says how,
  * its footprint, solid from the floor to its height. Empty for a kind Grid does not hold.
  * CNT-48: when the kind's blocks are all cut away (a registered kind whose blocks all stand above the item's height), its footprint
- * box, so an item the checks pass is never left out of a picture or a file.
+ * box, so an item the checks pass is never left out of a picture or a file. CNT-55: every block is
+ * lifted by the item's elevation, so the floor is 0 and its underside `itemElevation`.
  */
 export function itemSolid(item: Item): ItemBlock[] {
   const definition = itemKindDefinition(item.kind)
@@ -206,7 +233,10 @@ export function itemSolid(item: Item): ItemBlock[] {
   const blocks = (definition.solid?.(pen, item.height) ?? box())
     .map((b) => ({ outline: b.outline, bottom: Math.max(0, b.bottom), top: Math.min(item.height, b.top) }))
     .filter((b) => b.top > b.bottom && b.outline.length >= 3)
-  return blocks.length > 0 || !(item.height > 0) ? blocks : box()
+  const solid = blocks.length > 0 || !(item.height > 0) ? blocks : box()
+  // CNT-55: lifted by its elevation, so a wall unit hangs where it is hung.
+  const lift = itemElevation(item)
+  return lift === 0 ? solid : solid.map((b) => ({ outline: b.outline, bottom: b.bottom + lift, top: b.top + lift }))
 }
 
 // ── The floor it takes ───────────────────────────────────────────────────────────────────────
@@ -219,8 +249,8 @@ export function itemSolid(item: Item): ItemBlock[] {
 export function itemFloorTaken(items: readonly Item[], rooms: readonly { readonly room: Room; readonly shape: RoomShape }[]): Map<string, number> {
   const byRoom = new Map<string, Item[]>()
   for (const item of items) {
-    // CNT-20: furniture can be moved, so it takes no floor.
-    if (!takesFloor(item.kind)) continue
+    // CNT-20: furniture can be moved, so it takes no floor. CNT-55: nor does what hangs above the cut.
+    if (!takesFloor(item.kind) || isRaised(item)) continue
     const room = itemRoom(item, rooms)
     if (room === null) continue
     const list = byRoom.get(room.id)
@@ -385,7 +415,7 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
   const sound: Item[] = []
   for (const item of items) {
     const noun = itemNounSaid(item)
-    const numbers = [item.at[0], item.at[1], item.size[0], item.size[1], item.height, item.turn ?? 0]
+    const numbers = [item.at[0], item.at[1], item.size[0], item.size[1], item.height, item.turn ?? 0, item.elevation ?? 0]
     if (!numbers.every(held)) {
       issues.push(issue(item.id, 'item/too-large', said('issue.item/too-large', { item: noun, largest: m(tolerance('largest')) }), 'error'))
       broken.add(item.id)
@@ -401,7 +431,10 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
         issue(
           item.id,
           'item/unknown-kind',
-          said('issue.item/unknown-kind', { item: name(item.id), kind: name(item.kind), kinds }),
+          // CNT-55: with the kind it most likely means, as a misspelt use is said.
+          meantKind(item.kind) === null
+            ? said('issue.item/unknown-kind', { item: name(item.id), kind: name(item.kind), kinds })
+            : said('issue.item/unknown-kind.meant', { item: name(item.id), kind: name(item.kind), meant: name(meantKind(item.kind)!), kinds }),
           'error'
         )
       )
@@ -477,14 +510,18 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
       }
     }
     const height = roomHeightOf(room, index, floorHeights.get(floorOf(item)))
-    if (height !== null && item.height > height + tolerance('itemAboveRoom')) {
+    // CNT-55: by its top, so a wall unit hung too high is named as one too tall.
+    const top = itemTop(item)
+    if (height !== null && top > height + tolerance('itemAboveRoom')) {
       const where =
         room === null
           ? said('issue.item/too-tall.floor', { floor: name(floorOf(item)) })
           : said('issue.item/too-tall.room', { room: name(room.name || room.id) })
-      issues.push(
-        issue(item.id, 'item/too-tall', said('issue.item/too-tall', { item: noun, height: m(item.height), over: m(item.height - height), where, room: m(height) }), 'warning')
-      )
+      const sentence =
+        itemElevation(item) > 0
+          ? said('issue.item/too-tall.hung', { item: noun, top: m(top), elevation: m(itemElevation(item)), over: m(top - height), where, room: m(height) })
+          : said('issue.item/too-tall', { item: noun, height: m(item.height), over: m(item.height - height), where, room: m(height) })
+      issues.push(issue(item.id, 'item/too-tall', sentence, 'warning'))
     }
   }
 
@@ -512,8 +549,10 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
     for (let j = 0; j < i; j++) {
       const b = footprints[j]!
       if (floorOf(a.item) !== floorOf(b.item) || !meet(a.box, b.box)) continue
-      // CNT-42: a rug lies on the floor, so what stands on it is not standing in it.
+      // CNT-42: a rug lies on the floor, so what stands on it is not standing in it. CNT-55: nor
+      // does a sink or a hob set into a worktop, or one item hung wholly above another.
       if (liesUnderfoot(a.item.kind) || liesUnderfoot(b.item.kind)) continue
+      if (isInsetKind(a.item.kind) || isInsetKind(b.item.kind) || heightsMeet(a.item, b.item) <= tolerance('itemOverlap')) continue
       const depth = convexPenetration(a.footprint, b.footprint)
       if (depth <= tolerance('itemOverlap')) continue
       issues.push(hitIssue(a.item.id, 'item/overlap', said('issue.item/overlap', { item: itemNounSaid(a.item), other: itemNameSaid(b.item), depth: m(depth) }), [b.item.id]))
@@ -524,7 +563,8 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
     for (const { side, zone, clearance } of itemClearanceZones(item)) {
       const zoneBox = boundsOf(zone)
       const walls = wallsRunInto(zone, wallsByFloor.get(floorOf(item)) ?? [])
-      const others = footprints.filter((o) => o.item.id !== item.id && !liesUnderfoot(o.item.kind) && floorOf(o.item) === floorOf(item) && meet(zoneBox, o.box) && convexPenetration(zone, o.footprint) > tolerance('itemOverlap'))
+      // CNT-55: what hangs above the cut, or is set into a worktop, stands in no clear floor.
+      const others = footprints.filter((o) => o.item.id !== item.id && !liesUnderfoot(o.item.kind) && !isRaised(o.item) && !isInsetKind(o.item.kind) && floorOf(o.item) === floorOf(item) && meet(zoneBox, o.box) && convexPenetration(zone, o.footprint) > tolerance('itemOverlap'))
       if (walls.length === 0 && others.length === 0) continue
       const what = joined(
         [...others.map((o) => itemNameSaid(o.item)), ...walls.map((w) => said('issue.item/clearance-blocked.wall', { wall: name(w.wall) }))],
@@ -550,6 +590,11 @@ export function itemIssues(plan: FloorPlan, index: PlanIndex, broken: Set<string
 }
 
 const BUILT_IN_NAMES: readonly string[] = BUILT_IN_ITEMS.map((entry) => entry.name)
+
+/** CNT-55: the kind a word Grid does not hold most likely means (`toliet`, `bidét`), or null. */
+export function meantKind(word: string): string | null {
+  return likelyId(word, itemKinds())
+}
 
 const hitIssue = (id: string, code: string, sentence: Said, hits: readonly string[]): Issue =>
   withSaid({ entity: 'item', id, code, message: english(sentence), severity: 'warning', hits }, sentence)

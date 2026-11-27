@@ -114,6 +114,7 @@ is not asked whether it was typed in feet.
 | `itemIntoWall` | tolerance | 0.005 m | How far a fixture may reach into a solid wall's body and still stand against its face; past it, `item/into-wall` names the wall |
 | `itemOverlap` | tolerance | 0.005 m | How far one item may reach into another, or into the clear floor another keeps in front of it; past it, `item/overlap` or `item/clearance-blocked` names both. The same for a fixture in an activity zone and two zones that overlap (`grid_measure what=activity`, ARE-73) |
 | `itemLeavesRoom` | tolerance | 0.005 m² | How much of an item's floor may lie outside its room, where no wall stands; past it, `item/leaves-room` names the room and the floor outside |
+| `itemRaised` | tolerance | 1 m | How high an item's underside may be above the floor and still stand on it; from it up, the item hangs above the plan's cut, is drawn dashed, takes no floor and stands in no clear floor another keeps |
 | `itemAboveRoom` | tolerance | 0.001 m | How far a fixture may rise past the height of its room; past it, `item/too-tall` names both heights |
 | `useOpenLeaf` | limit | 0.05 m | Grid's own size, not a code figure: what an open door leaf and its stop take of a doorway; the clear width a door leaves is its hole less this (CNT-13) |
 | `useApproachDepth` | limit | 0.3 m | Grid's own size, not a code figure: a fixture within this of a doorway's or a window's hole, across its width, stands in front of it (`item/blocks-doorway`, `item/blocks-window`) |
@@ -177,6 +178,10 @@ is not asked whether it was typed in feet.
 | `storeyLowest` | limit | 2 m | Grid's own size, not a code figure: a floor stating a lower height is questioned, and one under another floor stating none whose tallest wall is lower; a floor under a roof of its own only below `wallLowest` (LVL-18); a lower wall is no storey high, and its own height is not set against its floor's (LVL-24) |
 | `stairDoorLowest` | limit | 1.8 m | Grid's own size, not a code figure: a lower door or doorless opening onto a room used as a stair or a lift is questioned (LVL-18) |
 | `roomLargest` | limit | 50000 m² (1000 in a home, 500000 in a hall) | A larger room is questioned |
+| `homeRoomSmallest` | limit | 4 m² | Grid's own size, not a code figure: a bedroom, living room or dining room of a home with less net floor is asked about after the check, with no place needed (ARE-72) |
+| `homeRoomNarrowest` | limit | 1.8 m | Grid's own size, not a code figure: a bedroom, living room or dining room of a home whose widest circle is narrower is asked about (ARE-72) |
+| `homeWetRoomSmallest` | limit | 0.8 m² | Grid's own size, not a code figure: a kitchen, bathroom or toilet of a home with less net floor is asked about (ARE-72) |
+| `homeWetRoomNarrowest` | limit | 0.6 m | Grid's own size, not a code figure: a kitchen, bathroom or toilet of a home whose widest circle is narrower is asked about (ARE-72) |
 | `typicalHeightLowest` | limit | 1.8 m | The units question: the typical wall height of a building, from this… |
 | `typicalHeightHighest` | limit | 6 m (30 in a hall) | …to this |
 | `typicalThicknessLowest` | limit | 0.08 m | The typical wall thickness that agrees with a unit, from this… |

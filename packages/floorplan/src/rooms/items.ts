@@ -6,10 +6,11 @@
  *        [, at <end> | , <n> from <end> | , full width [<d> deep]]
  *   item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] at x,y [turn <degrees>] [on <floor>]
  *   (CNT-47: `clear back <m>`, `clear left <m>`, `clear right <m>` keep clear floor on those sides too)
+ *   (CNT-55: `above <m>` hangs it that far above the floor, its underside: a wall unit `above 1.45`)
  *   raw item { ...Grid's own JSON for an item... }     (raw fixture and raw furniture are the same)
  *
  * `<name>` is a library entry (the plan's own, else Grid's: `bath`, `double-bed`, `wardrobe`) or a
- * kind (`toilet`, `storage`). A kind with no size is placed as Grid's first entry of that kind; a
+ * kind (`toilet`, `storage`), or (CNT-55) a plain word for one (`WC`, `loo`, `tub`). A kind with no size is placed as Grid's first entry of that kind; a
  * kind given a size and no height takes that entry's height, said as a guess.
  *
  * Against a side, the item's back lies on the room's inside face on that side (the edge of the
@@ -26,7 +27,7 @@
  *
  * Pure: words in, an item out, or the reason there is none.
  */
-import { ItemSchema, type FloorPlan, type Item, type LibraryItem, type Room, type Wall } from '../types/floorplan'
+import { ItemSchema, readItemKind, type FloorPlan, type Item, type LibraryItem, type Room, type Wall } from '../types/floorplan'
 import { indexPlan } from '../geometry/plan'
 import { floorOf, planFloors } from '../geometry/floors'
 import { tryRoomPolygon } from '../geometry/room'
@@ -63,6 +64,8 @@ export interface ItemWords {
   readonly size?: P
   readonly depth?: number
   readonly height?: number
+  /** CNT-55: metres from the floor to its underside, for a thing hung on a wall. */
+  readonly elevation?: number
   readonly clearance?: number
   /** CNT-47: the clear floor kept behind it and at its sides. */
   readonly clearSides?: ClearSides
@@ -190,6 +193,9 @@ function entryOf(library: Library, words: ItemWords): { found: ReturnType<Librar
     if (!isItemKind(found.entry.kind)) throw new ItemRefused(`library item '${words.name}' is a '${found.entry.kind}', a kind Grid does not hold.`)
     return { found, kind: found.entry.kind, name: words.name, guesses: [] }
   }
+  // CNT-55: a plain word for a kind (`WC`, `tub`) is placed as that kind.
+  const plain = readItemKind(words.name)
+  if (typeof plain === 'string' && plain !== words.name && isItemKind(plain)) return entryOf(library, { ...words, name: plain })
   if (!isItemKind(words.name)) {
     const meant = likelyId(words.name, [...library.items.keys(), ...itemKinds()])
     throw new ItemRefused(`'${words.name}' is neither a library entry nor a kind of item Grid holds${meant === null ? '' : `: did you mean '${meant}'?`} The kinds are ${itemKinds().join(', ')}; grid_measure what=library lists the entries.`)
@@ -216,6 +222,7 @@ export function placeItem(plan: FloorPlan, words: ItemWords, library: Library = 
   positive(words.size?.[1], "an item's depth")
   positive(words.depth, "an item's depth")
   positive(words.height, "an item's height")
+  if (words.elevation !== undefined && !(Number.isFinite(words.elevation) && words.elevation >= 0)) throw new ItemRefused("an item's height above the floor ('above') is a length, 0 or more.")
   if (words.clearance !== undefined && !(Number.isFinite(words.clearance) && words.clearance >= 0)) throw new ItemRefused('the clear floor kept in front is a length, 0 or more.')
   for (const side of CLEAR_SIDES) {
     const v = words.clearSides?.[side]
@@ -301,6 +308,7 @@ export function placeItem(plan: FloorPlan, words: ItemWords, library: Library = 
     ...(words.label === undefined ? {} : { label: words.label }),
     ...(sized ? { size: [settled(width!), settled(depth!)] } : {}),
     ...(words.height !== undefined || entry === undefined ? { height: settled(height!) } : {}),
+    ...(words.elevation === undefined ? {} : { elevation: settled(words.elevation) }),
     ...(words.clearance === undefined ? {} : { clearance: settled(words.clearance) }),
     ...(clearSides === undefined ? {} : { clearSides }),
   }
@@ -311,6 +319,7 @@ export function placeItem(plan: FloorPlan, words: ItemWords, library: Library = 
     height: settled(height!),
     ...(words.label === undefined && entry?.label !== undefined ? { label: entry.label } : {}),
     ...(words.clearance === undefined && entry?.clearance !== undefined ? { clearance: entry.clearance } : {}),
+    ...(words.elevation === undefined && entry?.elevation !== undefined ? { elevation: entry.elevation } : {}),
   })
   if (!read.success) throw new ItemRefused(`the item would not be read: ${read.error.issues[0]!.path.join('.')} ${read.error.issues[0]!.message}.`)
   const copy = found !== undefined && found.from === 'office' ? [found.entry] : []
@@ -335,6 +344,7 @@ export function itemLine(words: ItemWords): string {
   const parts = [`item ${words.id}${words.label === undefined ? '' : ` ${quoteName(words.label)}`} ${words.name}`]
   if (words.size !== undefined && words.fullWidth !== true) parts.push(`${exact(words.size[0])} x ${exact(words.size[1])}`)
   if (words.height !== undefined) parts.push(`${exact(words.height)} high`)
+  if (words.elevation !== undefined) parts.push(`above ${exact(words.elevation)}`)
   if (words.clearance !== undefined) parts.push(`clear ${exact(words.clearance)}`)
   for (const side of CLEAR_SIDES) if (words.clearSides?.[side] !== undefined) parts.push(`clear ${side} ${exact(words.clearSides[side]!)}`)
   let tail = ''
@@ -368,12 +378,13 @@ export function samePlace(a: Item, b: Item): boolean {
     a.kind === b.kind &&
     (a.label ?? '') === (b.label ?? '') &&
     (a.clearance ?? 0) === (b.clearance ?? 0) &&
+    Math.abs((a.elevation ?? 0) - (b.elevation ?? 0)) <= near &&
     CLEAR_SIDES.every((side) => (a.clearSides?.[side] ?? 0) === (b.clearSides?.[side] ?? 0))
   )
 }
 
 /** The figures an item states itself, as words: what its library entry does not fill. */
-export function figureWords(item: Item): Pick<ItemWords, 'name' | 'label' | 'size' | 'height' | 'clearance' | 'clearSides'> {
+export function figureWords(item: Item): Pick<ItemWords, 'name' | 'label' | 'size' | 'height' | 'elevation' | 'clearance' | 'clearSides'> {
   const filled = new Set(item.fromLibrary ?? [])
   const byKind = item.library === undefined
   return {
@@ -381,6 +392,7 @@ export function figureWords(item: Item): Pick<ItemWords, 'name' | 'label' | 'siz
     ...(item.label !== undefined && !filled.has('label') ? { label: item.label } : {}),
     ...(byKind || !filled.has('size') ? { size: [item.size[0], item.size[1]] as P } : {}),
     ...(byKind || !filled.has('height') ? { height: item.height } : {}),
+    ...(item.elevation !== undefined && !filled.has('elevation') ? { elevation: item.elevation } : {}),
     ...(item.clearance !== undefined && !filled.has('clearance') ? { clearance: item.clearance } : {}),
     ...(item.clearSides === undefined ? {} : { clearSides: item.clearSides }),
   }
@@ -479,7 +491,7 @@ function statedOf(item: Item): Record<string, unknown> {
 }
 
 const USAGE =
-  "write 'item <id> [\"<label>\"] <name> [<w> x <d>] [<h> high] [clear [back|left|right] <m>] in <room> against <north|east|south|west> [, at <end> | , <n> from <end> | , full width]', or at its middle: 'item <id> <name> at x,y [turn <degrees>] [on <floor>]'."
+  "write 'item <id> [\"<label>\"] <name> [<w> x <d>] [<h> high] [above <m>] [clear [back|left|right] <m>] in <room> against <north|east|south|west> [, at <end> | , <n> from <end> | , full width]', or at its middle: 'item <id> <name> at x,y [turn <degrees>] [on <floor>]'."
 
 const isSide = (word: string | undefined): word is ItemSide => word !== undefined && (ITEM_SIDES as readonly string[]).includes(word)
 
@@ -520,6 +532,11 @@ export function itemOfWords(t: readonly string[], quoted: readonly LineWord[], a
       if (next === undefined) return stop("'clear' takes the clear floor kept in front, in metres.")
       once('clearance', numberOf(next === 'front' ? (t[i + 2] ?? '') : next, at, plain), 'clear')
       i += next === 'front' ? 3 : 2
+    } else if (word === 'above') {
+      // CNT-55: `above 1.45`: its underside that far above the floor.
+      if (next === undefined) return stop("'above' takes the height of its underside above the floor, in metres.")
+      once('elevation', numberOf(next, at, plain), 'above')
+      i += 2
     } else if (word === 'in' || word === 'on') {
       if (next === undefined) return stop(`'${word}' takes ${word === 'in' ? 'a room' : 'a floor'}.`)
       once(word === 'in' ? 'room' : 'floor', next, word)

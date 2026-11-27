@@ -84,7 +84,7 @@ describe('the tolerance table', () => {
     }
   })
 
-  it('holds the size a person passes through as Grid\'s own, saying it is not a code figure (MSG-18), the use indicators (CNT-13), the headroom bands (LVL-6), the hall of a first layout (BRF-6), the narrowest side of a room it draws from an area (WRT-61) and the low storey and stair door (LVL-18)', () => {
+  it('holds the size a person passes through as Grid\'s own, saying it is not a code figure (MSG-18), the use indicators (CNT-13), the headroom bands (LVL-6), the hall of a first layout (BRF-6), the narrowest side of a room it draws from an area (WRT-61) and the low storey and stair door (LVL-18), and the smallest and narrowest rooms of a home (ARE-72)', () => {
     const passable = {
       passableWidth: 0.4,
       passableHeight: 1.2,
@@ -102,8 +102,17 @@ describe('the tolerance table', () => {
       layoutHall: 1.1,
       layoutNarrowest: 1.2,
       storeyLowest: 2,
-      stairDoorLowest: 1.8
+      stairDoorLowest: 1.8,
+      homeRoomNarrowest: 1.8,
+      homeWetRoomNarrowest: 0.6
     } as const
+    // ARE-72: a home's smallest rooms, in square metres, say it too.
+    const areas = { homeRoomSmallest: 4, homeWetRoomSmallest: 0.8 } as const
+    for (const [name, value] of Object.entries(areas)) {
+      const entry: ToleranceEntry = TOLERANCES[name as keyof typeof areas]
+      expect(entry, name).toMatchObject({ kind: 'limit', value, unit: 'm²', basis: 'grid-drawing-check' })
+      expect(entry.decides.startsWith(`${NOT_A_CODE_FIGURE}.`), name).toBe(true)
+    }
     for (const [name, value] of Object.entries(passable)) {
       const entry: ToleranceEntry = TOLERANCES[name as keyof typeof passable]
       expect(entry, name).toMatchObject({ kind: 'limit', value, unit: 'm', basis: 'grid-drawing-check' })
@@ -111,7 +120,7 @@ describe('the tolerance table', () => {
     }
     // Only these carry the words: no other figure needs to say it is not one.
     const saying = Object.entries(TOLERANCES).filter(([, entry]) => entry.decides.includes(NOT_A_CODE_FIGURE)).map(([name]) => name)
-    expect(saying.sort()).toEqual(Object.keys(passable).sort())
+    expect(saying.sort()).toEqual([...Object.keys(passable), ...Object.keys(areas)].sort())
   })
 
   it('holds the three figures MSG-15 names', () => {

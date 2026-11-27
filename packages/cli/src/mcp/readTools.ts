@@ -360,11 +360,11 @@ const compareTool: GridTool = {
     const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...rules.filter((rule) => !lettingRules.includes(rule))]
     let image
     if (args['picture'] === true) {
-      const floor = args['floor']
-      surveys.forEach((survey) => floorArg(survey.plan, floor))
+      // LVL-25: each plan's own floor of that id, name or level.
+      const floors = surveys.map((survey) => floorArg(survey.plan, args['floor']))
       const { sheetView } = await import('../draw/views')
       // MSG-34: the sheet's words and label in the call's language, else each plan's own.
-      const sheet = await sheetView(surveys.map((survey, i) => ({ plan: survey.plan, title: labels[i]!, ...(floor ? { floor: floor as string } : {}) })), 'working', context.language)
+      const sheet = await sheetView(surveys.map((survey, i) => ({ plan: survey.plan, title: labels[i]!, ...(floors[i] ? { floor: floors[i] } : {}) })), 'working', context.language)
       image = { data: sheet.png, mimeType: 'image/png' as const }
       lines.push(`The sheet: ${labels.join(', ')} side by side, all at 1 m = ${sheet.pxPerMetre.toFixed(1)} px. Look at it before you describe it.`)
     }
@@ -1570,7 +1570,7 @@ const findTool: GridTool = {
     rule: STRING,
   }),
   run(args, context) {
-    const { survey } = load(context, args['plan'], args['floor'])
+    const { survey, floor } = load(context, args['plan'], args['floor'])
     if (args['room'] !== undefined) roomArg(survey.plan, args['room'])
     return asked(() => {
       const ask = askPlan(survey, { items: true })
@@ -1578,7 +1578,7 @@ const findTool: GridTool = {
       const fields = ((args['fields'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `fields item ${i + 1}`))
       const found = select(ask, {
         ...(kinds === undefined ? {} : { kinds }),
-        ...(args['floor'] === undefined ? {} : { floor: args['floor'] as string }),
+        ...(floor === undefined ? {} : { floor }),
         ...(args['room'] === undefined ? {} : { room: args['room'] as string }),
         ...(args['where'] === undefined ? {} : { where: args['where'] as string[] }),
       })
@@ -1630,7 +1630,7 @@ const countTool: GridTool = {
     rule: STRING,
   }),
   run(args, context) {
-    const { survey } = load(context, args['plan'], args['floor'])
+    const { survey, floor } = load(context, args['plan'], args['floor'])
     if (args['room'] !== undefined) roomArg(survey.plan, args['room'])
     return asked(() => {
       const ask = askPlan(survey, { items: true })
@@ -1640,7 +1640,7 @@ const countTool: GridTool = {
       checkSums(ask, sums)
       const picked = select(ask, {
         ...(kinds === undefined ? {} : { kinds }),
-        ...(args['floor'] === undefined ? {} : { floor: args['floor'] as string }),
+        ...(floor === undefined ? {} : { floor }),
         ...(args['room'] === undefined ? {} : { room: args['room'] as string }),
         ...(args['where'] === undefined ? {} : { where: args['where'] as string[] }),
       })

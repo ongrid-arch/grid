@@ -43,8 +43,8 @@ import { bayFootprint, planRamps, rampsOnFloor, soundBays } from './parking'
 import { gridsOn, planGrid, type PlanGrid } from './structuralGrid'
 import type { ColumnShape } from '../types/floorplan'
 import { statedOutline } from './massing'
-import { itemBlockSymbol, itemFootprint, itemRoom, itemSymbol, roomShapes } from './items'
-import { itemKindWord } from './itemKinds'
+import { isRaised, itemBlockSymbol, itemFootprint, itemRoom, itemSymbol, roomShapes } from './items'
+import { isLabelledKind, itemKindWord } from './itemKinds'
 import { planMarks } from './marks'
 import type { MarkedPart, OpeningKind, OpeningPart, Phase } from '../types/floorplan'
 import { statedKind } from './openingKinds'
@@ -209,6 +209,10 @@ export interface PlanItem {
   readonly block: { readonly rings: readonly (readonly Vec2[])[]; readonly lines: readonly (readonly Vec2[])[] }
   /** WRT-6: the plan marks the fixture, or a value of it, assumed. Left out when it does not. */
   readonly assumed?: true
+  /** CNT-55: it hangs above the plan's cut (`isRaised`: a wall unit, a hood), drawn dashed with no fill. Left out when it does not. */
+  readonly raised?: true
+  /** CNT-55: its kind draws its label inside it (a fryer, a range), in the plan and the DXF. Left out when it does not. */
+  readonly labelled?: true
 }
 
 /**
@@ -656,7 +660,9 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
         size: item.size,
         ...(item.library === undefined ? {} : { library: item.library }),
         block,
-        ...assumed('item', item.id)
+        ...assumed('item', item.id),
+        ...(isRaised(item) ? { raised: true as const } : {}),
+        ...(isLabelledKind(item.kind) ? { labelled: true as const } : {})
       })
       extent.push(...outline)
     }

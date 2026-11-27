@@ -23,7 +23,7 @@ import { placeItems } from '../edit/place'
 import { FILL_AISLE, FILL_DOOR_CLEARANCE, FILL_MOST, fillRoom, type FillRequest } from '../edit/fill'
 import { surveyPlan } from '../quantities/survey'
 import { libraryFor } from '../library/office'
-import { BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, NULLABLE_NUMBER, NUMBER, objectSchema, PLAN_ARG, planFileOf, projectOf, readPlan, roomArg, STRING, ToolRefusal, type GridTool } from './toolkit'
+import { FLOOR_ARG, BOOLEAN, DECIMAL_IN_ARG, floorArg, listSchema, NULLABLE_NUMBER, NUMBER, objectSchema, PLAN_ARG, planFileOf, projectOf, readPlan, roomArg, STRING, ToolRefusal, type GridTool } from './toolkit'
 import { EditRefused } from '../edit/refused'
 import { CORRECTION_ARG, EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 
@@ -181,7 +181,7 @@ const stretchTool: GridTool = {
     side: { type: 'string', enum: SIDE_WORDS, required: true, description: 'Which way it grows: north is the top of the drawing; ne, nw, se or sw for a way at 45 degrees.', examples: ['east'] },
     by: { type: 'number', length: true, required: true, description: 'Metres to grow; negative to shrink.', examples: [0.3, -0.2], minimum: -50, maximum: 50 },
     through: { type: 'string', id: true, description: 'A room the line runs through, across its middle: it and the rooms in line with it grow.', examples: ['living'] },
-    floor: { type: 'string', id: true, description: 'A floor id from the plan\'s "floors": stretch that floor only. Every floor when left out.', examples: ['ground'] },
+    floor: { ...FLOOR_ARG, description: 'A floor id from the plan\'s "floors": stretch that floor only. Every floor when left out.', examples: ['ground'] },
     correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
@@ -239,7 +239,7 @@ const squareTool: GridTool = {
   args: {
     plan: PLAN_ARG,
     all: { type: 'boolean', description: 'true to square every wall, not only those marked scanned. false when left out.', examples: [true, false] },
-    floor: { type: 'string', id: true, description: 'A floor id from the plan\'s "floors": square that floor only. Every floor when left out.', examples: ['ground'] },
+    floor: { ...FLOOR_ARG, description: 'A floor id from the plan\'s "floors": square that floor only. Every floor when left out.', examples: ['ground'] },
     correction: CORRECTION_ARG,
     out: OUT_ARG,
   },
@@ -290,7 +290,7 @@ const placeTool: GridTool = {
     x: { type: 'number', length: true, required: true, description: 'Where on the drawing, in metres: an item\'s middle, or a typical room\'s inside back-left corner.', examples: [2.5], minimum: -limit('largest'), maximum: limit('largest') },
     y: { type: 'number', length: true, required: true, description: 'Where on the drawing, in metres, with x.', examples: [1.2], minimum: -limit('largest'), maximum: limit('largest') },
     turn: { type: 'number', description: 'Degrees counter-clockwise: 0 puts an item\'s back to -y, 90 to +x, 180 to +y, 270 to -x. 0 when left out.', examples: [0, 90, 180], minimum: -360, maximum: 360 },
-    floor: { type: 'string', id: true, description: 'A floor id from the plan\'s "floors". The ground floor when left out.', examples: ['first'] },
+    floor: { ...FLOOR_ARG, description: 'A floor id from the plan\'s "floors". The ground floor when left out.', examples: ['first'] },
     id: { type: 'string', id: true, description: 'For an item: its id. Unstated, its library name, made unique.', examples: ['bed-main'] },
     width: { type: 'number', length: true, description: 'For an item: its own width along its back, in metres, in place of the entry\'s (with depth). Needed when name is a kind.', examples: [1.4], minimum: 0.01, maximum: 100 },
     depth: { type: 'number', length: true, description: 'For an item: its own depth from its back to its front, in metres, with width.', examples: [0.7], minimum: 0.01, maximum: 100 },

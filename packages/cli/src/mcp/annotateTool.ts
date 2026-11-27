@@ -15,7 +15,7 @@ import { ANNOTATION_SYMBOLS } from '@ongrid/floorplan/types/floorplan'
 import { LengthRefused, readLength } from '@ongrid/floorplan/types/units'
 import { annotate } from '../edit/annotate'
 import { NAME_MAX } from '../command/planText'
-import { DECIMAL_IN_ARG, floorArg, listSchema, PLAN_ARG, STRING, ToolRefusal, type GridTool } from './toolkit'
+import { FLOOR_ARG, DECIMAL_IN_ARG, floorArg, listSchema, PLAN_ARG, STRING, ToolRefusal, type GridTool } from './toolkit'
 import { EDIT_OUTPUT, OUT_ARG, writeChange } from './writeTools'
 
 type Pair = [number, number]
@@ -107,7 +107,7 @@ export const annotateTool: GridTool = {
     symbol: { type: 'string', enum: ANNOTATION_SYMBOLS, description: 'Which symbol.', examples: ['entrance'] },
     at: { type: 'string', maxLength: POINT_MAX, description: 'Where it goes, "x,y" in plan metres: a note, tag, symbol or key, or an arc\'s centre or a sketch text.', examples: ['3,4'] },
     room: { type: 'string', id: true, description: 'In place of at: the room a note, tag or symbol goes in, under the room\'s name, on the room\'s floor.', examples: ['kitchen'] },
-    floor: { type: 'string', id: true, description: 'The floor an entry placed at a point is on, when it names none: for kind and for each of lines without on.', examples: ['first'] },
+    floor: { ...FLOOR_ARG, description: 'The floor an entry placed at a point is on, when it names none: for kind and for each of lines without on.', examples: ['first'] },
     turn: number('A symbol\'s turn, degrees counter-clockwise; a north symbol points to the plan\'s north when left out.', [-30], -360, 360, false),
     points: { type: 'array', items: { maxLength: POINT_MAX }, minItems: 2, maxItems: POINTS_MAX, description: 'A route\'s, a line\'s or a shape\'s points in order, or a rect\'s two opposite corners, each "x,y". A route\'s arrowhead goes at its last point.', examples: [['2,5', '2,1', '6,1']] },
     category: { type: 'string', id: true, description: 'A sketch item\'s or a route\'s word for what it is: it names its layer in an export and its line in the key.', examples: ['exit', 'garden'] },

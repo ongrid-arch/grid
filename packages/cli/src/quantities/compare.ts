@@ -491,7 +491,11 @@ function roomDeltas(a: Survey, b: Survey): RoomDelta[] {
   const byName = (s: Survey): Map<string, number> => {
     const nets = netsOf(s)
     const map = new Map<string, number>()
-    for (const room of s.rooms) map.set(room.facts.name, (map.get(room.facts.name) ?? 0) + (nets.get(`${room.facts.floor}\u0000${room.facts.id}`) ?? 0))
+    // LVL-25: a name on several floors is summed floor by floor, each row named with its floor.
+    for (const room of s.rooms) {
+      const called = room.facts.nameFloor === undefined ? room.facts.name : `${room.facts.name} (${room.facts.nameFloor})`
+      map.set(called, (map.get(called) ?? 0) + (nets.get(`${room.facts.floor}\u0000${room.facts.id}`) ?? 0))
+    }
     return map
   }
   const before = byName(a)
