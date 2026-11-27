@@ -25,6 +25,7 @@ import {
 } from '@ongrid/floorplan/geometry'
 import { drawable } from '@ongrid/floorplan/geometry/rules/check'
 import { roomOutlines } from '@ongrid/floorplan/geometry/rules/graph'
+import { keptFor } from '@ongrid/floorplan/geometry/kept'
 import { ALONG_WALL_SINE, planFacts, type OpeningFacts, type PlanFacts, type RoomFacts } from '../describe/facts'
 
 /** How far a side of the outline may be from a wall's face and still lie on it, in metres. */
@@ -86,6 +87,11 @@ function wallOfEdge(from: Vec2, to: Vec2, walls: readonly Wall[]): Wall | null {
 }
 
 export function surveyPlan(stated: FloorPlan): Survey {
+  // CMD-51: a plan version the tool server keeps is frozen, and its survey kept with it.
+  return keptFor(stated, 'survey', () => surveyOf(stated))
+}
+
+function surveyOf(stated: FloorPlan): Survey {
   // CNT-10: every measure is of the building as it will be after the work (`planInState`).
   const plan = planInState(stated, 'after')
   // Its facts count the work too (`PlanFacts.work`), from the plan as stated.

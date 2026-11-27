@@ -39,6 +39,8 @@ is not asked whether it was typed in feet.
 | `arcSagitta` | tolerance | 0.001 m | How far the straight pieces a curved wall is traced, checked and drawn with may stand off its curve at their middle |
 | `arcStep` | tolerance | 0.03 radian | The most a curved wall turns along one straight piece, so a small round room still measures within a few hundredths of a percent of its true area |
 | `arcPiecesMost` | limit | 1000 count | The most straight pieces one curved wall is traced with; a longer curve is traced with this many, a little further off it |
+| `polygonOnCircle` | tolerance | 0.02 m | How far each corner of a room drawn with straight walls may lie off one circle and still read as a curve written as a polygon, whose answer says how to write it as a circle |
+| `polygonOnCircleCorners` | limit | 12 count | The fewest corners a room on one circle has before it reads as a curve written as a polygon, so a hexagon or octagon drawn on purpose does not |
 | `gap` | tolerance | 0.02 m | A wall reaches the wall it meets when its end is within half the thicker wall plus this. The spaces check lengthens every wall by this much at both ends; the wall faults name a gap or an overrun past it, and two walls on top of each other when their bodies overlap by more than this |
 | `wallContact` | tolerance | 0.01 m | Slack past the walls' bodies when a room outline is traced: walls that touch, carry on in a row or reach a corner |
 | `strayCorner` | tolerance | 1 m | A room corner further than this from both its walls is not a corner, and the wall list is out of order |

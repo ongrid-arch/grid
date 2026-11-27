@@ -18,8 +18,6 @@ last call; a floor that is not in the plan is refused only after all of that. Af
 - The plan's validation is worked out when an answer first needs it, so a call refused for its
   arguments (an unknown floor, a measure that needs a room) is refused before the geometry is
   worked out.
-- A call that waits (on a plan's lock behind another change, on a picture) no longer holds up the
-  answers to calls that came in after it: each answer goes out when it is ready, with its id.
 - A room written as a polygon whose corners lie on one circle is answered with a note that says
   so and how to write it as a curved room instead, so its walls become one curve and not many
   short pieces.
@@ -41,18 +39,28 @@ last call; a floor that is not in the plan is refused only after all of that. Af
   first read (a getter that keeps its value), so a refusal of an argument that needs only the
   plan's floors or ids comes before validation. The fields keep their types; spreading a loaded
   plan reads them as before.
+- `packages/floorplan/src/geometry/kept.ts` (new): `keptFor(owner, key, work)`, what is worked
+  out from a frozen plan kept against the plan object (a `WeakMap`), never for a plan that is not
+  frozen or while the tolerance table is changed for a call. `indexPlan`, `planForFloor` and
+  `validatePlan` (with its own index and plain options) read through it, so every cache the
+  geometry keeps against an index, a slice or a part lasts as long as the version does.
+- `packages/cli/src/mcp/readTools.ts`: `grid_check`'s answer and the notes `grid_view` marks are
+  kept per version and arguments, in English only (another language listens for the words it has
+  none for while it is worked out).
 - `packages/cli/src/quantities/survey.ts`: `surveyPlan` keeps its survey for a frozen plan (a
   `WeakMap` keyed by the plan object), so the survey and every figure kept against it (door
   clearances, fixtures) live as long as the version does. A plan that is not frozen may change
   and is surveyed afresh every time, as before.
 - `packages/cli/src/mcp/readTools.ts`: `grid_measure` checks that the measure asked for has the
   arguments it needs before it reads the plan.
-- `packages/cli/src/mcp/serve.ts`: each answer is written when it is ready instead of in the
-  order the requests came in; JSON-RPC pairs answers to requests by id. Decision: true parallel
-  work (worker threads) is left out: the plan locks, the cache and the preview record are kept in
-  this one process, and a call that only computes still runs to its end before the next starts.
+- `packages/cli/src/mcp/serve.ts`: left as it is. Changed while building: answering each call
+  when it is ready, out of order, was built and taken out again. Grid's own end-to-end tests (and
+  so, likely, some hosts) pair answers with requests by their order, and even quick calls came
+  back shuffled, since each awaits a different number of steps. True parallel work (worker
+  threads) is left out too: the plan locks, the cache and the preview record are kept in this one
+  process. Both are a decision for a person; see the report.
 - The polygon-on-a-circle note: `packages/floorplan/src/geometry/onCircle.ts` (new) finds a room
-  whose outline corners, six or more, lie on one circle within `polygon.onCircle` of the
+  whose outline corners, `polygonOnCircleCorners` (12) or more, lie on one circle within `polygon.onCircle` of the
   tolerances table; `grid_write_rooms` adds one line per such room, worded in
   `messages/en.ts` (and `es.ts`). Nothing in the rooms text compiler changes.
 
@@ -64,7 +72,6 @@ last call; a floor that is not in the plan is refused only after all of that. Af
   version is dropped past the limit; an unknown floor is refused without validating the plan.
 - A timing check: on a plan of 42 floors, the second `grid_check` and `grid_areas` take a
   fraction of the first.
-- `server.test.ts`: answers carry their ids when one call waits and a later one does not.
 - The note on a polygon on a circle: given for a 12-sided room on a circle, not for a rectangle
   or an L.
 - `npm run build`, `npm run typecheck`, `npm run lint`, vitest on the folders changed, the

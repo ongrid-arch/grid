@@ -2446,6 +2446,8 @@ export const en = {
   // WRT-63: a place written on a polygon room, whose points are its place.
   'rooms.room.polygonAt': "Line {line}: room '{room}' is a polygon, and its points are its place, measured from the drawing's origin (the unit's, in a unit), so '{at}' is not read as a move. To move the room, write its points moved: '{points}'.",
   'rooms.room.polygonPlaced': "Line {line}: room '{room}' is a polygon, and its points are its place, so '{place}' cannot place it as well. Write the points where the room stands, or give it a size in place of the polygon: '<width> x <depth> {place}'.",
+  // CMD-51: a room of straight walls whose corners lie on one circle, in the answer that wrote it.
+  'rooms.room.polygonOnCircle': "Room '{room}' is drawn with {corners} straight walls whose corners lie on one circle: a curve written as a polygon, {corners} short walls where one curved wall would do, which every check, picture and change works through. To draw it round, write '{written}' in its room line in place of the polygon, to the inside faces; keep the polygon if its sides are meant.",
   // WRT-78: curved rooms and walls.
   'rooms.curve.form': "Line {line}: write a curved room as 'circle <across>' (or 'circle radius <r>'), 'oval <width> x <depth>', 'arc <degrees> [<chord>]' or 'band <inner radius> to <outer radius> [from <degrees>] [sweep <degrees>]'.",
   'rooms.curve.degrees': "Line {line}: '{word}' after '{after}' is not a number of degrees.",

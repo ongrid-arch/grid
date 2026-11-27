@@ -15,7 +15,8 @@ import { likelyId, nearestIds } from '@ongrid/floorplan/types/nearest'
 import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { missingDefaultPlan, projectPlanFile } from '../command/init'
 import { UsageError } from '../command/options'
-import { loadPlan, PlanRefused, type LoadedPlan, type LoadOptions } from '../command/plan'
+import { PlanRefused, type LoadedPlan, type LoadOptions } from '../command/plan'
+import { cachedPlan } from './planCache'
 import { ID_MAX as PLAN_ID_MAX, UNSAFE_TEXT } from '../command/planText'
 import { budgetArgs, LEFT_OUT_SCHEMA } from './budget'
 import { REVISION_DATA_NAME, REVISION_SCHEMA, revisionArgs } from './revisions'
@@ -413,7 +414,8 @@ export function readPlan(context: ToolContext, plan: unknown, options: LoadOptio
   const file = planFileOf(project, plan)
   if (typeof plan !== 'string' && !project.exists(file)) throw new ToolRefusal(missingDefaultPlan(project, file))
   try {
-    return { project, file, loaded: loadPlan(project, file, options) }
+    // CMD-51: the plan kept for this version, when the server read it before.
+    return { project, file, loaded: cachedPlan(project, file, options) }
   } catch (error) {
     throw asRefusal(error)
   }

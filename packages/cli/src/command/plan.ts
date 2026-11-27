@@ -308,14 +308,20 @@ export function loadPlanText(project: Project, file: string, text: string, real:
   const plan = based?.plan ?? parts.plan
   // LVL-8: what kept a pattern's openings from being placed is checked on the plan as stated. A
   // command that writes the plan back keeps it as stated, so its patterns stay patterns.
-  const { issues, broken } = validatePlan(plan, undefined, { leftOutWalls: parts.leftOutWalls, leftOutParts: parts.leftOut })
+  // CMD-51: validated when first asked, so a call refused for its arguments is refused before it.
+  let checked: { readonly issues: readonly Issue[]; readonly broken: ReadonlySet<string> } | null = null
+  const validated = (): NonNullable<typeof checked> => (checked ??= validatePlan(plan, undefined, { leftOutWalls: parts.leftOutWalls, leftOutParts: parts.leftOut }))
   const expanded = options.whole === true || plan.patterns === undefined ? null : withPatterns(plan)
   return {
     file: real,
     plan: expanded ?? plan,
     ...(expanded === null ? {} : { stated: plan }),
-    issues,
-    broken,
+    get issues() {
+      return validated().issues
+    },
+    get broken() {
+      return validated().broken
+    },
     faults: parts.faults,
     leftOut: parts.leftOut,
     text,

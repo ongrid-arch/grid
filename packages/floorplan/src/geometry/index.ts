@@ -16,6 +16,7 @@ export { hasWallsThrough, isCarriedOpening, sharedPart, storeyFloorOf, wallFloor
 export * from './elevations'
 export * from './wall'
 export * from './arc'
+export * from './onCircle'
 export * from './joints'
 export * from './room'
 export * from './validate'
