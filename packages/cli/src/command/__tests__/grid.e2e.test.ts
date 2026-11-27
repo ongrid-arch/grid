@@ -628,6 +628,8 @@ describe('the built file', () => {
     // 950 kB since CNT-51: grid_set_finishes for many rooms at once, with feature walls and bands,
     // with main's lettable areas (ARE-68) and floor=all and crops (VEW-74) take it to 902,714
     // bytes, again with no new dependency.
-    expect(statSync(bundle).size).toBeLessThan(950_000)
+    // 1 MB since VEW-80: the plan's geometry as data (GeoJSON and JSON) and the geometry fields of
+    // grid_find take it to 953,961 bytes, again with no new dependency.
+    expect(statSync(bundle).size).toBeLessThan(1_000_000)
   })
 })

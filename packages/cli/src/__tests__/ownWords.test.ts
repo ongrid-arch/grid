@@ -293,7 +293,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-43: six more, the from, layers and units arguments and their refusals.
   // VEW-72: three more, grid_export's scale and out and a file out cannot write.
   // VEW-73: three more, grid_export's 3D files and its roofs and arcSegments.
-  'packages/cli/src/mcp/writeTools.ts': [164, 'tools'],
+  // VEW-80: one more, grid_export's description of the geometry as data.
+  'packages/cli/src/mcp/writeTools.ts': [165, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -316,7 +317,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-45: seven more, the items' kinds and fields.
   // ARE-67: four more, the zone, seats, desks and covers fields.
   // CNT-51: five more, the finish fields.
-  'packages/cli/src/quantities/query.ts': [46, 'tools'],
+  // VEW-80: eight more, the geometry fields' descriptions and the refusals of a test, a group and a sum of coordinates.
+  'packages/cli/src/quantities/query.ts': [54, 'tools'],
   'packages/cli/src/quantities/rates.ts': [36, 'notYet'],
   // ARE-67: the seat count's rule and its answer.
   'packages/cli/src/quantities/seats.ts': [4, 'notYet'],

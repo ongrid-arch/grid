@@ -3507,6 +3507,8 @@ export const es: Messages = {
   'drawing.obj.stacked': 'Cada planta se escribe a su cota: Z es la altura sobre el nivel del suelo de la planta baja.',
   'drawing.export.floors.building.glb': 'Contiene las {n} plantas del plano, cada una un nodo con el nombre de su id y elevado a su cota, bajo un único nodo raíz, {root}.',
   'drawing.export.floors.building.obj': 'Contiene las {n} plantas del plano, cada una escrita a su cota: Z es la altura sobre el nivel del suelo de la planta baja.',
+  'drawing.export.floors.building.data': 'Contiene las {n} plantas del plano en un mismo sistema, la x y la y del plano en metros, cada parte con su planta y su cota.',
+  'drawing.export.floors.one.data': 'Contiene solo la planta {floor}, sus partes a su cota, {elevation} m, en el sistema del plano; {others} en este archivo: omita la planta para tenerlas todas en un archivo.',
   'drawing.export.floors.building.ifc': 'Contiene las {n} plantas del plano, una planta del edificio cada una.',
   'drawing.export.floors.one.glb': 'Contiene solo la planta {floor}, con su nodo raíz elevado a su cota, {elevation} m; {others} en este archivo: omita la planta para exportar el edificio entero.',
   'drawing.export.floors.one.obj': 'Contiene solo la planta {floor}, escrita a su cota, {elevation} m; {others} en este archivo: omita la planta para exportar el edificio entero.',
