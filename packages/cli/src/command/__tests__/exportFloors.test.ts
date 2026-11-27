@@ -82,3 +82,20 @@ describe('grid export: materials, roofs and curves (VEW-73)', () => {
     }
   })
 })
+
+describe('grid export: a GLB for a game engine or a renderer (VEW-82)', () => {
+  it('takes --doors and --walls for a GLB', async () => {
+    const dir = folder()
+    const run = await grid(dir, 'export', 'house.json', '--format', 'glb', '--doors', 'open', '--walls', 'rooms')
+    expect(run.status).toBe(0)
+  })
+
+  it('refuses them for another format, and a word it does not write', async () => {
+    const dir = folder()
+    expect((await grid(dir, 'export', 'house.json', '--format', 'obj', '--doors', 'open')).err).toContain('--doors applies to GLB only')
+    expect((await grid(dir, 'export', 'house.json', '--format', 'dxf', '--walls', 'rooms')).err).toContain('--walls applies to GLB only')
+    const bad = await grid(dir, 'export', 'house.json', '--format', 'glb', '--doors', 'ajar')
+    expect(bad.status).not.toBe(0)
+    expect(bad.err).toContain('use one of closed, open, gaps, markers')
+  })
+})

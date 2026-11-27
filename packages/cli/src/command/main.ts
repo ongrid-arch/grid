@@ -152,7 +152,7 @@ const COMMANDS = {
     options: DRAW_OPTIONS,
   },
   export: {
-    usage: 'grid export [<plan.json>] --format dxf|ifc|glb|obj [--floor <id>] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--out <file>] [--project <folder>]',
+    usage: 'grid export [<plan.json>] --format dxf|ifc|glb|obj [--floor <id>] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed|open|gaps|markers] [--walls whole|rooms] [--out <file>] [--project <folder>]',
     summary: 'Writes the plan as a file for another program, into exports/ beside the plan unless --out names one.',
     options: EXPORT_OPTIONS,
   },
@@ -652,7 +652,7 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     return EXIT_OK
   }
 
-  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date'), scale: textOf(parsed, '--scale'), arcSegments: textOf(parsed, '--arc-segments'), ...(parsed.values.has('--no-roofs') ? { roofs: false } : {}) }
+  const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date'), scale: textOf(parsed, '--scale'), arcSegments: textOf(parsed, '--arc-segments'), doors: textOf(parsed, '--doors'), walls: textOf(parsed, '--walls'), ...(parsed.values.has('--no-roofs') ? { roofs: false } : {}) }
   const format = checkExportRequest(request)
   const project = openProject(projectOption, io.cwd)
   if (request.out === undefined) {

@@ -9,7 +9,7 @@
  * tool server's `grid_export` runs the same code.
  */
 import path from 'path'
-import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, floorElevations, GLB_BUILDING_NODE, inIdOrder, metresText, OBJ_MATERIALS_FILE, planFloors, planSunAt, resolveFloor, type DxfSheet, type FloorPlan, type PlanState, type PlanSun } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, DXF_SCALE_RANGE, DXF_SHEET_SCALES, floorElevations, GLB_BUILDING_NODE, GLB_DOOR_MODES, GLB_WALL_MODES, type GlbDoorMode, type GlbWallMode, inIdOrder, metresText, OBJ_MATERIALS_FILE, planFloors, planSunAt, resolveFloor, type DxfSheet, type FloorPlan, type PlanState, type PlanSun } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type Said } from '@ongrid/floorplan/messages'
 import {
   EXPORT_FORMATS,
@@ -50,6 +50,8 @@ export const EXPORT_OPTIONS: OptionSpecs = {
   '--scale': { takesValue: true, help: 'DXF: the scale its sheets show the plan at, 200 or 1:200. Left out, the scale dxf-layers.json states, else the largest standard scale every floor fits on A3 at.' },
   '--no-roofs': { takesValue: false, help: 'GLB and OBJ: leave out every roof and the parapets on them, to look into the model or walk through it.' },
   '--arc-segments': { takesValue: true, help: `GLB and OBJ: the straight pieces a whole circle of curved wall is written with, a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}, such as 32 for a light model. Left out, as finely as the plan is measured.` },
+  '--doors': { takesValue: true, help: `GLB: what each door is in the file: ${GLB_DOOR_MODES.join(', ')}. closed has each leaf shut on its hinge, open turns the swinging leaves open, gaps leaves the leaves out and keeps the frames, markers writes an empty node in each door's place. Left out, closed.` },
+  '--walls': { takesValue: true, help: `GLB: ${GLB_WALL_MODES.join(' or ')}. rooms writes each straight wall as a piece for each stretch between the rooms beside it, named by them. Left out, whole.` },
   '--date': { takesValue: true, help: 'IFC: the time stamp to write, a date (2026-01-31) or a time (2026-01-31T09:00:00Z). SOURCE_DATE_EPOCH when left out, else now. The same date gives the same file.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in the format\'s extension. exports/ beside the plan when left out.' },
   ...PROJECT_OPTION,
@@ -67,6 +69,10 @@ export interface ExportRequest {
   readonly roofs?: boolean
   /** VEW-73: the pieces a whole circle of curved wall is written with, as given. */
   readonly arcSegments?: string
+  /** VEW-82: what a GLB writes for each door, as given. */
+  readonly doors?: string
+  /** VEW-82: whether a GLB writes each straight wall whole or in pieces at its rooms, as given. */
+  readonly walls?: string
   /** CNT-58: a GLB's sun, a moment as `grid_view` takes it ("2026-06-21 18:30"), written as a light named sun. */
   readonly sun?: string
 }
@@ -116,6 +122,7 @@ export function checkExportRequest(request: ExportRequest): ExportFormat {
   }
   exportScale(request, format)
   exportShape(request, format)
+  exportGame(request, format)
   if (request.floor === ALL_FLOORS && request.out !== undefined) {
     throw new UsageError('--floor all writes one file per floor into exports/ beside the plan: leave --out out, or name one floor.')
   }
@@ -155,6 +162,22 @@ export function exportShape(request: Pick<ExportRequest, 'roofs' | 'arcSegments'
     throw new UsageError(`--arc-segments ${JSON.stringify(request.arcSegments)} is not a number of pieces Grid writes: give a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}, such as 32.`)
   }
   return { ...(request.roofs === false ? { roofs: false as const } : {}), arcSegments: count }
+}
+
+/**
+ * VEW-82: what a GLB is asked to write for its doors and walls. Either is refused for any other
+ * format, and a word that is not one of theirs is refused with the ones it may be.
+ */
+export function exportGame(request: Pick<ExportRequest, 'doors' | 'walls'>, format: ExportFormat): { doors?: GlbDoorMode; walls?: GlbWallMode } {
+  const pick = <T extends string>(given: string | undefined, option: string, words: readonly T[]): T | undefined => {
+    if (given === undefined) return undefined
+    if (format !== 'glb') throw new UsageError(`${option} applies to GLB only: leave it out for this format.`)
+    if (!(words as readonly string[]).includes(given)) throw new UsageError(`${option} ${JSON.stringify(given)} is not one Grid writes: use one of ${words.join(', ')}.`)
+    return given as T
+  }
+  const doors = pick(request.doors, '--doors', GLB_DOOR_MODES)
+  const walls = pick(request.walls, '--walls', GLB_WALL_MODES)
+  return { ...(doors === undefined ? {} : { doors }), ...(walls === undefined ? {} : { walls }) }
 }
 
 /**
@@ -380,7 +403,7 @@ export function exportFile(project: Project, loaded: LoadedPlan, planFile: strin
   const scale = exportScale(request, format) ?? (dxf?.scaleStated === true ? dxf.profile.scale : undefined)
   // VEW-72: the schedules' marks and types, for the DXF's attributes and the IFC's tags.
   const marks = format === 'dxf' || format === 'ifc' ? { openingMarks: new Map(openingSchedule(surveyPlan(loaded.plan)).rows.map((row) => [row.id, { mark: row.mark, type: row.typeKey }] as const)) } : {}
-  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...marks, ...exportShape(request, format), ...exportSun(loaded.plan, request, format), ...(scale === undefined ? {} : { dxfScale: scale }), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
+  const options = { projectId: name, projectName: name, floorId, now: exportTime(request.date), ...marks, ...exportShape(request, format), ...exportGame(request, format), ...exportSun(loaded.plan, request, format), ...(scale === undefined ? {} : { dxfScale: scale }), ...(dxf === null ? {} : { dxfProfile: dxf.profile }) }
   const made = exportPlan(loaded.plan, format, loaded.faults === undefined ? options : { ...options, faults: loaded.faults })
   if (made.empty) throw new PlanRefused(nothingToExport(loaded, planFile, format, made, floorId))
   return { ...made, name: exportNameOf(planFile, format, floorPartOf(loaded, format, floorId)), dxfProfile: dxf?.file ?? null }
