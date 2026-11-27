@@ -704,6 +704,20 @@ existing (was to be demolished), by "Bathroom" and "Bedroom 2"` (MSG-25). The pi
 changed. A door or window that states no phase of its own follows its wall, whose line says it.
 With `--since phase` there is no such line: there each part is compared before and after its work.
 
+The plan's named wall, door and window types, the rooms' finishes and a wall's curve are compared
+too (WRT-86). A type added, removed or changed is a change line of its own, by its name and id,
+with its figures and the parts that take it (or took it): `Wall type "Concrete 250" ("conc")
+added: thickness 0.25 m; taken by wall "ext-east"`, `Wall type "Brick 300" ("brick") thickness
+0.30 m → 0.35 m; taken by 4 walls: …`. A wall, door or window that takes another type says so in
+its own line (`Wall "ext-south" thickness 0.30 → 0.20 m; type "Brick 300" → "Block 200"`). A room
+whose finishes changed is a changed room, surface by surface, then each face finished other than
+its walls and its bands of finish: `"Living room" floor finish "Oak" → "Porcelain tile"; walls
+finish not stated → "Paint"`. A curve that changed gives its radius, its bulge (the tangent of a
+quarter of its sweep, as a raw wall takes it) and its sweep before and after: `Wall "apse" curve
+radius 2.00 → 2.00 m, bulge 1.000 → -1.000 (sweep 180° → -180°)`, and a wall made curved or
+straight the curve it has or had. The picture draws a wall whose curve or type changed in amber,
+its old curve outlined. The data lists them under `types`, `finishes` and `curves`.
+
 A floor in both versions that stands at another height, or has another level, height, slab or
 name, is a change of its own, said first with its old and new figures: `Floor "Mezzanine" moved
 down 9.50 m: elevation 13.75 m → 4.25 m`. Where a floor stands is worked out as the 3D view and

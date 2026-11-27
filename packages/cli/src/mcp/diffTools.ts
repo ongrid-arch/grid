@@ -81,6 +81,10 @@ export const diffTool: GridTool = {
     stayed: { type: 'array' },
     movedWith: { type: 'array' },
     massing: objectSchema({ lines: listSchema(STRING), figures: { type: 'object' }, sideBySide: NULLABLE_STRING }),
+    // WRT-86: the types added, removed or changed and the parts that take them, the rooms' finishes, the curves before and after.
+    types: listSchema(objectSchema({ list: STRING, type: STRING, name: STRING, status: STRING, fields: { type: 'array' }, parts: { type: 'array' }, text: STRING })),
+    finishes: listSchema(objectSchema({ room: STRING, name: STRING, changes: { type: 'array' } })),
+    curves: listSchema(objectSchema({ wall: STRING, before: { type: ['object', 'null'] }, after: { type: ['object', 'null'] }, text: STRING })),
     scope: objectSchema({ checked: BOOLEAN, rooms: listSchema(STRING), outside: listSchema(STRING) }),
     floor: NULLABLE_STRING,
     otherFloors: NUMBER,

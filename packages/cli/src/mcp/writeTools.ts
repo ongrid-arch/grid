@@ -18,7 +18,7 @@ import { inspectPlan } from '@ongrid/rules'
 import { ALL_FLOORS, approximatedText, checkExportRequest, GRID_EXPORT_FORMATS, isGridExportFormat, dxfProfileLine, emptyFloorsText, exportFile, exportFloorId, ExportWriteFailed, exportsIntoProject, floorsText, leftOutText, sheetsText, writeMaterialsBeside, type ExportDone } from '../command/export'
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
-import { loadPlan, PlanRefused } from '../command/plan'
+import { loadPlan, PlanRefused, type LoadedPlan } from '../command/plan'
 import { nameNotes, PLAN_FILE_MAX_BYTES } from '../command/planText'
 import { occupancyFileOf } from '../occupancy/occupancy'
 import { keepRoomNumbers } from '../edit/numbers'
@@ -28,7 +28,7 @@ import { roomSide } from '../edit/sideNames'
 import { NARROWEST_ACROSS, newProblems, problemsText, sideMoveThatFits, type ProblemsOf } from '../edit/fit'
 import { parseSheetWordsChecked } from '../sheet/claims'
 import { SheetWordsRefused, sheetWordsJsonSchema, sheetWordsProblem } from '@ongrid/floorplan/types/sheet'
-import { checkSheetRequest, drawingIntoProject, drawingLine, readSheetWords, sheetIntoProject, type SheetKind } from '../sheet/sheetFile'
+import { checkSheetRequest, drawingIntoProject, drawingLine, readSheetWords, sheetIntoProject, type SheetKind, type SheetMaking } from '../sheet/sheetFile'
 import { PAPER_NAMES, SCALE_MAX } from '../sheet/drawingPapers'
 import { askedLanguage } from '../command/language'
 import { readRoomsFile, RoomsRefused, writeRoomsIntoProject } from '../command/write'
@@ -250,6 +250,18 @@ function sheetLayoutOf(layout: unknown, withWords: boolean): SheetKind {
   }
 }
 
+/**
+ * SHT-25: the sheet is made from the plan the call read (kept frozen by CMD-51), not read again,
+ * and says how far it has got after each page when the client asked.
+ */
+function sheetMaking(context: ToolContext, loaded: LoadedPlan): SheetMaking {
+  const progress = context.progress
+  return {
+    read: loaded,
+    ...(progress === undefined ? {} : { onPage: (done: number, total: number) => progress(done, total, say(context.language ?? 'en', 'sheet.progress.page', { done, total })) }),
+  }
+}
+
 /** SHT-6: the arguments only a drawing at a scale takes. */
 const DRAWING_ARGS = ['scale', 'paper', 'floor', 'roomSizes', 'split'] as const
 
@@ -316,7 +328,7 @@ const sheetTool: GridTool = {
           ...(args['roomSizes'] === undefined ? {} : { roomSizes: args['roomSizes'] as boolean }),
           ...(args['split'] === true ? { split: true } : {}),
         }
-        const done = await drawingIntoProject(project, file, asked, words, askedLanguage(args['language'], 'language'), args['date'] as string | undefined)
+        const done = await drawingIntoProject(project, file, asked, words, askedLanguage(args['language'], 'language'), args['date'] as string | undefined, sheetMaking(context, loaded))
         const written = { pdf: project.relative(done.written.pdf), svgs: done.written.svgs.map((file) => project.relative(file)), pngs: done.written.pngs.map((file) => project.relative(file)) }
         const files = [written.pdf, ...written.svgs.flatMap((svg, i) => [svg, written.pngs[i]!])].map(quoted)
         const several = files.length > 3
@@ -338,7 +350,7 @@ const sheetTool: GridTool = {
         : given !== undefined
           ? parseSheetWordsChecked(given, planFloors(loaded.plan).map((floor) => floor.id))
           : readSheetWords(project, file, loaded, undefined)
-      const done = await sheetIntoProject(project, file, layout, words, askedLanguage(args['language'], 'language'), args['date'] as string | undefined, true)
+      const done = await sheetIntoProject(project, file, layout, words, askedLanguage(args['language'], 'language'), args['date'] as string | undefined, true, sheetMaking(context, loaded))
       const written = project.relative(done.written)
       const lines = [`Wrote ${quoted(written)} in the project folder: ${done.pages.length} pages.`]
       if (done.note) lines.push(done.note)

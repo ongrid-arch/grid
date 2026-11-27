@@ -17,11 +17,9 @@ import { drawStill } from '../draw/drawStill'
 import { trueCodePoints } from './pdfText'
 import { SANS, SERIF, registerSheetFonts, sheetFont } from './fonts'
 import { PLAN_BOX, planPictureOptions, SHEET_LOOK, type Sheet, type SheetPage, type SheetPicture, type SheetRow, type SheetTable } from './pages'
-import { DRAWING_PIXEL_PT, DRAWINGS_BOX, pointsPerMetre, SECTION_NAME_PT, type PlacedDrawing } from './sideDrawings'
+import { DRAWING_PIXEL_PT, DRAWINGS_BOX, keptFacadePicture, keptSectionPicture, pointsPerMetre, SECTION_NAME_PT, type PlacedDrawing } from './sideDrawings'
 import { scaleBarMetres } from './drawingSheet'
 import { pictureToPng } from '../draw/drawPlan'
-import { facadePicture } from '@ongrid/viewer/src/picture/facade'
-import { sectionPicture } from '@ongrid/viewer/src/picture/section'
 
 export const A3 = { width: 1191, height: 842 } as const
 const MARGIN = 48
@@ -90,6 +88,10 @@ export function wrapLines(ctx: Ctx, text: string, width: number): string[] {
 }
 
 function wrapWords(ctx: Ctx, text: string, width: number): string[] {
+  // SHT-25: a text that fits whole is its one line, after one measure. Every word of it then fits
+  // and so does every line the greedy wrap below would try, so its lines are the same. A row of a
+  // long table is most often one line, and was measured word by word on every page it reached.
+  if (text !== '' && !text.startsWith(' ') && ctx.measureText(text).width <= width) return [text]
   const lines: string[] = []
   let line = ''
   for (const word of text.split(' ')) {
@@ -326,7 +328,27 @@ export async function floorPictureBox(sheet: Sheet): Promise<{ top: number; widt
   return { top, width: PLAN_BOX.width * scale, height: PLAN_BOX.height * scale }
 }
 
-async function drawFloorPicture(ctx: Ctx, canvas: Canvas, plan: FloorPlan, page: SheetPage, box: { top: number; width: number; height: number }, language: Language): Promise<void> {
+type Picture = Awaited<ReturnType<Canvas['loadImage']>>
+
+/**
+ * SHT-25: a page's pictures, each drawn once by `make` and kept by its name, so a page drawn again
+ * for its preview places the same image and draws nothing twice.
+ */
+type Pictures = (name: string, make: () => Promise<Uint8Array>) => Promise<Picture>
+
+function picturesOnce(canvas: Canvas): Pictures {
+  const made = new Map<string, Promise<Picture>>()
+  return (name, make) => {
+    let found = made.get(name)
+    if (found === undefined) {
+      found = make().then((png) => canvas.loadImage(Buffer.from(png)))
+      made.set(name, found)
+    }
+    return found
+  }
+}
+
+async function drawFloorPicture(ctx: Ctx, plan: FloorPlan, page: SheetPage, box: { top: number; width: number; height: number }, language: Language, pictures: Pictures): Promise<void> {
   if (page.picture?.kind !== 'plan') return
   // The frame is in plan metres and the box has one size on every floor: one scale throughout.
   // The picture is `grow` times the box, cut to it; its PNG has `PLAN_SCALE` pixels per point.
@@ -336,21 +358,21 @@ async function drawFloorPicture(ctx: Ctx, canvas: Canvas, plan: FloorPlan, page:
   // SHT-7: the page has its own title and the plan its own box, so the band under the drawing
   // for the plan's title and key is left off; the notes and the sketch are drawn. The page
   // carries the label in its footer, so the picture does not (MSG-3).
-  const png = await drawPlan(plan, { format: 'png', scale: (PLAN_SCALE * PLAN_BOX.width * grow) / options.width!, ...options, paperScale, show: { title: false, key: false }, label: false })
+  const image = await pictures('plan', () => drawPlan(plan, { format: 'png', scale: (PLAN_SCALE * PLAN_BOX.width * grow) / options.width!, ...options, paperScale, show: { title: false, key: false }, label: false }))
   const w = box.width * grow
   const h = box.height * grow
   ctx.save()
   ctx.beginPath(); ctx.rect(MARGIN, box.top, box.width, box.height); ctx.clip()
-  ctx.drawImage(await canvas.loadImage(Buffer.from(png)), MARGIN - (w - box.width) / 2, box.top - (h - box.height) / 2, w, h)
+  ctx.drawImage(image, MARGIN - (w - box.width) / 2, box.top - (h - box.height) / 2, w, h)
   ctx.restore()
 }
 
-async function drawCover(ctx: Ctx, canvas: Canvas, plan: FloorPlan, page: SheetPage, flowing: readonly Piece[]): Promise<void> {
+async function drawCover(ctx: Ctx, plan: FloorPlan, page: SheetPage, flowing: readonly Piece[], pictures: Pictures): Promise<void> {
   const top = header(ctx, page, true) + 16
   const room = flowing.reduce((sum, p) => sum + measurePiece(ctx, p, TEXT_WIDTH).height, 0)
   const height = Math.max(COVER_IMAGE.min, Math.min(COVER_IMAGE.max, LIMIT - top - 100 - room))
-  const still = await drawStill(plan, { width: Math.round(TEXT_WIDTH), height, scale: 2, label: false })
-  ctx.drawImage(await canvas.loadImage(Buffer.from(still)), MARGIN, top, TEXT_WIDTH, height)
+  const still = await pictures(`model ${height}`, () => drawStill(plan, { width: Math.round(TEXT_WIDTH), height, scale: 2, label: false }))
+  ctx.drawImage(still, MARGIN, top, TEXT_WIDTH, height)
   const y = top + height + 50
   const column = TEXT_WIDTH / Math.max(1, page.figures.length)
   page.figures.forEach((figure, i) => {
@@ -372,17 +394,19 @@ function drawSummaryFigures(ctx: Ctx, page: SheetPage, y: number): void {
  * scale, as `sideDrawings` placed it in the box under the header; under them on the right, the
  * scale bar and the title block, the notes flowing beside them.
  */
-async function drawSideDrawings(ctx: Ctx, canvas: Canvas, plan: FloorPlan, picture: Extract<SheetPicture, { kind: 'drawings' }>, top: number, language: Language): Promise<void> {
+async function drawSideDrawings(ctx: Ctx, plan: FloorPlan, picture: Extract<SheetPicture, { kind: 'drawings' }>, top: number, language: Language, pictures: Pictures): Promise<void> {
   const asked = language === DEFAULT_LANGUAGE ? {} : { language }
   const pictureOf = (drawing: PlacedDrawing) => drawing.of === 'facade'
-    ? facadePicture(plan, { side: drawing.side, width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, ...asked })
-    : sectionPicture(plan, drawing.cut.line, { width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, label: drawing.cut.label, ...asked })
-  for (const drawing of picture.drawings) {
+    ? keptFacadePicture(plan, { side: drawing.side, width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, ...asked })
+    : keptSectionPicture(plan, drawing.cut.line, { width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, label: drawing.cut.label, ...asked })
+  for (const [i, drawing] of picture.drawings.entries()) {
     // A section without the band under it: its name is written under it here, what it took in the notes.
-    const drawn = pictureOf(drawing)
-    const png = await pictureToPng(drawing.of === 'section' ? { ...drawn, key: null } : drawn, { scale: PLAN_SCALE * DRAWING_PIXEL_PT, label: false })
+    const image = await pictures(`drawing ${i}`, () => {
+      const drawn = pictureOf(drawing)
+      return pictureToPng(drawing.of === 'section' ? { ...drawn, key: null } : drawn, { scale: PLAN_SCALE * DRAWING_PIXEL_PT, label: false })
+    })
     const height = drawing.of === 'section' ? drawing.drawn.height - SECTION_NAME_PT : drawing.drawn.height
-    ctx.drawImage(await canvas.loadImage(Buffer.from(png)), MARGIN + drawing.x, top + drawing.y, drawing.drawn.width, height)
+    ctx.drawImage(image, MARGIN + drawing.x, top + drawing.y, drawing.drawn.width, height)
     if (drawing.of === 'section') {
       font(ctx, SANS, 10, 600); ctx.fillStyle = INK
       ctx.fillText(say(language, 'drawing.section.name', { label: drawing.cut.label }), MARGIN + drawing.x, top + drawing.y + height + 12)
@@ -442,13 +466,13 @@ function drawTitleBlock(ctx: Ctx, block: Extract<SheetPicture, { kind: 'drawings
   cell(block.labels.status, block.status, x + 2 * third3, row, third3, 9)
 }
 
-async function drawPage(ctx: Ctx, canvas: Canvas, plan: FloorPlan, page: SheetPage, box: { top: number; width: number; height: number }, language: Language): Promise<void> {
+async function drawPage(ctx: Ctx, plan: FloorPlan, page: SheetPage, box: { top: number; width: number; height: number }, language: Language, pictures: Pictures): Promise<void> {
   const flowing = piecesOf(page)
-  if (page.kind === 'cover' && page.picture) return drawCover(ctx, canvas, plan, page, flowing)
+  if (page.kind === 'cover' && page.picture) return drawCover(ctx, plan, page, flowing, pictures)
   const head = header(ctx, page, true)
   const at = region(ctx, page, 0)
-  if (page.picture?.kind === 'plan') await drawFloorPicture(ctx, canvas, plan, page, box, language)
-  else if (page.picture?.kind === 'drawings') await drawSideDrawings(ctx, canvas, plan, page.picture, head + 10, language)
+  if (page.picture?.kind === 'plan') await drawFloorPicture(ctx, plan, page, box, language, pictures)
+  else if (page.picture?.kind === 'drawings') await drawSideDrawings(ctx, plan, page.picture, head + 10, language, pictures)
   else if (page.figures.length > 0) drawSummaryFigures(ctx, page, head + 30)
   flow(ctx, flowing, at.x, at.width, at.y)
 }
@@ -460,18 +484,19 @@ const PREVIEW_WIDTH = 600
  * The PDF, and the laid-out sheet whose pages match the PDF's one for one. With `previews`, each
  * page is also drawn small as a PNG, for an agent to look at before the sheet is handed over.
  */
-export async function sheetPdf(plan: FloorPlan, sheet: Sheet, options: { readonly previews?: boolean } = {}): Promise<{ pdf: Uint8Array; sheet: Sheet; previews: Uint8Array[] }> {
+export async function sheetPdf(plan: FloorPlan, sheet: Sheet, options: { readonly previews?: boolean; readonly onPage?: (done: number, total: number) => void } = {}): Promise<{ pdf: Uint8Array; sheet: Sheet; previews: Uint8Array[] }> {
   const laid = await layoutSheet(sheet)
   const box = await floorPictureBox(laid)
   const canvas = await loadCanvas()
   const doc = new canvas.PDFDocument({ title: laid.name, creator: 'Grid', producer: 'Grid' })
   const previews: Uint8Array[] = []
   const k = PREVIEW_WIDTH / A3.width
-  for (const page of laid.pages) {
+  for (const [n, page] of laid.pages.entries()) {
+    const pictures = picturesOnce(canvas)
     const ctx = doc.beginPage(A3.width, A3.height) as Ctx
     ctx.fillStyle = PAPER
     ctx.fillRect(0, 0, A3.width, A3.height)
-    await drawPage(ctx, canvas, plan, page, box, laid.language ?? DEFAULT_LANGUAGE)
+    await drawPage(ctx, plan, page, box, laid.language ?? DEFAULT_LANGUAGE, pictures)
     footer(ctx, page)
     doc.endPage()
     if (options.previews) {
@@ -480,10 +505,11 @@ export async function sheetPdf(plan: FloorPlan, sheet: Sheet, options: { readonl
       pctx.scale(k, k)
       pctx.fillStyle = PAPER
       pctx.fillRect(0, 0, A3.width, A3.height)
-      await drawPage(pctx, canvas, plan, page, box, laid.language ?? DEFAULT_LANGUAGE)
+      await drawPage(pctx, plan, page, box, laid.language ?? DEFAULT_LANGUAGE, pictures)
       footer(pctx, page)
       previews.push(new Uint8Array(await small.encode('png')))
     }
+    options.onPage?.(n + 1, laid.pages.length)
   }
   return { pdf: trueCodePoints(new Uint8Array(doc.close())), sheet: laid, previews }
 }

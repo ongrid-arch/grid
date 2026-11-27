@@ -25,7 +25,7 @@
  * Pure: the compiler reads no file. The command reads the base the text names (`baseNamedIn`) and
  * passes it in `CompileOptions.base`.
  */
-import { safeParseFloorPlan, type FloorPlan, type Opening, type Room, type Wall } from '../types/floorplan'
+import { safeParseFloorPlan, type Floor, type FloorPlan, type Opening, type Room, type Wall } from '../types/floorplan'
 import { indexPlan } from '../geometry/plan'
 import { floorOf } from '../geometry/floors'
 import { tryRoomPolygon } from '../geometry/room'
@@ -384,12 +384,36 @@ export function baseAnswer(base: { readonly file: string; readonly restsOn: read
   return english(said('rooms.base.restsOn', { file: name(base.file), count: base.restsOn.length, walls: joined(base.restsOn.slice(0, 12).map((id) => name(id)), 'join.comma', 'join.and') }))
 }
 
-/** A fit-out's own parts: the plan as read with its base's walls and openings taken out again. */
-export function ownParts<T extends Pick<FloorPlan, 'walls' | 'openings' | 'floors'>>(plan: T, base: { readonly walls: ReadonlySet<string>; readonly openings: ReadonlySet<string>; readonly floors: ReadonlySet<string> }): T {
-  const floors = (plan.floors ?? []).filter((f) => !base.floors.has(f.id))
-  const { floors: _all, ...rest } = plan
+/** The ids of the parts a base gave its fit-out (`mergeBase`); WRT-85's lists are left out by a base read before them. */
+export interface BaseParts {
+  readonly walls: ReadonlySet<string>
+  readonly openings: ReadonlySet<string>
+  readonly floors: ReadonlySet<string>
+  readonly columns?: ReadonlySet<string>
+  readonly grids?: ReadonlySet<string>
+  readonly stairs?: ReadonlySet<string>
+  readonly items?: ReadonlySet<string>
+  readonly ownFloors?: ReadonlyMap<string, Floor>
+}
+
+type OwnLists = Pick<FloorPlan, 'walls' | 'openings' | 'floors'> & Partial<Pick<FloorPlan, 'columns' | 'grids' | 'stairs' | 'items'>>
+
+/**
+ * A fit-out's own parts: the plan as read with its base's walls, openings, floors, columns, grids,
+ * stairs and fixtures taken out again, and each floor it lists as it states it (WRT-85).
+ */
+export function ownParts<T extends OwnLists>(plan: T, base: BaseParts): T {
+  const floors = (plan.floors ?? []).filter((f) => !base.floors.has(f.id)).map((f) => base.ownFloors?.get(f.id) ?? f)
+  const { floors: _all, columns, grids, stairs, items, ...rest } = plan
   void _all
-  return { ...rest, ...(floors.length > 0 ? { floors } : {}), walls: plan.walls.filter((w) => !base.walls.has(w.id)), openings: plan.openings.filter((o) => !base.openings.has(o.id)) } as T
+  const kept = <P extends { readonly id: string }>(list: readonly P[] | undefined, from: ReadonlySet<string> | undefined): P[] | undefined => {
+    if (list === undefined || from === undefined || from.size === 0) return list === undefined ? undefined : [...list]
+    const own = list.filter((part) => !from.has(part.id))
+    return own.length > 0 ? own : undefined
+  }
+  const lists = { columns: kept(columns, base.columns), grids: kept(grids, base.grids), stairs: kept(stairs, base.stairs), items: kept(items, base.items) }
+  const stated = Object.fromEntries(Object.entries(lists).filter(([, list]) => list !== undefined))
+  return { ...rest, ...stated, ...(floors.length > 0 ? { floors } : {}), walls: plan.walls.filter((w) => !base.walls.has(w.id)), openings: plan.openings.filter((o) => !base.openings.has(o.id)) } as unknown as T
 }
 
 /**
@@ -401,9 +425,12 @@ export function fitOutReading(file: FloorPlan, base: BasePlan): { readonly plan:
   const view = (plan: FloorPlan): FloorPlan => {
     const merged = mergeBase(plan, base.plan)
     const named = new Set(plan.rooms.flatMap((r) => [...r.boundary, ...(r.holes ?? []).flat()]))
-    const { base: _named, ...rest } = merged.plan
+    // WRT-85: the base's walls the rooms name and its floors are kept, each floor the fit-out
+    // lists as it states it; its other parts come with the base.
+    const own = ownParts(merged.plan, { ...merged, walls: new Set([...merged.walls].filter((id) => !named.has(id))), floors: new Set() })
+    const { base: _named, ...rest } = own
     void _named
-    return { ...rest, walls: merged.plan.walls.filter((w) => !merged.walls.has(w.id) || named.has(w.id)), openings: merged.plan.openings.filter((o) => !merged.openings.has(o.id)) }
+    return rest
   }
   const quoted = /\s/.test(base.file) ? `"${base.file}"` : base.file
   return { plan: view(file), line: `base ${quoted}`, again: view }

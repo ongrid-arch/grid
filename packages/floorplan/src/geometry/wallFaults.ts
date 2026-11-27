@@ -45,7 +45,7 @@ import { areaText, metresText } from './rounding'
 import type { Said, Value } from '../messages/say'
 import { english, joined, name, num, said } from '../messages/say'
 import { pointSaid } from './issueWords'
-import { factKey } from '../types/facts'
+import { factKey, placeFacts } from '../types/facts'
 import { wallWithEnds } from '../types/floorplan'
 import type { Vec2 } from './vec2'
 import { area, cross, dot, sub } from './vec2'
@@ -932,7 +932,9 @@ function splitAlong(ctx: Context, room: Room, s: Seg, stretch: [number, number])
         const part: Room = { id: other, name: `${room.name} (part)`, boundary: small }
         if (room.floor !== undefined) part.floor = room.floor
         // CNT-9: the part keeps the room's facts of the person's own; its number stays with the room.
-        if (room.properties !== undefined && Object.keys(room.properties).length > 0) part.properties = { ...room.properties }
+        // WRT-84: but not the facts that count something, which the room keeps, so none is counted twice.
+        const place = placeFacts(room.properties)
+        if (Object.keys(place).length > 0) part.properties = place
         return {
           edits: [
             { op: 'set-boundary', room: room.id, boundary: big },

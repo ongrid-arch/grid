@@ -4,6 +4,8 @@ import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
+import { indexPlan, validatePlan } from '@ongrid/floorplan/geometry'
+import { parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { runGrid } from '../../command/main'
 import { openProject } from '../../fs/projectFiles'
 import { bench } from '../../mcp/__tests__/replay/harness'
@@ -247,8 +249,17 @@ describe('a mezzanine written again lower down (WRT-25)', () => {
     const run = await grid(dir, 'diff')
     expect(run.status, run.err).toBe(0)
     // VEW-33: the ground floor's walls now rise past the lowered mezzanine, and the check says so.
-    expect(run.out).toContain('Verdict: 2 issues to look at first. 1 change, room by room: Floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m; 2 rooms as they were.')
+    // LVL-26: and the 13 m south and west walls of the ground floor run through the mezzanine's own
+    // south and west walls (same line, both 0.3 m thick, for 6.30 m and 4.30 m), one wall counted on
+    // two floors: two more, wall/same-space.
+    expect(run.out).toContain('Verdict: 4 issues to look at first. 1 change, room by room: Floor "Mezzanine" moved down 9.50 m: elevation 13.75 m → 4.25 m; 2 rooms as they were.')
     expect(run.out).not.toContain('wall or opening change')
+    const doubled = (elevation: string): string[] => {
+      const plan = parseFloorPlan(compileRoomsText(text(elevation)).plan)
+      return validatePlan(plan, indexPlan(plan)).issues.filter((i) => i.code === 'wall/same-space').map((i) => i.id).sort()
+    }
+    expect(doubled('4.25')).toEqual(['ground-ext-south', 'ground-ext-west'])
+    expect(doubled('13.75')).toEqual([])
     const data = JSON.parse((await grid(dir, 'diff', '--json')).out) as { sameBuilding: boolean; floors: unknown[] }
     expect(data.sameBuilding).toBe(false)
     expect(data.floors).toEqual([expect.objectContaining({ floor: 'mezz', elevation: { before: 13.75, after: 4.25 }, stands: { before: 13.75, after: 4.25 } })])
@@ -548,5 +559,37 @@ describe('grid mark takes the plan as every command does (CMD-36)', () => {
     const names = await grid(dir, 'mark', 'a', 'b')
     expect(names.status).toBe(2)
     expect(names.err).toContain('mark takes one marker name')
+  })
+})
+
+describe('a change of finish, of type and of curve, with grid diff (WRT-86)', () => {
+  it('says the finish, names the type with the parts that take it, and gives the data', async () => {
+    const plan = JSON.parse(flat) as { types?: unknown; walls: { id: string; kind: string; thickness?: number; wallType?: string }[]; rooms: { id: string; finishes?: unknown }[] }
+    plan.types = { walls: [{ id: 'brick', name: 'Brick 300', thickness: 0.3 }, { id: 'block', name: 'Block 200', thickness: 0.2 }] }
+    for (const wall of plan.walls) if (wall.kind === 'exterior') {
+      delete wall.thickness
+      wall.wallType = 'brick'
+    }
+    plan.rooms[0]!.finishes = { floor: 'Oak' }
+    const dir = project({ 'plan.json': JSON.stringify(plan) })
+    expect((await grid(dir, 'mark', 'start')).status).toBe(0)
+
+    plan.rooms[0]!.finishes = { floor: 'Porcelain tile' }
+    writeFileSync(join(dir, 'plan.json'), JSON.stringify(plan))
+    const finish = await grid(dir, 'diff')
+    expect(finish.status, finish.err).toBe(0)
+    expect(finish.out).not.toContain('Changes: none')
+    expect(finish.out).toContain('1. "Living room" floor finish "Oak" → "Porcelain tile"')
+
+    plan.walls.find((w) => w.id === 'ext-south')!.wallType = 'block'
+    writeFileSync(join(dir, 'plan.json'), JSON.stringify(plan))
+    const typed = await grid(dir, 'diff', '--show', 'changes')
+    expect(typed.status, typed.err).toBe(0)
+    expect(typed.out).toContain('Wall "ext-south" thickness 0.30 → 0.20 m; type "Brick 300" → "Block 200"')
+
+    const json = JSON.parse((await grid(dir, 'diff', '--json')).out) as { finishes: unknown[]; types: unknown[]; curves: unknown[] }
+    expect(json.finishes).toMatchObject([{ room: 'living', changes: [{ surface: 'floor', before: 'Oak', after: 'Porcelain tile', text: 'floor finish "Oak" → "Porcelain tile"' }] }])
+    expect(json.types).toEqual([])
+    expect(json.curves).toEqual([])
   })
 })

@@ -1524,11 +1524,11 @@ export const KIND_ARG: ArgSpec = {
   maxItems: FACT_PART_KINDS.length,
 }
 
-/** CNT-45: grid_fields, grid_find and grid_count ask of the fixtures and furniture too. */
+/** CNT-45: grid_fields, grid_find and grid_count ask of the fixtures and furniture too; CMD-53: and the columns. */
 const QUERY_KIND_ARG: ArgSpec = {
   ...KIND_ARG,
-  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run), furniture (a bed, a sofa, a table) or point (an extinguisher, a camera, an exit), or item for every fixture, piece of furniture and point. Every kind when left out.',
-  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item'], ['point']],
+  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run), furniture (a bed, a sofa, a table), point (an extinguisher, a camera, an exit) or column, or item for every fixture, piece of furniture and point. Every kind when left out.',
+  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item'], ['column']],
   items: { enum: [...PART_KINDS, 'item'] },
   maxItems: PART_KINDS.length + 1,
 }
@@ -1545,7 +1545,7 @@ export const WHERE_ARG: ArgSpec = {
 export const ROOM_IN_ARG: ArgSpec = {
   type: 'string',
   id: true,
-  description: 'Only what belongs to this room, by id: the room itself, the walls beside it and the doors, windows and openings into it.',
+  description: 'Only what belongs to this room, by id: the room itself, the walls beside it, the doors, windows and openings into it and the items and columns standing in it.',
   examples: ['kitchen', 'office-2'],
 }
 
@@ -1557,8 +1557,8 @@ const kindsOf = (args: Record<string, unknown>): readonly PartKind[] | undefined
 }
 
 function partsWord(kinds: readonly PartKind[] | undefined, n: number): string {
-  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture', point: 'points' }
-  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture', point: 'point' }
+  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture', point: 'points', column: 'columns' }
+  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture', point: 'point', column: 'column' }
   if (kinds !== undefined && kinds.length === 1) return `${n} ${n === 1 ? one[kinds[0]!] : plural[kinds[0]!]}`
   return `${n} part${n === 1 ? '' : 's'}`
 }
@@ -1610,7 +1610,7 @@ const fieldsTool: GridTool = {
   }),
   run(args, context) {
     const { survey } = load(context, args['plan'])
-    const ask = askPlan(survey, { items: true })
+    const ask = askPlan(survey, { items: true, columns: true })
     const kinds = kindsOf(args)
     const counts = PART_KINDS.filter((k) => kinds === undefined || kinds.includes(k)).map((kind) => ({ kind, count: ask.parts.filter((p) => p.kind === kind).length }))
     // CNT-57: the groups the rooms state (room type, tenure, flat type), each with its values.
@@ -1640,7 +1640,7 @@ const findTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks which parts of the plan have, lack or match something: "which doors have no fire rating", "rooms of the Sales department", "windows lower than 900 mm", "walls rated EI 60 on the first floor". '
-    + 'It returns the ids of the walls, doors, windows, openings, rooms, floors, fixtures or furniture (kind=fixture, kind=furniture: "the beds in the plan", "every WC on the first floor") that meet every condition, with only the fields you name, and a view argument to pass to grid_view so they are shown picked out. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
+    + 'It returns the ids of the walls, doors, windows, openings, rooms, floors, fixtures, furniture or columns (kind=fixture, kind=furniture: "the beds in the plan", "every WC on the first floor"; kind=column, where room use = meeting: "the columns in the meeting rooms") that meet every condition, with only the fields you name, and a view argument to pass to grid_view so they are shown picked out. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
     + 'Call grid_fields first for the names. Do not use for how many or how much by group (grid_count), for areas (grid_areas) or for a door schedule (grid_schedule). Lengths are metres, areas square metres.',
   args: {
     plan: PLAN_ARG,
@@ -1668,7 +1668,7 @@ const findTool: GridTool = {
     // ARE-75: read in a state, it says so, and its view draws that state.
     const state = args['state'] as string | undefined
     return withStateLine(asked(() => {
-      const ask = askPlan(survey, { items: true, stated })
+      const ask = askPlan(survey, { items: true, columns: true, stated })
       const kinds = kindsOf(args)
       const fields = ((args['fields'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `fields item ${i + 1}`))
       const found = select(ask, {
@@ -1702,7 +1702,7 @@ const countTool: GridTool = {
   title: 'Count and sum parts by group',
   hint: 'read',
   description:
-    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room), "how many extinguishers on each floor" (kind=point, where item kind = extinguisher, by floor). '
+    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room), "how many extinguishers on each floor" (kind=point, where item kind = extinguisher, by floor), "how many basins in each toilet" (kind=fixture, where item kind = basin, by room), "columns by room" (kind=column, by room). '
     + 'It groups the parts that meet every condition by the field named in by, and gives each group its count, the sum of each field named in sum, and its ids, with a view argument to pass to grid_view so each group is shown in its own colour. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
     + 'Rooms are counted as grid_areas counts them, so an area sum is its net: a zone with its room, a stair or lift drawn on floor after floor once, on the floor it rises from (stairs=per floor counts it on each floor), and no void or outdoor space; the answer lists each room left out, with why. '
     + 'Call grid_fields first for the names. Do not use for the list of parts itself (grid_find), for the plan\'s areas by use (grid_areas) or for a door schedule (grid_schedule). Areas are square metres, lengths metres.',
@@ -1730,7 +1730,7 @@ const countTool: GridTool = {
     const { survey, stated, floor } = load(context, args['plan'], args['floor'])
     const room = args['room'] === undefined ? undefined : roomArg(stated, args['room'])
     return asked(() => {
-      const ask = askPlan(survey, { items: true, stated })
+      const ask = askPlan(survey, { items: true, columns: true, stated })
       const kinds = kindsOf(args)
       const by = args['by'] === undefined ? null : fieldOf(ask, args['by'] as string, 'by')
       const sums = ((args['sum'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `sum item ${i + 1}`))

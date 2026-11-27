@@ -21,6 +21,8 @@ import { closestId, idEdits } from '../types/nearest'
 import { WALL_DEFAULTS, heightStated } from '../types/floorplan'
 import { wallPath } from './wall'
 import { curveFault } from './arc'
+import { indexPlan } from './plan'
+import { raisedByRoom, roomTopOver } from './roomTops'
 
 const issue = (entity: Issue['entity'], id: string, code: string, sentence: Said, severity: Issue['severity'] = 'warning'): Issue =>
   withSaid({ entity, id, code, message: english(sentence), severity }, sentence)
@@ -281,6 +283,7 @@ function wallsAboveStorey(plan: FloorPlan, floors: readonly Floor[], broken: Rea
     if (floor.height !== undefined && Number.isFinite(floor.height) && floor.height > 0) stated.set(floor.id, floor.height)
   }
   if (stated.size === 0) return
+  const index = indexPlan(plan)
   for (const wall of plan.walls) {
     if (wall.virtual || broken.has(wall.id) || !Number.isFinite(wall.height)) continue
     // LVL-5: a part of a wall through floors runs through its floor's slab by design; the wall
@@ -288,6 +291,9 @@ function wallsAboveStorey(plan: FloorPlan, floors: readonly Floor[], broken: Rea
     if (sharedPart(wall) !== null) continue
     const storey = stated.get(storeyFloorOf(plan, wall))
     if (storey === undefined || wall.height <= storey + tolerance('wallAboveStorey')) continue
+    // LVL-26: a wall no higher than a room it bounds, which states its height, stands to that room.
+    const top = roomTopOver(wall, index)
+    if (top !== null && wall.height <= top + tolerance('wallAboveStorey')) continue
     issues.push(
       issue(
         'wall',
@@ -318,8 +324,11 @@ function wallHeightsDiffer(plan: FloorPlan, floors: readonly Floor[], broken: Re
   const lowest = limit('storeyLowest')
   const own = new Map<string, number[]>()
   const taking = new Map<string, number>()
+  const index = indexPlan(plan)
   for (const wall of plan.walls) {
     if (wall.virtual || broken.has(wall.id) || !Number.isFinite(wall.height) || wall.through !== undefined || sharedPart(wall) !== null) continue
+    // LVL-26: a wall a room's own height raises or stops is that room's, not the storey's.
+    if (raisedByRoom(wall, index)) continue
     const floor = floorOf(wall)
     const storey = stated.get(floor)
     if (storey === undefined) continue

@@ -47,9 +47,22 @@ const FIT_OUT = {
   openings: [{ id: 'd1', wall: 'p1', type: 'door', offset: 2, width: 0.8, height: 2.1 }],
 }
 
+/** WRT-85: a shell with its structure and a fixture, and a fit-out on it that lists the ground floor. */
+const FRAME = {
+  ...SHELL,
+  floors: [{ id: 'ground', name: 'Ground', level: 0, slab: 0.25, height: 2.8 }],
+  columns: [
+    { id: 'c1', shape: 'square', width: 0.4, at: [2, 2.5] },
+    { id: 'c2', shape: 'square', width: 0.4, at: [6, 2.5] },
+  ],
+  grids: [{ id: 'g', origin: [0, 0], x: { spacing: [4, 4] }, y: { spacing: [5] } }],
+  items: [{ id: 'breast', kind: 'storage', label: 'Chimney breast', at: [0.5, 2.5], size: [0.6, 1.2], height: 2.6 }],
+}
+const FRAME_FIT_OUT = { ...FIT_OUT, base: 'frame.json', floors: [{ id: 'ground', name: 'Ground floor' }] }
+
 let b: Bench
 beforeAll(() => {
-  b = bench({ 'refurb.json': refurbishmentRaw(), 'shell.json': SHELL, 'fitout.json': FIT_OUT })
+  b = bench({ 'refurb.json': refurbishmentRaw(), 'shell.json': SHELL, 'fitout.json': FIT_OUT, 'frame.json': FRAME, 'framefit.json': FRAME_FIT_OUT })
 })
 afterAll(() => b.close())
 
@@ -280,5 +293,43 @@ describe('a fit-out on a base plan (CNT-10, CP4-4)', () => {
     const reply = await b.call('grid_check', { plan: 'clash.json' })
     expect(reply.isError).toBe(true)
     expect(reply.text).toContain('"s2"')
+  })
+})
+
+describe('a base plan\'s structure, fixtures and floors in its fit-out (WRT-85)', () => {
+  it('draws the base\'s columns, grid and fixtures in the fit-out and takes the columns off its rooms\' floor', async () => {
+    const view = await ok('grid_view', { plan: 'framefit.json', kind: 'plan' })
+    const boxes = (view.data!['boxes'] as { id: string }[]).map((box) => box.id)
+    expect(boxes).toContain('breast')
+    // The front room's 3.8 x 4.7 m, less column c1's 0.4 x 0.4 m.
+    const areas = await ok('grid_areas', { plan: 'framefit.json' })
+    const front = (areas.data!['floors'] as { rooms: { id: string; net: number }[] }[])[0]!.rooms.find((r) => r.id === 'front')
+    expect(front?.net).toBeCloseTo(17.7, 6)
+    const loaded = loadPlan(openProject(b.folder, b.folder, 'project'), join(b.folder, 'framefit.json'))
+    expect(loaded.plan.grids?.map((g) => g.id)).toEqual(['g'])
+    expect(loaded.plan.floors?.[0]).toMatchObject({ id: 'ground', name: 'Ground floor', slab: 0.25, height: 2.8 })
+    expect([...loaded.base!.items]).toEqual(['breast'])
+    const check = await ok('grid_check', { plan: 'framefit.json' })
+    expect(check.text).toContain('fitted out in "frame.json"')
+  })
+
+  it('refuses to move or take out a base fixture, and writes nothing', async () => {
+    const before = readFileSync(join(b.folder, 'framefit.json'), 'utf8')
+    const moved = await b.call('grid_move_item', { plan: 'framefit.json', id: 'breast', dx: 0.2, dy: 0 })
+    expect(moved.isError).toBe(true)
+    expect(moved.text).toContain('That change would touch the base plan "frame.json": "breast"')
+    const removed = await b.call('grid_remove_item', { plan: 'framefit.json', ids: ['breast'] })
+    expect(removed.isError).toBe(true)
+    expect(removed.text).toContain('"breast"')
+    expect(readFileSync(join(b.folder, 'framefit.json'), 'utf8')).toBe(before)
+  })
+
+  it('writes none of the base\'s parts or floor values into the fit-out on a change inside the shell', async () => {
+    await ok('grid_move_room_side', { plan: 'framefit.json', room: 'front', side: 'east', by: 0.4 })
+    const file = onDisk('framefit.json')
+    expect(file['columns']).toBeUndefined()
+    expect(file['grids']).toBeUndefined()
+    expect(file['items']).toBeUndefined()
+    expect(file['floors']).toEqual([{ id: 'ground', name: 'Ground floor' }])
   })
 })
