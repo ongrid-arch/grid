@@ -51,6 +51,7 @@ import type { OpeningBox, OpeningPartKind } from './openingParts'
 import { openingParts } from './openingParts'
 import { openingAxis, openingsCutting, runGuests, type AxisPoint } from './openingRun'
 import { statedKind } from './openingKinds'
+import { openingGlazed, wallGlazed } from './partTypes'
 
 /** A point in model space: XY is the plan, Z is height. */
 export interface Vec3 {
@@ -140,6 +141,8 @@ export interface SceneWall {
    * curve (its holes where its openings are, for measuring). Absent for a straight wall.
    */
   readonly pieces?: readonly SceneWallPiece[]
+  /** VEW-78: the wall's type is glass (`wallGlazed`): a curtain wall or a glazed partition. */
+  readonly glazed?: true
 }
 
 /** One straight piece of a curved wall in 3D (CNT-18): a rectangle on its own basis, no holes. */
@@ -312,6 +315,11 @@ export interface SceneOpening {
   /** Its kind as the plan states it, or null (a door then is one swinging leaf). */
   readonly kind: OpeningKind | null
   readonly parts: readonly SceneOpeningPart[]
+  /**
+   * VEW-78: a door whose type is glazed (`openingGlazed`): its leaves are glass in their frame.
+   * Absent for a door that is not and for every window, whose glass is its `glass` parts.
+   */
+  readonly glazed?: true
 }
 
 /**
@@ -681,14 +689,15 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
       basis: wallBasis(wall),
       exposure: wallExposure(index, wall.id),
       revision: wallRevision(whole.wall, usable, ends, top),
-      ...(wall.arc !== undefined && { pieces: curvedWallPieces(whole.wall, usable, ends, options.arcSegments) })
+      ...(wall.arc !== undefined && { pieces: curvedWallPieces(whole.wall, usable, ends, options.arcSegments) }),
+      ...(wallGlazed(plan, wall) && { glazed: true as const })
     })
     if (elevation.height > height) height = elevation.height
     for (const opening of usable) {
       // A copy cut from another wall's opening is drawn there, once.
       if (opening.wall !== wall.id) continue
       const parts = sceneOpening(opening, wall, sound)
-      if (parts !== null) openings.push(parts)
+      if (parts !== null) openings.push(parts.type === 'door' && openingGlazed(plan, opening) ? { ...parts, glazed: true } : parts)
     }
   }
 

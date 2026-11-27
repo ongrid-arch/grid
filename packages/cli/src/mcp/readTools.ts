@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -2911,7 +2911,9 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     if (!room || room.polygon.length < 3) throw new ToolRefusal('That room has no outline Grid can draw; grid_check says why.')
     const height = (args['eye_height'] as number | undefined) ?? 1.6
     if (height < 0.3 || height > 3) throw new ToolRefusal('For kind=eye, eye_height takes 0.3 to 3 m above the floor; for a camera higher up, use kind=3d with room and eye_height.')
-    const windows = room.openings.filter((o) => o.type === 'window')
+    // VEW-78: a glazed door is glazing too: it is listed with the windows and looked toward first.
+    const glazedIn = (o: { id: string }): boolean => { const stated = plan.openings.find((p) => p.id === o.id); return stated !== undefined && openingGlazed(plan, stated) }
+    const windows = room.openings.filter((o) => (o.type === 'window' || o.type === 'door') && glazedIn(o))
     const { cameraView } = await import('../draw/views')
     // VEW-30, VEW-75: where it stands and looks, its lens and tilt.
     const { eyeShot } = await import('./eyeAnswer')
@@ -2926,13 +2928,14 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       ...(args['perspective'] !== undefined ? { perspective: args['perspective'] as 'one-point' | 'two-point' } : {}),
     })
     const view = await cameraView(plan, camera, language)
-    const sills = windows.map((w) => ({ id: w.id, sill: w.sill, top: w.sill + w.height, seenOver: w.sill < height }))
+    const sills = windows.map((w) => ({ id: w.id, type: w.type, sill: w.sill, top: w.sill + w.height, seenOver: w.sill < height }))
+    const plainDoors = room.openings.some((o) => o.type === 'door' && !glazedIn(o))
     const sillText = sills.length === 0
-      ? 'The room has no windows.'
-      : `Windows in the room, sill and top against the eye at ${m(height)} m: ${sills.map((s) => `${q(s.id)} sill ${m(s.sill)}, top ${m(s.top)} (${s.sill < height ? 'the eye is above the sill' : 'the sill is at or above the eye'})`).join('; ')}.`
+      ? (plainDoors ? 'The room has no windows and no glazed door: its doors are drawn solid, as no door type marks them glazed (grid_change_type with glazed true makes a door type glass).' : 'The room has no windows.')
+      : `Windows and glazed doors in the room, sill and top against the eye at ${m(height)} m: ${sills.map((s) => `${s.type === 'door' ? 'glazed door ' : ''}${q(s.id)} sill ${m(s.sill)}, top ${m(s.top)} (${s.sill < height ? 'the eye is above the sill' : 'the sill is at or above the eye'})`).join('; ')}.`
     return {
       text: [
-        `${sentence} ${sillText} The plan's fixtures and furniture stand in it as plain blocks; it has no ceiling, glass or anything outside. Look at the picture before you describe it.`,
+        `${sentence} ${sillText} The plan's fixtures and furniture stand in it as plain blocks; its rooms have their ceilings, their floors and walls are tinted by their finishes where a finish's name gives a colour, glass is see-through, and outside it is a plain sky over plain ground. Look at the picture before you describe it.`,
         ...cameraLines(plan, camera),
       ].join('\n'),
       data: { kind, floor: room.facts.floor, camera, view: null, pxPerMetre: null, sills, ids: [], boxes: [] },
