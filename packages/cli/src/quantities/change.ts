@@ -29,7 +29,10 @@ import {
   type Opening,
   type Wall,
 } from '@ongrid/floorplan/geometry'
-import type { Phase } from '@ongrid/floorplan/types/floorplan'
+import { say } from '@ongrid/floorplan/messages'
+import { FloorPlanSchema, type Phase } from '@ongrid/floorplan/types/floorplan'
+import { phasedPlanFrom } from '../edit/phaseMarks'
+import { EditRefused } from '../edit/refused'
 import { planAreas } from './areas'
 import type { Estimate, EstimateLine, QuantityUnit } from './estimate'
 import { surveyPlan } from './survey'
@@ -94,6 +97,14 @@ function endsOn(point: readonly [number, number], wall: Wall): boolean {
     const across = Math.abs(dot(sub(p, axis.start), axis.normal))
     return across <= slack && along >= -slack && along <= axis.length + slack
   })
+}
+
+/** Read two drawings as the phases of one building, without writing a plan. */
+export function planForChange(before: FloorPlan, after: FloorPlan): FloorPlan {
+  const combined = phasedPlanFrom({ ...before }, { ...after })
+  const parsed = FloorPlanSchema.safeParse(combined.plan)
+  if (!parsed.success) throw new EditRefused(say('en', 'tool.estimateChange.cannotPhase'))
+  return parsed.data
 }
 
 /**

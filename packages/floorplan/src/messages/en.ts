@@ -4354,9 +4354,10 @@ export const en = {
   'tool.estimateChange.compareTool': 'Pass rates to price the estimate change from the first plan to each later plan.',
   'tool.estimateChange.diffTool': 'Pass rates to price the estimate change from the earlier version to the later one.',
   'tool.estimateChange.ratesArg': 'A rates file inside the project folder. Pass it to price the estimate change using the same rates for both plans.',
-  'tool.estimateChange.takeoffTool': 'With for=estimate and since, compare the current plan with a saved version or a plan file. With for=change and plans, compare two plan files in order. Both give earlier, later and signed change quantities and costs per key.',
+  'tool.estimateChange.takeoffTool': 'With for=estimate and since, compare the current plan with a saved version or a plan file. This gives earlier, later and signed change quantities and costs per key. With for=change and plans, price the work between two plan files in order as demolition, making good and new work.',
   'tool.estimateChange.sinceArg': 'With for=estimate, the earlier version: a saved marker name or a plan file inside the project folder. A marker takes precedence over a file of the same name.',
-  'tool.estimateChange.plansArg': 'With for=change, compare exactly two plan files inside the project folder, earlier first.',
+  'tool.estimateChange.plansArg': 'With for=change, price the work between exactly two unphased plan files inside the project folder, earlier first.',
+  'tool.estimateChange.cannotPhase': 'Grid could not combine the two plans into phases to measure the work.',
   'tool.estimateChange.needsMode': 'Use since with for=estimate, or plans with for=change.',
   'tool.estimateChange.needsPairOnly': 'Pass either the two plans or a single plan.',
 } as const satisfies Record<string, string>

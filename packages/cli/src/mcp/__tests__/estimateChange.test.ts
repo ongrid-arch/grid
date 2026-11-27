@@ -18,6 +18,8 @@ const rates = { currency: 'TST', rates: {
   wall: { rate: 10, unit: 'm2', waste: 0.1 },
   window: { rate: 15, unit: 'nr' },
   ceiling: { rate: 1, unit: 'nr' },
+  'demolish:cut': { rate: 25, unit: 'm2' },
+  'new:lintel': { rate: 10, unit: 'm' },
   gross_internal: { rate: 100, unit: 'm2' },
 } }
 
@@ -48,15 +50,27 @@ describe('ARE-74: pricing two versions', () => {
     expect(sheet.text).toContain('window:1x1,')
   })
 
-  it('accepts a baseline file or two ordered plan files and returns a rate card without rates', async () => {
-    const withoutRates = (b = bench({ 'plan.json': revised, 'earlier.json': plan, 'later.json': revised }))
-    const since = await withoutRates.call('grid_takeoff', { for: 'estimate', since: 'earlier.json', whole: true })
-    const pair = await withoutRates.call('grid_takeoff', { for: 'change', plans: ['earlier.json', 'later.json'], whole: true })
+  it('accepts a baseline file and returns a rate card without rates', async () => {
+    b = bench({ 'plan.json': revised, 'earlier.json': plan })
+    const since = await b.call('grid_takeoff', { for: 'estimate', since: 'earlier.json' })
     expect(since.isError, since.text).toBe(false)
+    expect(since.data?.['lines']).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'window:1x1', before: 1, after: 0 }),
+      expect.objectContaining({ key: 'window:2x1', before: 0, after: 1 }),
+    ]))
+    expect(since.data?.['rateCard']).toBeDefined()
+    expect(since.data?.['cost']).toBeUndefined()
+  })
+
+  it('prices the work between two plans, including the cut and lintel on the wall that stays', async () => {
+    open()
+    const pair = await b.call('grid_takeoff', { for: 'change', plans: ['earlier.json', 'later.json'], whole: true })
     expect(pair.isError, pair.text).toBe(false)
-    expect(pair.data?.['lines']).toEqual(since.data?.['lines'])
-    expect(pair.data?.['rateCard']).toBeDefined()
-    expect(pair.data?.['cost']).toBeUndefined()
+    expect(pair.data?.['lines']).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'demolish:cut:exterior:0.3', quantity: 1, amount: 25, list: 'demolish' }),
+      expect.objectContaining({ key: 'make_good:reveals', quantity: expect.closeTo(1.8), list: 'make good' }),
+      expect.objectContaining({ key: 'new:lintel:exterior:0.3', quantity: expect.closeTo(2.3), amount: expect.closeTo(23), assumed: true, list: 'new' }),
+    ]))
   })
 
   it('uses the same cost comparison in diff and compare', async () => {

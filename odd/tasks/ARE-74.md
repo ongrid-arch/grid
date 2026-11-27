@@ -8,7 +8,8 @@ An agent can see how each bill quantity changes from the earlier plan to the lat
 
 - Compare two first estimates in the quantities layer by line key and unit. Show both quantities, their signed difference, the measurement rules and assumptions, and any quantities each estimate had to leave out.
 - Price both versions from the same rate card using the estimate's existing rate matching, unit conversion and waste calculations. Keep the whole-building rate as an alternative. A line present on only one bill has zero measured quantity on the other.
-- Let take-off compare the current plan against a saved version or project file, or compare two project files in earlier-to-later order. Keep the existing single-plan phased take-off. Provide the same cost comparison in compare and diff when a rates file is requested.
+- Let the estimate compare the current plan against a saved version or project file. Provide the same cost comparison in compare and diff when a rates file is requested.
+- Let the change take-off take two files in earlier-to-later order. Combine them in memory with the same id pairing as the phase tool, then use the existing demolition, making good and new work rules.
 - Support text, structured data and CSV in take-off. Resolve all paths through the project reader.
 
 ## Done

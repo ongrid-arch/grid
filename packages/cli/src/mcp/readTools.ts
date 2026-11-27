@@ -932,9 +932,9 @@ function finishLines(totals: readonly { readonly surface: FinishSurface; readonl
   ]
 }
 
-function takeoffBaseline(project: ReturnType<typeof projectOf>, file: string, since: string, savedVersion: boolean): LoadedPlan {
+function takeoffBaseline(project: ReturnType<typeof projectOf>, file: string, since: string): LoadedPlan {
   try {
-    if (savedVersion && MARKER_NAME.test(since)) {
+    if (MARKER_NAME.test(since)) {
       try {
         return loadPlanText(project, file, namedVersion(project, file, since).text, file)
       } catch (error) {
@@ -1037,22 +1037,32 @@ const takeoffTool: GridTool = {
       const change = args['for'] === 'change'
       if (args['rooms'] !== undefined) throw new ToolRefusal(`for=${change ? 'change' : 'estimate'} takes no rooms: its walls, outside face, slab and roof belong to no one room. Pass floor for one floor.`)
       const { project, file, loaded } = readPlan(context, plans?.[1] ?? args['plan'])
+      const rates = ratesForTool(project, file, args['rates'])
+      const units = displayFor(args['units'], args['decimal'], loaded.plan, toolLanguage(context, loaded.plan))
+      const asCsv = args['format'] === 'csv'
+      const answer = (estimate: Estimate): Answer => estimateAnswer(estimate, rates === null ? null : priceEstimate(estimate, rates), units, asCsv, change)
+      if (change) {
+        return import('../quantities/change').then(({ planChange, planForChange }) => {
+          let work = loaded.plan
+          if (plans !== undefined) {
+            try {
+              work = planForChange(loadPlan(project, plans[0]).plan, work)
+            } catch (error) {
+              if (error instanceof EditRefused) throw new ToolRefusal(error.message)
+              throw asRefusal(error)
+            }
+          }
+          const floor = floorArg(work, args['floor'])
+          return answer(planChange(work, floor === undefined ? {} : { floors: [floor] }))
+        })
+      }
       const survey = surveyPlan(loaded.plan)
       const floor = floorArg(loaded.plan, args['floor'])
-      const rates = ratesForTool(project, file, args['rates'])
-      const floors = floor === undefined ? {} : { floors: [floor] }
-      // MSG-34: the call's language, else the plan's, gives the decimal mark of every figure and sum.
-      const units = displayFor(args['units'], args['decimal'], loaded.plan, toolLanguage(context, loaded.plan))
-      if (since !== undefined || plans !== undefined) {
-        const baseline = (since ?? plans?.[0])!
-        const before = takeoffBaseline(project, file, baseline, plans === undefined)
-        return estimateChangeAnswer(surveyPlan(before.plan), survey, baseline, file, rates, units, floor, args['format'] === 'csv')
+      if (since !== undefined) {
+        const before = takeoffBaseline(project, file, since)
+        return estimateChangeAnswer(surveyPlan(before.plan), survey, since, file, rates, units, floor, asCsv)
       }
-      const answer = (estimate: Estimate): Answer => estimateAnswer(estimate, rates === null ? null : priceEstimate(estimate, rates), units, args['format'] === 'csv', change)
-      // CNT-10: the work of a plan with phases, as three lists, on the same rates. Read only when
-      // asked for, so the command's file stays small.
-      if (change) return import('../quantities/change').then(({ planChange }) => answer(planChange(loaded.plan, floors)))
-      return answer(planEstimate(survey, floors))
+      return answer(planEstimate(survey, floor === undefined ? {} : { floors: [floor] }))
     }
     if (args['rates'] !== undefined) throw new ToolRefusal('rates goes with for=estimate or for=change: the take-off by room holds no cost.')
     const { survey, floor } = load(context, args['plan'], args['floor'])

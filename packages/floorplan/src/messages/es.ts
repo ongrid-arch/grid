@@ -4334,9 +4334,10 @@ export const es: Messages = {
   'tool.estimateChange.compareTool': 'Indique rates para valorar el cambio de la estimación del primer plano a cada plano posterior.',
   'tool.estimateChange.diffTool': 'Indique rates para valorar el cambio de la estimación entre las dos versiones.',
   'tool.estimateChange.ratesArg': 'Un archivo de precios dentro de la carpeta del proyecto. Indíquelo para valorar el cambio con los mismos precios en los dos planos.',
-  'tool.estimateChange.takeoffTool': 'Con for=estimate y since, compare el plano actual con una versión guardada o un archivo de plano. Con for=change y plans, compare dos archivos de plano en orden. Ambas llamadas devuelven cantidades e importes anteriores, posteriores y su diferencia con signo para cada clave.',
+  'tool.estimateChange.takeoffTool': 'Con for=estimate y since, compare el plano actual con una versión guardada o un archivo de plano. La comparación devuelve cantidades e importes anteriores, posteriores y su diferencia con signo para cada clave. Con for=change y plans, valore la demolición, las reparaciones y la obra nueva entre dos archivos de plano en orden.',
   'tool.estimateChange.sinceArg': 'Con for=estimate, la versión anterior: el nombre de una marca guardada o un archivo de plano dentro del proyecto. Una marca tiene prioridad sobre un archivo del mismo nombre.',
-  'tool.estimateChange.plansArg': 'Con for=change, compare dos archivos de plano dentro del proyecto, con el anterior primero.',
+  'tool.estimateChange.plansArg': 'Con for=change, valore la obra entre dos archivos de plano sin fases dentro del proyecto, con el anterior primero.',
+  'tool.estimateChange.cannotPhase': 'Grid no pudo combinar los dos planos en fases para medir la obra.',
   'tool.estimateChange.needsMode': 'Use since con for=estimate o plans con for=change.',
   'tool.estimateChange.needsPairOnly': 'Indique dos planos o un solo plano.',
 }

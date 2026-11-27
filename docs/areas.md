@@ -496,9 +496,10 @@ values, not formulas.
 - Pass `for=estimate` and `since=start` to compare a saved marker with the current plan.
   Pass a project file such as `since=options/earlier.json` to use that file as the baseline.
   When a marker and file share a name, the marker is used.
-- Pass `for=change` and `plans: ["earlier.json", "later.json"]` to compare two plan files in
-  that order. A call with one plan and `for=change` still gives the phased work as
-  demolition, making good and new work.
+- Pass `for=change` and `plans: ["earlier.json", "later.json"]` to price demolition,
+  making good and new work between two unphased plans of the same building. Grid
+  matches parts by id, as `grid_phase_from` does. The two files stay as they are.
+  A single plan can give the same work lists from its own phases.
 - Pass `rates` to `grid_diff` for the estimate change between the versions it compares, or
   to `grid_compare` to price each option against the first. Each pair's data includes
   `estimateChange`.

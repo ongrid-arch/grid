@@ -6,7 +6,8 @@
 
 ## For agents
 
-- `grid_takeoff` accepts `for=estimate` with `since`, or `for=change` with two ordered `plans`.
-  It returns before, after and signed changes by estimate key, with amounts when priced,
-  in text, structured data or CSV. With `rates`, `grid_compare` and `grid_diff` include
-  the same `estimateChange` data. No new code in the record.
+- `grid_takeoff` with `for=estimate` and `since` returns before, after and signed changes
+  by estimate key, in text, structured data or CSV. With `rates`, `grid_compare` and
+  `grid_diff` include the same `estimateChange` data. With `for=change` and two ordered
+  `plans`, the take-off prices demolition, making good and new work between the drawings.
+  No new code in the record.
