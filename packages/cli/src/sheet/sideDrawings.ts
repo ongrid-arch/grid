@@ -25,6 +25,9 @@ import { facadeFraming, facadePicture } from '@ongrid/viewer/src/picture/facade'
 import { sectionFraming, sectionPicture } from '@ongrid/viewer/src/picture/section'
 import { fullHeight, type Picture } from '@ongrid/viewer/src/picture/planSvg'
 import { COMMON_SCALES } from './drawingPapers'
+import { KEPT_DRAWN, keptIn } from '@ongrid/floorplan/geometry/kept'
+import type { FacadePictureOptions } from '@ongrid/viewer/src/picture/facade'
+import type { SectionPictureOptions } from '@ongrid/viewer/src/picture/section'
 
 /** The drawing box of an elevations or sections page, in PDF points: the page's width inside its margins. */
 export const DRAWINGS_BOX = { width: 1095, height: 524 } as const
@@ -45,6 +48,22 @@ const NUDGE = 0.3
 const NUDGES = 6
 /** A wall within this much of parallel to a line, as a share of its length, runs along it. */
 const PARALLEL = 0.02
+
+/** The options of a picture as one key: its fields in order, so the same options give the same key. */
+const keyOf = (options: object): string => JSON.stringify(Object.entries(options).sort(([a], [b]) => (a < b ? -1 : 1)))
+
+/**
+ * SHT-25: an elevation's picture, kept with a frozen plan: the sheet draws it here to size it on
+ * its page and again in the PDF, from the same options.
+ */
+export function keptFacadePicture(plan: FloorPlan, options: FacadePictureOptions): ReturnType<typeof facadePicture> {
+  return keptIn(KEPT_DRAWN, plan, `facadePicture\u0000${keyOf(options)}`, () => facadePicture(plan, options))
+}
+
+/** SHT-25: a section's picture, kept with a frozen plan as an elevation's is. */
+export function keptSectionPicture(plan: FloorPlan, line: SectionLine, options: SectionPictureOptions): ReturnType<typeof sectionPicture> {
+  return keptIn(KEPT_DRAWN, plan, `sectionPicture\u0000${keyOf(line)}\u0000${keyOf(line.from)}\u0000${keyOf(line.to)}\u0000${keyOf(options)}`, () => sectionPicture(plan, line, options))
+}
 
 /** Points in a metre of the building at 1:N. */
 export const pointsPerMetre = (scale: number): number => ((1000 / scale) * 72) / 25.4
@@ -188,13 +207,13 @@ export function sideDrawings(plan: FloorPlan, options: { readonly language?: Lan
     const elevations = laidOut(facades.map(({ side, facade }) => ({
       of: 'facade' as const,
       side,
-      ...sizeOf(facadeFraming(facade), 1 + 2 * FRAME_MARGIN, scale, null, (width, height) => facadePicture(plan, { side, width, height, look: options.look, paperScale: scale, ...language })),
+      ...sizeOf(facadeFraming(facade), 1 + 2 * FRAME_MARGIN, scale, null, (width, height) => keptFacadePicture(plan, { side, width, height, look: options.look, paperScale: scale, ...language })),
     })), true)
     if (elevations === null) continue
     const cutsLaid = laidOut(sections.map(({ cut, section }) => ({
       of: 'section' as const,
       cut,
-      ...sizeOf(sectionFraming(plan, section, metresPerPixel, language), 1, scale, SECTION_NAME_PT, (width, height) => sectionPicture(plan, cut.line, { width, height, look: options.look, paperScale: scale, label: cut.label, ...language })),
+      ...sizeOf(sectionFraming(plan, section, metresPerPixel, language), 1, scale, SECTION_NAME_PT, (width, height) => keptSectionPicture(plan, cut.line, { width, height, look: options.look, paperScale: scale, label: cut.label, ...language })),
     })), false)
     if (cutsLaid === null) continue
     return { scale, elevations, sections: cutsLaid, cuts: sections.map(({ cut }) => cut), taken: takenOnce(sections) }
