@@ -177,6 +177,10 @@ is not asked whether it was typed in feet.
 | `storeyLowest` | limit | 2 m | Grid's own size, not a code figure: a floor stating a lower height is questioned, and one under another floor stating none whose tallest wall is lower; a floor under a roof of its own only below `wallLowest` (LVL-18); a lower wall is no storey high, and its own height is not set against its floor's (LVL-24) |
 | `stairDoorLowest` | limit | 1.8 m | Grid's own size, not a code figure: a lower door or doorless opening onto a room used as a stair or a lift is questioned (LVL-18) |
 | `roomLargest` | limit | 50000 m² (1000 in a home, 500000 in a hall) | A larger room is questioned |
+| `homeRoomSmallest` | limit | 4 m² | Grid's own size, not a code figure: a bedroom, living room or dining room of a home with less net floor is asked about after the check, with no place needed (ARE-72) |
+| `homeRoomNarrowest` | limit | 1.8 m | Grid's own size, not a code figure: a bedroom, living room or dining room of a home whose widest circle is narrower is asked about (ARE-72) |
+| `homeWetRoomSmallest` | limit | 0.8 m² | Grid's own size, not a code figure: a kitchen, bathroom or toilet of a home with less net floor is asked about (ARE-72) |
+| `homeWetRoomNarrowest` | limit | 0.6 m | Grid's own size, not a code figure: a kitchen, bathroom or toilet of a home whose widest circle is narrower is asked about (ARE-72) |
 | `typicalHeightLowest` | limit | 1.8 m | The units question: the typical wall height of a building, from this… |
 | `typicalHeightHighest` | limit | 6 m (30 in a hall) | …to this |
 | `typicalThicknessLowest` | limit | 0.08 m | The typical wall thickness that agrees with a unit, from this… |
