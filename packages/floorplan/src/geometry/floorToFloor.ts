@@ -171,7 +171,7 @@ export function levelsSetTo(plan: FloorPlan, request: FloorToFloorRequest): { re
       if (!hit[i]) continue
       const first = read.get(levels[i]![0]!.id)!
       if (ftf[i]! <= first.slabOver) problems.push({ kind: 'no-room', floor: first.floor, slab: first.slabOver })
-      else if (request.ceiling !== undefined && request.ceiling + first.slabOver > ftf[i]! + 1e-9) problems.push({ kind: 'ceiling-too-tall', floor: first.floor, fits: mm(ftf[i]! - first.slabOver) })
+      else if (request.ceiling !== undefined && mm(request.ceiling + first.slabOver) > mm(ftf[i]!)) problems.push({ kind: 'ceiling-too-tall', floor: first.floor, fits: mm(ftf[i]! - first.slabOver) })
     }
     const baseAt = levels.findIndex((fs) => levelOf(fs[0]!) >= 0)
     const base = baseAt < 0 ? levels.length - 1 : baseAt
@@ -182,7 +182,7 @@ export function levelsSetTo(plan: FloorPlan, request: FloorToFloorRequest): { re
       for (const floor of fs) {
         const now = read.get(floor.id)
         if (now === undefined) continue
-        const moves = Math.abs(now.floorLevel - at[i]!) > 1e-9
+        const moves = mm(now.floorLevel) !== mm(at[i]!)
         const elevation = moves || (hit[i] && i !== base) ? at[i]! : undefined
         if (!hit[i]) {
           if (elevation !== undefined) set.push({ floor: floor.id, elevation, set: false })

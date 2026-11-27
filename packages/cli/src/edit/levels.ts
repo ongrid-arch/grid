@@ -83,7 +83,7 @@ export function setLevels(survey: Survey, request: FloorToFloorRequest): Patch {
     english(said('edit.levels.walls', { floors: names(hit.map((s) => s.floor)), heights: figures(hit.map((s) => s.height!)) })),
   ]
   // The floor-to-floor wins over a height a floor stated, which its walls took as their storey's.
-  const replaced = hit.filter((s) => s.was !== null && s.was !== undefined && Math.abs(s.was - s.height!) > 1e-9)
+  const replaced = hit.filter((s) => s.was !== null && s.was !== undefined && metresText(s.was, 3) !== metresText(s.height!, 3))
   if (replaced.length > 0) lines.push(english(said('edit.levels.replaced', { floors: names(replaced.map((s) => s.floor)), heights: figures(replaced.map((s) => s.was!)) })))
   if (request.ceiling !== undefined) lines.push(english(said('edit.levels.ceiling', { height: m(request.ceiling), count: plan.rooms.filter((r) => onHit.has(floorOf(r))).length, floors: names(hit.map((s) => s.floor)) })))
   if (moved.length > 0) lines.push(english(said('edit.levels.moved', { floors: names(moved) })))
