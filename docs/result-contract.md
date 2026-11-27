@@ -60,7 +60,7 @@ default, and the whole one on request (MSG-10, see "The short report, and seen n
 | `place` | The place the figure checks were for (COD-3): `country`, its two-letter code; `name`, Grid's name for it; `from`, `request` (the caller's `country`), `plan` (`site.country`) or `assumed` (`withoutPlace: "us-figures"`). `null` when no place is stated, and then no figure was applied; `null` too when the plan was refused. |
 | `withoutPlace` | Only on a plan that was read and states no place: `{ usLines }`, how many lines the figure checks would have given with the US figures. |
 | `taped` | Only on a plan that keeps taped lengths (HND-11): each one, in the plan's order, taped against drawn. See "Taped against drawn". |
-| `firm` | Only when the plan has a firm's standards file beside it (COD-8): `{ heading, file, read, standards }`, each standard with its `measure`, `value`, `unit`, `name`, `note`, `uses`, `kinds`, `lookedAt` (the parts it was set against) and `notes` (those short of it). See "The firm's own standards". |
+| `firm` | Only when the plan has a firm's standards file beside it (COD-8): `{ heading, file, read, standards }`, each standard with its `measure`, `value`, `unit`, `name`, `note`, `uses`, `kinds`, `width` (only for a fixture clearance that states one, ARE-73), `lookedAt` (the parts it was set against) and `notes` (those short of it). See "The firm's own standards". |
 
 ### A line
 

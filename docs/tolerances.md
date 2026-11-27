@@ -51,7 +51,7 @@ is not asked whether it was typed in feet.
 | `flushFaces` | tolerance | 0.0002 m | Two walls in a row along a side of a room whose inner faces are this close show the room one face, since a file holds centre lines to a tenth of a millimetre; further apart they are joined by a step |
 | `writtenParallel` | tolerance | 0.001 sine | Two walls in a row along a side of a room whose directions differ by less than this are parallel when its outline is traced, since a file holds an angled side's ends to a tenth of a millimetre |
 | `mitreReach` | tolerance | 4 ratio | How far a joined corner may reach along a wall, in half thicknesses of the thicker wall; sharper corners are left cut square, and are not tested against openings |
-| `swingContact` | tolerance | 0.01 m | How far a wall must reach into a door's swing, or two swings overlap, to be in the way |
+| `swingContact` | tolerance | 0.01 m | How far a wall must reach into a door's swing, or two swings overlap, to be in the way; how far a swing must reach into an activity zone to be named (ARE-73) |
 | `stepPastFace` | tolerance | 0.05 m | How far past a wall's face the route check steps through a door |
 | `areaReported` | tolerance | 0.01 m² | The smallest area a message names; a room "wholly inside" another may have this much outside it |
 | `areaEqual` | tolerance | 0.000001 m² | Two areas closer than this are the same, so an area at a figure a check applies is that figure (ARE-7); a room with less has no floor |
@@ -112,7 +112,7 @@ is not asked whether it was typed in feet.
 | `passableSill` | limit | 0.3 m | Grid's own size, not a code figure: one whose sill stands higher than this above its floor is named and is not a way through |
 | `passableRise` | limit | 0.3 m | Grid's own size, not a code figure: one between two rooms whose floors stand further apart than this is named with both levels (`opening/between-levels`) and is not a way through without a stair (LVL-17) |
 | `itemIntoWall` | tolerance | 0.005 m | How far a fixture may reach into a solid wall's body and still stand against its face; past it, `item/into-wall` names the wall |
-| `itemOverlap` | tolerance | 0.005 m | How far one item may reach into another, or into the clear floor another keeps in front of it; past it, `item/overlap` or `item/clearance-blocked` names both |
+| `itemOverlap` | tolerance | 0.005 m | How far one item may reach into another, or into the clear floor another keeps in front of it; past it, `item/overlap` or `item/clearance-blocked` names both. The same for a fixture in an activity zone and two zones that overlap (`grid_measure what=activity`, ARE-73) |
 | `itemLeavesRoom` | tolerance | 0.005 m² | How much of an item's floor may lie outside its room, where no wall stands; past it, `item/leaves-room` names the room and the floor outside |
 | `itemRaised` | tolerance | 1 m | How high an item's underside may be above the floor and still stand on it; from it up, the item hangs above the plan's cut, is drawn dashed, takes no floor and stands in no clear floor another keeps |
 | `itemAboveRoom` | tolerance | 0.001 m | How far a fixture may rise past the height of its room; past it, `item/too-tall` names both heights |
