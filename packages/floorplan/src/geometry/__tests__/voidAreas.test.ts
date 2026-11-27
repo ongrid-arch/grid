@@ -35,6 +35,18 @@ describe('ARE-16 a void adds no floor area', () => {
     expect(b.grossExternal!).toBeCloseTo(a.grossExternal! - landing, 6)
   })
 
+  it('deducts the full opening from the upper gross areas when a column goes through it', () => {
+    const open = withVoid()
+    const column = { id: 'post', shape: 'square', width: 0.4, at: [2, 4], floor: 'ground', through: 'first' }
+    const clear = first(open)
+    const through = first(parseFloorPlan({ ...open, columns: [column] }))
+    const landing = through.rooms.find((room) => room.id === 'landing')!
+    expect(landing.columns?.area).toBeCloseTo(0.16, 6)
+    expect(through.net).toBeCloseTo(clear.net, 6)
+    expect(through.grossInternal).toBeCloseTo(clear.grossInternal!, 6)
+    expect(through.grossExternal).toBeCloseTo(clear.grossExternal!, 6)
+  })
+
   it('keeps net plus walls plus unclaimed floor equal to gross external', () => {
     expect(b.grossExternal!).toBeCloseTo(b.net + b.overStairs + b.outsideRooms + b.walls! + b.unclaimed! - b.offSpace!, 6)
   })
