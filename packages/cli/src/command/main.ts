@@ -39,6 +39,8 @@ import { firmForCheck } from '../firm/measure'
 import { briefMissedText } from '../brief/answer'
 import { EDIT_SUMMARY, EDIT_USAGE, EditCommandRefused, runEdit } from './edit'
 import { isReadCommand, READ_COMMANDS, ReadCommandRefused, runRead } from './read'
+import { isTableFormat, isTableWhat, TABLE_WHATS, writeTable, type TableFormat, type TableWhat } from '../mcp/tableExport'
+import { ToolRefusal } from '../mcp/toolkit'
 import { checkDescribeRequest, DESCRIBE_OPTIONS, describePlan, describeRooms, describeWalk, walkOf } from './describe'
 import { walkPictures } from '../describe/walkPictures'
 import type { WalkStop } from '../describe/walk'
@@ -152,8 +154,8 @@ const COMMANDS = {
     options: DRAW_OPTIONS,
   },
   export: {
-    usage: 'grid export [<plan.json>] --format dxf|ifc|glb|obj [--floor <id>] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed|open|gaps|markers] [--walls whole|rooms] [--out <file>] [--project <folder>]',
-    summary: 'Writes the plan as a file for another program, into exports/ beside the plan unless --out names one.',
+    usage: 'grid export [<plan.json>] --format dxf|ifc|glb|obj|geojson|json|csv|xlsx [--what <table>] [--csv <table>] [--units <unit>] [--decimal point|comma] [--floor <id>] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed|open|gaps|markers] [--walls whole|rooms] [--out <file>] [--project <folder>]',
+    summary: 'Writes the plan as a file for another program, or one of its tables as CSV or XLSX for a spreadsheet, into exports/ beside the plan unless --out names one.',
     options: EXPORT_OPTIONS,
   },
   sheet: {
@@ -652,6 +654,9 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     return EXIT_OK
   }
 
+  // VEW-83: a table as a CSV or XLSX file, written by grid_export's own code.
+  const tableAsked = tableRequestOf(parsed)
+  if (tableAsked !== null) return tableCommand(io, projectOption, planFile, tableAsked)
   const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date'), scale: textOf(parsed, '--scale'), arcSegments: textOf(parsed, '--arc-segments'), doors: textOf(parsed, '--doors'), walls: textOf(parsed, '--walls'), ...(parsed.values.has('--no-roofs') ? { roofs: false } : {}) }
   const format = checkExportRequest(request)
   const project = openProject(projectOption, io.cwd)
@@ -693,6 +698,46 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   const materials = writeMaterialsBeside(project, written, made)
   if (materials !== null) io.stdout(`Wrote ${project.shown(materials)}\n`)
   return EXIT_OK
+}
+
+/**
+ * VEW-83: `grid export --format csv|xlsx --what <table>` (or `--csv <table>`): the table asked for,
+ * or null for a drawing or a model. The options of the other's kind are refused by name.
+ */
+function tableRequestOf(parsed: ReturnType<typeof parseOptions>): { format: TableFormat; what: string; floor?: string; units?: string; decimal?: string; out?: string } | null {
+  const format = textOf(parsed, '--format')
+  const csvWhat = textOf(parsed, '--csv')
+  const tableOnly = ['--what', '--csv', '--units', '--decimal'].filter((option) => parsed.values.has(option))
+  if (csvWhat === undefined && !isTableFormat(format)) {
+    if (tableOnly.length > 0) throw new UsageError(`${tableOnly.join(' and ')} ${tableOnly.length === 1 ? 'is' : 'are'} for CSV and XLSX only: leave ${tableOnly.length === 1 ? 'it' : 'them'} out.`)
+    return null
+  }
+  if (csvWhat !== undefined && format !== undefined && format !== 'csv') throw new UsageError(`--csv writes CSV, not ${format}: leave --format out, or use --format ${format} --what ${csvWhat}.`)
+  if (csvWhat !== undefined && parsed.values.has('--what')) throw new UsageError('--csv names the table already: leave --what out.')
+  const drawingOnly = ['--scale', '--no-roofs', '--arc-segments', '--doors', '--walls', '--date'].filter((option) => parsed.values.has(option))
+  if (drawingOnly.length > 0) throw new UsageError(`${drawingOnly.join(' and ')} ${drawingOnly.length === 1 ? 'is' : 'are'} for drawings and models, not a table: leave ${drawingOnly.length === 1 ? 'it' : 'them'} out.`)
+  const what = csvWhat ?? textOf(parsed, '--what')
+  if (what === undefined) throw new UsageError(`--format ${format} needs --what: the table, one of ${TABLE_WHATS.join(', ')}.`)
+  if (!isTableWhat(what)) throw new UsageError(`--what ${JSON.stringify(what)} is not a table Grid writes: use one of ${TABLE_WHATS.join(', ')}.`)
+  const optional = (option: string, key: string): Record<string, string> => {
+    const value = textOf(parsed, option)
+    return value === undefined ? {} : { [key]: value }
+  }
+  return { format: csvWhat !== undefined ? 'csv' : (format as TableFormat), what, ...optional('--floor', 'floor'), ...optional('--units', 'units'), ...optional('--decimal', 'decimal'), ...optional('--out', 'out') }
+}
+
+/** VEW-83: writes the table and says where; a refusal names the options as the command takes them. */
+async function tableCommand(io: CommandIo, projectOption: string | undefined, planFile: string, asked: NonNullable<ReturnType<typeof tableRequestOf>>): Promise<number> {
+  const project = openProject(projectOption, io.cwd)
+  try {
+    const done = await writeTable({ project }, { plan: planFile, ...asked, what: asked.what as TableWhat })
+    if (done.note) io.stderr(`${done.note}\n`)
+    io.stdout(`Wrote ${project.shown(done.written)}\n`)
+    return EXIT_OK
+  } catch (error) {
+    if (error instanceof ToolRefusal) throw new ReadCommandRefused(error.message.replace(/(^|Pass |\. )(floor|units|decimal|out|what|state)\b/g, '$1--$2').replace(/\s+/g, ' ').trim())
+    throw error
+  }
 }
 
 /** Runs one command line, without `node` and the script. Resolves to the exit code. */

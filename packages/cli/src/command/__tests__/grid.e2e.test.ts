@@ -657,6 +657,9 @@ describe('the built file', () => {
     // no new dependency.
     // 1,050 kB since CNT-60: party walls, neighbours and the site in 3D and the GLB, with main's
     // game-ready GLB (VEW-82) at its merge, take it to 1,011,973 bytes, again with no new dependency.
+    // 1,050 kB still with VEW-83: the tables as CSV and XLSX files (a workbook written by hand into the
+    // zip writer the bundle has), on its own took it to 1,013,959
+    // bytes, again with no new dependency.
     expect(statSync(bundle).size).toBeLessThan(1_050_000)
   })
 })

@@ -272,9 +272,9 @@ const TURNS: Turn[] = [
   {
     who: 'builder', n: 8, asked: 'As a spreadsheet.', mark: 'F', why: 'grid_takeoff and grid_schedule as CSV',
     run: async (b) => {
-      // MSG-3: the label is the first row, in one cell; the table's header follows.
-      expect((await ok(b, 'grid_takeoff', { plan: 'existing.json', format: 'csv' })).text).toMatch(/^"General guidance, not your local rules"\nrow,what,floor m2/)
-      expect((await ok(b, 'grid_schedule', { plan: 'existing.json', format: 'csv' })).text).toMatch(/^"General guidance, not your local rules"\ntype,id,width m/)
+      // MSG-3, VEW-83: the table's header is the first row; the label is the last, in one cell.
+      expect((await ok(b, 'grid_takeoff', { plan: 'existing.json', format: 'csv' })).text).toMatch(/^row,what,floor m2[^]*\n"General guidance, not your local rules"\n$/)
+      expect((await ok(b, 'grid_schedule', { plan: 'existing.json', format: 'csv' })).text).toMatch(/^type,id,width m[^]*\n"General guidance, not your local rules"\n$/)
     },
   },
   {

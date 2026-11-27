@@ -36,7 +36,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid check [<plan>] [--floor <id>] [--country <place>] [--full] [--json] [--seen <n> --reason <text> --by <name> \| --unseen <n>]` | Prints the report, short and about this plan unless `--full`. Every report is labelled "General guidance, not your local rules". `--country` names the place for this check, in place of the plan's `site.country`. `--seen` sets a note aside as seen (see below). With `firm-standards.json` beside the plan, the firm's own standards are set against it too, under their own heading ([a firm's own standards](firm-standards.md)) |
 | `grid describe [<plan>] [--length line\|rooms\|walls\|walk] [--for person\|agent] [--as rooms] [--floor <id>] [--pictures <folder>]` | Describes the plan in a few lines: its rooms, which rooms each opening joins, with `--length walls` its walls, and with `--length walk` the plan walked room by room, with `--pictures` a picture from each doorway (see below). `--as rooms` reads it back as rooms text, each room's number and facts on its line (WRT-74) |
 | `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor; to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section and schedule marks to a plan (see below) |
-| `grid export [<plan>] --format dxf\|ifc\|glb\|obj\|geojson\|json [--floor <id>\|<name>\|all] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed\|open\|gaps\|markers] [--walls whole\|rooms] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. `--floor all` writes one file per floor; `--scale` (DXF) sets its sheets' scale ([every floor in one DXF](#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A GLB or OBJ leaves its roofs out with `--no-roofs` and writes a whole circle of curved wall with `--arc-segments` pieces; an OBJ comes with `grid.mtl` beside it ([3D files](3d-files.md)). A GLB writes its doors shut on their hinges, open, as gaps or as markers with `--doors`, and its straight walls in a piece per room with `--walls rooms` ([for a game engine or a renderer](3d-files.md#for-a-game-engine-or-a-renderer)). A GeoJSON or JSON holds the plan's geometry as data, every floor in one frame ([the plan as data](plan-data.md)). An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
+| `grid export [<plan>] --format dxf\|ifc\|glb\|obj\|geojson\|json\|csv\|xlsx [--what <table>] [--csv <table>] [--units <unit>] [--decimal point\|comma] [--floor <id>\|<name>\|all] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed\|open\|gaps\|markers] [--walls whole\|rooms] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. `--floor all` writes one file per floor; `--scale` (DXF) sets its sheets' scale ([every floor in one DXF](#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A GLB or OBJ leaves its roofs out with `--no-roofs` and writes a whole circle of curved wall with `--arc-segments` pieces; an OBJ comes with `grid.mtl` beside it ([3D files](3d-files.md)). A GLB writes its doors shut on their hinges, open, as gaps or as markers with `--doors`, and its straight walls in a piece per room with `--walls rooms` ([for a game engine or a renderer](3d-files.md#for-a-game-engine-or-a-renderer)). A GeoJSON or JSON holds the plan's geometry as data, every floor in one frame ([the plan as data](plan-data.md)). A CSV or XLSX holds one of the plan's tables, `--what` (or `--csv <table>`), for a spreadsheet ([a table for a spreadsheet](#a-table-for-a-spreadsheet-csv-and-xlsx-vew-83)). An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
 | `grid sheet [<plan>] [--layout client\|check] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
 | `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--split] [--room-sizes on\|off] [--out <file.pdf>]` | Writes every floor (or one) at one true scale as a vector PDF of a page each, and an SVG and a PNG of each page, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
 | `grid areas`, `grid schedule`, `grid takeoff`, `grid measure <what>`, `grid count`, `grid find`, `grid fields`, `grid compare <plan> <plan>...`, `grid brief` | Each runs the reading tool of that name (`grid brief` is `grid_write_brief` reading the brief, never writing it) with the tool's own arguments as options, and prints its text; `--json` prints exactly its structured answer, `--csv` a table where there is one, and `--fail-on` exits 3 when the answer holds a condition, for CI (see [below](#the-reading-tools-as-commands-grid-areas-grid-find-and-the-others)) |
@@ -93,7 +93,8 @@ server runs it, so a shell, a script or CI gets the answer an agent gets:
 - Without options of its own a command prints the tool's text. `--json` prints exactly the
   tool's structured answer, the record the server sends as `structuredContent`, with the label
   and the plan's revision, and never shortened. `--csv` is the same as `--format csv` where the
-  tool writes CSV; for `find` and `count` it writes the rows or the groups, the label first.
+  tool writes CSV; for `find` and `count` it writes the rows or the groups. Every CSV has its
+  header on line 1 and the label in its last row (VEW-83).
 - `--fail-on` prints the answer and then exits 3 when it holds, so a build can stop on it:
   `grid find --kind door --where "width < 0.8" --fail-on found`. A condition the command does not
   take, or one that means nothing for the call, is refused before anything runs.
@@ -220,6 +221,42 @@ set `Grid_Approximated` in an IFC, the `GRID-LEFT-OUT` layer in a DXF, comment l
 A DXF, an OBJ and a GLB of one floor (`--floor` names one) name what is left out of that floor, every opening no floor holds, and every part the reader left out, which Grid
 cannot place on a floor. The IFC, and a DXF, OBJ or GLB of the whole building, name what is left
 out of every floor; a DXF of every floor names each floor's under that floor.
+
+### A table for a spreadsheet: CSV and XLSX (VEW-83)
+
+`grid export --format csv --what <table>` (or `grid export --csv <table>`) and `--format xlsx
+--what <table>` write one of the plan's tables as a file a spreadsheet, a script or a supplier
+opens as it is. `grid_export` takes the same as `format`, `what`, `units` and `decimal`.
+
+| `what` | The table, as the reading tool gives it with `format=csv` |
+| --- | --- |
+| `estimate` | The bill of quantities, `grid_takeoff for=estimate`, priced from `rates.json` beside the plan when there is one |
+| `takeoff` | The take-off by room, `grid_takeoff` |
+| `areas` | The area table, `grid_areas` |
+| `doors`, `windows` | The door or window schedule by type, `grid_schedule of=doors` or `of=windows` |
+| `rooms` | The room schedule, `grid_schedule of=rooms` |
+| `finishes` | The finishes plan, `grid_schedule of=finishes` |
+
+- The file is the reading tool's own table, so it never differs from it; nothing is measured
+  again. Its name is `<plan>-<what>.csv` (`house-areas.csv`, `house-first-floor-rooms.xlsx` for
+  one floor) in `exports/`, replacing an earlier copy: name another file with `--out`
+  (`exports/areas-rev-b.csv`) to keep a revision. `--floor` takes one floor; `all` is refused.
+- The header is line 1 and the label, "General guidance, not your local rules", the last row,
+  so a spreadsheet and `pandas.read_csv` take the header as the header.
+- A decimal comma (`--decimal comma`, else the plan's display, else its language's) splits the
+  fields with semicolons and writes numbers with a comma, as a spreadsheet set to a decimal comma
+  opens them; a point splits with commas. Lengths are in `--units` (named in the column heads),
+  areas in square metres and square feet.
+- A CSV starts with a UTF-8 byte-order mark, so a spreadsheet reads accents and m² right; read it
+  in Python with `encoding="utf-8-sig"`, which pandas does by itself.
+- An XLSX is one sheet named after the table: the header bold and frozen, numbers as numbers, text
+  as text cells, which a spreadsheet never runs as a formula. A CSV keeps the quote mark in front
+  of a text that would read as one.
+- An estimate's amounts and its total are rounded to the currency's smallest unit (two decimals
+  for EUR, none for JPY, two for a code Grid does not know); a rate is as given.
+- `grid_export`'s answer holds the CSV text as `csv`, with `what`, `columns`, `rows` and
+  `separator`, so a host that shows the agent only the structured answer still hands it the
+  table. The reading tools' `format=csv` answers carry the same text as `csv` in their data.
 
 ### Every floor in one DXF, at a scale that fits (VEW-72)
 
