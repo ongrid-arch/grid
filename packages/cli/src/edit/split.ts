@@ -2,8 +2,9 @@
  * One room split in two by a new wall (WRT-3, lab WR-2): "bedroom 2 into a study and a second
  * bathroom". The new room takes the named side of the room, the size asked for measured inside
  * from that side's face; the room keeps its id and the rest. A door goes in the new wall unless
- * the call says none. The new room keeps the room's facts of the person's own (CNT-9); the room
- * keeps its stated number, and the new room has none. The new room has the use of the room it came
+ * the call says none. The new room keeps the room's facts of the person's own (CNT-9) that describe
+ * the place; the room keeps those that count something (WRT-84) and its stated number, and the new
+ * room has neither, so no figure is counted twice. The new room has the use of the room it came
  * from unless the call names another (WRT-49).
  *
  * The way of doing it comes from the lab's edit prototype (`split-room`): rectangles square to
@@ -13,8 +14,8 @@
  * Pure: a survey in, a patch out.
  */
 import { indexPlan, sub, tolerance, wallAxis, wallEndInOpening, withPatterns, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
-import { english, name as idName, said as sentence } from '@ongrid/floorplan/messages'
-import { heightStated } from '@ongrid/floorplan/types/floorplan'
+import { english, joined, name as idName, num, said as sentence } from '@ongrid/floorplan/messages'
+import { countedFacts, heightStated, placeFacts } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { refuseCurved, type Direction, type Patch, type RoomChange } from './edits'
@@ -160,6 +161,8 @@ export function splitRoom(survey: Survey, roomId: string, request: SplitRequest)
   // WRT-49: with no use named, the new room has the use the room had before the split.
   const newUse = request.newRoom.use ?? room.use
   if (request.newRoom.use === undefined && room.use !== undefined) guessed.push(`${quoted(request.newRoom.name)} takes the use of ${name} (${quoted(room.use)}): pass new_use to give it another.`)
+  const place = placeFacts(room.properties)
+  const counted = countedFacts(room.properties)
   const addRooms: Record<string, unknown>[] = [{
     id: request.newRoom.id,
     name: request.newRoom.name,
@@ -170,10 +173,15 @@ export function splitRoom(survey: Survey, roomId: string, request: SplitRequest)
     ...(room.outdoor !== undefined ? { outdoor: room.outdoor } : {}),
     ...(room.outdoor !== undefined && room.roofed !== undefined ? { roofed: room.roofed } : {}),
     // CNT-9: both parts keep the room's facts of the person's own; its number stays with the room.
-    ...(room.properties !== undefined && Object.keys(room.properties).length > 0 ? { properties: { ...room.properties } } : {}),
+    // WRT-84: only those that describe the place; a fact that counts something stays with the room.
+    ...(Object.keys(place).length > 0 ? { properties: place } : {}),
   }]
-  if (room.properties !== undefined && Object.keys(room.properties).length > 0) {
-    guessed.push(`${quoted(request.newRoom.name)} keeps the facts of ${name} (${Object.keys(room.properties).map(quoted).join(', ')}): change them in the plan file where they differ.`)
+  if (Object.keys(place).length > 0) {
+    guessed.push(`${quoted(request.newRoom.name)} keeps the facts of ${name} (${Object.keys(place).map(quoted).join(', ')}): change them in the plan file where they differ.`)
+  }
+  if (Object.keys(counted).length > 0) {
+    const figures = joined(Object.entries(counted).map(([fact, value]) => sentence('edit.counted.figure', { fact: idName(fact), value: num(String(value)) })), 'join.comma', 'join.and')
+    guessed.push(english(sentence('edit.counted.split', { new: idName(request.newRoom.name), room: idName(survey.byId.get(roomId)!.facts.name), facts: figures, roomId: idName(roomId), newId: idName(request.newRoom.id) })))
   }
   if (room.number !== undefined) guessed.push(`${name} keeps its room number ${quoted(room.number)}; ${quoted(request.newRoom.name)} has none.`)
   const length = Math.hypot(to.at[0] - from.at[0], to.at[1] - from.at[1])
