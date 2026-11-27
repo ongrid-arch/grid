@@ -52,7 +52,7 @@ describe('the plot (grid_measure what=site)', () => {
       '  Edge 2: 1.00 m from the east boundary; you asked for 3.00 m: 2.00 m short.',
       '  Edge 3: 10.00 m from the north boundary; you asked for 3.00 m.',
       '  Edge 4: 5.00 m from the west boundary; you asked for 3.00 m.',
-      'From each face of the building, square to it, to the edge of the boundary in front of it:',
+      'From each face of each building, square to it, to the edge of the boundary in front of it; the tape stops at the first other building on the way:',
     ])
     expect(lines.filter((l) => /^ {2}The \w+ face/.test(l)).sort()).toEqual([
       '  The east face, 10.00 m long: 1.00 m to the east boundary.',
