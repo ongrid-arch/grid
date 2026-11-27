@@ -426,10 +426,13 @@ export function asRefusal(error: unknown): unknown {
   return error
 }
 
-/** The floors of a plan, in level order, quoted, each with its own name (LVL-25), for a refusal: ids are text from the plan file. */
+/**
+ * The floors of a plan, in level order, quoted, for a refusal: ids are text from the plan file.
+ * Their names are left out: a refusal says no free text of the plan's back (MS-19).
+ */
 function floorList(plan: FloorPlan, only?: readonly string[]): string {
   const floors = planFloors(plan).filter((floor) => only === undefined || only.includes(floor.id))
-  const shown = floors.slice(0, 20).map((floor) => (floor.name === undefined || floor.name === floor.id ? quoted(floor.id) : `${quoted(floor.id)} (${quoted(floor.name)})`))
+  const shown = floors.slice(0, 20).map((floor) => quoted(floor.id))
   return `${listOf(shown)}${floors.length > 20 ? ` and ${floors.length - 20} more` : ''}`
 }
 

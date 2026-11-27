@@ -44,13 +44,13 @@ describe('floors by name or level, and rooms named with their floor (LVL-25)', (
     expect(third.isError, third.text).toBe(false)
   })
 
-  it('refuses a floor not there with the floors in level order, each with its name', async () => {
+  it('refuses a floor not there with the floors in level order, by id only', async () => {
     const reply = await b.call('grid_find', { plan: 'plan.json', floor: 'roof', where: ['kind = room'] })
     expect(reply.isError).toBe(true)
     const order = ['"g"', '"l2"', '"l3"', '"l10"'].map((id) => reply.text.indexOf(id))
     expect(order.every((at) => at >= 0)).toBe(true)
     expect([...order].sort((x, y) => x - y)).toEqual(order)
-    expect(reply.text).toContain('"l2" ("Second floor")')
+    expect(reply.text).not.toContain('Second floor')
     expect(reply.text).not.toContain('roof')
   })
 

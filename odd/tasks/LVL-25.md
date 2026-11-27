@@ -19,7 +19,7 @@ floor the way the person does, by its name or its level, wherever a tool takes a
 - Every tool that takes a floor (`floor`), and the command's `--floor`, takes the floor's id, its
   name in any case (`Second floor`), its level (`2`, `level 2`, `L2`) or a word of its name or an
   ordinal (`third`, `3rd`, `ground`). A word two floors answer to is refused with both. A floor
-  that is not there is refused with the plan's floors in level order, each with its name.
+  that is not there is refused with the ids of the plan's floors in level order.
 - An answer that names a room by its name says its floor beside it whenever another floor has a
   room of that name (`Room 101 (Second floor)`), and `grid_compare` sums the rooms of one name per
   floor, so seven floors of `Room 101` are seven rows, never one.
