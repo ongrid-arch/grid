@@ -11,8 +11,8 @@
  *   finds them: it faces the way of its outside face, turned by the plan's north, or by the top
  *   of the drawing when the plan states none (`facing.northStated` says which).
  * - A window's area is its hole in the wall, its width by its height, as the plan holds it, with
- *   no frame taken off. Doors and openings are not windows here, glazed or not: the plan does not
- *   say which are glazed.
+ *   no frame taken off. VEW-78: a door whose type is glazed (`openingGlazed`) counts with the
+ *   windows, marked `door`, and so does no other door; a doorless opening is not glazing.
  * - The floor area is the room's net area, as `roomFloorArea` gives it (ARE-6, ARE-5).
  * - The depth from a window wall is the distance, square to the wall, from its inside face to the
  *   farthest point of the room's floor. The farthest point of an outline from a line is one of
@@ -27,6 +27,7 @@ import { planFacing, type CompassPoint, type PlanFacing, type WallFacing } from 
 import { roomFloorArea, tryRoomShape } from './room'
 import { add, dot, scale, sub, type Vec2 } from './vec2'
 import { wallAxis, wallPointAt } from './wall'
+import { openingGlazed } from './partTypes'
 
 /** One window in a window wall. */
 export interface SunWindow {
@@ -36,6 +37,8 @@ export interface SunWindow {
   readonly height: number
   /** Width by height, in square metres. */
   readonly area: number
+  /** VEW-78: a glazed door, counted with the windows. Absent for a window. */
+  readonly door?: true
 }
 
 /** One stretch of outside wall with windows in it, behind one room. */
@@ -98,10 +101,10 @@ export function planSunTable(plan: FloorPlan, index: PlanIndex = indexPlan(plan)
     const floorArea = roomFloorArea(room, index, shape.polygon)
     const byStretch = new Map<WallFacing, SunWindow[]>()
     for (const opening of plan.openings) {
-      if (opening.type !== 'window' || !Number.isFinite(opening.offset) || !Number.isFinite(opening.width) || !Number.isFinite(opening.height)) continue
+      if (!openingGlazed(plan, opening) || !Number.isFinite(opening.offset) || !Number.isFinite(opening.width) || !Number.isFinite(opening.height)) continue
       const stretch = stretchOf(facing.walls, opening, room.id)
       if (stretch === null) continue
-      const window: SunWindow = { id: opening.id, width: opening.width, height: opening.height, area: opening.width * opening.height }
+      const window: SunWindow = { id: opening.id, width: opening.width, height: opening.height, area: opening.width * opening.height, ...(opening.type === 'door' && { door: true as const }) }
       byStretch.set(stretch, [...(byStretch.get(stretch) ?? []), window])
     }
     const walls: SunWall[] = []

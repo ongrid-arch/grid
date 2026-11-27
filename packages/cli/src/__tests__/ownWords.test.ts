@@ -209,7 +209,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-52: two more, grid_schedule of=items' lines.
   // VEW-76: five more, grid_view's looks for people in its description, its look argument and its answer.
   // VEW-75: one more, kind=eye's at, look_at and perspective arguments and its refusal of from; its answer moved to eyeAnswer.ts.
-  'packages/cli/src/mcp/readTools.ts': [430, 'tools'],
+  // VEW-78: one more, the eye view's room with no glazed door.
+  'packages/cli/src/mcp/readTools.ts': [431, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -369,7 +370,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-49: three more, curveSweep's description.
   // VEW-73: two more, what floorLift decides.
   // VEW-77: three more, what smoothRunTurn decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [358, 'developer'],
+  // VEW-78: five more, what liningOnFace and liningOffset decide.
+  // ARE-71: one more, what lintelBearing decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [363, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

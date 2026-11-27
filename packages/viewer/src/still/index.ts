@@ -13,12 +13,13 @@ import type { PlanColors3D } from '../canvas3d/usePlanColors'
 import { DARK_COLORS_3D, LIGHT_COLORS_3D } from './look3d'
 import { rasterise, type RasterImage } from './rasterise'
 import { stillScene } from './stillScene'
+import { SKY } from '../canvas3d/finishTint'
 
 export { OPENING_CAMERA, openingCamera, recordCamera, type RecordCameraProps, type ViewCamera } from '../canvas3d/camera'
 export { LIGHT_COLORS_3D, DARK_COLORS_3D } from './look3d'
 export { stillRoofShown } from '../canvas3d/building'
 export { stillScene, type StillScene, type StillSceneOptions } from './stillScene'
-export { rasterise, type RasterImage, type RasteriseOptions, type GroundGrid } from './rasterise'
+export { rasterise, type RasterImage, type RasteriseOptions, type GroundGrid, type Sky } from './rasterise'
 
 export const DEFAULT_STILL_WIDTH = 1200
 export const DEFAULT_STILL_HEIGHT = 800
@@ -46,6 +47,12 @@ export interface StillOptions {
    * its roof, and no with a floor cut away.
    */
   readonly roof?: boolean
+  /**
+   * VEW-78: whether the camera is taken as standing in a room: the floor it stands on drawn whole
+   * with the rooms' ceilings, and a sky behind the glass in place of the background. Yes when the
+   * camera record stands in a room (`standingIn`), no otherwise.
+   */
+  readonly inside?: boolean
 }
 
 /** The most pixels a still may have: 4800 by 3200 is within it. */
@@ -73,12 +80,14 @@ export function planStill(plan: FloorPlan, options: StillOptions = {}): RasterIm
 
   const camera = options.camera
   const focus = options.focus !== undefined ? options.focus : (camera?.cut ?? null)
-  const roof = options.roof ?? stillRoofShown(plan, { focus, inside: camera !== undefined && camera.standingIn.room !== null })
-  const still = stillScene(plan, { focus, colors, width, height, roof, ...(camera ? { camera } : {}) })
+  const standing = camera !== undefined && camera.standingIn.room !== null
+  const inside = options.inside ?? standing
+  const roof = options.roof ?? stillRoofShown(plan, { focus, inside: standing })
+  const still = stillScene(plan, { focus, colors, width, height, roof, inside, ...(camera ? { camera } : {}) })
   try {
     const [cx, , cz] = still.frame.target
     // A camera standing in a room sees the room, not the ground under its floor.
-    const ground = camera !== undefined && camera.standingIn.room !== null
+    const ground = standing || inside
       ? {}
       : {
           // VEW-66: at the ground, as the scene's own ground surface.
@@ -88,7 +97,9 @@ export function planStill(plan: FloorPlan, options: StillOptions = {}): RasterIm
       width,
       height,
       supersample: options.supersample ?? (width * height > SMOOTHED_PIXELS ? 1 : 2),
-      ...ground
+      ...ground,
+      // VEW-78: from inside, the glass looks out at a sky, not at the page.
+      ...(inside ? { sky: SKY } : {})
     })
   } finally {
     still.close()
