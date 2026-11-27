@@ -45,8 +45,8 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid diff [<plan>] [--since <version>] [--to <version>] [--rooms <ids>] [--show all\|summary\|changes\|issues\|facts\|history] [--picture\|--out <file.png>] [--floor <id>] [--json]` | Says what changed since a marker or the last commit, by what stands where, not by ids: issues first, then the verdict room by room, then each change (see below) |
 | `grid occupancy [<plan>]` | Lists who sits where, by room, from the occupancy file beside the plan; no export carries it (see below) |
 | `grid preview [<plan>] [--port <n>]` | Serves the preview as a page on this computer only: the plan in 2D and 3D, the part you click shared with the agent, the room it frames and the parts it picks out; it draws again within 2 s of the plan changing (see below) |
-| `grid serve` | Starts the tool server on standard input and output, with the 66 tools in [the tool server](tool-server.md) |
-| `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`) |
+| `grid serve` | Starts the tool server on standard input and output, with the 67 tools in [the tool server](tool-server.md); `--tools view,areas,write,edit` lists only the groups named, with `grid_project` and `grid_help` ([tool groups](tool-server.md#a-short-tool-list-grid_help-and-tool-groups)) |
+| `grid mcp` | The same as `grid serve`, under the name agents start it by (`npx -y ongrid mcp`), with the same `--tools` |
 
 A plan is told by what it holds: a list of walls, rooms or openings, or the stamp Grid writes. `grid write` never
 writes a plan into `grid.json`, into a file Grid keeps beside a plan (`<plan>.markers.json`, `.seen.json`,

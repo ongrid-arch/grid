@@ -59,7 +59,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/command/init.ts': [18, 'command'],
   'packages/cli/src/command/language.ts': [2, 'command'],
   // CMD-43: three more, the --from refusals.
-  'packages/cli/src/command/main.ts': [62, 'command'],
+  // CMD-52: one more, the help of --tools.
+  'packages/cli/src/command/main.ts': [63, 'command'],
   'packages/cli/src/command/options.ts': [9, 'command'],
   'packages/cli/src/command/plan.ts': [27, 'command'],
   // CMD-30: one more, the refusal of an invisible character.
@@ -293,6 +294,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/phaseTools.ts': [26, 'tools'],
   // CMD-44: grid_undo and grid_restore, their descriptions and argument schemas.
   'packages/cli/src/mcp/versionTools.ts': [13, 'tools'],
+  // CMD-52: grid_help, its description, argument, answers and refusal; the tool groups and the refusals of --tools.
+  'packages/cli/src/mcp/helpTool.ts': [15, 'tools'],
+  'packages/cli/src/mcp/toolGroups.ts': [7, 'tools'],
   'packages/cli/src/mcp/viewTool.ts': [15, 'tools'],
   // SHT-6: eight more, grid_sheet's layout drawing, its arguments and its refusals.
   // WRT-38: six more, grid_change_wall's description and arguments.
@@ -641,7 +645,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-58 75: the sun's path and shadows (quantities/sunPath.ts 36, mcp/sunArgs.ts 12), grid_view's,
     // grid_export's and eye's sun and compass words (mcp/readTools.ts 5, mcp/writeTools.ts 2, mcp/eyeAnswer.ts 2,
     // command/export.ts 1) and what the sun's figures decide (geometry/tolerances.ts 17) (odd/tasks/CNT-58.md).
-    expect(left).toBeLessThanOrEqual(2672)
+    // and CMD-52 23: grid_help (mcp/helpTool.ts 15), the tool groups and --tools's refusals
+    // (mcp/toolGroups.ts 7) and the help of --tools (command/main.ts 1) (odd/tasks/CMD-52.md).
+    expect(left).toBeLessThanOrEqual(2695)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
