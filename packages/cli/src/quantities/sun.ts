@@ -14,7 +14,7 @@ import { areaText, lengthText } from './units'
 import { roomCalled } from './survey'
 
 export const SUN_RULE =
-  'This is geometry, not a daylight or sunlight result: this table works out no sun path or shade (pass date, with time or hours, for where the sun is and the shadows the plan casts), no sky, glass or reflection, and checks no rule. '
+  'This is geometry, not a daylight or sunlight result: this table works out no sun path or shade (give a date, with a time or hours, for where the sun is and the shadows the plan casts), no sky, glass or reflection, and checks no rule. '
   + 'A window wall is a stretch of outside wall with a window in it, and it faces the way of its outside face, turned by the plan\'s north. '
   + 'A window\'s area is its hole in the wall, width by height, with no frame taken off; a door counts with the windows only when its type is glazed, and a doorless opening never. '
   + 'The floor area is the room\'s net area inside its wall faces. '

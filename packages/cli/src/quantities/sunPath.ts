@@ -140,7 +140,7 @@ export interface SunPathAnswer {
 
 /** The words for how times are read. */
 function timeWords(offset: number | null): string {
-  if (offset === null) return 'Times are the site\'s local solar time: 12:00 is when the sun stands highest, which is not the clock\'s noon; pass utc_offset (the clock\'s offset from UTC, such as 2 for central European summer time) to give and read clock times.'
+  if (offset === null) return 'Times are the site\'s local solar time: 12:00 is when the sun stands highest, which is not the clock\'s noon; give utc_offset (the clock\'s offset from UTC, such as 2 for central European summer time) to give and read clock times.'
   const sign = offset < 0 ? '-' : '+'
   const abs = Math.abs(offset)
   return `Times are clock times at UTC${sign}${Math.floor(abs)}${abs % 1 === 0 ? '' : `:${pad(Math.round((abs % 1) * 60))}`}, as utc_offset gives them.`
@@ -208,7 +208,7 @@ export function sunPathAnswer(plan: FloorPlan, display: Display, ask: SunPathAsk
   else lines.push(`${days.length} dates from ${dayText(ask.from)} to ${dayText(until)}, every ${limit('sunStepDays')} days and the last: ${days[0]!.line} ${days.at(-1)!.line}`)
   const base = { measures: 'the sun and the shadows of the plan\'s own parts, not a daylight or sunlight result', ...northData(facing), place, time: ask.utcOffset === null ? 'solar' : 'clock', utcOffset: ask.utcOffset, days: days.map((d) => d.data) }
   if (ask.time === null && ask.hours === null) {
-    lines.push('Pass time (one moment) or hours (a range, such as 09:00-17:00) for where the sun is, the faces it is on and the share of each open space in sun.')
+    lines.push('Give time (one moment) or hours (a range, such as 09:00-17:00) for where the sun is, the faces it is on and the share of each open space in sun.')
     return { lines, data: base }
   }
   const [start, end] = ask.hours ?? [ask.time!, ask.time!]
@@ -253,7 +253,7 @@ export function sunPathAnswer(plan: FloorPlan, display: Display, ask: SunPathAsk
       if (faces.length === 0) lines.push('No building face: no floor of the plan has an outline Grid can work out.')
       else if (lit.length === 0) lines.push('The sun is on no face of the buildings.')
       else lines.push(`The sun is on ${lit.length} of ${faces.length} faces: ${lit.slice(0, 16).map((x) => `${faceLabel(x.f, display)} at ${deg(x.s.angle!)}° off square${x.s.footInShade > 0 ? `, ${pct(x.s.footInShade)} of its foot in another's shadow` : ''}`).join('; ')}${lit.length > 16 ? `; and ${lit.length - 16} more` : ''}.`)
-      if (surfaces.length === 0) lines.push('No open outdoor space, paving or pool to measure in sun: pass areas to measure a patch, such as a planting bed.')
+      if (surfaces.length === 0) lines.push('No open outdoor space, paving or pool to measure in sun: give areas to measure a patch, such as a planting bed.')
       else lines.push(`In sun: ${surfaces.map((s, k) => `${surfaceLabel(s)} ${pct(here[k]!)}`).join('; ')}.`)
     }
     if (moment.length > 3) lines.push(`And on ${moment.length - 3} more dates, in data.`)
@@ -285,7 +285,7 @@ export function sunPathAnswer(plan: FloorPlan, display: Display, ask: SunPathAsk
     })
     return total > 0 ? sum / total : mean(shares[k]!)
   }
-  if (surfaces.length === 0) lines.push('No open outdoor space, paving or pool to measure in sun: pass areas to measure a patch, such as a planting bed.')
+  if (surfaces.length === 0) lines.push('No open outdoor space, paving or pool to measure in sun: give areas to measure a patch, such as a planting bed.')
   for (const [k, s] of surfaces.entries()) {
     const firstDay = shares[k]!.slice(0, perDay).map((share, i) => `${timeText(moments[i]!.minutes)} ${pct(share)}`).join(', ')
     lines.push(`${surfaceLabel(s)}: ${pct(weighted(k))} in sun over the hours${allDays.length > 1 ? ' and dates' : ''}, weighted by time; ${allDays.length > 1 ? `on ${dayText(ask.from)}, ` : ''}${firstDay}.`)

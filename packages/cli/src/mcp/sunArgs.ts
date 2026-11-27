@@ -27,6 +27,8 @@ const AREAS_ARG: ArgSpec = {
   examples: [{ 'vegetable bed': [[2, 1], [6, 1], [6, 2.2], [2, 2.2]] }],
   schema: {
     type: 'object',
+    // Any name: each patch is named by the call.
+    properties: {},
     additionalProperties: { type: 'array', items: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 }, minItems: 3, maxItems: AREA_POINTS_MOST },
     minProperties: 1,
     maxProperties: AREAS_MOST,
