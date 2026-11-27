@@ -93,4 +93,21 @@ describe('the site in rooms text', () => {
     expect(northWordsOf(-30)).toBe('north -30: the arrow turned 30° clockwise from up the drawing')
     expect(northWordsOf(0)).toBe('north 0: the arrow points up the drawing')
   })
+
+  // CNT-50: the site's address and its own name, kept as written, through a read-back and a write.
+  it('keeps the site\'s address and its own name as written, and writes them back', () => {
+    const result = write('site name "Harbour House"', "site address 'Calle Mayor 5, 28013 Madrid'", 'site country "Spain"')
+    expect(result.problems).toEqual([])
+    expect(result.plan!.site).toEqual({ name: 'Harbour House', address: 'Calle Mayor 5, 28013 Madrid', country: 'Spain' })
+    const back = readRoomsText(safeParseFloorPlan(result.plan)!)
+    expect(back.text).toContain('site country "Spain"\nsite name "Harbour House"\nsite address "Calle Mayor 5, 28013 Madrid"')
+    expect(compileRoomsText(back.text).plan!.site).toEqual(result.plan!.site)
+    expect(write('site name "A"', 'site name "B"').problems[0]!.message).toBe('Line 5: site name is written on line 4 already: write it once.')
+  })
+
+  it('refuses an address on more than one line or too long, naming the field and never the text', () => {
+    expect(safeParseFloorPlan({ walls: [], site: { address: 'Harbour Road\nBristol' } })).toBeNull()
+    const long = write(`site address "${'x'.repeat(121)}"`)
+    expect(long.problems[0]!.message).toBe('Line 4: the site\'s address is 121 characters long; a name may have at most 120.')
+  })
 })

@@ -139,6 +139,66 @@ describe('the wall between two rooms, seen end on, is no gap (WRT-10)', () => {
   })
 })
 
+describe('two rooms stacked between two others, every way they are written (WRT-80)', () => {
+  const walls = 'walls outside 0.3 inside 0.1\n'
+  function clean(text: string): { plan: FloorPlan; result: ReturnType<typeof compileRoomsText> } {
+    const result = compileRoomsText(text)
+    expect(result.problems).toEqual([])
+    const plan = parseFloorPlan(result.plan)
+    expect(validatePlan(plan).issues.filter((i) => i.severity === 'error')).toEqual([])
+    expect(diffPlans(plan, written(readRoomsText(plan).text)).changes).toEqual([])
+    return { plan, result }
+  }
+  const partitionOf = (plan: FloorPlan, a: string, b: string): Wall | undefined => plan.walls.find((w) => w.id === `w-${a}-${b}` || w.id === `w-${b}-${a}`)
+
+  it('writes the five lines: a bedroom, a toilet over a store and a living room in a row', () => {
+    const { plan } = clean(
+      `${walls}room a "A" bedroom 3 x 3.1 at 0,0\n` +
+        'room b "B" toilet 1 x 1.5 east of a align north\n' +
+        'room c "C" storage 1 x 1.5 south of b align west\n' +
+        'room d "D" living 3 x 3.1 east of b align north\n'
+    )
+    expect(partitionOf(plan, 'b', 'c')?.thickness).toBeCloseTo(0.1, 9)
+  })
+
+  const turned: Record<string, string> = {
+    'aligned south': 'room a "A" bedroom 3 x 3.1 at 0,0\nroom b "B" toilet 1 x 1.5 east of a align south\nroom c "C" storage 1 x 1.5 north of b align west\nroom d "D" living 3 x 3.1 east of b align south\n',
+    'running west': 'room a "A" bedroom 3 x 3.1 at 0,0\nroom b "B" toilet 1 x 1.5 west of a align north\nroom c "C" storage 1 x 1.5 south of b align east\nroom d "D" living 3 x 3.1 west of b align north\n',
+    'running north': 'room a "A" bedroom 3.1 x 3 at 0,0\nroom b "B" toilet 1.5 x 1 north of a align west\nroom c "C" storage 1.5 x 1 east of b align south\nroom d "D" living 3.1 x 3 north of b align west\n',
+    'running south': 'room a "A" bedroom 3.1 x 3 at 0,0\nroom b "B" toilet 1.5 x 1 south of a align east\nroom c "C" storage 1.5 x 1 west of b align north\nroom d "D" living 3.1 x 3 south of b align east\n',
+    'placed by coordinates': 'room a "A" bedroom 3 x 3.1 at 0,0\nroom b "B" toilet 1 x 1.5 at 3.1,1.6\nroom c "C" storage 1 x 1.5 at 3.1,0\nroom d "D" living 3 x 3.1 at 4.2,0\n',
+    'of unequal depths': 'room a "A" bedroom 3 x 3.1 at 0,0\nroom b "B" toilet 1 x 1 east of a align north\nroom c "C" storage 1 x 2 south of b align west\nroom d "D" living 3 x 3.1 east of b align north\n',
+    'three high': 'room a "A" bedroom 3 x 3.2 at 0,0\nroom b "B" toilet 1 x 1 east of a align north\nroom c "C" storage 1 x 1 south of b align west\nroom e "E" storage 1 x 1 south of c align west\nroom d "D" living 3 x 3.2 east of b align north\n',
+  }
+  for (const [how, rooms] of Object.entries(turned)) {
+    it(`writes the stack ${how}`, () => {
+      expect(partitionOf(clean(walls + rooms).plan, 'b', 'c')?.thickness).toBeCloseTo(0.1, 9)
+    })
+  }
+
+  // The first round takes every side of a room sized to centre lines or outside faces to be an
+  // outside wall, which places the lower room of the stack short of its neighbours: the round
+  // after, with the walls the first one found, closes it.
+  const sized: Record<string, string> = {
+    'centre lines': 'sizes centre\nroom a "A" bedroom 3.2 x 3.4 at 0,0\nroom b "B" toilet 1.2 x 1.7 east of a align north\nroom c "C" storage 1.2 x 1.7 south of b align west\nroom d "D" living 3.2 x 3.4 east of b align north\n',
+    'outside faces': 'sizes outside\nroom a "A" bedroom 3.4 x 3.7 at 0,0\nroom b "B" toilet 1.2 x 1.85 east of a align north\nroom c "C" storage 1.2 x 1.85 south of b align west\nroom d "D" living 3.4 x 3.7 east of b align north\n',
+  }
+  for (const [to, rooms] of Object.entries(sized)) {
+    it(`writes the stack sized to the ${to}, the lower room in line with its neighbours`, () => {
+      const { plan, result } = clean(walls + rooms)
+      expect(partitionOf(plan, 'b', 'c')?.thickness).toBeCloseTo(0.1, 9)
+      const depth = new Map(result.rooms.map((r) => [r.id, r.depth]))
+      expect(depth.get('a')).toBeCloseTo(3.1, 9)
+      expect(depth.get('b')).toBeCloseTo(1.5, 9)
+      expect(depth.get('c')).toBeCloseTo(1.5, 9)
+      // The south wall under the row runs on one line: the store's face is in line with the bedroom's.
+      const south = plan.walls.filter((w) => w.id.startsWith('ext-south'))
+      expect(new Set(south.flatMap((w) => [w.start[1], w.end[1]]).map((y) => y.toFixed(6))).size).toBe(1)
+      expect(Math.max(...south.flatMap((w) => [w.start[0], w.end[0]])) - Math.min(...south.flatMap((w) => [w.start[0], w.end[0]]))).toBeCloseTo(to === 'outside faces' ? 8 - 0.3 : 7.6, 9)
+    })
+  }
+})
+
 describe('reading a plan back as rooms text', () => {
   for (const name of BUILDINGS) {
     it(`${name}: rooms text to plan to rooms text to plan changes nothing`, () => {

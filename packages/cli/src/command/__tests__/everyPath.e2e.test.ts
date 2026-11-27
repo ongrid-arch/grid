@@ -420,6 +420,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
     { arg: 'plan', call: tool('grid_place_building', { plan: '@', from: 'house', id: 'house-2', move: '20,0' }), given: asIs },
     { arg: 'out', call: tool('grid_place_building', { plan: PLAN, from: 'house', id: 'house-2', move: '20,0', out: '@.json' }), given: (p) => `${p}.json` },
   ],
+  // LVL-24: the floors' floor-to-floor, written into the plan.
+  grid_set_levels: [
+    { arg: 'plan', call: tool('grid_set_levels', { plan: '@', floorToFloor: 3.2 }), given: asIs },
+    { arg: 'out', call: tool('grid_set_levels', { plan: PLAN, floorToFloor: 3.2, out: '@.json' }), given: (p) => `${p}.json` },
+  ],
   // CNT-45: an item added, moved and taken out, written into the plan.
   grid_add_item: [
     { arg: 'plan', call: tool('grid_add_item', { plan: '@', name: 'wc', room: 'lounge', against: 'north' }), given: asIs },
@@ -450,6 +455,11 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_change_site: [
     { arg: 'plan', call: tool('grid_change_site', { plan: '@', action: 'add', kind: 'tree', at: '1,1' }), given: asIs },
     { arg: 'out', call: tool('grid_change_site', { plan: PLAN, action: 'add', kind: 'tree', at: '1,1', out: '@.json' }), given: (p) => `${p}.json` },
+  ],
+  // CNT-50: the plan's own settings.
+  grid_set_plan: [
+    { arg: 'plan', call: tool('grid_set_plan', { plan: '@', address: '1 Main Street' }), given: asIs },
+    { arg: 'out', call: tool('grid_set_plan', { plan: PLAN, address: '1 Main Street', out: '@.json' }), given: (p) => `${p}.json` },
   ],
   // VEW-67: the trace image, its picture resolved from the project folder like the plan.
   grid_place_trace: [
