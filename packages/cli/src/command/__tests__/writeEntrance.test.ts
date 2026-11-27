@@ -55,7 +55,7 @@ describe('a write that leads the front door into a room carved beside it', () =>
       const reply = await b.call('grid_write_rooms', { plan: 'plan.json', rooms: STORE })
       expect(reply.isError).toBe(false)
       expect(reply.data!['toLookAt']).toEqual({ before: 0, after: 2 })
-      expect(reply.data!['drawingProblems']).toEqual({ before: 0, after: 0 })
+      expect(reply.data!['drawingProblems']).toEqual({ before: 0, after: 0, new: [] })
       expect(reply.data!['doors']).toEqual(['No longer leads outside: "door-entrance" joined "hall" and the outside; it now joins "hall" and "store".'])
       expect(reply.text).toContain('To look at: 0 → 2')
     } finally {
