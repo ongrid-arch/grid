@@ -4,6 +4,8 @@ Read this when you keep what a person asked for beside their plan, or need to kn
 met or missed after an edit means.
 
 - [What the brief holds](#what-the-brief-holds)
+- [Totals, floors, departments and rooms inside a room](#totals-floors-departments-and-rooms-inside-a-room)
+- [One wish added, removed or changed](#one-wish-added-removed-or-changed)
 - [The person's own figures](#the-persons-own-figures)
 - [Met and missed after every change](#met-and-missed-after-every-change)
 - [A size written in a room's name](#a-size-written-in-a-rooms-name)
@@ -54,7 +56,9 @@ here too, as by every tool, and no brief is written.
   says a number of seats, covers or desks ("a cafe with 24 seats") is counted against at least that
   many, and the line says the number was read from the person's words.
 - **The footprint** gives the outside sizes (`width` and `depth`, either way round) or the area
-  it covers (`area`), or both.
+  it covers (`area`), or both. With `measure: "inside"` (ARE-69) they are measured inside the
+  outside walls: the sizes of the box round the ground floor's rooms, the area its gross internal
+  area. Left out, `outside`.
 - **Rooms that touch**: two rooms' names that must share a wall (`must`, `should`) or must not
   (`avoid`). Rooms kept apart are judged by the ways between them too: a door straight between
   them, or a way through other rooms by open gaps only (doorless openings and open edges), joins
@@ -77,11 +81,50 @@ wishes are written. A field the brief does not take (`notes`), a list that is no
 that are no object are refused lines of their own the same way, and the rest is kept. Only a
 brief with no wish Grid can read, or a wrong `version`, writes nothing.
 
+## Totals, floors, departments and rooms inside a room
+
+ARE-69. A room wish may say more of what the person said:
+
+- **`total_area`** (or `total_at_least`, `total_at_most`, m²): the net area of all the rooms the
+  wish means together, one line. "About 30,000 m² of offices" is
+  `{ "use": "office", "total_area": 30000 }`, never `area`, which is each room's own.
+- **`floor`**: only the rooms on that floor, by its id or name, any case: a wish per floor.
+- **`fact`**: only the rooms carrying a fact of the person's own (`properties`, CNT-9),
+  `{ "name": "department", "value": "Surgery" }`, the value left out for any: a wish per
+  department. The line names both: `rooms used as ward on floor "Level 2" with department "Surgery"`.
+- **`with_inner: true`**: each room measured with the rooms inside it, those whose every way in
+  is through it (an en-suite, a wardrobe), on its floor. The line names them: `"Bedroom 1" with
+  "En-suite 1" inside it area asked 15.75, drawn 15.75 m²`.
+- **`diameter`** (m): about this diameter, the widest circle the room holds, as `grid_measure`
+  gives it, for a round room or courtyard; met within 5%.
+
+**Many rooms missed the same way** are said as one line: when a wish's sizes (area, inside or
+diameter) miss in four rooms or more, the misses are one line with how many of how many, the
+size drawn, the same or from least to most, and the rooms by name (at most 12, then how many
+more), its `parts` every room. A size asked per room far above the largest drawn (more than
+twice) adds that a total is given by `total_area`.
+
+## One wish added, removed or changed
+
+ARE-69. Every line names its wish's place in the brief in `where`: `rooms[2]`, `touch[0]`,
+`open[1]`, `footprint`, `figures.door_width` (null on a size read from a room's name). To change
+one wish, `grid_write_brief` takes, in place of `brief` and with no `replace`:
+
+- **`add`**: wishes as a brief holds them. Rooms, touch and open go after the ones kept; a
+  footprint, a figure or `people` replaces its own. With no brief kept, it starts one.
+- **`remove`**: places to take out, each as the brief is before the call.
+- **`update`**: `{ "where": "rooms[0]", "with": { "area": 5 } }`: the fields to set on one wish,
+  a field set to null taken out.
+
+The update comes first, then the removals, then what is added, and the brief is read again whole:
+a wish made wrong is refused as any line is, and a place the brief does not hold is refused naming
+it. `brief` together with any of them is refused.
+
 ## The person's own figures
 
 The figures under `figures` are the person's, not a code's or a standard's. The file holds them
 under the heading "The person's own figures: theirs, not from any code or standard.", and every
-answer lists them under it. Grid knows five sizes, all in metres, four site limits (BRF-4) and three counts of the furniture (ARE-67):
+answer lists them under it. Grid knows five sizes, all in metres, four site limits (BRF-4) and three counts of the furniture (ARE-67), and the whole plan's efficiency, homes and storeys (ARE-69):
 
 | Figure | Measured as | Short of it |
 |---|---|---|
@@ -95,6 +138,20 @@ answer lists them under it. Grid knows five sizes, all in metres, four site limi
 | `building_height` | metres from the ground (`site.ground`, else the ground floor's floor level) to the top of the highest roof | more |
 | `parking_per_home` | the parking spaces the floors state over the homes they state (`floors[].parking`, `floors[].homes`); 0 for none | fewer |
 | `seats`, `desks`, `covers` | ARE-67: the whole plan's seats, desks or covers, a whole number, counted from the furniture as `grid_measure what=seats` counts them; the line gives each floor's count | fewer |
+| `efficiency` | ARE-69: a percentage, the whole plan's lettable area over its gross internal area, as `grid_areas` gives it ([areas.md](areas.md)) | less |
+| `homes` | ARE-69: a whole number, the flats the plan lists (`flats`), else the homes its floors state | fewer |
+| `storeys` | ARE-69: a whole number, exactly: the floors at or above the ground floor | other than asked |
+
+**A figure for some rooms, uses, a fact or a way** (ARE-69): `door_width`, `corridor_width`,
+`turning_circle`, `step` and `ceiling_height` take `rooms` (by name), `uses`, `fact` (as on a room
+wish) and `routes`, each `{ "from": "Ward", "to": "Theatre" }`, from the entrance when `from` is
+left out. A room is measured when it is named, of a use, carries the fact or is on a way; a door
+when it opens into a room named, of a use or carrying the fact, or is on a way. A way is the one
+with the fewest rooms between, on one floor, by the doors and openings `grid_measure` walks; a way
+Grid cannot find is an open line, and nothing on it is measured. With none of them, every room and
+door is measured, as before. A bed-sized door width is
+`{ "value": 1.1, "routes": [{ "from": "Ward", "to": "Theatre" }] }`. `grid_measure what=access`
+still sets every door against the figure.
 
 The site limits are measured on the plan as drawn, massing or walls
 ([plan-file.md](plan-file.md#a-floor-outline-before-the-walls)), and the plan's own set-backs
@@ -164,7 +221,7 @@ Every change to the plan answers with the brief beside the plan it read, line by
 the plan as it now is: each edit tool, `grid edit`, `grid_write_rooms` and `grid write`. The
 answer's data holds the lines as `brief`: `{ file, problem, lines }`, each line with its `state`,
 `wish`, `level`, `source`, `quote`, `asked`, `drawn`, `unit`, the `parts` it is about and its
-`text`. An edit lists 12 lines, missed first; `grid_write_brief` with no `brief` lists them all.
+`text`, and `where`, its wish's place in the brief (ARE-69). An edit lists 12 lines, missed first; `grid_write_brief` with no `brief` lists them all.
 
 ```text
 The brief ("plan.brief.json"), each line measured as the drawing is: …
