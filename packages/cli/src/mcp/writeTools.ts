@@ -40,7 +40,8 @@ import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { ROOM_NAMES_TRAVEL } from './protocol'
 import { comparePlans } from '../quantities/compare'
 import { surveyPlan, type Survey } from '../quantities/survey'
-import { LANGUAGE_ARG, openingBetween } from './readTools'
+import { DECIMAL_ARG, LANGUAGE_ARG, openingBetween, UNITS_ARG } from './readTools'
+import { isTableFormat, isTableWhat, TABLE_FORMATS, TABLE_WHATS, writeTable, type TableFormat } from './tableExport'
 import { ENGLISH_SPEAKER, languageOfNames, say, type Language } from '@ongrid/floorplan/messages'
 import { loadedFor, stateArg, stateLine } from './stateArg'
 import { briefAnswer } from '../brief/answer'
@@ -71,6 +72,7 @@ import {
   STRING,
   wallArg,
   ToolRefusal,
+  type Answer,
   type GridTool,
   type ToolContext,
   usesRead,
@@ -98,7 +100,8 @@ const exportTool: GridTool = {
   title: 'Export the plan',
   hint: 'write-file',
   description:
-    'Use this when the person wants the plan as a file to open in another program: dxf for AutoCAD and other 2D CAD programs (the nearest to DWG), ifc for BIM programs such as Revit, glb or obj for 3D, geojson or json for the geometry as data (a robot\'s map, a wayfinding app, a digital twin). '
+    'Use this when the person wants the plan as a file to open in another program: dxf for AutoCAD and other 2D CAD programs (the nearest to DWG), ifc for BIM programs such as Revit, glb or obj for 3D, geojson or json for the geometry as data (a robot\'s map, a wayfinding app, a digital twin), csv or xlsx for a table in a spreadsheet. '
+    + `csv and xlsx write the table what names (${TABLE_WHATS.join(', ')}), the same as grid_takeoff, grid_areas and grid_schedule give as CSV, into exports/ as <plan>-<what>.csv or .xlsx; pass out (exports/areas-rev-b.csv) to keep an earlier revision. The header is line 1 and the label the last row; with a decimal comma the fields are split by semicolons and numbers written with a comma, lengths in units; a csv starts with a byte-order mark; money is rounded to its currency. The answer holds the CSV text as csv. `
     + 'It writes the file into the exports folder beside the plan, replacing an earlier copy of the same export, and answers with the path it wrote and every part of the plan the file leaves out (the file says so too). It never changes the plan, and refuses a file that would hold nothing of it. '
     + 'A dxf, glb or obj with no floor holds the whole building: a glb or obj each floor at its elevation (in a glb, a node per floor named by its id under one root node), a dxf each floor side by side in model space and on a paper layout of its own named after the floor. floor all writes one file per floor, each named after its floor, listed as files. The answer says which floors a file holds as floors and which it does not as floorsLeftOut. '
     + `A dxf is in metres, with doors and windows as blocks, one per schedule type, each insert carrying its MARK (the schedules' mark, the IFC's Tag), TYPE, WIDTH, HEIGHT and SILL, filled walls, dimensions, room tags and an A3 sheet per floor at the largest standard scale every floor fits at, or at scale; sheets says the scale and any floor that does not fit. It takes its layer names and pens from ${DXF_PROFILE_FILE} in the project folder when there is one, and answers with that file as dxfProfile. A door's hand is the side of its hinges seen from the side it opens toward, in the schedule, the dxf and the ifc alike. `
@@ -109,10 +112,14 @@ const exportTool: GridTool = {
     + 'Do not use for a picture to look at (grid_view). For a PDF to read or print, use grid_sheet; JPG is not made. The plan must be a file inside the project folder: any other path is refused.',
   args: {
     plan: { type: 'string', maxLength: PATH_MAX, required: true, description: 'The plan file, as a path inside the project folder.', examples: ['floor-plan.json', 'plan.json'] },
-    format: { type: 'string', required: true, enum: GRID_EXPORT_FORMATS, description: 'The file format.', examples: ['dxf', 'ifc', 'geojson'] },
-    floor: { type: 'string', maxLength: 200, description: 'dxf, obj, glb, geojson and json only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation, or all for each floor on its own. Left out, every floor.', examples: ['ground', 'all'] },
+    format: { type: 'string', required: true, enum: [...GRID_EXPORT_FORMATS, ...TABLE_FORMATS], description: 'The file format.', examples: ['dxf', 'ifc', 'geojson', 'csv'] },
+    // VEW-83: a table as a file.
+    what: { type: 'string', enum: TABLE_WHATS, description: 'csv and xlsx only, and needed for them: the table: estimate (the bill of quantities, priced from rates.json beside the plan), takeoff, areas, doors, windows, rooms or finishes.', examples: ['areas', 'estimate'] },
+    units: { ...UNITS_ARG, description: 'csv and xlsx only: the unit of the lengths, named in the column heads. The plan\'s own display, or m, when left out.' },
+    decimal: { ...DECIMAL_ARG, description: 'csv and xlsx only: point (fields split by commas) or comma (split by semicolons, as a spreadsheet set to a decimal comma reads them). The plan\'s own display, else its language\'s, when left out.' },
+    floor: { type: 'string', maxLength: 200, description: 'dxf, obj, glb, geojson, json, csv and xlsx only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation (a table of that floor), or all for each floor on its own (not for a table). Left out, every floor.', examples: ['ground', 'all'] },
     scale: { type: 'number', description: 'dxf only: N in 1:N, a whole number, such as 100 or 200, for its sheets. Left out, the scale the profile states, else the largest of 100, 200, 500 and 1000 every floor fits at on A3.', examples: [100, 200], minimum: 1, maximum: 1000 },
-    out: { type: 'string', maxLength: PATH_MAX, description: 'The file to write, inside the project folder, ending in the format\'s extension. The exports folder beside the plan when left out. Not with floor all.', examples: ['drawings/ground.dxf'] },
+    out: { type: 'string', maxLength: PATH_MAX, description: 'The file to write, inside the project folder, ending in the format\'s extension. The exports folder beside the plan when left out. Not with floor all.', examples: ['drawings/ground.dxf', 'exports/areas-rev-b.csv'] },
     // CNT-58: a glb lit by the sun at a moment.
     sun: { ...SUN_VIEW_ARG, description: 'glb only: a moment, "YYYY-MM-DD HH:MM" in the site\'s solar time or with the clock\'s offset after it ("2026-06-21 18:30 +02:00"), written as a directional light node named sun (KHR_lights_punctual) shining the way the sun shines then, its bearing and elevation in the node\'s extras. Needs the site\'s latitude and longitude. The plan\'s north and place go into asset.extras.gridNorth whenever it states them.' },
     roofs: { type: 'boolean', description: 'glb and obj only: false leaves out every roof and the parapets on it, to look into the model or walk through it. Left out, the roofs are in.', examples: [false] },
@@ -142,7 +149,13 @@ const exportTool: GridTool = {
     // VEW-73: an obj's grid.mtl, written beside it.
     materials: { type: ['string', 'null'] },
     gridVersion: STRING,
-  }),
+    // VEW-83: a csv or xlsx table: which, its header, how many rows and the CSV text itself.
+    what: STRING,
+    columns: listSchema(STRING),
+    rows: NUMBER,
+    separator: STRING,
+    csv: STRING,
+  }, ['written', 'format', 'leftOut', 'leftOutParts', 'approximated', 'floors', 'floorsLeftOut', 'files', 'sheets', 'note', 'dxfProfile', 'materials', 'gridVersion']),
   run(args, context) {
     const project = projectOf(context)
     const plan = args['plan'] as string
@@ -157,6 +170,10 @@ const exportTool: GridTool = {
     const walls = args['walls'] as string | undefined
     // ARE-75: before or after the work, the building as it stands then; both, as left out, every part with its phase.
     const state = args['state'] === 'before' || args['state'] === 'after' ? (args['state'] as PlanState) : undefined
+    // VEW-83: a table as a csv or xlsx file.
+    if (isTableFormat(format)) return tableAnswer(context, args, format)
+    const tableOnly = ['what', 'units', 'decimal'].filter((name) => args[name] !== undefined)
+    if (tableOnly.length > 0) throw new ToolRefusal(`${tableOnly.join(' and ')} ${tableOnly.length === 1 ? 'is' : 'are'} for csv and xlsx only: leave ${tableOnly.length === 1 ? 'it' : 'them'} out for ${format}.`)
     if (!isGridExportFormat(format)) throw new ToolRefusal(`Pass format: one of ${GRID_EXPORT_FORMATS.join(', ')}.`)
     // The floor is checked against the plan first, so an unknown one is not repeated back (MS-19).
     // VEW-72: by its id or its name, or all.
@@ -232,6 +249,45 @@ const exportTool: GridTool = {
       throw error
     }
   },
+}
+
+/**
+ * VEW-83: grid_export format=csv|xlsx: the table `what` names, written into exports/ beside the
+ * plan or to out, with the CSV text in the data.
+ */
+async function tableAnswer(context: ToolContext, args: Record<string, unknown>, format: TableFormat): Promise<Answer> {
+  const what = args['what']
+  if (!isTableWhat(what)) throw new ToolRefusal(`Pass what with format ${format}: the table to write, one of ${TABLE_WHATS.join(', ')}.`)
+  const drawingOnly = ['scale', 'roofs', 'arcSegments', 'sun', 'doors', 'walls'].filter((name) => args[name] !== undefined)
+  if (drawingOnly.length > 0) throw new ToolRefusal(`${drawingOnly.join(' and ')} ${drawingOnly.length === 1 ? 'is' : 'are'} for drawings and models, not a ${format} table: leave ${drawingOnly.length === 1 ? 'it' : 'them'} out.`)
+  const project = projectOf(context)
+  const plan = args['plan'] as string
+  const state = args['state'] as PlanState | 'both' | undefined
+  try {
+    const done = await writeTable(context, {
+      plan, format, what,
+      ...(args['floor'] === undefined ? {} : { floor: args['floor'] as string }),
+      ...(args['units'] === undefined ? {} : { units: args['units'] as string }),
+      ...(args['decimal'] === undefined ? {} : { decimal: args['decimal'] as string }),
+      ...(state === undefined ? {} : { state }),
+      ...(args['out'] === undefined ? {} : { out: args['out'] as string }),
+    })
+    const written = project.relative(done.written)
+    const lines = [`Wrote ${quoted(written)} in the project folder: the ${what} table, ${done.table.rows.length} row${done.table.rows.length === 1 ? '' : 's'} under its header, the label in its last row.`]
+    if (done.note) lines.push(done.note)
+    if (args['out'] === undefined) lines.push('A later export of this table replaces it: pass out to keep both.')
+    return {
+      text: lines.join('\n'),
+      data: {
+        written, format, leftOut: 0, leftOutParts: [], approximated: [], floors: [], floorsLeftOut: [],
+        files: [{ written, floors: [] }], sheets: [], note: done.note ?? null, dxfProfile: null, materials: null, gridVersion: version,
+        what, columns: [...done.table.header], rows: done.table.rows.length, separator: done.separator, csv: done.csv,
+      },
+    }
+  } catch (error) {
+    if (error instanceof PathRefused || error instanceof PlanRefused || error instanceof ExportWriteFailed) throw new ToolRefusal(error.message)
+    throw error
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

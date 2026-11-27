@@ -49,7 +49,7 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_report_problem` | A draft issue about a failure the agent met, for the person to file or not: Grid sends nothing (see below) |
 | `grid_preview` | Shows the person a floor in 2d or 3d in Grid's preview, a room framed, parts picked out and a note, and answers with the picture the preview shows; with no argument but `plan`, reads what the person selected by clicking (see [below](#the-preview-shared-with-the-person)) |
 | `grid_preview_sync` | The preview page's own call, which a host that shows MCP Apps lists for the page only: the drawing, the shared record, and what the person did there. Not for an agent |
-| `grid_export` | Writes DXF, IFC, GLB, OBJ, GeoJSON or JSON into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF with no `floor` holds every floor, each on a layout of its own, at the largest standard scale it fits on A3 or at `scale`; `floor` takes a floor's id or name, or `all` for one file per floor (`files`), `out` names the file to write, and `sheets` says each sheet's scale and whether its floor fits ([every floor in one DXF](commands.md#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)). A GLB or OBJ takes `roofs: false` to leave the roofs out and `arcSegments`, the pieces a whole circle of curved wall is written with; an OBJ's `grid.mtl` is written beside it and answered as `materials` ([3D files](3d-files.md)). A GeoJSON or JSON is the plan's geometry as data, every floor in one frame: rooms, doors, walls and items as coordinates, clear widths, swing areas, glass, door states and keep-out zones ([the plan as data](plan-data.md)) |
+| `grid_export` | Writes DXF, IFC, GLB, OBJ, GeoJSON or JSON into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF with no `floor` holds every floor, each on a layout of its own, at the largest standard scale it fits on A3 or at `scale`; `floor` takes a floor's id or name, or `all` for one file per floor (`files`), `out` names the file to write, and `sheets` says each sheet's scale and whether its floor fits ([every floor in one DXF](commands.md#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)). A GLB or OBJ takes `roofs: false` to leave the roofs out and `arcSegments`, the pieces a whole circle of curved wall is written with; an OBJ's `grid.mtl` is written beside it and answered as `materials` ([3D files](3d-files.md)). A GeoJSON or JSON is the plan's geometry as data, every floor in one frame: rooms, doors, walls and items as coordinates, clear widths, swing areas, glass, door states and keep-out zones ([the plan as data](plan-data.md)). A CSV or XLSX is one table, `what` (`estimate`, `takeoff`, `areas`, `doors`, `windows`, `rooms` or `finishes`), in `units` and the dialect of `decimal`, its header on line 1 and the label last, with the CSV text in the answer as `csv` ([a table for a spreadsheet](commands.md#a-table-for-a-spreadsheet-csv-and-xlsx-vew-83)) |
 | `grid_sheet` | Writes the plan as an A3 PDF into `exports/`, a client or check sheet answering with a small picture of each page (VEW-62): layout `client` (cover, a page per floor, the words as `sheet`) or `check` (every id, use and finding); or layout `drawing`, every floor (or the `floor` asked for) at one true scale (`scale`, `paper`, `split`, `roomSizes`) as a vector PDF of a page each and an SVG and a PNG of each page, with the PNGs in the answer |
 | `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with, with `who` set it and a `note`; or takes one off. The latest 20, the oldest rolling off |
 | `grid_mark_seen` | Sets a note of `grid_check` aside as seen, with the person's reason and the name or role they give, in `plan.seen.json` beside the plan; or takes the mark off (see below) |
@@ -227,6 +227,21 @@ is one call for one request.
   An area groups as the answer prints it: to the hundredth of a square metre, or to the whole
   square foot on a plan read in square feet, whose groups and sums the text gives in square feet.
 
+### What stands in a room
+
+The fixtures, furniture and points (`kind` `fixture`, `furniture`, `point`, or `item` for all
+three) and (CMD-53) the columns (`kind: ["column"]`) are asked of as any other part. Each has
+`room`, the id of the room that holds its middle, and `room name` and `room use`, that room's name
+and use, so a question by the kind of room needs no ids: "how many basins in the toilets" is
+`grid_count` with `{ "kind": ["fixture"], "where": ["item kind = basin", "room use = toilet"] }`,
+and "which columns stand in the meeting rooms" `grid_find` with `{ "kind": ["column"], "where":
+["room use = meeting"] }`. A column gives its `column shape` (`square` or `round`), `width`,
+`depth`, `turn`, `label`, `height` (how high it rises above its own floor), `floors` (the floors
+it stands on: its own, then each it rises `through`) and `rooms` (every room it stands in on any
+of them; a column on a room line is in both). `floor` picks a column on every floor it stands on.
+A column carries no facts of the person's own, and one the drawing's checks leave out is not
+listed.
+
 ### Rooms in groups
 
 Rooms are grouped by what the plan already holds (CNT-57): the firm's room type (`roomType`,
@@ -241,8 +256,8 @@ private"`) a `grid_view`, scope a brief's wish (`fact: { "name": "tenure", "valu
 and on a plan where a room states a room type or tenure, `grid_schedule of=rooms` and the sheet's
 room schedule give each room's (`roomType`, `tenure`, and their CSV columns).
 
-Both take `kind`, `floor` and `room` (the room, the walls beside it and the openings into it) to
-narrow what is looked at. A condition is one line, a field or fact and a test: `is missing`,
+Both take `kind`, `floor` and `room` (the room, the walls beside it, the openings into it and the
+items and columns standing in it) to narrow what is looked at. A condition is one line, a field or fact and a test: `is missing`,
 `is set`, `=` and `!=` (text in any capitals; `yes` or `no`; a list holds the value), `<`, `<=`,
 `>` and `>=` (numbers; a length may give its unit, as `width < 900 mm`), and `contains`. A part
 with no value for a field meets only `is missing`. A fact is matched whatever its capitals,
@@ -1118,7 +1133,7 @@ brings no limit, proposes no layout and optimises nothing. FD-1's massing, two f
 outline (3, 5), (15.762, 5), (18.482, 22), (3, 22) on the lab's 500 m² plot:
 
 ```text
-Storeys: 2 storeys at or above the ground floor, none below it; counted by level, from the floors that hold an outline or walls that close one.
+Storeys: 2 storeys at or above the ground floor, none below it; counted by level in each building, the most of any one, a half level as a split level of the storey it stands in, from the floors that hold an outline or walls that close one.
   "Ground floor": gross external 240.07 m², massing: its outline, no walls yet.
   "First floor": gross external 240.07 m², massing: its outline, no walls yet.
 Site limits, the person's own figures: theirs, not from any code or standard.

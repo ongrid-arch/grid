@@ -4,7 +4,7 @@
  * The three tools `grid_fields`, `grid_find` and `grid_count` are written on this file.
  *
  * A part is a wall, a door, a window, a doorless opening, a room or a floor, and (CNT-45) a fixture
- * or a piece of furniture, asked of only when a tool asks for them (`askPlan`). A condition is one
+ * or a piece of furniture, and (CMD-53) a column, asked of only when a tool asks for them (`askPlan`). A condition is one
  * line, `<field> <test>`: `fire rating is missing`, `department = Sales`, `area >= 20`,
  * `width < 900 mm`, `name contains office`. A part with no value for a field meets only `is
  * missing`; every other test needs a value. Text is matched whatever its capitals. A fact is
@@ -15,8 +15,8 @@
  *
  * Pure: a survey in, plain data out.
  */
-import { compareIds, flatOfRoom, floorOf, indexPlan, itemKindDefinition, itemRoom, phaseReading, planFlats, planFloors, planForFloor, roomShapes, tolerance, wallLength } from '@ongrid/floorplan/geometry'
-import { factKey, factOf, factText, type FloorPlan, type FactValue, type Phase } from '@ongrid/floorplan/types/floorplan'
+import { columnDepth, columnFloorIds, columnRise, columnRoom, compareIds, flatOfRoom, floorOf, indexPlan, itemKindDefinition, itemRoom, phaseReading, planFlats, planFloors, planForFloor, roomColumns, roomShapes, soundColumns, tolerance, wallLength } from '@ongrid/floorplan/geometry'
+import { factKey, factOf, factText, type FloorPlan, type FactValue, type Phase, type Room } from '@ongrid/floorplan/types/floorplan'
 import { say } from '@ongrid/floorplan/messages'
 import { likelyId } from '@ongrid/floorplan/types/nearest'
 import { LengthRefused, readLength, type AreaUnit } from '@ongrid/floorplan/types/units'
@@ -30,8 +30,8 @@ import { sqFt } from './units'
 
 /** The parts that carry facts of the person's own (`grid_set_facts`). */
 export const FACT_PART_KINDS = ['wall', 'door', 'window', 'opening', 'room', 'floor'] as const
-/** CNT-45: and the plan's fixtures and furniture, which the query tools ask of too; CNT-52: and its points. */
-export const PART_KINDS = [...FACT_PART_KINDS, 'fixture', 'furniture', 'point'] as const
+/** CNT-45: and the plan's fixtures and furniture, which the query tools ask of too; CNT-52: and its points; CMD-53: and its columns. */
+export const PART_KINDS = [...FACT_PART_KINDS, 'fixture', 'furniture', 'point', 'column'] as const
 export type PartKind = (typeof PART_KINDS)[number]
 const ITEMS: readonly PartKind[] = ['fixture', 'furniture', 'point']
 /** CNT-52: the kind of part an item is asked of as, by its group. */
@@ -79,11 +79,13 @@ const OPENINGS: readonly PartKind[] = ['door', 'window', 'opening']
 const ALL: readonly PartKind[] = PART_KINDS
 const PHASE_KINDS: readonly PartKind[] = ['wall', ...OPENINGS, 'room']
 const GEOMETRY_KINDS: readonly PartKind[] = ['room', 'wall', ...OPENINGS, ...ITEMS]
+/** CMD-53: what stands in a room, asked of by the room: the items and the columns. */
+const STANDING: readonly PartKind[] = [...ITEMS, 'column']
 
 /** The fields Grid states or works out, in the order `grid_fields` lists them. */
 export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'id', type: 'text', unit: null, kinds: ALL, from: 'grid', about: 'Its id in the plan.' },
-  { name: 'kind', type: 'text', unit: null, kinds: ALL, from: 'grid', about: 'wall, door, window, opening (doorless), room, floor, fixture (it takes floor: a toilet, a bath) or furniture (it can be moved: a bed, a sofa).' },
+  { name: 'kind', type: 'text', unit: null, kinds: ALL, from: 'grid', about: 'wall, door, window, opening (doorless), room, floor, fixture (it takes floor: a toilet, a bath), furniture (it can be moved: a bed, a sofa), point (an extinguisher, an exit) or column.' },
   { name: 'floor', type: 'text', unit: null, kinds: ALL, from: 'grid', about: 'The id of the floor it is on; a floor\'s own id.' },
   { name: 'name', type: 'text', unit: null, kinds: ['room', 'floor'], from: 'grid', about: 'Its name in the plan.' },
   { name: 'number', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The room number the plan states, if any.' },
@@ -93,15 +95,15 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'flat', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The id of the flat the room is in, from the plan\'s flats list; none for a room in no flat.' },
   { name: 'flat type', type: 'text', unit: null, kinds: ['room'], from: 'grid', about: 'The type of the flat the room is in: its name, else its id.' },
   { name: 'area', type: 'number', unit: 'm²', kinds: ['room', 'floor'], from: 'grid', about: 'Net floor area, as grid_areas measures it; none for a room Grid could not draw.' },
-  { name: 'height', type: 'number', unit: 'm', kinds: ['wall', ...OPENINGS, 'room', 'floor', ...ITEMS], from: 'grid', about: 'A wall\'s or opening\'s height; a room\'s as grid_measure gives it; a floor\'s stated clear height; an item\'s from the floor to its top.' },
-  { name: 'width', type: 'number', unit: 'm', kinds: [...OPENINGS, ...ITEMS], from: 'grid', about: 'The opening in the wall, as the plan states it; an item\'s width along its back.' },
+  { name: 'height', type: 'number', unit: 'm', kinds: ['wall', ...OPENINGS, 'room', 'floor', ...STANDING], from: 'grid', about: 'A wall\'s or opening\'s height; a room\'s as grid_measure gives it; a floor\'s stated clear height; an item\'s from the floor to its top; how high a column rises above its own floor.' },
+  { name: 'width', type: 'number', unit: 'm', kinds: [...OPENINGS, ...STANDING], from: 'grid', about: 'The opening in the wall, as the plan states it; an item\'s width along its back; a column\'s side, or a round one\'s diameter.' },
   { name: 'sill', type: 'number', unit: 'm', kinds: OPENINGS, from: 'grid', about: 'Height of the opening\'s bottom above the floor.' },
   { name: 'length', type: 'number', unit: 'm', kinds: ['wall'], from: 'grid', about: 'Along its centre line, end to end.' },
   { name: 'thickness', type: 'number', unit: 'm', kinds: ['wall'], from: 'grid', about: 'As the plan states it.' },
   { name: 'wall kind', type: 'text', unit: null, kinds: ['wall'], from: 'grid', about: 'exterior, interior or partition, as the plan states it.' },
   { name: 'virtual', type: 'yes-no', unit: null, kinds: ['wall'], from: 'grid', about: 'yes for a dividing line, which has no material.' },
   { name: 'wall', type: 'text', unit: null, kinds: OPENINGS, from: 'grid', about: 'The id of the wall it is in.' },
-  { name: 'rooms', type: 'list', unit: null, kinds: ['wall', ...OPENINGS, ...ITEMS], from: 'grid', about: 'The ids of the rooms beside it; an opening\'s two sides, "outside" where no room is; the room an item stands in.' },
+  { name: 'rooms', type: 'list', unit: null, kinds: ['wall', ...OPENINGS, ...STANDING], from: 'grid', about: 'The ids of the rooms beside it; an opening\'s two sides, "outside" where no room is; the room an item stands in; every room a column stands in, on every floor it rises through.' },
   { name: 'level', type: 'number', unit: null, kinds: ['floor'], from: 'grid', about: 'The floor\'s place in the stack: 0 the ground floor, 1 the floor above.' },
   { name: 'phase', type: 'text', unit: null, kinds: PHASE_KINDS, from: 'grid', about: say('en', 'query.field.phase') },
   { name: 'stage', type: 'text', unit: null, kinds: PHASE_KINDS, from: 'grid', about: say('en', 'query.field.stage') },
@@ -113,11 +115,17 @@ export const GRID_FIELDS: readonly FieldInfo[] = [
   { name: 'band finishes', type: 'list', unit: null, kinds: ['room'], from: 'grid', about: 'The finishes of its bands and of the wall faces finished apart, each once.' },
   // CNT-45: the plan's fixtures and furniture.
   { name: 'item kind', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the item is: a fixture (toilet, basin, shower, bath, kitchen-run, or equipment such as rack or seat), furniture (bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant) or a point (extinguisher, aed, call-point, first-aid, sensor, desk-point, spawn, camera, you-are-here, hose-reel, fire-door, exit, refuge, assembly-point).' },
-  { name: 'label', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'What the drawing calls the item, its own or its library entry\'s.' },
+  { name: 'label', type: 'text', unit: null, kinds: STANDING, from: 'grid', about: 'What the drawing calls the item, its own or its library entry\'s; a column\'s own.' },
   { name: 'library', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'The library entry it was placed from, by name.' },
-  { name: 'room', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'The id of the room it stands in: the one that holds the middle of its footprint.' },
-  { name: 'depth', type: 'number', unit: 'm', kinds: ITEMS, from: 'grid', about: 'From its back to its front.' },
-  { name: 'turn', type: 'number', unit: null, kinds: ITEMS, from: 'grid', about: 'Degrees counter-clockwise; 0 puts its back to -y.' },
+  { name: 'room', type: 'text', unit: null, kinds: STANDING, from: 'grid', about: 'The id of the room it stands in: the one that holds the middle of its footprint, on a column\'s own floor.' },
+  // CMD-53: the room it stands in by its name and use, so a question by the kind of room needs no ids.
+  { name: 'room name', type: 'text', unit: null, kinds: STANDING, from: 'grid', about: 'The name of the room it stands in, as room gives it.' },
+  { name: 'room use', type: 'text', unit: null, kinds: STANDING, from: 'grid', about: 'What the room it stands in is for, as the plan states it.' },
+  { name: 'depth', type: 'number', unit: 'm', kinds: STANDING, from: 'grid', about: 'From its back to its front; a square column\'s other side.' },
+  { name: 'turn', type: 'number', unit: null, kinds: STANDING, from: 'grid', about: 'Degrees counter-clockwise; 0 puts an item\'s back to -y.' },
+  // CMD-53: the plan's columns (C25).
+  { name: 'column shape', type: 'text', unit: null, kinds: ['column'], from: 'grid', about: 'square or round.' },
+  { name: 'floors', type: 'list', unit: null, kinds: ['column'], from: 'grid', about: 'The ids of the floors it stands on: its own, then each it rises through.' },
   { name: 'clearance', type: 'number', unit: 'm', kinds: ITEMS, from: 'grid', about: 'The clear floor it keeps in front of it.' },
   // ARE-67: the seats, desks and covers the furniture gives (`seats.ts`), per item and in totals.
   { name: 'item zone', type: 'text', unit: null, kinds: ITEMS, from: 'grid', about: 'The id of the zone of its room it stands in, if any. Named so to leave a fact called zone to the person.' },
@@ -142,6 +150,8 @@ export interface Part {
   readonly phase?: Phase
   /** CNT-8, only on a zone: the room it is part of. It has no number of its own and is counted in no total. */
   readonly zoneOf?: string
+  /** CMD-53, only on a column: every floor it stands on, its own first, which a floor picks it on. */
+  readonly floors?: readonly string[]
 }
 
 /** Why a question was refused, in Grid's words, never repeating what was sent. */
@@ -172,9 +182,11 @@ function openingKind(type: 'door' | 'window' | 'opening'): PartKind {
 /**
  * Every part of the plan, in one order whatever the file's: floors, then each kind by id. CNT-45:
  * with `items`, its fixtures, furniture and points (CNT-52) last, with their facts; a change of facts
- * leaves them out: an item is given its facts as it is added (`grid_add_item`).
+ * leaves them out: an item is given its facts as it is added (`grid_add_item`). CMD-53: with
+ * `columns`, the columns the drawing's checks keep (`soundColumns`), after the items; a column
+ * carries no facts.
  */
-export function askPlan(survey: Survey, options: { readonly items?: boolean; readonly stated?: FloorPlan } = {}): Asked {
+export function askPlan(survey: Survey, options: { readonly items?: boolean; readonly columns?: boolean; readonly stated?: FloorPlan } = {}): Asked {
   const plan = survey.plan
   const stated = options.stated ?? plan
   const phases = phaseReading(stated)
@@ -194,10 +206,24 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean; rea
   for (const opening of byId(stated.openings)) parts.push({ kind: openingKind(opening.type), id: opening.id, floor: wallFloor.get(opening.wall) ?? 'ground', facts: opening.properties ?? {}, phase: phases.opening(opening) })
   const items = new Map((options.items === true ? plan.items ?? [] : []).map((item) => [item.id, item] as const))
   for (const item of byId([...items.values()])) parts.push({ kind: itemPart(item.kind), id: item.id, floor: floorOf(item), facts: item.properties ?? {} })
+  const columns = new Map((options.columns === true ? soundColumns(plan) : []).map((column) => [column.id, column] as const))
+  for (const column of byId([...columns.values()])) parts.push({ kind: 'column', id: column.id, floor: floorOf(column), facts: {}, floors: columnFloorIds(plan, column) })
+  let index: ReturnType<typeof indexPlan> | null = null
+  const planIndex = (): ReturnType<typeof indexPlan> => (index ??= indexPlan(plan))
   let shapes: ReturnType<typeof roomShapes> | null = null
-  const roomOfItem = (id: string): string | null => {
-    shapes ??= roomShapes(indexPlan(plan))
-    return itemRoom(items.get(id)!, shapes)?.id ?? null
+  // CMD-53: the room an item or a column stands in, on its own floor.
+  const roomStoodIn = (part: Part): Room | null => {
+    shapes ??= roomShapes(planIndex())
+    return part.kind === 'column' ? columnRoom(columns.get(part.id)!, shapes) : itemRoom(items.get(part.id)!, shapes)
+  }
+  // CMD-53: every room each column stands in, on any floor, a column on a room line in both.
+  let columnRooms: Map<string, string[]> | null = null
+  const roomsOfColumn = (id: string): string[] => {
+    if (columnRooms === null) {
+      columnRooms = new Map()
+      for (const room of plan.rooms) for (const column of roomColumns(room, planIndex())) columnRooms.set(column, [...(columnRooms.get(column) ?? []), room.id])
+    }
+    return [...new Set(columnRooms.get(id) ?? [])].sort(compareIds)
   }
 
   const walls = new Map(stated.walls.map((w) => [w.id, w] as const))
@@ -326,13 +352,27 @@ export function askPlan(survey: Survey, options: { readonly items?: boolean; rea
       if (name === 'rooms') return roomsBeside(wall.id, part.phase === 'demolished' ? beforeWork() : survey)
       return null
     }
+    if (name === 'room') return roomStoodIn(part)?.id ?? null
+    if (name === 'room name') return roomStoodIn(part)?.name ?? null
+    if (name === 'room use') return roomStoodIn(part)?.use ?? null
+    if (part.kind === 'column') {
+      const column = columns.get(part.id)!
+      if (name === 'column shape') return column.shape
+      if (name === 'floors') return part.floors ?? [part.floor]
+      if (name === 'rooms') return roomsOfColumn(column.id)
+      if (name === 'label') return column.label ?? null
+      if (name === 'width') return column.width
+      if (name === 'depth') return columnDepth(column)
+      if (name === 'height') return columnRise(plan, column)
+      if (name === 'turn') return column.turn ?? 0
+      return null
+    }
     if (isItemPart(part.kind)) {
       const item = items.get(part.id)!
       if (name === 'item kind') return item.kind
       if (name === 'label') return item.label ?? null
       if (name === 'library') return item.library ?? null
-      if (name === 'room') return roomOfItem(item.id)
-      if (name === 'rooms') return roomOfItem(item.id) === null ? [] : [roomOfItem(item.id)!]
+      if (name === 'rooms') return roomStoodIn(part) === null ? [] : [roomStoodIn(part)!.id]
       if (name === 'width') return item.size[0]
       if (name === 'depth') return item.size[1]
       if (name === 'height') return item.height
@@ -618,7 +658,8 @@ export function select(asked: Asked, selection: Selection): Part[] {
   return asked.parts.filter((part) => {
     if (!includesDemolition && part.phase === 'demolished') return false
     if (selection.kinds !== undefined && !selection.kinds.includes(part.kind)) return false
-    if (selection.floor !== undefined && part.floor !== selection.floor) return false
+    // CMD-53: a column is on every floor it stands on.
+    if (selection.floor !== undefined && !(part.floors ?? [part.floor]).includes(selection.floor)) return false
     if (selection.room !== undefined) {
       const inRoom = part.kind === 'room' ? part.id === selection.room : (asked.value(part, rooms) as readonly string[] | null)?.includes(selection.room) === true
       if (!inRoom) return false

@@ -59,6 +59,8 @@ import { compareMassing, type MassingComparison } from './massing'
 import { withPatterns } from '../patterns'
 import { changesOutsideScope } from './scope'
 import type { DiffIssue, EntityRef, IssueCode, PlanChange, PlanDiff } from './types'
+import { compareTypes, finishChanges, finishWords, openingTypeId, partTypeSaid, type FinishChange, type TypeChange } from './typesAndFinishes'
+import { curveChangeSaid, curveFigures, curvesDiffer, type CurveFigures } from './curves'
 
 export const BUILDING_COMPARISON_VERSION = 1 as const
 
@@ -239,6 +241,21 @@ export interface BuildingComparison {
   readonly aligned: FloorPlan
   /** The id diff of the aligned earlier plan against the later one. */
   readonly diff: PlanDiff
+  /** WRT-86: the wall, door and window types added, removed or changed, each a change line, with the parts that take them. */
+  readonly types: readonly TypeChange[]
+  /** WRT-86: the rooms in both versions whose finishes changed, by later id, each said in its room's line. */
+  readonly finishes: readonly { readonly room: string; readonly name: string; readonly changes: readonly FinishChange[] }[]
+  /** WRT-86: the walls in both versions whose curve changed, with its figures before and after (null on a straight side). */
+  readonly curves: readonly CurveChange[]
+}
+
+/** WRT-86: a wall whose curve changed. */
+export interface CurveChange {
+  /** The later id. */
+  readonly wall: string
+  readonly before: CurveFigures | null
+  readonly after: CurveFigures | null
+  readonly text: string
 }
 
 // ── Measuring ─────────────────────────────────────────────────────────────────────────────
@@ -550,7 +567,7 @@ function pairedGroups(
 const ROOM_IDS_NAMED = 3
 
 /** WRT-19: what a wall states of its own, which no room line says: listed whichever way the plan was written. */
-const WALL_FIGURES: ReadonlySet<string> = new Set(['thickness', 'height', 'kind', 'virtual', 'floor', 'arc', 'phase'])
+const WALL_FIGURES: ReadonlySet<string> = new Set(['thickness', 'height', 'kind', 'virtual', 'floor', 'arc', 'phase', 'wallType'])
 
 const ISSUE_ORDER: Readonly<Record<string, number>> = {
   door_joins_other_rooms: 0,
@@ -642,6 +659,8 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
 
   // Room by room.
   const verdicts: RoomVerdict[] = []
+  // WRT-86: the rooms whose finishes changed.
+  const finishes: { room: string; name: string; changes: FinishChange[] }[] = []
   const moves = new Map<string, { dx: number; dy: number }>()
   // WRT-32: every room that kept its size and moved, changed in other ways or not: what an opening moved with.
   const carried = new Map<string, { dx: number; dy: number }>()
@@ -680,6 +699,12 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     if (floorOf(before) !== floorOf(room)) words.push(`moved to floor ${quoted(floorOf(room))}`)
     // MSG-25: a room now to be demolished, or now new.
     if (phaseSaid('room', room.id) !== '') words.push(phaseSaid('room', room.id))
+    // WRT-86: its finishes, which change nothing that stands and are still a change to the room.
+    const finished = finishChanges(before, room)
+    if (finished.length > 0) {
+      finishes.push({ room: room.id, name: room.name, changes: finished })
+      words.push(...finished.map(finishWords))
+    }
     // WRT-32: a room whose id changed says so; the id alone is no change line ("ids aside, the same building").
     const earlierId = idBefore.get(room.id) ?? null
     const subject = earlierId === null ? quoted(before.name || before.id) : english(said('diff.room.id', { room: name(before.name || before.id), before: name(earlierId), after: name(room.id) }))
@@ -808,6 +833,11 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     }
     // MSG-25: a window blocked up, a door kept that was to go.
     if (phaseSaid('opening', opening.id) !== '') words.push(phaseSaid('opening', opening.id))
+    // WRT-86: the door or window type it takes, by the types' names.
+    if (opening.type !== 'opening') {
+      const typeSaid = partTypeSaid(aligned, later, opening.type === 'door' ? 'doors' : 'windows', before.type === opening.type ? openingTypeId(before) : undefined, openingTypeId(opening))
+      if (typeSaid !== null && (before.type === opening.type || openingTypeId(opening) !== undefined)) words.push(english(typeSaid))
+    }
     if (words.length > 0) {
       // MSG-28: moved to another wall, it is about the rooms on its old wall too, where they still are.
       const about = otherWall ? [...new Set([...rooms, ...roomsOfOpening(before, 'base').filter((id) => headRooms.has(id))])].sort(compareText) : rooms
@@ -932,7 +962,18 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   // MSG-27: the massing and the site, moved as the walls were, after the floors.
   const massing = compareMassing(turn === null ? earlier : turnPlan(earlier, turn.id), later, alignment.shift)
   const massingLines: ChangeLine[] = massing.lines.map((line) => ({ text: english(line.said), entities: line.entities, rooms: [] }))
-  const changes: ChangeLine[] = [...floorLines, ...massingLines, ...roomLines, ...wallLines, ...openingLines]
+  // WRT-86: the types added, removed or changed, each with the parts that take it, after the massing.
+  const types = compareTypes(aligned, later)
+  const typeLines: ChangeLine[] = types.map((type) => {
+    const removed = type.status === 'removed'
+    const rooms = type.parts.flatMap((part) => {
+      if (part.type === 'wall') return (removed ? earlierRoomsOf : laterRoomsOf).get(part.id) ?? []
+      const opening = (removed ? baseOpenings : headOpenings).get(part.id)
+      return opening === undefined ? [] : roomsOfOpening(opening, removed ? 'base' : 'head')
+    })
+    return { text: english(type.said), entities: type.parts, rooms: [...new Set(rooms)].filter((id) => headRooms.has(id)).sort(compareText) }
+  })
+  const changes: ChangeLine[] = [...floorLines, ...massingLines, ...typeLines, ...roomLines, ...wallLines, ...openingLines]
   // The rooms on a floor added or removed: its floor's line counts them, and the verdict does not say them again.
   const ofFloorLine = (v: RoomVerdict): boolean =>
     (v.status === 'added' && floorsNew.has(floorOf(headRooms.get(v.room)!))) || (v.status === 'removed' && floorsGone.has(floorOf(baseRooms.get(v.room)!)))
@@ -962,9 +1003,12 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     const named = new Set(options.rooms)
     const outOfScope = new Set((scope?.changes ?? []).map((c: PlanChange) => `${c.entity.type}:${c.entity.id}`))
     const site = new Set(massingLines)
+    const typed = new Set(typeLines)
     outside = changes.filter((line) => {
       // MSG-27: the massing and the site are no room's.
       if (site.has(line)) return true
+      // WRT-86: a type reaches every part of it: inside only when each of their rooms is named.
+      if (typed.has(line)) return line.rooms.length === 0 || line.rooms.some((id) => !named.has(id))
       if (line.entities.some((e) => e.type === 'wall' || e.type === 'floor')) return line.entities.some((e) => outOfScope.has(`${e.type}:${e.id}`))
       return line.rooms.length === 0 ? line.entities.every((e) => !named.has(e.id)) : !line.rooms.some((id) => named.has(id))
     })
@@ -983,7 +1027,8 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   for (const change of diff.changes) {
     if (change.entity.type !== 'wall' || change.kind !== 'modified') continue
     const id = change.entity.id
-    const own = change.props.some((p) => p.key === 'thickness' || p.key === 'phase')
+    // WRT-86: a curve bent another way or a wall of another type changed too, its ends where they were.
+    const own = change.props.some((p) => p.key === 'thickness' || p.key === 'phase' || p.key === 'arc' || p.key === 'wallType')
     const ends = change.props.some((p) => p.key === 'start' || p.key === 'end')
     const was = wallsBefore.get(id)
     const is = wallsAfter.get(id)
@@ -1040,6 +1085,20 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     })
   }
 
+  // WRT-86: every wall in both versions whose curve changed, with its figures before and after.
+  const curves: CurveChange[] = []
+  for (const change of diff.changes) {
+    if (change.entity.type !== 'wall' || change.kind !== 'modified') continue
+    const was = wallsBefore.get(change.entity.id)
+    const is = wallsAfter.get(change.entity.id)
+    if (was === undefined || is === undefined || (was.arc === undefined && is.arc === undefined)) continue
+    const before = curveFigures(was)
+    const after = curveFigures(is)
+    const differ = before === null || after === null ? before !== after : curvesDiffer(before, after)
+    const words = differ ? curveChangeSaid(before, after) : null
+    if (words !== null) curves.push({ wall: change.entity.id, before, after, text: english(words) })
+  }
+
   const renamed = alignment.renamed
   const renamedCount = { walls: renamed.filter((r) => r.type === 'wall').length, openings: renamed.filter((r) => r.type === 'opening').length, rooms: renamed.filter((r) => r.type === 'room').length }
   const sameBuilding = changes.length === 0 && turn === null
@@ -1073,7 +1132,7 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     turnFirst = `${turn.text}${keepsSize ? ', and every room keeps its size' : ''}.`
     if (changes.length === 0) verdict = `Nothing else changed${sameWords === '' ? '' : `; ${sameWords}`}${shifted}.`
     else {
-      const parts: string[] = [...floorLines, ...massingLines].map((line) => line.text)
+      const parts: string[] = [...floorLines, ...massingLines, ...typeLines].map((line) => line.text)
       const folded = verdicts.filter(ofFloorLine).length
       for (const v of verdicts) if ((v.status === 'changed' || v.status === 'added' || v.status === 'removed') && v.mergedInto === null && !ofFloorLine(v)) parts.push(v.text)
       const others = changes.length - parts.length - folded
@@ -1086,12 +1145,12 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   } else if (sameBuilding) {
     verdict = `Same building${sameWords === '' ? '' : `, ${sameWords}`}: every room, wall and opening stands where it stood${shifted}.`
   } else {
-    const parts: string[] = [...floorLines, ...massingLines].map((line) => line.text)
+    const parts: string[] = [...floorLines, ...massingLines, ...typeLines].map((line) => line.text)
     for (const v of verdicts) if ((v.status === 'changed' || v.status === 'added' || v.status === 'removed') && v.mergedInto === null && !ofFloorLine(v)) parts.push(v.text)
     for (const line of roomLines) if (line.entities.every((e) => moves.has(e.id))) parts.push(line.text)
     const kept = verdicts.filter((v) => v.status === 'unchanged').length
     if (kept > 0) parts.push(`${plural(kept, 'room')} as ${kept === 1 ? 'it was' : 'they were'}`)
-    const others = changes.length - roomLines.length - floorLines.length - massingLines.length
+    const others = changes.length - roomLines.length - floorLines.length - massingLines.length - typeLines.length
     if (others > 0) parts.push(`${plural(others, roomsFirst && wallLines.length === 0 ? 'opening change' : 'wall or opening change')}`)
     if (movedWithWords !== '') parts.push(movedWithWords)
     if (renamed.length > 0) parts.push(renamedWords)
@@ -1125,6 +1184,9 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
     scope: { checked: options.rooms !== undefined, rooms: options.rooms ?? [], outside },
     marks,
     aligned,
-    diff
+    diff,
+    types,
+    finishes,
+    curves
   }
 }

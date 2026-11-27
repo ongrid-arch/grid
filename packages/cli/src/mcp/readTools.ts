@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, shadowPlan, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, metresText, slopeText, tolerance, traceFloor, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix, type PlanSun } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, shadowPlan, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, type HeightFrom, metresText, slopeText, tolerance, traceFloor, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix, type PlanSun } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -200,14 +200,14 @@ function statedRoofWords(plan: FloorPlan, floorIds: readonly string[]): string {
 /** CNT-12: what `fit` keeps clear of in a room with fixtures. */
 const FIT_CLEAR_RULE = 'What is fitted keeps clear of the room\'s fixtures: each takes the floor its footprint covers.'
 
-const UNITS_ARG: ArgSpec = {
+export const UNITS_ARG: ArgSpec = {
   type: 'string',
   enum: DISPLAY_UNITS,
   description: 'How figures are written: m (metres), cm, mm, or ft-in (feet and inches, square feet beside square metres; ft is the same). The plan\'s own display, or m, when left out. Grid measures in metres either way.',
   examples: ['m', 'ft-in', 'mm'],
 }
 
-const DECIMAL_ARG: ArgSpec = {
+export const DECIMAL_ARG: ArgSpec = {
   type: 'string',
   enum: ['point', 'comma'],
   description: 'The decimal mark figures are written with: point (2.40) or comma (2,40). The plan\'s own display, or point, when left out.',
@@ -225,7 +225,7 @@ const DATA_ARG: ArgSpec = {
 const FORMAT_ARG: ArgSpec = {
   type: 'string',
   enum: ['text', 'csv'],
-  description: 'text for the answer in words, csv for the table as comma-separated values to paste into a spreadsheet. text when left out.',
+  description: 'text for the answer in words, csv for the table as comma-separated values to paste into a spreadsheet, its header on line 1 and the label last, also in the data as csv; grid_export writes it as a file. text when left out.',
   examples: ['text', 'csv'],
 }
 
@@ -495,7 +495,7 @@ const areasTool: GridTool = {
     outdoor: { type: 'object' },
     // CNT-6, only on a plan that names buildings: each building's own floors' figures and its height.
     // LVL-23: its ground (its pad, the site's ground or its ground floor's level, `from`), which its height is measured from, and its own storeys.
-    buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER, ground: NUMBER, from: { type: 'string', enum: ['pad', 'site', 'floor'] }, storeys: { type: 'object', properties: { above: NUMBER, below: NUMBER } } }, ['id', 'name', 'floors', 'net'])),
+    buildings: listSchema(objectSchema({ id: STRING, name: STRING, floors: listSchema(STRING), net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, height: NULLABLE_NUMBER, ground: NUMBER, from: { type: 'string', enum: ['pad', 'site', 'floor', 'under'] }, storeys: { type: 'object', properties: { above: NUMBER, below: NUMBER, split: NUMBER } } }, ['id', 'name', 'floors', 'net'])),
     // ARE-20, only when apart_rooms is given: those rooms' net and their area to the middle of the walls they share.
     apart: objectSchema({ rooms: listSchema(STRING), net: NUMBER, byFloor: { type: 'object' }, toPartyWalls: { type: ['object', 'null'], properties: { grossInternal: NUMBER, grossExternal: NUMBER } }, notCounted: listSchema(STRING), state: { type: 'object' } }, ['rooms', 'net', 'toPartyWalls']),
     // ARE-68: the lettable area, the core and efficiency, per floor, floor type and in all; the area per person, only with a figure.
@@ -538,11 +538,12 @@ const areasTool: GridTool = {
       ...briefPeopleOf(context, file),
     })
     const written = args['as_written'] === true ? asWrittenAreas(survey) : null
-    // LVL-23: each building measured from its own ground, with its own storeys.
+    // LVL-23: each building measured from its own ground, with its own storeys; ARE-76: the ground its height is measured from, and its split levels.
     const buildings = areas.buildings.map((b) => {
       const own = heights.get(b.id)
-      const ground = grounds.get(b.id) ?? { level: 0, from: 'floor' as const }
-      return { ...b, height: own?.height?.height ?? null, ground: ground.level, from: ground.from, storeys: own?.storeys ?? { above: 0, below: 0 } }
+      const measured = own?.height ?? null
+      const ground: { level: number; from: HeightFrom } = measured === null ? (grounds.get(b.id) ?? { level: 0, from: 'floor' }) : { level: measured.ground, from: measured.from }
+      return { ...b, height: measured?.height ?? null, ground: ground.level, from: ground.from, storeys: own?.storeys ?? { above: 0, below: 0, split: 0 } }
     })
     const data = {
       floors: written === null ? areas.floors : withAsWritten(areas.floors, written),
@@ -663,7 +664,9 @@ const areasTool: GridTool = {
       for (const b of buildings) {
         const gross = areas.reader.gross.map((m) => grossWord(m, b[m] === null ? notKnown : areaText(b[m]!, units)))
         const storeys = b.storeys.above + b.storeys.below
-        const counted = said(storeys === 1 ? 'areas.building.storeys.one' : 'areas.building.storeys', { count: storeys })
+        const whole = said(storeys === 1 ? 'areas.building.storeys.one' : 'areas.building.storeys', { count: storeys })
+        // ARE-76: half levels counted as split levels of the storeys they stand in.
+        const counted = b.storeys.split === 0 ? whole : said(b.storeys.split === 1 ? 'areas.building.splitLevels.one' : 'areas.building.splitLevels', { storeys: whole, count: b.storeys.split })
         const from = said(`areas.building.from.${b.from}` as MessageKey, { level: levelText(b.ground, units) })
         const high = b.height === null ? '' : s.say('tool.areas.building.high', { height: lengthText(b.height, units), from: s.value(from) })
         lines.push(`  ${s.say(b.floors.length === 1 ? 'tool.areas.building.one' : 'tool.areas.building', { building: name(b.name), count: b.floors.length, storeys: s.value(counted), net: areaText(b.net, units), gross: gross.join(', '), high })}`)
@@ -1521,11 +1524,11 @@ export const KIND_ARG: ArgSpec = {
   maxItems: FACT_PART_KINDS.length,
 }
 
-/** CNT-45: grid_fields, grid_find and grid_count ask of the fixtures and furniture too. */
+/** CNT-45: grid_fields, grid_find and grid_count ask of the fixtures and furniture too; CMD-53: and the columns. */
 const QUERY_KIND_ARG: ArgSpec = {
   ...KIND_ARG,
-  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run), furniture (a bed, a sofa, a table) or point (an extinguisher, a camera, an exit), or item for every fixture, piece of furniture and point. Every kind when left out.',
-  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item'], ['point']],
+  description: 'Only these kinds of part: wall, door, window, opening (doorless), room, floor, fixture (a toilet, a bath, a kitchen run), furniture (a bed, a sofa, a table), point (an extinguisher, a camera, an exit) or column, or item for every fixture, piece of furniture and point. Every kind when left out.',
+  examples: [['door'], ['room'], ['fixture', 'furniture'], ['item'], ['column']],
   items: { enum: [...PART_KINDS, 'item'] },
   maxItems: PART_KINDS.length + 1,
 }
@@ -1542,7 +1545,7 @@ export const WHERE_ARG: ArgSpec = {
 export const ROOM_IN_ARG: ArgSpec = {
   type: 'string',
   id: true,
-  description: 'Only what belongs to this room, by id: the room itself, the walls beside it and the doors, windows and openings into it.',
+  description: 'Only what belongs to this room, by id: the room itself, the walls beside it, the doors, windows and openings into it and the items and columns standing in it.',
   examples: ['kitchen', 'office-2'],
 }
 
@@ -1554,8 +1557,8 @@ const kindsOf = (args: Record<string, unknown>): readonly PartKind[] | undefined
 }
 
 function partsWord(kinds: readonly PartKind[] | undefined, n: number): string {
-  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture', point: 'points' }
-  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture', point: 'point' }
+  const plural: Record<PartKind, string> = { wall: 'walls', door: 'doors', window: 'windows', opening: 'doorless openings', room: 'rooms', floor: 'floors', fixture: 'fixtures', furniture: 'pieces of furniture', point: 'points', column: 'columns' }
+  const one: Record<PartKind, string> = { wall: 'wall', door: 'door', window: 'window', opening: 'doorless opening', room: 'room', floor: 'floor', fixture: 'fixture', furniture: 'piece of furniture', point: 'point', column: 'column' }
   if (kinds !== undefined && kinds.length === 1) return `${n} ${n === 1 ? one[kinds[0]!] : plural[kinds[0]!]}`
   return `${n} part${n === 1 ? '' : 's'}`
 }
@@ -1607,7 +1610,7 @@ const fieldsTool: GridTool = {
   }),
   run(args, context) {
     const { survey } = load(context, args['plan'])
-    const ask = askPlan(survey, { items: true })
+    const ask = askPlan(survey, { items: true, columns: true })
     const kinds = kindsOf(args)
     const counts = PART_KINDS.filter((k) => kinds === undefined || kinds.includes(k)).map((kind) => ({ kind, count: ask.parts.filter((p) => p.kind === kind).length }))
     // CNT-57: the groups the rooms state (room type, tenure, flat type), each with its values.
@@ -1637,7 +1640,7 @@ const findTool: GridTool = {
   hint: 'read',
   description:
     'Use this when the person asks which parts of the plan have, lack or match something: "which doors have no fire rating", "rooms of the Sales department", "windows lower than 900 mm", "walls rated EI 60 on the first floor". '
-    + 'It returns the ids of the walls, doors, windows, openings, rooms, floors, fixtures or furniture (kind=fixture, kind=furniture: "the beds in the plan", "every WC on the first floor") that meet every condition, with only the fields you name, and a view argument to pass to grid_view so they are shown picked out. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
+    + 'It returns the ids of the walls, doors, windows, openings, rooms, floors, fixtures, furniture or columns (kind=fixture, kind=furniture: "the beds in the plan", "every WC on the first floor"; kind=column, where room use = meeting: "the columns in the meeting rooms") that meet every condition, with only the fields you name, and a view argument to pass to grid_view so they are shown picked out. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
     + 'Call grid_fields first for the names. Do not use for how many or how much by group (grid_count), for areas (grid_areas) or for a door schedule (grid_schedule). Lengths are metres, areas square metres.',
   args: {
     plan: PLAN_ARG,
@@ -1665,7 +1668,7 @@ const findTool: GridTool = {
     // ARE-75: read in a state, it says so, and its view draws that state.
     const state = args['state'] as string | undefined
     return withStateLine(asked(() => {
-      const ask = askPlan(survey, { items: true, stated })
+      const ask = askPlan(survey, { items: true, columns: true, stated })
       const kinds = kindsOf(args)
       const fields = ((args['fields'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `fields item ${i + 1}`))
       const found = select(ask, {
@@ -1699,7 +1702,7 @@ const countTool: GridTool = {
   title: 'Count and sum parts by group',
   hint: 'read',
   description:
-    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room), "how many extinguishers on each floor" (kind=point, where item kind = extinguisher, by floor). '
+    'Use this when the person asks how many or how much, grouped by a field or a fact of their own: "area per department", "how many doors of each fire rating", "head count by floor", "total window width on each floor", "how many beds in each room" (kind=furniture, by item kind or room), "how many extinguishers on each floor" (kind=point, where item kind = extinguisher, by floor), "how many basins in each toilet" (kind=fixture, where item kind = basin, by room), "columns by room" (kind=column, by room). '
     + 'It groups the parts that meet every condition by the field named in by, and gives each group its count, the sum of each field named in sum, and its ids, with a view argument to pass to grid_view so each group is shown in its own colour. Facts of the person\'s own are as the plan gives them: Grid checks nothing against them. '
     + 'Rooms are counted as grid_areas counts them, so an area sum is its net: a zone with its room, a stair or lift drawn on floor after floor once, on the floor it rises from (stairs=per floor counts it on each floor), and no void or outdoor space; the answer lists each room left out, with why. '
     + 'Call grid_fields first for the names. Do not use for the list of parts itself (grid_find), for the plan\'s areas by use (grid_areas) or for a door schedule (grid_schedule). Areas are square metres, lengths metres.',
@@ -1727,7 +1730,7 @@ const countTool: GridTool = {
     const { survey, stated, floor } = load(context, args['plan'], args['floor'])
     const room = args['room'] === undefined ? undefined : roomArg(stated, args['room'])
     return asked(() => {
-      const ask = askPlan(survey, { items: true, stated })
+      const ask = askPlan(survey, { items: true, columns: true, stated })
       const kinds = kindsOf(args)
       const by = args['by'] === undefined ? null : fieldOf(ask, args['by'] as string, 'by')
       const sums = ((args['sum'] as string[] | undefined) ?? []).map((name, i) => fieldOf(ask, name, `sum item ${i + 1}`))
@@ -3627,7 +3630,24 @@ function noting(tool: GridTool, applies: (args: Record<string, unknown>) => bool
   }
 }
 
-export const READ_TOOLS: readonly GridTool[] = [compareTool, noting(areasTool, (args) => args['format'] !== 'csv'), takeoffTool, scheduleTool, fieldsTool, findTool, countTool, noting(measureTool, (args) => ['use', 'fit', 'access', 'route'].includes(args['what'] as string)), viewTool, describeTool, checkTool]
+/**
+ * VEW-83: a table asked for as CSV is in the data too, as `csv`, so a host that shows the agent
+ * only the structured answer still hands it the table.
+ */
+function csvInData(tool: GridTool): GridTool {
+  const run = tool.run
+  return {
+    ...tool,
+    run(args, context) {
+      if (args['format'] !== 'csv') return run.call(tool, args, context)
+      const withCsv = (answer: Answer): Answer => ({ ...answer, data: { ...answer.data, csv: answer.text } })
+      const made = run.call(tool, args, context)
+      return made instanceof Promise ? made.then(withCsv) : withCsv(made)
+    },
+  }
+}
+
+export const READ_TOOLS: readonly GridTool[] = [compareTool, csvInData(noting(areasTool, (args) => args['format'] !== 'csv')), csvInData(takeoffTool), csvInData(scheduleTool), fieldsTool, findTool, countTool, noting(measureTool, (args) => ['use', 'fit', 'access', 'route'].includes(args['what'] as string)), viewTool, describeTool, checkTool]
 
 /** What the sides of an opening are called in an answer. Exported for the edit tools. */
 export function openingBetween(survey: Survey, id: string): string {

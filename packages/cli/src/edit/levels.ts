@@ -123,7 +123,7 @@ function rows(levels: readonly FloorLevel[]): string[] {
   return out
 }
 
-const HEIGHT_KEY = { floor: 'levels.height.floor', site: 'levels.height.site', pad: 'levels.height.pad' } as const
+const HEIGHT_KEY = { floor: 'levels.height.floor', site: 'levels.height.site', pad: 'levels.height.pad', under: 'levels.height.under' } as const
 
 /**
  * Every floor's level, floor-to-floor and clear height, by building, and each building's height

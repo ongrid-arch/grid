@@ -54,6 +54,11 @@ export const EXPORT_OPTIONS: OptionSpecs = {
   '--walls': { takesValue: true, help: `GLB: ${GLB_WALL_MODES.join(' or ')}. rooms writes each straight wall as a piece for each stretch between the rooms beside it, named by them. Left out, whole.` },
   '--date': { takesValue: true, help: 'IFC: the time stamp to write, a date (2026-01-31) or a time (2026-01-31T09:00:00Z). SOURCE_DATE_EPOCH when left out, else now. The same date gives the same file.' },
   '--out': { takesValue: true, help: 'The file to write, inside the project, ending in the format\'s extension. exports/ beside the plan when left out.' },
+  // VEW-83: a table as a CSV or XLSX file.
+  '--what': { takesValue: true, help: 'CSV and XLSX: the table, estimate, takeoff, areas, doors, windows, rooms or finishes. Needed for them.' },
+  '--csv': { takesValue: true, help: 'The table named, as CSV: the same as --format csv --what <table>.' },
+  '--units': { takesValue: true, help: 'CSV and XLSX: the unit of the lengths, m, cm, mm or ft-in. The plan\'s own display when left out.' },
+  '--decimal': { takesValue: true, help: 'CSV and XLSX: point (fields split by commas) or comma (split by semicolons). The plan\'s own display when left out.' },
   ...PROJECT_OPTION,
 }
 
@@ -257,7 +262,7 @@ export function exportBaseOf(planFile: string): { base: string; note?: string } 
  *
  * Grid sanitises rather than refuses: the export is still written, and `note` says what changed.
  */
-export function exportNameOf(planFile: string, format: ExportFormat, floor: string | number | null): ExportName {
+export function exportNameOf(planFile: string, format: ExportFormat | 'csv' | 'xlsx', floor: string | number | null): ExportName {
   const made = exportBaseOf(planFile)
   let base = made.base
   let note = made.note

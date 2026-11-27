@@ -460,9 +460,9 @@ describe('grid_takeoff with for=estimate', () => {
     const r = await own.call('grid_takeoff', { plan: 'one-room.json', for: 'estimate', format: 'csv' })
     own.close()
     const rows = r.text.trimEnd().split('\n')
-    // MSG-3: every CSV opens with the label, then the header.
-    expect(rows[0]).toBe('"General guidance, not your local rules"')
-    expect(rows[1]).toBe('section,key,what,quantity,unit,assumed,rate,per,waste,amount,rate key,state,rule')
+    // MSG-3, VEW-83: every CSV opens with its header and closes with the label.
+    expect(rows.at(-1)).toBe('"General guidance, not your local rules"')
+    expect(rows[0]).toBe('section,key,what,quantity,unit,assumed,rate,per,waste,amount,rate key,state,rule')
     expect(rows).toContain('line,door:0.9x2.1,Door 0.90 × 2.10 m,1,nr,,,,,,,no rate,"Counted once per opening, not once per room, by the size of its hole in the wall, width by height; the plan holds no frames, leaves or types."')
     expect(rows.find((row) => row.startsWith('line,roof,'))).toMatch(/^line,roof,"Roof, taken as flat, wherever no floor is above \(""Ground floor"" 14\.19 m²\)",14\.19,m2,assumed,/)
   })

@@ -90,7 +90,7 @@ describe('CNT-53 opening phases in grid_schedule', () => {
     expect(rows.slice(0, -1).map((row) => row.mark)).toEqual(openingSchedule(survey(renovation)).rows.map((row) => row.mark))
     expect(reply.text.split('To be removed')[1]).toContain('loft-w-loft')
     const csv = await b.call('grid_schedule', { plan: 'renovation.json', of: 'openings', format: 'csv' })
-    const [, header, ...cells] = csv.text.trim().split('\n').map(fields)
+    const [header, ...cells] = csv.text.trim().split('\n').slice(0, -1).map(fields)
     expect(header).toEqual(expect.arrayContaining(['phase', 'section']))
     expect(cells.at(-1)).toEqual(expect.arrayContaining(['loft-w-loft', 'demolished', 'To be removed']))
     expect(cells.every((row) => row.length === header!.length)).toBe(true)
@@ -103,7 +103,7 @@ describe('CNT-53 opening phases in grid_schedule', () => {
     expect(reply.data).toMatchObject({ count: 0, rows: [{ phase: 'demolished', count: 1, items: [{ id: 'loft-w-loft' }] }] })
     expect(reply.text).toContain('To be removed')
     const csv = await b.call('grid_schedule', { ...args, format: 'csv' })
-    expect(fields(csv.text.trim().split('\n').at(-1)!)).toEqual(expect.arrayContaining(['demolished', 'To be removed']))
+    expect(fields(csv.text.trim().split('\n').at(-2)!)).toEqual(expect.arrayContaining(['demolished', 'To be removed']))
     const all = await b.call('grid_schedule', { plan: 'renovation.json', of: 'windows' })
     expect(reply.data?.['rows']).toMatchObject([{ marks: (all.data?.['rows'] as { marks: string[] }[]).at(-1)!.marks }])
   })
@@ -121,7 +121,7 @@ describe('CNT-53 opening phases in grid_schedule', () => {
     ])
     const csv = await b.call('grid_schedule', { ...args, format: 'csv' })
     expect(csv.text).toContain(',new,')
-    expect(csv.text.trim().split('\n').at(-1)).toMatch(/,demolished,To be removed$/)
+    expect(csv.text.trim().split('\n').at(-2)).toMatch(/,demolished,To be removed$/)
     const plain = await b.call('grid_schedule', { plan: 'loft.json', of: 'doors' })
     expect((plain.data?.['rows'] as { phase: string }[]).map((row) => row.phase)).toEqual(['existing', 'existing'])
   })
@@ -155,12 +155,12 @@ describe('ARE-12 the room schedule', () => {
     expect(s.floors.map((f) => f.floorName)).toEqual(['Main floor', 'Sleeping loft'])
     expect(s.floors.reduce((a, f) => a + f.area, 0)).toBeCloseTo(s.total.area, 9)
     const csv = roomScheduleCsv(s).trim().split('\n')
-    const total = fields(csv[csv.length - 1]!)
+    const total = fields(csv[csv.length - 2]!)
     expect(total[2]).toBe('Total, all floors')
     expect(Math.round(total[5] as number)).toBe(277)
     // Numbers are bare in the CSV, so a spreadsheet reads them as numbers.
-    // MSG-3: row 1 is the label, row 2 the header.
-    for (const line of csv.slice(2, -3)) {
+    // MSG-3, VEW-83: row 1 is the header, the last row the label.
+    for (const line of csv.slice(1, -4)) {
       const row = fields(line)
       expect(typeof row[0]).toBe('number')
       expect(typeof row[4]).toBe('number')
@@ -257,7 +257,8 @@ describe('ARE-12 asked for through grid_schedule and on the check set', () => {
     expect(reply.text).toContain('"Main floor": 3 rooms')
     expect((reply.data!['rows'] as unknown[]).length).toBe(4)
     const csv = await ok({ plan: 'tiny.json', of: 'rooms', format: 'csv' })
-    expect(csv.text.split('\n').slice(0, 2)).toEqual(['"General guidance, not your local rules"', 'number,room id,name,use,area m2,area sq ft,height m,floor,state'])
+    expect(csv.text.split('\n')[0]).toBe('number,room id,name,use,area m2,area sq ft,height m,floor,state')
+    expect(csv.text.trimEnd().split('\n').at(-1)).toBe('"General guidance, not your local rules"')
   })
 
   it('gives each opening once with of=openings, and refuses the grouped schedule\'s filters with it', async () => {
