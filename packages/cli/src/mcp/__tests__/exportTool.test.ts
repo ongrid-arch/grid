@@ -225,3 +225,36 @@ describe('grid_export: materials, roofs and curves in a glb or obj (VEW-73)', ()
     expect(arcs).toMatchObject({ isError: true, text: 'arcSegments applies to GLB and OBJ only: leave it out for this format.' })
   })
 })
+
+describe('grid_export: a glb for a game engine or a renderer (VEW-82)', () => {
+  const b = bench({ 'plan.json': sample })
+  afterAll(() => b.close())
+
+  type Node = { name: string; mesh?: number; children?: number[]; extras?: Record<string, unknown> }
+  const nodesOf = (file: string): Node[] => (glbJson(readFileSync(join(b.folder, file))) as unknown as { nodes: Node[] }).nodes
+
+  it('gives every part its id, kind and floor in its extras, grouped by kind on each floor', async () => {
+    const reply = await b.call('grid_export', { plan: 'plan.json', format: 'glb', out: 'game.glb' })
+    expect(reply.isError).toBe(false)
+    const nodes = nodesOf('game.glb')
+    const wall = nodes.find((node) => node.name === `wall_${sample.walls[0]!.id}`)!
+    expect(wall.extras).toMatchObject({ gridId: sample.walls[0]!.id, gridKind: 'wall' })
+    expect(nodes.some((node) => node.name.startsWith('walls_') && node.extras?.['gridKind'] === 'wall')).toBe(true)
+  })
+
+  it('writes a marker in each door\'s place with doors markers, and each wall in pieces with walls rooms', async () => {
+    const reply = await b.call('grid_export', { plan: 'plan.json', format: 'glb', doors: 'markers', walls: 'rooms', out: 'level.glb' })
+    expect(reply.isError).toBe(false)
+    const nodes = nodesOf('level.glb')
+    const markers = nodes.filter((node) => node.mesh === undefined && node.extras?.['gridKind'] === 'door')
+    expect(markers.length).toBeGreaterThan(0)
+    expect(nodes.some((node) => node.name.startsWith('leaf_'))).toBe(false)
+  })
+
+  it('refuses doors and walls for another format, by the argument name', async () => {
+    const doors = await b.call('grid_export', { plan: 'plan.json', format: 'obj', doors: 'open' })
+    expect(doors).toMatchObject({ isError: true, text: 'doors applies to GLB only: leave it out for this format.' })
+    const walls = await b.call('grid_export', { plan: 'plan.json', format: 'dxf', walls: 'rooms' })
+    expect(walls).toMatchObject({ isError: true, text: 'walls applies to GLB only: leave it out for this format.' })
+  })
+})

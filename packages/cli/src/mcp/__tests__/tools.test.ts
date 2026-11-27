@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PathRefused } from '../../fs/projectFiles'
 import { handleLine } from '../protocol'
 import { GRID_TOOLS, projectTools } from '../serveTools'
+import { toolDefinition } from '../toolkit'
 import { bench, type Bench } from './replay/harness'
 import { agentFlat, twoBedFlat } from './replay/plans'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
@@ -15,6 +16,7 @@ const twoFloorHouse = (): unknown =>
 /** The tools in their fixed order. Changing it is a decision: change this list with it. */
 const ORDER = [
   'grid_project',
+  'grid_help',
   'grid_compare',
   'grid_diff',
   'grid_areas',
@@ -82,7 +84,7 @@ const ORDER = [
   'grid_save_view',
 ]
 
-const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
+const READ_ONLY = new Set(['grid_project', 'grid_help', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
 const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_set_finishes', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_write_building', 'grid_add_storey', 'grid_remove_building', 'grid_place_building', 'grid_set_levels', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_set_plan', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
 
 interface Listed {
@@ -98,6 +100,11 @@ async function listed(): Promise<Listed[]> {
   const tools = projectTools(new PathRefused('no project in this test'))
   const out = JSON.parse((await handleLine(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }), tools)) as string) as { result: { tools: Listed[] } }
   return out.result.tools
+}
+
+/** CMD-52: every tool whole, as grid_help gives it: the list gives each short (toolList.test.ts). */
+function full(): Promise<Listed[]> {
+  return Promise.resolve(GRID_TOOLS.map((tool) => toolDefinition(tool) as unknown as Listed))
 }
 
 /** What a property says it allows: a list, a range, a pattern or length, a list's items, or true or false. */
@@ -122,7 +129,7 @@ describe('tools/list', () => {
   })
 
   it('shows how to measure travel distance to the nearest exit', async () => {
-    const tool = (await listed()).find(({ name }) => name === 'grid_measure')
+    const tool = (await full()).find(({ name }) => name === 'grid_measure')
     for (const phrase of ['travel distance', 'walking distance', 'escape', 'evacuation', 'nearest exit']) {
       expect(tool?.description, phrase).toContain(phrase)
     }
@@ -193,12 +200,13 @@ describe('tools/list', () => {
     // elevation summed by hand (a tower's height came out wrong first every time).
     // 66 since CNT-51: the finishes of many rooms in one call, per wall face and in height bands,
     // which agents set one room a call and could not lay as a band (a splashback priced as the wall).
-    expect((await listed()).length).toBeLessThanOrEqual(66)
+    // 67 since CMD-52: grid_help, which gives a tool whole, so the list can give each tool short.
+    expect((await listed()).length).toBeLessThanOrEqual(67)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
     const { compileRoomsText } = await import('@ongrid/floorplan/rooms')
-    const tool = (await listed()).find((t) => t.name === 'grid_write_rooms')!
+    const tool = (await full()).find((t) => t.name === 'grid_write_rooms')!
     const example = (tool.inputSchema!.properties!['rooms']!['examples'] as string[])[0]!
     const result = compileRoomsText(example)
     expect(result.problems).toEqual([])
@@ -207,7 +215,7 @@ describe('tools/list', () => {
 
   it('gives every tool a grid_ name, a title, a hint, an input schema with examples and allowed values, and an output schema', async () => {
     const problems: string[] = []
-    for (const tool of await listed()) {
+    for (const tool of await full()) {
       const say = (what: string): void => { problems.push(`${tool.name}: ${what}`) }
       if (!/^grid_[a-z_]+$/.test(tool.name)) say('no grid_ prefix')
       if (!tool.title) say('no title')
@@ -229,7 +237,7 @@ describe('tools/list', () => {
   })
 
   it('says the units are metres wherever a tool takes or gives a length', async () => {
-    for (const tool of await listed()) {
+    for (const tool of await full()) {
       if (['grid_describe', 'grid_check', 'grid_preview', 'grid_preview_sync', 'grid_export', 'grid_sheet', 'grid_mark_start', 'grid_mark_seen', 'grid_mirror', 'grid_rename_room', 'grid_project', 'grid_words', 'grid_remove_item', 'grid_add_storey', 'grid_remove_building'].includes(tool.name)) continue
       expect(tool.description, tool.name).toMatch(/metres/)
     }
@@ -287,6 +295,7 @@ describe('the tools on a two-bedroom flat', () => {
 
   const CALLS: Record<string, Record<string, unknown>> = {
     grid_project: {},
+    grid_help: {},
     grid_compare: { plans: ['plan.json', 'flat.json'] },
     // WRT-8: against the start marker the bench holds beside the plan.
     grid_diff: {},
@@ -357,7 +366,7 @@ describe('the tools on a two-bedroom flat', () => {
   }
 
   it('answers every tool with text and data that fit its output schema', async () => {
-    const schemas = new Map((await listed()).map((tool) => [tool.name, tool.outputSchema as Record<string, unknown>]))
+    const schemas = new Map((await full()).map((tool) => [tool.name, tool.outputSchema as Record<string, unknown>]))
     expect(Object.keys(CALLS)).toEqual(ORDER)
     for (const [name, args] of Object.entries(CALLS)) {
       const reply = await b.call(name, args)
@@ -375,7 +384,7 @@ describe('the tools on a two-bedroom flat', () => {
 
   // COD-8: with a firm's standards file beside the plan, grid_check's data still fits its schema, with the firm's own.
   it('answers grid_check with a firm\'s standards file beside the plan within its output schema', async () => {
-    const schema = (await listed()).find((tool) => tool.name === 'grid_check')!.outputSchema as Record<string, unknown>
+    const schema = (await full()).find((tool) => tool.name === 'grid_check')!.outputSchema as Record<string, unknown>
     const firm = bench({ 'plan.json': twoBedFlat(), 'firm-standards.json': { version: '1', standards: [{ measure: 'corridor_width', value: 1.5, unit: 'm' }, { measure: 'room_area', value: 30, unit: 'm²', name: 'Rooms' }] } })
     try {
       for (const full of [false, true]) {

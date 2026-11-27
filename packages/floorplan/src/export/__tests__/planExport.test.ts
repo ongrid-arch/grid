@@ -62,7 +62,9 @@ describe('exportPlan', () => {
     const { data } = exportPlan(samplePlan() as FloorPlan, 'glb', ids)
     expect(data).toBeInstanceOf(Uint8Array)
     const names = readMeshes(parseGlb(data as Uint8Array)).map((m) => m.name)
-    expect(names).toEqual(['wall_w1', 'wall_w2', 'wall_w3', 'wall_w4', 'floor_r1', ...PARTS, 'slab_ground', 'roof_ground'])
+    // VEW-82: read floor by floor and kind by kind, the doors' parts before the windows'.
+    const doorsFirst = [...PARTS.filter((n) => !n.endsWith('_o2')), ...PARTS.filter((n) => n.endsWith('_o2'))]
+    expect(names).toEqual(['wall_w1', 'wall_w2', 'wall_w3', 'wall_w4', 'floor_r1', ...doorsFirst, 'slab_ground', 'roof_ground'])
   })
 
   it('writes an IFC of the whole building, seeded with the project identity and time', () => {

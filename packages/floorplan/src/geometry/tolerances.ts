@@ -1182,6 +1182,30 @@ export const TOLERANCES = {
       'the two never share a plane and flicker in a viewer. It only draws the model.',
     basis: own
   },
+  // VEW-82: a GLB made for a game engine or a renderer.
+  wallPieceShortest: {
+    kind: 'limit',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'The shortest piece a GLB writes a wall split at the rooms beside it as: a stretch between ' +
+      'two rooms\' corners shorter than this joins the piece before it. It only splits the model.',
+    basis: own
+  },
+  doorOpenAngle: {
+    kind: 'limit',
+    value: 90,
+    unit: 'degree',
+    decides: 'How far a GLB written with its doors open turns each swinging leaf on its hinge. It only draws the model.',
+    basis: own
+  },
+  cameraNear: {
+    kind: 'limit',
+    value: 0.05,
+    unit: 'm',
+    decides: 'How near a GLB\'s camera, made from a saved view, starts to see (its near plane). It only draws the model.',
+    basis: own
+  },
   // VEW-78: a room's side lies on a wall's face, for the lining its finish is drawn on in 3D.
   liningOnFace: {
     kind: 'tolerance',
