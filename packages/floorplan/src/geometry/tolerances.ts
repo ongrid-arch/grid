@@ -1291,6 +1291,16 @@ export const TOLERANCES = {
       'their names are written and their spacing is dimensioned.',
     basis: own
   },
+  // WRT-83: a radial grid's rings, drawn as arcs.
+  gridArcStep: {
+    kind: 'limit',
+    value: 5,
+    unit: 'degree',
+    decides:
+      'The widest turn one straight piece of a radial grid\'s ring is drawn and exported with; a ' +
+      'ring that is not whole stops this much short of closing at most.',
+    basis: own
+  },
 
   // ── Parking bays and ramps (CNT-19) ───────────────────────────────────────────────────────
   bayOverlap: {

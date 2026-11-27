@@ -954,12 +954,14 @@ function planSceneIn(input: SceneInput): SvgNode[] {
           const reach = { from: layout.gridReach(grid.id, line.set, 'from'), to: layout.gridReach(grid.id, line.set, 'to') }
           const starts = { x: line.from.x + line.along.x * reach.from, y: line.from.y + line.along.y * reach.from }
           const finish = { x: line.to.x - line.along.x * reach.to, y: line.to.y - line.along.y * reach.to }
+          // WRT-83: a radial grid's ring is drawn through its points, named past its ends' own ways.
+          const out = line.outTo ?? { x: -line.along.x, y: -line.along.y }
           const ends = [
             { x: starts.x + line.along.x * r, y: starts.y + line.along.y * r },
-            { x: finish.x - line.along.x * r, y: finish.y - line.along.y * r }
+            ...(line.namedAt === 'from' ? [] : [{ x: finish.x + out.x * r, y: finish.y + out.y * r }])
           ]
           return [
-            el('path', { 'data-part': 'grid-line', 'data-line': line.name, d: virtualPath([starts, finish]), ...paint.gridLine }, [], `l${index}`),
+            el('path', { 'data-part': 'grid-line', 'data-line': line.name, d: virtualPath(line.path ?? [starts, finish]), ...paint.gridLine }, [], `l${index}`),
             ...ends.flatMap((at, end) => [
               el('circle', { 'data-part': 'grid-bubble', cx: at.x, cy: -at.y, r, ...paint.gridBubble }, [], `b${index}-${end}`),
               el('g', { transform: labelTransform(at, mpp) }, [el('text', { 'data-part': 'grid-name', dy: String(DIMENSION_DY), ...paint.gridName }, [line.name])], `n${index}-${end}`)

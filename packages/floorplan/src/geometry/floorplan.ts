@@ -700,7 +700,7 @@ function buildDrawing(plan: FloorPlan, index: ReturnType<typeof indexPlan>, issu
   const columns = planColumns(plan, index)
   for (const column of columns ?? []) extent.push(...column.outline)
   const grids = gridsOn(plan, drawnFloor).map(planGrid)
-  for (const grid of grids) for (const line of grid.lines) extent.push(line.from, line.to)
+  for (const grid of grids) for (const line of grid.lines) extent.push(line.from, line.to, ...(line.path ?? []))
   // CNT-19 (C29): the parking bays on this floor, and the ramps that start or end on it.
   const bays = plan.bays === undefined ? undefined : soundBays(plan).map((bay): PlanBay => ({ id: bay.id, number: bay.number ?? null, outline: bayFootprint(bay), centre: { x: bay.at[0], y: bay.at[1] } }))
   for (const bay of bays ?? []) extent.push(...bay.outline)

@@ -403,6 +403,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   if (plan.stairs !== undefined) next['stairs'] = plan.stairs
   // WRT-79: the column lines replace the file's columns; a text that writes none keeps the file's.
   if (plan.columns !== undefined) next['columns'] = plan.columns
+  // WRT-83: the grid lines replace the file's grids; a text that writes none keeps the file's.
+  if (plan.grids !== undefined) next['grids'] = plan.grids
   // LVL-23: the building lines replace the file's buildings; a text that writes none keeps the file's.
   if (plan.buildings !== undefined) next['buildings'] = plan.buildings
   // CNT-45: the item lines replace the file's items; a text that writes none keeps the file's,
