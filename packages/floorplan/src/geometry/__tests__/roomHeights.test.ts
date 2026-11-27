@@ -12,6 +12,8 @@ import { indexPlan } from '../plan'
 import { floorElevations } from '../elevations'
 import { sceneShell, buildScene } from '../scene3d'
 import { sceneInterior } from '../interior'
+import { exportPlan } from '../../export/planExport'
+import { parseGlb, readMeshes } from '../export/__tests__/glb-reader'
 
 function written(lines: readonly string[]): FloorPlan {
   const result = compileRoomsText(lines.join('\n'))
@@ -53,6 +55,33 @@ describe('a room taller than its storey (LVL-26)', () => {
   it('stacks the floor above on the storey, not on the raised walls', () => {
     const plan = written(['walls outside 0.3 inside 0.1', 'floor g "Ground" level 0', 'room nave "Nave" - 10 x 30 at 0,0 height 14', 'room aisle "Aisle" - 4 x 30 east of nave', 'floor f1 "Gallery" level 1', 'room gallery "Gallery" - 4 x 30 at 10.1,0'])
     expect(floorElevations(plan).floors.get('f1')?.floorLevel).toBeCloseTo(2.95, 6)
+  })
+})
+
+describe('a room taller or lower than its storey in a GLB (LVL-26)', () => {
+  const ids = { projectId: 'p', projectName: 'Theatre', now: new Date(0) }
+  const plan = (): FloorPlan => written([...THEATRE, 'room duct "Duct" - 1 x 10 north of foyer align west height 0.9'])
+  const tops = (walls: 'whole' | 'rooms'): Map<string, number> => {
+    const meshes = readMeshes(parseGlb(exportPlan(plan(), 'glb', { ...ids, walls }).data as Uint8Array))
+    return new Map(meshes.map((m) => [m.name, Math.max(...m.points.map((p) => p.y))] as const))
+  }
+
+  it('stands each wall as high as the rooms it bounds, whole or split by room, and steps its roof up', () => {
+    for (const walls of ['whole', 'rooms'] as const) {
+      const top = tops(walls)
+      expect(top.get('wall_w-foyer-tower')).toBeCloseTo(26, 6)
+      expect(top.get('wall_ext-north-1')).toBeCloseTo(0.9, 6)
+      expect(top.get('wall_ext-south-1')).toBeCloseTo(4.25, 6)
+    }
+    const meshes = readMeshes(parseGlb(exportPlan(plan(), 'glb', ids).data as Uint8Array))
+    const roof = meshes.find((m) => m.name === 'roof_g')!
+    // The roof's underside over the foyer at the storey, over the tower at its top, and nothing of
+    // the storey's piece over the tower: each face's middle, in the plan (x east, -z north).
+    const middles = roof.triangles.map((t) => t.map((i) => roof.points[i]!)).map((ps) => ({ x: ps.reduce((a, p) => a + p.x, 0) / 3, y: ps.reduce((a, p) => a - p.z, 0) / 3, z: ps.reduce((a, p) => a + p.y, 0) / 3 }))
+    const under = (x0: number, x1: number): number[] => middles.filter((p) => p.x > x0 && p.x < x1 && p.y > 0.5 && p.y < 9.5).map((p) => p.z)
+    expect(Math.min(...under(0.5, 11.5))).toBeCloseTo(4.25, 6)
+    expect(Math.max(...under(0.5, 11.5))).toBeCloseTo(4.5, 6)
+    expect(Math.min(...under(12.6, 25.6))).toBeCloseTo(26, 6)
   })
 })
 
