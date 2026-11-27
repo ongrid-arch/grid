@@ -15,6 +15,8 @@ import type { PlanChange, PropChange, WallMotion } from './types'
 import type { Phase } from '../../types/floorplan'
 import { PHASE_WORDS } from '../phases'
 import { english, said } from '../../messages/say'
+import { curveChangeSaid, curveFigures } from './curves'
+import { partTypeSaid } from './typesAndFinishes'
 
 /** MSG-25: a part's phase change in words, "now to be demolished (was existing)". */
 export function phaseWords(before: Phase, after: Phase): string {
@@ -88,6 +90,9 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
     new Map(plan.walls.flatMap((w) => (w.arc === undefined ? [] : [[w.id, Math.hypot(w.start[0] - w.arc.centre[0], w.start[1] - w.arc.centre[1])] as const])))
   const radiusBefore = radiusOf(base)
   const radiusAfter = radiusOf(head)
+  // WRT-86: each version's walls, for a curve's figures before and after.
+  const baseWalls = new Map(base.walls.map((w) => [w.id, w] as const))
+  const headWalls = new Map(head.walls.map((w) => [w.id, w] as const))
 
   const wallSummary = (change: PlanChange): string => {
     if (change.kind !== 'modified') return `Wall ${change.kind}`
@@ -95,9 +100,14 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
     const was = radiusBefore.get(change.entity.id)
     const is = radiusAfter.get(change.entity.id)
     const radius = was !== undefined && is !== undefined && metresText(was) !== metresText(is) ? { key: 'radius', before: was, after: is } : null
+    // WRT-86: a curve that changed is said by its figures before and after, its radius among them.
+    const arc = prop(change, 'arc')
+    const before = baseWalls.get(change.entity.id)
+    const after = headWalls.get(change.entity.id)
+    const curve = arc && before !== undefined && after !== undefined ? curveChangeSaid(curveFigures(before), curveFigures(after)) : null
     // A curve whose radius changed is said by its radius, not as reshaped.
-    if (change.motion && !(radius !== null && change.motion.kind === 'reshaped')) parts.push(motionPart(change.motion))
-    if (radius) parts.push(`radius ${range(radius)}`)
+    if (change.motion && !((radius !== null || curve !== null) && change.motion.kind === 'reshaped')) parts.push(motionPart(change.motion))
+    if (radius && curve === null) parts.push(`radius ${range(radius)}`)
     const thickness = prop(change, 'thickness')
     if (thickness) parts.push(`thickness ${range(thickness)}`)
     const height = prop(change, 'height')
@@ -108,9 +118,13 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
     if (virtual) parts.push(virtual.after === true ? 'made virtual' : 'made solid')
     const floor = prop(change, 'floor')
     if (floor) parts.push(`moved to ${quoted(floorName(text(floor.after)))}`)
-    // CNT-18: a wall made curved, made straight, or curved another way.
-    const arc = prop(change, 'arc')
-    if (arc) parts.push(arc.before === null ? 'made curved' : arc.after === null ? 'made straight' : 'curve changed')
+    // CNT-18: a wall made curved, made straight, or curved another way; WRT-86: with its figures.
+    if (curve !== null) parts.push(english(curve))
+    else if (arc) parts.push(arc.before === null ? 'made curved' : arc.after === null ? 'made straight' : 'curve changed')
+    // WRT-86: the type it takes, by the types' names.
+    const wallType = prop(change, 'wallType')
+    const typeSaid = wallType ? partTypeSaid(base, head, 'walls', (wallType.before ?? undefined) as string | undefined, (wallType.after ?? undefined) as string | undefined) : null
+    if (typeSaid !== null) parts.push(english(typeSaid))
     const phase = prop(change, 'phase')
     if (phase) parts.push(phaseWords(phase.before as Phase, phase.after as Phase))
     return `Wall ${parts.join('; ')}`
@@ -139,6 +153,12 @@ export function makeSummarizer(base: FloorPlan, head: FloorPlan): Summarizer {
     if (sill) parts.push(`sill ${range(sill)}`)
     const height = prop(change, 'height')
     if (height) parts.push(`height ${range(height)}`)
+    // WRT-86: the door or window type it takes, by the types' names.
+    for (const [key, list] of [['doorType', 'doors'], ['windowType', 'windows']] as const) {
+      const type = prop(change, key)
+      const typeSaid = type ? partTypeSaid(base, head, list, (type.before ?? undefined) as string | undefined, (type.after ?? undefined) as string | undefined) : null
+      if (typeSaid !== null) parts.push(english(typeSaid))
+    }
     const phase = prop(change, 'phase')
     if (phase) parts.push(phaseWords(phase.before as Phase, phase.after as Phase))
     return `${noun} ${parts.join('; ')}`

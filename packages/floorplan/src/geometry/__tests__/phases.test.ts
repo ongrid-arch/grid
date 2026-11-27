@@ -8,6 +8,8 @@ import { mergeBase, partPhases, phaseClashes, phaseCounts, planHasPhases, planIn
 import { validatePlan } from '../validate'
 import { planAreaFigures } from '../areas'
 import { buildScene } from '../scene3d'
+import { indexPlan } from '../plan'
+import { roomColumnArea } from '../columns'
 
 const errors = (plan: FloorPlan) => validatePlan(plan).issues.filter((i) => i.severity === 'error')
 
@@ -158,5 +160,96 @@ describe('a fit-out on a base plan (CNT-10, CP4-4)', () => {
   it('names a base part whose id the fit-out uses', () => {
     const clash = parseFloorPlan({ ...fitOut, walls: [...fitOut.walls, { id: 's2', start: [0, 1], end: [1, 1] }] })
     expect(mergeBase(clash, shell).clashes).toEqual(['s2'])
+  })
+})
+
+describe('a base plan\'s structure, stairs, fixtures and floors in its fit-out (WRT-85)', () => {
+  const walls = [
+    { id: 's1', start: [0, 0], end: [8, 0], thickness: 0.3, kind: 'exterior' },
+    { id: 's2', start: [8, 0], end: [8, 5], thickness: 0.3, kind: 'exterior' },
+    { id: 's3', start: [8, 5], end: [0, 5], thickness: 0.3, kind: 'exterior' },
+    { id: 's4', start: [0, 5], end: [0, 0], thickness: 0.3, kind: 'exterior' },
+  ]
+  const shellRaw = {
+    version: '1',
+    floors: [
+      { id: 'ground', name: 'Ground', level: 0, slab: 0.25, outline: [[-0.15, -0.15], [8.15, -0.15], [8.15, 5.15], [-0.15, 5.15]] },
+      { id: 'first', name: 'First', level: 1, elevation: 3.4, height: 2.7 },
+    ],
+    walls: [...walls, ...walls.map((w) => ({ ...w, id: `${w.id}-1`, floor: 'first' }))],
+    rooms: [{ id: 'shell', name: 'Shell', boundary: ['s1', 's2', 's3', 's4'] }],
+    openings: [{ id: 'entrance', wall: 's1', type: 'door', offset: 1, width: 1, height: 2.1 }],
+    columns: [
+      { id: 'c1', shape: 'square', width: 0.4, at: [2, 2.5] },
+      { id: 'c2', shape: 'square', width: 0.4, at: [6, 2.5] },
+    ],
+    grids: [{ id: 'g', origin: [0, 0], x: { spacing: [4, 4] }, y: { spacing: [5] } }],
+    stairs: [{ id: 'st', from: 'ground', to: 'first', width: 0.9, run: [[7.3, 0.6], [7.3, 4.4]] }],
+    items: [{ id: 'breast', kind: 'storage', label: 'Chimney breast', at: [0.5, 2.5], size: [0.6, 1.2], height: 2.6 }],
+  }
+  const shell = parseFloorPlan(shellRaw)
+  const fitOut = parseFloorPlan({
+    version: '1',
+    base: 'shell.json',
+    floors: [{ id: 'ground', name: 'Ground floor' }],
+    walls: [],
+    rooms: [{ id: 'hall', name: 'Hall', boundary: ['s1', 's2', 's3', 's4'] }],
+    openings: [],
+    items: [{ id: 'desk', kind: 'desk', at: [4, 1], size: [1.4, 0.7], height: 0.75 }],
+  })
+
+  it('reads the base\'s columns, grids, stairs and fixtures in after the fit-out\'s own', () => {
+    const merged = mergeBase(fitOut, shell)
+    expect(merged.clashes).toEqual([])
+    expect(merged.plan.columns?.map((c) => c.id)).toEqual(['c1', 'c2'])
+    expect(merged.plan.grids?.map((g) => g.id)).toEqual(['g'])
+    expect(merged.plan.stairs?.map((s) => s.id)).toEqual(['st'])
+    expect(merged.plan.items?.map((i) => i.id)).toEqual(['desk', 'breast'])
+    expect([...merged.columns]).toEqual(['c1', 'c2'])
+    expect([...merged.grids]).toEqual(['g'])
+    expect([...merged.stairs]).toEqual(['st'])
+    expect([...merged.items]).toEqual(['breast'])
+  })
+
+  it('takes the base\'s columns off the fit-out room\'s floor, as in the base', () => {
+    const merged = mergeBase(fitOut, shell).plan
+    const index = indexPlan(merged)
+    const hall = merged.rooms.find((r) => r.id === 'hall')!
+    expect(roomColumnArea(hall, index)).toBeCloseTo(0.32, 6)
+    const baseIndex = indexPlan(shell)
+    expect(roomColumnArea(shell.rooms[0]!, baseIndex)).toBeCloseTo(0.32, 6)
+  })
+
+  it('gives a floor the fit-out lists the base\'s levels, slab and outline where it states none', () => {
+    const merged = mergeBase(fitOut, shell)
+    const ground = merged.plan.floors?.find((f) => f.id === 'ground')
+    expect(ground?.name).toBe('Ground floor')
+    expect(ground?.slab).toBe(0.25)
+    expect(ground?.outline).toEqual(shell.floors![0]!.outline)
+    expect(merged.plan.floors?.find((f) => f.id === 'first')).toEqual(shell.floors![1])
+    expect([...merged.floors]).toEqual(['first'])
+    expect(merged.ownFloors.get('ground')).toEqual(fitOut.floors![0])
+    // A value the fit-out states is its own.
+    const stated = parseFloorPlan({ ...fitOut, floors: [{ id: 'first', name: 'First', level: 1, height: 3 }] })
+    const first = mergeBase(stated, shell).plan.floors?.find((f) => f.id === 'first')
+    expect(first?.height).toBe(3)
+    expect(first?.elevation).toBe(3.4)
+    // A fit-out floor at the default level takes the base's.
+    const unlevelled = parseFloorPlan({ ...fitOut, floors: [{ id: 'first', name: 'First' }] })
+    expect(mergeBase(unlevelled, shell).plan.floors?.find((f) => f.id === 'first')?.level).toBe(1)
+  })
+
+  it('names a base column, stair or fixture whose id the fit-out uses', () => {
+    const clash = parseFloorPlan({ ...fitOut, columns: [{ id: 'c1', shape: 'round', width: 0.3, at: [4, 4] }], items: [{ id: 'breast', kind: 'desk', at: [5, 1], size: [1.4, 0.7], height: 0.75 }] })
+    expect(mergeBase(clash, shell).clashes).toEqual(['c1', 'breast'])
+    // Each kind is its own list: a fixture may share an id with a base column, as in any plan.
+    const apart = parseFloorPlan({ ...fitOut, items: [{ id: 'c1', kind: 'desk', at: [4, 1], size: [1.4, 0.7], height: 0.75 }] })
+    expect(mergeBase(apart, shell).clashes).toEqual([])
+  })
+
+  it('never changes the base or the fit-out it is given', () => {
+    const before = JSON.stringify([shell, fitOut])
+    mergeBase(fitOut, shell)
+    expect(JSON.stringify([shell, fitOut])).toBe(before)
   })
 })

@@ -54,7 +54,7 @@ describe('FD-1: the plot with a massing outline, before any wall', () => {
     expect(reply.text).toContain('Floor "ground": net 0.00 m², gross internal not known, gross external 240.07 m².')
     expect(reply.text).toContain('Floor "first": net 0.00 m², gross internal not known, gross external 240.07 m².')
     expect(reply.text).toContain('Gross external: 480.15 m²')
-    expect(reply.text).toContain('Storeys: 2 storeys at or above the ground floor, none below it; counted by level, from the floors that hold an outline or walls that close one.')
+    expect(reply.text).toContain('Storeys: 2 storeys at or above the ground floor, none below it; counted by level in each building, the most of any one, a half level as a split level of the storey it stands in, from the floors that hold an outline or walls that close one.')
     expect(reply.text).toContain('Floors "Ground floor", "First floor" are massing, an outline with no walls yet')
     const data = reply.data as { floors: { floor: string; grossExternal: number; massing?: boolean }[]; storeys: { above: number; below: number } }
     expect(data.floors.map((f) => [f.floor, f.massing, Math.round(f.grossExternal * 100) / 100])).toEqual([['ground', true, 240.07], ['first', true, 240.07]])

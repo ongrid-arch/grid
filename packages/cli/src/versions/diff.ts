@@ -380,6 +380,10 @@ export function diffData(run: PlanDiffRun, show: DiffShow, floor?: string): Reco
     changes: show === 'issues' || show === 'summary' ? [] : c.changes.map((l) => ({ text: l.text, entities: l.entities, rooms: l.rooms })),
     stayed: show === 'issues' || show === 'summary' ? [] : c.stayed.map((s) => ({ opening: s.opening, text: s.text })),
     movedWith: show === 'issues' || show === 'summary' ? [] : c.movedWith.map((m) => ({ opening: m.opening, with: m.with, by: [...m.by], text: m.text })),
+    // WRT-86: the types added, removed or changed with the parts that take them, the rooms' finishes and the curves, before and after.
+    types: show === 'issues' || show === 'summary' ? [] : c.types.map((t) => ({ list: t.list, type: t.type, name: t.name, status: t.status, fields: t.fields, parts: t.parts, text: english(t.said) })),
+    finishes: show === 'issues' ? [] : c.finishes.map((f) => ({ room: f.room, name: f.name, changes: f.changes.map((ch) => ({ surface: ch.surface, wall: ch.wall, before: ch.before, after: ch.after, text: english(ch.said) })) })),
+    curves: show === 'issues' || show === 'summary' ? [] : c.curves.map((curve) => ({ wall: curve.wall, before: curve.before, after: curve.after, text: curve.text })),
     scope: { checked: c.scope.checked, rooms: [...c.scope.rooms], outside: c.scope.outside.map((l) => l.text) },
     // CMD-32: the floor the lists are narrowed to, and how many change lines that left out.
     floor: c.floor,

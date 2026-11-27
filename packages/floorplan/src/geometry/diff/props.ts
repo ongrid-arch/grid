@@ -57,8 +57,15 @@ export function wallProps(before: Wall, after: Wall, epsilon: number): PropChang
     // Unstated and `false` are the same wall.
     exact('virtual', before.virtual === true, after.virtual === true),
     exact('floor', floorOf(before), floorOf(after)),
-    arcProp(before, after, epsilon)
+    arcProp(before, after, epsilon),
+    // WRT-86: the type it takes (C24), as the reading filled it; null on the side that takes none.
+    optionalText('wallType', before.wallType, after.wallType)
   ])
+}
+
+/** WRT-86: a name a part may leave out: stated and unstated differ, and `null` stands for unstated. */
+function optionalText(key: string, before: string | undefined, after: string | undefined): PropChange | null {
+  return before === after ? null : { key, before: before ?? null, after: after ?? null }
 }
 
 /**
@@ -158,7 +165,10 @@ export function openingProps(before: Opening, after: Opening, epsilon: number): 
     number('offset', before.offset, after.offset, epsilon),
     number('width', before.width, after.width, epsilon),
     number('sill', before.sill, after.sill, epsilon),
-    number('height', before.height, after.height, epsilon)
+    number('height', before.height, after.height, epsilon),
+    // WRT-86: the door or window type it takes (C24).
+    optionalText('doorType', before.doorType, after.doorType),
+    optionalText('windowType', before.windowType, after.windowType)
   ])
 }
 

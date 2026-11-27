@@ -652,7 +652,7 @@ door d-terrace between living and terrace, centred, 0.9 wide, opens into terrace
 
 ### Heights
 
-height <h> on a room line gives that room its own ceiling height; floor <m> sets its floor that far above (or, negative, below) its storey's: a lowered entrance, a raised stage. The walls line's height is every wall's; wall lines (below) give one wall its own.
+height <h> on a room line gives that room its own ceiling height; floor <m> sets its floor that far above (or, negative, below) its storey's: a lowered entrance, a raised stage. The walls line's height is every wall's; wall lines (below) give one wall its own. A room's height also sets the walls only it bounds: a room taller than its storey (a cinema, a nave) raises them to its top, a lower one (a duct) stops them there, a wall between two rooms stands as high as the taller, and the storey keeps its height; a room that would rise into a room of a floor above is refused. walls <t> [kind] height <h> on a room line gives the walls it adds that height (a booth in a tall hall); walltype <t> <kind> height <h> every wall of that thickness.
 
 ```rooms
 walls outside 0.3 inside 0.1 height 2.6
@@ -872,7 +872,7 @@ door d1 between front and back, centred, 0.9 wide, opens into back
 
 ### Other lines
 
-One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind>; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual|railing] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind|virtual|railing] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>]; repeat floors <n> from <floor> [...] [rise <m>].
+One statement a line, # starts a comment. A plain number is metres; a length may carry its unit in one word (360cm, 12ft6in). plan "<name>"; building <kind>; display <m|cm|mm|ft-in> [...]; walls outside <t> inside <t> [kind] height <h> (before the rooms of its floor); walltype <t> <kind> [height <h>]; sizes inside|centre|outside; doors height <h>; windows sill <s> height <h>; wall between <room> and <room> [<side>] [<t>] [kind|virtual|railing] [height <h>] [id <id>]; wall <room> <side> [<t>] [kind|virtual|railing] [height <h>]; rename <room> <new id> "<name>" [use]; remove <id>; copy <floor> [with openings] [turn <deg>] [about x,y] [move dx,dy] [scale <s>]; repeat floors <n> from <floor> [...] [rise <m>].
 
 ```rooms
 plan "Corner shop"

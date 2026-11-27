@@ -263,6 +263,8 @@ export const en = {
   'issue.floor/empty-top.default': '{height} m high, the default',
   'issue.wall/above-storey':
     'Wall {wall} is {height} m high, {over} m higher than floor {floor}, which states it is {storey} m high. The storey and the roof stay where the floor puts them; if the wall really is taller, raise the floor\'s height.',
+  'issue.wall/same-space':
+    'Wall {wall} on floor {floor} is {height} m high, so it rises {past} m past the level of floor {over}, where wall {other} stands in the same place for {along} m: the two floors count one wall twice. Stop wall {wall} at its storey, or take wall {other} out.',
   'issue.floor/size-question':
     'Floor {floor} states it is {height} m high: is that meant? Grid asks about a storey {bound}{home}, and its walls with no height of their own take it.',
   'issue.floor/size-question.higher': 'higher than {limit} m',
@@ -1097,6 +1099,9 @@ export const en = {
   'line.wall/above-storey.says': '{label} is higher than the storey its floor states',
   'line.wall/above-storey.needed': 'walls no higher than their floor\'s stated height',
   'line.wall/above-storey.fix': 'Lower the wall, or raise the floor\'s height if the wall really is taller.',
+  'line.wall/same-space.says': '{label} rises into the space of a wall on a floor above it',
+  'line.wall/same-space.needed': 'each wall standing on one floor only',
+  'line.wall/same-space.fix': 'Stop the lower wall at its storey, or take the wall above out of its floor.',
   'line.opening/too-large.says': '{label} has a number Grid does not accept',
   'line.opening/too-large.needed': 'finite numbers within the size Grid accepts',
   'line.opening/too-large.fix': 'Correct the number. Every size is in metres.',
@@ -1935,7 +1940,7 @@ export const en = {
   'storeys.below.none': "none below it",
   'storeys.empty': ", and not the {count} floors holding nothing yet",
   'storeys.empty.one': ", and not the floor holding nothing yet",
-  'storeys.line': "Storeys: {above}, {below}; counted by level, from the floors that hold an outline or walls that close one{empty}.",
+  'storeys.line': "Storeys: {above}, {below}; counted by level in each building, the most of any one, a half level as a split level of the storey it stands in, from the floors that hold an outline or walls that close one{empty}.",
   'fixtures.none': "no fixtures",
   'tool.areas.notKnown': "not known",
   'tool.areas.notKnownWhy': "not known: {why}",
@@ -2310,6 +2315,7 @@ export const en = {
   'describe.beyond.nothing': 'nothing drawn',
   'describe.beyond.left': 'a room left out',
   'describe.room': '{room}: {size}, {area} m², at {at}.',
+  'describe.room.level': ' Its floor is at {level} m and it is {height} m high to its ceiling.',
   'describe.room.next': ' Next to {rooms}.',
   'describe.room.odd': 'not a rectangle, {size} at its widest',
   // CMD-49: a room said by the shape a person names, not the box round it.
@@ -2521,6 +2527,7 @@ export const en = {
   'levels.height.floor': 'Height {height} m, from the ground floor\'s floor level ({ground} m) to the top of the highest roof, over {floor}.',
   'levels.height.site': 'Height {height} m, from the site\'s ground at {ground} m to the top of the highest roof, over {floor}.',
   'levels.height.pad': 'Height {height} m, from its pad at {ground} m to the top of the highest roof, over {floor}.',
+  'levels.height.under': 'Height {height} m, from the ground under it at {ground} m to the top of the highest roof, over {floor}.',
   'rooms.room.meant': " Did you mean '{written}'?",
   // WRT-74: a room's number and facts on its line.
   'rooms.room.factsInUnit': "Line {line}: '{word}' is not written in a unit, which is placed many times: give each placed room its number and facts with grid_set_facts, by its id.",
@@ -2570,6 +2577,11 @@ export const en = {
     "Line {line}: this walls line comes after rooms of floor '{floor}', which keeps the walls it started with (outside {outside} m, inside {inside} m). It is for the floors written after it; to change floor '{floor}' too, write it before that floor's first room.",
   'rooms.wallsLate.height':
     "Line {line}: this walls line comes after rooms of floor '{floor}', which keeps the walls it started with (outside {outside} m, inside {inside} m, height {height} m). It is for the floors written after it; to change floor '{floor}' too, write it before that floor's first room.",
+  // LVL-26: a walltype line, and a room that would rise into a floor written above it.
+  'rooms.walltype.syntax':
+    "line {line}: write 'walltype <thickness> <interior|partition|exterior> [height <h>]': every inside wall of that thickness gets that kind, and every wall of it that height.",
+  'rooms.heightIntoFloor':
+    "Line {line}: room '{room}' is {height} m high, so it rises past floor '{floor}', {level} m above its floor, where room '{other}' (line {otherLine}) stands over {area} m² of it. The two would stand in the same space. Lower the room's height to its storey, write that part of floor '{floor}' as a void, or move room '{other}'.",
   'rooms.wallsHeight':
     "Floor '{floor}' states its height, {floorHeight} m, so its walls are {floorHeight} m high, not the {height} m of the walls line (line {line}). The walls line's height is for floors that state none; to give this floor's walls {height} m, write 'height {height}' on its floor line.",
   // CNT-36: a dividing line or an open side needs a side the two rooms share.
@@ -3157,6 +3169,56 @@ export const en = {
   // --- Comparing two versions: a part whose phase changed (MSG-25, `diff/building.ts`, `diff/summary.ts`)
   'diff.phase.changed': 'now {phase} (was {before})',
 
+  // --- WRT-86: a part's type, a room's finishes and a wall's curve compared (`diff/typesAndFinishes.ts`, `diff/curves.ts`)
+  'diff.type.walls': 'Wall type {type}',
+  'diff.type.doors': 'Door type {type}',
+  'diff.type.windows': 'Window type {type}',
+  'diff.type.named': '{name} ({id})',
+  'diff.type.added': '{type} added{figures}; {taken}',
+  'diff.type.removed': '{type} removed; {taken}',
+  'diff.type.changed': '{type} {changes}; {taken}',
+  'diff.type.figures': ': {figures}',
+  'diff.type.figure': '{field} {value}',
+  'diff.type.field': '{field} {before} → {after}',
+  'diff.type.taken.none': 'no part takes it',
+  'diff.type.took.none': 'no part took it',
+  'diff.type.taken.walls.one': 'taken by wall {parts}',
+  'diff.type.taken.walls.many': 'taken by {count} walls: {parts}',
+  'diff.type.taken.doors.one': 'taken by door {parts}',
+  'diff.type.taken.doors.many': 'taken by {count} doors: {parts}',
+  'diff.type.taken.windows.one': 'taken by window {parts}',
+  'diff.type.taken.windows.many': 'taken by {count} windows: {parts}',
+  'diff.type.took.walls.one': 'it was taken by wall {parts}',
+  'diff.type.took.walls.many': 'it was taken by {count} walls: {parts}',
+  'diff.type.took.doors.one': 'it was taken by door {parts}',
+  'diff.type.took.doors.many': 'it was taken by {count} doors: {parts}',
+  'diff.type.took.windows.one': 'it was taken by window {parts}',
+  'diff.type.took.windows.many': 'it was taken by {count} windows: {parts}',
+  'diff.type.more': '{count} more',
+  'diff.type.part': 'type {before} → {after}',
+  'diff.type.none': 'none',
+  'diff.value.metres': '{value} m',
+  'diff.value.notStated': 'not stated',
+  'diff.value.yes': 'yes',
+  'diff.value.no': 'no',
+  'diff.finish.surface': '{surface} finish {before} → {after}',
+  'diff.finish.floor': 'floor',
+  'diff.finish.walls': 'walls',
+  'diff.finish.ceiling': 'ceiling',
+  'diff.finish.skirting': 'skirting',
+  'diff.finish.noSkirting': 'no skirting',
+  'diff.finish.face': 'finish of the face of wall {wall} {before} → {after}',
+  'diff.finish.bands': 'finish bands {before} → {after}',
+  'diff.finish.bands.none': 'none',
+  'diff.finish.band': '{finish} {height} m high from {from} m{where}',
+  'diff.finish.band.onTop': '{finish} {height} m high{where}',
+  'diff.finish.band.wall': ' on wall {wall}',
+  'diff.finish.band.behind': ' behind {item}',
+  'diff.curve.changed': 'curve radius {radiusBefore} → {radiusAfter} m, bulge {bulgeBefore} → {bulgeAfter} (sweep {sweepBefore}° → {sweepAfter}°)',
+  'diff.curve.made': 'made curved: radius {radius} m, bulge {bulge} (sweep {sweep}°)',
+  'diff.curve.straightened': 'made straight (was curved: radius {radius} m, bulge {bulge}, sweep {sweep}°)',
+  'diff.curve.circle': 'none, a whole circle',
+
   // --- Comparing two versions: a floor added or removed, with its rooms (WRT-20, `diff/building.ts`)
   'diff.floor.added': 'Floor added: {floor}, {rooms}',
   'diff.floor.removed': 'Floor removed: {floor}, {rooms}',
@@ -3292,6 +3354,9 @@ export const en = {
   'areas.building.from.pad': 'from its pad at {level}',
   'areas.building.from.site': "from the site's ground at {level}",
   'areas.building.from.floor': 'from its ground floor at {level}',
+  'areas.building.from.under': 'from the ground under it at {level}',
+  'areas.building.splitLevels': '{storeys} with {count} split levels',
+  'areas.building.splitLevels.one': '{storeys} with 1 split level',
   'rooms.building.form': 'building <id> ["<name>"] [pad <length>] [floors <floor> ...], or building <kind>',
   'rooms.building.line': 'line {line}: {problem} Write {form}.',
   'rooms.building.noId': 'a building line names the building by an id after the word building.',
@@ -3497,6 +3562,12 @@ export const en = {
   'edit.idTaken.place': "Can't place {name}: the id {id} is taken by {holder}. An item stays in the plan when it is written again from rooms text. Pick another id, or leave id out and Grid makes one from the library name.",
   'edit.idTaken.newRoom': 'The id {id} is already used in the plan, by {holder}; pick another for the new room.',
   'edit.idTaken.newWall': 'The id {id} is already used in the plan, by {holder}; pick another for the new wall.',
+  'edit.counted.figure': '{fact} ({value})',
+  'edit.counted.sum': '{fact} {total} ({first} + {second})',
+  'edit.counted.split': 'Facts that count something are not copied to {new}, so none is counted twice: {room} keeps {facts} as stated for the whole room, and {new} has none. To give each part its own figure, call grid_set_facts with parts {roomId} and set, then with parts {newId}.',
+  'edit.counted.summed': '{merged} carries {facts}: the figures of {a} and {b} added up, as counts. Where a fact is not a count, set the merged room\'s own with grid_set_facts, parts {id}.',
+  'edit.counted.oneRoom': '{merged} keeps {facts} from {from} alone: {other} stated none. If the merged room counts otherwise, set it with grid_set_facts, parts {id}.',
+  'edit.counted.useChanged': '{merged} is used as {use} now and keeps the facts of {a} ({facts}): change any that no longer fit with grid_set_facts, parts {id}.',
   'edit.curved.refused': 'Wall {wall} is curved, and {doing} changes straight walls only. Change the curved wall in the plan file, or ask for a change that leaves it as it is.',
   'edit.curved.doing.placeOpening': 'placing an opening on a side of a room',
   'edit.curved.doing.moveSide': 'moving a side of a room',
@@ -3641,6 +3712,7 @@ export const en = {
 
   /** The month names of the sheet's date, in order, between spaces. */
   'sheet.months': 'JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC',
+  'sheet.progress.page': 'Page {done} of {total}',
   'sheet.continued': '{title} (continued)',
   'sheet.undecided': 'A door drawn with a dashed line and "?" has no stated swing yet.',
   /** The note under a drawing: `{left}` is what this floor's drawing really leaves out (SHT-13). */

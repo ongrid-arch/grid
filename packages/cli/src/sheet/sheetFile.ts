@@ -5,6 +5,8 @@
  */
 import path from 'path'
 import { planFloors } from '@ongrid/floorplan/geometry'
+import { deepFreeze } from '@ongrid/floorplan/geometry/kept'
+import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { SheetWordsRefused, type SheetWords } from '@ongrid/floorplan/types/sheet'
 import { accessNotes } from './accessNotes'
 import { parseSheetWordsChecked } from './claims'
@@ -179,6 +181,26 @@ export function readSheetWords(project: Project, planFile: string, loaded: Loade
   }
 }
 
+/**
+ * SHT-25: what a caller may hand the making of a sheet: the plan already read (the tool server's,
+ * kept frozen by CMD-51), so it is not read and checked again, and what to call after each page.
+ */
+export interface SheetMaking {
+  readonly read?: LoadedPlan
+  /** Called after each page is drawn: how many are done, of how many. */
+  readonly onPage?: (done: number, total: number) => void
+}
+
+/**
+ * SHT-25: the loaded plan with its plan frozen, so what the geometry works out from it (the
+ * envelope, the facades, the sections, the floor slices) is kept for the whole sheet instead of
+ * worked out again for each drawing. A sheet only reads the plan; nothing changes it in place.
+ */
+function frozenPlan<T extends { readonly plan: FloorPlan }>(loaded: T): T {
+  deepFreeze(loaded.plan)
+  return loaded
+}
+
 /** A sheet made and not yet written: the plan as read, the PDF and its laid-out pages. */
 export interface MadeSheet {
   readonly loaded: LoadedPlan
@@ -197,16 +219,16 @@ export interface MadeSheet {
  * words are in `language` when one is asked for, else the plan's own (`display.language`), else
  * English.
  */
-export async function makeSheet(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string, previews = false): Promise<MadeSheet> {
-  const read = loadPlan(project, planFile)
+export async function makeSheet(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string, previews = false, made: SheetMaking = {}): Promise<MadeSheet> {
+  const read = made.read ?? loadPlan(project, planFile)
   const lang = await languageFor(language, read.plan)
   // MSG-22: the floor the plan names in no list, named in the sheet's language.
-  const loaded = spokenPlan(read, lang)
+  const loaded = frozenPlan(spokenPlan(read, lang))
   const { base, note } = exportBaseOf(planFile)
   const notes = layout === 'client' ? accessNotes(project, planFile, loaded) : []
   const sheet = sheetPages(loaded, words, layout, { name: base, date: exportTime(date), accessNotes: notes, language: lang })
   // The laid-out sheet is the one written: text that did not fit flows onto continuation pages.
-  const { pdf, sheet: laidOut, previews: small } = await sheetPdf(loaded.plan, sheet, { previews })
+  const { pdf, sheet: laidOut, previews: small } = await sheetPdf(loaded.plan, sheet, { previews, ...(made.onPage === undefined ? {} : { onPage: made.onPage }) })
   const pages = laidOut.pages.map((page) => (page.floor === null ? { kind: page.kind, title: page.title } : { kind: page.kind, title: page.title, floor: page.floor }))
   const fileName = `${base}-${layout}.pdf`
   const shown = previews ? { previews: small } : {}
@@ -229,8 +251,8 @@ export interface SheetDone {
  * Makes the sheet and writes it into `exports/` beside the plan, replacing an earlier copy, as
  * `grid export` writes its files. The command and the tool server both call this.
  */
-export async function sheetIntoProject(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string, previews = false): Promise<SheetDone> {
-  const made = await makeSheet(project, planFile, layout, words, language, date, previews)
+export async function sheetIntoProject(project: Project, planFile: string, layout: SheetLayout, words: SheetWords | null, language?: Language, date?: string, previews = false, making: SheetMaking = {}): Promise<SheetDone> {
+  const made = await makeSheet(project, planFile, layout, words, language, date, previews, making)
   const { loaded, pdf, pages, fileName, note } = made
   const written = writeBesidePlan(project, planFile, fileName, pdf)
   const shown = made.previews === undefined ? {} : { previews: made.previews }
@@ -273,11 +295,11 @@ export function pageFile(stem: string, pages: number, index: number, extension: 
  * export name of the plan's file.
  * SHT-20: every floor when none is asked for, all at one scale on one paper.
  */
-export async function makeDrawing(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string): Promise<MadeDrawing> {
-  const read = loadPlan(project, planFile)
+export async function makeDrawing(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string, made: SheetMaking = {}): Promise<MadeDrawing> {
+  const read = made.read ?? loadPlan(project, planFile)
   const lang = await languageFor(language, read.plan)
   // MSG-22: the floor the plan names in no list, named in the drawing's language.
-  const loaded = spokenPlan(read, lang)
+  const loaded = frozenPlan(spokenPlan(read, lang))
   const floor = floorOption(loaded.plan, request.floor)
   const named = drawingStem(planFile, loaded, floor === undefined ? planFloors(loaded.plan).map((f) => f.id) : [floor])
   // CNT-50: else the site's own name.
@@ -294,7 +316,7 @@ export async function makeDrawing(project: Project, planFile: string, request: D
   const { stem } = drawingStem(planFile, loaded, set.floors, { scale: set.scale, paper: set.paper })
   const first = set.sheets[0]!
   const title = set.floors.length === 1 ? first.words.drawing : set.sheets.map((sheet) => sheet.words.drawing).filter((t, i, all) => all.indexOf(t) === i).join(', ')
-  const files = await drawingSheetFiles(set.sheets, `${projectName}: ${title}`)
+  const files = await drawingSheetFiles(set.sheets, `${projectName}: ${title}`, made.onPage)
   return named.note === undefined ? { loaded, set, files, stem } : { loaded, set, files, stem, note: named.note }
 }
 
@@ -323,8 +345,8 @@ export interface DrawingDone {
 }
 
 /** SHT-6: makes the drawing and writes its PDF, SVGs and PNGs into `exports/` beside the plan. */
-export async function drawingIntoProject(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string): Promise<DrawingDone> {
-  const made = await makeDrawing(project, planFile, request, words, language, date)
+export async function drawingIntoProject(project: Project, planFile: string, request: DrawingRequest, words: SheetWords | null, language?: Language, date?: string, making: SheetMaking = {}): Promise<DrawingDone> {
+  const made = await makeDrawing(project, planFile, request, words, language, date, making)
   const pages = made.set.sheets.length
   const written = {
     pdf: writeBesidePlan(project, planFile, `${made.stem}.pdf`, made.files.pdf),

@@ -5,9 +5,9 @@
 import { describe, expect, it } from 'vitest'
 import { compileRoomsText } from '../compile'
 import { readRoomsText } from '../read'
-import { baseNamedIn, fitOutReading, type BasePlan } from '../base'
+import { baseNamedIn, fitOutReading, ownParts, type BasePlan } from '../base'
 import { mergeBase, validatePlan } from '../../geometry'
-import { safeParseFloorPlan, type FloorPlan } from '../../types/floorplan'
+import { parseFloorPlan, safeParseFloorPlan, type FloorPlan } from '../../types/floorplan'
 
 /** A shell 12 x 8 m to its walls' centre lines, its walls 0.3 m thick, a door in its south wall. */
 function shell(extra: readonly string[] = []): FloorPlan {
@@ -105,5 +105,45 @@ describe('a fit-out in rooms text (WRT-75)', () => {
     expect(back.walls).toEqual(view.plan.walls)
     expect(back.rooms.map((r) => [r.id, r.boundary])).toEqual(view.plan.rooms.map((r) => [r.id, r.boundary]))
     expect(back.openings).toEqual(view.plan.openings)
+  })
+})
+
+describe('a fit-out\'s own parts on a base with structure and fixtures (WRT-85)', () => {
+  const framed: BasePlan = {
+    file: 'shell.json',
+    plan: parseFloorPlan({
+      ...shell(),
+      floors: [{ id: 'ground', name: 'Ground', level: 0, slab: 0.25 }],
+      columns: [{ id: 'c1', shape: 'square', width: 0.4, at: [3, 4] }],
+      grids: [{ id: 'g', origin: [0, 0], x: { spacing: [6, 6] }, y: { spacing: [8] } }],
+      items: [{ id: 'breast', kind: 'storage', label: 'Chimney breast', at: [11.5, 4], size: [0.6, 1.2], height: 2.6 }],
+    }),
+  }
+
+  it('takes the base\'s columns, grids and fixtures out again, and each floor back as the fit-out states it', () => {
+    const own = parseFloorPlan({ version: '1', base: 'shell.json', floors: [{ id: 'ground', name: 'Ground floor' }], walls: [], rooms: [], openings: [], items: [{ id: 'desk', kind: 'desk', at: [4, 1], size: [1.4, 0.7], height: 0.75 }] })
+    const merged = mergeBase(own, framed.plan)
+    expect(merged.plan.floors?.[0]?.slab).toBe(0.25)
+    const back = ownParts(merged.plan, merged)
+    expect(back.columns).toBeUndefined()
+    expect(back.grids).toBeUndefined()
+    expect(back.items?.map((i) => i.id)).toEqual(['desk'])
+    expect(back.floors).toEqual(own.floors)
+  })
+
+  it('reads a fit-out back with none of the base\'s parts, and the text writes the same fit-out again', () => {
+    const written = safeParseFloorPlan(compileRoomsText(FIT_OUT, { base: framed }).plan)!
+    const reading = readRoomsText(written, { base: framed })
+    expect(reading.text).not.toMatch(/\bc1\b|breast|\bgrid g\b/)
+    const again = compileRoomsText(reading.text, { base: framed })
+    expect(again.problems).toEqual([])
+    const view = fitOutReading(written, framed)
+    expect(view.plan.columns).toBeUndefined()
+    expect(view.plan.items).toBeUndefined()
+    const back = view.again(safeParseFloorPlan(again.plan)!)
+    expect(back.walls.map((w) => [w.id, w.start, w.end])).toEqual(view.plan.walls.map((w) => [w.id, w.start, w.end]))
+    expect(back.rooms.map((r) => [r.id, r.boundary])).toEqual(view.plan.rooms.map((r) => [r.id, r.boundary]))
+    expect(back.columns).toBeUndefined()
+    expect(back.items).toBeUndefined()
   })
 })

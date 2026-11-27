@@ -70,8 +70,12 @@ export async function drawingSheetPng(sheet: DrawingSheet): Promise<Uint8Array> 
   return new Uint8Array(await surface.encode('png'))
 }
 
-export async function drawingSheetFiles(sheets: readonly DrawingSheet[], title: string): Promise<DrawingFiles> {
+/** The drawing's files. SHT-25: `onPage` is called after each page's picture, with how many are done, of how many. */
+export async function drawingSheetFiles(sheets: readonly DrawingSheet[], title: string, onPage?: (done: number, total: number) => void): Promise<DrawingFiles> {
   const pngs: Uint8Array[] = []
-  for (const sheet of sheets) pngs.push(await drawingSheetPng(sheet))
+  for (const sheet of sheets) {
+    pngs.push(await drawingSheetPng(sheet))
+    onPage?.(pngs.length, sheets.length)
+  }
   return { pdf: await drawingSheetPdf(sheets, title), svgs: sheets.map(drawingSheetSvg), pngs }
 }

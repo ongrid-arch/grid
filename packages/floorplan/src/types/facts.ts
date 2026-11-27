@@ -55,6 +55,25 @@ export function factsOf(part: { readonly properties?: Facts | undefined }): Fact
   return part.properties ?? {}
 }
 
+/**
+ * WRT-84: a part's facts that count something: every fact whose value is a number (seats, desks,
+ * a head count). A room split in two copies none of them, and two rooms merged add them up. Grid
+ * cannot tell a count from a measure by its name, so a number is taken for a count: one not
+ * copied is named with the call that sets it, while a count copied is wrong without a word.
+ */
+export function countedFacts(facts: Facts | undefined): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const [name, value] of Object.entries(facts ?? {})) if (typeof value === 'number') out[name] = value
+  return out
+}
+
+/** WRT-84: a part's facts that describe the place (text, yes or no): a split gives both parts these. */
+export function placeFacts(facts: Facts | undefined): Record<string, FactValue> {
+  const out: Record<string, FactValue> = {}
+  for (const [name, value] of Object.entries(facts ?? {})) if (typeof value !== 'number') out[name] = value
+  return out
+}
+
 /** The value of one fact on a part, matched by `factKey`, or undefined when it carries none. */
 export function factOf(part: { readonly properties?: Facts | undefined }, name: string): FactValue | undefined {
   const facts = part.properties

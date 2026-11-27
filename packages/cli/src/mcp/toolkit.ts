@@ -158,6 +158,8 @@ export interface ToolContext {
   readonly language?: Language
   /** MSG-34: what the call learnt of the plan it read (its display), filled in by `readPlan`. */
   readonly spoken?: Spoken
+  /** SHT-25: how far a long call has got, when the client asked (MCP's `progressToken`). */
+  readonly progress?: (progress: number, total: number, message: string) => void
   /** CMD-52: every tool, the names this server lists and the groups it was started with (null for every group), for grid_help. */
   readonly tools?: { readonly all: readonly GridTool[]; readonly listed: ReadonlySet<string>; readonly groups: readonly string[] | null }
 }

@@ -60,6 +60,7 @@ import { floorOf, planFloors, planForFloor } from './floors'
 import { wholeWall } from './through'
 import { floorElevations, isFiniteWall, wallTopsUnder, type WallTopUnder } from './elevations'
 import { planEnvelope } from './envelope'
+import { KEPT_DRAWN, keptIn } from './kept'
 import { groundLevel, plinthUnder } from './ground'
 import { floorWalls, outerWallBand } from './areas'
 import { wallJoints } from './joints'
@@ -425,6 +426,12 @@ const ringsOf = (pieces: MultiPolygon): (readonly Vec2[])[] => multiOf(pieces)
  * `noLength` cuts nothing and gives an empty section.
  */
 export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
+  // SHT-25: kept with a frozen plan: a sheet finds its section lines, sizes each section, then draws it.
+  const key = `section\u0000${line.from.x}\u0000${line.from.y}\u0000${line.to.x}\u0000${line.to.y}\u0000${line.toward}`
+  return keptIn(KEPT_DRAWN, stated, key, () => workOutSection(stated, line))
+}
+
+function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
   // CNT-10: the section is cut through the building as it will be after the work.
   const plan = planInState(stated, 'after')
   const snap = snapper()

@@ -1,8 +1,9 @@
 /**
  * CNT-9: `grid tidy`'s fixes keep the facts of the person's own. Taking out a copy of a wall
  * moves the copy's facts onto the wall kept, where it has none of that name; splitting a room
- * along a wall that crosses it gives both parts the room's facts, and its number stays with the
- * room. The plans are MSG-12's.
+ * along a wall that crosses it gives both parts the room's facts that describe the place, and its
+ * number stays with the room. WRT-84: a fact that counts something (a number) stays with the room
+ * alone, so the floor does not count it twice. The plans are MSG-12's.
  */
 import { describe, expect, it } from 'vitest'
 import { parseFloorPlan } from '../../types/floorplan'
@@ -33,7 +34,7 @@ describe('tidy keeps the facts (CNT-9)', () => {
     expect(tidied.plan.walls[0]).not.toHaveProperty('properties')
   })
 
-  it('splits a room along a wall across it into two parts that both keep its facts, its number staying with it', () => {
+  it('splits a room along a wall across it into two parts that both keep its place facts, its counts and number staying with it', () => {
     const plan = parseFloorPlan({
       walls: [
         wall('s', [0, 0], [6.4, 0], { kind: 'exterior' }),
@@ -53,7 +54,7 @@ describe('tidy keeps the facts (CNT-9)', () => {
     const bed = tidied.rooms.find((r) => r.id === 'bed')!
     const part = tidied.rooms.find((r) => r.id === 'bed-2')!
     expect(bed.properties).toEqual({ department: 'Sales', 'head count': 2 })
-    expect(part.properties).toEqual({ department: 'Sales', 'head count': 2 })
+    expect(part.properties).toEqual({ department: 'Sales' })
     expect(bed.number).toBe('1.02')
     expect(part.number).toBeUndefined()
   })

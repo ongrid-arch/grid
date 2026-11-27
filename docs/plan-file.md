@@ -8,7 +8,7 @@ section explains. Rooms text, the main way to write a plan, is in
 
 - [What a plan file may hold](#what-a-plan-file-may-hold)
 - [What kind of building it is, and what each room is for](#what-kind-of-building-it-is-and-what-each-room-is-for): `plan/not-checked-sizes-for-building`, `plan/not-checked-escapes-for-building`, `floor/not-checked-sizes-for-building`, `floor/not-checked-escapes-for-building`, `plan/unknown-use`
-- [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/wall-heights-differ`, `floor/height-past-next`, `floor/size-question`, `wall/unknown-floor`, `room/unknown-floor`
+- [Floor levels and heights](#floor-levels-and-heights): `plan/level-gap`, `plan/same-level`, `floor/empty-top`, `wall/above-storey`, `floor/wall-heights-differ`, `floor/height-past-next`, `floor/size-question`, `wall/same-space`, `wall/unknown-floor`, `room/unknown-floor`
 - [A step inside a floor](#a-step-inside-a-floor): `room/offset-question`
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `floor/gap-under-slab`, `floor/walls-past-floor`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
@@ -268,7 +268,10 @@ high it is may be stated apart from that order, in metres. All three are optiona
 | `slab` | The thickness of the slab the floor stands on (0.25 m when not stated) |
 
 A floor that states nothing stands where it always did: its height is its tallest wall, and it
-stands on the floor below it, one slab higher. Each part of a floor with nothing above it is
+stands on the floor below it, one slab higher. A wall that stands to the top of a room it bounds
+that states its height (LVL-26: a cinema raised past its storey, a duct stopped under it) is that
+room's and sets no storey height, unless every wall of the floor is a room's; the flat roof steps
+up over such a room to its top, where its ceiling is. Each part of a floor with nothing above it is
 roofed on that floor's own walls ([Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground));
 the building's box, which the 3D view frames, still ends on the highest storey top, whichever floor
 that is on, so a loft stated inside a taller storey does not shrink it. The 3D view, the IFC export
@@ -276,7 +279,24 @@ and the sheet all read the floors' heights from this one rule.
 
 A floor's floor-to-floor is the distance from its level to the level of the floor over it in its
 building, and the top floor's to the top of its roof slab, so a building's height is its floors'
-floor-to-floor summed (LVL-24). The plan holds no field for it: it is the difference of two
+floor-to-floor summed (LVL-24). The floor over it is the nearest floor up that stands over the same
+footprint, the two outlines sharing more than a quarter of the smaller one (`sameFootprintShare`,
+ARE-76): in a split-level house the street floor's floor-to-floor runs to the bedroom floor over
+it, never to the garden floor half a level up beside it. A floor whose outline cannot be worked
+out stands under the next level, as before.
+
+Storeys are counted per building (ARE-76). A level whose floors stand inside the clear height of a
+lower storey of their building, such as a half level or a mezzanine, is a split level of that
+storey and no storey of its own, by where the floors stand whatever numbers their levels. A plan's
+storey count is the most of any one building's, so a row of six two-storey split-level houses has
+two storeys, each house two with two split levels. A building's height is measured from its own
+ground: its `pad`; on a sloping site the lowest ground under its own walls; on one stated
+`site.ground`, the site's ground lies under the lowest of the buildings' ground floors and a
+building whose ground floor stands higher stands on ground as much higher, so each house up a
+street is measured from its own pavement (`from: "under"` in `grid_areas`). A building that stands
+otherwise states its `pad`.
+
+The plan holds no field for a floor-to-floor: it is the difference of two
 floors' `elevation`, which is how `grid_set_levels` writes it. Given a floor-to-floor for every
 floor, one building's or the floors listed, it keeps the lowest floor at or above level 0 where it
 stands, stands each floor over it its floor-to-floor over the one under it (and each basement its
@@ -290,7 +310,9 @@ The drawing's checks ask about levels that do not add up, as warnings: a missing
 (`plan/level-gap`, a flat on level 3 drawn alone stands on the ground until it states its
 elevation), two floors at one level one over the other (`plan/same-level`), an empty top floor
 that still counts as a storey (`floor/empty-top`), a wall taller than the height its floor states
-(`wall/above-storey`), walls a storey high (at least `storeyLowest`) that state another height of
+(`wall/above-storey`; not a wall that stands to the top of a room it bounds that states its height,
+LVL-26), a wall of one floor that rises past the level of a floor above it where a wall of that
+floor stands in the same place, so one wall is counted on two floors (`wall/same-space`), walls a storey high (at least `storeyLowest`) that state another height of
 their own than the one their floor states, said once for the floor with which won: each wall stands
 at its own, and the floor's stacks the storey (`floor/wall-heights-differ`), a clear height that
 with the slab of the floor over it runs past that floor's level, a floor-to-floor written as the
@@ -1254,6 +1276,8 @@ comes off the room's area, exports as a column and draws as one.
   layer (`GRID-COLUMNS`), a round one as a true circle; the OBJ and the GLB hold a solid for each
   (`column_<id>`); the 3D view and the sheet's still show it. `grid_takeoff` counts the columns by
   shape and size, with their metres and volume, and `grid describe` says each floor's.
+  `grid_find` and `grid_count` take `kind: ["column"]` and ask of them by room, room use, shape
+  and size (CMD-53, [the tool server](tool-server.md#what-stands-in-a-room)).
 
 A structural grid is a named set of lines the columns are set out on. Its `x` lines run along the
 grid's own y, the first through `origin`, each `spacing` metres past the one before; its `y` lines
@@ -1435,11 +1459,17 @@ or a wall meets one, and no check reads one. What Grid does with them:
 
 - **Edits keep them.** Every change keeps the facts of the parts it changes. A wall cut in two
   (merging rooms, building a room against it) gives both pieces the wall's facts. A room split in
-  two gives the new room the room's facts, and the room keeps its number; the new one has none.
-  Two rooms merged keep the first room's facts and number, take the second's facts the first
-  does not carry, and say what the second said otherwise and which number is gone. `grid tidy`
-  does the same: a copy of a wall taken out gives its facts to the wall kept, where it has none
-  of that name, and a room split along a wall across it gives both parts its facts. A plan read
+  two gives the new room the room's facts that describe the place (text, yes or no: a department,
+  a cost centre), and the room keeps its number; the new one has none. A fact that is a number is
+  taken for a count (seats, a head count) and is not copied: the room keeps it as stated, so the
+  floor does not count it twice, and the answer names it with the `grid_set_facts` call that
+  gives each part its own figure. Two rooms merged keep the first room's facts and number, take
+  the second's facts the first does not carry, add up the numbers both carry (4 and 6 seats are
+  10), and say each sum, each number only one of them carried, what the second said otherwise and
+  which number is gone. A merge that gives the room another use names the first room's facts it
+  keeps, which may no longer fit. `grid tidy` does the same: a copy of a wall taken out gives its
+  facts to the wall kept, where it has none of that name, and a room split along a wall across it
+  gives both parts its facts that describe the place, its numbers staying with the room. A plan read
   back as rooms text and written again keeps each part's facts and number by its id, and names
   the parts that carried some and are no longer there.
 - **Schedules list them.** In `grid_schedule`'s room schedule a room that states its number is
@@ -1763,9 +1793,23 @@ read into the plan as existing; its rooms are not, since the fit-out says what i
 fit-out's rooms may rest on the base's walls; its own parts that state no phase are new. A part of
 the fit-out with the id of a base wall or opening refuses the plan, naming the id.
 
+The base's columns, structural grids, stairs and fixtures and furniture (`items`) are read in too,
+after the fit-out's own (WRT-85). They state no phase, so they stand before and after the work:
+the shell's columns are drawn and take their floor off the fit-out's rooms, its grid is drawn and
+dimensioned, its stair joins the floors, and its fixtures (a chimney breast drawn as a storage
+unit, a WC the fit-out keeps) take their free floor and go into every export. A column, grid,
+stair or item of the fit-out's own with the id of one of the base's of the same kind refuses the
+plan, naming the id. The base's floors the fit-out does not list are read in whole; a floor it
+lists by a base floor's id takes the base's `level` (when the fit-out's reads 0), `elevation`,
+`height`, `slab`, `parapet`, `roof`, `outline`, `above` and `below` wherever it states none, so
+the fit-out stands at the shell's levels on the shell's slab. Parking bays and ramps are not read
+in.
+
 The base is read-only. It is drawn as existing, measured and checked with the fit-out, and never
 written into it: a change that would move, cut or take out a base wall or opening, or put an
-opening in a base wall, is refused, naming them, and nothing is written. To change the shell,
+opening in a base wall, is refused, naming them, and nothing is written. So is a change that would
+move, change or take out a base column, grid, stair or item; a floor the fit-out lists is written
+back as it states it. To change the shell,
 change the base plan, and every fit-out on it reads the change.
 
 A fit-out is written in rooms text by its first line, `base <plan>` (WRT-75): the rooms are

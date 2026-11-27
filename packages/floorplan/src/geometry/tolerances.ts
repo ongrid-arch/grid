@@ -724,6 +724,15 @@ export const TOLERANCES = {
       'Past it, the wall is named with both heights.',
     basis: own
   },
+  sameSpaceAlong: {
+    kind: 'tolerance',
+    value: 0.05,
+    unit: 'm',
+    decides:
+      'Two walls of two floors, one rising past the other floor\'s level, stand in the same space ' +
+      'when they lie along each other, their bodies overlapping, for more than this (LVL-26).',
+    basis: own
+  },
   sameLevelOverlap: {
     kind: 'tolerance',
     value: 0.5,
@@ -986,6 +995,17 @@ export const TOLERANCES = {
       'Two rooms side by side whose floors stand closer than this in height share a level: no step ' +
       'is drawn between them. So do two floors that state their elevations (LVL-11): neither is ' +
       'set against the other as a floor below it.',
+    basis: own
+  },
+  sameFootprintShare: {
+    kind: 'tolerance',
+    value: 0.25,
+    unit: 'ratio',
+    decides:
+      'Two floors of one building stand over the same footprint when their outlines share more ' +
+      'than this share of the smaller one (ARE-76): a floor\'s floor to floor runs to the nearest ' +
+      'such floor over it, so a half level beside it, which shares no more than the wall between ' +
+      'them, is not the floor over it.',
     basis: own
   },
   floorOffsetLargest: {

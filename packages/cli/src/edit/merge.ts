@@ -3,7 +3,8 @@
  * out, the first room takes in the second, and the doors and windows in the stretch go with it.
  * The merged room keeps the first room's facts of the person's own and its number, and takes the
  * second's facts it does not carry (CNT-9); what the second said otherwise is named, never kept
- * in silence. The pieces of a cut wall each keep the wall's facts. CNT-59: its longest piece keeps
+ * in silence. WRT-84: a number both rooms carry is a count, and the merged room carries the sum;
+ * a count only one carried is named, with the call that sets another. The pieces of a cut wall each keep the wall's facts. CNT-59: its longest piece keeps
  * its id and what another tool calls it (`identity`); the others are new walls with none.
  *
  * Two rooms of different uses are never made one use in silence (CNT-8, lab AB-9): the call says
@@ -24,7 +25,8 @@
  * Pure: a survey in, a patch out.
  */
 import { FINISH_SURFACES, cross, dot, roomFinishes, signedArea, sub, tolerance, wallAxis, wallLength, wallPointAt, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
-import { factOf, statedWall, wallWithEnds, type Flat } from '@ongrid/floorplan/types/floorplan'
+import { countedFacts, factKey, factOf, placeFacts, statedWall, wallWithEnds, type Flat } from '@ongrid/floorplan/types/floorplan'
+import { english, joined as joinedWords, name as idName, num, said as sentence } from '@ongrid/floorplan/messages'
 import { quoted } from '../fs/projectFiles'
 import type { Survey, SurveyRoom } from '../quantities/survey'
 import { refuseCurved, type OpeningChange, type Patch, type RoomChange } from './edits'
@@ -378,12 +380,36 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
   const aFacts = aRoom.properties ?? {}
   const bFacts = bRoom.properties ?? {}
   const taken = Object.entries(bFacts).filter(([fact]) => factOf(aRoom, fact) === undefined)
-  const differ = Object.entries(bFacts).filter(([fact, value]) => factOf(aRoom, fact) !== undefined && factOf(aRoom, fact) !== value)
+  // WRT-84: a fact that counts something (a number) both rooms carry is added up, never kept from one.
+  const sums = Object.entries(countedFacts(aFacts)).flatMap(([fact, first]) => {
+    const second = factOf(bRoom, fact)
+    return typeof second === 'number' ? [{ fact, first, second, total: Math.round((first + second) * 1e6) / 1e6 }] : []
+  })
+  const summed = new Set(sums.map((s) => factKey(s.fact)))
+  const differ = Object.entries(bFacts).filter(([fact, value]) => !summed.has(factKey(fact)) && factOf(aRoom, fact) !== undefined && factOf(aRoom, fact) !== value)
   const typeFact = typeFactOf(aRoom) ?? typeFactOf(bRoom)
   let mergedFacts: Record<string, string | number | boolean> | null = taken.length > 0 ? { ...aFacts, ...Object.fromEntries(taken) } : null
+  if (sums.length > 0) mergedFacts = { ...(mergedFacts ?? aFacts), ...Object.fromEntries(sums.map((s) => [s.fact, s.total])) }
   // WRT-33: the type the person gives the merged room.
   if (request.type !== undefined) mergedFacts = { ...(mergedFacts ?? aFacts), [typeFact?.key ?? 'type']: request.type }
   if (taken.length > 0) said.push(`${request.name !== undefined || line !== null ? quoted(mergedName) : an} takes the facts of ${bn} it did not carry: ${taken.map(([fact]) => quoted(fact)).join(', ')}.`)
+  // WRT-84: each sum, and each count only one of the two carried, is said with the call that sets another.
+  const mergedSaid = idName(request.name !== undefined || line !== null ? mergedName : A.facts.name)
+  if (sums.length > 0) {
+    const total = joinedWords(sums.map((s) => sentence('edit.counted.sum', { fact: idName(s.fact), total: num(String(s.total)), first: num(String(s.first)), second: num(String(s.second)) })), 'join.comma', 'join.and')
+    said.push(english(sentence('edit.counted.summed', { merged: mergedSaid, facts: total, a: idName(A.facts.name), b: idName(B.facts.name), id: idName(merged) })))
+  }
+  const figures = (entries: readonly (readonly [string, number])[]) => joinedWords(entries.map(([fact, value]) => sentence('edit.counted.figure', { fact: idName(fact), value: num(String(value)) })), 'join.comma', 'join.and')
+  const onlyA = Object.entries(countedFacts(aFacts)).filter(([fact]) => factOf(bRoom, fact) === undefined)
+  const onlyB = Object.entries(countedFacts(bFacts)).filter(([fact]) => factOf(aRoom, fact) === undefined)
+  for (const [entries, from, other] of [[onlyA, A, B], [onlyB, B, A]] as const) {
+    if (entries.length > 0) guessed.push(english(sentence('edit.counted.oneRoom', { merged: mergedSaid, facts: figures(entries), from: idName(from.facts.name), other: idName(other.facts.name), id: idName(merged) })))
+  }
+  // A use other than the first room's: the facts kept from it that describe the place may not fit.
+  const kept = Object.keys(placeFacts(aFacts))
+  if (request.use !== undefined && request.use !== aRoom.use && kept.length > 0) {
+    guessed.push(english(sentence('edit.counted.useChanged', { merged: mergedSaid, use: request.use, a: idName(A.facts.name), facts: joinedWords(kept.map((fact) => idName(fact)), 'join.comma', 'join.and'), id: idName(merged) })))
+  }
   if (differ.length > 0) notKept.push(`${bn} said otherwise of ${differ.map(([fact, value]) => `${quoted(fact)} (${quoted(String(factOf(aRoom, fact)))} kept, ${quoted(String(value))} not)`).join(', ')}; the merged room keeps what ${an} says${line === null ? '' : `, and ${bn} keeps its own as a zone`}.`)
   if (line === null) {
     const change: RoomChange = { boundary: joined }
