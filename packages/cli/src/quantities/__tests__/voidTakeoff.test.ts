@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseFloorPlan, type FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { edit, twoFloorHouse } from '@ongrid/floorplan/test-support/plans'
+import { bench } from '../../mcp/__tests__/replay/harness'
 import { surveyPlan } from '../survey'
 import { planTakeoff } from '../takeoff'
 import { planAreas } from '../areas'
@@ -54,5 +55,36 @@ describe('the guard of a void', () => {
     }))
     const landing = planTakeoff(surveyPlan(open)).rooms.find((r) => r.id === 'landing')!
     expect(landing.guard).toBeCloseTo(7.8, 6)
+  })
+})
+
+describe('void quantities across area and take-off readings', () => {
+  it('gives zero area to the party walls when only the void is selected', () => {
+    const { apart } = planAreas(surveyPlan(withVoid()), { apart: new Set(['landing']) })
+    expect(apart).toMatchObject({ net: 0, toPartyWalls: { grossInternal: 0, grossExternal: 0 }, notCounted: ['landing'] })
+  })
+
+  it('gives the open edge length and omits the ceiling details even when a ceiling is stated', async () => {
+    const open = withVoid()
+    const ceiling = { lowered: [{ name: 'Bulkhead', points: [[1, 1], [3, 1], [3, 2], [1, 2]], height: 2.2 }] }
+    const plan = parseFloorPlan({
+      ...open,
+      rooms: open.rooms.map((room) => room.id === 'landing' ? { ...room, height: 2.6, ceiling } : room),
+      walls: open.walls.map((wall) => wall.id === 'u_mid' ? { ...wall, virtual: true } : wall),
+      openings: open.openings.filter((opening) => opening.wall !== 'u_mid'),
+    })
+    const { rooms, totals } = planTakeoff(surveyPlan(plan), ['first'], ['landing'])
+    expect(rooms[0]).toMatchObject({ id: 'landing', floorArea: 0, ceiling: 0, ceilingHeight: null, lowered: [], skirting: 0 })
+    expect(totals.guard).toBeCloseTo(7.8, 6)
+
+    const tools = bench({ 'plan.json': plan })
+    try {
+      const result = await tools.call('grid_takeoff', { rooms: ['landing'], format: 'csv' })
+      expect(result.isError, result.text).toBe(false)
+      expect(result.text).toContain('guard,Landing,,,,,7.8,,\n')
+      expect(result.data).toMatchObject({ rooms: [{ void: true, guard: 7.8 }], totals: { guard: 7.8 } })
+    } finally {
+      tools.close()
+    }
   })
 })

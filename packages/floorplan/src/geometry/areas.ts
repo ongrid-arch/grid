@@ -31,7 +31,7 @@ import type { MultiPolygon, Polygon } from 'polygon-clipping'
 import type { FloorPlan, PlanIndex, Room, Wall } from './plan'
 import { indexPlan, roomWallIds } from './plan'
 import { floorOf, planFloors, wallsOnFloor } from './floors'
-import { roomFloorArea, tryRoomPolygon, tryRoomShape } from './room'
+import { roomFloorArea, roomNesting, tryRoomPolygon, tryRoomShape } from './room'
 import { floorSpaces, spacesKnown, type FloorSpaces, type Space } from './spaces'
 import { planWallSides, type WallSides } from './exposure'
 import { validatePlan } from './validate'
@@ -42,7 +42,7 @@ import { planFlats } from './flats'
 import { planBuildings } from './buildings'
 import { statedOutline } from './massing'
 import { TOLERANCES, tolerance } from './tolerances'
-import type { Vec2 } from './vec2'
+import { area, type Vec2 } from './vec2'
 import { wallLength, wallPointAt, wallSegments, wallSlicePolygon, type WallEnds } from './wall'
 import { curveFault, curveTangentAt, wallCurve } from './arc'
 import { buildingPlan, isOutdoor, outdoorIds, outdoorKind, outdoorRoofed, planHasOutdoor } from './outdoor'
@@ -716,6 +716,7 @@ function floorFigures(
   const rooms: RoomAreaFigure[] = []
   const leftOut: RoomLeftOut[] = []
   const zones = roomZones(index)
+  let voids = 0
   for (const room of plan.rooms) {
     if (floorOf(room) !== floor) continue
     // The rooms `floorSpaces` sets against the spaces, so that the figures add up.
@@ -729,6 +730,8 @@ function floorFigures(
     const kind = outdoorKind(room)
     const apart = kind === null && outside.has(room.id)
     const isVoid = room.void === true
+    // Gross area includes columns elsewhere, so use the opening before column deductions.
+    if (isVoid && zoneOf === null) voids += roomNesting(index).hosts.get(room.id)?.area ?? area(outline)
     const stack = apart || kind !== null || isVoid ? undefined : stacks.get(`${floor}|${room.id}`)
     const below = stack?.lowest
     // ARE-35: only the floor over the open stair below comes off a room partly over it.
@@ -778,8 +781,6 @@ function floorFigures(
   const outsideRooms = sum(rooms.filter((room) => room.outside).map((room) => room.area))
   const outdoorRooms = rooms.filter((room) => room.outdoor !== undefined)
   const columns = sum(rooms.map((room) => room.columns?.area ?? 0))
-  // ARE-16: a void has no floor, so its floor is taken from both gross figures as well as the net.
-  const voids = sum(rooms.filter((room) => room.void === true && room.zoneOf === null).map((room) => room.area))
   const base = { floor, rooms, leftOut, net, byUse, outsideRooms, overStairs, columns, voids, ...(outdoorRooms.length === 0 ? {} : { outdoor: sum(outdoorRooms.map((room) => room.area)) }) }
 
   // CNT-7: the gross figures are the building's, measured without the walls that bound only
@@ -1474,7 +1475,7 @@ function partyWallGroups(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<
 /**
  * The rooms the floors measure as `partyWallArea` reads them, grouped by `groupOf` (null for a room
  * in no group), then by floor, so a group's floors are added and never joined across. No zone (it
- * is in its room), no outdoor space (it is the outside) and no room named outside.
+ * is in its room), void, outdoor space or room named outside.
  */
 function partyRooms(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<string>, floors: readonly FloorAreaFigures[], groupOf: (floor: string, id: string) => string | null): Map<string | null, Map<string, PartyWallRoom[]>> {
   const stated = new Map(plan.rooms.map((room) => [`${floorOf(room)}|${room.id}`, room] as const))
@@ -1484,7 +1485,7 @@ function partyRooms(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<strin
   const groups = new Map<string | null, Map<string, PartyWallRoom[]>>()
   for (const f of floors) {
     for (const figure of f.rooms) {
-      if (figure.zoneOf !== null || figure.outdoor !== undefined || figure.outside) continue
+      if (figure.zoneOf !== null || figure.outdoor !== undefined || figure.outside || figure.void === true) continue
       const room = stated.get(`${f.floor}|${figure.id}`)
       const shape = room === undefined ? null : tryRoomShape(room, index)
       if (room === undefined || shape === null) continue

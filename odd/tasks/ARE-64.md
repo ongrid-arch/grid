@@ -11,7 +11,8 @@ Build on the existing void flag, slab opening and guard measurement. In
 `geometry/areas.ts`, use the clear opening before column deductions for the
 gross figures, and leave voids out of the rooms measured to party walls. In
 `quantities/takeoff.ts`, omit ceiling heights and lowered ceiling pieces for
-a void. Keep the existing write summary treatment of voids and outdoor space.
+a void. In `grid_takeoff`, include guard lengths in the CSV and declare the
+existing guard fields in the output schema. Keep the existing write summary treatment of voids and outdoor space.
 
 ## Done
 

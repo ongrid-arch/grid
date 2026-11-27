@@ -856,8 +856,8 @@ const takeoffTool: GridTool = {
     // CNT-15, on a plan that names wall types or finishes: the walls of each named type, and each finish's total.
     wallTypes: listSchema(objectSchema({ type: STRING, name: STRING, kind: NULLABLE_STRING, material: NULLABLE_STRING, glazed: BOOLEAN, count: NUMBER, gross: NUMBER, net: NUMBER, face: NUMBER, gable: NUMBER })),
     finishes: listSchema(objectSchema({ surface: STRING, finish: NULLABLE_STRING, unit: STRING, quantity: NUMBER, rooms: listSchema(STRING) })),
-    rooms: listSchema(objectSchema({ id: STRING, name: STRING, floor: STRING, floorArea: NUMBER, ceiling: NUMBER, perimeter: NUMBER, skirting: NUMBER, wallFace: NUMBER, openingsOff: NUMBER, height: NULLABLE_NUMBER, ceilingHeight: NULLABLE_NUMBER, lowered: listSchema(objectSchema({ name: STRING, height: NUMBER, area: NUMBER })) })),
-    totals: objectSchema({ floorArea: NUMBER, ceiling: NUMBER, skirting: NUMBER, wallFace: NUMBER }),
+    rooms: listSchema(withOptional(objectSchema({ id: STRING, name: STRING, floor: STRING, floorArea: NUMBER, ceiling: NUMBER, perimeter: NUMBER, skirting: NUMBER, wallFace: NUMBER, openingsOff: NUMBER, height: NULLABLE_NUMBER, ceilingHeight: NULLABLE_NUMBER, lowered: listSchema(objectSchema({ name: STRING, height: NUMBER, area: NUMBER })), void: BOOLEAN, guard: NUMBER }), ['void', 'guard'])),
+    totals: withOptional(objectSchema({ floorArea: NUMBER, ceiling: NUMBER, skirting: NUMBER, wallFace: NUMBER, guard: NUMBER }), ['guard']),
     envelope: objectSchema({
       floors: listSchema(objectSchema({
         floor: STRING,
@@ -936,6 +936,7 @@ const takeoffTool: GridTool = {
         ...(t.bays ?? []).map((b) => ['bays', `parking bays, ${b.floorName} (${b.count})`, null, null, null, null, null, null, null]),
         ...(t.ramps ?? []).map((r) => ['ramp', `${r.name}: ${r.lower.floor} to ${r.upper.floor}, ${slopeText(r.slope)} %`, null, null, null, null, r.length, null, null]),
         ...t.rooms.map((r) => ['room', r.name, r.floorArea, r.ceiling, r.skirting, r.wallFace, r.perimeter, null, null]),
+        ...t.rooms.flatMap((r) => r.guard === undefined ? [] : [['guard', r.name, null, null, null, null, r.guard, null, null]]),
         ['total', 'all rooms', t.totals.floorArea, t.totals.ceiling, t.totals.skirting, t.totals.wallFace, null, null, null],
         // LVL-4: worked out from the outlines, never stated by the plan (AC-6).
         ...t.envelope.floors.flatMap((f) => [
