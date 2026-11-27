@@ -191,8 +191,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-74: one more, grid_fields' line on how facts are set.
   // CNT-45: five more, the kinds fixture and furniture, the items grid_view draws and of=fixtures.
   // CNT-49: one more, the facade's ground falling along the face.
+  // VEW-74: nineteen more, grid_view's floor=all, crop of several parts, crop_box, margin and their refusals.
+  // ARE-68: seven more, the lettable, people, as_written and frontage arguments and frontage's refusals.
   // CNT-52: two more, grid_schedule of=items' lines.
-  'packages/cli/src/mcp/readTools.ts': [394, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [420, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.
@@ -229,9 +231,13 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/stairTools.ts': [28, 'tools'],
   // LVL-23: grid_set_building, its description, arguments and answer.
   'packages/cli/src/mcp/buildingTools.ts': [54, 'tools'],
+  // LVL-24: grid_set_levels, its description and arguments.
+  'packages/cli/src/mcp/levelsTool.ts': [10, 'tools'],
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
   // CNT-52: one more, the facts argument's help.
   'packages/cli/src/mcp/itemTools.ts': [54, 'tools'],
+  // ARE-68: the lettable_uses, lettable_tenures and people arguments and the brief's people schema.
+  'packages/cli/src/mcp/lettableArgs.ts': [7, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
   'packages/cli/src/mcp/annotateTool.ts': [23, 'tools'],
   // VEW-67: the trace image's tool.
@@ -272,6 +278,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/quantities/facing.ts': [25, 'notYet'],
   // ARE-14: the free floor rule is one of the area measures now, in the message files.
   'packages/cli/src/quantities/fixtures.ts': [1, 'notYet'],
+  // ARE-68: the refusals of a figure for who the building is for, in the call and the brief.
+  'packages/cli/src/quantities/lettable.ts': [6, 'agent'],
   'packages/cli/src/quantities/limits.ts': [29, 'notYet'],
   'packages/cli/src/quantities/measure.ts': [3, 'notYet'],
   // ARE-61: four more, the room type, tenure, flat and flat type fields' descriptions for the agent.
@@ -339,7 +347,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-25: six more, what corridorRasterAcross and corridorEndTurn decide.
   // CNT-36: seven more, what roomsFaceSkew and writtenParallel decide.
   // VEW-71: one more, the projected roof edge in elevation.
-  'packages/floorplan/src/geometry/tolerances.ts': [348, 'developer'],
+  // LVL-24: one more, a wall lower than storeyLowest set against its floor's height.
+  'packages/floorplan/src/geometry/tolerances.ts': [349, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -555,10 +564,11 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // tools (mcp/buildingTools.ts 40) and describe's building (mcp/readTools.ts 3) (odd/tasks/CMD-47.md).
     // and CNT-49 8: the ground on a slope set and said (edit/site.ts 7) and a refusal (types/floorplan.ts 1).
     // and CMD-48 36: the reading commands (command/read.ts 34) and grid check's --fail-on (command/check.ts 2).
+    // and LVL-24 11: grid_set_levels (mcp/levelsTool.ts 10) and storeyLowest's wall (tolerances.ts 1) (odd/tasks/LVL-24.md).
     // and CNT-52 9: the point kinds' words and a label (geometry/pointKinds.ts 3, library/builtIn.ts 1), a
     // point's receipt (edit/items.ts 1), grid_add_item's facts (mcp/itemTools.ts 1), grid_schedule
     // of=items (mcp/readTools.ts 2) and an item's facts on the sheet (sheet/coverage.ts 1) (odd/tasks/CNT-52.md).
-    expect(left).toBeLessThanOrEqual(2579)
+    expect(left).toBeLessThanOrEqual(2590)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

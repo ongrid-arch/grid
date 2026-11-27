@@ -185,6 +185,61 @@ is the area inside its outline, and it has no net area and no gross internal are
 no inside face of walls to measure to; the answer names the massing floors. `grid_areas` also
 counts the storeys, by level, from the floors that hold an outline or walls that close one.
 
+## Lettable area, the core and efficiency
+
+Net to gross holds every room the net counts, the lift shafts, the stairs, the plant rooms and the
+corridors with them, so it is not the share of a building that can be let or sold. `grid_areas`
+gives that apart (ARE-68):
+
+- **Lettable area** is the net area of the rooms a tenant or a buyer has the use of, what is often
+  called the net internal or net lettable area, counted by Grid's own rule from the rooms as
+  drawn. A room that states its tenure ([plan-file.md](plan-file.md)) is lettable when it is
+  `private`, `shared` or `commercial` and not when it is `common`; a room that states none is
+  lettable unless its use is stair, lift, plant, corridor or parking. The person may choose
+  instead (`lettable_uses`, `lettable_tenures`): a room of a chosen use or tenure is lettable, and
+  no other. The answer lists the floor the net counts that is not lettable, by use, so a loading bay
+  drawn as storage is seen.
+- **The core** is the rooms used as stair, lift or plant on each floor plate, a stair or lift room
+  counted with the one below included: its share of a plate is what stands on it, though the net
+  counts a shaft's floor once (SHT-11, ARE-22). Each floor lists its core rooms.
+- **Efficiency** is the lettable area over the gross internal area: per floor, per floor type (the
+  floors whose largest lettable use is the same: the retail podium, the office floors, the hotel
+  floors) and in all. A floor with no gross internal area has none.
+
+Each floor's line in `grid_areas` ends with its lettable area, efficiency, core and core share;
+the data is under `lettable` (`floors`, `floorTypes`, `lettableByUse`, `notLettable`, `states`,
+`rules`), and each `grid_compare` row carries `lettable`, `core`, `efficiency` and `coreShare`. In
+the library: `lettableFigures(planAreas(survey), choice)` in `packages/cli/src/quantities/lettable.ts`.
+
+### The area per person
+
+Given who the building is for, `people` in the call or in the brief
+([brief.md](brief.md#who-the-building-is-for)): `pupils`, `covers`, `keys`, `beds`, `capacity` or
+`desks`, `grid_areas` and `grid_compare` give the gross internal, gross external, net and lettable
+area per one: per pupil, per key, per cover. A figure for named rooms (80 covers in the dining
+hall) is measured on those rooms' net only. With no figure, the covers and desks counted from the
+furniture ([tool-server.md](tool-server.md#seats-desks-and-covers-counted-from-the-furniture)) give
+theirs, said as counted. The figure is the person's, never an occupancy Grid works out.
+
+### Frontage zones
+
+`grid_measure what=frontage` (with `room`) gives a shop's floor in bands of depth from its
+frontage, A, B, C and the rest, each in m² and sq ft. The frontage is the side of the room on the
+wall named (`wall`), else on the wall with the most opening width the room opens through (its shop
+front), else its longest side on an outside wall. The room's floor as drawn is cut by lines
+parallel to that side, `depth` metres apart, Grid's own default 6.1 m (20 ft), the depth shops are
+often zoned by, into `bands` bands (3) and the rest; the bands add up to the floor. No band is
+weighted: the bands are measured, not valued, and columns and fixtures are not taken off.
+
+### A room as written
+
+`grid_areas as_written` gives each room's floor to the middle of every wall it lies on, the
+corners filled, whatever lies beyond the wall (`asWritten` on each room): the size a room written
+to its walls' centre lines in rooms text was written at, as a stand or a module is sold by its
+nominal size. It is beside the net area and in no total. A 6 × 20 m shop inside 0.2 m walls is
+120 m² net and 125.24 m² as written. In the library: `toWallMiddles` in
+`packages/floorplan/src/geometry/partyWalls.ts`.
+
 ## Outdoor space
 
 A room the plan marks as outdoor space (CNT-7, [plan-file.md](plan-file.md#outdoor-space-roofed-or-open)),

@@ -42,6 +42,7 @@ import { SITE_TOOLS } from './siteTools'
 import { setPlanTool } from './planTool'
 import { STAIR_TOOLS } from './stairTools'
 import { BUILDING_TOOLS } from './buildingTools'
+import { setLevelsTool } from './levelsTool'
 import { ITEM_TOOLS } from './itemTools'
 import { PARKING_TOOLS } from './parkingTools'
 import { placeTraceTool } from './traceTool'
@@ -91,6 +92,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...STAIR_TOOLS,
   // LVL-23: which floors are each building's, and the ground each stands on.
   ...BUILDING_TOOLS,
+  // LVL-24: the floors' floor-to-floor, stacked as their levels.
+  setLevelsTool,
   // CNT-45: fixtures and furniture added against a wall, moved and taken out.
   ...ITEM_TOOLS,
   // CNT-46: rows of parking bays placed and a ramp added between two floors, after the stairs.
