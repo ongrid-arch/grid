@@ -11,12 +11,12 @@ import { baseRefusal, baseTouched, phasedPatch } from '../edit/phases'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { DOOR_KINDS, OPENING_KINDS, WINDOW_KINDS, WallKindSchema, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
-import { limit, planFloors, phaseCounts, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, limit, planFloors, phaseCounts, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { EXPORT_FORMATS, isExportFormat } from '@ongrid/floorplan/export'
 import { inspectPlan } from '@ongrid/rules'
-import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, emptyFloorsText, exportFile, exportFloorId, ExportWriteFailed, exportsIntoProject, floorsText, leftOutText, sheetsText, type ExportDone } from '../command/export'
+import { ALL_FLOORS, approximatedText, checkExportRequest, dxfProfileLine, emptyFloorsText, exportFile, exportFloorId, ExportWriteFailed, exportsIntoProject, floorsText, leftOutText, sheetsText, writeMaterialsBeside, type ExportDone } from '../command/export'
 import { DXF_PROFILE_FILE, DxfProfileRefused } from '../export/dxfProfile'
 import { UsageError } from '../command/options'
 import { loadPlan, PlanRefused } from '../command/plan'
@@ -83,7 +83,7 @@ export const EXPORT_TOOL_NAME = 'grid_export'
 
 /** The command's messages name its options; a tool names its arguments. */
 function asArguments(message: string): string {
-  return message.replace(/--(format|floor|layout|sheet|scale|out)\b/g, '$1')
+  return message.replace(/--no-roofs\b/g, 'roofs false').replace(/--arc-segments\b/g, 'arcSegments').replace(/--(format|floor|layout|sheet|scale|out)\b/g, '$1')
 }
 
 /** What a written file leaves out of the plan, for the agent. */
@@ -100,6 +100,7 @@ const exportTool: GridTool = {
     + 'It writes the file into the exports folder beside the plan, replacing an earlier copy of the same export, and answers with the path it wrote and every part of the plan the file leaves out (the file says so too). It never changes the plan, and refuses a file that would hold nothing of it. '
     + 'A dxf, glb or obj with no floor holds the whole building: a glb or obj each floor at its elevation (in a glb, a node per floor named by its id under one root node), a dxf each floor side by side in model space and on a paper layout of its own named after the floor. floor all writes one file per floor, each named after its floor, listed as files. The answer says which floors a file holds as floors and which it does not as floorsLeftOut. '
     + `A dxf is in metres, with doors and windows as blocks, one per schedule type, each insert carrying its MARK (the schedules' mark, the IFC's Tag), TYPE, WIDTH, HEIGHT and SILL, filled walls, dimensions, room tags and an A3 sheet per floor at the largest standard scale every floor fits at, or at scale; sheets says the scale and any floor that does not fit. It takes its layer names and pens from ${DXF_PROFILE_FILE} in the project folder when there is one, and answers with that file as dxfProfile. A door's hand is the side of its hinges seen from the side it opens toward, in the schedule, the dxf and the ifc alike. `
+    + 'A glb has flat normals, UVs in metres and a material named for each kind of part (wall, floor, door, frame, glass, slab, roof, stair, column, item), and is Y up; an obj is Z up, names the same materials and comes with grid.mtl beside it, answered as materials. Room floors stand a few millimetres above the slab. roofs false leaves the roofs out; arcSegments writes a whole circle of curved wall with that many pieces, for a lighter model. '
     + `${ROOM_NAMES_TRAVEL} `
     + 'Do not use for a picture to look at (grid_view). For a PDF to read or print, use grid_sheet; JPG is not made. The plan must be a file inside the project folder: any other path is refused.',
   args: {
@@ -108,6 +109,8 @@ const exportTool: GridTool = {
     floor: { type: 'string', maxLength: 200, description: 'dxf, obj and glb only: a floor id or name from the plan\'s "floors", for that floor alone at its elevation, or all for each floor on its own. Left out, every floor.', examples: ['ground', 'all'] },
     scale: { type: 'number', description: 'dxf only: N in 1:N, a whole number, such as 100 or 200, for its sheets. Left out, the scale the profile states, else the largest of 100, 200, 500 and 1000 every floor fits at on A3.', examples: [100, 200], minimum: 1, maximum: 1000 },
     out: { type: 'string', maxLength: PATH_MAX, description: 'The file to write, inside the project folder, ending in the format\'s extension. The exports folder beside the plan when left out. Not with floor all.', examples: ['drawings/ground.dxf'] },
+    roofs: { type: 'boolean', description: 'glb and obj only: false leaves out every roof and the parapets on it, to look into the model or walk through it. Left out, the roofs are in.', examples: [false] },
+    arcSegments: { type: 'number', description: `glb and obj only: the straight pieces a whole circle of curved wall is written with, a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}. Left out, as finely as the plan is measured.`, examples: [32], minimum: ARC_SEGMENTS_RANGE.min, maximum: ARC_SEGMENTS_RANGE.max },
   },
   outputSchema: objectSchema({
     written: STRING,
@@ -126,6 +129,8 @@ const exportTool: GridTool = {
     sheets: listSchema(objectSchema({ floor: NULLABLE_STRING, scale: NUMBER, stated: { type: 'boolean' }, fits: { type: 'boolean' }, fitsAt: { type: ['number', 'null'] } }, ['floor', 'scale', 'stated', 'fits', 'fitsAt'])),
     note: { type: ['string', 'null'] },
     dxfProfile: { type: ['string', 'null'] },
+    // VEW-73: an obj's grid.mtl, written beside it.
+    materials: { type: ['string', 'null'] },
     gridVersion: STRING,
   }),
   run(args, context) {
@@ -135,6 +140,8 @@ const exportTool: GridTool = {
     const floor = args['floor'] as string | undefined
     const scale = args['scale'] as number | undefined
     const out = args['out'] as string | undefined
+    const roofs = args['roofs'] as boolean | undefined
+    const arcSegments = args['arcSegments'] as number | undefined
     if (!isExportFormat(format)) throw new ToolRefusal(`Pass format: one of ${EXPORT_FORMATS.join(', ')}.`)
     // The floor is checked against the plan first, so an unknown one is not repeated back (MS-19).
     // VEW-72: by its id or its name, or all.
@@ -143,7 +150,7 @@ const exportTool: GridTool = {
       if (exportFloorId(stated, floor) === undefined) floorArg(stated, floor)
     }
     try {
-      const request = { format, floor, ...(scale === undefined ? {} : { scale: String(scale) }), ...(out === undefined ? {} : { out }) }
+      const request = { format, floor, ...(scale === undefined ? {} : { scale: String(scale) }), ...(out === undefined ? {} : { out }), ...(roofs === false ? { roofs } : {}), ...(arcSegments === undefined ? {} : { arcSegments: String(arcSegments) }) }
       checkExportRequest(request)
       let files: readonly ExportDone[]
       let empty: readonly string[] = []
@@ -159,12 +166,15 @@ const exportTool: GridTool = {
           if (error instanceof PathRefused) throw error
           throw new ExportWriteFailed(`Can't write ${quoted(out)}: ${(error as NodeJS.ErrnoException).code === 'ENOENT' ? 'its folder does not exist' : 'it cannot be written there'}. Nothing was written.`)
         }
-        files = [{ loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut, sheets: made.sheets }]
+        files = [{ loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut, sheets: made.sheets, materials: writeMaterialsBeside(project, written, made) }]
       }
       const each = floor === ALL_FLOORS && files.length > 1
       const lines: string[] = []
+      const wrote = (file: string): string => `Wrote ${quoted(project.relative(file))} in the project folder.`
       for (const done of files) {
-        lines.push(`Wrote ${quoted(project.relative(done.written))} in the project folder.`)
+        lines.push(wrote(done.written))
+        // VEW-73: an obj's materials, beside it.
+        if (done.materials !== null) lines.push(wrote(done.materials))
         if (done.note) lines.push(done.note)
         // HND-6: what this file leaves out, which the file says too.
         const left = leftOutText(done.leftOut)
@@ -190,7 +200,8 @@ const exportTool: GridTool = {
           written: project.relative(first.written), format, leftOut: leftOutParts.length, leftOutParts, approximated: files.flatMap((done) => done.approximated),
           floors: files.flatMap((done) => done.floors), floorsLeftOut: each ? [] : first.floorsLeftOut,
           files: files.map((done) => ({ written: project.relative(done.written), floors: done.floors.map((held) => held.id) })),
-          sheets: files.flatMap((done) => done.sheets), note: files.map((done) => done.note).filter((note) => note !== undefined).join(' ') || null, dxfProfile: first.dxfProfile, gridVersion: version,
+          sheets: files.flatMap((done) => done.sheets), note: files.map((done) => done.note).filter((note) => note !== undefined).join(' ') || null, dxfProfile: first.dxfProfile,
+          materials: first.materials === null ? null : project.relative(first.materials), gridVersion: version,
         },
       }
     } catch (error) {

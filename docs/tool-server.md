@@ -40,13 +40,13 @@ the same facts as data; a view also returns its picture. A length argument is me
 | `grid_find` | The walls, doors, windows, openings, rooms or floors that meet every condition, by id, with only the fields asked for, and a `view` for `grid_view` that picks them out |
 | `grid_count` | The parts that meet every condition, grouped by a field or fact, each group with its count, its sums and its ids, and a `view` for `grid_view` that colours each group |
 | `grid_measure` | A room's sizes, height and widest circle; the clear distance between two walls, doors, windows or rooms, or to a point, from their faces; a wall's length; whether a box or a circle fits; the way between rooms with every door on it and how far it is walked, and whether a body or a trolley of a given width gets through, clear of the fixtures; a room's use indicators (turning circle, doorways' clear widths, the way through, the floor round each fixture, a window a fixture stands in front of); what is narrower than the person's own figure; which way each room, outside wall and window faces by the plan's north; which rooms get the sun, as a table of geometry per room (each window wall's way, the window area against the floor area, the depth from each window wall); the plot: how far the building stands from each edge of the site's boundary against the set-back the person asked for, each face's distance to the edge in front of it, and the plot coverage; and the accessibility measurements, as numbers (each door's clear width, each corridor's narrowest point, turning space, and the steps on the way in from the entrance); the library `grid_place_item` places from (`what=library`), and whether a library entry fits by its name (`what=fit` with `name`) ([library.md](library.md)); the seats, desks and covers the furniture gives, per plan, floor, room and zone (`what=seats`, [below](#seats-desks-and-covers-counted-from-the-furniture)); a shop's floor in bands of depth from its frontage, in m² and sq ft (`what=frontage`, [areas.md](areas.md#frontage-zones)) |
-| `grid_view` | A floor plan (in the working look or black and white, always on light paper: `look` `dark` draws the working look and says so (SHT-10), with or without sizes, and with `ids` the check view: every room, door and window id on the picture and in the text, with areas, what each door joins, counts and the drawing's problems; with `crop` just the parts named: a room, door, window, wall or item by id or a room's name, a flat by id or name, the rooms that meet a condition as `grid_find` writes one (`household = Rose`), or several of these joined by commas, framed together with `margin` metres round them (0.5 when left out) and, with no floor named, on the first floor that holds them all; with `crop_box` (`{ "from": [x, y], "to": [x, y] }` in metres) a box of the floor (VEW-74); with `floor` `all` every floor side by side in one picture, the lowest on the left, at one scale, each under its name and framed to the same part of the plan, with `look` and `dimensions` only and no part boxes (VEW-74); a floor far longer than it is wide, too long to read whole, is said to be drawn in pieces, and `tile` draws one piece at a time, each overlapping the next, at 12 px a metre or more (VEW-26); with `hide`, `colour` and `key` what it shows, as `grid draw --hide`, `--colour` and `--key`, and with `colour` set to a field or fact, or `highlight` set to ids, the parts picked out (see below); always with each part's box in image pixels; with `out`, a `.png`, `.svg` or `.pdf` name, the picture is also written inside the project, a bare name into `exports/` beside the plan, with a `.view.json` beside it giving its size, its pixels per metre and, for a plan, the plan's metres it covers, VEW-62), a facade (`kind=facade` with `side`: one side of the drawing in elevation, every floor at its level, as `grid draw --facade`, with the walls, openings and levels it shows in `facade`), the model through a camera you set (a side or corner, or a bearing from the plan's north, with tilt, distance, eye height, lens and a room to point at), a saved view by name, or an eye-level view in a room with the window sills against the eye; every 3D picture with its camera record ([below](#a-camera-you-can-set-and-saved-views)); or with `kind` `section` a section along a line through every floor (`cut`, `toward`; drawn in the technical look unless `look` asks for the working one, VEW-60), its levels, room heights and what Grid takes dashed and listed in the picture, the text and `section` (LVL-9); a plan takes `marks` (`levels`, `elevations`, `section`, `schedule`) to mark them, as `grid draw --marks`; `schedule` draws each room's and opening's mark in the schedules; a plan with a trace image has it drawn under the floor, and the text says where it lies, its scale and how a pixel of it maps to the plan, or why it is not drawn ([a trace image under the plan](plan-file.md#a-trace-image-under-the-plan)) |
+| `grid_view` | A floor plan (in the working look or black and white, always on light paper: `look` `dark` draws the working look and says so (SHT-10); `look` `simple` for a picture to show a person and `large` for large print, VEW-76, [below](#a-picture-to-show-a-person), with or without sizes, and with `ids` the check view: every room, door and window id on the picture and in the text, with areas, what each door joins, counts and the drawing's problems; with `crop` just the parts named: a room, door, window, wall or item by id or a room's name, a flat by id or name, the rooms that meet a condition as `grid_find` writes one (`household = Rose`), or several of these joined by commas, framed together with `margin` metres round them (0.5 when left out) and, with no floor named, on the first floor that holds them all; with `crop_box` (`{ "from": [x, y], "to": [x, y] }` in metres) a box of the floor (VEW-74); with `floor` `all` every floor side by side in one picture, the lowest on the left, at one scale, each under its name and framed to the same part of the plan, with `look` and `dimensions` only and no part boxes (VEW-74); a floor far longer than it is wide, too long to read whole, is said to be drawn in pieces, and `tile` draws one piece at a time, each overlapping the next, at 12 px a metre or more (VEW-26); with `hide`, `colour` and `key` what it shows, as `grid draw --hide`, `--colour` and `--key`, and with `colour` set to a field or fact, or `highlight` set to ids, the parts picked out (see below); always with each part's box in image pixels; with `out`, a `.png`, `.svg` or `.pdf` name, the picture is also written inside the project, a bare name into `exports/` beside the plan, with a `.view.json` beside it giving its size, its pixels per metre and, for a plan, the plan's metres it covers, VEW-62), a facade (`kind=facade` with `side`: one side of the drawing in elevation, every floor at its level, as `grid draw --facade`, with the walls, openings and levels it shows in `facade`), the model through a camera you set (a side or corner, or a bearing from the plan's north, with tilt, distance, eye height, lens and a room to point at), a saved view by name, or an eye-level view in a room with the window sills against the eye; every 3D picture with its camera record ([below](#a-camera-you-can-set-and-saved-views)); or with `kind` `section` a section along a line through every floor (`cut`, `toward`; drawn in the technical look unless `look` asks for the working one, VEW-60), its levels, room heights and what Grid takes dashed and listed in the picture, the text and `section` (LVL-9); a plan takes `marks` (`levels`, `elevations`, `section`, `schedule`) to mark them, as `grid draw --marks`; `schedule` draws each room's and opening's mark in the schedules; a plan with a trace image has it drawn under the floor, and the text says where it lies, its scale and how a pixel of it maps to the plan, or why it is not drawn ([a trace image under the plan](plan-file.md#a-trace-image-under-the-plan)) |
 | `grid_describe` | The plan in room terms, as `grid describe`; with `length=walk`, walked room by room from its way in, standing in each doorway, with `pictures` a picture at eye height from each ([below](#a-routes-length-and-a-walk-through)); with `as=rooms`, as rooms text to change and write again; with `as=rooms building=<id>`, one building of a site of many alone ([below](#one-building-of-a-site-of-many)) |
 | `grid_check` | The check, short and about this plan unless `full`, always labelled "General guidance, not your local rules", then the place the figures were for (the plan's `site.country`, or `country`; with none, no figure is applied); the notes the person set aside are listed under Seen; with `firm-standards.json` beside the plan, the firm's own standards' notes (`firm/…`) under their own heading, apart from the code figures ([firm-standards.md](firm-standards.md)) |
 | `grid_report_problem` | A draft issue about a failure the agent met, for the person to file or not: Grid sends nothing (see below) |
 | `grid_preview` | Shows the person a floor in 2d or 3d in Grid's preview, a room framed, parts picked out and a note, and answers with the picture the preview shows; with no argument but `plan`, reads what the person selected by clicking (see [below](#the-preview-shared-with-the-person)) |
 | `grid_preview_sync` | The preview page's own call, which a host that shows MCP Apps lists for the page only: the drawing, the shared record, and what the person did there. Not for an agent |
-| `grid_export` | Writes DXF, IFC, GLB or OBJ into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF with no `floor` holds every floor, each on a layout of its own, at the largest standard scale it fits on A3 or at `scale`; `floor` takes a floor's id or name, or `all` for one file per floor (`files`), `out` names the file to write, and `sheets` says each sheet's scale and whether its floor fits ([every floor in one DXF](commands.md#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)) |
+| `grid_export` | Writes DXF, IFC, GLB or OBJ into `exports/`, and says what the file leaves out of the plan (the file says it too); a file that would hold nothing of the plan is refused. A GLB or OBJ with no `floor` holds every floor at its elevation ([every floor in one 3D file](commands.md#every-floor-in-one-3d-file-vew-64)); `floors` lists the floors a file holds with their elevations and `floorsLeftOut` the plan's floors it does not hold. A DXF with no `floor` holds every floor, each on a layout of its own, at the largest standard scale it fits on A3 or at `scale`; `floor` takes a floor's id or name, or `all` for one file per floor (`files`), `out` names the file to write, and `sheets` says each sheet's scale and whether its floor fits ([every floor in one DXF](commands.md#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A DXF takes its layers and pens from `dxf-layers.json` in the project folder when there is one, and answers with it as `dxfProfile` ([what the DXF holds](commands.md#what-the-dxf-holds-hnd-1)). A GLB or OBJ takes `roofs: false` to leave the roofs out and `arcSegments`, the pieces a whole circle of curved wall is written with; an OBJ's `grid.mtl` is written beside it and answered as `materials` ([3D files](3d-files.md)) |
 | `grid_sheet` | Writes the plan as an A3 PDF into `exports/`, a client or check sheet answering with a small picture of each page (VEW-62): layout `client` (cover, a page per floor, the words as `sheet`) or `check` (every id, use and finding); or layout `drawing`, every floor (or the `floor` asked for) at one true scale (`scale`, `paper`, `split`, `roomSizes`) as a vector PDF of a page each and an SVG and a PNG of each page, with the PNGs in the answer |
 | `grid_mark_start` | Keeps the plan as it is now under a name, `start` unless named, in `plan.markers.json` beside the plan, for `grid_diff` to compare with, with `who` set it and a `note`; or takes one off. The latest 20, the oldest rolling off |
 | `grid_mark_seen` | Sets a note of `grid_check` aside as seen, with the person's reason and the name or role they give, in `plan.seen.json` beside the plan; or takes the mark off (see below) |
@@ -342,6 +342,33 @@ section's title, caption, level names and list of what Grid took); the answer's 
 tool's English, and a section's `assumed` keeps its English `words`. The Spanish words are a draft
 translation, not reviewed yet ([Languages](languages.md)).
 
+## A picture to show a person
+
+Read this when the picture is for a person rather than for checking the drawing: a buyer, a
+client, a family, a listing or a brochure (VEW-76). The working look is a drawing to check, with
+chains of dimensions on every side and grid_check's notes marked on it; `grid_view kind=plan
+look=simple` draws the same floor for reading:
+
+- each room filled by its use, with the uses in the key; an outdoor space keeps its own green;
+- each room's label: its name, its area, and for a rectangular room its width × depth, each in the
+  plan's own units first (its display, else metres) and in the other after it, in brackets:
+  `20.00 m² (215 sq ft)`, `5.00 × 4.00 m (16'-5" × 13'-1")`;
+- the overall size along each side only, with its unit and in the other unit;
+- under the drawing, the plan's name, else the site's name, and its address; then the floor's
+  area with its rule, the floor inside each room's walls added up (the net area, which the room
+  labels add up to), and any outdoor space apart from it, both in two units;
+- the north arrow when the plan states north, and the fixtures' symbols, as in the working look;
+- none of grid_check's notes, door warnings or the dashed outline of the floor above. The answer
+  still says how many of grid_check's lines are about the floor, so check them before showing it.
+
+`look=large` is the large-print form, for someone who reads small print badly: the same colours,
+title and totals, each room's name drawn twice as large where it fits (one and a half times, then
+the usual size, where it does not), its area under it, and no dimensions. A room's sizes come
+from the plan as it is, so never write them into a room's name: they would go stale on the first
+edit and be in every export. A facade or a section asked for in either look is drawn in the
+working look, and the answer says so. `grid draw --look simple` and `--look large` write the same
+pictures to a file.
+
 ## A camera you can set, and saved views
 
 Read this when the person asks for a 3D view from somewhere in particular ("the living room from
@@ -381,6 +408,32 @@ name the person gives; `grid_view view=<name>` and `grid draw --view <name>` cal
 same record. A name already saved is refused unless `replace` is true. The app's 3D view opens
 at a record handed to it (`Canvas3D`'s `camera`), and the stills are taken with the same
 settings (`recordCamera`), so the person and the agent see the same picture.
+
+### Standing in a room: kind=eye
+
+Read this when the person asks what a room looks like from inside ("stand me in the kitchen
+looking at the garden", "from the doorway", "sitting on the sofa"). `grid_view kind=eye` stands
+in `room` with the eye `eye_height` above that room's own floor (1.6 m when left out), and takes
+(VEW-75):
+
+| Argument | What it sets |
+|---|---|
+| `at` | Where to stand: a door or opening of the room by id (in its doorway, just inside the room), an item by id (0.5 m in front of it, looking the way it faces) or a corner of the room (`north-east`, `south-east`, `south-west`, `north-west`; north is the drawing's top), tucked in clear of its walls. Not with `stand_at` |
+| `stand_at` | A point to stand on, `{ x, y }` in metres, on the room's clear floor |
+| `toward` | An opening or item by id, or a direction, to look at |
+| `look_at` | A point to look at, `{ x, y }` in metres. Not with `toward` |
+| `lens` | The focal length in millimetres on a 36 × 24 mm sensor: 18 (90° across) when left out |
+| `tilt` | Degrees the eye looks down, below 0 up; level when left out. The camera stays at the eye |
+| `perspective` | `two-point`: level, looking across a corner of the room at least 25° off square to its walls, so they run away to both sides and upright lines stay upright; with no `toward` it looks at the far corner, with one it turns just enough and says by how much. `one-point`: level and square on the wall it faces. Neither takes a tilt |
+
+Left out, the eye stands on the room's middle line, back from what it looks at, and looks at the
+room's first window. In a room under 9 m² with a door it stands in that doorway instead, as a
+person would look in, and looks diagonally across to the far corner; standing at a door or a
+corner it does the same unless `toward` or `look_at` says otherwise. It never stands inside a
+fixture or a piece of furniture taller than 0.3 m: a place Grid picks is moved to the nearest
+clear floor and the answer says from what, and a `stand_at` inside one is refused naming it. The
+walls of the room stand their full height round the eye, though its floor is drawn as a
+cutaway. `from` is for kind=3d; kind=eye refuses it and names `at`.
 
 ## The preview, shared with the person
 
@@ -452,6 +505,20 @@ wall's length on its centre line and the length of its face in each room beside 
 its floor states (LVL-20), also its height along its length: `top`, the points where its top turns
 (metres along it from its start, and its height there), `low`, `high`, and `cut`, `roof` when the
 roof cuts it or `raised` when, an outside wall, it rises to the roof past the height it states.
+
+`what=room` lists a room's sides going round as a person names them (CMD-49). A curve, which the
+outline follows by short straight pieces, is one side: the way its middle faces, its radius on
+the inside face and its length along the curve (`S a curved side, radius 17.70 m, 55.61 m long`),
+split only where the wall under it changes; a round room on one wall is `a curved side all the
+way round`. Each side's `curve` in the data gives its `centre`, `radius` and `sweep` (degrees,
+counter-clockwise positive), `null` for a straight side, and the perimeter is measured along the
+curves. The room's size is by its shape when across and up the drawing do not say it: `round,
+35.40 m across`, a curved band by its length along its middle and its width, a rectangle turned
+on the drawing by its own sides and its turn (`5.00 m × 3.00 m, turned 7° on the drawing`), and
+any other four-sided room by its four sides; `form` in the data says which. Pieces are one curve
+when at least three of them, each turning no more than 10 degrees from the last and 5 degrees in
+all, have their corners within 1 cm of one circle, so a curve drawn as many short walls reads the
+same.
 
 A room may state its height, floor to ceiling, in metres:
 

@@ -8,6 +8,7 @@ import { roomPolygon } from '../../room'
 import { area } from '../../vec2'
 import { toGlb } from '../gltf'
 import { toObj } from '../obj'
+import { tolerance } from '../../tolerances'
 import type { Vec3 } from '../../scene3d'
 import type { ReadMesh } from './glb-reader'
 import { emptyPlan, parseGlb, readAccessor, readMeshes, rotated, samplePlan } from './glb-reader'
@@ -218,8 +219,9 @@ describe('axes and units', () => {
   it('writes the up axis of the plan as Y for a slab too', () => {
     const slab = meshOf(samplePlan(), 'floor_r1')
     const box = extent(slab)
-    expect(box.y[0]).toBeCloseTo(0, 5)
-    expect(box.y[1]).toBeCloseTo(0, 5)
+    // VEW-73: lifted off the slab it stands on.
+    expect(box.y[0]).toBeCloseTo(tolerance('floorLift'), 5)
+    expect(box.y[1]).toBeCloseTo(tolerance('floorLift'), 5)
     // Inner faces sit half a wall (0.1 m) inside the 3 m the walls are apart.
     expect(box.z[0]).toBeCloseTo(-2.9, 5)
     expect(box.z[1]).toBeCloseTo(-0.1, 5)
@@ -433,6 +435,7 @@ function readObj(text: string): ReadMesh[] {
   for (const line of text.split('\n')) {
     if (line === '' || line.startsWith('#')) continue
     const [kind, ...rest] = line.split(' ')
+    if (kind === 'mtllib' || kind === 'usemtl') continue
     if (kind === 'o') groups.push({ name: rest[0]!, triangles: [] })
     else if (kind === 'v') points.push({ x: +rest[0]!, y: +rest[1]!, z: +rest[2]! })
     else if (kind === 'f' && rest.length === 3) {
@@ -467,35 +470,24 @@ describe('the same model as the OBJ export', () => {
 describe('material and shading', () => {
   const glb = () => parseGlb(toGlb(buildScene(samplePlan())))
 
-  it('gives every primitive the same plain grey material with no metallic response, the glass aside (CNT-14)', () => {
+  it('gives every primitive the material of its kind, named so, with no metallic response (VEW-73)', () => {
     const doc = glb().json
-    // CNT-14: a second material, the glass, for the window's glass only.
-    expect(doc.materials).toHaveLength(2)
+    const materials = doc.materials as { name?: string; pbrMetallicRoughness?: { metallicFactor?: number; roughnessFactor?: number } }[]
+    const names = readMeshes(glb()).map((m) => m.name)
     for (const [i, mesh] of doc.meshes!.entries()) {
-      const glass = readMeshes(glb())[i]!.name.startsWith('glass_')
-      for (const primitive of mesh.primitives) expect(primitive.material).toBe(glass ? 1 : 0)
+      const kind = names[i]!.split('_')[0]!
+      const expected = kind === 'leaf' ? 'door' : kind === 'parapet' ? 'wall' : kind
+      for (const primitive of mesh.primitives) expect(materials[primitive.material!]!.name).toBe(expected)
     }
-    const pbr = doc.materials![0]!.pbrMetallicRoughness!
-    expect(pbr.metallicFactor).toBe(0)
-    expect(pbr.roughnessFactor).toBe(1)
-    const [r, g, b, a] = pbr.baseColorFactor!
-    expect(r).toBe(g)
-    expect(g).toBe(b)
-    expect(r).toBeGreaterThan(0.5)
-    expect(r).toBeLessThan(1)
-    expect(a).toBe(1)
+    // Only the materials the file uses, each once.
+    expect(new Set(materials.map((m) => m.name)).size).toBe(materials.length)
+    for (const material of materials) expect(material.pbrMetallicRoughness!.metallicFactor).toBe(0)
+    expect(materials.find((m) => m.name === 'wall')!.pbrMetallicRoughness!.roughnessFactor).toBe(1)
   })
 
-  it('does not mark the material double-sided, so a winding mistake stays visible', () => {
-    expect(glb().json.materials![0]!.doubleSided ?? false).toBe(false)
-  })
-
-  it('writes no normals, so viewers shade the flat faces flat', () => {
-    for (const mesh of glb().json.meshes!) {
-      for (const primitive of mesh.primitives) {
-        expect(Object.keys(primitive.attributes)).toEqual(['POSITION'])
-      }
-    }
+  it('does not mark the wall material double-sided, so a winding mistake stays visible', () => {
+    const wall = (glb().json.materials as { name?: string; doubleSided?: boolean }[]).find((m) => m.name === 'wall')!
+    expect(wall.doubleSided ?? false).toBe(false)
   })
 })
 

@@ -111,12 +111,23 @@ export function curveTangentAt(curve: WallCurve, s: number): Vec2 {
   return { x: -sign * Math.sin(angle), y: sign * Math.cos(angle) }
 }
 
-/** How many straight pieces the curve is followed by (see the header). */
-export function curvePieceCount(curve: WallCurve): number {
+/**
+ * VEW-73: the pieces a whole circle may be asked to be written with in a 3D file (`perCircle`):
+ * three at least, as a closed curve takes, and at most as many as one curve is ever traced with.
+ */
+export const ARC_SEGMENTS_RANGE: { readonly min: number; readonly max: number } = { min: 3, max: limit('arcPiecesMost') }
+
+/**
+ * How many straight pieces the curve is followed by (see the header). VEW-73: with `perCircle`,
+ * as many as that many to a whole circle give it instead, for a 3D file asked to be lighter or
+ * finer; the measures and checks never pass it.
+ */
+export function curvePieceCount(curve: WallCurve, perCircle?: number): number {
+  const fewest = curve.closed ? 3 : 1
+  if (perCircle !== undefined) return Math.max(fewest, Math.min(limit('arcPiecesMost'), Math.ceil((Math.abs(curve.sweep) * perCircle) / TURN - tolerance('lengthEqual'))))
   const sagitta = tolerance('arcSagitta')
   const bySagitta = sagitta >= curve.radius ? Math.PI : 2 * Math.acos(1 - sagitta / curve.radius)
   const step = Math.min(tolerance('arcStep'), bySagitta)
-  const fewest = curve.closed ? 3 : 1
   return Math.max(fewest, Math.min(limit('arcPiecesMost'), Math.ceil(Math.abs(curve.sweep) / step)))
 }
 
@@ -124,11 +135,11 @@ export function curvePieceCount(curve: WallCurve): number {
  * The most a curved wall's straight pieces stand off its curve, on its outer face, in metres:
  * what a file that writes it as pieces is off by. 0 for a straight wall.
  */
-export function curveDeviation(wall: Wall): number {
+export function curveDeviation(wall: Wall, perCircle?: number): number {
   const curve = wallCurve(wall)
   if (curve === null || curveFault(wall) !== null) return 0
   const half = wall.virtual === true ? 0 : wall.thickness / 2
-  const turn = Math.abs(curve.sweep) / curvePieceCount(curve)
+  const turn = Math.abs(curve.sweep) / curvePieceCount(curve, perCircle)
   return (curve.radius + half) * (1 - Math.cos(turn / 2))
 }
 
@@ -143,8 +154,8 @@ export function curveStations(curve: WallCurve): number[] {
  * circle), with `from` and `to` themselves: the curve between them, piece by piece. A station
  * nearer than a quarter of a piece to either end is dropped, so no piece is a sliver.
  */
-export function curveStationsBetween(curve: WallCurve, from: number, to: number): number[] {
-  const n = curvePieceCount(curve)
+export function curveStationsBetween(curve: WallCurve, from: number, to: number, perCircle?: number): number[] {
+  const n = curvePieceCount(curve, perCircle)
   const step = curve.length / n
   const out = [from]
   const first = Math.floor(from / step) + 1

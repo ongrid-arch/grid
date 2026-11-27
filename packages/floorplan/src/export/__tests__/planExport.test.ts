@@ -132,3 +132,52 @@ describe('known failures (expected to fail until fixed)', () => {
     expect(exportFileName('\u6771\u4eac\u306e\u5bb6', 'dxf', null)).not.toBe(exportFileName('\u0414\u043e\u043c', 'dxf', null))
   })
 })
+
+/** VEW-73: a round room: one wall, a whole circle of radius 3 m, with no opening. */
+function drum(): FloorPlan {
+  return {
+    version: '1',
+    units: 'm',
+    walls: [{ id: 'round', start: [8, 5], end: [8, 5], thickness: 0.2, height: 2.7, kind: 'exterior', arc: { centre: [5, 5], sweep: 360 } }],
+    rooms: [{ id: 'drum', name: 'Drum', boundary: ['round'] }],
+    openings: [],
+  }
+}
+
+describe('VEW-73: what a 3D file is asked to hold', () => {
+  const wallOf = (data: string | Uint8Array) => readMeshes(parseGlb(data as Uint8Array)).find((m) => m.name === 'wall_round')!
+
+  it('writes a whole circle of wall with the pieces asked for, far lighter than by default', () => {
+    const fine = wallOf(exportPlan(drum(), 'glb', ids).data)
+    const light = wallOf(exportPlan(drum(), 'glb', { ...ids, arcSegments: 32 }).data)
+    // Each piece is a closed box of 12 triangles.
+    expect(light.triangles).toHaveLength(32 * 12)
+    expect(fine.triangles.length).toBeGreaterThan(5 * light.triangles.length)
+  })
+
+  it('says how far the lighter pieces stand off the curve', () => {
+    const fine = exportPlan(drum(), 'glb', ids).approximated
+    const light = exportPlan(drum(), 'obj', { ...ids, arcSegments: 32 })
+    expect(light.approximated).toEqual(fine)
+    // Radius 3.1 m on the outer face, 32 pieces: about 15 mm off at a piece's middle.
+    expect(text(light.data)).toMatch(/at most 0\.0149 m off the curve/)
+  })
+
+  it('leaves the roofs and their parapets out when asked, and keeps them otherwise', () => {
+    const plan = samplePlan() as FloorPlan
+    expect(objObjects(text(exportPlan(plan, 'obj', ids).data))).toContain('roof_ground')
+    for (const format of ['obj', 'glb'] as const) {
+      const data = exportPlan(plan, format, { ...ids, roofs: false }).data
+      const names = format === 'obj' ? objObjects(text(data)) : readMeshes(parseGlb(data as Uint8Array)).map((m) => m.name)
+      expect(names.some((name) => name.startsWith('roof_') || name.startsWith('parapet_'))).toBe(false)
+      expect(names).toContain('slab_ground')
+    }
+  })
+
+  it('hands back the OBJ materials file, and none for the other formats', () => {
+    const obj = exportPlan(samplePlan() as FloorPlan, 'obj', ids)
+    expect(obj.materials).toMatch(/^newmtl wall$/m)
+    expect(text(obj.data)).toMatch(/^mtllib grid\.mtl$/m)
+    for (const format of ['glb', 'dxf', 'ifc'] as const) expect(exportPlan(samplePlan() as FloorPlan, format, ids).materials).toBeNull()
+  })
+})

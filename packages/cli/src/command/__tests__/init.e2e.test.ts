@@ -259,7 +259,8 @@ describe('inside a project grid init made', () => {
 
   it.each(['ifc', 'glb', 'obj'])('grid export --format %s writes into exports/', (format) => {
     expect(grid(['export', '--format', format], demo).status).toBe(0)
-    expect(tree(join(demo, 'exports'))).toEqual([`plan.${format}`])
+    // VEW-73: an OBJ comes with its materials.
+    expect(tree(join(demo, 'exports'))).toEqual(format === 'obj' ? ['grid.mtl', 'plan.obj'] : [`plan.${format}`])
   })
 
   it('QAR-5 gives the IFC the same identities whatever the plan file is called', () => {

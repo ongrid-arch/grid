@@ -489,14 +489,14 @@ function basisOf(from: Vec2, to: Vec2): WallBasis {
  * so their faces meet edge to edge; at an end of the wall, the joint's reach is taken along the
  * end chord.
  */
-export function curvedWallPieces(wall: Wall, openings: readonly Opening[] = [], ends: WallEnds = SQUARE_ENDS): SceneWallPiece[] {
+export function curvedWallPieces(wall: Wall, openings: readonly Opening[] = [], ends: WallEnds = SQUARE_ENDS, perCircle?: number): SceneWallPiece[] {
   const curve = wallCurve(wall)
   if (curve === null || wall.virtual) return []
   const parts = wallParts(wall, openings)
   // Every chord, by where it runs along the curve; a lintel and its sill share theirs.
   const runs: { from: number; to: number; zFrom: number; zTo: number }[] = []
   for (const part of parts) {
-    const stations = part.kind === 'solid' ? curveStationsBetween(curve, part.from, part.to) : [part.from, part.to]
+    const stations = part.kind === 'solid' ? curveStationsBetween(curve, part.from, part.to, perCircle) : [part.from, part.to]
     for (let k = 0; k + 1 < stations.length; k++) runs.push({ from: stations[k]!, to: stations[k + 1]!, zFrom: part.zFrom, zTo: part.zTo })
   }
   const breaks = [...new Set(runs.flatMap((run) => [run.from, run.to]))].sort((a, b) => a - b)
@@ -591,6 +591,11 @@ export function elevationArea(elevation: WallElevation): number {
 export interface SceneOptions {
   /** The shell, when the caller has worked it out already (`sceneShell`). */
   readonly shell?: SceneShell | null
+  /**
+   * VEW-73: the straight pieces a whole circle of curved wall is raised with, for a 3D file asked
+   * to be lighter or finer (`ARC_SEGMENTS_RANGE`); left out, as many as the plan is traced with.
+   */
+  readonly arcSegments?: number
 }
 
 export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene3D {
@@ -634,7 +639,7 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
       basis: wallBasis(wall),
       exposure: wallExposure(index, wall.id),
       revision: wallRevision(whole.wall, usable, ends, top),
-      ...(wall.arc !== undefined && { pieces: curvedWallPieces(whole.wall, usable, ends) })
+      ...(wall.arc !== undefined && { pieces: curvedWallPieces(whole.wall, usable, ends, options.arcSegments) })
     })
     if (elevation.height > height) height = elevation.height
     for (const opening of usable) {

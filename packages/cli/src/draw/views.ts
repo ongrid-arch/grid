@@ -24,10 +24,10 @@ import { partBounds, pixelBoxes, type PartBox } from './partBoxes'
 import { forSkia } from './skiaText'
 import { captionHeight, captioned, withLabelMetadata } from './stamp'
 
-import { pictureLook, type LookName } from './viewNames'
+import { drawingLook, pictureLook, type LookName } from './viewNames'
 
-/** SHT-10: a picture for an agent is always on light paper (`pictureLook`). */
-function lookOf(look: LookName): 'working' | 'technical' {
+/** SHT-10: a picture for an agent is always on light paper (`pictureLook`); VEW-76's looks for people are for plans. */
+function lookOf(look: LookName): 'working' | 'technical' | 'simple' | 'large' {
   return pictureLook(look)
 }
 
@@ -91,7 +91,7 @@ export async function planView(
  * `data-id`, and each part's box in the SVG's own frame (plan metres, y down), so the page can
  * frame a room without measuring anything itself.
  */
-export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 'technical' | 'dark', trace?: TracePicture): { svg: string; boxes: Array<{ id: string; kind: string; x: number; y: number; width: number; height: number }> } {
+export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 'technical' | 'dark' | 'simple' | 'large', trace?: TracePicture): { svg: string; boxes: Array<{ id: string; kind: string; x: number; y: number; width: number; height: number }> } {
   // VEW-67: the trace image under the plan, as grid_view draws it.
   const picture = planPicture(plan, { floor, look, showDimensions: true, ...(trace === undefined ? {} : { trace }) })
   const round = (n: number): number => Math.round(n * 1000) / 1000
@@ -103,7 +103,7 @@ export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 't
 /** LVL-9: a section along a line through every floor, with the section it was drawn from. */
 export async function sectionView(plan: FloorPlan, line: SectionLine, look: LookName, language?: Language, display?: Display): Promise<PlanView & { readonly section: PlanSection }> {
   // MSG-11: the drawing's own words in the language asked for, else the plan's own.
-  const picture = sectionPicture(plan, line, { look: lookOf(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }) })
+  const picture = sectionPicture(plan, line, { look: drawingLook(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }) })
   const png = await pictureToPng(picture)
   return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section, svg: svgOf(picture) }
 }
@@ -113,7 +113,7 @@ export async function sectionView(plan: FloorPlan, line: SectionLine, look: Look
  * is seen (`planFacade`); the viewer draws it (`facadePicture`), in the look asked for.
  */
 export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; look: LookName; language?: Language; display?: Display }): Promise<PlanView & { readonly facade: Facade }> {
-  const picture = facadePicture(plan, { side: options.side, look: lookOf(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
+  const picture = facadePicture(plan, { side: options.side, look: drawingLook(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
   const png = await pictureToPng(picture)
   return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade, svg: svgOf(picture) }
 }

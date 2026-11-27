@@ -377,6 +377,17 @@ export const TOLERANCES = {
       'and are one curved wall; a wall that ends this near a joint of the curve ends on the curve.',
     basis: own
   },
+  // CMD-49: a room's sides as a person names them.
+  curveSweep: {
+    kind: 'tolerance',
+    value: 0.001,
+    unit: 'radian',
+    decides:
+      'Two curved sides of a room whose turns round their centre differ by less than this (about ' +
+      'a twentieth of a degree) turn through the same angle, so a room between them is a curved ' +
+      'band; a curved side this near a whole turn goes all the way round.',
+    basis: own
+  },
   roomsCurveArea: {
     kind: 'tolerance',
     value: 0.001,
@@ -1078,6 +1089,15 @@ export const TOLERANCES = {
     decides:
       'How thick a window\'s glass is drawn in 3D, in the middle of its frame, and how far apart its ' +
       'two panes are drawn on a plan drawn in detail (SHT-10). It only draws the model and the plan.',
+    basis: own
+  },
+  floorLift: {
+    kind: 'limit',
+    value: 0.005,
+    unit: 'm',
+    decides:
+      'How far a room\'s floor is raised above the slab it stands on in an OBJ or GLB (VEW-73), so ' +
+      'the two never share a plane and flicker in a viewer. It only draws the model.',
     basis: own
   },
   sillProjection: {
