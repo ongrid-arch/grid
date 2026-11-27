@@ -424,6 +424,9 @@ const labelTransform = (at: Vec2, mpp: number): string => `translate(${at.x} ${-
 /** How long the 45-degree tick across each end of a drafted dimension is, in screen pixels (SHT-4). */
 export const DIMENSION_TICK_PX = 7
 
+/** VEW-79: how far each arm of the cross at a radius's centre reaches, in screen pixels. */
+const CENTRE_MARK_PX = 6
+
 /**
  * The angle a number along a dimension line is turned by, in degrees as SVG turns (clockwise
  * on the page), so it reads from the bottom or from the right, never upside down.
@@ -510,7 +513,21 @@ function dimensionMark(
   }
   children.push(el('line', { 'data-part': 'dimension-line', x1: a.x, y1: -a.y, x2: b.x, y2: -b.y, ...paint.dimensionLine(room) }))
   const span = Math.hypot(b.x - a.x, b.y - a.y)
-  if (drafted && span > 0) {
+  if (dim.kind === 'radius' && span > 0) {
+    // VEW-79: a radius has one end on the curve, marked in every look, and a cross at its
+    // centre where its line reaches it.
+    const half = (DIMENSION_TICK_PX / 2) * mpp
+    const along = { x: (b.x - a.x) / span, y: (b.y - a.y) / span }
+    const tick = { x: ((along.x - along.y) * half) / Math.SQRT2, y: ((along.y + along.x) * half) / Math.SQRT2 }
+    children.push(el('line', { 'data-part': 'dimension-tick', x1: b.x - tick.x, y1: -(b.y - tick.y), x2: b.x + tick.x, y2: -(b.y + tick.y), ...paint.tick }))
+    const c = dim.centre
+    if (c !== undefined && c.x === dim.from.x && c.y === dim.from.y) {
+      const arm = CENTRE_MARK_PX * mpp
+      children.push(
+        el('path', { 'data-part': 'centre-mark', d: `M${c.x - arm},${-c.y}H${c.x + arm}M${c.x},${-c.y - arm}V${-c.y + arm}`, fill: 'none', ...paint.extension })
+      )
+    }
+  } else if (drafted && span > 0) {
     // A tick across each end, turned 45 degrees from the line, as a drawing marks it.
     const half = (DIMENSION_TICK_PX / 2) * mpp
     const along = { x: (b.x - a.x) / span, y: (b.y - a.y) / span }

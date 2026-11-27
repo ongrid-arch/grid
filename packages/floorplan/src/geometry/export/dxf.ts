@@ -52,7 +52,7 @@ import { add, distance, normalize, perp, scale, sub } from '../vec2'
 import type { Bounds, PlanDrawing, PlanOpening } from '../floorplan'
 import { computeBounds } from '../floorplan'
 import { doorSwing, type SwingArc } from '../door'
-import { boundsWithDimensions, buildDimensions, type Dimension } from '../dimensions'
+import { boundsWithDimensions, buildDimensions, RADIUS_MARK, type Dimension } from '../dimensions'
 import { openingSymbol, type SymbolPiece } from '../openingSymbol'
 import { doorHand } from '../handing'
 import { english, name as sayName, num as sayNum, said } from '../../messages/say'
@@ -791,7 +791,7 @@ function placedDimensions(drawing: PlanDrawing, size: Doc['size']): PlacedDimens
     const shift = scale(dim.normal, dim.offset)
     const middle = scale(add(add(dim.from, shift), add(dim.to, shift)), 0.5)
     const textAt = add(middle, scale(across, size.gap))
-    out.push({ dim, text: metresText(dim.value), textAt, textMiddle: add(textAt, scale(across, size.text / 2)), rotation: degrees(Math.atan2(along.y, along.x)), along, across })
+    out.push({ dim, text: `${dim.kind === 'radius' ? RADIUS_MARK : ''}${metresText(dim.value)}`, textAt, textMiddle: add(textAt, scale(across, size.text / 2)), rotation: degrees(Math.atan2(along.y, along.x)), along, across })
   }
   return out
 }
@@ -808,7 +808,13 @@ function drawDimensionBlock(space: Space, placed: PlacedDimension): void {
   }
   space.line('0', a, b)
   const tick = scale(normalize(add(along, across)), size.tick / 2)
-  for (const end of [a, b]) space.line('0', sub(end, tick), add(end, tick))
+  // VEW-79: a radius has one end on the curve, and a cross at its centre where its line reaches it.
+  for (const end of dim.kind === 'radius' ? [b] : [a, b]) space.line('0', sub(end, tick), add(end, tick))
+  const centre = dim.centre
+  if (dim.kind === 'radius' && centre !== undefined && centre.x === dim.from.x && centre.y === dim.from.y) {
+    space.line('0', sub(centre, { x: size.tick, y: 0 }), add(centre, { x: size.tick, y: 0 }))
+    space.line('0', sub(centre, { x: 0, y: size.tick }), add(centre, { x: 0, y: size.tick }))
+  }
   space.text('0', placed.textAt, placed.text, size.text, { rotation: placed.rotation })
 }
 
@@ -820,6 +826,19 @@ function writeDimension(space: Space, layer: string, placed: PlacedDimension, bl
   out.pair(280, 0)
   out.pair(2, block)
   out.pair(3, DXF_DIMENSION_STYLE)
+  if (dim.kind === 'radius' && dim.centre !== undefined) {
+    // VEW-79: a radial dimension (4): its centre, the point on the curve and the leader's length
+    // inside the curve; the block is this dimension's own (32).
+    out.point(dim.centre)
+    out.point(placed.textMiddle, 11)
+    out.pair(70, 36)
+    out.pair(71, 5)
+    out.pair(42, num(dim.value))
+    out.pair(100, 'AcDbRadialDimension')
+    out.point(dim.to, 15)
+    out.pair(40, num(distance(dim.from, dim.to)))
+    return
+  }
   out.point(add(dim.to, scale(dim.normal, dim.offset)))
   out.point(placed.textMiddle, 11)
   // Aligned (1), and the block is this dimension's own (32).

@@ -52,7 +52,7 @@
 import { planInState } from './phases'
 import { floorRoofShape, headroomBands, planeAt, risesToRoof, roomHeadroom, topAt, undersideAlong, wallTopProfile, type RoofPlane, type RoofShapeOverFloor, type WallTopPoint } from './roofs'
 import { wallTypeOf } from './partTypes'
-import type { MultiPolygon } from 'polygon-clipping'
+import type { MultiPolygon, Polygon } from 'polygon-clipping'
 import { heightByDefault } from '../types/floorplan'
 import type { Floor, FloorPlan, RoofShape, Wall } from './plan'
 import { indexPlan, openingsOf } from './plan'
@@ -833,6 +833,12 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
   function curvedWallFaces(wall: Wall, openings: ReturnType<typeof openingsOf>, base: number, floor: string, foot = base, top = base + wall.height): void {
     const half = wall.thickness / 2
     const segments = wallSegments(wall)
+    // VEW-79: the faces of each side, by the chord they stand on, to be joined into one face per run.
+    const sides: { left: (SectionFace | null)[]; right: (SectionFace | null)[] } = { left: [], right: [] }
+    const pushed = (): SectionFace | null => {
+      const last = faces[faces.length - 1]
+      return last !== undefined && last.edge === null && last.id === wall.id ? last : null
+    }
     segments.forEach((segment, i) => {
       const side = (offset: number, p: Vec2): Vec2 => add(p, scale(segment.normal, offset))
       const holesOn = (offset: number) =>
@@ -848,11 +854,17 @@ export function planSection(stated: FloorPlan, line: SectionLine): PlanSection {
       const l1 = side(half, segment.end)
       const r0 = side(-half, segment.start)
       const r1 = side(-half, segment.end)
+      const before = faces.length
       face('wall', wall.id, floor, l0, l1, segment.normal, foot, top, holesOn(half))
+      sides.left.push(faces.length > before ? pushed() : null)
+      const middle = faces.length
       face('wall', wall.id, floor, r0, r1, scale(segment.normal, -1), foot, top, holesOn(-half))
+      sides.right.push(faces.length > middle ? pushed() : null)
       if (i === segments.length - 1 && wall.arc!.sweep % 360 !== 0) face('wall', wall.id, floor, l1, r1, segment.dir, foot, top)
       if (i === 0 && wall.arc!.sweep % 360 !== 0) face('wall', wall.id, floor, r0, l0, scale(segment.dir, -1), foot, top)
     })
+    const closed = wall.arc!.sweep % 360 === 0
+    for (const side of [sides.left, sides.right]) joinCurveRuns(faces, side, closed)
   }
 
   // The slabs, roofs and parapets (LVL-4).
@@ -1400,6 +1412,41 @@ export function sectionEarth(section: PlanSection, from: number, to: number): { 
 }
 
 /** Farthest first; of two as far, a face before a line, so the corner shows. */
+/**
+ * VEW-79: the faces of one side of a curved wall, by the chord they stand on (null where a chord's
+ * face is not seen), joined where they follow each other into one face, the union of their pieces,
+ * at the depth of the nearest: its silhouette, with no line where one chord meets the next. A run
+ * whose union fails is left as it is. On a whole circle the run carries on past the last chord.
+ */
+function joinCurveRuns(faces: SectionFace[], side: readonly (SectionFace | null)[], closed: boolean): void {
+  const runs: SectionFace[][] = []
+  let run: SectionFace[] = []
+  for (const one of side) {
+    if (one === null) {
+      if (run.length > 0) runs.push(run)
+      run = []
+    } else run.push(one)
+  }
+  if (run.length > 0) {
+    if (closed && runs.length > 0 && side[0] !== null) runs[0] = [...run, ...runs[0]!]
+    else runs.push(run)
+  }
+  for (const pieces of runs) {
+    if (pieces.length < 2) continue
+    const rings = pieces.flatMap((f) => f.pieces.map((p): Polygon => [ringOf(p.outline), ...p.holes.map((h) => ringOf(h))]))
+    const union = rings.length === 0 ? null : cutOutline('union', rings[0]!, rings.slice(1))
+    if (union === null || union.length === 0) continue
+    const nearest = pieces.reduce((best, f) => (f.depth < best.depth ? f : best), pieces[0]!)
+    const one: SectionFace = { ...nearest, pieces: piecesAsRings(union) }
+    const gone = new Set<SectionFace>(pieces)
+    const at = faces.indexOf(pieces[0]!)
+    const kept = faces.filter((f) => !gone.has(f))
+    kept.splice(Math.min(at, kept.length), 0, one)
+    faces.length = 0
+    faces.push(...kept)
+  }
+}
+
 function beyondOrder(faces: SectionFace[]): void {
   faces.sort((a, b) => b.depth - a.depth || (a.edge === null ? 0 : 1) - (b.edge === null ? 0 : 1))
 }
