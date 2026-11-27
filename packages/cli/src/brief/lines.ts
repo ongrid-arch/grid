@@ -687,7 +687,9 @@ function wholePlanLine(c: Context, wish: FigureWish): BriefLine {
     drawn = floors.filter((f) => f.level >= ground).length
   }
   if (drawn === null) return line('open', wish, wish.figure, say('en', 'brief.figure.unmeasured', { what: figure.what, asked, measures: figure.measures }), { asked: limit, unit })
-  const holds = exact ? Math.abs(drawn - wish.value) < 1e-9 : figure.most ? drawn <= wish.value + 1e-9 : drawn >= wish.value - 1e-9
+  // Counts are whole; a percentage is judged as it is shown, to one place.
+  const judged = unit === '%' ? Math.round(drawn * 10) / 10 : drawn
+  const holds = exact ? judged === wish.value : figure.most ? judged <= wish.value : judged >= wish.value
   const shown = unit === '%' ? `${drawn.toFixed(1)}%` : `${drawn} ${unit}`
   return line(holds ? 'met' : 'missed', wish, wish.figure, `${figure.what} ${asked}, drawn ${shown} (${figure.measures}).`, { asked: limit, drawn: unit === '%' ? drawn.toFixed(1) : String(drawn), unit })
 }
