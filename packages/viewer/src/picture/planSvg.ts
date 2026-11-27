@@ -8,7 +8,7 @@
  *
  * Pure: no DOM, no React. For PNG, see `drawPlan` in the `ongrid` package.
  */
-import { statedDisplay, type Display } from '@ongrid/floorplan/types/units'
+import { METRES, showArea, statedDisplay, type Display } from '@ongrid/floorplan/types/units'
 import { say, type Language } from '@ongrid/floorplan/messages'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { Bounds, Dimension, DrawingMarks, DrawingMarksAsked, PlanDrawing } from '@ongrid/floorplan/geometry'
@@ -23,6 +23,7 @@ import {
   floorAbove,
   isPointKind,
   openingSymbol,
+  planAreaFigures,
   planForFloor,
   planWallMaterials,
   resolveFloor,
@@ -269,7 +270,7 @@ export function lookOf(look: PictureOptions['look']): Look {
   if (look === undefined || look === 'light') return LOOKS.working
   if (typeof look === 'string') {
     const named = LOOKS[look]
-    if (!named) throw new RangeError(`Grid has no look called ${JSON.stringify(look)}: use working, technical or dark`)
+    if (!named) throw new RangeError(`Grid has no look called ${JSON.stringify(look)}: use working, technical, dark, simple or large`)
     return named
   }
   return toLook(look)
@@ -301,7 +302,13 @@ function framePicture(plan: FloorPlan, options: PictureOptions) {
   // LVL-8: a plan's opening patterns are drawn as the plain openings they expand into.
   const slice = planForFloor(withPatterns(plan), floor)
   const drawing = buildFloorPlan(slice)
-  const dimensions = options.showDimensions === false ? [] : buildDimensions(drawing, { rooms: options.roomSizes !== false })
+  // VEW-76: a look for people draws the overall sizes only, and large print none.
+  const people = lookOf(options.look).forPeople
+  const dimensions = options.showDimensions === false || people?.large === true
+    ? []
+    : people !== undefined
+      ? buildDimensions(drawing, { chains: false, rooms: false, grids: false })
+      : buildDimensions(drawing, { rooms: options.roomSizes !== false })
   const around = framingOf(drawing, dimensions)
   // LVL-9: the marks stand outside the drawing and its dimensions, and the view frames them too.
   const asked = marksOf(plan, floor, drawing, around, options.marks)
@@ -449,16 +456,50 @@ export function displayOfPicture(plan: FloorPlan, options: PictureOptions): Disp
   return statedDisplay({ ...(plan.display ?? {}), ...(asked === undefined ? {} : { language: asked }) })
 }
 
+/**
+ * VEW-76: the other units a picture for people writes its sizes and areas in, after the drawing's
+ * own: metres for a drawing in feet and inches, feet and inches for any other.
+ */
+export function secondDisplay(display: Display | undefined, language: Language): Display {
+  return (display ?? METRES).length === 'ft-in' ? statedDisplay({ length: 'm', area: 'm2', language }) : statedDisplay({ length: 'ft-in', area: 'ft2', language })
+}
+
+/** VEW-76: the label style of a look for people: each room's sizes, both units, large print. */
+function peopleLabels(people: Look['forPeople'], labels: LabelStyle | undefined, display: Display | undefined, language: Language): LabelStyle | undefined {
+  if (people === undefined) return labels
+  return { ...labels, sizes: !people.large, alsoIn: secondDisplay(display, language), large: people.large }
+}
+
+/**
+ * VEW-76: the floor's total under a picture for people, from the core's area figures, with the
+ * rule it follows, in the drawing's units and the other; and its outdoor space apart, when it has some.
+ */
+function floorTotals(plan: FloorPlan, floor: string, display: Display | undefined, words: DrawingWords): string[] {
+  const figures = planAreaFigures(plan, { floors: [floor] }).floors[0]
+  if (figures === undefined) return []
+  const also = secondDisplay(display, words.language)
+  const both = (area: number): { area: string; also: string } => ({ area: showArea(area, display ?? METRES), also: ` (${showArea(area, also, also.area === 'ft2' ? 0 : 1)})` })
+  const lines = figures.rooms.length === 0 ? [] : [drawingText(words, 'drawing.total', both(figures.net))]
+  if (figures.outdoor !== undefined && figures.outdoor > 0) lines.push(drawingText(words, 'drawing.total.outdoor', both(figures.outdoor)))
+  return lines
+}
+
+/** VEW-76: how much larger the title and the totals under a large-print picture are. */
+const LARGE_BAND = 1.5
+
 /** Lays out one floor of a plan as a picture, framed the way the 2D view frames it. */
 export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Picture {
   const { floor, slice, drawing, dimensions, marks, trace, width, height, view } = framePicture(plan, options)
   const display = displayOfPicture(plan, options)
   const words = wordsOf(display)
   const look = lookOf(options.look)
-  const all = options.faults ?? []
+  // VEW-76: a picture for people carries none of the check's notes, door warnings or the floor above.
+  const people = look.forPeople
+  const all = people === undefined ? (options.faults ?? []) : []
   const faults = faultsOnFloor(all, floor, new Map(slice.openings.map((opening) => [opening.id, opening.wall])))
   const handings = handingsOf(slice)
-  const show = options.show ?? {}
+  const asked = options.show ?? {}
+  const show: PictureShow = people === undefined ? asked : { ...asked, warnings: false, above: false, colourBy: asked.colourBy ?? 'use' }
   const on = (part: Exclude<keyof PictureShow, 'colourBy' | 'key' | 'paint' | 'paintKey'>): boolean => show[part] !== false
   const uses = new Map(slice.rooms.flatMap((room) => (room.use === undefined ? [] : [[room.id, room.use] as const])))
   // SHT-10: each room's floor finish, and the plan's finishes in the order its rooms first name
@@ -472,14 +513,14 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
   const scene = planScene({
     drawing,
     handings,
-    doorWarnings: warningMessages(doorWarningsOf(slice, drawing, words)),
+    doorWarnings: people === undefined ? warningMessages(doorWarningsOf(slice, drawing, words)) : new Map(),
     dimensions,
     metersPerPixel: mpp,
     view,
     look,
     ...(options.paperScale === undefined ? {} : { paperScale: paperScaleOption(options.paperScale) }),
     // WRT-7: the labels and dimensions are in the call's display, else the plan's own.
-    labels: display === undefined ? options.labels : { ...options.labels, display },
+    labels: peopleLabels(people, display === undefined ? options.labels : { ...options.labels, display }, display, words.language),
     faults,
     uses,
     finishes,
@@ -533,7 +574,8 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
   const entries = keyed ? keyEntries(drawing, look.colors, { swings: on('swings'), sketch: on('sketch'), uses: shownUses, marks: marked, above: (above?.lines.length ?? 0) > 0, painted, phases: look.phases, walls: look.walls.fill, useFills: look.tints.uses, finishes: shownFinishes, materials: shownMaterials, tags }, words) : []
   // CNT-52: a tag the key lists is not listed again under the notes; the others keep their numbers.
   const bandNotes = numbered.flatMap((note, index) => (keyed && note.kind === 'tag' ? [] : [{ text: note.text ?? '', number: index + 1 }]))
-  const writing = writingBand(title, entries, width, look.colors, words, bandNotes.map((note) => note.text), bandNotes.map((note) => note.number))
+  const totals = people === undefined || !on('areas') ? [] : floorTotals(plan, floor, display, words)
+  const writing = writingBand(title, entries, width, look.colors, words, bandNotes.map((note) => note.text), bandNotes.map((note) => note.number), totals, people?.large === true ? LARGE_BAND : 1)
   const listed = options.faults === undefined || !on('warnings') ? null : faultKey(faults, all.length - faults.length, width, look.colors, words)
   // VEW-13: the rooms written as their numbers, and their names, unless the key is turned off.
   const rooms = show.key === false ? null : roomKeyBand(roomKeyOf(scene), width, look.colors, words)

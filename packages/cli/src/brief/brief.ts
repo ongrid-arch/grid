@@ -90,6 +90,10 @@ export const FIGURES = {
   seats: { what: 'seats', most: false, unit: 'seats', least: 0, top: SEATING_TOP, site: false, measures: 'the seats the furniture gives in the whole plan, as grid_measure what=seats counts them' },
   desks: { what: 'desks', most: false, unit: 'desks', least: 0, top: SEATING_TOP, site: false, measures: 'the desks in the whole plan, as grid_measure what=seats counts them' },
   covers: { what: 'covers', most: false, unit: 'covers', least: 0, top: SEATING_TOP, site: false, measures: 'the seats at a table in the whole plan, as grid_measure what=seats counts them' },
+  // ARE-69: the whole plan's efficiency, homes and storeys.
+  efficiency: { what: 'efficiency', most: false, unit: '%', least: 0, top: 100, site: false, measures: 'the lettable area over the gross internal area of the whole plan, as grid_areas gives it' },
+  homes: { what: 'homes', most: false, unit: 'homes', least: 0, top: SEATING_TOP, site: false, measures: 'the flats the plan lists, else the homes its floors state' },
+  storeys: { what: 'storeys', most: false, unit: 'storeys', least: 0, top: 500, site: false, measures: 'the floors at or above the ground floor, exactly' },
 } as const
 export type FigureName = keyof typeof FIGURES
 export const FIGURE_NAMES = Object.keys(FIGURES) as FigureName[]
@@ -98,6 +102,25 @@ export const FIGURE_NAMES = Object.keys(FIGURES) as FigureName[]
 export const SEATING_WHATS = ['seats', 'desks', 'covers'] as const
 export type SeatingWhat = (typeof SEATING_WHATS)[number]
 export const isSeatingFigure = (figure: FigureName): figure is SeatingWhat => (SEATING_WHATS as readonly string[]).includes(figure)
+
+/** ARE-69: the figures counted in whole numbers, and the one asked exactly. */
+export const COUNTED_FIGURES: readonly FigureName[] = ['homes', 'storeys']
+export const EXACT_FIGURES: readonly FigureName[] = ['storeys']
+
+/** ARE-69: the figures measured room by room or door by door, which may be scoped to some rooms, uses, a fact or routes. */
+export const SCOPED_FIGURES: readonly FigureName[] = ['door_width', 'corridor_width', 'turning_circle', 'step', 'ceiling_height']
+
+/** ARE-69: a fact of the person's own a wish is for: the rooms carrying it (`department`, `ward`), with this value when given. */
+export interface FactScope {
+  readonly name: string
+  readonly value: string | number | boolean | null
+}
+
+/** ARE-69: a way between two rooms, by name or id; from the entrance when `from` is null. */
+export interface RouteScope {
+  readonly from: string | null
+  readonly to: string
+}
 
 /** ARE-67: the most seats, desks or covers a wish may ask for. */
 export const SEATING_MAX = SEATING_TOP
@@ -140,12 +163,30 @@ export interface RoomWish extends Said {
   readonly seats: SeatingTarget | null
   readonly desks: SeatingTarget | null
   readonly covers: SeatingTarget | null
+  /** ARE-69: the net area of all the rooms it means together, about this, m²; or at least and at most. */
+  readonly totalArea: number | null
+  readonly totalAtLeast: number | null
+  readonly totalAtMost: number | null
+  /** ARE-69: only the rooms on this floor, by id or name. */
+  readonly floor: string | null
+  /** ARE-69: only the rooms carrying this fact of the person's own. */
+  readonly fact: FactScope | null
+  /** ARE-69: each room measured with the rooms inside it, those whose only way in is through it (an en-suite). */
+  readonly withInner: boolean
+  /** ARE-69: about this diameter, m: the widest circle the room holds. */
+  readonly diameter: number | null
 }
+
+/** ARE-69: a footprint measured to the outside face of the walls (gross external) or inside them (gross internal). */
+export const FOOTPRINT_MEASURES = ['outside', 'inside'] as const
+export type FootprintMeasure = (typeof FOOTPRINT_MEASURES)[number]
 
 export interface FootprintWish extends Said {
   readonly width: number | null
   readonly depth: number | null
   readonly area: number | null
+  /** ARE-69: outside unless the brief says inside. */
+  readonly measure: FootprintMeasure | null
 }
 
 /** Two rooms that must touch (`must`, `should`) or must not (`avoid`). */
@@ -160,8 +201,14 @@ export type RatioMeasure = (typeof RATIO_MEASURES)[number]
 export interface FigureWish extends Said {
   readonly figure: FigureName
   readonly value: number
-  /** For a turning circle: the rooms it is for, by name. Every room when empty. */
+  /** For a figure measured room by room: the rooms it is for, by name. Every room when empty and no other scope is given. */
   readonly rooms: readonly string[]
+  /** ARE-69: the rooms of these uses. */
+  readonly uses: readonly string[]
+  /** ARE-69: the rooms carrying this fact. */
+  readonly fact: FactScope | null
+  /** ARE-69: the rooms and doors on these ways. */
+  readonly routes: readonly RouteScope[]
   /** For a floor area ratio: the gross measure it is set by; null when the brief names none. */
   readonly measure: RatioMeasure | null
   /** ARE-27: for a door width, the width it is for (`measure` in the file): clear, leaf or hole. Null when the brief names none, read as clear. */
@@ -283,8 +330,38 @@ const AREA_UNIT = /m²|m2|sq\s?m|sqm|square|metre|meter|\bsq\b|\bft\b|feet|foot|
 const ROOM_KEYS = [
   'name', 'use', 'count', 'count_at_least', 'count_at_most', 'area', 'at_least', 'at_most', 'inside',
   ...SEATING_WHATS.flatMap((what) => [what, `${what}_at_least`, `${what}_at_most`]),
+  'total_area', 'total_at_least', 'total_at_most', 'floor', 'fact', 'with_inner', 'diameter',
   'level', 'source', 'quote',
 ] as const
+
+/** ARE-69: a fact a wish or a figure is for, `{ "name": "department", "value": "Surgery" }`; the value left out means any. */
+function factScope(value: unknown, where: string): FactScope {
+  if (!isObject(value)) throw new BriefRefused(`${where} must be an object with the fact's name, and its value when only one`)
+  onlyKeys(value, ['name', 'value'], where)
+  const name = words(value['name'], `${where}.name`, NAME_MAX)
+  const v = value['value']
+  if (v !== undefined && v !== null && typeof v !== 'boolean' && !(typeof v === 'number' && Number.isFinite(v))) words(v, `${where}.value`, NAME_MAX)
+  return { name, value: v === undefined ? null : (v as FactScope['value']) }
+}
+
+/** ARE-69: the ways a figure is for, each `{ "from": "Ward", "to": "Theatre" }`, from the entrance when from is left out. */
+function routeScopes(value: unknown, where: string): RouteScope[] {
+  return list(value, where).map((route, i) => {
+    const at = `${where}[${i}]`
+    if (!isObject(route)) throw new BriefRefused(`${at} must be an object with to, a room's name, and from, another, or left out for the entrance`)
+    onlyKeys(route, ['from', 'to'], at)
+    return { from: optional(route, 'from', (v) => words(v, `${at}.from`, NAME_MAX)), to: words(route['to'], `${at}.to`, NAME_MAX) }
+  })
+}
+
+/** ARE-69: the room uses a figure is for, each a use or a word that plainly means one. */
+function usesOf(value: unknown, where: string): string[] {
+  return list(value, where).map((raw, i) => {
+    const read = readUse(raw)
+    if (typeof read !== 'string' || !ROOM_USES.includes(read as never)) throw new BriefRefused(`${where}[${i}] must be one of the room uses`)
+    return read
+  })
+}
 
 function roomWish(raw: unknown, where: string): RoomWish {
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object`)
@@ -344,8 +421,23 @@ function roomWish(raw: unknown, where: string): RoomWish {
   const seats = target('seats')
   const desks = target('desks')
   const covers = target('covers')
+  // ARE-69: the rooms' net area together, the floor and the fact they are on, the rooms inside each, a diameter.
+  const totalArea = faults.take(() => optional(raw, 'total_area', (value) => size(value, `${where}.total_area`, 'm²', 10_000_000)))
+  const totalAtLeast = faults.take(() => optional(raw, 'total_at_least', (value) => size(value, `${where}.total_at_least`, 'm²', 10_000_000)))
+  const totalAtMost = faults.take(() => optional(raw, 'total_at_most', (value) => size(value, `${where}.total_at_most`, 'm²', 10_000_000)))
+  check(() => {
+    if (totalArea !== null && (totalAtLeast !== null || totalAtMost !== null)) throw new BriefRefused(`${where} gives total_area, about which the rooms are together, or total_at_least and total_at_most: not both`)
+    if (totalAtLeast !== null && totalAtMost !== null && totalAtLeast > totalAtMost) throw new BriefRefused(`${where}.total_at_least is more than its total_at_most`)
+  })
+  const floor = faults.take(() => optional(raw, 'floor', (value) => words(value, `${where}.floor`, NAME_MAX)))
+  const fact = faults.take(() => optional(raw, 'fact', (value) => factScope(value, `${where}.fact`)))
+  const withInner = faults.take(() => optional(raw, 'with_inner', (value) => {
+    if (typeof value !== 'boolean') throw new BriefRefused(`${where}.with_inner must be true or false`)
+    return value
+  })) ?? false
+  const diameter = faults.take(() => optional(raw, 'diameter', (value) => size(value, `${where}.diameter`, 'm', 10_000)))
   const saying = said(raw, where, LEVELS, faults)
-  return { name, use, count, countAtLeast, countAtMost, area, atLeast, atMost, inside, seats, desks, covers, ...saying }
+  return { name, use, count, countAtLeast, countAtMost, area, atLeast, atMost, inside, seats, desks, covers, totalArea, totalAtLeast, totalAtMost, floor, fact, withInner, diameter, ...saying }
 }
 
 function footprintWish(raw: unknown): FootprintWish {
@@ -353,7 +445,7 @@ function footprintWish(raw: unknown): FootprintWish {
   if (!isObject(raw)) throw new BriefRefused(`${where} must be an object`)
   // MSG-33: every fault of the footprint at once.
   const faults = new Faults()
-  faults.take(() => onlyKeys(raw, ['width', 'depth', 'area', 'level', 'source', 'quote'], where))
+  faults.take(() => onlyKeys(raw, ['width', 'depth', 'area', 'measure', 'level', 'source', 'quote'], where))
   const width = faults.take(() => optional(raw, 'width', (value) => size(value, `${where}.width`, 'm', 10_000)))
   const depth = faults.take(() => optional(raw, 'depth', (value) => size(value, `${where}.depth`, 'm', 10_000)))
   const area = faults.take(() => optional(raw, 'area', (value) => size(value, `${where}.area`, 'm²', 1_000_000)))
@@ -362,7 +454,12 @@ function footprintWish(raw: unknown): FootprintWish {
     if (given('width') !== given('depth')) throw new BriefRefused(`${where} gives width and depth together, the outside sizes either way round`)
     if (!given('width') && !given('area')) throw new BriefRefused(`${where} gives width and depth, area, or both`)
   })
-  return { width, depth, area, ...said(raw, where, ['must', 'should'], faults) }
+  // ARE-69: outside the walls unless the brief says inside.
+  const measure = faults.take(() => optional(raw, 'measure', (m) => {
+    if (!FOOTPRINT_MEASURES.includes(m as FootprintMeasure)) throw new BriefRefused(`${where}.measure must be ${FOOTPRINT_MEASURES.join(' or ')}`)
+    return m as FootprintMeasure
+  }))
+  return { width, depth, area, measure, ...said(raw, where, ['must', 'should'], faults) }
 }
 
 function touchWish(raw: unknown, where: string): TouchWish {
@@ -395,12 +492,14 @@ function figureWishes(raw: unknown): FigureWish[] {
     if (!isObject(value)) throw new BriefRefused(`${where} must be an object with value, level and source`)
     // MSG-33: every fault of the figure at once.
     const faults = new Faults()
-    const extra = figure === 'turning_circle' ? ['rooms'] : figure === 'floor_area_ratio' || figure === 'door_width' ? ['measure'] : []
+    // ARE-69: a figure measured room by room or door by door may be for some rooms, uses, a fact or routes.
+    const scoped = SCOPED_FIGURES.includes(figure) ? ['rooms', 'uses', 'fact', 'routes'] : []
+    const extra = [...scoped, ...(figure === 'floor_area_ratio' || figure === 'door_width' ? ['measure'] : [])]
     faults.take(() => onlyKeys(value, ['value', ...extra, 'level', 'source', 'quote'], where))
     const v = value['value']
     const { unit, least, top } = FIGURES[figure]
     faults.take(() => {
-      if (isSeatingFigure(figure) && (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > top)) throw new BriefRefused(`${where}.value must be a whole number of ${unit} from 1 to ${top.toLocaleString('en-US')}`)
+      if ((isSeatingFigure(figure) || COUNTED_FIGURES.includes(figure)) && (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > top)) throw new BriefRefused(`${where}.value must be a whole number of ${unit} from 1 to ${top.toLocaleString('en-US')}`)
       // A step may be none at all, no sill, and so may the parking a home needs.
       const zero = figure === 'step' || figure === 'parking_per_home'
       if (typeof v !== 'number' || !Number.isFinite(v) || v < least || v > top || (v === least && !zero)) {
@@ -409,6 +508,9 @@ function figureWishes(raw: unknown): FigureWish[] {
       }
     })
     const rooms = (faults.take(() => list(value['rooms'], `${where}.rooms`)) ?? []).map((room, i) => faults.take(() => words(room, `${where}.rooms[${i}]`, NAME_MAX))!)
+    const uses = faults.take(() => usesOf(value['uses'], `${where}.uses`)) ?? []
+    const fact = faults.take(() => optional(value, 'fact', (f) => factScope(f, `${where}.fact`)))
+    const routes = faults.take(() => routeScopes(value['routes'], `${where}.routes`)) ?? []
     const measure = figure !== 'floor_area_ratio' ? null : faults.take(() => optional(value, 'measure', (m) => {
       if (!RATIO_MEASURES.includes(m as RatioMeasure)) throw new BriefRefused(`${where}.measure must be ${RATIO_MEASURES.join(' or ')}`)
       return m as RatioMeasure
@@ -419,7 +521,7 @@ function figureWishes(raw: unknown): FigureWish[] {
       return m as DoorMeasure
     }))
     const saying = said(value, where, ['must', 'should'], faults)
-    out.push({ figure, value: v as number, rooms, measure, door, ...saying })
+    out.push({ figure, value: v as number, rooms, uses, fact, routes, measure, door, ...saying })
   }
   return out
 }
@@ -565,6 +667,8 @@ export function parseBriefLines(raw: unknown, options: { readonly versionNeeded?
   return { brief, refused }
 }
 
+const factJson = (f: FactScope): Record<string, unknown> => (f.value === null ? { name: f.name } : { name: f.name, value: f.value })
+
 /** The brief as its file holds it: the keys the file takes, the person's figures under their heading. */
 export function briefJson(brief: Brief): Record<string, unknown> {
   const s = (wish: Said): Record<string, unknown> => ({ level: wish.level, source: wish.source, ...(wish.quote === null ? {} : { quote: wish.quote }) })
@@ -578,23 +682,106 @@ export function briefJson(brief: Brief): Record<string, unknown> {
         const t = w[what]
         return t === null ? [] : [...(t.exactly === null ? [] : [[what, t.exactly]]), ...(t.atLeast === null ? [] : [[`${what}_at_least`, t.atLeast]]), ...(t.atMost === null ? [] : [[`${what}_at_most`, t.atMost]])]
       })),
+      ...some('total_area', w.totalArea), ...some('total_at_least', w.totalAtLeast), ...some('total_at_most', w.totalAtMost),
+      ...some('floor', w.floor), ...some('fact', w.fact === null ? null : factJson(w.fact)), ...(w.withInner ? { with_inner: true } : {}), ...some('diameter', w.diameter),
       ...s(w),
     }))
   }
   if (brief.footprint !== null) {
     const f = brief.footprint
-    out['footprint'] = { ...some('width', f.width), ...some('depth', f.depth), ...some('area', f.area), ...s(f) }
+    out['footprint'] = { ...some('width', f.width), ...some('depth', f.depth), ...some('area', f.area), ...some('measure', f.measure), ...s(f) }
   }
   if (brief.touch.length > 0) out['touch'] = brief.touch.map((w) => ({ rooms: [...w.rooms], ...s(w) }))
   if (brief.figures.length > 0) {
     out['figures'] = {
       heading: FIGURES_HEADING,
-      ...Object.fromEntries(brief.figures.map((w) => [w.figure, { value: w.value, ...(w.rooms.length > 0 ? { rooms: [...w.rooms] } : {}), ...some('measure', w.measure ?? w.door), ...s(w) }])),
+      ...Object.fromEntries(brief.figures.map((w) => [w.figure, {
+        value: w.value, ...(w.rooms.length > 0 ? { rooms: [...w.rooms] } : {}), ...(w.uses.length > 0 ? { uses: [...w.uses] } : {}),
+        ...some('fact', w.fact === null ? null : factJson(w.fact)), ...(w.routes.length > 0 ? { routes: w.routes.map((r) => ({ ...some('from', r.from), to: r.to })) } : {}),
+        ...some('measure', w.measure ?? w.door), ...s(w),
+      }])),
     }
   }
   if (brief.open.length > 0) out['open'] = brief.open.map((w) => ({ quote: w.quote, ...some('about', w.about) }))
   if (brief.people !== undefined) out['people'] = Object.fromEntries(Object.entries(brief.people).map(([kind, f]) => [kind, f.rooms === undefined ? f.count : { count: f.count, rooms: [...f.rooms] }]))
   return out
+}
+
+// ---------------------------------------------------------------------------------------------
+// ARE-69: one wish added, removed or changed
+
+/** A change to the brief kept: wishes added, wishes removed by their place, and one wish's fields changed. */
+export interface BriefChange {
+  /** Wishes to add, as a brief holds them: rooms, touch and open are added after the ones kept; footprint, a figure and people replace theirs. */
+  readonly add?: unknown
+  /** Places of wishes to remove, as the lines name them: "rooms[2]", "touch[0]", "open[1]", "footprint", "figures.door_width", "people". */
+  readonly remove?: readonly string[]
+  /** One wish's fields changed by its place; a field set to null is taken out. */
+  readonly update?: { readonly where: string; readonly with: Readonly<Record<string, unknown>> }
+}
+
+const PLACE = /^(rooms|touch|open)\[(\d{1,4})\]$|^(footprint|people)$|^figures\.([a-z_]{1,64})$/
+
+/** Where a place points in the brief's JSON: a list and an index, or a key of an object. */
+function placeIn(json: Record<string, unknown>, place: string): { readonly holder: Record<string, unknown> | unknown[]; readonly key: string | number } {
+  const match = PLACE.exec(place)
+  const named = /^[A-Za-z0-9._[\]-]{1,80}$/.test(place) ? ` ${quoted(place)}` : ''
+  if (match === null) throw new BriefRefused(`the place${named} is not one of a brief's: rooms[0], touch[0], open[0], footprint, figures.<name> or people`)
+  if (match[1] !== undefined) {
+    const items = json[match[1]]
+    const i = Number(match[2])
+    if (!Array.isArray(items) || i >= items.length) throw new BriefRefused(`the brief kept has no wish at${named}: it holds ${Array.isArray(items) ? items.length : 0} in ${match[1]}`)
+    return { holder: items, key: i }
+  }
+  if (match[3] !== undefined) {
+    if (json[match[3]] === undefined) throw new BriefRefused(`the brief kept has no ${match[3]}`)
+    return { holder: json, key: match[3] }
+  }
+  const figures = json['figures']
+  if (!isObject(figures) || figures[match[4]!] === undefined || match[4] === 'heading') throw new BriefRefused(`the brief kept has no figure at${named}`)
+  return { holder: figures, key: match[4]! }
+}
+
+/**
+ * ARE-69: the brief kept, changed: the update first, then the removals, then what is added, every
+ * place naming the wish in the brief as kept. The result is read whole again, line by line, so a
+ * wish made wrong is refused as any line is. Refused when a place is not in the brief, or nothing
+ * is left.
+ */
+export function changeBrief(kept: Brief, change: BriefChange): BriefParts {
+  const json = JSON.parse(JSON.stringify(briefJson(kept))) as Record<string, unknown>
+  if (change.update !== undefined) {
+    const { holder, key } = placeIn(json, change.update.where)
+    const now = (holder as Record<string | number, unknown>)[key]
+    if (!isObject(now)) throw new BriefRefused(`${change.update.where} cannot be changed field by field: remove it and add it again`)
+    const next: Record<string, unknown> = { ...now }
+    for (const [field, value] of Object.entries(change.update.with)) {
+      if (value === null) delete next[field]
+      else next[field] = value
+    }
+    ;(holder as Record<string | number, unknown>)[key] = next
+  }
+  const removals = [...new Set(change.remove ?? [])].map((place) => ({ place, ...placeIn(json, place) }))
+  // Indexes from the last, so each place names the wish as kept.
+  const index = (r: { readonly key: string | number }): number => (typeof r.key === 'number' ? r.key : -1)
+  for (const r of [...removals].sort((a, b) => index(b) - index(a))) {
+    if (Array.isArray(r.holder)) r.holder.splice(r.key as number, 1)
+    else delete r.holder[r.key as string]
+  }
+  if (isObject(json['figures']) && Object.keys(json['figures']).every((k) => k === 'heading')) delete json['figures']
+  if (change.add !== undefined && change.add !== null) {
+    if (!isObject(change.add)) throw new BriefRefused('add must be an object, the wishes to add as a brief holds them')
+    for (const [key, value] of Object.entries(change.add)) {
+      if (key === 'rooms' || key === 'touch' || key === 'open') {
+        json[key] = [...(Array.isArray(json[key]) ? json[key] as unknown[] : []), ...(Array.isArray(value) ? value : [value])]
+      } else if (key === 'figures' && isObject(value)) {
+        json['figures'] = { ...(isObject(json['figures']) ? json['figures'] : {}), ...value }
+      } else {
+        json[key] = value
+      }
+    }
+  }
+  return parseBriefLines(json)
 }
 
 // ---------------------------------------------------------------------------------------------

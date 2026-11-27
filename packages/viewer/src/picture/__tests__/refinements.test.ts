@@ -163,7 +163,8 @@ describe('files are always light (SHT-10)', () => {
     expect(fileLook(lookWithColors(DARK_LOOK))).toBe(WORKING_LOOK)
     expect(fileLook(TECHNICAL_LOOK)).toBe(TECHNICAL_LOOK)
     expect(fileLook(WORKING_LOOK)).toBe(WORKING_LOOK)
-    expect(FILE_LOOK_NAMES).toEqual(['working', 'technical'])
+    // VEW-76: the looks for people are on light paper too.
+    expect(FILE_LOOK_NAMES).toEqual(['working', 'technical', 'simple', 'large'])
     // The screen still draws the dark look as it is.
     expect(planPicture(plan(), { look: 'dark' }).look).toBe(DARK_WORKING_LOOK)
   })

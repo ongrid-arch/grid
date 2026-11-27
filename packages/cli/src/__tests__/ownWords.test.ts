@@ -34,12 +34,14 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/apps/cadApps.ts': [1, 'developer'],
   'packages/cli/src/brief/answer.ts': [2, 'notYet'],
   // ARE-67: six more, the seats, desks and covers targets' refusals and figures.
-  'packages/cli/src/brief/brief.ts': [64, 'agent'],
+  // ARE-69: fifteen more, the refusals of totals, scopes, the three figures and a change by place.
+  'packages/cli/src/brief/brief.ts': [79, 'agent'],
   'packages/cli/src/brief/layout.ts': [12, 'notYet'],
   // CNT-27: one more, a shaft counted once in a count of rooms.
   // ARE-67: four more, the seats, desks and covers lines.
   // ARE-66: the corridor width wording now comes from the message files.
-  'packages/cli/src/brief/lines.ts': [33, 'notYet'],
+  // ARE-69: one fewer, the footprint that can't be measured now comes from the message files.
+  'packages/cli/src/brief/lines.ts': [32, 'notYet'],
   // CMD-48: two more, the help and the refusal of --fail-on.
   'packages/cli/src/command/check.ts': [12, 'command'],
   'packages/cli/src/command/describe.ts': [10, 'command'],
@@ -160,7 +162,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/guide/resources.ts': [3, 'agent'],
   'packages/cli/src/mcp/projectTool.ts': [6, 'tools'],
   // ARE-67: eight more, the seats, desks and covers keys' help.
-  'packages/cli/src/mcp/briefTool.ts': [58, 'tools'],
+  // ARE-69: thirty more, the description and schema of totals, scopes, the three figures and add, remove and update.
+  'packages/cli/src/mcp/briefTool.ts': [88, 'tools'],
   // CMD-44: five more, the descriptions of since, to, show, who and note and the change log.
   'packages/cli/src/mcp/diffTools.ts': [25, 'tools'],
   // ARE-60: two more, grid_rename_room's conditioned.
@@ -197,7 +200,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-68: seven more, the lettable, people, as_written and frontage arguments and frontage's refusals.
   // CNT-51: four more, the take-off's and the finishes schedule's bands and faces.
   // CNT-52: two more, grid_schedule of=items' lines.
-  'packages/cli/src/mcp/readTools.ts': [425, 'tools'],
+  // VEW-76: five more, grid_view's looks for people in its description, its look argument and its answer.
+  // VEW-78: one more, the eye view's room with no glazed door.
+  'packages/cli/src/mcp/readTools.ts': [430, 'tools'],
   // CNT-27: thirteen more, grid_count's rooms left out and its stairs argument, the schedule's rows in no total.
   // VEW-26: fourteen more, grid_view's fit and tile arguments, its answers saying what the picture was framed
   // to and that a long floor is drawn in pieces, and the refusals of a piece the floor does not have.

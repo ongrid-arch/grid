@@ -14,6 +14,8 @@
  *   chosen by the output scale (1:50, 1:100 or 1:200).
  * - `dark`: the working look on dark paper, as the app's dark theme. A screen look only: a picture
  *   written to a file or handed to an agent is always drawn on light paper (`fileLook`, SHT-10).
+ * - `simple` and `large` (VEW-76): a picture a person sees, in the working look's colours, drawn
+ *   for reading (`forPeople`); `large` is its large-print form.
  *
  * SHT-10's refinements are options of each look: walls drawn by kind (`walls`: outside, inside and
  * partition each with its own fill and, on paper, its own pen), what lies above the plan's cut
@@ -435,6 +437,17 @@ export interface Look {
   readonly detail: DetailLook | null
   /** SHT-10: the room fills of a drawing coloured by room use or by floor finish. */
   readonly tints: TintLook
+  /**
+   * VEW-76: a look for a picture a person sees, not a drawing to check: rooms coloured by use,
+   * each label with its size and area in two units, the overall sizes only (none in large print),
+   * the floor's total under the drawing, and none of the check's notes. Left out on every other look.
+   */
+  readonly forPeople?: PeopleLook
+}
+
+/** VEW-76: how a look for people reads. `large` is the large-print form: big names and no dimensions. */
+export interface PeopleLook {
+  readonly large: boolean
 }
 
 /**
@@ -553,7 +566,7 @@ export interface PhaseLook {
 }
 
 /** The names a look is chosen by. */
-export const LOOK_NAMES = ['working', 'technical', 'dark'] as const
+export const LOOK_NAMES = ['working', 'technical', 'dark', 'simple', 'large'] as const
 export type LookName = (typeof LOOK_NAMES)[number]
 
 /**
@@ -769,10 +782,21 @@ export const TECHNICAL_LOOK: Look = {
   tints: LIGHT_TINTS
 }
 
+/**
+ * VEW-76: a picture to show a person: the working look's colours and lines, drawn for reading
+ * rather than checking (`PeopleLook`).
+ */
+export const SIMPLE_LOOK: Look = { ...WORKING_LOOK, name: 'simple', forPeople: { large: false } }
+
+/** VEW-76: the large-print form of the simple look: names drawn large where they fit, no dimensions. */
+export const LARGE_LOOK: Look = { ...WORKING_LOOK, name: 'large', forPeople: { large: true } }
+
 export const LOOKS: Readonly<Record<LookName, Look>> = {
   working: WORKING_LOOK,
   technical: TECHNICAL_LOOK,
-  dark: DARK_WORKING_LOOK
+  dark: DARK_WORKING_LOOK,
+  simple: SIMPLE_LOOK,
+  large: LARGE_LOOK
 }
 
 /** SHT-10: the named looks a file is drawn in: those on light paper (`fileLook`). `dark` is the screen's only. */

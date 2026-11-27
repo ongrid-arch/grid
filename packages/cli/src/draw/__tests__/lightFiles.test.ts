@@ -83,7 +83,7 @@ describe('a file is always on light paper (SHT-10)', () => {
     let err = ''
     const status = await runGrid(['draw', 'plan.json', '--look', 'dark'], { stdout: () => {}, stderr: (t) => (err += t), stdoutIsTerminal: false, cwd: dir })
     expect(status).toBe(2)
-    expect(err).toContain("--look dark is the screen's dark theme, and a file is always drawn on light paper: use one of working, technical.")
+    expect(err).toContain("--look dark is the screen's dark theme, and a file is always drawn on light paper: use one of working, technical, simple, large.")
   })
 
   it('keeps the preview page\'s own drawing dark on a dark page, and hands its picture on light', async () => {

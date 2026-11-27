@@ -7,7 +7,7 @@
  * answers with each line met or missed (`brief/lines.ts`).
  */
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
-import { BriefRefused, SEATING_MAX, SEATING_WHATS, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBriefLines, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief, type BriefParts, type RefusedLine } from '../brief/brief'
+import { BriefRefused, SEATING_MAX, SEATING_WHATS, FIGURE_NAMES, FIGURES, FIGURES_HEADING, FOOTPRINT_MEASURES, RATIO_MEASURES, SCOPED_FIGURES, type FigureName, LEVELS, changeBrief, parseBriefLines, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief, type BriefChange, type BriefParts, type RefusedLine } from '../brief/brief'
 import { briefLines, briefText, MAT } from '../brief/lines'
 import { DOOR_MEASURES } from '../quantities/doorWidth'
 import { PEOPLE_SCHEMA } from './lettableArgs'
@@ -26,6 +26,9 @@ const VALUE_SAYS: Readonly<Record<FigureName, string>> = {
   seats: 'The fewest seats in the whole plan, counted from the furniture as grid_measure what=seats counts them.',
   desks: 'The fewest desks in the whole plan.',
   covers: 'The fewest covers, seats at a table, in the whole plan.',
+  efficiency: 'The least efficiency of the whole plan, lettable over gross internal, as a percentage (80 for 80%).',
+  homes: 'The fewest homes: the flats the plan lists, else the homes its floors state.',
+  storeys: 'Exactly how many storeys: the floors at or above the ground floor.',
 }
 import type { FloorPlan } from '@ongrid/floorplan/geometry'
 import { loadPlan } from '../command/plan'
@@ -43,6 +46,19 @@ const SAID = {
 
 const NAME = { type: 'string', maxLength: NAME_MAX } as const
 const SIZE = { type: 'number', exclusiveMinimum: 0 } as const
+// ARE-69: a fact of the person's own a wish or a figure is for.
+const FACT = {
+  type: 'object',
+  properties: { name: { ...NAME, description: 'The fact\'s name, as the rooms carry it in properties (department).' }, value: { type: ['string', 'number', 'boolean'], description: 'Its value (Surgery); left out, any.' } },
+  required: ['name'],
+  additionalProperties: false,
+} as const
+const ROUTES = {
+  type: 'array',
+  maxItems: 500,
+  items: { type: 'object', properties: { from: { ...NAME, description: 'A room, by name or id; left out, the entrance.' }, to: { ...NAME, description: 'A room, by name or id.' } }, required: ['to'], additionalProperties: false },
+  description: 'The ways the figure is for: the doors and rooms on the way with fewest rooms between, on one floor.',
+} as const
 
 const BRIEF_SCHEMA = {
   type: 'object',
@@ -62,6 +78,14 @@ const BRIEF_SCHEMA = {
           at_least: { ...SIZE, description: 'A net area of at least this, m². Square metres only: for how many rooms use count_at_least.' },
           at_most: { ...SIZE, description: 'A net area of at most this, m². Square metres only: for how many rooms use count_at_most.' },
           inside: { type: 'array', items: SIZE, minItems: 2, maxItems: 2, description: 'About this inside size, metres, either way round.' },
+          // ARE-69: the rooms' area together, their floor and fact, the rooms inside each, a diameter.
+          total_area: { ...SIZE, description: 'About this net area of all the rooms of the name or use together, m² ("about 30,000 m² of offices"): one line, not one per room.' },
+          total_at_least: { ...SIZE, description: 'At least this net area of the rooms together, m².' },
+          total_at_most: { ...SIZE, description: 'At most this net area of the rooms together, m².' },
+          floor: { ...NAME, description: 'Only the rooms on this floor, by id or name: a wish per floor.' },
+          fact: { ...FACT, description: 'Only the rooms carrying this fact of the person\'s own: a wish per department.' },
+          with_inner: { type: 'boolean', description: 'true to measure each room with the rooms whose only way in is through it (its en-suite, a wardrobe).' },
+          diameter: { ...SIZE, description: 'About this diameter, metres: the widest circle the room holds, for a round room or courtyard.' },
           // ARE-67: the furniture's seats, desks and covers in the rooms the wish means, together.
           ...Object.fromEntries(SEATING_WHATS.flatMap((what) => {
             const of = what === 'covers' ? 'covers (seats at a table)' : what
@@ -82,7 +106,8 @@ const BRIEF_SCHEMA = {
       properties: {
         width: { ...SIZE, description: 'Outside size one way, metres.' },
         depth: { ...SIZE, description: 'Outside size the other way, metres.' },
-        area: { ...SIZE, description: 'The ground floor\'s gross external area, m².' },
+        area: { ...SIZE, description: 'The ground floor\'s gross external area, m², or with measure inside its gross internal area.' },
+        measure: { type: 'string', enum: FOOTPRINT_MEASURES, description: 'outside (to the outside face of the walls) or inside (inside the outside walls). Left out, outside.' },
         level: { type: 'string', enum: ['must', 'should'] },
         source: SAID.source,
         quote: SAID.quote,
@@ -107,7 +132,12 @@ const BRIEF_SCHEMA = {
         type: 'object',
         properties: {
           value: { type: 'number', minimum: FIGURES[figure].least, maximum: FIGURES[figure].top, description: VALUE_SAYS[figure] },
-          ...(figure === 'turning_circle' ? { rooms: { type: 'array', items: NAME, maxItems: 500, description: 'The rooms it is for, by name. Every room when left out.' } } : {}),
+          ...(SCOPED_FIGURES.includes(figure) ? {
+            rooms: { type: 'array', items: NAME, maxItems: 500, description: 'The rooms it is for, by name; a door is for them when it opens into one. Every room when no scope is given.' },
+            uses: { type: 'array', items: { type: 'string', maxLength: 64 }, maxItems: 100, description: 'The rooms of these uses.' },
+            fact: { ...FACT, description: 'The rooms carrying this fact of the person\'s own.' },
+            routes: ROUTES,
+          } : {}),
           ...(figure === 'door_width' ? { measure: { type: 'string', enum: DOOR_MEASURES, description: 'The width the figure is for: clear (what the open door leaves, leaf by leaf), leaf (the leaf it opens by) or hole (the hole in the wall). Left out, clear.' } } : {}),
           ...(figure === 'floor_area_ratio' ? { measure: { type: 'string', enum: RATIO_MEASURES, description: 'The gross measure the ratio is set by. Left out, the usual one for the plan\'s place, else gross external, said as assumed.' } } : {}),
           level: { type: 'string', enum: ['must', 'should'] },
@@ -161,6 +191,7 @@ const LINE = objectSchema({
   unit: NULLABLE_STRING,
   parts: listSchema(objectSchema({ kind: STRING, id: STRING })),
   text: STRING,
+  where: NULLABLE_STRING,
 })
 
 /** The brief's lines in an answer's data, on every change to the plan (BRF-1). */
@@ -196,6 +227,7 @@ export const writeBriefTool: GridTool = {
     'Use this when the person says what they want, before you draw the first room: in one call, write the brief from their words, each wish with its level (must, should, avoid), its source (given, with the person\'s words in quote, or assumed, for them to confirm), and what is still open. '
     + 'It holds room areas (m²) and counts, inside sizes and the footprint in metres, rooms that must touch or must not (avoid), and under figures the person\'s own figures, theirs and not from any code or standard: door_width, corridor_width, turning_circle, step and ceiling_height, and the site limits plot_coverage (%), floor_area_ratio (with the gross measure it is set by), building_height (m) and parking_per_home, and the whole plan\'s seats, desks and covers (seats at a table). A room wish takes seats, desks and covers too (exactly, _at_least, _at_most), for the room, a zone, or all the rooms of a name or use together, counted from the furniture as grid_measure what=seats counts them; a wish for numbered rooms ("Phone booths", count 6) counts the rooms named "Phone booth 1" and on, or of that room type. A figure Grid does not know is refused with the ones it knows. A line that is wrong (a given wish with no quote, a number out of range) refuses only that line: the others are written, and the answer returns the refused line with why, in refused, for you to mend and send again with replace: true; a brief with no line Grid can read writes nothing. '
     + `It writes only the brief beside the plan (plan.brief.json beside plan.json), never the plan. A brief already there is not replaced unless replace is true: read it first (leave brief out), then write the whole brief with what changed. It answers with each line met or missed against the plan as drawn, measured as grid_areas and grid_measure measure, and a size written in a room's name (12 m², 6 tatami, a mat taken as ${MAT.width} × ${MAT.length} m) is read against the room until the brief gives one. Leave brief out to read the brief and its lines and write nothing. `
+    + 'A room wish takes total_area (the rooms of a use together, one line), floor and fact (a wish per floor or department), with_inner (a room with its en-suite) and diameter; a figure measured room by room or door by door takes rooms, uses, fact or routes; efficiency, homes and storeys are figures too; many rooms missed the same way come as one line. To add, remove or change one wish, pass add, remove or update with the place each line names in where, and no brief. '
     + 'Every change to the plan then answers with the same lines. Do not use to change the plan (grid_write_rooms and the edit tools), for a rule from a code (grid_check), or to say a plan is allowed: a line met says only that the drawing holds what was asked.',
   args: {
     plan: { ...PLAN_ARG, description: 'The plan file the brief is for, as a path inside the project folder; it need not be written yet. The project\'s own plan.json when left out.' },
@@ -212,6 +244,38 @@ export const writeBriefTool: GridTool = {
           if (error instanceof BriefRefused) throw new ToolRefusal(`The brief was not written: ${error.message}.`)
           throw error
         }
+      },
+    },
+    // ARE-69: one wish added, removed or changed in the brief kept, with no replace.
+    add: {
+      type: 'object',
+      description: 'Wishes to add to the brief kept, as brief holds them: rooms, touch and open go after the ones there; footprint, a figure or people replace theirs. Needs no replace, and no brief.',
+      examples: [{ open: [{ quote: 'a bike store by the door', about: 'its size' }] }],
+      schema: { type: 'object', properties: BRIEF_SCHEMA.properties, additionalProperties: false },
+      read: (value) => value,
+    },
+    remove: {
+      type: 'array',
+      description: 'Wishes to take out of the brief kept, by the place each line names in where: rooms[2], touch[0], open[1], footprint, figures.door_width, people.',
+      examples: [['rooms[2]', 'figures.step']],
+      items: { maxLength: 80 },
+      minItems: 1,
+      maxItems: 500,
+    },
+    update: {
+      type: 'object',
+      description: 'One wish of the brief kept changed field by field, by its place (where on its line): with holds the fields to set, a field set to null taken out.',
+      examples: [{ where: 'rooms[0]', with: { area: 5, quote: 'make the bathroom 5 square metres' } }],
+      schema: {
+        type: 'object',
+        properties: { where: { type: 'string', maxLength: 80, description: 'The wish\'s place: rooms[0], touch[0], footprint, figures.door_width.' }, with: { type: 'object', description: 'The fields to set; null takes one out.' } },
+        required: ['where', 'with'],
+        additionalProperties: false,
+      },
+      read: (value) => {
+        const v = value as { where?: unknown; with?: unknown }
+        if (typeof v?.where !== 'string' || typeof v.with !== 'object' || v.with === null || Array.isArray(v.with)) throw new ToolRefusal('update needs where, a wish\'s place, and with, the fields to set.')
+        return value
       },
     },
   },
@@ -235,9 +299,31 @@ export const writeBriefTool: GridTool = {
       let brief: Brief | null
       let written: string | null = null
       let problem: string | null = null
-      const refused = parts?.refused ?? []
+      const refused: RefusedLine[] = [...(parts?.refused ?? [])]
       let briefFile: string
-      if (given === undefined) {
+      const change: BriefChange = { ...(args['add'] === undefined ? {} : { add: args['add'] }), ...(args['remove'] === undefined ? {} : { remove: args['remove'] as string[] }), ...(args['update'] === undefined ? {} : { update: args['update'] as BriefChange['update'] & object }) }
+      const changing = Object.keys(change).length > 0
+      if (changing && given !== undefined) throw new ToolRefusal('Pass brief to write the whole brief, or add, remove and update to change the brief kept: not both.')
+      if (changing) {
+        // ARE-69: the brief kept, changed one wish at a time; with none kept, add starts one.
+        const read = readBrief(project, file)
+        if (read.problem !== null) throw new ToolRefusal(`The brief was not changed: ${read.problem}. Write it whole with brief and replace: true.`)
+        let parts: BriefParts
+        try {
+          parts = read.brief === null
+            ? (change.remove !== undefined || change.update !== undefined
+              ? (() => { throw new BriefRefused(`there is no brief beside the plan (${JSON.stringify(read.file)}) to remove from or update; pass add or brief`) })()
+              : parseBriefLines(change.add ?? {}, { versionNeeded: false }))
+            : changeBrief(read.brief, change)
+        } catch (error) {
+          if (error instanceof BriefRefused) throw new ToolRefusal(`The brief was not changed: ${error.message}.`)
+          throw error
+        }
+        brief = parts.brief
+        refused.push(...parts.refused)
+        written = writeBrief(project, file, brief)
+        briefFile = written
+      } else if (given === undefined) {
         const read = readBrief(project, file)
         brief = read.brief
         problem = read.problem
@@ -255,7 +341,7 @@ export const writeBriefTool: GridTool = {
       }
       const lines = briefLines(plan, brief)
       const head = written !== null
-        ? [`Wrote the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.`, ...refusedText(refused)]
+        ? [changing ? `Changed the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.` : `Wrote the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.`, ...refusedText(refused)]
         : brief === null
           ? [problem ?? `There is no brief beside the plan yet (${JSON.stringify(briefFile)}): pass brief to write one from the person's words.`]
           : [`Read the brief ${JSON.stringify(briefFile)}; nothing was written.`]

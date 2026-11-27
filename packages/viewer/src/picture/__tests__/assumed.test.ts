@@ -21,7 +21,7 @@ const marked = parseFloorPlan({
   ],
 })
 
-const WARNING = { working: LIGHT_LOOK.warning, technical: TECHNICAL_COLORS.warning, dark: DARK_LOOK.warning } as const
+const WARNING = { working: LIGHT_LOOK.warning, technical: TECHNICAL_COLORS.warning, dark: DARK_LOOK.warning, simple: LIGHT_LOOK.warning, large: LIGHT_LOOK.warning } as const
 
 describe('assumed parts in the 2D picture', () => {
   for (const look of LOOK_NAMES) {
