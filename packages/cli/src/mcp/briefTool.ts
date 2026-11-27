@@ -10,6 +10,7 @@ import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
 import { BriefRefused, SEATING_MAX, SEATING_WHATS, FIGURE_NAMES, FIGURES, FIGURES_HEADING, RATIO_MEASURES, type FigureName, LEVELS, parseBriefLines, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief, type BriefParts, type RefusedLine } from '../brief/brief'
 import { briefLines, briefText, MAT } from '../brief/lines'
 import { DOOR_MEASURES } from '../quantities/doorWidth'
+import { PEOPLE_SCHEMA } from './lettableArgs'
 
 /** What each figure's value is, in the tool's schema. */
 const VALUE_SAYS: Readonly<Record<FigureName, string>> = {
@@ -118,6 +119,8 @@ const BRIEF_SCHEMA = {
       }])),
       additionalProperties: false,
     },
+    // ARE-68: who the building is for, for the area per person in grid_areas and grid_compare.
+    people: PEOPLE_SCHEMA,
     open: {
       type: 'array',
       maxItems: 500,

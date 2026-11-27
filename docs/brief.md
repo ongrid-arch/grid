@@ -146,6 +146,18 @@ standard. They carry no code in the record.
 A figure Grid does not know is refused with the ones it knows. Each door, room or opening short
 of a figure is one line; a figure nothing is short of is one line met.
 
+## Who the building is for
+
+`people` (ARE-68) holds who the building, or some of its rooms, is for: `pupils`, `covers`, `keys`,
+`beds`, `capacity` or `desks`, each a whole number, or a `count` with the `rooms` it is for, by name
+or id. It is a fact, not a wish: no line measures it, and a brief may hold it alone. `grid_areas`
+and `grid_compare` read it for the area per person ([areas.md](areas.md#the-area-per-person)), the
+gross internal area per pupil or the net per key; a figure in the call comes first.
+
+```json
+{ "version": "1", "people": { "pupils": 420, "covers": { "count": 80, "rooms": ["Dining hall"] } } }
+```
+
 ## Met and missed after every change
 
 Every change to the plan answers with the brief beside the plan it read, line by line, against
