@@ -50,6 +50,14 @@ its kind's name: `rack` 0.60 × 1.20 (2.00 high, 1.00 clear in front), `generato
 1.00, `kennel` 0.90 × 0.90, `exam-table` 1.20 × 0.60 and `clinical-sink` 0.90 × 0.60. Any other
 thing is the kind `equipment`, which has no entry: give it its size, height and label.
 
+Points (CNT-52), which take no floor, one entry of each kind by its kind's name, the size its
+symbol is drawn at and the height it is shown at: `extinguisher` 0.40 × 0.40 (1.00 high), `aed`
+0.40 × 0.40 (1.20), `call-point` 0.30 × 0.30 (1.40), `first-aid` 0.40 × 0.40 (1.40), `sensor`
+0.30 × 0.30 (2.40), `desk-point` 0.40 × 0.40 (0.75), `spawn` 0.60 × 0.60 (0.05), `camera` 0.30 ×
+0.30 (2.60), `you-are-here` 0.50 × 0.50 (1.60), `hose-reel` 0.50 × 0.50 (1.40), `fire-door` 0.40 ×
+0.40 (2.10), `exit` 0.40 × 0.40 (2.20), `refuge` 0.50 × 0.50 (1.20) and `assembly-point` 0.60 ×
+0.60 (2.00).
+
 Child-size entries, for a nursery or a school: `wc-child` (a toilet, 0.32 × 0.50, 0.35 high),
 `basin-low` (a basin, 0.45 × 0.35, 0.55 high), `cot` (a bed, 0.66 × 1.26, 0.95 high), `nap-cot`
 (a bed, 0.60 × 1.30, 0.15 high), `changing-table` (a table, 0.90 × 0.70, 0.90 high), and

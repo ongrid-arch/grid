@@ -23,7 +23,7 @@
  * Pure: no DOM, no React.
  */
 import type { Dimension, Ghosts, OpeningSymbol, PlanAbove, PlanDrawing, PlanOpening, PlanRoom, PlanWall, ScheduleMark, SymbolPart, Vec2, WallDrawnKind } from '@ongrid/floorplan/geometry'
-import { boundsWithDimensions, guessedDoorKind, hatchLines, openingDetail, openingSymbol, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
+import { boundsWithDimensions, guessedDoorKind, hatchLines, isPointKind, openingDetail, openingSymbol, slopeText, traceWall, wallDrawnKind } from '@ongrid/floorplan/geometry'
 import type { DoorHanding } from '../canvas2d/doorHanding'
 import { doorSymbolOf } from '../canvas2d/doorSymbol'
 import { openingAt, stripAcross } from '../canvas2d/strip'
@@ -938,19 +938,18 @@ function planSceneIn(input: SceneInput): SvgNode[] {
   // that runs into it. Each is its symbol to scale, in the wall's ink on the paper. Drawing, not
   // a target: clicks reach the room underneath. Lit, like a wall, while the warning of a door
   // that swings into it is hovered (CNT-13).
-  for (const item of drawing.items) {
-    out.push(
-      el(
-        'g',
-        { 'data-part': 'fixture', 'data-id': item.id, 'data-kind': item.kind, 'data-room': item.room ?? undefined, 'pointer-events': 'none', ...live.hit(item.id) },
-        [
-          ...item.rings.map((ring, index) => el('path', { 'data-part': 'fixture-ring', d: `${pathOf(ring)}`, ...paint.fixture }, [], `r${index}`)),
-          ...item.lines.map((line, index) => el('path', { 'data-part': 'fixture-line', d: virtualPath(line), ...paint.fixtureLine }, [], `l${index}`))
-        ],
-        `fixture:${item.id}`
-      )
+  // CNT-52: a point (an extinguisher, an exit) is drawn later, over the walls it is fixed to.
+  const itemNode = (item: (typeof drawing.items)[number]): SvgNode =>
+    el(
+      'g',
+      { 'data-part': 'fixture', 'data-id': item.id, 'data-kind': item.kind, 'data-room': item.room ?? undefined, 'pointer-events': 'none', ...live.hit(item.id) },
+      [
+        ...item.rings.map((ring, index) => el('path', { 'data-part': 'fixture-ring', d: `${pathOf(ring)}`, ...paint.fixture }, [], `r${index}`)),
+        ...item.lines.map((line, index) => el('path', { 'data-part': 'fixture-line', d: virtualPath(line), ...paint.fixtureLine }, [], `l${index}`))
+      ],
+      `fixture:${item.id}`
     )
-  }
+  for (const item of drawing.items) if (!isPointKind(item.kind)) out.push(itemNode(item))
 
   // SHT-11: a lift shaft's cross, corner to corner, over its room's fill and under the walls that
   // box it. Drawing, not a target.
@@ -1243,6 +1242,8 @@ function planSceneIn(input: SceneInput): SvgNode[] {
     if (opening.phase !== 'demolished') continue
     out.push(el('path', { d: pathOf(stripAcross(opening.from, opening.to, opening.normal, opening.thickness)), 'data-part': 'demolished-opening', 'data-type': opening.type, 'data-id': opening.id, 'pointer-events': 'none', ...paint.demolished }, [], `demolished-${opening.id}`))
   }
+
+  for (const item of drawing.items) if (isPointKind(item.kind)) out.push(itemNode(item))
 
   // WRT-6 (lab WR-15): what the plan marks assumed, drawn in its own style: a dashed line round
   // each assumed room, wall and fixture and across each assumed opening, over the walls so it

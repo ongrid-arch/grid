@@ -235,7 +235,8 @@ export function itemAndRowLines(plan: FloorPlan): string[] {
   for (let i = 0; i < items.length; i++) {
     if ((counts.get(items[i]!.id) ?? 0) > 1 || taken.has(items[i]!.id)) continue
     const found = rowAt(plan, items, i)
-    if (found === null || items.slice(i, i + found.size).some((x) => (counts.get(x.id) ?? 0) > 1 || taken.has(x.id))) continue
+    // CNT-52: an item with facts of its own is written raw, so none is in a row.
+    if (found === null || items.slice(i, i + found.size).some((x) => (counts.get(x.id) ?? 0) > 1 || taken.has(x.id) || x.properties !== undefined)) continue
     rows.set(i, found)
     i += found.size - 1
   }
