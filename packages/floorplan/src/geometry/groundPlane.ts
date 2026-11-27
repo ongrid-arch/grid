@@ -11,7 +11,11 @@
  *
  * CNT-49: on a slope (`groundSurface`) the sheet is tilted: `tilt` is the ground's level at a point
  * over `level`, `at + x * x + y * y`, and a floor goes down into the ground when its slab's underside
- * lies below the highest ground under its walls. Pure, and never throws.
+ * lies below the highest ground under its walls.
+ *
+ * CNT-60: with a plot stated (`site.boundary`), the ground is the plot, not the square, and it is cut
+ * away over every pool too, so the pool's water (`siteScene`) is seen down in the hole. Pure, and
+ * never throws.
  */
 
 import type { MultiPolygon, Polygon } from 'polygon-clipping'
@@ -23,6 +27,7 @@ import type { FloorPlan } from './plan'
 import { groundLevel } from './ground'
 import { cutOutline } from './polygons'
 import { tolerance } from './tolerances'
+import { poolOutlines } from './siteScene'
 
 /** The ground under and round the building, in the floors' own datum and on plan (C4). */
 export interface SceneGround {
@@ -34,10 +39,13 @@ export interface SceneGround {
   /** The floors that go down into the ground, their slab's underside below it, in plan order. */
   readonly into: readonly string[]
   /**
-   * The ground on plan: a square reaching `reach` past the plan's walls on every side, less the
-   * outlines of the floors in `into`. Each piece counter-clockwise with its holes clockwise.
+   * The ground on plan: a square reaching `reach` past the plan's walls on every side, or the plot
+   * when the site states one (CNT-60), less the outlines of the floors in `into` and the pools.
+   * Each piece counter-clockwise with its holes clockwise.
    */
   readonly pieces: MultiPolygon
+  /** CNT-60: the ground is the plot the site states, not the square round the building. */
+  readonly plot?: true
 }
 
 /**
@@ -77,9 +85,31 @@ export function sceneGround(plan: FloorPlan, reach: number, elevations: Building
     // Nothing is cut: the ground lies whole round the building.
   }
 
-  const square = groundSquare(plan, reach)
+  const plot = plotOf(plan)
+  const square = plot ?? groundSquare(plan, reach)
+  // CNT-60: the pools are holes in the ground.
+  for (const pool of poolOutlines(plan)) outlines.push([[[...pool.map((p): [number, number] => [p.x, p.y]), [pool[0]!.x, pool[0]!.y]]]])
   const pieces = outlines.length === 0 ? [square] : (cutOutline('difference', [square], outlines) ?? [square])
-  return { level, stated, ...(tilt === undefined ? {} : { tilt }), into, pieces }
+  return { level, stated, ...(tilt === undefined ? {} : { tilt }), into, pieces, ...(plot === null ? {} : { plot: true as const }) }
+}
+
+/** CNT-60: the plot's boundary as a closed ring, counter-clockwise; null when the site states none. */
+function plotOf(plan: FloorPlan): Polygon | null {
+  const boundary = plan.site?.boundary
+  if (boundary === undefined || boundary.length < 3) return null
+  const first = boundary[0]!
+  const last = boundary.at(-1)!
+  const open = first[0] === last[0] && first[1] === last[1] ? boundary.slice(0, -1) : boundary
+  const ring: [number, number][] = open.map(([x, y]) => [x, y])
+  let twice = 0
+  for (let i = 0; i < ring.length; i++) {
+    const [ax, ay] = ring[i]!
+    const [bx, by] = ring[(i + 1) % ring.length]!
+    twice += ax * by - bx * ay
+  }
+  if (!(Math.abs(twice) > 0)) return null
+  if (twice < 0) ring.reverse()
+  return [[...ring, ring[0]!]]
 }
 
 /** The square `reach` past the plan's bounds, counter-clockwise; round the origin when there are none. */

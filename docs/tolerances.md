@@ -175,6 +175,14 @@ is not asked whether it was typed in feet.
 | `fenceCasts` | tolerance | 0.05 m | The thickness a site fence with a height is taken as when it casts a shadow (CNT-58) |
 | `treeCrownBase` | tolerance | 0.4 ratio | Where a tree's crown starts, as a share of its height, when it casts a shadow: a disc of its canopy from there to its top (CNT-58) |
 | `canopySides` | limit | 24 count | The straight sides a tree's round canopy is traced with when it casts a shadow (CNT-58) |
+| `siteLift` | limit | 0.02 m | How far paving, a path and a neighbour with no height are raised above the ground in the 3D views and the GLB, so the two never flicker (CNT-60) |
+| `fenceDrawnHeight` | limit | 1.2 m | How high a fence or a gate that states no height is drawn in 3D (CNT-60) |
+| `fenceDrawnThickness` | limit | 0.05 m | How thick a fence or a gate is drawn in 3D (CNT-60) |
+| `treeDrawnHeight` | limit | 6 m | How high a tree that states no height is drawn in 3D (CNT-60) |
+| `treeDrawnCanopy` | limit | 4 m | How wide a tree's crown is drawn in 3D when it states no canopy (CNT-60) |
+| `treeDrawnTrunk` | limit | 0.3 m | How wide a tree's trunk is drawn in 3D (CNT-60) |
+| `poolDrawnDepth` | limit | 1.5 m | How deep a pool is drawn below the ground in 3D (CNT-60) |
+| `poolWaterBelowEdge` | limit | 0.15 m | How far below the ground a pool's water is drawn in 3D, so it reads as sunk (CNT-60) |
 | `largest` | limit | 10000000 m | The largest coordinate or size Grid accepts (10,000 km); past it the part is refused |
 | `farFromOrigin` | limit | 500 m | A plan reaching further from the origin gets a warning: from `site.origin` where the plan states one, else from (0, 0) (HND-11) |
 | `cameraTilt` | limit | 89 degree | How far a camera may look down at, or up to, what it is pointed at, from level; straight down or up a picture has no up, so a camera turned further is refused (VEW-3) |

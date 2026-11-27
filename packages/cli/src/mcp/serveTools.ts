@@ -41,6 +41,7 @@ import { setFactsTool } from './factsTool'
 import { setFinishesTool } from './finishesTool'
 import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
+import { CONTEXT_TOOLS } from './contextTools'
 import { setPlanTool } from './planTool'
 import { STAIR_TOOLS } from './stairTools'
 import { BUILDING_TOOLS } from './buildingTools'
@@ -109,6 +110,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   ...PARKING_TOOLS,
   // CNT-41: the plot, north and the site's things: the ground, never the building.
   ...SITE_TOOLS,
+  // CNT-60: party walls and the neighbours round the plan, after the site's tools.
+  ...CONTEXT_TOOLS,
   // CNT-50: the plan's name, the site's name and address, its language, units and north, and the floors' names.
   setPlanTool,
   // VEW-67: the trace image under the plan, drawn only: no part of the building.
