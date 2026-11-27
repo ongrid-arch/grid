@@ -21,7 +21,9 @@
  */
 
 import type { Scene3D } from '../scene3d'
-import { MESH_MATERIALS, OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, materialOf, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
+import { MESH_MATERIALS, OPENING_PART_KINDS, columnMesh, floorMesh, groundMesh, itemMesh, makeNamer, materialOf, openingPartMesh, shellMesh, siteMaterial, siteMesh, stairMesh, wallMesh } from './mesh'
+import type { SceneGround } from '../groundPlane'
+import type { SiteBlock } from '../siteScene'
 import type { Mesh, MeshMaterial } from './mesh'
 import type { Vec3 } from '../scene3d'
 import type { StoreyScene } from './obj'
@@ -184,9 +186,11 @@ function gamePartsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => str
   for (const wall of scene.walls) {
     const own = facts?.walls.get(wall.id)
     const pieces = ask.walls === 'rooms' ? wallPieces(wall, facts?.stretches.get(wall.id) ?? []) : null
+    // CNT-60: a party wall is drawn as a cut.
+    const material = wall.cut === true ? 'cut' : 'wall'
     if (pieces === null) {
       const mesh = wallMesh(wall)
-      if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: 'wall', group: 'wall', extras: extrasOf('wall', wall.id, floor, own) })
+      if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material, group: 'wall', extras: extrasOf('wall', wall.id, floor, own) })
       continue
     }
     for (const piece of pieces) {
@@ -195,7 +199,7 @@ function gamePartsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => str
       const rooms = { left: piece.left, right: piece.right }
       const finish = finishFor(own?.finish, [...piece.left, ...piece.right])
       const facts = { ...own, rooms, finish }
-      parts.push({ name: nameOf('wall', pieceLabel(wall.id, piece)), mesh, material: 'wall', group: 'wall', extras: extrasOf('wall', wall.id, floor, facts, { gridPiece: { from: piece.from, to: piece.to } }) })
+      parts.push({ name: nameOf('wall', pieceLabel(wall.id, piece)), mesh, material, group: 'wall', extras: extrasOf('wall', wall.id, floor, facts, { gridPiece: { from: piece.from, to: piece.to } }) })
     }
   }
   for (const slab of scene.slabs) {
@@ -267,7 +271,8 @@ function partsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => string 
   const parts: Part[] = []
   for (const wall of scene.walls) {
     const mesh = wallMesh(wall)
-    if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: 'wall' })
+    // CNT-60: a party wall is drawn as a cut.
+    if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: wall.cut === true ? 'cut' : 'wall' })
   }
   for (const slab of scene.slabs) {
     const mesh = floorMesh(slab)
@@ -622,6 +627,12 @@ export interface BuildingGlbOptions extends GlbOptions {
   readonly walls?: GlbWallMode
   /** VEW-82: the plan's saved views, written as cameras, each a root of the scene. */
   readonly views?: readonly ViewCamera[]
+  /**
+   * CNT-60: the site, written as one node `site` (`GLB_SITE_NODE`), a child of the building's root:
+   * the ground (null for none) and the site's blocks (`siteScene`), in the floors' own datum. A
+   * file of one floor carries none.
+   */
+  readonly site?: { readonly ground: Pick<SceneGround, 'level' | 'tilt' | 'pieces'> | null; readonly blocks: readonly SiteBlock[] }
 }
 
 /** VEW-82: a floor of a building's GLB: its scene, and what its parts' extras say (`glbFacts`). */
@@ -640,6 +651,26 @@ function cameraNodes(views: readonly ViewCamera[], nameOf: (prefix: string, id: 
     extras: { gridView: view.name, gridTarget: [...view.target], ...(view.room === undefined ? {} : { gridRoom: view.room }) }
   }))
   return { nodes, cameras }
+}
+
+/** CNT-60: the name of the site's node. */
+export const GLB_SITE_NODE = 'site'
+
+/** CNT-60: the site's parts: its ground, then its blocks, each thing's blocks of one material together. */
+function siteParts(site: NonNullable<BuildingGlbOptions['site']>, nameOf: (prefix: string, id: string) => string): Part[] {
+  const parts: Part[] = []
+  const ground = site.ground === null ? null : groundMesh(site.ground)
+  if (ground !== null) parts.push({ name: nameOf('ground', 'site'), mesh: ground, material: 'ground' })
+  const groups = new Map<string, SiteBlock[]>()
+  for (const block of site.blocks) {
+    const key = `${block.kind}\u0000${block.id}`
+    groups.set(key, [...(groups.get(key) ?? []), block])
+  }
+  for (const blocks of groups.values()) {
+    const mesh = siteMesh(blocks)
+    if (mesh) parts.push({ name: nameOf(blocks[0]!.kind, blocks[0]!.id), mesh, material: siteMaterial(blocks[0]!.kind) })
+  }
+  return parts
 }
 
 /** A translation, or none when it moves nothing. `0 - y`, as for the points, so y = 0 is not -0. */
@@ -665,9 +696,10 @@ export function toBuildingGlb(storeys: readonly GlbStorey[], options: BuildingGl
   const nameOf = makeNamer()
   const ask = { doors: options.doors ?? 'closed', walls: options.walls ?? 'whole' } as const
   const perFloor = storeys.map((storey) => gamePartsOf(storey.scene, nameOf, { ...ask, floor: storey.id, ...(storey.facts === undefined ? {} : { facts: storey.facts }) }))
-  const parts = perFloor.flatMap((floor) => floor.parts)
-  const moved = movedBy(options.origin)
   const asOne = options.root === 'floor' && storeys.length === 1
+  const ofSite = options.site === undefined || asOne ? [] : siteParts(options.site, nameOf)
+  const parts = [...perFloor.flatMap((floor) => floor.parts), ...ofSite]
+  const moved = movedBy(options.origin)
   const holderName = asOne ? storeys[0]!.id : GLB_BUILDING_NODE
   const asset = assetOf(options.leftOut ?? [], moved, options.approximations ?? NO_APPROXIMATIONS, holderName, options.north)
   const views = cameraNodes(options.views ?? [], nameOf)
@@ -688,7 +720,7 @@ export function toBuildingGlb(storeys: readonly GlbStorey[], options: BuildingGl
   const written = writeParts(parts)
   const [ox, oy] = moved ?? [0, 0]
 
-  // After the parts' nodes: each floor's door markers, then its groups, then the floors, the root.
+  // After the parts' nodes: each floor's door markers, then its groups, then the floors, the site, the root.
   const extra: object[] = []
   const at = (): number => written.nodes.length + extra.length
   const groupsOf: number[][] = []
@@ -726,7 +758,14 @@ export function toBuildingGlb(storeys: readonly GlbStorey[], options: BuildingGl
     })
   }
   if (asOne) return encodeGlb(withSun(withViews(documentOf(asset, written, extra, [floorAt[0]!]), at()), options.sun), written.binary)
+  // CNT-60: the site's parts, after every floor's, held by one node at the datum.
+  const siteFrom = written.nodes.length - ofSite.length
+  const siteAt: number[] = []
+  if (ofSite.length > 0) {
+    siteAt.push(at())
+    extra.push({ name: GLB_SITE_NODE, children: ofSite.map((_, i) => siteFrom + i) })
+  }
   const rootAt = at()
-  extra.push({ name: GLB_BUILDING_NODE, ...translation(ox, 0, oy), children: floorAt })
+  extra.push({ name: GLB_BUILDING_NODE, ...translation(ox, 0, oy), children: [...floorAt, ...siteAt] })
   return encodeGlb(withSun(withViews(documentOf(asset, written, extra, [rootAt]), at()), options.sun), written.binary)
 }

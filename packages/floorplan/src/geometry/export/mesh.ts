@@ -15,6 +15,8 @@
  */
 
 import type { Vec2 } from '../vec2'
+import type { SceneGround } from '../groundPlane'
+import type { SiteBlock, SiteBlockKind } from '../siteScene'
 import type { SceneColumn, SceneItem, SceneOpening, SceneSlab, SceneSolid, SceneStair, SceneWall, Vec3, WallBasis, WallElevation } from '../scene3d'
 import type { OpeningPartKind } from '../openingParts'
 import { alongFace } from '../scene3d'
@@ -39,7 +41,15 @@ export const MESH_MATERIALS = [
   { name: 'roof', colour: [0.55, 0.3, 0.25], opacity: 1 },
   { name: 'stair', colour: [0.7, 0.7, 0.68], opacity: 1 },
   { name: 'column', colour: [0.75, 0.75, 0.73], opacity: 1 },
-  { name: 'item', colour: [0.9, 0.9, 0.9], opacity: 1 }
+  { name: 'item', colour: [0.9, 0.9, 0.9], opacity: 1 },
+  // CNT-60: a party wall, drawn as a cut; the site's ground, its fences, paths and paving, its
+  // trees, its pools' water and the neighbours round it.
+  { name: 'cut', colour: [0.25, 0.25, 0.27], opacity: 1 },
+  { name: 'ground', colour: [0.6, 0.66, 0.5], opacity: 1 },
+  { name: 'site', colour: [0.68, 0.66, 0.62], opacity: 1 },
+  { name: 'planting', colour: [0.36, 0.5, 0.3], opacity: 1 },
+  { name: 'water', colour: [0.3, 0.55, 0.75], opacity: 0.7 },
+  { name: 'context', colour: [0.8, 0.8, 0.8], opacity: 1 }
 ] as const satisfies readonly { readonly name: string; readonly colour: readonly [number, number, number]; readonly opacity: number }[]
 
 export type MeshMaterial = (typeof MESH_MATERIALS)[number]['name']
@@ -208,6 +218,42 @@ export function columnMesh(column: SceneColumn): Mesh | null {
 /** CNT-42: a fixture or a piece of furniture as one mesh, each block its kind gives a closed solid. */
 export function itemMesh(item: SceneItem): Mesh | null {
   return blocksMesh(item.blocks)
+}
+
+/** CNT-60: the material a block of the site is drawn in, by its kind. */
+export function siteMaterial(kind: SiteBlockKind): MeshMaterial {
+  if (kind === 'neighbour') return 'context'
+  if (kind === 'water') return 'water'
+  if (kind === 'trunk' || kind === 'crown') return 'planting'
+  return 'site'
+}
+
+/** CNT-60: blocks of the site as one mesh of closed solids, in the floors' own datum. */
+export function siteMesh(blocks: readonly SiteBlock[]): Mesh | null {
+  return blocksMesh(blocks)
+}
+
+/**
+ * CNT-60: the ground as a surface facing up, at its level, lifted on a slope to the ground at each
+ * point (`SceneGround.tilt`), open over its holes. Null when it has no piece.
+ */
+export function groundMesh(ground: Pick<SceneGround, 'level' | 'tilt' | 'pieces'>): Mesh | null {
+  const points: Vec3[] = []
+  const faces: Face[] = []
+  const ring = (r: readonly (readonly [number, number])[]): Vec2[] => {
+    const open = r.length > 1 && r[0]![0] === r.at(-1)![0] && r[0]![1] === r.at(-1)![1] ? r.slice(0, -1) : r
+    return open.map(([x, y]) => ({ x, y }))
+  }
+  const tilt = ground.tilt
+  const z = (p: Vec2): number => ground.level + (tilt === undefined ? 0 : tilt.at + tilt.x * p.x + tilt.y * p.y)
+  for (const [outer, ...holes] of ground.pieces) {
+    if (outer === undefined) continue
+    const { vertices, triangles } = triangulate(ring(outer), holes.map(ring))
+    const base = points.length
+    for (const v of vertices) points.push({ x: v.x, y: v.y, z: z(v) })
+    for (const [a, b, c] of triangles) faces.push([base + a, base + b, base + c])
+  }
+  return faces.length === 0 ? null : storable({ points, faces })
 }
 
 /** Upright blocks, each its outline (counter-clockwise) solid from its bottom to its top, as one mesh of closed solids. */
