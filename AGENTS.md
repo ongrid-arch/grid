@@ -44,6 +44,8 @@ Notes for agents and people changing this repository.
   `curves.ts` (WRT-78) writes curved rooms and sides (`circle`, `oval`, `arc`, `band`, `curve
   radius`) as outlines traced by pieces at fixed turns, and joins the walls on one curve into one
   curved wall once the walls are worked out.
+  `grids.ts` (WRT-83) writes the structural grids, straight or radial (`grid ... polar`), and
+  `columns.ts` sets columns out on their crossings or in a ring once the grids are known.
 - `packages/floorplan/src/geometry/patterns.ts` (LVL-8): opening patterns (`patterns`, C12 in
   `types/floorplan.ts`) expanded into plain openings (`expandPatterns`, `withPatterns`). Every
   reader expands first (`loadPlan` unless read whole, `inspectPlan`, `exportPlan`, the pictures),
