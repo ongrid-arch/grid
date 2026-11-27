@@ -133,6 +133,8 @@ interface End {
 function gridEnds(drawing: PlanDrawing): End[] {
   const out: End[] = []
   for (const grid of drawing.grids ?? []) {
+    // WRT-83: a radial grid's ends point every way, so none is set against a chain.
+    if (grid.polar !== undefined) continue
     for (const set of ['x', 'y'] as const) {
       const lines = grid.lines.filter((line) => line.set === set)
       if (lines.length === 0) continue

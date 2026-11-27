@@ -296,6 +296,13 @@ function carryGrids(plan: FloorPlan, c: Carry, put: Put, said: string[], notKept
       notKept.push(say('edit.stretch.stays.gridFloor', { grid: label }))
       continue
     }
+    // WRT-83: a radial grid is never stretched by its spacings: it moves whole with its centre, or stays.
+    if (grid.polar !== undefined) {
+      if (!c.beyond({ x: grid.origin[0], y: grid.origin[1] })) continue
+      put('grids', grid.id, { origin: c.move(grid.origin) })
+      n++
+      continue
+    }
     const turn = ((grid.turn ?? 0) * Math.PI) / 180
     // How far along the stretch each set's lines step: the x lines along the grid's x, the y lines along its y.
     const kx = Math.cos(turn) * axis.x + Math.sin(turn) * axis.y
