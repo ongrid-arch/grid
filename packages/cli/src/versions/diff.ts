@@ -11,7 +11,7 @@
  */
 import { historySay } from './words'
 import path from 'path'
-import { compareBuildings, floorOf, planHasPhases, planInState, wallFloorIds, type BuildingComparison, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { alikeTexts, compareBuildings, floorOf, planHasPhases, planInState, wallFloorIds, type BuildingComparison, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { english } from '@ongrid/floorplan/messages'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
@@ -260,7 +260,8 @@ export function diffText(run: PlanDiffRun, show: DiffShow, floor?: string): stri
       return
     }
     lines.push(`Issues (${c.issues.length}):`)
-    c.issues.forEach((issue, i) => lines.push(`  ${i + 1}. ${issue.message}`))
+    // MSG-36: issues alike on many parts or floors are said once.
+    alikeTexts(c.issues.map((issue) => issue.message)).forEach((issue, i) => lines.push(`  ${i + 1}. ${issue}`))
   }
   // MSG-29: after the issues, the seen notes that came back.
   const seen = (): void => {
@@ -285,17 +286,19 @@ export function diffText(run: PlanDiffRun, show: DiffShow, floor?: string): stri
     else if (c.changes.length === 0) lines.push(`Changes${where}: none${c.otherFloors === 0 ? '' : `; ${leftOut}`}.`)
     else {
       lines.push(`Changes${where} (${c.floor === null ? c.changes.length : `${c.changes.length} of ${c.changes.length + c.otherFloors}; ${leftOut}`}):`)
-      c.changes.slice(0, DIFF_LINES_SHOWN).forEach((line, i) => lines.push(`  ${i + 1}. ${line.text}`))
-      if (c.changes.length > DIFF_LINES_SHOWN) lines.push(`  … ${c.changes.length - DIFF_LINES_SHOWN} more, in the data.`)
+      // MSG-36: like changes on many parts or floors are one line; the data keeps every one.
+      const said = alikeTexts(c.changes.map((line) => line.text))
+      said.slice(0, DIFF_LINES_SHOWN).forEach((line, i) => lines.push(`  ${i + 1}. ${line}`))
+      if (said.length > DIFF_LINES_SHOWN) lines.push(`  … ${said.length - DIFF_LINES_SHOWN} more, in the data.`)
     }
     // WRT-12: what moved with its wall or room before what stayed, so neither is taken for the other.
     if (c.movedWith.length > 0) {
       lines.push(`Openings that moved with their wall or room (${c.movedWith.length}):`)
-      for (const line of c.movedWith.slice(0, DIFF_LINES_SHOWN)) lines.push(`  ${line.text}`)
+      for (const line of alikeTexts(c.movedWith.map((m) => m.text)).slice(0, DIFF_LINES_SHOWN)) lines.push(`  ${line}`)
     }
     if (c.stayed.length > 0) {
       lines.push(`Openings that stayed where they were (${c.stayed.length}):`)
-      for (const line of c.stayed.slice(0, DIFF_LINES_SHOWN)) lines.push(`  ${line.text}`)
+      for (const line of alikeTexts(c.stayed.map((m) => m.text)).slice(0, DIFF_LINES_SHOWN)) lines.push(`  ${line}`)
     }
     // CMD-44: facts and numbers change nothing that stands, so they are listed on their own.
     fieldList(historySay('tool.history.factsHeading', { count: facts.length }), facts, facts.length, FACT_LINES_SHOWN)

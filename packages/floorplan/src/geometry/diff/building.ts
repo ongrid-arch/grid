@@ -47,6 +47,7 @@ import { english, joined, name, num, said, sayValue, withSentence, type Joined, 
 import { planAreaFigures } from '../areas'
 import { floorOf, planFloors } from '../floors'
 import { tolerance } from '../tolerances'
+import { renamePattern, renamePatternSaid } from '../alike'
 import type { Vec2 } from '../vec2'
 import { roomWallCauses } from './causes'
 import { compareText } from './order'
@@ -1109,9 +1110,12 @@ export function compareBuildings(earlierStated: FloorPlan, laterStated: FloorPla
   const roomIdWords = roomIds.length === 0 || roomIds.length > ROOM_IDS_NAMED
     ? ''
     : `; ${sayValue('en', joined(roomIds.map((r) => said('diff.room.idNow', { room: name(headRooms.get(r.after)?.name || r.after), before: name(r.before), after: name(r.after) })), 'join.comma', 'join.and'))}`
+  // MSG-36: ids renamed by one pattern (a floor copied under a new name) are said as that pattern.
+  const pattern = renamePattern(renamed)
+  const patternWords = pattern === null ? '' : `, ${sayValue('en', renamePatternSaid(pattern))}`
   const renamedWords = renamed.length === 0
     ? ''
-    : `${plural(renamed.length, 'id')} renamed (${[plural(renamedCount.walls, 'wall'), plural(renamedCount.openings, 'opening'), plural(renamedCount.rooms, 'room')].filter((t) => !t.startsWith('0 ')).join(', ')})${roomIdWords}`
+    : `${plural(renamed.length, 'id')} renamed (${[plural(renamedCount.walls, 'wall'), plural(renamedCount.openings, 'opening'), plural(renamedCount.rooms, 'room')].filter((t) => !t.startsWith('0 ')).join(', ')})${patternWords}${roomIdWords}`
   const redrawn = alignment.redrawn
   const redrawnWords = redrawn.length === 0
     ? ''

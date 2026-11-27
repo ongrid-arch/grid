@@ -4,7 +4,8 @@ import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { compileRoomsText } from '@ongrid/floorplan/rooms'
-import { indexPlan, validatePlan } from '@ongrid/floorplan/geometry'
+import { indexPlan, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { flat as testFlat } from '@ongrid/floorplan/test-support/plans'
 import { parseFloorPlan } from '@ongrid/floorplan/types/floorplan'
 import { runGrid } from '../../command/main'
 import { openProject } from '../../fs/projectFiles'
@@ -591,5 +592,48 @@ describe('a change of finish, of type and of curve, with grid diff (WRT-86)', ()
     expect(json.finishes).toMatchObject([{ room: 'living', changes: [{ surface: 'floor', before: 'Oak', after: 'Porcelain tile', text: 'floor finish "Oak" → "Porcelain tile"' }] }])
     expect(json.types).toEqual([])
     expect(json.curves).toEqual([])
+  })
+})
+
+describe('like changes on many floors (MSG-36)', () => {
+  /** The test flat on `n` floors, each floor's ids starting with its own. */
+  const tower = (n: number, floorId: (i: number) => string = (i) => `l${String(i).padStart(2, '0')}`): FloorPlan => {
+    const one = testFlat()
+    const floors = Array.from({ length: n }, (_, i) => floorId(i))
+    return {
+      ...one,
+      floors: floors.map((f, i) => ({ id: f, name: f, level: i })),
+      walls: floors.flatMap((f) => one.walls.map((w) => ({ ...w, id: `${f}-${w.id}`, floor: f }))),
+      rooms: floors.flatMap((f) => one.rooms.map((r) => ({ ...r, id: `${f}-${r.id}`, boundary: r.boundary.map((b) => `${f}-${b}`), floor: f }))),
+      openings: floors.flatMap((f) => one.openings.map((o) => ({ ...o, id: `${f}-${o.id}`, wall: `${f}-${o.wall}` }))),
+    }
+  }
+
+  it('says a change made on every floor once in the words, and keeps each in the data', async () => {
+    const dir = project({ 'plan.json': JSON.stringify(tower(5)) })
+    expect((await grid(dir, 'mark')).status).toBe(0)
+    const later = tower(5)
+    later.openings = later.openings.filter((o) => !o.id.endsWith('-win_k'))
+    writeFileSync(join(dir, 'plan.json'), JSON.stringify(later))
+    const text = (await grid(dir, 'diff')).out
+    const removed = text.split('\n').filter((line) => line.includes('win_k'))
+    expect(removed).toHaveLength(1)
+    expect(removed[0]).toMatch(/"l00-win_k".*\(the same for 4 more: "l01-win_k" to "l04-win_k"\)$/)
+    const data = JSON.parse((await grid(dir, 'diff', '--json')).out) as { changes: Array<{ text: string }> }
+    expect(data.changes.filter((c) => c.text.includes('win_k'))).toHaveLength(5)
+  })
+
+  it('says ids renamed by one pattern as that pattern', async () => {
+    const dir = project({ 'plan.json': JSON.stringify(tower(3)) })
+    expect((await grid(dir, 'mark')).status).toBe(0)
+    const renamed = tower(3)
+    const name = (id: string): string => `b-${id}`
+    renamed.walls = renamed.walls.map((w) => ({ ...w, id: name(w.id) }))
+    renamed.rooms = renamed.rooms.map((r) => ({ ...r, id: name(r.id), boundary: r.boundary.map(name) }))
+    renamed.openings = renamed.openings.map((o) => ({ ...o, id: name(o.id), wall: name(o.wall) }))
+    writeFileSync(join(dir, 'plan.json'), JSON.stringify(renamed))
+    const data = JSON.parse((await grid(dir, 'diff', '--json')).out) as { verdict: string; renamed: { count: number } }
+    expect(data.renamed.count).toBeGreaterThan(3)
+    expect(data.verdict).toContain(`${data.renamed.count} of them by one pattern, "b-" added`)
   })
 })
