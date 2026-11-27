@@ -692,7 +692,7 @@ rooflight r2 at 2,3.9, 0.8 x 0.8
 
 ### Columns
 
-column <id> [square|round] <width> [x <depth>] at x,y [turn <degrees>] [height <m>] [through <floor>] [on <floor>] ["<label>"] is one of the plan's columns, never a wall or a room: a round column's width is its diameter, a square one is as deep as wide unless x <depth> says, through stands it on every floor up to that one, height is its own (left out, its storey's). It stands on the floor whose line it is under unless on says. columns <group> [square|round] <width> at x,y, count <n> [x <m>], every <spacing> [x <spacing>] sets out a grid of them from the first one's middle, east then north, named <group>-1, <group>-2 and on. raw column {...} takes Grid's own JSON for one. A column takes its floor off the area of the room it stands in.
+column <id> [square|round] <width> [x <depth>] at x,y [turn <degrees>] [height <m>] [through <floor>] [on <floor>] ["<label>"] is one of the plan's columns, never a wall or a room: a round column's width is its diameter, a square one is as deep as wide unless x <depth> says, through stands it on every floor up to that one, height is its own (left out, its storey's). It stands on the floor whose line it is under unless on says. columns <group> [square|round] <width> at x,y, count <n> [x <m>], every <spacing> [x <spacing>] sets out a grid of them from the first one's middle, east then north, named <group>-1, <group>-2 and on. raw column {...} takes Grid's own JSON for one. A column takes its floor off the area of the room it stands in. A column with no floor line above it stands on the floor at level 0. Never write a column as a wall stub or a room, nor compute their places in a script: use the grid and ring lines (structural grids).
 
 ```rooms
 walls outside 0.3 inside 0.1 height 4
@@ -700,6 +700,21 @@ room hall "Warehouse" storage 24 x 16 at 0,0
 door d1 in hall south, centred, 3 wide, roller
 columns c round 0.5 at 6,5.3, count 3 x 2, every 6 x 5.4
 column k1 0.4 x 0.6 at 3,8 "Crane post"
+```
+
+### Structural grids
+
+grid <id> ["<name>"] [at x,y] [turn <degrees>] x <spacing> ... [names ...] y <spacing> ... [names ...] [floors <floor> ...] is one of the plan's structural grids, drawn with its names in circles and its spacing dimensioned, in no measure or check: x lines numbered 1, 2, 3 run north from at, each the spacing east of the one before, y lines lettered A, B, C; 4@7.5 is four spacings of 7.5. grid <id> polar [at x,y] rings <radius> ... rays <degrees> ... is a radial grid round at: rings lettered, rays numbered counter-clockwise from east, either list one by one, as steps (3 2@2.5) or as 0 to 315 every 45. columns <group> <width> on grid <grid> stands a column at every crossing, named <group>-<x>-<y>; column [<id>] <width> at grid [<grid>] 7/B one at a crossing (c-7-B with no id; on a radial grid ray/ring); columns [<group>] ring <n> radius <r> [at x,y] [start <degrees>] <width> sets out n evenly round a circle, round the one radial grid when at is left out. A square column is turned as its grid line, in a ring to face the centre. module <length> sets a planning module: then 5mod is five of it, in any length or point. raw grid {...} takes Grid's own JSON for one.
+
+```rooms
+module 1.5
+walls outside 0.3 inside 0.1 height 6
+room nave "Nave" worship 20mod x 14mod at 0,0
+door d1 in nave south, centred, 2.4 wide, opens in
+grid G at 3,3 x 4@6 y 2@7.5
+columns c 0.6 on grid G
+grid P polar at 15,10.5 rings 4.5 rays 0 to 315 every 45
+columns pier ring 8 radius 4.5 round 0.4
 ```
 
 ### Repeats

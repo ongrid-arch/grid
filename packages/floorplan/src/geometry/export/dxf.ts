@@ -1390,8 +1390,11 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
     const layer = space.layer('structural-grid')
     const r = size.text
     for (const line of grid.lines) {
-      space.line(layer, line.from, line.to)
-      for (const [end, way] of [[line.from, line.along], [line.to, scale(line.along, -1)]] as const) {
+      // WRT-83: a radial grid's ring is its pieces, named past its ends' own ways.
+      if (line.path === undefined) space.line(layer, line.from, line.to)
+      else for (let i = 0; i + 1 < line.path.length; i++) space.line(layer, line.path[i]!, line.path[i + 1]!)
+      const ends = [[line.from, line.along], ...(line.namedAt === 'from' ? [] : [[line.to, line.outTo ?? scale(line.along, -1)]])] as const
+      for (const [end, way] of ends) {
         const centre = add(end, scale(way, r))
         space.circle(layer, centre, r)
         space.text(layer, sub(centre, { x: 0, y: size.text / 2 }), line.name, size.text)

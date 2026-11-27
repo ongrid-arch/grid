@@ -159,6 +159,7 @@ is not asked whether it was typed in feet.
 | `gridLinesMost` | limit | 100 count | The most lines one set of a structural grid may have; a set with more is refused (CNT-16) |
 | `languageNamesLeast` | limit | 2 count | The fewest room names that are one language's word for a use, and none another's, before writing rooms text records that language as the plan's own (MSG-34) |
 | `gridOverrun` | limit | 1.5 m | How far a structural grid's lines are drawn past the outermost line across them, where their names are written and their spacing is dimensioned (CNT-16) |
+| `gridArcStep` | limit | 5 degree | The widest turn one straight piece of a radial grid's ring is drawn and exported with; a ring that is not whole stops this much short of closing at most (WRT-83) |
 | `bayOverlap` | tolerance | 0.01 m² | Two parking bays of one floor that share more floor than this overlap: each is still counted, and the warning says the floor holds fewer bays than it counts (CNT-19) |
 | `rampSlopeDiffers` | tolerance | 0.5 % | A ramp's stated slope further than this, in percentage points, from the slope its two levels and its run give is worth a look; both are kept and returned (CNT-19) |
 | `largest` | limit | 10000000 m | The largest coordinate or size Grid accepts (10,000 km); past it the part is refused |

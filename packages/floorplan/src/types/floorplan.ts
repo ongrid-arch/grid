@@ -278,6 +278,12 @@
  *   lettered A, B, C. A grid is drawn on the `floors` it names (unstated, every floor) with its
  *   names and the spacing between its lines, and is in no measure or check. All optional and
  *   never defaulted (version 1): a plan that states none reads exactly as before.
+ *   WRT-83: a grid MAY be radial, stating `polar` with its first ring's `radius`. Its `origin` is
+ *   then its centre; its `x` lines are rays out from it, the first at `turn` degrees and each
+ *   `spacing` degrees counter-clockwise past the one before, less than a full turn in all,
+ *   numbered 1, 2, 3; its `y` lines are rings round it, the first `radius` metres out and each
+ *   `spacing` metres past the one before, lettered A, B, C. It is drawn and named as a straight
+ *   grid is. A grid with no `polar` reads exactly as before.
  *
  * C26 · Outdoor space, roofed or open (CNT-7, lab EL-8, EL-18, R-8)
  *   A room MAY be an outdoor space: `outdoor` names its kind (`OUTDOOR_KINDS`: a garden, a
@@ -2604,12 +2610,18 @@ export const GridLinesSchema = z
     }
   })
 
+/** WRT-83: a whole turn, in degrees: a radial grid's rays go round less than it. */
+export const FULL_TURN = 360
+
 /**
  * CNT-16 (C25): a named structural grid. Its lines are set out from `origin`, turned by `turn`
  * (degrees, counter-clockwise): the `x` lines run along the grid's y, the first through `origin`,
  * and the `y` lines along its x. Unnamed, x lines are numbered 1, 2, 3 and y lines lettered A, B,
  * C. Drawn on the `floors` it names (unstated, every floor); in no measure or check. No two of its
- * lines share a name.
+ * lines share a name. WRT-83: with `polar`, a radial grid round `origin`: its `x` lines are rays,
+ * the first at `turn` degrees and each `spacing` degrees counter-clockwise past the one before,
+ * less than a full turn in all; its `y` lines are rings, the first `polar.radius` metres out and
+ * each `spacing` metres past the one before.
  */
 export const StructuralGridSchema = z
   .object({
@@ -2620,11 +2632,18 @@ export const StructuralGridSchema = z
     floors: parts(text('id').pipe(z.string().min(1)), 'floors').optional(),
     x: GridLinesSchema,
     y: GridLinesSchema,
+    // WRT-83 (C25): a radial grid, its first ring's radius. `origin` is then its centre, `x` its
+    // rays (spacing in degrees) and `y` its rings (spacing in metres outwards).
+    polar: z.object({ radius: finite().positive() }).strict().optional(),
   })
   .superRefine((grid, ctx) => {
     const names = [...(grid.x.names ?? []), ...(grid.y.names ?? [])].map((value) => value.trim())
     const twice = names.find((value, i) => names.indexOf(value) !== i)
     if (twice !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: english(said('read.grid.sameName')) })
+    // WRT-83: a radial grid's rays go round less than a full turn, so no two of them are one line.
+    if (grid.polar !== undefined && grid.x.spacing.reduce((sum, step) => sum + step, 0) >= FULL_TURN) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['x', 'spacing'], message: english(said('read.grid.polarTurn')) })
+    }
   })
 
 /**
