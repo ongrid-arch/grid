@@ -11,7 +11,7 @@ import { baseRefusal, baseTouched, phasedPatch } from '../edit/phases'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { DOOR_KINDS, OPENING_KINDS, WINDOW_KINDS, WallKindSchema, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
-import { ARC_SEGMENTS_RANGE, limit, planFloors, phaseCounts, planInState, polygonsOnCircles, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, limit, planFloors, phaseCounts, planInState, polygonsOnCircles, validatePlan, type FloorPlan, type PlanState } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { inspectPlan } from '@ongrid/rules'
@@ -41,7 +41,8 @@ import { ROOM_NAMES_TRAVEL } from './protocol'
 import { comparePlans } from '../quantities/compare'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { LANGUAGE_ARG, openingBetween } from './readTools'
-import { languageOfNames, say, type Language } from '@ongrid/floorplan/messages'
+import { ENGLISH_SPEAKER, languageOfNames, say, type Language } from '@ongrid/floorplan/messages'
+import { loadedFor, stateArg, stateLine } from './stateArg'
 import { briefAnswer } from '../brief/answer'
 import { renameInBrief } from '../brief/rename'
 import { causedText, newLines } from '../edit/caused'
@@ -115,6 +116,7 @@ const exportTool: GridTool = {
     sun: { ...SUN_VIEW_ARG, description: 'glb only: a moment, "YYYY-MM-DD HH:MM" in the site\'s solar time or with the clock\'s offset after it ("2026-06-21 18:30 +02:00"), written as a directional light node named sun (KHR_lights_punctual) shining the way the sun shines then, its bearing and elevation in the node\'s extras. Needs the site\'s latitude and longitude. The plan\'s north and place go into asset.extras.gridNorth whenever it states them.' },
     roofs: { type: 'boolean', description: 'glb and obj only: false leaves out every roof and the parapets on it, to look into the model or walk through it. Left out, the roofs are in.', examples: [false] },
     arcSegments: { type: 'number', description: `glb and obj only: the straight pieces a whole circle of curved wall is written with, a whole number from ${ARC_SEGMENTS_RANGE.min} to ${ARC_SEGMENTS_RANGE.max}. Left out, as finely as the plan is measured.`, examples: [32], minimum: ARC_SEGMENTS_RANGE.min, maximum: ARC_SEGMENTS_RANGE.max },
+    state: stateArg('is every part with its phase, as each format writes phases', 'as both'),
   },
   outputSchema: objectSchema({
     written: STRING,
@@ -147,6 +149,8 @@ const exportTool: GridTool = {
     const roofs = args['roofs'] as boolean | undefined
     const arcSegments = args['arcSegments'] as number | undefined
     const sun = args['sun'] as string | undefined
+    // ARE-75: before or after the work, the building as it stands then; both, as left out, every part with its phase.
+    const state = args['state'] === 'before' || args['state'] === 'after' ? (args['state'] as PlanState) : undefined
     if (!isGridExportFormat(format)) throw new ToolRefusal(`Pass format: one of ${GRID_EXPORT_FORMATS.join(', ')}.`)
     // The floor is checked against the plan first, so an unknown one is not repeated back (MS-19).
     // VEW-72: by its id or its name, or all.
@@ -164,10 +168,10 @@ const exportTool: GridTool = {
       checkExportRequest(request)
       let files: readonly ExportDone[]
       let empty: readonly string[] = []
-      if (out === undefined) ({ done: files, empty } = exportsIntoProject(project, plan, format, request))
+      if (out === undefined) ({ done: files, empty } = exportsIntoProject(project, plan, format, request, state))
       else {
         // VEW-72: out, as grid export --out writes it.
-        const loaded = loadPlan(project, plan)
+        const loaded = loadedFor(loadPlan(project, plan), state)
         const made = exportFile(project, loaded, plan, format, request)
         let written: string
         try {
@@ -179,7 +183,8 @@ const exportTool: GridTool = {
         files = [{ loaded, written, leftOut: made.leftOut, approximated: made.approximated, dxfProfile: made.dxfProfile, floors: made.floors, floorsLeftOut: made.floorsLeftOut, sheets: made.sheets, materials: writeMaterialsBeside(project, written, made) }]
       }
       const each = floor === ALL_FLOORS && files.length > 1
-      const lines: string[] = []
+      const opening = state === undefined ? null : stateLine(readPlan(context, plan).loaded.plan, state, ENGLISH_SPEAKER)
+      const lines: string[] = opening === null ? [] : [opening]
       const wrote = (file: string): string => `Wrote ${quoted(project.relative(file))} in the project folder.`
       for (const done of files) {
         lines.push(wrote(done.written))
@@ -212,6 +217,7 @@ const exportTool: GridTool = {
           files: files.map((done) => ({ written: project.relative(done.written), floors: done.floors.map((held) => held.id) })),
           sheets: files.flatMap((done) => done.sheets), note: files.map((done) => done.note).filter((note) => note !== undefined).join(' ') || null, dxfProfile: first.dxfProfile,
           materials: first.materials === null ? null : project.relative(first.materials), gridVersion: version,
+          ...(opening === null ? {} : { state }),
         },
       }
     } catch (error) {

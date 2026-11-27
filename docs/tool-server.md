@@ -224,6 +224,15 @@ A plan view with `colour: "phase"` or `colour: "stage"` uses the same colours on
 Demolished room outlines appear when coloured by phase or highlighted by id. 3D views and
 working facades show the building after the work and tint new parts teal.
 
+`state` on `grid_areas`, `grid_schedule`, `grid_describe`, `grid_find`, `grid_view` and
+`grid_export` reads the building before the work (`before`), after it (`after`) or both (ARE-75):
+`before` and `after` read the plan as it stands then, as a plan of that state alone, and the
+answer says the state it read. `grid_find state=both` finds among every part, demolished
+ones too; its `view` carries the state on to `grid_view`. `grid_areas state=both` is the area
+table of the work, `grid_describe state=both` the building before and then after, and
+`grid_view state=demolition` and `state=proposed` the demolition and proposed plans
+([areas.md](areas.md#before-and-after-the-work)).
+
 Each answer carries a `view`, the arguments of `grid_view` that show it: `grid_find`'s picks its
 parts out in one colour (`highlight`, their ids), and `grid_count`'s colours each group of the
 floor by its value (`colour`, the field it grouped by), with a key. The `floor` is the one that
