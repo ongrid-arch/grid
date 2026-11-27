@@ -37,6 +37,7 @@ import { saveViewTool } from './viewTool'
 import { previewSyncTool, previewTool } from './previewTools'
 import { tidyTool } from './tidyTool'
 import { setFactsTool } from './factsTool'
+import { setFinishesTool } from './finishesTool'
 import { setTool } from './setTool'
 import { SITE_TOOLS } from './siteTools'
 import { setPlanTool } from './planTool'
@@ -88,6 +89,8 @@ export const GRID_TOOLS: readonly GridTool[] = [
   setTool,
   // WRT-74: facts of the person's own and a room's number, which change no part of the building.
   setFactsTool,
+  // CNT-51: the finishes of many rooms, per wall face and in height bands.
+  setFinishesTool,
   // LVL-21: a stair between two floors, added, changed or removed: the last of the building's changes.
   ...STAIR_TOOLS,
   // LVL-23: which floors are each building's, and the ground each stands on.
