@@ -259,7 +259,7 @@ export function roomTakeoff(
   const guard = isVoid ? room.edges.reduce((sum, edge) => sum + (edge.wall === null || edge.wall.virtual === true ? edge.length : 0), 0) + passages : 0
   heights.sort((a, b) => a - b)
   const height = heights.length > 0 ? heights[Math.floor(heights.length / 2)]! : null
-  const { stated, lowered } = ceiling(room)
+  const { stated, lowered } = isVoid ? { stated: null, lowered: [] } : ceiling(room)
   return {
     id: room.facts.id,
     name: roomCalled(room.facts),
@@ -273,7 +273,7 @@ export function roomTakeoff(
     openingsOff,
     ...(isVoid ? { void: true as const, guard } : {}),
     height,
-    ceilingHeight: stated ?? height,
+    ceilingHeight: isVoid ? null : (stated ?? height),
     lowered,
   }
 }

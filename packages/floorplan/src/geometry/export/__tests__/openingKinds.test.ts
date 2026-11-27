@@ -179,13 +179,13 @@ describe('DXF', () => {
     two.openings.push({ ...two.openings[0]!, id: 'o2', offset: 3.5 } as Opening)
     const dxf = toDxf(buildFloorPlan(two))
     const doc = readDxf(dxf)
-    expect(doc.blocks.map((b) => b.name).filter((n) => n.startsWith('GRID-DOOR'))).toEqual(['GRID-DOOR-SLIDING-2400x300'])
-    expect(doc.entities.filter((e) => e.type === 'INSERT' && valueOf(e, 2) === 'GRID-DOOR-SLIDING-2400x300')).toHaveLength(2)
+    expect(doc.blocks.map((b) => b.name).filter((n) => n.startsWith('GRID-DOOR'))).toEqual(['GRID-DOOR-SLIDING-2400x2100-W300'])
+    expect(doc.entities.filter((e) => e.type === 'INSERT' && valueOf(e, 2) === 'GRID-DOOR-SLIDING-2400x2100-W300')).toHaveLength(2)
     // A sliding door's leaves are all in the cut: no dashed layer.
     expect(doc.tables.get('LAYER')!.records.map((r) => valueOf(r, 2))).not.toContain(DXF_LAYERS.openingsAbove)
 
     const pocket = readDxf(toDxf(buildFloorPlan(kinded({ kind: 'pocket', hinge: 'end', swing: 'left' }))))
-    expect(pocket.blocks.map((b) => b.name)).toContain('GRID-DOOR-POCKET-2400x300-R')
+    expect(pocket.blocks.map((b) => b.name)).toContain('GRID-DOOR-POCKET-2400x2100-W300-LH')
     const layer = pocket.tables.get('LAYER')!.records.find((r) => valueOf(r, 2) === DXF_LAYERS.openingsAbove)!
     expect([valueOf(layer, 6), valueOf(layer, 370)]).toEqual(['DASHED', '18'])
     // HND-1's layer order: right after the doorless openings.
@@ -195,7 +195,7 @@ describe('DXF', () => {
 
     // A door that states the kind of one leaf and no part is HND-1's door block, as before.
     const single = readDxf(toDxf(buildFloorPlan(kinded({ width: 0.9, kind: 'single', hinge: 'start', swing: 'left' }))))
-    expect(single.blocks.map((b) => b.name)).toContain('GRID-DOOR-900x300-L')
+    expect(single.blocks.map((b) => b.name)).toContain('GRID-DOOR-900x2100-W300-RH')
   })
 })
 

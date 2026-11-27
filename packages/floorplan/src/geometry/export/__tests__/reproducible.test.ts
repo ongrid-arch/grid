@@ -94,6 +94,6 @@ describe('DXF circle and curved-wall blocks (CMD-26)', () => {
       openings: [{ id: 'd1', wall: 'bay', type: 'door', offset: 2, width: 1.5, sill: 0, height: 2.1 }]
     })
     const dxf = toDxf(buildFloorPlan(plan))
-    expect(dxf).toContain('GRID-DOOR-1500x200')
+    expect(dxf).toContain('GRID-DOOR-1500x2100-W200')
   })
 })

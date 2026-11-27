@@ -133,6 +133,19 @@ describe('grid export: writing into exports/ beside the plan', () => {
     expect(readdirSync(elsewhere)).toEqual([])
   })
 
+  it('VEW-72: --floor all writes one DXF per floor named after it, and --floor takes a floor\'s name', () => {
+    writeFileSync(join(dir, 'house.json'), readFileSync(join(cli, 'fixtures', 'two-floor-house.json')))
+    const all = grid('export', 'house.json', '--format', 'dxf', '--floor', 'all')
+    expect(all.status).toBe(0)
+    expect(all.out).toBe(`Wrote ${join('exports', 'house-ground-floor.dxf')}\nWrote ${join('exports', 'house-first-floor.dxf')}\n`)
+    const whole = grid('export', 'house.json', '--format', 'dxf')
+    expect(whole.out).toBe(`Wrote ${join('exports', 'house.dxf')}\n`)
+    expect(whole.err).toContain('Holds all 2 floors of the plan')
+    const named = grid('export', 'house.json', '--format', 'dxf', '--floor', 'first floor', '--scale', '1:200')
+    expect(named.out).toBe(`Wrote ${join('exports', 'house-first-floor.dxf')}\n`)
+    expect(named.err).toContain('Its sheets are A3 at 1:200, the scale stated.')
+  })
+
   it('writes to --out instead, and nothing into exports/', () => {
     const run = grid('export', 'two-bed-flat.json', '--format', 'glb', '--out', 'model.glb')
     expect(run.status).toBe(0)
@@ -445,7 +458,11 @@ describe('options: each command refuses what it does not take, by name', () => {
     [['check', 'two-bed-flat.json', '--png'], 'check has no option "--png"'],
     [['check', 'two-bed-flat.json', '--flor', 'ground'], 'check has no option "--flor"'],
     [['draw', 'two-bed-flat.json', '-o', 'a.svg'], 'draw has no option "-o"'],
-    [['export', 'two-bed-flat.json', '--format', 'dxf', '--scale', '2'], 'export has no option "--scale"'],
+    [['export', 'two-bed-flat.json', '--format', 'dxf', '--paper', 'A3'], 'export has no option "--paper"'],
+    // VEW-72: --scale is the DXF's, a whole number up to 1000, and --floor all writes a file per floor.
+    [['export', 'two-bed-flat.json', '--format', 'obj', '--scale', '200'], '--scale applies to DXF only'],
+    [['export', 'two-bed-flat.json', '--format', 'dxf', '--scale', '1:5000'], 'is not a scale Grid draws'],
+    [['export', 'two-bed-flat.json', '--format', 'dxf', '--floor', 'all', '--out', 'a.dxf'], '--floor all writes one file per floor'],
     [['draw', 'two-bed-flat.json', '--png=yes'], '--png is a switch and takes no value'],
     [['check', 'two-bed-flat.json', '--floor'], '--floor needs a value'],
     [['check', 'two-bed-flat.json', '--floor', '--json'], '--floor needs a value'],

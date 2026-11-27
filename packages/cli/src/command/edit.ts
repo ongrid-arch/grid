@@ -54,7 +54,7 @@ export const EDIT_VERBS = {
 type Verb = keyof typeof EDIT_VERBS
 
 const toolOf = (verb: Verb): GridTool => GRID_TOOLS.find((tool) => tool.name === EDIT_VERBS[verb])!
-const optionOf = (arg: string): `--${string}` => `--${arg.replace(/_/g, '-')}`
+export const optionOf = (arg: string): `--${string}` => `--${arg.replace(/_/g, '-')}`
 
 function verbOptions(tool: GridTool): OptionSpecs {
   const specs: Record<`--${string}`, { takesValue: boolean; help: string }> = {}
@@ -84,7 +84,7 @@ function editHelp(): string {
 }
 
 /** An option's text as the argument its tool takes. */
-function valueOf(name: string, spec: ArgSpec, text: string | true): unknown {
+export function valueOf(name: string, spec: ArgSpec, text: string | true): unknown {
   if (spec.type === 'boolean') return true
   // CNT-15: a list is given as one option, its items split at commas: --parts w1,w2.
   if (spec.type === 'array' && typeof text === 'string') return text.split(',').map((item) => item.trim()).filter((item) => item.length > 0)
@@ -102,7 +102,7 @@ function valueOf(name: string, spec: ArgSpec, text: string | true): unknown {
  * CMD-29: a yes-or-no option is given by naming it, and the tool's help says "true": so
  * `--zones true` is taken as `--zones`, and `--zones false` as leaving it out.
  */
-function withBooleanWords(args: readonly string[], tool: GridTool): string[] {
+export function withBooleanWords(args: readonly string[], tool: GridTool): string[] {
   const flags = new Set<string>(Object.entries(tool.args).filter(([, spec]) => spec.type === 'boolean').map(([name]) => optionOf(name)))
   const out: string[] = []
   for (let i = 0; i < args.length; i++) {
@@ -117,7 +117,7 @@ function withBooleanWords(args: readonly string[], tool: GridTool): string[] {
 }
 
 /** The tool's words for an argument, as the command line's option. */
-function asOptions(message: string, tool: GridTool): string {
+export function asOptions(message: string, tool: GridTool): string {
   let text = message
   for (const name of Object.keys(tool.args)) {
     text = text.replace(new RegExp(`^${name} `), `${optionOf(name)} `).replace(new RegExp(`^Pass ${name}:`), `Pass ${optionOf(name)}:`)
