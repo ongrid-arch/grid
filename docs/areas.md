@@ -488,3 +488,32 @@ With no rates file the answer holds no money: it is a rate card, every line with
 unit, and the data's `rateCard` is a rates file ready to fill in. With `format=csv` the bill is
 one row per line with its rule and assumed mark, then the total and the orders; amounts are
 values, not formulas.
+
+## Pricing the change between versions
+
+`grid_takeoff` can measure and price the difference between two first estimates (ARE-74).
+
+- Pass `for=estimate` and `since=start` to compare a saved marker with the current plan.
+  Pass a project file such as `since=options/earlier.json` to use that file as the baseline.
+  When a marker and file share a name, the marker is used.
+- Pass `for=change` and `plans: ["earlier.json", "later.json"]` to compare two plan files in
+  that order. A call with one plan and `for=change` still gives the phased work as
+  demolition, making good and new work.
+- Pass `rates` to `grid_diff` for the estimate change between the versions it compares, or
+  to `grid_compare` to price each option against the first. Each pair's data includes
+  `estimateChange`.
+
+Lines match by estimate key and unit. Each carries `before`, `after` and signed `change`
+(later minus earlier). A line absent from one bill contributes zero on that side, so a
+different window size can appear as one removed key and one added key. The notes say what
+each estimate could not measure. If a take-off or diff selects a floor, both measurements
+use that floor's id in their respective plans.
+
+The same rates apply to both versions, including any unit conversion and waste. The
+take-off reads `rates.json` beside the later plan unless you pass `rates`. With no rates,
+it gives a rate card for the keys from both plans. Each priced line has `beforeAmount`,
+`afterAmount` and `changeAmount`. The three cost totals sum the priced detail lines.
+A whole-building rate is an alternative, shown on the `gross_internal` line. The totals
+are partial when detail lines lack a usable rate. A negative difference describes a lower
+estimated value and gives no price for removal work. Use `format=csv` for the same
+quantities and amounts in a spreadsheet.

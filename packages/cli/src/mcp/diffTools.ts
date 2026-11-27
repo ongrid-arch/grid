@@ -6,12 +6,17 @@
  * (`versions/named.ts`), `show` gives the fields that changed and the change log, and a marker
  * says who set it and why.
  */
+import { say } from '@ongrid/floorplan/messages'
+import type { FloorPlan } from '@ongrid/floorplan/geometry'
 import { historySay } from '../versions/words'
 import { GitUnread } from '../versions/git'
 import { DEFAULT_MARKER, MARKER_BY_MAX, MARKER_NAME, MARKER_NOTE_MAX, MARKERS_MAX, MarkerRefused, removeMarker, setMarker } from '../versions/markers'
 import { DIFF_SHOWS, diffData, diffSince, diffText, type DiffShow } from '../versions/diff'
 import { SEEN_NEW_OUTPUT } from '../edit/seen'
 import { toolLanguage } from './answerLanguage'
+import { CHANGE_RATES_ARG, ESTIMATE_CHANGE_SCHEMA, estimateChangeAnswer, ratesForTool } from './estimateChangeAnswer'
+import { surveyPlan } from '../quantities/survey'
+import { displayFor } from '../quantities/units'
 import { asRefusal, BOOLEAN, FLOOR_ARG, floorArg, listSchema, NULLABLE_STRING, NUMBER, objectSchema, PLAN_ARG, projectOf, planFileOf, readPlan, STRING, ToolRefusal, type GridTool } from './toolkit'
 
 const MARKER_ARG = {
@@ -23,6 +28,12 @@ const MARKER_ARG = {
 
 const refused = (error: unknown): unknown => (error instanceof MarkerRefused || error instanceof GitUnread ? new ToolRefusal(error.message) : asRefusal(error))
 
+/** Diff has already chosen which parts stand before the work. Keep them in the survey. */
+function surveyBeforeWork(plan: FloorPlan) {
+  const existing = <T extends object>(part: T) => ({ ...part, phase: 'existing' as const })
+  return surveyPlan({ ...plan, walls: plan.walls.map(existing), openings: plan.openings.map(existing), rooms: plan.rooms.map(existing) })
+}
+
 export const diffTool: GridTool = {
   name: 'grid_diff',
   title: 'What changed since the start',
@@ -32,9 +43,11 @@ export const diffTool: GridTool = {
     + 'It compares the plan with an earlier version of itself by what stands where, not by ids: the start marker set with grid_mark_start, or the version last committed in the project\'s git folder (since: git). For a plan with existing, demolished and new parts, since: phase compares it before its work with after it: what is removed is to be demolished, what is added is new. It reads both itself, so pass no plans. '
     + 'Every change Grid makes keeps the plan it replaced and a line in the plan\'s change log, so since also takes last (the plan before the last change), a revision from planRevision, a date or date and time, git~1 or a commit; to compares two earlier versions with each other. show: facts lists every field that changed, facts of the person\'s own and room numbers included; show: history lists the log\'s entries since then: who changed what, when, with which tool. '
     + 'It answers issues first (a door that now joins other rooms, a wall that now meets an opening, notes of grid_check that came and went), then a short verdict room by room with how many ids were only renamed, then the changes one line each. A plan that is the earlier one mirrored or turned a quarter or half round is said to be so first, with whether every room kept its size, and compared from there. Pass rooms, the rooms you meant to edit, to have every change outside them named. With picture true (the default) it returns one picture: removed in red, added in green, what changed in amber (a wall or opening at its new place with its old place outlined, a room with its old and new area), the rest pale. '
+    + say('en', 'tool.estimateChange.diffTool') + ' '
     + 'Do not use to compare options or separate plans side by side (grid_compare), or to check the plan itself (grid_check). Units are metres.',
   args: {
     plan: PLAN_ARG,
+    rates: CHANGE_RATES_ARG,
     since: { type: 'string', maxLength: 40, description: `What to compare with: a marker's name, git for the version last committed (git~1 the one before, or a commit by 7 to 40 hex digits), last for the plan before the last change, a revision of 12 hex digits as planRevision gives it, a date (2026-11-26, its start) or date and time (2026-11-26T10:00, UTC unless a zone is given) for the plan as it stood then, or phase for a plan with existing, demolished and new parts as it stands before its work (removed is to be demolished, added is new). The marker ${DEFAULT_MARKER} when the plan has one, else git, when left out.`, examples: [DEFAULT_MARKER, 'git', 'phase', 'last', '2026-11-26'] },
     to: { type: 'string', maxLength: 40, description: 'The later version, named as since is (not phase): to compare two earlier versions with each other. The plan as it is now when left out.', examples: ['after-review', '3f9a0c12be47'] },
     rooms: {
@@ -74,10 +87,12 @@ export const diffTool: GridTool = {
     picture: { type: ['object', 'null'] },
     // MSG-29: each note set aside as seen that is new again since the earlier version.
     seenNew: SEEN_NEW_OUTPUT,
-  }),
+    estimateChange: ESTIMATE_CHANGE_SCHEMA,
+  }, ['since', 'to', 'fields', 'fieldsTotal', 'history', 'verdict', 'sameBuilding', 'turn', 'roomsFirst', 'shift', 'renamed', 'issues', 'rooms', 'changes', 'stayed', 'movedWith', 'massing', 'scope', 'floor', 'otherFloors', 'picture', 'seenNew']),
   async run(args, context) {
     const project = projectOf(context)
     const file = planFileOf(project, args['plan'])
+    const rates = args['rates'] === undefined ? null : ratesForTool(project, file, args['rates'])
     const show = (args['show'] as DiffShow | undefined) ?? 'all'
     let run
     try {
@@ -90,6 +105,19 @@ export const diffTool: GridTool = {
     // CMD-32: the floor narrows the answer as well as the picture.
     const text = [diffText(run, show, asked)]
     const data = diffData(run, show, asked)
+    if (rates !== null) {
+      const units = displayFor(undefined, undefined, run.later.plan, toolLanguage(context, run.later.plan))
+      const version = (one: typeof run.since): string => {
+        if (one.kind === 'marker') return one.name
+        if (one.kind === 'git') return one.ref ?? one.commit
+        if (one.kind === 'revision') return one.asked
+        return one.kind === 'now' ? file : 'phase'
+      }
+      const earlier = run.since.kind === 'phase' ? surveyBeforeWork(run.earlier.plan) : surveyPlan(run.earlier.plan)
+      const priced = estimateChangeAnswer(earlier, surveyPlan(run.later.plan), version(run.since), run.to === null ? file : version(run.to), rates, units, asked)
+      text.push(priced.text)
+      data['estimateChange'] = priced.data
+    }
     const c = run.comparison
     const wanted = args['picture'] !== false
     let image

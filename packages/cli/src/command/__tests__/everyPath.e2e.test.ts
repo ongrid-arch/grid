@@ -238,12 +238,19 @@ const TOOL_SLOTS: Readonly<Record<string, readonly ToolSlot[]>> = {
   grid_compare: [
     { arg: 'plans', call: tool('grid_compare', { plans: ['@', PLAN] }), given: asIs },
     { arg: 'plans', call: tool('grid_compare', { plans: [PLAN, '@'] }), given: asIs },
+    { arg: 'rates', call: tool('grid_compare', { plans: [PLAN, PLAN], rates: '@' }), given: asIs },
   ],
   // WRT-8: the earlier version is read from the markers file beside the plan, or the project's .git.
-  grid_diff: [{ arg: 'plan', call: tool('grid_diff', { plan: '@' }), given: asIs }],
+  grid_diff: [
+    { arg: 'plan', call: tool('grid_diff', { plan: '@' }), given: asIs },
+    { arg: 'rates', call: tool('grid_diff', { plan: PLAN, rates: '@' }), given: asIs },
+  ],
   grid_areas: [{ arg: 'plan', call: tool('grid_areas', { plan: '@' }), given: asIs }],
   grid_takeoff: [
     { arg: 'plan', call: tool('grid_takeoff', { plan: '@' }), given: asIs },
+    { arg: 'since', call: tool('grid_takeoff', { plan: PLAN, for: 'estimate', since: '@' }), given: asIs },
+    { arg: 'plans', call: tool('grid_takeoff', { for: 'change', plans: ['@', PLAN] }), given: asIs },
+    { arg: 'plans', call: tool('grid_takeoff', { for: 'change', plans: [PLAN, '@'] }), given: asIs },
     // ARE-13: the person's rates file, read like the plan.
     { arg: 'rates', call: tool('grid_takeoff', { plan: PLAN, for: 'estimate', rates: '@' }), given: asIs },
   ],
@@ -567,7 +574,7 @@ describe('the slots this file lists', () => {
   it('cover every tool argument that is a path, and no other', async () => {
     const PATH_ARGS = ['plan', 'plans', 'out', 'rates', 'scan', 'roomsFile', 'before', 'after', 'image', 'base']
     // CMD-43: from is a drawing's path in grid_write_rooms; elsewhere it is a part or a point.
-    const isPath = (tool: string, arg: string): boolean => PATH_ARGS.includes(arg) || (tool === 'grid_write_rooms' && arg === 'from')
+    const isPath = (tool: string, arg: string): boolean => PATH_ARGS.includes(arg) || (tool === 'grid_write_rooms' && arg === 'from') || (tool === 'grid_takeoff' && arg === 'since')
     const [reply] = await rpc([{ method: 'tools/list' }]) as Array<{ result: { tools: Array<{ name: string; inputSchema: { properties: Record<string, unknown> } }> } }>
     const pathArgs = reply!.result.tools.flatMap((t) => Object.keys(t.inputSchema.properties)
       .filter((arg) => isPath(t.name, arg))

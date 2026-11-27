@@ -30,7 +30,7 @@ import { walkPictures } from '../describe/walkPictures'
 import { WALK_EYE_HEIGHT, WALK_PICTURES_MAX } from '../describe/walk'
 import { drawShowOf } from '../command/drawShow'
 import { UsageError } from '../command/options'
-import { faultText, type LoadedPlan } from '../command/plan'
+import { faultText, loadPlan, loadPlanText, type LoadedPlan } from '../command/plan'
 import { nothingToDraw } from '../command/planFile'
 import { cropFrame, partBounds, type PartBounds } from '../draw/partBoxes'
 import { DESCRIBE_AUDIENCES, DESCRIBE_LENGTHS } from '../describe/card'
@@ -83,7 +83,11 @@ import { ACCESS_RULE, accessAnswer } from '../quantities/access'
 import { FIGURES_HEADING, readBrief } from '../brief/brief'
 import { roomCalled, roomCalledById, surveyPlan, sideNames, type Survey, type SurveyRoom } from '../quantities/survey'
 import { planEstimate, WHOLE_BUILDING_KEY, type Estimate, type EstimateLine, type QuantityUnit } from '../quantities/estimate'
-import { estimateCsv, priceEstimate, rateCard, RATE_UNITS, RATES_FILE, RatesRefused, readRates, type PricedLine, type Pricing, type Rates } from '../quantities/rates'
+import { CHANGE_RATES_ARG, ESTIMATE_CHANGE_PROPERTIES, ESTIMATE_CHANGE_SCHEMA, estimateChangeAnswer, ratesForTool } from './estimateChangeAnswer'
+import { GitUnread } from '../versions/git'
+import { MARKER_NAME, MarkerRefused } from '../versions/markers'
+import { namedVersion, VersionRefused } from '../versions/named'
+import { estimateCsv, priceEstimate, rateCard, RATE_UNITS, RATES_FILE, type PricedLine, type Pricing } from '../quantities/rates'
 import { columnRule, parkingRule, planTakeoff, TAKEOFF_RULES, type BayCount, type ColumnRun, type RampFigures } from '../quantities/takeoff'
 import { FINISH_RULE, FINISH_SURFACES, FINISH_UNITS, WALL_TYPE_RULE, planFinishes, wallTypeRuns, type FinishSurface } from '../quantities/finishes'
 import {
@@ -309,6 +313,7 @@ const compareTool: GridTool = {
   description:
     'Use this when the person asks how two or more plans differ, which option is bigger, to see options side by side, or what a change did: "compare A, B and C", "what differs between A and B", "how much bigger than now", "what comes out and what is new". '
     + 'It gives one table of the options (net, gross internal and gross external areas, the living area under air and the total under roof, which lead a US plan\'s row, circulation, net to gross, the lettable area, the core and efficiency, area by use, and with people or each plan\'s brief the area per pupil, key or cover) and, for each later plan against the first, what differs by room name, walls out and new with their lengths and face areas, and openings out, new or changed. '
+    + say('en', 'tool.estimateChange.compareTool') + ' '
     + 'A plan that is the first one moved, mirrored or turned is said to be so, not listed as moved walls. With picture true it also returns one sheet of the plans side by side at the same scale. '
     + 'Do not use for the areas of one plan (grid_areas) or a picture of one plan (grid_view). Units are metres.',
   args: {
@@ -331,6 +336,7 @@ const compareTool: GridTool = {
     },
     floor: { ...FLOOR_ARG, description: 'For the picture only: the floor to draw from each plan. Each plan\'s ground floor when left out.' },
     picture: { type: 'boolean', description: 'true to return one sheet with the plans side by side at one scale. false when left out.', examples: [true, false] },
+    rates: CHANGE_RATES_ARG,
     // ARE-68: as grid_areas takes them, for every option.
     lettable_uses: LETTABLE_USES_ARG,
     lettable_tenures: LETTABLE_TENURES_ARG,
@@ -338,7 +344,7 @@ const compareTool: GridTool = {
   },
   outputSchema: objectSchema({
     options: listSchema(objectSchema({ label: STRING, net: NUMBER, grossInternal: NULLABLE_NUMBER, grossExternal: NULLABLE_NUMBER, conditioned: NULLABLE_NUMBER, underRoof: NULLABLE_NUMBER, underAirFirst: { type: 'boolean' }, circulation: NUMBER, circulationShare: NULLABLE_NUMBER, netToGross: NULLABLE_NUMBER, rooms: NUMBER, bedrooms: NUMBER, byUse: { type: 'object' }, byRoomType: { type: 'object' }, byTenure: { type: 'object' }, lettable: NUMBER, core: NUMBER, efficiency: NULLABLE_NUMBER, coreShare: NULLABLE_NUMBER, people: { type: 'array' } }, ['label', 'net', 'grossInternal', 'grossExternal', 'conditioned', 'underRoof', 'underAirFirst', 'circulation', 'circulationShare', 'netToGross', 'rooms', 'bedrooms', 'byUse'])),
-    comparisons: listSchema(objectSchema({ before: STRING, after: STRING, likeness: { type: ['string', 'null'] }, verdict: STRING, rooms: { type: 'array' }, wallsOut: { type: 'array' }, wallsNew: { type: 'array' }, wallsChanged: { type: 'array' }, openingsOut: { type: 'array' }, openingsNew: { type: 'array' }, openingsChanged: { type: 'array' }, massing: { type: 'object' } })),
+    comparisons: listSchema(objectSchema({ before: STRING, after: STRING, likeness: { type: ['string', 'null'] }, verdict: STRING, rooms: { type: 'array' }, wallsOut: { type: 'array' }, wallsNew: { type: 'array' }, wallsChanged: { type: 'array' }, openingsOut: { type: 'array' }, openingsNew: { type: 'array' }, openingsChanged: { type: 'array' }, massing: { type: 'object' }, estimateChange: ESTIMATE_CHANGE_SCHEMA }, ['before', 'after', 'likeness', 'verdict', 'rooms', 'wallsOut', 'wallsNew', 'wallsChanged', 'openingsOut', 'openingsNew', 'openingsChanged', 'massing'])),
     rules: listSchema(STRING),
   }),
   async run(args, context) {
@@ -356,6 +362,10 @@ const compareTool: GridTool = {
     const rules = [...Object.values(AREA_RULES), ...(options.some((row) => row.underAirFirst) ? [MEASURES.conditioned.measures, MEASURES.underRoof.measures] : []), ...lettingRules, ...(options.some((row) => row.people !== undefined) ? [english(said('people.rule'))] : [])]
     // ARE-68: the lettable rules are in the data, so the table stays short.
     const lines = ['Options:', ...options.map((row) => `  ${optionLine(row, displayFor(undefined, undefined, surveys[0]!.plan))}`), '', ...comparisons.flatMap(comparisonLines), '', ...rules.filter((rule) => !lettingRules.includes(rule))]
+    const rates = args['rates'] === undefined ? null : ratesForTool(projectOf(context), loaded[0]!.file, args['rates'])
+    const units = displayFor(undefined, undefined, surveys[0]!.plan, toolLanguage(context, surveys[0]!.plan))
+    const priced = rates === null ? [] : surveys.slice(1).map((survey, i) => estimateChangeAnswer(surveys[0]!, survey, labels[0]!, labels[i + 1]!, rates, units))
+    if (priced.length > 0) lines.push('', GENERAL_GUIDANCE_LABEL, ...priced.map((one) => one.text))
     let image
     if (args['picture'] === true) {
       // LVL-25: each plan's own floor of that id, name or level.
@@ -368,7 +378,7 @@ const compareTool: GridTool = {
     }
     return {
       text: lines.join('\n'),
-      data: { options, comparisons, rules },
+      data: { options, comparisons: comparisons.map((one, i) => priced[i] === undefined ? one : { ...one, estimateChange: priced[i].data }), rules },
       ...(image ? { image } : {}),
     }
   },
@@ -919,6 +929,22 @@ function finishLines(totals: readonly { readonly surface: FinishSurface; readonl
   ]
 }
 
+function takeoffBaseline(project: ReturnType<typeof projectOf>, file: string, since: string, savedVersion: boolean): LoadedPlan {
+  try {
+    if (savedVersion && MARKER_NAME.test(since)) {
+      try {
+        return loadPlanText(project, file, namedVersion(project, file, since).text, file)
+      } catch (error) {
+        if (!(error instanceof VersionRefused) || (!/\.json$/i.test(since) && !project.exists(since))) throw error
+      }
+    }
+    return loadPlan(project, since)
+  } catch (error) {
+    if (error instanceof MarkerRefused || error instanceof GitUnread) throw new ToolRefusal(error.message)
+    throw asRefusal(error)
+  }
+}
+
 const takeoffTool: GridTool = {
   name: 'grid_takeoff',
   title: 'Quantities for pricing',
@@ -927,6 +953,7 @@ const takeoffTool: GridTool = {
     'Use this when a builder or the person asks for quantities to price work: metres of wall (outside walls, inner walls, partitions), plaster or paint area per room less openings, ceiling areas, skirting lengths, slab and roof areas, or these as a spreadsheet. '
     + 'With for=estimate, or when the person asks what the plan will cost, how much flooring, paint or plasterboard it takes, or for a bill of quantities, it gives the figures a first estimate needs instead: floor finishes and wall faces by room use, ceilings, skirting, reveals, walls by kind and thickness, the outside face, doors and windows by size, the slab, upper floors and the roof (assumed: the plan holds none), and the gross internal area, each line with a key, its rule and an assumed mark. '
     + 'With for=change, for a refurbishment whose plan marks parts existing, demolished or new, it gives the work as three lists instead: demolish (walls by kind and thickness, doors and windows), make good (floor where walls stood, wall faces where they met, openings filled in, reveals of new openings in old walls) and new (walls, doors and windows, the new rooms\' floors), so taking a wall out is work to price, never a saving. '
+    + say('en', 'tool.estimateChange.takeoffTool') + ' '
     + `A cost comes only from the person's own rates file (rates, or ${RATES_FILE} beside the plan), which must name its currency; with none, the answer is a rate card to fill in and holds no money. Lines with no rate and rates in the wrong unit are listed apart. Grid has no prices. `
     + 'Every figure is worked out from the plan\'s walls and openings by a rule stated in the answer. '
     + 'It also gives each floor\'s slab and the roof over every part with nothing above, worked out from the outlines and marked assumed. '
@@ -936,6 +963,8 @@ const takeoffTool: GridTool = {
   args: {
     plan: PLAN_ARG,
     floor: FLOOR_ARG,
+    since: { type: 'string', maxLength: PATH_MAX, description: say('en', 'tool.estimateChange.sinceArg'), examples: ['start', 'options/earlier.json'] },
+    plans: { type: 'array', items: { maxLength: PATH_MAX }, minItems: 2, maxItems: 2, description: say('en', 'tool.estimateChange.plansArg'), examples: [['earlier.json', 'plan.json']] },
     rooms: { type: 'array', description: 'Only these rooms, by id. Every room when left out. Not with for=estimate.', examples: [['kitchen', 'bath']], items: { id: true }, minItems: 1, maxItems: 200 },
     for: { type: 'string', enum: ['estimate', 'change'], description: 'estimate for the bill of quantities of a first estimate; change for a plan with existing, demolished and new parts, its work as three lists (demolish, make good, new). Each priced from the person\'s rates or as a rate card. The take-off by room when left out.', examples: ['estimate', 'change'] },
     rates: {
@@ -980,32 +1009,42 @@ const takeoffTool: GridTool = {
       state: STRING,
     }),
     rules: listSchema(STRING),
-    // ARE-13, with for=estimate: the lines, and the cost from the person's rates or the rate card.
+    ...ESTIMATE_CHANGE_PROPERTIES,
     label: STRING,
-    lines: listSchema(objectSchema({ key: STRING, what: STRING, quantity: NUMBER, unit: STRING, rule: STRING, assumed: BOOLEAN, list: STRING }, ['key', 'what', 'quantity', 'unit', 'rule', 'assumed'])),
-    notes: listSchema(STRING),
-    rateCard: objectSchema({ label: STRING, currency: STRING, rates: { type: 'object' } }),
-    cost: objectSchema({ file: STRING, label: NULLABLE_STRING, currency: STRING, total: NUMBER, complete: BOOLEAN, missing: listSchema(STRING), wrongUnit: { type: 'array' }, unused: listSchema(STRING), wholeBuilding: NULLABLE_NUMBER }),
+    lines: { anyOf: [
+      ESTIMATE_CHANGE_PROPERTIES.lines,
+      listSchema(objectSchema({ key: STRING, what: STRING, quantity: NUMBER, unit: STRING, rule: STRING, assumed: BOOLEAN, list: STRING }, ['key', 'what', 'quantity', 'unit', 'rule', 'assumed'])),
+    ] },
+    notes: { anyOf: [ESTIMATE_CHANGE_PROPERTIES.notes, listSchema(STRING)] },
+    cost: { anyOf: [
+      ESTIMATE_CHANGE_PROPERTIES.cost,
+      objectSchema({ file: STRING, label: NULLABLE_STRING, currency: STRING, total: NUMBER, complete: BOOLEAN, missing: listSchema(STRING), wrongUnit: { type: 'array' }, unused: listSchema(STRING), wholeBuilding: NULLABLE_NUMBER }),
+    ] },
     orders: { type: 'array' },
     orderProblems: listSchema(STRING),
   }, ['rules']),
   run(args, context) {
+    const since = args['since'] as string | undefined
+    const plans = args['plans'] as [string, string] | undefined
+    if ((since !== undefined && args['for'] !== 'estimate') || (plans !== undefined && args['for'] !== 'change')) {
+      throw new ToolRefusal(english(said('tool.estimateChange.needsMode')))
+    }
+    if (plans !== undefined && args['plan'] !== undefined) throw new ToolRefusal(english(said('tool.estimateChange.needsPairOnly')))
     if (args['for'] === 'estimate' || args['for'] === 'change') {
       const change = args['for'] === 'change'
       if (args['rooms'] !== undefined) throw new ToolRefusal(`for=${change ? 'change' : 'estimate'} takes no rooms: its walls, outside face, slab and roof belong to no one room. Pass floor for one floor.`)
-      const { project, file, loaded } = readPlan(context, args['plan'])
+      const { project, file, loaded } = readPlan(context, plans?.[1] ?? args['plan'])
       const survey = surveyPlan(loaded.plan)
       const floor = floorArg(loaded.plan, args['floor'])
-      let rates: Rates | null
-      try {
-        rates = readRates(project, file, args['rates'] as string | undefined)
-      } catch (error) {
-        if (error instanceof RatesRefused) throw new ToolRefusal(error.message)
-        throw asRefusal(error)
-      }
+      const rates = ratesForTool(project, file, args['rates'])
       const floors = floor === undefined ? {} : { floors: [floor] }
       // MSG-34: the call's language, else the plan's, gives the decimal mark of every figure and sum.
       const units = displayFor(args['units'], args['decimal'], loaded.plan, toolLanguage(context, loaded.plan))
+      if (since !== undefined || plans !== undefined) {
+        const baseline = (since ?? plans?.[0])!
+        const before = takeoffBaseline(project, file, baseline, plans === undefined)
+        return estimateChangeAnswer(surveyPlan(before.plan), survey, baseline, file, rates, units, floor, args['format'] === 'csv')
+      }
       const answer = (estimate: Estimate): Answer => estimateAnswer(estimate, rates === null ? null : priceEstimate(estimate, rates), units, args['format'] === 'csv', change)
       // CNT-10: the work of a plan with phases, as three lists, on the same rates. Read only when
       // asked for, so the command's file stays small.
