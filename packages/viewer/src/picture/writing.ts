@@ -9,7 +9,8 @@
  * Pure: no DOM, no React.
  */
 import type { PlanDrawing, PlanNote, PlanSketch, Vec2, WallDrawnKind } from '@ongrid/floorplan/geometry'
-import { hatchLines, wallDrawnKind } from '@ongrid/floorplan/geometry'
+import { hatchLines, isPointKind, wallDrawnKind } from '@ongrid/floorplan/geometry'
+import { POINT_KINDS } from '@ongrid/floorplan/types/floorplan'
 import type { RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import type { PictureKey } from './faults'
@@ -129,11 +130,37 @@ export function northArrowNode(north: { readonly turn: number }, view: { readonl
 
 /** One entry of the drawing's key: a swatch and what it stands for. */
 export interface KeyEntry {
-  readonly swatch: 'fill' | 'line' | 'dash' | 'door' | 'mark' | 'hatch'
+  readonly swatch: 'fill' | 'line' | 'dash' | 'door' | 'mark' | 'hatch' | 'symbol' | 'number'
   readonly color: string
   readonly words: string
   /** SHT-10: a hatch swatch's line angles, in degrees counter-clockwise. */
   readonly angles?: readonly number[]
+  /** CNT-52: a symbol swatch's drawing, an item's own block in metres round its middle, and its width and depth. */
+  readonly symbol?: { readonly rings: readonly (readonly Vec2[])[]; readonly lines: readonly (readonly Vec2[])[]; readonly size: readonly [number, number] }
+  /** CNT-52: a number swatch's number, as its mark on the plan carries it. */
+  readonly number?: number
+}
+
+/**
+ * CNT-52: the key's entries for the points a drawing shows, one per kind in `POINT_KINDS` order,
+ * each with the symbol of the first point of that kind as its swatch. A kind added through the
+ * registry is keyed by its word, as written.
+ */
+export function pointKeyEntries(drawing: PlanDrawing, look: PlanLook, words: DrawingWords = ENGLISH_WORDS): KeyEntry[] {
+  const first = new Map<string, PlanDrawing['items'][number]>()
+  for (const item of drawing.items) if (isPointKind(item.kind) && !first.has(item.kind)) first.set(item.kind, item)
+  const own = POINT_KINDS as readonly string[]
+  const kinds = [...first.keys()].sort((a, b) => (own.indexOf(a) < 0 ? own.length : own.indexOf(a)) - (own.indexOf(b) < 0 ? own.length : own.indexOf(b)))
+  return kinds.map((kind) => {
+    const item = first.get(kind)!
+    const text = own.includes(kind) ? drawingText(words, `drawing.key.point.${kind as (typeof POINT_KINDS)[number]}`) : item.label
+    return { swatch: 'symbol', color: look.wall, words: text, symbol: { rings: item.block.rings, lines: item.block.lines, size: item.size } }
+  })
+}
+
+/** CNT-52: the key's entries for the tags with words, each by the number its mark on the plan carries. */
+export function tagKeyEntries(numbered: readonly PlanNote[], words: DrawingWords = ENGLISH_WORDS): KeyEntry[] {
+  return numbered.flatMap((note, index): KeyEntry[] => (note.kind === 'tag' ? [{ swatch: 'number', color: '', number: index + 1, words: drawingText(words, 'drawing.key.tag', { text: note.text ?? '' }) }] : []))
 }
 
 /** What the key lists: only what this drawing shows, in `words`' language. */
@@ -156,6 +183,8 @@ export function keyEntries(
     readonly finishes?: readonly { readonly finish: string; readonly colour: string }[]
     /** SHT-10: the wall materials the drawing hatches, each with its hatch's angles, in the ink. */
     readonly materials?: readonly { readonly material: string; readonly angles: readonly number[]; readonly ink: string }[]
+    /** CNT-52: the tags with words, numbered as their marks are, listed by their numbers. */
+    readonly tags?: readonly KeyEntry[]
   },
   words: DrawingWords = ENGLISH_WORDS
 ): KeyEntry[] {
@@ -198,6 +227,8 @@ export function keyEntries(
   for (const entry of shown.finishes ?? []) entries.push({ swatch: 'fill', color: entry.colour, words: say('drawing.key.finish', { finish: entry.finish }) })
   // CNT-9: the parts picked out, by what each colour stands for.
   for (const entry of shown.painted ?? []) entries.push({ swatch: 'fill', color: entry.colour, words: entry.words })
+  // CNT-52: the points shown, by kind, and the tags by their numbers.
+  entries.push(...pointKeyEntries(drawing, look, words), ...(shown.tags ?? []))
   if (shown.sketch) {
     for (const category of new Set(drawing.sketch.map((item) => item.category))) {
       entries.push({ swatch: 'line', color: look.labelSoft, words: say('drawing.key.sketch', { category }) })
@@ -222,7 +253,7 @@ const HATCH_SWATCH_PX = 3
  * the title on the first line, then the key's entries side by side, wrapping. Null with neither.
  * The title is the plan's own, as written; the key's heading is in `words`' language.
  */
-export function writingBand(title: string | null, entries: readonly KeyEntry[], width: number, look: PlanLook, words: DrawingWords = ENGLISH_WORDS, notes: readonly string[] = []): PictureKey | null {
+export function writingBand(title: string | null, entries: readonly KeyEntry[], width: number, look: PlanLook, words: DrawingWords = ENGLISH_WORDS, notes: readonly string[] = [], numbers?: readonly number[]): PictureKey | null {
   if (title === null && entries.length === 0 && notes.length === 0) return null
   const nodes: SvgNode[] = []
   let y = MARGIN_PX
@@ -260,7 +291,8 @@ export function writingBand(title: string | null, entries: readonly KeyEntry[], 
     const indent = 40
     notes.forEach((text, index) => {
       const lines = wrapText(text, TEXT_PX.warning, Math.max(width - 2 * MARGIN_PX - indent, 80))
-      nodes.push(el('text', { 'data-part': 'notes-number', x: MARGIN_PX + indent - 8, y: n(y + 9), 'text-anchor': 'end', fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.warning }, [String(index + 1)]))
+      // CNT-52: each by its mark's number, which a tag listed in the key leaves a gap in.
+      nodes.push(el('text', { 'data-part': 'notes-number', x: MARGIN_PX + indent - 8, y: n(y + 9), 'text-anchor': 'end', fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.warning }, [String(numbers?.[index] ?? index + 1)]))
       lines.forEach((line) => {
         nodes.push(el('text', { 'data-part': 'notes-text', x: MARGIN_PX + indent, y: n(y + 9), fill: look.label, 'font-family': look.font, 'font-size': TEXT_PX.warning }, [line]))
         y += LINE_PX_KEY
@@ -283,6 +315,25 @@ function swatchOf(entry: KeyEntry, look: PlanLook): SvgNode {
       return el('path', { 'data-part': 'key-swatch', d: `M2,${h}L2,0A${h},${h} 0 0 1 ${h + 2},${h}`, fill: 'none', stroke: entry.color, 'stroke-width': 1 })
     case 'mark':
       return el('circle', { 'data-part': 'key-swatch', cx: h / 2 + 2, cy: h / 2, r: h / 2 + 1, fill: entry.color })
+    case 'number':
+      // CNT-52: a tag's numbered mark, as the plan draws it.
+      return el('g', { 'data-part': 'key-swatch' }, [
+        el('circle', { cx: w / 2, cy: h / 2, r: h / 2 + 2, fill: look.paper, stroke: look.label, 'stroke-width': 1 }),
+        el('text', { x: w / 2, y: h / 2 + 3, 'text-anchor': 'middle', fill: look.label, 'font-family': look.font, 'font-size': 8 }, [String(entry.number ?? '')]),
+      ])
+    case 'symbol': {
+      // CNT-52: a point's symbol, its own block scaled into the swatch's height, y down.
+      const symbol = entry.symbol
+      if (symbol === undefined) return el('g', { 'data-part': 'key-swatch' })
+      const scale = (h + 2) / Math.max(symbol.size[0], symbol.size[1])
+      const at = (p: Vec2): string => `${n(w / 2 + p.x * scale)},${n(h / 2 - p.y * scale)}`
+      const ring = symbol.rings.map((r) => `M${r.map(at).join('L')}Z`).join('')
+      const lines = symbol.lines.map((l) => `M${l.map(at).join('L')}`).join('')
+      return el('g', { 'data-part': 'key-swatch' }, [
+        ...(ring === '' ? [] : [el('path', { d: ring, fill: look.paper, stroke: entry.color, 'stroke-width': 0.75 })]),
+        ...(lines === '' ? [] : [el('path', { d: lines, fill: 'none', stroke: entry.color, 'stroke-width': 0.75 })]),
+      ])
+    }
     case 'hatch': {
       // SHT-10: the hatch across a box of paper, by the core's own lines. The key is drawn y down,
       // so an angle counter-clockwise on the plan turns the other way here.

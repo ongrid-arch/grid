@@ -89,7 +89,7 @@
  *   and says which in `unstated`, which is never written back (`statedWall`). Version 1.
  *
  * C9 · Facts of the person's own (CNT-9)
- *   A wall, an opening, a room and a floor MAY carry facts of the person's own in `properties`:
+ *   A wall, an opening, a room, a floor and (CNT-52) an item MAY carry facts of the person's own in `properties`:
  *   a name and a value, text, a number or true or false (a fire rating, a department, a head
  *   count). They sit in that one object, never as loose fields, so a misspelt field of the
  *   format is still named (MSG-4). A room MAY state its room number in `number`. Grid checks
@@ -247,7 +247,12 @@
  *   (C5, LVL-6). `types.defaults` names the type a wall of each kind, a door or a window takes when
  *   it names none: the template an office keeps. A dividing line takes no type. A room or a zone
  *   (CNT-8) MAY name its `finishes`: floor, walls, ceiling and skirting, by the person's own names;
- *   a zone's finish is its part of its room. Grid checks no finish and no material. An id a part
+ *   a zone's finish is its part of its room. Reopened by CNT-51: `skirting` MAY be `false`, no
+ *   skirting, measured as none; `faces` MAY finish one wall's face in the room other than its walls
+ *   (a wall id and a finish); `bands` MAY lay a finish `height` metres high from `from` metres above
+ *   the floor on every face of the room, on one wall's face (`wall`) or behind an item (`behind`)
+ *   over the length of its back, from the item's top unless `from` says. A band and a face take
+ *   their area off the room's walls finish. Grid checks no finish and no material. An id a part
  *   names that no type has is said and read as no type, never refused. Optional and never
  *   defaulted: a plan with none reads exactly as before (version 1).
  *
@@ -1320,11 +1325,34 @@ export type FinishSurface = (typeof FINISH_SURFACES)[number]
 
 const finishName = () => text('name').pipe(z.string().refine((value) => value.trim().length > 0, { message: 'is blank: leave the finish out instead' }))
 
+/** CNT-51 (C24): one wall's face in the room finished other than the room's walls: a feature wall. */
+export const FinishFaceSchema = z.object({
+  wall: text('id'),
+  finish: finishName(),
+})
+
+/**
+ * CNT-51 (C24): a band of finish on the room's wall faces, `height` metres high from `from` metres
+ * above its floor: on every face of the room, on one wall's face (`wall`), or behind an item
+ * (`behind`) over the length of its back, from the item's top unless `from` says.
+ */
+export const FinishBandSchema = z.object({
+  finish: finishName(),
+  height: finite().positive(),
+  from: finite().nonnegative().optional(),
+  wall: text('id').optional(),
+  behind: text('id').optional(),
+})
+
 export const FinishesSchema = z.object({
   floor: finishName().optional(),
   walls: finishName().optional(),
   ceiling: finishName().optional(),
-  skirting: finishName().optional(),
+  // CNT-51: false says the room has no skirting, so none is measured.
+  skirting: z.union([finishName(), z.literal(false)]).optional(),
+  // CNT-51: wall faces finished other than the room's walls, and bands of finish on its faces.
+  faces: parts(FinishFaceSchema, 'finished faces').optional(),
+  bands: parts(FinishBandSchema, 'finish bands').optional(),
 })
 
 export const RoomSchema = z.object({
@@ -1681,7 +1709,17 @@ export const EQUIPMENT_KINDS = ['rack', 'generator', 'pump', 'tank', 'seat', 'pe
  * The kinds Grid holds itself, fixtures first. Another kind is added through the kinds registry
  * (`registerItemKind` in `geometry/itemKinds.ts`), never by adding to this list alone.
  */
-export const ITEM_KINDS = [...FIXTURE_KINDS, ...FURNITURE_KINDS, ...EQUIPMENT_KINDS] as const
+/**
+ * CNT-52 (C30): the things an item may be that stand at a point: an extinguisher, a defibrillator
+ * (`aed`), a fire alarm call point, a first aid point, a sensor, a desk position (`desk-point`;
+ * `desk` is the furniture), a game's spawn point and a camera, then the fire and wayfinding set:
+ * you are here, a hose reel, a fire door's mark, an exit, a refuge and an assembly point. A point
+ * takes no floor and is in no item's way; its `size` is the size its symbol is drawn at and its
+ * `height` the height it is shown at.
+ */
+export const POINT_KINDS = ['extinguisher', 'aed', 'call-point', 'first-aid', 'sensor', 'desk-point', 'spawn', 'camera', 'you-are-here', 'hose-reel', 'fire-door', 'exit', 'refuge', 'assembly-point'] as const
+
+export const ITEM_KINDS = [...FIXTURE_KINDS, ...FURNITURE_KINDS, ...EQUIPMENT_KINDS, ...POINT_KINDS] as const
 
 export type ItemKind = (typeof ITEM_KINDS)[number]
 
@@ -1761,6 +1799,8 @@ export const ItemSchema = z.preprocess(
       .object({ back: finite().nonnegative().optional(), left: finite().nonnegative().optional(), right: finite().nonnegative().optional() })
       .strict()
       .optional(),
+    // CNT-52 (C9): facts of the person's own: an extinguisher's type, a sensor's address.
+    properties: PropertiesSchema.optional(),
     // CNT-20: what its library entry filled in (`withLibrary`). Grid's reading only, never written back.
     fromLibrary: z.array(z.enum(LIBRARY_VALUES)).optional(),
   })
@@ -2820,6 +2860,8 @@ export type DoorType = z.infer<typeof DoorTypeSchema>
 export type WindowType = z.infer<typeof WindowTypeSchema>
 export type PartTypes = z.infer<typeof PartTypesSchema>
 export type Finishes = z.infer<typeof FinishesSchema>
+export type FinishFace = z.infer<typeof FinishFaceSchema>
+export type FinishBand = z.infer<typeof FinishBandSchema>
 export type FloorPlan = z.infer<typeof FloorPlanSchema>
 
 export const EMPTY_FLOOR_PLAN: FloorPlan = {

@@ -60,6 +60,7 @@ const ORDER = [
   'grid_tidy',
   'grid_set',
   'grid_set_facts',
+  'grid_set_finishes',
   'grid_add_stair',
   'grid_change_stair',
   'grid_set_building',
@@ -82,7 +83,7 @@ const ORDER = [
 ]
 
 const READ_ONLY = new Set(['grid_project', 'grid_compare', 'grid_diff', 'grid_areas', 'grid_takeoff', 'grid_schedule', 'grid_fields', 'grid_find', 'grid_count', 'grid_measure', 'grid_describe', 'grid_check', 'grid_report_problem'])
-const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_write_building', 'grid_add_storey', 'grid_remove_building', 'grid_place_building', 'grid_set_levels', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_set_plan', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
+const CHANGES_PLAN = new Set(['grid_undo', 'grid_restore', 'grid_write_rooms', 'grid_change_opening', 'grid_change_wall', 'grid_change_type', 'grid_move_room_side', 'grid_mirror', 'grid_merge_rooms', 'grid_split_room', 'grid_add_room', 'grid_stretch', 'grid_rename_room', 'grid_square_scan', 'grid_place_item', 'grid_fill_room', 'grid_add_opening', 'grid_set_phase', 'grid_start_works', 'grid_tidy', 'grid_set', 'grid_set_facts', 'grid_set_finishes', 'grid_add_stair', 'grid_change_stair', 'grid_set_building', 'grid_write_building', 'grid_add_storey', 'grid_remove_building', 'grid_place_building', 'grid_set_levels', 'grid_add_item', 'grid_move_item', 'grid_remove_item', 'grid_place_bays', 'grid_add_ramp', 'grid_set_site', 'grid_change_site', 'grid_set_plan', 'grid_place_trace', 'grid_annotate', 'grid_save_view'])
 
 interface Listed {
   name: string
@@ -182,7 +183,9 @@ describe('tools/list', () => {
     // one call, which agents kept in their own notes or wrote into the file under a wrong key.
     // 65 since LVL-24: the floors' floor-to-floor, which agents could write only as each floor's
     // elevation summed by hand (a tower's height came out wrong first every time).
-    expect((await listed()).length).toBeLessThanOrEqual(65)
+    // 66 since CNT-51: the finishes of many rooms in one call, per wall face and in height bands,
+    // which agents set one room a call and could not lay as a band (a splashback priced as the wall).
+    expect((await listed()).length).toBeLessThanOrEqual(66)
   })
 
   it('gives its own example of rooms text, which writes a plan', async () => {
@@ -323,6 +326,7 @@ describe('the tools on a two-bedroom flat', () => {
     grid_tidy: { all: true, out: 'tidied.json' },
     grid_set: { parts: ['bed2'], set: { floorOffset: 0.02 }, out: 'set.json' },
     grid_set_facts: { parts: ['bed2'], set: { department: 'Sales' }, out: 'facts.json' },
+    grid_set_finishes: { rooms: ['all'], floor_finish: 'Oak boards', out: 'finishes.json' },
     grid_add_stair: { plan: 'house.json', id: 'st', from: 'ground', to: 'first', room: 'hall', width: 1, shape: 'U', runs: 'north', out: 'stair.json' },
     grid_change_stair: { plan: 'stair.json', id: 'st', width: 0.9, out: 'narrower.json' },
     grid_set_building: { plan: 'house.json', id: 'house', name: 'House', pad: 0.3, floors: ['ground', 'first'], out: 'built.json' },

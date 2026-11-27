@@ -26,7 +26,7 @@ import { english, joined, name, said, type Value } from '@ongrid/floorplan/messa
 import type { ReadFault } from '@ongrid/floorplan/types/readParts'
 
 export const FIXTURE_RULES = {
-  count: 'Fixtures and furniture are the plan\'s items, counted by kind; the room each is in is the one that holds the middle of its footprint. Furniture takes no free floor: it can be moved. Its seats, desks and covers: grid_measure what=seats.',
+  count: 'Fixtures, furniture and points are the plan\'s items, counted by kind; the room each is in is the one that holds the middle of its footprint. Furniture takes no free floor: it can be moved. Its seats, desks and covers: grid_measure what=seats.',
   // ARE-14: one of the area measures, said in its words.
   free: MEASURES.freeFloor.measures,
 } as const
@@ -49,6 +49,8 @@ export interface FixtureRow {
   readonly height: number
   /** Degrees, counter-clockwise. */
   readonly turn: number
+  /** CNT-52: its facts of the person's own, none when it carries none. */
+  readonly properties: Readonly<Record<string, string | number | boolean>>
 }
 
 export interface Fixtures {
@@ -96,6 +98,7 @@ export function planFixtures(plan: FloorPlan, floors?: readonly string[]): Fixtu
       size: item.size,
       height: item.height,
       turn: item.turn ?? 0,
+      properties: item.properties ?? {},
     }
   })
   const zones = roomZones(index)

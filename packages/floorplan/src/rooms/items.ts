@@ -448,7 +448,8 @@ export function itemLines(plan: FloorPlan): string[] {
     if (item.library !== undefined && (own.has(item.library) || builtInItem(item.library) === undefined)) return `raw item ${JSON.stringify(statedOf({ ...item, fromLibrary: [] }))}`
     const label = item.label
     const plainLabel = label === undefined || !(label.includes('"') && label.includes("'"))
-    if (twice || !readable(item.id) || !readable(item.library ?? item.kind) || !isItemKind(item.kind) || !plainLabel || (item.floor !== undefined && !readable(item.floor))) {
+    // CNT-52: rooms text holds no facts, so an item with its own is written raw and keeps them.
+    if (twice || item.properties !== undefined || !readable(item.id) || !readable(item.library ?? item.kind) || !isItemKind(item.kind) || !plainLabel || (item.floor !== undefined && !readable(item.floor))) {
       return `raw item ${JSON.stringify(statedOf(item))}`
     }
     const against = itemWordsAgainst(plan, item, rooms)
