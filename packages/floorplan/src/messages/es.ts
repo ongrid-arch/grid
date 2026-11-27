@@ -3622,6 +3622,8 @@ export const es: Messages = {
   // ── After merging main at fbe5160e: CNT-10's phases, VEW-9's walk-through, WRT-7's sheet units ──
   'issue.opening/phase-wall': 'El hueco {part} es de la fase {phase}, así que existe {states}, pero su muro {wall} es de la fase {wallPhase} y existe {wallStates}',
   'issue.room/phase-wall': 'La estancia {part} es de la fase {phase}, así que existe {states}, pero su muro {wall} es de la fase {wallPhase} y existe {wallStates}',
+  'query.field.phase': 'Existente, de demolición o de obra nueva',
+  'query.field.stage': 'Otro nombre para phase',
   'issue.part.phase.existing': 'existente',
   'issue.part.phase.demolished': 'de demolición',
   'issue.part.phase.new': 'de obra nueva',
