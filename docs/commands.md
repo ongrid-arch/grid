@@ -389,6 +389,9 @@ the file says that too.
   (`not said` when the plan states none), `Area`, and
   `AreaMeasure` and `AreaRule`, which name the measure and its rule: the net area as
   `grid_areas` measures it.
+- **Another tool's identity** (CNT-59). A wall, door, window, opening, space or storey whose
+  part keeps an `identity` is written with its GlobalId, Name and Tag in place of Grid's own
+  ([what another tool calls a part](plan-file.md#what-another-tool-calls-a-part)).
 - **Base quantities**, as `Qto_…BaseQuantities` sets:
   - spaces: height, perimeter, footprint (`GrossFloorArea`), net area (`NetFloorArea`), volume;
   - walls: length on the axis, thickness, height, footprint with corners joined, side area and

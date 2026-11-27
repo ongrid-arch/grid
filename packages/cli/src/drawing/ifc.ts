@@ -24,7 +24,7 @@
  * Pure: the file's text in, a drawing out. Refuses with `DrawingRefused`.
  */
 import { roomsFromFaces, type FaceSegment } from './faces'
-import { arcPoints, count, dist, DrawingRefused, signedArea, tidyRing, type DrawnFloor, type DrawnOpening, type DrawnRoom, type DrawnWall, type Drawing, type LayerUse, type P } from './model'
+import { arcPoints, count, dist, DrawingRefused, signedArea, tidyRing, type DrawnFloor, type DrawnOpening, type DrawnRoom, type DrawnWall, type Drawing, type KeptNames, type LayerUse, type P } from './model'
 import { readStep, type StepRecord, type StepValue } from './step'
 import { tolerance } from '@ongrid/floorplan/geometry/tolerances'
 
@@ -337,6 +337,8 @@ export function readIfc(text: string): Drawing {
   const leftOut: string[] = []
   const keyOf = (storey: number | null): string => (storey === null ? 'none' : `#${storey}`)
   const guid = (r: StepRecord): string | null => str(r.args[0])
+  // CNT-59: an element's Name and, when it has one (IfcElement's eighth), its Tag.
+  const kept = (r: StepRecord, tagged: boolean): KeptNames => ({ name: str(r.args[2]) || null, tag: tagged ? str(r.args[7]) || null : null })
 
   // Spaces.
   const rooms: DrawnRoom[] = []
@@ -358,7 +360,7 @@ export function readIfc(text: string): Drawing {
       spacesNoShape++
       continue
     }
-    rooms.push({ floor: key, outline: ring, name: name === '' ? null : name, number, statedArea: null, use: str(s.args[4]), source: guid(s), from: 'space' })
+    rooms.push({ floor: key, outline: ring, name: name === '' ? null : name, number, statedArea: null, use: str(s.args[4]), source: guid(s), kept: kept(s, false), from: 'space' })
     if (body.depth > 0) spaceHeights.set(key, [...(spaceHeights.get(key) ?? []), body.depth])
   }
   if (spacesNoShape > 0) leftOut.push(`${count(spacesNoShape, 'space')} whose shape Grid cannot read as a footprint (a boundary representation, or a curve it does not read): not drawn.`)
@@ -377,7 +379,7 @@ export function readIfc(text: string): Drawing {
     }
     const storey = storeyFor(w, f.o[2])
     const ring = tidyRing(body.ring, 0.0005)
-    walls.push({ floor: keyOf(storey), source: id, faces: ring.map((p, i) => [p, ring[(i + 1) % ring.length]!] as const), footprint: ring, height: body.depth > 0 ? body.depth : null })
+    walls.push({ floor: keyOf(storey), source: id, faces: ring.map((p, i) => [p, ring[(i + 1) % ring.length]!] as const), footprint: ring, height: body.depth > 0 ? body.depth : null, kept: kept(w, true) })
     if (body.depth > 0) wallHeights.push(body.depth)
   }
   if (wallsNoShape > 0) leftOut.push(`${count(wallsNoShape, 'wall')} whose shape Grid cannot read as a footprint: not used.`)
@@ -412,7 +414,7 @@ export function readIfc(text: string): Drawing {
     const key = keyOf(storey)
     const kind = o.type.startsWith('IFCDOOR') ? 'door' : 'window'
     const sill = Math.max(0, f.o[2] - elevationOfKey(key))
-    openings.push({ floor: key, kind, at: [centre[0], centre[1]], along, width: w, height: height > 0 ? height : null, sill: kind === 'window' ? sill : null, source: guid(o), how: 'element' })
+    openings.push({ floor: key, kind, at: [centre[0], centre[1]], along, width: w, height: height > 0 ? height : null, sill: kind === 'window' ? sill : null, source: guid(o), kept: kept(o, true), how: 'element' })
   }
   for (const hole of byType('IFCOPENINGELEMENT')) {
     if (filled.has(hole.id) || !wallOfHole.has(hole.id)) continue
@@ -434,7 +436,7 @@ export function readIfc(text: string): Drawing {
     const cx = ring.reduce((s, p) => s + p[0], 0) / ring.length
     const cy = ring.reduce((s, p) => s + p[1], 0) / ring.length
     const L = dist(best.a, best.b)
-    openings.push({ floor: key, kind: 'opening', at: [cx, cy], along: [(best.b[0] - best.a[0]) / L, (best.b[1] - best.a[1]) / L], width: L, height: body.depth, sill: null, source: guid(hole), how: 'element' })
+    openings.push({ floor: key, kind: 'opening', at: [cx, cy], along: [(best.b[0] - best.a[0]) / L, (best.b[1] - best.a[1]) / L], width: L, height: body.depth, sill: null, source: guid(hole), kept: kept(hole, true), how: 'element' })
   }
   if (openingsNoSize > 0) leftOut.push(`${count(openingsNoSize, 'door or window', 'doors and windows')} with no width Grid can read: not placed.`)
 
@@ -445,7 +447,7 @@ export function readIfc(text: string): Drawing {
     const key = keyOf(s.id)
     if (!keys.has(key)) continue
     const heights = spaceHeights.get(key) ?? []
-    floors.push({ key, name: str(s.args[2]) || str(s.args[7]) || `Storey ${floors.length + 1}`, elevation: elevationOf(s), height: heights.length === 0 ? null : median(heights), source: guid(s) })
+    floors.push({ key, name: str(s.args[2]) || str(s.args[7]) || `Storey ${floors.length + 1}`, elevation: elevationOf(s), height: heights.length === 0 ? null : median(heights), source: guid(s), kept: kept(s, false) })
   }
   if (keys.has('none')) floors.push({ key: 'none', name: 'No storey', elevation: null, height: null, source: null })
   const empty = storeys.filter((s) => !keys.has(keyOf(s.id))).length

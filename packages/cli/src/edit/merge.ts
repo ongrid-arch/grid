@@ -3,7 +3,8 @@
  * out, the first room takes in the second, and the doors and windows in the stretch go with it.
  * The merged room keeps the first room's facts of the person's own and its number, and takes the
  * second's facts it does not carry (CNT-9); what the second said otherwise is named, never kept
- * in silence. The pieces of a cut wall each keep the wall's facts.
+ * in silence. The pieces of a cut wall each keep the wall's facts. CNT-59: its longest piece keeps
+ * its id and what another tool calls it (`identity`); the others are new walls with none.
  *
  * Two rooms of different uses are never made one use in silence (CNT-8, lab AB-9): the call says
  * the merged room's use, or keeps both rooms as zones of one open-plan room (`zones`). Then the
@@ -103,21 +104,41 @@ export function piecesBeside(room: SurveyRoom, wall: Wall, pieces: readonly Piec
   return own.map((p) => p.id)
 }
 
-/** The wall cut into pieces, as a patch's walls to add, change or take out. */
+/**
+ * CNT-59: the ids of a wall's pieces, each `{ lo, hi }` along it: the longest (the first of the
+ * longest) keeps the wall's own id, so its identity stays on it, and each other takes a fresh id
+ * from `name(i)`, added to `used`.
+ */
+export function pieceIds<P extends { readonly lo: number; readonly hi: number }>(wall: Wall, kept: readonly P[], used: Set<string>, name: (i: number) => string): (P & { id: string })[] {
+  const longest = kept.reduce((best, p, i) => (p.hi - p.lo > kept[best]!.hi - kept[best]!.lo ? i : best), 0)
+  return kept.map((p, i) => {
+    if (i === longest) return { ...p, id: wall.id }
+    const id = freshId(used, name(i))
+    used.add(id)
+    return { ...p, id }
+  })
+}
+
+/**
+ * The wall cut into pieces, as a patch's walls to add, change or take out. CNT-59: the piece with
+ * the wall's own id is the wall, its ends changed; the others are added without its identity.
+ */
 export function cutWall(wall: Wall, pieces: readonly Piece[]): { change?: { start: [number, number]; end: [number, number] }; add: Record<string, unknown>[]; remove: boolean } {
   const axis = wallAxis(wall)
   const at = (s: number): [number, number] => [r3(axis.start.x + axis.dir.x * s), r3(axis.start.y + axis.dir.y * s)]
-  if (pieces.length === 1 && pieces[0]!.id === wall.id) return { change: { start: at(pieces[0]!.lo), end: at(pieces[0]!.hi) }, add: [], remove: false }
+  const own = pieces.find((p) => p.id === wall.id)
   // As its file states it: a value the reading filled in is not written into the pieces (WRT-6),
   // and a wall placed by its face gives each piece that face, on the face's line (HND-11).
   const stated = statedWall(wall) as Record<string, unknown>
   const rest: Record<string, unknown> = { ...stated }
-  for (const key of ['id', 'start', 'end']) delete rest[key]
+  for (const key of ['id', 'start', 'end', 'identity']) delete rest[key]
   const piece = (p: Piece): Record<string, unknown> => {
     const placed = wallWithEnds(stated, { start: at(p.lo), end: at(p.hi) })
     return { id: p.id, start: placed['start'], end: placed['end'], ...rest }
   }
-  return { add: pieces.map(piece), remove: true }
+  const add = pieces.filter((p) => p !== own).map(piece)
+  if (own !== undefined) return { change: { start: at(own.lo), end: at(own.hi) }, add, remove: false }
+  return { add, remove: true }
 }
 
 /** Where along a wall the walls crossing it near `s` have their centre line, or `s` when none does. */
@@ -284,11 +305,7 @@ export function mergeRooms(survey: Survey, aId: string, bId: string, request: Me
     const kept: Piece[] = []
     if (c0 > 0.05) kept.push({ lo: 0, hi: c0, id: '' })
     if (axis.length - c1 > 0.05) kept.push({ lo: c1, hi: axis.length, id: '' })
-    const pieces: Piece[] = kept.length === 1 ? [{ ...kept[0]!, id: wall.id }] : kept.map((p, i) => {
-      const id = freshId(used, `${wall.id}-${'ab'[i]}`)
-      used.add(id)
-      return { ...p, id }
-    })
+    const pieces: Piece[] = pieceIds(wall, kept, used, (i) => `${wall.id}-${'ab'[i]}`)
     return { wall, s0, s1, c0, c1, axis, pieces, line: null }
   })
   // CNT-8: with zones, each stretch taken out stays as a dividing line between the two zones.

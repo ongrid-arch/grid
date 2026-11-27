@@ -108,6 +108,11 @@ export const FACT_COVERAGE = {
   'walls.properties': { shown: 'not shown', why: 'The sheet has no wall schedule; grid_find and the IFC and DXF files give a wall\'s facts.' },
   'floors.properties': { shown: 'not shown', why: 'Each floor page shows its plan and areas; grid_find and the IFC and DXF files give a floor\'s facts.' },
   'items.properties': { shown: 'not shown', why: 'The sheet draws each item by its symbol; grid_schedule of=items, grid_find and the IFC and DXF files give an item\'s facts.' },
+  // CNT-59: another tool's GlobalId, name and tag are for that tool, by way of the IFC and DXF files.
+  'walls.identity': { shown: 'not shown', why: 'Another tool\'s GlobalId, name and tag for the wall go back to it in the IFC and DXF files.' },
+  'openings.identity': { shown: 'not shown', why: 'Another tool\'s GlobalId, name and tag for the opening go back to it in the IFC and DXF files.' },
+  'rooms.identity': { shown: 'not shown', why: 'Another tool\'s GlobalId, name and tag for the room go back to it in the IFC and DXF files.' },
+  'floors.identity': { shown: 'not shown', why: 'Another tool\'s GlobalId and name for the floor go back to it in the IFC and DXF files.' },
 } as const satisfies Record<FactField, Coverage>
 
 /**

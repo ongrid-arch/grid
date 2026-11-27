@@ -82,6 +82,7 @@ import { nearOrigin } from './origin'
 import { area } from '../vec2'
 import { approximationLines, leftOutByKind, leftOutSummary, partNames, type Approximations, type LeftOutKind, type LeftOutPart } from './leftOut'
 import { factOf, factText, ROOM_NUMBER_FACT, type Facts } from '../../types/facts'
+import { IDENTITY_FACTS, ifcGlobalId, type Identity } from '../../types/identity'
 import { directionOfTurn, planOrientation } from '../orientation'
 
 export interface IfcOptions {
@@ -271,9 +272,12 @@ export interface GuidIssuer {
  * and by the floor so that identities stay apart if ids ever become per floor.
  * An id already issued gets a counter appended and is hashed again: the hash
  * makes a collision astronomically unlikely, and this makes it impossible.
+ * `reserved` (CNT-59) are the GlobalIds the plan's parts keep, which no other
+ * element is given.
  */
-export function createGuidIssuer(projectId: string): GuidIssuer {
-  const used = new Set<string>()
+export function createGuidIssuer(projectId: string, reserved: Iterable<string> = []): GuidIssuer {
+  // CNT-59: the GlobalIds the plan's parts keep from another tool are never issued to another.
+  const used = new Set<string>(reserved)
 
   return {
     issue(kind, id, floor = null) {
@@ -386,6 +390,55 @@ interface Context {
   readonly phases: PhaseOn[]
   /** VEW-72: each door's and window's mark, its Tag, by opening id. */
   readonly marks: ReadonlyMap<string, string>
+  /**
+   * CNT-59: the GlobalIds the plan's parts keep from another tool (`identity.guid`), by list and
+   * id, each handed out once (`keptGuid`): a part written twice takes Grid's own the second time.
+   */
+  readonly kept: Map<string, string>
+}
+
+/** CNT-59: the list a part's kept GlobalId is filed under. */
+type IdentityList = 'walls' | 'openings' | 'rooms' | 'floors'
+
+/**
+ * CNT-59: every GlobalId the plan's walls, openings, rooms and floors keep, in IFC's form, by list
+ * and id. A GlobalId two parts state (a building copied, say) is kept by the first only.
+ */
+function keptGuids(plan: FloorPlan): Map<string, string> {
+  const kept = new Map<string, string>()
+  const taken = new Set<string>()
+  const lists: [IdentityList, readonly { readonly id: string; readonly identity?: Identity | undefined }[]][] = [
+    ['floors', plan.floors ?? []],
+    ['walls', plan.walls],
+    ['openings', plan.openings],
+    ['rooms', plan.rooms],
+  ]
+  for (const [list, parts] of lists) {
+    for (const part of parts) {
+      const stated = part.identity?.guid
+      const guid = stated === undefined ? null : ifcGlobalId(stated)
+      const key = `${list}\u0000${part.id}`
+      if (guid === null || taken.has(guid) || kept.has(key)) continue
+      taken.add(guid)
+      kept.set(key, guid)
+    }
+  }
+  return kept
+}
+
+/** CNT-59: the part's kept GlobalId, the first time it is asked for, else Grid's own for `kind`. */
+function partGuid(c: Context, list: IdentityList, kind: string, id: string): string {
+  const key = `${list}\u0000${id}`
+  const kept = c.kept.get(key)
+  if (kept === undefined) return c.guid(kind, id)
+  c.kept.delete(key)
+  return kept
+}
+
+/** CNT-59: a tag a space or a storey keeps, which IFC2X3 gives no attribute, as a fact of its set. */
+function withTag(facts: Facts | undefined, identity: Identity | undefined): Facts | undefined {
+  if (identity?.tag === undefined || (facts !== undefined && factOf({ properties: facts }, IDENTITY_FACTS.tag) !== undefined)) return facts
+  return { ...facts, [IDENTITY_FACTS.tag]: identity.tag }
 }
 
 /** CNT-10: an element and its part's phase. */
@@ -658,9 +711,9 @@ function writeStorey(
   const placementId = placement(c.w, parentPlacement, [0, 0, level.floorLevel])
   const id = c.w.add(
     'IFCBUILDINGSTOREY',
-    str(c.guid('storey', model.floor.id)),
+    str(partGuid(c, 'floors', 'storey', model.floor.id)),
     ref(c.owner),
-    str(model.floor.name),
+    str(model.floor.identity?.name ?? model.floor.name),
     NULL,
     NULL,
     ref(placementId),
@@ -669,7 +722,7 @@ function writeStorey(
     en('ELEMENT'),
     real(level.floorLevel)
   )
-  noteFacts(c, id, 'storey', model.floor)
+  noteFacts(c, id, 'storey', { id: model.floor.id, properties: withTag(model.floor.properties, model.floor.identity) })
   return {
     id,
     placement: placementId,
@@ -931,14 +984,14 @@ function writeWall(c: Context, storey: Storey, wall: Wall, ends: WallEnds | unde
 
   const id = w.add(
     'IFCWALLSTANDARDCASE',
-    str(c.guid('wall', wall.id)),
+    str(partGuid(c, 'walls', 'wall', wall.id)),
     ref(c.owner),
-    str(wall.id),
+    str(wall.identity?.name ?? wall.id),
     NULL,
     NULL,
     ref(wallPlacement),
     ref(shape),
-    NULL
+    wall.identity?.tag === undefined ? NULL : str(wall.identity.tag)
   )
 
   writeWallProperties(c, wall, id, wallExposure(storey.model.index, wall.id) === 'exterior')
@@ -990,7 +1043,7 @@ function writeCurvedWall(c: Context, storey: Storey, wall: Wall, curve: WallCurv
   const body = bodyRepresentation(c, extrusion(c, profile, wall.height))
   const shape = productShape(c, [axisRepresentation, body])
 
-  const id = w.add('IFCWALLSTANDARDCASE', str(c.guid('wall', wall.id)), ref(c.owner), str(wall.id), NULL, NULL, ref(wallPlacement), ref(shape), NULL)
+  const id = w.add('IFCWALLSTANDARDCASE', str(partGuid(c, 'walls', 'wall', wall.id)), ref(c.owner), str(wall.identity?.name ?? wall.id), NULL, NULL, ref(wallPlacement), ref(shape), wall.identity?.tag === undefined ? NULL : str(wall.identity.tag))
   writeWallProperties(c, wall, id, wallExposure(storey.model.index, wall.id) === 'exterior')
   typeWall(c, wall, id)
   noteFacts(c, id, 'wall', wall)
@@ -1410,16 +1463,19 @@ function writeOpening(c: Context, element: WallElement, opening: Opening): numbe
     bodyRepresentation(c, extrusion(c, cut, opening.height))
   ])
 
+  // CNT-59: a plain opening is its void, which takes what another tool calls it; a door's or a
+  // window's void is Grid's own, and its filler takes it.
+  const own = opening.type === 'opening' ? opening.identity : undefined
   const hole = w.add(
     'IFCOPENINGELEMENT',
-    str(c.guid('opening', opening.id)),
+    str(own === undefined ? c.guid('opening', opening.id) : partGuid(c, 'openings', 'opening', opening.id)),
     ref(c.owner),
-    str(opening.id),
+    str(own?.name ?? opening.id),
     NULL,
     NULL,
     ref(voidPlacement),
     ref(voidShape),
-    NULL
+    own?.tag === undefined ? NULL : str(own.tag)
   )
   relate(c, 'IFCRELVOIDSELEMENT', opening.id, ref(element.id), ref(hole))
 
@@ -1462,14 +1518,14 @@ function writeOpening(c: Context, element: WallElement, opening: Opening): numbe
 
   const filler = w.add(
     opening.type === 'door' ? 'IFCDOOR' : 'IFCWINDOW',
-    str(c.guid(opening.type, opening.id)),
+    str(partGuid(c, 'openings', opening.type, opening.id)),
     ref(c.owner),
-    str(opening.id),
+    str(opening.identity?.name ?? opening.id),
     NULL,
     NULL,
     ref(fillerPlacement),
     ref(fillerShape),
-    str(c.marks.get(opening.id) ?? opening.id),
+    str(opening.identity?.tag ?? c.marks.get(opening.id) ?? opening.id),
     real(opening.height),
     real(width)
   )
@@ -1535,9 +1591,9 @@ function writeSpace(c: Context, storey: Storey, room: Room): number | null {
   const number = numbered === undefined ? undefined : shownRoomNumber(numbered)
   const space = w.add(
     'IFCSPACE',
-    str(c.guid('space', room.id)),
+    str(partGuid(c, 'rooms', 'space', room.id)),
     ref(c.owner),
-    str(number ?? room.name),
+    str(room.identity?.name ?? number ?? room.name),
     NULL,
     room.use === undefined ? NULL : str(room.use),
     ref(spacePlacement),
@@ -1551,7 +1607,7 @@ function writeSpace(c: Context, storey: Storey, room: Room): number | null {
   writeSpaceData(c, storey, room, space, footprint, { height, volume, cut: cuts.length > 0 }, numbered)
   // The stated number is a fact of the room's set too, first, as the DXF writes it.
   const facts = room.number === undefined || factOf(room, ROOM_NUMBER_FACT) !== undefined ? room.properties : { [ROOM_NUMBER_FACT]: room.number, ...room.properties }
-  noteFacts(c, space, 'space', { id: room.id, properties: facts })
+  noteFacts(c, space, 'space', { id: room.id, properties: withTag(facts, room.identity) })
   notePhase(c, space, 'space', room.id)
   return space
 }
@@ -2545,7 +2601,8 @@ function buildDocument(given: FloorPlan, options: IfcOptions): string {
   const projectName = plan.name ?? plan.title ?? options.projectName ?? DEFAULT_PROJECT_NAME
 
   const w = new StepWriter()
-  const issuer = createGuidIssuer(projectIdOf(plan, options))
+  const kept = keptGuids(plan)
+  const issuer = createGuidIssuer(projectIdOf(plan, options), kept.values())
   const owner = writeOwnerHistory(w, timestamp)
   const units = writeUnits(w)
   const { model: context, shared } = writeModelContext(w, planOrientation(plan).north)
@@ -2563,7 +2620,8 @@ function buildDocument(given: FloorPlan, options: IfcOptions): string {
     facts: [],
     phaseOf: partPhases(plan),
     phases: [],
-    marks: options.marks ?? new Map()
+    marks: options.marks ?? new Map(),
+    kept
   }
 
   // The fixed entities (project, site, building) use their own kind as the id.

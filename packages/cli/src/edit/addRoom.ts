@@ -16,7 +16,7 @@ import { heightStated } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import type { Survey } from '../quantities/survey'
 import { refuseCurved, type Direction, type OpeningChange, type Patch, type RoomChange } from './edits'
-import { cutWall, freshId, piecesBeside, spanOn, usedIds } from './merge'
+import { cutWall, freshId, pieceIds, piecesBeside, spanOn, usedIds } from './merge'
 import { idHolder } from './holder'
 import { EditRefused } from './refused'
 import { COMPASS, r3, roomFaceAlong } from './seat'
@@ -97,14 +97,12 @@ export function addRoom(survey: Survey, request: AddRoomRequest): Patch {
     { lo: Math.max(0, sLow), hi: Math.min(axis.length, sHigh), part: 'covered' },
     ...(axis.length - sHigh > 0.05 ? [{ lo: sHigh, hi: axis.length, part: 'after' }] : []),
   ]
-  const pieces = kept.map((p, i) => {
-    const id = freshId(used, `${wall.id}-${letters[i]}`)
-    used.add(id)
-    return { ...p, id }
-  })
+  // CNT-59: the longest piece is the wall, its id and what another tool calls it kept.
+  const pieces = pieceIds(wall, kept, used, (i) => `${wall.id}-${letters[i]}`)
   const covered = pieces.find((p) => p.part === 'covered')!
   const cut = cutWall(wall, pieces)
   const addWalls: Record<string, unknown>[] = cut.add.map((w) => (w['id'] === covered.id ? { ...w, kind: 'interior' } : w))
+  const change = cut.change === undefined ? undefined : covered.id === wall.id ? { ...cut.change, kind: 'interior' as const } : cut.change
 
   // The new room's corners, counter-clockwise, and its three walls.
   const point = (s: number, n: number): Vec2 => add(add(axis.start, scale(axis.dir, s)), scale(out, n))
@@ -200,7 +198,7 @@ export function addRoom(survey: Survey, request: AddRoomRequest): Patch {
   )
   const addRooms = [{ id: request.id, name: request.name, ...(request.use !== undefined ? { use: request.use } : {}), boundary, ...(wall.floor !== undefined ? { floor: wall.floor } : {}) }]
   return {
-    walls: cut.change ? new Map([[wall.id, cut.change]]) : new Map(),
+    walls: change ? new Map([[wall.id, change]]) : new Map(),
     openings,
     removeOpenings,
     rooms,

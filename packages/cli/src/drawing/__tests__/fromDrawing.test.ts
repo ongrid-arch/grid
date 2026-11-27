@@ -80,6 +80,35 @@ describe('grid write --from', () => {
     expect(p.rooms.every((r) => typeof r.properties?.['guid'] === 'string')).toBe(true)
   })
 
+  it('keeps each element\'s GlobalId, Name and Tag as its identity, and writes them back into the IFC (CNT-59)', async () => {
+    // The ground floor's door with a Tag of its own, as a BIM tool writes one.
+    const model = smallIfc().replace(/(IFCDOOR\('[^']+',\$,'Door',\$,\$,#\d+,\$,)\$/, "$1'D-101'")
+    const dir = await project({ 'office.ifc': model })
+    expect((await grid(dir, 'write', '--from', 'office.ifc', '--plan', 'office.json')).status).toBe(0)
+    type Named = { id: string; identity?: { guid?: string; name?: string; tag?: string } }
+    const read = (): { walls: Named[]; openings: Named[]; rooms: Named[]; floors: Named[] } => JSON.parse(readFileSync(join(dir, 'office.json'), 'utf8'))
+    const p = read()
+    const inFile = new Set([...model.matchAll(/^#\d+=IFC[A-Z]+\('([^']{22})'/gm)].map((m) => m[1]!))
+    // Every room, floor and opening keeps its element's GlobalId, and walls the ones they are drawn from.
+    for (const part of [...p.rooms, ...p.floors, ...p.openings]) expect(inFile.has(part.identity?.guid ?? ''), part.id).toBe(true)
+    expect(p.walls.filter((w) => w.identity?.guid !== undefined).length).toBeGreaterThan(0)
+    const guids = [...p.walls, ...p.openings, ...p.rooms, ...p.floors].flatMap((x) => (x.identity?.guid === undefined ? [] : [x.identity.guid]))
+    expect(new Set(guids).size).toBe(guids.length)
+    expect(p.rooms.map((r) => r.identity?.name).sort()).toEqual(['G0.01', 'G0.02', 'G1.01', 'G1.02'])
+    expect(p.floors.map((f) => f.identity?.name)).toEqual(['Ground floor', 'First floor'])
+    expect(p.openings.some((o) => o.identity?.tag === 'D-101')).toBe(true)
+
+    // Written again from its rooms text, every identity stays.
+    expect((await grid(dir, 'write', 'office.rooms', '--plan', 'office.json')).status).toBe(0)
+    expect(read()).toEqual(p)
+
+    // The IFC Grid writes gives each element back its GlobalId and the door its Tag.
+    expect((await grid(dir, 'export', 'office.json', '--format', 'ifc', '--out', 'out.ifc')).status).toBe(0)
+    const out = readFileSync(join(dir, 'out.ifc'), 'utf8')
+    for (const guid of guids) expect(out, guid).toContain(`('${guid}',`)
+    expect(out).toMatch(/IFCDOOR\('[^']+',#\d+,'Door',\$,\$,#\d+,#\d+,'D-101',/)
+  })
+
   it('refuses what it cannot read, writing nothing, and options that go with --from alone', async () => {
     const dir = await project({ 'survey.dwg': 'AC1027', 'notes.dxf': '0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n' })
     const dwg = await grid(dir, 'write', '--from', 'survey.dwg')

@@ -275,8 +275,11 @@ export function phasedPatch(plan: FloorPlan, patch: Patch): Patch {
   const before = new Map<string, Stretch[]>()
   const after = new Map<string, Stretch[]>()
   const movedWalls = new Map<string, string>()
+  // CNT-59: a wall cut in pieces keeps its id on its longest piece, its ends changed, so the
+  // others are pieces of a changed wall as well as of one taken out.
+  const cutWalls = [...(patch.removeWalls ?? []), ...[...patch.walls].filter(([, change]) => change.start !== undefined || change.end !== undefined).map(([id]) => id)]
   const addWalls = (patch.addWalls ?? []).map((wall) => {
-    const cutFrom = [...(patch.removeWalls ?? [])].map((id) => walls.get(id)).find((w): w is Wall => w !== undefined && pieceOf(wall, w))
+    const cutFrom = cutWalls.map((id) => walls.get(id)).find((w): w is Wall => w !== undefined && pieceOf(wall, w))
     // A piece keeps what its wall stated; a wall of its own is new.
     return cutFrom !== undefined || wall['phase'] !== undefined ? wall : { ...wall, phase: 'new' }
   })
@@ -320,6 +323,16 @@ export function phasedPatch(plan: FloorPlan, patch: Patch): Patch {
       for (const piece of pieces) extraWalls.push(wallRecord(wall, piece.id, piece.start, piece.end, 'new'))
       after.set(id, [was, ...pieces])
       made.push(...pieces.map((piece) => `wall ${quoted(piece.id)} (added to ${quoted(id)})`))
+      continue
+    }
+    const cutBy = addWalls.filter((piece) => pieceOf(piece, wall))
+    if (how.kind === 'shorter' && cutBy.length > 0) {
+      // CNT-59: cut where it stood, its longest piece keeping its id: its pieces stand for it
+      // before the work as after it, as when every piece takes a new id.
+      const pieces = cutBy.map((piece) => ({ id: piece['id'] as string, start: pair(piece['start'] as Pair), end: pair(piece['end'] as Pair) }))
+      before.set(id, [{ id, start, end }, ...pieces])
+      const covered = [{ start, end }, ...pieces].reduce((sum, piece) => sum + gap(piece.start, piece.end), 0)
+      if (covered < lengthOf(was) - tolerance('joint')) inPlace.push(`wall ${quoted(id)}`)
       continue
     }
     if (how.kind === 'shorter') {

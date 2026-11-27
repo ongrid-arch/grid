@@ -130,7 +130,7 @@ export function planIdsIn(plan: object): Set<string> {
 }
 
 /** The fields that hold the person's words or a fixed word, never an id: left as written. */
-const NOT_IDS = new Set(['name', 'label', 'text', 'use', 'number', 'properties', 'written', 'type', 'kind', 'library', 'doorType', 'windowType', 'wallType', 'hinge', 'swing', 'phase', 'outdoor', 'tenure', 'overhang', 'building', 'face', 'roomType', 'category', 'finishes', 'shape', 'ridgeRuns', 'symbol', 'display', 'types'])
+const NOT_IDS = new Set(['name', 'label', 'text', 'use', 'number', 'properties', 'identity', 'written', 'type', 'kind', 'library', 'doorType', 'windowType', 'wallType', 'hinge', 'swing', 'phase', 'outdoor', 'tenure', 'overhang', 'building', 'face', 'roomType', 'category', 'finishes', 'shape', 'ridgeRuns', 'symbol', 'display', 'types'])
 
 /** A record with each id in `map` renamed wherever it names a part. */
 export function renamedIds<T>(value: T, map: ReadonlyMap<string, string>): T {

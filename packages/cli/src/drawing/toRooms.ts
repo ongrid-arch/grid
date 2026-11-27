@@ -14,13 +14,17 @@
  *    place, and the text compiled once more.
  * 4. The walls the compile worked out are matched to the drawing's walls by where they stand, and
  *    each gets the handles or GlobalIds of the walls it is drawn from, as a fact, by its id.
+ * 5. CNT-59: from an IFC file, each part also keeps its element's GlobalId, Name and Tag as its
+ *    `identity`, by id: a floor its storey's, a room its space's, an opening its element's, and
+ *    a wall the one wall it is drawn from, or, of a drawn wall Grid writes as several, the
+ *    longest. So no two parts keep one GlobalId.
  *
  * Pure: a drawing in, rooms text and what was checked out.
  */
-import { WALL_DEFAULTS, ROOM_USES, readUse, type RoomUse } from '@ongrid/floorplan/types/floorplan'
+import { WALL_DEFAULTS, ROOM_USES, isOutsideGuid, readUse, type Identity, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { compileRoomsText, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { tolerance } from '@ongrid/floorplan/geometry/tolerances'
-import { count, cross, dist, dot, folded, inside, len, m, signedArea, sub, unit, add, mul, type Drawing, type DrawnOpening, type P } from './model'
+import { count, cross, dist, dot, folded, inside, len, m, signedArea, sub, unit, add, mul, type Drawing, type DrawnOpening, type KeptNames, type P } from './model'
 
 /** An opening the compile places further than this from the drawing is written raw (m). */
 export const PLACED_OFF = 0.005
@@ -72,8 +76,29 @@ export interface DrawingRooms {
   /** Facts the text cannot carry, to set on the plan by id: the walls' and openings' sources. */
   readonly facts: { readonly walls: Readonly<Record<string, Readonly<Record<string, string>>>>; readonly openings: Readonly<Record<string, Readonly<Record<string, string>>>> }
   readonly factName: 'handle' | 'guid'
+  /** CNT-59: what the IFC file calls each part, to set on the plan by id; none from a DXF. */
+  readonly identities: PartIdentities
   readonly assumed: readonly string[]
   readonly leftOut: readonly string[]
+}
+
+/** CNT-59: each list's parts' identities, by id. */
+export interface PartIdentities {
+  readonly walls: Readonly<Record<string, Identity>>
+  readonly openings: Readonly<Record<string, Identity>>
+  readonly rooms: Readonly<Record<string, Identity>>
+  readonly floors: Readonly<Record<string, Identity>>
+}
+
+const NO_IDENTITIES: PartIdentities = { walls: {}, openings: {}, rooms: {}, floors: {} }
+
+/** CNT-59: an element's identity from its GlobalId and its Name and Tag, or null when it states none Grid can keep. */
+function identityFrom(source: string | null, kept: KeptNames | undefined): Identity | null {
+  const guid = source !== null && isOutsideGuid(source) ? source : undefined
+  const name = kept?.name ?? undefined
+  const tag = kept?.tag ?? undefined
+  if (guid === undefined && name === undefined && tag === undefined) return null
+  return { ...(guid === undefined ? {} : { guid }), ...(name === undefined ? {} : { name }), ...(tag === undefined ? {} : { tag }) }
 }
 
 /** An id made from a name: plain letters and digits, dashes between, at most 40 long. */
@@ -124,6 +149,15 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
     return best === null || e < best.e ? { i, e } : best
   }, null)
   for (const f of floors) floorId.set(f.key, fresh(slug(f.name, `floor-${floorId.size + 1}`)))
+  // CNT-59: each floor's storey's GlobalId and Name, by the floor's id.
+  const floorIdentities = (): Record<string, Identity> => {
+    const out: Record<string, Identity> = {}
+    for (const f of floors) {
+      const own = identityFrom(f.source, f.kept)
+      if (own !== null) out[floorId.get(f.key)!] = own
+    }
+    return out
+  }
   if (floors.length > 0) {
     assumed.push(`Each storey's level is its place counted from the one nearest the drawing's zero (${q(floors[ground!.i]!.name)}, level 0), and its elevation is measured from that one's.`)
   }
@@ -137,6 +171,7 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
   const floorKeys = floors.length === 0 ? [''] : floors.map((f) => f.key)
   const placed: Placed[] = []
   const roomChecks: { id: string; name: string; floor: string; drawn: number; stated: number | null; source: string | null }[] = []
+  const roomIdentities: Record<string, Identity> = {}
   let unnamed = 0
   let noUse = 0
   const defaultOutside = WALL_DEFAULTS.solid.thickness
@@ -177,6 +212,8 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
       const p: Placed = { id, floor: key, outline: ring }
       mine.push(p)
       roomChecks.push({ id, name, floor: f === undefined ? '' : floorId.get(key)!, drawn: Math.abs(signedArea(ring)), stated: r.statedArea, source: r.source })
+      const own = identityFrom(r.source, r.kept)
+      if (own !== null) roomIdentities[id] = own
     }
     placed.push(...mine)
     openingLinesAt.set(key, lines.length)
@@ -203,6 +240,7 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
       openings: drawing.openings.map((o, i) => ({ id: openingIds[i]!, kind: o.kind, source: o.source, written: 'not placed' as const, wall: null, off: null })),
       facts: { walls: {}, openings: {} },
       factName,
+      identities: drawing.format === 'ifc' ? { ...NO_IDENTITIES, rooms: roomIdentities, floors: floorIdentities() } : NO_IDENTITIES,
       assumed,
       leftOut,
     }
@@ -364,6 +402,8 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
 
   // The walls' sources, by where they stand.
   const wallFacts: Record<string, Record<string, string>> = {}
+  // CNT-59: the Grid walls each drawn wall is under, with their lengths, for its identity.
+  const under = new Map<string, { id: string; length: number }[]>()
   if (result.plan !== null) {
     for (const w of result.plan.walls) {
       if (w.arc !== undefined || (w.thickness ?? 0) <= 0) continue
@@ -392,10 +432,27 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
         if (sources.size >= WALL_SOURCES_MAX) break
       }
       if (sources.size > 0) wallFacts[w.id] = { [factName]: [...sources].join(' ') }
+      for (const source of sources) under.set(source, [...(under.get(source) ?? []), { id: w.id, length: L }])
     }
   }
   const openingFacts: Record<string, Record<string, string>> = {}
   for (const o of openingChecks) if (o.source !== null && o.written !== 'not placed') openingFacts[o.id] = { [factName]: o.source }
+
+  // CNT-59: what the IFC file calls each part. A drawn wall's goes to the longest Grid wall under
+  // it that keeps none yet, so a GlobalId is kept once.
+  const wallIdentities: Record<string, Identity> = {}
+  const openingIdentities: Record<string, Identity> = {}
+  if (drawing.format === 'ifc') {
+    for (const dw of drawing.walls) {
+      const own = identityFrom(dw.source, dw.kept)
+      const free = (under.get(dw.source) ?? []).filter((w) => wallIdentities[w.id] === undefined).sort((a, b) => b.length - a.length)
+      if (own !== null && free.length > 0) wallIdentities[free[0]!.id] = own
+    }
+    wants.forEach((want, i) => {
+      const own = identityFrom(want.o.source, want.o.kept)
+      if (own !== null && openingChecks[i]!.written !== 'not placed') openingIdentities[want.id] = own
+    })
+  }
 
   const areaOf = new Map((result.plan === null ? [] : result.rooms).map((r) => [r.id, r.area] as const))
   return {
@@ -405,6 +462,7 @@ export function roomsTextOf(drawing: Drawing, file: string): DrawingRooms {
     openings: openingChecks,
     facts: { walls: wallFacts, openings: openingFacts },
     factName,
+    identities: drawing.format === 'ifc' ? { walls: wallIdentities, openings: openingIdentities, rooms: roomIdentities, floors: floorIdentities() } : NO_IDENTITIES,
     assumed,
     leftOut,
   }
