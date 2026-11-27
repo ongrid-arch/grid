@@ -19,6 +19,7 @@ import { groupedNum, namesSaid, pointSaid, withSaid } from './issueWords'
 import { boundariesEdited } from '../rooms/stamp'
 import type { FloorPlan, Opening, PlanIndex, Wall } from './plan'
 import { indexPlan, openingsOf, roomWallIds } from './plan'
+import { keptFor } from './kept'
 import { floorOf, isFloorSlice, planFloors } from './floors'
 import { statedOpening, throughIssues, wallRise, wallStandsOn } from './through'
 import { stackingIssues } from './stacking'
@@ -1345,6 +1346,16 @@ export function validatePlan(
   index: PlanIndex = indexPlan(plan),
   options: ValidateOptions = {}
 ): ValidationResult {
+  // CMD-51: a frozen plan's validation is kept with it, for its own index and plain options.
+  if (Object.isFrozen(plan) && index === indexPlan(plan) && Object.keys(options).every((key) => key === 'spaces')) {
+    const kept = keptFor(plan, `validate ${options.spaces !== false}`, () => validated(plan, index, options))
+    // A set is not frozen: each caller is given its own.
+    return { issues: kept.issues, broken: new Set(kept.broken) }
+  }
+  return validated(plan, index, options)
+}
+
+function validated(plan: FloorPlan, index: PlanIndex, options: ValidateOptions): ValidationResult {
   if (options.tolerances !== undefined && Object.keys(options.tolerances).length > 0) {
     const { tolerances, ...rest } = options
     return withTolerances(tolerances, () => validatePlan(plan, index, rest))

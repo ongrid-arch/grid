@@ -116,6 +116,24 @@ export const TOLERANCES = {
       'can follow within `arcSagitta` is traced with this many, a little further off it.',
     basis: own
   },
+  polygonOnCircle: {
+    kind: 'tolerance',
+    value: 0.02,
+    unit: 'm',
+    decides:
+      'How far each corner of a room drawn with straight walls may lie off one circle and still be ' +
+      'read as a curve written as a polygon (CMD-51): its answer says how to write it as a circle.',
+    basis: own
+  },
+  polygonOnCircleCorners: {
+    kind: 'limit',
+    value: 12,
+    unit: 'count',
+    decides:
+      'The fewest corners a room on one circle (`polygonOnCircle`) has before it is read as a curve ' +
+      'written as a polygon, so a hexagon or an octagon drawn on purpose is not.',
+    basis: own
+  },
   smoothRunTurn: {
     kind: 'tolerance',
     value: 5,
@@ -1698,6 +1716,11 @@ export function limit(name: ToleranceName, building: BuildingKind = 'any'): numb
 /** Whether every entry has its value from the table (no `withTolerances` change is in force). */
 export function tolerancesAsStated(): boolean {
   return active === null
+}
+
+/** CMD-51: whether a call has the table changed (`withTolerances`), so nothing worked out now is kept. */
+export function tolerancesChanged(): boolean {
+  return active !== null
 }
 
 /**

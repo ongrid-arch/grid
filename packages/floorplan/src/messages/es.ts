@@ -2467,6 +2467,8 @@ export const es: Messages = {
   // WRT-63: a place written on a polygon room, whose points are its place.
   'rooms.room.polygonAt': "Línea {line}: la estancia '{room}' es un polígono y sus puntos son su sitio, medidos desde el origen del dibujo (el de la unidad, en una unidad), así que '{at}' no se lee como un desplazamiento. Para moverla, escribe sus puntos ya movidos: '{points}'.",
   'rooms.room.polygonPlaced': "Línea {line}: la estancia '{room}' es un polígono y sus puntos son su sitio, así que '{place}' no puede situarla además. Escribe los puntos donde está la estancia, o dale un tamaño en lugar del polígono: '<ancho> x <fondo> {place}'.",
+  // CMD-51: a room of straight walls whose corners lie on one circle, in the answer that wrote it.
+  'rooms.room.polygonOnCircle': "La estancia '{room}' está dibujada con {corners} muros rectos cuyas esquinas caen en un mismo círculo: una curva escrita como polígono, {corners} muros cortos donde bastaría uno curvo, y cada comprobación, imagen y cambio pasa por todos ellos. Para dibujarla redonda, escribe '{written}' en su línea en lugar del polígono, a caras interiores; mantén el polígono si sus lados son intencionados.",
   // WRT-78: estancias y muros curvos.
   'rooms.curve.form': "Línea {line}: escribe una estancia curva como 'circle <diámetro>' (o 'circle radius <r>'), 'oval <ancho> x <fondo>', 'arc <grados> [<cuerda>]' o 'band <radio interior> to <radio exterior> [from <grados>] [sweep <grados>]'.",
   'rooms.curve.degrees': "Línea {line}: '{word}' tras '{after}' no es un número de grados.",

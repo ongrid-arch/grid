@@ -982,3 +982,30 @@ level names one (so a client waiting for that id is answered), and null when it 
 A refusal for a path outside the project never prints the project folder's place on the disk.
 `what=route` takes `from` for the room it starts in (as `room`), and `what=narrow` takes `width`
 (as `under`).
+
+## Later calls on the same plan
+
+The server keeps the plan it read, per version, for its next calls (CMD-51,
+`packages/cli/src/mcp/planCache.ts`): the plan as read, its validation and what the geometry
+works out from it and keeps against its parts (`packages/floorplan/src/geometry/kept.ts`: its
+index, each floor's slice, its validation, the survey the measures read), and the answer of
+`grid_check` and the notes `grid_view` marks, for the same arguments in English. A second
+`grid_check` of a plan of 40 floors takes a small share of the first's time. A version is the plan
+file's text together with every other file its reading looked at, a fit-out's base plan and
+whether its trace image is there: each call reads them again and compares the content, never a
+modification time, so a change by Grid or by anything else is read afresh and no answer is about
+an earlier version. A plan kept is frozen, so no call can change what another is given. The last
+`PLAN_VERSIONS_KEPT` (4) versions are kept, the least recently used dropped first, and a plan that
+is refused is not kept.
+
+The plan's validation is worked out when an answer first needs it, so a call refused for its
+arguments is refused at once, before any geometry: a floor the plan does not have, and a measure
+of `grid_measure` that needs a room (`room`, `use`, `frontage`, `fit` and `route`) without one.
+
+A room written as a polygon whose corners, 12 or more (`polygonOnCircleCorners`), lie on one
+circle within `polygonOnCircle` (docs/tolerances.md) is answered by `grid_write_rooms` with one
+line saying so and the `circle <across> at x,y` that draws it round, as one curved wall instead of
+many short ones.
+
+Calls are still answered one after the other, in the order they came in: a call that works out a
+large plan runs to its end before the next is answered.

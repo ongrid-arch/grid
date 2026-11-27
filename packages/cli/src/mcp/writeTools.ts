@@ -11,7 +11,7 @@ import { baseRefusal, baseTouched, phasedPatch } from '../edit/phases'
 import { planInMetres } from '@ongrid/floorplan/types/units'
 import { DOOR_KINDS, OPENING_KINDS, WINDOW_KINDS, WallKindSchema, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { changeType, TYPE_FIELDS, TYPE_OF, type TypeOf } from '../edit/types'
-import { ARC_SEGMENTS_RANGE, limit, planFloors, phaseCounts, planInState, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
+import { ARC_SEGMENTS_RANGE, limit, planFloors, phaseCounts, planInState, polygonsOnCircles, validatePlan, type FloorPlan } from '@ongrid/floorplan/geometry'
 import { keptDerived, LAYOUT_SHAPES, type LayoutShape } from '@ongrid/floorplan/rooms'
 import { doorsThatChangedRooms } from '@ongrid/floorplan/geometry/rules/doors'
 import { EXPORT_FORMATS, isExportFormat } from '@ongrid/floorplan/export'
@@ -976,7 +976,7 @@ const writeRoomsTool: GridTool = {
       const done = laid?.done ?? writeRoomsIntoProject(project, text, file, options)
       const r = done.result
       return {
-        text: (laid?.lines ?? done.lines).join('\n'),
+        text: [...(laid?.lines ?? done.lines), ...onCircleLines(done.plan)].join('\n'),
         data: {
           written: done.written,
           rooms: r.rooms.map((x) => ({ id: x.id, name: x.name, floor: x.floor, width: x.width, depth: x.depth, area: x.area, basis: x.basis })),
@@ -1002,6 +1002,23 @@ const writeRoomsTool: GridTool = {
       throw asRefusal(error)
     }
   },
+}
+
+/** A length for rooms text: metres, with no more than two decimals. */
+function roomsLength(value: number): string {
+  return String(Number(value.toFixed(2)))
+}
+
+/**
+ * CMD-51: a line for each room written as a polygon whose corners lie on one circle, with the
+ * circle that draws it round (`polygonsOnCircles`).
+ */
+function onCircleLines(plan: FloorPlan): string[] {
+  return polygonsOnCircles(plan).map((found) => {
+    const across = roomsLength(2 * found.radius - found.thickness)
+    const written = `circle ${across} at ${roomsLength(found.centre[0])},${roomsLength(found.centre[1])}`
+    return say('en', 'rooms.room.polygonOnCircle', { room: found.room, corners: found.corners, written })
+  })
 }
 
 export const WRITE_TOOLS: readonly GridTool[] = [exportTool, sheetTool, writeRoomsTool, changeOpeningTool, changeWallTool, changeTypeTool, moveSideTool, mirrorTool]

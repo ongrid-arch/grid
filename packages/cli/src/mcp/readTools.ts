@@ -15,6 +15,7 @@ import type { WorldBounds } from '../draw/views'
 import { version } from '../../package.json'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
 import { causeText, checkPlan, checkTitle, countsText, coverageSummary, firmHeadingText, firmNoNoteText, firmSectionTitle, firmStandardsText, kindWord, limitsText, nothingCheckedText, partsText, placeText, type PlaceWords, problemsText, readForText, restText, ruleText, seenBeforeText, seenByText, seenCount, thingText, usedFigures, withSeen, type CheckResult } from '../command/check'
+import { keptFor } from '@ongrid/floorplan/geometry/kept'
 import { askedLanguage, languageFor, spokenPlan } from '../command/language'
 import { inLanguage, t, tv } from '../command/words'
 import { LANGUAGES, english, joined, name, num, said, say, type Language, type MessageKey } from '@ongrid/floorplan/messages'
@@ -1664,6 +1665,13 @@ function thingOf(survey: Survey, named: ReturnType<typeof thingArg>): { thing: T
   return { thing: openingThing(opening, wall), label: `${opening.type} ${q(opening.id)}` }
 }
 
+/** CMD-51: the measures that need a room, refused without one before the plan is read. */
+const MEASURES_OF_A_ROOM: ReadonlySet<string> = new Set(['room', 'use', 'frontage', 'fit', 'route'])
+
+function needsRoom(what: string): ToolRefusal {
+  return new ToolRefusal(`what=${what} needs room: a room id.`)
+}
+
 const measureTool: GridTool = {
   name: 'grid_measure',
   title: 'Measure rooms, walls, distances and ways through',
@@ -1697,7 +1705,7 @@ const measureTool: GridTool = {
   },
   outputSchema: objectSchema({ what: STRING, answer: { type: 'object' }, rule: STRING }),
   run(args, context) {
-    const { survey, file } = load(context, args['plan'])
+    // CMD-51: the arguments are checked before the plan is read and surveyed.
     const what = args['what'] as 'room' | 'between' | 'wall' | 'fit' | 'route' | 'narrow' | 'facing' | 'sun' | 'site' | 'use' | 'access' | 'library' | 'seats' | 'frontage'
     // CMD-29: the same thing goes by the same name in every mode: a route goes from a room, and
     // a narrow measure takes the width the way route and use do.
@@ -1709,8 +1717,6 @@ const measureTool: GridTool = {
       if (args['under'] !== undefined && args['under'] !== args['width']) throw new ToolRefusal('what=narrow takes under or width, the figure to be narrower than, not two different ones.')
       args = { ...args, under: args['width'], width: undefined }
     }
-    const units = displayFor(args['units'], args['decimal'], survey.plan)
-    const L = (v: number, own?: boolean): string => (own === true ? ownLengthText(v, units) : lengthText(v, units))
     const allowed: Record<string, readonly string[]> = {
       room: ['room'],
       between: ['from', 'to', 'x', 'y'],
@@ -1729,6 +1735,10 @@ const measureTool: GridTool = {
     }
     const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'bands'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`what=${what} takes ${allowed[what]!.length === 0 ? 'no other argument' : allowed[what]!.join(', ')}, not ${stray.join(', ')}.`)
+    if (MEASURES_OF_A_ROOM.has(what) && args['room'] === undefined) throw needsRoom(what)
+    const { survey, file } = load(context, args['plan'])
+    const units = displayFor(args['units'], args['decimal'], survey.plan)
+    const L = (v: number, own?: boolean): string => (own === true ? ownLengthText(v, units) : lengthText(v, units))
     if (what === 'access') {
       // CNT-17: the accessibility measurements, set only against the person's own figures (the
       // brief beside the plan) and a code's once a named person has confirmed it.
@@ -1744,7 +1754,7 @@ const measureTool: GridTool = {
       return { text: [...found.lines.slice(0, 1), ...said, ...found.lines.slice(1), ACCESS_RULE].join('\n'), data: { what, answer: { ...found.data, brief: read.brief === null ? null : read.file }, rule: ACCESS_RULE } }
     }
     const roomOf = (): ReturnType<Survey['byId']['get']> & object => {
-      if (args['room'] === undefined) throw new ToolRefusal(`what=${what} needs room: a room id.`)
+      if (args['room'] === undefined) throw needsRoom(what)
       const id = roomArg(survey.plan, args['room'])
       const room = survey.byId.get(id)
       if (!room || room.polygon.length < 3) throw new ToolRefusal('That room has no outline Grid can measure; grid_check says why.')
@@ -2752,7 +2762,9 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       const shown = crop?.floor ?? lowest
       // What went wrong, numbered as grid_check numbers it, marked on the drawing (MSG-8).
       // VEW-15: from the file's text and its base, as grid_check reads them, so the fields the reading adds are no notes.
-      const faults = inspectPlan(loaded.text ?? plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
+      // CMD-51: kept with the plan version, in English; another language listens for its words each time.
+      const inspect = (): readonly ResultLine[] => inspectPlan(loaded.text ?? plan, { ...inTongue, ...(plan.display?.decimal ? { decimal: plan.display.decimal } : {}), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
+      const faults = language === 'en' ? keptFor(loaded, `view faults ${plan.display?.decimal ?? ''}`, inspect) : inspect()
       // CMD-45: a plan with nothing in it is refused, not drawn as a blank page.
       if (nothingToDraw(stated, faults)) throw new ToolRefusal(say('en', 'plan.notAPlan.nothingToDraw', { file: project.relative(read.file) }))
       if (allFloors) return allFloorsAnswer(stated, asked, look, args['dimensions'] !== false, language)
@@ -3145,7 +3157,11 @@ const checkTool: GridTool = {
       const firm = firmForCheck(project, file, loaded.plan)
       // MSG-11: the language asked for, else the plan's own, with its messages loaded.
       const language = await languageFor(askedLanguage(args['language'], 'language'), loaded.plan)
-      result = checkPlan(loaded, { ...(floor ? { floor } : {}), ...(args['country'] ? { country: args['country'] as string } : {}), ...(firm ? { firm } : {}), ...(language === 'en' ? {} : { language }) }, 'country')
+      const request = { ...(floor ? { floor } : {}), ...(args['country'] ? { country: args['country'] as string } : {}), ...(firm ? { firm } : {}), ...(language === 'en' ? {} : { language }) }
+      // CMD-51: kept with the plan version for the same request; in another language the words
+      // Grid has none for are listened for as it is worked out, so it is worked out each time.
+      const work = (): CheckResult => checkPlan(loaded, request, 'country')
+      result = language === 'en' ? keptFor(loaded, `check ${JSON.stringify(request)}`, work) : work()
       result = withSeen(result, loaded, readSeen(project, file))
     } catch (error) {
       throw asRefusal(error)
