@@ -35,7 +35,7 @@ import { countryOf } from '@ongrid/floorplan/types/places'
 import type { Display } from '@ongrid/floorplan/types/units'
 import { FIGURES, type FigureName, type FigureWish, type RatioMeasure } from '../brief/brief'
 import { areaText, lengthText } from './units'
-import { ENGLISH_SPEAKER, type Speaker } from '@ongrid/floorplan/messages'
+import { english, ENGLISH_SPEAKER, name, said, type Speaker } from '@ongrid/floorplan/messages'
 
 /** The limits, in the order they are reported. */
 export const LIMITS = ['plot_coverage', 'floor_area_ratio', 'building_height', 'setback', 'parking_per_home'] as const
@@ -185,7 +185,9 @@ export function siteLimits(plan: FloorPlan, figures: readonly FigureWish[], disp
     }
     const met = at.past === 0 && at.short === null
     const used = at.past > 0 ? `the building reaches ${L(at.past)} over it` : `used ${L(at.distance)}`
-    out.push({ limit: 'setback', edge: edge.edge, state: met ? 'met' : 'missed', used: round(at.past > 0 ? 0 : at.distance, 4), allowed: edge.setback.distance, most: false, unit: 'm', rule, why: null, assumed: null, source: edge.setback.source, text: `${head}: ${used}, ${yours}: ${met ? 'met' : 'not met'}. Measured as ${rule}.` })
+    // CNT-56: on a plan that names buildings, the building nearest the edge, named.
+    const nearest = at.building === undefined ? '' : ` ${english(said('site.edge.nearest', { building: name(site.buildings?.find((b) => b.id === at.building)?.name ?? at.building) }))}`
+    out.push({ limit: 'setback', edge: edge.edge, state: met ? 'met' : 'missed', used: round(at.past > 0 ? 0 : at.distance, 4), allowed: edge.setback.distance, most: false, unit: 'm', rule, why: null, assumed: null, source: edge.setback.source, text: `${head}: ${used}, ${yours}: ${met ? 'met' : 'not met'}.${nearest} Measured as ${rule}.` })
   }
   return out
 }

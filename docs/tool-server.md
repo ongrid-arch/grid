@@ -840,7 +840,35 @@ every floor at or above the ground floor, as one shape seen from above.
   The set-backs are the person's own figures, under their heading; no line says a distance is
   enough.
 - **Each face**: its way, its length and its distance to the edge of the boundary in front of
-  it, square to the face.
+  it, square to the face. A curved face (a bay, a round tower) is one face, with its radius and
+  the ways it turns from and to (`curve`), however many pieces its outline is drawn with (CNT-56).
+
+#### A site of several buildings, and the figures always given (CNT-56)
+
+On a plan that names buildings ([plan-file.md](plan-file.md)), each is measured on its own, and
+every line names the building it is about:
+
+- Each building's faces are measured square to them, and the tape stops at the first other
+  building in front of the face: the line says how far that building is and how far the edge
+  beyond it lies (`stops`, `at`, `toEdge`). No distance passes through another building, and no
+  building is measured against the others merged. The site's `faces` are the buildings' faces,
+  each with its `building`; each edge names the building nearest it (`building`).
+- How far the buildings stand apart, each pair, seen from above (`apart`).
+- The floors no building names are measured together as one more building, named as the floors
+  in no building (`rest`).
+
+Every answer, with buildings or without, ends with the site's figures, for the whole site and then
+each building (`figures`): the plot coverage, the gross external area of the floors at or above
+the ground floor, the floor area ratio (that area over the plot's), the homes (`floors[].homes`,
+else the flats listed), the homes per hectare and the parking per home (`floors[].parking`, else
+the bays drawn). An outbuilding is its own building on the same ground: its area, coverage and
+parking are its own and never the house's. A figure that cannot be measured says why
+(`notMeasured`). These are measures, never limits; the person's own limits follow below.
+
+```text
+  "House": plot coverage 9.1%; gross external area 182.32 m²; floor area ratio 0.18; homes 2 (as the floors state); 20.0 homes per hectare; parking 1 (as the floors state), 0.50 per home.
+  "Garage": plot coverage 2.6%; gross external area 25.76 m²; floor area ratio 0.03; homes not stated; homes per hectare not measured (no homes are stated); parking 2 (as the floors state), with no homes to share it.
+```
 
 North is read as `what=facing` reads it, and a plan that states none is answered with north as
 the top of the drawing, said first. The lab's house slid 2 m east in its 15 × 30 m plot, with 3 m
@@ -879,7 +907,7 @@ resizes and removes the site's things one at a time: `{"action": "move", "id": "
 The data holds `boundary` (`area`, `acres`, `problem`, and each edge's `edge`, `from`, `to`, `length`,
 `faces`, `bearing`, `street`, `name`, `setback`, `distance`, `past`, `short`, `face` and
 `floor`), `footprint` (`area`, `floors`), `coverage` (`ratio`, `percent`, `covered`, `plot`),
-`faces` and `things`. `grid_check` gives the same shortfall as a finding,
+`faces`, `figures`, `things` and, with buildings, `buildings` and `apart`. `grid_check` gives the same shortfall as a finding,
 `plan/setback-short`. The geometry is `siteMeasures` in `@ongrid/floorplan`
 (`src/geometry/site.ts`).
 

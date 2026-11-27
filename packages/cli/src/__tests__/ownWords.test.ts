@@ -318,7 +318,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // MSG-34: four fewer, the CSV heads name their length unit.
   'packages/cli/src/quantities/schedule.ts': [12, 'notYet'],
   // CNT-41: two more, what the coverage counts.
-  'packages/cli/src/quantities/site.ts': [23, 'notYet'],
+  // CNT-56: one fewer, the face lines now come from the message files.
+  'packages/cli/src/quantities/site.ts': [22, 'notYet'],
   'packages/cli/src/quantities/sun.ts': [13, 'notYet'],
   'packages/cli/src/quantities/takeoff.ts': [10, 'notYet'],
   'packages/cli/src/quantities/use.ts': [32, 'notYet'],
@@ -381,7 +382,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-51: four more, what polygonOnCircle and polygonOnCircleCorners decide.
   // MSG-34: two more, what languageNamesLeast decides.
   // ARE-71: one more, what lintelBearing decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [379, 'developer'],
+  // CNT-56: two more, what curveFit decides on the site.
+  'packages/floorplan/src/geometry/tolerances.ts': [381, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

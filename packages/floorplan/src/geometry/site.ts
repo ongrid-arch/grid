@@ -25,6 +25,12 @@
  *
  * - LVL-23: on a plan that names buildings, each is also measured on its own (`buildings`): its
  *   footprint, from its own floors at or above its own ground floor, and its distance to each edge.
+ * - CNT-56: on such a plan each building's faces are measured on their own, and a face's tape,
+ *   square to it, stops at the first other building in front of it (`stops`, `at`), the edge
+ *   beyond named (`toEdge`); the site's faces are the buildings' faces and each edge names the
+ *   building nearest it. The floors in no named building are one more building (`rest`). Each
+ *   pair of buildings is measured apart (`apart`). A run of the outline's straight pieces that is
+ *   one curved wall's outside face (within `curveFit` of it) is one face, reported once (`curve`).
  *
  * Pure: a plan in, plain data out. Never throws on a plan the schema reads.
  */
@@ -40,6 +46,8 @@ import { indexPlan } from './plan'
 import { buildingPlan, isOutdoor, outdoorRoofed, planHasOutdoor } from './outdoor'
 import { plotBoundary, type BoundaryEdge, type PlotBoundary } from './plot'
 import { cutOutline, multiArea, piecesAsRings, ringOf } from './polygons'
+import { wallCurve, type WallCurve } from './arc'
+import { floorOf } from './floors'
 import { tolerance } from './tolerances'
 import { validatePlan } from './validate'
 import type { Vec2 } from './vec2'
@@ -64,7 +72,31 @@ export interface FootprintFace {
   readonly faces: CompassPoint
   /** The edge of the boundary nearest it, by number, and how far it is. */
   readonly edge: number
+  /** CNT-56: how far the tape square to it runs: to the edge in front, or to the first other building on the way. */
   readonly distance: number
+  /** CNT-56: the building it is a face of, by id; only on a plan that names buildings. */
+  readonly building?: string
+  /** CNT-56: what the tape stops at: the edge in front of the face, or another building first. */
+  readonly stops: 'edge' | 'building'
+  /** CNT-56: the building it stops at, by id; null when it reaches the edge. */
+  readonly at: string | null
+  /** CNT-56: how far the edge in front lies, past any building on the way; null when no edge lies square in front. */
+  readonly toEdge: number | null
+  /** CNT-56: a curved face, one face for the straight pieces its outline is drawn with; null for a straight one. */
+  readonly curve: FaceCurve | null
+}
+
+/** CNT-56: a curved face of the footprint. */
+export interface FaceCurve {
+  /** The radius of its outside face, m. */
+  readonly radius: number
+  /** The straight pieces it is drawn with. */
+  readonly pieces: number
+  /** Whether it goes all the way round: a round building. */
+  readonly closed: boolean
+  /** The ways its first and last pieces face. */
+  readonly from: CompassPoint
+  readonly to: CompassPoint
 }
 
 /** How far the building stands from one edge of the boundary. */
@@ -80,6 +112,8 @@ export interface EdgeDistance {
   readonly past: number
   /** How far short of the set-back asked for the distance falls, in metres; null when it does not, or none was asked. */
   readonly short: number | null
+  /** CNT-56: on the site of a plan that names buildings, the building nearest the edge, by id. */
+  readonly building?: string
 }
 
 export interface SiteMeasures {
@@ -113,6 +147,15 @@ export interface SiteMeasures {
    * above its own ground floor) and its distance to each edge. Only on a plan that names buildings.
    */
   readonly buildings?: readonly BuildingSite[]
+  /** CNT-56: the least distance between each pair of buildings with a footprint, in plan order; only on a plan that names buildings. */
+  readonly apart?: readonly BuildingsApart[]
+}
+
+/** CNT-56: how far two buildings stand apart, seen from above: 0 when they touch or overlap. */
+export interface BuildingsApart {
+  readonly a: string
+  readonly b: string
+  readonly distance: number
 }
 
 /** LVL-23: one building of the plan on its site. */
@@ -124,6 +167,13 @@ export interface BuildingSite {
   readonly why: string | null
   /** Each edge of the boundary, when the boundary is sound and it has a footprint. */
   readonly edges: readonly EdgeDistance[]
+  /** CNT-56: each of its faces, its tape stopping at the first other building. */
+  readonly faces: readonly FootprintFace[]
+  /** CNT-56: its footprint inside the boundary against the boundary's area, and that area; null when either is missing. */
+  readonly coverage: number | null
+  readonly covered: number | null
+  /** CNT-56: the floors in no building the plan names, measured as one more building (its id is empty). */
+  readonly rest?: true
 }
 
 /** ARE-24: the site measured with the open outdoor space in the footprint. */
@@ -232,10 +282,122 @@ interface Measured {
 
 type Outlines = readonly { floor: string; pieces: MultiPolygon }[]
 
-function measureFrom(plan: FloorPlan, boundary: PlotBoundary, footprint: Footprint, outlines: Outlines): Measured {
+/** CNT-56: another building a face's tape may stop at: its id and its outline's stretches. */
+interface Stop {
+  readonly id: string
+  readonly segments: readonly Segment[]
+}
+
+/** CNT-56: a curved wall a stretch of the outline may lie on: its arc and how far off it its faces reach. */
+interface Arc {
+  readonly curve: WallCurve
+  readonly reach: number
+}
+
+const TURN = 2 * Math.PI
+
+/** Whether a point lies on a curved wall's body, `curveFit` past its faces, within its sweep. */
+function onArc(p: Vec2, arc: Arc): boolean {
+  const { curve } = arc
+  const r = Math.hypot(p.x - curve.centre.x, p.y - curve.centre.y)
+  if (Math.abs(r - curve.radius) > arc.reach) return false
+  if (curve.closed) return true
+  const way = Math.sign(curve.sweep)
+  const turned = ((((Math.atan2(p.y - curve.centre.y, p.x - curve.centre.x) - curve.startAngle) * way) % TURN) + TURN) % TURN
+  // A face's corner may stand past the wall's end by as much as its faces reach off its line.
+  const past = arc.reach / Math.max(curve.radius, arc.reach)
+  return turned <= Math.abs(curve.sweep) + past || turned >= TURN - past
+}
+
+/** The curved walls of the floors a footprint is made of. */
+function arcsOf(plan: FloorPlan, floors: readonly string[]): Arc[] {
+  const on = new Set(floors)
+  return plan.walls.flatMap((wall) => {
+    if (wall.arc === undefined || !on.has(floorOf(wall))) return []
+    const curve = wallCurve(wall)
+    return curve === null ? [] : [{ curve, reach: wall.thickness / 2 + tolerance('curveFit') }]
+  })
+}
+
+/** CNT-56: a face of the outline: the stretches that make it, by their place in the outline's list. */
+interface FaceGroup {
+  /** Each stretch, by its index in the flat list of every ring's stretches, in order along the face. */
+  readonly parts: readonly number[]
+  readonly closed: boolean
+  /** The curved wall it lies on; null for a straight face. */
+  readonly arc: Arc | null
+}
+
+/**
+ * CNT-56: the stretches of the outline that make each face: a straight one alone, or the
+ * stretches in a row on one curved wall's outside together, however many pieces and joints its
+ * outline is drawn with.
+ */
+function faceGroups(rings: readonly Segment[][], arcs: readonly Arc[]): FaceGroup[] {
+  const groups: FaceGroup[] = []
+  let base = 0
+  for (const ring of rings) {
+    const n = ring.length
+    const label = ring.map((s) => {
+      const mid = { x: (s.a.x + s.b.x) / 2, y: (s.a.y + s.b.y) / 2 }
+      return arcs.findIndex((arc) => onArc(s.a, arc) && onArc(s.b, arc) && onArc(mid, arc))
+    })
+    if (n > 0 && label[0]! >= 0 && label.every((l) => l === label[0])) {
+      groups.push({ parts: ring.map((_, i) => base + i), closed: true, arc: arcs[label[0]!]! })
+      base += n
+      continue
+    }
+    // Start where a curve does not carry on from the stretch before, so a curve across the
+    // ring's first corner stays one face.
+    const start = Math.max(0, label.findIndex((l, i) => l < 0 || l !== label[(i + n - 1) % n]))
+    const here: { first: number; group: FaceGroup }[] = []
+    let k = 0
+    while (k < n) {
+      const i = (start + k) % n
+      const l = label[i]!
+      const parts = [base + i]
+      k++
+      while (l >= 0 && k < n && label[(start + k) % n] === l) {
+        parts.push(base + ((start + k) % n))
+        k++
+      }
+      here.push({ first: i, group: { parts, closed: false, arc: l >= 0 ? arcs[l]! : null } })
+    }
+    groups.push(...here.sort((x, y) => x.first - y.first).map((h) => h.group))
+    base += n
+  }
+  return groups
+}
+
+/** CNT-56: the radius of a curved face: its stretches' ends' mean distance from the curve's centre. */
+function faceRadius(stretches: readonly Segment[], curve: WallCurve): number {
+  const points = stretches.flatMap((s) => [s.a, s.b])
+  return points.reduce((sum, p) => sum + Math.hypot(p.x - curve.centre.x, p.y - curve.centre.y), 0) / points.length
+}
+
+/** CNT-56: how far a curved face turns round its centre, stretch by stretch: radians, a whole turn when closed. */
+function turnAlong(stretches: readonly Segment[], curve: WallCurve, closed: boolean): number {
+  if (closed) return TURN
+  let total = 0
+  for (const s of stretches) {
+    const u = { x: s.a.x - curve.centre.x, y: s.a.y - curve.centre.y }
+    const v = { x: s.b.x - curve.centre.x, y: s.b.y - curve.centre.y }
+    total += Math.atan2(u.x * v.y - u.y * v.x, u.x * v.x + u.y * v.y)
+  }
+  return Math.abs(total)
+}
+
+function measureFrom(plan: FloorPlan, boundary: PlotBoundary, footprint: Footprint, outlines: Outlines, stops: readonly Stop[] = []): Measured {
   const pieces = footprint.pieces
   const plot = [ringOf(boundary.points)]
-  const segments = outlineSegments(pieces).flat()
+  const rings = outlineSegments(pieces)
+  const segments = rings.flat()
+  const groups = faceGroups(rings, arcsOf(plan, footprint.floors))
+  // Each stretch's face, by number.
+  const faceOf = new Map<number, number>()
+  groups.forEach((g, n) => {
+    for (const i of g.parts) faceOf.set(i, n + 1)
+  })
   const byFloor = outlines.map((o) => ({ floor: o.floor, segments: outlineSegments(o.pieces).flat() }))
   const outside = cutOutline('difference', pieces, [plot]) ?? []
   const outsidePoints = piecesAsRings(outside).flatMap((p) => p.outline)
@@ -250,7 +412,7 @@ function measureFrom(plan: FloorPlan, boundary: PlotBoundary, footprint: Footpri
       const d = segmentDistance(s, line)
       if (d < distance) {
         distance = d
-        face = i + 1
+        face = faceOf.get(i) ?? i + 1
       }
     })
     let floor = byFloor[0]!.floor
@@ -283,7 +445,8 @@ function measureFrom(plan: FloorPlan, boundary: PlotBoundary, footprint: Footpri
   })
 
   const orientation = planOrientation(plan)
-  const faces = segments.map((s, i): FootprintFace => {
+  const way = (v: Vec2): CompassPoint => compassPoint(bearingOf(v, orientation, orientation.north ?? 0) ?? 0)
+  const pieceFaces = segments.map((s) => {
     const length = Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y)
     // Pieces run counter-clockwise, so the outside is to the right of each stretch.
     const outward = length === 0 ? { x: 0, y: 0 } : { x: (s.b.y - s.a.y) / length, y: -(s.b.x - s.a.x) / length }
@@ -297,6 +460,7 @@ function measureFrom(plan: FloorPlan, boundary: PlotBoundary, footprint: Footpri
         edge = e.edge
       }
     }
+    const toEdge = distance === Infinity ? null : distance
     if (distance === Infinity) {
       for (const e of boundary.edges) {
         const d = segmentDistance(s, { a: e.from, b: e.to })
@@ -306,7 +470,47 @@ function measureFrom(plan: FloorPlan, boundary: PlotBoundary, footprint: Footpri
         }
       }
     }
-    return { face: i + 1, from: s.a, to: s.b, length, faces: compassPoint(bearingOf(outward, orientation, orientation.north ?? 0) ?? 0), edge, distance }
+    // CNT-56: the tape stops at the first other building square in front of the face.
+    let at: string | null = null
+    let stop = toEdge ?? Infinity
+    for (const other of stops) {
+      for (const t of other.segments) {
+        const d = squareDistance(s, outward, t)
+        if (d !== null && d < stop) {
+          stop = d
+          at = other.id
+        }
+      }
+    }
+    return { s, length, outward, edge, distance: at === null ? distance : stop, at, toEdge }
+  })
+  const faces = groups.map((g, n): FootprintFace => {
+    const parts = g.parts.map((i) => pieceFaces[i]!)
+    const first = parts[0]!
+    const last = parts[parts.length - 1]!
+    // The face's figure is its nearest piece's: where the tape is shortest.
+    const near = parts.reduce((best, p) => (p.distance < best.distance ? p : best), first)
+    const radius = g.arc === null ? null : faceRadius(parts.map((p) => p.s), g.arc.curve)
+    // A curved face's length is along its curve, not its jagged outline's joints.
+    const length = g.arc === null || radius === null ? parts.reduce((sum, p) => sum + p.length, 0) : radius * turnAlong(parts.map((p) => p.s), g.arc.curve, g.closed)
+    const chord = { x: last.s.b.x - first.s.a.x, y: last.s.b.y - first.s.a.y }
+    const across = Math.hypot(chord.x, chord.y)
+    // A curve faces the way square to its chord, outward; a whole round one, the way of its nearest piece.
+    const outward = parts.length === 1 || g.closed || across === 0 ? near.outward : { x: chord.y / across, y: -chord.x / across }
+    const curve: FaceCurve | null = g.arc === null ? null : { radius: radius!, pieces: parts.length, closed: g.closed, from: way(first.outward), to: way(last.outward) }
+    return {
+      face: n + 1,
+      from: first.s.a,
+      to: g.closed ? first.s.a : last.s.b,
+      length,
+      faces: way(parts.length === 1 ? first.outward : outward),
+      edge: near.edge,
+      distance: near.distance,
+      stops: near.at === null ? 'edge' : 'building',
+      at: near.at,
+      toEdge: near.toEdge,
+      curve,
+    }
   })
   return { edges, faces, coverage: boundary.area > 0 && covered !== null ? covered / boundary.area : null, covered }
 }
@@ -366,21 +570,55 @@ export function siteMeasures(plan: FloorPlan, options: SiteOptions = {}): SiteMe
   if ('why' in made) return without(made.why)
   const { footprint, outlines } = made
   const sound = boundary !== null && boundary.problem === null ? boundary : null
-  // LVL-23: each building on its own, only on a plan that names some.
+  // LVL-23: each building on its own, only on a plan that names some. CNT-56: the floors in no
+  // building are one more, and each building's faces stop at the others.
   const listed = planBuildings(plan)
-  const buildings = listed.length === 0 ? {} : {
-    buildings: listed.map((building): BuildingSite => {
-      const own = footprintOf(enclosed, broken, new Set(building.floors))
-      if ('why' in own) return { id: building.id, name: building.name, footprint: null, why: english(own.why), edges: [] }
-      return { id: building.id, name: building.name, footprint: own.footprint, why: null, edges: sound === null ? [] : measureFrom(enclosed, sound, own.footprint, own.outlines).edges }
-    }),
-  }
+  const held = new Set(listed.flatMap((b) => b.floors))
+  const restFloors = footprintFloors(plan).filter((f) => !held.has(f))
+  const groups: { id: string; name: string; floors: ReadonlySet<string>; rest: boolean }[] = [
+    ...listed.map((b) => ({ id: b.id, name: b.name, floors: new Set(b.floors), rest: false })),
+    ...(listed.length > 0 && restFloors.length > 0 ? [{ id: '', name: english(said('site.building.rest')), floors: new Set(restFloors), rest: true }] : []),
+  ]
+  const owns = groups.map((g) => ({ group: g, own: footprintOf(enclosed, broken, g.floors) }))
+  const outlinesOf = new Map(owns.flatMap(({ group, own }) => ('why' in own ? [] : [[group.id, outlineSegments(own.footprint.pieces).flat()] as const])))
+  const sites = owns.map(({ group, own }): BuildingSite => {
+    const base = { id: group.id, name: group.name, ...(group.rest ? { rest: true as const } : {}) }
+    if ('why' in own) return { ...base, footprint: null, why: english(own.why), edges: [], faces: [], coverage: null, covered: null }
+    if (sound === null) return { ...base, footprint: own.footprint, why: null, edges: [], faces: [], coverage: null, covered: null }
+    const stops = [...outlinesOf].filter(([id]) => id !== group.id).map(([id, segments]) => ({ id, segments }))
+    const m = measureFrom(enclosed, sound, own.footprint, own.outlines, stops)
+    return { ...base, footprint: own.footprint, why: null, edges: m.edges, faces: m.faces.map((f) => ({ ...f, building: group.id })), coverage: m.coverage, covered: m.covered }
+  })
+  const apart: BuildingsApart[] = []
+  const withOutline = sites.filter((b) => outlinesOf.has(b.id))
+  withOutline.forEach((x, i) => {
+    for (const y of withOutline.slice(i + 1)) {
+      let distance = Infinity
+      for (const s of outlinesOf.get(x.id)!) for (const t of outlinesOf.get(y.id)!) distance = Math.min(distance, segmentDistance(s, t))
+      apart.push({ a: x.id, b: y.id, distance })
+    }
+  })
+  const buildings = groups.length === 0 ? {} : { buildings: sites, apart }
   if (sound === null) return { ...none, footprint, why: null, ...buildings }
-  const measured = measureFrom(enclosed, sound, footprint, outlines)
+  const whole = measureFrom(enclosed, sound, footprint, outlines)
+  // CNT-56: on a plan that names buildings, the site's faces are the buildings' own, and each
+  // edge's distance is its nearest building's, named.
+  const measured: Measured = groups.length === 0 || sites.some((b) => b.footprint === null)
+    ? whole
+    : {
+        ...whole,
+        faces: sites.flatMap((b) => b.faces),
+        edges: whole.edges.map((edge) => {
+          const nearest = sites
+            .map((b) => ({ id: b.id, at: b.edges.find((e) => e.edge.edge === edge.edge.edge)! }))
+            .sort((x, y) => (y.at.past - x.at.past) || (x.at.distance - y.at.distance))[0]!
+          return { ...nearest.at, building: nearest.id }
+        }),
+      }
   let withOpen: OpenOutdoorMeasures | null = null
   if (enclosed !== plan) {
-    const whole = footprintOf(plan, broken)
-    if (!('why' in whole)) withOpen = { footprint: whole.footprint, ...measureFrom(plan, sound, whole.footprint, whole.outlines) }
+    const all = footprintOf(plan, broken)
+    if (!('why' in all)) withOpen = { footprint: all.footprint, ...measureFrom(plan, sound, all.footprint, all.outlines) }
   }
   return { boundary, footprint, why: null, ...measured, withOpen, ...buildings }
 }

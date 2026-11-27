@@ -66,7 +66,7 @@ is not asked whether it was typed in feet.
 | `chainThinWall` | tolerance | 0.12 m | A solid wall thinner than this that meets a facade is marked in the walls chain at its centre line, so its thickness is no figure of its own (VEW-22) |
 | `wingShare` | tolerance | 0.25 ratio | Outside walls running one way that hold this share of the outside length, in three walls or more, are a wing dimensioned square to itself; half or more is the plan's main directions (VEW-22) |
 | `curvePieceTurn` | tolerance | 20 degree | The most a room's outline turns between two short straight sides that are pieces of one curve; three or more turning the same way, their corners on one circle, are dimensioned by one radius and one chord (VEW-79) |
-| `curveFit` | tolerance | 0.02 m | How far a corner of such a run may lie off its circle; also how near two curved walls' face radii on one centre are one circle with one radius (VEW-79) |
+| `curveFit` | tolerance | 0.02 m | How far a corner of such a run may lie off its circle; also how near two curved walls' face radii on one centre are one circle with one radius (VEW-79), and how far past a curved wall's faces the site's outline may lie and still be its one curved face (CNT-56) |
 | `radiusLineLongest` | tolerance | 10 m | The longest a radius dimension's line is drawn; a larger radius is drawn as this much of its line by the curve, with no centre mark, and still says the whole radius (VEW-79) |
 | `roomsWallWidest` | tolerance | 0.6 m | The widest gap inferred as one wall in rooms text without a wider thickness stated |
 | `roomsTouch` | tolerance | 0.02 m | Rooms written rooms first closer than this touch with no wall between them, refused unless they are open to each other |
