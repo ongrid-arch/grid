@@ -243,7 +243,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-22: eight more, the topic of writing on the drawing.
   // WRT-79: nine more, the roofs and columns topics and the plinth line.
   // WRT-81: eight more, the phases topic.
-  'packages/cli/src/mcp/roomsGrammar.ts': [116, 'tools'],
+  'packages/cli/src/mcp/roomsGrammar.ts': [120, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
@@ -394,7 +394,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-55: three more, what itemRaised decides.
   // CNT-56: two more, what curveFit decides on the site.
   // ARE-73: two more, what itemOverlap and swingContact decide of an activity zone.
-  'packages/floorplan/src/geometry/tolerances.ts': [394, 'developer'],
+  // WRT-83: two more, what gridArcStep decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [396, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

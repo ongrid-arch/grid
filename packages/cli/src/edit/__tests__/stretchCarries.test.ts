@@ -50,6 +50,8 @@ function warehouse(): Raw {
     grids: [
       { id: 'main', origin: [0, 0], x: { spacing: [12, 12, 12, 12] }, y: { spacing: [20] } },
       { id: 'skew', origin: [40, 5], turn: 30, x: { spacing: [3] }, y: { spacing: [3] } },
+      // WRT-83: a radial grid beyond the line moves whole with its centre.
+      { id: 'ring', origin: [44, 30], x: { spacing: [90] }, y: { spacing: [] }, polar: { radius: 2 } },
     ],
     bays: [
       { id: 'b1', number: '1', at: [30, 4], width: 2.5, length: 5 },
@@ -113,13 +115,14 @@ describe('WRT-24: a stretch carries what is beyond its line', () => {
     expect((main['y'] as Raw)['spacing']).toEqual([20])
     // The turned grid stays.
     expect(byId(after['grids'], 'skew')['origin']).toEqual([40, 5])
+    expect(byId(after['grids'], 'ring')).toEqual({ id: 'ring', origin: [56, 30], x: { spacing: [90] }, y: { spacing: [] }, polar: { radius: 2 } })
     const site = after['site'] as Raw
     expect(site['boundary']).toEqual([[-10, -10], [80, -10], [80, 40], [-10, 40]])
     expect(byId(site['things'], 'fence')['points']).toEqual([[-5, -5], [30, -5], [72, -5]])
     expect(byId(site['things'], 'oak')['at']).toEqual([57, 30])
     expect(byId(site['things'], 'path')['points']).toEqual([[5, 30], [15, 30]])
 
-    expect(reply.text).toContain('1 column, 1 parking bay, 1 structural grid, 1 stair and 2 things on the site beyond the line moved with it.')
+    expect(reply.text).toContain('1 column, 1 parking bay, 2 structural grids, 1 stair and 2 things on the site beyond the line moved with it.')
     expect(reply.text).toContain('Grid "main": lines 3 and 4 are 24 m apart now, 12 m more, so it still reaches the walls that moved.')
     const couldNotKeep = reply.data!['couldNotKeep'] as string[]
     expect(couldNotKeep).toContain('Ramp "r1" crosses the line, and stretching it would change its length: it stays where it was.')
