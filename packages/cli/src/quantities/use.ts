@@ -34,8 +34,9 @@ import {
   type Vec2,
   type Wall,
 } from '@ongrid/floorplan/geometry'
+import { say } from '@ongrid/floorplan/messages'
 import { planFixtures, type FixtureRow } from './fixtures'
-import { OUTSIDE, routeBetween, wayGraph } from './measure'
+import { COMMON_PARTS, OUTSIDE, routeBetween, wayGraph } from './measure'
 import { roomCalled, roomCalledById, type Survey, type SurveyRoom } from './survey'
 import { WALKED_RULE, walkedLength } from './walked'
 
@@ -382,12 +383,13 @@ export interface WideRoute {
  * The way for a body or a trolley `width` wide from one room to another or to the outside, keeping
  * clear of the fixtures: first the way with the fewest rooms, measured room by room and doorway by
  * doorway; when something on it is narrower, the way with the fewest rooms that is at least that
- * wide all along, if there is one.
+ * wide all along, if there is one. ARE-70: `onto` the common parts, the way ends on them, as the
+ * route it widens does.
  */
-export function wideRoute(survey: Survey, from: string, to: string, width: number): WideRoute | null {
+export function wideRoute(survey: Survey, from: string, to: string, width: number, onto?: typeof COMMON_PARTS): WideRoute | null {
   const start = survey.byId.get(from)!
   const floor = start.facts.floor
-  const { next, openings } = wayGraph(survey, floor)
+  const { next, openings, common } = wayGraph(survey, floor)
   const { obstacles: onFloor } = fixturesOf(survey)
   const obstacles = onFloor(floor)
   const goal = to === 'outside' ? OUTSIDE : to
@@ -432,7 +434,7 @@ export function wideRoute(survey: Survey, from: string, to: string, width: numbe
   const wide = (w: number | null): boolean => w !== null && w + tolerance('joint') >= width
 
   // A body this wide is followed on its floor only: the stairs' widths are not measured here.
-  const base = routeBetween(survey, from, to, false)
+  const base = routeBetween(survey, from, to, false, {}, onto === COMMON_PARTS)
   if (base === null) return null
   const shortest = measure(base.rooms, base.steps.map((s) => s.via), base.steps.map((s) => s.into))
   const narrower = [
@@ -440,6 +442,9 @@ export function wideRoute(survey: Survey, from: string, to: string, width: numbe
     ...shortest.steps.filter((s) => s.type !== 'open side' && !wide(s.clear)).map((s) => ({ kind: 'doorway' as const, id: s.via, width: s.clear })),
   ]
   if (narrower.length === 0) return { from, to, width, through: true, way: shortest, shortest, narrower }
+  // ARE-70: a way out onto the common parts ends there, as the route it widens does.
+  const ends = new Map<string, Array<{ room: string; via: string }>>()
+  if (base.onto === COMMON_PARTS) for (const w of common) ends.set(w.room, [...(ends.get(w.room) ?? []), { room: OUTSIDE, via: w.via }])
 
   // Another way: the fewest rooms, every room and doorway on it at least `width`.
   interface State { readonly room: string; readonly via: string | null; readonly back: State | null }
@@ -448,7 +453,7 @@ export function wideRoute(survey: Survey, from: string, to: string, width: numbe
   let end: { state: State; via: string } | null = null
   while (queue.length > 0 && end === null) {
     const state = queue.shift()!
-    for (const step of next.get(state.room) ?? []) {
+    for (const step of [...(next.get(state.room) ?? []), ...(ends.get(state.room) ?? [])]) {
       if (step.via === state.via) continue
       const gate = doorway(step.via)
       if (openings.has(step.via) && !wide(gate.clear)) continue
@@ -474,7 +479,7 @@ export function wideRoute(survey: Survey, from: string, to: string, width: numbe
     rooms.unshift(s.room)
     if (s.via !== null) vias.unshift(s.via)
   }
-  const into = [...rooms.slice(1), goal === OUTSIDE ? 'outside' : goal]
+  const into = [...rooms.slice(1), goal === OUTSIDE ? (base.onto ?? 'outside') : goal]
   if (goal !== OUTSIDE) rooms.push(goal)
   return { from, to, width, through: true, way: measure(rooms, vias, into), shortest, narrower }
 }
@@ -482,7 +487,7 @@ export function wideRoute(survey: Survey, from: string, to: string, width: numbe
 /** The lines of a wide route's answer. */
 export function wideRouteLines(survey: Survey, route: WideRoute, figure: Figure, L: Length): string[] {
   const { items } = fixturesOf(survey)
-  const name = (id: string): string => (id === 'outside' ? 'outside' : q(roomCalledById(survey, id)))
+  const name = (id: string): string => (id === 'outside' ? 'outside' : id === COMMON_PARTS ? say('en', 'route.commonParts') : q(roomCalledById(survey, id)))
   const body = `a body or trolley ${L(route.width)} wide (${figure.from === 'person' ? 'the width you gave' : 'Grid\'s own indicator'})`
   const stepsText = (way: Way): string => way.steps.map((s) => `${s.type} ${q(s.via)}${s.clear === null ? '' : ` (${L(s.clear)} clear)`} into ${name(s.into)}`).join(', then ')
   const roomsText = (way: Way): string =>

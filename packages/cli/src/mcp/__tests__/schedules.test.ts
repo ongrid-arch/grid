@@ -57,6 +57,76 @@ function fields(line: string): (string | number)[] {
   return out.map((f, i) => (!quoted[i] && /^-?\d+(\.\d+)?$/.test(f) ? Number(f) : f))
 }
 
+const renovation: FloorPlan = {
+  ...tiny,
+  walls: tiny.walls.map((wall) => wall.id === 'loft-ext-east' ? { ...wall, phase: 'demolished' } : wall),
+  rooms: tiny.rooms.map((room) => room.id === 'loft-loft' ? { ...room, phase: 'demolished' } : room),
+  openings: tiny.openings.map((opening) => opening.id === 'ground-d-bath' ? { ...opening, phase: 'new' } : opening),
+}
+
+const livingDoor = flat.openings.find((opening) => opening.id === 'door-living')!
+const replacement: FloorPlan = {
+  ...flat,
+  openings: [
+    ...flat.openings.map((opening) => opening.id === livingDoor.id ? { ...opening, phase: 'new' as const } : opening),
+    { ...livingDoor, id: 'door-living-before', phase: 'demolished' },
+  ],
+}
+
+describe('CNT-53 opening phases in grid_schedule', () => {
+  let b: Bench
+  beforeAll(() => { b = bench({ 'renovation.json': renovation, 'loft.json': tiny, 'replacement.json': replacement }) })
+  afterAll(() => b.close())
+
+  it('appends a removal with its before-work room and keeps the after-work counts and marks', async () => {
+    const reply = await b.call('grid_schedule', { plan: 'renovation.json', of: 'openings' })
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.data?.['counts']).toEqual({ door: 2, window: 4, opening: 0 })
+    const rows = reply.data?.['rows'] as { id: string; phase: string; mark: string; between: string[] }[]
+    expect(rows.find((row) => row.id === 'ground-d-bath')).toMatchObject({ phase: 'new' })
+    expect(rows.find((row) => row.id === 'ground-d-in')).toMatchObject({ phase: 'existing' })
+    expect(rows.at(-1)).toMatchObject({ id: 'loft-w-loft', phase: 'demolished', between: expect.arrayContaining(['Sleeping loft']) })
+    expect(new Set(rows.map((row) => row.mark)).size).toBe(rows.length)
+    expect(rows.slice(0, -1).map((row) => row.mark)).toEqual(openingSchedule(survey(renovation)).rows.map((row) => row.mark))
+    expect(reply.text.split('To be removed')[1]).toContain('loft-w-loft')
+    const csv = await b.call('grid_schedule', { plan: 'renovation.json', of: 'openings', format: 'csv' })
+    const [, header, ...cells] = csv.text.trim().split('\n').map(fields)
+    expect(header).toEqual(expect.arrayContaining(['phase', 'section']))
+    expect(cells.at(-1)).toEqual(expect.arrayContaining(['loft-w-loft', 'demolished', 'To be removed']))
+    expect(cells.every((row) => row.length === header!.length)).toBe(true)
+  })
+
+  it('lists a removed-only floor in the window schedule and excludes it from the main count', async () => {
+    const args = { plan: 'renovation.json', of: 'windows', floor: 'loft' }
+    const reply = await b.call('grid_schedule', args)
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.data).toMatchObject({ count: 0, rows: [{ phase: 'demolished', count: 1, items: [{ id: 'loft-w-loft' }] }] })
+    expect(reply.text).toContain('To be removed')
+    const csv = await b.call('grid_schedule', { ...args, format: 'csv' })
+    expect(fields(csv.text.trim().split('\n').at(-1)!)).toEqual(expect.arrayContaining(['demolished', 'To be removed']))
+    const all = await b.call('grid_schedule', { plan: 'renovation.json', of: 'windows' })
+    expect(reply.data?.['rows']).toMatchObject([{ marks: (all.data?.['rows'] as { marks: string[] }[]).at(-1)!.marks }])
+  })
+
+  it('separates doors of the same type by phase and defaults an unphased plan to existing', async () => {
+    const args = { plan: 'replacement.json', of: 'doors' }
+    const reply = await b.call('grid_schedule', args)
+    expect(reply.isError, reply.text).toBe(false)
+    expect(reply.data?.['count']).toBe(6)
+    const rows = reply.data?.['rows'] as { key: string; phase: string; count: number }[]
+    expect(rows.filter((row) => row.key === 'door:0.8x2.1')).toEqual([
+      expect.objectContaining({ phase: 'existing', count: 3 }),
+      expect.objectContaining({ phase: 'new', count: 1 }),
+      expect.objectContaining({ phase: 'demolished', count: 1 }),
+    ])
+    const csv = await b.call('grid_schedule', { ...args, format: 'csv' })
+    expect(csv.text).toContain(',new,')
+    expect(csv.text.trim().split('\n').at(-1)).toMatch(/,demolished,To be removed$/)
+    const plain = await b.call('grid_schedule', { plan: 'loft.json', of: 'doors' })
+    expect((plain.data?.['rows'] as { phase: string }[]).map((row) => row.phase)).toEqual(['existing', 'existing'])
+  })
+})
+
 describe('ARE-12 the room schedule', () => {
   it('gives the flat one row per room: number, name, use, area, height, floor', () => {
     const s = roomSchedule(survey(flat))

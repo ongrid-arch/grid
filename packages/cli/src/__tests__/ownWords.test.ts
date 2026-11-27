@@ -295,7 +295,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/preview/record.ts': [4, 'command'],
   'packages/cli/src/quantities/access.ts': [49, 'notYet'],
   'packages/cli/src/quantities/areas.ts': [9, 'notYet'],
-  'packages/cli/src/quantities/change.ts': [18, 'notYet'],
+  'packages/cli/src/quantities/change.ts': [22, 'notYet'],
   'packages/cli/src/quantities/compare.ts': [25, 'notYet'],
   // CNT-31: three more, the roof edges' rule and line and why a roof is left out.
   'packages/cli/src/quantities/estimate.ts': [41, 'notYet'],
@@ -382,8 +382,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-79: ten more, what curvePieceTurn, curveFit and radiusLineLongest decide.
   // CMD-51: four more, what polygonOnCircle and polygonOnCircleCorners decide.
   // MSG-34: two more, what languageNamesLeast decides.
+  // ARE-71: one more, what lintelBearing decides.
   // CNT-55: three more, what itemRaised decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [381, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [382, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

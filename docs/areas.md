@@ -340,6 +340,14 @@ another's printed text.
   use, `door:0.9x2.1`, `door:sliding:2.2x2.1` (with `:opens:0.9x2.1` for a stated part). A
   window type lists its sills. The CSV has `name` and `material` columns when a row is a named
   type.
+- **Opening phases** (CNT-53) appear in the opening, door and window schedules as `existing`,
+  `new` or `demolished` on each row. Grid uses the opening's stated phase or reads it
+  from its wall and the plan as described in [Existing, demolished and new](plan-file.md#existing-demolished-and-new). Door and window
+  types have a row for each phase present, with the same type key across phases.
+  The **To be removed** section follows the openings that will stand after the work and
+  describes each removal as it stood before. The schedule totals count the openings
+  that will stand after the work. The CSV has `phase` and `section` columns, with
+  `To be removed` in the section column on removal rows.
 - **The finishes schedule** (`grid_schedule` with `of=finishes`, CNT-15): the finishes plan, one
   row per room with its floor, wall, ceiling and skirting finish and the quantity of each, then
   each zone that names a finish of its own, after its room, and each finish's total. See

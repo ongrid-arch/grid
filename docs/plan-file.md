@@ -836,7 +836,14 @@ its kind.
 route: a home is not left through another, and `opening/between-homes` says so. A door onto a
 common part that is not drawn is a way on: the flat gets no "leads to a space that is not drawn"
 note, and its floor's way out is said not checked, through the common parts
-(`floor/not-checked-way-out-common-parts`). Every flat needs a front door, onto a room in no flat,
+(`floor/not-checked-way-out-common-parts`). ARE-70: on a floor up in the building that no stair
+joins to a drawn ground floor (a flat drawn on its own on the third floor), such a door, or an open
+edge onto the common parts, is the floor's way out: every room is checked to reach it, and the
+floor is said to go on through the common parts, never that no stair joins it to the ground floor
+(`floor/not-checked-no-stairs`, `floor/no-stair`). A front door in a wall that marks nothing is read
+as a door to the outside, high above the ground (`opening/door-out-above-ground`); mark its wall
+`separating` or `beyond: "common"`, for any number of walls in one `grid_set` call, and it is the
+way out. Every flat needs a front door, onto a room in no flat,
 a common part, a space not drawn or the outside (`flat/no-front-door`). A flat entered only through
 doorless openings or open sides, with no door or stair on its way in, is noted too
 (`flat/entrance-without-door`).
@@ -1646,12 +1653,17 @@ What Grid does with each state:
   what is added is new, and a widened door is a door whose width changed. A door whose room the
   work replaces is no issue there; an old window the work leaves between two rooms is (CMD-31).
 - **The cost.** `grid_takeoff` with `for: "change"` gives the work as three lists: demolish
-  (walls by kind and thickness, doors and windows by size), make good (the floor where a wall
-  stood, the wall faces where it met walls that stay, each opening filled in, less what a new one
-  in the same place takes, and the reveals of new openings cut in walls that stay) and new (walls,
-  doors and windows, the new rooms' floor by use). Each line has a key a rates file prices,
-  `demolish:wall:interior:0.1`, `make_good:infill:exterior:0.3`, `new:door:0.9x2.1`; a shorter key
-  covers longer ones, so `demolish` prices every demolition line.
+  (walls by kind and thickness, doors and windows by size, and the holes cut through walls that
+  stay for new openings, by the wall's kind and thickness, less what an old opening in the same
+  place leaves open), make good (the floor where a wall stood, the wall faces where it met walls
+  that stay, each opening filled in, less what a new one in the same place takes, and the reveals
+  of new doors, windows and doorless openings cut in walls that stay) and new (walls, doors and
+  windows, a lintel over each opening cut through a wall that stays whose head is below the
+  wall's top, in metres, its width and `lintelBearing` at each end, marked assumed, and the new
+  rooms' floor by use). Each line has a key a rates file prices, `demolish:wall:interior:0.1`,
+  `demolish:cut:interior:0.3`, `make_good:infill:exterior:0.3`, `new:door:0.9x2.1`,
+  `new:lintel:interior:0.3`; a shorter key covers longer ones, so `demolish` prices every
+  demolition line.
 - **Setting them.** No file needs editing by hand. `grid_start_works` (`grid edit start-works`)
   marks every wall, door, window and room that states no phase as `existing`; a door or window
   with none on a wall that is demolished or new is left to go with its wall. `grid_set_phase`
