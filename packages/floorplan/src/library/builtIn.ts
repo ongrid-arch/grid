@@ -15,12 +15,13 @@ import type { LibraryItem, RoomUse } from '../types/floorplan'
 /** What every built-in entry says of where its size comes from. */
 export const BUILT_IN_SOURCE = "Grid's own size, not a code figure"
 
-const entry = (name: string, kind: string, label: string, size: readonly [number, number], height: number, clearance?: number): LibraryItem => ({
+const entry = (name: string, kind: string, label: string, size: readonly [number, number], height: number, clearance?: number, elevation?: number): LibraryItem => ({
   name,
   kind,
   label,
   size: [size[0], size[1]],
   height,
+  ...(elevation === undefined ? {} : { elevation }),
   ...(clearance === undefined ? {} : { clearance }),
   source: BUILT_IN_SOURCE,
 })
@@ -89,6 +90,28 @@ export const BUILT_IN_ITEMS: readonly LibraryItem[] = [
   entry('kennel', 'kennel', 'Kennel', [0.9, 0.9], 0.9),
   entry('exam-table', 'exam-table', 'Exam table', [1.2, 0.6], 0.9, 0.8),
   entry('clinical-sink', 'clinical-sink', 'Clinical sink', [0.9, 0.6], 0.9, 0.6),
+  // CNT-55: the bathroom's and the kitchen's, one plain size of each kind. What hangs on a wall
+  // carries its elevation, its underside above the floor, and its own height; a sink and a hob
+  // are set into a worktop 0.9 m high.
+  entry('wall-hung-wc', 'toilet', 'WC', [0.36, 0.54], 0.22, 0.6, 0.2),
+  entry('bidet', 'bidet', 'Bidet', [0.36, 0.55], 0.4, 0.6),
+  entry('urinal', 'urinal', 'Urinal', [0.4, 0.35], 0.6, 0.6, 0.35),
+  entry('vanity', 'vanity', 'Vanity', [0.8, 0.5], 0.85, 0.6),
+  entry('double-basin', 'double-basin', 'Double basin', [1.2, 0.5], 0.85, 0.6),
+  entry('towel-radiator', 'towel-radiator', 'Towel radiator', [0.5, 0.1], 1.2, undefined, 0.15),
+  entry('shower-screen', 'shower-screen', 'Shower screen', [0.9, 0.02], 2),
+  entry('sink', 'sink', 'Sink', [1, 0.5], 0.2, undefined, 0.7),
+  entry('hob', 'hob', 'Hob', [0.6, 0.5], 0.03, undefined, 0.88),
+  entry('oven', 'oven', 'Oven', [0.6, 0.6], 0.9, 1),
+  entry('fridge', 'fridge', 'Fridge', [0.6, 0.65], 0.85, 1),
+  entry('fridge-freezer', 'fridge', 'Fridge-freezer', [0.6, 0.65], 1.8, 1),
+  entry('tall-unit', 'tall-unit', 'Tall unit', [0.6, 0.6], 2.1, 1),
+  entry('wall-unit', 'wall-unit', 'Wall unit', [0.6, 0.35], 0.72, undefined, 1.45),
+  entry('range', 'range', 'Range', [0.9, 0.9], 0.9, 1.2),
+  entry('fryer', 'fryer', 'Fryer', [0.4, 0.8], 0.9, 1.2),
+  entry('prep-table', 'prep-table', 'Prep table', [1.8, 0.7], 0.9, 1),
+  entry('dishwasher', 'dishwasher', 'Dishwasher', [0.7, 0.75], 1.5, 1),
+  entry('hood', 'hood', 'Hood', [1.8, 1], 0.6, undefined, 2),
   // CNT-52: points, one of each kind: the size its symbol is drawn at and the height it is shown at.
   entry('extinguisher', 'extinguisher', 'Extinguisher', [0.4, 0.4], 1),
   entry('aed', 'aed', 'AED', [0.4, 0.4], 1.2),

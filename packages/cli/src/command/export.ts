@@ -27,6 +27,7 @@ import { writeProjectExport } from '../export/projectExports'
 import { projectDxfProfile } from '../export/dxfProfile'
 import { PathRefused, type Project } from '../fs/projectFiles'
 import { floorOption, loadPlan, PlanRefused, type LoadedPlan } from './plan'
+import { floorAsked } from '@ongrid/floorplan/geometry/floorAsked'
 import { openingSchedule } from '../quantities/schedule'
 import { surveyPlan } from '../quantities/survey'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
@@ -134,11 +135,9 @@ export function exportShape(request: Pick<ExportRequest, 'roofs' | 'arcSegments'
  * (any case, spaces round it aside). Undefined when it names none, or names two by one name.
  */
 export function exportFloorId(plan: FloorPlan, text: string): string | undefined {
-  const floors = planFloors(plan)
-  if (floors.some((floor) => floor.id === text)) return text
-  const fold = (value: string): string => value.trim().toLowerCase()
-  const named = floors.filter((floor) => floor.name !== undefined && fold(floor.name) === fold(text))
-  return named.length === 1 ? named[0]!.id : undefined
+  // LVL-25: by its id, its name, its level or a word of its name, as every floor a command takes.
+  const asked = floorAsked(plan, text)
+  return asked !== null && 'id' in asked ? asked.id : undefined
 }
 
 /** The plan's name: the plan file's name without `.json`. */

@@ -86,6 +86,11 @@ export interface RoomFacts {
   readonly outdoor?: OutdoorKind
   /** ARE-16 (LVL-4), only on a void: open to the floor below, so no floor. It is measured, and counted in no total. */
   readonly void?: true
+  /**
+   * LVL-25, only when a room of another floor has the same name: its floor's name (its id when it
+   * has none), which an answer says beside the room's name so seven floors of `Room 101` are told apart.
+   */
+  readonly nameFloor?: string
 }
 
 /** How far an opening's edge is from the inside corner at one end of the room's side. */
@@ -689,6 +694,17 @@ function heightsOf(plan: FloorPlan, floors: readonly FloorFacts[]): Heights {
   }
 }
 
+/** LVL-25: each room whose name a room of another floor has, with its floor's name (`RoomFacts.nameFloor`). */
+function withFloorNames(floors: FloorFacts[]): FloorFacts[] {
+  const on = new Map<string, Set<string>>()
+  for (const floor of floors) for (const room of floor.rooms) if (room.name.trim() !== '') on.set(room.name, (on.get(room.name) ?? new Set()).add(floor.id))
+  if (![...on.values()].some((set) => set.size > 1)) return floors
+  return floors.map((floor) => ({
+    ...floor,
+    rooms: floor.rooms.map((room) => ((on.get(room.name)?.size ?? 0) > 1 ? { ...room, nameFloor: floor.name ?? floor.id } : room)),
+  }))
+}
+
 /** Everything `grid describe` says, from a plan that passed the schema. */
 export function planFacts(stated: FloorPlan, state: PlanState = 'after'): PlanFacts {
   // CNT-10: the work is counted apart from the state being read.
@@ -696,7 +712,7 @@ export function planFacts(stated: FloorPlan, state: PlanState = 'after'): PlanFa
   const plan = planInState(stated, state)
   const registered = new Set((plan.floors ?? []).map((floor) => floor.id))
   const layouts = new Map<string, { floor: string; ids: string[] }>()
-  const floors: FloorFacts[] = planFloors(plan).map((floor) => {
+  const floors: FloorFacts[] = withFloorNames(planFloors(plan).map((floor) => {
     const facts = floorFacts(plan, floor, registered.has(floor.id) || floor.id === DEFAULT_FLOOR_ID)
     const layout = layoutOf(planForFloor(plan, floor.id))
     const earlier = facts.rooms.length > 0 ? layouts.get(layout.key) : undefined
@@ -705,7 +721,7 @@ export function planFacts(stated: FloorPlan, state: PlanState = 'after'): PlanFa
       return facts
     }
     return { ...facts, repeats: { of: earlier.floor, prefix: prefixSwap(earlier.ids, layout.ids) } }
-  })
+  }))
   return {
     floors,
     rooms: new Map(floors.flatMap((floor) => floor.rooms.map((room) => [room.id, room] as const))),

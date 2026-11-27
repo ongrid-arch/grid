@@ -1133,7 +1133,13 @@ wardrobe, a cupboard, shelves, a TV unit), an armchair, a stool, a desk, a rug o
 (CNT-42), or equipment: a rack, a generator, a pump, a tank, a fixed seat, a pew, an altar, a
 fume cupboard, a lab bench, a safety shower, a kennel, an exam table, a clinical sink, and
 `equipment` for any other thing, a plain box called by its label (CNT-47). Equipment is a
-fixture: it takes the floor it stands on. Or a point (CNT-52): an `extinguisher`, an `aed`, a
+fixture: it takes the floor it stands on. Or a bathroom's or a kitchen's fitting (CNT-55): a
+`bidet`, a `urinal`, a `vanity`, a `double-basin`, a `towel-radiator`, a `shower-screen`, a
+`sink`, a `hob`, an `oven`, a `fridge`, a `tall-unit`, a `wall-unit`, and a commercial kitchen's
+`range`, `fryer`, `prep-table`, `dishwasher` and `hood`, drawn with their label. A `kind` written
+in a plain word for one is read as it, whatever its capitals: `WC`, `loo` and `lavatory` are
+`toilet`, `tub` is `bath`, `washbasin` is `basin`, `fridge-freezer` is `fridge`; a word that is
+none is named with the kind it most likely means. Or a point (CNT-52): an `extinguisher`, an `aed`, a
 `call-point`, a `first-aid` point, a `sensor`, a `desk-point`, a game's `spawn` point, a
 `camera`, and the fire and wayfinding set `you-are-here`, `hose-reel`, `fire-door` (the mark by a
 fire door; the door is an opening of its wall), `exit`, `refuge` and `assembly-point`. A point
@@ -1145,7 +1151,8 @@ each kind by its symbol. Each has a `kind`, `at` (the middle of its footprint), 
 (degrees, counter-clockwise; unturned, its back faces down the drawing), a `label`, a
 `floor`, a `clearance` (metres of clear floor kept in front of it) and `clearSides` (CNT-47:
 `back`, `left` and `right`, the same behind it and at its own left and right, facing out of its
-front), and `properties`, facts of the person's own (CNT-52, as below). An item may instead name
+front), `elevation` (CNT-55: metres from its room's floor to its underside, for a thing hung on a
+wall; its `height` is then its own, underside to top), and `properties`, facts of the person's own (CNT-52, as below). An item may instead name
 a library entry in `library`, which gives what it leaves out (CNT-20, C30: [library.md](library.md)).
 Every other figure is the author's.
 
@@ -1172,6 +1179,16 @@ writes each item as a block ([library.md](library.md#the-dxf-each-door-and-fixtu
 A rug lies on the floor (CNT-42): other items stand on it without standing in each other, and it
 is in no item's clear floor, no doorway, no way through and no fixture's space; it is still
 drawn, exported and counted.
+An item hung above the floor (CNT-55, `elevation`) is raised to it in 3D, the section and the
+IFC, and is too tall when its top passes its room's height. It stands in another item only where
+their heights meet, so a wall unit over a kitchen run stands in nothing. From `itemRaised` (1 m)
+up it hangs above the plan's cut: it is drawn dashed with no fill, over what stands under it
+(in the DXF on `GRID-FIXTURES-ABOVE`), takes no floor and stands in no clear floor another keeps.
+A sink, a hob and a shower screen are set into or onto another item and stand in none. The IFC
+writes a sanitary fixture (a toilet, a basin, a shower, a bath, a bidet, a urinal, a vanity, a
+double basin, a sink, a clinical sink, a safety shower) as an `IfcFlowTerminal` typed by an
+`IfcSanitaryTerminalType` of its kind, and a towel radiator as one typed by an
+`IfcSpaceHeaterType`; every other item stays an `IfcFurnishingElement`.
 Rooms text writes an item in an `item` line, against a side of a room with its turn worked out or
 at a point (CNT-45, [rooms-first.md](rooms-first.md#items)), and `grid_add_item`, `grid_move_item`
 and `grid_remove_item` add, move and take one out. An item whose back stands against a wall's

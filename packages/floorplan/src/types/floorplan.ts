@@ -57,7 +57,9 @@
  *   Items are one list, never walls and never rooms: they add no area and close no outline. The
  *   room an item is in is found from the outlines (the smallest room on its floor that holds its
  *   middle), never named. This version holds fixed fixtures only (`ITEM_KINDS`); loose furniture,
- *   points and seats are later, in the same shape.
+ *   points and seats are later, in the same shape. CNT-55: an item MAY state `elevation`, metres
+ *   from its room's floor to its underside (a wall unit, a wall-hung WC); its `height` is then its
+ *   own. Unstated, it stands on the floor, as before.
  *
  * C7 · North, front and where the building is (CNT-3)
  *   C4 names the sides of the drawing (+Y is called north, as rooms text and the edits do); the
@@ -1719,9 +1721,95 @@ export const EQUIPMENT_KINDS = ['rack', 'generator', 'pump', 'tank', 'seat', 'pe
  * takes no floor and is in no item's way; its `size` is the size its symbol is drawn at and its
  * `height` the height it is shown at.
  */
+/**
+ * CNT-55 (C30): the bathroom's own kinds besides Grid's first fixtures: a bidet, a urinal, a vanity
+ * (a basin in a counter unit), a double basin, a towel radiator and a shower screen (a glass panel,
+ * set on a tray's edge). All are fixtures.
+ */
+export const SANITARY_KINDS = ['bidet', 'urinal', 'vanity', 'double-basin', 'towel-radiator', 'shower-screen'] as const
+
+/**
+ * CNT-55 (C30): the kitchen's own kinds: a sink and a hob (each set into a worktop), an oven, a
+ * fridge (a fridge-freezer is a tall one), a tall unit and a wall unit (hung above the floor, at
+ * its `elevation`), then a commercial kitchen's pieces, drawn with their label: a range, a fryer,
+ * a prep table, a dishwasher and a hood (hung above the floor). All are fixtures.
+ */
+export const KITCHEN_KINDS = ['sink', 'hob', 'oven', 'fridge', 'tall-unit', 'wall-unit', 'range', 'fryer', 'prep-table', 'dishwasher', 'hood'] as const
+
+/**
+ * CNT-55 (C30): the plain words a kind may be written in, read as the kind (`readItemKind`), as a
+ * word that plainly means a use is read as the use (`USE_WORDS`). Folded first: lower case,
+ * letters and digits only, so `WC`, `W.C.` and `wc` are one word.
+ */
+export const ITEM_KIND_WORDS: Readonly<Record<string, string>> = {
+  wc: 'toilet',
+  loo: 'toilet',
+  lavatory: 'toilet',
+  watercloset: 'toilet',
+  toiletpan: 'toilet',
+  tub: 'bath',
+  bathtub: 'bath',
+  washbasin: 'basin',
+  handbasin: 'basin',
+  washhandbasin: 'basin',
+  lavabo: 'basin',
+  showertray: 'shower',
+  kitchenette: 'kitchen-run',
+  worktop: 'kitchen-run',
+  baseunit: 'kitchen-run',
+  baseunits: 'kitchen-run',
+  kitchensink: 'sink',
+  cooktop: 'hob',
+  stovetop: 'hob',
+  cooker: 'oven',
+  fridgefreezer: 'fridge',
+  refrigerator: 'fridge',
+  freezer: 'fridge',
+  tallunit: 'tall-unit',
+  larder: 'tall-unit',
+  wallunit: 'wall-unit',
+  wallcabinet: 'wall-unit',
+  wallcupboard: 'wall-unit',
+  vanityunit: 'vanity',
+  doublebasin: 'double-basin',
+  twinbasin: 'double-basin',
+  towelrail: 'towel-radiator',
+  towelradiator: 'towel-radiator',
+  showerscreen: 'shower-screen',
+  cookingrange: 'range',
+  deepfryer: 'fryer',
+  preptable: 'prep-table',
+  worktable: 'prep-table',
+  extracthood: 'hood',
+  cookerhood: 'hood',
+  couch: 'sofa',
+  wardrobe: 'storage',
+  cupboard: 'storage',
+}
+
+/** CNT-55: a kind as `ITEM_KIND_WORDS` holds it: lower case, letters and digits only. */
+export const foldKindWord = (word: string): string => word.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/**
+ * CNT-55: a kind as Grid reads it: one of its own, whatever its capitals (`Toilet`); or a plain
+ * word for one (`WC`, `loo`, `tub`, `fridge-freezer`). Anything else is left as it is, for the
+ * check to name (`item/unknown-kind`) with the kind it most likely means, or for a kind another
+ * program registers.
+ */
+export function readItemKind(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  if ((ITEM_KINDS as readonly string[]).includes(value)) return value
+  const lower = value.trim().toLowerCase()
+  if ((ITEM_KINDS as readonly string[]).includes(lower)) return lower
+  const folded = foldKindWord(value)
+  const own = ITEM_KINDS.find((kind) => foldKindWord(kind) === folded)
+  if (own !== undefined) return own
+  return Object.hasOwn(ITEM_KIND_WORDS, folded) ? ITEM_KIND_WORDS[folded] : value
+}
+
 export const POINT_KINDS = ['extinguisher', 'aed', 'call-point', 'first-aid', 'sensor', 'desk-point', 'spawn', 'camera', 'you-are-here', 'hose-reel', 'fire-door', 'exit', 'refuge', 'assembly-point'] as const
 
-export const ITEM_KINDS = [...FIXTURE_KINDS, ...FURNITURE_KINDS, ...EQUIPMENT_KINDS, ...POINT_KINDS] as const
+export const ITEM_KINDS = [...FIXTURE_KINDS, ...FURNITURE_KINDS, ...EQUIPMENT_KINDS, ...SANITARY_KINDS, ...KITCHEN_KINDS, ...POINT_KINDS] as const
 
 export type ItemKind = (typeof ITEM_KINDS)[number]
 
@@ -1732,7 +1820,7 @@ export type ItemKind = (typeof ITEM_KINDS)[number]
 const FROM_LIBRARY = Symbol('values from its library entry')
 
 /** CNT-20: the values of an item that its library entry may fill, and `fromLibrary` may name. */
-export const LIBRARY_VALUES = ['kind', 'size', 'height', 'clearance', 'label'] as const
+export const LIBRARY_VALUES = ['kind', 'size', 'height', 'elevation', 'clearance', 'label'] as const
 export type LibraryValue = (typeof LIBRARY_VALUES)[number]
 
 /** CNT-20 (C30): an item's own `fromLibrary` from what `withLibrary` marked; a file's own is not read. */
@@ -1758,6 +1846,8 @@ export const LibraryItemSchema = z.object({
   kind: text('id'),
   size: z.tuple([finite().positive(), finite().positive()]),
   height: finite().positive(),
+  // CNT-55: metres from the floor to its underside, for a thing hung on a wall (a wall unit).
+  elevation: finite().nonnegative().optional(),
   clearance: finite().nonnegative().optional(),
   label: text('name').optional(),
   source: text('name').optional(),
@@ -1778,10 +1868,15 @@ export const ItemSchema = z.preprocess(
   withItemFromLibrary,
   z.object({
     id: text('id'),
-    kind: text('id'),
+    // CNT-55: a plain word for a kind is read as it (`readItemKind`): `WC` is a toilet.
+    kind: z.preprocess(readItemKind, text('id')),
     at: Vec2,
     size: z.tuple([finite().positive(), finite().positive()]),
     height: finite().positive(),
+    // CNT-55 (C6): metres from the floor of the room it stands in to its underside: a wall unit
+    // hung 1.45 m up, a wall-hung WC. Its `height` is then its own, underside to top. Optional and
+    // never defaulted: unstated, it stands on the floor.
+    elevation: finite().nonnegative().optional(),
     // Optional and never defaulted: unstated, the item is not turned.
     turn: finite().optional(),
     // What the drawing and an export call it: "WC", "Island". Unstated, its kind.

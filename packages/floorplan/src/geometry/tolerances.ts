@@ -843,6 +843,16 @@ export const TOLERANCES = {
       'named. Past it, the item is named with the room and the floor outside.',
     basis: own
   },
+  itemRaised: {
+    kind: 'tolerance',
+    value: 1,
+    unit: 'm',
+    decides:
+      'How high an item\'s underside may be above the floor and still stand on it. From it up, the ' +
+      'item hangs above the plan\'s cut (a wall unit, a hood): it is drawn dashed, takes no floor and ' +
+      'stands in no clear floor another keeps.',
+    basis: own
+  },
   itemAboveRoom: {
     kind: 'tolerance',
     value: 0.001,
@@ -1450,6 +1460,42 @@ export const TOLERANCES = {
     hall: 500000,
     unit: 'm²',
     decides: 'A room larger than this is questioned.',
+    basis: own
+  },
+  homeRoomSmallest: {
+    kind: 'limit',
+    value: 4,
+    unit: 'm²',
+    decides:
+      "Grid's own size, not a code figure. A bedroom, living room or dining room of a home with less " +
+      'net floor than this is asked about after the check, with no place or country needed (ARE-72).',
+    basis: own
+  },
+  homeRoomNarrowest: {
+    kind: 'limit',
+    value: 1.8,
+    unit: 'm',
+    decides:
+      "Grid's own size, not a code figure. A bedroom, living room or dining room of a home whose widest " +
+      'circle, as grid_measure gives it, is narrower than this is asked about after the check (ARE-72).',
+    basis: own
+  },
+  homeWetRoomSmallest: {
+    kind: 'limit',
+    value: 0.8,
+    unit: 'm²',
+    decides:
+      "Grid's own size, not a code figure. A kitchen, bathroom or toilet of a home with less net floor " +
+      'than this is asked about after the check (ARE-72).',
+    basis: own
+  },
+  homeWetRoomNarrowest: {
+    kind: 'limit',
+    value: 0.6,
+    unit: 'm',
+    decides:
+      "Grid's own size, not a code figure. A kitchen, bathroom or toilet of a home whose widest circle " +
+      'is narrower than this is asked about after the check (ARE-72).',
     basis: own
   },
   typicalHeightLowest: {

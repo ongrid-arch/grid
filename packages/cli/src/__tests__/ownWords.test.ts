@@ -141,7 +141,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/fixtureSets.ts': [10, 'notYet'],
   // CNT-45: the items' receipts and refusals. CNT-47: two more, a row's receipt and its taken id.
   // CNT-52: one more, a point's receipt.
-  'packages/cli/src/edit/items.ts': [23, 'notYet'],
+  // CNT-55: one more, how high an item hangs in its receipt.
+  'packages/cli/src/edit/items.ts': [24, 'notYet'],
   // SHT-22: the receipts and refusals of placing writing on the drawing.
   'packages/cli/src/edit/annotate.ts': [7, 'notYet'],
   'packages/cli/src/edit/square.ts': [11, 'notYet'],
@@ -255,7 +256,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/levelsTool.ts': [10, 'tools'],
   // CNT-45: the item tools' help and refusals. CNT-47: twelve more, the row and side-clearance arguments. CNT-48: two more, a typical room's usual fixtures.
   // CNT-52: one more, the facts argument's help.
-  'packages/cli/src/mcp/itemTools.ts': [54, 'tools'],
+  // CNT-55: one more, the elevation argument's help.
+  'packages/cli/src/mcp/itemTools.ts': [55, 'tools'],
   // ARE-68: the lettable_uses, lettable_tenures and people arguments and the brief's people schema.
   'packages/cli/src/mcp/lettableArgs.ts': [7, 'tools'],
   // SHT-22: grid_annotate, its description, arguments and refusals.
@@ -382,8 +384,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-51: four more, what polygonOnCircle and polygonOnCircleCorners decide.
   // MSG-34: two more, what languageNamesLeast decides.
   // ARE-71: one more, what lintelBearing decides.
+  // ARE-72: eight more, what the four limits for a home's rooms decide.
+  // CNT-55: three more, what itemRaised decides.
   // CNT-56: two more, what curveFit decides on the site.
-  'packages/floorplan/src/geometry/tolerances.ts': [381, 'developer'],
+  'packages/floorplan/src/geometry/tolerances.ts': [392, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -415,7 +419,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-21: the stair lines' refusals, the stair's summary and the read-back's note.
   'packages/floorplan/src/rooms/stairs.ts': [39, 'notYet'],
   // CNT-45: the item lines' refusals and guesses. CNT-47: five more, the clear floor at a side.
-  'packages/floorplan/src/rooms/items.ts': [50, 'notYet'],
+  // CNT-55: two more, the refusals of an item line's above.
+  'packages/floorplan/src/rooms/items.ts': [52, 'notYet'],
   // CNT-47: the row lines' refusals.
   'packages/floorplan/src/rooms/rows.ts': [18, 'notYet'],
   // SHT-22: the note and sketch lines' refusals, what they placed and the drawing's count by floor.
@@ -604,7 +609,9 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and CNT-52 9: the point kinds' words and a label (geometry/pointKinds.ts 3, library/builtIn.ts 1), a
     // point's receipt (edit/items.ts 1), grid_add_item's facts (mcp/itemTools.ts 1), grid_schedule
     // of=items (mcp/readTools.ts 2) and an item's facts on the sheet (sheet/coverage.ts 1) (odd/tasks/CNT-52.md).
-    expect(left).toBeLessThanOrEqual(2590)
+    // and CNT-55 7: what itemRaised decides (geometry/tolerances.ts 3), an item line's above (rooms/items.ts 2),
+    // a hung item's receipt (edit/items.ts 1) and grid_add_item's elevation (mcp/itemTools.ts 1) (odd/tasks/CNT-55.md).
+    expect(left).toBeLessThanOrEqual(2597)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {

@@ -4,7 +4,8 @@
  * or furniture, which can be moved), its word, what an agent is told of it, its plain symbol and
  * any checks of its own. The drawing, the DXF and IFC exports, the measures and the drawing's
  * check read a kind only through here, so a new kind is added by one entry and reaches all of
- * them; the IFC writes every kind as an IfcFurnishingElement with its kind as its type.
+ * them; the IFC writes every kind as an IfcFurnishingElement with its kind as its type, and
+ * (CNT-55) a kind that states `ifc` as an IfcFlowTerminal of that type (a basin, a WC).
  *
  * Grid's own kinds are `ITEM_KIND_DEFINITIONS`, in `ITEM_KINDS` order. Another program adds one
  * with `registerItemKind`; a plan names it by its `kind`, as it names Grid's.
@@ -25,6 +26,7 @@ import type { Vec2 } from './vec2'
 import type { Severity } from './validate'
 import { EQUIPMENT_KIND_DEFINITIONS } from './equipmentKinds'
 import { POINT_KIND_DEFINITIONS } from './pointKinds'
+import { FITTING_KIND_DEFINITIONS } from './fittingKinds'
 
 /**
  * A fixture takes the floor it stands on from its room's free floor; furniture can be moved and
@@ -85,6 +87,17 @@ export interface ItemFinding {
   readonly said?: Said
 }
 
+/** CNT-55: a flow terminal's IFC type and its predefined kind, as IFC2X3 names them. */
+export interface ItemIfcType {
+  readonly type: 'IFCSANITARYTERMINALTYPE' | 'IFCSPACEHEATERTYPE'
+  readonly predefined: string
+}
+
+/** CNT-55: a sanitary terminal of a predefined kind. A function, so the kinds' files, which this one reads, can each hold their own. */
+function sanitary(predefined: string): ItemIfcType {
+  return { type: 'IFCSANITARYTERMINALTYPE', predefined }
+}
+
 export interface ItemKindDefinition {
   /** The kind as a plan writes it: `bed`. */
   readonly kind: string
@@ -96,6 +109,18 @@ export interface ItemKindDefinition {
    * it, and it stands in no item's clear floor, no fixture's space and no doorway.
    */
   readonly underfoot?: boolean
+  /**
+   * CNT-55: whether it is set into a worktop or onto another item by design (a sink, a hob, a
+   * shower screen on its tray's edge; default false): it stands in no item, and none in it.
+   */
+  readonly inset?: boolean
+  /** CNT-55: whether its label is drawn inside it, in the plan and the DXF (a commercial kitchen's pieces; default false). */
+  readonly labelled?: boolean
+  /**
+   * CNT-55: the IFC type it is written with as a flow terminal, and that type's predefined kind
+   * (`IFCSANITARYTERMINALTYPE`, `WASHHANDBASIN`). Unstated, it is a furnishing element.
+   */
+  readonly ifc?: ItemIfcType
   /** What a person calls it in a sentence, in English, and its label when the item states none. */
   readonly word: string
   /** What an agent is told of it: what it is and how its size is read. A key's sentence for Grid's own. */
@@ -185,6 +210,7 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   {
     kind: 'toilet',
     group: 'fixture',
+    ifc: sanitary('TOILETPAN'),
     word: 'toilet',
     about: about('toilet'),
     symbol: (p) => ({ rings: [p.box(-0.5, -0.5, 0.5, -0.2), p.ellipse(0, 0.12, 0.38, 0.38)], lines: [] }),
@@ -193,6 +219,7 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   {
     kind: 'basin',
     group: 'fixture',
+    ifc: sanitary('WASHHANDBASIN'),
     word: 'basin',
     about: about('basin'),
     symbol: (p) => ({ rings: [outline(p), p.ellipse(0, 0.1, 0.38, 0.34), p.circle(0, -0.36, short(p) / 16)], lines: [] }),
@@ -200,6 +227,7 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   {
     kind: 'shower',
     group: 'fixture',
+    ifc: sanitary('SHOWER'),
     sides: false,
     word: 'shower',
     about: about('shower'),
@@ -216,6 +244,7 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   {
     kind: 'bath',
     group: 'fixture',
+    ifc: sanitary('BATH'),
     word: 'bath',
     about: about('bath'),
     symbol: (p) => {
@@ -330,6 +359,8 @@ export const ITEM_KIND_DEFINITIONS: readonly ItemKindDefinition[] = [
   },
   // CNT-47: the equipment, after the furniture (`equipmentKinds.ts`).
   ...EQUIPMENT_KIND_DEFINITIONS,
+  // CNT-55: the bathroom's and the kitchen's, after the equipment (`fittingKinds.ts`).
+  ...FITTING_KIND_DEFINITIONS,
   // CNT-52: the points, last (`pointKinds.ts`).
   ...POINT_KIND_DEFINITIONS,
 ]
@@ -384,6 +415,21 @@ export function liesUnderfoot(kind: string): boolean {
 /** CNT-52: whether an item of this kind stands at a point (an extinguisher, an exit): it takes no floor and is in no one's way. */
 export function isPointKind(kind: string): boolean {
   return registry.get(kind)?.group === 'point'
+}
+
+/** CNT-55: whether an item of this kind is set into a worktop or onto another item (a sink, a hob): it stands in no item. */
+export function isInsetKind(kind: string): boolean {
+  return registry.get(kind)?.inset === true
+}
+
+/** CNT-55: whether an item of this kind has its label drawn inside it (a fryer, a range). */
+export function isLabelledKind(kind: string): boolean {
+  return registry.get(kind)?.labelled === true
+}
+
+/** CNT-55: the flow terminal type an item of this kind is written to IFC with, or undefined for a furnishing element. */
+export function itemIfcType(kind: string): ItemIfcType | undefined {
+  return registry.get(kind)?.ifc
 }
 
 /** Whether an item of this kind takes the floor it stands on from its room's free floor: fixtures do. */

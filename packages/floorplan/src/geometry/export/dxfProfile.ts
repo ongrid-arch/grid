@@ -34,6 +34,8 @@ export const DXF_CATEGORIES = [
   // CNT-10: an opening to be demolished, as a dashed outline where it stood.
   'openings-demolished',
   'fixtures',
+  // CNT-55: an item hung above the plan's cut (a wall unit, a hood), dashed.
+  'fixtures-above',
   // CNT-16: the columns, cut through as the walls are, and the structural grid's lines and names.
   'columns',
   'structural-grid',
@@ -104,6 +106,8 @@ export const NEUTRAL_DXF_PROFILE: DxfProfile = {
     'openings-above': pen('GRID-OPENINGS-ABOVE', 0.18, 7, 'dashed'),
     'openings-demolished': pen('GRID-OPENINGS-DEMOLISHED', 0.18, 7, 'dashed'),
     fixtures: pen('GRID-FIXTURES', 0.13),
+    // CNT-55: what hangs above the cut, dashed, as what an opening's symbol shows above it.
+    'fixtures-above': pen('GRID-FIXTURES-ABOVE', 0.13, 7, 'dashed'),
     // CNT-16: a column with the outside walls' pen, filled; the grid's lines a fine chain line.
     columns: pen('GRID-COLUMNS', 0.5),
     'structural-grid': pen('GRID-STRUCTURAL-GRID', 0.13, 7, 'dash-dot'),

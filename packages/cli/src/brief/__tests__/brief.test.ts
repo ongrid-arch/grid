@@ -268,7 +268,9 @@ describe('no line met reads as approval, and the first write is reminded, never 
     expect(first.isError, first.text).toBe(false)
     const reminders = first.text.split('\n').filter((l) => l.includes('No brief is kept beside this plan'))
     expect(reminders).toEqual(['No brief is kept beside this plan ("plan.brief.json"): write what the person asked for with grid_write_brief, from their own words, and every change then says what is met and what missed.'])
-    expect(first.data).toMatchObject({ reminder: reminders[0], brief: { file: null, problem: null, lines: [] } })
+    expect(first.data).toMatchObject({ reminder: reminders[0], brief: { file: null, problem: null } })
+    // ARE-72: the one room is a home with no bathroom and no kitchen: only the rooms Grid assumes, no wish's.
+    expect((first.data?.['brief'] as { lines: BriefLine[] }).lines.map((l) => [l.source, l.where])).toEqual([['assumed', null], ['assumed', null]])
     expect(existsSync(join(b.folder, 'plan.json'))).toBe(true)
     const again = await b.call('grid_write_rooms', { plan: 'plan.json', rooms: rooms.replace('4 x 4', '4 x 5') })
     expect(again.isError, again.text).toBe(false)

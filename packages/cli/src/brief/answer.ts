@@ -8,7 +8,11 @@ import type { FloorPlan } from '@ongrid/floorplan/geometry'
 import { say } from '@ongrid/floorplan/messages'
 import type { Project } from '../fs/projectFiles'
 import { FIGURES, readBrief } from './brief'
-import { briefLines, briefText, type BriefLine } from './lines'
+import { homeQuestions } from '../quantities/homes'
+import { surveyPlan } from '../quantities/survey'
+import { briefLines, briefText, isSurvey, type BriefLine } from './lines'
+
+export { isSurvey }
 
 /** How many lines a change's answer lists, so it stays short; the brief tool lists them all. */
 export const BRIEF_LINES_IN_AN_EDIT = 12
@@ -34,18 +38,6 @@ export function briefAnswer(project: Project, planFile: string, plan: FloorPlan)
 }
 
 /**
- * ARE-49: whether the plan records what stands rather than what a person asked for: it keeps taped
- * lengths, every part is existing, or every mark says measured or scanned. A survey has no wishes.
- */
-export function isSurvey(plan: FloorPlan): boolean {
-  if ((plan.taped?.length ?? 0) > 0) return true
-  const parts = [...plan.walls, ...plan.openings, ...plan.rooms]
-  if (parts.length > 0 && parts.every((p) => p.phase === 'existing')) return true
-  const marks = plan.marks ?? []
-  return marks.length > 0 && marks.every((m) => m.source === 'measured' || m.source === 'scanned')
-}
-
-/**
  * The reminder, one line, when a plan is first written and no brief is kept beside it. Never a
  * refusal: the plan is written either way. Null when there is a brief, or one that can't be read,
  * and (ARE-49) when the plan is a survey.
@@ -61,9 +53,14 @@ export function briefReminder(project: Project, planFile: string, plan: FloorPla
  * ARE-27: for `grid check` and `grid_check`, the person's own figures in the brief beside the
  * plan that the drawing misses, under a heading that says whose they are. They are the person's,
  * never a code's, and the check's record keeps no code for them. Empty when there is no brief,
- * or nothing missed; one line when the brief can't be read.
+ * or nothing missed; one line when the brief can't be read. ARE-72: then, brief or none, the
+ * questions about the plan's homes (`homeQuestions`), under their own heading.
  */
 export function briefMissedText(project: Project, planFile: string, plan: FloorPlan, max = BRIEF_LINES_IN_AN_EDIT): string[] {
+  return [...missedText(project, planFile, plan, max), ...homesText(plan, max)]
+}
+
+function missedText(project: Project, planFile: string, plan: FloorPlan, max: number): string[] {
   const read = readBrief(project, planFile)
   if (read.problem !== null) return [say('en', 'report.brief.notRead', { problem: read.problem })]
   if (read.brief === null) return []
@@ -72,5 +69,15 @@ export function briefMissedText(project: Project, planFile: string, plan: FloorP
   const out = [say('en', 'report.brief.missed', { count: missed.length, file: JSON.stringify(read.file) })]
   out.push(...missed.slice(0, max).map((l) => `  ${l.text}`))
   if (missed.length > max) out.push(`  ${say('en', 'report.brief.missedMore', { count: missed.length - max })}`)
+  return out
+}
+
+/** ARE-72: the questions about the plan's homes, at most `max` of them. Empty for a plan with no home, or none to ask. */
+export function homesText(plan: FloorPlan, max = BRIEF_LINES_IN_AN_EDIT): string[] {
+  const questions = homeQuestions(surveyPlan(plan))
+  if (questions.length === 0) return []
+  const out = [say('en', 'report.homes.heading', { count: questions.length })]
+  out.push(...questions.slice(0, max).map((question) => `  ${question.text}`))
+  if (questions.length > max) out.push(`  ${say('en', 'report.homes.more', { count: questions.length - max })}`)
   return out
 }

@@ -432,6 +432,17 @@ the ids it had.
 - An id written on several floors stays as written on the first floor that writes it, and takes
   its floor's id in front on the others (`l4-room-301`), so a copy never renames the floor it
   copies; the answer names each one.
+- `{level}` (or `{floor}`, the same) is the floor's level, in a room's name, a unit's room and
+  opening names, a flat's name and a placement's label (LVL-25): `repeat guest 6 east as {level}01
+  ...` places 101 to 106 on level 1, with ids `room-101` to `room-106` and names `Room 101` to
+  `Room 106`. A label counts as written and is then filled (`{level}01`, `{level}02`), so
+  `as {level}07` goes on from 07, as `as A7` goes on from 7. A copy of the floor (`copy`, `floor ...
+  copy`, `repeat floors`) numbers by its own level what was numbered by one: on level 2 the same
+  lines give `room-201`, `Room 201`, `door-201` and `Flat 201`, and the lines after the copy name
+  them so. A label written without `{level}` is kept on every copy, with its floor's id in front
+  of its ids. `copy` and `repeat floors ... from` take a floor by its id or its name.
+- A placement's label is not a room id: a unit may be placed as `A` beside a room whose id is
+  `A`, and `<side> of A` then names the room. Only a label placed twice on a floor is refused.
 - `through <floor>` on a room line stands the room, and so its walls, on every floor written
   after its own up to that floor, in the same place: a stair or lift core, a shaft, a block's
   outside walls. What the text says about the walls between such rooms comes with them, and so
@@ -736,7 +747,7 @@ stair st "Main stair" from ground to first in hall, 1 wide, U, runs north
 
 ### Items
 
-item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side's inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant; the equipment rack, generator, pump, tank, seat, pew, altar, fume-cupboard, lab-bench, safety-shower, kennel, exam-table, clinical-sink, and equipment for any other thing, given its size, height and label). clear back|left|right <m> keeps clear floor on that side too. item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid's own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.
+item <id> ["<label>"] <name> [<w> x <d>] [<h> high] [above <m>] [clear <m>] in <room> against <north|east|south|west> [, at <end> | , <m> from <end> | , full width [<d> deep]] stands a fixture or a piece of furniture with its back on that side's inside face, its turn worked out so it faces into the room: centred on the side, in a corner (at west), that far from one end, or as long as the side (a built-in wardrobe). <name> is a library entry (bath, wc, basin, shower-900, kitchen-run-2400, double-bed, wardrobe, sofa-3, desk; grid_measure what=library lists them) or a kind (toilet, basin, shower, bath, kitchen-run, bed, table, chair, sofa, storage, armchair, stool, desk, rug, plant; the equipment rack, generator, pump, tank, seat, pew, altar, fume-cupboard, lab-bench, safety-shower, kennel, exam-table, clinical-sink, and equipment for any other thing, given its size, height and label; the bathroom's bidet, urinal, vanity, double-basin, towel-radiator, shower-screen; the kitchen's sink, hob, oven, fridge, tall-unit, wall-unit, range, fryer, prep-table, dishwasher, hood), or a plain word for a kind (WC, loo, tub, washbasin, fridge-freezer). above <m> hangs it with its underside that far above the floor (a wall unit above 1.45); its height is then its own. clear back|left|right <m> keeps clear floor on that side too. item <id> <name> ... at x,y [turn <degrees>] [on <floor>] places one by its middle. raw item {...} takes Grid's own JSON for one. An item against a wall moves with it. grid_add_item, grid_move_item and grid_remove_item write the same.
 
 ```rooms
 room bath "Bathroom" bathroom 2.4 x 2 at 0,0
