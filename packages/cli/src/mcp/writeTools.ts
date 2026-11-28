@@ -328,6 +328,7 @@ const sheetTool: GridTool = {
   hint: 'write-file',
   description:
     'Use this when the person wants the plan as a PDF to read, print or send: layout client for the person the house is for (a cover with the 3D model and key figures, then a page per floor with its drawing and room areas), or layout check for whoever checks the plan (every id, every room\'s use, and what grid check finds on each floor). Both then have an elevations page (every side) and a sections page (A along the building, B across it, cut where Grid chooses and marked on every floor plan), all at one true scale on A3 with a scale bar and a title block; the check sheet lists what the sections took that the plan does not state. '
+    + 'Layout access (SHT-27) is the access sheet, for whoever reviews wheelchair and step-free access: what grid_measure what=access measures, printed: the person\'s own figures with their words from the brief, a page per floor drawing each way in and marked route, each room\'s turning circle, each door\'s clear width and sill and each step, with the floor\'s doors in a table, then the corridors and turning spaces, the ways in with their steps, and what Grid did not look at; a number short of the person\'s figure says so. It says no room or way is accessible. '
     + 'The words of a client sheet (name, headline, intro, a few paragraphs per floor) are yours to write: pass them as sheet, or Grid reads <plan>.sheet.json beside the plan. The name is the one the person gave the building, else the plan\'s; never a name from an example. A drawing reads the same words: name is the project in its title block, and drawing is its title there (Grid\'s own, such as "Ground floor plan", when left out). Grid draws only what the plan holds: no furniture or landscape. Every page carries "General guidance, not your local rules". '
     + 'It writes the PDF into the exports folder beside the plan, replacing an earlier sheet of the same name and layout, and answers with the path and what is on each page. It never changes the plan. '
     + `${ROOM_NAMES_TRAVEL} `
@@ -335,10 +336,10 @@ const sheetTool: GridTool = {
     + 'A client or check sheet comes back with a small picture of each page, in order, to look at before you hand it over. Do not use for a single picture (grid_view) or a file for another program (grid_export).',
   args: {
     plan: { type: 'string', maxLength: PATH_MAX, required: true, description: 'The plan file, as a path inside the project folder.', examples: ['plan.json'] },
-    layout: { type: 'string', required: true, enum: ['client', 'check', 'drawing'], description: 'client, check, or drawing for one floor at a true scale.', examples: ['client', 'check', 'drawing'] },
+    layout: { type: 'string', required: true, enum: ['client', 'check', 'access', 'drawing'], description: 'client, check, access for the access measurements drawn and tabled, or drawing for one floor at a true scale.', examples: ['client', 'check', 'access', 'drawing'] },
     sheet: {
       type: 'object',
-      description: 'Client and drawing (a check sheet takes none): the words, as the sheet file holds them. A drawing uses name as the project and drawing as its title in the title block. <plan>.sheet.json beside the plan is read when left out.',
+      description: 'Client and drawing (a check or access sheet takes none): the words, as the sheet file holds them. A drawing uses name as the project and drawing as its title in the title block. <plan>.sheet.json beside the plan is read when left out.',
       examples: [{ version: '1', name: 'Example House', drawing: 'Ground floor, as built', headline: 'A private retreat for one', intro: ['A two-storey home for work and rest.'], floors: { ground: ['The study sits beside the entry.'] } }],
       schema: sheetWordsJsonSchema(),
       // The shape and limits here; the plan's floor ids in run(), where the plan is known.
@@ -366,7 +367,7 @@ const sheetTool: GridTool = {
     svgs: { type: ['array', 'null'], items: STRING }, pngs: { type: ['array', 'null'], items: STRING },
   }),
   async run(args, context) {
-    // Already read: layout is one of the three, and words with a check sheet were refused there.
+    // Already read: layout is one of the four, and words with a check or access sheet were refused there.
     const layout = args['layout'] as SheetKind
     const given = args['sheet'] as Record<string, unknown> | undefined
     const drawingAsked = DRAWING_ARGS.filter((name) => args[name] !== undefined)
