@@ -31,7 +31,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | Command | What it does |
 |---|---|
 | `grid init [<folder>]` | Starts a project folder: `grid.json`, a starter `plan.json` and `exports/` (see below) |
-| `grid write <plan.rooms> \| --layout tidy\|sizes [--plan <plan.json>] [--replace] [--json]` | Writes a plan from rooms text, the main way to write one: Grid works out the walls (see [Writing a plan rooms first](rooms-first.md)). With a brief beside the plan, it says each line met or missed ([the brief](brief.md)). `--layout`, in place of the rooms file, writes a first layout from the brief, in a rectangle (`tidy`) or keeping every size (`sizes`), with each size not kept and by how much ([A first layout from the brief](brief.md#a-first-layout-from-the-brief)) |
+| `grid write <plan.rooms> \| --layout tidy\|sizes [--plan <plan.json>] [--replace] [--dry-run] [--json]` | Writes a plan from rooms text, the main way to write one: Grid works out the walls (see [Writing a plan rooms first](rooms-first.md)). `--dry-run` tries the rooms text and answers as the write would, writing nothing (CMD-54). With a brief beside the plan, it says each line met or missed ([the brief](brief.md)). `--layout`, in place of the rooms file, writes a first layout from the brief, in a rectangle (`tidy`) or keeping every size (`sizes`), with each size not kept and by how much ([A first layout from the brief](brief.md#a-first-layout-from-the-brief)) |
 | `grid write --scan <scan.json> [--plan <plan.json>] [--replace] [--json]` | Writes a plan from a phone room scan, and keeps the scan beside it as `<plan>.scan.json` (see below) |
 | `grid check [<plan>] [--floor <id>] [--country <place>] [--full] [--json] [--seen <n> --reason <text> --by <name> \| --unseen <n>]` | Prints the report, short and about this plan unless `--full`. Every report is labelled "General guidance, not your local rules". `--country` names the place for this check, in place of the plan's `site.country`. `--seen` sets a note aside as seen (see below). With `firm-standards.json` beside the plan, the firm's own standards are set against it too, under their own heading ([a firm's own standards](firm-standards.md)) |
 | `grid describe [<plan>] [--length line\|rooms\|walls\|walk] [--for person\|agent] [--as rooms] [--floor <id>] [--pictures <folder>]` | Describes the plan in a few lines: its rooms, which rooms each opening joins, with `--length walls` its walls, and with `--length walk` the plan walked room by room, with `--pictures` a picture from each doorway (see below). `--as rooms` reads it back as rooms text, each room's number and facts on its line (WRT-74) |
@@ -1265,7 +1265,12 @@ no overhang dimension. Sections, the 3D model and roof quantities use the plan's
 
 Its figures, tables and drawings are in the plan's `display`, the person's own units (feet and
 inches with square feet, millimetres, a decimal comma), and in metres when the plan has none
-([Units](plan-file.md#units)). The findings are in metres.
+([Units](plan-file.md#units)). The findings are in metres. SHT-26: a sheet in square metres
+prints no square feet, and its footnotes (the rounding, the opening schedule's sizes) name the
+units its figures are in. Every sentence of a sheet, its area rules, the schedules' rules and
+the limits of the checks too, is in the sheet's language, and no sheet names a tool, an argument
+or a command. A sheet is dated the day asked for (`--date`: a date, or a time's own written
+day), else `SOURCE_DATE_EPOCH`'s day in UTC, else today where the machine is, never the UTC day.
 
 The words of a client sheet are the author's, in `<plan>.sheet.json` beside the plan (`house.json` reads `house.sheet.json`; `plan.json` also reads an older `sheet.json`), or the file
 `--sheet` names:
@@ -1294,8 +1299,8 @@ and the words. Quoted words within prose are left alone. Grid also checks a head
 introductory paragraph wrapped in quotation marks. When the brief beside the plan holds your
 access figures (`door_width`, `corridor_width`, `turning_circle`), the cover gives priority to
 doors, corridors and turning spaces that measure under them, even when the introduction continues
-on another page. It shows up to six measurements and points to `grid_measure what=access` if there
-are more.
+on another page. It shows up to six measurements and says in one line when there are more (SHT-26: a sheet names
+no tool; `grid_measure what=access` lists them all).
 
 Grid draws only what the plan holds: no furniture or landscape, and no stair treads but for the
 stairs the plan states. Every figure comes from
