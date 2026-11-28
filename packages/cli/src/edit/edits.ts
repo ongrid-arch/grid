@@ -15,6 +15,7 @@ import { english, joined, name, said as sentence, type MessageKey, type Value } 
 import { DOOR_KINDS, FloorPlanSchema, WINDOW_KINDS, centreFromFace, faceFromCentre, statedItem, statedOpening, statedWall, wallWithEnds, type OpeningKind } from '@ongrid/floorplan/types/floorplan'
 import { quoted } from '../fs/projectFiles'
 import { surveyPlan, type Survey } from '../quantities/survey'
+import { changeText, displayFor, metresOr, thicknessText } from '../quantities/units'
 import { EditRefused } from './refused'
 import { COMPASS, pt, r3, roomFaceAlong, seatOpenings } from './seat'
 import { insideAlong, roomSide } from './sideNames'
@@ -412,10 +413,12 @@ export function changeOpening(survey: Survey, id: string, request: OpeningChange
   const wall = plan.walls.find((w) => w.id === opening.wall)
   if (!wall) throw new EditRefused('That opening names a wall the plan does not have; grid_check says more.')
   const label = `${opening.type} ${quoted(opening.id)}`
+  // MSG-37: the figures said back are in the plan's display units.
+  const shown = displayFor(undefined, undefined, plan)
   if (request.remove) {
     const extra = Object.keys(request).filter((key) => key !== 'remove' && (request as Record<string, unknown>)[key] !== undefined)
     if (extra.length > 0) throw new EditRefused(`remove takes nothing else: leave out ${extra.join(', ')}.`)
-    const patch = emptyPatch([`Removed ${label} (${opening.width.toFixed(2)} m wide); the wall is solid there now.`])
+    const patch = emptyPatch([`Removed ${label} (${metresOr(opening.width, shown)} wide); the wall is solid there now.`])
     ;(patch.removeOpenings as Set<string>).add(id)
     return patch
   }
@@ -523,15 +526,15 @@ export function changeOpening(survey: Survey, id: string, request: OpeningChange
   if (Math.abs(width - opening.width) > tolerance('noLength')) {
     change.width = r3(width)
     change.offset = r3(offset)
-    said.push(`${label} width ${opening.width.toFixed(2)} → ${width.toFixed(2)} m${request.from !== undefined || moving ? '' : `, keeping its ${keep}`}.`)
+    said.push(`${label} width ${changeText(opening.width, width, shown)}${request.from !== undefined || moving ? '' : `, keeping its ${keep}`}.`)
   }
   if (Math.abs(height - opening.height) > tolerance('noLength')) {
     change.height = r3(height)
-    said.push(`${label} height ${opening.height.toFixed(2)} → ${height.toFixed(2)} m.`)
+    said.push(`${label} height ${changeText(opening.height, height, shown)}.`)
   }
   if (Math.abs(sill - opening.sill) > tolerance('noLength')) {
     change.sill = r3(sill)
-    said.push(`${label} sill ${opening.sill.toFixed(2)} → ${sill.toFixed(2)} m.`)
+    said.push(`${label} sill ${changeText(opening.sill, sill, shown, 'height')}.`)
   }
   if (anchor !== undefined && JSON.stringify(anchor) !== JSON.stringify(opening.anchor ?? null)) {
     change.anchor = anchor
@@ -746,7 +749,7 @@ export function moveRoomSide(survey: Survey, roomId: string, sideName: string, b
   }
   const way = found.cardinal !== null ? (by >= 0 ? found.cardinal : `back from the ${found.cardinal}`) : say(by >= 0 ? 'edit.side.way.out' : 'edit.side.way.in')
   const said = [
-    `Moved ${walls.length === 1 ? `wall ${quoted(wall.id)}` : `walls ${listed(walls.map((w) => quoted(w.id)))}, in one line`}, ${called} of ${name}, ${Math.abs(by).toFixed(2)} m ${way}${followers.length > 0 ? `; walls that end on it followed: ${listed(followers.map((id) => quoted(id)))}` : ''}.`,
+    `Moved ${walls.length === 1 ? `wall ${quoted(wall.id)}` : `walls ${listed(walls.map((w) => quoted(w.id)))}, in one line`}, ${called} of ${name}, ${metresOr(Math.abs(by), displayFor(undefined, undefined, survey.plan))} ${way}${followers.length > 0 ? `; walls that end on it followed: ${listed(followers.map((id) => quoted(id)))}` : ''}.`,
   ]
   if (slid.length > 0) said.push(say(slid.length === 1 ? 'edit.side.slid.one' : 'edit.side.slid.many', { walls: joined(slid.map((id) => nameValue(id)), 'join.comma', 'join.and') }))
   const others = survey.rooms.filter((r) => r.facts.id !== roomId && r.edges.some((edge) => edge.wall !== null && sideIds.has(edge.wall.id))).map((r) => quoted(r.facts.name))
@@ -800,11 +803,12 @@ export function changeWallThickness(survey: Survey, wallId: string, thickness: n
     walls.set(other.id, change)
     carried.push(quoted(other.id))
   }
-  const was = own ? `was ${wall.thickness.toFixed(2)} m` : (wall.typed ?? []).includes('thickness') ? `where it read ${wall.thickness.toFixed(2)} m from its type, which no longer reaches its thickness` : `where it stated none (Grid read ${wall.thickness.toFixed(2)} m)`
+  const shown = displayFor(undefined, undefined, survey.plan)
+  const was = own ? `was ${thicknessText(wall.thickness, shown)}` : (wall.typed ?? []).includes('thickness') ? `where it read ${thicknessText(wall.thickness, shown)} from its type, which no longer reaches its thickness` : `where it stated none (Grid read ${thicknessText(wall.thickness, shown)})`
   const kept = face === undefined
-    ? `Its centre line stays where it is, so each face moves ${Math.abs(thickness - wall.thickness) / 2 >= 0.0005 ? `${(Math.abs(thickness - wall.thickness) / 2).toFixed(3)} m` : 'less than a millimetre'} ${thickness > wall.thickness ? 'out' : 'in'}.`
+    ? `Its centre line stays where it is, so each face moves ${Math.abs(thickness - wall.thickness) / 2 >= 0.0005 ? thicknessText(Math.abs(thickness - wall.thickness) / 2, shown, 3) : 'less than a millimetre'} ${thickness > wall.thickness ? 'out' : 'in'}.`
     : `The face its file places it by stays where it is; the wall ${thickness > wall.thickness ? 'grows' : 'shrinks'} on its other side.`
-  const said = [`Wall ${quoted(wall.id)}: ${thickness.toFixed(2)} m thick, ${was}. ${kept}${carried.length > 0 ? ` Walls that ended in it were carried to its new centre line, so they stay joined: ${listed(carried)}.` : ''}`]
+  const said = [`Wall ${quoted(wall.id)}: ${thicknessText(thickness, shown)} thick, ${was}. ${kept}${carried.length > 0 ? ` Walls that ended in it were carried to its new centre line, so they stay joined: ${listed(carried)}.` : ''}`]
   return { ...emptyPatch(said), walls }
 }
 

@@ -130,7 +130,8 @@ export function showLength(metres: number, display: Display = METRES, options: {
   if (display.length === 'ft-in') {
     const parts = 2 ** Math.max(0, Math.min(5, display.precision ?? 0))
     const sign = metres < 0 ? '-' : ''
-    const total = Math.round((Math.abs(metres) / INCH) * parts) / parts
+    // MSG-37: a half is rounded away from zero, past the float noise of the metres behind it.
+    const total = Math.round(((Math.abs(metres) + tolerance('lengthEqual')) / INCH) * parts) / parts
     const inchText = (inches: number): string => {
       const whole = Math.floor(inches + tolerance('noLength'))
       const rest = Math.round((inches - whole) * parts)
@@ -149,8 +150,25 @@ export function showLength(metres: number, display: Display = METRES, options: {
   }
   const per = PER_METRE[display.length]
   const decimals = display.precision ?? (display.length === 'm' ? 2 : display.length === 'cm' ? 1 : 0)
-  const text = marked((metres * per).toFixed(decimals), display.decimal)
+  const text = marked(((metres + Math.sign(metres) * tolerance('lengthEqual')) * per).toFixed(decimals), display.decimal)
   return unit ? `${text} ${display.length}` : text
+}
+
+/** MSG-37: eighths of an inch, for a thickness in feet and inches. */
+const THICKNESS_PRECISION = 3
+
+/**
+ * MSG-37: a wall's thickness, or a small step of one, for a person: in feet and inches in inches
+ * to the eighth (`4 1/2"`), as a thickness is read; in any other display as `showLength`.
+ */
+export function showThickness(metres: number, display: Display = METRES): string {
+  if (display.length !== 'ft-in') return showLength(metres, display)
+  return showLength(metres, { ...display, precision: Math.max(display.precision ?? 0, THICKNESS_PRECISION) }, { kind: 'height' })
+}
+
+/** MSG-37: the display Grid has always written its answers in: metres with a point, two decimals. */
+export function plainMetres(display: Display): boolean {
+  return display.length === 'm' && display.area === 'm2' && display.decimal === 'point' && display.precision === undefined
 }
 
 /** An area for a person: `12.40 m²` or `133.5 sq ft`. */

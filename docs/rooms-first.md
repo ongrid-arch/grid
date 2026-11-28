@@ -23,8 +23,9 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   one word, with no space: `360cm`, `3600mm`, `12ft`, `12ft6in`, `12'6"`, `150in`, so
   `room living "Living room" living 14ft x 12'6"` is as good as `4.267 x 3.81`. A `display` line
   (`display ft-in`, `display mm`, `display m decimal comma`) records how the person reads lengths
-  and areas: the drawings, the figures and the sheet follow it, and the read-back writes it again
-  ([Units](plan-file.md#units)). The plan file stays in metres either way. Settle the units with
+  and areas: the drawings, the figures and the sheet follow it, so do the answer to a write and
+  to the common edits (MSG-37; a wall's thickness in feet and inches in inches, `4 1/2"`), and
+  the read-back writes it again ([Units](plan-file.md#units)). The plan file stays in metres either way. Settle the units with
   the brief, from the person's words or their place, and ask only when neither says.
 - Under a `display` line that is not metres, a plain number is never taken as metres by
   itself. The display line says what it is with `numbers <m|cm|mm|ft>`: under

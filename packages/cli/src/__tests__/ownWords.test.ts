@@ -126,7 +126,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-50: two fewer, a side named as rooms text names it is refused from the message files.
   // CNT-60: party walls and neighbours changed, their receipts and refusals.
   'packages/cli/src/edit/context.ts': [24, 'notYet'],
-  'packages/cli/src/edit/edits.ts': [64, 'notYet'],
+  // MSG-37: one fewer, a figure said in the display units splits a literal.
+  'packages/cli/src/edit/edits.ts': [63, 'notYet'],
   // WRT-59: the notes an edit caused, opening its answer.
   'packages/cli/src/edit/caused.ts': [1, 'notYet'],
   'packages/cli/src/edit/merge.ts': [32, 'notYet'],

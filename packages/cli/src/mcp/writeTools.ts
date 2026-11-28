@@ -39,6 +39,7 @@ import { writeDrawingIntoProject } from '../drawing/fromDrawing'
 import { PATH_MAX, PathRefused, quoted, type Project } from '../fs/projectFiles'
 import { ROOM_NAMES_TRAVEL } from './protocol'
 import { comparePlans } from '../quantities/compare'
+import { displayFor } from '../quantities/units'
 import { surveyPlan, type Survey } from '../quantities/survey'
 import { DECIMAL_ARG, LANGUAGE_ARG, openingBetween, UNITS_ARG } from './readTools'
 import { isTableFormat, isTableWhat, TABLE_FORMATS, TABLE_WHATS, writeTable, type TableFormat } from './tableExport'
@@ -561,7 +562,8 @@ function writeChangeHeld(context: ToolContext, args: Record<string, unknown>, ma
     if (error instanceof PathRefused) throw new ToolRefusal(error.message)
     throw new ToolRefusal(`Can't write ${quoted(out)}: ${String((error as Error).message).replace(/\s+/g, ' ')}`)
   }
-  const verdict = comparePlans(before, surveyPlan(after), ['the plan before', 'the plan now'], { inPlace: patch.whole !== true }).verdict
+  // MSG-37: the verdict in the plan's display units, as the edit's own lines are.
+  const verdict = comparePlans(before, surveyPlan(after), ['the plan before', 'the plan now'], { inPlace: patch.whole !== true, display: displayFor(undefined, undefined, loaded.plan) }).verdict
   // A door that joined a room now part of another (a merge) joins the same space: not a change.
   const become = patch.roomsBecome ?? new Map<string, string>()
   const key = (sides: readonly object[]): string => sides.map((side) => ('room' in side ? `r${become.get((side as { room: string }).room) ?? (side as { room: string }).room}` : JSON.stringify(side))).sort().join('|')
