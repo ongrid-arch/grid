@@ -26,6 +26,7 @@ import {
   isPointKind,
   itemFootprint,
   itemKindDefinition,
+  columnSaid,
   itemNameSaid,
   length,
   liesUnderfoot,
@@ -40,6 +41,7 @@ import {
   vec,
   type CompassPoint,
   type FloorPlan,
+  type Column,
   type Item,
   type PlanOpening,
   type Vec2,
@@ -336,7 +338,7 @@ function runsOf(frames: readonly Frame[]): Frame[][] {
  * `figureFor` overrides the figures (a firm's standard); otherwise they come from `ask`.
  */
 export function activityZones(survey: Survey, ask: ActivityAsk, figureFor?: (item: Item) => ZoneFigure | null): Activity {
-  const { rows, itemById, obstacles } = fixturesOf(survey)
+  const { rows, itemById, obstacles, columnById } = fixturesOf(survey)
   const plan = survey.plan
   const library = libraryClearance(plan)
   const orientation = planOrientation(plan)
@@ -520,7 +522,7 @@ export function activityZones(survey: Survey, ask: ActivityAsk, figureFor?: (ite
   let doors = 0
   let noSwing = 0
   for (const floor of floorsMeasured) {
-    fixtures += obstacles(floor).length
+    fixtures += obstacles(floor).filter((o) => !columnById.has(o.id)).length
     doors += new Set((swings.byFloor.get(floor) ?? []).map((s) => s.id)).size
     noSwing += swings.noSwing.get(floor) ?? 0
   }
@@ -540,9 +542,12 @@ function zoneWhat(zone: ActivityZone, items: ReadonlyMap<string, Item>): Value {
   return named.length === 1 ? named[0]! : said('activity.run', { names: joined(named, 'join.comma', 'join.and') })
 }
 
-/** The fixtures and runs named by their first unit's id. */
-function namesOf(ids: readonly string[], items: ReadonlyMap<string, Item>): Value {
-  return joined(ids.map((id) => itemNameSaid(items.get(id) ?? { id, kind: 'item' })), 'join.comma', 'join.and')
+/** The fixtures and runs named by their first unit's id, and the columns (ARE-80) by theirs. */
+function namesOf(ids: readonly string[], items: ReadonlyMap<string, Item>, columns: ReadonlyMap<string, Column>): Value {
+  return joined(ids.map((id) => {
+    const column = columns.get(id)
+    return column === undefined ? itemNameSaid(items.get(id) ?? { id, kind: 'item' }) : columnSaid(column)
+  }), 'join.comma', 'join.and')
 }
 
 function whoseOf(figure: ZoneFigure): Said {
@@ -552,7 +557,7 @@ function whoseOf(figure: ZoneFigure): Said {
 
 /** The zone's line, in English. */
 export function zoneLine(survey: Survey, zone: ActivityZone, L: Length): string {
-  const { itemById } = fixturesOf(survey)
+  const { itemById, columnById } = fixturesOf(survey)
   const room = survey.byId.get(zone.room)
   const clearOr = (v: number | null): Value => (v === null ? said('activity.open') : L(v))
   const half = zone.figure.width / 2
@@ -563,9 +568,9 @@ export function zoneLine(survey: Survey, zone: ActivityZone, L: Length): string 
   )
   const found: Value[] = [
     ...(shortList.length > 0 ? [said('activity.found.short', { list: joined(shortList, 'join.comma', 'join.and') })] : []),
-    ...(zone.standing.length > 0 ? [said(zone.standing.length === 1 ? 'activity.found.standing.one' : 'activity.found.standing.many', { names: namesOf(zone.standing, itemById) })] : []),
+    ...(zone.standing.length > 0 ? [said(zone.standing.length === 1 ? 'activity.found.standing.one' : 'activity.found.standing.many', { names: namesOf(zone.standing, itemById, columnById) })] : []),
     ...(zone.doors.length > 0 ? [said('activity.found.doors', { doors: joined(zone.doors.map((d) => name(d)), 'join.comma', 'join.and') })] : []),
-    ...(zone.overlaps.length > 0 ? [said('activity.found.overlaps', { names: namesOf(zone.overlaps, itemById) })] : []),
+    ...(zone.overlaps.length > 0 ? [said('activity.found.overlaps', { names: namesOf(zone.overlaps, itemById, columnById) })] : []),
   ]
   return english(
     said('activity.zone', {
