@@ -234,7 +234,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-73: one more, what=activity's per_kind and all arguments.
   // ARE-75: seven more, what the state argument means on grid_areas, grid_schedule, grid_find and grid_describe.
   // CNT-58: five more, grid_view's sun and the light the model is lit by.
-  'packages/cli/src/mcp/readTools.ts': [410, 'tools'],
+  // ARE-77: one more, the buried slab's row of the take-off's spreadsheet.
+  // ARE-78: one fewer, the refusal of a route between floors.
+  'packages/cli/src/mcp/readTools.ts': [411, 'tools'],
   // ARE-75: the state argument the reading tools share, and grid_view's demolition and proposed plans.
   'packages/cli/src/mcp/stateArg.ts': [2, 'tools'],
   // ARE-75: the head of the area table of the work as CSV.
@@ -441,7 +443,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-82: four more, what wallPieceShortest, doorOpenAngle and cameraNear decide.
   // CNT-60: nine more, what the site's figures drawn in 3D decide. ARE-76: four more, the same-footprint share.
   // LVL-26: two more, what sameSpaceAlong decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [432, 'developer'],
+  // ARE-77: three more, what buriedSlabAboveGround decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [435, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

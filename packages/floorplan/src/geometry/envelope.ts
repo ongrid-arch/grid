@@ -182,6 +182,12 @@ export interface FloorEnvelope {
    * common part or a neighbour): the floor then has no roof.
    */
   readonly above?: 'common' | 'neighbour'
+  /**
+   * ARE-77: the flat roof Grid does not lay because it would stand at or under the ground (LVL-13):
+   * the slab over that part of the floor, with the earth on it. Its pieces, their area and the
+   * level of its top. Left out when there is none.
+   */
+  readonly buried?: { readonly pieces: MultiPolygon; readonly area: number; readonly top: number }
 }
 
 export interface PlanEnvelope {
@@ -394,7 +400,9 @@ function workOutEnvelope(stated: FloorPlan, options: EnvelopeOptions): PlanEnvel
         rooflights
       }
     }
-    return { floor: floor.id, outline: own.pieces, outlineArea: own.area, slab, roof, roofKnown: true, why: null }
+    // ARE-77: the slab over the part the ground covers is kept, for the take-off's buried slabs.
+    const buriedSlab = pieces.length > 0 && buried ? { buried: { pieces, area: multiArea(pieces), top: storey.floorLevel + clear + SLAB_THICKNESS } } : {}
+    return { floor: floor.id, outline: own.pieces, outlineArea: own.area, slab, roof, roofKnown: true, why: null, ...buriedSlab }
   })
 
   const sum = (pick: (f: FloorEnvelope) => number): number => result.reduce((total, f) => total + pick(f), 0)
