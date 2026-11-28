@@ -40,7 +40,7 @@ export const DRAW_OPTIONS: OptionSpecs = {
   '--floor': { takesValue: true, help: 'The floor to draw (a floor id from the plan). The ground floor when left out. With --3d, that floor as a cutaway; the whole building when left out.' },
   '--frame': { takesValue: true, help: say('en', 'view.frame.flag') },
   '--look': { takesValue: true, help: 'How the plan is drawn: technical (the default: black on white, lines in millimetres on paper) or working (as on screen, on light paper). Not with --3d.' },
-  '--hide': { takesValue: true, help: 'Parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). Not with --3d.' },
+  '--hide': { takesValue: true, help: 'Parts to leave off, joined by commas: title, key, notes, sketch, dimensions, areas, swings, warnings, above (the dashed outline of the floor above). With --section, only dimensions: its dimension chains. Not with --3d.' },
   '--colour': { takesValue: true, help: 'use: fill each room by its use, with the uses in the key. Not with --3d.' },
   '--key': { takesValue: false, help: 'Add a key under the drawing, even where the plan asks for none. Not with --3d.' },
   '--ids': { takesValue: false, help: 'The check view: draw the id of every room, door and window, as the plan file holds them. Not with --3d.' },
@@ -108,6 +108,8 @@ export interface SectionAsked {
   readonly marks: DrawingMarksAsked | null
   /** ARE-15: the schedules' marks are asked for, added once the plan is read. */
   readonly schedule: boolean
+  /** VEW-89: a section's dimension chains are left off (`--hide dimensions`). */
+  readonly noChains?: true
 }
 
 /** What a drawn file is: a picture file's text or bytes, and the doors drawn as undecided. */
@@ -157,10 +159,12 @@ export function sectionAsked(request: DrawRequest): SectionAsked {
   const line = request.section === undefined ? null : readSectionOption(request.section, towardOf(request.toward))
   if (line !== null && !words?.has('section')) {
     if (words !== null) throw new UsageError('--marks marks a floor plan, and --section draws a section: add section to --marks to draw the plan with the section\'s line on it, or leave --marks out.')
-    for (const [given, flag] of [[request.floor, '--floor'], [request.hide, '--hide'], [request.colour, '--colour'], [request.key || undefined, '--key'], [request.ids || undefined, '--ids'], [request.units, '--units'], [request.decimal, '--decimal']] as const) {
+    // VEW-89: a section takes --hide dimensions, to leave its dimension chains off, and nothing else to hide.
+    const noChains = request.hide !== undefined && request.hide.split(',').map((w) => w.trim()).filter((w) => w.length > 0).join(',') === 'dimensions'
+    for (const [given, flag] of [[request.floor, '--floor'], [noChains ? undefined : request.hide, '--hide'], [request.colour, '--colour'], [request.key || undefined, '--key'], [request.ids || undefined, '--ids'], [request.units, '--units'], [request.decimal, '--decimal']] as const) {
       if (given !== undefined) throw new UsageError(`${flag} is for a floor plan; a section cuts every floor and writes its levels in metres: leave ${flag} or --section out.`)
     }
-    return { section: line, marks: null, schedule: false }
+    return { section: line, marks: null, schedule: false, ...(noChains ? { noChains: true as const } : {}) }
   }
   return { section: null, marks: words === null ? null : marksAsked(words, line), schedule: words?.has('schedule') === true }
 }
@@ -279,7 +283,8 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
     // Loaded only for a section. MSG-11: its words in the language asked for, else the plan's own.
     const { drawSection } = await import('../draw/drawSection')
     const tongue = language === 'en' && asked === undefined ? {} : { language }
-    const drawn = await drawSection(loaded.plan, drawing.section, request.png ? { format: 'png', look, scale, ...tongue } : { format: 'svg', look, ...tongue })
+    const chainsOff = drawing.noChains === true ? { dimensions: false } : {}
+    const drawn = await drawSection(loaded.plan, drawing.section, request.png ? { format: 'png', look, scale, ...tongue, ...chainsOff } : { format: 'svg', look, ...tongue, ...chainsOff })
     return { file: drawn.file, pixelToMetres: drawn.pixelToMetres, undecidedDoors: [], sectionNote: drawn.note }
   }
   const floor = floorOption(loaded.plan, request.floor)

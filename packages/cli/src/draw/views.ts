@@ -15,6 +15,7 @@ import { planFloors, resolveFloor, type BuildingComparison, type Facade, type Fa
 import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
 import { sectionPicture } from '@ongrid/viewer/src/picture/section'
 import type { PlanSection, SectionLine } from '@ongrid/floorplan/geometry/section'
+import type { SectionChain } from '@ongrid/floorplan/geometry/sectionDimensions'
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
 import { planStill, stillRoofShown, type SceneSun } from '@ongrid/viewer/src/still'
 import { loadCanvas } from './canvas'
@@ -150,10 +151,10 @@ export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 't
 }
 
 /** LVL-9: a section along a line through every floor, with the section it was drawn from. */
-export async function sectionView(plan: FloorPlan, line: SectionLine, look: LookName, language?: Language, display?: Display, size?: PictureSize): Promise<PlanView & { readonly section: PlanSection }> {
-  // MSG-11: the drawing's own words in the language asked for, else the plan's own.
-  const picture = sizedPicture(size, (pixels) => sectionPicture(plan, line, { look: drawingLook(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }), ...pixels }))
-  return { ...(await scaledView(picture, 'section', size?.scale)), section: picture.section }
+export async function sectionView(plan: FloorPlan, line: SectionLine, look: LookName, language?: Language, display?: Display, size?: PictureSize, dimensions = true): Promise<PlanView & { readonly section: PlanSection; readonly chains: readonly SectionChain[] }> {
+  // MSG-11: the drawing's own words in the language asked for, else the plan's own. VEW-89: its dimension chains unless turned off.
+  const picture = sizedPicture(size, (pixels) => sectionPicture(plan, line, { look: drawingLook(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }), ...(dimensions ? {} : { dimensions: false }), ...pixels }))
+  return { ...(await scaledView(picture, 'section', size?.scale)), section: picture.section, chains: picture.chains }
 }
 
 /**
