@@ -224,12 +224,10 @@ function refusedText(refused: readonly RefusedLine[]): string[] {
 
 /** CMD-57: a brief as this tool's brief takes it, so it can be passed back: the file's form without its version and heading. */
 function briefArg(brief: Brief): Record<string, unknown> {
-  const { version: _version, ...json } = briefJson(brief)
+  const json = briefJson(brief)
+  delete json['version']
   const figures = json['figures'] as Record<string, unknown> | undefined
-  if (figures !== undefined) {
-    const { heading: _heading, ...rest } = figures
-    json['figures'] = rest
-  }
+  if (figures !== undefined) delete figures['heading']
   return json
 }
 
