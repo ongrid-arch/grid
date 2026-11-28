@@ -261,3 +261,30 @@ describe('the ground on a slope (CNT-49)', () => {
     expect(tags(sloped, 'facade-below-ground')[0]).toMatch(/^<path /)
   })
 })
+
+describe('the ground through spot levels (VEW-86)', () => {
+  // A bank across the site: level on the south, rising 2 m over the middle of the house, level again on the north.
+  const banked = (): FloorPlan => ({
+    ...house(),
+    site: {
+      spotLevels: [-5, 15].flatMap((x) => [
+        { at: [x, -5] as [number, number], level: -2 },
+        { at: [x, 3] as [number, number], level: -2 },
+        { at: [x, 5] as [number, number], level: 0 },
+        { at: [x, 13] as [number, number], level: 0 }
+      ])
+    }
+  })
+
+  it('draws the ground line and the paper under it through every bend of the profile', () => {
+    const svg = facadeToSvg(banked(), { side: 'east', look: 'technical' })
+    const line = tags(svg, 'facade-ground')[0]!
+    expect(line).toMatch(/^<path /)
+    const d = /\sd="([^"]+)"/.exec(line)![1]!
+    expect(d.split('L').length).toBeGreaterThanOrEqual(4)
+    const zs = [...d.matchAll(/[ML]-?[\d.]+,(-?[\d.]+)/g)].map((m) => -Number(m[1]))
+    expect(Math.min(...zs)).toBeCloseTo(-2, 6)
+    expect(Math.max(...zs)).toBeCloseTo(0, 6)
+    expect(tags(svg, 'facade-below-ground')[0]).toMatch(/^<path /)
+  })
+})

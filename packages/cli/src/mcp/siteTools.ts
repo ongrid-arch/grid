@@ -44,6 +44,23 @@ export function pointArg(name: string, text: string): Pair {
   return point
 }
 
+/** VEW-86: a spot level written `x,y level`, the level in metres or with its unit; refused naming the argument. */
+function spotArg(text: string): { at: Pair; level: number } {
+  const parts = text.trim().split(/\s+/)
+  const refused = new ToolRefusal('spot_levels takes each level written "x,y level": the point in plan metres and the ground\'s level there (0,12 -1.5).')
+  if (parts.length !== 2) throw refused
+  const at = pointArg('spot_levels', parts[0]!)
+  let level: number
+  try {
+    level = /^[-+]?(\d+\.?\d*|\.\d+)$/.test(parts[1]!) ? Number(parts[1]) : readLength(parts[1]!)
+  } catch (error) {
+    if (error instanceof LengthRefused) throw refused
+    throw error
+  }
+  if (!(Number.isFinite(level) && Math.abs(level) <= LARGEST)) throw refused
+  return { at, level }
+}
+
 /** Rooms text's reading of site words, its refusals as the tool's. */
 function siteWords<T>(read: () => T): T {
   try {
@@ -76,6 +93,7 @@ export const setSiteTool: GridTool = {
     'Use this when the person gives the plot or where the building stands: "the plot is 12 by 25 m", "the street is to the south", "keep 5 m from the street and 2 m from the other sides", "a 40 m coastal set-back on the west", "north is to the top right", a north arrow on a sketch, or where the ground outside is: "the floor is 15 cm above the ground", "the basement is 3 m below ground", "the site falls 4.6 m from the north side to the south", "a 30% slope down to the south", "the street falls from 0 to -3 m along the front". '
     + 'It sets the plot\'s boundary (its corners, or plot_width by plot_depth from its south-west corner, centred on the building when plot_x and plot_y are left out, and said), the edges on a street, the set-backs the person asked for (their own figures, never a code\'s), north, where the building is on the earth, its address and own name (address, site_name: kept as written, never looked up), and the ground level (ground), each only when given; remove takes a field out. '
     + 'On a slope, give the ground at the building\'s sides (ground_north, ground_east, ground_south, ground_west), a fall (slope, in percent, toward a compass point; through ground, else 0, at the middle of the building) or the ground along edges of the plot (ground_edges, a street that falls along its edge): Grid takes the one even slope that fits them, says how far it is off any it cannot meet, and every check (below the ground, the way out), the footprint, the storeys, the height, the facades, the sections and the 3D ground read it at each wall. '
+    + 'Where the ground is not one slope (a terrace stepping down a hill, a bank, a step at a retaining wall), give spot levels instead (spot_levels: one at each corner of the building, or a line of them; two lines a few centimetres apart are a step): the ground then passes through every level, and the sections and elevations draw its true profile. '
     + 'Sides are the sides of the drawing, north up it, as in rooms text: street "south" is every edge facing down the drawing. Edge 1 runs from the first corner to the second; a plot\'s edges are 1 south, 2 east, 3 north, 4 west. '
     + 'It answers with the plot\'s area (in acres too on a plan shown in feet and inches), the plot coverage and what it counts (roofed porches and carports in, open decks and terraces out), and each edge\'s distance to the building against its set-back, as grid_measure what=site does. '
     + 'Do not use for trees, paths, pools, fences or gates (grid_change_site), or to draw a path or a jetty as a room. Rooms text says the same in lines: plot 12 x 25, street south, setback all 2, north 135, ground -0.15. It replaces the plan file unless out is given. Lengths are metres, or text with their unit.',
@@ -103,6 +121,7 @@ export const setSiteTool: GridTool = {
     slope: number('A fall of the ground, in percent (rise over run, times 100), with toward: 30 for 30%.', [30, 8], 0, 1000, false),
     toward: { type: 'string', enum: [...FALL_TOWARD], description: 'The compass point of the drawing the ground falls toward, with slope.', examples: ['south'] },
     ground_edges: { type: 'array', items: { maxLength: 60 }, minItems: 1, maxItems: POINTS_MAX, description: 'The ground along edges of the plot, each "<edge> <level> [to <level>]": its level at the edge\'s first corner and, when it falls along it, at its second. Replaces those edges\' levels.', examples: [['1 0 to -3'], ['2 -0.5']] },
+    spot_levels: { type: 'array', items: { maxLength: 80 }, minItems: 1, maxItems: POINTS_MAX, description: 'The ground\'s level at points of the plan, each "x,y level" (from the ground floor\'s floor level): at each corner of the building, or a line of them down a street. A level at a point already stated replaces it; not with slope.', examples: [['0,0 -3', '10,0 -3', '10,12 0', '0,12 0']] },
     country: { type: 'string', maxLength: NAME_MAX, description: 'Where it will be built: a country\'s name or its two- or three-letter code. grid_check applies the figures that hold there.', examples: ['ES', 'United States'] },
     // CNT-50: the site's address and its own name, kept as written and never looked up.
     address: { type: 'string', maxLength: NAME_MAX, description: 'The site\'s address, one line, as the person writes it; never looked up (latitude and longitude place it).', examples: ['12 Harbour Road, Bristol'] },
@@ -131,6 +150,8 @@ export const setSiteTool: GridTool = {
           return read.edge
         })
       : undefined
+    // VEW-86: each spot level, "x,y level".
+    const spotLevels = given('spot_levels') ? (args['spot_levels'] as string[]).map((text) => spotArg(text)) : undefined
     const changed = writeChange(context, args, (survey) =>
       setSite(survey, {
         ...(boundary === undefined ? {} : { boundary }),
@@ -146,6 +167,7 @@ export const setSiteTool: GridTool = {
         ...(Object.keys(sides).length === 0 ? {} : { groundSides: sides }),
         ...(given('slope') ? { fall: { slope: args['slope'] as number, toward: args['toward'] as FallToward } } : {}),
         ...(groundEdges === undefined ? {} : { groundEdges }),
+        ...(spotLevels === undefined ? {} : { spotLevels }),
         ...(given('country') ? { country: args['country'] as string } : {}),
         ...(given('address') ? { address: args['address'] as string } : {}),
         ...(given('site_name') ? { name: args['site_name'] as string } : {}),

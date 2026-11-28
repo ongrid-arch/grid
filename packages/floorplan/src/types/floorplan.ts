@@ -76,7 +76,9 @@
  *   sides of the building; `site.fall`, a slope in percent `toward` one of the eight compass
  *   points of the drawing, through `ground` (else 0) at the middle of the building; and
  *   `site.groundEdges`, the levels at the two corners of an edge of the plot (C13), a falling
- *   street. Grid takes the one even slope that fits every stated level. CNT-50 adds
+ *   street. Grid takes the one even slope that fits every stated level. VEW-86 adds
+ *   `site.spotLevels`, the ground's level at points of the plan; with them the ground passes
+ *   through every stated level instead. CNT-50 adds
  *   `site.address` and `site.name`, the site's address and its own name in the person's words:
  *   one line each, kept as written and never looked up or checked against a map. All of them are
  *   optional and never defaulted, so a plan that states none reads exactly as before (version 1):
@@ -2117,6 +2119,9 @@ export const GroundFallSchema = z.object({ slope: finite().min(0).max(1000), tow
 /** CNT-49 (C7): the ground along an edge of the plot: its level at the edge's first corner and its second. */
 export const GroundEdgeSchema = z.object({ edge: z.number().int().min(1), start: finite(), end: finite().optional() })
 
+/** VEW-86 (C7): the ground's level at a point of the plan, a spot level. */
+export const SpotLevelSchema = z.object({ at: Vec2, level: finite() })
+
 /**
  * BRF-3: how many edges a boundary has: one per point, the last running back to the first. A
  * last point written on the first again closes the shape and adds no edge.
@@ -2151,6 +2156,11 @@ export function boundaryEdgeCount(points: readonly (readonly [number, number])[]
  * plot, at the edge's first corner (`start`) and its second (`end`, else the same). Every check,
  * the site measure and the pictures read the ground at each wall from the one even slope that fits
  * them all (`geometry/groundSurface.ts`).
+ *
+ * VEW-86: `spotLevels`, the ground's level at points of the plan (a corner of the building, a line
+ * of them down a street), in the same datum. With them stated the ground passes through every
+ * stated level, a surface of triangles, not one slope, and the sections and elevations draw it as
+ * its true profile. They state the ground's shape, so a `fall` beside them is refused.
  *
  * BRF-3 (C13): `boundary`, `streets`, `setbacks` and `things`, the plot and what is on it.
  * A fault in one street, set-back or thing leaves that one out alone (`readParts.ts`).
@@ -2187,6 +2197,8 @@ export const SiteSchema = z
     groundSides: GroundSidesSchema.optional(),
     fall: GroundFallSchema.optional(),
     groundEdges: z.array(GroundEdgeSchema).max(BOUNDARY_MAX).optional(),
+    // VEW-86: the ground's level at points of the plan: a corner of the building, a line of them.
+    spotLevels: z.array(SpotLevelSchema).min(1).max(BOUNDARY_MAX).optional(),
   })
   .superRefine((site, ctx) => {
     const say = (path: (string | number)[], message: string): void => ctx.addIssue({ code: z.ZodIssueCode.custom, path, message })
@@ -2220,6 +2232,14 @@ export const SiteSchema = z
       else if (leveled.has(g.edge)) say(['groundEdges', i, 'edge'], `names edge ${g.edge} twice`)
       else leveled.add(g.edge)
     })
+    // VEW-86: one level at a point, and the ground's shape stated one way.
+    const spots = new Set<string>()
+    site.spotLevels?.forEach((spot, i) => {
+      const key = `${spot.at[0]},${spot.at[1]}`
+      if (spots.has(key)) say(['spotLevels', i, 'at'], `gives a second level at ${key}: give one level at a point`)
+      spots.add(key)
+    })
+    if (site.spotLevels !== undefined && site.fall !== undefined) say(['fall'], 'is stated with spot levels, which give the ground its shape: give one or the other')
     const ids = new Set<string>()
     site.things?.forEach((thing, i) => {
       if (ids.has(thing.id)) say(['things', i, 'id'], 'is the id of another of the site\'s things: give each its own')

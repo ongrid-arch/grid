@@ -37,7 +37,9 @@
  * - **the ground**, at the level the site states (`site.ground`), else the ground floor's floor
  *   level, 0, as LVL-4 reads it. Nothing below it is seen. CNT-49: on a slope the ground along the
  *   side's front face is a sloped line (`ground.fall`, read with `facadeGroundAt`), and the
- *   silhouette is cut at it.
+ *   silhouette is cut at it. VEW-86: through spot levels it is the ground's true profile along the
+ *   front face (`ground.profile`, `facadeGroundLine`), so the floors below the high side show
+ *   where the ground falls away from them.
  *
  * Every face carries how far it stands behind the nearest (`depth`) and its plane (`tier`: 0 the
  * front, 1 the next set back, 2 anything further), for its line weight, and the faces come
@@ -61,6 +63,7 @@ import { planEnvelope, roofFacetsOver } from './envelope'
 import { floorOf, planFloors, planForFloor } from './floors'
 import { indexPlan } from './plan'
 import { groundLevel, plinthUnder } from './ground'
+import { profileAt, profileBetween, profileRange, type GroundProfile } from './groundSpots'
 import { bearingOf, compassPoint, planOrientation, type CompassPoint } from './orientation'
 import { withPatterns } from './patterns'
 import { cutOutline, ringOf } from './polygons'
@@ -268,9 +271,10 @@ export interface Facade {
   /**
    * The ground: its level and whether the site states it. CNT-49: on a slope, `fall` is the ground
    * along the side's front face, its level at u = 0 and how much it rises per metre of u; `level`
-   * is then the lowest ground under the building.
+   * is then the lowest ground under the building. VEW-86: through spot levels, `profile` is the
+   * ground along the front face as `[u, level]` points instead, and there is no `fall`.
    */
-  readonly ground: { readonly level: number; readonly stated: boolean; readonly fall?: FacadeGroundFall }
+  readonly ground: { readonly level: number; readonly stated: boolean; readonly fall?: FacadeGroundFall; readonly profile?: GroundProfile }
   /** The floors with a face on this facade, lowest first. */
   readonly levels: readonly FacadeLevel[]
   /** VEW-84: every level it marks, lowest first: the ground, each floor, each roof's eaves and ridge or top, each parapet's top. */
@@ -290,10 +294,16 @@ export interface FacadeGroundFall {
   readonly perMetre: number
 }
 
-/** CNT-49: the ground's level at `u` across a facade: on its slope, else its one level. */
+/** CNT-49: the ground's level at `u` across a facade: on its profile (VEW-86), its slope, else its one level. */
 export function facadeGroundAt(facade: Pick<Facade, 'ground'>, u: number): number {
+  if (facade.ground.profile !== undefined) return profileAt(facade.ground.profile, u)
   const fall = facade.ground.fall
   return fall === undefined ? facade.ground.level : fall.at + fall.perMetre * u
+}
+
+/** VEW-86: the ground line across a facade from `u0` to `u1` as `[u, level]` points: its ends, and on a profile each point between. */
+export function facadeGroundLine(facade: Pick<Facade, 'ground'>, u0: number, u1: number): [number, number][] {
+  return facade.ground.profile !== undefined ? profileBetween(facade.ground.profile, u0, u1) : [[u0, facadeGroundAt(facade, u0)], [u1, facadeGroundAt(facade, u1)]]
 }
 
 const dot = (p: Vec2, d: Vec2): number => p.x * d.x + p.y * d.y
@@ -642,17 +652,20 @@ function roofEdgeOf(a: Vec2, b: Vec2, plane: RoofPlane, low: number, perimeter: 
 }
 
 /** The silhouette of the faces above the ground: their union. Empty when it cannot be worked out. */
-function silhouette(faces: readonly FacadeFace[], ground: number, groundAt: (u: number) => number = () => ground): (readonly (readonly [number, number])[])[] {
+function silhouette(faces: readonly FacadeFace[], ground: Facade['ground']): (readonly (readonly [number, number])[])[] {
+  const groundAt = (u: number): number => facadeGroundAt({ ground }, u)
+  const lowAt = (u0: number, u1: number): number => (ground.profile !== undefined ? profileRange(ground.profile, u0, u1).low : Math.min(groundAt(u0), groundAt(u1)))
   const shapes: Polygon[] = faces
-    .filter((f) => f.top > Math.min(groundAt(f.u0), groundAt(f.u1)) && f.u1 > f.u0 && f.outline.length >= 3)
+    .filter((f) => f.top > lowAt(f.u0, f.u1) && f.u1 > f.u0 && f.outline.length >= 3)
     .map((f) => [[...f.outline.map(([u, z]) => [u, z] as [number, number]), [f.outline[0]![0], f.outline[0]![1]]]])
   if (shapes.length === 0) return []
   try {
     const all = polygonClipping.union(shapes[0]!, ...shapes.slice(1))
     const u0 = Math.min(...faces.map((f) => f.u0)) - 1
     const u1 = Math.max(...faces.map((f) => f.u1)) + 1
-    const top = Math.max(...faces.map((f) => f.top), groundAt(u0), groundAt(u1)) + 1
-    const above = polygonClipping.intersection(all, [[[u0, groundAt(u0)], [u1, groundAt(u1)], [u1, top], [u0, top], [u0, groundAt(u0)]]])
+    const line = facadeGroundLine({ ground }, u0, u1)
+    const top = Math.max(...faces.map((f) => f.top), ...line.map(([, z]) => z)) + 1
+    const above = polygonClipping.intersection(all, [[...line, [u1, top], [u0, top], line[0]!]])
     // A ring with no area to speak of (`areaReported`), a sliver the join leaves along a gable's slope, is not part of it.
     const area = (ring: readonly (readonly [number, number])[]): number => Math.abs(ring.slice(0, -1).reduce((sum, [u, z], i) => sum + u * ring[i + 1]![1] - ring[i + 1]![0] * z, 0)) / 2
     return above.flatMap((polygon) => polygon.map((ring) => ring.map(([u, z]) => [fine(u), fine(z)] as const)).filter((ring) => area(ring) > tolerance('areaReported')))
@@ -860,6 +873,14 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
       // CNT-49: the ground along the side's front face, the building's furthest point that way.
       const ends = plan.walls.flatMap((w) => [w.start, w.end]).filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))
       const front = ends.length === 0 ? 0 : Math.max(...ends.map((p) => dot({ x: p[0], y: p[1] }, direction)))
+      // VEW-86: through spot levels, the ground's profile along the front face, over the walls and the levels stated.
+      if (surface.along !== undefined) {
+        const us = [...ends.map((p) => dot({ x: p[0], y: p[1] }, across)), ...surface.controls.map((c) => dot(c.at, across))]
+        const [lo, hi] = [Math.min(...us), Math.max(...us)]
+        const at = (u: number): Vec2 => ({ x: direction.x * front + across.x * u, y: direction.y * front + across.y * u })
+        const profile = surface.along(at(lo), at(hi)).map(([x, z]) => [fine(lo + x), fine(z)] as const)
+        return { level: found.level, stated: found.stated, profile }
+      }
       const g = surface.gradient
       const fall = { at: fine(surface.c + dot(g, direction) * front), perMetre: fine(dot(g, across)) }
       return { level: found.level, stated: found.stated, fall }
@@ -867,7 +888,6 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
       return { level: 0, stated: false }
     }
   })()
-  const groundAt = (u: number): number => facadeGroundAt({ ground }, u)
   const empty: Facade = { side, direction, across, compass, faces: [], outline: [], ground, levels: [], marks: [], extent: null, walls: [], openings: [] }
 
   let floors: ReturnType<typeof planFloors>
@@ -1079,14 +1099,14 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
     across,
     compass,
     faces,
-    outline: silhouette(faces, ground.level, groundAt),
+    outline: silhouette(faces, ground),
     ground,
     levels,
     marks,
     extent: {
       u0,
       u1,
-      bottom: Math.min(ground.level, groundAt(Math.min(...faces.map((f) => f.u0))), groundAt(Math.max(...faces.map((f) => f.u1))), ...faces.map((f) => f.bottom)),
+      bottom: Math.min(ground.level, ...facadeGroundLine({ ground }, u0, u1).map(([, z]) => z), ...faces.map((f) => f.bottom)),
       top: Math.max(...faces.map((f) => f.top))
     },
     walls: plan.walls.filter((w) => wallIds.has(w.id)).map((w) => w.id).filter((id, i, all) => all.indexOf(id) === i),

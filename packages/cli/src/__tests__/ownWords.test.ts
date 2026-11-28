@@ -126,7 +126,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-50: two fewer, a side named as rooms text names it is refused from the message files.
   // CNT-60: party walls and neighbours changed, their receipts and refusals.
   'packages/cli/src/edit/context.ts': [24, 'notYet'],
-  'packages/cli/src/edit/edits.ts': [64, 'notYet'],
+  // MSG-37: one fewer, a figure said in the display units splits a literal.
+  'packages/cli/src/edit/edits.ts': [63, 'notYet'],
   // WRT-59: the notes an edit caused, opening its answer.
   'packages/cli/src/edit/caused.ts': [1, 'notYet'],
   'packages/cli/src/edit/merge.ts': [32, 'notYet'],
@@ -136,7 +137,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
   // CNT-41: the plot's and the site's things' receipts and refusals.
   // CNT-49: seven more, the ground on a slope set, said and refused.
-  'packages/cli/src/edit/site.ts': [42, 'notYet'],
+  'packages/cli/src/edit/site.ts': [44, 'notYet'],
   // VEW-67: the trace image's receipts and refusals.
   'packages/cli/src/edit/trace.ts': [21, 'notYet'],
   // CNT-46: the bays' and the ramp's receipts and refusals.
@@ -238,7 +239,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-77: one more, the buried slab's row of the take-off's spreadsheet.
   // ARE-78: one fewer, the refusal of a route between floors.
   // VEW-85: one more, grid_view's with_site.
-  'packages/cli/src/mcp/readTools.ts': [412, 'tools'],
+  'packages/cli/src/mcp/readTools.ts': [413, 'tools'],
   // VEW-85: grid_view kind=site's answer.
   'packages/cli/src/mcp/siteAnswer.ts': [22, 'tools'],
   // ARE-75: the state argument the reading tools share, and grid_view's demolition and proposed plans.
@@ -257,7 +258,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-41: based_on's description and planRevision's.
   // CMD-44: one more, the description of who.
   'packages/cli/src/mcp/revisions.ts': [3, 'tools'],
-  'packages/cli/src/mcp/sectionAnswer.ts': [5, 'tools'],
+  'packages/cli/src/mcp/sectionAnswer.ts': [6, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   // CMD-38: two more, the rooms grammar resource's title and description.
   // MSG-34: one more, the refusal of a language that is no language tag.
@@ -278,7 +279,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
   // CNT-49: ten more, the ground on a slope in grid_set_site's help, arguments and refusals.
   // CNT-50: two more, the site's address and its own name.
-  'packages/cli/src/mcp/siteTools.ts': [57, 'tools'],
+  'packages/cli/src/mcp/siteTools.ts': [60, 'tools'],
   // CNT-60: grid_set_party_wall and grid_change_neighbour.
   'packages/cli/src/mcp/contextTools.ts': [29, 'tools'],
   // CNT-50: grid_set_plan, its description, arguments and refusals.
@@ -494,7 +495,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-20: one more, the most dormers one roof lists, as the rooflights' is worded.
   // CNT-49: one more, ground sides that name no side.
   // CNT-59: one more, a guid that is not a GlobalId.
-  'packages/floorplan/src/types/floorplan.ts': [63, 'notYet'],
+  'packages/floorplan/src/types/floorplan.ts': [65, 'notYet'],
   'packages/floorplan/src/types/places.ts': [7, 'notYet'],
   // CMD-7: the plan JSON Schema's title, its description, and the error for a schema part it cannot write.
   'packages/floorplan/src/types/planSchema.ts': [3, 'developer'],

@@ -338,3 +338,27 @@ describe('the earth under the ground line (VEW-65)', () => {
     expect(tagsOf(svg, 'level-backing').length).toBe(picture.section.levels.length + picture.section.roofs.length + 1)
   })
 })
+
+describe('the ground through spot levels (VEW-86)', () => {
+  it('draws the section ground line through every bend of its profile', () => {
+    const plan = parseFloorPlan({
+      ...twoFloorHouse(),
+      site: {
+        spotLevels: [-5, 20].flatMap((x) => [
+          { at: [x, -5] as [number, number], level: -2 },
+          { at: [x, 2] as [number, number], level: -2 },
+          { at: [x, 4] as [number, number], level: 0 },
+          { at: [x, 15] as [number, number], level: 0 }
+        ])
+      }
+    })
+    const svg = pictureToSvg(sectionPicture(plan, { from: { x: 2, y: -4 }, to: { x: 2, y: 14 }, toward: 'left' }, { look: 'technical' }))
+    const ground = tagsOf(svg, 'section-ground')
+    expect(ground.length).toBe(1)
+    const d = /\sd="([^"]+)"/.exec(ground[0]!)![1]!
+    const zs = [...d.matchAll(/[ML]-?[\d.]+,(-?[\d.]+)/g)].map((m) => -Number(m[1]))
+    expect(Math.min(...zs)).toBeCloseTo(-2, 3)
+    expect(Math.max(...zs)).toBeCloseTo(0, 3)
+    expect(zs.some((z) => z > -1.9 && z < -0.1)).toBe(false)
+  })
+})
