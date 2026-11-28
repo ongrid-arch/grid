@@ -300,8 +300,11 @@ export interface WalkedLeg {
   readonly length: number
 }
 
-/** ARE-30: where a route starts: the room's middle, its door, its farthest corner, or a point given. */
-export type StartAt = 'middle' | 'door' | 'farthest corner' | { readonly x: number; readonly y: number }
+/**
+ * ARE-30: where a route starts: the room's middle, its door, its farthest corner, or a point given.
+ * ARE-81: a point given `as` the farthest point (`farthest.ts`) is said to be one.
+ */
+export type StartAt = 'middle' | 'door' | 'farthest corner' | { readonly x: number; readonly y: number; readonly as?: 'farthest point' }
 /** ARE-30: where a route ends in its last room: the room's middle or the doorway into it. */
 export type EndAt = 'middle' | 'door'
 export interface RouteEnds {
@@ -313,7 +316,7 @@ export interface RouteEnds {
 /** ARE-30: a route's two points, on the drawing, and which kind each is. */
 export interface WalkPoint {
   readonly point: Vec2
-  readonly at: 'middle' | 'door' | 'farthest corner' | 'given point' | 'outside face of the door'
+  readonly at: 'middle' | 'door' | 'farthest corner' | 'farthest point' | 'given point' | 'outside face of the door'
 }
 
 export interface Walked {
@@ -400,7 +403,7 @@ export function walkRoute(survey: Survey, rooms: readonly string[], vias: readon
       const asked = ends.start ?? 'middle'
       if (typeof asked === 'object') {
         start = { x: asked.x, y: asked.y }
-        startPoint = { point: start, at: 'given point' }
+        startPoint = { point: start, at: asked.as ?? 'given point' }
       } else if (asked === 'door' && via !== undefined) {
         start = leave
         startPoint = { point: start, at: 'door' }

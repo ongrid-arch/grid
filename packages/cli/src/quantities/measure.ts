@@ -280,15 +280,46 @@ interface RouteNode {
  * off the floor it starts on is tried, and the shortest walked is the answer (`otherWays`).
  */
 export function routeBetween(survey: Survey, from: string, to: string, acrossFloors = true, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}, onlyCommon = false): Route | null {
+  const ways = weighedWays(survey, from, to, acrossFloors, ends, onlyCommon)
+  if (ways === null) return null
+  const [best, ...others] = ways.routes
+  if (ways.leaves === null || ways.single) return best!
+  if (ways.leaves === 'exit') {
+    return {
+      ...best!,
+      exit: best!.steps.at(-1)!.via,
+      otherExits: others.map((r) => ({ via: r.steps.at(-1)!.via, type: r.steps.at(-1)!.type, rooms: r.rooms, length: r.length })),
+    }
+  }
+  const leaves = ways.leaves
+  return { ...best!, otherWays: others.map((r) => ({ via: leaves.get(r)!.via, type: leaves.get(r)!.type, rooms: r.rooms, length: r.length })) }
+}
+
+/**
+ * ARE-81: every way `routeBetween` weighs, best first: each way out for `outside`, each stair or
+ * lift off the floor for a room on another floor, else the one way on the floor. A start a way
+ * is walked from changes its length, never the rooms it passes.
+ */
+export function everyWay(survey: Survey, from: string, to: string, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}): readonly Route[] {
+  return weighedWays(survey, from, to, true, ends, false)?.routes ?? []
+}
+
+/**
+ * The ways weighed, best first, and what tells them apart: `exit`, the way out each ends by
+ * (`single` when the search found one with no way out to weigh it against); a map, the stair or
+ * lift each leaves the floor by; null, the one way there is.
+ */
+function weighedWays(survey: Survey, from: string, to: string, acrossFloors: boolean, ends: { readonly start?: StartAt; readonly end?: EndAt }, onlyCommon: boolean): { readonly routes: readonly Route[]; readonly leaves: 'exit' | ReadonlyMap<Route, { readonly via: string; readonly type: RouteStep['type'] }> | null; readonly single: boolean } | null {
   const target = to === 'outside' ? undefined : survey.byId.get(to)
-  if (acrossFloors && target !== undefined && target.facts.floor !== survey.byId.get(from)!.facts.floor) return routeAcrossFloors(survey, from, to, ends)
+  if (acrossFloors && target !== undefined && target.facts.floor !== survey.byId.get(from)!.facts.floor) return waysAcrossFloors(survey, from, to, ends)
   let common = false
   let first = onlyCommon ? null : routeSearch(survey, from, to, acrossFloors, null, ends, false)
   if (first === null && to === 'outside') {
     first = routeSearch(survey, from, to, acrossFloors, null, ends, true)
     common = first !== null
   }
-  if (first === null || to !== 'outside') return first
+  if (first === null) return null
+  if (to !== 'outside') return { routes: [first], leaves: null, single: true }
   // ARE-21: every way out the search can reach, each by the way with the fewest rooms to it; the
   // shortest walked is the answer and the others are listed, not the one met first.
   const doors = new Set<string>()
@@ -302,15 +333,10 @@ export function routeBetween(survey: Survey, from: string, to: string, acrossFlo
     const r = routeSearch(survey, from, to, acrossFloors, via, ends, common)
     if (r !== null && r.steps.at(-1)?.via === via) routes.push(r)
   }
-  if (routes.length === 0) return first
+  if (routes.length === 0) return { routes: [first], leaves: 'exit', single: true }
   // Measured ways first, shortest first; then the fewest rooms, then the doorway's id.
   routes.sort(byWalked((r) => r.steps.at(-1)!.via))
-  const [best, ...others] = routes
-  return {
-    ...best!,
-    exit: best!.steps.at(-1)!.via,
-    otherExits: others.map((r) => ({ via: r.steps.at(-1)!.via, type: r.steps.at(-1)!.type, rooms: r.rooms, length: r.length })),
-  }
+  return { routes, leaves: 'exit', single: false }
 }
 
 /** Measured ways first, shortest first; then the fewest rooms, then the id of the doorway or stair `last` names. */
@@ -322,23 +348,21 @@ function byWalked(last: (r: Route) => string): (a: Route, b: Route) => number {
   }
 }
 
-/** ARE-78: the way between two rooms on different floors, by the stairs, else by the lifts too. */
-function routeAcrossFloors(survey: Survey, from: string, to: string, ends: { readonly start?: StartAt; readonly end?: EndAt }): Route | null {
+/** ARE-78: the ways between two rooms on different floors, by the stairs, else by the lifts too, best first. */
+function waysAcrossFloors(survey: Survey, from: string, to: string, ends: { readonly start?: StartAt; readonly end?: EndAt }): { readonly routes: readonly Route[]; readonly leaves: ReadonlyMap<Route, { readonly via: string; readonly type: RouteStep['type'] }>; readonly single: boolean } | null {
   const fromFloor = survey.byId.get(from)!.facts.floor
   for (const lifts of [false, true]) {
     const found = stairJoins(survey.plan, lifts)
     const off = [...new Set(found.joins.filter((j) => j.lower.floor === fromFloor || j.upper.floor === fromFloor).map((j) => j.via))].sort()
-    const routes: { route: Route; via: string }[] = []
+    const kindOf = (via: string): RouteStep['type'] => (found.joins.find((j) => j.via === via)?.kind === 'lift' ? 'lift' : 'stair')
+    const leaves = new Map<Route, { via: string; type: RouteStep['type'] }>()
     for (const via of off) {
       const r = routeSearch(survey, from, to, true, null, ends, false, { found, onlyJoin: via, lifts })
-      if (r !== null) routes.push({ route: r, via })
+      if (r !== null) leaves.set(r, { via, type: kindOf(via) })
     }
-    if (routes.length === 0) continue
-    const leaves = new Map(routes.map((r) => [r.route, r.via] as const))
-    const sorted = routes.map((r) => r.route).sort(byWalked((r) => leaves.get(r)!))
-    const [best, ...others] = sorted
-    const kindOf = (via: string): RouteStep['type'] => (found.joins.find((j) => j.via === via)?.kind === 'lift' ? 'lift' : 'stair')
-    return { ...best!, otherWays: others.map((r) => ({ via: leaves.get(r)!, type: kindOf(leaves.get(r)!), rooms: r.rooms, length: r.length })) }
+    if (leaves.size === 0) continue
+    const sorted = [...leaves.keys()].sort(byWalked((r) => leaves.get(r)!.via))
+    return { routes: sorted, leaves, single: false }
   }
   return null
 }

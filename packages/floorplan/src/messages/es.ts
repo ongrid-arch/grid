@@ -658,6 +658,11 @@ export const es: Messages = {
   'route.blockedDoorway': '{kind} {via} entre {rooms} está cerrado: {items} no deja nada libre.',
   'route.otherWays': 'Otros caminos entre las plantas: {ways}.',
   'route.byLift': 'Ninguna escalera une estas plantas en el camino, así que va por el ascensor: el trayecto en él no entra en la longitud recorrida, y un ascensor nunca es una salida.',
+  // ARE-81: a route from a room's or a floor's farthest point.
+  'route.farthest.room': 'El punto más lejano de {room} desde {to}, por su camino más cercano, está en {x}, {y}: {length} recorridos.',
+  'route.farthest.floor': 'El punto más lejano de cada estancia de {floor} desde {to}, por su camino más cercano, el recorrido más largo primero: {rooms}. La ruta de abajo parte del más lejano de ellos.',
+  'route.farthest.unreached': 'No se mide ningún recorrido desde {rooms}.',
+  'route.farthest.rule': 'El punto más lejano es el punto del contorno de la estancia, sus esquinas y sus lados, desde el que el recorrido por el camino más cercano es el más largo; desde cada punto se sopesan todos los caminos que la ruta podría tomar.',
   'check.noStair.route': 'No hay salida desde {floor}: está sobre el terreno y nada la une con la planta baja, ninguna estancia suya se usa como escalera ni como ascensor y no se indica ninguna escalera ni rampa hasta ella, así que ningún recorrido desde {room} baja hasta una puerta de salida (grid check: floor/no-stair).',
   'check.outOfLine.stair': 'La escalera {upper} de {upperFloors} no queda sobre {lower} de {lowerFloors}, así que no une las dos plantas',
   'check.outOfLine.lift': 'La caja del ascensor {upper} de {upperFloors} no queda sobre {lower} de {lowerFloors}, así que la caja no está alineada',

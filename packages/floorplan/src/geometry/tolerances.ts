@@ -984,6 +984,17 @@ export const TOLERANCES = {
       'measured on a coarser grid, and the answer gives the step it used.',
     basis: own
   },
+  // ARE-81: the farthest point of a room from where a route ends.
+  farthestPointStep: {
+    kind: 'tolerance',
+    value: 0.25,
+    unit: 'm',
+    decides:
+      'The step along each side of a room\'s outline, between its corners, at which the walk to ' +
+      'the nearest way is measured when the room\'s farthest point is sought: the farthest point ' +
+      'is found to within about this much.',
+    basis: own
+  },
   // ARE-25: a corridor's width from end to end.
   corridorRasterAcross: {
     kind: 'limit',
