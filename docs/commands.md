@@ -1075,9 +1075,13 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   one face hold the earth back (`grid_view kind=section` lists them as `retaining`). Where the line
   ends inside that part, the earth and the ground line stop at the cut's end. One ground level is
   taken for the whole site: a ground that slopes is not drawn yet.
-- **The levels** stand beside the drawing, in a facade's level-mark line: each floor's on the
-  left, each roof's and the ground's on the right, in metres from the ground floor's floor level,
-  as `±0.000`, `+2.950`.
+- **The levels** stand beside the building (VEW-84), a small gap off its outermost part however
+  far the line runs past it, each on a thin datum line back to what it marks: each floor's on the
+  left, each roof's (its eaves and ridge, or its top, and the top of a parapet the line cuts) and
+  the ground's on the right, in metres from the ground floor's floor level, as `±0.000`, `+2.950`.
+  A floor or roof that stands off its side of the building and reaches the other, such as the
+  upper half of a split level, is marked on that other side. Levels close together are staggered:
+  the tick stays at the level and the words step up clear of the ones below, on a short leader.
 - **Each room cut** carries its name and its height, floor to ceiling: its own `height` when it
   states one, else up to the slab or roof over its storey.
 - **What the plan does not state and Grid takes** is listed under the drawing, and hatched where
@@ -1135,8 +1139,11 @@ plan states its north.
 It draws each wall's outside face from its floor's level to its height, with its doors and
 windows at their sills and heads, the edge of the slab each floor stands on, the edge of each
 roof over the parts with nothing above and its parapet, and the ground: at the level the
-site states (`site.ground`), else at the ground floor's floor level, and nothing below it. Each
-floor is marked at its level on the right. A plan's opening patterns are drawn as the openings
+site states (`site.ground`), else at the ground floor's floor level, and nothing below it. The
+levels are marked beside the building as a section's are (VEW-84), each on a datum line back to
+it and staggered clear of the next: the ground, each floor, a sloped roof's eaves and ridge (its
+underside there, the figures a section gives), a flat roof's top and a parapet's top, on the right,
+or on the left for a floor or roof that stands off the right of the building and on its left. A plan's opening patterns are drawn as the openings
 they place ([opening patterns](plan-file.md#opening-patterns)).
 
 The lines are the look's own, as a plan's are: in the technical look, the default, millimetres on
