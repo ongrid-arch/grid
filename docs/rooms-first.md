@@ -137,6 +137,14 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   `room s "Store" storage 2 x 2 east of k unconditioned` takes an unheated store out. Unstated, a
   parking room is not under air and every other room is. Outdoor space never is: either word on
   its line is read as nothing, and the answer says so (`rooms/conditioned-outdoor`).
+- `void` on a room line, after its use or as its use (`room atrium "Hall void" void 6 x 8 at 0,0`),
+  writes the room as a void (LVL-28, the plan file's `void`): open to the floor below, with no floor
+  in 3D or in the files, in no area and needing no door. It is open to the rooms it touches and to
+  the room it is placed beside or cut out of (or placed beside it), a dividing line with no wall,
+  and the answer says so once; a `wall between` line with a thickness, a kind or `railing` walls or
+  guards that edge instead, and `wall <t>` after its place gives a wall. A void on a floor with no
+  floor under it, or with `outdoor`, `floor <m>`, `conditioned` or `unconditioned` on its line, is
+  refused. `grid describe --as rooms` writes `void` on its line.
 - `number "2.03"` on a room line states its room number, `dept "ED"` its department (the fact
   `department`) and `facts department=Sales capacity=4 "head count"=8` facts of the person's own
   (WRT-74, [the plan file](plan-file.md#facts-of-your-own-and-room-numbers)). A value in quotes is
@@ -690,6 +698,20 @@ room stage "Stage" - 4.5 x 2.4 north of living floor 0.6
 door front in genkan south, centred, 0.9 wide, opens out
 opening o1 between genkan and living, centred, 0.9 wide
 opening proscenium between living and stage, centred, 3.6 wide
+```
+
+### Voids
+
+void on a room line, after its use or as its use (room atrium "Hall void" void 6 x 8 at 0,0), makes the room a void, open to the floor below: an atrium, a double-height space, a stair well, a pole drop. It has no floor, in 3D or in the files, adds no area and needs no door; its storey's slab is open over it and the room under it rises through it. Write it on the upper floor, over the room it opens onto: on the lowest floor, or with outdoor, floor <m> or conditioned, it is refused. A void is open to the rooms it touches and to the room it is placed beside or cut out of, with no wall between: its open edge. wall between <void> and <room> railing height <h> puts a guard there instead, and wall <t> after its place a wall.
+
+```rooms
+walls outside 0.3 inside 0.1 height 3
+floor ground level 0
+room hall "Hall" - 10 x 8 at 0,0
+door entrance in hall south, centred, 1.2 wide
+floor first level 1
+room atrium "Hall void" void 6 x 8 at 0,0
+room gallery "Gallery" - 4 x 8 east of atrium
 ```
 
 ### Open sides
