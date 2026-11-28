@@ -581,7 +581,7 @@ agent can edit the plan from it. A floor laid out like an earlier one is said on
 sill heights are one line: the usual height and the exceptions. What the plan cannot say,
 such as where north is, the kind of building when the plan does not say it, how floors connect
 when no stair joins them and which rooms make each flat, is said as such; a kind the plan states
-is said after the first line. The stairs that join the floors are one line, with the risers and
+is said after the first line. A floor below the ground says how deep its floor is under the ground round it, as a range on a slope (ARE-82). The stairs that join the floors are one line, with the risers and
 going Grid worked out. Directions are on the drawing, with north at the top. A plan that states
 its real north or its front gets a few more lines: that north, which way each side of the drawing
 really faces, and which rooms face each way

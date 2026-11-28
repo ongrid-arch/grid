@@ -49,6 +49,7 @@ import { outdoorKind } from '@ongrid/floorplan/geometry/outdoor'
 import { drawable } from '@ongrid/floorplan/geometry/rules/check'
 import { floorGraph, openingSides, roomOutlines, sidesAt, type RoomOutline } from '@ongrid/floorplan/geometry/rules/graph'
 import { roomForm, type RoomForm } from './sides'
+import { floorsBelowGround } from '../quantities/depth'
 
 /** A direction on the drawing: north is up (+y), whatever north the plan states (CNT-3). */
 export type Compass = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW'
@@ -187,6 +188,8 @@ export interface FloorFacts {
   readonly bays?: { readonly count: number; readonly numbers: readonly string[]; readonly unnumbered: number }
   /** CNT-19: the ramps that start or end on this floor, in plan order. Left out on a plan with none. */
   readonly ramps?: readonly RampFacts[]
+  /** ARE-82: how far its floor is below the ground round it, from the lowest to the highest ground; left out on a floor not below the ground. */
+  readonly belowGround?: { readonly low: number; readonly high: number }
 }
 
 /** CNT-19: a ramp, as the description says it: the floors at its two ends, its rise, length and slope. */
@@ -728,8 +731,11 @@ export function planFacts(stated: FloorPlan, state: PlanState = 'after'): PlanFa
   const plan = planInState(stated, state)
   const registered = new Set((plan.floors ?? []).map((floor) => floor.id))
   const layouts = new Map<string, { floor: string; ids: string[] }>()
+  const below = floorsBelowGround(plan)
   const floors: FloorFacts[] = withFloorNames(planFloors(plan).map((floor) => {
-    const facts = floorFacts(plan, floor, registered.has(floor.id) || floor.id === DEFAULT_FLOOR_ID)
+    const depth = below.get(floor.id)
+    const own = floorFacts(plan, floor, registered.has(floor.id) || floor.id === DEFAULT_FLOOR_ID)
+    const facts = depth === undefined ? own : { ...own, belowGround: { low: depth.low, high: depth.high } }
     const layout = layoutOf(planForFloor(plan, floor.id))
     const earlier = facts.rooms.length > 0 ? layouts.get(layout.key) : undefined
     if (earlier === undefined) {

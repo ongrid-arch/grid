@@ -1095,6 +1095,24 @@ rooms' volume, the plot left unbuilt before and after, and the least distance fr
 to each edge of the boundary. It takes no other argument. See
 [areas.md](areas.md#the-measures-of-the-work).
 
+## Floors below the ground: depth, formation level, retained height and dig
+
+Read this when the person asks how deep a basement or a car park under a building is, what its
+formation level is, how much earth its walls hold or how much is dug out. `grid_measure` with
+`what=ground` (ARE-82) lists every floor whose floor stands below the ground round it, each
+against its own ground (its building's pad, else the site's stated ground or slope, else the
+ground floor's level): its floor level, the ground round it and the floor's depth under it (from
+the lowest to the highest ground under its outer walls, `below` `wholly` or `partly` for a floor
+cut into a slope); its formation level, the underside of its slab on the ground, and how deep
+that is (null for a floor with another floor under all of it); the retained height on each side
+by compass, the most earth any outer wall facing that way holds above the floor, with that face's
+area below the ground and its walls; its area below the ground, its gross external area; and the
+earth dug out under it, with the excavation in all. The walls, slabs and dig are the take-off's
+earth (ARE-77), so the volume agrees with `grid_takeoff`'s excavation. Every figure is `assumed`:
+the plan states no depth, retaining wall or dig. It takes no other argument. A plan with no floor
+below the ground says so. `grid describe` says the same depth on each such floor's line (for an
+agent, `below-ground 3.2`, or `0-2.1` on a slope).
+
 ## The plot: distances to the boundary, and the coverage
 
 Read this when the person asks how far the house is from the boundary, whether it keeps the
