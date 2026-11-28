@@ -25,11 +25,12 @@
  * Pure: no DOM, no React.
  */
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
-import type { Bounds, PlanSection, SectionLine, SectionPiece, Vec2 } from '@ongrid/floorplan/geometry'
-import { hatchRings, levelText, metresText, planSection, sectionEarth, sectionGroundLine } from '@ongrid/floorplan/geometry'
+import type { Bounds, PlanSection, SectionChain, SectionLine, SectionPiece, Vec2 } from '@ongrid/floorplan/geometry'
+import { hatchRings, levelText, metresText, planSection, sectionChains, sectionEarth, sectionGroundLine } from '@ongrid/floorplan/geometry'
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import { FRAME_MARGIN, fitTo, pathOf } from '../canvas2d/viewport'
 import { labelObstacles, placeLabel } from './sectionLabels'
+import { chainBands, sectionChainNodes } from './sectionDimensions'
 import { levelMarksBeside, levelMarksWidth, levelSides, type BuildingSpan, type LevelMarkInput } from './levelMarks'
 import type { PictureKey } from './faults'
 import { wrapText } from './faults'
@@ -58,12 +59,19 @@ export interface SectionPictureOptions {
   readonly language?: Language
   /** VEW-20: the units its levels and heights are written in; the plan's own display when left out. */
   readonly display?: Display
+  /** VEW-89: the dimension chains up its left side and along the cut. On by default. */
+  readonly dimensions?: boolean
 }
 
 /** A section's picture, with the section it was drawn from, for the words that go with it. */
 export interface SectionPicture extends Picture {
   readonly section: PlanSection
+  /** VEW-89: the dimension chains drawn on it; none when they were turned off. */
+  readonly chains: readonly SectionChain[]
 }
+
+/** VEW-89: the chains a section is drawn with: none when they are turned off. */
+const chainsOf = (section: PlanSection, options: Pick<SectionPictureOptions, 'dimensions'>): SectionChain[] => (options.dimensions === false ? [] : sectionChains(section))
 
 const MIN_SHAPE = 0.4
 const MAX_SHAPE = 2.5
@@ -137,14 +145,15 @@ function levelLabels(section: PlanSection, tongue: DrawingWords, units: Display)
 const buildingOf = (section: PlanSection): BuildingSpan => section.building ?? { from: section.bounds.min.x, to: section.bounds.max.x }
 
 /** What the picture frames: the section, with room beside the building for the level marks, in pixels. */
-function frameOf(section: PlanSection, width: number, height: number | undefined, tongue: DrawingWords, units: Display): { framed: Bounds; width: number; height: number } {
+function frameOf(section: PlanSection, width: number, height: number | undefined, tongue: DrawingWords, units: Display, chains: readonly SectionChain[]): { framed: Bounds; width: number; height: number } {
   const { left, right } = levelSides(levelLabels(section, tongue, units), buildingOf(section))
+  const bands = chainBands(chains)
   const base = section.bounds
   const shape = base.width > 0 && base.height > 0 ? base.height / base.width : 0.5
   const tall = height ?? Math.max(1, Math.round(width * Math.min(Math.max(shape, MIN_SHAPE), MAX_SHAPE)))
   let framed = base
   // The labels are in pixels and the frame in metres: a few rounds settle how many metres they take.
-  for (let round = 0; round < 4; round++) framed = aroundSection(section, levelMarksWidth(left), levelMarksWidth(right), fitTo(framed, width / tall).width / width)
+  for (let round = 0; round < 4; round++) framed = aroundSection(section, levelMarksWidth(left) + bands.left, levelMarksWidth(right), fitTo(framed, width / tall).width / width, bands.bottom)
   return { framed, width, height: tall }
 }
 
@@ -152,10 +161,10 @@ function frameOf(section: PlanSection, width: number, height: number | undefined
  * The section's bounds with room for the level marks beside the building, `leftPx` and `rightPx`
  * wide, at `mpp` metres a pixel: the frame widens only where the marks reach past the bounds.
  */
-function aroundSection(section: PlanSection, leftPx: number, rightPx: number, mpp: number): Bounds {
+function aroundSection(section: PlanSection, leftPx: number, rightPx: number, mpp: number, bottomPx = 0): Bounds {
   const base = section.bounds
   const building = buildingOf(section)
-  const min = { x: Math.min(base.min.x, building.from - leftPx * mpp), y: base.min.y - TEXT_PX.dimension * 2 * mpp }
+  const min = { x: Math.min(base.min.x, building.from - leftPx * mpp), y: base.min.y - Math.max(TEXT_PX.dimension * 2, bottomPx) * mpp }
   const max = { x: Math.max(base.max.x, building.to + rightPx * mpp), y: base.max.y + TEXT_PX.dimension * 2 * mpp }
   return { min, max, width: max.x - min.x, height: max.y - min.y }
 }
@@ -164,11 +173,12 @@ function aroundSection(section: PlanSection, leftPx: number, rightPx: number, mp
  * SHT-23: what a section frames when one pixel is `metresPerPixel` metres, its level marks beside
  * it, in metres with y up: a sheet that draws several sections at one scale sizes each picture to it.
  */
-export function sectionFraming(plan: FloorPlan, section: PlanSection, metresPerPixel: number, options: Pick<SectionPictureOptions, 'language' | 'display'> = {}): Bounds {
+export function sectionFraming(plan: FloorPlan, section: PlanSection, metresPerPixel: number, options: Pick<SectionPictureOptions, 'language' | 'display' | 'dimensions'> = {}): Bounds {
   const tongue = sectionWords(plan, options.language)
   const { left, right } = levelSides(levelLabels(section, tongue, unitsOf(plan, options, tongue)), buildingOf(section))
+  const bands = chainBands(chainsOf(section, options))
   // `frameOf` sizes the marks at the zoom `fitTo` frames with its margin round the frame.
-  return aroundSection(section, levelMarksWidth(left), levelMarksWidth(right), metresPerPixel * (1 + 2 * FRAME_MARGIN))
+  return aroundSection(section, levelMarksWidth(left) + bands.left, levelMarksWidth(right), metresPerPixel * (1 + 2 * FRAME_MARGIN), bands.bottom)
 }
 
 /** Words at a point of the section, in pixels: centred, upright. */
@@ -235,7 +245,8 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   const requested = options.width ?? DEFAULT_WIDTH
   if (!Number.isInteger(requested) || requested < 1) throw new RangeError(`The picture's width must be a whole number of pixels, at least 1: got ${requested}`)
   const units = unitsOf(plan, options, tongue)
-  const { framed, width, height } = frameOf(section, requested, options.height, tongue, units)
+  const chains = chainsOf(section, options)
+  const { framed, width, height } = frameOf(section, requested, options.height, tongue, units, chains)
   const view = fitTo(framed, width / height, 0)
   const mpp = view.width / width
   const lines = lineMetres(look, mpp, options.paperScale)
@@ -404,9 +415,12 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   const sides = levelSides(levelLabels(section, tongue, units), building)
   nodes.push(el('g', { 'data-part': 'section-levels' }, levelMarksBeside(sides, building, mpp, look, lines.width('elevationLevel'))))
 
+  // VEW-89: the dimension chains, past the level marks on the left and under the drawing.
+  if (chains.length > 0) nodes.push(el('g', { 'data-part': 'section-dimensions' }, sectionChainNodes(chains, levelMarksWidth(sides.left), mpp, look, options.paperScale, units)))
+
   const key = sectionKey(section, label, width, look, tongue)
   const cutRooms = new Set(section.rooms.map((r) => `${r.floor}\u0000${r.room}`)).size
   const title = drawingText(tongue, cutRooms === 1 ? 'drawing.section.title.one' : 'drawing.section.title.many', { section: said('drawing.section.name', { label }), count: cutRooms })
-  const picture: SectionPicture = { width, height, view, look, rooms: cutRooms, undecidedDoors: [], nodes, key, title, section }
+  const picture: SectionPicture = { width, height, view, look, rooms: cutRooms, undecidedDoors: [], nodes, key, title, section, chains }
   return tongue.language === DEFAULT_LANGUAGE ? picture : { ...picture, language: tongue.language }
 }
