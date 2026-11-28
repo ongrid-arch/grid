@@ -7,7 +7,7 @@
  * Every answer is short text in Grid's own words, with the same facts as data under the tool's
  * output schema. Names and ids that come from the plan file are quoted.
  */
-import { FACADE_SIDES, MEASURES, shadowPlan, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, type HeightFrom, metresText, slopeText, tolerance, traceFloor, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix, type PlanSun } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, MEASURES, shadowPlan, openingGlazed, floorsWithNoStair, planFlats, planFloors, planHasFinishes, planHasTypes, cameraInsideWall, compassPoint, drawingBearing, findView, floorOf, idsInPhase, phaseCounts, planHasPhases, itemFootprint, itemKindWord, kindWords, limit, oneInText, planOrientation, pointInPolygon, planStoreys, buildingHeights, groundLevel, levelText, facadeGroundLine, type HeightFrom, metresText, slopeText, tolerance, traceFloor, viewSetting, wrapDegrees, type Bounds, type CameraRecord, type FacadeSide, type FloorPlan, type HeadroomBand, type PlanFix, type PlanSun } from '@ongrid/floorplan/geometry'
 import { CAMERA_FITS, CameraRefused, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
@@ -2825,7 +2825,12 @@ async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, lang
   // CNT-49: on a slope, the ground line follows the ground along the face.
   const fall = facade.ground.fall
   const ends = facade.extent === null || fall === undefined ? null : [fall.at + fall.perMetre * facade.extent.u0, fall.at + fall.perMetre * facade.extent.u1]
-  const ground = ends !== null
+  // VEW-86: through spot levels, the ground's profile along the face.
+  const profile = facade.extent === null ? undefined : facade.ground.profile
+  const along = profile === undefined || facade.extent === null ? null : facadeGroundLine(facade, facade.extent.u0, facade.extent.u1).map(([, z]) => z)
+  const ground = along !== null
+    ? `The ground follows the spot levels the site states along this face, from ${levelText(along[0]!, units)} at its left to ${levelText(along.at(-1)!, units)} at its right, lowest ${levelText(Math.min(...along), units)}, highest ${levelText(Math.max(...along), units)}.`
+    : ends !== null
     ? `The ground falls along this face, from ${levelText(ends[0]!, units)} at its left to ${levelText(ends[1]!, units)} at its right, the slope the site states.`
     : facade.ground.stated ? `The ground line is at ${levelText(facade.ground.level, units)}, the level the site states.` : "The site states no ground level: the ground line is drawn at the ground floor's floor level. " + english(said('site.ground.how'))
   const lines = facade.extent === null

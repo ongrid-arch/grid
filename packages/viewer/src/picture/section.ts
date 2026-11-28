@@ -26,7 +26,7 @@
  */
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
 import type { Bounds, PlanSection, SectionLine, SectionPiece, Vec2 } from '@ongrid/floorplan/geometry'
-import { hatchRings, levelText, metresText, planSection, sectionEarth, sectionGroundAt } from '@ongrid/floorplan/geometry'
+import { hatchRings, levelText, metresText, planSection, sectionEarth, sectionGroundLine } from '@ongrid/floorplan/geometry'
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import { FRAME_MARGIN, fitTo, pathOf } from '../canvas2d/viewport'
 import { labelObstacles, placeLabel } from './sectionLabels'
@@ -81,6 +81,8 @@ const n = (value: number): string => lengthText(value)
 const pixelGroup = (at: Vec2, mpp: number): string => `translate(${n(at.x)} ${n(-at.y)}) scale(${n(mpp)})`
 const piecesPath = (pieces: readonly SectionPiece[]): string => pieces.map((p) => pathOf(p.outline) + p.holes.map(pathOf).join('')).join('')
 const lineOf = (a: Vec2, b: Vec2): string => `M${a.x.toFixed(4)},${(-a.y).toFixed(4)}L${b.x.toFixed(4)},${(-b.y).toFixed(4)}`
+/** VEW-86: a line through points in order; two points are `lineOf`'s line. */
+const polylineOf = (points: readonly Vec2[]): string => points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(4)},${(-p.y).toFixed(4)}`).join('')
 
 /**
  * MSG-11: the words of a section: its language, the call's or the plan's own, with that
@@ -315,7 +317,8 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   const g = section.ground
   if (earth.segments.length > 0) {
     // CNT-49: on a slope, the line follows the ground along the cut.
-    const d = earth.segments.map(([a, b]) => lineOf({ x: a, y: sectionGroundAt(g, a) }, { x: b, y: sectionGroundAt(g, b) })).join('')
+    // VEW-86: through spot levels, through every point of its profile.
+    const d = earth.segments.map(([a, b]) => polylineOf(sectionGroundLine(g, a, b).map(([x, y]) => ({ x, y })))).join('')
     nodes.push(el('path', { 'data-part': 'section-ground', 'data-stated': String(g.stated), d, fill: 'none', stroke: look.ink, 'stroke-width': n(lines.width('elevationGround')), 'stroke-linecap': 'butt' }))
   }
 

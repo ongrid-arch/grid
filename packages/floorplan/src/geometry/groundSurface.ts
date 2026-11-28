@@ -17,7 +17,13 @@
  * Levels that lie on one even slope are met exactly. When they do not, `offBy` is how far the
  * slope taken is off the furthest of them, and `worst` names it, so it is said, never hidden.
  *
- * A plan that states none of the three has no surface (null): its ground is LVL-4's one level.
+ * VEW-86: with spot levels stated (`site.spotLevels`, the ground's level at points of the plan),
+ * the ground passes through every stated level instead (`groundSpots.ts`): `at` reads the
+ * triangulated ground, and `along` its profile between two points, which the sections and
+ * elevations draw. `gradient` and `slope` stay the even slope that fits the levels best, for the
+ * words; `offBy` is then how far apart two levels stated at one point are, halved.
+ *
+ * A plan that states none of them has no surface (null): its ground is LVL-4's one level.
  * Pure, and never throws.
  */
 
@@ -26,9 +32,15 @@ import { planBounds } from './floorplan'
 import { tolerance } from './tolerances'
 import type { Vec2 } from './vec2'
 import { boundaryEdgeCount, type FallToward } from '../types/floorplan'
+import { spotGround, type GroundProfile } from './groundSpots'
 
 /** CNT-49: where a stated level is: a side of the building, an edge of the plot, the fall's middle or the site's ground. */
-export type GroundSource = { readonly kind: 'side'; readonly side: 'north' | 'east' | 'south' | 'west' } | { readonly kind: 'edge'; readonly edge: number } | { readonly kind: 'ground' }
+export type GroundSource =
+  | { readonly kind: 'side'; readonly side: 'north' | 'east' | 'south' | 'west' }
+  | { readonly kind: 'edge'; readonly edge: number }
+  | { readonly kind: 'ground' }
+  /** VEW-86: a spot level, by its number in `site.spotLevels` (from 1). */
+  | { readonly kind: 'spot'; readonly spot: number }
 
 /** One stated level at a point of the plan. */
 export interface GroundControl {
@@ -58,6 +70,11 @@ export interface GroundSurface {
   readonly offBy: number
   /** The stated level it is furthest off, when `offBy` is more than nothing. */
   readonly worst: GroundControl | null
+  /**
+   * VEW-86: the ground's profile from `a` to `b` (`[metres from a, level]`), when it passes
+   * through spot levels; absent on one even slope, which is a straight line along any line.
+   */
+  readonly along?: (a: Vec2, b: Vec2) => GroundProfile
 }
 
 /** The way each compass point of the drawing lies, north up it (C4). */
@@ -75,7 +92,12 @@ const TOWARD: Readonly<Record<FallToward, Vec2>> = {
 /** Whether the plan states the ground on a slope at all. */
 export function statesSlope(plan: FloorPlan): boolean {
   const site = plan.site
-  return site !== undefined && (site.groundSides !== undefined || site.fall !== undefined || (site.groundEdges ?? []).length > 0)
+  return site !== undefined && (site.groundSides !== undefined || site.fall !== undefined || (site.groundEdges ?? []).length > 0 || statesSpots(plan))
+}
+
+/** VEW-86: whether the plan states spot levels, so its ground passes through them. */
+export function statesSpots(plan: FloorPlan): boolean {
+  return (plan.site?.spotLevels ?? []).length > 0
 }
 
 /** The building's walls' ends, or the corners of its extent, or the origin. */
@@ -135,6 +157,7 @@ export function groundControls(plan: FloorPlan): GroundControl[] {
       out.push({ at: { x: b[0], y: b[1] }, level: g.end ?? g.start, from: { kind: 'edge', edge: g.edge } })
     }
   }
+  site.spotLevels?.forEach((spot, i) => out.push({ at: { x: spot.at[0], y: spot.at[1] }, level: spot.level, from: { kind: 'spot', spot: i + 1 } }))
   if (site.ground !== undefined && Number.isFinite(site.ground) && (out.length > 0 || site.fall !== undefined)) {
     out.push({ at: { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2 }, level: site.ground, from: { kind: 'ground' } })
   }
@@ -207,7 +230,9 @@ export function groundSurface(plan: FloorPlan): GroundSurface | null {
     gradient = fitGradient(controls, mean, level)
     c = level - (gradient.x * mean.x + gradient.y * mean.y)
   }
-  const at = (p: Vec2): number => c + gradient.x * p.x + gradient.y * p.y
+  // VEW-86: through every stated level once spot levels are stated.
+  const spots = statesSpots(plan) ? spotGround(controls) : null
+  const at = spots === null ? (p: Vec2): number => c + gradient.x * p.x + gradient.y * p.y : spots.at
   let offBy = 0
   let worst: GroundControl | null = null
   for (const p of controls) {
@@ -233,6 +258,7 @@ export function groundSurface(plan: FloorPlan): GroundSurface | null {
     high: Math.max(...levels),
     controls,
     offBy,
-    worst
+    worst,
+    ...(spots === null ? {} : { along: spots.along })
   }
 }

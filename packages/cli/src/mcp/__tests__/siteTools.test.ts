@@ -54,6 +54,25 @@ describe('grid_set_site', () => {
     expect((await b.call('grid_set_site', { plan: 'house.json', ground_edges: ['1 0'] })).text).toContain("The ground along an edge is read from the plot's boundary")
   })
 
+  it('sets spot levels, and the section and facade follow the ground through them (VEW-86)', async () => {
+    const reply = await ok('grid_set_site', { plan: 'house.json', spot_levels: ['-5,-5 -2', '15,-5 -2', '-5,4 -2', '15,4 -2', '-5,6 0', '15,6 0', '-5,15 0', '15,15 0'], out: 'banked.json' })
+    expect(site('banked.json')['spotLevels']).toHaveLength(8)
+    expect((site('banked.json')['spotLevels'] as unknown[])[0]).toEqual({ at: [-5, -5], level: -2 })
+    expect(reply.text).toContain("The ground's level at 8 points: -5,-5 -2.00 m")
+    expect(reply.text).toContain('through every level stated: every check reads it at each wall, and the sections and elevations draw its profile.')
+    const again = await ok('grid_set_site', { plan: 'banked.json', spot_levels: ['-5,-5 -2.5'] })
+    expect(again.isError).toBe(false)
+    expect((site('banked.json')['spotLevels'] as { level: number }[]).filter((s) => s.level === -2.5)).toHaveLength(1)
+    expect(site('banked.json')['spotLevels']).toHaveLength(8)
+    const section = await ok('grid_view', { plan: 'banked.json', kind: 'section', cut: { from: [4, -3], to: [4, 13] } })
+    expect(section.text).toMatch(/ground from −2\.\d+ to ±0\.000 along the line, lowest −2\.\d+, highest ±0\.000, through the spot levels the site states/)
+    expect(section.text).toContain('through the spot levels the site states')
+    const facade = await ok('grid_view', { plan: 'banked.json', kind: 'facade', side: 'east' })
+    expect(facade.text).toContain('The ground follows the spot levels the site states along this face')
+    expect((await b.call('grid_set_site', { plan: 'banked.json', slope: 10, toward: 'south' })).isError).toBe(true)
+    expect((await b.call('grid_set_site', { plan: 'house.json', spot_levels: ['1,2'] })).text).toContain('spot_levels takes each level written "x,y level"')
+  })
+
   it('writes the plot, its street, set-backs and north, and answers with the plot as measured', async () => {
     const reply = await ok('grid_set_site', { plan: 'house.json', plot_width: 15, plot_depth: 30, streets: ['south'], setbacks: ['street 5', 'all 3', 'west 40 assumed'], north_points: 'up-right', out: 'sited.json' })
     expect(site('sited.json')).toEqual({
