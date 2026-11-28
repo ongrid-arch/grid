@@ -584,6 +584,9 @@ export const en = {
   'issue.floor/dormer-misplaced.outside': 'does not stand wholly inside the roof',
   'issue.floor/dormer-misplaced.acrossSlopes': 'does not stand on one slope of the roof: it crosses a line where two slopes meet',
   'issue.floor/dormer-misplaced.flat': 'stands on a level part of the roof, and a dormer stands out of a slope',
+  // LVL-29: a canopy or a brise-soleil with no wall on its side to stand out from.
+  'issue.floor/roof-part-misplaced': 'The {kind} {part} on the roof over floor {floor} {problem}: it is left out',
+  'issue.floor/roof-part-misplaced.nowhere': 'finds no outside wall on the {side} side, within its width, to stand out from',
   'issue.floor/dormer-misplaced.low': 'is no higher than the roof at its front, so it would not stand out of the slope',
   'issue.wall/under-roof':
     "Wall {wall} stops under the roof over floor {floor}: it is {height} m high, and the roof's underside over it is at {range}, so a gap of up to {gap} m is left over it. A wall stated exterior rises to the roof: state its kind exterior, or give it the height that meets the roof",
@@ -1766,6 +1769,10 @@ export const en = {
   'line.floor/dormer-misplaced.needed': 'a dormer whose front stands on one slope of the roof, higher than the roof there, running back up that slope inside the roof',
   'line.floor/dormer-misplaced.fix':
     "Move the dormer's front (at) onto one slope, make it narrower or shallower, or give it a height above the roof at its front. Until then it is left out.",
+  // LVL-29: a canopy or a brise-soleil with no outside wall on its side, within its width.
+  'line.floor/roof-part-misplaced.says': '{label} has a canopy or a brise-soleil with no outside wall to stand out from',
+  'line.floor/roof-part-misplaced.needed': 'a canopy or a brise-soleil whose width, round its at point, takes in the outside walls on the side it names',
+  'line.floor/roof-part-misplaced.fix': "Name the side it stands out from, move its at point along that side or make it wider. Until then it is left out.",
 
   // ── After merging main at 8b599e9: LVL-8's opening patterns ─────────────────────────────────
   'thing.pattern': 'Opening pattern {id}',
@@ -2661,7 +2668,7 @@ export const en = {
   'rooms.ground.edge': "line {line}: write the ground along an edge of the plot as 'ground edge <n> <m> [to <m>]', its level at the edge's first corner and, when it falls along it, at its second: 'ground edge 2 0 to -3'.",
   // WRT-79: the roof, rooflight, column and plinth lines (rooms/roofs.ts, rooms/columns.ts, rooms/ground.ts).
   'rooms.roof.forms':
-    "Write 'roof <flat|gable|hip|mono-pitch> [pitch <degrees> | ridge <m>] eaves <m> [ridge runs east-west|north-south] [high <north|east|south|west>]' under the floor's line: 'roof gable pitch 45 eaves 2.7', 'roof flat eaves 3', 'roof mono-pitch pitch 10 eaves 2.4 high north'. Its heights are metres above the floor's level, to the underside of the roof.",
+    "Write 'roof <flat|gable|hip|mono-pitch> [pitch <degrees> | ridge <m>] eaves <m> [ridge runs east-west|north-south] [high <north|east|south|west>] [overhang <m> | overhang <side> <m> ...]' under the floor's line: 'roof gable pitch 45 eaves 2.7', 'roof flat eaves 3', 'roof mono-pitch pitch 10 eaves 2.4 high north'. Its heights are metres above the floor's level, to the underside of the roof.",
   'rooms.roof.usage': 'line {line}: a roof line says the roof\'s shape. {forms}',
   'rooms.roof.word': "line {line}: '{word}' is not a word a roof line takes. {forms}",
   'rooms.roof.shape': "line {line}: '{shape}' is not a roof's shape: a roof is flat, gable, hip or mono-pitch.",
@@ -2677,6 +2684,17 @@ export const en = {
   'rooms.roof.lightFirst': "line {line}: a roof light stands in the floor's roof: write the floor's roof line above it, such as 'roof gable pitch 45 eaves 2.7'.",
   'rooms.rooflight.usage':
     "line {line}: write 'rooflight <id> over <room>, <width> x <length>' (the room written above this line) or 'rooflight <id> at x,y, <width> x <length>': its width runs along the eaves and its length up the slope, both measured on the slope.",
+  // LVL-29: a roof's overhang and the canopy and brise-soleil lines (rooms/roofs.ts).
+  'rooms.roof.takes.overhang': "line {line}: 'overhang' takes metres past the walls, from 0 to {largest}, all round or side by side: 'overhang 0.6', 'overhang north 0.3 south 0.9'.",
+  'rooms.roofpart.usage': "line {line}: write '{kind} <id> <north|east|south|west> depth <m> height <m> [width <m>] [at x,y]{blades}': '{kind} entrance south depth 1.2 height 2.4 width 3'. Its depth is metres out from the walls on that side and its height metres above the floor's level to its underside.",
+  'rooms.roofpart.usage.blades': ' [blades <n>]',
+  'rooms.roofpart.word': "line {line}: '{word}' is not a word a {kind} line takes.",
+  'rooms.roofpart.side': "line {line}: a {kind} stands out from one side, north, east, south or west, not '{value}'.",
+  'rooms.roofpart.depth': "line {line}: a {kind}'s depth is metres out from its side, more than 0 and at most {largest}.",
+  'rooms.roofpart.length': "line {line}: a {kind}'s '{word}' takes metres, more than 0.",
+  'rooms.roofpart.blades': "line {line}: 'blades' takes a whole number of blades, 1 or more, on a brise-soleil only.",
+  'rooms.roofpart.first': "line {line}: a {kind} is part of the floor's roof: write the floor's roof line above it, such as 'roof flat eaves 2.7'.",
+  'rooms.roofpart.twice': "line {line}: the roof part id '{id}' is used twice in this floor's roof.",
   'rooms.rooflight.twice': "line {line}: the roof light id '{id}' is used twice in this floor's roof.",
   'rooms.raw.kind.roof': 'A floor\'s roof is written in a line of its own under its floor line, roof <flat|gable|hip|mono-pitch> [pitch <degrees> | ridge <m>] eaves <m>, and its roof lights rooflight <id> over <room>, <w> x <l>; or raw floor {"roof": ...}.',
   'rooms.raw.kind.column': 'A column is written in a line of its own, column <id> [square|round] <width> [x <depth>] at x,y, a grid of them columns <group> <width> at x,y, count <n> x <m>, every <spacing>; or raw column {...}.',

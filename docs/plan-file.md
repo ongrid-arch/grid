@@ -13,7 +13,7 @@ section explains. Rooms text, the main way to write a plan, is in
 - [Walls through floors, and floors that line up](#walls-through-floors-and-floors-that-line-up): `wall/through-floor`, `room/cross-floor`, `floor/out-of-line`, `floor/set-back`, `floor/split-level`, `floor/gap-under-slab`, `floor/walls-past-floor`, `room/stair-shifted`, `room/lift-shifted`
 - [Stairs that join two floors](#stairs-that-join-two-floors): `stair/unknown-floor`, `stair/same-floor`, `stair/no-rise`, `stair/run-too-short`, `stair/too-few-risers`, `stair/duplicate-id`, `stair/end-in-no-room`, `room/stair-out-of-line`, `room/lift-out-of-line`, `floor/no-stair`
 - [Slabs, roofs, ceilings and the ground](#slabs-roofs-ceilings-and-the-ground): `opening/below-ground`
-- [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `floor/dormer-misplaced`, `wall/under-roof`, `opening/missing-wall`
+- [Sloped roofs and ceilings](#sloped-roofs-and-ceilings): `opening/above-roof`, `floor/rooflight-misplaced`, `floor/dormers-not-drawn`, `floor/dormer-misplaced`, `floor/roof-part-misplaced`, `wall/under-roof`, `opening/missing-wall`
 - [A floor outline before the walls](#a-floor-outline-before-the-walls): `floor/past-outline`; massing, storeys, homes and parking spaces
 - [Floor no room claims](#floor-no-room-claims): `floor/unclaimed`, `room/space-mismatch`, `room/not-enclosed`, `floor/spaces-unknown`
 - [Rooms that overlap, and rooms inside rooms](#rooms-that-overlap-and-rooms-inside-rooms): `room/overlap`, `room/inside-no-host`, `room/overlap-unknown`, `floor/overlaps-unknown`
@@ -640,6 +640,16 @@ What it cuts:
   it. One whose front is not inside the roof on one slope, higher than the roof there, or that runs
   past a ridge or a hip or off the roof, is left out (`floor/dormer-misplaced`). Dormers do not
   raise or cut walls yet.
+- **Overhang and parts** (LVL-29). `overhang` runs the roof past its walls, in metres on plan from
+  their outside faces: one figure all round, or `{ "north": 0.3, "south": 0.9 }` per side of the
+  roof's rectangle (a side left out has none). The roof's planes carry on over it, and it stops
+  where a floor above stands. `parts` lists the roof's canopies and brise-soleil: `{ "id":
+  "entrance", "kind": "canopy", "side": "south", "depth": 1.2, "height": 2.4, "width": 3, "at":
+  [4, 0] }`, `depth` out from the walls on that side, `height` above the floor's level to its
+  underside, `width` along the side round `at` (both unstated: the whole side), and on a
+  brise-soleil `blades`, spread across its depth. One whose width takes in no outside wall on its
+  side is left out (`floor/roof-part-misplaced`). A floor under another one states a flat roof at
+  its own height to hold a canopy.
 
 The roof is drawn in the 3D view and the OBJ and glTF files on its slopes, open at its rooflights;
 in the IFC it is an `IfcRoof` of its type (`FLAT_ROOF`, `SHED_ROOF`, `GABLE_ROOF`, `HIP_ROOF`) over

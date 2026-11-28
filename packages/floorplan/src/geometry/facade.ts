@@ -70,6 +70,7 @@ import { cutOutline, ringOf } from './polygons'
 import { limit, tolerance } from './tolerances'
 import { brokenOnFloor } from './validate'
 import { floorRoofShape, planeAt, topAt, wallTopProfile, type RoofPlane } from './roofs'
+import { overhangSides } from './roofParts'
 import type { Vec2 } from './vec2'
 import { straightPieces, wallFrameAt, wallPointAt } from './wall'
 import { openingParts } from './openingParts'
@@ -988,10 +989,11 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
       const { thickness, pieces: roofPieces } = env.roof
       const outline = env.outline
       const shape = floorRoofShape(plan, floor.id)
-      const expanded = shape !== null && shape.planes.length > 0 ? roofOverhang(roofPieces, outline) : roofPieces
+      // LVL-29: a roof that states its overhang has it in its pieces already.
+      const expanded = shape !== null && shape.planes.length > 0 && overhangSides(shape.roof) === null ? roofOverhang(roofPieces, outline) : roofPieces
       const projected = shape !== null && expanded !== roofPieces ? roofFacetsOver(shape, expanded, env.roof.rooflights) : []
       const perimeter = projected.length > 0 ? expanded : roofPieces
-      for (const facet of projected.length > 0 ? projected : env.roof.facets) {
+      for (const facet of projected.length > 0 ? projected : env.roof.facets.filter((f) => f.part === undefined)) {
         const at = (p: Vec2): number => storey.floorLevel + planeAt(facet.plane, p)
         const low = Math.min(...facet.pieces.flatMap((polygon) => polygon.flatMap((ring) => ring.map(([x, y]) => planeAt(facet.plane, { x, y })))))
         const edgeOf = (a: Vec2, b: Vec2): FacadeRoofEdge | null => roofEdgeOf(a, b, facet.plane, low, perimeter, roofPieces, outline)
@@ -1011,6 +1013,15 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
           })
           add({ kind: 'roof-plane', floor: floor.id, wall: null, points, openings: [], roofLines })
         }
+      }
+    }
+    // LVL-29: a canopy or a brise-soleil, each edge facing the side as a band at its own height.
+    if (env.roof !== null) {
+      const { thickness } = env.roof
+      for (const facet of env.roof.facets) {
+        if (facet.part === undefined) continue
+        const bottom = storey.floorLevel + facet.plane.z0
+        for (const edge of edgesFacing(facet.pieces, direction)) add({ kind: 'roof', floor: floor.id, wall: null, points: band(edge.a, edge.b, bottom, bottom, thickness), openings: [] })
       }
     }
   }

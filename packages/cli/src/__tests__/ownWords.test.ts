@@ -207,7 +207,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/mcp/fitOutTool.ts': [13, 'tools'],
   // CMD-42: grid_set, its help and its argument checks.
   // WRT-79: two more, the roof argument and its refusal.
-  'packages/cli/src/mcp/setTool.ts': [15, 'tools'],
+  // LVL-29: six more, the roofPart argument, its refusals and the overhang in the roof argument.
+  'packages/cli/src/mcp/setTool.ts': [21, 'tools'],
   // ARE-14: grid_areas' outdoor_rules argument, its schema and its checks.
   'packages/cli/src/mcp/outdoorRulesArg.ts': [12, 'tools'],
   'packages/cli/src/mcp/previewTools.ts': [39, 'tools'],
@@ -276,7 +277,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-22: eight more, the topic of writing on the drawing.
   // WRT-79: nine more, the roofs and columns topics and the plinth line.
   // WRT-81: eight more, the phases topic.
-  'packages/cli/src/mcp/roomsGrammar.ts': [125, 'tools'],
+  // LVL-29: one more, the brise-soleil line in the roofs example.
+  'packages/cli/src/mcp/roomsGrammar.ts': [126, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
@@ -456,7 +458,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-77: three more, what buriedSlabAboveGround decides.
   // MSG-36: four more, what the limits of a note said once decide.
   // VEW-87: three more, what the limits of a view's size decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [442, 'developer'],
+  // LVL-29: four more, what the roof overhang, roof part and brise-soleil figures decide.
+  'packages/floorplan/src/geometry/tolerances.ts': [446, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -503,7 +506,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-49: one more, ground sides that name no side.
   // CNT-59: one more, a guid that is not a GlobalId.
   // VEW-88: two more, a street name on an edge not on a street or named twice.
-  'packages/floorplan/src/types/floorplan.ts': [67, 'notYet'],
+  // LVL-29: one more, the most parts one roof lists, as the dormers' is worded.
+  'packages/floorplan/src/types/floorplan.ts': [68, 'notYet'],
   'packages/floorplan/src/types/places.ts': [7, 'notYet'],
   // CMD-7: the plan JSON Schema's title, its description, and the error for a schema part it cannot write.
   'packages/floorplan/src/types/planSchema.ts': [3, 'developer'],

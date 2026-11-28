@@ -600,6 +600,8 @@ export const es: Messages = {
   'issue.floor/dormer-misplaced.outside': 'no queda entera dentro de la cubierta',
   'issue.floor/dormer-misplaced.acrossSlopes': 'no está en un solo faldón de la cubierta: cruza una línea donde se encuentran dos faldones',
   'issue.floor/dormer-misplaced.flat': 'está en una parte horizontal de la cubierta, y una buharda sale de un faldón',
+  'issue.floor/roof-part-misplaced': '{kind} {part} en la cubierta de la planta {floor} {problem}: se deja fuera',
+  'issue.floor/roof-part-misplaced.nowhere': 'no encuentra un muro exterior en el lado {side}, dentro de su ancho, del que salir',
   'issue.floor/dormer-misplaced.low': 'no es más alta que la cubierta en su frente, así que no saldría del faldón',
   'issue.wall/under-roof':
     'El muro {wall} se queda por debajo de la cubierta sobre la planta {floor}: tiene {height} m de altura y la cara inferior de la cubierta sobre él está a {range}, así que deja un hueco de hasta {gap} m encima. Un muro indicado como exterior sube hasta la cubierta: indique su tipo exterior (exterior), o dele la altura que llega a la cubierta',
@@ -1778,6 +1780,9 @@ export const es: Messages = {
   'line.floor/dormer-misplaced.needed': 'una buharda cuyo frente esté en un faldón de la cubierta, más alta que la cubierta allí, y que suba por ese faldón dentro de la cubierta',
   'line.floor/dormer-misplaced.fix':
     'Mueva el frente de la buharda (at) a un faldón, hágala más estrecha o menos profunda, o dele una altura por encima de la cubierta en su frente. Hasta entonces se excluye.',
+  'line.floor/roof-part-misplaced.says': '{label} tiene una marquesina o un brise-soleil sin muro exterior del que salir',
+  'line.floor/roof-part-misplaced.needed': 'una marquesina o un brise-soleil cuyo ancho, en torno a su punto at, abarque los muros exteriores del lado que nombra',
+  'line.floor/roof-part-misplaced.fix': 'Nombre el lado del que sale, mueva su punto at a lo largo de ese lado o hágalo más ancho. Hasta entonces se excluye.',
 
   // ── Tras fusionar main en 8b599e9: los patrones de huecos (LVL-8) ───────────────────────────
   'thing.pattern': 'Patrón de huecos {id}',
@@ -2660,7 +2665,7 @@ export const es: Messages = {
   'rooms.ground.edge': "línea {line}: escriba el terreno a lo largo de un lindero del solar como 'ground edge <n> <m> [to <m>]', su cota en la primera esquina del lindero y, si cae a lo largo de él, en la segunda: 'ground edge 2 0 to -3'.",
   // WRT-79: las líneas de cubierta, lucernario, pilar y zócalo (rooms/roofs.ts, rooms/columns.ts, rooms/ground.ts).
   'rooms.roof.forms':
-    "Escriba 'roof <flat|gable|hip|mono-pitch> [pitch <grados> | ridge <m>] eaves <m> [ridge runs east-west|north-south] [high <north|east|south|west>]' bajo la línea de la planta: 'roof gable pitch 45 eaves 2.7', 'roof flat eaves 3', 'roof mono-pitch pitch 10 eaves 2.4 high north'. Sus alturas son metros sobre el nivel de la planta, hasta la cara inferior de la cubierta.",
+    "Escriba 'roof <flat|gable|hip|mono-pitch> [pitch <grados> | ridge <m>] eaves <m> [ridge runs east-west|north-south] [high <north|east|south|west>] [overhang <m> | overhang <side> <m> ...]' bajo la línea de la planta: 'roof gable pitch 45 eaves 2.7', 'roof flat eaves 3', 'roof mono-pitch pitch 10 eaves 2.4 high north'. Sus alturas son metros sobre el nivel de la planta, hasta la cara inferior de la cubierta.",
   'rooms.roof.usage': 'línea {line}: una línea de cubierta dice la forma de la cubierta. {forms}',
   'rooms.roof.word': "línea {line}: '{word}' no es una palabra que tome una línea de cubierta. {forms}",
   'rooms.roof.shape': "línea {line}: '{shape}' no es una forma de cubierta: una cubierta es flat, gable, hip o mono-pitch.",
@@ -2676,6 +2681,16 @@ export const es: Messages = {
   'rooms.roof.lightFirst': "línea {line}: un lucernario está en la cubierta de la planta: escriba encima la línea de cubierta de la planta, como 'roof gable pitch 45 eaves 2.7'.",
   'rooms.rooflight.usage':
     "línea {line}: escriba 'rooflight <id> over <estancia>, <ancho> x <largo>' (la estancia escrita encima de esta línea) o 'rooflight <id> at x,y, <ancho> x <largo>': su ancho va a lo largo del alero y su largo pendiente arriba, ambos medidos sobre la pendiente.",
+  'rooms.roof.takes.overhang': "línea {line}: 'overhang' toma los metros que la cubierta vuela más allá de los muros, de 0 a {largest}, en todo el contorno o lado por lado: 'overhang 0.6', 'overhang north 0.3 south 0.9'.",
+  'rooms.roofpart.usage': "línea {line}: escriba '{kind} <id> <north|east|south|west> depth <m> height <m> [width <m>] [at x,y]{blades}': '{kind} entrance south depth 1.2 height 2.4 width 3'. Su profundidad son metros desde los muros de ese lado y su altura metros sobre el nivel de la planta hasta su cara inferior.",
+  'rooms.roofpart.usage.blades': ' [blades <n>]',
+  'rooms.roofpart.word': "línea {line}: '{word}' no es una palabra que tome una línea {kind}.",
+  'rooms.roofpart.side': "línea {line}: un {kind} sale de un lado, north, east, south o west, no '{value}'.",
+  'rooms.roofpart.depth': "línea {line}: la profundidad de un {kind} son metros desde su lado, más de 0 y como mucho {largest}.",
+  'rooms.roofpart.length': "línea {line}: '{word}' de un {kind} toma metros, más de 0.",
+  'rooms.roofpart.blades': "línea {line}: 'blades' toma un número entero de lamas, 1 o más, solo en un brise-soleil.",
+  'rooms.roofpart.first': "línea {line}: un {kind} es parte de la cubierta de la planta: escriba antes la línea de cubierta de la planta, como 'roof flat eaves 2.7'.",
+  'rooms.roofpart.twice': "línea {line}: el id de parte de cubierta '{id}' se usa dos veces en la cubierta de esta planta.",
   'rooms.rooflight.twice': "línea {line}: el id de lucernario '{id}' se usa dos veces en la cubierta de esta planta.",
   'rooms.raw.kind.roof': 'La cubierta de una planta se escribe en una línea propia bajo la línea de la planta, roof <flat|gable|hip|mono-pitch> [pitch <grados> | ridge <m>] eaves <m>, y sus lucernarios rooflight <id> over <estancia>, <a> x <l>; o raw floor {"roof": ...}.',
   'rooms.raw.kind.column': 'Un pilar se escribe en una línea propia, column <id> [square|round] <ancho> [x <fondo>] at x,y, una retícula de ellos columns <grupo> <ancho> at x,y, count <n> x <m>, every <separación>; o raw column {...}.',
