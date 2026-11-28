@@ -192,3 +192,38 @@ describe('a lining (liningMesh)', () => {
     expect(area).toBeCloseTo(4 * 2.5 - 1 * 2, 6)
   })
 })
+
+describe('an IFC with the plan\'s finishes and glazing', () => {
+  const plan = finished()
+  const withCeiling = { ...plan, rooms: plan.rooms.map((r) => (r.id === 'kitchen' ? { ...r, ceiling: {}, finishes: { ...r.finishes, skirting: 'Oak skirting', bands: [{ finish: 'Splash tile', height: 0.6, from: 0.9, wall: 'w3' }] } } : r)) } as FloorPlan
+  const ifc = exportPlan(withCeiling, 'ifc', ids).data as string
+  const lines = ifc.split('\n')
+  const byId = new Map(lines.flatMap((line) => { const m = /^(#\d+)=/.exec(line); return m === null ? [] : [[m[1]!, line] as const] }))
+
+  it('gives each space its coverings in Pset_SpaceCommon and every finish in Grid_Finishes', () => {
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('FloorCovering',$,IFCLABEL('Oak boards'),$)")
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('WallCovering',$,IFCLABEL('Porcelain tile'),$)")
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('CeilingCovering',$,IFCLABEL('White paint'),$)")
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('SkirtingBoard',$,IFCLABEL('Oak skirting'),$)")
+    const sets = lines.filter((l) => l.includes("'Grid_Finishes'"))
+    expect(sets).toHaveLength(2)
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('Wall w4',$,IFCLABEL('Sage paint'),$)")
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('Band 1 Finish',$,IFCLABEL('Splash tile'),$)")
+    expect(ifc).toContain("IFCPROPERTYSINGLEVALUE('Band 1 Wall',$,IFCIDENTIFIER('w3'),$)")
+  })
+
+  it('makes a ceiling covering of its finish', () => {
+    const material = lines.find((l) => l.includes("IFCMATERIAL('White paint')"))!
+    const id = /^(#\d+)=/.exec(material)![1]!
+    const relation = lines.find((l) => l.startsWith('#') && l.includes('IFCRELASSOCIATESMATERIAL') && l.endsWith(`${id});`))!
+    const covering = /\((#\d+)\)/.exec(relation.slice(relation.indexOf(',$,$,') + 5))![1]!
+    expect(byId.get(covering)).toMatch(/IFCCOVERING\(.*'Kitchen ceiling'.*\.CEILING\.\);$/)
+  })
+
+  it('styles a glazed wall and a glazed door\'s leaves as glass', () => {
+    const glass = lines.filter((l) => l.includes('IFCSTYLEDITEM')).length
+    const plainDoors = exportPlan({ ...withCeiling, types: { ...withCeiling.types, walls: [{ id: 'brick', name: 'Brick' }, { id: 'curtain', name: 'Curtain wall' }], doors: [{ id: 'glazed', name: 'Glazed door' }, { id: 'oak', name: 'Oak door' }] } } as FloorPlan, 'ifc', ids).data as string
+    // The curtain wall and d1's leaf, past the window's glass.
+    expect(glass - plainDoors.split('\n').filter((l) => l.includes('IFCSTYLEDITEM')).length).toBe(2)
+  })
+})
