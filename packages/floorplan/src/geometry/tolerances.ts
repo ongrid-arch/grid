@@ -1117,6 +1117,16 @@ export const TOLERANCES = {
       'on a plinth (VEW-16). It only draws; it judges nothing.',
     basis: own
   },
+  buriedSlabAboveGround: {
+    kind: 'tolerance',
+    value: 0.3,
+    unit: 'm',
+    decides:
+      'A flat roof over a floor whose floor stands below the ground, with its top no higher than ' +
+      'this above the ground, is a slab under the earth or the garden, not a roof: the take-off ' +
+      'lists it as a buried slab with the soil over it (ARE-77).',
+    basis: own
+  },
   sectionEarthBelow: {
     kind: 'limit',
     value: 1,

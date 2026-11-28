@@ -75,7 +75,7 @@ export function estimateChangeAnswer(
 
   const language = units.language ?? 'en'
   const quantity = (value: number, unit: QuantityUnit): string =>
-    unit === 'nr' ? `${value} nr` : unit === 'm2' ? areaText(value, units) : lengthText(value, units)
+    unit === 'nr' ? `${value} nr` : unit === 'm3' ? `${value.toFixed(2)} m³` : unit === 'm2' ? areaText(value, units) : lengthText(value, units)
   const money = (value: number): string => `${value.toLocaleString(units.decimal === 'comma' ? 'de-DE' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${JSON.stringify(cost!.currency)}`
   const signed = (value: number, shown: string): string => value > 0 ? `+${shown}` : shown
   const text = [say(language, 'tool.estimateChange.heading', { before: JSON.stringify(baseline), after: JSON.stringify(target) })]

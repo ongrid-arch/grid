@@ -412,6 +412,28 @@ openings in the surrounding walls. In CSV, each void has a `guard` row with the
 measurement in the length column. A column through the void leaves the full
 opening deducted from the gross floor areas.
 
+### Earth against the building
+
+ARE-77: a floor whose floor stands below the ground (the site's stated ground, else the ground
+floor's level; its slope, `site.groundSides` and the like; a building's own `pad`) has earth
+against it, and `grid_takeoff` measures it apart, marked assumed (`earth` in its data, left out
+when nothing is in the earth; `packages/floorplan/src/geometry/earth.ts`):
+
+- a retaining wall is an outer face of such a floor from its floor level up to the ground along
+  it, no higher than the wall; the ground runs straight between the wall's ends, and the walls
+  are grouped by the most earth they hold (`retaining`). That face is not outside face;
+- a buried slab is the slab over a part of a floor below the ground that has no floor above and
+  stands at or under the ground, or no more than `buriedSlabAboveGround` (0.3 m) above it: a
+  basement reaching out under the garden. It has the soil over it (`cover`, the ground at its
+  middle less its top) and is never a roof (`buried` on the floor's envelope line);
+- a ground-bearing slab is the part of a floor's slab that rests on the ground with no floor under
+  it, on any floor that stands on the ground (`onGround` on its slab, `bearing`): the half of a
+  basement past the floor below it, a ground floor past the basement, a floor on a slope;
+- the dig (`dig`, `excavation`, m³) is each ground-bearing slab of a floor below the ground, times
+  the depth from the ground at its middle down to the slab's underside;
+- a room's inside face on a retaining wall, by the share of that wall below the ground, is
+  `earthFace`, out of its wall face to plaster. Its skirting stays: a room with none states so.
+
 ## Finishes and wall types
 
 A room or a zone may name its floor, wall, ceiling and skirting finishes, and a wall its named type
@@ -445,7 +467,7 @@ finishes`.
 ## Quantities for a first estimate
 
 `grid_takeoff` with `for=estimate` (ARE-13) turns the plan into the lines a first estimate
-needs. Each line has a key, a quantity in m², m or nr, its rule in one sentence and an
+needs. Each line has a key, a quantity in m², m, nr or m³ (the excavation), its rule in one sentence and an
 `assumed` mark. They are built on the measuring above: the rooms' take-off, the gross internal
 area, each opening once as the schedule counts it, and each floor's outline.
 
@@ -461,11 +483,15 @@ area, each opening once as the schedule counts it, and each floor's outline.
 | `wall-type:<id>:<thickness>` | CNT-15: the walls of one of the plan's named types at one thickness, by the type, so a party wall is never priced as a partition (lab AC-5) | no |
 | `wall:<kind>:<thickness>` | The other walls, by the kind the plan states and their thickness: the length between the faces of the walls each one meets (its centre line where it turns a corner, CNT-31) times its height, less openings | no |
 | `wall_gable`, `external_finish_gable` | CNT-34: under a roof the floor states, the part of the walls' faces (and of the outside face) above the lowest their tops stand, a gable end's triangle, apart from the lines above, which take the rest; none where no roof cuts a wall | no |
-| `external_finish` | The outer edge of each floor's outline, corners in, times the height of the wall it runs along, less openings | no |
+| `external_finish` | The outer edge of each floor's outline, corners in, times the height of the wall it runs along, less openings and less the part below the ground (ARE-77) | no |
+| `retaining_wall:<height>` | ARE-77: the outer face below the ground of the walls of a floor below the ground, by the most earth they hold; out of `external_finish` and `wall:<kind>` | yes |
+| `retaining_face` | ARE-77: the inside face of the rooms' walls with earth behind them, out of `wall_finish:<use>` | yes |
 | `door-type:<id>`, `window-type:<id>` | CNT-15: the doors and windows of one of the plan's named types, each counted once | no |
 | `door:<w>x<h>`, `window:<w>x<h>` | The other doors and windows, by the size of their hole in the wall, each counted once | no |
-| `slab` | A slab under the lowest floor's outline, as the take-off lays it: less its openings and any open outdoor space on the ground | yes |
-| `upper_floor` | Each upper floor's gross internal area, less every opening in its floor over a stair, a stair room, a lift or a ramp (CNT-31); a void is out of the gross internal area already | yes |
+| `slab` | A slab under the lowest floor's outline, as the take-off lays it: less its openings and any open outdoor space on the ground; ARE-77: with every other ground-bearing slab, the part of a floor's slab on the ground with no floor under it | yes |
+| `upper_floor` | Each upper floor's gross internal area, less every opening in its floor over a stair, a stair room, a lift or a ramp (CNT-31); a void is out of the gross internal area already; ARE-77: less its ground-bearing share | yes |
+| `buried_slab` | ARE-77: the slab over a floor below the ground that stands at or under the ground, with its soil cover in its words; never in `roof` | yes |
+| `excavation` | ARE-77: the dig, in m³, from the ground to the underside of each ground-bearing slab of a floor below the ground | yes |
 | `roof` | A roof over every part of a floor's outline that no floor above and no open outdoor space covers, so a single-storey part has its roof: on its slope where the floor states a sloped roof, else flat | yes |
 | `ridge`, `eaves`, `verge`, `hip` | CNT-31: the edges of the sloped roofs the floors state, in metres, verges and hips along the slope, over the rectangle the roof spans with no overhang and no valleys, as Grid lays the roof | yes |
 | `gross_internal` | The gross internal area, for a rate for the whole building: an alternative to the other lines, never added to them | no |
@@ -496,7 +522,7 @@ A cost comes only from the person's own rates, in a file of their own beside the
 ```
 
 - A rates file that names no currency is refused, and so is a rate below 0 or in a unit other
-  than `m2`, `m`, `nr`, `ft2` or `ft`. A field Grid does not read is refused by name.
+  than `m2`, `m`, `nr`, `m3`, `ft2` or `ft`. A field Grid does not read is refused by name.
 - A rate prices the lines whose key it is, or begins with followed by a colon: `wall:exterior`
   prices every outside wall thickness, `door` every door size, and an exact key wins over a
   shorter one. A rate per ft² or ft is turned into one per m² or m.

@@ -24,6 +24,7 @@ import {
   outdoorRoofed,
   planEnvelope,
   planHasFinishes,
+  planEarth,
   planShell,
   shellKnown,
   tolerance,
@@ -36,9 +37,11 @@ import { ROOM_USES, type RoomUse } from '@ongrid/floorplan/types/floorplan'
 import { AREA_RULES, planAreas } from './areas'
 import { finishShares, type FinishSurface } from './finishes'
 import { roomCalled, type Survey } from './survey'
-import { roomTakeoff, wallFaceOver } from './takeoff'
+import { retainingRuns, roomEarthFace, roomTakeoff, wallFaceOver } from './takeoff'
+import { english, said } from '@ongrid/floorplan/messages'
 
-export type QuantityUnit = 'm2' | 'm' | 'nr'
+/** ARE-77: `m3` for the excavation. */
+export type QuantityUnit = 'm2' | 'm' | 'nr' | 'm3'
 
 /** The rule of each kind of line, one sentence each, in Grid's words. */
 export const ESTIMATE_RULES = {
@@ -162,6 +165,11 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
   }
 
   const areas = planAreas(survey, options.floors === undefined ? {} : { floors: options.floors })
+  // ARE-77: what has earth against it: retaining walls, buried and ground-bearing slabs, the dig.
+  const earth = planEarth(survey.plan, options.floors)
+  const held = new Map(earth.retaining.map((face) => [`${face.floor}\u0000${face.wall}`, face.share] as const))
+  const heldShare = (floor: string, wall: string): number => held.get(`${floor}\u0000${wall}`) ?? 0
+  let earthInside = 0
   // SHT-11: a stair room over a stair room below has its floor counted there, as in the net area.
   const overStair = new Set(areas.floors.flatMap((f) => f.rooms.filter((room) => room.countedWith !== undefined).map((room) => `${f.floor}\u0000${room.id}`)))
   const overStairRoom = (room: string, floor: string): boolean => overStair.has(`${floor}\u0000${room}`)
@@ -201,7 +209,11 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
       return own === undefined ? whole : own.finish === null ? own.quantity : 0
     }
     if (!overStair.has(`${room.facts.floor}\u0000${room.facts.id}`)) floorByUse.set(use, (floorByUse.get(use) ?? 0) + left('floor', t.floorArea))
-    wallByUse.set(use, (wallByUse.get(use) ?? 0) + left('walls', t.wallFace))
+    // ARE-77: the inside face of a wall with earth behind it is a line of its own, not a finish.
+    const walls = left('walls', t.wallFace)
+    const inside = Math.min(walls, roomEarthFace(earth, room))
+    earthInside += inside
+    wallByUse.set(use, (wallByUse.get(use) ?? 0) + walls - inside)
     // An outdoor space open to the sky (a deck, a terrace) has no ceiling; a porch has its soffit.
     if (!openOutdoor.has(id)) ceiling += left('ceiling', t.ceiling)
     skirting += left('skirting', t.skirting)
@@ -224,6 +236,7 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
   finishLines('walls')
   for (const use of uses) add({ key: `wall_finish:${use}`, what: `Inside wall faces, ${USE_WORDS[use]}`, quantity: wallByUse.get(use)!, unit: 'm2', rule: ESTIMATE_RULES.wallFinish, assumed: false })
   finishLines('skirting')
+  add({ key: 'retaining_face', what: english(said('estimate.retainingFace.what')), quantity: earthInside, unit: 'm2', rule: english(said('estimate.rule.retainingFace')), assumed: true })
   add({ key: 'skirting', what: finished ? 'Skirting, every room that names no skirting' : 'Skirting, every room', quantity: skirting, unit: 'm', rule: ESTIMATE_RULES.skirting, assumed: false })
 
   // Openings, each once: the holes they take out of their walls, their reveals and their sizes.
@@ -276,7 +289,8 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
       const run = byKind.get(key) ?? { kind: wall.kind, thickness: wall.thickness, area: 0, ...(named === null ? {} : { name: named.name, order: typeOrder.get(named.id) ?? 0 }) }
       // CNT-34: under the roof the floor states, the face is what the roof leaves; its gable part is a line apart.
       const cut = own === undefined ? { face: length * wall.height, gable: 0 } : wallFaceOver(survey.plan, own, length)
-      const net = Math.max(0, cut.face - (holes.get(wallKey(floor.id, wall.id)) ?? 0))
+      // ARE-77: the part below the ground is a retaining wall, a line of its own.
+      const net = Math.max(0, cut.face - (holes.get(wallKey(floor.id, wall.id)) ?? 0) - cut.face * heldShare(floor.id, wall.id))
       const gable = Math.min(cut.gable, net)
       gableWalls += gable
       byKind.set(key, { ...run, area: run.area + net - gable })
@@ -307,13 +321,18 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
     for (const face of shell.faces) {
       const own = statedWalls.get(face.wall)
       const cut = own === undefined ? { face: face.length * face.height, gable: 0 } : wallFaceOver(survey.plan, own, face.length)
-      outside += cut.face
+      // ARE-77: the part below the ground has earth against it, not a finish.
+      outside += cut.face * (1 - heldShare(shell.floor, face.wall))
       outsideGable += cut.gable
     }
     for (const wall of faced) outside -= holes.get(wallKey(shell.floor, wall)) ?? 0
   }
   const outsideNet = Math.max(0, outside)
   add({ key: 'external_finish', what: 'Outside face of the outer walls', quantity: outsideNet - Math.min(outsideGable, outsideNet), unit: 'm2', rule: ESTIMATE_RULES.externalFinish, assumed: false })
+  const floorNames = (of: readonly string[]): string => [...new Set(of)].map((floor) => floorName(survey, floor)).join(', ')
+  for (const run of retainingRuns(earth)) {
+    add({ key: `retaining_wall:${size(run.retained)}`, what: english(said('estimate.retaining.what', { height: metres(run.retained), floors: floorNames(run.floors) })), quantity: run.area, unit: 'm2', rule: english(said('estimate.rule.retaining')), assumed: true })
+  }
   add({ key: 'external_finish_gable', what: 'Gable parts of the outside face, above the lowest the walls\' tops stand under the roof', quantity: Math.min(outsideGable, outsideNet), unit: 'm2', rule: ESTIMATE_RULES.externalGable, assumed: false })
   const namedFirst = (a: string | undefined, b: string | undefined): number => ((a === undefined) === (b === undefined) ? 0 : a === undefined ? 1 : -1)
   for (const [key, c] of [...counts.entries()].sort(([, a], [, b]) => (a.type === b.type ? 0 : a.type === 'door' ? -1 : 1) || namedFirst(a.name, b.name) || a.width - b.width || a.height - b.height)) {
@@ -330,20 +349,27 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
   const roof: { floor: string; quantity: number; shape: FloorRoof['shape']; pitch: number }[] = []
   const edges = { ridge: 0, eaves: 0, verge: 0, hip: 0 }
   const edgeFloors: Record<keyof typeof edges, { floor: string; quantity: number }[]> = { ridge: [], eaves: [], verge: [], hip: [] }
+  const bearing = new Map(earth.bearing.map((b) => [b.floor, b] as const))
+  const buriedRoof = new Set(earth.buried.filter((b) => b.from === 'roof').map((b) => b.floor))
   for (const env of envelope.floors) {
     if (!known.has(env.floor) || env.slab === null) continue
     if (env.slab.kind === 'base') {
       if (env.slab.area > tolerance('areaEqual')) slab.push({ floor: env.floor, quantity: env.slab.area })
     } else {
+      // ARE-77: the part of a floor's slab with nothing under it but the ground is a ground-bearing slab.
+      const onGround = bearing.get(env.floor)
+      if (onGround !== undefined) slab.push({ floor: env.floor, quantity: onGround.area })
       const gross = areas.floors.find((f) => f.floor === env.floor)?.grossInternal ?? null
       if (gross === null) {
         notes.push(`Floor ${JSON.stringify(env.floor)} has no gross internal area, so its floor structure is left out of upper_floor.`)
       } else {
         // A void is out of the gross internal area already (ARE-16).
         const open = env.slab.openings.reduce((sum, opening) => sum + (opening.kind === 'void' ? 0 : opening.area), 0)
-        upper.push({ floor: env.floor, quantity: Math.max(0, gross - open) })
+        const structure = Math.max(0, gross - open) * (1 - (onGround?.share ?? 0))
+        if (structure > tolerance('areaEqual')) upper.push({ floor: env.floor, quantity: structure })
       }
     }
+    if (buriedRoof.has(env.floor)) continue
     if (!env.roofKnown) {
       notes.push(`The roof over floor ${JSON.stringify(env.floor)} is left out: ${env.why ?? 'its outline, or that of a floor above it, is not known'}.`)
       continue
@@ -361,7 +387,9 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
   }
   if (slab.length > 0) {
     const named = slab.map((part) => floorName(survey, part.floor)).join(', ')
-    add({ key: 'slab', what: `Lowest floor slab (${named})`, quantity: slab.reduce((sum, part) => sum + part.quantity, 0), unit: 'm2', rule: ESTIMATE_RULES.slab, assumed: true, floors: slab })
+    const lowestOnly = slab.every((part) => bearing.get(part.floor)?.base !== false)
+    const what = lowestOnly ? `Lowest floor slab (${named})` : english(said('estimate.bearing.what', { floors: named }))
+    add({ key: 'slab', what, quantity: slab.reduce((sum, part) => sum + part.quantity, 0), unit: 'm2', rule: lowestOnly ? ESTIMATE_RULES.slab : english(said('estimate.rule.bearing')), assumed: true, floors: slab })
   }
   if (upper.length > 0) {
     const named = upper.map((part) => floorName(survey, part.floor)).join(', ')
@@ -372,6 +400,15 @@ export function planEstimate(survey: Survey, options: { floors?: readonly string
     const parts = roof.map((part) => `${floorName(survey, part.floor)} ${part.quantity.toFixed(2)} m²${part.shape !== null && part.pitch > 0 ? `, ${part.shape} at ${part.pitch.toFixed(1)}°` : ''}`).join(', ')
     const what = sloped ? `Roof, on its slope, wherever no floor is above (${parts})` : `Roof, taken as flat, wherever no floor is above (${parts})`
     add({ key: 'roof', what, quantity: roof.reduce((sum, part) => sum + part.quantity, 0), unit: 'm2', rule: ESTIMATE_RULES.roof, assumed: true, floors: roof.map((part) => ({ floor: part.floor, quantity: part.quantity })) })
+  }
+  // ARE-77: the slabs the ground covers, with the soil over them, and the earth dug out.
+  const buried = earth.buried.filter((b) => known.has(b.floor) && b.area > tolerance('areaEqual'))
+  if (buried.length > 0) {
+    const parts = buried.map((b) => english(said('estimate.buried.part', { floor: floorName(survey, b.floor), area: b.area.toFixed(2), cover: metres(b.cover) }))).join(', ')
+    add({ key: 'buried_slab', what: english(said('estimate.buried.what', { parts })), quantity: buried.reduce((sum, b) => sum + b.area, 0), unit: 'm2', rule: english(said('estimate.rule.buried')), assumed: true, floors: buried.map((b) => ({ floor: b.floor, quantity: b.area })) })
+  }
+  if (earth.dig.length > 0) {
+    add({ key: 'excavation', what: english(said('estimate.excavation.what', { floors: floorNames(earth.dig.map((d) => d.floor)) })), quantity: earth.excavation, unit: 'm3', rule: english(said('estimate.rule.excavation')), assumed: true, floors: earth.dig.map((d) => ({ floor: d.floor, quantity: d.volume })) })
   }
   const EDGE_WORDS: Record<keyof typeof edges, string> = { ridge: 'Ridge', eaves: 'Eaves', verge: 'Verges', hip: 'Hips' }
   for (const k of Object.keys(edges) as (keyof typeof edges)[]) {

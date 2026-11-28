@@ -42,7 +42,8 @@ import { csv, FT_PER_M, sqFt } from './units'
 export const RATES_FILE = 'rates.json'
 /** The largest rates file Grid reads, in bytes. */
 export const RATES_FILE_MAX_BYTES = 1024 * 1024
-export const RATE_UNITS = ['m2', 'm', 'nr', 'ft2', 'ft'] as const
+// ARE-77: m3 for the excavation.
+export const RATE_UNITS = ['m2', 'm', 'nr', 'm3', 'ft2', 'ft'] as const
 export type RateUnit = (typeof RATE_UNITS)[number]
 const RATES_MAX = 2_000
 const ORDERS_MAX = 200
@@ -305,7 +306,7 @@ function perLineUnit(rate: number, unit: RateUnit, line: QuantityUnit): number |
   return null
 }
 
-const UNIT_WORDS: Readonly<Record<QuantityUnit, string>> = { m2: 'm²', m: 'm', nr: 'nr' }
+const UNIT_WORDS: Readonly<Record<QuantityUnit, string>> = { m2: 'm²', m: 'm', nr: 'nr', m3: 'm³' }
 
 function ordersOf(estimate: Estimate, orders: readonly Order[]): { orders: OrderLine[]; problems: string[] } {
   const out: OrderLine[] = []
