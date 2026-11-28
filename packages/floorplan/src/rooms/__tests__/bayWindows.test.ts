@@ -20,7 +20,7 @@ function written(text: string): { plan: FloorPlan; result: ReturnType<typeof com
   expect(result.problems.map((p) => p.message)).toEqual([])
   expect(result.warnings.map((w) => w.message)).toEqual([])
   const plan = safeParseFloorPlan(result.plan)!
-  expect(validatePlan(plan).issues.filter((i) => i.severity !== 'info').map((i) => `${i.code}: ${i.message}`)).toEqual([])
+  expect(validatePlan(plan).issues.map((i) => `${i.code}: ${i.message}`)).toEqual([])
   return { plan, result }
 }
 
