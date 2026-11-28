@@ -46,6 +46,7 @@ import { readingNotes, type ReadingNote } from '@ongrid/floorplan/types/reading'
 import { FIGURE_LIMIT_KEYS, FIGURE_LIMITS } from '../checks/catalogue'
 import { checkLocalRules, type CheckOptions } from '../checks/check'
 import type { CheckCoverage, FindingCode, NotChecked, Rule, RuleFinding, RulesReport } from '../checks/types'
+import { alikeLines } from './alike'
 import { wordLine, type Subject } from './catalogue'
 import { FIRM_MEASURES, firmShort, firmUsed, type FirmInput } from './firm'
 import { LINE_KINDS, RESULT_VERSION, type Cause, type GridResult, type HeldNote, type LineKind, type ResultLine, type Thing, type ThingKind } from './types'
@@ -731,7 +732,8 @@ function causeId(l: ResultLine): Cause {
 
 function record(lines: readonly ResultLine[], read: boolean, report: RulesReport | null, taped: readonly TapedRow[] | null = null, firm: FirmInput | null = null): GridResult {
   const language = speaking.language
-  const sorted = filed(lines)
+  // MSG-36: filed under their causes first, then the lines alike on many parts or floors said once.
+  const sorted = alikeLines(filed(lines), language, speaking.options)
   const counts = Object.fromEntries(LINE_KINDS.map((kind) => [kind, sorted.filter((l) => l.kind === kind).length])) as Record<LineKind, number>
   return {
     resultVersion: RESULT_VERSION,

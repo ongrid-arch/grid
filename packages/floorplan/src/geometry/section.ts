@@ -166,6 +166,18 @@ export interface SectionLevel {
    * and their slabs.
    */
   readonly source: 'stated' | 'datum' | 'worked-out'
+  /**
+   * VEW-84: where the floor stands across the section, its cut parts and rooms from `from` to `to`;
+   * left out when the line cuts nothing of it. Its level mark is drawn beside the nearer end of it.
+   */
+  readonly from?: number
+  readonly to?: number
+}
+
+/** VEW-84: how far across the section something drawn stands, from `from` to `to`. */
+export interface SectionSpan {
+  readonly from: number
+  readonly to: number
 }
 
 /** A room the line crosses, with its floor and its height. */
@@ -219,6 +231,11 @@ export interface SectionRoof {
   /** The underside's levels at the eaves and at its top (the ridge, or a flat roof's eaves). */
   readonly eaves?: number
   readonly ridge?: number
+  /** VEW-84: where the roof's cut stands across the section. */
+  readonly from: number
+  readonly to: number
+  /** VEW-84: the top of the parapet cut on it, when the line cuts one. */
+  readonly parapet?: number
 }
 
 export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'wall-top' | 'wall-roof' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers' | 'waist'
@@ -290,6 +307,11 @@ export interface PlanSection {
   readonly assumed: readonly SectionAssumption[]
   /** The box round the cut, what lies beyond it and the ground line, in section coordinates. */
   readonly bounds: Bounds
+  /**
+   * VEW-84: how far across the section the building is drawn (its cut, glass, items and what lies
+   * beyond), without the ground line; null when nothing of it is drawn. The level marks stand beside it.
+   */
+  readonly building: SectionSpan | null
 }
 
 const levelOf = (floor: Floor): number => (Number.isFinite(floor.level) ? floor.level : 0)
@@ -920,7 +942,7 @@ function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
       if (rings.length > 0) {
         parts.push({ kind: 'roof', id: floor.id, floor: floor.id, rings })
         roofRings.push({ floor, rings, thickness: roof.thickness, shape: roof.shape })
-        roofs.push({ floor: floor.id, level: snap(Math.max(...rings.flat().map((p) => p.y))), shape: slopes.roof.shape, pitch: slopes.pitch, eaves: snap(level + slopes.roof.eaves), ridge: snap(level + slopes.top) })
+        roofs.push({ floor: floor.id, level: snap(Math.max(...rings.flat().map((p) => p.y))), shape: slopes.roof.shape, pitch: slopes.pitch, eaves: snap(level + slopes.roof.eaves), ridge: snap(level + slopes.top), ...spanOf(rings.flat()) })
       }
       for (const piece of piecesAsRings(roof.pieces)) for (const ring of [piece.outline, ...piece.holes]) slopedFaces(floor.id, ring, slopes, level, roof.thickness)
     } else if (roof !== null) {
@@ -930,14 +952,19 @@ function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
         parts.push({ kind: 'roof', id: floor.id, floor: floor.id, rings })
         roofRings.push({ floor, rings, thickness: roof.thickness, shape: roof.shape })
         const levels = stated === null ? {} : { shape: stated.roof.shape, pitch: 0, eaves: snap(roof.bottom), ridge: snap(roof.bottom) }
-        roofs.push({ floor: floor.id, level: snap(roofTop), ...levels })
+        roofs.push({ floor: floor.id, level: snap(roofTop), ...levels, ...spanOf(rings.flat()) })
       }
       for (const piece of piecesAsRings(roof.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('roof', floor.id, floor.id, ring, roof.bottom, roofTop)
       if (roof.parapet !== null) {
         const roofTop = roof.bottom + roof.thickness
         const parapetTop = roofTop + roof.parapet.height
         const parapet = inside(frame, ringsOf(roof.parapet.pieces)).map(([x0, x1]) => rect(snap, x0, x1, roofTop, parapetTop))
-        if (parapet.length > 0) parts.push({ kind: 'parapet', id: floor.id, floor: floor.id, rings: parapet })
+        if (parapet.length > 0) {
+          parts.push({ kind: 'parapet', id: floor.id, floor: floor.id, rings: parapet })
+          // VEW-84: the roof's mark carries the parapet's top when the line cuts it.
+          const at = roofs.findIndex((r) => r.floor === floor.id)
+          if (at !== -1) roofs[at] = { ...roofs[at]!, parapet: snap(parapetTop) }
+        }
         for (const piece of piecesAsRings(roof.parapet.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('parapet', floor.id, floor.id, ring, roofTop, parapetTop)
       }
     }
@@ -1359,16 +1386,28 @@ function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
   const glass = parts.filter((p) => p.glazed === true)
   const cut = joined(parts.filter((p) => p.glazed !== true).flatMap((p) => p.rings))
   beyondOrder(faces)
-  const points: Vec2[] = [
+  // VEW-84: what of the building is drawn, across the section, without the ground line.
+  const drawn: Vec2[] = [
     ...cut.flatMap((p) => p.outline),
     ...glass.flatMap((p) => p.rings.flat()),
     ...itemParts.flatMap((p) => p.rings.flat()),
-    ...faces.flatMap((f) => (f.edge === null ? f.pieces.flatMap((p) => p.outline) : [...f.edge])),
+    ...faces.flatMap((f) => (f.edge === null ? f.pieces.flatMap((p) => p.outline) : [...f.edge]))
+  ]
+  const points: Vec2[] = [
+    ...drawn,
     ...segments.flatMap(([a, b]) => [{ x: a, y: groundAt(a) }, { x: b, y: groundAt(b) }]),
     { x: 0, y: groundAt(0) },
     { x: lineLength, y: groundAt(lineLength) },
     { x: 0, y: earth.bottom }
   ]
+  // VEW-84: where each floor stands across the section.
+  const floorSpan = (floor: string): SectionSpan | null => {
+    const at: Vec2[] = [
+      ...parts.filter((p) => p.floor === floor && p.kind !== 'roof' && p.kind !== 'parapet' && p.kind !== 'item').flatMap((p) => p.rings.flat()),
+      ...shownRooms.filter((r) => r.floor === floor).flatMap((r) => [{ x: r.from, y: r.floorLevel }, { x: r.to, y: r.floorLevel }])
+    ]
+    return at.length === 0 ? null : spanOf(at)
+  }
   return {
     line,
     length: lineLength,
@@ -1381,13 +1420,24 @@ function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
     items: itemParts,
     beyond: faces,
     ground: { level: ground.level, stated: ground.stated, segments, earth, ...(fall === undefined ? {} : { fall }) },
-    levels: levels.sort((a, b) => a.level - b.level),
+    levels: levels.map((level) => withSpan(level, floorSpan(level.floor))).sort((a, b) => a.level - b.level),
     roofs,
     rooms: shownRooms,
     reach,
     assumed: notes,
-    bounds: boundsOf(points)
+    bounds: boundsOf(points),
+    building: drawn.length === 0 ? null : spanOf(drawn)
   }
+}
+
+/** VEW-84: how far across the section points stand. */
+function spanOf(points: readonly Vec2[]): SectionSpan {
+  return { from: Math.min(...points.map((p) => p.x)), to: Math.max(...points.map((p) => p.x)) }
+}
+
+/** VEW-84: a level with where its floor stands across the section, when the line cuts any of it. */
+function withSpan(level: SectionLevel, span: SectionSpan | null): SectionLevel {
+  return span === null ? level : { ...level, from: span.from, to: span.to }
 }
 
 /** VEW-65: the earth from `x0` to `x1`, from `bottom` up to the ground, less the building below the ground. */

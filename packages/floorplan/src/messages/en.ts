@@ -3684,6 +3684,7 @@ export const en = {
   'drawing.section.taken.wallRoof.many': '{count} walls cut on {floor} rise to the roof over them, past the heights they state, as outside walls under a stated roof do ({ids}).',
   'drawing.section.eaves': '{level} Eaves',
   'drawing.section.ridge': '{level} Ridge',
+  'drawing.section.parapet': '{level} Parapet',
   'drawing.section.headroom': '{height} m headroom',
   'drawing.section.roofShape.mono-pitch': 'mono-pitch',
   'drawing.section.roofShape.gable': 'gable',
@@ -4602,6 +4603,25 @@ export const en = {
   'activity.rule': "Each zone is a box on the fixture's centre line, from its front out; its width is shared either side of the centre line, and the clear width each side is measured square to it within the zone's depth. Units side by side with one front, of kinds that keep no floor at their sides, are one run with one zone. Grid's own figures are indicators, not a rule from any code or standard.",
   'line.part.firm.at.zone': 'in {room}, over a zone {width} m wide on its centre line: {left} to the {leftWay} and {right} to the {rightWay} of it',
   'line.part.firm.at.zoneSide': '{value} m',
+  // MSG-36: a note, warning, refusal or diff line alike on many parts or floors, said once.
+  'alike.run': '{first} to {last}',
+  'alike.more': '{shown} and {more} more',
+  'alike.lines': '{line} (the same for {count} more: {ids})',
+  'alike.repeated': '{line} ({count} times)',
+  'alike.rename': '{count} of them by one pattern, {from} now {to}',
+  'alike.rename.added': '{count} of them by one pattern, {to} added',
+  'alike.rename.dropped': '{count} of them by one pattern, {from} taken out',
+  'line.alike.parts': '{message} (the same for {count} {what}: {ids})',
+  'line.alike.parts.floors': '{message} (the same for {count} {what} on {floors} floors: {ids})',
+  'line.alike.floors': '{message} (the same on {count} floors: {ids})',
+  'line.alike.what.wall': 'walls',
+  'line.alike.what.room': 'rooms',
+  'line.alike.what.opening': 'openings',
+  'line.alike.what.floor': 'floors',
+  'line.alike.what.item': 'items',
+  'line.alike.what.stair': 'stairs',
+  'line.alike.what.pattern': 'patterns',
+  'line.alike.what.flat': 'flats',
 } as const satisfies Record<string, string>
 
 export type MessageKey = keyof typeof en

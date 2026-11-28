@@ -237,6 +237,22 @@ export interface FacadeLevel {
   readonly height: number
 }
 
+/**
+ * VEW-84: what a level mark of a facade marks: the ground, a floor's level, a sloped roof's eaves
+ * and ridge (its underside there, as a section gives them), a flat roof's top or a parapet's top.
+ */
+export type FacadeMarkKind = 'ground' | 'floor' | 'eaves' | 'ridge' | 'roof' | 'parapet'
+
+/** VEW-84: a level the facade marks beside the building, and where across it the part it marks stands. */
+export interface FacadeMark {
+  readonly kind: FacadeMarkKind
+  /** The floor it belongs to; null for the ground. */
+  readonly floor: string | null
+  readonly level: number
+  readonly u0: number
+  readonly u1: number
+}
+
 export interface Facade {
   readonly side: FacadeSide
   /** The way the side lies from the building, on the plan: the facade is seen looking against it. */
@@ -257,6 +273,8 @@ export interface Facade {
   readonly ground: { readonly level: number; readonly stated: boolean; readonly fall?: FacadeGroundFall }
   /** The floors with a face on this facade, lowest first. */
   readonly levels: readonly FacadeLevel[]
+  /** VEW-84: every level it marks, lowest first: the ground, each floor, each roof's eaves and ridge or top, each parapet's top. */
+  readonly marks: readonly FacadeMark[]
   /** What the facade spans, or null when nothing faces this side. */
   readonly extent: { readonly u0: number; readonly u1: number; readonly bottom: number; readonly top: number } | null
   /** The walls and the openings it shows, by id, in plan order. */
@@ -850,7 +868,7 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
     }
   })()
   const groundAt = (u: number): number => facadeGroundAt({ ground }, u)
-  const empty: Facade = { side, direction, across, compass, faces: [], outline: [], ground, levels: [], extent: null, walls: [], openings: [] }
+  const empty: Facade = { side, direction, across, compass, faces: [], outline: [], ground, levels: [], marks: [], extent: null, walls: [], openings: [] }
 
   let floors: ReturnType<typeof planFloors>
   try {
@@ -1050,6 +1068,9 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
       return { floor: f.id, name: f.name || f.id, level: storey.floorLevel, height: storey.clearHeight }
     })
     .sort((x, y) => x.level - y.level)
+  const u0 = Math.min(...faces.map((f) => f.u0))
+  const u1 = Math.max(...faces.map((f) => f.u1))
+  const marks = facadeMarks(plan, faces, levels, ground.level, u0, u1)
   const wallIds = new Set(faces.flatMap((f) => (f.wall === null ? [] : [f.wall])))
   const openingIds = new Set(faces.flatMap((f) => f.openings.map((o) => o.id)))
   return {
@@ -1061,13 +1082,42 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
     outline: silhouette(faces, ground.level, groundAt),
     ground,
     levels,
+    marks,
     extent: {
-      u0: Math.min(...faces.map((f) => f.u0)),
-      u1: Math.max(...faces.map((f) => f.u1)),
+      u0,
+      u1,
       bottom: Math.min(ground.level, groundAt(Math.min(...faces.map((f) => f.u0))), groundAt(Math.max(...faces.map((f) => f.u1))), ...faces.map((f) => f.bottom)),
       top: Math.max(...faces.map((f) => f.top))
     },
     walls: plan.walls.filter((w) => wallIds.has(w.id)).map((w) => w.id).filter((id, i, all) => all.indexOf(id) === i),
     openings: plan.openings.filter((o) => openingIds.has(o.id)).map((o) => o.id)
   }
+}
+
+/**
+ * VEW-84: the levels a facade marks, lowest first: the ground across the whole facade; each floor
+ * over its own faces; over each floor's roof, a sloped roof's eaves and ridge (the figures a section
+ * gives, from the floor's roof shape) or a flat roof's top; and each parapet's top.
+ */
+function facadeMarks(plan: FloorPlan, faces: readonly FacadeFace[], levels: readonly FacadeLevel[], ground: number, u0: number, u1: number): FacadeMark[] {
+  const marks: FacadeMark[] = [{ kind: 'ground', floor: null, level: ground, u0, u1 }]
+  const over = (list: readonly FacadeFace[]): { u0: number; u1: number } => ({ u0: Math.min(...list.map((f) => f.u0)), u1: Math.max(...list.map((f) => f.u1)) })
+  for (const level of levels) {
+    const own = faces.filter((f) => f.floor === level.floor)
+    const body = own.filter((f) => f.kind === 'wall' || f.kind === 'slab' || f.kind === 'plinth')
+    marks.push({ kind: 'floor', floor: level.floor, level: level.level, ...over(body.length > 0 ? body : own) })
+    const roof = own.filter((f) => f.kind === 'roof' || f.kind === 'roof-plane')
+    if (roof.length > 0) {
+      const shape = floorRoofShape(plan, level.floor)
+      if (shape !== null && shape.pitch > 0) {
+        marks.push({ kind: 'eaves', floor: level.floor, level: fine(level.level + shape.roof.eaves), ...over(roof) })
+        marks.push({ kind: 'ridge', floor: level.floor, level: fine(level.level + shape.top), ...over(roof) })
+      } else {
+        marks.push({ kind: 'roof', floor: level.floor, level: Math.max(...roof.map((f) => f.top)), ...over(roof) })
+      }
+    }
+    const parapet = own.filter((f) => f.kind === 'parapet')
+    if (parapet.length > 0) marks.push({ kind: 'parapet', floor: level.floor, level: Math.max(...parapet.map((f) => f.top)), ...over(parapet) })
+  }
+  return marks.sort((a, b) => a.level - b.level)
 }
