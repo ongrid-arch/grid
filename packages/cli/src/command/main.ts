@@ -39,6 +39,8 @@ import { firmForCheck } from '../firm/measure'
 import { briefMissedText } from '../brief/answer'
 import { EDIT_SUMMARY, EDIT_USAGE, EditCommandRefused, runEdit } from './edit'
 import { isReadCommand, READ_COMMANDS, ReadCommandRefused, runRead } from './read'
+import { isTableFormat, isTableWhat, TABLE_WHATS, writeTable, type TableFormat, type TableWhat } from '../mcp/tableExport'
+import { ToolRefusal } from '../mcp/toolkit'
 import { checkDescribeRequest, DESCRIBE_OPTIONS, describePlan, describeRooms, describeWalk, walkOf } from './describe'
 import { walkPictures } from '../describe/walkPictures'
 import type { WalkStop } from '../describe/walk'
@@ -106,8 +108,8 @@ const COMMANDS = {
     options: INIT_OPTIONS,
   },
   write: {
-    usage: 'grid write <plan.rooms> | --layout tidy|sizes | --scan <scan.json> | --from <drawing.dxf|.ifc> [--layers <map>] [--units <unit>] [--plan <plan.json>] [--replace] [--json] [--project <folder>]',
-    summary: 'Writes a plan from rooms text: name the rooms with their sizes and neighbours, and Grid works out the walls. The main way to write a plan. With --layout, a first layout from the brief beside the plan; --scan writes it from a phone room scan instead; --from reads a DXF or IFC drawing into rooms text beside the plan and writes the plan from it.',
+    usage: 'grid write <plan.rooms> | --layout tidy|sizes | --scan <scan.json> | --from <drawing.dxf|.ifc> [--layers <map>] [--units <unit>] [--plan <plan.json>] [--replace] [--dry-run] [--json] [--project <folder>]',
+    summary: 'Writes a plan from rooms text: name the rooms with their sizes and neighbours, and Grid works out the walls. The main way to write a plan; --dry-run tries the text and writes nothing. With --layout, a first layout from the brief beside the plan; --scan writes it from a phone room scan instead; --from reads a DXF or IFC drawing into rooms text beside the plan and writes the plan from it.',
     options: WRITE_OPTIONS,
   },
   edit: {
@@ -152,8 +154,8 @@ const COMMANDS = {
     options: DRAW_OPTIONS,
   },
   export: {
-    usage: 'grid export [<plan.json>] --format dxf|ifc|glb|obj [--floor <id>] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed|open|gaps|markers] [--walls whole|rooms] [--out <file>] [--project <folder>]',
-    summary: 'Writes the plan as a file for another program, into exports/ beside the plan unless --out names one.',
+    usage: 'grid export [<plan.json>] --format dxf|ifc|glb|obj|geojson|json|csv|xlsx [--what <table>] [--csv <table>] [--units <unit>] [--decimal point|comma] [--floor <id>] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed|open|gaps|markers] [--walls whole|rooms] [--out <file>] [--project <folder>]',
+    summary: 'Writes the plan as a file for another program, or one of its tables as CSV or XLSX for a spreadsheet, into exports/ beside the plan unless --out names one.',
     options: EXPORT_OPTIONS,
   },
   sheet: {
@@ -367,6 +369,12 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     if (alone !== undefined) throw new UsageError(`${alone} goes with --from: it says how to read a DXF drawing.`)
   }
 
+  // CMD-54: a dry run tries rooms text only; the others write files of their own beside the plan.
+  if (name === 'write' && parsed.values.has('--dry-run')) {
+    const other = ['--layout', '--scan', '--from'].find((option) => parsed.values.has(option))
+    if (other !== undefined) throw new UsageError(`--dry-run goes with a rooms text file, not ${other}: it tries rooms text and writes nothing.`)
+  }
+
   if (name === 'write' && parsed.values.has('--from')) {
     // CMD-43: a DXF or IFC drawing, read into rooms text beside the plan.
     const other = ['--layout', '--scan'].find((option) => parsed.values.has(option))
@@ -411,13 +419,15 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     const project = openProject(projectOption, io.cwd)
     const target = textOf(parsed, '--plan') ?? projectPlanFile(project)
     const options = { replace: parsed.values.has('--replace') }
-    const { laid, done } = await recorded(project, target, { tool: shape === undefined ? 'write' : 'write --layout', via: 'grid write' }, () => {
+    // CMD-54: a dry run writes nothing, so there is no change to log.
+    const dryRun = parsed.values.has('--dry-run')
+    const { laid, done } = dryRun ? { laid: null, done: writeRoomsIntoProject(project, readRoomsFile(project, roomsFile!), target, { ...options, dryRun }) } : await recorded(project, target, { tool: shape === undefined ? 'write' : 'write --layout', via: 'grid write' }, () => {
       const laid = shape === undefined ? null : writeLayout(project, target, shape as LayoutShape, options)
       return { laid, done: laid?.done ?? writeRoomsIntoProject(project, readRoomsFile(project, roomsFile!), target, options) }
     })
     if (parsed.values.has('--json')) {
       const r = done.result
-      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, origin: done.origin, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, toLookAt: done.toLookAt, doors: done.doors, itemsKept: done.itemsKept, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
+      io.stdout(`${JSON.stringify({ label: GENERAL_GUIDANCE_LABEL, written: done.written, dryRun: done.dryRun, origin: done.origin, rooms: r.rooms, walls: r.walls.map((w) => ({ id: w.id, kind: w.kind, virtual: w.virtual, thickness: w.thickness, length: w.length, rooms: w.rooms })), openings: r.openings, guesses: r.guesses, warnings: r.warnings, sizes: r.sizes, verdict: done.verdict, drawingProblems: done.drawingProblems, toLookAt: done.toLookAt, doors: done.doors, itemsKept: done.itemsKept, ...(laid === null ? {} : { layout: laid.layout }) }, null, 2)}\n`)
     } else io.stdout(`${[GENERAL_GUIDANCE_LABEL, ...(laid?.lines ?? done.lines)].join('\n')}\n`)
     return EXIT_OK
   }
@@ -652,6 +662,9 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
     return EXIT_OK
   }
 
+  // VEW-83: a table as a CSV or XLSX file, written by grid_export's own code.
+  const tableAsked = tableRequestOf(parsed)
+  if (tableAsked !== null) return tableCommand(io, projectOption, planFile, tableAsked)
   const request = { format: textOf(parsed, '--format'), floor: textOf(parsed, '--floor'), out: textOf(parsed, '--out'), date: textOf(parsed, '--date'), scale: textOf(parsed, '--scale'), arcSegments: textOf(parsed, '--arc-segments'), doors: textOf(parsed, '--doors'), walls: textOf(parsed, '--walls'), ...(parsed.values.has('--no-roofs') ? { roofs: false } : {}) }
   const format = checkExportRequest(request)
   const project = openProject(projectOption, io.cwd)
@@ -693,6 +706,46 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
   const materials = writeMaterialsBeside(project, written, made)
   if (materials !== null) io.stdout(`Wrote ${project.shown(materials)}\n`)
   return EXIT_OK
+}
+
+/**
+ * VEW-83: `grid export --format csv|xlsx --what <table>` (or `--csv <table>`): the table asked for,
+ * or null for a drawing or a model. The options of the other's kind are refused by name.
+ */
+function tableRequestOf(parsed: ReturnType<typeof parseOptions>): { format: TableFormat; what: string; floor?: string; units?: string; decimal?: string; out?: string } | null {
+  const format = textOf(parsed, '--format')
+  const csvWhat = textOf(parsed, '--csv')
+  const tableOnly = ['--what', '--csv', '--units', '--decimal'].filter((option) => parsed.values.has(option))
+  if (csvWhat === undefined && !isTableFormat(format)) {
+    if (tableOnly.length > 0) throw new UsageError(`${tableOnly.join(' and ')} ${tableOnly.length === 1 ? 'is' : 'are'} for CSV and XLSX only: leave ${tableOnly.length === 1 ? 'it' : 'them'} out.`)
+    return null
+  }
+  if (csvWhat !== undefined && format !== undefined && format !== 'csv') throw new UsageError(`--csv writes CSV, not ${format}: leave --format out, or use --format ${format} --what ${csvWhat}.`)
+  if (csvWhat !== undefined && parsed.values.has('--what')) throw new UsageError('--csv names the table already: leave --what out.')
+  const drawingOnly = ['--scale', '--no-roofs', '--arc-segments', '--doors', '--walls', '--date'].filter((option) => parsed.values.has(option))
+  if (drawingOnly.length > 0) throw new UsageError(`${drawingOnly.join(' and ')} ${drawingOnly.length === 1 ? 'is' : 'are'} for drawings and models, not a table: leave ${drawingOnly.length === 1 ? 'it' : 'them'} out.`)
+  const what = csvWhat ?? textOf(parsed, '--what')
+  if (what === undefined) throw new UsageError(`--format ${format} needs --what: the table, one of ${TABLE_WHATS.join(', ')}.`)
+  if (!isTableWhat(what)) throw new UsageError(`--what ${JSON.stringify(what)} is not a table Grid writes: use one of ${TABLE_WHATS.join(', ')}.`)
+  const optional = (option: string, key: string): Record<string, string> => {
+    const value = textOf(parsed, option)
+    return value === undefined ? {} : { [key]: value }
+  }
+  return { format: csvWhat !== undefined ? 'csv' : (format as TableFormat), what, ...optional('--floor', 'floor'), ...optional('--units', 'units'), ...optional('--decimal', 'decimal'), ...optional('--out', 'out') }
+}
+
+/** VEW-83: writes the table and says where; a refusal names the options as the command takes them. */
+async function tableCommand(io: CommandIo, projectOption: string | undefined, planFile: string, asked: NonNullable<ReturnType<typeof tableRequestOf>>): Promise<number> {
+  const project = openProject(projectOption, io.cwd)
+  try {
+    const done = await writeTable({ project }, { plan: planFile, ...asked, what: asked.what as TableWhat })
+    if (done.note) io.stderr(`${done.note}\n`)
+    io.stdout(`Wrote ${project.shown(done.written)}\n`)
+    return EXIT_OK
+  } catch (error) {
+    if (error instanceof ToolRefusal) throw new ReadCommandRefused(error.message.replace(/(^|Pass |\. )(floor|units|decimal|out|what|state)\b/g, '$1--$2').replace(/\s+/g, ' ').trim())
+    throw error
+  }
 }
 
 /** Runs one command line, without `node` and the script. Resolves to the exit code. */

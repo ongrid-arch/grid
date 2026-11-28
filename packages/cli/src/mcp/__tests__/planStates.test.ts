@@ -67,7 +67,7 @@ describe('grid_areas before, after and both (ARE-75)', () => {
     expect(roomIds(reply.data!)).toEqual(['bath', 'kitchen-dining', 'living', 'study'])
     const table = await ok('grid_areas', { plan: 'refurb.json', state: 'both', format: 'csv' })
     const lines = table.text.trim().split('\n')
-    expect(lines[1]).toBe('row,floor,id,name,use,phase,existing m2,proposed m2,change m2,change sq ft')
+    expect(lines[0]).toBe('row,floor,id,name,use,phase,existing m2,proposed m2,change m2,change sq ft')
     expect(lines.find((line) => line.startsWith('room,ground,kitchen,'))).toMatch(/^room,ground,kitchen,Kitchen,kitchen,demolished,13\.44\d*,0,-13\.44/)
     expect(lines.some((line) => line.startsWith('use,all,,dining,dining,,'))).toBe(true)
   })

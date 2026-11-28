@@ -101,9 +101,9 @@ function csvField(value: string | number | null): string {
 }
 
 /**
- * A table as CSV. Its first row is the label, in one cell (MSG-3), so a spreadsheet shows it
- * above the table's own header.
+ * A table as CSV. Its header is the first row, so a spreadsheet or a script takes it as the
+ * header (VEW-83); the label is the last row, in one cell (MSG-3).
  */
 export function csv(header: readonly string[], rows: readonly (readonly (string | number | null)[])[]): string {
-  return [[GENERAL_GUIDANCE_LABEL], header, ...rows].map((row) => row.map(csvField).join(',')).join('\n') + '\n'
+  return [header, ...rows, [GENERAL_GUIDANCE_LABEL]].map((row) => row.map(csvField).join(',')).join('\n') + '\n'
 }

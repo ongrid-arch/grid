@@ -116,10 +116,10 @@ describe('ARE-15 the door and window schedules by type (done when 2)', () => {
     expect(doors.text).toContain('2. 3 × door 0.80 m wide × 2.10 m high (type door:0.8x2.1): D2, D3, D5')
     expect(doors.text).toContain('4. 1 × sliding door 0.80 m wide × 2.10 m high (type door:sliding:0.8x2.1): D6')
     const csv = (await ok('grid_schedule', { plan: 'sliding.json', of: 'doors', format: 'csv' })).text.split('\n')
-    expect(csv[1]).toBe('number,type,kind,width m,height m,opens width m,opens height m,count,marks,phase,section')
-    expect(csv[3]).toBe('2,door:0.8x2.1,,0.8,2.1,,,3,D2; D3; D5,existing,')
+    expect(csv[0]).toBe('number,type,kind,width m,height m,opens width m,opens height m,count,marks,phase,section')
+    expect(csv[2]).toBe('2,door:0.8x2.1,,0.8,2.1,,,3,D2; D3; D5,existing,')
     const windows = await ok('grid_schedule', { plan: 'flat.json', of: 'windows', format: 'csv' })
-    expect(windows.text.split('\n')[1]).toBe('number,type,kind,width m,height m,opens width m,opens height m,sill m,count,marks,phase,section')
+    expect(windows.text.split('\n')[0]).toBe('number,type,kind,width m,height m,opens width m,opens height m,sill m,count,marks,phase,section')
     expect(openingTypeScheduleCsv(openingTypeSchedule(surveyPlan(parseFloorPlan(TWO_BED)), 'window'))).toContain('4,window:1.4x1.3,,1.4,1.3,,,0.9,2,W2; W6')
   })
 
@@ -132,7 +132,7 @@ describe('ARE-15 the door and window schedules by type (done when 2)', () => {
     const reply = await ok('grid_schedule', { plan: 'flat.json', of: 'openings' })
     expect(reply.text).toContain('1. D1 door "door-bath"')
     const csv = (await ok('grid_schedule', { plan: 'flat.json', of: 'openings', format: 'csv' })).text.split('\n')
-    expect(csv[1]!.startsWith('number,mark,id,type,')).toBe(true)
+    expect(csv[0]!.startsWith('number,mark,id,type,')).toBe(true)
   })
 })
 

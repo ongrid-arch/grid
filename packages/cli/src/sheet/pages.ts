@@ -10,7 +10,7 @@ import { areaText, metresText, sumText } from '@ongrid/floorplan/geometry/roundi
 import type { SheetWords } from '@ongrid/floorplan/types/sheet'
 import { decimalFor, DEFAULT_LANGUAGE, joined, name, num, say, sayValue, labelOfUse, type Language, type MessageKey, type Said, type Values } from '@ongrid/floorplan/messages'
 import { ROOM_USES, type RoomUse } from '@ongrid/floorplan/types/floorplan'
-import { findingReadFor, readForSentence } from '@ongrid/rules'
+import { findingReadFor, readForSaid } from '@ongrid/rules'
 import { FRAME_MARGIN, fitTo } from '@ongrid/viewer/src/canvas2d/viewport'
 import { pictureView, undecidedDoorsOf, type PictureOptions } from '@ongrid/viewer/src/picture'
 import { TEXT_PX } from '@ongrid/viewer/src/picture/look'
@@ -21,7 +21,7 @@ import type { LoadedPlan } from '../command/plan'
 import { describeText } from '../describe/card'
 import { planFacts } from '../describe/facts'
 import { projectWithPlace, sitePlace } from '../describe/site'
-import { AREA_RULES, planAreas, type FloorAreas, type PlanAreas } from '../quantities/areas'
+import { planAreas, type FloorAreas, type PlanAreas } from '../quantities/areas'
 import { factsText, flatSchedule, openingSchedule, openingTypeSchedule, roomSchedule, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
 import type { ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
 import { surveyPlan } from '../quantities/survey'
@@ -198,6 +198,15 @@ function wordsIn(language: Language): Words {
 
 const ENGLISH = wordsIn(DEFAULT_LANGUAGE)
 
+/**
+ * SHT-26: why an area figure is not known. Its reason is made in English by the area code, so a
+ * sheet in another language says in its own words which measure could not be had.
+ */
+function notKnownWhy(english: string, measures: readonly ('grossInternal' | 'grossExternal' | 'conditioned' | 'underRoof')[], w: Words): string {
+  if (w.language === DEFAULT_LANGUAGE) return english
+  return w.say('sheet.area.notKnown', { measures: joined(measures.map((m) => ({ key: `sheet.figure.${m}` as MessageKey })), 'join.or') })
+}
+
 type Body = Omit<SheetPage, 'footer'>
 
 /** When some floor with rooms is joined to no other by a stair (LVL-3). */
@@ -266,6 +275,10 @@ export interface SheetUnits {
   readonly areaUnit: string
   /** Whether the area unit is square feet. */
   readonly feet: boolean
+  /** SHT-26: the length unit the sizes are printed in, as a word of the sheet's language. */
+  readonly lengthWord: string
+  /** SHT-26: whether lengths are printed in metres to the centimetre, whatever the decimal mark. */
+  readonly centimetres: boolean
   /** A figure Grid wrote with a point, with the sheet's decimal mark. */
   mark(text: string): string
   length(metres: number, kind?: 'length' | 'height'): string
@@ -277,12 +290,14 @@ export interface SheetUnits {
 
 function sheetUnits(plan: LoadedPlan['plan'], w: Words): SheetUnits {
   const display: Display = displayFor(undefined, undefined, plan)
+  const lengthWord = w.say(`sheet.lengthUnit.${display.length}` as MessageKey)
+  const centimetres = display.length === 'm' && display.precision === undefined
   const metric = display.length === 'm' && display.area === 'm2' && display.decimal === 'point' && display.precision === undefined
   const language = w.language === DEFAULT_LANGUAGE ? null : decimalFor(w.language, plan.display?.decimal)
   const fm = (text: string): string => (language === 'comma' ? sayValue(w.language, num(text), { decimal: 'comma' }) : text)
   if (metric) {
     return {
-      metric, feet: false, areaUnit: 'm²', mark: fm,
+      metric, feet: false, areaUnit: 'm²', mark: fm, lengthWord, centimetres,
       length: (m) => `${fm(metresText(m))} m`,
       area: (a) => fm(areaText(a, 1)),
       sum: (parts, total) => {
@@ -298,6 +313,8 @@ function sheetUnits(plan: LoadedPlan['plan'], w: Words): SheetUnits {
   return {
     metric,
     feet,
+    lengthWord,
+    centimetres,
     areaUnit: feet ? w.say('sheet.unit.sqft') : 'm²',
     mark: fm,
     length: (m, kind = 'length') => fm(showLength(m, display, { kind })),
@@ -337,7 +354,7 @@ function areaTable(floor: FloorAreas, withUse: boolean, units: SheetUnits, w: Wo
       }
     }),
     total: { name: w.say('sheet.netArea'), detail: null, area: shown.total },
-    note: AREA_RULES.net,
+    note: w.say('areas.measure.net.measures'),
   }
 }
 
@@ -387,8 +404,8 @@ function clientBodies(loaded: LoadedPlan, words: SheetWords | null, name: string
     notes: [
       ...accessLines(accessNotes, units, w),
       ...(first
-        ? (['conditioned', 'underRoof'] as const).flatMap((m) => (areas[m] === null && areas.underAirWhy[m] !== null ? [areas.underAirWhy[m]!] : []))
-        : areas.grossInternal === null && areas.grossWhy !== null ? [areas.grossWhy] : []),
+        ? (['conditioned', 'underRoof'] as const).flatMap((m) => (areas[m] === null && areas.underAirWhy[m] !== null ? [notKnownWhy(areas.underAirWhy[m]!, [m], w)] : []))
+        : areas.grossInternal === null && areas.grossWhy !== null ? [notKnownWhy(areas.grossWhy, ['grossInternal'], w)] : []),
       ...(more === null ? [] : [more]),
       roundingNote(units, w),
     ],
@@ -456,7 +473,7 @@ function areaScheduleBodies(sets: readonly string[][], setTitle: (set: readonly 
   const body = (heading: string, rows: readonly SheetRow[], shownTotal: string): Body => ({
     kind: 'summary', floor: null, topLine: `${title} / ${w.say('sheet.areaSchedule')}`, title: w.say('sheet.areaSchedule'), subtitle: null,
     paragraphs: [], figures: [], picture: null, notes: [],
-    table: { heading, rows, total: { name: w.say('sheet.netArea'), detail: null, area: shownTotal }, note: AREA_RULES.net },
+    table: { heading, rows, total: { name: w.say('sheet.netArea'), detail: null, area: shownTotal }, note: w.say('areas.measure.net.measures') },
   })
   return [
     body(w.say('sheet.areaSchedule.floors', { unit: units.areaUnit }), floorRows, shownFloors.total),
@@ -527,7 +544,7 @@ export function findingLine(finding: Parameters<typeof findingReadFor>[0] & { ro
   // COD-2: a finding that used a figure says which kind of building the figure was read for.
   const kinds = findingReadFor(finding)
   const own = w.said(finding.message, finding.said)
-  const message = kinds.length === 0 ? own : `${own}. ${readForSentence(kinds)}`
+  const message = kinds.length === 0 ? own : `${own}. ${sayValue(w.language, readForSaid(kinds))}`
   return named.length === 0 ? w.say('sheet.finding', { message }) : w.say('sheet.finding.named', { named: named.join(w.say('join.comma')), message })
 }
 
@@ -540,7 +557,7 @@ function checkBodies(loaded: LoadedPlan, name: string, w: Words, date: Date): Bo
   const sides = sidesOf(loaded, w)
   const floors = planFloors(loaded.plan)
   const frames = floorFrames(loaded)
-  const whole = checkPlan(loaded, {})
+  const whole = checkPlan(loaded, w.language === DEFAULT_LANGUAGE ? {} : { language: w.language })
   const units = sheetUnits(loaded.plan, w)
   const figures: SheetFigure[] = [
     { value: String(whole.report.findings.length), label: w.say('sheet.figure.findings') },
@@ -559,12 +576,13 @@ function checkBodies(loaded: LoadedPlan, name: string, w: Words, date: Date): Bo
       // COD-3: the place the figures were for, or that none was stated and no figure applied.
       inLanguage(w.language, undefined, () => placeText(whole.report, 'sheet')),
       ...(whole.report.findings.length === 0 ? [w.say('sheet.findings.none', { why })] : []),
-      AREA_RULES.net, AREA_RULES.grossInternal, AREA_RULES.grossExternal,
-      ...(areas.grossWhy === null ? [] : [areas.grossWhy]),
+      w.say('areas.measure.net.measures'), w.say('areas.measure.grossInternal.measures'), w.say('areas.measure.grossExternal.measures'),
+      ...(areas.grossWhy === null ? [] : [notKnownWhy(areas.grossWhy, (['grossInternal', 'grossExternal'] as const).filter((m) => areas[m] === null), w)]),
       // What belongs to no floor is said once, here; each floor page says the rest.
       ...whole.issues.filter((i) => i.entity === 'plan').map((i) => issueLine(i, w)),
       ...whole.report.notChecked.filter((n) => n.floor === '').map((n) => noticeLine(n, w)),
-      ...whole.report.limits,
+      // SHT-26: the record's limits, said in its language.
+      ...whole.result.limits,
     ],
   }
   // ARE-15: each floor's drawing carries the marks of the schedule pages that follow it.
@@ -624,13 +642,14 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
     rows: roomRows,
     total: {
       name: w.say(several ? 'sheet.total.all' : 'sheet.total'),
-      // WRT-7: the other unit beside the total: square metres beside square feet, and the other way round.
+      // WRT-7: square metres beside square feet. SHT-26: a sheet in square metres prints no square feet.
       detail: units.feet
         ? w.say('sheet.total.rooms.metric', { count: total.rooms, area: units.mark(areaText(total.area, 1)) })
-        : w.say('sheet.total.rooms', { count: total.rooms, sqft: Math.round(sqFt(total.area)) }),
+        : w.say('sheet.roomCount', { count: total.rooms }),
       area: units.area(total.area),
     },
-    note: rooms.rules[0]!,
+    // SHT-26: the schedule's rule in the sheet's language, naming no tool.
+    note: w.say('sheet.rule.rooms'),
   }
   // WRT-7: a size in the plan's display, as one figure in metres or each length in its unit.
   const sizeText = (width: number, height: number): string => units.metric ? `${units.mark(metresText(width))} × ${units.mark(metresText(height))} m` : `${units.length(width)} × ${units.length(height)}`
@@ -646,7 +665,7 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
     heading: w.say('sheet.openingSchedule.heading'),
     rows: openingRows,
     total: { name: w.say('sheet.inAll'), detail: w.say('sheet.openingCounts', { doors: c.door, windows: c.window, openings: c.opening }), area: String(c.door + c.window + c.opening) },
-    note: openings.rule,
+    note: w.say('sheet.rule.openings', { unit: units.lengthWord }),
   }
   const body = (title: string, table: SheetTable, notes: readonly string[] = []): Body => ({
     kind: 'summary', floor: null, topLine: `${name} / ${title}`, title, subtitle: null,
@@ -667,7 +686,7 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
     heading: w.say('sheet.openingTypes.heading'),
     rows: typeRows,
     total: { name: w.say('sheet.inAll'), detail: w.say('sheet.openingTypes.count', { types: typeRows.length, doors: types[0]!.count, windows: types[1]!.count }), area: String(types[0]!.count + types[1]!.count) },
-    note: types[0]!.rule,
+    note: w.say('sheet.rule.types'),
   }
   const bodies = [body(w.say('sheet.roomSchedule'), roomTable), body(w.say('sheet.openingSchedule'), openingTable), body(w.say('sheet.openingTypes'), typeTable)]
   // CNT-4: on a plan that lists flats, the flats and the mix by type, from grid_schedule of=flats's rows.
@@ -691,7 +710,7 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
       heading: w.say('sheet.flatSchedule.heading'),
       rows: flatRows,
       total: { name: w.say('sheet.flat.all'), detail: w.say('sheet.flat.count', { count: flats.total.flats }), area: m2(flats.total.area) },
-      note: flats.rules[1]!,
+      note: w.say('areas.rule.flat'),
     }
     const mix = flats.mix.map((m) =>
       w.say(m.flats === 1 ? 'sheet.flat.mixType.one' : 'sheet.flat.mixType.many', {
@@ -701,7 +720,7 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
         area: m2(m.area),
       })
     )
-    bodies.push(body(w.say('sheet.flatSchedule'), flatTable, [w.say('sheet.flat.mix', { mix: mix.join(' ') }), flats.rules[0]!]))
+    bodies.push(body(w.say('sheet.flatSchedule'), flatTable, [w.say('sheet.flat.mix', { mix: mix.join(' ') }), w.say('schedule.rule.flats')]))
   }
   return bodies
 }
