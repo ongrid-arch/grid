@@ -2361,6 +2361,8 @@ export const es: Messages = {
   'describe.room.unnamed': 'Estancia sin nombre',
   'describe.room.some': 'una estancia',
   'describe.floor': '{floor}: {rooms}, {area} m².',
+  'describe.floor.below': ' Su suelo está {depth} m bajo el terreno.',
+  'describe.floor.belowRange': 'de {low} a {high}',
   'describe.floor.left.one': ' {parts} no se puede dibujar y queda excluida.',
   'describe.floor.left.many': ' {parts} no se pueden dibujar y quedan excluidas.',
   'describe.floor.repeat': '{floors}: misma distribución que {of}.',

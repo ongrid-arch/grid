@@ -655,12 +655,21 @@ const AGENT_CLOSE = 'CHECKS none here: grid check.'
 
 function personFloorHead(floor: FloorFacts, names: PersonNames, w: Words): string {
   const left = floor.leftOut.length > 0 ? countOf(w, 'describe.floor.left', floor.leftOut.length, { parts: countOf(w, 'describe.count.part', floor.leftOut.length) }) : ''
-  return `${t(w, 'describe.floor', { floor: names.floor(floor.id), rooms: roomCountSaid(w, floor), area: area(w, floor.area) })}${left}`
+  return `${t(w, 'describe.floor', { floor: names.floor(floor.id), rooms: roomCountSaid(w, floor), area: area(w, floor.area) })}${belowSaid(floor, w)}${left}`
+}
+
+/** ARE-82: how far a floor below the ground is under it, as a range on a slope; nothing on any other floor. */
+function belowSaid(floor: FloorFacts, w: Words): string {
+  const below = floor.belowGround
+  if (below === undefined) return ''
+  const depth = m(below.low) === m(below.high) ? fig(w, below.high) : t(w, 'describe.floor.belowRange', { low: fig(w, below.low), high: fig(w, below.high) })
+  return t(w, 'describe.floor.below', { depth })
 }
 
 function agentFloorHead(floor: FloorFacts): string {
   const left = floor.leftOut.length > 0 ? `; left out ${floor.leftOut.join(' ')}` : ''
-  return `FLOOR ${floor.id} ${floor.name === null ? '(no name)' : JSON.stringify(floor.name)} level ${floor.level}: ${roomCount(floor)}, ${m(floor.area)} m2${left}`
+  const below = floor.belowGround === undefined ? '' : ` below-ground ${m(floor.belowGround.low) === m(floor.belowGround.high) ? m(floor.belowGround.high) : `${m(floor.belowGround.low)}-${m(floor.belowGround.high)}`}`
+  return `FLOOR ${floor.id} ${floor.name === null ? '(no name)' : JSON.stringify(floor.name)} level ${floor.level}${below}: ${roomCount(floor)}, ${m(floor.area)} m2${left}`
 }
 
 /** CNT-16: a floor's columns, in one line, each by its size and place and the room it stands in; nothing on a floor with none. */

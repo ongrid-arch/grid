@@ -2351,6 +2351,8 @@ export const en = {
   'describe.room.unnamed': 'Unnamed room',
   'describe.room.some': 'a room',
   'describe.floor': '{floor}: {rooms}, {area} m².',
+  'describe.floor.below': ' Its floor is {depth} m below the ground.',
+  'describe.floor.belowRange': '{low} to {high}',
   'describe.floor.left.one': ' {parts} can\'t be drawn and is left out.',
   'describe.floor.left.many': ' {parts} can\'t be drawn and are left out.',
   'describe.floor.repeat': '{floors}: laid out like {of}.',
