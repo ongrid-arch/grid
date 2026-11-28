@@ -107,7 +107,7 @@ describe('VEW-64: the whole building in one GLB', () => {
     const root = nodes(glb)[roots[0]!]!
     expect(root.name).toBe('first')
     expect(root.translation).toEqual([0, level('first'), 0])
-    expect(readMeshes(glb).every((m) => m.name.startsWith('wall_first') || m.name.startsWith('floor_first') || m.name.endsWith('_first'))).toBe(true)
+    expect(readMeshes(glb).every((m) => m.name.startsWith('wall_first') || m.name.startsWith('floor_first') || m.name.startsWith('ceiling_first') || m.name.endsWith('_first'))).toBe(true)
     expect(heights(glb, 'wall_first-w1')[0]).toBeCloseTo(level('first'), 6)
     expect(made.floors).toEqual([{ id: 'first', elevation: level('first') }])
     expect(made.floorsLeftOut).toEqual(['ground', 'second'])

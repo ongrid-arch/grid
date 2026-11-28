@@ -150,7 +150,7 @@ describe('VEW-82: each node says what it is in its extras', () => {
   it('groups each floor\'s parts by kind, each group saying its floor and kind', () => {
     const ground = named(glb, 'ground')
     const groups = ground.children!.map((i) => nodes(glb)[i]!)
-    expect(groups.map((g) => g.name)).toEqual(['walls_ground', 'rooms_ground', 'items_ground', 'doors_ground', 'windows_ground', 'shell_ground'])
+    expect(groups.map((g) => g.name)).toEqual(['walls_ground', 'rooms_ground', 'linings_ground', 'ceilings_ground', 'items_ground', 'doors_ground', 'windows_ground', 'shell_ground'])
     for (const group of groups) {
       expect(group.mesh).toBeUndefined()
       const kind = group.extras!['gridKind']

@@ -151,7 +151,7 @@ export function fitInRoom(room: SurveyRoom, shape: { width: number; depth: numbe
 export interface RouteStep {
   /** The opening or dividing line passed, and its width; a dividing line has none. ARE-18: or the stair taken, and its width when the plan states the stair. */
   readonly via: string
-  readonly type: 'door' | 'window' | 'opening' | 'open side' | 'stair'
+  readonly type: 'door' | 'window' | 'opening' | 'open side' | 'stair' | 'lift'
   readonly width: number | null
   readonly into: string
 }
@@ -187,6 +187,12 @@ export interface Route {
    * plan does not draw (a flat's front door onto its landing): its last step goes `into` them.
    */
   readonly onto?: typeof COMMON_PARTS
+  /**
+   * ARE-78, a route between rooms on different floors only: the ways by the other stairs (or
+   * lifts) off the floor it starts on, shortest walked first, each with the stair or lift it
+   * leaves by and the length of its own route (null when it cannot be measured).
+   */
+  readonly otherWays?: readonly { readonly via: string; readonly type: RouteStep['type']; readonly rooms: readonly string[]; readonly length: number | null }[]
 }
 
 /** ARE-70: where the last step of a way out onto the common parts goes (`RouteStep.into`). */
@@ -268,8 +274,14 @@ interface RouteNode {
  * ARE-70: when no way out is reached, a way onto the building's common parts is the way out, as
  * the check reads a flat's front door onto its landing: the route says so (`onto`). `onlyCommon`
  * looks for that way out only, so a body's way (`wideRoute`) ends where the route it widens does.
+ *
+ * ARE-78: a way between two rooms on different floors goes up and down the same stairs, and by a
+ * lift shaft (lift rooms one over the other) only when no stair joins them. Each stair or lift
+ * off the floor it starts on is tried, and the shortest walked is the answer (`otherWays`).
  */
 export function routeBetween(survey: Survey, from: string, to: string, acrossFloors = true, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}, onlyCommon = false): Route | null {
+  const target = to === 'outside' ? undefined : survey.byId.get(to)
+  if (acrossFloors && target !== undefined && target.facts.floor !== survey.byId.get(from)!.facts.floor) return routeAcrossFloors(survey, from, to, ends)
   let common = false
   let first = onlyCommon ? null : routeSearch(survey, from, to, acrossFloors, null, ends, false)
   if (first === null && to === 'outside') {
@@ -292,17 +304,43 @@ export function routeBetween(survey: Survey, from: string, to: string, acrossFlo
   }
   if (routes.length === 0) return first
   // Measured ways first, shortest first; then the fewest rooms, then the doorway's id.
-  routes.sort((a, b) => {
-    if ((a.length === null) !== (b.length === null)) return a.length === null ? 1 : -1
-    if (a.length !== null && b.length !== null && Math.abs(a.length - b.length) > tolerance('noLength')) return a.length - b.length
-    return a.rooms.length - b.rooms.length || (a.steps.at(-1)!.via < b.steps.at(-1)!.via ? -1 : 1)
-  })
+  routes.sort(byWalked((r) => r.steps.at(-1)!.via))
   const [best, ...others] = routes
   return {
     ...best!,
     exit: best!.steps.at(-1)!.via,
     otherExits: others.map((r) => ({ via: r.steps.at(-1)!.via, type: r.steps.at(-1)!.type, rooms: r.rooms, length: r.length })),
   }
+}
+
+/** Measured ways first, shortest first; then the fewest rooms, then the id of the doorway or stair `last` names. */
+function byWalked(last: (r: Route) => string): (a: Route, b: Route) => number {
+  return (a, b) => {
+    if ((a.length === null) !== (b.length === null)) return a.length === null ? 1 : -1
+    if (a.length !== null && b.length !== null && Math.abs(a.length - b.length) > tolerance('noLength')) return a.length - b.length
+    return a.rooms.length - b.rooms.length || (last(a) < last(b) ? -1 : last(a) > last(b) ? 1 : 0)
+  }
+}
+
+/** ARE-78: the way between two rooms on different floors, by the stairs, else by the lifts too. */
+function routeAcrossFloors(survey: Survey, from: string, to: string, ends: { readonly start?: StartAt; readonly end?: EndAt }): Route | null {
+  const fromFloor = survey.byId.get(from)!.facts.floor
+  for (const lifts of [false, true]) {
+    const found = stairJoins(survey.plan, lifts)
+    const off = [...new Set(found.joins.filter((j) => j.lower.floor === fromFloor || j.upper.floor === fromFloor).map((j) => j.via))].sort()
+    const routes: { route: Route; via: string }[] = []
+    for (const via of off) {
+      const r = routeSearch(survey, from, to, true, null, ends, false, { found, onlyJoin: via, lifts })
+      if (r !== null) routes.push({ route: r, via })
+    }
+    if (routes.length === 0) continue
+    const leaves = new Map(routes.map((r) => [r.route, r.via] as const))
+    const sorted = routes.map((r) => r.route).sort(byWalked((r) => leaves.get(r)!))
+    const [best, ...others] = sorted
+    const kindOf = (via: string): RouteStep['type'] => (found.joins.find((j) => j.via === via)?.kind === 'lift' ? 'lift' : 'stair')
+    return { ...best!, otherWays: others.map((r) => ({ via: leaves.get(r)!, type: kindOf(leaves.get(r)!), rooms: r.rooms, length: r.length })) }
+  }
+  return null
 }
 
 /**
@@ -314,22 +352,27 @@ export function floorsNotChecked(survey: Survey): ReadonlySet<string> {
   return new Set(checkPlanSanity(survey.plan).notChecked.filter((n) => n.reason === 'no_stairs').map((n) => n.floor))
 }
 
-/** One search; `onlyExit` limits the way out to that doorway (ARE-21); `common`, the ways out are onto the common parts (ARE-70). */
-function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}, common = false): Route | null {
+/**
+ * One search; `onlyExit` limits the way out to that doorway (ARE-21); `common`, the ways out are
+ * onto the common parts (ARE-70). ARE-78: `across` is a way between rooms on different floors:
+ * its joins (with the lifts when `lifts`), and the one stair or lift it leaves its floor by.
+ */
+function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boolean, onlyExit: string | null, ends: { readonly start?: StartAt; readonly end?: EndAt } = {}, common = false, across: { readonly found: Joins; readonly onlyJoin: string; readonly lifts: boolean } | null = null): Route | null {
   const fromFloor = survey.byId.get(from)!.facts.floor
   const out = to === 'outside'
-  const floorsToo = out && acrossFloors
+  const toFloor = out ? fromFloor : (survey.byId.get(to)?.facts.floor ?? fromFloor)
+  const floorsToo = (out || across !== null) && acrossFloors
   const graphs = new Map<string, ReturnType<typeof wayGraph>>()
   const graphOf = (floor: string): ReturnType<typeof wayGraph> => {
     if (!graphs.has(floor)) graphs.set(floor, wayGraph(survey, floor))
     return graphs.get(floor)!
   }
-  const aboveGround = floorsToo ? groundLevel(survey.plan).aboveGround : (): boolean => false
-  const found: Joins = floorsToo ? stairJoins(survey.plan) : { joins: [], stairs: [] }
+  const aboveGround = out && floorsToo ? groundLevel(survey.plan).aboveGround : (): boolean => false
+  const found: Joins = across !== null ? across.found : floorsToo ? stairJoins(survey.plan) : { joins: [], stairs: [] }
   const joins = found.joins
   const key = (n: RouteNode): string => `${n.floor}\u0000${n.room}`
   const OUT_KEY = OUTSIDE
-  const goalKey = out ? OUT_KEY : key({ floor: fromFloor, room: to })
+  const goalKey = out ? OUT_KEY : key({ floor: toFloor, room: to })
 
   const back = new Map<string, { node: RouteNode; via: string; stair: boolean }>()
   const nodes = new Map<string, RouteNode>([[key({ floor: fromFloor, room: from }), { floor: fromFloor, room: from }]])
@@ -345,12 +388,14 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
         if (out && !aboveGround(at.floor) && (onlyExit === null || step.via === onlyExit)) onward.push({ node: null, via: step.via, stair: false })
         continue
       }
-      if (at.floor !== fromFloor && !out) continue
+      if (at.floor !== fromFloor && !floorsToo) continue
       onward.push({ node: { floor: at.floor, room: step.room }, via: step.via, stair: false })
     }
     // ARE-70: onto the common parts, on any floor: a flat's front door onto its landing.
     if (out && common) for (const step of graphOf(at.floor).common) if (step.room === at.room && (onlyExit === null || step.via === onlyExit)) onward.push({ node: null, via: step.via, stair: false })
     for (const join of joins) {
+      // ARE-78: off the floor it starts on only by the stair or lift asked for.
+      if (across !== null && at.floor === fromFloor && join.via !== across.onlyJoin) continue
       for (const [a, b] of [[join.lower, join.upper], [join.upper, join.lower]] as const) {
         if (a.floor === at.floor && a.room === at.room) onward.push({ node: b, via: join.via, stair: true })
       }
@@ -372,13 +417,14 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
   const floors: string[] = []
   const steps: RouteStep[] = []
   const stairWidth = new Map(found.stairs.map((s) => [s.id, s.width] as const))
+  const lift = new Set(found.joins.filter((j) => j.kind === 'lift').map((j) => j.via))
   for (let at = goalKey; at !== key({ floor: fromFloor, room: from });) {
     const prev = back.get(at)!
     const node = nodes.get(at)
     const opening = prev.stair ? undefined : graphOf(prev.node.floor).openings.get(prev.via)
     steps.unshift({
       via: prev.via,
-      type: prev.stair ? 'stair' : (opening?.type ?? 'open side'),
+      type: prev.stair ? (lift.has(prev.via) ? 'lift' : 'stair') : (opening?.type ?? 'open side'),
       width: prev.stair ? (stairWidth.get(prev.via) ?? null) : (opening?.width ?? null),
       into: node === undefined ? (common ? COMMON_PARTS : 'outside') : node.room,
     })
@@ -393,7 +439,7 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
 
   let narrowestPassage: Route['narrowestPassage'] = null
   for (const step of steps) {
-    if (step.type === 'stair') continue
+    if (step.type === 'stair' || step.type === 'lift') continue
     if (step.width !== null && (narrowestPassage === null || step.width < narrowestPassage.width)) narrowestPassage = { via: step.via, width: step.width }
   }
   let narrowestRoom: Route['narrowestRoom'] = null
@@ -403,7 +449,7 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
     const circle = 2 * poleOfInaccessibility(room.polygon, undefined, room.holes).distance
     if (narrowestRoom === null || circle < narrowestRoom.widestCircle) narrowestRoom = { room: id, widestCircle: circle }
   }
-  const passages = stairPassages(steps.filter((s) => s.type === 'stair').map((s) => s.via), found)
+  const passages = stairPassages(steps.filter((s) => s.type === 'stair' || s.type === 'lift').map((s) => s.via), found)
   const doorEnds = new Set(survey.plan.rooms.filter((r) => r.use === 'stair' || r.use === 'lift').map((r) => r.id))
   const walked = walkRoute(survey, rooms, steps.map((s) => s.via), out, passages, { ...ends, doorEnds })
   return {
@@ -426,8 +472,11 @@ function routeSearch(survey: Survey, from: string, to: string, acrossFloors: boo
 
 export type Joins = Pick<ReturnType<typeof floorJoins>, 'joins' | 'stairs'>
 
-/** The stairs between floors as the way-out check reads them: its outlines, a lift left out. ARE-63: the walk reads them too. */
-export function stairJoins(plan: FloorPlan): Joins {
+/**
+ * The stairs between floors as the way-out check reads them: its outlines, a lift left out. ARE-63:
+ * the walk reads them too. ARE-78: `lifts` keeps the lift shafts, for a way between two rooms.
+ */
+export function stairJoins(plan: FloorPlan, lifts = false): Joins {
   const outlines = new Map<string, Map<string, readonly Vec2[]>>()
   const leftOutOn = new Map<string, ReadonlySet<string>>()
   for (const floor of planFloors(plan)) {
@@ -437,7 +486,7 @@ export function stairJoins(plan: FloorPlan): Joins {
   }
   if (outlines.size < 2) return { joins: [], stairs: [] }
   const found = floorJoins(plan, outlines, (slice) => leftOutOn.get(wholePlan(slice).floor ?? '') ?? new Set())
-  return { joins: found.joins.filter((j) => j.kind !== 'lift'), stairs: found.stairs }
+  return { joins: lifts ? found.joins : found.joins.filter((j) => j.kind !== 'lift'), stairs: found.stairs }
 }
 
 /** Where each stair on a route is met in the rooms at its ends, and how long it is on plan. */

@@ -427,6 +427,12 @@ the file says that too.
   (`not said` when the plan states none), `Area`, and
   `AreaMeasure` and `AreaRule`, which name the measure and its rule: the net area as
   `grid_areas` measures it.
+- **Finishes** (CMD-55). A room's finishes are in `Pset_SpaceCommon` as `FloorCovering`,
+  `WallCovering`, `CeilingCovering` and `SkirtingBoard`, and all of them in Grid's own set
+  `Grid_Finishes`: `Floor`, `Walls`, `Ceiling`, `Skirting` (or `NoSkirting`), `Wall <wall id>`
+  for a wall's face finished on its own, and `Band <n> Finish`, `Height`, `From`, `Wall` and
+  `Behind` for each band. A ceiling covering is associated with its finish as its material. A
+  glazed wall and a glazed door's leaves are styled as glass, as a window's glass is.
 - **Another tool's identity** (CNT-59). A wall, door, window, opening, space or storey whose
   part keeps an `identity` is written with its GlobalId, Name and Tag in place of Grid's own
   ([what another tool calls a part](plan-file.md#what-another-tool-calls-a-part)).

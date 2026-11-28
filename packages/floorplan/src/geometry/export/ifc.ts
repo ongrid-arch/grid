@@ -33,7 +33,7 @@
 import type { Floor, FloorPlan, Opening, PlanIndex, Room, Wall, WallKind } from '../plan'
 import type { DoorType, OpeningKind, WallType, WindowKind, WindowType } from '../../types/floorplan'
 import { en as englishWords } from '../../messages/en'
-import { openingTypeOf, typeMaterial, wallTypeOf } from '../partTypes'
+import { openingGlazed, openingTypeOf, roomFinishes, roomHasNoSkirting, typeMaterial, wallGlazed, wallTypeOf } from '../partTypes'
 import { doorKindOf, statedKind } from '../openingKinds'
 import { openingParts } from '../openingParts'
 import { planFloors, planForFloor } from '../floors'
@@ -979,7 +979,10 @@ function writeWall(c: Context, storey: Storey, wall: Wall, ends: WallEnds | unde
     }
   }
   const swept = extrusion(c, profile, peak)
-  const body = cuts.length === 0 ? bodyRepresentation(c, swept) : bodyRepresentation(c, clipped(c, swept, cuts), 'Clipping')
+  const solid = cuts.length === 0 ? swept : clipped(c, swept, cuts)
+  // CMD-55: a glazed wall (a curtain wall, a glass partition) is seen through.
+  if (wallGlazed(c.plan, wall)) glazed(c, solid)
+  const body = cuts.length === 0 ? bodyRepresentation(c, solid) : bodyRepresentation(c, solid, 'Clipping')
   const shape = productShape(c, [axisRepresentation, body])
 
   const id = w.add(
@@ -1040,7 +1043,10 @@ function writeCurvedWall(c: Context, storey: Storey, wall: Wall, curve: WallCurv
     ? { outline: counterClockwise(ring(half)), holes: [[...counterClockwise(ring(-half))].reverse()] }
     : { outline: counterClockwise(wallPolygon(wall, ends)), holes: [] }
   const profile = footprintProfile(c, footprint)
-  const body = bodyRepresentation(c, extrusion(c, profile, wall.height))
+  const solid = extrusion(c, profile, wall.height)
+  // CMD-55: a glazed wall is seen through.
+  if (wallGlazed(c.plan, wall)) glazed(c, solid)
+  const body = bodyRepresentation(c, solid)
   const shape = productShape(c, [axisRepresentation, body])
 
   const id = w.add('IFCWALLSTANDARDCASE', str(partGuid(c, 'walls', 'wall', wall.id)), ref(c.owner), str(wall.identity?.name ?? wall.id), NULL, NULL, ref(wallPlacement), ref(shape), wall.identity?.tag === undefined ? NULL : str(wall.identity.tag))
@@ -1506,12 +1512,14 @@ function writeOpening(c: Context, element: WallElement, opening: Opening): numbe
   // the filler. CNT-18: on a curved wall the filler spans the chord, so the parts' places along
   // the curve are drawn in to it.
   const along = width / opening.width
+  // CMD-55: a glazed door's leaves are glass, as the 3D view draws them.
+  const glassLeaves = opening.type === 'door' && openingGlazed(c.plan, opening)
   const solids = openingParts(opening, wall).map((part) => {
     const x0 = (part.along[0] - opening.offset) * along
     const x1 = (part.along[1] - opening.offset) * along
     const [cx, cy] = turned ? [width - (x0 + x1) / 2, -(part.across[0] + part.across[1]) / 2] : [(x0 + x1) / 2, (part.across[0] + part.across[1]) / 2]
     const solid = boxSolid(c, [cx, cy], [x1 - x0, part.across[1] - part.across[0]], part.up[0] - opening.sill, part.up[1] - part.up[0])
-    if (part.part === 'glass') glazed(c, solid)
+    if (part.part === 'glass' || (glassLeaves && part.part === 'leaf')) glazed(c, solid)
     return solid
   })
   const fillerShape = productShape(c, [bodyRepresentation(c, solids)])
@@ -1648,11 +1656,19 @@ function writeSpaceData(
 
   // CNT-7 (C26): an outdoor space says so, its kind and whether a roof covers it (lab EL-18).
   const kind = outdoorKind(room)
+  // CMD-55: the finishes it names, in the coverings the set has for them.
+  const finishes = roomFinishes(room)
+  const covering = (name: string, finish: string | null): number[] => (finish === null ? [] : [property(c, name, label(finish))])
   propertySet(c, `space:${room.id}`, 'Pset_SpaceCommon', [
     ...(numbered === undefined ? [] : [property(c, 'Reference', identifier(shownRoomNumber(numbered)))]),
     ...(room.use === undefined ? [] : [property(c, 'Category', label(room.use))]),
-    ...(kind === null ? [] : [property(c, 'IsExternal', booleanValue(true))])
+    ...(kind === null ? [] : [property(c, 'IsExternal', booleanValue(true))]),
+    ...covering('FloorCovering', finishes.floor),
+    ...covering('WallCovering', finishes.walls),
+    ...covering('CeilingCovering', finishes.ceiling),
+    ...covering('SkirtingBoard', finishes.skirting)
   ], space)
+  writeSpaceFinishes(c, room, space)
 
   propertySet(c, `grid-space:${room.id}`, 'Grid_Space', [
     property(c, 'Id', identifier(room.id)),
@@ -1677,6 +1693,40 @@ function writeSpaceData(
     ['AREA', 'GrossFloorArea', gross, FOOTPRINT_RULE],
     ...(net === null ? [] : [['AREA', 'NetFloorArea', net, rule.measures] as const]),
     body.cut ? ['VOLUME', 'GrossVolume', body.volume, 'Under the roof: the space as written, cut to its slopes.'] : ['VOLUME', 'GrossVolume', body.volume]
+  ], space)
+}
+
+/** CMD-55: the name of the property set that holds a space's finishes, every one the plan names. */
+export const IFC_FINISHES_SET = 'Grid_Finishes'
+
+/**
+ * CMD-55: a room's finishes as the plan names them, in `Grid_Finishes`: `Floor`, `Walls`, `Ceiling`
+ * and `Skirting` (or `NoSkirting`), `Wall <wall id>` for each wall's face finished on its own, and
+ * for each band (numbered from 1) its `Band <n> Finish`, `Height`, `From` and the `Wall` or the
+ * item it is `Behind`. Nothing for a room that names none. The set's name is Grid's own.
+ */
+function writeSpaceFinishes(c: Context, room: Room, space: number): void {
+  const finishes = roomFinishes(room)
+  const named = (name: string, finish: string | null): number[] => (finish === null ? [] : [property(c, name, label(finish))])
+  const length = (value: number): string => `IFCPOSITIVELENGTHMEASURE(${real(value)})`
+  const bands = (room.finishes?.bands ?? []).flatMap((band, k) => {
+    const at = `Band ${k + 1}`
+    return [
+      property(c, `${at} Finish`, label(band.finish)),
+      property(c, `${at} Height`, length(band.height)),
+      ...(band.from === undefined ? [] : [property(c, `${at} From`, `IFCLENGTHMEASURE(${real(band.from)})`)]),
+      ...(band.wall === undefined ? [] : [property(c, `${at} Wall`, identifier(band.wall))]),
+      ...(band.behind === undefined ? [] : [property(c, `${at} Behind`, identifier(band.behind))])
+    ]
+  })
+  propertySet(c, `finishes:${room.id}`, IFC_FINISHES_SET, [
+    ...named('Floor', finishes.floor),
+    ...named('Walls', finishes.walls),
+    ...named('Ceiling', finishes.ceiling),
+    ...named('Skirting', finishes.skirting),
+    ...(roomHasNoSkirting(room) ? [property(c, 'NoSkirting', booleanValue(true))] : []),
+    ...(room.finishes?.faces ?? []).map((face) => property(c, `Wall ${face.wall}`, label(face.finish))),
+    ...bands
   ], space)
 }
 
@@ -2110,6 +2160,9 @@ function writeSlabs(building: Context, plan: FloorPlan, storeys: readonly Storey
         }
         if (coverings.length === 0) continue
         contained.push(...coverings)
+        // CMD-55: a ceiling is made of its finish, when the room names one.
+        const finish = roomFinishes(room).ceiling
+        if (finish !== null) relate(c, 'IFCRELASSOCIATESMATERIAL', `ceiling-finish:${room.id}`, refs(coverings), ref(materialNamed(c, finish)))
         const space = storey.spaces.get(room.id)
         if (space !== undefined) relate(c, 'IFCRELCOVERSSPACES', `ceiling:${room.id}`, ref(space), refs(coverings))
       } catch {
