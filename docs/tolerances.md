@@ -73,6 +73,8 @@ is not asked whether it was typed in feet.
 | `roomsCurveJoint` | tolerance | 0.001 m | Two pieces of a curve written rooms first whose ends are closer than this meet and are one curved wall; a wall ending this near a joint of the curve ends on the curve |
 | `curveSweep` | tolerance | 0.001 radian | Two curved sides of a room whose turns round their centre differ by less than this turn through the same angle, so a room between them is a curved band; a curved side this near a whole turn goes all the way round (CMD-49) |
 | `roomsCurveArea` | tolerance | 0.001 ratio | The share of a curved room's true area the area measured from its walls may differ by before the rooms-first answer says so |
+| `bayCantAngle` | limit | 45 degree | The angle a canted bay window's two cheeks turn from the side of the room they stand out of, when its rooms text line states none (WRT-88) |
+| `bayWindowPier` | limit | 0.1 m | The wall a bay window line leaves at each end of each of its windows, on a facet or between windows along a curve, when it states no window width (WRT-88) |
 | `roomsFaceSkew` | tolerance | 0.02 m | Faces of rooms written rooms first that run the opposite way and whose distance apart changes by no more than this along the shorter face each other, as on an angled side written to the centimetre |
 | `roomsFaceTurn` | tolerance | 0.0872 sine | Faces of rooms written rooms first that run the opposite way within about 5 degrees of parallel, and no further apart than a wall at both ends of what they share, are one wall's two faces, drawn along their middle line (WRT-56) |
 | `roomsFaceStep` | tolerance | 0.002 m | Faces of rooms written rooms first further out of line than this are named as sizes that do not add up |
@@ -128,6 +130,7 @@ is not asked whether it was typed in feet.
 | `useClearSpace` | limit | 0.6 m | Grid's own size, not a code figure: Grid's own indicator for the clear floor in front of and beside a fixture, when the person gives none |
 | `useRaster` | tolerance | 0.02 m | The step of the grid the way through a room is measured on: the widest body is found to within about this |
 | `useRasterCells` | limit | 250000 count | The most points one room's way through is measured on; a bigger room is measured on a coarser grid, and the answer says the step |
+| `farthestPointStep` | tolerance | 0.25 m | The step along each side of a room's outline, between its corners, at which the walk to the nearest way is measured when the room's farthest point is sought: the farthest point is found to within about this much |
 | `corridorRasterAcross` | limit | 24 count | The steps of the grid across a corridor's widest circle when its narrowest point is found, never finer than `useRaster`; the width there is taken from the walls themselves (ARE-25) |
 | `corridorEndTurn` | tolerance | 0.5236 radian | A side of a corridor is one of its ends when the outline turns into the corridor by at least this (30 degrees) at both its corners; a jog and the pieces of a curve never are |
 | `sameFloorLevel` | tolerance | 0.005 m | Rooms side by side whose floors stand closer than this in height share a level, and no step is drawn between them; so do floors that state their elevations, and neither is set against the other as a floor below it (LVL-11) |

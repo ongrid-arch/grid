@@ -242,7 +242,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-78: one fewer, the refusal of a route between floors.
   // VEW-85: one more, grid_view's with_site.
   // VEW-87: twelve more, grid_view's format, width, scale and aspect, their refusals and the svg line.
-  'packages/cli/src/mcp/readTools.ts': [425, 'tools'],
+  // SHT-27: one more, grid_view's line for the access marks.
+  // ARE-81: six more, a route from a point or a farthest point: floor, start and their refusals.
+  'packages/cli/src/mcp/readTools.ts': [432, 'tools'],
   // VEW-85: grid_view kind=site's answer.
   // VEW-88: one fewer, the street edges' line now names each street.
   'packages/cli/src/mcp/siteAnswer.ts': [21, 'tools'],
@@ -279,7 +281,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // WRT-79: nine more, the roofs and columns topics and the plinth line.
   // WRT-81: eight more, the phases topic.
   // LVL-29: one more, the brise-soleil line in the roofs example.
-  'packages/cli/src/mcp/roomsGrammar.ts': [126, 'tools'],
+  'packages/cli/src/mcp/roomsGrammar.ts': [127, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
@@ -347,7 +349,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-82: three more, grid_export's glb for a game engine and its doors and walls.
   // VEW-83: nine more, grid_export's tables: what, units, decimal, their refusals and the answer.
   // CMD-54: three more, grid_write_rooms's dry_run, its description and its refusal.
-  'packages/cli/src/mcp/writeTools.ts': [183, 'tools'],
+  // SHT-27: one more, grid_sheet's layout access.
+  'packages/cli/src/mcp/writeTools.ts': [184, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
@@ -460,7 +463,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // MSG-36: four more, what the limits of a note said once decide.
   // VEW-87: three more, what the limits of a view's size decide.
   // LVL-29: four more, what the roof overhang, roof part and brise-soleil figures decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [446, 'developer'],
+  // ARE-81: three more, what the step along a room's sides for its farthest point decides.
+  // WRT-88: two more, what a bay window's figures decide when its line states none.
+  'packages/floorplan/src/geometry/tolerances.ts': [451, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -706,6 +711,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and MSG-36 4: what the limits of a note said once decide (geometry/tolerances.ts 4) (odd/tasks/MSG-36.md).
     // and VEW-88 13: the streets' names in rooms text (rooms/site.ts 3), the schema (types/floorplan.ts 2) and
     // their receipts and refusals (edit/site.ts 8), within the ceiling (odd/tasks/VEW-88.md).
+    // and WRT-88 3: what a bay window's cheek angle and pier decide (geometry/tolerances.ts 2) and its line in the
+    // grammar (mcp/roomsGrammar.ts 1) (odd/tasks/WRT-88.md).
     expect(left).toBeLessThanOrEqual(2805)
   })
 

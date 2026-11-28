@@ -180,6 +180,21 @@ function clearRuns(length: number, covers: readonly { from: number; to: number }
   return runs
 }
 
+/**
+ * WRT-88: the clear runs of each of one floor's `walls`, the stretches along it that no other
+ * wall meeting it stands across, as this check measures them, by wall id. Rooms text fits a bay
+ * window into the run of its facet with them, so the check finds nothing to say about it.
+ */
+export function wallClearRuns(walls: readonly Wall[]): Map<string, { from: number; to: number }[]> {
+  const covers = coversOf(walls)
+  const runs = new Map<string, { from: number; to: number }[]>()
+  for (const wall of walls) {
+    const course = courseOf(wall)
+    if (course !== null) runs.set(wall.id, clearRuns(course.length, covers.get(wall.id) ?? []))
+  }
+  return runs
+}
+
 /** What to say about where an opening of `width` fits on its wall, clear of `covers`. */
 function whereItFits(length: number, covers: readonly Cover[], width: number, middle: number): Said {
   const fits = clearRuns(length, covers).filter((run) => run.to - run.from >= width)

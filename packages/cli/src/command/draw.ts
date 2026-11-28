@@ -28,6 +28,7 @@ import type { SectionLine } from '@ongrid/floorplan/geometry/section'
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
 import { marksAsked, readMarks, readSectionOption, towardOf } from './section'
 import { withScheduleMarks } from '../quantities/schedule'
+import { withAccessMarks } from '../quantities/accessMarks'
 import type { Project } from '../fs/projectFiles'
 import { readTrace } from '../trace/traceImage'
 
@@ -50,7 +51,7 @@ export const DRAW_OPTIONS: OptionSpecs = {
   ...LANG_OPTION,
   '--section': { takesValue: true, help: 'Draw a section instead of a floor plan: the line to cut along, x1,y1:x2,y2 in metres, through every floor, with its levels and room heights, and what it takes that the plan does not state dashed and listed. Not with --3d, --view or --facade.' },
   '--toward': { takesValue: true, help: 'With --section: the side of the line the section looks toward, walking from its first point to its second: left (the default) or right.' },
-  '--marks': { takesValue: true, help: 'Marks to add to a floor plan, joined by commas: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of --section and the way it looks, on the plan, instead of drawing the section), schedule (each room\'s and opening\'s mark in the schedules: the room\'s number, D1, W1, O1). Not with --3d, --view or --facade.' },
+  '--marks': { takesValue: true, help: 'Marks to add to a floor plan, joined by commas: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of --section and the way it looks, on the plan, instead of drawing the section), schedule (each room\'s and opening\'s mark in the schedules: the room\'s number, D1, W1, O1), access, for what grid_measure what=access measures (each way in and route marked, each room\'s turning circle, each door\'s clear width and sill, each step, a number short of your own figure saying so). Not with --3d, --view or --facade.' },
   // VEW-85: the site plan, and the site faint under a floor.
   '--site': { takesValue: false, help: 'Draw the site plan instead of a floor plan: the plot, every building in solid fill with its name, storeys and height, the site\'s things with their labels, the set-back lines, the street edges, a scale bar and north. Takes --look, --png, --scale, --units, --decimal and --out.' },
   '--with-site': { takesValue: false, help: 'Draw the site faint under the floor plan, framed with it: the plot, its things, the set-back lines and every building\'s footprint.' },
@@ -106,6 +107,8 @@ export interface SectionAsked {
   readonly section: SectionLine | null
   /** The marks on a floor plan, when any are asked for. */
   readonly marks: DrawingMarksAsked | null
+  /** SHT-27: the access marks are asked for, added once the plan and its brief are read. */
+  readonly access: boolean
   /** ARE-15: the schedules' marks are asked for, added once the plan is read. */
   readonly schedule: boolean
   /** VEW-89: a section's dimension chains are left off (`--hide dimensions`). */
@@ -164,9 +167,9 @@ export function sectionAsked(request: DrawRequest): SectionAsked {
     for (const [given, flag] of [[request.floor, '--floor'], [noChains ? undefined : request.hide, '--hide'], [request.colour, '--colour'], [request.key || undefined, '--key'], [request.ids || undefined, '--ids'], [request.units, '--units'], [request.decimal, '--decimal']] as const) {
       if (given !== undefined) throw new UsageError(`${flag} is for a floor plan; a section cuts every floor and writes its levels in metres: leave ${flag} or --section out.`)
     }
-    return { section: line, marks: null, schedule: false, ...(noChains ? { noChains: true as const } : {}) }
+    return { section: line, marks: null, schedule: false, access: false, ...(noChains ? { noChains: true as const } : {}) }
   }
-  return { section: null, marks: words === null ? null : marksAsked(words, line), schedule: words?.has('schedule') === true }
+  return { section: null, marks: words === null ? null : marksAsked(words, line), schedule: words?.has('schedule') === true, access: words?.has('access') === true }
 }
 
 /** Checks the options against each other, before the plan is read. */
@@ -303,7 +306,7 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
     return { file: await drawStill(loaded.plan, { focus: floor ?? null, scale, ...(language === 'en' ? {} : { language }) }), undecidedDoors: [] }
   }
   const display = request.units === undefined && request.decimal === undefined && asked === undefined ? undefined : displayFor(request.units, request.decimal, loaded.plan, language)
-  const labels = { ...(request.ids || display ? { labels: { ...(request.ids ? { ids: true } : {}), ...(display ? { display } : {}) } } : {}), ...drawShowOf(request), ...(drawing.marks === null ? {} : { marks: drawing.schedule ? withScheduleMarks(drawing.marks, loaded.plan) : drawing.marks }) }
+  const labels = { ...(request.ids || display ? { labels: { ...(request.ids ? { ids: true } : {}), ...(display ? { display } : {}) } } : {}), ...drawShowOf(request), ...(drawing.marks === null ? {} : { marks: markedFor(drawing, loaded, read.file, language, project) }) }
   // What went wrong, numbered as `grid check` numbers it, marked on the drawing (MSG-8).
   // VEW-15: from the file's text and its base, as `grid check` reads them, so the fields the reading adds are no notes.
   const faults = inspectPlan(loaded.text ?? loaded.plan, { ...(language === 'en' ? {} : { language, ...(loaded.plan.display?.decimal ? { decimal: loaded.plan.display.decimal } : {}) }), ...(loaded.base === undefined ? {} : { base: loaded.base.plan }) }).lines
@@ -323,6 +326,12 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
     : undefined
   const picture = planPicture(loaded.plan, { floor, look, faults, ...labels, ...site, ...(trace?.picture ? { trace: trace.picture } : {}), ...(frame ? { frame } : {}) })
   return { ...await render(picture, 'plan'), undecidedDoors: picture.undecidedDoors, traceNote: trace?.line ?? null }
+}
+
+/** ARE-15 and SHT-27: the marks asked for, with the schedules' and the access measurements' added from the plan read. */
+function markedFor(drawing: SectionAsked, loaded: LoadedPlan, planFile: string, language: string, project: Project | undefined): DrawingMarksAsked {
+  const marks = drawing.schedule ? withScheduleMarks(drawing.marks!, loaded.plan) : drawing.marks!
+  return drawing.access ? withAccessMarks(marks, project, planFile, loaded.plan, language) : marks
 }
 
 /** The line `grid draw` prints on standard error for doors drawn as undecided, or `null`. */

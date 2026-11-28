@@ -97,7 +97,7 @@ describe('grid_view kind=plan with marks', () => {
     await expect(call({ kind: 'plan', cut: THROUGH_STAIR })).rejects.toThrow('kind=plan takes cut and toward only with marks section')
     await expect(call({ kind: 'plan', marks: ['section'] })).rejects.toThrow('marks section draws the line of a section on the plan: pass cut with the line.')
     await expect(call({ kind: 'plan', marks: ['levels', 'levels'] })).rejects.toThrow('marks names levels twice.')
-    await expect(call({ kind: 'plan', marks: ['north'] })).rejects.toThrow('each item of marks takes one of levels, elevations, section, schedule.')
+    await expect(call({ kind: 'plan', marks: ['north'] })).rejects.toThrow('each item of marks takes one of levels, elevations, section, schedule, access.')
     await expect(call({ kind: '3d', marks: ['levels'] })).rejects.toThrow('kind=3d takes floor, from, bearing, tilt, distance, eye_height, lens, room, camera, view, turn, tilt_by, roof, fit, sun, not marks.')
   })
 

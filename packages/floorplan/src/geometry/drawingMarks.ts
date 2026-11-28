@@ -15,6 +15,11 @@
  *   caller gives them by id (the room's number, `D1`, `W1`): a room's at its label point, an
  *   opening's on the face of its wall away from a door's swing, or on a window's room side, so it
  *   is beside the part and clear of its symbol. A part the caller gives no mark has none.
+ * - **An access mark** (SHT-27) is what the access measurements found, as the caller measured it
+ *   and gives it by part id with its label: each way as a line through the rooms and the doors on
+ *   it, each room's turning circle at its place and size, each door's label on the face of its
+ *   wall away from its schedule mark, and each step at the door or opening it is at. Only what is
+ *   on the floor drawn is placed; a way that leaves the floor is drawn in the pieces on it.
  *
  * Pure: where each mark is, in plan metres. How a mark looks is the viewer's.
  */
@@ -88,6 +93,26 @@ export interface ScheduleMarkLabels {
   readonly openings: ReadonlyMap<string, string>
 }
 
+/** SHT-27: the access measurements to mark, by part id, each with its words, as the caller measured them. */
+export interface AccessMarkLabels {
+  /** Each way: its rooms and the doors or openings between them, in walking order, by id. */
+  readonly routes: readonly { readonly to: string; readonly stops: readonly string[] }[]
+  readonly turning: readonly { readonly room: string; readonly at: Vec2; readonly diameter: number; readonly label: string; readonly short: boolean }[]
+  readonly doors: readonly { readonly id: string; readonly label: string; readonly short: boolean }[]
+  /** Each step, by the door or opening it is at. */
+  readonly steps: readonly { readonly at: string; readonly label: string; readonly short: boolean }[]
+}
+
+/** SHT-27: the access marks of one floor's drawing, placed. `short` is under (a step: over) the person's own figure. */
+export interface AccessMarks {
+  /** Each run of a way on this floor, as points through its rooms' label points and its doors' middles. */
+  readonly routes: readonly { readonly to: string; readonly points: readonly Vec2[] }[]
+  readonly turning: readonly { readonly room: string; readonly at: Vec2; readonly radius: number; readonly label: string; readonly short: boolean }[]
+  /** A door's label stands at `at`, on the face of its wall `out` points from. */
+  readonly doors: readonly { readonly id: string; readonly at: Vec2; readonly out: Vec2; readonly label: string; readonly short: boolean }[]
+  readonly steps: readonly { readonly id: string; readonly at: Vec2; readonly out: Vec2; readonly label: string; readonly short: boolean }[]
+}
+
 export interface DrawingMarks {
   readonly section: SectionMark | null
   /** SHT-23: further sections, each with its own name, as a sheet marks them. Empty when none is asked for. */
@@ -96,6 +121,8 @@ export interface DrawingMarks {
   readonly levels: readonly LevelMark[]
   /** ARE-15: one per drawn room and opening the schedules give a mark. */
   readonly schedule: readonly ScheduleMark[]
+  /** SHT-27: null when the access marks are not asked for. */
+  readonly access: AccessMarks | null
 }
 
 /** SHT-23: a section line with the name the section is drawn under. */
@@ -112,6 +139,8 @@ export interface DrawingMarksAsked {
   readonly levels?: boolean
   /** ARE-15: the schedules' marks, by part id. */
   readonly schedule?: ScheduleMarkLabels | null
+  /** SHT-27: the access measurements, by part id. */
+  readonly access?: AccessMarkLabels | null
 }
 
 /**
@@ -151,7 +180,59 @@ export function drawingMarks(plan: FloorPlan, floor: string, drawing: PlanDrawin
     }
   }
 
-  return { section, sections, elevations, levels, schedule: asked.schedule == null ? [] : scheduleMarks(drawing, asked.schedule) }
+  return {
+    section, sections, elevations, levels,
+    schedule: asked.schedule == null ? [] : scheduleMarks(drawing, asked.schedule),
+    access: asked.access == null ? null : accessMarks(drawing, asked.access),
+  }
+}
+
+/**
+ * SHT-27: the access marks on the drawn floor. A way's stops are placed at a room's label point
+ * and an opening's middle; a stop not on this floor breaks the way into the runs that are. A
+ * door's and a step's label stand on the face away from the schedule mark's (`markSide`).
+ */
+function accessMarks(drawing: PlanDrawing, labels: AccessMarkLabels): AccessMarks {
+  const roomAt = new Map(drawing.rooms.map((room) => [room.id, room.labelAt] as const))
+  const openings = new Map(drawing.openings.map((opening) => [opening.id, opening] as const))
+  const middleOf = (opening: PlanDrawing['openings'][number]): Vec2 => scale(add(opening.from, opening.to), 0.5)
+  const pointOf = (id: string): Vec2 | undefined => {
+    const opening = openings.get(id)
+    return opening === undefined ? roomAt.get(id) : middleOf(opening)
+  }
+  const routes: { to: string; points: Vec2[] }[] = []
+  for (const route of labels.routes) {
+    let run: Vec2[] = []
+    const close = (): void => {
+      if (run.length >= 2) routes.push({ to: route.to, points: run })
+      run = []
+    }
+    for (const stop of route.stops) {
+      const p = pointOf(stop)
+      if (p === undefined) close()
+      else run.push(p)
+    }
+    close()
+  }
+  const placed = (id: string): { at: Vec2; out: Vec2 } | null => {
+    const opening = openings.get(id)
+    if (opening === undefined) return null
+    const middle = middleOf(opening)
+    const out = scale(markSide(drawing, opening, middle), -1)
+    return { at: add(middle, scale(out, opening.thickness / 2)), out }
+  }
+  const doors: AccessMarks['doors'][number][] = []
+  for (const door of labels.doors) {
+    const at = placed(door.id)
+    if (at !== null && !doors.some((d) => d.id === door.id)) doors.push({ id: door.id, ...at, label: door.label, short: door.short })
+  }
+  const steps: AccessMarks['steps'][number][] = []
+  for (const step of labels.steps) {
+    const at = placed(step.at)
+    if (at !== null && !steps.some((s) => s.id === step.at && s.label === step.label)) steps.push({ id: step.at, ...at, label: step.label, short: step.short })
+  }
+  const turning = labels.turning.filter((t) => roomAt.has(t.room)).map((t) => ({ room: t.room, at: t.at, radius: t.diameter / 2, label: t.label, short: t.short }))
+  return { routes, turning, doors, steps }
 }
 
 /** ARE-15: each drawn room's and opening's mark, in the drawing's order. */

@@ -460,6 +460,20 @@ export const TOLERANCES = {
       'where a curve meets a wall at a slant its end runs on to that wall\'s middle line.',
     basis: own
   },
+  bayCantAngle: {
+    kind: 'limit',
+    value: 45,
+    unit: 'degree',
+    decides: 'The angle a canted bay window\'s two cheeks turn from the side of the room they stand out of, when its rooms text line states none (WRT-88).',
+    basis: own
+  },
+  bayWindowPier: {
+    kind: 'limit',
+    value: 0.1,
+    unit: 'm',
+    decides: 'The wall a bay window line leaves at each end of each of its windows, on a facet or between windows along a curve, when it states no window width (WRT-88).',
+    basis: own
+  },
   roomsFaceSkew: {
     kind: 'tolerance',
     value: 0.02,
@@ -982,6 +996,17 @@ export const TOLERANCES = {
     decides:
       'The most points the way through one room is measured on. A room that would take more is ' +
       'measured on a coarser grid, and the answer gives the step it used.',
+    basis: own
+  },
+  // ARE-81: the farthest point of a room from where a route ends.
+  farthestPointStep: {
+    kind: 'tolerance',
+    value: 0.25,
+    unit: 'm',
+    decides:
+      'The step along each side of a room\'s outline, between its corners, at which the walk to ' +
+      'the nearest way is measured when the room\'s farthest point is sought: the farthest point ' +
+      'is found to within about this much.',
     basis: own
   },
   // ARE-25: a corridor's width from end to end.
