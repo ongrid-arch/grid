@@ -1301,7 +1301,35 @@ export const TOLERANCES = {
     value: 0.3,
     unit: 'm',
     decides:
-      'How far a pitched roof is drawn past its outside walls in elevation (VEW-71). The plan holds no overhang dimension.',
+      'How far a pitched roof is drawn past its outside walls in elevation (VEW-71) when the roof states no overhang (LVL-29).',
+    basis: own
+  },
+  roofOverhangLargest: {
+    kind: 'limit',
+    value: 3,
+    unit: 'm',
+    decides: 'The largest overhang a roof line takes on a side, past the walls (LVL-29). Past it the figure is refused: a roof that far out is a canopy or a floor of its own.',
+    basis: own
+  },
+  roofPartDepthLargest: {
+    kind: 'limit',
+    value: 6,
+    unit: 'm',
+    decides: 'The deepest canopy or brise-soleil a roof line takes, out from its side (LVL-29). Past it the figure is refused: so deep a roof is a roofed outdoor space.',
+    basis: own
+  },
+  briseSoleilBladeSpacing: {
+    kind: 'limit',
+    value: 0.3,
+    unit: 'm',
+    decides: 'How far apart a brise-soleil that states no number of blades has its blades, across its depth (LVL-29).',
+    basis: own
+  },
+  briseSoleilBladeWidth: {
+    kind: 'limit',
+    value: 0.08,
+    unit: 'm',
+    decides: 'How wide each blade of a brise-soleil is drawn, across its depth (LVL-29). The plan holds no blade size.',
     basis: own
   },
   facadeSameDepth: {

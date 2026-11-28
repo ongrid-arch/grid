@@ -147,6 +147,37 @@ describe('grid_set roof (WRT-79)', () => {
   })
 })
 
+describe('grid_set roof overhang and roofPart (LVL-29)', () => {
+  it('sets an overhang in the roof words, and adds and replaces a canopy by its id', async () => {
+    const roofed = await b.call('grid_set', { plan: 'office.json', out: 'eaves.json', parts: ['first'], roof: 'hip pitch 30 eaves 2.7 overhang 0.6', roofPart: 'canopy entrance south depth 1.2 height 2.4 width 3' })
+    expect(roofed.isError, roofed.text).toBe(false)
+    expect(onDisk('eaves.json').floors!.find((f) => f.id === 'first')!.roof).toEqual({
+      shape: 'hip',
+      eaves: 2.7,
+      pitch: 30,
+      overhang: 0.6,
+      parts: [{ id: 'entrance', kind: 'canopy', side: 'south', depth: 1.2, height: 2.4, width: 3 }],
+    })
+    const again = await b.call('grid_set', { plan: 'eaves.json', out: 'shade.json', parts: ['first'], roofPart: 'canopy entrance south depth 2 height 2.4' })
+    expect(again.isError, again.text).toBe(false)
+    const shaded = await b.call('grid_set', { plan: 'shade.json', out: 'shade.json', parts: ['first'], roofPart: 'brise-soleil fins west depth 0.8 height 2.6 blades 5' })
+    expect(shaded.isError, shaded.text).toBe(false)
+    const roof = onDisk('shade.json').floors!.find((f) => f.id === 'first')!.roof!
+    expect(roof.overhang).toBe(0.6)
+    expect(roof.parts).toEqual([
+      { id: 'entrance', kind: 'canopy', side: 'south', depth: 2, height: 2.4 },
+      { id: 'fins', kind: 'brise-soleil', side: 'west', depth: 0.8, height: 2.6, blades: 5 },
+    ])
+  })
+
+  it('refuses a part on a floor with no roof, on two floors, with bad words, and an overhang too far out', async () => {
+    expect(await refusedRoof({ parts: ['first'], roofPart: 'canopy c south depth 1 height 2.4' })).toMatch(/roofPart: floor first has no roof to hold it/)
+    expect(await refusedRoof({ parts: ['first', 'ground'], roof: 'flat eaves 3', roofPart: 'canopy c south depth 1 height 2.4' })).toMatch(/roofPart: name one floor in parts/)
+    expect(await refusedRoof({ parts: ['first'], roof: 'flat eaves 3', roofPart: 'canopy c up depth 1 height 2.4' })).toMatch(/roofPart: a canopy stands out from one side/)
+    expect(await refusedRoof({ parts: ['first'], roof: 'flat eaves 3 overhang 4' })).toMatch(/roof: 'overhang' takes metres past the walls, from 0 to 3/)
+  })
+})
+
 async function refusedRoof(args: Record<string, unknown>): Promise<string> {
   const reply = await b.call('grid_set', { plan: 'office.json', out: 'refused.json', ...args })
   expect(reply.isError, reply.text).toBe(true)

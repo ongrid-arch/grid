@@ -617,6 +617,8 @@ export const CODES = {
   'floor/dormers-not-drawn': {},
   // LVL-20: a dormer with no place on one slope of its roof.
   'floor/dormer-misplaced': {},
+  // LVL-29: a canopy or a brise-soleil with no outside wall on its side.
+  'floor/roof-part-misplaced': {},
   'floor/size-question': {},
   'floor/spaces-unknown': {},
   'floor/overlaps-unknown': {},

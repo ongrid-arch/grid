@@ -596,6 +596,44 @@ export const DormerSchema = z.object({
   pitch: finite().gt(0).lt(90).optional(),
 })
 
+/** LVL-29: the parts a roof may have on its sides: a level slab, or a row of blades. */
+export const ROOF_PART_KINDS = ['canopy', 'brise-soleil'] as const
+
+/**
+ * LVL-29: how far a roof runs past its walls, in metres on plan: one figure all round, or one per
+ * side of the roof's rectangle (north, east, south, west, as the roof frame turns them); a side
+ * left out has none. Measured from the outline (the walls' outside faces); the roof's planes carry
+ * on over it, so a pitched roof's eaves are lower at the overhang's edge than on the walls.
+ */
+export const RoofOverhangSchema = z.union([
+  finite().nonnegative(),
+  z.object({
+    north: finite().nonnegative().optional(),
+    east: finite().nonnegative().optional(),
+    south: finite().nonnegative().optional(),
+    west: finite().nonnegative().optional(),
+  }),
+])
+
+/**
+ * LVL-29: a part of the roof standing out from one side of the building: a `canopy`, a level slab,
+ * or a `brise-soleil`, a row of `blades` parallel to the side across its depth. `depth` is metres
+ * out from the outline on that side; `height` metres above the floor's level to its underside;
+ * `width` metres along the side (unstated, the whole side), round `at`, a point on the plan whose
+ * place along the side is read (unstated, the side's middle). Its back edge stands on the outline's
+ * furthest edge within its width.
+ */
+export const RoofPartSchema = z.object({
+  id: text('id').pipe(z.string().min(1)),
+  kind: z.enum(ROOF_PART_KINDS),
+  side: z.enum(COMPASS_SIDES),
+  depth: finite().positive(),
+  height: finite().positive(),
+  width: finite().positive().optional(),
+  at: Vec2.optional(),
+  blades: z.number().int().positive().max(PARTS_MAX).optional(),
+})
+
 /**
  * LVL-6: the roof over a floor, as planes its walls and rooms are cut to. Heights are metres
  * above the floor's level, to the roof's underside (the ceiling under it), measured on the lines
@@ -611,7 +649,8 @@ export const DormerSchema = z.object({
  * A sloped roof states its `pitch` in degrees, or its `ridge`, the underside's height at the top
  * (the high side of a mono-pitch roof), never both. `rooflights` are its windows. `dormers`
  * (LVL-20, `DormerSchema`) raise its underside where they stand: sections and headroom read them;
- * the 3D model, elevations, exports and take-off do not yet, and the check says so.
+ * the 3D model, elevations, exports and take-off do not yet, and the check says so. `overhang` and
+ * `parts` (LVL-29, `RoofOverhangSchema`, `RoofPartSchema`) carry it past the walls.
  */
 export const RoofSchema = z
   .object({
@@ -623,6 +662,8 @@ export const RoofSchema = z
     highSide: z.enum(COMPASS_SIDES).optional(),
     rooflights: parts(RooflightSchema, 'rooflights in one roof').optional(),
     dormers: parts(DormerSchema, 'dormers in one roof').optional(),
+    overhang: RoofOverhangSchema.optional(),
+    parts: parts(RoofPartSchema, 'parts of one roof').optional(),
   })
   .superRefine((roof, ctx) => {
     const add = (path: string, message: string): void => ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message })
@@ -3014,6 +3055,8 @@ export type Ceiling = z.infer<typeof CeilingSchema>
 export type Roof = z.infer<typeof RoofSchema>
 export type Rooflight = z.infer<typeof RooflightSchema>
 export type Dormer = z.infer<typeof DormerSchema>
+export type RoofPart = z.infer<typeof RoofPartSchema>
+export type RoofOverhang = z.infer<typeof RoofOverhangSchema>
 export type RoofShape = (typeof ROOF_SHAPES)[number]
 export type LoweredZone = z.infer<typeof LoweredZoneSchema>
 export type OpeningAnchor = z.infer<typeof OpeningAnchorSchema>

@@ -727,7 +727,7 @@ wall between kitchen and dining virtual
 
 ### Roofs
 
-roof <flat|gable|hip|mono-pitch> [pitch <degrees> | ridge <m>] eaves <m> [ridge runs east-west|north-south] [high <north|east|south|west>] under a floor's line is the roof over that floor, which its walls and rooms are cut to and the sections, elevations, 3D model and headroom read: its eaves and ridge are metres above the floor's level to the roof's underside, a sloped roof gives its pitch or its ridge (one of the two), a gable's ridge runs along the longer sides unless ridge runs says, and a mono-pitch roof rises to the side high names. roof none takes a roof copied from another floor off. rooflight <id> over <room>, <width> x <length> puts a roof light over the middle of a room written above it (rooflight <id> at x,y, ... at a point): its width along the eaves, its length up the slope, on one slope. raw floor {...} still sets a floor's parapet, outline, homes, parking and dormers in Grid's own JSON. grid_set roof writes the same roof on a floor already drawn.
+roof <flat|gable|hip|mono-pitch> [pitch <degrees> | ridge <m>] eaves <m> [ridge runs east-west|north-south] [high <north|east|south|west>] under a floor's line is the roof over that floor, which its walls and rooms are cut to and the sections, elevations, 3D model and headroom read: its eaves and ridge are metres above the floor's level to the roof's underside, a sloped roof gives its pitch or its ridge (one of the two), a gable's ridge runs along the longer sides unless ridge runs says, and a mono-pitch roof rises to the side high names. roof none takes a roof copied from another floor off. rooflight <id> over <room>, <width> x <length> puts a roof light over the middle of a room written above it (rooflight <id> at x,y, ... at a point): its width along the eaves, its length up the slope, on one slope. raw floor {...} still sets a floor's parapet, outline, homes, parking and dormers in Grid's own JSON. grid_set roof writes the same roof on a floor already drawn. overhang <m> on the roof line runs the roof that far past the walls all round, overhang north <m> south <m> ... side by side; a pitched roof's planes carry on over it, and it stops where a floor above stands. canopy <id> <north|east|south|west> depth <m> height <m> [width <m>] [at x,y] under the roof line is a level canopy out from the walls on that side, at its height above the floor's level; brise-soleil <id> <side> depth <m> height <m> [width <m>] [at x,y] [blades <n>] a row of sun-shading blades: each runs the whole side unless width (round at) says, and is drawn in 3D, the plan (dashed), elevations and sections. A canopy belongs to the roof of the floor it stands out from: a floor under another one states its flat roof (roof flat eaves <its height>) to hold one. Never fake an overhang with a floor or a roofed terrace. grid_set roofPart adds one on a floor already drawn.
 
 ```rooms
 walls outside 0.3 inside 0.1
@@ -740,9 +740,10 @@ floor loft "Loft" level 1 height 2.4
 room bed "Bedroom" bedroom 9.0 x 2.5 at 0,0
 room study "Study" office 9.0 x 2.4 north of bed
 door d2 between bed and study, centred, 0.8 wide
-roof gable pitch 40 eaves 1.2 ridge runs east-west
+roof gable pitch 40 eaves 1.2 ridge runs east-west overhang 0.4
 rooflight r1 over bed, 1.2 x 0.8
 rooflight r2 at 2,3.9, 0.8 x 0.8
+brise-soleil shade west depth 0.6 height 1.8 width 2 blades 3
 ```
 
 ### Columns

@@ -30,7 +30,9 @@ import { curveFault, wallCurve } from './arc'
 import { openingReach, openingsCutting, runGuests } from './openingRun'
 import { RoomOutlineError, roomNesting, roomPolygon } from './room'
 import type { FloorPiece, FloorSpaces, RoomMismatch } from './spaces'
-import { planSpaces, spacesKnown } from './spaces'
+import { floorOutline, planSpaces, spacesKnown } from './spaces'
+import { roofPartPlace } from './roofParts'
+import { ringOf } from './polygons'
 import type { RoomOverlap } from './overlaps'
 import { MAX_CUTS, roomOverlaps } from './overlaps'
 import type { ToleranceChanges } from './tolerances'
@@ -1284,6 +1286,17 @@ function validateRoofs(plan: FloorPlan, index: PlanIndex, broken: ReadonlySet<st
       const place = dormerPlace(shape, dormer)
       if (!('problem' in place)) continue
       issues.push(issue('floor', floor.id, 'floor/dormer-misplaced', said('issue.floor/dormer-misplaced', { dormer: name(dormer.id), floor: floorName, problem: place.problem }), 'warning'))
+    }
+    // LVL-29: a canopy or a brise-soleil with no outside wall on its side, within its width, is left out.
+    const parts = floor.roof.parts ?? []
+    if (parts.length > 0) {
+      const rings = floorOutline(plan, floor.id) ?? []
+      const outline = rings.filter((ring) => ring.length >= 3).map((ring): [[number, number][]] => [ringOf(ring)])
+      for (const part of parts) {
+        const place = roofPartPlace(part, shape.frame, outline)
+        if (!('problem' in place)) continue
+        issues.push(issue('floor', floor.id, 'floor/roof-part-misplaced', said('issue.floor/roof-part-misplaced', { kind: part.kind, part: name(part.id), floor: floorName, problem: place.problem }), 'warning'))
+      }
     }
     const dormers = shape.dormers.length
     if (dormers > 0) {
