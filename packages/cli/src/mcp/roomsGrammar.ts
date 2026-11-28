@@ -122,6 +122,19 @@ export const ROOMS_GRAMMAR: readonly GrammarTopic[] = [
     ],
   },
   {
+    topic: 'voids',
+    says: 'void on a room line, after its use or as its use (room atrium "Hall void" void 6 x 8 at 0,0), makes the room a void, open to the floor below: an atrium, a double-height space, a stair well, a pole drop. It has no floor, in 3D or in the files, adds no area and needs no door; its storey\'s slab is open over it and the room under it rises through it. Write it on the upper floor, over the room it opens onto: on the lowest floor, or with outdoor, floor <m> or conditioned, it is refused. A void is open to the rooms it touches and to the room it is placed beside or cut out of, with no wall between: its open edge. wall between <void> and <room> railing height <h> puts a guard there instead, and wall <t> after its place a wall.',
+    example: [
+      'walls outside 0.3 inside 0.1 height 3',
+      'floor ground level 0',
+      'room hall "Hall" - 10 x 8 at 0,0',
+      'door entrance in hall south, centred, 1.2 wide',
+      'floor first level 1',
+      'room atrium "Hall void" void 6 x 8 at 0,0',
+      'room gallery "Gallery" - 4 x 8 east of atrium',
+    ],
+  },
+  {
     topic: 'open sides',
     says: 'open [<room>] after a room\'s place leaves no wall between it and the room it is placed beside (or the room named): one space in two rooms, a kitchen open to a living room, a stage open to its hall. wall between <room> and <room> virtual writes a dividing line with no wall. Use open <north|south|east|west> on a room, unit or unit placement to open that side, including where it faces no room. Use wall <room> <side> virtual to set a single outside edge. An opening line makes a gap of a given width in a wall.',
     example: [

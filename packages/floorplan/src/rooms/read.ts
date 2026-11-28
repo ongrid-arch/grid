@@ -387,9 +387,11 @@ function roomLine(room: Room, poly: P[], local: string, phase: Phase | null = nu
   const outdoor = typeof room.outdoor === 'string' ? ` outdoor ${room.outdoor}${room.roofed === undefined ? '' : room.roofed ? ' roofed' : ' unroofed'}` : ''
   // ARE-60: whether it is heated or cooled, when it states it.
   const air = room.conditioned === undefined ? '' : room.conditioned ? ' conditioned' : ' unconditioned'
+  // LVL-28: a void (LVL-4) says so on its line.
+  const empty = room.void === true ? ' void' : ''
   // WRT-81: a room that is not existing says its phase; the text's `phase existing` line says the rest.
   const phased = phase === null || phase === 'existing' ? '' : ` phase ${phase}`
-  return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}${air}${factWords(room)}${phased}`
+  return `room ${local} ${quote(room.name)} ${use} ${where}${height}${step}${tenure}${type}${outdoor}${air}${empty}${factWords(room)}${phased}`
 }
 
 /**

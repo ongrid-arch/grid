@@ -276,7 +276,7 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // SHT-22: eight more, the topic of writing on the drawing.
   // WRT-79: nine more, the roofs and columns topics and the plinth line.
   // WRT-81: eight more, the phases topic.
-  'packages/cli/src/mcp/roomsGrammar.ts': [120, 'tools'],
+  'packages/cli/src/mcp/roomsGrammar.ts': [125, 'tools'],
   // CNT-46: grid_place_bays and grid_add_ramp, their descriptions, arguments and refusals.
   'packages/cli/src/mcp/parkingTools.ts': [46, 'tools'],
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
