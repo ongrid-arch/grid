@@ -1171,10 +1171,22 @@ Everything on it is the model's own, as the 3D view, the IFC and the take-off re
   stated height are listed. A room under it that states no height is as high as the roof leaves it
   at its highest (the height `grid_measure what=room` gives), and its headroom bands, 1.5 m and
   2.2 m, are dashed lines over its floor where it has that much height.
+- **Dimension chains** (VEW-89) are drawn as the plan's are, with extension lines and, on paper,
+  ticks. On the left, past the floors' level marks, up to three vertical chains, nearest first:
+  the detail (each floor's level, the sill and head of every door and window the line cuts, and
+  each floor's clear height in the room nearest that side), floor to floor (each floor's level,
+  then the top), and the overall height from the ground beside the building to its top: the
+  highest roof, ridge or parapet the line cuts, else the highest cut part. Under the drawing, two
+  chains along the cut: the faces of the walls cut on the floor the line cuts most walls of, and
+  the overall length from the first wall face cut to the last. Points closer than `chainSliver`
+  ([tolerances.md](tolerances.md)) are one, a chain that says no more than the next one out is
+  left out, and a figure with no room between its ticks is left off the drawing, as on a plan.
+  `--hide dimensions` leaves the chains off; `grid_view kind=section` gives every figure in its
+  text and its data (`section.dimensions`), and takes `dimensions=false` to leave them off.
 
-A section cuts every floor and writes its levels in metres, so `--floor`, `--hide`, `--colour`,
-`--key`, `--ids`, `--units` and `--decimal` are refused with it, by name; so are `--3d`,
-`--view` and `--facade`, and `--marks` with any of them.
+A section cuts every floor and writes its levels in metres, so `--floor`, `--hide` (but for
+`--hide dimensions`), `--colour`, `--key`, `--ids`, `--units` and `--decimal` are refused with
+it, by name; so are `--3d`, `--view` and `--facade`, and `--marks` with any of them.
 
 `--marks` adds the marks for the plan's other drawings to a floor plan, joined by commas:
 
