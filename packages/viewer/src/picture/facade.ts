@@ -18,7 +18,7 @@
 import type { Phase } from '@ongrid/floorplan/types/floorplan'
 import { PHASE_COLOURS } from './phaseColour'
 import type { Bounds } from '@ongrid/floorplan/geometry'
-import { facadeGroundAt, hatchLines, levelText, partPhases, planFacade, withPatterns, type Facade, type FacadeFace, type FacadeMarkKind, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { facadeGroundAt, facadeGroundLine, hatchLines, levelText, partPhases, planFacade, withPatterns, type Facade, type FacadeFace, type FacadeMarkKind, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { fitTo } from '../canvas2d/viewport'
 import type { LinePart, Look } from './look'
 import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
@@ -92,7 +92,8 @@ export function facadeFraming(facade: Facade): Bounds {
   // CNT-49: on a slope, the lowest of the ground line's ends.
   // VEW-84: room on the left too when a mark stands there.
   const leftRoom = facadeSides(facade).left.length > 0 ? span * LEVEL_ROOM : 0
-  const min = { x: extent.u0 - run - leftRoom, y: Math.min(facade.ground.level, facadeGroundAt(facade, extent.u0 - run), facadeGroundAt(facade, extent.u1 + run)) - BELOW }
+  // VEW-86: on a profile, the lowest of its points along the line.
+  const min = { x: extent.u0 - run - leftRoom, y: Math.min(facade.ground.level, ...facadeGroundLine(facade, extent.u0 - run, extent.u1 + run).map(([, z]) => z)) - BELOW }
   const max = { x: extent.u1 + run + span * LEVEL_ROOM, y: extent.top + ABOVE }
   return { min, max, width: max.x - min.x, height: max.y - min.y }
 }
@@ -259,9 +260,11 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
   const span = Math.max(extent.u1 - extent.u0, 1)
   const run = Math.max(span * GROUND_RUN, GROUND_RUN_LEAST)
   const [left, right] = [frame.min.x - frame.width, frame.min.x + frame.width * 2]
-  const deep = Math.min(facadeGroundAt(facade, left), facadeGroundAt(facade, right)) - frame.height * 2
+  // VEW-86: on a profile, through each of its points.
+  const below = facadeGroundLine(facade, left, right)
+  const deep = Math.min(...below.map(([, z]) => z)) - frame.height * 2
   nodes.push(
-    facade.ground.fall === undefined
+    facade.ground.fall === undefined && facade.ground.profile === undefined
       ? el('rect', {
           'data-part': 'facade-below-ground',
           x: lengthText(left),
@@ -272,7 +275,7 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
         })
       : el('path', {
           'data-part': 'facade-below-ground',
-          d: `M${lengthText(left)},${lengthText(-facadeGroundAt(facade, left))}L${lengthText(right)},${lengthText(-facadeGroundAt(facade, right))}L${lengthText(right)},${lengthText(-deep)}L${lengthText(left)},${lengthText(-deep)}Z`,
+          d: `M${below.map(([u, z]) => `${lengthText(u)},${lengthText(-z)}`).join('L')}L${lengthText(right)},${lengthText(-deep)}L${lengthText(left)},${lengthText(-deep)}Z`,
           fill: look.colors.paper
         })
   )
@@ -283,15 +286,25 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
   }
 
   nodes.push(
-    el('line', {
-      'data-part': 'facade-ground',
-      x1: lengthText(extent.u0 - run),
-      y1: lengthText(-facadeGroundAt(facade, extent.u0 - run)),
-      x2: lengthText(extent.u1 + run),
-      y2: lengthText(-facadeGroundAt(facade, extent.u1 + run)),
-      stroke: look.ink,
-      'stroke-width': width('elevationGround')
-    })
+    facade.ground.profile === undefined
+      ? el('line', {
+          'data-part': 'facade-ground',
+          x1: lengthText(extent.u0 - run),
+          y1: lengthText(-facadeGroundAt(facade, extent.u0 - run)),
+          x2: lengthText(extent.u1 + run),
+          y2: lengthText(-facadeGroundAt(facade, extent.u1 + run)),
+          stroke: look.ink,
+          'stroke-width': width('elevationGround')
+        })
+      : // VEW-86: through spot levels, the ground's profile, a point at each bend.
+        el('path', {
+          'data-part': 'facade-ground',
+          d: `M${facadeGroundLine(facade, extent.u0 - run, extent.u1 + run).map(([u, z]) => `${lengthText(u)},${lengthText(-z)}`).join('L')}`,
+          fill: 'none',
+          stroke: look.ink,
+          'stroke-width': width('elevationGround'),
+          'stroke-linejoin': 'miter'
+        })
   )
 
   // VEW-84: the ground, each floor, the eaves and ridge or a roof's top and each parapet's top,
@@ -307,7 +320,7 @@ function facadeMarkInputs(facade: Facade, words: DrawingWords, units: Display): 
   const names = new Map(facade.levels.map((l) => [l.floor, l.name]))
   return facade.marks.map((mark) => {
     // On a slope the ground is marked where it meets the building on the right, the side it is marked on.
-    const level = mark.kind === 'ground' && facade.ground.fall !== undefined ? facadeGroundAt(facade, mark.u1) : mark.level
+    const level = mark.kind === 'ground' && (facade.ground.fall !== undefined || facade.ground.profile !== undefined) ? facadeGroundAt(facade, mark.u1) : mark.level
     const text = levelText(level, units)
     const said = mark.kind === 'floor' ? `${text} ${names.get(mark.floor ?? '') ?? mark.floor}` : drawingText(words, MARK_WORDS[mark.kind], { level: text })
     const at = mark.kind === 'ground' ? {} : { from: mark.u0, to: mark.u1 }

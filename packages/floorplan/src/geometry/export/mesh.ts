@@ -176,30 +176,39 @@ function elevationMesh(elevation: WallElevation, basis: WallBasis): Mesh | null 
  * z = 0, or the room's `offset` when it is set off its storey (LVL-7), raised by `floorLift`
  * (VEW-73) off the slab. Then, for a room set off its storey, a band of quads runs
  * round its edge, and round each hole's, down (or up) to the storey's floor, so a stage is a
- * platform with sides and a sunken room has a sill round it, facing into the room.
+ * platform with sides and a sunken room has a sill round it, facing into the room. LVL-27: when
+ * the floor is laid in `pieces` (open over a stair, a lift shaft or a void), each piece is laid so,
+ * and a void, with none, has no floor.
  */
 export function floorMesh(floor: SceneSlab): Mesh | null {
-  const { vertices, triangles } = triangulate(floor.polygon, floor.holes)
-  if (triangles.length === 0) return null
+  const pieces = floor.pieces ?? [{ outline: floor.polygon, holes: floor.holes }]
   // VEW-73: lifted off the slab under it, so the two never share a plane and flicker.
   const top = (floor.offset ?? 0) + tolerance('floorLift')
-  const points: Vec3[] = vertices.map((v) => ({ x: v.x, y: v.y, z: top }))
-  const faces: Face[] = [...triangles]
-  if (floor.offset !== undefined && floor.offset !== 0) {
-    // The polygon winds counter-clockwise and each hole clockwise, so outside the floor lies to
-    // the right of every edge. With the top above the base these faces point out of the platform,
-    // with it below into the room.
-    for (const ring of [floor.polygon, ...floor.holes]) {
-      const n = ring.length
-      const base = points.length
-      for (const p of ring) points.push({ x: p.x, y: p.y, z: 0 }, { x: p.x, y: p.y, z: top })
-      for (let i = 0; i < n; i++) {
-        const j = (i + 1) % n
-        const [p0, p1, q0, q1] = [base + 2 * i, base + 2 * i + 1, base + 2 * j, base + 2 * j + 1]
-        faces.push([p0, q0, q1], [p0, q1, p1])
+  const points: Vec3[] = []
+  const faces: Face[] = []
+  for (const piece of pieces) {
+    const { vertices, triangles } = triangulate(piece.outline, piece.holes)
+    if (triangles.length === 0) continue
+    const first = points.length
+    points.push(...vertices.map((v) => ({ x: v.x, y: v.y, z: top })))
+    faces.push(...triangles.map(([a, b, c]): Face => [a + first, b + first, c + first]))
+    if (floor.offset !== undefined && floor.offset !== 0) {
+      // The polygon winds counter-clockwise and each hole clockwise, so outside the floor lies to
+      // the right of every edge. With the top above the base these faces point out of the platform,
+      // with it below into the room.
+      for (const ring of [piece.outline, ...piece.holes]) {
+        const n = ring.length
+        const base = points.length
+        for (const p of ring) points.push({ x: p.x, y: p.y, z: 0 }, { x: p.x, y: p.y, z: top })
+        for (let i = 0; i < n; i++) {
+          const j = (i + 1) % n
+          const [p0, p1, q0, q1] = [base + 2 * i, base + 2 * i + 1, base + 2 * j, base + 2 * j + 1]
+          faces.push([p0, q0, q1], [p0, q1, p1])
+        }
       }
     }
   }
+  if (faces.length === 0) return null
   return storable({ points, faces })
 }
 

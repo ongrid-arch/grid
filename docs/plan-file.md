@@ -512,7 +512,9 @@ and no roof, and a garden wall standing apart carries neither.
   runs on past a room, such as a stair house on a roof terrace (LVL-13).
 - **A void**: a room marked `"void": true` is open to the floor below. It has no floor, so its
   floor's slab is open over it, and it adds no floor area to the slab; it needs no door and has no
-  route to check.
+  route to check. The 3D view and the OBJ and glTF files lay no room floor for it, and lay every
+  other room's floor round wherever its floor's slab is open (over a stair, a stair room or a lift
+  shaft below, a ramp or a void), so no floor covers an opening (LVL-27).
 - **A parapet**: a floor's `parapet` is how far its outside walls rise above the roof over it. The
   roof keeps its place on the walls, and the parapet stands on its edge.
 
@@ -529,6 +531,7 @@ and no roof, and a garden wall standing apart carries neither.
 | `site.groundSides` | CNT-49: the ground at the building's sides on a slope, a level for any of `north`, `east`, `south` and `west` (the drawing's sides, north up it, as the facades name them), in the same datum. Rooms text writes `ground north 0 south -4.6`; `grid_set_site` takes `ground_north` … `ground_west` |
 | `site.fall` | CNT-49: a fall of the ground, `slope` in percent toward one of the eight compass points of the drawing (`toward`), through `site.ground`, else 0, at the middle of the building. Rooms text writes `ground slope 30% toward south` (or `slope 30% toward south`); `grid_set_site` takes `slope` and `toward` |
 | `site.groundEdges` | CNT-49: the ground along edges of the plot, each `edge` (its number, as `streets` names them) with its level at its first corner (`start`) and at its second (`end`, else the same): a street that falls along the plot. Rooms text writes `ground edge 1 0 to -3`; `grid_set_site` takes `ground_edges` |
+| `site.spotLevels` | VEW-86: the ground's level at points of the plan, each `{ "at": [x, y], "level": m }` in the same datum: one at each corner of the building, or a line of them down a street or across a terrace; two lines a few centimetres apart are a step. With them the ground passes through every stated level (see below). One level at a point; not with `fall`. `grid_set_site` takes `spot_levels` (`"x,y level"` each) |
 | floor `parapet` | Metres the floor's outside walls rise above its roof. Unstated, no parapet |
 | room `void` | The room is open to the floor below: no floor of its own |
 | room `ceiling` | The room has a ceiling, at its `height` (else its storey's). `lowered` lists the zones lower than the rest, each with `points` (its outline, three or more) and `height` (from the room's floor), and an optional `name`. A zone is clipped to its room |
@@ -566,6 +569,18 @@ the ground that stands more than 2 m over the ground at its own place is named a
 building's height is measured from the lowest ground round it. The facades and sections draw the
 ground as a sloped line, the earth under it with it, and the 3D view tilts the ground sheet. A
 building on its own `pad` (LVL-23) stands on that level, whatever the slope.
+
+With spot levels (VEW-86) the ground is no longer one even slope: it passes through every level
+the site states, the spot levels with the sides' ends, the plot edges' corners and `ground` at the
+middle. Grid joins the levels into triangles and reads the ground linearly inside each; outside
+them it runs on level from the nearest edge, and levels along one line alone are read along that
+line and level across it. Every check reads that ground at each wall, as on a slope. The sections
+and elevations draw its true profile: the ground line bends at each level and steps where two lines
+of levels stand close, the earth hatch follows it, and a lower floor under the high side stands in
+its hole, shown on the low side instead of cut off. A section's or facade's `ground.profile` gives
+the profile's points, `[x, level]` along the line or `[u, level]` across the face; the slope words
+(`grid_set_site`'s fall in percent, the 3D ground sheet) still read the one even slope nearest the
+levels.
 
 ## Sloped roofs and ceilings
 
