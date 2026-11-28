@@ -460,6 +460,20 @@ export const TOLERANCES = {
       'where a curve meets a wall at a slant its end runs on to that wall\'s middle line.',
     basis: own
   },
+  bayCantAngle: {
+    kind: 'limit',
+    value: 45,
+    unit: 'degree',
+    decides: 'The angle a canted bay window\'s two cheeks turn from the side of the room they stand out of, when its rooms text line states none (WRT-88).',
+    basis: own
+  },
+  bayWindowPier: {
+    kind: 'limit',
+    value: 0.1,
+    unit: 'm',
+    decides: 'The wall a bay window line leaves at each end of each of its windows, on a facet or between windows along a curve, when it states no window width (WRT-88).',
+    basis: own
+  },
   roomsFaceSkew: {
     kind: 'tolerance',
     value: 0.02,

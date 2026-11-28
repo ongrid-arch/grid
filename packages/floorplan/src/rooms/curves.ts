@@ -141,6 +141,15 @@ export function segmentShape(p: P, q: P, sweep: number, n: P): CurvedShape {
 }
 
 /**
+ * WRT-88: the arc from `p` to `q` turning `sweep` radians (under 2π) out toward `n`: its stations,
+ * its ends exactly `p` and `q`, and the circle it lies on. A curved bay is traced by it.
+ */
+export function arcBetween(p: P, q: P, sweep: number, n: P): { pts: P[]; curve: CurveCircle } {
+  const { c, r } = arcOn(p, q, sweep, n)
+  return { pts: arcThrough(c, r, p, q, n), curve: { c, r } }
+}
+
+/**
  * The floor between radii `r1` and `r2` round `c`, from angle `from` turning `sweep` radians
  * (counter-clockwise positive, its size under 2π).
  */
