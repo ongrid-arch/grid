@@ -210,10 +210,12 @@ export function sideDrawings(plan: FloorPlan, options: { readonly language?: Lan
       ...sizeOf(facadeFraming(facade), 1 + 2 * FRAME_MARGIN, scale, null, (width, height) => keptFacadePicture(plan, { side, width, height, look: options.look, paperScale: scale, ...language })),
     })), true)
     if (elevations === null) continue
+    // VEW-89: a sheet's sections are drawn without their dimension chains, so they keep the
+    // elevations' usual scale; grid_view and grid draw give the chains.
     const cutsLaid = laidOut(sections.map(({ cut, section }) => ({
       of: 'section' as const,
       cut,
-      ...sizeOf(sectionFraming(plan, section, metresPerPixel, language), 1, scale, SECTION_NAME_PT, (width, height) => keptSectionPicture(plan, cut.line, { width, height, look: options.look, paperScale: scale, label: cut.label, ...language })),
+      ...sizeOf(sectionFraming(plan, section, metresPerPixel, { ...language, dimensions: false }), 1, scale, SECTION_NAME_PT, (width, height) => keptSectionPicture(plan, cut.line, { width, height, look: options.look, paperScale: scale, label: cut.label, dimensions: false, ...language })),
     })), false)
     if (cutsLaid === null) continue
     return { scale, elevations, sections: cutsLaid, cuts: sections.map(({ cut }) => cut), taken: takenOnce(sections) }
