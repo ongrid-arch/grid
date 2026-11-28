@@ -31,17 +31,17 @@ import type { Vec2 } from './vec2'
 export type SectionChainKind = 'detail' | 'levels' | 'overall' | 'walls' | 'length'
 
 /** What one end of a section's dimension is at: a floor's level, a room's ceiling, an opening's sill or head, the building's top, the ground or a wall's face. */
-export type SectionMarkKind = 'floor' | 'ceiling' | 'sill' | 'head' | 'ridge' | 'parapet' | 'roof' | 'top' | 'ground' | 'face'
+export type SectionChainEndKind = 'floor' | 'ceiling' | 'sill' | 'head' | 'ridge' | 'parapet' | 'roof' | 'top' | 'ground' | 'face'
 
-export interface SectionMark {
-  readonly kind: SectionMarkKind
+export interface SectionChainEnd {
+  readonly kind: SectionChainEndKind
   /** The floor's, room's, opening's or wall's id; the floor's for a roof, ridge or parapet; empty for the ground and a top. */
   readonly id: string
 }
 
 /** One dimension of a section's chain, with what each of its ends is at. */
 export interface SectionDimension extends Dimension {
-  readonly ends: readonly [SectionMark, SectionMark]
+  readonly ends: readonly [SectionChainEnd, SectionChainEnd]
 }
 
 export interface SectionChain {
@@ -54,11 +54,11 @@ export interface SectionChain {
 
 interface Point {
   readonly at: number
-  readonly mark: SectionMark
+  readonly mark: SectionChainEnd
 }
 
 /** Which mark is kept where two points of a chain are one: a floor's level over the rest, a wall's face over nothing. */
-const RANK: Record<SectionMarkKind, number> = { floor: 6, ground: 5, ridge: 4, parapet: 4, roof: 4, top: 4, head: 3, sill: 3, ceiling: 2, face: 1 }
+const RANK: Record<SectionChainEndKind, number> = { floor: 6, ground: 5, ridge: 4, parapet: 4, roof: 4, top: 4, head: 3, sill: 3, ceiling: 2, face: 1 }
 
 /** The points in order, those closer than `chainSliver` to the one before them made one, the better mark kept. */
 function merged(points: readonly Point[]): Point[] {
