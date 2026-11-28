@@ -993,6 +993,18 @@ function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
         for (const piece of piecesAsRings(roof.parapet.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('parapet', floor.id, floor.id, ring, roofTop, parapetTop)
       }
     }
+    // LVL-29: a canopy or a brise-soleil, cut where the line crosses it and seen beyond it, at its height.
+    if (roof !== null) {
+      const level = elevations.floors.get(floor.id)?.floorLevel ?? 0
+      for (const facet of roof.facets) {
+        if (facet.part === undefined) continue
+        const bottom = level + facet.plane.z0
+        const top = bottom + roof.thickness
+        const rings = inside(frame, ringsOf(facet.pieces)).map(([x0, x1]) => rect(snap, x0, x1, bottom, top))
+        if (rings.length > 0) parts.push({ kind: 'roof', id: facet.part.id, floor: floor.id, rings })
+        for (const piece of piecesAsRings(facet.pieces)) for (const ring of [piece.outline, ...piece.holes]) ringFaces('roof', facet.part.id, floor.id, ring, bottom, top)
+      }
+    }
   }
 
   /**

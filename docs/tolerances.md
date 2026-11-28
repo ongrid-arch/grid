@@ -159,7 +159,11 @@ is not asked whether it was typed in feet.
 | `sillProjection` | limit | 0.03 m | How far a window's sill stands out from each face of its wall, and past each side of its hole, on a plan drawn in detail (SHT-10) |
 | `facadeFacing` | tolerance | 0.0175 sine | A face of the building is drawn on a facade when it turns at least this much (about one degree) toward the side the facade is seen from (LVL-8) |
 | `facadeOnFace` | tolerance | 0.01 m | A wall whose outside face lies within this of a stretch of the floor's outline is the wall that stretch of a facade shows, with its height and openings (LVL-8) |
-| `facadeRoofProjection` | limit | 0.3 m | How far a pitched roof is drawn past its outside walls in elevation (VEW-71) |
+| `facadeRoofProjection` | limit | 0.3 m | How far a pitched roof is drawn past its outside walls in elevation (VEW-71) when the roof states no overhang (LVL-29) |
+| `roofOverhangLargest` | limit | 3 m | The largest overhang a roof line takes on a side, past the walls (LVL-29) |
+| `roofPartDepthLargest` | limit | 6 m | The deepest canopy or brise-soleil a roof line takes, out from its side (LVL-29) |
+| `briseSoleilBladeSpacing` | limit | 0.3 m | How far apart a brise-soleil that states no number of blades has its blades (LVL-29) |
+| `briseSoleilBladeWidth` | limit | 0.08 m | How wide each blade of a brise-soleil is drawn, across its depth (LVL-29) |
 | `facadeSameDepth` | tolerance | 0.05 m | Faces of a facade within this of each other, front to back, are one plane, drawn with one line weight; a face set back further is drawn lighter (LVL-8) |
 | `facadeSillDepth` | limit | 0.05 m | How deep a window's sill is drawn on a facade, under its hole and running past each side as far as a sill stands out on a plan drawn in detail (VEW-63) |
 | `facadeHeadDepth` | limit | 0.15 m | How deep a window's head is drawn on a facade, over its hole and as wide as it, no higher than its wall (VEW-63) |

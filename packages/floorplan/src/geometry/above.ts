@@ -11,6 +11,9 @@
  * them (an overhang, a floor over a basement's edge) or inside them (a loft, a floor stepped
  * back). A stretch over this floor's inner walls is kept: the walls drawn over it hide it.
  *
+ * LVL-29: a floor whose roof states an overhang or parts (canopies, brise-soleil) has the roof's
+ * edge past its own outline, and each part's, among the same dashed lines.
+ *
  * The plan cannot yet say where a floor has a void or an opening (LVL-4), so floor no room
  * claims is not told apart: a void enclosed by the walls above is inside their outline.
  *
@@ -23,6 +26,7 @@ import { floorOutline } from './spaces'
 import type { Vec2 } from './vec2'
 import { add, distance, dot, scale, sub } from './vec2'
 import { tolerance } from './tolerances'
+import { planEnvelope } from './envelope'
 
 export interface PlanAbove {
   /** The floors above, by id, in plan order. Empty on the top floor and on a plan that is no slice. */
@@ -123,13 +127,26 @@ export function floorAbove(slice: FloorPlan): PlanAbove {
   if (here === undefined) return NOTHING
   const level = levelOf(here.level)
   const higher = floors.map((f) => levelOf(f.level)).filter((l) => l > level)
-  if (higher.length === 0) return NOTHING
-  const next = Math.min(...higher)
-  const above = floors.filter((f) => levelOf(f.level) === next).map((f) => f.id)
+  const roofed = roofPast(whole, floor)
+  if (higher.length === 0 && roofed.length === 0) return NOTHING
+  const next = higher.length === 0 ? level : Math.min(...higher)
+  const above = higher.length === 0 ? [] : floors.filter((f) => levelOf(f.level) === next).map((f) => f.id)
   const own = floorOutline(whole, floor) ?? []
   const lines: Vec2[][] = []
   for (const id of above) {
     for (const ring of floorOutline(whole, id) ?? []) lines.push(...clipRing(ring, own))
   }
+  // LVL-29: the floor's own roof past its walls, its overhang and its parts, dashed as well.
+  for (const ring of roofed) lines.push(...clipRing(ring, own))
   return { floors: above, lines }
+}
+
+/** LVL-29: the rings of a floor's roof that states an overhang or parts, and of each part; none otherwise. */
+function roofPast(whole: FloorPlan, floor: string): Vec2[][] {
+  const roof = (whole.floors ?? []).find((f) => f.id === floor)?.roof
+  if (roof === undefined || (roof.overhang === undefined && (roof.parts ?? []).length === 0)) return []
+  const env = planEnvelope(whole, { floors: [floor] }).floors[0]?.roof ?? null
+  if (env === null) return []
+  const pieces = [...(roof.overhang === undefined ? [] : env.pieces), ...env.facets.flatMap((facet) => (facet.part === undefined ? [] : facet.pieces))]
+  return pieces.flatMap((polygon) => polygon.map((ring) => ring.slice(0, ring.length > 1 && ring[0]![0] === ring[ring.length - 1]![0] && ring[0]![1] === ring[ring.length - 1]![1] ? -1 : ring.length).map(([x, y]) => ({ x, y }))))
 }

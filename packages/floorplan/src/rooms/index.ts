@@ -20,5 +20,5 @@ export { BAY_AISLE, BAY_KINDS, BAY_ROWS, BAY_SIZES, BAYS_MOST, baysOfWords, bays
 export { givenIds, isAnnotation, noteLines, NoteLines, noteOfLine, noteOfWords, notePart, notePlaceOf, notePlaceText, NoteRefused, notesSummary, noteWhat, NOTE_KINDS, NOTE_LINE_WORDS, placedLine, ROUTE_CATEGORY, routeHead, routeShaft, type NoteKind, type NotePlace, type NoteWords } from './notes'
 export { groundLineOfWords, slopeLines, type GroundWords } from './ground'
 export { baseNamedIn, fitOutReading, ownParts, restOnBase, BASE_LINE_WORDS, type BasePlan } from './base'
-export { isRooflightLine, ROOF_LINE_WORDS, roofHasLines, RoofLines, roofLines, roofOfWords, rooflightOfWords, type RooflightWords } from './roofs'
+export { isRoofPartLine, isRooflightLine, ROOF_LINE_WORDS, roofHasLines, RoofLines, roofLines, roofOfWords, rooflightOfWords, roofPartLine, roofPartOfWords, type RooflightWords } from './roofs'
 export { columnLine, columnLines, ColumnLines, COLUMN_LINE_WORDS, COLUMNS_MOST, type ColumnNote } from './columns'

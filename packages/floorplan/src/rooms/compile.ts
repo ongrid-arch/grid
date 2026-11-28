@@ -141,6 +141,8 @@
  *   plinth <m>                                          the ground floor that far above it, ground -<m> (WRT-79)
  *   roof <flat|gable|hip|mono-pitch> [pitch <deg> | ridge <m>] eaves <m> [ridge runs <way>] [high <side>]
  *   rooflight <id> over <room> | at x,y, <w> x <l>     the floor's roof and its roof lights (WRT-79): `roofs.ts`
+ *   canopy | brise-soleil <id> <side> depth <m> height <m> [width <m>] [at x,y] [blades <n>]
+ *                                                       parts of the floor's roof (LVL-29); `overhang <m>` on the roof line
  *   column <id> [square|round] <w> [x <d>] at x,y [turn <deg>] [height <m>] [through <floor>] [on <floor>]
  *   columns <group> ... at x,y, count <n> [x <m>], every <s> [x <s>]   raw column { ... }
  *                                                      the plan's columns (WRT-79): `columns.ts`
@@ -210,7 +212,7 @@ import { edgeWords, mirroredSide, OPEN_SIDES, outdoorWordKind, outsideEdge, type
 import { countedLabel, hasLevelMark, withLevel } from './levels'
 import { inPlace, middleOf, nthTransform, readCopyWords, readRepeatFloors, repeatedIds, repeatSaid, turnedOpeningWords, turnedRooms, turnedSides, turnPoint, type CopyWords, type FloorTransform } from './floorCopies'
 import { PARKING_LINE_WORDS, ParkingLines } from './parking'
-import { isRooflightLine, ROOF_LINE_WORDS, RoofLines, roofOfWords, rooflightOfWords } from './roofs'
+import { isRoofPartLine, isRooflightLine, ROOF_LINE_WORDS, RoofLines, roofOfWords, roofPartOfWords, rooflightOfWords } from './roofs'
 import { COLUMN_LINE_WORDS, ColumnLines } from './columns'
 import { GRID_LINE_WORDS, GridLines } from './grids'
 import { likelyMeant } from '../types/nearest'
@@ -1151,6 +1153,11 @@ class Compiler {
    */
   private roofLine(t: string[], at: number): void {
     const fl = this.floor()
+    // LVL-29: a canopy or a brise-soleil, a part of the floor's roof written above it.
+    if (isRoofPartLine(t)) {
+      fl.extra['roof'] = this.roofLines.withPart(fl.extra['roof'], roofPartOfWords(t, at, this.plain), at)
+      return
+    }
     if (isRooflightLine(t)) {
       const words = rooflightOfWords(t, at, this.plain)
       let point = words.at

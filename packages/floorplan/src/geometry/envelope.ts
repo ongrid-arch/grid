@@ -78,7 +78,8 @@ import type { Vec2 } from './vec2'
 import { planRamps } from './parking'
 import { groundLevel } from './ground'
 import { overItsWalls } from './partyWalls'
-import type { RoofShape } from './plan'
+import type { RoofPart, RoofShape } from './plan'
+import { grownByOverhang, overhangSides, roofPartPlace } from './roofParts'
 import { floorRoofShape, regionAtLeast, roofFacets, rooflightPlace, type RoofPlane, type RooflightPlace, type RoofShapeOverFloor } from './roofs'
 
 /** What a slab is open over. */
@@ -135,6 +136,8 @@ export interface RoofFacetPieces {
   readonly area: number
   /** On the slope: the plan area over the cosine of the plane's pitch. */
   readonly slopeArea: number
+  /** LVL-29: on a canopy's or a brise-soleil's facet only, which part of the roof it is. */
+  readonly part?: { readonly id: string; readonly kind: RoofPart['kind'] }
 }
 
 /** The roof over the parts of a floor with nothing above. */
@@ -162,6 +165,16 @@ export interface FloorRoof {
   readonly slopeArea: number
   /** Its rooflights, each wholly on one plane of it; one that is not is left out (the check names it). */
   readonly rooflights: readonly RooflightPlace[]
+  /**
+   * LVL-29: on a roof that states its overhang, the area on plan the overhang adds past the walls;
+   * `pieces`, `area`, `facets` and `slopeArea` hold the roof with it. Left out when none is stated.
+   */
+  readonly overhangArea?: number
+  /**
+   * LVL-29: how many of its canopies and brise-soleil have a place: each is one more facet of
+   * `facets`, marked `part`, at its own height, in no area. Left out when there are none.
+   */
+  readonly parts?: number
 }
 
 export interface FloorEnvelope {
@@ -385,10 +398,18 @@ function workOutEnvelope(stated: FloorPlan, options: EnvelopeOptions): PlanEnvel
         const along = band.length === 0 ? [] : cutOutline('intersection', pieces, [union(band)])
         if (along !== null && along.length > 0) parapet = { height, pieces: along }
       }
-      const { facets, rooflights } = roofPieces(shape, pieces, clear, shape === null ? raisedRooms(sliceOf(floor.id), clear) : [])
+      // LVL-29: the roof past its walls, cut back where a floor above stands, and its parts.
+      const sides = shape === null ? null : overhangSides(shape.roof)
+      const higherOutlines = higher.map((f) => outlineOf(f.id)).flatMap((o) => (outlineKnown(o) && o.pieces.length > 0 ? [o.pieces] : []))
+      const grownOut = shape === null || sides === null ? null : grownByOverhang(pieces, shape.frame, sides)
+      const grown = grownOut === null ? pieces : higherOutlines.length === 0 ? grownOut : (cutOutline('difference', grownOut, higherOutlines) ?? pieces)
+      const overhangArea = grownOut === null ? 0 : Math.max(0, multiArea(grown) - multiArea(pieces))
+      const { facets: roofFacetList, rooflights } = roofPieces(shape, grown, clear, shape === null ? raisedRooms(sliceOf(floor.id), clear) : [])
+      const partFacets = shape === null ? [] : roofPartFacets(shape, own.pieces)
+      const facets = [...roofFacetList, ...partFacets]
       roof = {
-        pieces,
-        area: multiArea(pieces),
+        pieces: grown,
+        area: multiArea(grown),
         bottom: storey.floorLevel + (shape === null ? clear : shape.roof.eaves),
         thickness: SLAB_THICKNESS,
         under,
@@ -396,8 +417,10 @@ function workOutEnvelope(stated: FloorPlan, options: EnvelopeOptions): PlanEnvel
         shape: shape === null ? null : shape.roof.shape,
         pitch: shape === null ? 0 : shape.pitch,
         facets,
-        slopeArea: facets.reduce((total, f) => total + f.slopeArea, 0),
-        rooflights
+        slopeArea: roofFacetList.reduce((total, f) => total + f.slopeArea, 0),
+        rooflights,
+        ...(grownOut === null ? {} : { overhangArea }),
+        ...(partFacets.length === 0 ? {} : { parts: partFacets.length })
       }
     }
     // ARE-77: the slab over the part the ground covers is kept, for the take-off's buried slabs.
@@ -482,6 +505,15 @@ function roofPieces(shape: RoofShapeOverFloor | null, pieces: MultiPolygon, clea
     return inside !== null && Math.abs(multiArea(inside) - whole) <= tolerance('areaReported') ? [place] : []
   })
   return { facets: roofFacetsOver(shape, pieces, rooflights), rooflights }
+}
+
+/** LVL-29: each part of the roof that has a place out from the floor's outline, as a level facet at its height. */
+function roofPartFacets(shape: RoofShapeOverFloor, outline: MultiPolygon): RoofFacetPieces[] {
+  return (shape.roof.parts ?? []).flatMap((part): RoofFacetPieces[] => {
+    const place = roofPartPlace(part, shape.frame, outline)
+    if ('problem' in place) return []
+    return [{ plane: { z0: place.height, gx: 0, gy: 0 }, pieces: place.pieces, area: place.area, slopeArea: place.area, part: { id: place.id, kind: place.kind } }]
+  })
 }
 
 /** LVL-26: a room that rises past its storey: its footprint and its top above the storey's floor. */
