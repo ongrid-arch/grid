@@ -4,13 +4,16 @@
  * must or must not touch, and the person's own figures, each with a level, the person's words
  * beside it and whether it was given or assumed, and what is still open. It writes only the
  * brief beside the plan (`brief/brief.ts`), never the plan. After that, every change to the plan
- * answers with each line met or missed (`brief/lines.ts`).
+ * answers with each line met or missed (`brief/lines.ts`). CMD-57: a write over a brief kept, whole
+ * or one wish at a time, says what it replaced, weakened and removed, and gives the old brief back.
  */
 import { ROOM_USES } from '@ongrid/floorplan/types/floorplan'
-import { BriefRefused, SEATING_MAX, SEATING_WHATS, FIGURE_NAMES, FIGURES, FIGURES_HEADING, FOOTPRINT_MEASURES, RATIO_MEASURES, SCOPED_FIGURES, type FigureName, LEVELS, changeBrief, parseBriefLines, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief, type BriefChange, type BriefParts, type RefusedLine } from '../brief/brief'
+import { BriefRefused, SEATING_MAX, SEATING_WHATS, FIGURE_NAMES, FIGURES, FIGURES_HEADING, FOOTPRINT_MEASURES, RATIO_MEASURES, SCOPED_FIGURES, type FigureName, LEVELS, changeBrief, briefJson, parseBriefLines, QUOTE_MAX, briefFileOf, readBrief, SOURCES, writeBrief, type Brief, type BriefChange, type BriefParts, type RefusedLine } from '../brief/brief'
 import { briefLines, briefText, MAT } from '../brief/lines'
 import { DOOR_MEASURES } from '../quantities/doorWidth'
 import { PEOPLE_SCHEMA } from './lettableArgs'
+import { briefChangeData, briefChangeText, compareBriefs, lessCount } from '../versions/briefs'
+import { historySay } from '../versions/words'
 
 /** What each figure's value is, in the tool's schema. */
 const VALUE_SAYS: Readonly<Record<FigureName, string>> = {
@@ -219,6 +222,15 @@ function refusedText(refused: readonly RefusedLine[]): string[] {
   ]
 }
 
+/** CMD-57: a brief as this tool's brief takes it, so it can be passed back: the file's form without its version and heading. */
+function briefArg(brief: Brief): Record<string, unknown> {
+  const json = briefJson(brief)
+  delete json['version']
+  const figures = json['figures'] as Record<string, unknown> | undefined
+  if (figures !== undefined) delete figures['heading']
+  return json
+}
+
 export const writeBriefTool: GridTool = {
   name: BRIEF_TOOL_NAME,
   title: 'Write the brief',
@@ -286,6 +298,8 @@ export const writeBriefTool: GridTool = {
     problem: NULLABLE_STRING,
     refused: listSchema(REFUSED),
     lines: listSchema(LINE),
+    // CMD-57: what a write replaced: each wish changed, and the brief kept before; null when none was.
+    replaced: { type: ['object', 'null'] },
   }),
   run(args, context) {
     const project = projectOf(context)
@@ -301,6 +315,8 @@ export const writeBriefTool: GridTool = {
       let problem: string | null = null
       const refused: RefusedLine[] = [...(parts?.refused ?? [])]
       let briefFile: string
+      // CMD-57: the brief there before a write, to say what the write replaced.
+      let before: Brief | null = null
       const change: BriefChange = { ...(args['add'] === undefined ? {} : { add: args['add'] }), ...(args['remove'] === undefined ? {} : { remove: args['remove'] as string[] }), ...(args['update'] === undefined ? {} : { update: args['update'] as BriefChange['update'] & object }) }
       const changing = Object.keys(change).length > 0
       if (changing && given !== undefined) throw new ToolRefusal('Pass brief to write the whole brief, or add, remove and update to change the brief kept: not both.')
@@ -319,6 +335,7 @@ export const writeBriefTool: GridTool = {
           if (error instanceof BriefRefused) throw new ToolRefusal(`The brief was not changed: ${error.message}.`)
           throw error
         }
+        before = read.brief
         brief = parts.brief
         refused.push(...parts.refused)
         written = writeBrief(project, file, brief)
@@ -332,21 +349,28 @@ export const writeBriefTool: GridTool = {
         if (brief === null && !project.exists(file)) throw new ToolRefusal(`There is no plan ${JSON.stringify(file)} and no brief beside it: pass brief to write one from the person's words.`)
       } else {
         brief = given
-        if (args['replace'] !== true && project.exists(briefFileOf(file))) {
-          const there = readBrief(project, file)
+        const there = project.exists(briefFileOf(file)) ? readBrief(project, file) : null
+        if (args['replace'] !== true && there !== null) {
           throw new ToolRefusal(`There is already a brief beside the plan (${JSON.stringify(there.file)}), and it was not changed. Leave brief out to read it, then pass the whole brief with what changed and replace: true.`)
         }
+        before = there?.brief ?? null
         written = writeBrief(project, file, given)
         briefFile = written
       }
+      const changes = written !== null && before !== null ? compareBriefs(before, brief) : null
+      const replacedText = changes === null ? [] : [
+        ...briefChangeText(changes, historySay('tool.brief.replacedHeading', { count: changes.length, less: lessCount(changes) }), historySay('tool.brief.replacedSame'), 40),
+        ...(changes.length === 0 ? [] : [historySay('tool.brief.replacedBack')]),
+      ]
+      const replaced = changes === null || before === null ? null : { changes: briefChangeData(changes), previous: briefArg(before) }
       const lines = briefLines(plan, brief)
       const head = written !== null
-        ? [changing ? `Changed the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.` : `Wrote the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.`, ...refusedText(refused)]
+        ? [changing ? `Changed the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.` : `Wrote the brief ${JSON.stringify(written)} beside the plan; the plan is as it was.`, ...replacedText, ...refusedText(refused)]
         : brief === null
           ? [problem ?? `There is no brief beside the plan yet (${JSON.stringify(briefFile)}): pass brief to write one from the person's words.`]
           : [`Read the brief ${JSON.stringify(briefFile)}; nothing was written.`]
       const text = [...head, ...(plan === null ? ['The plan is not written yet, so every line is open until the rooms are drawn.'] : []), ...briefText(lines, brief === null ? null : briefFile, { quotes: true })]
-      return { text: text.join('\n'), data: { written, file: briefFile, planDrawn: plan !== null, problem, refused, lines } }
+      return { text: text.join('\n'), data: { written, file: briefFile, planDrawn: plan !== null, problem, refused, lines, replaced } }
     } catch (error) {
       if (error instanceof BriefRefused || error instanceof PathRefused) throw new ToolRefusal(error.message)
       throw asRefusal(error)

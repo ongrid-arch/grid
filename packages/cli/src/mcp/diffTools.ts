@@ -4,7 +4,8 @@
  * and write through `fs/projectFiles.ts`; the marker is kept beside the plan
  * (`versions/markers.ts`), never in it. CMD-44: `since` and `to` name any version Grid keeps
  * (`versions/named.ts`), `show` gives the fields that changed and the change log, and a marker
- * says who set it and why.
+ * says who set it and why. CMD-57: a marker keeps the brief beside the plan, and grid_diff says how
+ * the brief changed since.
  */
 import { say } from '@ongrid/floorplan/messages'
 import type { FloorPlan } from '@ongrid/floorplan/geometry'
@@ -12,6 +13,7 @@ import { historySay } from '../versions/words'
 import { GitUnread } from '../versions/git'
 import { DEFAULT_MARKER, MARKER_BY_MAX, MARKER_NAME, MARKER_NOTE_MAX, MARKERS_MAX, MarkerRefused, removeMarker, setMarker } from '../versions/markers'
 import { DIFF_SHOWS, diffData, diffSince, diffText, type DiffShow } from '../versions/diff'
+import { briefForMarker } from '../versions/briefs'
 import { SEEN_NEW_OUTPUT } from '../edit/seen'
 import { toolLanguage } from './answerLanguage'
 import { CHANGE_RATES_ARG, ESTIMATE_CHANGE_SCHEMA, estimateChangeAnswer, ratesForTool } from './estimateChangeAnswer'
@@ -42,7 +44,7 @@ export const diffTool: GridTool = {
     'Use this when you have changed the plan and need to check what the change did, after every save: "what did that change", "did anything else move", "is it the same building", "what changed since we started". '
     + 'It compares the plan with an earlier version of itself by what stands where, not by ids: the start marker set with grid_mark_start, or the version last committed in the project\'s git folder (since: git). For a plan with existing, demolished and new parts, since: phase compares it before its work with after it: what is removed is to be demolished, what is added is new. It reads both itself, so pass no plans. '
     + 'Every change Grid makes keeps the plan it replaced and a line in the plan\'s change log, so since also takes last (the plan before the last change), a revision from planRevision, a date or date and time, git~1 or a commit; to compares two earlier versions with each other. show: facts lists every field that changed, facts of the person\'s own and room numbers included; show: history lists the log\'s entries since then: who changed what, when, with which tool. '
-    + 'It answers issues first (a door that now joins other rooms, a wall that now meets an opening, notes of grid_check that came and went), then a short verdict room by room with how many ids were only renamed, then the changes one line each. A plan that is the earlier one mirrored or turned a quarter or half round is said to be so first, with whether every room kept its size, and compared from there. Pass rooms, the rooms you meant to edit, to have every change outside them named. With picture true (the default) it returns one picture: removed in red, added in green, what changed in amber (a wall or opening at its new place with its old place outlined, a room with its old and new area), the rest pale. '
+    + 'It answers issues first (a door that now joins other rooms, a wall that now meets an opening, notes of grid_check that came and went), how the brief changed when the marker keeps it (a wish weakened, removed, added), then a short verdict room by room with how many ids were only renamed, then the changes one line each. A plan that is the earlier one mirrored or turned a quarter or half round is said to be so first, with whether every room kept its size, and compared from there. Pass rooms, the rooms you meant to edit, to have every change outside them named. With picture true (the default) it returns one picture: removed in red, added in green, what changed in amber (a wall or opening at its new place with its old place outlined, a room with its old and new area), the rest pale. '
     + say('en', 'tool.estimateChange.diffTool') + ' '
     + 'Do not use to compare options or separate plans side by side (grid_compare), or to check the plan itself (grid_check). Units are metres.',
   args: {
@@ -89,10 +91,12 @@ export const diffTool: GridTool = {
     floor: NULLABLE_STRING,
     otherFloors: NUMBER,
     picture: { type: ['object', 'null'] },
+    // CMD-57: how the brief changed since a marker that keeps it, or why it was not compared.
+    brief: { type: ['object', 'null'] },
     // MSG-29: each note set aside as seen that is new again since the earlier version.
     seenNew: SEEN_NEW_OUTPUT,
     estimateChange: ESTIMATE_CHANGE_SCHEMA,
-  }, ['since', 'to', 'fields', 'fieldsTotal', 'history', 'verdict', 'sameBuilding', 'turn', 'roomsFirst', 'shift', 'renamed', 'issues', 'rooms', 'changes', 'stayed', 'movedWith', 'massing', 'scope', 'floor', 'otherFloors', 'picture', 'seenNew']),
+  }, ['since', 'to', 'fields', 'fieldsTotal', 'history', 'verdict', 'sameBuilding', 'turn', 'roomsFirst', 'shift', 'renamed', 'issues', 'rooms', 'changes', 'stayed', 'movedWith', 'massing', 'scope', 'floor', 'otherFloors', 'picture', 'seenNew', 'brief']),
   async run(args, context) {
     const project = projectOf(context)
     const file = planFileOf(project, args['plan'])
@@ -147,7 +151,7 @@ export const markStartTool: GridTool = {
   hint: 'write-file',
   description:
     'Use this when you are about to change the plan, to keep the version grid_diff compares with afterwards: "remember where we started", "mark this version", or before any edit. '
-    + `It copies the plan as it is now under a name, ${DEFAULT_MARKER} unless you name another, into the markers file beside the plan (plan.markers.json beside plan.json), never into the plan, with who set it and a note when given. Setting a name again replaces it; a plan keeps the latest ${MARKERS_MAX} markers, and a new one past that rolls the oldest off. remove=true takes one off. grid_restore puts a marker's version back. `
+    + `It copies the plan as it is now under a name, ${DEFAULT_MARKER} unless you name another, into the markers file beside the plan (plan.markers.json beside plan.json), never into the plan, with who set it, a note when given and the brief beside the plan. Setting a name again replaces it; a plan keeps the latest ${MARKERS_MAX} markers, and a new one past that rolls the oldest off. remove=true takes one off. grid_restore puts a marker's version back. `
     + 'Do not use to save or undo the plan (every change already keeps the plan it replaced: grid_undo, grid_restore since=last), or where the person keeps the plan in git and wants the last commit (grid_diff since: git needs no marker).',
   args: {
     plan: PLAN_ARG,
@@ -165,6 +169,8 @@ export const markStartTool: GridTool = {
     markers: listSchema(STRING),
     // CMD-44: the oldest marker, rolled off to make room; null when none was.
     rolled: NULLABLE_STRING,
+    // CMD-57: whether the marker keeps a brief.
+    brief: BOOLEAN,
   }),
   run(args, context) {
     const name = (args['name'] as string | undefined) ?? DEFAULT_MARKER
@@ -174,14 +180,16 @@ export const markStartTool: GridTool = {
         const project = projectOf(context)
         const file = planFileOf(project, args['plan'])
         const done = removeMarker(project, file, name)
-        return { text: `Took marker ${JSON.stringify(name)} off. Markers kept in ${done.file}: ${done.names.join(', ') || 'none'}.`, data: { written: done.file, name, at: null, replaced: false, removed: true, markers: [...done.names], rolled: null } }
+        return { text: `Took marker ${JSON.stringify(name)} off. Markers kept in ${done.file}: ${done.names.join(', ') || 'none'}.`, data: { written: done.file, name, at: null, replaced: false, removed: true, markers: [...done.names], rolled: null, brief: false } }
       }
       const { project, file, loaded } = readPlan(context, args['plan'])
-      const done = setMarker(project, file, name, loaded.text ?? JSON.stringify(loaded.plan), undefined, { by: args['who'] as string | undefined, note: args['note'] as string | undefined })
+      const brief = briefForMarker(project, file)
+      const done = setMarker(project, file, name, loaded.text ?? JSON.stringify(loaded.plan), undefined, { by: args['who'] as string | undefined, note: args['note'] as string | undefined, brief })
       const rolled = done.rolled === null ? [] : [historySay('tool.history.markerRolled', { name: { name: done.rolled.name }, max: MARKERS_MAX })]
+      const briefLine = historySay(typeof brief === 'string' ? 'tool.brief.markKept' : brief === null ? 'tool.brief.markNone' : 'tool.brief.markUnread', { name })
       return {
-        text: [`${done.replaced ? 'Set marker' : 'Marked'} ${JSON.stringify(name)}: the plan as it is now, kept in ${done.file}${done.replaced ? ' in place of the one before' : ''}. Markers: ${done.names.join(', ')} (at most ${MARKERS_MAX}). After the edit, grid_diff since: ${name} says what changed.`, ...rolled].join('\n'),
-        data: { written: done.file, name, at: done.marker.at, replaced: done.replaced, removed: false, markers: [...done.names], rolled: done.rolled?.name ?? null },
+        text: [`${done.replaced ? 'Set marker' : 'Marked'} ${JSON.stringify(name)}: the plan as it is now, kept in ${done.file}${done.replaced ? ' in place of the one before' : ''}. Markers: ${done.names.join(', ')} (at most ${MARKERS_MAX}). After the edit, grid_diff since: ${name} says what changed.`, briefLine, ...rolled].join('\n'),
+        data: { written: done.file, name, at: done.marker.at, replaced: done.replaced, removed: false, markers: [...done.names], rolled: done.rolled?.name ?? null, brief: typeof brief === 'string' },
       }
     } catch (error) {
       throw refused(error)
