@@ -2200,6 +2200,7 @@ four are optional and never defaulted, so a plan that states none reads as befor
 "site": {
   "boundary": [[0, 0], [15, 0], [15, 30], [0, 30]],
   "streets": [1],
+  "streetNames": [{ "edge": 1, "name": "Harbour Road" }],
   "setbacks": [{ "from": "all", "distance": 3, "source": "given" }, { "from": "street", "distance": 5 }],
   "things": [
     { "id": "fence", "kind": "fence", "points": [[0, 0], [15, 0], [15, 30], [0, 30], [0, 0]], "height": 1.8 },
@@ -2213,13 +2214,14 @@ four are optional and never defaulted, so a plan that states none reads as befor
 |---|---|
 | `boundary` | The plot's corners, in plan metres, in order round it, either way round. Edge 1 runs from the first point to the second, and the last edge back to the first point; a last point written on the first again closes it and adds no edge. Three corners at least |
 | `streets` | The edges on a street, by number |
+| `streetNames` | VEW-88: the name of the street an edge is on, each `{ "edge": 1, "name": "Harbour Road" }`: an edge `streets` names, once, and a name of one line, at most 120 characters, kept as written. The site plan writes it along the edge. Rooms text writes `street edge 1 "Harbour Road"`; `grid_set_site` takes `street_names` |
 | `setbacks` | The set-backs the person asked for: each `from` every edge (`all`), the street edges (`street`) or one edge by its number, with its `distance` in metres and, if known, its `source`: `given` by the person, or `assumed` for them to confirm. An edge takes the one asked for it, else the street's when it is on the street, else the one for every edge. One set-back for each `from` |
 | `things` | What is on the site, each with an `id` and a `kind`, and a `label` if wanted (below) |
 
 The set-backs are the person's own figures, never a code's: Grid compares the drawing with them,
 applies no figure of its own, and never says a distance is enough. A street or a set-back that
-names an edge the boundary does not have, a second set-back from the same edge, or one from the
-street with no street edge, is left out alone, and `grid check` says so (`plan/value-left-out`).
+names an edge the boundary does not have, a second set-back from the same edge, one from the
+street with no street edge, or a street name on an edge not on a street or named twice, is left out alone, and `grid check` says so (`plan/value-left-out`).
 
 None of it needs the file written by hand (CNT-41). Rooms text writes the plot in lines of its own
 (`plot 15 x 30 at 0,0`, `street south`, `setback all 3`, `site tree oak at 3,4 canopy 5`; see

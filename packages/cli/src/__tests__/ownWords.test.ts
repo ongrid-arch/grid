@@ -137,7 +137,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/edit/seat.ts': [5, 'notYet'],
   // CNT-41: the plot's and the site's things' receipts and refusals.
   // CNT-49: seven more, the ground on a slope set, said and refused.
-  'packages/cli/src/edit/site.ts': [44, 'notYet'],
+  // VEW-88: eight more, the streets' names set, kept, dropped and refused.
+  'packages/cli/src/edit/site.ts': [52, 'notYet'],
   // VEW-67: the trace image's receipts and refusals.
   'packages/cli/src/edit/trace.ts': [21, 'notYet'],
   // CNT-46: the bays' and the ramp's receipts and refusals.
@@ -243,7 +244,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-87: twelve more, grid_view's format, width, scale and aspect, their refusals and the svg line.
   'packages/cli/src/mcp/readTools.ts': [425, 'tools'],
   // VEW-85: grid_view kind=site's answer.
-  'packages/cli/src/mcp/siteAnswer.ts': [22, 'tools'],
+  // VEW-88: one fewer, the street edges' line now names each street.
+  'packages/cli/src/mcp/siteAnswer.ts': [21, 'tools'],
   // ARE-75: the state argument the reading tools share, and grid_view's demolition and proposed plans.
   'packages/cli/src/mcp/stateArg.ts': [2, 'tools'],
   // ARE-75: the head of the area table of the work as CSV.
@@ -281,7 +283,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-41: grid_set_site and grid_change_site, their descriptions, arguments and refusals.
   // CNT-49: ten more, the ground on a slope in grid_set_site's help, arguments and refusals.
   // CNT-50: two more, the site's address and its own name.
-  'packages/cli/src/mcp/siteTools.ts': [60, 'tools'],
+  // VEW-88: two more, street_names's help and its refusal.
+  'packages/cli/src/mcp/siteTools.ts': [62, 'tools'],
   // CNT-60: grid_set_party_wall and grid_change_neighbour.
   'packages/cli/src/mcp/contextTools.ts': [29, 'tools'],
   // CNT-50: grid_set_plan, its description, arguments and refusals.
@@ -483,7 +486,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-46: the bay, bays and ramp lines' refusals, what they chose and their summaries.
   'packages/floorplan/src/rooms/parking.ts': [95, 'notYet'],
   // CNT-41: the site lines' refusals and notes, and north in words.
-  'packages/floorplan/src/rooms/site.ts': [30, 'notYet'],
+  // VEW-88: three more, a street line's name refused.
+  'packages/floorplan/src/rooms/site.ts': [33, 'notYet'],
   // LVL-21: the stair lines' refusals, the stair's summary and the read-back's note.
   'packages/floorplan/src/rooms/stairs.ts': [39, 'notYet'],
   // CNT-45: the item lines' refusals and guesses. CNT-47: five more, the clear floor at a side.
@@ -500,8 +504,9 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-20: one more, the most dormers one roof lists, as the rooflights' is worded.
   // CNT-49: one more, ground sides that name no side.
   // CNT-59: one more, a guid that is not a GlobalId.
+  // VEW-88: two more, a street name on an edge not on a street or named twice.
   // LVL-29: one more, the most parts one roof lists, as the dormers' is worded.
-  'packages/floorplan/src/types/floorplan.ts': [66, 'notYet'],
+  'packages/floorplan/src/types/floorplan.ts': [68, 'notYet'],
   'packages/floorplan/src/types/places.ts': [7, 'notYet'],
   // CMD-7: the plan JSON Schema's title, its description, and the error for a schema part it cannot write.
   'packages/floorplan/src/types/planSchema.ts': [3, 'developer'],
@@ -697,6 +702,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // what the same-footprint share decides (geometry/tolerances.ts 4) (odd/tasks/ARE-76.md).
     // and CMD-53 4: the columns' and a standing part's room fields (quantities/query.ts 4) (odd/tasks/CMD-53.md).
     // and MSG-36 4: what the limits of a note said once decide (geometry/tolerances.ts 4) (odd/tasks/MSG-36.md).
+    // and VEW-88 13: the streets' names in rooms text (rooms/site.ts 3), the schema (types/floorplan.ts 2) and
+    // their receipts and refusals (edit/site.ts 8), within the ceiling (odd/tasks/VEW-88.md).
     expect(left).toBeLessThanOrEqual(2805)
   })
 

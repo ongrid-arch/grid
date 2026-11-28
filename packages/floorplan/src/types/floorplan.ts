@@ -132,7 +132,8 @@
  * C13 · The plot (BRF-3, lab EL-16)
  *   `site.boundary` is the plot's outline, its corners in plan metres in order round it (either
  *   way round); edge n runs from point n to point n + 1, the last back to the first. `streets`
- *   names the edges on a street by number, and `setbacks` the set-backs the person asked for,
+ *   names the edges on a street by number (`streetNames` the street each is on, VEW-88), and
+ *   `setbacks` the set-backs the person asked for,
  *   from every edge, the street edges or one edge: the person's own figures, never a code's.
  *   `things` are the site's own fences, gates, paths, paving, trees and pools: never walls,
  *   rooms or fixtures, so they add no wall, area, note or storey height. The site is the ground:
@@ -2133,6 +2134,12 @@ export const SiteThingSchema = z
 /** BRF-3: who a set-back is from, in WRT-6's words (`MARK_SOURCES`): `given` by the person, or `assumed`, for them to confirm. */
 export const SETBACK_SOURCES = ['given', 'assumed'] as const
 
+/** VEW-88: the name of the street one edge of the boundary is on, in the person's words. */
+export const StreetNameSchema = z.object({
+  edge: z.number().int().min(1),
+  name: text('name').pipe(z.string().min(1)),
+})
+
 /**
  * BRF-3 (C13): a set-back the person asked for: how far the building is to stand `from` the
  * boundary: `all` its edges, the `street` edges, or one edge by its number. A figure of the
@@ -2206,6 +2213,9 @@ export function boundaryEdgeCount(points: readonly (readonly [number, number])[]
  * BRF-3 (C13): `boundary`, `streets`, `setbacks` and `things`, the plot and what is on it.
  * A fault in one street, set-back or thing leaves that one out alone (`readParts.ts`).
  *
+ * VEW-88: `streetNames`, the name of the street an edge is on ("Harbour Road"), each on an edge
+ * `streets` names, once; plan text kept as written. The site plan writes it along the edge.
+ *
  * CNT-50: `address` and `name`, the site's address and its own name ("Harbour House") as the
  * person gives them, free text kept as written. Grid never looks an address up: `latitude` and
  * `longitude` are the only place on the earth it reads.
@@ -2230,6 +2240,8 @@ export const SiteSchema = z
     boundary: z.array(Vec2).min(3).max(BOUNDARY_MAX).optional(),
     // BRF-3: the edges of the boundary that are on a street, by number.
     streets: z.array(z.number().int().min(1)).max(BOUNDARY_MAX).optional(),
+    // VEW-88: the names of the streets those edges are on, in the person's words.
+    streetNames: z.array(StreetNameSchema).max(BOUNDARY_MAX).optional(),
     // BRF-3: the set-backs the person asked for, their own figures.
     setbacks: z.array(SetbackSchema).max(BOUNDARY_MAX).optional(),
     // BRF-3: the site's own things: fences, gates, paths, paving, trees and pools.
@@ -2256,6 +2268,13 @@ export const SiteSchema = z
       if (problem !== null) say(['streets', i], problem)
       else if (streets.has(edge)) say(['streets', i], `names edge ${edge} twice`)
       else streets.add(edge)
+    })
+    // VEW-88: a street's name is on an edge the site names as on a street, once.
+    const named = new Set<number>()
+    site.streetNames?.forEach((street, i) => {
+      if (!streets.has(street.edge)) say(['streetNames', i, 'edge'], `names the street on edge ${street.edge}, but the site does not name edge ${street.edge} as on a street`)
+      else if (named.has(street.edge)) say(['streetNames', i, 'edge'], `names the street on edge ${street.edge} twice: give one name`)
+      else named.add(street.edge)
     })
     const asked = new Set<string>()
     site.setbacks?.forEach((setback, i) => {

@@ -16,6 +16,7 @@ import { english, name, said as sentence } from '@ongrid/floorplan/messages'
 import type { Survey } from '../quantities/survey'
 import { emptyPatch, type Patch } from './edits'
 import { EditRefused } from './refused'
+import { textProblem } from '../command/planText'
 
 type Pair = [number, number]
 
@@ -27,6 +28,8 @@ export interface SiteRequest {
   readonly boundary?: readonly Pair[]
   readonly plot?: { readonly width: number; readonly depth: number; readonly at?: Pair }
   readonly streets?: readonly (number | { readonly side: string })[]
+  /** VEW-88: the streets' names, each on an edge or the edges facing a side; replaces the names. */
+  readonly streetNames?: readonly { readonly where: number | { readonly side: string }; readonly name: string }[]
   readonly setbacks?: readonly SetbackWords[]
   readonly north?: number
   readonly origin?: Pair
@@ -71,6 +74,52 @@ function siteProblem(site: Record<string, unknown>): string | null {
 const setbackText = (s: NonNullable<Site['setbacks']>[number]): string =>
   `${M(s.distance)} from ${s.from === 'all' ? 'every edge' : s.from === 'street' ? 'the street edges' : `edge ${s.from}`}${s.source === 'assumed' ? ', assumed for the person to confirm' : ''}`
 
+/** VEW-88: the street names whose edges are no longer on a street taken out, each said in `notKept`. */
+function keepStreetNames(site: Record<string, unknown>, notKept: string[]): void {
+  const names = site['streetNames'] as NonNullable<Site['streetNames']> | undefined
+  if (names === undefined) return
+  const streets = new Set((site['streets'] as number[] | undefined) ?? [])
+  const kept = names.filter((n) => streets.has(n.edge))
+  for (const n of names.filter((n) => !streets.has(n.edge))) notKept.push(`the street name ${JSON.stringify(n.name)} on edge ${n.edge}, which is no longer on a street`)
+  if (kept.length === 0) delete site['streetNames']
+  else site['streetNames'] = kept
+}
+
+/** VEW-88: the streets' names set in place of the site's, each edge named put on a street. */
+function setStreetNames(site: Record<string, unknown>, asked: NonNullable<SiteRequest['streetNames']>, said: string[]): void {
+  const points = site['boundary'] as Pair[] | undefined
+  if (asked.length > 0 && points === undefined) throw new EditRefused("A street's name is on an edge of the plot's boundary, which the site does not state: give boundary, or plot_width and plot_depth, with it.")
+  const named = new Map<number, string>()
+  for (const { where, name } of asked) {
+    const which = typeof where === 'number' ? `edge ${where}` : `the ${where.side} side`
+    if (name.trim() === '') throw new EditRefused(`The street name for ${which} is empty: give the street's name after the edge, as "2 Harbour Road".`)
+    const problem = textProblem(name, 'name')
+    if (problem !== null) throw new EditRefused(`The street name for ${which} ${problem}.`)
+    let edges: number[]
+    try {
+      edges = siteEdges(points!, [where], []).streets
+    } catch (error) {
+      if (error instanceof Error && /^rooms\//.test(String((error as { code?: unknown }).code))) throw new EditRefused(error.message.replace(/^./, (c) => c.toUpperCase()))
+      throw error
+    }
+    for (const edge of edges) {
+      const before = named.get(edge)
+      if (before !== undefined && before !== name) throw new EditRefused(`Edge ${edge} is given two street names, ${JSON.stringify(before)} and ${JSON.stringify(name)}: give it one.`)
+      named.set(edge, name)
+    }
+  }
+  const streets = new Set((site['streets'] as number[] | undefined) ?? [])
+  const added = [...named.keys()].filter((edge) => !streets.has(edge)).sort((a, b) => a - b)
+  if (added.length > 0) {
+    site['streets'] = [...streets, ...added].sort((a, b) => a - b)
+    said.push(`Put edge ${added.join(' and ')} on the street, to carry ${added.length === 1 ? 'its name' : 'their names'}.`)
+  }
+  const names = [...named].sort((a, b) => a[0] - b[0]).map(([edge, name]) => ({ edge, name }))
+  if (names.length === 0) delete site['streetNames']
+  else site['streetNames'] = names
+  said.push(names.length === 0 ? 'No street has a name now.' : `The streets' names: ${names.map((n) => `edge ${n.edge} on ${JSON.stringify(n.name)}`).join(', ')}.`)
+}
+
 /** The plot, its streets and set-backs, north and where the building is, set or taken out. */
 export function setSite(survey: Survey, request: SiteRequest): Patch {
   const plan = survey.plan
@@ -89,7 +138,7 @@ export function setSite(survey: Survey, request: SiteRequest): Patch {
       said.push('Took north out: the ways are read with north up the drawing again, said as not known.')
       continue
     }
-    const keys = field === 'location' ? ['latitude', 'longitude'] : field === 'boundary' ? ['boundary', 'streets', 'setbacks', 'groundEdges'] : [field]
+    const keys = field === 'location' ? ['latitude', 'longitude'] : field === 'boundary' ? ['boundary', 'streets', 'streetNames', 'setbacks', 'groundEdges'] : field === 'streets' ? ['streets', 'streetNames'] : [field]
     for (const key of keys) delete site[key]
     said.push(field === 'boundary' ? "Took the plot's boundary out, with its streets and set-backs, which are measured from it." : `Took the site's ${field} out.`)
   }
@@ -147,6 +196,9 @@ export function setSite(survey: Survey, request: SiteRequest): Patch {
       said.push(edged.setbacks.length === 0 ? 'No set-back is asked now.' : `Set-backs asked, the person's own figures: ${edged.setbacks.map(setbackText).join('; ')}.`)
     }
   }
+  // VEW-88: a street's name stays while its edge is on a street, then the names asked are set.
+  keepStreetNames(site, notKept)
+  if (request.streetNames !== undefined) setStreetNames(site, request.streetNames, said)
   if (request.north !== undefined) {
     north = request.north
     said.push(`North: ${northWordsOf(request.north)}.`)

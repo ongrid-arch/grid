@@ -45,7 +45,11 @@ export function sitePlanLines(drawn: SitePlan, units: Display): string[] {
   const things = drawn.site?.things.length ?? 0
   if (things > 0) lines.push(`The site's things are drawn in their own style (${count(things, 'thing')})${labels.length === 0 ? ', none with a label of its own' : `, labelled as the plan names them: ${labels.map((l) => q(l.text)).join(', ')}`}.`)
   if (drawn.setbacks.length > 0) lines.push(`Set-back lines, dashed inside the plot at the person's own figures: ${drawn.setbacks.map((s) => `${lengthText(s.distance, units)} from edge ${s.edge}`).join(', ')}. Grid adds no figure of its own; grid_measure what=site measures each building against them.`)
-  if (drawn.streets.length > 0) lines.push(`Street edges drawn heavier, with the word Street outside them: ${drawn.streets.map((s) => `edge ${s.edge}, facing ${s.faces}`).join('; ')}. The plan holds no street names, so none is written.`)
+  // VEW-88: each street edge with the name written outside it, or the word Street when it has none.
+  if (drawn.streets.length > 0) {
+    const unnamed = drawn.streets.filter((s) => s.name === null)
+    lines.push(`Street edges drawn heavier, each with its street's name outside it, or the word Street when the plan gives none: ${drawn.streets.map((s) => `edge ${s.edge}, facing ${s.faces}, ${s.name === null ? 'no name' : q(s.name)}`).join('; ')}.${unnamed.length === 0 ? '' : ` grid_set_site street_names names ${unnamed.length === 1 ? 'it' : 'them'}.`}`)
+  }
   if (drawn.context.length > 0) lines.push(`Context round the plan, dashed: ${drawn.context.map((c) => (c.name === null ? q(c.id) : q(c.name))).join(', ')}.`)
   return lines
 }
@@ -78,7 +82,7 @@ export async function siteAnswer(plan: FloorPlan, asked: LookName, language?: La
       buildings: drawn.buildings.map((b) => ({ id: b.id, name: b.name, storeys: b.storeys, height: b.height === null ? null : Number(m(b.height)), area: b.area, drawn: b.pieces.length > 0, why: b.why })),
       plotArea: drawn.plotArea,
       setbacks: drawn.setbacks.map((s) => ({ edge: s.edge, distance: s.distance })),
-      streets: drawn.streets.map((s) => ({ edge: s.edge, faces: s.faces })),
+      streets: drawn.streets.map((s) => ({ edge: s.edge, faces: s.faces, name: s.name })),
       labels: drawn.site === null ? [] : siteLabels(drawn.site).map((l) => ({ id: l.id, text: l.text })),
       north: drawn.north !== null,
       scaleBar: view.scaleBar.metres,

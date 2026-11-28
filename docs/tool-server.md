@@ -1159,7 +1159,11 @@ drawing, and a plot's edges are 1 south, 2 east, 3 north and 4 west. A set-back 
 rooms text writes it, `<from> <distance>`, `assumed` after it when it is not the person's own
 figure yet. A plot given with no `plot_x` and `plot_y` is centred on the building, and the answer says
 where it put it. A new boundary keeps the streets and set-backs that still name one of its edges,
-and says which it could not keep. `remove` takes a field out. `grid_change_site` adds, moves,
+and says which it could not keep. `street_names` (VEW-88) names the street each edge is on,
+`"<edge> <name>"` with the edge a number or a side (`"1 Harbour Road"`, `"south Quay Street"`):
+an edge named that is not on a street is put on one, a name stays while its edge is on a street
+and goes with it, and an empty name or one over 120 characters is refused with nothing written;
+`[]` takes the names out. `remove` takes a field out. `grid_change_site` adds, moves,
 resizes and removes the site's things one at a time: `{"action": "move", "id": "oak", "by": "2,0"}`,
 `{"action": "resize", "id": "drive", "width": 3}`, `{"action": "add", "kind": "gate", "points":
 ["4,0", "5,0"]}`. A point is text, `"x,y"`, as rooms text writes it, in metres or with a unit
@@ -1177,11 +1181,12 @@ The data holds `boundary` (`area`, `acres`, `problem`, and each edge's `edge`, `
 `grid_view kind=site` draws the site plan (VEW-85), as `grid draw --site` does
 ([commands.md](commands.md#a-site-plan-grid-draw---site)): the plot with every building of the plan
 on it in solid fill, each with its name, storeys and height, the site's things with their labels,
-the set-back lines at the person's figures, the street edges, a scale bar and the north arrow,
-framed to the whole site. It takes `look` only. Its text lists the buildings drawn with their
+the set-back lines at the person's figures, the street edges with each street's name along it
+(the word for a street when it has none), a scale bar and the north arrow, framed to the whole site. It takes `look` only. Its text lists the buildings drawn with their
 storeys, height and area seen from above, any building that could not be drawn and why, the plot's
 area, the labelled things, the set-back lines and the street edges; `site` in the data holds the
-same (`buildings`, `plotArea`, `setbacks`, `streets`, `labels`, `north`, `scaleBar` in metres) and
+same (`buildings`, `plotArea`, `setbacks`, `streets` with each one's `edge`, `faces` and `name`, null
+when it has none, `labels`, `north`, `scaleBar` in metres) and
 `ids` the buildings drawn. A plan with no plot, no site thing and no floor whose walls close an
 outline is refused. `kind=plan` with `with_site` draws the site faint under any floor, framed with
 it, as for an upper floor's evacuation map that shows the assembly point outside. The geometry is
