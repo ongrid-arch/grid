@@ -36,6 +36,8 @@ export interface FaultLine {
   readonly thing: { readonly kind: FaultThingKind; readonly id: string }
   /** The floor the thing is on; null for the plan as a whole. */
   readonly floor: string | null
+  /** MSG-36: on a line said once for several floors, each floor it holds for. */
+  readonly floors?: readonly string[]
   readonly message: string
 }
 
@@ -49,11 +51,12 @@ export interface NumberedFault {
 
 /**
  * The lines a drawing of one floor shows: that floor's and the whole plan's, numbered in the
- * whole record. `walls` names each opening's wall, as the plan states it.
+ * whole record. `walls` names each opening's wall, as the plan states it. MSG-36: a line said once
+ * for several floors is on each of them; where its part is not on this floor it is in the key.
  */
 export function faultsOnFloor(lines: readonly FaultLine[], floor: string, walls: ReadonlyMap<string, string> = new Map()): NumberedFault[] {
   return lines.flatMap((line, index) => {
-    if (line.floor !== null && line.floor !== floor) return []
+    if (line.floor !== null && line.floor !== floor && !(line.floors?.includes(floor) ?? false)) return []
     const wall = line.thing.kind === 'opening' ? walls.get(line.thing.id) : undefined
     return [wall === undefined ? { number: index + 1, line } : { number: index + 1, line, wall }]
   })

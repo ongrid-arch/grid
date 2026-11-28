@@ -23,6 +23,13 @@ describe('faultsOnFloor', () => {
     expect(faults[2]!.wall).toBe('w1')
     expect(faults[1]!.wall).toBeUndefined()
   })
+
+  it('keeps a line said once for several floors on each of them (MSG-36)', () => {
+    const lines: FaultLine[] = [line('floor', 'l1', 'l1'), { ...line('floor', 'l2', 'l2'), floors: ['l2', 'l3', 'l4'] }]
+    expect(faultsOnFloor(lines, 'l3').map((f) => f.number)).toEqual([2])
+    expect(faultsOnFloor(lines, 'l2').map((f) => f.number)).toEqual([2])
+    expect(faultsOnFloor(lines, 'l1').map((f) => f.number)).toEqual([1])
+  })
 })
 
 describe('wrapText', () => {
