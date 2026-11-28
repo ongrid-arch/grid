@@ -247,8 +247,8 @@ function shadeNode(shade: SceneShade): SvgNode {
 /** Everything shown, rooms in one fill. */
 export const SHOW_ALL: SceneShow = { notes: true, sketch: true, areas: true, swings: true, warnings: true, above: true, colourBy: null }
 
-/** The paint for each part, for one look, zoom and output scale. */
-function paints(named: Look, mpp: number, paperScale: number | undefined) {
+/** The paint for each part, for one look, zoom and output scale. VEW-89: a section's chains paint with it too. */
+export function paints(named: Look, mpp: number, paperScale: number | undefined) {
   const look = named.colors
   const line = lineMetres(named, mpp, paperScale)
   const width = (part: Parameters<typeof line.width>[0]): string => lengthText(line.width(part))
@@ -410,7 +410,7 @@ function paints(named: Look, mpp: number, paperScale: number | undefined) {
   }
 }
 
-type Paints = ReturnType<typeof paints>
+export type Paints = ReturnType<typeof paints>
 
 const virtualPath = (points: readonly Vec2[]): string => `M${points.map((p) => `${p.x},${-p.y}`).join('L')}`
 
@@ -508,9 +508,10 @@ function openingShape(opening: PlanOpening, attrs: Attrs, key?: string): SvgNode
 
 /**
  * One dimension: the dimension line, the two extension lines that tie it to what it
- * measures, and the number. Where it goes comes from the geometry core.
+ * measures, and the number. Where it goes comes from the geometry core. VEW-89: a section's
+ * chains are drawn with it.
  */
-function dimensionMark(
+export function dimensionMark(
   dim: Dimension,
   mpp: number,
   labelAt: Vec2 | null,

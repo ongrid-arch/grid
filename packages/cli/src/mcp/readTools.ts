@@ -2991,7 +2991,7 @@ const viewTool: GridTool = {
     toward: { type: 'string', maxLength: 64, description: 'For eye: an opening or item id to look at, or a compass direction (north, north-east, east, south-east, south, south-west, west, north-west), by the north the plan states, or with north the top of the drawing when it states none. The room\'s first window when left out; standing in a doorway or a corner, the far corner of the room, diagonally across; in front of an item, the way it faces. Not with look_at. For section, and for plan with marks section: left or right, the side of the cut the section looks toward, walking from its from point to its to point; left when left out.', examples: ['back-door', 'north', 'left'] },
     eye_height: { type: 'number', length: true, description: 'For eye: metres above the room\'s own floor (its storey and its floor offset), 0.3 to 3; 1.6 standing when left out; about 1.2 seated. For 3d: metres from the floor of the room pointed at (or the floor cut away, or the ground floor) up to the camera: with a tilt the camera stands back until it is that high; level, or with a distance, the point it looks at moves to meet it.', examples: [1.6, 1.2], minimum: 0, maximum: 10000 },
     look: { type: 'string', enum: LOOKS, description: 'For plan, facade and section: working (the default for a plan and a facade: clear labels and strong contrast, for checking the drawing), simple for a picture to show a person (rooms coloured by use, each room\'s width × depth and area in two units, the overall sizes only, the title and the floor\'s total, none of grid_check\'s notes), large for large print (big names, no dimensions), technical for black on white as on a sheet, with lines in millimetres at the scale and doors with no stated swing marked "?" (the default for a section, as for a drawing file). A picture is always on light paper, so dark, the app\'s screen theme, draws working; a facade and a section draw simple and large as working. light and mono are older names for working and technical.', examples: ['simple', 'working', 'technical'] },
-    dimensions: { type: 'boolean', description: 'For plan: false to leave the sizes off, for a clean drawing. true when left out.', examples: [true, false] },
+    dimensions: { type: 'boolean', description: 'For plan: false to leave the sizes off, for a clean drawing. For section: false to leave its dimension chains off. true when left out.', examples: [true, false] },
     tile: { type: 'number', description: 'For plan: on a floor far longer than it is wide, which the answer says is drawn in pieces, the piece to draw, from 1 at its left (or top) end; each overlaps the next and is drawn large enough to read. The whole floor when left out. Not with crop.', examples: [1, 2], minimum: 1, maximum: 1000 },
     crop: { type: 'string', maxLength: 600, description: 'For plan: frame just these parts: a room, door, window, wall or item id, a room\'s name, a flat by its id or name, or the rooms that meet a condition on a field or fact as grid_find writes one (household = Rose); several of these joined by commas are framed together. A zone is a room, by its id. With no floor named, the first floor that holds them all is drawn. The whole floor when left out. Not with crop_box or tile.', examples: ['kitchen', 'kitchen, lounge', 'flat-2', 'household = Rose'] },
     crop_box: {
@@ -3100,7 +3100,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext, siz
       facade: ['side', 'look'],
       '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit', 'sun'],
       eye: ['room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'lens', 'tilt', 'perspective', 'sun'],
-      section: ['cut', 'toward', 'look'],
+      section: ['cut', 'toward', 'look', 'dimensions'],
       site: ['look'],
     }
     const stray = ['floor', 'frame', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'perspective', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile', 'sun', 'with_site'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
@@ -3127,7 +3127,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext, siz
       const line = asToolArg(() => sectionLineOf(cut.from, cut.to, towardOf(args['toward'] as string | undefined, 'toward'), 'cut'))
       // Loaded only for a section: the drawing and the words that go with it.
       const { sectionAnswer } = await import('./sectionAnswer')
-      return sectionAnswer(plan, line, (args['look'] as LookName | undefined) ?? 'technical', language, levelDisplay, size)
+      return sectionAnswer(plan, line, (args['look'] as LookName | undefined) ?? 'technical', language, levelDisplay, size, args['dimensions'] !== false)
     }
     // LVL-9: the marks for the plan's other drawings; cut and toward only for a section's line on it.
     const markWords = args['marks'] === undefined ? null : asToolArg(() => readMarks(args['marks'] as string[], 'marks'))

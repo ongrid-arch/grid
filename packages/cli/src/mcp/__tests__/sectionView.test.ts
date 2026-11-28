@@ -68,7 +68,7 @@ describe('grid_view kind=section', () => {
     await expect(call({ kind: 'section', cut: { from: [1, 2], to: [1, 2] } })).rejects.toThrow('cut needs two different points')
     await expect(call({ kind: 'section', cut: { ...THROUGH_STAIR, at: 1 } })).rejects.toThrow('cut takes from and to, not "at"')
     await expect(call({ kind: 'section', cut: THROUGH_STAIR, toward: 'north' })).rejects.toThrow('toward takes left or right')
-    await expect(call({ kind: 'section', cut: THROUGH_STAIR, floor: 'first' })).rejects.toThrow('kind=section takes cut, toward, look, not floor.')
+    await expect(call({ kind: 'section', cut: THROUGH_STAIR, floor: 'first' })).rejects.toThrow('kind=section takes cut, toward, look, dimensions, not floor.')
   })
 })
 
@@ -102,13 +102,36 @@ describe('grid_view kind=plan with marks', () => {
   })
 
   it('refuses a camera with a section, and a cut with a camera (after VEW-3)', async () => {
-    await expect(call({ kind: 'section', cut: THROUGH_STAIR, bearing: 200, tilt: 25 })).rejects.toThrow('kind=section takes cut, toward, look, not bearing, tilt.')
-    await expect(call({ kind: 'section', cut: THROUGH_STAIR, view: 'Garden corner' })).rejects.toThrow('kind=section takes cut, toward, look, not view.')
+    await expect(call({ kind: 'section', cut: THROUGH_STAIR, bearing: 200, tilt: 25 })).rejects.toThrow('kind=section takes cut, toward, look, dimensions, not bearing, tilt.')
+    await expect(call({ kind: 'section', cut: THROUGH_STAIR, view: 'Garden corner' })).rejects.toThrow('kind=section takes cut, toward, look, dimensions, not view.')
     await expect(call({ kind: '3d', cut: THROUGH_STAIR, toward: 'left' })).rejects.toThrow('kind=3d takes floor, from, bearing, tilt, distance, eye_height, lens, room, camera, view, turn, tilt_by, roof, fit, sun, not toward, cut.')
   })
 
   it('refuses a side with a section, and a cut or marks with a facade (after LVL-8)', async () => {
-    await expect(call({ kind: 'section', cut: THROUGH_STAIR, side: 'south' })).rejects.toThrow('kind=section takes cut, toward, look, not side.')
+    await expect(call({ kind: 'section', cut: THROUGH_STAIR, side: 'south' })).rejects.toThrow('kind=section takes cut, toward, look, dimensions, not side.')
     await expect(call({ kind: 'facade', side: 'south', cut: THROUGH_STAIR, marks: ['levels'] })).rejects.toThrow('kind=facade takes side, look, not marks, cut.')
+  })
+})
+
+describe('grid_view kind=section with its dimension chains (VEW-89)', () => {
+  type Chains = { section: { dimensions: { kind: string; axis: string; figures: { value: number; from: number; to: number; ends: { kind: string; id: string }[] }[] }[] } }
+
+  it('says each chain in a line, and gives its figures with what each end is at', async () => {
+    const answer = await call({ kind: 'section', cut: THROUGH_STAIR })
+    expect(answer.text).toContain('Dimension chains, in metres, up the left side from the bottom and under the cut from the left:')
+    expect(answer.text).toContain('  levels: 2.95 + 3.15 + 2.75 = 8.85 m (floor ground, floor first, floor second, roof second)')
+    expect(answer.text).toContain('  overall: 8.85 m (ground, roof second)')
+    const chains = (answer.data as Chains).section.dimensions
+    expect(chains.map((c) => `${c.axis} ${c.kind}`)).toEqual(['vertical detail', 'vertical levels', 'vertical overall', 'horizontal walls', 'horizontal length'])
+    const levels = chains.find((c) => c.kind === 'levels')!.figures
+    expect(levels.map((f) => [f.from, f.to])).toEqual([[0, 2.95], [2.95, 6.1], [6.1, 8.85]])
+    expect(levels[0]!.ends).toEqual([{ kind: 'floor', id: 'ground' }, { kind: 'floor', id: 'first' }])
+    expect(chains.find((c) => c.kind === 'length')!.figures.map((f) => f.value)).toEqual([11.3])
+  })
+
+  it('leaves them off with dimensions=false', async () => {
+    const answer = await call({ kind: 'section', cut: THROUGH_STAIR, dimensions: false })
+    expect(answer.text).not.toContain('Dimension chains')
+    expect((answer.data as Chains).section.dimensions).toEqual([])
   })
 })
