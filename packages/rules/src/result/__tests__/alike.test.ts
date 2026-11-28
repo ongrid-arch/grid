@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import type { FloorPlan } from '@ongrid/floorplan/geometry'
 import { loadLanguage } from '@ongrid/floorplan/messages'
 import { door, flat } from '@ongrid/floorplan/test-support/plans'
-import { inspectPlan } from '../..'
+import { holdsOnFloor, inspectPlan } from '../..'
 
 /** The flat with a doorless bathroom and a door laid over the kitchen's, copied `n` times, each copy `place`d. */
 function copies(n: number, place: (i: number) => { floor: string; prefix: string; dx: number }): FloorPlan {
@@ -47,6 +47,19 @@ describe('a note the same on every floor', () => {
     expect(result.problems).toBe(result.lines.filter((l) => l.causedBy === undefined && l.kind !== 'not-checked').length)
   })
 
+  it('names the floors it holds for, so a view of each floor finds it', () => {
+    const lines = inspectPlan(tower(5)).lines
+    const overlap = lines.find((l) => l.code === 'opening/overlap')!
+    expect(overlap.floor).toBe('l00')
+    expect(overlap.floors).toEqual([0, 1, 2, 3, 4].map(level))
+    for (const i of [0, 1, 2, 3, 4]) expect(holdsOnFloor(overlap, level(i))).toBe(true)
+    expect(holdsOnFloor(overlap, 'l05')).toBe(false)
+    // A line on one floor names no floors, and a line about the plan holds on every floor.
+    expect(holdsOnFloor({ floor: 'l01' }, 'l01')).toBe(true)
+    expect(holdsOnFloor({ floor: 'l01' }, 'l02')).toBe(false)
+    expect(holdsOnFloor({ floor: null }, 'l02')).toBe(true)
+  })
+
   it('stays one line per floor on two floors', () => {
     expect(inspectPlan(tower(2)).lines.filter((l) => l.code === 'opening/overlap')).toHaveLength(2)
   })
@@ -71,6 +84,8 @@ describe('a note the same on many parts of one floor', () => {
     const overlap = inspectPlan(ward).lines.filter((l) => l.code === 'opening/overlap')
     expect(overlap.map((l) => l.message)).toEqual(['Door "w1-d_x" overlaps another opening on its wall (the same for 4 openings: "w1-d_x" to "w4-d_x")'])
     expect(overlap[0]!.each).toHaveLength(4)
+    // All on one floor: it names no floors.
+    expect(overlap[0]!.floors).toBeUndefined()
   })
 
   it('names the parts and how many floors they are on when there are several on a floor', () => {

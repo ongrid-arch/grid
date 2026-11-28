@@ -19,6 +19,7 @@ import {
   requestedPlace,
   coverageOnFloor,
   figureUsedSaid,
+  holdsOnFloor,
   inspectPlan,
   isFirmLine,
   problemsIn,
@@ -334,9 +335,12 @@ export function checkOnFloor(loaded: LoadedPlan, whole: CheckResult, floor: stri
   return { label: whole.label, ...speech, floor, issues: floorIssues(loaded, floor), report, result, rooms: roomsLookedAt(loaded.plan, result.coverage, floor), numbers }
 }
 
-/** The record's lines on one floor, and those about the whole plan, counted again. */
+/**
+ * The record's lines on one floor, and those about the whole plan, counted again. MSG-36: a line
+ * said once for alike lines on several floors is on each of them.
+ */
 export function resultOnFloor(result: GridResult, floor: string): GridResult {
-  const lines = result.lines.filter((line) => line.floor === null || line.floor === floor)
+  const lines = result.lines.filter((line) => holdsOnFloor(line, floor))
   const counts = Object.fromEntries(Object.keys(result.counts).map((kind) => [kind, lines.filter((l) => l.kind === kind).length])) as Record<LineKind, number>
   return {
     ...result,

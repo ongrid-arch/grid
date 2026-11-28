@@ -67,9 +67,19 @@ function oneFor(group: readonly ResultLine[], language: Language, options: SayOp
     message: words,
     also,
     each,
+    // The floors it holds for, so a view of one floor still finds it (`holdsOnFloor`).
+    ...(distinct.length > 1 ? { floors: distinct } : {}),
     ...(held.length > 0 ? { held } : {}),
     ...(fixes.length > 0 ? { fixes } : {})
   }
+}
+
+/**
+ * Whether a line belongs in a view of one floor: a line about the whole plan, a line on that
+ * floor, or a line said once for several floors that holds for it (`floors`).
+ */
+export function holdsOnFloor(l: Pick<ResultLine, 'floor' | 'floors'>, floor: string): boolean {
+  return l.floor === null || l.floor === floor || (l.floors?.includes(floor) ?? false)
 }
 
 /** The lines with every group of alike lines said once, where its first line stood. */

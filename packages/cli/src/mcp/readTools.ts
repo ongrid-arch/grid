@@ -14,7 +14,7 @@ import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } 
 import type { WorldBounds } from '../draw/views'
 import type { PixelTransform } from '../draw/pictureTransform'
 import { version } from '../../package.json'
-import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
+import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, holdsOnFloor, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
 import { causeText, checkPlan, checkTitle, countsText, coverageSummary, firmHeadingText, firmNoNoteText, firmSectionTitle, firmStandardsText, kindWord, limitsText, nothingCheckedText, partsText, placeText, type PlaceWords, problemsText, readForText, restText, ruleText, seenBeforeText, seenByText, seenCount, thingText, usedFigures, withSeen, type CheckResult } from '../command/check'
 import { keptFor } from '@ongrid/floorplan/geometry/kept'
 import { askedLanguage, languageFor, spokenPlan } from '../command/language'
@@ -3123,7 +3123,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
         const here = total > 0 && planFloors(stated).length > 1 ? demolishedHere(stated, shown) : null
         if (here !== null) lines.push(here)
       }
-      const marked = faults.filter((line) => line.floor === null || line.floor === shown).length
+      const marked = faults.filter((line) => holdsOnFloor(line, shown)).length
       if (marked > 0 && people !== null) lines.push(`${marked} of grid_check's lines are about this floor; this look leaves them off the picture, so check them with grid_check before you show it.`)
       else if (marked > 0) lines.push(`${marked} of grid_check's lines are about this floor: each has its grid_check number on the part it is about, and all are listed under the drawing. A room that cannot be drawn is the dashed box round its walls.`)
       if (withIds) lines.push(...checkViewText(loaded, shown))
