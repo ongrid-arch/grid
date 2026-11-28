@@ -276,7 +276,8 @@ describe('ARE-12 asked for through grid_schedule and on the check set', () => {
     const pages = sheetPages({ file: 'tiny', plan, issues, broken }, null, 'check', { name: 'tiny', date: new Date(Date.UTC(2026, 10, 22)) }).pages
     const rooms = pages.find((p) => p.title === 'Room schedule')!.table!
     expect(rooms.rows.filter((r) => /^\d+\. /.test(r.name))).toHaveLength(4)
-    expect(rooms.total).toEqual({ name: 'Total, all floors', detail: '4 rooms, 277 sq ft', area: rooms.total!.area })
+    // SHT-26: the plan states no display, so the sheet is in square metres and prints no square feet.
+    expect(rooms.total).toEqual({ name: 'Total, all floors', detail: '4 rooms', area: rooms.total!.area })
     expect(rooms.rows.some((r) => r.name === 'Total, Sleeping loft')).toBe(true)
     const openings = pages.find((p) => p.title === 'Door and window schedule')!.table!
     expect(openings.rows).toHaveLength(openingSchedule(surveyPlan(plan)).rows.length)

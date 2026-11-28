@@ -277,6 +277,8 @@ export interface SheetUnits {
   readonly feet: boolean
   /** SHT-26: the length unit the sizes are printed in, as a word of the sheet's language. */
   readonly lengthWord: string
+  /** SHT-26: whether lengths are printed in metres to the centimetre, whatever the decimal mark. */
+  readonly centimetres: boolean
   /** A figure Grid wrote with a point, with the sheet's decimal mark. */
   mark(text: string): string
   length(metres: number, kind?: 'length' | 'height'): string
@@ -289,12 +291,13 @@ export interface SheetUnits {
 function sheetUnits(plan: LoadedPlan['plan'], w: Words): SheetUnits {
   const display: Display = displayFor(undefined, undefined, plan)
   const lengthWord = w.say(`sheet.lengthUnit.${display.length}` as MessageKey)
+  const centimetres = display.length === 'm' && display.precision === undefined
   const metric = display.length === 'm' && display.area === 'm2' && display.decimal === 'point' && display.precision === undefined
   const language = w.language === DEFAULT_LANGUAGE ? null : decimalFor(w.language, plan.display?.decimal)
   const fm = (text: string): string => (language === 'comma' ? sayValue(w.language, num(text), { decimal: 'comma' }) : text)
   if (metric) {
     return {
-      metric, feet: false, areaUnit: 'm²', mark: fm, lengthWord,
+      metric, feet: false, areaUnit: 'm²', mark: fm, lengthWord, centimetres,
       length: (m) => `${fm(metresText(m))} m`,
       area: (a) => fm(areaText(a, 1)),
       sum: (parts, total) => {
@@ -311,6 +314,7 @@ function sheetUnits(plan: LoadedPlan['plan'], w: Words): SheetUnits {
     metric,
     feet,
     lengthWord,
+    centimetres,
     areaUnit: feet ? w.say('sheet.unit.sqft') : 'm²',
     mark: fm,
     length: (m, kind = 'length') => fm(showLength(m, display, { kind })),

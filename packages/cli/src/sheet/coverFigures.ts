@@ -207,8 +207,8 @@ export function coverFigures(survey: Survey, areas: PlanAreas, headline: readonl
 
 /**
  * The one rounding rule the sheet's figures are printed by, said once on the cover. SHT-26: in the
- * units the figures are in: lengths to the centimetre only on a sheet in metres.
+ * units the figures are in: lengths to the centimetre only on a sheet in metres (with either decimal mark).
  */
 export function roundingNote(units: SheetUnits, w: Words): string {
-  return w.say(units.feet ? 'sheet.rounding.feet' : units.metric ? 'sheet.rounding' : 'sheet.rounding.shown')
+  return w.say(units.feet ? 'sheet.rounding.feet' : units.centimetres ? 'sheet.rounding' : 'sheet.rounding.shown')
 }

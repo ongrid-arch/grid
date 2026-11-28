@@ -113,6 +113,8 @@ describe('units true to the figures (SHT-26)', () => {
     const cover = (display?: NonNullable<LoadedPlan['plan']['display']>) =>
       sheetPages(display === undefined ? fixture('three-bed-house.json') : inUnits(fixture('three-bed-house.json'), display), null, 'client', { name: 'x', date }).pages[0]!.notes
     expect(cover()).toContain(say('en', 'sheet.rounding'))
+    // Metres with a decimal comma are still to the centimetre.
+    expect(cover({ length: 'm', decimal: 'comma' })).toContain(say('en', 'sheet.rounding'))
     expect(cover({ length: 'mm' })).toContain(say('en', 'sheet.rounding.shown'))
     expect(cover({ length: 'mm' }).join('\n')).not.toMatch(/centimetre/)
     expect(cover({ length: 'ft-in', area: 'm2' })).toContain(say('en', 'sheet.rounding.shown'))
