@@ -481,7 +481,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const taped = tapedRows(nextPlan)
   const origin = originOfWrite(nextPlan)
 
-  const verdict = before === null || own === null || nothingToLose(own) ? null : comparePlans(surveyPlan(withPatterns(before)), surveyPlan(withPatterns(nextPlan)), dryRun ? NOW_AND_TEXT : ['the plan before', 'the plan now']).verdict
+  const verdict = before === null || own === null || nothingToLose(own) ? null : comparePlans(surveyPlan(withPatterns(before)), surveyPlan(withPatterns(nextPlan)), dryRun ? NOW_AND_TEXT : ['the plan before', 'the plan now'], { display: displayFor(undefined, undefined, nextPlan) }).verdict
   // WRT-4 with LVL-8: the file's opening patterns are kept and name their walls by id, so the plan
   // written is counted with them, and what the new walls keep from being placed is said here.
   const patterns = before?.patterns ?? []

@@ -154,6 +154,23 @@ export function showLength(metres: number, display: Display = METRES, options: {
   return unit ? `${text} ${display.length}` : text
 }
 
+/** MSG-37: eighths of an inch, for a thickness in feet and inches. */
+const THICKNESS_PRECISION = 3
+
+/**
+ * MSG-37: a wall's thickness, or a small step of one, for a person: in feet and inches in inches
+ * to the eighth (`4 1/2"`), as a thickness is read; in any other display as `showLength`.
+ */
+export function showThickness(metres: number, display: Display = METRES): string {
+  if (display.length !== 'ft-in') return showLength(metres, display)
+  return showLength(metres, { ...display, precision: Math.max(display.precision ?? 0, THICKNESS_PRECISION) }, { kind: 'height' })
+}
+
+/** MSG-37: the display Grid has always written its answers in: metres with a point, two decimals. */
+export function plainMetres(display: Display): boolean {
+  return display.length === 'm' && display.area === 'm2' && display.decimal === 'point' && display.precision === undefined
+}
+
 /** An area for a person: `12.40 m²` or `133.5 sq ft`. */
 export function showArea(squareMetres: number, display: Display = METRES, decimals?: number): string {
   if (display.area === 'ft2') return `${marked((squareMetres / (FOOT * FOOT)).toFixed(decimals ?? 1), display.decimal)} sq ft`

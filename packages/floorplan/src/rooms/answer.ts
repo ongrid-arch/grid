@@ -9,7 +9,7 @@
 import { alikeTexts } from '../geometry/alike'
 import { floorOf } from '../geometry/floors'
 import { english, said } from '../messages/say'
-import { METRES, showArea, showLength, type Display } from '../types/units'
+import { METRES, plainMetres, showArea, showLength, showThickness, type Display } from '../types/units'
 import type { RoomFacts, RoomsResult, SizeBasis } from './compile'
 import { f2 } from './words'
 import { baseAnswer } from './base'
@@ -42,9 +42,6 @@ const IN_METRES: Figures = {
   opening: (line) => line
 }
 
-/** Eighths of an inch: a wall's thickness in feet and inches reads as `4 1/2"`. */
-const THICKNESS_PRECISION = 3
-
 /** MSG-37: the figures in a display that is not plain metres. */
 function inDisplay(display: Display): Figures {
   const feet = display.length === 'ft-in'
@@ -54,7 +51,7 @@ function inDisplay(display: Display): Figures {
     size: (metres) => showLength(metres, display, { unit: false }),
     pairUnit: feet ? '' : ` ${display.length}`,
     length,
-    thickness: (metres) => (feet ? showLength(metres, { ...display, precision: Math.max(display.precision ?? 0, THICKNESS_PRECISION) }, { kind: 'height' }) : length(metres)),
+    thickness: (metres) => showThickness(metres, display),
     area: (squareMetres) => (display.area === 'ft2' ? `${showArea(squareMetres, display)} (${showArea(squareMetres, { ...display, area: 'm2' })})` : showArea(squareMetres, display)),
     // The compiler writes an opening's figures as metres to the centimetre: its width is taken
     // from the plan, exactly; the other figures are the line's own, so to the centimetre.
@@ -72,8 +69,7 @@ function inDisplay(display: Display): Figures {
 
 /** MSG-37: metres as before when the display is plain metres, else the display's own figures. */
 function figuresFor(display: Display): Figures {
-  const plain = display.length === 'm' && display.area === 'm2' && display.decimal === 'point' && display.precision === undefined
-  return plain ? IN_METRES : inDisplay(display)
+  return plainMetres(display) ? IN_METRES : inDisplay(display)
 }
 
 function sizeOf(room: RoomFacts, figures: Figures): string {

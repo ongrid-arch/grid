@@ -6,7 +6,7 @@
 import { GENERAL_GUIDANCE_LABEL, tolerance } from '@ongrid/floorplan/geometry'
 
 import { languageDecimal, type Language } from '@ongrid/floorplan/messages'
-import { displayOf, METRES, showArea, showLength, statedDisplay, type DecimalMark, type Display, type LengthKind } from '@ongrid/floorplan/types/units'
+import { displayOf, METRES, plainMetres, showArea, showLength, showThickness, statedDisplay, type DecimalMark, type Display, type LengthKind } from '@ongrid/floorplan/types/units'
 
 /** The units a call may ask for: metres, centimetres, millimetres, feet and inches (`ft` is the same). */
 export const DISPLAY_UNITS = ['m', 'cm', 'mm', 'ft-in', 'ft'] as const
@@ -68,6 +68,30 @@ export function ownLengthText(metres: number, display: Display, kind: LengthKind
   const given = String(value).split('.')[1]?.length ?? 0
   const text = value.toFixed(Math.max(least, given))
   return `${display.decimal === 'comma' ? text.replace('.', ',') : text} ${display.length}`
+}
+
+/**
+ * MSG-37: a length in an answer, as Grid has always written it in metres (`0.50 m`, `decimals`
+ * of them), and in the display's own figures in any other display.
+ */
+export function metresOr(metres: number, display: Display, kind: LengthKind = 'length', decimals = 2): string {
+  return plainMetres(display) ? `${metres.toFixed(decimals)} m` : showLength(metres, display, { kind })
+}
+
+/** MSG-37: a length changed, `1.20 → 1.00 m` in metres, `3'-11" → 3'-3"` in feet and inches. */
+export function changeText(before: number, after: number, display: Display, kind: LengthKind = 'length'): string {
+  if (plainMetres(display)) return `${before.toFixed(2)} → ${after.toFixed(2)} m`
+  return `${showLength(before, display, { kind })} → ${showLength(after, display, { kind })}`
+}
+
+/** MSG-37: a wall's thickness in an answer: metres as before (`0.15 m`), else as the display reads a thickness (`4 1/2"`). */
+export function thicknessText(metres: number, display: Display, decimals = 2): string {
+  return plainMetres(display) ? `${metres.toFixed(decimals)} m` : showThickness(metres, display)
+}
+
+/** MSG-37: an area in an answer: square metres as before (`86.46 m²`), else as `areaText` writes it. */
+export function areaOr(m2: number, display: Display): string {
+  return plainMetres(display) ? `${m2.toFixed(2)} m²` : areaText(m2, display)
 }
 
 /** An area as the person reads it: square feet keep the square metres beside them, as before. */
