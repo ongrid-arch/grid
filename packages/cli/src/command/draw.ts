@@ -7,16 +7,17 @@
  * view saved with the plan (VEW-3), through its camera record. With `--facade` (LVL-8), one side of
  * the building in elevation, every floor at its level, through `drawFacade`. With `--section`, a
  * section along a line through every floor, through `drawSection` (LVL-9); `--marks` adds the
- * marks for the plan's other drawings to a floor plan.
+ * marks for the plan's other drawings to a floor plan. With `--site` (VEW-85), the site plan, through
+ * `sitePlanPicture`; `--with-site` draws the site faint under a floor plan.
  * Written to `--out`, or to standard output when no file is named.
  */
 import { DISPLAY_UNITS, displayFor } from '../quantities/units'
 import { FILE_LOOK_NAMES, LOOK_NAMES, type LookName } from '@ongrid/viewer/src/picture/look'
 import { inspectPlan } from '@ongrid/rules'
-import { FACADE_SIDES, cameraRecord, findView, planFloors, resolveFloor, traceFloor, viewSetting, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { FACADE_SIDES, cameraRecord, findView, planFloors, resolveFloor, sitePlan, traceFloor, viewSetting, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { pictureToPng } from '../draw/drawPlan'
 import { pixelTransform, type PixelTransform } from '../draw/pictureTransform'
-import { buildingPictureFrame, facadePicture, pictureToSvg, planPicture, type Picture } from '@ongrid/viewer/src/picture'
+import { buildingPictureFrame, facadePicture, pictureToSvg, planPicture, sitePlanPicture, type Picture } from '@ongrid/viewer/src/picture'
 import { drawShowOf } from './drawShow'
 import { floorOption, PlanRefused, type LoadedPlan } from './plan'
 import { nothingToDraw } from './planFile'
@@ -50,6 +51,9 @@ export const DRAW_OPTIONS: OptionSpecs = {
   '--section': { takesValue: true, help: 'Draw a section instead of a floor plan: the line to cut along, x1,y1:x2,y2 in metres, through every floor, with its levels and room heights, and what it takes that the plan does not state dashed and listed. Not with --3d, --view or --facade.' },
   '--toward': { takesValue: true, help: 'With --section: the side of the line the section looks toward, walking from its first point to its second: left (the default) or right.' },
   '--marks': { takesValue: true, help: 'Marks to add to a floor plan, joined by commas: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of --section and the way it looks, on the plan, instead of drawing the section), schedule (each room\'s and opening\'s mark in the schedules: the room\'s number, D1, W1, O1). Not with --3d, --view or --facade.' },
+  // VEW-85: the site plan, and the site faint under a floor.
+  '--site': { takesValue: false, help: 'Draw the site plan instead of a floor plan: the plot, every building in solid fill with its name, storeys and height, the site\'s things with their labels, the set-back lines, the street edges, a scale bar and north. Takes --look, --png, --scale, --units, --decimal and --out.' },
+  '--with-site': { takesValue: false, help: 'Draw the site faint under the floor plan, framed with it: the plot, its things, the set-back lines and every building\'s footprint.' },
   ...PROJECT_OPTION,
 }
 
@@ -90,6 +94,10 @@ export interface DrawRequest {
   readonly toward?: string
   /** LVL-9: the marks to add to a floor plan, as given: words joined by commas. */
   readonly marks?: string
+  /** VEW-85: the site plan instead of a floor plan. */
+  readonly site?: boolean
+  /** VEW-85: the site faint under the floor plan. */
+  readonly withSite?: boolean
 }
 
 /** LVL-9: what `--section`, `--toward` and `--marks` ask for, read. */
@@ -163,6 +171,7 @@ export function checkDrawRequest(request: DrawRequest): { scale: number; look: L
   // A still is always a PNG, so --png would say nothing.
   if (request.threeD && request.png) throw new UsageError('--png does nothing with --3d, which always draws a PNG: leave --png out.')
   if (request.facade !== undefined) checkFacadeRequest(request)
+  if (request.site === true || request.withSite === true) checkSiteRequest(request)
   if (request.threeD && request.ids) throw new UsageError('--ids draws the ids on a floor plan, not on the 3D model: leave --ids or --3d out.')
   if (request.threeD && request.look !== undefined) throw new UsageError('--look is for a floor plan, not the 3D model: leave --look or --3d out.')
   if (request.threeD && (request.units !== undefined || request.decimal !== undefined)) throw new UsageError('--units and --decimal write the labels of a floor plan, not the 3D model: leave them or --3d out.')
@@ -225,6 +234,21 @@ function checkFacadeRequest(request: DrawRequest): void {
 }
 
 /**
+ * VEW-85: a site plan is the whole site from above: it takes how it is drawn and written, and
+ * refuses what picks a floor or belongs to another picture, by name. The site under a floor is
+ * for a floor plan only.
+ */
+function checkSiteRequest(request: DrawRequest): void {
+  const flag = request.site === true ? '--site' : '--with-site'
+  if (request.site === true && request.withSite === true) throw new UsageError('--site draws the site plan, and --with-site the site under a floor plan: give one of them.')
+  const others: [unknown, string][] = [[request.threeD || undefined, request.view !== undefined ? '--view' : '--3d'], [request.facade, '--facade'], [request.section, '--section']]
+  const planOnly: [unknown, string][] = request.site === true ? [[request.floor, '--floor'], [request.frame, '--frame'], [request.ids || undefined, '--ids'], [request.hide, '--hide'], [request.colour, '--colour'], [request.key || undefined, '--key'], [request.marks, '--marks']] : []
+  for (const [given, other] of [...others, ...planOnly]) {
+    if (given !== undefined) throw new UsageError(`${other} does not go with ${flag}: leave one of them out.`)
+  }
+}
+
+/**
  * The picture `grid draw` writes. HND-10: with the project the plan was read from, a floor plan
  * draws the plan's trace image under it, read from the project folder (`readTrace`).
  */
@@ -242,6 +266,13 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
     const side = request.facade as FacadeSide
     const tongue = language === 'en' && asked === undefined ? {} : { language }
     return { ...await render(facadePicture(loaded.plan, { side, look, ...tongue }), 'facade'), undecidedDoors: [] }
+  }
+  // VEW-85: the site plan, with the words in the language asked.
+  if (request.site === true) {
+    if (sitePlan(loaded.plan).bounds === null) throw new PlanRefused(say('en', 'plan.notAPlan.nothingToDraw', { file: project?.shown(read.file) ?? read.file }))
+    const tongue = language === 'en' && asked === undefined ? {} : { language }
+    const units = request.units === undefined && request.decimal === undefined ? {} : { display: displayFor(request.units, request.decimal, loaded.plan, language) }
+    return { ...await render(sitePlanPicture(loaded.plan, { look, ...tongue, ...units }), 'plan'), undecidedDoors: [] }
   }
   const drawing = sectionAsked(request)
   if (drawing.section !== null) {
@@ -281,10 +312,11 @@ export async function drawFile(read: LoadedPlan, request: DrawRequest, scale: nu
   const buildingTrace = shared && project !== undefined && traceOn !== shown
     ? readTrace(project, loaded.plan, traceOn, language).picture
     : trace?.picture
+  const site = request.withSite === true ? { site: true } : {}
   const frame = shared
-    ? buildingPictureFrame(loaded.plan, { look, ...labels, ...(buildingTrace ? { trace: buildingTrace } : {}) })
+    ? buildingPictureFrame(loaded.plan, { look, ...labels, ...site, ...(buildingTrace ? { trace: buildingTrace } : {}) })
     : undefined
-  const picture = planPicture(loaded.plan, { floor, look, faults, ...labels, ...(trace?.picture ? { trace: trace.picture } : {}), ...(frame ? { frame } : {}) })
+  const picture = planPicture(loaded.plan, { floor, look, faults, ...labels, ...site, ...(trace?.picture ? { trace: trace.picture } : {}), ...(frame ? { frame } : {}) })
   return { ...await render(picture, 'plan'), undecidedDoors: picture.undecidedDoors, traceNote: trace?.line ?? null }
 }
 

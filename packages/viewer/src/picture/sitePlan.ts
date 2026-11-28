@@ -18,6 +18,7 @@ import { computeBounds, sitePlan, type SitePlan, type SitePlanBuilding, type Vec
 import type { Language } from '@ongrid/floorplan/messages'
 import { METRES, showLength, type Display } from '@ongrid/floorplan/types/units'
 import type { FloorPlan } from '@ongrid/floorplan/types/floorplan'
+import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import { fitTo, type Viewport } from '../canvas2d/viewport'
 import type { Look } from './look'
 import { TEXT_PX, lengthText, lineMetres } from './look'
@@ -59,23 +60,20 @@ const BAR_PIECES = 4
 const BAR_PX = 6
 const BAR_INSET_PX = 24
 const BAR_SHARE = 0.2
-/** How far a street's word stands out from its edge, in pixels, and the paper halo round words over poche. */
+/** How far a street's word stands out from its edge, and the paper round words over poche, in pixels. */
 const STREET_PX = 14
-const HALO_PX = 3
+const PAD_PX = 3
 const FOOT = 0.3048
 
-/** Text in pixels at a point of the plan, turned by `turn` degrees, on a halo of paper so it reads over poche. */
+/** Text in pixels at a point of the plan, turned by `turn` degrees, on a box of paper so it reads over poche and lines. */
 function haloText(look: Look, at: Vec2, mpp: number, lines: readonly string[], part: string, size: number, turn = 0): SvgNode {
-  const style = { 'font-family': look.colors.font, 'font-size': size, 'text-anchor': 'middle' }
-  const top = -((lines.length - 1) * (size + 2)) / 2 + size / 3
-  const rows = lines.flatMap((line, i) => {
-    const y = n(top + i * (size + 2))
-    return [
-      el('text', { y, ...style, fill: 'none', stroke: look.colors.paper, 'stroke-width': HALO_PX * 2, 'stroke-linejoin': 'round' }, [line], `h${i}`),
-      el('text', { y, ...style, fill: look.colors.label }, [line], `t${i}`),
-    ]
-  })
-  return el('g', { 'data-part': part, transform: `translate(${n(at.x)} ${n(-at.y)}) scale(${n(mpp)})${turn === 0 ? '' : ` rotate(${n(turn)})`}` }, rows)
+  const style = { 'font-family': look.colors.font, 'font-size': size, 'text-anchor': 'middle', fill: look.colors.label }
+  const row = size + 2
+  const top = -(lines.length * row) / 2
+  const wide = Math.max(...lines.map((line) => estimateTextWidth(line, size))) + 2 * PAD_PX
+  const box = el('rect', { x: n(-wide / 2), y: n(top - PAD_PX / 2), width: n(wide), height: n(lines.length * row + PAD_PX), fill: look.colors.paper, stroke: 'none' }, [], 'box')
+  const rows = lines.map((line, i) => el('text', { y: n(top + (i + 1) * row - 3), ...style }, [line], `t${i}`))
+  return el('g', { 'data-part': part, transform: `translate(${n(at.x)} ${n(-at.y)}) scale(${n(mpp)})${turn === 0 ? '' : ` rotate(${n(turn)})`}` }, [box, ...rows])
 }
 
 /** A building's words: its name, and its storeys and height. */
