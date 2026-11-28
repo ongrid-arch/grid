@@ -24,6 +24,7 @@ import { TAPED_ROWS_IN_AN_EDIT, tapedRows, tapedTable } from '../taped/table'
 import { TextNotDecoded } from '../fs/textEncoding'
 import { occupancyFileOf } from '../occupancy/occupancy'
 import { comparePlans } from '../quantities/compare'
+import { displayFor } from '../quantities/units'
 import { surveyPlan } from '../quantities/survey'
 import { siteDescription } from '../quantities/site'
 import starterPlan from './starter-plan.json'
@@ -498,7 +499,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const lines = [
     dryRun ? english(said('write.dryRun', { file: name(written) })) : `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
     ...writeOriginLines(origin),
-    ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX),
+    // MSG-37: in the plan's display units, as the drawing and its areas are.
+    ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX, displayFor(undefined, undefined, nextPlan)),
     // CMD-30: a new name that reads as an instruction or holds a person's name, said gently.
     ...nameNotes(next, before === null ? null : raw, occupancyFileOf(written)).map(english),
     ...(verdict === null ? [] : [verdict]),
