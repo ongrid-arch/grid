@@ -2,7 +2,9 @@
  * LVL-9: the marks a plan carries for its other drawings, as the core places them
  * (`drawingMarks`): a section's cut line with the way it looks, an elevation mark outside each
  * main side of the building, and the level of each room's floor; and ARE-15's schedule marks, each
- * room's and opening's mark in the schedules, in SHT-7's tag. Each symbol is drawn in pixels
+ * room's and opening's mark in the schedules, in SHT-7's tag; and SHT-27's access marks, each way
+ * as a dashed line with an arrow at its end, each turning circle at its size, and each door's and
+ * step's words in a tag, drawn heavier where a number falls short of the person's own figure. Each symbol is drawn in pixels
  * round the point the core gives, so it reads the same at any zoom.
  *
  * Pure: no DOM, no React.
@@ -140,8 +142,58 @@ export function drawingMarkNodes(marks: DrawingMarks, look: Look, mpp: number, p
     )
   }
 
+  if (marks.access !== null) nodes.push(...accessMarkNodes(marks.access, look, mpp, lines))
+
   // ARE-15's schedule marks are drawn by the scene, over the room labels where it placed them
   // (`scheduleMarkNodes`).
+  return nodes
+}
+
+/** SHT-27: how far out from its wall's face a door's or step's tag stands, in pixels, and how far a step's tag is from a door's. */
+const ACCESS_TAG_PX = 16
+const STEP_TAG_DY_PX = 19
+/** SHT-27: the arrow at a way's end, in pixels. */
+const ROUTE_ARROW_PX = 9
+
+/** SHT-27: words in SHT-7's tag, centred on `middle` (pixels from the group's point), heavier when short. */
+function tagNode(text: string, middle: Vec2, short: boolean, look: Look): SvgNode[] {
+  const width = estimateTextWidth(text, TEXT_PX.dimension) + TAG_PAD_PX
+  return [
+    el('rect', { x: n(middle.x - width / 2), y: n(middle.y - TAG_HEIGHT_PX / 2), width: n(width), height: TAG_HEIGHT_PX, rx: '3', fill: look.colors.paper, stroke: look.colors.label, 'stroke-width': short ? 2 : 1 }),
+    el('text', { x: n(middle.x), y: n(middle.y + 4), 'text-anchor': 'middle', fill: look.colors.label, 'font-family': look.colors.font, 'font-size': TEXT_PX.dimension, ...(short ? { 'font-weight': 'bold' } : {}) }, [text])
+  ]
+}
+
+/**
+ * SHT-27: the access marks: the ways under everything else, then the turning circles, then the
+ * doors' and steps' tags, so the words stay on top. `data-short` marks a number short of the
+ * person's figure, which the tag's own words already say.
+ */
+function accessMarkNodes(marks: NonNullable<DrawingMarks['access']>, look: Look, mpp: number, lines: ReturnType<typeof lineMetres>): SvgNode[] {
+  const ink = look.ink
+  const nodes: SvgNode[] = []
+  for (const route of marks.routes) {
+    const d = route.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${n(p.x)},${n(-p.y)}`).join('')
+    const last = route.points[route.points.length - 1]!
+    const before = route.points[route.points.length - 2]!
+    const span = Math.hypot(last.x - before.x, last.y - before.y)
+    const dir = span === 0 ? { x: 1, y: 0 } : { x: (last.x - before.x) / span, y: (last.y - before.y) / span }
+    nodes.push(el('g', { 'data-part': 'access-route', 'data-to': route.to }, [
+      el('path', { d, fill: 'none', stroke: ink, 'stroke-width': n(lines.width('mark')), 'stroke-dasharray': lines.dash('virtual').map(n).join(' ') }),
+      el('g', { transform: pixelGroup(last, mpp) }, [el('path', { d: arrow(dir, -ROUTE_ARROW_PX, 0, ROUTE_ARROW_PX / 2), fill: ink })])
+    ]))
+  }
+  for (const circle of marks.turning) {
+    nodes.push(el('g', { 'data-part': 'access-turning', 'data-id': circle.room, 'data-diameter': n(circle.radius * 2), 'data-short': String(circle.short) }, [
+      el('circle', { cx: n(circle.at.x), cy: n(-circle.at.y), r: n(circle.radius), fill: 'none', stroke: ink, 'stroke-width': n(lines.width(circle.short ? 'step' : 'mark')), 'stroke-dasharray': lines.dash('above').map(n).join(' ') }),
+      el('g', { transform: pixelGroup({ x: circle.at.x, y: circle.at.y - circle.radius }, mpp) }, tagNode(circle.label, { x: 0, y: 0 }, circle.short, look))
+    ]))
+  }
+  const tagged = (part: string, mark: { id: string; at: Vec2; out: Vec2; label: string; short: boolean }, dy: number): SvgNode =>
+    el('g', { 'data-part': part, 'data-id': mark.id, 'data-short': String(mark.short), 'pointer-events': 'none', transform: pixelGroup(mark.at, mpp) },
+      tagNode(mark.label, { x: mark.out.x * ACCESS_TAG_PX, y: -mark.out.y * ACCESS_TAG_PX + dy }, mark.short, look))
+  for (const door of marks.doors) nodes.push(tagged('access-door', door, 0))
+  for (const step of marks.steps) nodes.push(tagged('access-step', step, marks.doors.some((d) => d.id === step.id) ? STEP_TAG_DY_PX : 0))
   return nodes
 }
 

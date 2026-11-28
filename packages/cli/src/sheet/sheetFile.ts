@@ -17,6 +17,7 @@ import { askedLanguage, languageFor, spokenPlan } from '../command/language'
 import type { Language } from '@ongrid/floorplan/messages'
 import { quoted, type Project } from '../fs/projectFiles'
 import { sheetPages, SHEET_LAYOUTS, type SheetLayout } from './pages'
+import { readAccess } from '../quantities/accessMarks'
 import { sheetPdf } from './pdf'
 import { sheetDay } from './sheetDay'
 import { floorOption } from '../command/plan'
@@ -116,8 +117,8 @@ export function checkSheetRequest(request: SheetRequest): SheetLayout {
   // CMD-35: no layout is the client sheet, the one most people want.
   const layout = request.layout ?? 'client'
   if (!(SHEET_LAYOUTS as readonly string[]).includes(layout)) throw new UsageError(`--layout takes ${layouts}.`)
-  if (layout === 'check' && request.sheet !== undefined) {
-    throw new UsageError('--sheet gives the words of a client sheet; a check sheet takes none: leave --sheet out.')
+  if (layout !== 'client' && request.sheet !== undefined) {
+    throw new UsageError(`--sheet gives the words of a client sheet; ${layout === 'check' ? 'a check' : 'an access'} sheet takes none: leave --sheet out.`)
   }
   if (request.out !== undefined && path.extname(request.out).toLowerCase() !== '.pdf') {
     throw new UsageError('--out must name a .pdf file.')
@@ -227,7 +228,9 @@ export async function makeSheet(project: Project, planFile: string, layout: Shee
   const loaded = frozenPlan(spokenPlan(read, lang))
   const { base, note } = exportBaseOf(planFile)
   const notes = layout === 'client' ? accessNotes(project, planFile, loaded) : []
-  const sheet = sheetPages(loaded, words, layout, { name: base, date: sheetDay(date), accessNotes: notes, language: lang })
+  // SHT-27: the access sheet's measurements, against the brief beside the plan.
+  const access = layout === 'access' ? { access: readAccess(project, planFile, loaded.plan) } : {}
+  const sheet = sheetPages(loaded, words, layout, { name: base, date: sheetDay(date), accessNotes: notes, language: lang, ...access })
   // The laid-out sheet is the one written: text that did not fit flows onto continuation pages.
   const { pdf, sheet: laidOut, previews: small } = await sheetPdf(loaded.plan, sheet, { previews, ...(made.onPage === undefined ? {} : { onPage: made.onPage }) })
   const pages = laidOut.pages.map((page) => (page.floor === null ? { kind: page.kind, title: page.title } : { kind: page.kind, title: page.title, floor: page.floor }))

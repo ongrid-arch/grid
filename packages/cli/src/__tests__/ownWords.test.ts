@@ -242,7 +242,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-78: one fewer, the refusal of a route between floors.
   // VEW-85: one more, grid_view's with_site.
   // VEW-87: twelve more, grid_view's format, width, scale and aspect, their refusals and the svg line.
-  'packages/cli/src/mcp/readTools.ts': [425, 'tools'],
+  // SHT-27: one more, grid_view's line for the access marks.
+  'packages/cli/src/mcp/readTools.ts': [426, 'tools'],
   // VEW-85: grid_view kind=site's answer.
   // VEW-88: one fewer, the street edges' line now names each street.
   'packages/cli/src/mcp/siteAnswer.ts': [21, 'tools'],
@@ -347,7 +348,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // VEW-82: three more, grid_export's glb for a game engine and its doors and walls.
   // VEW-83: nine more, grid_export's tables: what, units, decimal, their refusals and the answer.
   // CMD-54: three more, grid_write_rooms's dry_run, its description and its refusal.
-  'packages/cli/src/mcp/writeTools.ts': [183, 'tools'],
+  // SHT-27: one more, grid_sheet's layout access.
+  'packages/cli/src/mcp/writeTools.ts': [184, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],

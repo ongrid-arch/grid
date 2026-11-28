@@ -143,8 +143,8 @@ function least(measured: number | null, figure: AccessFigure | null): Against[] 
   return [{ figure, short: measured + near() < figure.value }]
 }
 
-/** A most (a step): short when the number is over it. */
-function most(measured: number | null, figure: AccessFigure | null): Against[] {
+/** A most (a step): short when the number is over it. SHT-27: the access marks set a step by it too. */
+export function most(measured: number | null, figure: AccessFigure | null): Against[] {
   if (figure === null || measured === null) return []
   return [{ figure, short: measured > figure.value + near() }]
 }
