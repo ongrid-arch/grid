@@ -18,12 +18,14 @@
  * it. A marker may say who set it (`by`) and why (`note`). `text` is the plan file's own text,
  * read later as the plan file is read. The plan knows nothing of its markers, and no export,
  * sheet or drawing reads them. Every change keeps the plan it replaced as well, without a marker
- * (`history.ts`).
+ * (`history.ts`). CMD-57: a marker keeps the brief beside the plan too (`brief`, the text
+ * `briefJson` writes, or null when there was none); a marker without it was set before.
  */
 import path from 'path'
 import { PathRefused, type Project } from '../fs/projectFiles'
 import { TextNotDecoded } from '../fs/textEncoding'
 import { PLAN_FILE_MAX_BYTES } from '../command/planText'
+import { BRIEF_FILE_MAX_BYTES } from '../brief/brief'
 
 /** What the file name adds to the plan's name. */
 export const MARKERS_SUFFIX = '.markers.json'
@@ -40,8 +42,8 @@ export const GIT_VERSION = 'git'
 export const PHASE_VERSION = 'phase'
 /** A marker's name: letters, digits, dot, dash and underscore, 1 to 40 of them, starting with a letter or digit. */
 export const MARKER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/
-/** The largest markers file Grid reads: every marker a whole plan, its text written as JSON text. */
-export const MARKERS_FILE_MAX_BYTES = 2 * MARKERS_MAX * PLAN_FILE_MAX_BYTES
+/** The largest markers file Grid reads: every marker a whole plan and its brief, their text written as JSON text. */
+export const MARKERS_FILE_MAX_BYTES = 2 * MARKERS_MAX * (PLAN_FILE_MAX_BYTES + BRIEF_FILE_MAX_BYTES)
 
 /** Why a marker or the markers file was refused. One line. */
 export class MarkerRefused extends Error {
@@ -57,6 +59,8 @@ export interface Marker {
   /** CMD-44: who set it, as they named themselves, and why. */
   readonly by?: string
   readonly note?: string
+  /** CMD-57: the brief beside the plan when it was set, null when there was none; left out by a marker set before. */
+  readonly brief?: string | null
 }
 
 /** The markers file of a plan file: beside it, its name without `.json` and `.markers.json` after. */
@@ -87,8 +91,9 @@ function parseMarkers(raw: unknown, shown: string): Marker[] {
     if (typeof m !== 'object' || m === null || typeof m['name'] !== 'string' || !MARKER_NAME.test(m['name']) || m['name'] === GIT_VERSION) throw bad('a marker has no name Grid reads')
     if (typeof m['at'] !== 'string' || Number.isNaN(Date.parse(m['at']))) throw bad(`marker ${m['name']} has no time`)
     if (typeof m['text'] !== 'string') throw bad(`marker ${m['name']} holds no plan`)
+    const brief = typeof m['brief'] === 'string' || m['brief'] === null ? { brief: m['brief'] } : {}
     if (markers.some((x) => x.name === m['name'])) throw bad(`it names ${m['name']} twice`)
-    markers.push({ name: m['name'], at: m['at'], text: m['text'], ...(typeof m['by'] === 'string' ? { by: m['by'] } : {}), ...(typeof m['note'] === 'string' ? { note: m['note'] } : {}) })
+    markers.push({ name: m['name'], at: m['at'], text: m['text'], ...(typeof m['by'] === 'string' ? { by: m['by'] } : {}), ...(typeof m['note'] === 'string' ? { note: m['note'] } : {}), ...brief })
   }
   return markers
 }
@@ -140,6 +145,8 @@ export interface MarkerSet {
 export interface MarkerWords {
   readonly by?: string | undefined
   readonly note?: string | undefined
+  /** CMD-57: the brief to keep with it; left out, it keeps none. */
+  readonly brief?: string | null | undefined
 }
 
 /** Sets a marker to the plan file's text now. CMD-44: past `MARKERS_MAX`, the oldest rolls off. */
@@ -148,7 +155,7 @@ export function setMarker(project: Project, planFile: string, name: string, text
   const markers = readMarkers(project, planFile)
   const replaced = markers.some((m) => m.name === name)
   const rolled = !replaced && markers.length >= MARKERS_MAX ? markers[0]! : null
-  const marker: Marker = { name, at, text, ...(words.by === undefined ? {} : { by: words.by.slice(0, MARKER_BY_MAX) }), ...(words.note === undefined ? {} : { note: words.note.slice(0, MARKER_NOTE_MAX) }) }
+  const marker: Marker = { name, at, text, ...(words.by === undefined ? {} : { by: words.by.slice(0, MARKER_BY_MAX) }), ...(words.note === undefined ? {} : { note: words.note.slice(0, MARKER_NOTE_MAX) }), ...(words.brief === undefined ? {} : { brief: words.brief }) }
   const kept = rolled === null ? markers : markers.slice(1)
   const next = replaced ? kept.map((m) => (m.name === name ? marker : m)) : [...kept, marker]
   return { file: writeMarkers(project, planFile, next), marker, replaced, names: next.map((m) => m.name), rolled }

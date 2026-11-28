@@ -64,6 +64,27 @@ const WORDS = {
   'tool.history.entry.restored': 'restored {name}',
   'tool.history.entry.more': 'and {count} more',
   'tool.history.markerRolled': 'Marker {name}, the oldest, rolled off: a plan keeps the latest {max}.',
+  // CMD-57: the brief kept with a marker, and how it changed.
+  'tool.brief.field': '{field} {before} → {after}',
+  'tool.brief.added': '{where} added: {wish}',
+  'tool.brief.removed': '{was} removed: {wish}',
+  'tool.brief.moved': '{where} (was {was})',
+  'tool.brief.weakened': '{where} weakened, it asks for less: {fields}',
+  'tool.brief.tightened': '{where} tightened: {fields}',
+  'tool.brief.changed': '{where} changed: {fields}',
+  'tool.brief.more': '… {count} more, in the data.',
+  'tool.brief.diffHeading': 'Brief, since then ({count} changed, {less} weakened or removed):',
+  'tool.brief.diffSame': 'Brief: the same wishes as then.',
+  'tool.brief.notKept': 'Brief: not compared, {why}.',
+  'tool.brief.whyOld': 'the marker keeps no brief: it was set before markers kept one, or the brief could not be read then',
+  'tool.brief.whyNoMarker': 'only a marker keeps the brief, and {version} is not one',
+  'tool.brief.whyNow': 'the brief beside the plan can\'t be read ({problem})',
+  'tool.brief.markKept': 'The brief beside the plan is kept with the marker, so a comparison since {name} says how the brief changed too.',
+  'tool.brief.markNone': 'There is no brief beside the plan, so the marker keeps none.',
+  'tool.brief.markUnread': 'The brief beside the plan can\'t be read, so the marker keeps none.',
+  'tool.brief.replacedHeading': 'It replaced the brief kept before ({count} changed, {less} weakened or removed):',
+  'tool.brief.replacedSame': 'The brief kept before held the same wishes.',
+  'tool.brief.replacedBack': 'The brief it replaced is in the data as replaced.previous: pass it as brief with replace: true to put it back.',
 } as const
 
 export type HistoryKey = keyof typeof WORDS
