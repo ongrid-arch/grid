@@ -645,6 +645,8 @@ export const es: Messages = {
   'route.commonParts.onward': 'Esta salida termina en las zonas comunes del edificio, que el plano no dibuja: el camino desde allí (el rellano, la escalera) no se sigue ni se mide. grid_check también la toma como salida (way_out_through_common_parts).',
   'route.doorOutAboveGround': '{kind} {via} de {room} da al exterior a {height} m sobre el terreno, así que no se toma como salida. Si es la puerta de entrada al rellano común del edificio, marque su muro {wall} como separating (medianero o hacia las zonas comunes) o beyond common, con tantos muros como haga falta en una sola llamada a grid_set: entonces es la salida.',
   'route.blockedDoorway': '{kind} {via} entre {rooms} está cerrado: {items} no deja nada libre.',
+  'route.otherWays': 'Otros caminos entre las plantas: {ways}.',
+  'route.byLift': 'Ninguna escalera une estas plantas en el camino, así que va por el ascensor: el trayecto en él no entra en la longitud recorrida, y un ascensor nunca es una salida.',
   'check.noStair.route': 'No hay salida desde {floor}: está sobre el terreno y nada la une con la planta baja, ninguna estancia suya se usa como escalera ni como ascensor y no se indica ninguna escalera ni rampa hasta ella, así que ningún recorrido desde {room} baja hasta una puerta de salida (grid check: floor/no-stair).',
   'check.outOfLine.stair': 'La escalera {upper} de {upperFloors} no queda sobre {lower} de {lowerFloors}, así que no une las dos plantas',
   'check.outOfLine.lift': 'La caja del ascensor {upper} de {upperFloors} no queda sobre {lower} de {lowerFloors}, así que la caja no está alineada',

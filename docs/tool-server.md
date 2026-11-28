@@ -745,6 +745,17 @@ way out it took (`exit`) and lists the others, nearest first, with their lengths
 `via`, `type`, `rooms`, `length`, null when not measurable). Equal lengths go to the fewer rooms,
 then to the smaller id.
 
+ARE-78: a route between two rooms on different floors (a platform's end to the concourse, a
+bedroom upstairs to the kitchen) goes up and down the same stairs the way out reads: a stair the
+plan states, walked along its walking line, or stair rooms one over the other, from the middle of
+each. Each stair off the floor it starts on is tried and the shortest walk is the answer; the
+others are listed with their lengths (`otherWays`: `via`, the stair or lift it leaves by, `type`,
+`rooms`, `length`, null when not measurable). When no stair joins the floors, lift rooms one over
+the other do: the step's `type` is `lift`, walked from the middle of one lift room to the middle of
+the one over it, the ride left out, and the answer says so. A lift is never part of a way out.
+A route between two rooms of one floor keeps to that floor, and a body or trolley is not set
+against a way up or down (`through` is null).
+
 `grid_describe length=walk` is the long form of the description: the plan walked room by room.
 Each floor starts at its way in: the front door the plan names, else the widest door from outside
 into a corridor, else the widest door from outside; a floor with no door from outside starts in
