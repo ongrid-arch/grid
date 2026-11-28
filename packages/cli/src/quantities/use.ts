@@ -11,6 +11,10 @@
  */
 import { english, said } from '@ongrid/floorplan/messages'
 import {
+  columnFloorIds,
+  columnFootprint,
+  columnRise,
+  columnSaid,
   doorwayClearance,
   fixtureSpace,
   INDICATOR_NOTE,
@@ -22,10 +26,12 @@ import {
   openingMouth,
   passageWidth,
   pointMouth,
+  soundColumns,
   tolerance,
   turningSpace,
   USE_INDICATORS,
   windowCover,
+  type Column,
   type Item,
   type Obstacle,
   type Opening,
@@ -44,7 +50,7 @@ const q = (text: string): string => JSON.stringify(text)
 
 /** Said under every answer with indicators. */
 export const USE_RULE =
-  `${INDICATOR_NOTE} Measured on the free floor between wall faces, clear of the fixtures the plan holds; furniture, radiators and the swing of a door leaf are not in the plan. The way through a room is measured on a grid of points, to within a few centimetres.`
+  `${INDICATOR_NOTE} Measured on the free floor between wall faces, clear of the fixtures and columns the plan holds; furniture, radiators and the swing of a door leaf are not in the plan. The way through a room is measured on a grid of points, to within a few centimetres.`
 
 /** The figure an indicator is set against: the person's, or Grid's own. */
 export interface Figure {
@@ -93,6 +99,8 @@ export interface SurveyFixtures {
   /** An item or its row by id, found without a scan. */
   readonly itemById: ReadonlyMap<string, Item>
   readonly rowById: ReadonlyMap<string, FixtureRow>
+  /** ARE-80: the columns among the obstacles, by id; an obstacle is a fixture or one of these. */
+  readonly columnById: ReadonlyMap<string, Column>
 }
 
 /** A box on the plan, in metres. */
@@ -105,7 +113,12 @@ export interface Box {
 
 const fixturesCache = new WeakMap<Survey, SurveyFixtures>()
 
-/** The plan's fixtures that can be drawn, as obstacles, each with its row; worked out once a survey. CNT-17's access measures and COD-8's firm standards keep clear of them too. */
+/**
+ * The plan's fixtures that can be drawn, as obstacles, each with its row; worked out once a survey.
+ * CNT-17's access measures and COD-8's firm standards keep clear of them too. ARE-80: the obstacles
+ * on a floor are its fixtures and then the columns standing on it, each by its footprint, so every
+ * clearance measure keeps clear of a column; `rows` and `items` stay the fixtures alone.
+ */
 export function fixturesOf(survey: Survey): SurveyFixtures {
   const known = fixturesCache.get(survey)
   if (known) return known
@@ -129,11 +142,22 @@ function fixturesOfPlan(survey: Survey): SurveyFixtures {
     list.push({ obstacle: { id: row.id, outline }, box: boxOf(outline) })
     byFloor.set(row.floor, list)
   }
+  const columnById = new Map<string, Column>()
+  for (const column of soundColumns(survey.plan)) {
+    const outline = columnFootprint(column)
+    columnById.set(column.id, column)
+    for (const floor of columnFloorIds(survey.plan, column)) {
+      const list = byFloor.get(floor) ?? []
+      list.push({ obstacle: { id: column.id, outline }, box: boxOf(outline) })
+      byFloor.set(floor, list)
+    }
+  }
   return {
     rows,
     items,
     itemById,
     rowById,
+    columnById,
     obstacles: (floor) => {
       // The same list every time, so what is worked out from it once (`fixtureSpace`) is kept.
       let list = listByFloor.get(floor)
@@ -187,13 +211,19 @@ export function mouthOf(survey: Survey, room: SurveyRoom, via: string): Segment 
   return lineMouth(wall, room.polygon)
 }
 
-function namesOf(items: readonly Item[], ids: readonly string[]): string {
+/** The fixtures and then the columns (ARE-80) among `ids`, named. */
+function namesOf(items: readonly Item[], ids: readonly string[], columns: ReadonlyMap<string, Column> = new Map()): string {
   const wanted = new Set(ids)
-  return items.filter((item) => wanted.has(item.id)).map(itemName).join(', ')
+  const fixtures = items.filter((item) => wanted.has(item.id)).map(itemName)
+  const standing = ids.flatMap((id) => {
+    const column = columns.get(id)
+    return column === undefined ? [] : [english(columnSaid(column))]
+  })
+  return [...fixtures, ...standing].join(', ')
 }
 
-export function besideText(passage: { beside: { fixtures: readonly string[]; wall: boolean } }, items: readonly Item[]): string {
-  const fixtures = namesOf(items, passage.beside.fixtures)
+export function besideText(passage: { beside: { fixtures: readonly string[]; wall: boolean } }, items: readonly Item[], columns?: ReadonlyMap<string, Column>): string {
+  const fixtures = namesOf(items, passage.beside.fixtures, columns)
   if (fixtures === '') return passage.beside.wall ? ', between walls' : ''
   return passage.beside.wall ? `, between ${fixtures} and a wall` : `, beside ${fixtures}`
 }
@@ -229,7 +259,7 @@ export function waysOf(survey: Survey, room: SurveyRoom): { via: string; opening
 export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?: unknown; diameter?: unknown; clearance?: unknown }, L: Length, leftOut = 0): IndicatorAnswer {
   const lines: string[] = []
   const indicators: Indicator[] = []
-  const { rows, items, near, obstacles: onFloor, itemById, rowById } = fixturesOf(survey)
+  const { rows, items, near, obstacles: onFloor, itemById, rowById, columnById } = fixturesOf(survey)
   // CNT-23: only what stands in or against this room can change what is measured in it.
   const box = boxOf(room.polygon)
   const mouthsLength = waysOf(survey, room).reduce((sum, way) => {
@@ -263,7 +293,7 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
     if (way.opening === null) continue
     const d = doorwayClearance(way.wall, way.opening, obstacles)
     const leaf = d.leaf > 0 ? ` less ${L(d.leaf)} for the open leaf` : ''
-    const narrowed = d.narrowedBy.length === 0 ? '' : `; ${namesOf(items, d.narrowedBy)} ${d.narrowedBy.length === 1 ? 'stands' : 'stand'} in front of ${L(d.covered)} of it`
+    const narrowed = d.narrowedBy.length === 0 ? '' : `; ${namesOf(items, d.narrowedBy, columnById)} ${d.narrowedBy.length === 1 ? 'stands' : 'stand'} in front of ${L(d.covered)} of it`
     add(
       { code: 'use/doorway-clear-width', about: way.opening.id, measured: d.clear, figure: body, under: isUnder(d.clear, body), detail: { hole: d.hole, leaf: d.leaf, covered: d.covered, narrowedBy: d.narrowedBy } },
       `${way.opening.type} ${q(way.opening.id)} leaves ${L(d.clear)} clear, its ${L(d.hole)} hole${leaf}${narrowed}; ${against(d.clear, body, L)}`
@@ -287,7 +317,7 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
       add({ code: 'use/passage-width', about: room.facts.id, measured: null, figure: passage, under: true, detail: { from: pair.from, to: pair.to } }, `there is no way through ${name} ${between} clear of its fixtures`)
       continue
     }
-    const where = way.atDoorway ? ', no narrower than its doorways' : ` at its narrowest, at ${at(way.at)}${besideText(way, items)}`
+    const where = way.atDoorway ? ', no narrower than its doorways' : ` at its narrowest, at ${at(way.at)}${besideText(way, items, columnById)}`
     add(
       { code: 'use/passage-width', about: room.facts.id, measured: way.width, figure: passage, under: isUnder(way.width, passage), at: way.at, detail: { from: pair.from, to: pair.to, beside: way.beside, atDoorway: way.atDoorway, step: way.step } },
       `the widest body or trolley that gets through ${name} ${between} is ${L(way.width)}${where}; ${against(way.width, passage, L)}`
@@ -303,7 +333,7 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
     const item = itemById.get(row.id)!
     const found = fixtureSpace(item, room.polygon, room.holes, everyFixture)
     const sides = [['in front', found.front], ...(found.sides ? ([['to its left', found.left], ['to its right', found.right]] as const) : [])] as readonly (readonly [string, number | null])[]
-    const joinedTo = (ids: readonly string[]): string => namesOf(items, ids)
+    const joinedTo = (ids: readonly string[]): string => namesOf(items, ids, columnById)
     const said = [
       ...sides.map(([where, v]) => `${where} ${v === null ? 'open' : L(v)}${where === 'in front' && found.frontBy !== null && v !== null ? `, an aisle to ${joinedTo([found.frontBy])}` : ''}`),
       ...(found.joined.left.length > 0 ? [`to its left it is joined end to end with ${joinedTo(found.joined.left)}`] : []),
@@ -324,12 +354,16 @@ export function roomIndicators(survey: Survey, room: SurveyRoom, given: { width?
     const opening = survey.plan.openings.find((o) => o.id === facts.id)
     const wall = survey.plan.walls.find((w) => w.id === facts.wall)
     if (!opening || !wall) continue
-    const cover = windowCover(wall, opening, obstacles.map((o) => ({ ...o, height: rowById.get(o.id)!.height })))
+    // ARE-80: a column stands in front of the window from the floor to its top.
+    const cover = windowCover(wall, opening, obstacles.map((o) => {
+      const column = columnById.get(o.id)
+      return { ...o, height: column === undefined ? rowById.get(o.id)!.height : columnRise(survey.plan, column) }
+    }))
     if (cover.by.length === 0) continue
     const depth: Figure = { value: limit('useApproachDepth'), from: 'grid' }
     add(
       { code: 'use/window-blocked', about: opening.id, measured: cover.covered, figure: depth, under: false, detail: { width: cover.width, sill: cover.sill, by: cover.by } },
-      `${namesOf(items, cover.by.map((b) => b.id))}, higher than its ${L(cover.sill)} sill, ${cover.by.length === 1 ? 'stands' : 'stand'} in front of ${L(cover.covered)} of window ${q(opening.id)}'s ${L(cover.width)}, measured within Grid's own approach depth of ${L(depth.value)}`
+      `${namesOf(items, cover.by.map((b) => b.id), columnById)}, higher than its ${L(cover.sill)} sill, ${cover.by.length === 1 ? 'stands' : 'stand'} in front of ${L(cover.covered)} of window ${q(opening.id)}'s ${L(cover.width)}, measured within Grid's own approach depth of ${L(depth.value)}`
     )
   }
   return { lines, indicators }
@@ -486,7 +520,7 @@ export function wideRoute(survey: Survey, from: string, to: string, width: numbe
 
 /** The lines of a wide route's answer. */
 export function wideRouteLines(survey: Survey, route: WideRoute, figure: Figure, L: Length): string[] {
-  const { items } = fixturesOf(survey)
+  const { items, columnById } = fixturesOf(survey)
   const name = (id: string): string => (id === 'outside' ? 'outside' : id === COMMON_PARTS ? say('en', 'route.commonParts') : q(roomCalledById(survey, id)))
   const body = `a body or trolley ${L(route.width)} wide (${figure.from === 'person' ? 'the width you gave' : 'Grid\'s own indicator'})`
   const stepsText = (way: Way): string => way.steps.map((s) => `${s.type} ${q(s.via)}${s.clear === null ? '' : ` (${L(s.clear)} clear)`} into ${name(s.into)}`).join(', then ')
@@ -495,7 +529,7 @@ export function wideRouteLines(survey: Survey, route: WideRoute, figure: Figure,
       .map((r) => {
         if (r.width === null) return `${name(r.room)} no way through clear of its fixtures`
         if (r.atDoorway) return `${name(r.room)} no narrower than its doorways`
-        return `${name(r.room)} ${L(r.width)} at its narrowest${r.at ? `, at ${at(r.at)}` : ''}${r.beside ? besideText({ beside: r.beside }, items) : ''}`
+        return `${name(r.room)} ${L(r.width)} at its narrowest${r.at ? `, at ${at(r.at)}` : ''}${r.beside ? besideText({ beside: r.beside }, items, columnById) : ''}`
       })
       .join('; ')
   const lines: string[] = []

@@ -130,6 +130,15 @@ export interface Answer {
   readonly image?: AnswerImage
   /** VEW-9: more pictures, after `image`, in order: the walk-through's, one per doorway. */
   readonly images?: readonly AnswerImage[]
+  /** VEW-87: a file handed back whole, after the pictures, as an embedded resource: a view's SVG. */
+  readonly resource?: AnswerResource
+}
+
+/** VEW-87: a file in an answer: its address, its type and its text. */
+export interface AnswerResource {
+  readonly uri: string
+  readonly mimeType: string
+  readonly text: string
 }
 
 export type Hint = 'read' | 'write-file' | 'change-plan'

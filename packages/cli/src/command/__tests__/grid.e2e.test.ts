@@ -661,6 +661,9 @@ describe('the built file', () => {
     // 1,050 kB still with VEW-83: the tables as CSV and XLSX files (a workbook written by hand into the
     // zip writer the bundle has), on its own took it to 1,013,959
     // bytes, again with no new dependency.
-    expect(statSync(bundle).size).toBeLessThan(1_050_000)
+    // 1,100 kB since CMD-58: main's cards since (site plans, spot levels, work measures and more)
+    // took it to 1,064,404 bytes, again with no new dependency. The cap leaves room to grow; raise
+    // it on purpose, with a line here, never quietly.
+    expect(statSync(bundle).size).toBeLessThan(1_100_000)
   })
 })

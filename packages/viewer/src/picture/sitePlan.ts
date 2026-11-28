@@ -33,6 +33,8 @@ import { northArrowNode, writingBand, type KeyEntry } from './writing'
 export interface SitePlanPictureOptions {
   /** Width in pixels. 1200 by default. */
   readonly width?: number
+  /** VEW-87: height in pixels. By default it follows the site's shape, between 0.4 and 2.5 times the width. */
+  readonly height?: number
   /** A named look, as for a plan: `working` by default. */
   readonly look?: PictureOptions['look']
   /** N in 1:N, for a look whose lines are in millimetres on paper. The picture's own when left out. */
@@ -178,7 +180,7 @@ export function sitePlanPicture(plan: FloorPlan, options: SitePlanPictureOptions
   const width = Math.max(1, Math.round(options.width ?? DEFAULT_WIDTH))
   const framed = drawn.bounds ?? computeBounds([{ x: 0, y: 0 }, { x: 10, y: 10 }])
   const shape = Math.min(Math.max(framed.height / Math.max(framed.width, 0.001), 0.4), 2.5)
-  const height = Math.max(1, Math.round(width * shape))
+  const height = Math.max(1, Math.round(options.height ?? width * shape))
   const view = fitTo(framed, width / height)
   const mpp = view.width / width
   const shown = displayOfPicture(plan, { ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { labels: { display: options.display } }) })

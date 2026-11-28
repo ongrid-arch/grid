@@ -11,7 +11,7 @@ import { FACADE_SIDES, MEASURES, shadowPlan, openingGlazed, floorsWithNoStair, p
 import { CAMERA_FITS, CameraRefused, framedCamera, lensProblem, settingOfCamera, type CameraAsk, type CameraFit } from '../draw/cameraAsk'
 import { PATH_MAX, PathRefused, quoted } from '../fs/projectFiles'
 import { PictureOutRefused, pictureExtension, pngSize, pngToPdf, writePicture } from '../draw/pictureFiles'
-import type { WorldBounds } from '../draw/views'
+import type { PictureSize, WorldBounds } from '../draw/views'
 import type { PixelTransform } from '../draw/pictureTransform'
 import { version } from '../../package.json'
 import { GENERAL_GUIDANCE_LABEL, confirmedFigure, figureUsedSaid, holdsOnFloor, inspectPlan, isFirmLine, type ResultLine } from '@ongrid/rules'
@@ -2810,13 +2810,13 @@ function peopleLook(look: ReturnType<typeof pictureLook>): string | null {
   return null
 }
 
-async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, language: Language = 'en', display?: Display): Promise<ViewAnswer> {
+async function facadeAnswer(plan: FloorPlan, args: Record<string, unknown>, language: Language = 'en', display?: Display, size?: PictureSize): Promise<ViewAnswer> {
   if (args['side'] === undefined) throw new ToolRefusal(`kind=facade needs side: the side of the drawing to draw, one of ${FACADE_SIDES.join(', ')} (north is the top of the drawing).`)
   const side = args['side'] as FacadeSide
   const asked = (args['look'] as LookName | undefined) ?? 'working'
   const look = asked === drawingLook(asked) ? asked : `${drawingLook(asked)} (asked as ${asked})`
   const { facadeView } = await import('../draw/views')
-  const view = await facadeView(plan, { side, look: asked, language, ...(display ? { display } : {}) })
+  const view = await facadeView(plan, { side, look: asked, language, ...(display ? { display } : {}), ...(size === undefined ? {} : { size }) })
   const { facade } = view
   const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`
   const units = display ?? displayFor(undefined, undefined, plan, language)
@@ -2880,6 +2880,28 @@ const PIXEL_TRANSFORM = objectSchema({
   area: objectSchema({ x: NUMBER, y: NUMBER, width: NUMBER, height: NUMBER }),
 })
 
+/** VEW-87: the shapes a view is drawn in, width to height. */
+const ASPECTS: Readonly<Record<string, number>> = { '1:1': 1, '4:5': 4 / 5, '16:9': 16 / 9, '3:2': 3 / 2 }
+const VIEW_ASPECTS = Object.keys(ASPECTS)
+
+/** VEW-87: the size a view is asked at, checked before anything is drawn. */
+function viewSizeOf(args: Record<string, unknown>, ext: string | null): PictureSize | undefined {
+  const width = args['width'] as number | undefined
+  const scale = args['scale'] as number | undefined
+  const aspect = args['aspect'] === undefined ? undefined : ASPECTS[args['aspect'] as string]!
+  if (width !== undefined && !Number.isInteger(width)) throw new ToolRefusal('width takes a whole number of pixels.')
+  if (width !== undefined && scale !== undefined) throw new ToolRefusal('Pass width or scale, not both: width lays the picture out at that many pixels, scale draws the same picture with more.')
+  if (scale !== undefined && (args['format'] === 'svg' || ext === '.svg')) throw new ToolRefusal('scale draws more pixels, and an svg has none: pass width for an svg, or leave scale out.')
+  const most = limit('pictureLongestSide')
+  const across = (width ?? DEFAULT_VIEW_WIDTH) * (scale ?? 1)
+  if (across > most || (aspect !== undefined && across / aspect > most)) throw new ToolRefusal(`That picture would be ${Math.round(across)} × ${aspect === undefined ? 'more' : Math.round(across / aspect)} px; no side may pass ${most} px: ask a smaller width or scale.`)
+  if (width === undefined && scale === undefined && aspect === undefined) return undefined
+  return { ...(width === undefined ? {} : { width }), ...(scale === undefined ? {} : { scale }), ...(aspect === undefined ? {} : { aspect }) }
+}
+
+/** The width a view is drawn at when none is asked. */
+const DEFAULT_VIEW_WIDTH = 1200
+
 const viewTool: GridTool = {
   name: 'grid_view',
   title: 'Draw a view of the plan',
@@ -2898,6 +2920,11 @@ const viewTool: GridTool = {
     plan: PLAN_ARG,
     out: { type: 'string', maxLength: PATH_MAX, description: 'A .png, .svg or .pdf file to write the picture to, inside the project folder: a bare name goes into the exports folder beside the plan. A .view.json is written beside it with its size, pixels per metre and, for a plan, the plan\'s metres it covers. svg is not made for 3d or eye. Nothing is written when left out.', examples: ['plan-ground.png', 'exports/south.svg'] },
     kind: { type: 'string', required: true, enum: ['plan', 'facade', '3d', 'eye', 'section', 'site'], description: 'plan, facade, 3d, eye, section or site.', examples: ['plan', 'facade', 'site'] },
+    // VEW-87: what the answer carries, and the picture's size and shape.
+    format: { type: 'string', enum: ['png', 'svg'], description: 'What the answer carries: png, the picture (the default), or svg, the drawing as the viewer\'s SVG text, each part with its data-id, as an embedded image/svg+xml resource and no picture, for a page or program to pick parts in. svg is made for plan, facade, section and site, not for 3d or eye. Not with scale.', examples: ['svg', 'png'] },
+    width: { type: 'number', description: `The picture's width in pixels, ${limit('pictureNarrowest')} to ${limit('pictureLongestSide')}: the drawing is laid out again at that width, its labels keeping their size. 1200 when left out. Not with scale.`, examples: [1080, 2400], minimum: limit('pictureNarrowest'), maximum: limit('pictureLongestSide') },
+    scale: { type: 'number', description: `For a png: pixels per picture pixel, 1 to ${limit('pictureScaleMost')}: the same drawing, sharper and larger. No side may pass ${limit('pictureLongestSide')} px. 1 when left out. Not with width or format=svg.`, examples: [2, 3] , minimum: 1, maximum: limit('pictureScaleMost') },
+    aspect: { type: 'string', enum: VIEW_ASPECTS, description: 'The whole picture\'s shape, width to height, its key and label band included: 1:1 (square), 4:5 (portrait), 16:9 or 3:2 (landscape). The drawing is framed to fill it; a 3d camera is framed for it. Each picture\'s own shape when left out.', examples: ['1:1', '4:5'] },
     side: { type: 'string', enum: FACADE_SIDES, description: 'For facade: the side of the drawing whose facade to draw: north (its top), east, south or west. Required for facade.', examples: ['south', 'east'] },
     floor: { ...FLOOR_ARG, description: 'For plan: the floor to draw, the lowest when left out; all draws every floor side by side, the lowest on the left, at one scale, each named and framed to the same part of the plan (with look and dimensions only). For 3d: that floor cut away, the whole building when left out (with room, on a plan of several floors, that room\'s floor).' },
     frame: { type: 'string', enum: ['building', 'floor'], description: say('en', 'view.frame.argument'), examples: ['building', 'floor'] },
@@ -2969,32 +2996,44 @@ const viewTool: GridTool = {
     // VEW-62: the name is checked before anything is drawn.
     const ext = out === undefined ? null : asToolArg(() => pictureExtension(out))
     if (ext === '.svg' && (args['kind'] === '3d' || args['kind'] === 'eye')) throw new ToolRefusal(`kind=${args['kind'] as string} is a picture of pixels, so it is not made as an svg: name a .png or .pdf file.`)
+    // VEW-87: the format and size asked, checked before anything is drawn too.
+    const svgAsked = args['format'] === 'svg'
+    if (svgAsked && (args['kind'] === '3d' || args['kind'] === 'eye')) throw new ToolRefusal(`kind=${args['kind'] as string} is a picture of pixels, so it is not made as an svg: leave format out for its png.`)
+    const size = viewSizeOf(args, ext)
     // ARE-75: a drawing of one state, or the demolition or proposed plan, says which first.
-    const { picture, ...answer } = withStateLine(await drawView(args, context), stateLine(readPlan(context, args['plan']).loaded.plan, args['state'], ENGLISH_SPEAKER), args['state'])
+    const { picture, ...drawn } = withStateLine(await drawView(args, context, size), stateLine(readPlan(context, args['plan']).loaded.plan, args['state'], ENGLISH_SPEAKER), args['state'])
+    const made = pngSize(drawn.image.data)
+    if (Math.max(made.width, made.height) > limit('pictureLongestSide')) throw new ToolRefusal(`That picture would be ${made.width} × ${made.height} px; no side may pass ${limit('pictureLongestSide')} px: ask a smaller width or scale, or an aspect.`)
+    const svgText = svgAsked ? picture?.svg?.() : undefined
+    if (svgAsked && svgText === undefined) throw new ToolRefusal('That picture is not made as an svg: leave format out for its png.')
+    const { image, ...rest } = drawn
+    // VEW-87: with format=svg the answer carries the SVG, not the picture.
+    const answer = svgText === undefined
+      ? drawn
+      : { ...rest, text: `${rest.text}\nThe answer carries this drawing as SVG text (image/svg+xml, ${svgText.length} characters), each part with its data-id, and no picture: call again without format to look at it.`, resource: { uri: `grid://view/${rest.data['kind'] as string}.svg`, mimeType: 'image/svg+xml', text: svgText } }
     const pixelToMetres = picture?.pixelToMetres ?? null
     const panels = picture?.panels
     const data: Record<string, unknown> = { ...answer.data, pixelToMetres, ...(panels === undefined ? {} : { panels }) }
     if (out === undefined || ext === null) return { ...answer, data }
     const { project, file } = readPlan(context, args['plan'])
-    const size = pngSize(answer.image.data)
     const px = (data['pxPerMetre'] as number | null) ?? null
     const bounds = picture?.bounds ?? null
-    const body = ext === '.png' ? answer.image.data : ext === '.pdf' ? await pngToPdf(answer.image.data, out) : picture?.svg?.()
+    const body = ext === '.png' ? image.data : ext === '.pdf' ? await pngToPdf(image.data, out) : svgText ?? picture?.svg?.()
     if (body === undefined) throw new ToolRefusal('That picture is not made as an svg: name a .png or .pdf file.')
     let done
     try {
-      done = writePicture(project, file, out, body, { kind: data['kind'] as string, floor: (data['floor'] as string | null) ?? null, pxPerMetre: px, bounds, pixelToMetres, ...(panels === undefined ? {} : { panels }), ...size }, version)
+      done = writePicture(project, file, out, body, { kind: data['kind'] as string, floor: (data['floor'] as string | null) ?? null, pxPerMetre: px, bounds, pixelToMetres, ...(panels === undefined ? {} : { panels }), ...made }, version)
     } catch (error) {
       if (error instanceof PictureOutRefused || error instanceof PathRefused) throw new ToolRefusal(error.message)
       throw asRefusal(error)
     }
     const where = bounds === null ? '' : ` It covers x ${bounds.minX.toFixed(2)} to ${bounds.maxX.toFixed(2)} and y ${bounds.minY.toFixed(2)} to ${bounds.maxY.toFixed(2)} m of the plan.`
     const world = done.worldFile === null ? '' : ` ${say('en', 'view.worldFile', { file: name(quoted(done.worldFile)) })}`
-    return { ...answer, text: `${answer.text}\nWrote ${quoted(done.picture)} (${size.width} × ${size.height} px) and ${quoted(done.record)} in the project folder.${where}${world}`, data: { ...data, written: done.picture, record: done.record, worldFile: done.worldFile } }
+    return { ...answer, text: `${answer.text}\nWrote ${quoted(done.picture)} (${made.width} × ${made.height} px) and ${quoted(done.record)} in the project folder.${where}${world}`, data: { ...data, written: done.picture, record: done.record, worldFile: done.worldFile } }
   },
 }
 
-async function drawView(args: Record<string, unknown>, context: ToolContext): Promise<ViewAnswer> {
+async function drawView(args: Record<string, unknown>, context: ToolContext, size?: PictureSize): Promise<ViewAnswer> {
   {
     const { project, loaded: asRead } = readPlan(context, args['plan'])
     // ARE-75: the building in the state asked, or the demolition or proposed plan, and the state its measures read.
@@ -3021,18 +3060,18 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
     // VEW-74: every floor side by side, for a plan only, with its look and sizes.
     if (allFloors && kind !== 'plan') throw new ToolRefusal(`floor=all draws every floor's plan side by side: it is for kind=plan. kind=${kind} takes one floor's id.`)
-    const besideAll = allFloors ? ['frame', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward', 'sun', 'with_site'].filter((key) => args[key] !== undefined) : []
+    const besideAll = allFloors ? ['frame', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward', 'sun', 'with_site', 'format', 'width', 'scale', 'aspect'].filter((key) => args[key] !== undefined) : []
     if (besideAll.length > 0) throw new ToolRefusal(`floor=all takes look and dimensions, not ${besideAll.join(', ')}: name one floor for those.`)
     const plan = survey.plan
     // MSG-34: always the language worked out, so English asked on a plan in another language is English.
     const inTongue = { language }
     // VEW-20: a section or a facade writes its levels in the units asked for, else the plan's display.
     const levelDisplay = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
-    if (kind === 'facade') return facadeAnswer(plan, args, language, levelDisplay)
+    if (kind === 'facade') return facadeAnswer(plan, args, language, levelDisplay, size)
     // VEW-85: the site plan: the plot and every building on it. Loaded only for a site plan.
     if (kind === 'site') {
       const { siteAnswer } = await import('./siteAnswer')
-      return siteAnswer(plan, (args['look'] as LookName | undefined) ?? 'working', language, levelDisplay)
+      return siteAnswer(plan, (args['look'] as LookName | undefined) ?? 'working', language, levelDisplay, size)
     }
     if (kind === 'section') {
       const cut = args['cut'] as CutArg | undefined
@@ -3040,7 +3079,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       const line = asToolArg(() => sectionLineOf(cut.from, cut.to, towardOf(args['toward'] as string | undefined, 'toward'), 'cut'))
       // Loaded only for a section: the drawing and the words that go with it.
       const { sectionAnswer } = await import('./sectionAnswer')
-      return sectionAnswer(plan, line, (args['look'] as LookName | undefined) ?? 'technical', language, levelDisplay)
+      return sectionAnswer(plan, line, (args['look'] as LookName | undefined) ?? 'technical', language, levelDisplay, size)
     }
     // LVL-9: the marks for the plan's other drawings; cut and toward only for a section's line on it.
     const markWords = args['marks'] === undefined ? null : asToolArg(() => readMarks(args['marks'] as string[], 'marks'))
@@ -3116,7 +3155,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       const frame = crop ? cropFrame(crop.parts, 2, margin ?? CROP_MARGIN) : box ? cropBoxFrame(box, margin ?? 0) : tiling.frame ?? buildingFrame
       const framedWords = crop ? `, cropped to ${crop.words}` : box ? `, cropped to x ${box.minX.toFixed(2)} to ${box.maxX.toFixed(2)} and y ${box.minY.toFixed(2)} to ${box.maxY.toFixed(2)} m` : ''
       const marginWords = crop || box ? (margin ?? (crop ? CROP_MARGIN : 0)) > 0 ? ` with ${metres(margin ?? CROP_MARGIN)} m round it` : '' : ''
-      const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(frame ? { frame } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}), ...(withSite ? { site: true } : {}) })
+      const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(frame ? { frame } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}), ...(withSite ? { site: true } : {}), ...(size === undefined ? {} : { size }) })
       const work = planHasPhases(stated) ? phaseCounts(stated) : null
       // VEW-76: a look for people says what it shows instead of the working drawing's sizes.
       const people = peopleLook(pictureLook(asked))
@@ -3186,6 +3225,8 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
         ...(args['turn'] !== undefined ? { turn: args['turn'] as number } : {}),
         ...(args['tilt_by'] !== undefined ? { tiltBy: args['tilt_by'] as number } : {}),
         ...(args['fit'] !== undefined ? { fit: args['fit'] as CameraFit } : {}),
+        // VEW-87: framed for the shape asked.
+        ...(size?.aspect !== undefined ? { aspect: size.aspect } : {}),
       }
       let camera: CameraRecord
       let framed: ReturnType<typeof framedCamera>
@@ -3202,7 +3243,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       const asked = args['roof'] as 'show' | 'hide' | undefined
       // CNT-58: lit from the sun at the moment asked.
       const sun = sunOfArg(plan, args['sun'])
-      const view = await cameraView(plan, camera, language, asked === undefined ? undefined : asked === 'show', sun === null ? undefined : sceneSunOf(sun))
+      const view = await cameraView(plan, camera, language, asked === undefined ? undefined : asked === 'show', sun === null ? undefined : sceneSunOf(sun), size)
       const stated = statedRoofWords(plan, camera.floors)
       const roof = !view.roof
         ? stated === ''
@@ -3237,7 +3278,7 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     const { cameraView } = await import('../draw/views')
     // VEW-30, VEW-75: where it stands and looks, its lens and tilt.
     const { eyeShot } = await import('./eyeAnswer')
-    const { camera, sentence } = eyeShot(plan, survey, room, {
+    const { camera: stood, sentence } = eyeShot(plan, survey, room, {
       height,
       ...(args['at'] !== undefined ? { at: args['at'] as string } : {}),
       ...(args['stand_at'] !== undefined ? { standAt: args['stand_at'] as [number, number] } : {}),
@@ -3249,7 +3290,9 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     })
     // CNT-58: lit from the sun at the moment asked.
     const sun = sunOfArg(plan, args['sun'])
-    const view = await cameraView(plan, camera, language, undefined, sun === null ? undefined : sceneSunOf(sun))
+    // VEW-87: the record carries the shape asked; the lens keeps its height of view.
+    const camera = size?.aspect === undefined ? stood : { ...stood, aspectRatio: size.aspect }
+    const view = await cameraView(plan, camera, language, undefined, sun === null ? undefined : sceneSunOf(sun), size)
     const sills = windows.map((w) => ({ id: w.id, type: w.type, sill: w.sill, top: w.sill + w.height, seenOver: w.sill < height }))
     const plainDoors = room.openings.some((o) => o.type === 'door' && !glazedIn(o))
     const sillText = sills.length === 0

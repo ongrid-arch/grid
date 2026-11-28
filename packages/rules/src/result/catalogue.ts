@@ -570,6 +570,9 @@ export const CODES = {
   'item/leaves-room': {},
   'plan/column-in-item': {},
   'plan/column-overlap': {},
+  // ARE-80: a column in a door's or a window's hole, and a partition drawn on through a column.
+  'plan/column-in-opening': {},
+  'plan/column-in-partition': {},
   'item/clearance-blocked': {},
   // CNT-13: use indicators the drawing's check gives. The found is the check's own sentence:
   // what was measured, with what depth, and that it is an indicator.
