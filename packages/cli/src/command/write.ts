@@ -15,7 +15,7 @@
  */
 import { doorsThatChangedRooms, expandPatterns, floorOf, floorsWithNoStair, indexPlan, itemKindWord, itemRoom, mergeBase, planBounds, planFloors, roomShapes, validatePlan, withPatterns, type FloorPlan, type TapedRow } from '@ongrid/floorplan/geometry'
 import { english, name, num, said, type Said } from '@ongrid/floorplan/messages'
-import { baseNamedIn, carryFacts, compileRoomsText, everyProblem, itemsFollowWalls, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
+import { baseNamedIn, carryFacts, compileRoomsText, everyProblem, itemsFollowWalls, languageOfText, ownParts, planRevision, problemLines, roomsAnswer, stampFor, writtenSite, type BasePlan, type RoomsResult } from '@ongrid/floorplan/rooms'
 import { FloorPlanSchema, safeParseFloorPlan, statedItem, statedOpening, statedWall, type Identity } from '@ongrid/floorplan/types/floorplan'
 import { inspectPlan } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
@@ -327,10 +327,12 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const base = baseOfText(project, text.normalize('NFC'), planFile)
   const withShell = (plan: FloorPlan): FloorPlan => (base === null ? plan : mergeBase(plan, base.plan).plan)
   // CMD-30: names in one form (NFC), so a letter typed with a combining accent is the one the plan holds.
-  const result = compileRoomsText(text.normalize('NFC'), base === null ? {} : { base })
+  // WRT-87: a display line's language words are the plan's language, taken out before the text is compiled.
+  const spoken = languageOfText(text.normalize('NFC'))
+  const result = compileRoomsText(spoken.text, base === null ? {} : { base })
   if (result.plan === null) {
     // MSG-33: every independent problem of the text, not only the first the compiler stopped at.
-    const lines = problemLines(everyProblem(text.normalize('NFC'), result, base === null ? {} : { base }))
+    const lines = problemLines(everyProblem(spoken.text, result, base === null ? {} : { base }))
     const more = lines.length > 1 ? ` (${lines.length - 1} more: ${lines.slice(1).join(' | ')})` : ''
     throw new RoomsRefused(result.problems[0]?.code ?? 'rooms/syntax', `The rooms text was not written, and the plan is as it was: ${lines[0] ?? 'it could not be read'}${more}`, lines)
   }
@@ -417,6 +419,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   // WRT-7: a `display` line sets how the person reads lengths; without one, the file's stays.
   // MSG-24: the file's language and its own words (C32) stay too, as rooms text holds neither.
   if (plan.display !== undefined) next['display'] = { ...keptWords(raw['display']), ...plan.display }
+  // WRT-87: the language the text's display line names.
+  if (spoken.language !== null) next['display'] = { ...((next['display'] as Record<string, unknown> | undefined) ?? {}), language: spoken.language }
   // MSG-34: the person's language, when the call records one (the tool decides when).
   if (options.language !== undefined) next['display'] = { ...((next['display'] as Record<string, unknown> | undefined) ?? {}), language: options.language }
   // WRT-6: a height the text did not state stays out of the file; the reading fills it again.
@@ -462,7 +466,8 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   else delete next['base']
   // SHT-14: the `plan` line's name stays in the plan; without one, the file's name stays.
   if (result.name !== null && result.name !== '') next['name'] = result.name
-  next['written'] = stampFor(plan)
+  // WRT-87: with the text it was written from, which the read-back gives again while it writes the plan as it is.
+  next['written'] = stampFor(plan, text.normalize('NFC'))
   // BRF-1: whether this is the plan's first write, before it is written.
   const first = own === null || nothingToLose(own)
   const written = project.relative(dryRun ? project.resolve(planFile) : project.writeFile(planFile, `${JSON.stringify(next, null, 2)}\n`))

@@ -1,8 +1,8 @@
 /**
  * What a plan written rooms first records about how it was written (WRT-2).
  *
- * The plan file is the source of truth; the rooms text is a way of writing and reading it. Two
- * things are kept in the plan's `written`:
+ * The plan file is the source of truth; the rooms text is a way of writing and reading it. These
+ * are kept in the plan's `written`:
  *
  * - `revision`: the plan's fingerprint as Grid wrote it from rooms text. Rooms text that says
  *   it was read from another revision, or a plan changed since by other means, is refused by
@@ -11,6 +11,8 @@
  *   order) is derived: Grid works it out from where the rooms are, and no one writes it. One
  *   that no longer matches was edited by hand, and the drawing check refuses it with its own
  *   code, `room/derived-edited`.
+ * - `text` (WRT-87): the rooms text itself, as it was written. The read-back (`read.ts`) gives it
+ *   again, with its units, repeats and copies, while it still writes the plan the file holds.
  *
  * Pure: plain data in, strings out.
  */
@@ -28,7 +30,8 @@ function fnv(text: string, seed = 0x811c9dc5): string {
 
 const n4 = (v: number): string => (Math.round(v * 10000) / 10000).toFixed(4)
 
-function canonical(value: unknown): string {
+/** Plain data as one text in any key order, numbers to a tenth of a millimetre (WRT-87: the read-back compares parts by it). */
+export function canonical(value: unknown): string {
   if (typeof value === 'number') return n4(value)
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   if (value !== null && typeof value === 'object') {
@@ -59,12 +62,15 @@ export interface WrittenStamp {
   readonly from: 'rooms'
   readonly revision: string
   readonly boundaries: Readonly<Record<string, string>>
+  /** WRT-87: the rooms text the plan was written from, as it was written. */
+  readonly text?: string
 }
 
-export function stampFor(plan: Pick<FloorPlan, 'walls' | 'rooms' | 'openings' | 'floors'>): WrittenStamp {
+/** WRT-87: with `text`, the rooms text it was written from is kept beside the stamp, for the read-back. */
+export function stampFor(plan: Pick<FloorPlan, 'walls' | 'rooms' | 'openings' | 'floors'>, text?: string): WrittenStamp {
   const boundaries: Record<string, string> = {}
   for (const room of plan.rooms) boundaries[room.id] = boundaryPrint(room)
-  return { from: 'rooms', revision: planRevision(plan), boundaries }
+  return { from: 'rooms', revision: planRevision(plan), boundaries, ...(text === undefined ? {} : { text }) }
 }
 
 /** The rooms of a plan written rooms first whose boundary was changed since Grid worked it out. */

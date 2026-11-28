@@ -2362,6 +2362,7 @@ export const en = {
   'describe.rooms.rawOpening': "Opening {opening} is written in Grid's own terms: {why}.",
   'describe.rooms.rawOpening.unplaced': 'rooms text has no line that places it as it is',
   'describe.rooms.rawOpening.changes': 'written as rooms text, it {what}',
+  'describe.rooms.notHeld': 'Not in this text, and kept by grid write only when the text is written over this plan file: {list}.',
   'describe.rooms.unsettled': 'its rooms text could not be checked against the plan in {rounds} writings',
   // WRT-44: what the read-back leaves out, as the check leaves it out of the plan.
   'describe.rooms.leftOut': 'Left out: wall {wall} has no length, its two ends being one point, so the check leaves it out of the plan too, and writing this text gives the plan without it.',
