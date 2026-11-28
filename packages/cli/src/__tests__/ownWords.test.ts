@@ -242,7 +242,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-78: one fewer, the refusal of a route between floors.
   // VEW-85: one more, grid_view's with_site.
   // VEW-87: twelve more, grid_view's format, width, scale and aspect, their refusals and the svg line.
-  'packages/cli/src/mcp/readTools.ts': [425, 'tools'],
+  // ARE-81: six more, a route from a point or a farthest point: floor, start and their refusals.
+  'packages/cli/src/mcp/readTools.ts': [431, 'tools'],
   // VEW-85: grid_view kind=site's answer.
   // VEW-88: one fewer, the street edges' line now names each street.
   'packages/cli/src/mcp/siteAnswer.ts': [21, 'tools'],
@@ -459,7 +460,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // MSG-36: four more, what the limits of a note said once decide.
   // VEW-87: three more, what the limits of a view's size decide.
   // LVL-29: four more, what the roof overhang, roof part and brise-soleil figures decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [446, 'developer'],
+  // ARE-81: three more, what the step along a room's sides for its farthest point decides.
+  'packages/floorplan/src/geometry/tolerances.ts': [449, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
