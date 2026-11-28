@@ -23,7 +23,9 @@ import { planFacts } from '../describe/facts'
 import { projectWithPlace, sitePlace } from '../describe/site'
 import { planAreas, type FloorAreas, type PlanAreas } from '../quantities/areas'
 import { factsText, flatSchedule, openingSchedule, openingTypeSchedule, roomSchedule, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
-import type { ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
+import type { AccessMarkLabels, ScheduleMarkLabels } from '@ongrid/floorplan/geometry/drawingMarks'
+import { accessMarkLabels, readAccess, type AccessRead } from '../quantities/accessMarks'
+import { accessBodies } from './accessSheet'
 import { surveyPlan } from '../quantities/survey'
 import { notShownNote } from './limits'
 import { coverFigures, roundingNote } from './coverFigures'
@@ -35,8 +37,9 @@ import type { NamedSectionLine } from '@ongrid/floorplan/geometry/drawingMarks'
 import { displayFor, sqFt } from '../quantities/units'
 import { showLength, type Display } from '@ongrid/floorplan/types/units'
 
-export type SheetLayout = 'client' | 'check'
-export const SHEET_LAYOUTS: readonly SheetLayout[] = ['client', 'check']
+/** SHT-27: `access` is the access sheet: the access measurements drawn on each floor, then their tables. */
+export type SheetLayout = 'client' | 'check' | 'access'
+export const SHEET_LAYOUTS: readonly SheetLayout[] = ['client', 'check', 'access']
 /** The drawing box on a floor page, in PDF points: what the frames are fitted to. */
 export const PLAN_BOX = { width: 700, height: 640 } as const
 
@@ -98,8 +101,9 @@ export function planPictureOptions(picture: Extract<SheetPicture, { kind: 'plan'
       ...(picture.ids ? { labels: { ids: true } } : {}),
       // ARE-15: the schedules' marks, tied to the rows on the schedule pages; SHT-23: the lines
       // of the sections on the sheet's sections page.
-      ...(picture.marks === undefined && picture.sections === undefined ? {} : {
-        marks: { ...(picture.marks === undefined ? {} : { schedule: picture.marks }), ...(picture.sections === undefined ? {} : { sections: picture.sections }) },
+      // SHT-27: the access measurements, on the access sheet.
+      ...(picture.marks === undefined && picture.sections === undefined && picture.access === undefined ? {} : {
+        marks: { ...(picture.marks === undefined ? {} : { schedule: picture.marks }), ...(picture.sections === undefined ? {} : { sections: picture.sections }), ...(picture.access === undefined ? {} : { access: picture.access }) },
       }),
       // MSG-11: the drawing's words in the sheet's language; English leaves the plan's own.
       ...(language === DEFAULT_LANGUAGE ? {} : { language }),
@@ -127,6 +131,8 @@ export type SheetPicture =
       readonly marks?: ScheduleMarkLabels
       /** SHT-23: the lines of the sections on the sheet's sections page, marked on the plan. */
       readonly sections?: readonly NamedSectionLine[]
+      /** SHT-27: on the access sheet, the access measurements, by part id. */
+      readonly access?: AccessMarkLabels
     }
   | { readonly kind: 'model' }
   /**
@@ -167,6 +173,8 @@ export interface SheetOptions {
   readonly name: string
   /** SHT-12: the measurements under the person's own access figures, printed on a client sheet's first page. */
   readonly accessNotes?: readonly AccessNote[]
+  /** SHT-27: the access measurements the access sheet prints; measured without a brief when left out. */
+  readonly access?: AccessRead
   readonly date: Date
   /** MSG-11: the language of the sheet's own words, with its decimal mark. English when left out. */
   readonly language?: Language
@@ -207,7 +215,7 @@ function notKnownWhy(english: string, measures: readonly ('grossInternal' | 'gro
   return w.say('sheet.area.notKnown', { measures: joined(measures.map((m) => ({ key: `sheet.figure.${m}` as MessageKey })), 'join.or') })
 }
 
-type Body = Omit<SheetPage, 'footer'>
+export type Body = Omit<SheetPage, 'footer'>
 
 /** When some floor with rooms is joined to no other by a stair (LVL-3). */
 export const STAIR_LIMIT = say('en', 'sheet.stairLimit')
@@ -247,14 +255,14 @@ export function floorFrames(loaded: LoadedPlan): ReadonlyMap<string, Bounds> {
 }
 
 /** A floor page's picture, with the zoom of `grid draw`'s picture of that floor. */
-function floorPicture(loaded: LoadedPlan, frames: ReadonlyMap<string, Bounds>, floor: string, ids: boolean, marks?: ScheduleMarkLabels, sections: readonly NamedSectionLine[] = []): SheetPicture {
+function floorPicture(loaded: LoadedPlan, frames: ReadonlyMap<string, Bounds>, floor: string, ids: boolean, marks?: ScheduleMarkLabels, sections: readonly NamedSectionLine[] = [], access?: AccessMarkLabels): SheetPicture {
   const frame = frames.get(floor)!
   const drawn = pictureView(loaded.plan, { floor })
   // The zoom at which a room name is MIN_LABEL_PT on paper: pixels of a name, times metres per
   // pixel, times points per metre of the box. `grid draw`'s zoom stands unless it is smaller.
   const shown = fitTo(frame, PLAN_BOX.width / PLAN_BOX.height)
   const readable = (MIN_LABEL_PT * shown.width) / (TEXT_PX.roomName * PLAN_BOX.width)
-  return { kind: 'plan', floor, frame, metresPerPixel: Math.max(drawn.view.width / drawn.width, readable), ids, ...(marks === undefined ? {} : { marks }), ...(sections.length === 0 ? {} : { sections }) }
+  return { kind: 'plan', floor, frame, metresPerPixel: Math.max(drawn.view.width / drawn.width, readable), ids, ...(marks === undefined ? {} : { marks }), ...(sections.length === 0 ? {} : { sections }), ...(access === undefined ? {} : { access }) }
 }
 
 function undecidedNote(loaded: LoadedPlan, floor: string, w: Words): string[] {
@@ -725,13 +733,28 @@ function scheduleBodies(loaded: LoadedPlan, name: string, w: Words): Body[] {
   return bodies
 }
 
+/** SHT-27: the access sheet's pages, with the floor pictures, units and notes every sheet has. */
+function accessSheetBodies(loaded: LoadedPlan, name: string, w: Words, read: AccessRead): Body[] {
+  const frames = floorFrames(loaded)
+  return accessBodies(loaded, name, w, read, {
+    picture: (floor, labels) => floorPicture(loaded, frames, floor, false, undefined, [], labels),
+    units: sheetUnits(loaded.plan, w),
+    undecided: (floor) => undecidedNote(loaded, floor, w),
+    labels: (access) => accessMarkLabels(access, loaded.plan, w.language),
+  })
+}
+
 export function sheetPages(loaded: LoadedPlan, words: SheetWords | null, layout: SheetLayout, options: SheetOptions): Sheet {
   // A check sheet takes nothing from sheet.json, not even its name.
   // CNT-50: a plan that states no name of its own is named by its site's.
   const own = loaded.plan.name ?? loaded.plan.site?.name ?? options.name
   const name = layout === 'client' ? words?.name ?? own : own
   const w = wordsIn(options.language ?? DEFAULT_LANGUAGE)
-  const bodies = layout === 'client' ? clientBodies(loaded, words, own, w, options.date, options.accessNotes) : checkBodies(loaded, own, w, options.date)
+  const bodies = layout === 'client'
+    ? clientBodies(loaded, words, own, w, options.date, options.accessNotes)
+    : layout === 'access'
+      ? accessSheetBodies(loaded, own, w, options.access ?? readAccess(undefined, '', loaded.plan))
+      : checkBodies(loaded, own, w, options.date)
   const date = dateText(options.date, w)
   const label = w.say('label')
   const pages = bodies.map((body, i): SheetPage => ({

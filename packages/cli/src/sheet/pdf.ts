@@ -398,7 +398,7 @@ async function drawSideDrawings(ctx: Ctx, plan: FloorPlan, picture: Extract<Shee
   const asked = language === DEFAULT_LANGUAGE ? {} : { language }
   const pictureOf = (drawing: PlacedDrawing) => drawing.of === 'facade'
     ? keptFacadePicture(plan, { side: drawing.side, width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, ...asked })
-    : keptSectionPicture(plan, drawing.cut.line, { width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, label: drawing.cut.label, ...asked })
+    : keptSectionPicture(plan, drawing.cut.line, { width: drawing.width, height: drawing.height, look: SHEET_LOOK, paperScale: picture.scale, label: drawing.cut.label, dimensions: false, ...asked })
   for (const [i, drawing] of picture.drawings.entries()) {
     // A section without the band under it: its name is written under it here, what it took in the notes.
     const image = await pictures(`drawing ${i}`, () => {
