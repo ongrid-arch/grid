@@ -261,7 +261,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-41: based_on's description and planRevision's.
   // CMD-44: one more, the description of who.
   'packages/cli/src/mcp/revisions.ts': [3, 'tools'],
-  'packages/cli/src/mcp/sectionAnswer.ts': [6, 'tools'],
+  // VEW-89: one more, the line before a section's dimension chains.
+  'packages/cli/src/mcp/sectionAnswer.ts': [7, 'tools'],
   'packages/cli/src/mcp/seenTool.ts': [16, 'tools'],
   // CMD-38: two more, the rooms grammar resource's title and description.
   // MSG-34: one more, the refusal of a language that is no language tag.
