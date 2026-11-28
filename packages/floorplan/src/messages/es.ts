@@ -3657,6 +3657,8 @@ export const es: Messages = {
   'write.base.refused': 'No se escribió el texto de estancias y el plano sigue igual: {why}',
   'write.base.changed': '{file} es un acondicionamiento sobre el plano base {was}, y este texto de estancias nombra {now}, así que escribirlo movería el acondicionamiento a otra envolvente. Nombre {was} en la línea base, o añada --replace para escribirlo sobre {now}.',
   'write.base.dropped': '{file} es un acondicionamiento sobre el plano base {was}, y este texto de estancias no nombra ninguna base, así que escribirlo perdería su envolvente. Añada la línea base {was} (grid describe --as rooms la escribe), o añada --replace para escribirlo como un plano propio.',
+  // CMD-54: rooms text tried with a dry run, nothing written.
+  'write.dryRun': 'Prueba: se ha probado el texto de estancias con {file} y no se ha escrito nada, así que el plano, su registro de cambios y la carpeta siguen como estaban. Esto es lo que haría escribirlo; escríbelo de nuevo sin la prueba para guardarlo.',
   'write.origin.drawing': 'El origen del dibujo es (0, 0) m en cada planta, con x hacia la derecha e y hacia arriba.',
   'write.origin.extent': 'La esquina inferior izquierda de los límites de los ejes de los muros está a ({x}, {y}) m del origen del dibujo.',
   'write.origin.unset': 'Usa una línea site origin x,y para fijar un punto de referencia para exportar un plano con coordenadas topográficas.',
