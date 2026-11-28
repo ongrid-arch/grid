@@ -16,10 +16,12 @@
  */
 import { alignPlans, centroid, compareMassing, curveFault, floorChanges, tolerance, wallAxis, wallLength, wallPath, wallPointAt, type FloorChange, type FloorPlan, type MassingFigures, type Opening, type Vec2, type Wall } from '@ongrid/floorplan/geometry'
 import { english, joined, name, num, said, type MessageKey, type Said } from '@ongrid/floorplan/messages'
+import { METRES, plainMetres, type Display } from '@ongrid/floorplan/types/units'
 import { notCountedRooms, planAreas, roomKey, type PlanAreas } from './areas'
 import { lettableFigures, peopleRatios, type LettableChoice, type PeopleFigures, type PeopleRatio } from './lettable'
 import { planSeating } from './seats'
 import { sideNames, type Survey } from './survey'
+import { areaOr, changeText, metresOr, thicknessText } from './units'
 
 /** Two sizes closer than this are one (MSG-15's `joint`; arithmetic, so it never changes). */
 const joint = tolerance('joint')
@@ -282,12 +284,14 @@ function wallsResized(a: FloorPlan, b: FloorPlan, map: Transform): WallSizeChang
 }
 
 /** "15 walls another height (3.00 → 2.70 m)", or null when none is. */
-function resizedWords(list: readonly WallSizeChange[]): string[] {
+function resizedWords(list: readonly WallSizeChange[], display: Display): string[] {
   const parts: string[] = []
-  const say = (what: string, pick: (w: WallSizeChange) => [number, number]): void => {
+  const say = (what: 'height' | 'thickness', pick: (w: WallSizeChange) => [number, number]): void => {
     const changed = list.filter((w) => Math.abs(pick(w)[0] - pick(w)[1]) >= joint)
     if (changed.length === 0) return
-    const pairs = [...new Set(changed.map((w) => `${pick(w)[0].toFixed(2)} → ${pick(w)[1].toFixed(2)} m`))]
+    // MSG-37: a thickness in feet and inches reads in inches, as the wall's own answer says it.
+    const pair = (before: number, after: number): string => (what === 'thickness' && !plainMetres(display) ? `${thicknessText(before, display)} → ${thicknessText(after, display)}` : changeText(before, after, display))
+    const pairs = [...new Set(changed.map((w) => pair(...pick(w))))]
     const shown = pairs.length > 3 ? `${pairs.slice(0, 3).join(', ')} and more` : pairs.join(', ')
     parts.push(`${changed.length} wall${changed.length === 1 ? '' : 's'} another ${what} (${shown})`)
   }
@@ -613,12 +617,9 @@ const sum = (values: readonly number[]): number => values.reduce((x, y) => x + y
 /** The uses a plan's rooms and zones state, each once, in plan order. */
 const usesOf = (s: Survey): string[] => [...new Set(s.rooms.flatMap((r) => (r.facts.use === undefined ? [] : [r.facts.use])))]
 
-function areaWord(value: number): string {
-  return `${value.toFixed(2)} m²`
-}
 
 /** What differs between two plans, `a` before and `b` after. */
-export function comparePlans(a: Survey, b: Survey, labels: readonly [string, string] = ['before', 'after'], options: { readonly inPlace?: boolean } = {}): Comparison {
+export function comparePlans(a: Survey, b: Survey, labels: readonly [string, string] = ['before', 'after'], options: { readonly inPlace?: boolean; readonly display?: Display } = {}): Comparison {
   // WRT-11: `inPlace` is a plan and the same plan after a change: it stands where it stood, rooms pair
   // by floor and id, and it is never read as the plan mirrored or turned.
   const inPlace = options.inPlace === true
@@ -737,20 +738,25 @@ export function comparePlans(a: Survey, b: Survey, labels: readonly [string, str
   const floors = floorChanges(a.plan, b.plan, { byName: true })
   const floorParts = floors.map((f) => english(f.inSentence))
   const floorsChanged: FloorFigures[] = floors.map((f) => ({ floor: f.floor, name: f.name, renamedFrom: f.renamedFrom, level: f.level, elevation: f.elevation, height: f.height, slab: f.slab, stands: f.stands, text: english(f.said) }))
-  const resizedParts = [...floorParts, ...resizedWords(resized)]
+  // MSG-37: the verdict's areas and lengths in the display asked for, metres as before when none is.
+  const display = options.display ?? METRES
+  const areaWord = (value: number): string => areaOr(value, display)
+  const resizedParts = [...floorParts, ...resizedWords(resized, display)]
   const but = resizedParts.length > 0 ? `, but ${resizedParts.join(' and ')}` : ''
   const [before, after] = labels
   let verdict: string
   if (likeness === 'same' && floorParts.length > 0) verdict = english(said('compare.same.floors', { after, before, changes: joined(resizedParts, 'join.and') }))
   else if (likeness === 'same') verdict = resizedParts.length > 0 ? `${after} is the same building as ${before}, every wall, opening and room where it was${but}.` : `${after} is the same building as ${before}: every wall, opening and room is where it was.`
-  else if (likeness === 'moved') verdict = `${after} is the same building as ${before}, moved ${Math.hypot(shift!.x, shift!.y).toFixed(2)} m on the drawing${but}.`
+  else if (likeness === 'moved') verdict = `${after} is the same building as ${before}, moved ${metresOr(Math.hypot(shift!.x, shift!.y), display)} on the drawing${but}.`
   else if (likeness !== null) verdict = `${after} is ${before} ${likeness}: every room keeps its size (${areaWord(netAfter)} net)${but}.`
   else {
     const changed = rooms.filter((r) => r.before === null || r.after === null || Math.abs(r.before - r.after) >= 0.01)
-    const parts = [`net ${areaWord(netBefore)} → ${areaWord(netAfter)} (${netAfter - netBefore >= 0 ? '+' : ''}${(netAfter - netBefore).toFixed(2)})`]
+    const gain = netAfter - netBefore
+    const gainText = plainMetres(display) ? `${gain >= 0 ? '+' : ''}${gain.toFixed(2)}` : `${gain >= 0 ? '+' : '-'}${areaWord(Math.abs(gain))}`
+    const parts = [`net ${areaWord(netBefore)} → ${areaWord(netAfter)} (${gainText})`]
     if (inPlace) for (const [kind, floors] of roomChanges(a, b)) parts.push(roomCountWords(kind, floors))
     else if (changed.length > 0) parts.push(`${changed.length} room${changed.length === 1 ? ' differs' : 's differ'} by name or size`)
-    if (wallsOut.length + wallsNew.length > 0) parts.push(`walls: ${wallsOut.length} out (${sum(wallsOut.map((w) => w.length)).toFixed(2)} m), ${wallsNew.length} new (${sum(wallsNew.map((w) => w.length)).toFixed(2)} m)`)
+    if (wallsOut.length + wallsNew.length > 0) parts.push(`walls: ${wallsOut.length} out (${metresOr(sum(wallsOut.map((w) => w.length)), display)}), ${wallsNew.length} new (${metresOr(sum(wallsNew.map((w) => w.length)), display)})`)
     if (wallsChanged.length > 0) parts.push(`${wallsChanged.length} wall${wallsChanged.length === 1 ? '' : 's'} moved or changed length`)
     parts.push(...resizedParts)
     parts.push(...massingLines)
