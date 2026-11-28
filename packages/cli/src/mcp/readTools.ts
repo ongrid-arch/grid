@@ -96,7 +96,7 @@ import { GitUnread } from '../versions/git'
 import { MARKER_NAME, MarkerRefused } from '../versions/markers'
 import { namedVersion, VersionRefused } from '../versions/named'
 import { estimateCsv, priceEstimate, rateCard, RATE_UNITS, RATES_FILE, type PricedLine, type Pricing } from '../quantities/rates'
-import { columnRule, parkingRule, planTakeoff, TAKEOFF_RULES, type BayCount, type ColumnRun, type RampFigures } from '../quantities/takeoff'
+import { columnRule, earthRule, parkingRule, planTakeoff, TAKEOFF_RULES, type BayCount, type ColumnRun, type EarthTakeoff, type RampFigures } from '../quantities/takeoff'
 import { FINISH_RULE, FINISH_SURFACES, FINISH_UNITS, WALL_TYPE_RULE, planFinishes, wallTypeRuns, type FinishSurface } from '../quantities/finishes'
 import {
   askPlan,
@@ -814,6 +814,8 @@ function bandsText(bands: readonly HeadroomBand[], units: Display, s: Speaker = 
 /** ARE-13: a quantity as the bill writes it. */
 function quantityText(quantity: number, unit: QuantityUnit, units: Display): string {
   if (unit === 'nr') return `${Math.round(quantity)} nr`
+  // ARE-77: the excavation, in cubic metres whatever the display.
+  if (unit === 'm3') return `${marked(quantity.toFixed(2), units.decimal)} m³`
   return unit === 'm2' ? areaText(quantity, units) : lengthText(quantity, units)
 }
 
@@ -823,7 +825,7 @@ const money = (amount: number, currency: string, decimal: 'point' | 'comma' = 'p
   return `${decimal === 'comma' ? shown.replace(/[.,]/g, (mark) => (mark === '.' ? ',' : '.')) : shown} ${currency}`
 }
 
-const UNIT_SHOWN: Readonly<Record<QuantityUnit, string>> = { m2: 'm²', m: 'm', nr: 'nr' }
+const UNIT_SHOWN: Readonly<Record<QuantityUnit, string>> = { m2: 'm²', m: 'm', nr: 'nr', m3: 'm³' }
 
 /** ARE-13: the bill of quantities, priced from the person's rates or as a rate card. */
 function estimateAnswer(estimate: Estimate, pricing: Pricing | null, units: Display, asCsv: boolean, change = false): Answer {
@@ -908,6 +910,29 @@ function estimateAnswer(estimate: Estimate, pricing: Pricing | null, units: Disp
   }
   lines.push(...estimate.notes)
   return { text: lines.join('\n'), data }
+}
+
+/** ARE-77: the take-off's earth: retaining walls by the height they hold, buried and ground-bearing slabs, the dig. */
+function earthLines(earth: EarthTakeoff, units: Display): string[] {
+  const volume = (v: number): ReturnType<typeof num> => num(marked(v.toFixed(2), units.decimal))
+  return [
+    english(said('takeoff.earth.heading')),
+    ...earth.retaining.map((r) => english(said('takeoff.earth.retaining', { height: num(lengthText(r.retained, units, 'height')), area: num(areaText(r.area, units)), length: num(lengthText(r.length, units)), count: r.count, floors: r.floors.map(q).join(', ') }))),
+    ...earth.buried.map((b) => english(said('takeoff.earth.buried', { floor: name(b.floorName), area: num(areaText(b.area, units)), cover: num(lengthText(b.cover, units, 'height')) }))),
+    ...earth.bearing.filter((b) => !b.base).map((b) => english(said('takeoff.earth.bearing', { floor: name(b.floorName), area: num(areaText(b.area, units)) }))),
+    ...earth.dig.map((d) => english(said('takeoff.earth.dig', { floor: name(d.floorName), area: num(areaText(d.area, units)), depth: num(lengthText(d.depth, units, 'height')), volume: volume(d.volume) }))),
+    ...(earth.dig.length === 0 ? [] : [english(said('takeoff.earth.excavation', { volume: volume(earth.excavation) }))]),
+  ]
+}
+
+/** ARE-77: the earth as rows of the take-off's spreadsheet, each assumed. */
+function earthRows(earth: EarthTakeoff): (string | number | null)[][] {
+  return [
+    ...earth.retaining.map((r) => ['retaining wall', `holding ${r.retained.toFixed(2)} m (${r.count})`, null, null, null, r.area, r.length, null, 'assumed']),
+    ...earth.buried.map((b) => ['buried slab', `over ${b.floorName}, under ${b.cover.toFixed(2)} m of soil`, b.area, null, null, null, null, null, 'assumed']),
+    ...earth.bearing.filter((b) => !b.base).map((b) => ['ground-bearing slab', b.floorName, b.area, null, null, null, null, null, 'assumed']),
+    ...earth.dig.map((d) => ['excavation', `under ${d.floorName}, ${d.depth.toFixed(2)} m deep: ${d.volume.toFixed(2)} m3`, d.area, null, null, null, null, null, 'assumed']),
+  ]
 }
 
 /** CNT-16: the take-off's columns, in a line, by shape and size. */
@@ -1116,6 +1141,7 @@ const takeoffTool: GridTool = {
       rooms: t.rooms,
       totals: t.totals,
       envelope: t.envelope,
+      ...(t.earth === undefined ? {} : { earth: t.earth }),
       rules: [...t.rules, ...(wallTypes.length === 0 ? [] : [WALL_TYPE_RULE]), ...(finishes === null ? [] : [FINISH_RULE])],
     }
     const several = survey.facts.floors.length > 1
@@ -1136,6 +1162,8 @@ const takeoffTool: GridTool = {
           ...(f.roof ? [['roof', `roof over ${f.floorName}, where nothing is above`, f.roof.area, null, null, null, null, null, 'assumed']] : []),
         ]),
         ...(t.envelope.roof === null ? [] : [['total', 'roof, all floors', t.envelope.roof, null, null, null, null, null, 'assumed']]),
+        // ARE-77: the earth: retaining walls (outer face below the ground in the wall face column), buried and ground-bearing slabs, the dig (m³ in the what).
+        ...(t.earth === undefined ? [] : earthRows(t.earth)),
         // CNT-15: the named wall types (gross and net length, face in the wall face column) and the finishes.
         ...wallTypes.map((w) => ['wall type', `${w.name} (${w.count})`, null, null, null, w.face, w.gross, w.net, null]),
         ...(finishes ?? []).map((f) => ['finish', `${f.surface}: ${f.finish ?? 'not stated'}`, f.surface === 'floor' ? f.quantity : null, f.surface === 'ceiling' ? f.quantity : null, f.surface === 'skirting' ? f.quantity : null, f.surface === 'walls' ? f.quantity : null, null, null, null]),
@@ -1160,12 +1188,13 @@ const takeoffTool: GridTool = {
       ...(t.columns === undefined ? [] : [columnsLine(t.columns, units)]),
       ...(t.bays === undefined && t.ramps === undefined ? [] : parkingLines(t.bays ?? [], t.ramps ?? [], units, new Map(planFloors(survey.plan).map((f) => [f.id, f.name ?? f.id])))),
       'By room: floor and ceiling, skirting, wall face to plaster.',
-      ...t.rooms.map((r) => `  ${q(r.name)}: floor ${areaText(r.floorArea, units)}, ceiling ${areaText(r.ceiling, units)}, skirting ${lengthText(r.skirting, units)}, wall face ${areaText(r.wallFace, units)} (${areaText(r.openingsOff, units)} of openings off, walls ${r.height === null ? 'none' : lengthText(r.height, units)} high)${r.void === true ? `; a void: no floor, ceiling or skirting, guard ${lengthText(r.guard ?? 0, units)} along its open edge` : ''}`),
+      ...t.rooms.map((r) => `  ${q(r.name)}: floor ${areaText(r.floorArea, units)}, ceiling ${areaText(r.ceiling, units)}, skirting ${lengthText(r.skirting, units)}, wall face ${areaText(r.wallFace, units)} (${areaText(r.openingsOff, units)} of openings off, walls ${r.height === null ? 'none' : lengthText(r.height, units)} high)${r.earthFace === undefined ? '' : english(said('takeoff.room.earthFace', { face: num(areaText(r.earthFace, units)) }))}${r.void === true ? `; a void: no floor, ceiling or skirting, guard ${lengthText(r.guard ?? 0, units)} along its open edge` : ''}`),
       `Totals: floor ${areaText(t.totals.floorArea, units)}, ceiling ${areaText(t.totals.ceiling, units)}, skirting ${lengthText(t.totals.skirting, units)}, wall face ${areaText(t.totals.wallFace, units)}${t.totals.guard === undefined ? '' : `, guard ${lengthText(t.totals.guard, units)} round voids`}.`,
       'Slabs and roof, worked out from the outlines (assumed: the plan states no slab or roof):',
       ...envelopeLines,
       ...(t.envelope.roof === null ? [] : [`Roof in all: ${areaText(t.envelope.roof, units)}, assumed.`]),
       ...(assumed.length === 0 ? [] : [`Assumed: ${assumed.join('; ')}.`]),
+      ...(t.earth === undefined ? [] : earthLines(t.earth, units)),
       ...(wallTypes.length === 0
         ? []
         : [`Walls by type: ${wallTypes.map((w) => `${q(w.name)} ${lengthText(w.gross, units)} (${w.count} wall${w.count === 1 ? '' : 's'}; face ${areaText(w.face, units)}${w.gable > 0 ? `, of it ${areaText(w.gable, units)} gable` : ''}${w.material === null ? ', material not stated' : `, ${w.material}`}${w.glazed ? ', glazed' : ''})`).join('; ')}.`]),
@@ -1182,6 +1211,7 @@ const takeoffTool: GridTool = {
       ...(finishes === null ? [] : [FINISH_RULE]),
       ...(t.columns === undefined ? [] : [columnRule()]),
       ...(t.bays === undefined && t.ramps === undefined ? [] : [parkingRule()]),
+      ...(t.earth === undefined ? [] : [earthRule()]),
       'For a first estimate (finishes, reveals, walls by thickness, doors and windows by size, slab, roof) and a cost from the person\'s rates, ask with for=estimate.',
     ]
     return { text: lines.join('\n'), data }

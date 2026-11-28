@@ -3,6 +3,7 @@
  * size on its line measured to, the walls Grid worked out, the openings it placed, what it
  * guessed and what it warns about. The command and the tool server give the same lines.
  */
+import { alikeTexts } from '../geometry/alike'
 import { floorOf } from '../geometry/floors'
 import { english, said } from '../messages/say'
 import type { RoomFacts, RoomsResult, SizeBasis } from './compile'
@@ -27,9 +28,12 @@ function sizeOf(room: RoomFacts): string {
   return `${inside} (written ${w} x ${d} to the ${TO[room.basis]})`
 }
 
-/** One line per problem, for a refusal. */
+/**
+ * One line per problem, for a refusal. MSG-36: problems alike but for the numbers in their ids (a
+ * mistake in a unit repeated along a row, or on every floor copied) are one line (`alikeTexts`).
+ */
 export function problemLines(result: RoomsResult): string[] {
-  return result.problems.map((p) => `${p.code}: ${p.message}`)
+  return alikeTexts(result.problems.map((p) => `${p.code}: ${p.message}`))
 }
 
 /** The answer to a write, without the comparison with the plan before. */
@@ -73,6 +77,7 @@ export function roomsAnswer(result: RoomsResult, full = true): string[] {
   lines.push(`Guessed (${result.guesses.length}):`)
   for (const g of result.guesses) lines.push(`  ${g}`)
   lines.push(`Warnings (${result.warnings.length}):`)
-  for (const w of result.warnings) lines.push(`  ${w.code}: ${w.message}`)
+  // MSG-36: warnings alike are said once.
+  for (const w of alikeTexts(result.warnings.map((w) => `${w.code}: ${w.message}`))) lines.push(`  ${w}`)
   return lines
 }

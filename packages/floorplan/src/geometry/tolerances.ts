@@ -681,6 +681,26 @@ export const TOLERANCES = {
     basis: own
   },
 
+  // ── A repeated note said once (MSG-36) ────────────────────────────────────────────────────
+  alikeLines: {
+    kind: 'limit',
+    value: 3,
+    unit: 'count',
+    decides:
+      'The fewest notes, warnings, refusals or diff lines alike in every word but the numbers in ' +
+      'their ids that are said as one line listing the parts or floors; fewer stay one line each.',
+    basis: own
+  },
+  alikeRunsShown: {
+    kind: 'limit',
+    value: 12,
+    unit: 'count',
+    decides:
+      'The most runs of ids (`"door-101" to "door-114"`) a line said once for many lists; the ' +
+      'rest are counted, and every id stays in the data.',
+    basis: own
+  },
+
   // ── A survey drawn from its own numbers (HND-11) ──────────────────────────────────────────
   tapedAgree: {
     kind: 'tolerance',
@@ -1095,6 +1115,16 @@ export const TOLERANCES = {
       'A floor on the ground whose slab stands less than this above the ground the site states ' +
       'stands at the ground; higher, its sections and facades carry its walls down to the ground ' +
       'on a plinth (VEW-16). It only draws; it judges nothing.',
+    basis: own
+  },
+  buriedSlabAboveGround: {
+    kind: 'tolerance',
+    value: 0.3,
+    unit: 'm',
+    decides:
+      'A flat roof over a floor whose floor stands below the ground, with its top no higher than ' +
+      'this above the ground, is a slab under the earth or the garden, not a roof: the take-off ' +
+      'lists it as a buried slab with the soil over it (ARE-77).',
     basis: own
   },
   sectionEarthBelow: {

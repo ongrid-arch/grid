@@ -34,7 +34,9 @@ import {
   planBayCounts,
   planRamps,
   landscapeWalls,
+  planEarth,
   type FloorEnvelope,
+  type PlanEarth,
   type FloorPlan,
   type RoofShape,
   type SlabOpeningKind,
@@ -82,6 +84,8 @@ export interface RoomTakeoff {
   readonly ceilingHeight: number | null
   /** LVL-4: the zones of its ceiling lowered under the rest, each with its height and area. */
   readonly lowered: readonly { readonly name: string; readonly height: number; readonly area: number }[]
+  /** ARE-77: the inside face of its walls with earth behind them, below the ground: taken out of `wallFace`. Left out when none. */
+  readonly earthFace?: number
 }
 
 /** What a slab is open over, in a line. */
@@ -98,7 +102,14 @@ export interface EnvelopeLine {
   /** The floor's outline, on plan, to the outside face of its walls. */
   readonly outline: number | null
   /** The slab it stands on, as built: less its openings. Null when the floor has no outline. */
-  readonly slab: { readonly kind: 'base' | 'floor'; readonly area: number; readonly thickness: number; readonly openings: readonly SlabOpeningLine[] } | null
+  readonly slab: {
+    readonly kind: 'base' | 'floor'
+    readonly area: number
+    readonly thickness: number
+    readonly openings: readonly SlabOpeningLine[]
+    /** ARE-77: the part of it that rests on the ground, with no floor under it; 0 when none. */
+    readonly onGround: number
+  } | null
   /**
    * The roof over every part of it with nothing above, and its parapet's height. Null when it has
    * none. LVL-6: the shape the floor states (null: flat, as Grid lays it), its pitch in degrees, its
@@ -112,6 +123,8 @@ export interface EnvelopeLine {
     readonly slopeArea: number
     readonly rooflights: number
   } | null
+  /** ARE-77: the slab over the part of it the ground covers, with the soil over it: never its roof. Left out when none. */
+  readonly buried?: { readonly area: number; readonly cover: number }
   /** Always: the plan states no slab and no roof, so Grid's are an assumption. */
   readonly state: 'assumed'
   /** What Grid assumed, in words. */
@@ -175,8 +188,34 @@ export interface RampFigures {
   readonly statedSlope: number | null
 }
 
+/** ARE-77: the retaining walls that hold the same height of earth, on the floors asked for. */
+export interface RetainingRun {
+  /** The most earth they hold, from their floor's level, in metres. */
+  readonly retained: number
+  readonly count: number
+  /** Along the outline, in metres. */
+  readonly length: number
+  /** Their outer face below the ground, in m². */
+  readonly area: number
+  readonly floors: readonly string[]
+}
+
+/** ARE-77: what of the building has earth against it, and the dig. */
+export interface EarthTakeoff {
+  readonly retaining: readonly RetainingRun[]
+  readonly buried: readonly { readonly floor: string; readonly floorName: string; readonly area: number; readonly cover: number }[]
+  /** Every slab resting on the ground, on any floor. */
+  readonly bearing: readonly { readonly floor: string; readonly floorName: string; readonly area: number; readonly base: boolean }[]
+  readonly dig: readonly { readonly floor: string; readonly floorName: string; readonly area: number; readonly depth: number; readonly volume: number }[]
+  /** In m³. */
+  readonly excavation: number
+  readonly state: 'assumed'
+}
+
 export interface Takeoff {
   readonly walls: readonly WallRun[]
+  /** ARE-77: retaining walls, buried and ground-bearing slabs and the dig. Left out on a plan with nothing in the earth. */
+  readonly earth?: EarthTakeoff
   /** CNT-16: the columns, by shape and size. Left out on a plan with none. */
   readonly columns?: readonly ColumnRun[]
   /** CNT-19: the parking bays, counted per floor. Left out on a plan with none. */
@@ -327,7 +366,7 @@ function assumptions(env: FloorEnvelope, thicknessStated: boolean): string[] {
 }
 
 /** LVL-4: the slabs and roofs of the floors given, from their outlines. */
-export function envelopeTakeoff(survey: Survey, floors?: readonly string[]): EnvelopeTakeoff {
+export function envelopeTakeoff(survey: Survey, floors?: readonly string[], earth: PlanEarth = planEarth(survey.plan, floors)): EnvelopeTakeoff {
   const names = new Map(survey.facts.floors.map((f) => [f.id, f.name] as const))
   // ARE-55: a fit-out is fitted in a shell whose slab and roof are the base's, not the work's.
   if (survey.plan.base !== undefined) {
@@ -346,23 +385,37 @@ export function envelopeTakeoff(survey: Survey, floors?: readonly string[]): Env
   }
   const stated = new Map(planFloors(survey.plan).map((f) => [f.id, f.slab !== undefined && Number.isFinite(f.slab)] as const))
   const envelope = planEnvelope(survey.plan, floors === undefined ? {} : { floors })
-  const lines: EnvelopeLine[] = envelope.floors.map((env) => ({
-    floor: env.floor,
-    floorName: names.get(env.floor) ?? env.floor,
-    outline: env.outlineArea,
-    slab:
-      env.slab === null
-        ? null
-        : { kind: env.slab.kind, area: env.slab.area, thickness: env.slab.thickness, openings: env.slab.openings.map((o) => ({ kind: o.kind, via: o.via, area: o.area })) },
-    roof:
-      env.roof === null
-        ? null
-        : { area: env.roof.area, parapet: env.roof.parapet?.height ?? null, shape: env.roof.shape, pitch: env.roof.pitch, slopeArea: env.roof.slopeArea, rooflights: env.roof.rooflights.length },
-    state: 'assumed',
-    assumed: assumptions(env, stated.get(env.floor) ?? false),
-    why: env.why,
-  }))
-  return { floors: lines, slabs: envelope.slabArea, roof: envelope.roofArea, state: 'assumed' }
+  // ARE-77: a roof the ground covers is a buried slab, never a roof.
+  const buriedRoof = new Set(earth.buried.filter((b) => b.from === 'roof').map((b) => b.floor))
+  const lines: EnvelopeLine[] = envelope.floors.map((env) => {
+    const buried = earth.buried.filter((b) => b.floor === env.floor)
+    const area = buried.reduce((sum, b) => sum + b.area, 0)
+    return {
+      floor: env.floor,
+      floorName: names.get(env.floor) ?? env.floor,
+      outline: env.outlineArea,
+      slab:
+        env.slab === null
+          ? null
+          : {
+              kind: env.slab.kind,
+              area: env.slab.area,
+              thickness: env.slab.thickness,
+              openings: env.slab.openings.map((o) => ({ kind: o.kind, via: o.via, area: o.area })),
+              onGround: earth.bearing.find((b) => b.floor === env.floor)?.area ?? 0,
+            },
+      roof:
+        env.roof === null || buriedRoof.has(env.floor)
+          ? null
+          : { area: env.roof.area, parapet: env.roof.parapet?.height ?? null, shape: env.roof.shape, pitch: env.roof.pitch, slopeArea: env.roof.slopeArea, rooflights: env.roof.rooflights.length },
+      ...(buried.length === 0 ? {} : { buried: { area, cover: area > 0 ? buried.reduce((sum, b) => sum + b.cover * b.area, 0) / area : 0 } }),
+      state: 'assumed',
+      assumed: assumptions(env, stated.get(env.floor) ?? false).filter((line) => !buriedRoof.has(env.floor) || !line.startsWith('the roof ')),
+      why: env.why,
+    }
+  })
+  const roof = envelope.roofArea === null ? null : envelope.roofArea - envelope.floors.reduce((sum, env) => sum + (buriedRoof.has(env.floor) ? (env.roof?.area ?? 0) : 0), 0)
+  return { floors: lines, slabs: envelope.slabArea, roof, state: 'assumed' }
 }
 
 /** Each room's stated ceiling height and lowered zones, by floor and room id. */
@@ -405,13 +458,17 @@ export function planTakeoff(survey: Survey, floors?: readonly string[], rooms?: 
   }).filter((run) => run.count > 0)
   // A zone's floor, walls and ceiling are its room's (CNT-8): taken off once, unless asked for by name.
   const ceilingOf = ceilings(survey)
+  const earth = planEarth(survey.plan, floors)
   const list = survey.rooms
     .filter((room) => onFloor(room.facts.floor) && (rooms === undefined ? room.facts.zoneOf === undefined : rooms.includes(room.facts.id)))
     .map((room) => {
       const t = roomTakeoff(room, ceilingOf, survey.plan)
       // CNT-51: skirting where the room, or a zone of it, states none is measured as none.
       const skirting = room.facts.zoneOf === undefined ? skirtingParts(survey, room, t.skirting).reduce((sum, part) => sum + part.quantity, 0) : survey.plan.rooms.find((r) => r.id === room.facts.id)?.finishes?.skirting === false ? 0 : t.skirting
-      return skirting === t.skirting ? t : { ...t, skirting }
+      const withSkirting = skirting === t.skirting ? t : { ...t, skirting }
+      // ARE-77: the inside face of a wall with earth behind it is not plaster.
+      const earthFace = Math.min(t.wallFace, roomEarthFace(earth, room))
+      return earthFace > 0 ? { ...withSkirting, wallFace: t.wallFace - earthFace, earthFace } : withSkirting
     })
   const total = (key: 'floorArea' | 'ceiling' | 'skirting' | 'wallFace'): number => list.reduce((sum, room) => sum + room[key], 0)
   const columns = columnRuns(survey.plan, onFloor)
@@ -423,8 +480,52 @@ export function planTakeoff(survey: Survey, floors?: readonly string[], rooms?: 
     ...(ramps.length === 0 ? {} : { ramps }),
     rooms: list,
     totals: { floorArea: total('floorArea'), ceiling: total('ceiling'), skirting: total('skirting'), wallFace: total('wallFace'), ...(list.some((room) => room.void === true) ? { guard: list.reduce((sum, room) => sum + (room.guard ?? 0), 0) } : {}) },
-    envelope: envelopeTakeoff(survey, floors),
-    rules: [...Object.values(TAKEOFF_RULES), ...(columns.length === 0 ? [] : [columnRule()]), ...(bays.length === 0 && ramps.length === 0 ? [] : [parkingRule()])],
+    envelope: envelopeTakeoff(survey, floors, earth),
+    ...(earth.inEarth ? { earth: earthTakeoff(survey, earth) } : {}),
+    rules: [...Object.values(TAKEOFF_RULES), ...(earth.inEarth ? [earthRule()] : []), ...(columns.length === 0 ? [] : [columnRule()]), ...(bays.length === 0 && ramps.length === 0 ? [] : [parkingRule()])],
+  }
+}
+
+/** ARE-77: how the earth against the building is measured, in Grid's words. */
+export const earthRule = (): string => english(said('takeoff.rule.earth'))
+
+/** ARE-77: the inside face of a room's walls with earth behind them: each side on a retaining wall, by the share of that wall's face below the ground. */
+export function roomEarthFace(earth: PlanEarth, room: SurveyRoom): number {
+  if (earth.retaining.length === 0) return 0
+  let face = 0
+  for (const edge of room.edges) {
+    if (edge.wall === null || edge.wall.virtual === true) continue
+    const held = earth.retaining.find((r) => r.wall === edge.wall!.id && r.floor === room.facts.floor)
+    if (held !== undefined) face += edge.length * edge.wall.height * held.share
+  }
+  return face
+}
+
+/** ARE-77: the retaining walls by the height of earth they hold, the highest first. */
+export function retainingRuns(earth: PlanEarth): RetainingRun[] {
+  const runs = new Map<string, { retained: number; count: number; length: number; area: number; floors: string[] }>()
+  for (const face of earth.retaining) {
+    const key = face.retained.toFixed(3)
+    const run = runs.get(key) ?? { retained: Number(key), count: 0, length: 0, area: 0, floors: [] }
+    run.count++
+    run.length += face.length
+    run.area += face.area
+    if (!run.floors.includes(face.floor)) run.floors.push(face.floor)
+    runs.set(key, run)
+  }
+  return [...runs.values()].sort((a, b) => b.retained - a.retained)
+}
+
+function earthTakeoff(survey: Survey, earth: PlanEarth): EarthTakeoff {
+  const names = new Map(survey.facts.floors.map((f) => [f.id, f.name] as const))
+  const named = (floor: string): string => names.get(floor) ?? floor
+  return {
+    retaining: retainingRuns(earth),
+    buried: earth.buried.map((b) => ({ floor: b.floor, floorName: named(b.floor), area: b.area, cover: b.cover })),
+    bearing: earth.bearing.map((b) => ({ floor: b.floor, floorName: named(b.floor), area: b.area, base: b.base })),
+    dig: earth.dig.map((d) => ({ floor: d.floor, floorName: named(d.floor), area: d.area, depth: d.depth, volume: d.volume })),
+    excavation: earth.excavation,
+    state: 'assumed',
   }
 }
 

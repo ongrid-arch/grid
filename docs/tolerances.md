@@ -97,6 +97,8 @@ is not asked whether it was typed in feet.
 | `layoutRowOrders` | limit | 6 count | The most rooms in one row of a first layout whose every order is tried for the rooms the brief wants to touch (BRF-6) |
 | `layoutNarrowest` | limit | 1.2 m | Grid's own size, not a code figure. No side of a room a first layout draws from its area alone is narrower than this, or than the room's own square when it is smaller (WRT-61) |
 | `layoutLongest` | limit | 2 ratio | A room a first layout draws from its area alone, keeping its area, is at most this many times as long as it is wide (WRT-61) |
+| `alikeLines` | limit | 3 count | The fewest notes, warnings, refusals or diff lines alike in every word but the numbers in their ids that are said as one line listing the parts or floors (MSG-36); fewer stay one line each |
+| `alikeRunsShown` | limit | 12 count | The most runs of ids (`"door-101" to "door-114"`) a line said once for many lists; the rest are counted, and every id stays in the data (MSG-36) |
 | `diffPlace` | tolerance | 0.05 m | Two walls whose ends are this close, or two openings whose middles are, stand in the same place when two versions are compared by what stands where (WRT-8) |
 | `tapedAgree` | tolerance | 0.01 m | A length taped on site and the same length drawn agree when they are no further apart than this, unless the taped length states its own tolerance; further apart, `room/taped-differs` names both figures (HND-11) |
 | `setbackShort` | tolerance | 0.005 m | The building stands short of a set-back the person asked for when its outside face is more than this nearer the boundary than their figure; less rounds to the figure (`plan/setback-short`, BRF-3) |
@@ -138,6 +140,7 @@ is not asked whether it was typed in feet.
 | `stairWaist` | limit | 0.15 m | How thick a flight of stairs is drawn in a section, under the roots of its steps and square to its slope, and a landing, at least one riser: the plan states no waist (VEW-11) |
 | `planCutHeight` | limit | 1.2 m | How high above a floor its plan is cut: a stair rising from the floor is drawn solid up to this height, with a break line there, and dashed above (SHT-11) |
 | `plinthLeast` | tolerance | 0.005 m | A floor on the ground whose slab stands higher than this above the site's stated ground is carried down to the ground on a plinth in its sections and facades (VEW-16); lower, it stands at the ground |
+| `buriedSlabAboveGround` | tolerance | 0.3 m | A flat roof over a floor whose floor stands below the ground, with its top no higher than this above the ground, is a buried slab with the soil over it in the take-off, not a roof (ARE-77) |
 | `sectionEarthBelow` | limit | 1 m | How far below the lowest thing a section cuts under the ground, or below the ground where it cuts nothing there, the earth is drawn (VEW-65) |
 | `elevationMarkOffset` | limit | 1.2 m | How far outside the drawing and its dimensions an elevation mark stands on a plan (LVL-9) |
 | `aboveSameEdge` | tolerance | 0.02 m | A stretch of the outline of the floor above this close to the outline of the floor drawn, along it, is the same wall face, and is not drawn dashed (SHT-11) |
