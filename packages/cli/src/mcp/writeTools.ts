@@ -880,6 +880,9 @@ function refuseWaysIn(args: Readonly<Record<string, unknown>>): void {
     throw new ToolRefusal(`Pass ${first} or ${second}, not both: ${why}.`)
   }
   for (const name of ['layers', 'units'] as const) if (args[name] !== undefined && args['from'] === undefined) throw new ToolRefusal(`${name} goes with from: it says how to read a DXF drawing.`)
+  // CMD-54: a dry run tries rooms text only; layout, scan and from write files beside the plan.
+  const other = (['layout', 'scan', 'from'] as const).find((name) => args[name] !== undefined)
+  if (args['dry_run'] === true && other !== undefined) throw new ToolRefusal(`dry_run goes with rooms or roomsFile, not ${other}: it tries rooms text and writes nothing.`)
 }
 
 const writeRoomsTool: GridTool = {
@@ -899,6 +902,7 @@ const writeRoomsTool: GridTool = {
     + `${PHASE_RULES} `
     + 'From a DXF or IFC drawing (a survey, a CAD plan, a BIM model): pass from, the drawing in the project, in place of rooms, and Grid reads its rooms (room outlines, an IFC\'s spaces, or the regions its wall faces close round), their names, the doors and windows by the gaps they stand in, and the floors with their elevations, into rooms text it writes beside the plan as <plan>.rooms, then writes the plan from it. The answer says how each DXF layer or IFC class was read (layers=walls=A-WALL;doors=A-DOOR reads a layer otherwise), what was assumed to confirm with the person, each room\'s area against the drawing and each opening\'s distance from it; every room, wall and opening keeps its DXF handle or IFC GlobalId as the fact handle or guid. Check the rooms text, change a line and pass it back as roomsFile. Do not retype a drawing\'s coordinates by hand. '
     + 'Pass one of rooms, roomsFile, layout, scan and from. '
+    + 'To try rooms text first (to learn the grammar, or to see what a change would do), pass dry_run=true: Grid answers as the write would, every problem of the text included, and writes nothing, so no scratch plan is left in the folder. '
     + 'Fixtures and furniture are item lines (item tub bath in bath against north, at west): a text with item lines replaces the file\'s items; one with none keeps them, each against a wall moved with it, with their ids, and lists them with their rooms and any a new wall runs into (itemsKept). '
     + 'Do not use for one door or window (grid_change_opening) or one wall moved (grid_move_room_side), nor for one building of a site of many (grid_write_building). It replaces the plan file. Rooms text that names fewer floors than the plan holds is refused, naming the floors it would drop (replace=true drops them); rooms text with no rooms is always refused.',
   args: {
@@ -918,6 +922,8 @@ const writeRoomsTool: GridTool = {
     from: { type: 'string', maxLength: PATH_MAX, description: 'In place of rooms: a DXF or IFC drawing, as a path inside the project folder (ending in .dxf or .ifc). Its rooms text is written beside the plan as <plan>.rooms, then the plan from it.', examples: ['survey.dxf', 'model.ifc'] },
     layers: { type: 'string', maxLength: 4000, description: 'With from and a DXF: what its layers hold, over what their names say, as <what>=<layer>,<layer>;... with what one of walls, doors, windows, openings, rooms (closed room outlines), names (room names) and nothing.', examples: ['walls=A-WALL,A-WALL-EXT;doors=A-DOOR;rooms=A-AREA'] },
     units: { type: 'string', enum: ['m', 'cm', 'mm', 'in', 'ft'], description: 'With from and a DXF that states no unit (or the wrong one): the unit it is drawn in.', examples: ['mm'] },
+    // CMD-54: rooms text tried against the plan, and nothing written.
+    dry_run: { type: 'boolean', description: 'true to try rooms or roomsFile against the plan and answer as the write would, writing nothing: no plan file, no change log entry. false when left out.', examples: [true] },
     replace: { type: 'boolean', description: 'true to write over a plan that was not written from this text, scan or drawing, or was changed since. Refused with the difference when left out.', examples: [true] },
     // BRF-6: a first layout from the brief, in place of rooms text.
     layout: { type: 'string', enum: [...LAYOUT_SHAPES], description: 'In place of rooms: a first layout from the brief beside the plan. tidy: a rectangle; sizes: every size kept.', examples: ['tidy'] },
@@ -982,6 +988,8 @@ const writeRoomsTool: GridTool = {
     itemsKept: listSchema(objectSchema({ id: STRING, kind: STRING, at: listSchema(NUMBER), floor: STRING, room: NULLABLE_STRING, worthALook: listSchema(STRING) })),
     // MSG-34: the language this write recorded as the plan's own, else null.
     language: NULLABLE_STRING,
+    // CMD-54: true when the rooms text was only tried, and nothing was written.
+    dryRun: { type: 'boolean' },
   }),
   run(args, context) {
     const project = projectOf(context)
@@ -1013,6 +1021,7 @@ const writeRoomsTool: GridTool = {
             taped: done.taped,
             itemsKept: [],
             language: null,
+            dryRun: false,
             scan: {
               evidence: done.evidence,
               paired: c.paired,
@@ -1067,10 +1076,11 @@ const writeRoomsTool: GridTool = {
             taped: done.taped,
             itemsKept: done.itemsKept,
             language: null,
+            dryRun: false,
           },
         }
       }
-      const options = { replace: args['replace'] === true, brief: true }
+      const options = { replace: args['replace'] === true, brief: true, dryRun: args['dry_run'] === true }
       const laid = shape === undefined ? null : writeLayout(project, file, shape, options)
       const text = args['roomsFile'] === undefined ? (args['rooms'] as string) : readRoomsFile(project, args['roomsFile'] as string)
       // MSG-34: the person's language, recorded when the plan states none: the one the call asks, else the one the rooms are named in.
@@ -1100,6 +1110,7 @@ const writeRoomsTool: GridTool = {
           taped: done.taped,
           itemsKept: done.itemsKept,
           language: recorded?.language ?? null,
+          dryRun: done.dryRun,
         },
       }
     } catch (error) {

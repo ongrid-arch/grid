@@ -63,6 +63,11 @@ export const WRITE_OPTIONS: OptionSpecs = {
     takesValue: true,
     help: 'In place of a rooms file: a first layout from the brief beside the plan. tidy: a rectangle; sizes: every size kept.',
   },
+  // CMD-54: rooms text tried against the plan, and nothing written.
+  '--dry-run': {
+    takesValue: false,
+    help: 'Compile the rooms text against the plan and answer as the write would, writing nothing: no plan file, no change log entry. Rooms text only.',
+  },
   '--json': { takesValue: false, help: 'Print the answer as JSON.' },
   ...PROJECT_OPTION,
 }
@@ -119,6 +124,8 @@ export interface WriteDone {
   readonly taped: readonly TapedRow[]
   /** WRT-46: the fixtures and furniture the file keeps, which rooms text does not write, where they stand now. */
   readonly itemsKept: readonly KeptItem[]
+  /** CMD-54: true when the text was only tried, and nothing was written. */
+  readonly dryRun: boolean
   readonly lines: readonly string[]
 }
 
@@ -262,9 +269,12 @@ export function refuseReadOnly(project: Project, planFile: string): void {
   }
 }
 
+/** The two plans a refusal or a dry run (CMD-54) compares: the plan as it is and the one the text writes. */
+const NOW_AND_TEXT: readonly [string, string] = ['the plan now', 'the plan this text writes']
+
 /** What writing would change, in a sentence, for a refusal. */
 export function differenceLine(before: FloorPlan, after: FloorPlan): string {
-  return comparePlans(surveyPlan(before), surveyPlan(after), ['the plan now', 'the plan this text writes']).verdict
+  return comparePlans(surveyPlan(before), surveyPlan(after), NOW_AND_TEXT).verdict
 }
 
 /**
@@ -306,11 +316,13 @@ function baseOfText(project: Project, text: string, planFile: string): BasePlan 
   }
 }
 
-export function writeRoomsIntoProject(project: Project, text: string, planFile: string, options: { readonly replace?: boolean; readonly brief?: boolean; readonly facts?: PartFacts; readonly language?: string } = {}): WriteDone {
+export function writeRoomsIntoProject(project: Project, text: string, planFile: string, options: { readonly replace?: boolean; readonly brief?: boolean; readonly facts?: PartFacts; readonly language?: string; readonly dryRun?: boolean } = {}): WriteDone {
+  // CMD-54: a dry run works everything out as the write does and leaves out only the writing.
+  const dryRun = options.dryRun === true
   if (!planFile.toLowerCase().endsWith('.json')) throw new RoomsRefused('rooms/plan-file', `The plan to write must be a .json file: got ${JSON.stringify(planFile)}.`)
   // WRT-13: grid.json and the files kept beside a plan are never written as a plan.
   refuseGridFile(project.shown(project.resolve(planFile)), planFile)
-  refuseReadOnly(project, planFile)
+  if (!dryRun) refuseReadOnly(project, planFile)
   // WRT-75: a fit-out's base is read before the text is written, and its rooms rest on its walls.
   const base = baseOfText(project, text.normalize('NFC'), planFile)
   const withShell = (plan: FloorPlan): FloorPlan => (base === null ? plan : mergeBase(plan, base.plan).plan)
@@ -453,7 +465,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   next['written'] = stampFor(plan)
   // BRF-1: whether this is the plan's first write, before it is written.
   const first = own === null || nothingToLose(own)
-  const written = project.relative(project.writeFile(planFile, `${JSON.stringify(next, null, 2)}\n`))
+  const written = project.relative(dryRun ? project.resolve(planFile) : project.writeFile(planFile, `${JSON.stringify(next, null, 2)}\n`))
   // WRT-75: a fit-out is measured, counted and checked with its base read in, as every command reads it.
   const shelled = withShell(plan)
   const brief = briefAnswer(project, planFile, shelled)
@@ -463,7 +475,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const taped = tapedRows(nextPlan)
   const origin = originOfWrite(nextPlan)
 
-  const verdict = before === null || own === null || nothingToLose(own) ? null : comparePlans(surveyPlan(withPatterns(before)), surveyPlan(withPatterns(nextPlan)), ['the plan before', 'the plan now']).verdict
+  const verdict = before === null || own === null || nothingToLose(own) ? null : comparePlans(surveyPlan(withPatterns(before)), surveyPlan(withPatterns(nextPlan)), dryRun ? NOW_AND_TEXT : ['the plan before', 'the plan now']).verdict
   // WRT-4 with LVL-8: the file's opening patterns are kept and name their walls by id, so the plan
   // written is counted with them, and what the new walls keep from being placed is said here.
   const patterns = before?.patterns ?? []
@@ -479,7 +491,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
   const toLookAt = { before: before === null ? 0 : inspectPlan(raw, beforeBase === undefined ? {} : { base: beforeBase }).count, after: inspectPlan(next, base === null ? {} : { base: base.plan }).count }
   const doors = before === null ? [] : doorLines(before, nextPlan)
   const lines = [
-    `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
+    dryRun ? english(said('write.dryRun', { file: name(written) })) : `Wrote ${written} from rooms text: the walls, their kinds, the room boundaries and the openings' places are worked out by Grid.`,
     ...writeOriginLines(origin),
     ...roomsAnswer(result, options.brief !== true || result.rooms.length <= ROOMS_LISTED_MAX),
     // CMD-30: a new name that reads as an instruction or holds a person's name, said gently.
@@ -507,7 +519,7 @@ export function writeRoomsIntoProject(project: Project, text: string, planFile: 
     ...(reminder === null ? [] : [reminder]),
     ...tapedTable(taped, { max: TAPED_ROWS_IN_AN_EDIT }),
   ]
-  return { written, result, plan, origin, verdict, drawingProblems, toLookAt, doors, brief: brief.data, reminder, taped, itemsKept: items.items, lines }
+  return { written, result, plan, origin, verdict, drawingProblems, toLookAt, doors, brief: brief.data, reminder, taped, itemsKept: items.items, dryRun, lines }
 }
 
 /** WRT-57: the doors that join other rooms than before (MSG-14), those that no longer lead outside first and said so. */

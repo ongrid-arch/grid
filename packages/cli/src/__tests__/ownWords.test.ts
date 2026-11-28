@@ -63,7 +63,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-43: three more, the --from refusals.
   // CMD-52: one more, the help of --tools.
   // VEW-83: three more, a table's refusals of options of the other kind and of no --what.
-  'packages/cli/src/command/main.ts': [66, 'command'],
+  // CMD-54: one more, the refusal of --dry-run beside --layout, --scan or --from.
+  'packages/cli/src/command/main.ts': [67, 'command'],
   'packages/cli/src/command/options.ts': [9, 'command'],
   'packages/cli/src/command/plan.ts': [27, 'command'],
   // CMD-30: one more, the refusal of an invisible character.
@@ -83,7 +84,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-45: three more, the items the text's lines place and the kept ones that moved with their walls.
   // CNT-46: four more, the file's bays and ramps kept when the text writes none.
   // WRT-81: one fewer, the refusal over a plan with phases is in the message files now.
-  'packages/cli/src/command/write.ts': [45, 'command'],
+  // CMD-54: one more, the help of --dry-run.
+  'packages/cli/src/command/write.ts': [46, 'command'],
   // ARE-18: one more, the agent's line for a way in across open sides.
   'packages/cli/src/describe/card.ts': [15, 'agentForm'],
   'packages/cli/src/describe/facts.ts': [2, 'notYet'],
@@ -331,7 +333,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-58: two more, grid_export's sun and its refusal for another format.
   // VEW-82: three more, grid_export's glb for a game engine and its doors and walls.
   // VEW-83: nine more, grid_export's tables: what, units, decimal, their refusals and the answer.
-  'packages/cli/src/mcp/writeTools.ts': [180, 'tools'],
+  // CMD-54: three more, grid_write_rooms's dry_run, its description and its refusal.
+  'packages/cli/src/mcp/writeTools.ts': [183, 'tools'],
   'packages/cli/src/occupancy/occupancy.ts': [16, 'notYet'],
   'packages/cli/src/preview/localServer.ts': [6, 'agent'],
   'packages/cli/src/preview/record.ts': [4, 'command'],
