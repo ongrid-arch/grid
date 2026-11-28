@@ -57,6 +57,33 @@ describe('grid_export says what the file leaves out (HND-6)', () => {
   })
 })
 
+describe('grid_export writes a plan of massing on its plot (CMD-56)', () => {
+  const massing = {
+    version: '1', units: 'm', walls: [], rooms: [], openings: [],
+    floors: [{ id: 'ground', name: 'Ground', level: 0, height: 3, outline: [[2, 2], [12, 2], [12, 10], [2, 10]] }],
+    site: { boundary: [[0, 0], [20, 0], [20, 15], [0, 15]], things: [{ id: 'oak', kind: 'tree', at: [16, 12], canopy: 3 }] },
+  }
+  const b = bench({ 'massing.json': massing })
+  afterAll(() => b.close())
+
+  it('writes the DXF with the site and the massing, leaving nothing out', async () => {
+    const reply = await b.call('grid_export', { plan: 'massing.json', format: 'dxf' })
+    expect(reply.isError).toBe(false)
+    expect(reply.data).toMatchObject({ leftOut: 0, leftOutParts: [] })
+    const dxf = readFileSync(join(b.folder, 'exports', 'massing.dxf'), 'utf8')
+    for (const layer of ['GRID-SITE-BOUNDARY', 'GRID-SITE-TREES', 'GRID-MASSING']) expect(dxf).toContain(layer)
+  })
+
+  it('writes the IFC and names the tree it holds no element for, apart from broken parts', async () => {
+    const reply = await b.call('grid_export', { plan: 'massing.json', format: 'ifc' })
+    expect(reply.isError).toBe(false)
+    expect(reply.data).toMatchObject({ leftOut: 1, leftOutParts: [{ kind: 'site', id: 'oak', place: null, floor: 'ground', code: null }] })
+    expect(reply.text).toContain('This format holds no site things: 1 site thing left out ("oak"). A DXF draws them, and so does a GLB of the whole building.')
+    expect(reply.text).not.toContain('grid check says why')
+    expect(readFileSync(join(b.folder, 'exports', 'massing.ifc'), 'latin1')).toContain('IFCBUILDINGELEMENTPROXY')
+  })
+})
+
 /** A GLB's JSON chunk, the first after its 12-byte header. */
 function glbJson(bytes: Buffer): { scenes: { nodes: number[] }[]; nodes: { name?: string; children?: number[]; translation?: number[] }[] } {
   return JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString('utf8')) as ReturnType<typeof glbJson>

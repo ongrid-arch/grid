@@ -3494,7 +3494,12 @@ export const en = {
   'drawing.approximated.group': '{what} ({n}): {names}',
   'drawing.approximated.wall': 'Curved walls written as straight pieces',
   'drawing.approximated.room': 'Rooms along a curved wall, their outlines written as straight pieces',
+  // CMD-56: the site's things a format does not write, in the file's note and on the export's line.
+  'drawing.leftOut.site.one': 'This file holds no site things: {n} is left out. A DXF draws them, and so does a GLB of the whole building.',
+  'drawing.leftOut.site.many': 'This file holds no site things: {n} are left out. A DXF draws them, and so does a GLB of the whole building.',
+  'drawing.export.leftOut.site': 'This format holds no site things: {things} left out ({names}). A DXF draws them, and so does a GLB of the whole building.',
   'drawing.ifc.approximated': 'Curves of the plan Grid wrote as straight pieces in this file',
+  'drawing.ifc.massingArea': 'Inside the floor\'s stated outline.',
   'drawing.export.approximated': 'Wrote the curves of {parts} as straight pieces that follow the curve, and the file says how far off they are; grid check measures the true curve.',
   'drawing.export.approximated.wall.one': '{n} curved wall ({names})',
   'drawing.export.approximated.wall.many': '{n} curved walls ({names})',

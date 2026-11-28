@@ -36,7 +36,9 @@ import type { DxfProfile } from '../geometry/export/dxfProfile'
 import type { DxfFloor, DxfOpeningFacts, DxfSheet } from '../geometry/export/dxf'
 import type { ApproximatedPart, Approximations, LeftOutPart } from '../geometry/export/leftOut'
 import { curveDeviation } from '../geometry/arc'
-import { exportContents, type ExportContents } from './leftOut'
+import { exportContents, siteLeftOut, type ExportContents } from './leftOut'
+import { isMassing } from '../geometry/massing'
+import { planSetbackLines } from '../geometry/sitePlan'
 
 export type { ApproximatedPart, Approximations, LeftOutKind, LeftOutPart } from '../geometry/export/leftOut'
 export { countText, kindsText, leftOutByKind, partName, partNames } from '../geometry/export/leftOut'
@@ -267,13 +269,16 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const filter = { name: FILTER_NAMES[format], extensions: [format] }
   const ordered = inIdOrder(plan)
   if (format === 'ifc') {
-    const contents = exportContents(ordered, planFloors(ordered).map((floor) => floor.id), options.faults)
+    const ids = planFloors(ordered).map((floor) => floor.id)
+    const contents = exportContents(ordered, ids, options.faults)
+    // CMD-56: the IFC writes the plot's boundary on its site and none of the site's things.
+    const leftOut = [...contents.leftOut, ...siteLeftOut(ordered, ids)]
     const approximations = approximationsOf(ordered, format, contents)
     const marks = options.openingMarks === undefined ? {} : { marks: new Map([...options.openingMarks].map(([id, own]) => [id, own.mark] as const)) }
-    const data = toIfc(plan, { projectId: options.projectId, projectName: plan.name ?? plan.title ?? options.projectName, timestamp: options.now, leftOut: contents.leftOut, approximations, ...marks })
+    const data = toIfc(plan, { projectId: options.projectId, projectName: plan.name ?? plan.title ?? options.projectName, timestamp: options.now, leftOut, approximations, ...marks })
     const levels = floorElevations(ordered).floors
     const floors = floorsUp(ordered).map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
-    return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut: [], sheets: [], materials: null }
+    return { data, fileName: exportFileName(options.projectName, format, null), filter, leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut: [], sheets: [], materials: null }
   }
 
   // VEW-64: OBJ and GLB hold every floor unless one is named; VEW-72: and so does DXF, each floor
@@ -284,7 +289,10 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const held = whole ? allFloors : [floorId]
   const contents = exportContents(ordered, held, options.faults)
   const approximations = approximationsOf(ordered, format, contents, options.arcSegments)
-  const note = { leftOut: contents.leftOut, approximations }
+  // CMD-56: the DXF draws the site's things, and so does a GLB of the whole building; the OBJ and a
+  // GLB of one floor name them as left out.
+  const leftOut = format === 'dxf' || (format === 'glb' && whole) ? contents.leftOut : [...contents.leftOut, ...siteLeftOut(ordered, held)]
+  const note = { leftOut, approximations }
   // CMD-55: the plan's own materials, the same for every floor, the OBJ's `grid.mtl` among them.
   const materials = format === 'dxf' ? [] : planMaterials(ordered)
   let data: string | Uint8Array
@@ -294,6 +302,7 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
     const levels = floorElevations(ordered).floors
     const numbered = roomNumbers(ordered)
     const listed = planFloors(ordered)
+    let sited = false
     const dxfFloors = held.map((id): DxfFloor => {
       const storey = planForFloor(ordered, id)
       const stated = listed.find((f) => f.id === id)
@@ -308,7 +317,14 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
       const openings = new Map(storey.openings.map((o) => [o.id, { mark: o.identity?.tag ?? options.openingMarks?.get(o.id)?.mark ?? o.id, type: options.openingMarks?.get(o.id)?.type ?? null, height: o.height, sill: o.sill } satisfies DxfOpeningFacts] as const))
       // HND-6, CNT-18: in a file of several floors, each floor names what it leaves out of itself.
       const own = <T extends { readonly floor: string | null }>(parts: readonly T[]): T[] => (held.length === 1 ? [...parts] : parts.filter((part) => part.floor === id || (part.floor === null && id === held[0])))
-      return { id, name: stated?.name || id, drawing: buildFloorPlan(storey), leftOut: own(contents.leftOut), approximations: { ...approximations, parts: own(approximations.parts) }, facts, roomNumbers: numbers, openings }
+      // CMD-56: the site once, on the first floor of the file it is drawn on, with its set-backs.
+      const built = buildFloorPlan(storey)
+      const drawing = built.site !== null && sited ? { ...built, site: null, siteBounds: null } : built
+      if (drawing.site !== null) sited = true
+      const setbacks = drawing.site === null ? [] : planSetbackLines(ordered)
+      const level = levels.get(id)
+      const massing = isMassing(ordered, id) ? { massing: { elevation: level?.floorLevel ?? 0, height: level?.clearHeight ?? DEFAULT_STOREY_HEIGHT } } : {}
+      return { id, name: stated?.name || id, drawing, leftOut: own(contents.leftOut), approximations: { ...approximations, parts: own(approximations.parts) }, facts, roomNumbers: numbers, openings, ...(setbacks.length === 0 ? {} : { setbacks }), ...massing }
     })
     const scale = options.dxfScale ?? 'fit'
     data = toDxfFloors(dxfFloors, { scale, ...(options.dxfProfile === undefined ? {} : { profile: options.dxfProfile }) })
@@ -325,5 +341,5 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const planFloorList = planFloors(plan)
   const floor = planFloorList.find((f) => f.id === floorId)
   const floorName = !whole && planFloorList.length > 1 ? (floor?.name || floorId) : null
-  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut, sheets, materials: format === 'obj' ? toMtl(materials) : null }
+  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut, sheets, materials: format === 'obj' ? toMtl(materials) : null }
 }

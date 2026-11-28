@@ -38,6 +38,10 @@
  *   one hung above the plan's cut on a dashed layer of its own, and a commercial kitchen's piece
  *   with its label at its middle.
  * - A tag in each room: a block with its number, name and area as attributes.
+ * - CMD-56: the site, once, on the first floor of the file it is drawn on, under everything: the
+ *   plot's boundary, its set-back lines at the person's own figures, and each of the site's things
+ *   on its kind's layer (paving, paths, fences and gates, pools, trees). A massing floor's outline
+ *   is a closed polyline at its floor level (38), as thick as its storey is high (39).
  * - A paper layout: an A3 sheet in millimetres with one viewport showing the plan at the profile's
  *   scale, and every text sized for that scale.
  *
@@ -58,13 +62,14 @@ import { boundsWithDimensions, buildDimensions, RADIUS_MARK, type Dimension } fr
 import { openingSymbol, type SymbolPiece } from '../openingSymbol'
 import { doorHand } from '../handing'
 import { english, name as sayName, num as sayNum, said } from '../../messages/say'
-import { TOLERANCES } from '../tolerances'
+import { limit, TOLERANCES } from '../tolerances'
+import type { PlanSite } from '../plot'
 import { cutOutline, piecesAsRings, ringOf } from '../polygons'
 import { areaText, metresText } from '../rounding'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { approximationLines, kindLabel, leftOutByKind, leftOutSummary, NO_APPROXIMATIONS, partNames, type Approximations, type LeftOutPart } from './leftOut'
 import type { PlanCurve } from '../floorplan'
-import type { FloorPlan } from '../../types/floorplan'
+import type { FloorPlan, SiteThingKind } from '../../types/floorplan'
 import { factOf, factText, ROOM_NUMBER_FACT } from '../../types/facts'
 import { hasIdentity, IDENTITY_FACTS, type Identity } from '../../types/identity'
 import { indexPlan } from '../plan'
@@ -103,6 +108,15 @@ export const DXF_LAYERS = {
   fixturesAbove: neutral('fixtures-above'),
   columns: neutral('columns'),
   structuralGrid: neutral('structural-grid'),
+  // CMD-56: the site and the massing.
+  siteBoundary: neutral('site-boundary'),
+  setbacks: neutral('setbacks'),
+  paving: neutral('paving'),
+  paths: neutral('paths'),
+  fences: neutral('fences'),
+  pools: neutral('pools'),
+  trees: neutral('trees'),
+  massing: neutral('massing'),
   dimensions: neutral('dimensions'),
   notes: neutral('notes'),
   facts: neutral('facts'),
@@ -306,11 +320,16 @@ class Space {
    * `turns`, one per stretch to the next point, makes a curved stretch a true arc: the vertex's
    * bulge (42) is the tangent of a quarter of its turn.
    */
-  polyline(layer: string, points: readonly Vec2[], closed: boolean, turns: readonly number[] = []): void {
+  polyline(layer: string, points: readonly Vec2[], closed: boolean, turns: readonly number[] = [], rise?: { readonly elevation: number; readonly thickness: number }): void {
     if (points.length < 2 || !writablePoints(points) || !turns.every(Number.isFinite)) return
     this.start('LWPOLYLINE', layer, 'AcDbPolyline')
     this.out.pair(90, points.length)
     this.out.pair(70, closed ? 1 : 0)
+    // CMD-56: a massing floor's outline stands at its floor level (38) and rises its height (39).
+    if (rise !== undefined && writable(rise.elevation, rise.thickness)) {
+      if (rise.elevation !== 0) this.out.pair(38, num(rise.elevation))
+      this.out.pair(39, num(rise.thickness))
+    }
     points.forEach((p, i) => {
       this.out.point(p, 10, false)
       const turn = turns[i] ?? 0
@@ -1016,6 +1035,14 @@ export interface DxfOptions {
   readonly approximations?: Approximations
   /** VEW-72: each opening's mark, type, height and sill from the schedules, by opening id. */
   readonly openings?: ReadonlyMap<string, DxfOpeningFacts>
+  /** CMD-56: the plot's set-back lines, on the floor the site is drawn on; none when left out. */
+  readonly setbacks?: readonly { readonly from: Vec2; readonly to: Vec2 }[]
+  /**
+   * CMD-56: a massing floor's level above the ground floor's and its storey's height: its outline
+   * (`PlanDrawing.outline`) is written on the massing layer, rising that high. None for a floor
+   * with walls.
+   */
+  readonly massing?: { readonly elevation: number; readonly height: number }
   /**
    * VEW-72: the scale the sheet shows the plan at, 100 for 1:100, as stated; `fit` for the largest
    * standard scale it fits at (`DXF_SHEET_SCALES`). Left out, the profile's scale when a profile is
@@ -1238,7 +1265,7 @@ function writeDxf(floors: readonly DxfFloor[], given: DxfProfile | undefined, sc
     const facts = factLines(floor.drawing, floor.facts, planFrames[k]!, size.text)
     entities.shift = shift
     const model = new Space(doc, entities, frame.modelRecord)
-    const extent = writeModel(model, floor.drawing, { leftOut: floor.leftOut ?? [], approximations: floor.approximations ?? NO_APPROXIMATIONS, facts, frame: planFrames[k]!, places: openings.places[k]!, names, items: { places: items.places[k]!, names: items.names }, dims: dims[k]!, dimBlocks: dimBlocks[k]!, tag, numbers: floor.roomNumbers, title })
+    const extent = writeModel(model, floor.drawing, { leftOut: floor.leftOut ?? [], approximations: floor.approximations ?? NO_APPROXIMATIONS, facts, setbacks: floor.setbacks ?? [], massing: floor.massing ?? null, frame: planFrames[k]!, places: openings.places[k]!, names, items: { places: items.places[k]!, names: items.names }, dims: dims[k]!, dimBlocks: dimBlocks[k]!, tag, numbers: floor.roomNumbers, title })
     entities.shift = { x: 0, y: 0 }
     extents.push(computeBounds([add(extent.min, shift), add(extent.max, shift)]))
   })
@@ -1295,6 +1322,10 @@ function classes(): Out {
 
 interface ModelParts {
   readonly leftOut: readonly LeftOutPart[]
+  /** CMD-56: the plot's set-back lines, on the floor the site is drawn on. */
+  readonly setbacks: readonly { readonly from: Vec2; readonly to: Vec2 }[]
+  /** CMD-56: a massing floor's level and height, for its outline; null for a floor with walls. */
+  readonly massing: { readonly elevation: number; readonly height: number } | null
   readonly approximations: Approximations
   readonly facts: readonly FactLine[]
   readonly frame: Bounds
@@ -1313,6 +1344,14 @@ interface ModelParts {
 function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Bounds {
   const { size } = space.doc
   const points: Vec2[] = [parts.frame.min, parts.frame.max]
+
+  // CMD-56: the site first, under everything, as the 2D plan draws it on the floor it is drawn on.
+  writeSite(space, drawing.site, parts.setbacks)
+
+  // CMD-56: a massing floor's outline, closed, at its floor level and as high as its storey.
+  if (parts.massing !== null && drawing.outline !== undefined) {
+    space.polyline(space.layer('massing'), drawing.outline, true, [], { elevation: parts.massing.elevation, thickness: parts.massing.height })
+  }
 
   // Rooms first, so their outlines sit under the walls. A room's holes (ARE-6) follow its outline
   // on the same layer, each a closed outline of its own, so a hatch made from them leaves each
@@ -1493,6 +1532,35 @@ function writeModel(space: Space, drawing: PlanDrawing, parts: ModelParts): Boun
   }
 
   return computeBounds(points.filter((p) => writablePoints([p])))
+}
+
+/** CMD-56: the layer each kind of the site's things goes on. */
+const SITE_THING_LAYERS: Readonly<Record<SiteThingKind, DxfCategory>> = {
+  fence: 'fences',
+  gate: 'fences',
+  path: 'paths',
+  paving: 'paving',
+  tree: 'trees',
+  pool: 'pools'
+}
+
+/**
+ * CMD-56: the plot's boundary, closed; its set-back lines; and each of the site's things on its
+ * kind's layer: paving, a pool and a path's strip as closed outlines, a fence and a gate as their
+ * lines, a tree as its trunk, as wide as the 3D views draw it, and its crown across its canopy.
+ */
+function writeSite(space: Space, site: PlanSite | null, setbacks: readonly { readonly from: Vec2; readonly to: Vec2 }[]): void {
+  if (site !== null && site.boundary !== null && site.boundary.length >= 3) space.polyline(space.layer('site-boundary'), site.boundary, true)
+  for (const line of setbacks) space.line(space.layer('setbacks'), line.from, line.to)
+  for (const thing of site?.things ?? []) {
+    const layer = space.layer(SITE_THING_LAYERS[thing.kind])
+    for (const ring of thing.rings) space.polyline(layer, ring, true)
+    for (const line of thing.lines) space.polyline(layer, line, false)
+    if (thing.tree !== null) {
+      space.circle(layer, thing.tree.at, limit('treeDrawnTrunk') / 2)
+      if (thing.tree.radius !== null) space.circle(layer, thing.tree.at, thing.tree.radius)
+    }
+  }
 }
 
 /** The viewport onto the model: its middle and size on the sheet, and the model it shows. */

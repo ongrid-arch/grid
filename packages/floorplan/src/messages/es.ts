@@ -3624,7 +3624,12 @@ export const es: Messages = {
   'drawing.approximated.group': '{what} ({n}): {names}',
   'drawing.approximated.wall': 'Muros curvos escritos como tramos rectos',
   'drawing.approximated.room': 'Estancias junto a un muro curvo, con su contorno escrito como tramos rectos',
+  // CMD-56: las cosas del solar que un formato no escribe, en la nota del archivo y en la línea de la exportación.
+  'drawing.leftOut.site.one': 'Este archivo no guarda cosas del solar: queda fuera {n}. Un DXF las dibuja, y también un GLB de todo el edificio.',
+  'drawing.leftOut.site.many': 'Este archivo no guarda cosas del solar: quedan fuera {n}. Un DXF las dibuja, y también un GLB de todo el edificio.',
+  'drawing.export.leftOut.site': 'Este formato no guarda cosas del solar: {things} fuera ({names}). Un DXF las dibuja, y también un GLB de todo el edificio.',
   'drawing.ifc.approximated': 'Curvas del plano que Grid escribió como tramos rectos en este archivo',
+  'drawing.ifc.massingArea': 'Dentro del contorno que declara la planta.',
   'drawing.export.approximated': 'Se escribieron las curvas de {parts} como tramos rectos que siguen la curva, y el archivo dice cuánto se apartan; grid check mide la curva real.',
   'drawing.export.approximated.wall.one': '{n} muro curvo ({names})',
   'drawing.export.approximated.wall.many': '{n} muros curvos ({names})',

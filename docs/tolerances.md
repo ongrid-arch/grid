@@ -184,7 +184,7 @@ is not asked whether it was typed in feet.
 | `fenceDrawnThickness` | limit | 0.05 m | How thick a fence or a gate is drawn in 3D (CNT-60) |
 | `treeDrawnHeight` | limit | 6 m | How high a tree that states no height is drawn in 3D (CNT-60) |
 | `treeDrawnCanopy` | limit | 4 m | How wide a tree's crown is drawn in 3D when it states no canopy (CNT-60) |
-| `treeDrawnTrunk` | limit | 0.3 m | How wide a tree's trunk is drawn in 3D (CNT-60) |
+| `treeDrawnTrunk` | limit | 0.3 m | How wide a tree's trunk is drawn in 3D (CNT-60) and in the DXF (CMD-56) |
 | `poolDrawnDepth` | limit | 1.5 m | How deep a pool is drawn below the ground in 3D (CNT-60) |
 | `poolWaterBelowEdge` | limit | 0.15 m | How far below the ground a pool's water is drawn in 3D, so it reads as sunk (CNT-60) |
 | `largest` | limit | 10000000 m | The largest coordinate or size Grid accepts (10,000 km); past it the part is refused |

@@ -28,6 +28,10 @@
  * openings; wall types by stated kind and thickness, each with its material;
  * door and window styles by size. What the plan does not hold (flats, slabs,
  * materials, opening types) is not made up: slabs Grid works out say so.
+ *
+ * CMD-56: the site carries the plot's boundary as its footprint, and a massing floor (an outline
+ * with no walls) is a proxy on its storey, swept up its height. The site's things are not written;
+ * the caller names them in `leftOut`.
  */
 
 import type { Floor, FloorPlan, Opening, PlanIndex, Room, Wall, WallKind } from '../plan'
@@ -38,6 +42,9 @@ import { doorKindOf, statedKind } from '../openingKinds'
 import { openingParts } from '../openingParts'
 import { planFloors, planForFloor } from '../floors'
 import { planBuildings } from '../buildings'
+import { isMassing, statedOutline } from '../massing'
+import { plotBoundary } from '../plot'
+import { polygonArea } from '../polygons'
 import { sharedPart, wholeWall } from '../through'
 import { english, said } from '../../messages/say'
 import { inIdOrder } from '../order'
@@ -2558,7 +2565,9 @@ const LEFT_OUT_PROPERTIES: Readonly<Record<LeftOutKind, readonly [string, string
   stair: ['Stairs', 'StairIds'],
   floor: ['Floors', 'FloorIds'],
   // LVL-8: an opening pattern the reader could not read.
-  pattern: ['OpeningPatterns', 'OpeningPatternIds']
+  pattern: ['OpeningPatterns', 'OpeningPatternIds'],
+  // CMD-56: the site's things, which the IFC does not write.
+  site: ['SiteThings', 'SiteThingIds']
 }
 
 /**
@@ -2609,6 +2618,63 @@ function writeApproximations(c: Context, building: number, approximations: Appro
   }
   const set = c.w.add('IFCPROPERTYSET', str(c.guid('approximated', 'set')), ref(c.owner), str('Grid_Approximated'), str(english(said('drawing.ifc.approximated'))), refs(properties))
   c.w.add('IFCRELDEFINESBYPROPERTIES', str(c.guid('approximated', 'relation')), ref(c.owner), NULL, NULL, refs([building]), ref(set))
+}
+
+/**
+ * CMD-56: the plot's boundary as the site's shape: a closed polyline in a `FootPrint` view of its
+ * own, its corners from the site's placement at `siteAt`. Null, and nothing written, when the plan
+ * states no boundary or one that crosses itself, so a plan with none writes the file it did.
+ */
+function siteFootprint(w: StepWriter, context: number, plan: FloorPlan, siteAt: Pair2): number | null {
+  const boundary = plotBoundary(plan)
+  if (boundary === null || boundary.problem !== null || boundary.points.length < 3) return null
+  const corners = boundary.points.map((p) => [p.x - siteAt[0], p.y - siteAt[1]] as const)
+  if (!corners.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) return null
+  const view = w.add('IFCGEOMETRICREPRESENTATIONSUBCONTEXT', str('FootPrint'), str('Model'), DERIVED, DERIVED, DERIVED, DERIVED, ref(context), NULL, en('MODEL_VIEW'), NULL)
+  const points = [...corners, corners[0]!].map((p) => w.add('IFCCARTESIANPOINT', reals(p)))
+  const line = w.add('IFCPOLYLINE', refs(points))
+  const shape = w.add('IFCSHAPEREPRESENTATION', ref(view), str('FootPrint'), str('GeometricCurveSet'), refs([w.add('IFCGEOMETRICCURVESET', refs([line]))]))
+  return w.add('IFCPRODUCTDEFINITIONSHAPE', NULL, NULL, refs([shape]))
+}
+
+/**
+ * CMD-56 (C17): each massing floor, an outline with no walls, as one IfcBuildingElementProxy on its
+ * storey: the outline swept up the storey's height from its floor level, `ObjectType` `Massing`
+ * and `Tag` the floor's id, with its area on plan, its height and its volume. `origin` is where
+ * the plan's zero went (`nearOrigin`), which does not move an outline. Written in a containment
+ * relation of their own per storey, so a plan with no massing writes the file it did.
+ */
+function writeMassing(building: Context, plan: FloorPlan, storeys: readonly Storey[], origin: Pair2): void {
+  for (const storey of storeys) {
+    const { floor } = storey.model
+    if (!isMassing(plan, floor.id)) continue
+    const ring = statedOutline(plan, floor.id)?.[0]
+    const height = storey.height
+    if (ring === undefined || !(height > 0)) continue
+    const outline = ring.slice(0, -1).map(([x, y]) => ({ x: x - origin[0], y: y - origin[1] }))
+    if (!outline.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) continue
+    const c = onFloor(building, floor.id)
+    const body = bodyRepresentation(c, extrusion(c, footprintProfile(c, { outline, holes: [] }), height))
+    const proxy = c.w.add(
+      'IFCBUILDINGELEMENTPROXY',
+      str(c.guid('massing', floor.id)),
+      ref(c.owner),
+      str(`${floor.identity?.name ?? floor.name} massing`),
+      NULL,
+      str('Massing'),
+      ref(placement(c.w, storey.placement, [0, 0, 0])),
+      ref(productShape(c, [body])),
+      str(floor.id),
+      NULL
+    )
+    const area = Math.abs(polygonArea([ring]))
+    quantitySet(c, `massing:${floor.id}`, 'BaseQuantities', [
+      ['AREA', 'GrossFootprintArea', area, english(said('drawing.ifc.massingArea'))],
+      ['LENGTH', 'Height', height],
+      ['VOLUME', 'GrossVolume', area * height]
+    ], proxy)
+    relate(c, 'IFCRELCONTAINEDINSPATIALSTRUCTURE', `massing:${floor.id}`, refs([proxy]), ref(storey.id))
+  }
 }
 
 /** CNT-3: where the plan says it sits: only with an origin, and when every number of it can be written. */
@@ -2708,6 +2774,8 @@ function buildDocument(given: FloorPlan, options: IfcOptions): string {
   const where = siteOf(plan)
   const siteAt: Pair2 = where === null ? origin : where.origin
   const sitePlacement = placement(w, null, [siteAt[0], siteAt[1], 0])
+  // CMD-56: the plot's boundary as the site's footprint, in the site's own frame.
+  const footprint = siteFootprint(w, context, plan, siteAt)
   const site = rooted(
     'IFCSITE',
     'site',
@@ -2716,7 +2784,7 @@ function buildDocument(given: FloorPlan, options: IfcOptions): string {
     NULL,
     NULL,
     ref(sitePlacement),
-    NULL,
+    footprint === null ? NULL : ref(footprint),
     NULL,
     en('ELEMENT'),
     where?.latitude === undefined ? NULL : compoundAngle(where.latitude),
@@ -2766,6 +2834,7 @@ function buildDocument(given: FloorPlan, options: IfcOptions): string {
   }
   writeSlabs(c, plan, storeys)
   writeItems(c, storeys)
+  writeMassing(c, plan, storeys, origin)
   writeStairs(c, plan, storeys)
   writeColumns(c, plan, storeys)
   writeZones(c, plan, storeys)

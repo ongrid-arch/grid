@@ -17,12 +17,13 @@ import { english, num, said } from '../../messages/say'
 
 /**
  * The kinds of part an export can leave out: everything but the plan itself, and a flat (CNT-4),
- * whose lines leave out nothing but the ids they name.
+ * whose lines leave out nothing but the ids they name. CMD-56: and a thing on the site (C13), which
+ * nothing breaks, left out by a format that holds no site things.
  */
-export type LeftOutKind = Exclude<EntityKind, 'plan' | 'flat'>
+export type LeftOutKind = Exclude<EntityKind, 'plan' | 'flat'> | 'site'
 
 /** In the order a note lists them. */
-export const LEFT_OUT_KINDS: readonly LeftOutKind[] = ['wall', 'room', 'opening', 'item', 'stair', 'floor', 'pattern']
+export const LEFT_OUT_KINDS: readonly LeftOutKind[] = ['wall', 'room', 'opening', 'item', 'stair', 'floor', 'pattern', 'site']
 
 /** One part of the plan an export left out. */
 export interface LeftOutPart {
@@ -46,7 +47,9 @@ const PLURAL: Readonly<Record<LeftOutKind, readonly [string, string]>> = {
   stair: ['stair', 'stairs'],
   floor: ['floor', 'floors'],
   // LVL-8: an opening pattern the reader could not read.
-  pattern: ['opening pattern', 'opening patterns']
+  pattern: ['opening pattern', 'opening patterns'],
+  // CMD-56: a fence, gate, path, paving, tree or pool a format does not write.
+  site: ['site thing', 'site things']
 }
 
 /** `1 wall`, `3 openings`. */
@@ -83,11 +86,19 @@ export function kindsText(parts: readonly LeftOutPart[]): string {
   return counts.length <= 1 ? (counts[0] ?? '') : `${counts.slice(0, -1).join(', ')} and ${counts.at(-1)}`
 }
 
-/** The first line of every note: what the file leaves out, and where to read why. */
+/**
+ * The first line of every note: what the file leaves out, and where to read why. CMD-56: the site's
+ * things a format does not write are said apart, after the parts that cannot be drawn: nothing is
+ * wrong with them, and `grid check` names none.
+ */
 export function leftOutSummary(parts: readonly LeftOutPart[]): string {
-  const total = parts.length
-  return `Grid left ${total} part${total === 1 ? '' : 's'} of the plan out of this file (${kindsText(parts)}): `
-    + 'they cannot be drawn, or could not be read. grid check names each and says why.'
+  const broken = parts.filter((part) => part.kind !== 'site')
+  const site = parts.length - broken.length
+  const total = broken.length
+  const lines = total === 0 ? [] : [`Grid left ${total} part${total === 1 ? '' : 's'} of the plan out of this file (${kindsText(broken)}): `
+    + 'they cannot be drawn, or could not be read. grid check names each and says why.']
+  if (site > 0) lines.push(english(said(site === 1 ? 'drawing.leftOut.site.one' : 'drawing.leftOut.site.many', { n: site })))
+  return lines.join(' ')
 }
 
 /** The start of a kind's line: `Openings left out (42): `. */
