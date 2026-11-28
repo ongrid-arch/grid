@@ -647,6 +647,11 @@ export const en = {
   // ARE-78: a route between rooms on different floors: the other stairs off its floor, and a way by a lift.
   'route.otherWays': 'Other ways between the floors: {ways}.',
   'route.byLift': 'No stair joins these floors on the way, so it goes by the lift: the ride is not in the walked length, and a lift is never a way out.',
+  // ARE-81: a route from a room's or a floor's farthest point.
+  'route.farthest.room': 'The farthest point of {room} from {to}, by its nearest way, is at {x}, {y}: {length} walked.',
+  'route.farthest.floor': 'The farthest point of each room on {floor} from {to}, by its nearest way, the longest walk first: {rooms}. The route below is from the farthest of them.',
+  'route.farthest.unreached': 'No walk is measured from {rooms}.',
+  'route.farthest.rule': 'The farthest point is the point of the room\'s outline, its corners and its sides, from which the walk by the nearest way is the longest; every way the route could take is weighed from each point.',
   'check.noStair.route': 'There is no way out from {floor}: it stands above the ground and nothing joins it to the ground floor, no room on it is used as a stair or a lift and no stair or ramp is stated to it, so no route from {room} goes down to a door out (grid check: floor/no-stair).',
   'check.outOfLine.stair': 'The stair {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so it does not join the two floors',
   'check.outOfLine.lift': 'The lift shaft {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so the shaft is out of line',
