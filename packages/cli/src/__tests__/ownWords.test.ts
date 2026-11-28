@@ -443,7 +443,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-60: nine more, what the site's figures drawn in 3D decide. ARE-76: four more, the same-footprint share.
   // LVL-26: two more, what sameSpaceAlong decides.
   // ARE-77: three more, what buriedSlabAboveGround decides.
-  'packages/floorplan/src/geometry/tolerances.ts': [435, 'developer'],
+  // MSG-36: four more, what the limits of a note said once decide.
+  'packages/floorplan/src/geometry/tolerances.ts': [439, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],
@@ -683,7 +684,8 @@ describe("Grid's own sentences come from the message files (MSG-11)", () => {
     // and ARE-76 5: the ground a building's height is measured from (mcp/buildingTools.ts 1) and
     // what the same-footprint share decides (geometry/tolerances.ts 4) (odd/tasks/ARE-76.md).
     // and CMD-53 4: the columns' and a standing part's room fields (quantities/query.ts 4) (odd/tasks/CMD-53.md).
-    expect(left).toBeLessThanOrEqual(2801)
+    // and MSG-36 4: what the limits of a note said once decide (geometry/tolerances.ts 4) (odd/tasks/MSG-36.md).
+    expect(left).toBeLessThanOrEqual(2805)
   })
 
   it('keeps the moved parts at none: the result record, the checks, the report, the drawings and the sheet', () => {
