@@ -307,6 +307,52 @@ each room, use, floor and total and the columns `existing m2`, `proposed m2`, `c
 drawn as the key shows). `before` and `after` draw each building plain. `grid_export state=before`
 writes `<plan>-before.<ext>` beside the export of the whole plan, never over it.
 
+### The measures of the work
+
+`grid_measure what=work` (ARE-79) gives the numbers a question about an extension or a
+conversion turns on, for any country, as measures with no rule applied: no line says whether the
+work needs permission or meets a limit. On a plan with phases it sets the new parts against the
+building before the work:
+
+- how far the building reaches past its old outline on each side, by the way that side faces, and
+  how wide the new part is there. Each side is read square to the old outline's longest face,
+  from its furthest point that way; the plan does not say which side is the rear, so the side is
+  named by compass and the person says which one they mean;
+- the footprint added on the ground, before and after, and the floor added, gross external and
+  net, as `grid_areas state=both` measures them;
+- the tops of the new walls above the ground under them (the walls stated to face outside, when
+  any is, as the roof cuts them) and the highest point of the ceiling or the roof's underside
+  over the new rooms. The roof's build-up, a parapet, a chimney and the eaves' overhang are not
+  drawn, so they are in none of these;
+- the volume of the new rooms, measured inside: each room's whole floor times the height over it,
+  to its ceiling or under the roof's planes;
+- the plot left unbuilt before and after the work, and its share of the plot;
+- the least distance from the new parts to each edge of the boundary, beside the whole building's
+  before and after.
+
+A plan with no phases is answered with how to mark them (`grid_start_works`, `grid_set_phase`).
+In the library: `workMeasures(plan)`.
+
+### The figures a country quotes
+
+Where the plan will be built (its `site.country`, or `country`), `grid_areas` also gives the
+figures people there quote for a home, before the net line and under `local` in its data (ARE-79).
+They are Grid's own measures, named as people there name them, and follow no published standard;
+a local rule may count otherwise, such as part of a covered terrace, which only `outdoor_rules`
+counts.
+
+- Spain (`ES`): the useful area, the net area less the floor with under 1.5 m of height over it
+  where a floor states its roof; the built area without the shared parts, each flat to the
+  outside face of its outer walls and the middle of each wall it shares (its area to the party
+  walls, outside-face kind), or the gross external area on a plan that lists no flats; and the
+  built area with the shared parts, each flat's built area with the common parts' built area
+  added, shared out by the flats' built areas, since the plan states no shares. Each flat is given
+  on its own line.
+- The US (`US`): the living area under air of the floors at or above the ground floor, so a
+  heated basement is not in the headline, beside the area under air with it.
+
+Elsewhere there is none.
+
 ## Free floor
 
 Where fixtures stand (CNT-12, [plan-file.md](plan-file.md)), a room's free floor is given beside

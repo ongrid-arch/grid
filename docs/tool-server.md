@@ -1043,6 +1043,17 @@ A zone (CNT-8) is part of its room, and the room is the place: `what=use` on a z
 `what=route` from or to one, measures its room as a whole, says so on its first line, and names
 the zone asked for in the data (`zone`, `fromZone`, `toZone`).
 
+## The measures of the work
+
+Read this when the person asks how deep an extension is, how high its eaves or ridge are, how
+much it adds or how much garden is left. `grid_measure` with `what=work` (ARE-79) answers on a
+plan with phases, for any country, as measures with no rule applied: the depth past the old
+outline on each side by compass and the new part's width there, the footprint and floor added,
+the tops of the new walls and the highest point over the new rooms above the ground, the new
+rooms' volume, the plot left unbuilt before and after, and the least distance from the new parts
+to each edge of the boundary. It takes no other argument. See
+[areas.md](areas.md#the-measures-of-the-work).
+
 ## The plot: distances to the boundary, and the coverage
 
 Read this when the person asks how far the house is from the boundary, whether it keeps the
