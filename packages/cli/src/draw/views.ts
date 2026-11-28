@@ -10,7 +10,7 @@ import type { Display } from '@ongrid/floorplan/types/units'
 import type { Language } from '@ongrid/floorplan/messages'
 import { poleOfInaccessibility, type Bounds, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import type { Picture } from '@ongrid/viewer/src/picture'
-import { LOOKS as PICTURE_LOOKS, comparisonPicture, facadePicture, sitePlanPicture, fileHeight, fullHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
+import { LOOKS as PICTURE_LOOKS, CAPTION_PX, DEFAULT_WIDTH, comparisonPicture, facadePicture, sitePlanPicture, fileHeight, fullHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
 import { planFloors, resolveFloor, type BuildingComparison, type Facade, type FacadeSide, type SitePlan } from '@ongrid/floorplan/geometry'
 import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
 import { sectionPicture } from '@ongrid/viewer/src/picture/section'
@@ -61,9 +61,53 @@ function svgOf(picture: Picture): () => string {
   return () => pictureToSvg(picture, 1, { label: true })
 }
 
+/**
+ * VEW-87: the size a view is asked at. `width` lays the picture out at that many pixels across;
+ * `aspect` (width over height) makes the whole file that shape, its key and caption band
+ * included; `scale` draws the same picture with that many pixels per picture pixel.
+ */
+export interface PictureSize {
+  readonly width?: number
+  readonly aspect?: number
+  readonly scale?: number
+}
+
+/**
+ * VEW-87: a picture drawn at the size asked. With an aspect, the drawing's own height is the
+ * file's height less its bands: drawn once with the caption band alone taken off, and again only
+ * when a key band turns out to be under it too.
+ */
+function sizedPicture<P extends Picture>(size: PictureSize | undefined, draw: (pixels: { width?: number; height?: number }) => P): P {
+  const width = size?.width
+  if (size?.aspect === undefined) return draw(width === undefined ? {} : { width })
+  const across = width ?? DEFAULT_WIDTH
+  const total = Math.max(1, Math.round(across / size.aspect))
+  const first = draw({ width: across, height: Math.max(1, total - CAPTION_PX) })
+  const bands = fileHeight(first) - first.height
+  return bands === CAPTION_PX ? first : draw({ width: across, height: Math.max(1, total - bands) })
+}
+
+/** VEW-87: what every view of a laid-out picture hands back, at the scale asked. */
+async function scaledView(picture: Picture, space: PixelTransform['space'], scale = 1): Promise<Pick<PlanView, 'png' | 'width' | 'height' | 'pxPerMetre' | 'pixelToMetres' | 'svg'>> {
+  return {
+    png: await pictureToPng(picture, { scale }),
+    width: Math.round(picture.width * scale),
+    height: Math.round(fileHeight(picture) * scale),
+    pxPerMetre: (picture.width / picture.view.width) * scale,
+    pixelToMetres: pixelTransform(picture, space, { scale }),
+    svg: svgOf(picture),
+  }
+}
+
+function scaledBox(box: PartBox, scale: number): PartBox {
+  if (scale === 1) return box
+  const round = (n: number): number => Math.round(n * scale * 10) / 10
+  return { ...box, box: { x: round(box.box.x), y: round(box.box.y), width: round(box.box.width), height: round(box.box.height) } }
+}
+
 export async function planView(
   plan: FloorPlan,
-  options: { floor?: string; look: LookName; dimensions: boolean; ids?: boolean; display?: Display; frame?: Bounds; faults?: readonly FaultLine[]; show?: PictureShow; language?: Language; marks?: DrawingMarksAsked; trace?: TracePicture; site?: boolean },
+  options: { floor?: string; look: LookName; dimensions: boolean; ids?: boolean; display?: Display; frame?: Bounds; faults?: readonly FaultLine[]; show?: PictureShow; language?: Language; marks?: DrawingMarksAsked; trace?: TracePicture; site?: boolean; size?: PictureSize },
 ): Promise<PlanView> {
   // VEW-2's check view: every room, door and window carries its id. VEW-6: a frame crops.
   // MSG-8: the result record's lines, marked on the drawing and listed under it.
@@ -82,10 +126,11 @@ export async function planView(
     // VEW-85: the site faint under the floor.
     ...(options.site ? { site: true } : {}),
   }
-  const picture = planPicture(plan, { floor: options.floor ?? null, look: lookOf(options.look), showDimensions: options.dimensions, ...extra })
-  const png = await pictureToPng(picture)
-  const boxes = pixelBoxes(partBounds(plan, options.floor), picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, boxes, undecidedDoors: picture.undecidedDoors, svg: svgOf(picture), pixelToMetres: pixelTransform(picture, 'plan'),
+  // VEW-87: at the width, shape and scale asked.
+  const picture = sizedPicture(options.size, (pixels) => planPicture(plan, { floor: options.floor ?? null, look: lookOf(options.look), showDimensions: options.dimensions, ...extra, ...pixels }))
+  const scale = options.size?.scale ?? 1
+  const boxes = pixelBoxes(partBounds(plan, options.floor), picture).map((box) => scaledBox(box, scale))
+  return { ...(await scaledView(picture, 'plan', scale)), boxes, undecidedDoors: picture.undecidedDoors,
     // The view is in screen coordinates, y down: the plan's y runs the other way.
     bounds: { minX: picture.view.x, minY: -(picture.view.y + picture.view.height), maxX: picture.view.x + picture.view.width, maxY: -picture.view.y } }
 }
@@ -105,31 +150,28 @@ export function planDrawing(plan: FloorPlan, floor: string, look: 'working' | 't
 }
 
 /** LVL-9: a section along a line through every floor, with the section it was drawn from. */
-export async function sectionView(plan: FloorPlan, line: SectionLine, look: LookName, language?: Language, display?: Display): Promise<PlanView & { readonly section: PlanSection }> {
+export async function sectionView(plan: FloorPlan, line: SectionLine, look: LookName, language?: Language, display?: Display, size?: PictureSize): Promise<PlanView & { readonly section: PlanSection }> {
   // MSG-11: the drawing's own words in the language asked for, else the plan's own.
-  const picture = sectionPicture(plan, line, { look: drawingLook(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }) })
-  const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, section: picture.section, pixelToMetres: pixelTransform(picture, 'section'), svg: svgOf(picture) }
+  const picture = sizedPicture(size, (pixels) => sectionPicture(plan, line, { look: drawingLook(look), ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }), ...pixels }))
+  return { ...(await scaledView(picture, 'section', size?.scale)), section: picture.section }
 }
 
 /**
  * LVL-8: one side of the building in elevation, every floor at its level. The core works out what
  * is seen (`planFacade`); the viewer draws it (`facadePicture`), in the look asked for.
  */
-export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; look: LookName; language?: Language; display?: Display }): Promise<PlanView & { readonly facade: Facade }> {
-  const picture = facadePicture(plan, { side: options.side, look: drawingLook(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
-  const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade, pixelToMetres: pixelTransform(picture, 'facade'), svg: svgOf(picture) }
+export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; look: LookName; language?: Language; display?: Display; size?: PictureSize }): Promise<PlanView & { readonly facade: Facade }> {
+  const picture = sizedPicture(options.size, (pixels) => facadePicture(plan, { side: options.side, look: drawingLook(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }), ...pixels }))
+  return { ...(await scaledView(picture, 'facade', options.size?.scale)), facade: picture.facade }
 }
 
 /**
  * VEW-85: the site plan: the plot seen from above with every building on it. The core works out
  * what is drawn (`sitePlan`); the viewer draws it (`sitePlanPicture`), in the look asked for.
  */
-export async function siteView(plan: FloorPlan, options: { look: LookName; language?: Language; display?: Display }): Promise<PlanView & { readonly sitePlan: SitePlan; readonly scaleBar: { readonly metres: number; readonly words: string } }> {
-  const picture = sitePlanPicture(plan, { look: drawingLook(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
-  const png = await pictureToPng(picture)
-  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, sitePlan: picture.sitePlan, scaleBar: picture.scaleBar, pixelToMetres: pixelTransform(picture, 'plan'), svg: svgOf(picture),
+export async function siteView(plan: FloorPlan, options: { look: LookName; language?: Language; display?: Display; size?: PictureSize }): Promise<PlanView & { readonly sitePlan: SitePlan; readonly scaleBar: { readonly metres: number; readonly words: string } }> {
+  const picture = sizedPicture(options.size, (pixels) => sitePlanPicture(plan, { look: drawingLook(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }), ...pixels }))
+  return { ...(await scaledView(picture, 'plan', options.size?.scale)), sitePlan: picture.sitePlan, scaleBar: picture.scaleBar,
     bounds: { minX: picture.view.x, minY: -(picture.view.y + picture.view.height), maxX: picture.view.x + picture.view.width, maxY: -picture.view.y } }
 }
 
@@ -255,11 +297,17 @@ export interface CameraView {
  * the same record. A camera outside every room sees the ground grid; one in a room does not.
  * VEW-19: the roof is drawn as `roof` says, else as every still decides (`stillRoofShown`).
  */
-export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language, roof?: boolean, sun?: SceneSun): Promise<CameraView> {
+export async function cameraView(plan: FloorPlan, camera: CameraRecord, language?: Language, roof?: boolean, sun?: SceneSun, size?: PictureSize): Promise<CameraView> {
   const drawn = roof ?? stillRoofShown(plan, { focus: camera.cut, inside: camera.standingIn.room !== null })
   // VEW-17: the caption band under the still is part of its size.
   // VEW-26: a record framed in portrait (a tower) is drawn standing up, as many pixels.
-  const [width, height] = camera.aspectRatio < 1 ? [STILL_H, STILL_W] : [STILL_W, STILL_H]
+  const [across, high] = camera.aspectRatio < 1 ? [STILL_H, STILL_W] : [STILL_W, STILL_H]
+  // VEW-87: the width and shape asked, else the record's own; the scale on top.
+  const asked = size?.width ?? (size?.aspect === undefined ? across : STILL_W)
+  const tall = size?.aspect !== undefined ? asked / size.aspect : (asked * high) / across
+  const scale = size?.scale ?? 1
+  const width = Math.max(1, Math.round(asked * scale))
+  const height = Math.max(1, Math.round(tall * scale))
   const image = planStill(plan, { camera, width, height: height - captionHeight(width), look: 'light', supersample: 2, roof: drawn, ...(sun === undefined ? {} : { sun }) })
   return { png: await png(image, language), camera, roof: drawn }
 }

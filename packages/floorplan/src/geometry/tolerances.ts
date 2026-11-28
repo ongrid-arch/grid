@@ -1592,6 +1592,28 @@ export const TOLERANCES = {
     decides: 'The longest focal length a camera may have, on a 36 by 24 mm sensor: under 3 degrees across. Longer is refused.',
     basis: own
   },
+  // VEW-87: the size a view is asked at. Past these a view call is refused.
+  pictureLongestSide: {
+    kind: 'limit',
+    value: 4096,
+    unit: 'count',
+    decides: 'The most pixels a view picture may have along either side, its scale included (4K). Larger is refused.',
+    basis: own
+  },
+  pictureNarrowest: {
+    kind: 'limit',
+    value: 200,
+    unit: 'count',
+    decides: 'The fewest pixels across a view picture may be asked at. Narrower, its labels have no room, so it is refused.',
+    basis: own
+  },
+  pictureScaleMost: {
+    kind: 'limit',
+    value: 4,
+    unit: 'ratio',
+    decides: 'The most pixels per picture pixel a view may be drawn at. More is refused.',
+    basis: own
+  },
 
   // ── Limits: plausibility questions ────────────────────────────────────────────────────────
   wallThinnest: {

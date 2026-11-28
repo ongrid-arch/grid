@@ -239,7 +239,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-77: one more, the buried slab's row of the take-off's spreadsheet.
   // ARE-78: one fewer, the refusal of a route between floors.
   // VEW-85: one more, grid_view's with_site.
-  'packages/cli/src/mcp/readTools.ts': [413, 'tools'],
+  // VEW-87: twelve more, grid_view's format, width, scale and aspect, their refusals and the svg line.
+  'packages/cli/src/mcp/readTools.ts': [425, 'tools'],
   // VEW-85: grid_view kind=site's answer.
   'packages/cli/src/mcp/siteAnswer.ts': [22, 'tools'],
   // ARE-75: the state argument the reading tools share, and grid_view's demolition and proposed plans.
@@ -450,7 +451,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // LVL-26: two more, what sameSpaceAlong decides.
   // ARE-77: three more, what buriedSlabAboveGround decides.
   // MSG-36: four more, what the limits of a note said once decide.
-  'packages/floorplan/src/geometry/tolerances.ts': [439, 'developer'],
+  // VEW-87: three more, what the limits of a view's size decide.
+  'packages/floorplan/src/geometry/tolerances.ts': [442, 'developer'],
   'packages/floorplan/src/geometry/itemKinds.ts': [2, 'developer'],
   // CNT-52: the point kinds' words (fire alarm call point, first aid point, you are here).
   'packages/floorplan/src/geometry/pointKinds.ts': [3, 'notYet'],

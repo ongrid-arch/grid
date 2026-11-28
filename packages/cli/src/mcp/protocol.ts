@@ -98,6 +98,8 @@ export interface ToolAnswer {
   readonly data?: Record<string, unknown>
   readonly image?: { readonly data: Uint8Array; readonly mimeType: string }
   readonly images?: readonly { readonly data: Uint8Array; readonly mimeType: string }[]
+  /** VEW-87: a file handed back whole, as an embedded resource after the pictures. */
+  readonly resource?: { readonly uri: string; readonly mimeType: string; readonly text: string }
   /**
    * CMD-41: one short line sent after everything else, as a text block of its own, so an answer
    * whose text is a file's (CSV, rooms text) is left whole: the plan's revision.
@@ -208,6 +210,7 @@ function toolResult(answer: ToolAnswer): Record<string, unknown> {
   const content: Array<Record<string, unknown>> = [{ type: 'text', text: answer.text }]
   if (answer.image) content.push({ type: 'image', data: base64(answer.image.data), mimeType: answer.image.mimeType })
   for (const image of answer.images ?? []) content.push({ type: 'image', data: base64(image.data), mimeType: image.mimeType })
+  if (answer.resource) content.push({ type: 'resource', resource: { uri: answer.resource.uri, mimeType: answer.resource.mimeType, text: answer.resource.text } })
   if (answer.footnote !== undefined) content.push({ type: 'text', text: answer.footnote })
   if (answer.isError === true) return { content, isError: true }
   return answer.data === undefined ? { content } : { content, structuredContent: answer.data }

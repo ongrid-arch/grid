@@ -6,7 +6,7 @@
 import type { PixelTransform } from '../draw/pictureTransform'
 import type { FloorPlan } from '@ongrid/floorplan/geometry'
 import { levelText, sectionGroundLine, type PlanSection, type SectionLine } from '@ongrid/floorplan/geometry/section'
-import { sectionView } from '../draw/views'
+import { sectionView, type PictureSize } from '../draw/views'
 import { drawingLook, type LookName } from '../draw/viewNames'
 import { m, type Answer } from './toolkit'
 import type { Display } from '@ongrid/floorplan/types/units'
@@ -22,9 +22,9 @@ function profileWords(section: PlanSection, display?: Display): string {
 }
 
 /** MSG-11: the picture's own words are in `language`; the answer's text stays the tool's English, as a facade's does. */
-export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: LookName, language?: Language, display?: Display): Promise<Answer & { readonly image: NonNullable<Answer['image']>; readonly picture: { readonly svg?: () => string; readonly bounds: null; readonly pixelToMetres?: PixelTransform } }> {
+export async function sectionAnswer(plan: FloorPlan, line: SectionLine, asked: LookName, language?: Language, display?: Display, size?: PictureSize): Promise<Answer & { readonly image: NonNullable<Answer['image']>; readonly picture: { readonly svg?: () => string; readonly bounds: null; readonly pixelToMetres?: PixelTransform } }> {
   const look = asked === drawingLook(asked) ? asked : `${drawingLook(asked)} (asked as ${asked})`
-  const view = await sectionView(plan, line, asked, language, display)
+  const view = await sectionView(plan, line, asked, language, display, size)
   const { section } = view
   const walls = section.parts.filter((p) => p.kind === 'wall').length
   const stairs = section.parts.filter((p) => p.kind === 'stair').length
