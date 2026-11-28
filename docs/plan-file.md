@@ -512,7 +512,9 @@ and no roof, and a garden wall standing apart carries neither.
   runs on past a room, such as a stair house on a roof terrace (LVL-13).
 - **A void**: a room marked `"void": true` is open to the floor below. It has no floor, so its
   floor's slab is open over it, and it adds no floor area to the slab; it needs no door and has no
-  route to check.
+  route to check. The 3D view and the OBJ and glTF files lay no room floor for it, and lay every
+  other room's floor round wherever its floor's slab is open (over a stair, a stair room or a lift
+  shaft below, a ramp or a void), so no floor covers an opening (LVL-27).
 - **A parapet**: a floor's `parapet` is how far its outside walls rise above the roof over it. The
   roof keeps its place on the walls, and the parapet stands on its edge.
 
