@@ -36,9 +36,9 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid write --scan <scan.json> [--plan <plan.json>] [--replace] [--json]` | Writes a plan from a phone room scan, and keeps the scan beside it as `<plan>.scan.json` (see below) |
 | `grid check [<plan>] [--floor <id>] [--country <place>] [--full] [--json] [--seen <n> --reason <text> --by <name> \| --unseen <n>]` | Prints the report, short and about this plan unless `--full`. Every report is labelled "General guidance, not your local rules". `--country` names the place for this check, in place of the plan's `site.country`. `--seen` sets a note aside as seen (see below). With `firm-standards.json` beside the plan, the firm's own standards are set against it too, under their own heading ([a firm's own standards](firm-standards.md)) |
 | `grid describe [<plan>] [--length line\|rooms\|walls\|walk] [--for person\|agent] [--as rooms] [--floor <id>] [--pictures <folder>]` | Describes the plan in a few lines: its rooms, which rooms each opening joins, with `--length walls` its walls, and with `--length walk` the plan walked room by room, with `--pictures` a picture from each doorway (see below). `--as rooms` reads it back as rooms text, each room's number and facts on its line (WRT-74) |
-| `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--site \| --with-site] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor, or with `--site` the site plan, and with `--with-site` the site faint under a floor ([below](#a-site-plan-grid-draw---site)); to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section and schedule marks to a plan (see below) |
+| `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--site \| --with-site] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor, or with `--site` the site plan, and with `--with-site` the site faint under a floor ([below](#a-site-plan-grid-draw---site)); to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section, schedule and access marks to a plan (see below) |
 | `grid export [<plan>] --format dxf\|ifc\|glb\|obj\|geojson\|json\|csv\|xlsx [--what <table>] [--csv <table>] [--units <unit>] [--decimal point\|comma] [--floor <id>\|<name>\|all] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed\|open\|gaps\|markers] [--walls whole\|rooms] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. `--floor all` writes one file per floor; `--scale` (DXF) sets its sheets' scale ([every floor in one DXF](#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A GLB or OBJ leaves its roofs out with `--no-roofs` and writes a whole circle of curved wall with `--arc-segments` pieces; an OBJ comes with `grid.mtl` beside it ([3D files](3d-files.md)). A GLB writes its doors shut on their hinges, open, as gaps or as markers with `--doors`, and its straight walls in a piece per room with `--walls rooms` ([for a game engine or a renderer](3d-files.md#for-a-game-engine-or-a-renderer)). A GeoJSON or JSON holds the plan's geometry as data, every floor in one frame ([the plan as data](plan-data.md)). A CSV or XLSX holds one of the plan's tables, `--what` (or `--csv <table>`), for a spreadsheet ([a table for a spreadsheet](#a-table-for-a-spreadsheet-csv-and-xlsx-vew-83)). An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
-| `grid sheet [<plan>] [--layout client\|check] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
+| `grid sheet [<plan>] [--layout client\|check\|access] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, `--layout check`, with ids and findings, or `--layout access`, the access measurements drawn and tabled (see below) |
 | `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--split] [--room-sizes on\|off] [--out <file.pdf>]` | Writes every floor (or one) at one true scale as a vector PDF of a page each, and an SVG and a PNG of each page, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
 | `grid areas`, `grid schedule`, `grid takeoff`, `grid measure <what>`, `grid count`, `grid find`, `grid fields`, `grid compare <plan> <plan>...`, `grid brief` | Each runs the reading tool of that name (`grid brief` is `grid_write_brief` reading the brief, never writing it) with the tool's own arguments as options, and prints its text; `--json` prints exactly its structured answer, `--csv` a table where there is one, and `--fail-on` exits 3 when the answer holds a condition, for CI (see [below](#the-reading-tools-as-commands-grid-areas-grid-find-and-the-others)) |
 | `grid edit <verb> [<plan>] [options]` | Changes the plan, one sentence of request a command: `opening`, `wall` (one wall's thickness), `type` (one named wall, door or window type, which every part of it takes; a list option such as `--parts` takes its items split at commas), `move-side`, `merge`, `split`, `add-room`, `stretch`, `rename`, `mirror` (`--how left-right`, or `--turn 90` to turn the plan a quarter, counter-clockwise as Grid draws it), `square` (squares a scanned plan and says how far each wall moved), `place` (a fixture, furniture or a typical room from the library by name, [library.md](library.md)), `add-opening` (a door, window or doorless opening in a side of a room or the wall between two rooms), `phase` (walls, doors, windows and rooms marked existing, demolished or new), `start-works` (the plan as it stands marked existing), `phase-from` (one plan with phases from `--before` and `--after`), `trace` (the trace image under the plan set, placed, scaled and turned) and `fit-out` (a fit-out started on `--base`, the base's rooms as its own), each the tool of that name in [the tool server](tool-server.md) with the same options (`grid edit <verb> --help`), and the same lines of [the brief](brief.md) |
@@ -1190,11 +1190,19 @@ A section cuts every floor and writes its levels in metres, so `--floor`, `--hid
   over its name, and each door's, window's and doorless opening's `D1`, `W1` or `O1` beside it,
   on its wall's face away from a door's swing, or on a window's room side. Each mark is the one
   its row has in `grid_schedule` ([areas.md](areas.md#schedules)), so every mark has one row and
-  every row one mark. `grid sheet --layout check` draws them on its floor pages.
+  every row one mark. `grid sheet --layout check` draws them on its floor pages;
+- `access` (SHT-27): what `grid_measure what=access` measures, drawn: each way in from the entrance
+  and each route the plan marks (`accessible`) as a dashed line through its rooms and doors with an
+  arrow at its end, each room's turning circle dashed at its size and place, each door's clear
+  width (and its sill, when it has one) in a tag on its wall's face, and each step on a way with
+  its height. A number short of the person's own figure from the brief (`grid_write_brief`) is in
+  a heavy tag that names the figure: `0.50 m clear, under your 0.80 m`. With no brief the numbers
+  stand alone. `grid sheet --layout access` draws them on its floor pages.
 
 ```bash
 grid draw plan.json --floor first --marks levels,elevations,section --section 4.9,-2:4.9,13
 grid draw plan.json --marks schedule
+grid draw plan.json --marks access
 ```
 
 A plan drawn without `--marks` is drawn as before.
@@ -1296,8 +1304,8 @@ upper floor's evacuation map shows the assembly point outside. A street's name i
 
 ## A sheet for people: `grid sheet`
 
-`grid sheet [plan.json] [--layout client|check]` writes the plan as an A3 landscape PDF (the client sheet when no layout is named) into
-`exports/` beside the plan (`<name>-client.pdf` or `<name>-check.pdf`), or to the `.pdf` that
+`grid sheet [plan.json] [--layout client|check|access]` writes the plan as an A3 landscape PDF (the client sheet when no layout is named) into
+`exports/` beside the plan (`<name>-client.pdf`, `<name>-check.pdf` or `<name>-access.pdf`), or to the `.pdf` that
 `--out` names.
 
 - `client` is a presentation for the person the building is for: a cover with the name, a
@@ -1323,7 +1331,15 @@ upper floor's evacuation map shows the assembly point outside. A street's name i
 - `check` is a working set for the person checking the plan: a summary in plain words with the
   number of findings and the three areas, then a page per floor with every room, door and window
   id on the drawing, the area of each room with its use, and every finding on that floor.
-- Both layouts follow the floor pages with an elevations page and a sections page (SHT-23). The
+- `access` (SHT-27) is for whoever reviews wheelchair and step-free access, and takes no
+  `sheet.json`: a first page with what was measured (the rooms and routes the plan marks, or every
+  room), three counts (doors and openings measured, numbers short of your figures, steps on the
+  ways in) and your own figures with your words from the brief; then a page per floor drawn with
+  `--marks access`, with that floor's doors (hole, clear width, sill, each against your figure);
+  then the corridors at their narrowest and each room's turning space, the ways in with the doors
+  each passes and its steps, and the list of what Grid did not look at. Every number is
+  `grid_measure what=access`'s; nothing on it says a room, a way or the plan is accessible.
+- The client and check layouts follow the floor pages with an elevations page and a sections page (SHT-23). The
   elevations are every side of the building, as `grid draw --facade` draws them; the sections are
   A, along the building's longer side, and B, across it, each cut through the largest room of the
   lowest floor, off any wall that runs along the line, from outside the building to outside it.
