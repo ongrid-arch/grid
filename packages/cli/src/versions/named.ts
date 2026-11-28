@@ -26,7 +26,8 @@ export const LAST_VERSION = 'last'
 export class VersionRefused extends MarkerRefused {}
 
 export type NamedVersion =
-  | { readonly kind: 'marker'; readonly name: string; readonly at: string; readonly by: string | null; readonly note: string | null; readonly text: string }
+  /** CMD-57: `brief`, the brief the marker keeps; undefined when it keeps none. */
+  | { readonly kind: 'marker'; readonly name: string; readonly at: string; readonly by: string | null; readonly note: string | null; readonly text: string; readonly brief?: string | null }
   | { readonly kind: 'git'; readonly ref: string; readonly commit: string; readonly branch: string | null; readonly text: string }
   /** A checkpoint, or a marker's text, by its revision; `asked` is the name it was asked by. */
   | { readonly kind: 'revision'; readonly revision: string; readonly asked: string; readonly at: string | null; readonly text: string }
@@ -98,7 +99,7 @@ function revisionAt(entries: readonly HistoryEntry[], moment: number, asked: str
 export function namedVersion(project: Project, planFile: string, name: string): NamedVersion {
   const markers = readMarkers(project, planFile)
   const marker = markers.find((m) => m.name === name)
-  if (marker !== undefined) return { kind: 'marker', name: marker.name, at: marker.at, by: marker.by ?? null, note: marker.note ?? null, text: marker.text }
+  if (marker !== undefined) return { kind: 'marker', name: marker.name, at: marker.at, by: marker.by ?? null, note: marker.note ?? null, text: marker.text, ...(marker.brief === undefined ? {} : { brief: marker.brief }) }
   if (name === GIT_VERSION || GIT_BACK.test(name)) {
     const committed = committedVersion(project, planFile, name)
     return { kind: 'git', ref: name, commit: committed.commit, branch: committed.branch, text: committed.text }

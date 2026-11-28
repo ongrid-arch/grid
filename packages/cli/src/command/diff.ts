@@ -15,6 +15,7 @@ import { GENERAL_GUIDANCE_LABEL } from '@ongrid/rules'
 import type { Project } from '../fs/projectFiles'
 import { DIFF_SHOWS, diffData, diffSince, diffText, type DiffShow } from '../versions/diff'
 import { DEFAULT_MARKER, MARKERS_MAX, removeMarker, setMarker, type MarkerWords } from '../versions/markers'
+import { briefForMarker } from '../versions/briefs'
 import { floorOption, loadPlan } from './plan'
 import { PROJECT_OPTION, UsageError, type OptionSpecs } from './options'
 
@@ -103,7 +104,10 @@ export function runMark(project: Project, planFile: string, name: string | undef
     return `${GENERAL_GUIDANCE_LABEL}\nTook marker ${JSON.stringify(marker)} off. Markers kept in ${done.file}: ${done.names.join(', ') || 'none'}.\n`
   }
   const loaded = loadPlan(project, planFile)
-  const done = setMarker(project, planFile, marker, loaded.text ?? JSON.stringify(loaded.plan), undefined, words)
+  // CMD-57: the brief beside the plan is kept with the marker.
+  const brief = briefForMarker(project, planFile)
+  const done = setMarker(project, planFile, marker, loaded.text ?? JSON.stringify(loaded.plan), undefined, { ...words, brief })
+  const briefLine = `${historySay(typeof brief === 'string' ? 'tool.brief.markKept' : brief === null ? 'tool.brief.markNone' : 'tool.brief.markUnread', { name: marker })}\n`
   const rolled = done.rolled === null ? '' : `${historySay('tool.history.markerRolled', { name: { name: done.rolled.name }, max: MARKERS_MAX })}\n`
-  return `${GENERAL_GUIDANCE_LABEL}\n${done.replaced ? 'Set marker' : 'Marked'} ${JSON.stringify(marker)}: the plan as it is now, kept in ${done.file}. Markers: ${done.names.join(', ')} (at most ${MARKERS_MAX}). After the edit, grid diff --since ${marker} says what changed.\n${rolled}`
+  return `${GENERAL_GUIDANCE_LABEL}\n${done.replaced ? 'Set marker' : 'Marked'} ${JSON.stringify(marker)}: the plan as it is now, kept in ${done.file}. Markers: ${done.names.join(', ')} (at most ${MARKERS_MAX}). After the edit, grid diff --since ${marker} says what changed.\n${briefLine}${rolled}`
 }

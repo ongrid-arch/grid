@@ -403,7 +403,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   'packages/cli/src/versions/markers.ts': [18, 'notYet'],
   // CMD-44: the change log's, undo's and restore's answers and refusals, kept out of en.ts while
   // one more block of keys there takes the message key type past what the type checker compares.
-  'packages/cli/src/versions/words.ts': [40, 'notYet'],
+  // CMD-57: thirteen more, the brief kept with a marker and how it changed.
+  'packages/cli/src/versions/words.ts': [53, 'notYet'],
   'packages/floorplan/src/geometry/areas.ts': [36, 'notYet'],
   'packages/floorplan/src/geometry/camera.ts': [1, 'agent'],
   'packages/floorplan/src/geometry/diff/building.ts': [28, 'notYet'],

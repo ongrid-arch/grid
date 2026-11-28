@@ -7,7 +7,8 @@
  * one, else the last commit. The comparison is the core's (`compareBuildings`), with the notes
  * of the drawing check on each version (`inspectPlan`), so the notes that came and went are
  * among the issues. MSG-25: between two versions, a part whose phase changed is a change. Nothing
- * here measures or pairs anything itself.
+ * here measures or pairs anything itself. CMD-57: with a marker that keeps the brief, how the
+ * brief changed too (`briefs.ts`).
  */
 import { historySay } from './words'
 import path from 'path'
@@ -24,6 +25,8 @@ import { DEFAULT_MARKER, findMarker, GIT_VERSION, MarkerRefused, PHASE_VERSION, 
 import { fieldChanges, fieldChangesOfTexts, type FieldChange } from './fields'
 import { readHistory, type HistoryEntry } from './history'
 import { isDateName, LAST_VERSION, momentOf, namedVersion, type NamedVersion } from './named'
+import { readBrief, type Brief } from '../brief/brief'
+import { briefChangeData, briefChangeText, briefOfText, compareBriefs, lessCount, type BriefChangeLine } from './briefs'
 
 export const DIFF_SHOWS = ['all', 'summary', 'changes', 'issues', 'facts', 'history'] as const
 export type DiffShow = (typeof DIFF_SHOWS)[number]
@@ -60,6 +63,35 @@ export interface PlanDiffRun {
   readonly fieldsTotal: number
   /** CMD-44: the change log's entries between the two versions, oldest first. */
   readonly history: readonly HistoryEntry[]
+  /** CMD-57: how the brief changed between the two versions; null for the phases. */
+  readonly brief: BriefComparison | null
+}
+
+/** CMD-57: the brief compared, or why it was not. */
+export interface BriefComparison {
+  readonly compared: boolean
+  readonly why: string | null
+  readonly lines: readonly BriefChangeLine[]
+}
+
+/** A version's brief (null for none), or why there is none to compare. */
+type BriefOf = { readonly brief: Brief | null } | { readonly why: string }
+
+function briefOfVersion(named: NamedVersion | { readonly kind: 'marker'; readonly brief?: string | null }, planFile: string): BriefOf {
+  if (named.kind !== 'marker') return { why: historySay('tool.brief.whyNoMarker', { version: versionName(versionOf(named as NamedVersion), planFile) }) }
+  return named.brief === undefined ? { why: historySay('tool.brief.whyOld') } : { brief: briefOfText(named.brief) }
+}
+
+function briefNow(project: Project, planFile: string): BriefOf {
+  const read = readBrief(project, planFile)
+  if (read.problem !== null) return { why: historySay('tool.brief.whyNow', { problem: read.problem }) }
+  return { brief: read.brief }
+}
+
+function compareBriefOf(earlier: BriefOf, later: BriefOf): BriefComparison {
+  if ('why' in earlier) return { compared: false, why: earlier.why, lines: [] }
+  if ('why' in later) return { compared: false, why: later.why, lines: [] }
+  return { compared: true, why: null, lines: compareBriefs(earlier.brief, later.brief) }
 }
 
 function versionOf(named: NamedVersion): EarlierVersion {
@@ -72,14 +104,15 @@ function versionOf(named: NamedVersion): EarlierVersion {
 }
 
 /** The text and the version of `since` when no name is given: the marker start, else the last commit. */
-function defaultVersion(project: Project, planFile: string): { text: string; version: EarlierVersion } {
+function defaultVersion(project: Project, planFile: string): { text: string; version: EarlierVersion; brief: BriefOf } {
   if (readMarkers(project, planFile).some((m) => m.name === DEFAULT_MARKER)) {
     const marker = findMarker(project, planFile, DEFAULT_MARKER)
-    return { text: marker.text, version: { kind: 'marker', name: marker.name, at: marker.at, by: marker.by ?? null, note: marker.note ?? null } }
+    return { text: marker.text, version: { kind: 'marker', name: marker.name, at: marker.at, by: marker.by ?? null, note: marker.note ?? null }, brief: briefOfVersion({ kind: 'marker', ...(marker.brief === undefined ? {} : { brief: marker.brief }) }, planFile) }
   }
   try {
     const committed = lastCommitted(project, planFile)
-    return { text: committed.text, version: { kind: 'git', commit: committed.commit, branch: committed.branch } }
+    const version: EarlierVersion = { kind: 'git', commit: committed.commit, branch: committed.branch }
+    return { text: committed.text, version, brief: { why: historySay('tool.brief.whyNoMarker', { version: versionName(version, planFile) }) } }
   } catch (error) {
     if (error instanceof GitUnread) {
       // CMD-44: the change log keeps the plan before every change, so it is there to compare with.
@@ -118,6 +151,7 @@ function versionTime(version: EarlierVersion, entries: readonly HistoryEntry[]):
 export function diffSince(project: Project, planFile: string, since: string | undefined, rooms?: readonly string[], to?: string): PlanDiffRun {
   let later: LoadedPlan
   let toVersion: EarlierVersion | null = null
+  let laterBrief: BriefOf | null = null
   if (to === undefined) later = loadPlan(project, planFile)
   else {
     if (to === PHASE_VERSION) throw new MarkerRefused(historySay('tool.history.toPhase'))
@@ -125,6 +159,7 @@ export function diffSince(project: Project, planFile: string, since: string | un
     toVersion = versionOf(named)
     const shown = versionName(toVersion, planFile)
     later = named.kind === 'now' ? loadPlan(project, planFile) : loadPlanText(project, shown, named.text, shown)
+    if (named.kind !== 'now') laterBrief = briefOfVersion(named, planFile)
   }
   if (since === PHASE_VERSION) {
     if (toVersion !== null) throw new MarkerRefused(historySay('tool.history.toPhase'))
@@ -132,12 +167,15 @@ export function diffSince(project: Project, planFile: string, since: string | un
   }
   let text: string
   let version: EarlierVersion
-  if (since === undefined) ({ text, version } = defaultVersion(project, planFile))
+  let earlierBrief: BriefOf
+  if (since === undefined) ({ text, version, brief: earlierBrief } = defaultVersion(project, planFile))
   else {
     const named = namedVersion(project, planFile, since)
     text = named.text
     version = versionOf(named)
+    earlierBrief = briefOfVersion(named, planFile)
   }
+  const brief = compareBriefOf(earlierBrief, laterBrief ?? briefNow(project, planFile))
   const named = versionName(version, planFile)
   const earlier = loadPlanText(project, named, text, named)
   // VEW-15: each version's file text, as `grid check` reads it, so the fields the reading adds are no notes.
@@ -150,7 +188,7 @@ export function diffSince(project: Project, planFile: string, since: string | un
   const from = versionTime(version, entries)
   const until = toVersion === null ? null : versionTime(toVersion, entries)
   const history = from === null && version.kind !== 'git' ? [] : entries.filter((e) => (from === null || Date.parse(e.at) >= from) && (until === null || Date.parse(e.at) < until))
-  return { comparison, earlier, later, since: version, to: toVersion, seenNew, fields: fields.changes, fieldsTotal: fields.total, history }
+  return { comparison, earlier, later, since: version, to: toVersion, seenNew, fields: fields.changes, fieldsTotal: fields.total, history, brief }
 }
 
 /**
@@ -171,7 +209,7 @@ function diffByPhase(loaded: LoadedPlan, rooms?: readonly string[]): PlanDiffRun
   // the work does: a door whose room it replaced is no issue, a window it leaves between rooms is.
   const comparison = compareBuildings(before, after, { ...(rooms === undefined ? {} : { rooms }), phases: false, work: true })
   const fields = fieldChanges(before, after)
-  return { comparison, earlier: { ...loaded, plan: before }, later: { ...loaded, plan: after }, since: { kind: 'phase' }, to: null, seenNew: [], fields: fields.changes, fieldsTotal: fields.total, history: [] }
+  return { comparison, earlier: { ...loaded, plan: before }, later: { ...loaded, plan: after }, since: { kind: 'phase' }, to: null, seenNew: [], fields: fields.changes, fieldsTotal: fields.total, history: [], brief: null }
 }
 
 /** A time as the answers write it: `2026-11-26 10:00 UTC`. */
@@ -267,6 +305,13 @@ export function diffText(run: PlanDiffRun, show: DiffShow, floor?: string): stri
   const seen = (): void => {
     lines.push(...seenNewLines(run.seenNew))
   }
+  // CMD-57: how the brief changed, the weakened and removed first.
+  const brief = (): void => {
+    const b = run.brief
+    if (b === null) return
+    if (!b.compared) lines.push(historySay('tool.brief.notKept', { why: b.why ?? '' }))
+    else lines.push(...briefChangeText(b.lines, historySay('tool.brief.diffHeading', { count: b.lines.length, less: lessCount(b.lines) }), historySay('tool.brief.diffSame'), DIFF_LINES_SHOWN))
+  }
   const summary = (): void => {
     lines.push(`Verdict: ${c.verdict}`)
     const shown = c.rooms.filter((r) => r.status !== 'unchanged')
@@ -323,6 +368,7 @@ export function diffText(run: PlanDiffRun, show: DiffShow, floor?: string): stri
   } else {
     issues()
     seen()
+    brief()
     summary()
     if (show !== 'summary') changes()
   }
@@ -392,5 +438,7 @@ export function diffData(run: PlanDiffRun, show: DiffShow, floor?: string): Reco
     floor: c.floor,
     otherFloors: c.otherFloors,
     seenNew: seenNewData(run.seenNew),
+    // CMD-57: how the brief changed, or why it was not compared; null for the phases.
+    brief: run.brief === null ? null : { compared: run.brief.compared, why: run.brief.why, changes: briefChangeData(run.brief.lines) },
   }
 }

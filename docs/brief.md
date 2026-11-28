@@ -120,6 +120,25 @@ The update comes first, then the removals, then what is added, and the brief is 
 a wish made wrong is refused as any line is, and a place the brief does not hold is refused naming
 it. `brief` together with any of them is refused.
 
+## What a write replaced, and the brief kept with a marker
+
+CMD-57. A write over a brief kept, whole with `replace: true` or one wish at a time, says what it
+replaced, wish by wish, and gives the brief it replaced in its data as `replaced.previous`, in the
+form `brief` takes, so passing it back with `replace: true` puts it back. `replaced` is null when
+there was no brief before. Each wish is paired with the one it was by what it is about, not by its
+place: a room wish by its name or use, floor and fact; a touch by its two rooms; an open wish by
+its quote; the footprint, a figure and `people` by their key. A wish is:
+
+- **weakened** when it asks for less: a must made a should, a smallest figure lowered, a largest
+  raised (an `_at_most`, a step, a site limit), or a figure taken out of it;
+- **tightened** the other way round;
+- **changed** for anything else: a quote, its source, an about size, a level to or from avoid;
+- **removed** or **added**.
+
+The weakened and removed come first. `grid_mark_start` (and `grid mark`) keeps the brief beside
+the plan with the marker, and `grid_diff` since that marker lists the brief's changes the same way
+(see [the tool server](tool-server.md#what-a-change-did)).
+
 ## The person's own figures
 
 The figures under `figures` are the person's, not a code's or a standard's. The file holds them

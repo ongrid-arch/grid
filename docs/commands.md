@@ -678,7 +678,9 @@ is; the scan kept beside the plan is replaced by the new one.
 file of its own beside the plan: `plan.markers.json` beside `plan.json`. The plan knows nothing
 of it, and no export, sheet or drawing reads it. A plan keeps the latest 20 markers: marking a new
 name past that rolls the oldest off and says which (CMD-44); marking a name again replaces it, and
-`--remove` takes one off. `--who` and `--note` keep who set it and why, and `grid diff` says them. The plan is named as in every other command, after
+`--remove` takes one off. `--who` and `--note` keep who set it and why, and `grid diff` says them.
+A marker keeps the brief beside the plan as well (CMD-57), and `grid diff` since it lists how the
+brief changed, each wish weakened, removed, changed, tightened or added. The plan is named as in every other command, after
 the name (`grid mark before plan.json`); `--plan` says the same. `git` is not a marker's name: it means the
 version last committed.
 
