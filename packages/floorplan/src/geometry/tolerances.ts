@@ -1523,7 +1523,7 @@ export const TOLERANCES = {
     kind: 'limit',
     value: 0.3,
     unit: 'm',
-    decides: 'How wide a tree\'s trunk is drawn in the 3D views and the GLB.',
+    decides: 'How wide a tree\'s trunk is drawn in the 3D views, the GLB and the DXF.',
     basis: own
   },
   poolDrawnDepth: {

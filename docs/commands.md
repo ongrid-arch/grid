@@ -207,6 +207,10 @@ twice, a value a part cannot do without. Each file says so, and so does the comm
   - GLB: `asset.extras.gridLeftOut`, with `count`, `note` and `parts` (each part as the tool
     server's receipt gives it).
 - An id that several parts share is named once, with how many (`"bath" 4 times`).
+- The site's things (CMD-56) are named apart, since nothing is wrong with them: the IFC and the
+  OBJ write none of them, and a GLB of one floor none, so a file of the floor the site is drawn
+  on names each as a site thing left out (`SiteThings` and `SiteThingIds` in `Grid_LeftOut`), and
+  says that a DXF draws them, and so does a GLB of the whole building.
 
 A curved wall (CNT-18) is in every export, but not every format writes an arc. The DXF writes a
 curved wall's faces as true arcs (a polyline with bulges) and a curved dividing line as an `ARC`
@@ -357,6 +361,18 @@ pen its own way, one floor or every floor ([above](#every-floor-in-one-dxf-at-a-
   to two places): the chains outside the plan and the room sizes inside it that the drawing
   shows ([the sizes on a drawing](#the-sizes-on-a-drawing)); a curve's radius is a radial
   dimension, its centre and a point on the curve, written `R 6.00`, and its chord an aligned one.
+- **The site** (CMD-56), once, on the first floor of the file the site is drawn on (the ground
+  floor), under everything else: the plot's boundary, closed, on `GRID-SITE-BOUNDARY`; each
+  set-back line at the person's own figure on `GRID-SITE-SETBACKS`, dashed; paving and a path's
+  strip as closed outlines on `GRID-SITE-PAVING` and `GRID-SITE-PATHS`; fences and gates as their
+  lines on `GRID-SITE-FENCES`; a pool's edge on `GRID-SITE-POOLS`; and a tree as its trunk (as
+  wide as the 3D views draw it, `treeDrawnTrunk`) and the circle of its canopy on
+  `GRID-SITE-TREES`.
+- **Massing** (CMD-56). A floor that states an outline and has no walls
+  ([a floor outline before the walls](plan-file.md#a-floor-outline-before-the-walls)) is its
+  outline, a closed polyline on `GRID-MASSING`, at the floor's level above the ground floor's (its
+  elevation) and as thick as its storey is high, so a CAD program that shows thickness draws it as
+  a block. A plan of massing alone exports.
 - **Room tags.** Each room gets the block `GRID-ROOM-TAG` on `GRID-ROOM-TAGS`, with the attributes
   `NUMBER` (the number the room states, else Grid's count, as in the schedule), `NAME` and `AREA`
   (the net area, `12.40 m²`).
@@ -395,7 +411,8 @@ from dxf-layers.json.`). A category the file leaves out keeps Grid's pen:
   fits at (VEW-72); `--scale` wins over it.
 - The categories: `walls-outside`, `walls-inside`, `dividing-lines`, `wall-fill`, `rooms`,
   `room-tags`, `doors`, `door-swings`, `windows`, `openings`, `openings-above`, `fixtures`,
-  `fixtures-above` (CNT-55: an item hung above the cut, dashed), `dimensions`, `notes`,
+  `fixtures-above` (CNT-55: an item hung above the cut, dashed), `site-boundary`, `setbacks`,
+  `paving`, `paths`, `fences`, `pools`, `trees`, `massing` (CMD-56), `dimensions`, `notes`,
   `sketch` (a prefix: each category goes on it, a dash and its name), `facts`, `left-out`,
   `label`, `sheet` and `viewport`.
 - Each takes `layer` (1 to 255 characters, none of `< > / \ " : ; ? * | = ,` or a backtick),
@@ -417,6 +434,14 @@ The IFC is written so that a BIM program can schedule and take off from it. Ever
 something the plan already says, put in the field IFC has for it; where the plan says nothing,
 the file says that too.
 
+- **The site and its buildings** (CMD-56). The `IfcSite` carries the plot's boundary, when the
+  plan states one that does not cross itself, as its footprint: a closed polyline in a
+  `FootPrint` view. Each building the plan names is an `IfcBuilding` of its own, with its own
+  storeys (LVL-23). A massing floor, an outline with no walls, is an `IfcBuildingElementProxy` on
+  its storey, its `ObjectType` `Massing` and its `Tag` the floor's id: the outline swept up the
+  storey's height, with `GrossFootprintArea`, `Height` and `GrossVolume` in its `BaseQuantities`.
+  The site's things (fences, paths, paving, trees, pools) are not written: the file names them as
+  left out ([what an export leaves out](#what-an-export-leaves-out-hnd-6)).
 - **Rooms.** Each room is a space whose name is its number and whose long name is the room's
   name. Numbers are the room schedule's (`grid_schedule`): the number a room states in the plan
   (`number`, CNT-9), else Grid's count: floors by level, then by id, on each floor the rooms that

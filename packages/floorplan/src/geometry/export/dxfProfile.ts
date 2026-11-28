@@ -39,6 +39,16 @@ export const DXF_CATEGORIES = [
   // CNT-16: the columns, cut through as the walls are, and the structural grid's lines and names.
   'columns',
   'structural-grid',
+  // CMD-56: the plot and the site's things, on the floor the site is drawn on, and a massing
+  // floor's outline with its height.
+  'site-boundary',
+  'setbacks',
+  'paving',
+  'paths',
+  'fences',
+  'pools',
+  'trees',
+  'massing',
   'dimensions',
   'notes',
   'sketch',
@@ -111,6 +121,16 @@ export const NEUTRAL_DXF_PROFILE: DxfProfile = {
     // CNT-16: a column with the outside walls' pen, filled; the grid's lines a fine chain line.
     columns: pen('GRID-COLUMNS', 0.5),
     'structural-grid': pen('GRID-STRUCTURAL-GRID', 0.13, 7, 'dash-dot'),
+    // CMD-56: the plot's boundary a bold chain line, as a site plan draws it; the set-backs dashed
+    // inside it; the things on the ground fine; a massing floor's outline as an outside wall's.
+    'site-boundary': pen('GRID-SITE-BOUNDARY', 0.35, 7, 'dash-dot'),
+    setbacks: pen('GRID-SITE-SETBACKS', 0.18, 7, 'dashed'),
+    paving: pen('GRID-SITE-PAVING', 0.13),
+    paths: pen('GRID-SITE-PATHS', 0.13),
+    fences: pen('GRID-SITE-FENCES', 0.18),
+    pools: pen('GRID-SITE-POOLS', 0.18),
+    trees: pen('GRID-SITE-TREES', 0.13),
+    massing: pen('GRID-MASSING', 0.5),
     dimensions: pen('GRID-DIMENSIONS', 0.13),
     notes: pen('GRID-NOTES', 0.18),
     sketch: pen('GRID-SKETCH', 0.18),

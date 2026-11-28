@@ -117,6 +117,15 @@ function setbackLines(edges: readonly BoundaryEdge[]): SetbackLine[] {
   })
 }
 
+/**
+ * CMD-56: the plot's set-back lines, as the site plan draws them; none with no sound boundary or no
+ * set-back asked for. The DXF writes them on the floor the site is drawn on.
+ */
+export function planSetbackLines(plan: FloorPlan): SetbackLine[] {
+  const boundary = plotBoundary(wholePlan(plan).whole)
+  return boundary === null || boundary.problem !== null ? [] : setbackLines(boundary.edges)
+}
+
 /** The pieces of a footprint, and the middle of its largest. */
 function drawnFootprint(footprint: Footprint): Pick<SitePlanBuilding, 'pieces' | 'area' | 'labelAt'> {
   const pieces = piecesAsRings(footprint.pieces)

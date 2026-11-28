@@ -325,14 +325,19 @@ function someNames(parts: readonly LeftOutPart[]): string {
  * same line goes to standard error from `grid export` and into `grid_export`'s answer.
  */
 export function leftOutText(leftOut: readonly LeftOutPart[]): string | null {
-  if (leftOut.length === 0) return null
-  const read = leftOut.filter((part) => part.place !== null)
-  const drawn = leftOut.filter((part) => part.place === null)
-  const said = [
+  // CMD-56: the site's things a format holds none of are said apart: nothing is wrong with them.
+  const site = leftOut.filter((part) => part.kind === 'site')
+  const siteLine = site.length === 0 ? null : english(said('drawing.export.leftOut.site', { things: kindsText(site), names: someNames(site) }))
+  const broken = leftOut.filter((part) => part.kind !== 'site')
+  if (broken.length === 0) return siteLine
+  const read = broken.filter((part) => part.place !== null)
+  const drawn = broken.filter((part) => part.place === null)
+  const parts = [
     drawn.length > 0 ? `${kindsText(drawn)} that can't be drawn (${someNames(drawn)})` : null,
     read.length > 0 ? `${kindsText(read)} left out when the plan was read (${someNames(read)})` : null
   ].filter((text) => text !== null)
-  return `Left out ${leftOut.length} part${leftOut.length === 1 ? '' : 's'} of the plan, and the file says so: ${said.join('; ')}. grid check says why.`
+  const line = `Left out ${broken.length} part${broken.length === 1 ? '' : 's'} of the plan, and the file says so: ${parts.join('; ')}. grid check says why.`
+  return siteLine === null ? line : `${line} ${siteLine}`
 }
 
 /**

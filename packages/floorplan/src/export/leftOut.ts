@@ -19,11 +19,13 @@ import { validatePlan, type Issue } from '../geometry/validate'
 import type { ApproximatedPart, LeftOutKind, LeftOutPart } from '../geometry/export/leftOut'
 import { roomWallIds } from '../geometry/plan'
 import { itemSolid } from '../geometry/items'
+import { isMassing } from '../geometry/massing'
+import { siteFloors } from '../geometry/site'
 
 export interface ExportContents {
   /** What the file leaves out, in the order: read, then by floor, walls, rooms, openings, fixtures. */
   readonly leftOut: readonly LeftOutPart[]
-  /** True when the file holds no wall, room or fixture: nothing of the plan. */
+  /** True when the file holds no wall, room, fixture or massing floor: nothing of the plan. */
   readonly empty: boolean
   /**
    * CNT-18: the curved solid walls the file holds, and the rooms it holds that run along a curved
@@ -90,6 +92,9 @@ export function exportContents(plan: FloorPlan, floorIds: readonly string[], fau
     for (const opening of slice.openings) held.add(opening)
     if (!floorIds.includes(floor.id)) continue
     const { issues, broken } = validatePlan(slice, undefined, { spaces: false, leftOutWalls })
+    // CMD-56: a floor that is massing, an outline and no walls, is in every file: its outline in
+    // the DXF, a proxy in the IFC, its slab in each.
+    if (isMassing(plan, floor.id)) drawn++
     const add = (kind: LeftOutKind, id: string, counts: boolean): void => {
       if (broken.has(id)) leftOut.push({ kind, id, place: null, floor: floor.id, code: codeOf(issues, kind, id) })
       else if (counts) drawn++
@@ -129,4 +134,18 @@ export function exportContents(plan: FloorPlan, floorIds: readonly string[], fau
   }
 
   return { leftOut, empty: drawn === 0, curved: { walls: curvedWalls, rooms: curvedRooms } }
+}
+
+/**
+ * CMD-56: the site's things (C13) a file that writes none of them leaves out: each named on the
+ * first floor of `floorIds` the site is drawn on (`siteFloors`), and none when the file holds no
+ * such floor, since the site is drawn on no other.
+ */
+export function siteLeftOut(plan: FloorPlan, floorIds: readonly string[]): LeftOutPart[] {
+  const things = plan.site?.things ?? []
+  if (things.length === 0) return []
+  const drawnOn = new Set(siteFloors(plan))
+  const floor = floorIds.find((id) => drawnOn.has(id))
+  if (floor === undefined) return []
+  return things.map((thing) => ({ kind: 'site', id: thing.id, place: null, floor, code: null }))
 }
