@@ -366,6 +366,7 @@ const ROOM_LINE_WORDS: Readonly<Record<string, readonly string[]>> = {
   unroofed: [],
   conditioned: [],
   unconditioned: [],
+  void: [],
   number: ['"<text>"'],
   dept: ['"<text>"'],
   facts: ['<name>=<value>'],
@@ -374,7 +375,7 @@ const ROOM_LINE_WORDS: Readonly<Record<string, readonly string[]>> = {
 const CURVE_ROOM_WORDS: readonly string[] = ['circle', 'oval', 'arc', 'band']
 
 /** The words agents write for a room line's own: a room's level above its storey is its `floor`. */
-const ROOM_LINE_MEANS: Readonly<Record<string, string>> = { level: 'floor', elevation: 'floor', offset: 'floor', ceiling: 'height', headroom: 'height', thickness: 'walls' }
+const ROOM_LINE_MEANS: Readonly<Record<string, string>> = { level: 'floor', elevation: 'floor', offset: 'floor', ceiling: 'height', headroom: 'height', thickness: 'walls', 'open-to-below': 'void', 'double-height': 'void' }
 
 /** Whether `word` is what `form` asks for: a number for `<m>` or `<t>`, a point for `x,y`, the word itself for a word. */
 function takesWord(form: string, word: string): boolean {
@@ -598,6 +599,8 @@ interface RoomDraft {
   roofed: boolean | null
   /** ARE-60: heated or cooled, when the line says. */
   conditioned: boolean | null
+  /** LVL-28: the room is a void (LVL-4), open to the floor below, when the line says `void`. */
+  void?: true
   /** WRT-74: the room's stated number, and its facts of the person's own, when the line says. */
   number: string | null
   facts: Record<string, string | number | boolean> | null
@@ -952,6 +955,8 @@ class Compiler {
   private readonly overrunSaid = new Set<number>()
   /** WRT-55: the lines whose bare `open` the answer has said the room of. */
   private readonly openSaid = new Set<number>()
+  /** LVL-28: the answer's line that a void and a room are open to each other, by floor and pair, taken back when a wall line walls them. */
+  private readonly voidSaid = new Map<string, string>()
   /** WRT-76: the room lines whose `walls` or `height` the answer has said something about. */
   private readonly edgeSaid = new Set<string>()
   /** WRT-51: the room beyond the wall each opening line was placed in, by its line; null for the outside. */
@@ -1785,7 +1790,9 @@ class Compiler {
     if (t.length < 4) this.stop('rooms/syntax', at, `line ${at}: write 'room <id> "<name>" <use> <width> x <depth> <where>'.`)
     const [, id, name, useWord] = t as [string, string, string, string]
     let use: RoomUse | undefined
-    if (useWord === '-') use = undefined
+    // LVL-28: `void` in the use slot is a void with no use (`room atrium "Lounge void" void 6 x 8 ...`).
+    const voidSlot = useWord === 'void'
+    if (useWord === '-' || voidSlot) use = undefined
     else if (roomUseOf(useWord) !== null) use = roomUseOf(useWord)!
     else if (outdoorWordKind(useWord) !== null) this.outdoorUse(t, at, useWord)
     else {
@@ -1793,6 +1800,7 @@ class Compiler {
     }
     const fl = this.floor()
     const room: RoomDraft = { id, name, use, line: at, poly: [], box: [0, 0, 0, 0], wallsT: null, wallsKind: null, height: null, floorOffset: null, firstWall: null, tenure: null, roomType: null, outdoor: null, roofed: null, conditioned: null, number: null, facts: null, size: null, through: null, risenFrom: null }
+    if (voidSlot) room.void = true
     const mx = ctx?.mx === true
     const my = ctx?.my === true
     let W: string | null = null
@@ -1808,6 +1816,8 @@ class Compiler {
     // WRT-55: a room goes in one place and has one size: a second is refused by name, never read over the first.
     const placedBy: string[] = []
     const sizedBy: string[] = []
+    // LVL-28: the words that give the room a floor, as written, which a void cannot take.
+    const floored: string[] = []
     const once = (list: string[], words: string, key: 'rooms.room.placedTwice' | 'rooms.room.sizedTwice'): void => {
       if (list.length > 0) this.stop('rooms/syntax', at, english(said(key, { line: at, room: id, first: list[0]!, second: words })))
       list.push(words)
@@ -1894,6 +1904,7 @@ class Compiler {
         i += 2
       } else if (w === 'floor' && i + 1 < t.length && isNumberWord(t[i + 1]!)) {
         room.floorOffset = numberOf(t[i + 1]!, at, this.plain)
+        floored.push(`floor ${t[i + 1]}`)
         i += 2
       } else if (w === 'floor' && i + 1 < t.length) {
         // WRT-55: a storey is a floor line, and the rooms after it stand on it.
@@ -1907,12 +1918,17 @@ class Compiler {
         i += 2
       } else if (w === 'outdoor' && i + 1 < t.length && (OUTDOOR_KINDS as readonly string[]).includes(t[i + 1]!)) {
         room.outdoor = t[i + 1] as OutdoorKind
+        floored.push(`outdoor ${t[i + 1]}`)
         i += 2
       } else if ((w === 'roofed' || w === 'unroofed') && room.outdoor !== null) {
         room.roofed = w === 'roofed'
         i++
       } else if (w === 'conditioned' || w === 'unconditioned') {
         room.conditioned = w === 'conditioned'
+        floored.push(w)
+        i++
+      } else if (w === 'void') {
+        room.void = true
         i++
       } else if (w === 'type' && i + 1 < t.length) {
         room.roomType = t[i + 1]!
@@ -1953,6 +1969,8 @@ class Compiler {
         )
       }
     }
+    // LVL-28: a void has no floor: outdoor space, a floor level of its own or air are refused by their words.
+    if (room.void === true && floored.length > 0) this.stop('rooms/syntax', at, english(said('rooms.room.voidWith', { line: at, room: id, word: floored[0]! })))
     // ARE-60: outdoor space is never under air, so the word is said to be read as nothing.
     if (room.conditioned !== null && room.outdoor !== null) {
       this.warn('rooms/conditioned-outdoor', at, english(said('rooms.room.conditionedNever', { line: at, room: sayName(id), word: room.conditioned ? 'conditioned' : 'unconditioned' })))
@@ -2027,6 +2045,8 @@ class Compiler {
       }
       room.off = off
     }
+    // LVL-28: a void is open to the room it is cut out of, unless the line gives the wall between.
+    if (place.inside !== undefined && room.void === true && place.wallT === undefined) place.open = true
     if (place.inside !== undefined) return this.placeInside(room, Wn, Dn, place, at, ctx)
     let box: Box
     if (place.open && place.dir === undefined) this.openNamed(room, place.openTo, at, ctx)
@@ -2046,7 +2066,8 @@ class Compiler {
       const { box: rbox, rooms: rrooms } = this.lookup(place.ref!, at, ctx)
       room.beside = rrooms.map((r) => r.id)
       let openOnto = false
-      if (place.open) {
+      // LVL-28: a void and the one room it is placed beside, or placed beside it, are open to each other, unless the line gives the wall between.
+      if (place.open || ((room.void === true || rrooms[0]?.void === true) && place.wallT === undefined && rrooms.length === 1)) {
         if (place.openTo === undefined && rrooms.length !== 1) this.stop('rooms/syntax', at, english(said('rooms.room.openUnit', { line: at, ref: place.ref!, rooms: rrooms.map((r) => `'open ${r.id}'`).join(', ') })))
         const to = this.openNamed(room, place.openTo ?? rrooms[0]!.id, at, ctx, place.openTo === undefined ? 'beside' : null)
         openOnto = rrooms.some((r) => r.id === to) && rrooms.length === 1
@@ -2234,9 +2255,25 @@ class Compiler {
     fl.open.add(pairKey(room.id, to))
     if (how !== null && !this.openSaid.has(at)) {
       this.openSaid.add(at)
-      this.guesses.push(english(said(how === 'host' ? 'rooms.room.openHost' : 'rooms.room.openBeside', { line: at, room: room.id, to })))
+      // LVL-28: a void's open edge, with how to guard it.
+      const empty = room.void === true ? room.id : (ctx?.local.get(to) ?? fl.rooms.get(to))?.void === true ? to : null
+      if (empty !== null) {
+        const guess = english(said('rooms.room.voidOpen', { line: at, room: room.id, to, void: empty }))
+        this.voidSaid.set(`${fl.id}\u0000${pairKey(room.id, to)}`, guess)
+        this.guesses.push(guess)
+      }
+      else this.guesses.push(english(said(how === 'host' ? 'rooms.room.openHost' : 'rooms.room.openBeside', { line: at, room: room.id, to })))
     }
     return to
+  }
+
+  /** LVL-28: a wall line between a void and the room it was said to be open to takes that line of the answer back. */
+  private unsayVoidOpen(fl: FloorDraft, key: string): void {
+    const guess = this.voidSaid.get(`${fl.id}\u0000${key}`)
+    if (guess === undefined) return
+    this.voidSaid.delete(`${fl.id}\u0000${key}`)
+    const k = this.guesses.indexOf(guess)
+    if (k >= 0) this.guesses.splice(k, 1)
   }
 
   /**
@@ -2542,6 +2579,7 @@ class Compiler {
       if (side !== null) fl.betweenSide.set(`${pairKey(t[2]!, t[4]!)}\u0000${t[2]}\u0000${side}`, say)
       else fl.between.set(pairKey(t[2]!, t[4]!), say)
       if (say.kind === 'virtual') fl.open.add(pairKey(t[2]!, t[4]!))
+      else this.unsayVoidOpen(fl, pairKey(t[2]!, t[4]!))
     } else if (t.length >= 4 && Object.hasOwn(DIRS, t[2]!) && t[3] === 'curve') {
       this.curveSide(fl, t, at)
     } else if (t.length >= 3 && Object.hasOwn(COMPASS, t[2]!)) {
@@ -3288,7 +3326,8 @@ class Compiler {
           }
         } else if (d < tolerance('roomsTouch')) {
           // WRT-76: two outdoor spaces that touch are open to each other, and so is a side 'open <side>' opens.
-          const opened = (A.outdoor !== null && B.outdoor !== null) || (A.openSides ?? []).includes(compassOf(e.n)) || (B.openSides ?? []).includes(compassOf(c.f.n))
+          // LVL-28: and a void is open to the rooms it touches.
+          const opened = (A.outdoor !== null && B.outdoor !== null) || A.void === true || B.void === true || (A.openSides ?? []).includes(compassOf(e.n)) || (B.openSides ?? []).includes(compassOf(c.f.n))
           if (fl.open.has(key) || opened) {
             virtual = true
             d = 0
@@ -4857,6 +4896,7 @@ class Compiler {
             ...(room.outdoor !== null ? { outdoor: room.outdoor } : {}),
             ...(room.roofed !== null ? { roofed: room.roofed } : {}),
             ...(room.conditioned !== null ? { conditioned: room.conditioned } : {}),
+            ...(room.void === true ? { void: true } : {}),
             ...(room.number !== null ? { number: room.number } : {}),
             ...(room.facts !== null ? { properties: room.facts } : {}),
           }
@@ -4880,7 +4920,7 @@ class Compiler {
             depth: b[3] - b[1],
             area,
             corners: rect ? 4 : room.curves === undefined ? room.poly.length : cornerCount(room.poly, room.curves),
-            ...(room.outdoor !== null ? { apart: 'outdoor' as const } : {}),
+            ...(room.outdoor !== null ? { apart: 'outdoor' as const } : room.void === true ? { apart: 'void' as const } : {}),
             basis: room.size?.basis ?? null,
             written: room.size ? { width: room.size.w, depth: room.size.d } : null,
           })
@@ -4968,6 +5008,7 @@ class Compiler {
     this.emitSite(plan)
     this.emitStairs(plan)
     this.refuseRisingIntoFloors(plan)
+    this.refuseLowestVoids(plan)
     this.emitColumns(plan)
     this.emitItems(plan)
     this.emitParking(plan)
@@ -5056,6 +5097,27 @@ class Compiler {
         })))
         break
       }
+    }
+  }
+
+  /**
+   * LVL-28: a void written on a room line opens its floor to the floor below, so one on a floor
+   * that no floor of the plan stands under is refused with its line. The floors are stacked as
+   * every reader stacks them (`floorElevations`). A raw room keeps what its JSON says.
+   */
+  private refuseLowestVoids(plan: { -readonly [K in keyof WrittenPlan]: WrittenPlan[K] }): void {
+    const voids = plan.rooms.filter((room) => room.void === true && this.roomLineOf.has(room.id))
+    if (voids.length === 0 || this.problems.length > 0) return
+    const parsed = safeParseFloorPlan(plan)
+    if (parsed === null) return
+    const levels = [...floorElevations(parsed).floors.entries()]
+    const same = tolerance('sameFloorLevel')
+    for (const room of voids) {
+      const floor = floorOf(room)
+      const own = levels.find(([id]) => id === floor)?.[1].floorLevel
+      if (own === undefined || levels.some(([id, level]) => id !== floor && level.floorLevel < own - same)) continue
+      const line = this.roomLineOf.get(room.id)!
+      this.problem('rooms/syntax', line, english(said('rooms.room.voidLowest', { line, room: room.id, floor })))
     }
   }
 
