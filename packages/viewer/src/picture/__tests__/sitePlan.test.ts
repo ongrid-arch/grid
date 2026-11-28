@@ -60,3 +60,26 @@ describe('the site plan picture (VEW-85)', () => {
     expect(roundLength(60)).toBe(50)
   })
 })
+
+describe('street names on the site plan (VEW-88)', () => {
+  /** The fixture with its south street named and an east street left unnamed; the names are invented. */
+  const named = () => {
+    const plan = sitePlanFixture()
+    return { ...plan, site: { ...plan.site!, streets: [1, 2], streetNames: [{ edge: 1, name: 'Harbour Road' }] } }
+  }
+
+  it('writes a named street along its edge, outside the plot, and the word Street on an unnamed one', () => {
+    const svg = pictureToSvg(sitePlanPicture(named()))
+    const streets = [...svg.matchAll(/data-part="site-street-name" transform="translate\(([-\d.]+) ([-\d.]+)\)[^"]*"[^>]*>(?:<[^>]+>)*?<text[^>]*>([^<]+)</g)].map((m) => ({ x: Number(m[1]), y: -Number(m[2]), words: m[3] }))
+    expect(streets.map((s) => s.words)).toEqual(['Harbour Road', 'Street'])
+    // Harbour Road is south of the plot's south edge, the unnamed street east of its east edge.
+    expect(streets[0]!.y).toBeLessThan(0)
+    expect(streets[1]!.x).toBeGreaterThan(40)
+  })
+
+  it('keeps the name as written in the picture, escaped as text', () => {
+    const plan = named()
+    const svg = pictureToSvg(sitePlanPicture({ ...plan, site: { ...plan.site, streetNames: [{ edge: 1, name: 'Quay & <Mill> Lane' }] } }))
+    expect(svg).toContain('Quay &amp; &lt;Mill&gt; Lane')
+  })
+})

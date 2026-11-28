@@ -126,10 +126,11 @@ export function sitePlanNodes(drawn: SitePlan, look: Look, mpp: number, words: D
     if (building.labelAt === null) continue
     nodes.push(haloText(look, building.labelAt, mpp, buildingWords(building, words, units), 'site-building-name', TEXT_PX.siteLabel + 1))
   }
+  // VEW-88: a street edge with a name is labelled with it; one without, with the word for a street.
   for (const street of drawn.streets) {
     const out = STREET_PX * mpp
     const at = { x: (street.from.x + street.to.x) / 2 + street.outward.x * out, y: (street.from.y + street.to.y) / 2 + street.outward.y * out }
-    nodes.push(haloText(look, at, mpp, [drawingText(words, 'drawing.site.street')], 'site-street-name', TEXT_PX.siteLabel + 1, uprightAngle(street.from, street.to)))
+    nodes.push(haloText(look, at, mpp, [street.name ?? drawingText(words, 'drawing.site.street')], 'site-street-name', TEXT_PX.siteLabel + 1, uprightAngle(street.from, street.to)))
   }
   return options.faint === true ? [el('g', { 'data-part': 'site-under', opacity: n(FAINT), 'pointer-events': 'none', 'aria-hidden': 'true' }, nodes, 'site-under')] : nodes
 }

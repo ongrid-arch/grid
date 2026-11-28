@@ -47,6 +47,8 @@ export interface BoundaryEdge {
   readonly bearing: number
   readonly faces: CompassPoint
   readonly street: boolean
+  /** VEW-88: the name of the street it is on, as the plan gives it; null when it gives none. */
+  readonly streetName: string | null
   /** How a line names it: `the east boundary`, with its number when another edge faces the same way. */
   readonly name: string
   readonly setback: AskedSetback | null
@@ -128,6 +130,7 @@ export function plotBoundary(plan: Pick<FloorPlan, 'site' | 'north' | 'yAxis'>):
   const orientation = planOrientation(plan)
   const turn = signedArea(points) >= 0 ? 1 : -1
   const streets = new Set(site.streets ?? [])
+  const streetNames = new Map((site.streetNames ?? []).map((s) => [s.edge, s.name]))
   const asked = (key: number | 'street' | 'all'): AskedSetback | null => {
     const found = (site.setbacks ?? []).find((s) => s.from === key)
     if (found === undefined) return null
@@ -142,7 +145,7 @@ export function plotBoundary(plan: Pick<FloorPlan, 'site' | 'north' | 'yAxis'>):
     const bearing = bearingOf(outward, orientation, orientation.north ?? 0) ?? 0
     const edge = i + 1
     const onStreet = streets.has(edge)
-    return { edge, from, to, length, outward, bearing, faces: compassPoint(bearing), street: onStreet, setback: asked(edge) ?? (onStreet ? street : null) ?? all }
+    return { edge, from, to, length, outward, bearing, faces: compassPoint(bearing), street: onStreet, streetName: onStreet ? (streetNames.get(edge) ?? null) : null, setback: asked(edge) ?? (onStreet ? street : null) ?? all }
   })
   const edges = raw.map((e): BoundaryEdge => ({ ...e, name: english(boundaryEdgeSaid(raw, e)) }))
   return { points, edges, area: Math.abs(signedArea(points)), problem, northStated: orientation.north !== null }

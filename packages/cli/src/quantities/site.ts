@@ -79,7 +79,7 @@ export function siteAnswer(plan: FloorPlan, display: Display): SiteAnswer {
     lines.push(`The site's boundary is not one closed shape (${boundary.problem}), so no distance to it and no plot coverage are measured.`)
   } else {
     const streets = boundary.edges.filter((e) => e.street)
-    lines.push(`The plot: ${A(boundary.area)}${acresText(boundary.area, display)} inside a boundary of ${boundary.edges.length} edges; ${streets.length === 0 ? 'no edge is said to be on a street' : `on the street: ${streets.map((e) => `edge ${e.edge} (${e.name})`).join(', ')}`}.`)
+    lines.push(`The plot: ${A(boundary.area)}${acresText(boundary.area, display)} inside a boundary of ${boundary.edges.length} edges; ${streets.length === 0 ? 'no edge is said to be on a street' : `on the street: ${streets.map((e) => `edge ${e.edge} (${e.name}${e.streetName === null ? '' : `, ${JSON.stringify(e.streetName)}`})`).join(', ')}`}.`)
     if (site.footprint === null) lines.push(`Plot coverage and the distances to the boundary were not measured: ${site.why ?? 'the building has no outline'}`)
     else {
       if (site.coverage !== null && site.covered !== null) lines.push(`Plot coverage: ${percentText(site.coverage)}, the building's ${A(site.covered)} on the ${A(boundary.area)} plot.`)

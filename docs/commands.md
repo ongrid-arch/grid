@@ -1273,7 +1273,8 @@ out, as `grid_measure what=site` measures it), with its name, its storeys and it
 on it; a plan that names no buildings is one footprint. Round them: the plot boundary, the
 site's things in their own style with the labels the person gave them, the set-back lines dashed
 inside the plot at the person's own figures with the figure along each, the street edges drawn
-heavier with the word for a street outside them, the context shapes round the plan, a scale bar
+heavier with the street's name outside them (VEW-88; the word for a street when the plan gives
+no name), the context shapes round the plan, a scale bar
 in the bottom-left corner and the north arrow when the plan states north. The picture is framed
 to the whole site, so a plan of many buildings is never framed to one of them. The key under it
 says what the fill and the lines are.
@@ -1290,8 +1291,8 @@ what picks a floor or belongs to another picture (`--floor`, `--frame`, `--ids`,
 
 `--with-site` draws the site faint under any floor's plan, framed with it: the plot, its things
 and their labels, the set-back lines, the street edges and every building's footprint, so an
-upper floor's evacuation map shows the assembly point outside. The plan holds no street names
-(the plot's street edges are numbers), so none is written.
+upper floor's evacuation map shows the assembly point outside. A street's name is set with
+`grid_set_site street_names` or a street line in rooms text (`street south "Harbour Road"`).
 
 ## A sheet for people: `grid sheet`
 

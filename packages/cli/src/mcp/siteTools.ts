@@ -85,6 +85,17 @@ const SITE_OUTPUT = {
   },
 }
 
+/** VEW-88: one street name, "<edge or side> <name>": the edge read as the streets are, the name kept as written. */
+function streetNameArg(text: string): { where: number | { readonly side: string }; name: string } {
+  const at = text.trimStart().replace(/^edge\s+/, '')
+  const space = at.search(/\s/)
+  const first = space < 0 ? at : at.slice(0, space)
+  const name = space < 0 ? '' : at.slice(space).trim()
+  const read = siteWords(() => streetsOfWords([first]))
+  if (read.length !== 1) throw new ToolRefusal('street_names takes "<edge> <name>" for each street: an edge number or a side, then the name, as "2 Harbour Road".')
+  return { where: read[0]!, name }
+}
+
 export const setSiteTool: GridTool = {
   name: 'grid_set_site',
   title: 'Set the plot, its streets and set-backs, and north',
@@ -106,6 +117,8 @@ export const setSiteTool: GridTool = {
     plot_x: number('With plot_width: x of the plot\'s south-west corner. Left out with plot_y, the plot is centred on the building.', [-3], -LARGEST, LARGEST),
     plot_y: number('With plot_width: y of the plot\'s south-west corner.', [-10], -LARGEST, LARGEST),
     streets: { type: 'array', items: { maxLength: 20 }, minItems: 0, maxItems: POINTS_MAX, description: 'The edges on a street: a side of the drawing ("south": every edge facing it) or an edge number ("2"). Replaces the streets; [] for none.', examples: [['south'], ['1', '2']] },
+    // VEW-88: the names of the streets the edges are on.
+    street_names: { type: 'array', items: { maxLength: 200 }, minItems: 0, maxItems: POINTS_MAX, description: 'The names of the streets, each "<edge> <name>": an edge number or a side of the drawing, then the street\'s name as the person gives it ("2 Harbour Road", "south Quay Street"). An edge named that is not on a street is put on one. The site plan writes each name along its edge. Replaces the names; [] for none.', examples: [['1 Harbour Road'], ['south Quay Street', 'east Mill Lane']] },
     setbacks: { type: 'array', items: { maxLength: 60 }, minItems: 0, maxItems: POINTS_MAX, description: 'The set-backs the person asked for, each "<from> <distance>" as rooms text writes them: "all 2", "street 5", "west 40", "edge 3 1.5"; "assumed" after it when it is not the person\'s figure yet. A side gives every edge facing it. Replaces the set-backs; [] for none.', examples: [['street 5', 'all 2'], ['west 40 assumed']] },
     north: number('Where north lies on the drawing, in degrees counter-clockwise from up the drawing (+y), as the plan file holds it: 0 up, 90 left, -90 right, 180 down. An arrow on a sketch turned 30° clockwise from up is -30.', [0, 135, -30], -360, 360, false),
     north_points: { type: 'string', enum: Object.keys(NORTH_WAYS), description: 'Where the north arrow points on the drawing, in place of north.', examples: ['up-right', 'left'] },
@@ -138,6 +151,7 @@ export const setSiteTool: GridTool = {
     if ((given('plot_x') || given('plot_y')) && !given('plot_width')) throw new ToolRefusal('plot_x and plot_y place a plot given by plot_width and plot_depth.')
     const boundary = given('boundary') ? (args['boundary'] as string[]).map((p) => pointArg('boundary', p)) : undefined
     const streets = given('streets') ? (args['streets'] as string[]).flatMap((s) => siteWords(() => streetsOfWords(words(s)))) : undefined
+    const streetNames = given('street_names') ? (args['street_names'] as string[]).map((text) => streetNameArg(text)) : undefined
     const setbacks: SetbackWords[] | undefined = given('setbacks') ? (args['setbacks'] as string[]).map((s) => siteWords(() => setbackOfWords(words(s)))) : undefined
     const north = given('north_points') ? NORTH_WAYS[args['north_points'] as string]! : (args['north'] as number | undefined)
     // CNT-49: the ground on a slope.
@@ -157,6 +171,7 @@ export const setSiteTool: GridTool = {
         ...(boundary === undefined ? {} : { boundary }),
         ...(given('plot_width') ? { plot: { width: args['plot_width'] as number, depth: args['plot_depth'] as number, ...(given('plot_x') ? { at: [args['plot_x'] as number, args['plot_y'] as number] as Pair } : {}) } } : {}),
         ...(streets === undefined ? {} : { streets }),
+        ...(streetNames === undefined ? {} : { streetNames }),
         ...(setbacks === undefined ? {} : { setbacks }),
         ...(north === undefined ? {} : { north }),
         ...(given('origin') ? { origin: pointArg('origin', args['origin'] as string) } : {}),
