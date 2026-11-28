@@ -735,6 +735,17 @@ middle, so identical stairs measure alike (`end=middle` walks to the middle). `s
 (the default), `door` or `farthest corner`, or `x` and `y` give a point on the first room's floor.
 The answer's `startPoint` and `endPoint` give both points in coordinates, each with its kind `at`.
 
+ARE-81: a route from a point needs no room: with `x` and `y` alone Grid finds the room the point
+stands in, on `floor` when rooms on more than one floor are under it, and walks from there, on
+one floor or across floors. `start=farthest point` starts from the point of the room's outline
+(its corners, and along its sides every `farthestPointStep`) whose walk by its nearest way is the
+longest: to `outside`, every way out is weighed from each point, so it is not the corner farthest
+from the door the middle happens to take, which `farthest corner` still is. With no room, every
+room of `floor` (or of the only floor) is measured, outdoor spaces, zones and the room the route
+ends in left out: the answer's `farthest` lists each room's `point` and `length`, longest first,
+`unreached` the rooms no walk is measured from, and the route given is the floor's farthest.
+`startPoint.at` is then `farthest point`.
+
 With `to=outside` the way out is the way-out check's (ARE-18): it goes up or down the stairs the
 check reads (a stair the plan states, or stair rooms one over the other; never a lift) and out
 only through a door on a floor that does not stand above the ground, so a balcony door upstairs
