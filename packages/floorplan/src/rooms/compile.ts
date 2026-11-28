@@ -63,6 +63,9 @@
  *                open <north|south|east|west>  that side open onto whatever room is there, or none
  *                conditioned|unconditioned  heated or cooled or not, so in the living area under air
  *                                 or out of it (ARE-60); unstated, a parking room is not
+ *                void       the room is a void, open to the floor below (LVL-4, LVL-28); also as the
+ *                                 use; open to the rooms it touches or is placed beside, refused on
+ *                                 the lowest floor and with outdoor, floor <m> or (un)conditioned
  *                number "<text>"  dept <text>  facts <name>=<value> ...  its stated room number, its
  *                                 department and facts of the person's own (WRT-74), never in a unit
  *                through <floor>  the room, and so its walls, stands on every floor written after this
