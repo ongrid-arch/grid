@@ -78,6 +78,8 @@ export interface CameraAsk {
   readonly tiltBy?: number
   /** VEW-26: what fills the frame: the building (the floors drawn) or the room pointed at. */
   readonly fit?: CameraFit
+  /** VEW-87: the picture's shape, width over height, asked by the call: the camera is framed for it. */
+  readonly aspect?: number
 }
 
 /** VEW-26: what a camera Grid frames fills its frame with. */
@@ -150,7 +152,7 @@ export function framedCamera(plan: FloorPlan, survey: Survey, ask: CameraAsk): {
     distance: ask.distance ?? ask.start?.distance ?? frame.span,
     focalLength: ask.lens ?? ask.start?.focalLength ?? MODEL_FOCAL_LENGTH,
     cut,
-    aspectRatio: ask.start?.aspectRatio ?? CAMERA_SENSOR.width / CAMERA_SENSOR.height,
+    aspectRatio: ask.aspect ?? ask.start?.aspectRatio ?? CAMERA_SENSOR.width / CAMERA_SENSOR.height,
   }
 
   if (ask.turn !== undefined) {
@@ -172,7 +174,7 @@ export function framedCamera(plan: FloorPlan, survey: Survey, ask: CameraAsk): {
       const eye = draft.position[2] - draft.eyeHeight + ask.eyeHeight!
       setting = { ...setting, tilt: 0, target: { ...setting.target, point: [setting.target.point[0], setting.target.point[1], eye] } }
     }
-    const aspectRatio = fitAspect(plan, setting, box, { level })
+    const aspectRatio = ask.aspect ?? fitAspect(plan, setting, box, { level })
     const fitted = fitCamera(plan, { ...setting, aspectRatio }, box, { level })
     setting = { ...setting, aspectRatio, target: { ...setting.target, point: fitted.target }, distance: fitted.distance }
   }

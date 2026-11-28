@@ -7,7 +7,7 @@
  */
 import type { PixelTransform } from '../draw/pictureTransform'
 import { sitePlan, type FloorPlan, type SitePlan, type SitePlanBuilding } from '@ongrid/floorplan/geometry'
-import { siteView, type WorldBounds } from '../draw/views'
+import { siteView, type PictureSize, type WorldBounds } from '../draw/views'
 import { drawingLook, type LookName } from '../draw/viewNames'
 import { areaText, displayFor, lengthText } from '../quantities/units'
 import { m, ToolRefusal, type Answer } from './toolkit'
@@ -51,10 +51,10 @@ export function sitePlanLines(drawn: SitePlan, units: Display): string[] {
 }
 
 /** The site plan's picture and what it draws; the picture's words in `language`, the answer's text in the tool's English. */
-export async function siteAnswer(plan: FloorPlan, asked: LookName, language?: Language, display?: Display): Promise<Answer & { readonly image: NonNullable<Answer['image']>; readonly picture: { readonly svg?: () => string; readonly bounds: WorldBounds | null; readonly pixelToMetres?: PixelTransform } }> {
+export async function siteAnswer(plan: FloorPlan, asked: LookName, language?: Language, display?: Display, size?: PictureSize): Promise<Answer & { readonly image: NonNullable<Answer['image']>; readonly picture: { readonly svg?: () => string; readonly bounds: WorldBounds | null; readonly pixelToMetres?: PixelTransform } }> {
   if (sitePlan(plan).bounds === null) throw new ToolRefusal('kind=site draws the plot and the buildings on it, and this plan has neither a plot, a site thing nor a floor whose walls close an outline. Write the rooms first, or set the plot with grid_set_site.')
   const look = asked === drawingLook(asked) ? asked : `${drawingLook(asked)} (asked as ${asked})`
-  const view = await siteView(plan, { look: asked, ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }) })
+  const view = await siteView(plan, { look: asked, ...(language === undefined ? {} : { language }), ...(display === undefined ? {} : { display }), ...(size === undefined ? {} : { size }) })
   const drawn = view.sitePlan
   const units = display ?? displayFor(undefined, undefined, plan, language ?? 'en')
   const north = drawn.north === null

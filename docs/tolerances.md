@@ -193,6 +193,9 @@ is not asked whether it was typed in feet.
 | `cameraClosest` | limit | 0.1 m | The least distance from a camera to what it is pointed at (VEW-3) |
 | `lensShortest` | limit | 8 mm | The shortest focal length a camera may have, on a 36 × 24 mm sensor: about 132° across (VEW-3) |
 | `lensLongest` | limit | 800 mm | The longest focal length a camera may have, on a 36 × 24 mm sensor: under 3° across (VEW-3) |
+| `pictureLongestSide` | limit | 4096 count | The most pixels a view picture may have along either side, its scale included (4K); larger is refused (VEW-87) |
+| `pictureNarrowest` | limit | 200 count | The fewest pixels across a view picture may be asked at; narrower is refused (VEW-87) |
+| `pictureScaleMost` | limit | 4 ratio | The most pixels per picture pixel a view may be drawn at; more is refused (VEW-87) |
 | `wallThinnest` | limit | 0.02 m | A thinner solid wall is questioned; a line with no substance should be virtual |
 | `wallThickest` | limit | 3 m (1.5 in a home) | A thicker wall is questioned |
 | `wallLowest` | limit | 0.1 m | A lower solid wall is questioned |

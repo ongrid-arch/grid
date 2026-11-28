@@ -162,6 +162,7 @@ async function answer(tool: GridTool, raw: unknown, context: ToolContext): Promi
       data: revised === null ? bounded.data : { ...bounded.data, [REVISION_DATA_NAME]: revised.revision },
       ...(result.image ? { image: result.image } : {}),
       ...(result.images ? { images: result.images } : {}),
+      ...(result.resource ? { resource: result.resource } : {}),
       ...(revised === null ? {} : { footnote: revised.footnote }),
     }
   } catch (error) {
