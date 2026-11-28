@@ -10,7 +10,9 @@
  *   lies lower. The lowest level's slabs are base slabs.
  * - **a roof over every part with nothing above**: the floor's outline less the outlines of the
  *   floors on the next level up, flat, on the floor's walls (its floor level plus its clear height),
- *   as thick as `SLAB_THICKNESS`. LVL-15: "above" is read from the floors' elevations, not the
+ *   as thick as `SLAB_THICKNESS`. LVL-29: a roof that states an `overhang` runs past the walls by
+ *   it (`roofParts.ts`), cut back where a floor above stands, and each canopy and brise-soleil it
+ *   lists is one more facet at its own height, marked `part`, in no roof area. LVL-15: "above" is read from the floors' elevations, not the
  *   order of `level`: every floor whose floor stands higher, at any height, is taken off, so the
  *   slab a half level of a split-level house or car park stands on is a floor, never a roof. A
  *   floor of its own elevation that shares its level with others (a step of a stepped house) is

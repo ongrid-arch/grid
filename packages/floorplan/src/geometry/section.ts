@@ -109,7 +109,7 @@ export type SectionPartKind = 'wall' | 'slab' | 'roof' | 'parapet' | 'stair' | '
 /** One part of the model the line cuts, as rectangles (a wall, a slab) or blocks (a stair). */
 export interface SectionPart {
   readonly kind: SectionPartKind
-  /** The wall's or the stair's id, the floor's for a slab, roof, parapet or plinth, the room's for a raised floor, the item's for an item. */
+  /** The wall's or the stair's id, the floor's for a slab, roof, parapet or plinth (a canopy's or brise-soleil's own, LVL-29), the room's for a raised floor, the item's for an item. */
   readonly id: string
   readonly floor: string
   /** The rectangles it is cut into along the line, each counter-clockwise. */
