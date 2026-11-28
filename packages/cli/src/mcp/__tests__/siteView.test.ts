@@ -36,17 +36,17 @@ describe('grid_view kind=site', () => {
     expect(reply.image).toBe(true)
     expect(reply.data!['kind']).toBe('site')
     expect(reply.data!['ids']).toEqual(['house', 'studio', 'garage'])
-    const site = reply.data!['site'] as { buildings: { id: string; storeys: { above: number }; drawn: boolean }[]; labels: { text: string }[]; setbacks: { edge: number; distance: number }[]; streets: { edge: number; faces: string }[]; north: boolean; plotArea: number }
+    const site = reply.data!['site'] as { buildings: { id: string; storeys: { above: number }; drawn: boolean }[]; labels: { text: string }[]; setbacks: { edge: number; distance: number }[]; streets: { edge: number; faces: string; name: string | null }[]; north: boolean; plotArea: number }
     expect(site.buildings.map((x) => [x.id, x.storeys.above, x.drawn])).toEqual([['house', 2, true], ['studio', 1, true], ['garage', 1, true]])
     expect(site.labels.map((l) => l.text)).toEqual(['Old oak', 'Assembly point'])
     expect(site.setbacks).toEqual([{ edge: 1, distance: 4 }, { edge: 2, distance: 2 }])
-    expect(site.streets).toEqual([{ edge: 1, faces: 'south' }])
+    expect(site.streets).toEqual([{ edge: 1, faces: 'south', name: null }])
     expect(site.north).toBe(true)
     expect(site.plotArea).toBeCloseTo(1200, 6)
     expect(reply.text).toContain('Site plan, working')
     expect(reply.text).toContain('"House" (house): 2 storeys')
     expect(reply.text).toContain('"Assembly point"')
-    expect(reply.text).toContain('The plan holds no street names')
+    expect(reply.text).toContain('edge 1, facing south, no name')
   })
 
   it('draws a plan that names no buildings as one, and writes an svg', async () => {
