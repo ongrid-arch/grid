@@ -17,8 +17,9 @@
  *   building's part below the ground left out of it, over the picture's whole width (`sectionEarth`);
  * - the ground line, twice as heavy as the cut, out to the picture's edges;
  * - each room's name and height, and the level of every floor, roof and the ground beside the
- *   drawing; LVL-20: a sloped roof's eaves and ridge, and under it each room's headroom bands, a
- *   dashed line at each band's height where the room has that much over its floor;
+ *   building, each on a datum line back to what it marks and staggered clear of the next (VEW-84,
+ *   `levelMarks.ts`); LVL-20: a sloped roof's eaves and ridge, and under it each room's headroom
+ *   bands, a dashed line at each band's height where the room has that much over its floor;
  * - under it, the section's name and line, and the list of what was taken.
  *
  * Pure: no DOM, no React.
@@ -29,6 +30,7 @@ import { hatchRings, levelText, metresText, planSection, sectionEarth, sectionGr
 import { estimateTextWidth } from '../canvas2d/labelPlacement'
 import { FRAME_MARGIN, fitTo, pathOf } from '../canvas2d/viewport'
 import { labelObstacles, placeLabel } from './sectionLabels'
+import { levelMarksBeside, levelMarksWidth, levelSides, type BuildingSpan, type LevelMarkInput } from './levelMarks'
 import type { PictureKey } from './faults'
 import { wrapText } from './faults'
 import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
@@ -37,7 +39,7 @@ import type { Picture, PictureOptions } from './planSvg'
 import { DEFAULT_WIDTH, displayOfPicture, lookOf } from './planSvg'
 import type { Attrs, SvgNode } from './svgNode'
 import { el } from './svgNode'
-import { DEFAULT_LANGUAGE, languageDecimal, num, said, type Language } from '@ongrid/floorplan/messages'
+import { DEFAULT_LANGUAGE, languageDecimal, num, said, type Language, type MessageKey } from '@ongrid/floorplan/messages'
 import { drawingText, saidText, type DrawingWords } from './words'
 import { METRES, showLength, type Display } from '@ongrid/floorplan/types/units'
 
@@ -69,9 +71,6 @@ const MAX_SHAPE = 2.5
 const ASSUMED_TINT = 0.22
 /** A dash and its gap, in pixels, in the key's swatch. */
 const ASSUMED_DASH_PX = [4, 3] as const
-/** The level marks: the tick's length, the gap to the drawing and the room their words take, in pixels. */
-const TICK_PX = 36
-const GAP_PX = 14
 const KEY_MARGIN_PX = 16
 const KEY_LINE_PX = 17
 /** VEW-65: how far apart the earth's hatch lines are: in millimetres on paper, in pixels on screen. */
@@ -82,12 +81,6 @@ const n = (value: number): string => lengthText(value)
 const pixelGroup = (at: Vec2, mpp: number): string => `translate(${n(at.x)} ${n(-at.y)}) scale(${n(mpp)})`
 const piecesPath = (pieces: readonly SectionPiece[]): string => pieces.map((p) => pathOf(p.outline) + p.holes.map(pathOf).join('')).join('')
 const lineOf = (a: Vec2, b: Vec2): string => `M${a.x.toFixed(4)},${(-a.y).toFixed(4)}L${b.x.toFixed(4)},${(-b.y).toFixed(4)}`
-
-interface LevelLabel {
-  readonly level: number
-  readonly words: string
-  readonly part: string
-}
 
 /**
  * MSG-11: the words of a section: its language, the call's or the plan's own, with that
@@ -108,44 +101,60 @@ function unitsOf(plan: FloorPlan, options: SectionPictureOptions, tongue: Drawin
   return { ...base, decimal: tongue.decimal }
 }
 
-/** The levels beside the drawing: every floor on the left; the roofs and the ground on the right. */
-function levelLabels(section: PlanSection, tongue: DrawingWords, units: Display): { left: LevelLabel[]; right: LevelLabel[] } {
-  const left = section.levels.map((l) => ({ level: l.level, words: `${levelText(l.level, units)} ${l.name || l.floor}`, part: 'section-level' }))
-  const right: LevelLabel[] = [
+/**
+ * The levels beside the drawing: every floor on the left; the roofs and the ground on the right.
+ * VEW-84: each beside the building on the side its part stands, a parapet's top with its roof's.
+ */
+function levelLabels(section: PlanSection, tongue: DrawingWords, units: Display): LevelMarkInput[] {
+  const word = (key: MessageKey, level: number): string => drawingText(tongue, key, { level: levelText(level, units) })
+  const floors: LevelMarkInput[] = section.levels.map((l) => ({
+    level: l.level,
+    words: `${levelText(l.level, units)} ${l.name || l.floor}`,
+    part: 'section-level',
+    prefer: 'left',
+    ...(l.from === undefined || l.to === undefined ? {} : { from: l.from, to: l.to }),
+    attrs: { 'data-floor': l.floor }
+  }))
+  const roofs: LevelMarkInput[] = section.roofs.flatMap((r) => {
+    const at = { prefer: 'right' as const, from: r.from, to: r.to, attrs: { 'data-floor': r.floor } }
     // LVL-20: a sloped roof the floor states is marked at its eaves and its ridge; any other at its top.
-    ...section.roofs.flatMap((r) =>
+    const tops: LevelMarkInput[] =
       r.pitch !== undefined && r.pitch > 0 && r.eaves !== undefined && r.ridge !== undefined
         ? [
-            { level: r.eaves, words: drawingText(tongue, 'drawing.section.eaves', { level: levelText(r.eaves, units) }), part: 'section-eaves-level' },
-            { level: r.ridge, words: drawingText(tongue, 'drawing.section.ridge', { level: levelText(r.ridge, units) }), part: 'section-ridge-level' }
+            { ...at, level: r.eaves, words: word('drawing.section.eaves', r.eaves), part: 'section-eaves-level' },
+            { ...at, level: r.ridge, words: word('drawing.section.ridge', r.ridge), part: 'section-ridge-level' }
           ]
-        : [{ level: r.level, words: drawingText(tongue, 'drawing.section.roof', { level: levelText(r.level, units) }), part: 'section-roof-level' }]
-    ),
-    { level: section.ground.level, words: drawingText(tongue, 'drawing.section.ground', { level: levelText(section.ground.level, units) }), part: 'section-ground-level' }
-  ]
-  return { left, right }
+        : [{ ...at, level: r.level, words: word('drawing.section.roof', r.level), part: 'section-roof-level' }]
+    return r.parapet === undefined ? tops : [...tops, { ...at, level: r.parapet, words: word('drawing.section.parapet', r.parapet), part: 'section-parapet-level' }]
+  })
+  const ground: LevelMarkInput = { level: section.ground.level, words: word('drawing.section.ground', section.ground.level), part: 'section-ground-level', prefer: 'right' }
+  return [...floors, ...roofs, ground]
 }
 
-const widest = (labels: readonly LevelLabel[]): number => Math.max(0, ...labels.map((l) => estimateTextWidth(l.words, TEXT_PX.dimension)))
+/** VEW-84: how far across the section the building stands, the level marks beside it; the section's bounds when it draws nothing of it. */
+const buildingOf = (section: PlanSection): BuildingSpan => section.building ?? { from: section.bounds.min.x, to: section.bounds.max.x }
 
-/** What the picture frames: the section, with room beside it for the level marks, in pixels. */
+/** What the picture frames: the section, with room beside the building for the level marks, in pixels. */
 function frameOf(section: PlanSection, width: number, height: number | undefined, tongue: DrawingWords, units: Display): { framed: Bounds; width: number; height: number } {
-  const { left, right } = levelLabels(section, tongue, units)
-  const leftPx = widest(left) + TICK_PX + GAP_PX
-  const rightPx = widest(right) + TICK_PX + GAP_PX
+  const { left, right } = levelSides(levelLabels(section, tongue, units), buildingOf(section))
   const base = section.bounds
   const shape = base.width > 0 && base.height > 0 ? base.height / base.width : 0.5
   const tall = height ?? Math.max(1, Math.round(width * Math.min(Math.max(shape, MIN_SHAPE), MAX_SHAPE)))
   let framed = base
   // The labels are in pixels and the frame in metres: a few rounds settle how many metres they take.
-  for (let round = 0; round < 4; round++) framed = aroundSection(base, leftPx, rightPx, fitTo(framed, width / tall).width / width)
+  for (let round = 0; round < 4; round++) framed = aroundSection(section, levelMarksWidth(left), levelMarksWidth(right), fitTo(framed, width / tall).width / width)
   return { framed, width, height: tall }
 }
 
-/** The section's bounds with room for the level marks beside it, `leftPx` and `rightPx` wide, at `mpp` metres a pixel. */
-function aroundSection(base: Bounds, leftPx: number, rightPx: number, mpp: number): Bounds {
-  const min = { x: base.min.x - leftPx * mpp, y: base.min.y - TEXT_PX.dimension * 2 * mpp }
-  const max = { x: base.max.x + rightPx * mpp, y: base.max.y + TEXT_PX.dimension * 2 * mpp }
+/**
+ * The section's bounds with room for the level marks beside the building, `leftPx` and `rightPx`
+ * wide, at `mpp` metres a pixel: the frame widens only where the marks reach past the bounds.
+ */
+function aroundSection(section: PlanSection, leftPx: number, rightPx: number, mpp: number): Bounds {
+  const base = section.bounds
+  const building = buildingOf(section)
+  const min = { x: Math.min(base.min.x, building.from - leftPx * mpp), y: base.min.y - TEXT_PX.dimension * 2 * mpp }
+  const max = { x: Math.max(base.max.x, building.to + rightPx * mpp), y: base.max.y + TEXT_PX.dimension * 2 * mpp }
   return { min, max, width: max.x - min.x, height: max.y - min.y }
 }
 
@@ -155,31 +164,14 @@ function aroundSection(base: Bounds, leftPx: number, rightPx: number, mpp: numbe
  */
 export function sectionFraming(plan: FloorPlan, section: PlanSection, metresPerPixel: number, options: Pick<SectionPictureOptions, 'language' | 'display'> = {}): Bounds {
   const tongue = sectionWords(plan, options.language)
-  const { left, right } = levelLabels(section, tongue, unitsOf(plan, options, tongue))
+  const { left, right } = levelSides(levelLabels(section, tongue, unitsOf(plan, options, tongue)), buildingOf(section))
   // `frameOf` sizes the marks at the zoom `fitTo` frames with its margin round the frame.
-  return aroundSection(section.bounds, widest(left) + TICK_PX + GAP_PX, widest(right) + TICK_PX + GAP_PX, metresPerPixel * (1 + 2 * FRAME_MARGIN))
+  return aroundSection(section, levelMarksWidth(left), levelMarksWidth(right), metresPerPixel * (1 + 2 * FRAME_MARGIN))
 }
 
 /** Words at a point of the section, in pixels: centred, upright. */
 function words(at: Vec2, text: string, mpp: number, attrs: Attrs, dy = 0): SvgNode {
   return el('g', { transform: pixelGroup(at, mpp) }, [el('text', { y: n(dy), ...attrs }, [text])])
-}
-
-/** A level mark: a tick at its height, a small triangle on it, and its words over it. */
-function levelMark(label: LevelLabel, x: number, side: 'left' | 'right', mpp: number, look: Look, stroke: number): SvgNode {
-  const sign = side === 'left' ? -1 : 1
-  const at = { x, y: label.level }
-  const tick = `M0,0L${sign * TICK_PX},0`
-  const triangle = `M${sign * 8},0L${sign * 8 - 4},-6L${sign * 8 + 4},-6Z`
-  // VEW-65: the words stand on paper, so they read over the earth's hatch and the ground line.
-  const wide = estimateTextWidth(label.words, TEXT_PX.dimension) + 4
-  const backing = el('rect', { 'data-part': 'section-level-backing', x: n(side === 'left' ? -(TICK_PX + 6) - wide : TICK_PX + 2), y: n(2 - TEXT_PX.dimension), width: n(wide + 4), height: n(TEXT_PX.dimension + 4), fill: look.colors.paper })
-  return el('g', { 'data-part': label.part, transform: pixelGroup(at, mpp) }, [
-    backing,
-    el('path', { d: tick, fill: 'none', stroke: look.colors.dimension, 'stroke-width': n(stroke / mpp) }),
-    el('path', { d: triangle, fill: look.colors.dimension }),
-    el('text', { x: sign * (TICK_PX + 4), y: '4', 'text-anchor': side === 'left' ? 'end' : 'start', fill: look.colors.dimensionText, 'font-family': look.colors.font, 'font-size': TEXT_PX.dimension }, [label.words])
-  ])
 }
 
 /** The band under the drawing: the section's name and line, then what was taken, marked first. */
@@ -404,12 +396,10 @@ export function sectionPicture(plan: FloorPlan, line: SectionLine, options: Sect
   nodes.push(el('g', { 'data-part': 'section-room-halos' }, haloNodes))
   nodes.push(el('g', { 'data-part': 'section-rooms' }, roomNodes))
 
-  // The levels beside the drawing.
-  const { left, right } = levelLabels(section, tongue, units)
-  const leftX = section.bounds.min.x - GAP_PX * mpp
-  const rightX = section.bounds.max.x + GAP_PX * mpp
-  const markStroke = lines.width('elevationLevel')
-  nodes.push(el('g', { 'data-part': 'section-levels' }, [...left.map((l) => levelMark(l, leftX, 'left', mpp, look, markStroke)), ...right.map((l) => levelMark(l, rightX, 'right', mpp, look, markStroke))]))
+  // The levels beside the building (VEW-84), each on a datum line back to what it marks.
+  const building = buildingOf(section)
+  const sides = levelSides(levelLabels(section, tongue, units), building)
+  nodes.push(el('g', { 'data-part': 'section-levels' }, levelMarksBeside(sides, building, mpp, look, lines.width('elevationLevel'))))
 
   const key = sectionKey(section, label, width, look, tongue)
   const cutRooms = new Set(section.rooms.map((r) => `${r.floor}\u0000${r.room}`)).size

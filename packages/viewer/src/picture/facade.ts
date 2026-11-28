@@ -9,12 +9,16 @@
  * marks finest. The faces are drawn farthest first, each filled, so a nearer face hides what stands
  * behind it; what lies under the ground is covered by the paper.
  *
+ * VEW-84: the ground, each floor, a roof's eaves and ridge or its top, and each parapet's top are
+ * marked beside the building as a section's levels are (`levelMarks.ts`), each on a datum line
+ * back to what it marks, on the side it stands, and staggered clear of the next.
+ *
  * Pure: no DOM, no React. `pictureToSvg` writes it out with the label (MSG-3), as it does a plan.
  */
 import type { Phase } from '@ongrid/floorplan/types/floorplan'
 import { PHASE_COLOURS } from './phaseColour'
 import type { Bounds } from '@ongrid/floorplan/geometry'
-import { facadeGroundAt, hatchLines, levelText, partPhases, planFacade, withPatterns, type Facade, type FacadeFace, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { facadeGroundAt, hatchLines, levelText, partPhases, planFacade, withPatterns, type Facade, type FacadeFace, type FacadeMarkKind, type FacadeOpening, type FacadeRect, type FacadeSide } from '@ongrid/floorplan/geometry'
 import { fitTo } from '../canvas2d/viewport'
 import type { LinePart, Look } from './look'
 import { TEXT_PX, lengthText, lineMetres, paperScaleOf } from './look'
@@ -22,7 +26,8 @@ import type { Picture, PictureOptions } from './planSvg'
 import { DEFAULT_WIDTH, displayOfPicture, lookOf, pictureToSvg } from './planSvg'
 import type { SvgNode } from './svgNode'
 import { el } from './svgNode'
-import type { Language } from '@ongrid/floorplan/messages'
+import type { Language, MessageKey } from '@ongrid/floorplan/messages'
+import { levelMarksBeside, levelSides, type LevelMarkInput } from './levelMarks'
 import { said } from '@ongrid/floorplan/messages'
 import { ENGLISH_WORDS, drawingText, wordsOf, type DrawingWords } from './words'
 import { METRES, type Display } from '@ongrid/floorplan/types/units'
@@ -67,7 +72,7 @@ const GUTTER_DEPTH = 0.12
  */
 const GLASS_ON_PAPER = '#e4e4e4'
 
-/** The share of the facade's width the floor marks and their names take on its right. */
+/** The share of the facade's width the level marks and their words take on its right, and on its left when one stands there. */
 const LEVEL_ROOM = 0.25
 /** How far the ground line runs past the facade at each end, as a share of its width, and at least. */
 const GROUND_RUN = 0.06
@@ -85,7 +90,9 @@ export function facadeFraming(facade: Facade): Bounds {
   const span = Math.max(extent.u1 - extent.u0, 1)
   const run = Math.max(span * GROUND_RUN, GROUND_RUN_LEAST)
   // CNT-49: on a slope, the lowest of the ground line's ends.
-  const min = { x: extent.u0 - run, y: Math.min(facade.ground.level, facadeGroundAt(facade, extent.u0 - run), facadeGroundAt(facade, extent.u1 + run)) - BELOW }
+  // VEW-84: room on the left too when a mark stands there.
+  const leftRoom = facadeSides(facade).left.length > 0 ? span * LEVEL_ROOM : 0
+  const min = { x: extent.u0 - run - leftRoom, y: Math.min(facade.ground.level, facadeGroundAt(facade, extent.u0 - run), facadeGroundAt(facade, extent.u1 + run)) - BELOW }
   const max = { x: extent.u1 + run + span * LEVEL_ROOM, y: extent.top + ABOVE }
   return { min, max, width: max.x - min.x, height: max.y - min.y }
 }
@@ -287,25 +294,48 @@ export function facadeScene(facade: Facade, look: Look, metresPerPixel: number, 
     })
   )
 
-  // Each floor at its level, on the right: a mark and its name with its level.
-  const markFrom = extent.u1 + run
-  const markTo = markFrom + Math.min(span * LEVEL_ROOM * 0.2, 1)
-  const levels = facade.levels.map((level) =>
-    el('g', { 'data-part': 'facade-level', 'data-floor': level.floor }, [
-      el('line', {
-        x1: lengthText(markFrom),
-        y1: lengthText(-level.level),
-        x2: lengthText(markTo),
-        y2: lengthText(-level.level),
-        stroke: look.ink,
-        'stroke-width': width('elevationLevel')
-      }),
-      textNode(look, markTo + metresPerPixel * 4, -level.level - metresPerPixel * 3, metresPerPixel, `${levelText(level.level, units)} ${level.name}`, 'facade-level-name')
-    ])
-  )
-  nodes.push(el('g', { 'data-part': 'facade-levels' }, levels))
+  // VEW-84: the ground, each floor, the eaves and ridge or a roof's top and each parapet's top,
+  // beside the building on the side each stands, on a datum line back to it, staggered.
+  const building = { from: extent.u0, to: extent.u1 }
+  nodes.push(el('g', { 'data-part': 'facade-levels' }, levelMarksBeside(facadeSides(facade, words, units), building, metresPerPixel, look, lines.width('elevationLevel'))))
   nodes.push(textNode(look, extent.u0 - run, -Math.min(facadeGroundAt(facade, extent.u0 - run), facade.ground.level) + metresPerPixel * 18, metresPerPixel, facadeCaption(facade, words), 'facade-caption'))
   return nodes
+}
+
+/** VEW-84: a facade's level marks: their words and parts, each with where its part stands across the facade. */
+function facadeMarkInputs(facade: Facade, words: DrawingWords, units: Display): LevelMarkInput[] {
+  const names = new Map(facade.levels.map((l) => [l.floor, l.name]))
+  return facade.marks.map((mark) => {
+    // On a slope the ground is marked where it meets the building on the right, the side it is marked on.
+    const level = mark.kind === 'ground' && facade.ground.fall !== undefined ? facadeGroundAt(facade, mark.u1) : mark.level
+    const text = levelText(level, units)
+    const said = mark.kind === 'floor' ? `${text} ${names.get(mark.floor ?? '') ?? mark.floor}` : drawingText(words, MARK_WORDS[mark.kind], { level: text })
+    const at = mark.kind === 'ground' ? {} : { from: mark.u0, to: mark.u1 }
+    return { level, words: said, part: MARK_PARTS[mark.kind], prefer: 'right' as const, ...at, attrs: mark.floor === null ? {} : { 'data-floor': mark.floor } }
+  })
+}
+
+/** VEW-84: the words of each kind of mark but a floor's, which is its level and its name. */
+const MARK_WORDS: Readonly<Record<Exclude<FacadeMarkKind, 'floor'>, MessageKey>> = {
+  ground: 'drawing.section.ground',
+  eaves: 'drawing.section.eaves',
+  ridge: 'drawing.section.ridge',
+  roof: 'drawing.section.roof',
+  parapet: 'drawing.section.parapet'
+}
+const MARK_PARTS: Readonly<Record<FacadeMarkKind, string>> = {
+  ground: 'facade-ground-level',
+  floor: 'facade-level',
+  eaves: 'facade-eaves-level',
+  ridge: 'facade-ridge-level',
+  roof: 'facade-roof-level',
+  parapet: 'facade-parapet-level'
+}
+
+/** VEW-84: a facade's level marks on each side of the building. */
+function facadeSides(facade: Facade, words: DrawingWords = ENGLISH_WORDS, units: Display = METRES): { left: LevelMarkInput[]; right: LevelMarkInput[] } {
+  if (facade.extent === null) return { left: [], right: [] }
+  return levelSides(facadeMarkInputs(facade, words, units), { from: facade.extent.u0, to: facade.extent.u1 })
 }
 
 function pixels(name: string, value: number): number {

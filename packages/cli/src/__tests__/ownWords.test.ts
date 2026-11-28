@@ -235,7 +235,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // ARE-75: seven more, what the state argument means on grid_areas, grid_schedule, grid_find and grid_describe.
   // CNT-58: five more, grid_view's sun and the light the model is lit by.
   // ARE-77: one more, the buried slab's row of the take-off's spreadsheet.
-  'packages/cli/src/mcp/readTools.ts': [412, 'tools'],
+  // ARE-78: one fewer, the refusal of a route between floors.
+  'packages/cli/src/mcp/readTools.ts': [411, 'tools'],
   // ARE-75: the state argument the reading tools share, and grid_view's demolition and proposed plans.
   'packages/cli/src/mcp/stateArg.ts': [2, 'tools'],
   // ARE-75: the head of the area table of the work as CSV.
