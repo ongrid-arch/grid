@@ -64,7 +64,7 @@ export const ACCESS_HEAD = 'Accessibility measurements: what Grid measured on th
 
 /** Said under every answer. */
 export const ACCESS_RULE =
-  'Measured on the plan between wall faces, clear of the fixtures it holds. A door\'s clear width is its hole less Grid\'s own allowance for an open leaf; a corridor is measured on a grid of points, to within a few centimetres. A number is set only against your own figures, from the brief beside the plan, and against a figure from a code only once a named person has confirmed it against its source.'
+  'Measured on the plan between wall faces, clear of the fixtures and columns it holds. A door\'s clear width is its hole less Grid\'s own allowance for an open leaf; a corridor is measured on a grid of points, to within a few centimetres. A number is set only against your own figures, from the brief beside the plan, and against a figure from a code only once a named person has confirmed it against its source.'
 
 /** What the answer never looks at, said every time. */
 export const NOT_LOOKED_AT: readonly string[] = [
