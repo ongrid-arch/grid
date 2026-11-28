@@ -20,7 +20,7 @@ import { EditRefused } from './refused'
 type Pair = [number, number]
 
 /** The fields `grid_set_site` can take out. */
-export const SITE_FIELDS = ['boundary', 'streets', 'setbacks', 'north', 'origin', 'location', 'elevation', 'ground', 'groundSides', 'fall', 'groundEdges', 'country', 'address', 'name', 'things'] as const
+export const SITE_FIELDS = ['boundary', 'streets', 'setbacks', 'north', 'origin', 'location', 'elevation', 'ground', 'groundSides', 'fall', 'groundEdges', 'spotLevels', 'country', 'address', 'name', 'things'] as const
 export type SiteField = (typeof SITE_FIELDS)[number]
 
 export interface SiteRequest {
@@ -38,6 +38,8 @@ export interface SiteRequest {
   readonly groundSides?: Partial<Record<'north' | 'east' | 'south' | 'west', number>>
   readonly fall?: { readonly slope: number; readonly toward: FallToward }
   readonly groundEdges?: readonly { readonly edge: number; readonly start: number; readonly end?: number }[]
+  /** VEW-86: the ground's level at points of the plan; a level at a point already stated replaces it. */
+  readonly spotLevels?: readonly { readonly at: Pair; readonly level: number }[]
   readonly country?: string
   /** CNT-50: the site's address and its own name, kept as written and never looked up. */
   readonly address?: string
@@ -184,9 +186,19 @@ export function setSite(survey: Survey, request: SiteRequest): Patch {
     else site['groundEdges'] = edges
     for (const g of request.groundEdges) said.push(`The ground along edge ${g.edge}: ${M(g.start)}${g.end === undefined ? '' : ` at its first corner, ${M(g.end)} at its second`}.`)
   }
-  if (request.groundSides !== undefined || request.fall !== undefined || request.groundEdges !== undefined) {
+  // VEW-86: the ground's level at points of the plan.
+  if (request.spotLevels !== undefined) {
+    const same = (a: readonly number[], b: readonly number[]): boolean => a[0] === b[0] && a[1] === b[1]
+    const others = ((site['spotLevels'] as NonNullable<Site['spotLevels']> | undefined) ?? []).filter((s) => !request.spotLevels!.some((r) => same(r.at, s.at)))
+    const given = request.spotLevels.filter((r, i) => !request.spotLevels!.slice(i + 1).some((later) => same(later.at, r.at)))
+    site['spotLevels'] = [...others, ...given.map((r) => ({ at: [r.at[0], r.at[1]], level: r.level }))]
+    said.push(`The ground's level at ${given.length === 1 ? 'one point' : `${given.length} points`}: ${given.map((r) => `${P(r.at)} ${M(r.level)}`).join(', ')}.`)
+  }
+  if (request.groundSides !== undefined || request.fall !== undefined || request.groundEdges !== undefined || request.spotLevels !== undefined) {
     const surface = SiteSchema.safeParse(site).success ? groundSurface({ ...plan, site: site as Site }) : null
-    if (surface !== null) {
+    if (surface?.along !== undefined) {
+      said.push(`So the ground under the building runs from ${M(surface.low)} to ${M(surface.high)}, through every level stated: every check reads it at each wall, and the sections and elevations draw its profile.`)
+    } else if (surface !== null) {
       said.push(`So the ground under the building runs from ${M(surface.low)} to ${M(surface.high)}${surface.toward === null ? ', level' : `, falling ${Math.round(surface.slope * 10) / 10 + 0}%`}: every check and picture reads it at each wall.`)
       if (surface.offBy > 0) said.push(`The levels given lie on no one even slope: Grid takes the even slope nearest them, ${M(surface.offBy)} off the furthest.`)
     }
