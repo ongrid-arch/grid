@@ -15,18 +15,21 @@
  *
  * Pure: a plan in, text out.
  */
-import { heightByDefault, heightStated, safeParseFloorPlan, statedWall, type FloorPlan, type Opening, type Phase, type Room, type Wall } from '../types/floorplan'
+import { heightByDefault, heightStated, safeParseFloorPlan, statedItem, statedOpening, statedWall, type FloorPlan, type Opening, type Phase, type Room, type Wall } from '../types/floorplan'
 import { indexPlan } from '../geometry/plan'
 import { phaseReading, planHasPhases } from '../geometry/phases'
 import { planFloors } from '../geometry/floors'
-import { english, said } from '../messages/say'
+import { english, ownWording, said } from '../messages/say'
+import { en, type MessageKey } from '../messages/en'
+import { LANGUAGES } from '../messages/languages'
 import { tryRoomPolygon } from '../geometry/room'
 import { isOutdoor } from '../geometry/outdoor'
 import { wallSides } from '../geometry/exposure'
 import { limit, tolerance } from '../geometry/tolerances'
 import { doorKindOf, kindFits, sweepsFloor, swingNeeds } from '../geometry/openingKinds'
 import { compileRoomsText, RAW_FLOOR_KEYS, type RoomsResult } from './compile'
-import { planRevision } from './stamp'
+import { canonical, planRevision } from './stamp'
+import { languageOfText, languageWords } from './language'
 import { factValueOf, metres, quotedWordsOf } from './words'
 import { siteLines } from './site'
 import { stairLines } from './stairs'
@@ -99,6 +102,10 @@ export interface RoomsReading {
   readonly changes: readonly string[]
   /** WRT-44: what is left out as the check leaves it out (a wall with no length, an opening in one), one sentence each, as the comment lines at the top say it. */
   readonly leftOut: readonly string[]
+  /** WRT-87: true when the text is the rooms text the plan was written from (`written.text`), with only what changed since added. */
+  readonly kept: boolean
+  /** WRT-87: what the plan holds that the text does not (its part types, trace image, the facts on its walls), which `grid write` keeps only over the same plan file. */
+  readonly notHeld: readonly string[]
 }
 
 export interface ReadOptions {
@@ -765,13 +772,8 @@ function headerLines(plan: FloorPlan, rule: Rule, name: string | undefined): str
   if (plan.building !== undefined) lines.push(`building ${plan.building}`)
   // WRT-7: how the person reads lengths, so writing the text again keeps it.
   // WRT-34: the reading writes its lengths in metres, so a display that is not metres says so.
-  // MSG-24: a display that states only its language or its words has no line: rooms text holds
-  // neither, and writing the text again keeps them; with no length stated, it is metres.
-  const shown = plan.display
-  const length = shown?.length ?? 'm'
-  if (shown !== undefined && (shown.length !== undefined || shown.area !== undefined || shown.decimal !== undefined || shown.precision !== undefined)) {
-    lines.push(['display', length, ...(shown.area !== undefined ? ['area', shown.area] : []), ...(shown.decimal !== undefined ? ['decimal', shown.decimal] : []), ...(shown.precision !== undefined ? ['precision', String(shown.precision)] : []), ...(length !== 'm' ? ['numbers', 'm'] : [])].join(' '))
-  }
+  const display = displayLine(plan.display)
+  if (display !== null) lines.push(display)
   lines.push(`walls outside ${metres(rule.outside)} inside ${metres(rule.inside)}${rule.kind !== 'interior' ? ` ${rule.kind}` : ''}${rule.height === null ? '' : ` height ${metres(rule.height)}`}`)
   for (const [t, k] of [...rule.types].sort((a, b) => a[0] - b[0])) lines.push(`walltype ${metres(t)} ${k}`)
   if (!sameNumber(rule.doorH, 2.1)) lines.push(`doors height ${metres(rule.doorH)}`)
@@ -781,6 +783,20 @@ function headerLines(plan: FloorPlan, rule: Rule, name: string | undefined): str
   // WRT-81: a plan with phases says so, so a survey whose every part is existing is written with them.
   if (phasesWritten(plan, rule) !== null) lines.push('phase existing')
   return lines
+}
+
+/**
+ * The display line, or null for none. MSG-24: a display that states only its words has no line:
+ * rooms text does not hold them, and writing the text over the plan keeps them; WRT-87: one that
+ * states its language says it (`display language es`), with no length when it states none, which
+ * is metres.
+ */
+function displayLine(shown: FloorPlan['display']): string | null {
+  if (shown === undefined) return null
+  const length = shown.length ?? 'm'
+  const language = shown.language === undefined ? [] : [languageWords(shown.language)]
+  if (shown.length === undefined && shown.area === undefined && shown.decimal === undefined && shown.precision === undefined) return language.length === 0 ? null : ['display', ...language].join(' ')
+  return ['display', length, ...(shown.area !== undefined ? ['area', shown.area] : []), ...(shown.decimal !== undefined ? ['decimal', shown.decimal] : []), ...(shown.precision !== undefined ? ['precision', String(shown.precision)] : []), ...(length !== 'm' ? ['numbers', 'm'] : []), ...language].join(' ')
 }
 
 /** WRT-14: a level rooms text writes on the floor line: a whole number or a half. */
@@ -989,8 +1005,11 @@ export function readRoomsText(file: FloorPlan, options: ReadOptions = {}): Rooms
   const why = new Map<string, string>()
   let changes: string[] = []
   if (plan.walls.length + plan.rooms.length + plan.openings.length === 0) {
-    return { text: textOf(plan, rule, options.name, drafts, raw, why), rawFloors: [], rawOpenings: [], changes: [], leftOut }
+    return { text: textOf(plan, rule, options.name, drafts, raw, why), rawFloors: [], rawOpenings: [], changes: [], leftOut, kept: false, notHeld: [] }
   }
+  // WRT-87: the text the plan was written from, while it still writes the plan the file holds.
+  const kept = fit === null && options.base === undefined && leftOut.length === 0 && options.prefer !== 'rooms' ? keptReading(file.written?.text, plan, rule.basedOn, options.name) : null
+  if (kept !== null) return { text: withNotHeld(kept.text, kept.notHeld), rawFloors: [], rawOpenings: [], changes: [], leftOut, kept: true, notHeld: kept.notHeld }
   // WRT-44: an id is written short on a later floor only while the floor that first holds it is
   // rooms text; once that floor is given raw, the later floors write it whole, as the plan has it.
   const relocal = (): void => {
@@ -1117,12 +1136,219 @@ export function readRoomsText(file: FloorPlan, options: ReadOptions = {}): Rooms
   // Asked for rooms, the reading stays rooms first.
   if (!decided && options.prefer !== 'rooms') unsettled(plan, rule, options.name, drafts, raw, why, fitted(), options.base, fit?.again)
   let text = textOf(plan, rule, options.name, drafts, raw, why)
+  // WRT-87: what the text does not hold, named, so a text written to another plan file loses nothing unseen.
+  const compiled = compiledAgain(text, options.base)
+  const held = heldBy(plan, compiled === null ? null : asFile(compiled, fit?.again))
+  const notHeld = held === null ? [] : [...held.notHeld, ...held.missing.keys()]
+  text = withNotHeld(text, notHeld)
   if (leftOut.length > 0) text = `${leftOut.map((line) => `# ${line}`).join('\n')}\n${text}`
   if (changes.length > 0) {
     const note = [`# Written rooms first as asked: writing this text again changes ${changes.length} part${changes.length === 1 ? '' : 's'} of the plan:`, ...changes.slice(0, 20).map((c) => `#   ${c}`), ...(changes.length > 20 ? [`#   and ${changes.length - 20} more`] : [])]
     text = `${note.join('\n')}\n${text}`
   }
-  return { text, rawFloors: [...raw].map((floor) => ({ floor, why: why.get(floor) ?? '' })), rawOpenings: [...new Set(rawOpenings)], changes, leftOut }
+  return { text, rawFloors: [...raw].map((floor) => ({ floor, why: why.get(floor) ?? '' })), rawOpenings: [...new Set(rawOpenings)], changes, leftOut, kept: false, notHeld }
+}
+
+// ---------------------------------------------------------------------------------------------
+// WRT-87: the text the plan was written from
+
+/** The plan's own lists a tool adds parts to that a kept text may have no line for: their lines are added at its end. */
+const ADDED_LISTS = ['grids', 'columns', 'stairs', 'buildings', 'items', 'bays', 'ramps', 'annotations', 'sketch'] as const
+type AddedList = (typeof ADDED_LISTS)[number]
+const isAdded = (key: string): key is AddedList => (ADDED_LISTS as readonly string[]).includes(key)
+
+/**
+ * The plan's keys the comparison leaves to the lines that set them: the name (the `plan` line),
+ * the display (compared on its own, its language and words aside) and the opening patterns, which
+ * the command's read-back names itself. The rest of a part's facts on walls, openings and floors is
+ * carried by id (`carryFacts`), and so left out of the comparison and named.
+ */
+const NOT_COMPARED = new Set(['version', 'units', 'written', 'name', 'display', 'patterns', 'base'])
+const CARRIED_FACTS = new Set(['walls', 'openings', 'floors'])
+/** The keys a text must write as the plan holds them, as the worked-out reading writes them. */
+const REWRITTEN = new Set(['floors', 'site', 'north', 'building'])
+
+/** The text written again as `grid write` writes it into a plan file, read as the file is read; null when it is refused. */
+function asFile(compiled: RoomsResult, again?: (written: FloorPlan) => FloorPlan): FloorPlan | null {
+  const parsed = compiled.plan === null ? null : safeParseFloorPlan(compiled.plan)
+  if (parsed === null) return null
+  const stated = safeParseFloorPlan({ ...parsed, walls: parsed.walls.map(statedWall), openings: parsed.openings.map(statedOpening), ...(parsed.items === undefined ? {} : { items: parsed.items.map(statedItem) }) })
+  return stated === null || again === undefined ? stated : again(stated)
+}
+
+const record = (value: unknown): Record<string, unknown> => (typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {})
+const idOf = (part: unknown): string => String(record(part)['id'])
+const withoutFacts = (parts: readonly unknown[]): unknown[] => parts.map((part) => ({ ...record(part), properties: undefined, identity: undefined }))
+const factsOf = (parts: readonly unknown[]): string => canonical(Object.fromEntries(parts.map((part) => [idOf(part), [record(part)['properties'], record(part)['identity']]])))
+const displayOf = (display: FloorPlan['display']): string => canonical({ ...(display ?? {}), language: undefined, words: undefined })
+
+interface Held {
+  /** Whether the text writes the plan as it holds it, the parts it has no line for and the rest it does not hold aside. */
+  readonly holds: boolean
+  /** Each list's parts the text has no line for, by id. */
+  readonly missing: ReadonlyMap<AddedList, ReadonlySet<string>>
+  /** What the plan holds that the text does not and that `grid write` keeps over the same file, one name each. */
+  readonly notHeld: readonly string[]
+}
+
+/**
+ * How far the text, written again (`written`), holds the plan: whether it writes anything the
+ * plan does not hold as it is, the parts of the added lists it has no line for, and what else it
+ * does not hold. Null when the text is refused.
+ */
+function heldBy(plan: FloorPlan, written: FloorPlan | null): Held | null {
+  if (written === null) return null
+  const a = plan as unknown as Record<string, unknown>
+  const b = written as unknown as Record<string, unknown>
+  const missing = new Map<AddedList, Set<string>>()
+  const notHeld: string[] = []
+  let holds = displayOf(plan.display) === displayOf(written.display)
+  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (NOT_COMPARED.has(key)) continue
+    const x = a[key]
+    const y = b[key]
+    if (x === undefined && y === undefined) continue
+    const listed = Array.isArray(x) ? x : []
+    if (y === undefined) {
+      // A floor list the text does not write would be taken off, and the worked-out reading writes
+      // the site, north and the kind of building; any other part stays as the file has it.
+      if (REWRITTEN.has(key)) holds = false
+      else if (isAdded(key)) {
+        if (listed.length > 0) missing.set(key, new Set(listed.map(idOf)))
+      } else if (!Array.isArray(x) || x.length > 0) notHeld.push(key)
+      continue
+    }
+    if (isAdded(key) && Array.isArray(x) && Array.isArray(y)) {
+      // A part the text writes is the plan's as it is; one only the plan has gets its line.
+      const ours = new Map(x.map((part) => [idOf(part), canonical(part)]))
+      const theirs = new Map(y.map((part) => [idOf(part), canonical(part)]))
+      for (const [id, part] of theirs) if (ours.get(id) !== part) holds = false
+      const extra = [...ours.keys()].filter((id) => !theirs.has(id))
+      if (extra.length > 0) missing.set(key, new Set(extra))
+      continue
+    }
+    if (CARRIED_FACTS.has(key) && Array.isArray(x) && Array.isArray(y)) {
+      if (canonical(withoutFacts(x)) !== canonical(withoutFacts(y))) holds = false
+      if (factsOf(x) !== factsOf(y)) notHeld.push(`${key} facts`)
+      continue
+    }
+    if (canonical(x) !== canonical(y)) holds = false
+  }
+  if (plan.display?.words !== undefined) notHeld.push('display words')
+  return { holds, missing, notHeld }
+}
+
+/** The comment line naming what the text does not hold, above the text; the text as it is when it holds everything. */
+function withNotHeld(text: string, notHeld: readonly string[]): string {
+  return notHeld.length === 0 ? text : `# ${english(said('describe.rooms.notHeld', { list: notHeld.join(', ') }))}\n${text}`
+}
+
+/**
+ * The comment lines the read-back and the command write above a text, in every language Grid
+ * ships (`ownNotes`), each as a pattern of its wording with any figure or name in it.
+ */
+const OWN_NOTE_KEYS = ['label', 'describe.rooms.notHeld', 'describe.rooms.patterns.one', 'describe.rooms.patterns.many', 'describe.rooms.plainIds'] as const satisfies readonly MessageKey[]
+const ownNotes = (): RegExp[] =>
+  OWN_NOTE_KEYS.flatMap((key) =>
+    LANGUAGES.flatMap((language) => {
+      const wording = language === 'en' ? en[key] : ownWording(language, key)?.text
+      if (wording === undefined) return []
+      const pattern = wording.split(/\{[a-zA-Z]+\}/).map((piece) => piece.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')
+      return [new RegExp(`^# ${pattern}\\s*$`)]
+    })
+  )
+
+/**
+ * The kept text with its header set to the plan as it is: `based on` its revision, the `plan`
+ * line its name and the display line its language. A line is set where it is, or added at the
+ * head of the text (after its first comments and its `plan` line).
+ */
+function keptHeader(kept: string, basedOn: string, name: string | undefined, language: string | undefined): string {
+  const lines = kept.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n')
+  // The comment lines a read-back written back carries above its text are written again, not kept.
+  const notes = ownNotes()
+  for (let i = 0; i < lines.length && (lines[i]!.trim() === '' || lines[i]!.trim().startsWith('#')); ) {
+    if (notes.some((note) => note.test(lines[i]!))) lines.splice(i, 1)
+    else i++
+  }
+  const head = (): number => {
+    const first = lines.findIndex((line) => line.trim() !== '' && !line.trim().startsWith('#'))
+    return first < 0 ? lines.length : first
+  }
+  const find = (word: RegExp): number => lines.findIndex((line) => word.test(line))
+  if (name !== undefined) {
+    const at = find(/^\s*plan\b/)
+    const line = `plan ${quote(name)}`
+    if (at < 0) lines.splice(head(), 0, line)
+    else if (!lines[at]!.includes(quote(name))) lines[at] = line
+  }
+  const written = languageOfText(lines.join('\n')).language
+  if ((language ?? null) !== written) {
+    const at = find(/^\s*display\b/)
+    const own = at < 0 ? '' : lines[at]!
+    const hash = own.indexOf('#')
+    const words = (hash < 0 ? own : own.slice(0, hash)).replace(/\s+language\s+\S+/, '').trimEnd()
+    const line = language === undefined ? (words.trim() === 'display' ? '' : words) : `${words === '' ? 'display' : words} ${languageWords(language)}`
+    if (at >= 0) lines[at] = `${line}${hash < 0 ? '' : ` ${own.slice(hash)}`}`
+    else if (language !== undefined) lines.splice(head(), 0, line)
+  }
+  const based = find(/^\s*based\s+on\b/)
+  if (based >= 0) lines[based] = `based on ${basedOn}`
+  else {
+    const at = head()
+    lines.splice(/^\s*plan\b/.test(lines[at] ?? '') ? at + 1 : at, 0, `based on ${basedOn}`)
+  }
+  return `${lines.join('\n')}\n`
+}
+
+/** The lines of the parts a kept text has no line for, after its last floor's block, `last`. */
+function addedLines(plan: FloorPlan, missing: ReadonlyMap<AddedList, ReadonlySet<string>>, last: string): string[] {
+  const only = <T extends { readonly id: string }>(key: AddedList, list: readonly T[] | undefined): T[] => (list ?? []).filter((part) => missing.get(key)?.has(part.id) === true)
+  const extra: FloorPlan = {
+    ...plan,
+    grids: only('grids', plan.grids),
+    columns: only('columns', plan.columns),
+    stairs: only('stairs', plan.stairs),
+    buildings: only('buildings', plan.buildings),
+    items: only('items', plan.items),
+    bays: only('bays', plan.bays),
+    ramps: only('ramps', plan.ramps),
+    annotations: only('annotations', plan.annotations),
+    sketch: only('sketch', plan.sketch),
+  }
+  const has = (...keys: AddedList[]): boolean => keys.some((key) => (missing.get(key)?.size ?? 0) > 0)
+  return [
+    ...(has('grids') ? gridLines(extra.grids!) : []),
+    ...(has('columns') ? [...columnLines(extra.columns!, last, []), ...columnLines(extra.columns!, null, [last])] : []),
+    ...(has('stairs') ? stairLines(extra) : []),
+    ...(has('buildings') ? buildingLines(extra) : []),
+    ...(has('items') ? itemAndRowLines(extra) : []),
+    ...(has('bays', 'ramps') ? parkingLines(extra) : []),
+    ...(has('annotations', 'sketch') ? noteLines(extra, last) : []),
+  ]
+}
+
+/**
+ * The rooms text the plan was written from, as the reading: its header set to the plan as it is,
+ * and the lines of what a tool added since (an item, a column, a note) at its end. Each is written
+ * again and given only when it gives back the plan the file holds; null otherwise, and the plan
+ * is worked out as before.
+ */
+function keptReading(kept: string | undefined, plan: FloorPlan, basedOn: string, name: string | undefined): { text: string; notHeld: readonly string[] } | null {
+  if (kept === undefined || kept.trim() === '') return null
+  const text = keptHeader(kept, basedOn, name, plan.display?.language)
+  const compiled = compiledAgain(text)
+  if (compiled === null) return null
+  const written = asFile(compiled)
+  const held = heldBy(plan, written)
+  if (held === null || !held.holds) return null
+  if (held.missing.size === 0) return { text, notHeld: held.notHeld }
+  const last = written!.floors?.at(-1)?.id ?? 'ground'
+  const added = `${text}\n${addedLines(plan, held.missing, last).join('\n')}\n`
+  const again = compiledAgain(added)
+  if (again === null) return null
+  const after = heldBy(plan, asFile(again))
+  return after === null || !after.holds || after.missing.size > 0 ? null : { text: added, notHeld: after.notHeld }
 }
 
 /**
@@ -1159,7 +1385,8 @@ function unsettled(plan: FloorPlan, rule: Rule, name: string | undefined, drafts
 /** WRT-42: the text written again, or null when the writing fails outright, so the read-back never throws. */
 function compiledAgain(text: string, base?: BasePlan): RoomsResult | null {
   try {
-    return compileRoomsText(text, base === undefined ? {} : { base })
+    // WRT-87: the language words of a display line are the plan's, not the compiler's.
+    return compileRoomsText(languageOfText(text).text, base === undefined ? {} : { base })
   } catch {
     return null
   }

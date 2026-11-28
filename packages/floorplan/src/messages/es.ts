@@ -2374,6 +2374,7 @@ export const es: Messages = {
   'describe.rooms.rawOpening': 'El hueco {opening} se escribe en los términos propios de Grid: {why}.',
   'describe.rooms.rawOpening.unplaced': 'el texto de estancias no tiene una línea que lo sitúe tal como es',
   'describe.rooms.rawOpening.changes': 'escrito como texto de estancias, {what}',
+  'describe.rooms.notHeld': 'No está en este texto, y grid write lo conserva solo cuando el texto se escribe sobre este mismo archivo de plano: {list}.',
   'describe.rooms.unsettled': 'su texto de estancias no pudo comprobarse frente al plano en {rounds} escrituras',
   'describe.rooms.leftOut': 'Se deja fuera: el muro {wall} no tiene longitud, pues sus dos extremos son un mismo punto, así que la comprobación también lo deja fuera del plano, y escribir este texto da el plano sin él.',
   'describe.rooms.leftOut.opening': 'Se deja fuera: el hueco {opening} está en el muro {wall}, que no tiene longitud, así que la comprobación también lo deja fuera del plano.',

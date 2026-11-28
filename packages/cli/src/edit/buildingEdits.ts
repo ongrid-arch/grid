@@ -6,7 +6,7 @@
  * file as written (`Patch.lists`). The parts are found by `buildingParts.ts`.
  */
 import { floorOf, planBuildings, planFloors, type FloorPlan } from '@ongrid/floorplan/geometry'
-import { compileRoomsText, everyProblem, planRevision, problemLines } from '@ongrid/floorplan/rooms'
+import { compileRoomsText, everyProblem, languageOfText, planRevision, problemLines } from '@ongrid/floorplan/rooms'
 import { safeParseFloorPlan, statedItem, statedOpening, statedWall } from '@ongrid/floorplan/types/floorplan'
 import type { Survey } from '../quantities/survey'
 import { buildingNamed, buildingPlan, buildingParts, freeId, idOnFloor, movedBy, ON_A_FLOOR, OTHER_LISTS, planIdsIn, refuseTaken, renamedIds, type BuildingParts, type RawRecord } from './buildingParts'
@@ -82,10 +82,12 @@ export interface BuildingTextRequest {
 export function writeBuildingText(survey: Survey, request: BuildingTextRequest): Patch {
   const plan = survey.plan
   const known = planBuildings(plan).find((b) => b.id === request.building)
-  const result = compileRoomsText(request.text.normalize('NFC'))
+  // WRT-87: a display line's language is the whole plan's, so a building's text read back with one writes without it.
+  const spoken = languageOfText(request.text.normalize('NFC')).text
+  const result = compileRoomsText(spoken)
   if (result.plan === null) {
     // MSG-33: every independent problem of the text, each one listed.
-    const lines = problemLines(everyProblem(request.text.normalize('NFC'), result))
+    const lines = problemLines(everyProblem(spoken, result))
     throw new EditRefused(`The rooms text was not written: ${lines[0] ?? 'it could not be read'}${lines.length > 1 ? ` (${lines.length - 1} more: ${lines.slice(1).join(' | ')})` : ''}.`)
   }
   const text = safeParseFloorPlan(result.plan)

@@ -33,7 +33,7 @@ afterAll(() => b.close())
 describe('the ground level', () => {
   it('is written by a ground line and read back as one', async () => {
     expect(file('grounded.json')['site']).toEqual({ ground: -0.15 })
-    expect((await ok('grid_describe', { plan: 'grounded.json', as: 'rooms' })).text).toContain('ground -0.15')
+    expect((await ok('grid_describe', { plan: 'grounded.json', as: 'rooms' })).text).toContain('ground 0.15 below')
   })
 
   it('is set by grid_set_site ground, and the tool names the line', async () => {

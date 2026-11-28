@@ -2894,6 +2894,9 @@ export const FloorPlanFieldsSchema = z.object({
       from: z.literal('rooms'),
       revision: z.string().regex(/^[0-9a-f]{16}$/),
       boundaries: z.record(text('id'), z.string().regex(/^[0-9a-f]{8}$/)),
+      // WRT-87: the rooms text Grid last wrote the plan from, as it was written. The read-back
+      // gives it again while it still writes the plan as the file holds it. Optional (version 1).
+      text: z.string().optional(),
     })
     .optional()
     .catch(undefined),
