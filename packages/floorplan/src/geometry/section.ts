@@ -57,7 +57,7 @@ import { floorRoofShape, headroomBands, planeAt, risesToRoof, roomHeadroom, topA
 import { wallTypeOf } from './partTypes'
 import type { MultiPolygon, Polygon } from 'polygon-clipping'
 import { heightByDefault } from '../types/floorplan'
-import type { Floor, FloorPlan, RoofShape, Wall } from './plan'
+import type { Floor, FloorPlan, Opening, RoofShape, Wall } from './plan'
 import { indexPlan, openingsOf } from './plan'
 import { floorOf, planFloors, planForFloor } from './floors'
 import { wholeWall } from './through'
@@ -242,6 +242,18 @@ export interface SectionRoof {
   readonly parapet?: number
 }
 
+/** VEW-89: a door or window the line cuts: where across the section, and its sill and head levels. */
+export interface SectionOpening {
+  readonly id: string
+  readonly floor: string
+  readonly type: Opening['type']
+  readonly from: number
+  readonly to: number
+  /** In metres from the datum, as the levels are: the floor's level plus the opening's sill, and plus its height. */
+  readonly sill: number
+  readonly head: number
+}
+
 export type SectionAssumptionKind = 'slab' | 'roof' | 'wall-height' | 'wall-top' | 'wall-roof' | 'marked' | 'ground' | 'level' | 'room-height' | 'no-stair' | 'risers' | 'waist'
 
 /** Something the section takes that the plan does not state. */
@@ -285,6 +297,8 @@ export interface PlanSection {
    * Their sides beyond the cut are in `beyond`, of kind `item`.
    */
   readonly items: readonly SectionPart[]
+  /** VEW-89: the doors and windows the line cuts through, floor by floor, in plan order. */
+  readonly openings: readonly SectionOpening[]
   /** What lies beyond the cut, farthest first. */
   readonly beyond: readonly SectionFace[]
   /**
@@ -494,6 +508,7 @@ function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
   const marks = planMarks(plan)
   const parts: SectionPart[] = []
   const itemParts: SectionPart[] = []
+  const cutOpenings: SectionOpening[] = []
   const faces: SectionFace[] = []
   const rooms: SectionRoom[] = []
   const notes: SectionAssumption[] = []
@@ -725,6 +740,13 @@ function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
       const wall = whole.wall
       const openings = whole.openings
       const ends = joints.get(wall.id) ?? SQUARE_ENDS
+      // VEW-89: each door and window the line cuts through, for the section's dimension chains.
+      for (const o of openings) {
+        if (o.width <= none) continue
+        for (const [x0, x1] of inside(frame, [wallSlicePolygon(wall, Math.max(0, o.offset), o.offset + o.width, ends)])) {
+          cutOpenings.push({ id: o.id, floor: floor.id, type: o.type, from: snap(x0), to: snap(x1), sill: snap(base + o.sill), head: snap(base + o.sill + o.height) })
+        }
+      }
       if (wall !== part) {
         for (const o of openings) {
           for (const [x0, x1] of inside(frame, [wallSlicePolygon(wall, Math.max(0, o.offset), o.offset + o.width, ends)])) throughHoles.push(rect(snap, x0, x1, base + o.sill, base + o.sill + o.height))
@@ -1445,6 +1467,7 @@ function workOutSection(stated: FloorPlan, line: SectionLine): PlanSection {
     parts,
     glass,
     items: itemParts,
+    openings: cutOpenings,
     beyond: faces,
     ground: { level: ground.level, stated: ground.stated, segments, earth, ...(fall === undefined ? {} : { fall }), ...(profile === undefined ? {} : { profile }) },
     levels: levels.map((level) => withSpan(level, floorSpan(level.floor))).sort((a, b) => a.level - b.level),
