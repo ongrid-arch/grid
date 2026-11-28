@@ -632,6 +632,9 @@ export const en = {
   'route.commonParts.onward': 'This way out ends on the building\'s common parts, which the plan does not draw: the way on from there (the landing, the stair) is not followed or measured. grid_check takes it as the way out too (way_out_through_common_parts).',
   'route.doorOutAboveGround': 'The {kind} {via} from {room} leads outside {height} m above the ground, so it is not taken as a way out. If it is the front door onto the building\'s common landing, mark its wall {wall} separating (a party wall or a wall to the common parts) or beyond common, any number of walls in one grid_set call: it is then the way out.',
   'route.blockedDoorway': 'The {kind} {via} between {rooms} is closed: {items} leaves none of it clear.',
+  // ARE-78: a route between rooms on different floors: the other stairs off its floor, and a way by a lift.
+  'route.otherWays': 'Other ways between the floors: {ways}.',
+  'route.byLift': 'No stair joins these floors on the way, so it goes by the lift: the ride is not in the walked length, and a lift is never a way out.',
   'check.noStair.route': 'There is no way out from {floor}: it stands above the ground and nothing joins it to the ground floor, no room on it is used as a stair or a lift and no stair or ramp is stated to it, so no route from {room} goes down to a door out (grid check: floor/no-stair).',
   'check.outOfLine.stair': 'The stair {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so it does not join the two floors',
   'check.outOfLine.lift': 'The lift shaft {upper} on {upperFloors} does not lie over {lower} on {lowerFloors}, so the shaft is out of line',
