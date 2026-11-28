@@ -70,7 +70,7 @@ describe('a section through a sloped roof (LVL-20)', () => {
     expect(cutTopAt(section, xAt(1.5))).toBeCloseTo(3.4 + 0.25 * Math.sqrt(1 + (2 / 3) ** 2), 2)
     // The walls cut stand under the roof: none rises past the underside over its line.
     for (const ring of partsOf(section, 'wall')) expect(Math.max(...ring.map((p) => p.y))).toBeLessThanOrEqual(2.4 + 0.15 * (2 / 3) + 0.01)
-    expect(section.roofs).toEqual([{ floor: 'ground', level: expect.any(Number), shape: 'gable', pitch: expect.closeTo((Math.atan(2 / 3) * 180) / Math.PI, 6), eaves: 2.4, ridge: 4.4 }])
+    expect(section.roofs).toEqual([{ floor: 'ground', level: expect.any(Number), shape: 'gable', pitch: expect.closeTo((Math.atan(2 / 3) * 180) / Math.PI, 6), eaves: 2.4, ridge: 4.4, from: expect.any(Number), to: expect.any(Number) }])
     const roofNote = section.assumed.find((a) => a.kind === 'roof')!
     expect(roofNote.words).toBe('The roof over "Loft" is drawn on its slopes, as the floor states it (a gable roof), and taken as 0.25 m thick.')
     expect(roofNote.words).not.toContain('not draw')

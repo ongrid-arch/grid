@@ -3669,6 +3669,7 @@ export const en = {
   'drawing.section.taken.wallRoof.many': '{count} walls cut on {floor} rise to the roof over them, past the heights they state, as outside walls under a stated roof do ({ids}).',
   'drawing.section.eaves': '{level} Eaves',
   'drawing.section.ridge': '{level} Ridge',
+  'drawing.section.parapet': '{level} Parapet',
   'drawing.section.headroom': '{height} m headroom',
   'drawing.section.roofShape.mono-pitch': 'mono-pitch',
   'drawing.section.roofShape.gable': 'gable',

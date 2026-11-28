@@ -3480,6 +3480,7 @@ export const es: Messages = {
   'drawing.section.taken.wallRoof.many': '{count} muros cortados en {floor} suben hasta la cubierta que tienen encima, por encima de las alturas que indican, como lo hacen los muros exteriores bajo una cubierta indicada ({ids}).',
   'drawing.section.eaves': '{level} Alero',
   'drawing.section.ridge': '{level} Cumbrera',
+  'drawing.section.parapet': '{level} Peto',
   'drawing.section.headroom': '{height} m de altura libre',
   'drawing.section.roofShape.mono-pitch': 'de una vertiente',
   'drawing.section.roofShape.gable': 'a dos aguas',
