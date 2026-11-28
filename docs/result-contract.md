@@ -79,6 +79,7 @@ default, and the whole one on request (MSG-10, see "The short report, and seen n
 | `values` | Only when the line's words name a figure, a name, an id or a place (MSG-11): those values, by the names its wording gives them, the same in every language, but for the name Grid gives the floor of a plan with no floor list, which is Grid's own word in the record's language ("Planta baja", MSG-22). A figure is a number, rounded as the words give it. |
 | `causedBy` | Only on a line that follows from another (MSG-5): that line, as `{ code, id }`, the id of the part it is about (`""` for the plan; for `plan/duplicate-id`, the id it names). The line is listed under it and goes away when it is fixed. |
 | `each` | Only on a line that stands for the same note on several parts (MSG-5) or floors (MSG-36): each of them, `{ kind, id }`, `thing` first. Its message lists their names, or their ids or floors as runs. |
+| `floors` | Only on a line said once for alike lines on more than one floor (MSG-36): the id of each floor it holds for, `floor` first. A view of one floor (`grid check --floor`, a floor's drawing, a sheet's floor page) shows the line on each of them. |
 | `held` | Only on `floor/not-checked-rooms-not-drawn` and `floor/not-checked-doors-not-drawn` (MSG-5): the notes held back because they rest on what the line names, each `{ code, thing, floor, also, waitsFor }`. `waitsFor` holds the ids of the rooms and openings that could not be drawn. |
 | `firm` | Only on a `firm/` line (COD-8): the firm's own figure it was set against, `{ standard, measure, value, unit, name, note, file }`, `standard` its place in the file's list from 0 and `note` the firm's own note on where the figure comes from, or null (ARE-27). Never a code's: such a line has no `figures`. |
 | `fixes` | Only where a change to one part would clear the line (MSG-7): each such change as data, `{ part: "opening", id, width \| offset \| height \| sill \| wall }`. Several when more than one would do. `width` keeps the opening's start; `wall` is the id most likely meant. In `grid_check`, each line with fixes also carries `calls`: the same changes as calls to `grid_change_opening`, with the plan argument, ready to send. A `wall` fix has no call: no tool sets an opening's wall. |
@@ -138,7 +139,8 @@ rooms beside it (lab MS-4, MS-5, W-6, W-7). Since MSG-5:
   "l04")", when it is one part per floor or a line about floors, else with the parts, "(the same
   for 14 openings: "door-101" to "door-114")", and how many floors they are on when more than one.
   Its `thing`, `floor`, `found`, `needed` and `fix` are the first line's; `each` holds every part,
-  `also` every other id, `held` and `fixes` every entry. A figure that differs keeps lines apart,
+  `also` every other id, `floors` every floor when there is more than one, `held` and `fixes`
+  every entry. A view of one floor shows it on each floor in `floors`. A figure that differs keeps lines apart,
   and a line about the plan as a whole is never grouped. `count` and `problems` count the one line.
 
 `problems` counts the lines with no `causedBy`, `not-checked` lines aside. `grid check` sets each

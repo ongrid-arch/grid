@@ -10,8 +10,8 @@ import type { Display } from '@ongrid/floorplan/types/units'
 import type { Language } from '@ongrid/floorplan/messages'
 import { poleOfInaccessibility, type Bounds, type CameraRecord, type FloorPlan, type Vec2 } from '@ongrid/floorplan/geometry'
 import type { Picture } from '@ongrid/viewer/src/picture'
-import { LOOKS as PICTURE_LOOKS, comparisonPicture, facadePicture, fileHeight, fullHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
-import { planFloors, resolveFloor, type BuildingComparison, type Facade, type FacadeSide } from '@ongrid/floorplan/geometry'
+import { LOOKS as PICTURE_LOOKS, comparisonPicture, facadePicture, sitePlanPicture, fileHeight, fullHeight, pictureToSvg, planPicture, PICTURE_FONT, type FaultLine, type PictureShow, type TracePicture } from '@ongrid/viewer/src/picture'
+import { planFloors, resolveFloor, type BuildingComparison, type Facade, type FacadeSide, type SitePlan } from '@ongrid/floorplan/geometry'
 import { el, toSvg } from '@ongrid/viewer/src/picture/svgNode'
 import { sectionPicture } from '@ongrid/viewer/src/picture/section'
 import type { PlanSection, SectionLine } from '@ongrid/floorplan/geometry/section'
@@ -63,7 +63,7 @@ function svgOf(picture: Picture): () => string {
 
 export async function planView(
   plan: FloorPlan,
-  options: { floor?: string; look: LookName; dimensions: boolean; ids?: boolean; display?: Display; frame?: Bounds; faults?: readonly FaultLine[]; show?: PictureShow; language?: Language; marks?: DrawingMarksAsked; trace?: TracePicture },
+  options: { floor?: string; look: LookName; dimensions: boolean; ids?: boolean; display?: Display; frame?: Bounds; faults?: readonly FaultLine[]; show?: PictureShow; language?: Language; marks?: DrawingMarksAsked; trace?: TracePicture; site?: boolean },
 ): Promise<PlanView> {
   // VEW-2's check view: every room, door and window carries its id. VEW-6: a frame crops.
   // MSG-8: the result record's lines, marked on the drawing and listed under it.
@@ -79,6 +79,8 @@ export async function planView(
     ...(options.marks ? { marks: options.marks } : {}),
     // HND-10: the trace image under the plan, read from the project folder by the caller.
     ...(options.trace ? { trace: options.trace } : {}),
+    // VEW-85: the site faint under the floor.
+    ...(options.site ? { site: true } : {}),
   }
   const picture = planPicture(plan, { floor: options.floor ?? null, look: lookOf(options.look), showDimensions: options.dimensions, ...extra })
   const png = await pictureToPng(picture)
@@ -118,6 +120,17 @@ export async function facadeView(plan: FloorPlan, options: { side: FacadeSide; l
   const picture = facadePicture(plan, { side: options.side, look: drawingLook(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
   const png = await pictureToPng(picture)
   return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, facade: picture.facade, pixelToMetres: pixelTransform(picture, 'facade'), svg: svgOf(picture) }
+}
+
+/**
+ * VEW-85: the site plan: the plot seen from above with every building on it. The core works out
+ * what is drawn (`sitePlan`); the viewer draws it (`sitePlanPicture`), in the look asked for.
+ */
+export async function siteView(plan: FloorPlan, options: { look: LookName; language?: Language; display?: Display }): Promise<PlanView & { readonly sitePlan: SitePlan; readonly scaleBar: { readonly metres: number; readonly words: string } }> {
+  const picture = sitePlanPicture(plan, { look: drawingLook(options.look), ...(options.language === undefined ? {} : { language: options.language }), ...(options.display === undefined ? {} : { display: options.display }) })
+  const png = await pictureToPng(picture)
+  return { png, width: picture.width, height: fileHeight(picture), pxPerMetre: picture.width / picture.view.width, sitePlan: picture.sitePlan, scaleBar: picture.scaleBar, pixelToMetres: pixelTransform(picture, 'plan'), svg: svgOf(picture),
+    bounds: { minX: picture.view.x, minY: -(picture.view.y + picture.view.height), maxX: picture.view.x + picture.view.width, maxY: -picture.view.y } }
 }
 
 /**

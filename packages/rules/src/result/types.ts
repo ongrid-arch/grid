@@ -118,6 +118,11 @@ export interface ResultLine {
    */
   readonly each?: readonly Thing[]
   /**
+   * MSG-36: on a line said once for alike lines on several floors: each floor it holds for,
+   * `floor` first. A view of one floor shows the line on every one of them (`holdsOnFloor`).
+   */
+  readonly floors?: readonly string[]
+  /**
    * MSG-5: on `floor/not-checked-rooms-not-drawn` and `floor/not-checked-doors-not-drawn`: the
    * notes held back because they rest on the parts the line names.
    */

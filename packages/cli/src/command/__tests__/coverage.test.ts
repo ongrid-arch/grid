@@ -141,19 +141,30 @@ describe('the ground-plus-five block (CH-4)', () => {
     expect(escape.lookedAt.map((g) => [g.floor, g.ids.length])).toEqual([['L1', 6], ['L2', 6]])
   })
 
-  it('gives one "not checked" line on each of floors 3 to 5, 18 bedrooms in all', () => {
+  it('gives one "not checked" line for floors 3 to 5, holding for each of them, 18 bedrooms in all', () => {
+    // MSG-36: the same note on three floors is said once, for the floors it holds for; the
+    // coverage still names each floor's six bedrooms (above).
     const lines = result.result.lines.filter((l) => l.code === 'floor/not-checked-above-escape-storeys')
-    expect(lines.map((l) => l.floor)).toEqual(['L3', 'L4', 'L5'])
-    expect(lines.map((l) => l.message)).toEqual(['Floor 3', 'Floor 4', 'Floor 5'].map((f) => `On "${f}", escape openings were not checked in bedrooms: the figures here cover bedrooms up to the third storey: 6`))
-    expect(lines.flatMap((l) => l.also.map((id) => key(l.floor!, id))).sort()).toEqual(bedroomsAbove)
+    expect(lines.map((l) => [l.floor, l.floors])).toEqual([['L3', ['L3', 'L4', 'L5']]])
+    expect(lines[0]!.each).toEqual(['L3', 'L4', 'L5'].map((id) => ({ kind: 'floor', id })))
+    expect(lines[0]!.message).toBe('On "Floor 3", escape openings were not checked in bedrooms: the figures here cover bedrooms up to the third storey: 6 (the same on 3 floors: "L3" to "L5")')
+    const named = new Set(lines[0]!.also)
+    expect(bedroomsAbove.filter((k) => !named.has(k.split('/')[1]!))).toEqual([])
   })
 
   it('shows a floor alone with its own lines and coverage', () => {
     const one = checkPlan(plan(BLOCK), { country: 'US', floor: 'L4' })
-    expect(one.result.lines.filter((l) => l.code === 'floor/not-checked-above-escape-storeys').map((l) => l.floor)).toEqual(['L4'])
+    // MSG-36: the line said once for floors 3 to 5 is on floor 4's view too.
+    const notChecked = one.result.lines.filter((l) => l.code === 'floor/not-checked-above-escape-storeys')
+    expect(notChecked.map((l) => l.floors)).toEqual([['L3', 'L4', 'L5']])
     const escape = one.result.coverage.find((c) => c.ruleId === 'escape-opening')!
     expect(escape.skipped.filter((s) => s.reason === 'above_escape_storeys').map((s) => s.floor)).toEqual(['L4'])
     expect(escape.lookedAtCount).toBe(0)
+  })
+
+  it('puts a line said once for several floors on the view of each of them, and of no other (MSG-36)', () => {
+    const shown = (floor: string): number => checkPlan(plan(BLOCK), { country: 'US', floor }).result.lines.filter((l) => l.code === 'floor/not-checked-above-escape-storeys').length
+    expect(['L1', 'L2', 'L3', 'L4', 'L5'].map(shown)).toEqual([0, 0, 1, 1, 1])
   })
 })
 
