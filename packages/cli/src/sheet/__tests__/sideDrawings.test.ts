@@ -85,7 +85,8 @@ describe('the elevations and sections at one scale (SHT-23)', () => {
 
   const pictureOf = (drawing: PlacedDrawing, scale: number) => drawing.of === 'facade'
     ? facadePicture(house.plan, { side: drawing.side, width: drawing.width, height: drawing.height, look: 'technical', paperScale: scale })
-    : sectionPicture(house.plan, drawing.cut.line, { width: drawing.width, height: drawing.height, look: 'technical', paperScale: scale, label: drawing.cut.label })
+    // VEW-89: as the sheet draws it, without the dimension chains.
+    : sectionPicture(house.plan, drawing.cut.line, { width: drawing.width, height: drawing.height, look: 'technical', paperScale: scale, label: drawing.cut.label, dimensions: false })
 
   it('prints a metre of every drawing the same length: the scale stated', () => {
     const k = pointsPerMetre(sides.scale)
