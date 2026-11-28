@@ -168,6 +168,8 @@
  *   bays <group> in <room> along <side> | fill, <w> x <l> ...   or   bays <group> at x,y, <w> x <l>, count <n>, runs <way> ...
  *   ramp <id> ["<name>"] from <floor|room> to <floor|room> [in <room>], <w> wide, straight, runs <way> | helix ... | run x,y ...
  *   raw bay { ... }   raw ramp { ... }                  the plan's bays and ramps (CNT-46): `parking.ts`
+ *   bay in <room> <side>, [<m> from <end>,] <w> wide, <d> deep, curved | canted [<deg>] [, windows <n> [<w> wide]]
+ *                                                      a bay window on the room's side (WRT-88): `bayWindows.ts`
  *
  * An opening pattern (LVL-8) is not rooms text, in a unit or out of one: a `pattern` line is
  * refused with where a pattern goes instead (`patternLine`). It lives in the plan file's
@@ -216,6 +218,8 @@ import { isRoofPartLine, isRooflightLine, ROOF_LINE_WORDS, RoofLines, roofOfWord
 import { COLUMN_LINE_WORDS, ColumnLines } from './columns'
 import { GRID_LINE_WORDS, GridLines } from './grids'
 import { likelyMeant } from '../types/nearest'
+import { bayOnSide, readBayLine, type BayAim } from './bayWindows'
+import { wallClearRuns } from '../geometry/openingPlaces'
 import { bandShape, bowedSide, circleShape, rawWallEnds, cornerCount, curvedArea, curveOfPiece, curveWalls, facingAngle, frameAt, ovalShape, segmentShape, stationAt, type CurveCircle, type CurvedShape, type CurvedWall } from './curves'
 import { readingNotes } from '../types/reading'
 
@@ -650,6 +654,8 @@ interface OpeningLine {
   name?: string
   /** LVL-16: carried up with two rooms that rise through, from the floor they rise from. */
   risen?: true
+  /** WRT-88: a bay's window, aimed at its facet or at its place along the bay's curve, and whether the bay line states its width. */
+  bay?: { aim: BayAim; stated: boolean }
 }
 
 interface FloorDraft {
@@ -683,7 +689,7 @@ interface FloorDraft {
    */
   ahead: Set<string>
   /** WRT-78: `curve`, for a curved side's line: it applies to that curve's pieces. */
-  extover: Array<{ room: string; side: string; say: WallSay; curve?: CurveCircle }>
+  extover: Array<{ room: string; side: string; say: WallSay; curve?: CurveCircle; facet?: readonly [P, P] }>
   openings: OpeningLine[]
   raw: { walls: unknown[]; rooms: unknown[]; openings: unknown[] }
   /** CNT-4: each placement of a flat type on this floor: its label, its unit, its rooms and whether it is mirrored. */
@@ -1005,6 +1011,10 @@ class Compiler {
   private readonly noteLines = new NoteLines()
   /** WRT-75: the base plan a fit-out names (`base.ts`). */
   readonly baseLine = new BaseLine()
+  /** WRT-88: the clear runs of each floor's walls, by floor and wall, for its bay windows (`bayFit`). */
+  private readonly bayRuns = new Map<string, Map<string, { from: number; to: number }[]>>()
+  /** WRT-88: how many bays each room has had put into it, by floor and room, so each bay's windows have their own names. */
+  private readonly bayCounts = new Map<string, number>()
   /** CNT-46: the parking bays and ramps, from their own lines and `raw bay`, `raw ramp`. */
   private readonly parkingLines = new ParkingLines()
   /** WRT-79: the floors whose roof is written, by a roof line or `raw floor` (`roofs.ts`). */
@@ -1329,6 +1339,8 @@ class Compiler {
     if (NOTE_LINE_WORDS.includes(kw)) return this.noteLines.read(quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
     // WRT-75: the base plan a fit-out is written on (`base.ts`).
     if (BASE_LINE_WORDS.includes(kw)) return this.baseLine.read(this.lines[at - 1] ?? '', at)
+    // WRT-88: a bay window on a room's side (`bayWindows.ts`); a parking bay line never has 'in' after 'bay'.
+    if (kw === 'bay' && t[1] === 'in') return this.stBay(t, at)
     // CNT-46: a bay, a row of bays or a ramp (`parking.ts`), laid out once the rooms are drawn.
     if (PARKING_LINE_WORDS.includes(kw)) return this.parkingLines.read(t, quotedWordsOf(this.lines[at - 1] ?? '', at), at, this.plain, this.cur?.id ?? null)
     // WRT-79: the floor's roof and its roof lights (`roofs.ts`), and the columns (`columns.ts`).
@@ -2577,6 +2589,101 @@ class Compiler {
     if (k < t.length) fl.extover.push({ room: rid, side, say: this.wallSay(t.slice(k), at), curve: bowed.curves[0]! })
   }
 
+  /**
+   * WRT-88: `bay in <room> <side>, ...`: a curved or canted bay put into the room's one straight
+   * side facing that way (or `<side>.<k>`, counted as an opening's side is), at once, as a curved
+   * side is (`bayWindows.ts`); its windows join the floor's openings, each aimed at its place in
+   * the bay, so they are placed and checked as every window is.
+   */
+  private stBay(t: string[], at: number): void {
+    const fl = this.floor()
+    const bay = readBayLine(t, at, this.plain)
+    const room = fl.rooms.get(bay.room)
+    if (room === undefined) this.stop('rooms/unknown-room', at, english(said('rooms.rawRoom.unknown', { line: at, room: bay.room, floor: fl.id, rooms: [...fl.rooms.keys()].join(', ') })))
+    const [side, nth] = bay.side.includes('.') ? (bay.side.split('.', 2) as [string, string]) : [bay.side, null]
+    if (!Object.hasOwn(COMPASS, side)) this.stop('rooms/syntax', at, english(said('rooms.bay.form', { line: at })))
+    const poly = room.poly
+    const facing = poly
+      .flatMap((p, i) => {
+        const q = poly[(i + 1) % poly.length]!
+        if (curveOfPiece(room.curves, p, q) !== null) return []
+        const L = norm(sub(q, p))
+        const out: P = [(q[1] - p[1]) / L, -(q[0] - p[0]) / L]
+        return dot(out, COMPASS[side]!) > 0.9 ? [{ i, key: [p[0] + q[0], p[1] + q[1]] as P }] : []
+      })
+      .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1])
+    const k = nth === null ? (facing.length === 1 ? 1 : 0) : Number(nth)
+    if (!(Number.isInteger(k) && k >= 1 && k <= facing.length)) this.stop('rooms/no-side', at, english(said('rooms.bay.side', { line: at, room: bay.room, count: facing.length, side })))
+    const i = facing[k - 1]!.i
+    const p = poly[i]!
+    const q = poly[(i + 1) % poly.length]!
+    const L = norm(sub(q, p))
+    const u = unit(sub(q, p))
+    let s0 = (L - bay.width) / 2
+    if (!bay.place.centred) {
+      this.measuredFrom(u, bay.place.from, at)
+      s0 = dot(u, COMPASS[bay.place.from]!) > 0 ? L - bay.place.dist - bay.width : bay.place.dist
+    }
+    const shape = bayOnSide(poly, i, s0, bay, at, room.wallsT ?? fl.rule.outside)
+    room.poly = shape.poly.map((x) => [x[0], x[1]] as P)
+    if (shape.curves.length > 0) room.curves = [...(room.curves ?? []), ...shape.curves]
+    room.box = boxOf([room.poly])
+    // The windows are named by the room, and by the bay's number on it after the first.
+    const key = `${fl.id}\u0000${room.id}`
+    const count = (this.bayCounts.get(key) ?? 0) + 1
+    this.bayCounts.set(key, count)
+    const prefix = count === 1 ? `${room.id}-bay` : `${room.id}-bay${count}`
+    // Its walls are named by it too: the curve `<prefix>-wall`, the facets `<prefix>-wall-1` to `-3`.
+    if (shape.curves.length > 0) fl.extover.push({ room: room.id, side, say: this.wallSay(['id', `${prefix}-wall`], at), curve: shape.curves[0]! })
+    shape.facets.forEach((f, n) => fl.extover.push({ room: room.id, side, say: this.wallSay(['id', `${prefix}-wall-${n + 1}`], at), facet: f }))
+    shape.windows.forEach((win, n) => fl.openings.push({ words: ['window', `${prefix}-${n + 1}`, 'in', room.id, bay.side, 'centred', `${metres(win.width)}m`, 'wide'], line: at, bay: { aim: win.aim, stated: bay.windowWidth !== null } }))
+  }
+
+  /** WRT-88: the side, or the place along a curve, a bay's window is aimed at, found among the walls worked out. */
+  private bayAimed(edges: readonly Edge[], raws: readonly RawWall[], rid: string, aim: BayAim, oid: string, at: number): { e: Edge; arcAt: { r: RawWall; curve: CurvedWall; room: RoomDraft; inside: boolean; angle: number } | null } {
+    const near = (a: P, b: P): boolean => norm(sub(a, b)) < eps()
+    if ('facet' in aim) {
+      const [a, b] = aim.facet
+      const e = edges.find((x) => x.room.id === rid && ((near(x.p, a) && near(x.q, b)) || (near(x.p, b) && near(x.q, a))))
+      if (e !== undefined) return { e, arcAt: null }
+    } else {
+      for (const r of raws) {
+        const curve = r.wall === undefined ? undefined : this.curvedWalls.get(r.wall)
+        if (curve === undefined || !near(curve.c, aim.centre)) continue
+        for (const [idx] of r.sides) {
+          const edge = edges[idx]!
+          if (edge.room.id !== rid) continue
+          return { e: edge, arcAt: { r, curve, room: edge.room, inside: dot(sub(mul(add(edge.p, edge.q), 0.5), curve.c), edge.n) > 0, angle: aim.angle } }
+        }
+      }
+    }
+    this.stop('rooms/no-side', at, english(said('rooms.bay.lost', { line: at, id: oid, room: rid })))
+  }
+
+  /**
+   * WRT-88: where a bay's window goes on its wall, clear of the walls that meet the wall there
+   * (`wallClearRuns`, the runs the drawing's check measures): moved along into the clear run
+   * about its middle when the bay line states its width, else cut back to that run less
+   * `bayWindowPier` at each end; the run's length when it holds no window. The runs are worked out once a floor.
+   */
+  private bayFit(floor: string, raws: readonly RawWall[], wall: DerivedWall, offset: number, width: number, stated: boolean): { offset: number; width: number } | number {
+    let runs = this.bayRuns.get(floor)
+    if (runs === undefined) {
+      const walls = [...new Set(raws.flatMap((r) => (r.wall === undefined ? [] : [r.wall])))].map((x) => x.json as unknown as Wall)
+      runs = wallClearRuns(walls)
+      this.bayRuns.set(floor, runs)
+    }
+    const middle = offset + width / 2
+    const run = (runs.get(wall.id) ?? []).find((x) => x.from - eps() <= middle && middle <= x.to + eps())
+    if (run === undefined || (offset >= run.from - eps() && offset + width <= run.to + eps())) return { offset, width }
+    // Too narrow a run for it: the length of the run, for the refusal.
+    if (stated) return run.to - run.from < width - eps() ? run.to - run.from : { offset: Math.min(Math.max(offset, run.from), run.to - width), width }
+    const from = Math.max(offset, run.from + limit('bayWindowPier'))
+    const to = Math.min(offset + width, run.to - limit('bayWindowPier'))
+    // A window narrower than Grid asks about is no window the bay has room for.
+    return to - from >= limit('openingNarrowest') - eps() ? { offset: from, width: to - from } : run.to - run.from
+  }
+
   private stWall(t: string[], at: number): void {
     const fl = this.floor()
     // WRT-48: a name that is no room yet is checked once every line is read (`wallRooms`).
@@ -2998,7 +3105,7 @@ class Compiler {
     if (words.openings) {
       for (const o of src.openings) {
         if (here.has(o.words[1])) continue
-        fl.openings.push({ words: tr === null ? o.words : turnedOpeningWords(o.words, polys, tr), line: o.line, ...(o.name === undefined ? {} : { name: o.name }) })
+        fl.openings.push({ words: tr === null ? o.words : turnedOpeningWords(o.words, polys, tr), line: o.line, ...(o.name === undefined ? {} : { name: o.name }), ...(o.bay === undefined || tr !== null ? {} : { bay: o.bay }) })
       }
     }
     this.renumbered(src, fl)
@@ -3420,7 +3527,9 @@ class Compiler {
       if (e.L - cur > eps()) gaps.push([cur, e.L])
       let say: WallSay | null = null
       const onCurve = curveOfPiece(A.curves, e.p, e.q)
-      for (const x of fl.extover) if (x.room === A.id && (x.curve !== undefined ? onCurve === x.curve : onCurve === null && dot(e.n, COMPASS[x.side]!) > 0.9)) say = x.say
+      // WRT-88: a bay's facet is named by its own entry, matched by its ends.
+      const onFacet = (f: readonly [P, P]): boolean => norm(sub(e.p, f[0])) < eps() && norm(sub(e.q, f[1])) < eps()
+      for (const x of fl.extover) if (x.room === A.id && (x.facet !== undefined ? onFacet(x.facet) : x.curve !== undefined ? onCurve === x.curve : onCurve === null && dot(e.n, COMPASS[x.side]!) > 0.9)) say = x.say
       // WRT-76: open, a railing or a wall, by the wall line, 'open <side>', 'edge' and whether it is outdoor space.
       const side = outsideEdge({
         outdoor: A.outdoor !== null,
@@ -4369,7 +4478,7 @@ class Compiler {
     return { u, fromEnd, param: (p) => middle + dot(sub(p, frame.point), u), sideOf: (p) => cross(u, sub(p, frame.point)), P0, P1, e, offset }
   }
 
-  private resolveOpening(fl: FloorDraft, edges: Edge[], raws: RawWall[], t: string[], at: number, oid: string, wallHeight: number): Opening | null {
+  private resolveOpening(fl: FloorDraft, edges: Edge[], raws: RawWall[], t: string[], at: number, oid: string, wallHeight: number, bay?: { aim: BayAim; stated: boolean }): Opening | null {
     const kind = t[0] as Opening['type']
     let i = 2
     let between: { A: string; B: string; r: RawWall } | null = null
@@ -4418,6 +4527,11 @@ class Compiler {
       stretch = [r.sides[k]![1], r.sides[k]![2]]
       between = { A, B, r }
       i += 4
+    } else if (i + 2 < t.length && t[i] === 'in' && bay !== undefined) {
+      // WRT-88: a bay's window, on the facet or at the place along the curve it is aimed at.
+      ;({ e, arcAt } = this.bayAimed(edges, raws, t[i + 1]!, bay.aim, oid, at))
+      stretch = [0, e.L]
+      i += 3
     } else if (i + 2 < t.length && t[i] === 'in') {
       arcAt = this.curveFacing(fl, edges, raws, t[i + 1]!, t[i + 2]!)
       e = arcAt !== null ? edges[0]! : this.pickEdge(fl, edges, raws, t, t[i + 1]!, t[i + 2]!, at)
@@ -4426,7 +4540,8 @@ class Compiler {
     } else {
       this.stop('rooms/syntax', at, `line ${at}: after the id write 'between <room> and <room>' or 'in <room> <side>'.`)
     }
-    const { pos, width, sill, height, opens, hinged, openingKind, seenFrom, part } = this.openingWords(t, i, at, kind, oid)
+    const { pos, width: wordsWidth, sill, height, opens, hinged, openingKind, seenFrom, part } = this.openingWords(t, i, at, kind, oid)
+    let width = wordsWidth
     let u: P
     let s = 0
     let fromEnd: 'lo' | 'hi' | null = null
@@ -4523,6 +4638,16 @@ class Compiler {
       o0 = param(P0)
       o1 = param(P1)
       offset = Math.min(o0, o1)
+    }
+    // WRT-88: a bay's window kept clear of the walls that meet its facet.
+    if (bay !== undefined) {
+      const fitted = this.bayFit(fl.id, raws, w, offset, width, bay.stated)
+      if (typeof fitted === 'number') {
+        this.problem('rooms/opening-fit', at, english(said('rooms.bay.windowClear', { line: at, id: oid, width: num(f2(width)), length: num(f2(fitted)) })))
+        return null
+      }
+      s += o0 <= o1 ? fitted.offset - offset : offset + width - (fitted.offset + fitted.width)
+      ;({ offset, width } = fitted)
     }
     const other = r.rooms.filter((x) => x !== e.room)
     let openingSill: number
@@ -4971,7 +5096,7 @@ class Compiler {
         }
         try {
           if (worked === null && named.length > 0) this.stop('rooms/unknown-room', o.line, english(said('rooms.rawRoom.unknown', { line: o.line, room: named[0]!, floor: fl.id, rooms: [...rawRooms].join(', ') })))
-          const item = this.resolveOpening(fl, worked?.edges ?? [], worked?.raws ?? [], o.words, o.line, idOf(fl, local), height)
+          const item = this.resolveOpening(fl, worked?.edges ?? [], worked?.raws ?? [], o.words, o.line, idOf(fl, local), height, o.bay)
           // WRT-44: an opening that lands in a wall left out for having no length has no wall.
           if (item && worked?.gone.has(item.wall) === true) this.problem('rooms/opening-fit', o.line, english(said('rooms.opening.noLength', { line: o.line, id: local, wall: item.wall })))
           else if (item) {

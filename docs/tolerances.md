@@ -73,6 +73,8 @@ is not asked whether it was typed in feet.
 | `roomsCurveJoint` | tolerance | 0.001 m | Two pieces of a curve written rooms first whose ends are closer than this meet and are one curved wall; a wall ending this near a joint of the curve ends on the curve |
 | `curveSweep` | tolerance | 0.001 radian | Two curved sides of a room whose turns round their centre differ by less than this turn through the same angle, so a room between them is a curved band; a curved side this near a whole turn goes all the way round (CMD-49) |
 | `roomsCurveArea` | tolerance | 0.001 ratio | The share of a curved room's true area the area measured from its walls may differ by before the rooms-first answer says so |
+| `bayCantAngle` | limit | 45 degree | The angle a canted bay window's two cheeks turn from the side of the room they stand out of, when its rooms text line states none (WRT-88) |
+| `bayWindowPier` | limit | 0.1 m | The wall a bay window line leaves at each end of each of its windows, on a facet or between windows along a curve, when it states no window width (WRT-88) |
 | `roomsFaceSkew` | tolerance | 0.02 m | Faces of rooms written rooms first that run the opposite way and whose distance apart changes by no more than this along the shorter face each other, as on an angled side written to the centimetre |
 | `roomsFaceTurn` | tolerance | 0.0872 sine | Faces of rooms written rooms first that run the opposite way within about 5 degrees of parallel, and no further apart than a wall at both ends of what they share, are one wall's two faces, drawn along their middle line (WRT-56) |
 | `roomsFaceStep` | tolerance | 0.002 m | Faces of rooms written rooms first further out of line than this are named as sizes that do not add up |
