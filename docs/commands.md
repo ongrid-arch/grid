@@ -1265,7 +1265,12 @@ no overhang dimension. Sections, the 3D model and roof quantities use the plan's
 
 Its figures, tables and drawings are in the plan's `display`, the person's own units (feet and
 inches with square feet, millimetres, a decimal comma), and in metres when the plan has none
-([Units](plan-file.md#units)). The findings are in metres.
+([Units](plan-file.md#units)). The findings are in metres. SHT-26: a sheet in square metres
+prints no square feet, and its footnotes (the rounding, the opening schedule's sizes) name the
+units its figures are in. Every sentence of a sheet, its area rules, the schedules' rules and
+the limits of the checks too, is in the sheet's language, and no sheet names a tool, an argument
+or a command. A sheet is dated the day asked for (`--date`: a date, or a time's own written
+day), else `SOURCE_DATE_EPOCH`'s day in UTC, else today where the machine is, never the UTC day.
 
 The words of a client sheet are the author's, in `<plan>.sheet.json` beside the plan (`house.json` reads `house.sheet.json`; `plan.json` also reads an older `sheet.json`), or the file
 `--sheet` names:
@@ -1294,8 +1299,8 @@ and the words. Quoted words within prose are left alone. Grid also checks a head
 introductory paragraph wrapped in quotation marks. When the brief beside the plan holds your
 access figures (`door_width`, `corridor_width`, `turning_circle`), the cover gives priority to
 doors, corridors and turning spaces that measure under them, even when the introduction continues
-on another page. It shows up to six measurements and points to `grid_measure what=access` if there
-are more.
+on another page. It shows up to six measurements and says in one line when there are more (SHT-26: a sheet names
+no tool; `grid_measure what=access` lists them all).
 
 Grid draws only what the plan holds: no furniture or landscape, and no stair treads but for the
 stairs the plan states. Every figure comes from

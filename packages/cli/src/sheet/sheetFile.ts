@@ -18,6 +18,7 @@ import type { Language } from '@ongrid/floorplan/messages'
 import { quoted, type Project } from '../fs/projectFiles'
 import { sheetPages, SHEET_LAYOUTS, type SheetLayout } from './pages'
 import { sheetPdf } from './pdf'
+import { sheetDay } from './sheetDay'
 import { floorOption } from '../command/plan'
 // SHT-6: the drawing's layout and files load only when one is made: a chunk of their own.
 import type { DrawingRequest, DrawingSet } from './drawingSheet'
@@ -226,7 +227,7 @@ export async function makeSheet(project: Project, planFile: string, layout: Shee
   const loaded = frozenPlan(spokenPlan(read, lang))
   const { base, note } = exportBaseOf(planFile)
   const notes = layout === 'client' ? accessNotes(project, planFile, loaded) : []
-  const sheet = sheetPages(loaded, words, layout, { name: base, date: exportTime(date), accessNotes: notes, language: lang })
+  const sheet = sheetPages(loaded, words, layout, { name: base, date: sheetDay(date), accessNotes: notes, language: lang })
   // The laid-out sheet is the one written: text that did not fit flows onto continuation pages.
   const { pdf, sheet: laidOut, previews: small } = await sheetPdf(loaded.plan, sheet, { previews, ...(made.onPage === undefined ? {} : { onPage: made.onPage }) })
   const pages = laidOut.pages.map((page) => (page.floor === null ? { kind: page.kind, title: page.title } : { kind: page.kind, title: page.title, floor: page.floor }))
@@ -308,7 +309,7 @@ export async function makeDrawing(project: Project, planFile: string, request: D
   const { drawingSheetFiles, sheetMeasure } = await import('./drawingFiles')
   let set: DrawingSet
   try {
-    set = drawingSheets(loaded, { ...request, ...(floor === undefined ? {} : { floor }) }, { project: projectName, ...(words?.drawing === undefined ? {} : { drawing: words.drawing }), date: exportTime(date), language: lang, measure: await sheetMeasure() })
+    set = drawingSheets(loaded, { ...request, ...(floor === undefined ? {} : { floor }) }, { project: projectName, ...(words?.drawing === undefined ? {} : { drawing: words.drawing }), date: sheetDay(date), language: lang, measure: await sheetMeasure() })
   } catch (error) {
     if (error instanceof DrawingDoesNotFit) throw new PlanRefused(error.message)
     throw error
