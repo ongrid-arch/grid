@@ -44,7 +44,7 @@ import { floorEnvelope, type FloorRoof } from './envelope'
 import { outdoorKind, outdoorRoofed } from './outdoor'
 import type { OutdoorKind } from '../types/floorplan'
 import { wallTopProfile, type RoofPlane, type WallTopPoint } from './roofs'
-import { piecesAsRings } from './polygons'
+import { cutOutline, multiArea, piecesAsRings, polygonArea, ringOf } from './polygons'
 import type { MultiPolygon } from 'polygon-clipping'
 import type { OpeningKind } from '../types/floorplan'
 import type { OpeningBox, OpeningPartKind } from './openingParts'
@@ -183,6 +183,13 @@ export interface SceneSlab {
   readonly offset?: number
   /** CNT-7 (C26): on an outdoor space only, its kind and whether a roof covers it (lab EL-18). */
   readonly outdoor?: { readonly kind: OutdoorKind; readonly roofed: boolean }
+  /**
+   * LVL-27: the floor as laid, piece by piece, when it is not the whole room: the room less where
+   * its storey's slab is open (a stair, a stair room or a lift shaft below, a ramp, a void). None
+   * for a void, which has no floor, or for a room the opening covers wholly. Absent, the floor is
+   * the whole of `polygon` less its `holes`, which stay the room's own shape either way.
+   */
+  readonly pieces?: readonly ScenePiece[]
 }
 
 /**
@@ -270,6 +277,12 @@ export interface SceneShell {
   readonly slab: readonly SceneSolid[]
   readonly roof: SceneSolid | null
   readonly parapet: SceneSolid | null
+  /**
+   * LVL-27: where the slab is open (over a stair, a stair room or a lift shaft below, a ramp or a
+   * void), its openings joined, so the room floors laid on it are open there too. Absent when the
+   * slab has no opening.
+   */
+  readonly open?: MultiPolygon
 }
 
 const scenePieces = (pieces: MultiPolygon): ScenePiece[] => piecesAsRings(pieces)
@@ -289,6 +302,8 @@ export function sceneShell(plan: FloorPlan): SceneShell | null {
   if (envelope === null) return null
   const base = elevations.floors.get(id)?.floorLevel ?? 0
   const slab: SceneSolid[] = []
+  const openings = envelope.slab?.openings ?? []
+  const open = openings.length === 0 ? null : cutOutline('union', openings[0]!.pieces, openings.slice(1).map((o) => o.pieces))
   if (envelope.slab !== null) {
     const { thickness } = envelope.slab
     if (envelope.slab.pieces.length > 0 && thickness > 0) slab.push({ pieces: scenePieces(envelope.slab.pieces), bottom: -thickness, top: 0 })
@@ -302,7 +317,7 @@ export function sceneShell(plan: FloorPlan): SceneShell | null {
     roof?.parapet == null || roofSolid === null
       ? null
       : { pieces: scenePieces(roof.parapet.pieces), bottom: roofSolid.top, top: roofSolid.top + roof.parapet.height }
-  return { floor: id, slab, roof: roofSolid, parapet }
+  return { floor: id, slab, roof: roofSolid, parapet, ...(open !== null && open.length > 0 && { open }) }
 }
 
 /** CNT-14: one box of a door or window (its frame, a leaf or its glass) on the plan, solid between two heights above the storey's floor. */
@@ -638,6 +653,20 @@ export function roomSlab(room: Room, index: PlanIndex): SceneSlab | null {
 }
 
 /**
+ * LVL-27: a room's floor where its storey's slab is open: none for a void (LVL-4), and for any
+ * other room the room less the opening, when the opening reaches into it; else the slab as it is.
+ */
+function openFloor(slab: SceneSlab, isVoid: boolean, open: MultiPolygon | undefined): SceneSlab {
+  if (isVoid) return { ...slab, pieces: [] }
+  if (open === undefined) return slab
+  const whole: MultiPolygon = [[ringOf(slab.polygon), ...slab.holes.map(ringOf)]]
+  const over = cutOutline('intersection', whole, [open])
+  if (over === null || !(multiArea(over) > tolerance('noArea'))) return slab
+  const left = cutOutline('difference', whole, [open]) ?? []
+  return { ...slab, pieces: scenePieces(left.filter((polygon) => polygonArea(polygon) > tolerance('noArea'))) }
+}
+
+/**
  * Elevation area with the holes taken out.
  *
  * It exists for the tests: multiplied by the thickness it gives the wall
@@ -722,6 +751,10 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
     }
   }
 
+  // The bounds stay the walls' axes and the rooms, as before: the shell reaches out to the walls'
+  // faces, which the bounds do not frame either.
+  const shell = options.shell !== undefined ? options.shell : sceneShell(plan)
+
   const slabs: SceneSlab[] = []
   // A zone's floor is its room's (CNT-8): one slab, the room's.
   const zones = roomZones(index)
@@ -729,7 +762,7 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
     if (broken.has(room.id) || zones.zoneOf.has(room.id)) continue
     const slab = roomSlab(room, index)
     if (!slab) continue
-    slabs.push(slab)
+    slabs.push(openFloor(slab, room.void === true, shell?.open))
     extent.push(...slab.polygon)
   }
 
@@ -773,10 +806,6 @@ export function buildScene(stated: FloorPlan, options: SceneOptions = {}): Scene
       if (blocks.length > 0) items.push({ id: item.id, kind: item.kind, blocks })
     }
   }
-
-  // The bounds stay the walls' axes and the rooms, as before: the shell reaches out to the walls'
-  // faces, which the bounds do not frame either.
-  const shell = options.shell !== undefined ? options.shell : sceneShell(plan)
 
   // CNT-14: the doors and windows in the plan's order, as the exports list every other part.
   const order = new Map(plan.openings.map((o, i) => [o.id, i] as const))

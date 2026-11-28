@@ -19,17 +19,25 @@ import { MODEL_TO_THREE } from './convert'
  * floor mesh the exports write is.
  */
 export function slabShape(slab: SceneSlab): THREE.Shape {
-  const shape = new THREE.Shape(slab.polygon.map((p) => new THREE.Vector2(p.x, p.y)))
-  for (const hole of slab.holes) shape.holes.push(new THREE.Path(hole.map((p) => new THREE.Vector2(p.x, p.y))))
+  return ringsShape(slab.polygon, slab.holes)
+}
+
+function ringsShape(outline: SceneSlab['polygon'], holes: SceneSlab['holes']): THREE.Shape {
+  const shape = new THREE.Shape(outline.map((p) => new THREE.Vector2(p.x, p.y)))
+  for (const hole of holes) shape.holes.push(new THREE.Path(hole.map((p) => new THREE.Vector2(p.x, p.y))))
   return shape
 }
 
-/** The room's polygon extruded from `from` up `depth`, in Three's frame. */
+/** LVL-27: the floor as laid: its pieces when the storey's slab is open over part of it (none for a void), else the room. */
+function laidShapes(slab: SceneSlab): THREE.Shape[] {
+  return slab.pieces === undefined ? [slabShape(slab)] : slab.pieces.map((piece) => ringsShape(piece.outline, piece.holes))
+}
+
+/** The room's floor as laid extruded from `from` up `depth`, in Three's frame. */
 function slabBetween(slab: SceneSlab, from: number, depth = SLAB_THICKNESS): THREE.BufferGeometry {
   // The polygon is counter-clockwise and the axis conversion keeps orientation,
   // so the extrusion's faces point outward on their own.
-  const shape = slabShape(slab)
-  const geometry = new THREE.ExtrudeGeometry(shape, {
+  const geometry = new THREE.ExtrudeGeometry(laidShapes(slab), {
     depth,
     bevelEnabled: false,
     steps: 1
