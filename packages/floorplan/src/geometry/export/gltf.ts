@@ -24,7 +24,7 @@ import type { Scene3D } from '../scene3d'
 import { MESH_MATERIALS, OPENING_PART_KINDS, columnMesh, floorMesh, groundMesh, itemMesh, makeNamer, materialOf, openingPartMesh, shellMesh, siteMaterial, siteMesh, stairMesh, wallMesh } from './mesh'
 import type { SceneGround } from '../groundPlane'
 import type { SiteBlock } from '../siteScene'
-import type { Mesh, MeshMaterial } from './mesh'
+import type { Mesh } from './mesh'
 import type { Vec3 } from '../scene3d'
 import type { StoreyScene } from './obj'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
@@ -32,6 +32,7 @@ import { english, name, said } from '../../messages/say'
 import { approximationLines, leftOutLines, leftOutSummary, NO_APPROXIMATIONS, type Approximations, type LeftOutPart } from './leftOut'
 import type { GlbFacts, GlbPartFacts } from './glbFacts'
 import { pieceLabel, wallPieces } from './wallPieces'
+import { NO_SURFACES, floorMaterial, openingPartMaterial, wallMaterial, type PlanMaterial, type StoreySurfaces } from './surfaces'
 import { doorMarker, leafHinge, leafMotion, openAngle, turnAboutUp, type GlbDoorMode, type GlbWallMode, type ViewCamera } from './glbNodes'
 
 export { GLB_DOOR_MODES, GLB_WALL_MODES, type GlbDoorMode, type GlbWallMode } from './glbNodes'
@@ -58,11 +59,23 @@ const GENERATOR = 'Grid'
  * metallic: a primitive with no material gets glTF's default, which is fully metallic and renders
  * dark in several viewers. Not double-sided on purpose, so a winding mistake shows as a missing
  * face instead of being hidden; glass is double-sided and blended, as CNT-14 wrote it.
+ *
+ * CMD-55: one of the plan's own materials (`planMaterials`) the same way, rough as a finish, glass
+ * as glass, its `extras` saying what it stands for.
  */
-function gltfMaterial(kind: MeshMaterial): object {
-  const material = MESH_MATERIALS.find((m) => m.name === kind)!
-  const pbr = { baseColorFactor: [...material.colour, material.opacity], metallicFactor: 0, roughnessFactor: kind === 'glass' ? 0.1 : 1 }
-  return material.opacity < 1 ? { name: kind, pbrMetallicRoughness: pbr, alphaMode: 'BLEND', doubleSided: true } : { name: kind, pbrMetallicRoughness: pbr }
+function gltfMaterial(name: string, own: readonly PlanMaterial[]): object {
+  const kind = MESH_MATERIALS.find((m) => m.name === name)
+  if (kind !== undefined) {
+    const pbr = { baseColorFactor: [...kind.colour, kind.opacity], metallicFactor: 0, roughnessFactor: name === 'glass' ? 0.1 : 1 }
+    return kind.opacity < 1 ? { name, pbrMetallicRoughness: pbr, alphaMode: 'BLEND', doubleSided: true } : { name, pbrMetallicRoughness: pbr }
+  }
+  const material = own.find((m) => m.name === name)!
+  const pbr = { baseColorFactor: [...material.colour, material.opacity], metallicFactor: 0, roughnessFactor: material.glass ? 0.1 : 0.9 }
+  const source = material.source
+  const extras = source.kind === 'finish'
+    ? { gridMaterial: 'finish', gridFinish: source.finish }
+    : { gridMaterial: source.kind, gridType: source.id, gridTypeName: source.typeName, ...(source.stated === null ? {} : { gridStated: source.stated }) }
+  return material.glass ? { name, pbrMetallicRoughness: pbr, alphaMode: 'BLEND', doubleSided: true, extras } : { name, pbrMetallicRoughness: pbr, extras }
 }
 
 /** Rounds up to a multiple of 4, which GLB chunks and glTF views need. */
@@ -112,8 +125,8 @@ function encodeGlb(document: object, binary: Uint8Array | null): Uint8Array {
 interface Part {
   readonly name: string
   readonly mesh: Mesh
-  /** VEW-73: the material it is drawn in, by its kind. */
-  readonly material: MeshMaterial
+  /** VEW-73: the material it is drawn in, by its kind; CMD-55: or one of the plan's own (`PlanMaterial.name`). */
+  readonly material: string
   /** CNT-7 (C26): an outdoor space's floor says so in its node's `extras` (lab EL-18). */
   readonly outdoor?: { readonly kind: string; readonly roofed: boolean }
   /** VEW-82: what its node's `extras` say of it; the outdoor marks are then among them. */
@@ -130,6 +143,9 @@ interface Part {
 const GROUPS = [
   ['wall', 'walls'],
   ['room', 'rooms'],
+  // CMD-55: the rooms' finished wall faces and their ceilings.
+  ['lining', 'linings'],
+  ['ceiling', 'ceilings'],
   ['stair', 'stairs'],
   ['column', 'columns'],
   ['item', 'items'],
@@ -153,6 +169,8 @@ interface GameAsk {
   readonly facts?: GlbFacts
   readonly doors: GlbDoorMode
   readonly walls: GlbWallMode
+  /** CMD-55: what the floor's parts are drawn in, past their kinds. */
+  readonly surfaces: StoreySurfaces
 }
 
 /** VEW-82: a node's extras for a part: its id, kind and floor, then what the plan states of it. */
@@ -182,12 +200,12 @@ function finishFor(finish: unknown, rooms: readonly string[]): Record<string, st
 function gamePartsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => string, ask: GameAsk): { parts: Part[]; markers: Marker[] } {
   const parts: Part[] = []
   const markers: Marker[] = []
-  const { floor, facts } = ask
+  const { floor, facts, surfaces } = ask
   for (const wall of scene.walls) {
     const own = facts?.walls.get(wall.id)
     const pieces = ask.walls === 'rooms' ? wallPieces(wall, facts?.stretches.get(wall.id) ?? []) : null
-    // CNT-60: a party wall is drawn as a cut.
-    const material = wall.cut === true ? 'cut' : 'wall'
+    // CNT-60: a party wall is drawn as a cut. CMD-55: else in its type's, glass when glazed.
+    const material = wallMaterial(wall, surfaces)
     if (pieces === null) {
       const mesh = wallMesh(wall)
       if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material, group: 'wall', extras: extrasOf('wall', wall.id, floor, own) })
@@ -205,7 +223,12 @@ function gamePartsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => str
   for (const slab of scene.slabs) {
     const mesh = floorMesh(slab)
     const outdoor = slab.outdoor === undefined ? {} : { gridOutdoor: slab.outdoor.kind, gridRoofed: slab.outdoor.roofed }
-    if (mesh) parts.push({ name: nameOf('floor', slab.roomId), mesh, material: 'floor', group: 'room', extras: extrasOf('room', slab.roomId, floor, facts?.rooms.get(slab.roomId), outdoor) })
+    if (mesh) parts.push({ name: nameOf('floor', slab.roomId), mesh, material: floorMaterial(slab.roomId, surfaces), group: 'room', extras: extrasOf('room', slab.roomId, floor, facts?.rooms.get(slab.roomId), outdoor) })
+  }
+  // CMD-55: each room's finished wall faces and its ceiling, each kind grouped on its own.
+  for (const part of [...surfaces.linings, ...surfaces.ceilings]) {
+    const finish = part.finish === null ? {} : { finish: part.finish }
+    parts.push({ name: nameOf(part.kind, part.room), mesh: part.mesh, material: part.material, group: part.kind, extras: extrasOf(part.kind, part.room, floor, { rooms: [part.room], ...finish }) })
   }
   for (const stair of scene.stairs) {
     const mesh = stairMesh(stair)
@@ -241,13 +264,13 @@ function gamePartsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => str
           if (!mesh) continue
           const hinge = leafHinge(opening, leaf, own?.swing)
           const turned = ask.doors === 'open' ? { rotation: turnAboutUp(hinge.opens * openAngle()) } : {}
-          parts.push({ name: nameOf('leaf', opening.id), mesh, material: 'door', group: 'door', pivot: hinge.at, ...turned, extras: extras({ gridMotion: motion, gridOpens: hinge.opens }) })
+          parts.push({ name: nameOf('leaf', opening.id), mesh, material: openingPartMaterial(opening, 'leaf', surfaces), group: 'door', pivot: hinge.at, ...turned, extras: extras({ gridMotion: motion, gridOpens: hinge.opens }) })
         }
         continue
       }
       const mesh = openingPartMesh(opening, kind)
       const moves = kind === 'leaf' && motion !== null ? { gridMotion: motion } : {}
-      if (mesh) parts.push({ name: nameOf(kind, opening.id), mesh, material: materialOf(kind), group: opening.type, extras: extras(moves) })
+      if (mesh) parts.push({ name: nameOf(kind, opening.id), mesh, material: openingPartMaterial(opening, kind, surfaces), group: opening.type, extras: extras(moves) })
     }
   }
   const shell = scene.shell
@@ -271,8 +294,8 @@ function partsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => string 
   const parts: Part[] = []
   for (const wall of scene.walls) {
     const mesh = wallMesh(wall)
-    // CNT-60: a party wall is drawn as a cut.
-    if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: wall.cut === true ? 'cut' : 'wall' })
+    // CNT-60: a party wall is drawn as a cut; CMD-55: a glazed one as glass.
+    if (mesh) parts.push({ name: nameOf('wall', wall.id), mesh, material: wallMaterial(wall, NO_SURFACES) })
   }
   for (const slab of scene.slabs) {
     const mesh = floorMesh(slab)
@@ -296,7 +319,7 @@ function partsOf(scene: Scene3D, nameOf: (prefix: string, id: string) => string 
   for (const opening of scene.openings) {
     for (const kind of OPENING_PART_KINDS) {
       const mesh = openingPartMesh(opening, kind)
-      if (mesh) parts.push({ name: nameOf(kind, opening.id), mesh, material: materialOf(kind) })
+      if (mesh) parts.push({ name: nameOf(kind, opening.id), mesh, material: openingPartMaterial(opening, kind, NO_SURFACES) })
     }
   }
   // LVL-4: the slab the floor stands on, its roof and its parapet.
@@ -434,8 +457,8 @@ interface Written {
   readonly bufferViews: object[]
   readonly meshes: object[]
   readonly nodes: object[]
-  /** VEW-73: the materials the parts use, in `MESH_MATERIALS` order; a primitive's index is into these. */
-  readonly materials: readonly MeshMaterial[]
+  /** VEW-73: the materials the parts use, in `MESH_MATERIALS` order, then CMD-55's own in theirs; a primitive's index is into these. */
+  readonly materials: readonly object[]
 }
 
 /** A mesh as glTF draws it: flat normals and box-projected UVs, each point once per normal it carries. */
@@ -512,14 +535,15 @@ function flatMesh(mesh: Mesh, pivot?: Vec3): FlatMesh {
   return { positions, normals, uvs, indices }
 }
 
-function writeParts(parts: readonly Part[]): Written {
+function writeParts(parts: readonly Part[], own: readonly PlanMaterial[] = []): Written {
   const flats = parts.map((part) => flatMesh(part.mesh, part.pivot))
   // Per mesh: its positions, its normals, its UVs, then its indices. Every component is 4 bytes,
   // so every view and accessor stays 4-byte aligned with no padding in between.
   const size = flats.reduce((sum, f) => sum + f.positions.length * (12 + 12 + 8) + f.indices.length * 4, 0)
   const binary = new Uint8Array(size)
   const view = new DataView(binary.buffer)
-  const used = MESH_MATERIALS.map((m) => m.name).filter((name) => parts.some((part) => part.material === name))
+  const names = new Set(parts.map((part) => part.material))
+  const used = [...MESH_MATERIALS.map((m): string => m.name), ...own.map((m) => m.name)].filter((name) => names.has(name))
 
   const accessors: object[] = []
   const bufferViews: object[] = []
@@ -576,7 +600,7 @@ function writeParts(parts: readonly Part[]): Written {
       ...(extras === undefined ? {} : { extras })
     })
   }
-  return { binary, accessors, bufferViews, meshes, nodes, materials: used }
+  return { binary, accessors, bufferViews, meshes, nodes, materials: used.map((name) => gltfMaterial(name, own)) }
 }
 
 /** The document around written parts, with `extra` nodes after the parts' and the scene's roots. */
@@ -587,7 +611,7 @@ function documentOf(asset: object, written: Written, extra: readonly object[], r
     scenes: [{ nodes: roots }],
     nodes: [...written.nodes, ...extra],
     meshes: written.meshes,
-    materials: written.materials.map(gltfMaterial),
+    materials: written.materials,
     accessors: written.accessors,
     bufferViews: written.bufferViews,
     buffers: [{ byteLength: written.binary.byteLength }]
@@ -633,12 +657,15 @@ export interface BuildingGlbOptions extends GlbOptions {
    * file of one floor carries none.
    */
   readonly site?: { readonly ground: Pick<SceneGround, 'level' | 'tilt' | 'pieces'> | null; readonly blocks: readonly SiteBlock[] }
+  /** CMD-55: the plan's own materials (`planMaterials`), which the storeys' surfaces name. */
+  readonly materials?: readonly PlanMaterial[]
 }
 
 /** VEW-82: a floor of a building's GLB: its scene, and what its parts' extras say (`glbFacts`). */
 export interface GlbStorey extends StoreyScene {
   readonly facts?: GlbFacts
 }
+
 
 /** VEW-82: the saved views' camera nodes, the n-th holding the n-th camera, and the cameras. */
 function cameraNodes(views: readonly ViewCamera[], nameOf: (prefix: string, id: string) => string): { nodes: object[]; cameras: object[] } {
@@ -695,7 +722,7 @@ function translation(x: number, up: number, y: number): { translation?: number[]
 export function toBuildingGlb(storeys: readonly GlbStorey[], options: BuildingGlbOptions): Uint8Array {
   const nameOf = makeNamer()
   const ask = { doors: options.doors ?? 'closed', walls: options.walls ?? 'whole' } as const
-  const perFloor = storeys.map((storey) => gamePartsOf(storey.scene, nameOf, { ...ask, floor: storey.id, ...(storey.facts === undefined ? {} : { facts: storey.facts }) }))
+  const perFloor = storeys.map((storey) => gamePartsOf(storey.scene, nameOf, { ...ask, floor: storey.id, surfaces: storey.surfaces ?? NO_SURFACES, ...(storey.facts === undefined ? {} : { facts: storey.facts }) }))
   const asOne = options.root === 'floor' && storeys.length === 1
   const ofSite = options.site === undefined || asOne ? [] : siteParts(options.site, nameOf)
   const parts = [...perFloor.flatMap((floor) => floor.parts), ...ofSite]
@@ -717,7 +744,7 @@ export function toBuildingGlb(storeys: readonly GlbStorey[], options: BuildingGl
   if (parts.length === 0) {
     return encodeGlb(withSun(withViews({ asset, scene: 0, scenes: [{}] }, 0), options.sun), null)
   }
-  const written = writeParts(parts)
+  const written = writeParts(parts, options.materials)
   const [ox, oy] = moved ?? [0, 0]
 
   // After the parts' nodes: each floor's door markers, then its groups, then the floors, the site, the root.

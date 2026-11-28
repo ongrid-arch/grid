@@ -48,7 +48,7 @@ describe('exportPlan', () => {
   it('writes an OBJ with one object per wall and room, and the floor\'s slab and roof (LVL-4)', () => {
     const obj = text(exportPlan(samplePlan() as FloorPlan, 'obj', ids).data)
     // CNT-14: and each door's and window's parts.
-    expect(objObjects(obj)).toEqual(['wall_w1', 'wall_w2', 'wall_w3', 'wall_w4', 'floor_r1', ...PARTS, 'slab_ground', 'roof_ground'])
+    expect(objObjects(obj)).toEqual(['wall_w1', 'wall_w2', 'wall_w3', 'wall_w4', 'floor_r1', 'ceiling_r1', ...PARTS, 'slab_ground', 'roof_ground'])
     const vertices = obj.split('\n').filter((l) => l.startsWith('v ')).length
     for (const face of obj.split('\n').filter((l) => l.startsWith('f '))) {
       for (const index of face.slice(2).split(' ').map(Number)) {
@@ -64,7 +64,7 @@ describe('exportPlan', () => {
     const names = readMeshes(parseGlb(data as Uint8Array)).map((m) => m.name)
     // VEW-82: read floor by floor and kind by kind, the doors' parts before the windows'.
     const doorsFirst = [...PARTS.filter((n) => !n.endsWith('_o2')), ...PARTS.filter((n) => n.endsWith('_o2'))]
-    expect(names).toEqual(['wall_w1', 'wall_w2', 'wall_w3', 'wall_w4', 'floor_r1', ...doorsFirst, 'slab_ground', 'roof_ground'])
+    expect(names).toEqual(['wall_w1', 'wall_w2', 'wall_w3', 'wall_w4', 'floor_r1', 'ceiling_r1', ...doorsFirst, 'slab_ground', 'roof_ground'])
   })
 
   it('writes an IFC of the whole building, seeded with the project identity and time', () => {

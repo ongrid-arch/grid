@@ -111,6 +111,8 @@ describe('exports whatever the order of the file (QAR-5)', () => {
     expect(objects).toEqual([
       'wall_w1', 'wall_w2', 'wall_w3', 'wall_w4', 'wall_w5', 'wall_w6', 'wall_w7', 'wall_w8', 'wall_w9', 'wall_w10',
       'floor_r1', 'floor_r2', 'floor_r10',
+      // CMD-55: each room's ceiling.
+      'ceiling_r1', 'ceiling_r2', 'ceiling_r10',
       // CNT-14: each door's and window's parts, in id order too.
       'frame_d1', 'leaf_d1', 'frame_d2', 'leaf_d2', 'frame_win1', 'glass_win1', 'frame_win2', 'glass_win2', 'frame_win10', 'glass_win10',
       // LVL-4: the floor's slab, after the parts of the plan; the floor above covers all of it, so no roof.
