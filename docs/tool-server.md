@@ -795,6 +795,14 @@ files without running git. With neither, it uses the marker `start` when there i
 With `since: "phase"`, a plan with existing, demolished and new parts is compared with itself,
 before its work against after it (CNT-10).
 
+A marker keeps the brief beside the plan too (CMD-57), as it is when the marker is set, and the
+answer's `brief` says whether there was one. `grid_diff` since such a marker says how the brief
+changed, after the issues: each wish weakened (asking for less), removed, changed, tightened or
+added, by its place, with its fields before and after, in `brief.changes` of the data
+([the kinds](brief.md#what-a-write-replaced-and-the-brief-kept-with-a-marker)). Since a version
+that is not a marker, or a marker set before markers kept the brief, `brief.compared` is false
+and the answer says why. `grid_restore` puts back the plan alone.
+
 Every change also keeps the plan it replaced, with no marker set: each tool that changes the plan
 adds a line to the plan's change log, `plan.history.jsonl`, and keeps the plan before it in
 `plan.checkpoints/` (CMD-44). Every such tool takes `who`, your name as an agent or a person's
