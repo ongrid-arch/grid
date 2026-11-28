@@ -130,7 +130,8 @@ export function showLength(metres: number, display: Display = METRES, options: {
   if (display.length === 'ft-in') {
     const parts = 2 ** Math.max(0, Math.min(5, display.precision ?? 0))
     const sign = metres < 0 ? '-' : ''
-    const total = Math.round((Math.abs(metres) / INCH) * parts) / parts
+    // MSG-37: a half is rounded away from zero, past the float noise of the metres behind it.
+    const total = Math.round(((Math.abs(metres) + tolerance('lengthEqual')) / INCH) * parts) / parts
     const inchText = (inches: number): string => {
       const whole = Math.floor(inches + tolerance('noLength'))
       const rest = Math.round((inches - whole) * parts)
@@ -149,7 +150,7 @@ export function showLength(metres: number, display: Display = METRES, options: {
   }
   const per = PER_METRE[display.length]
   const decimals = display.precision ?? (display.length === 'm' ? 2 : display.length === 'cm' ? 1 : 0)
-  const text = marked((metres * per).toFixed(decimals), display.decimal)
+  const text = marked(((metres + Math.sign(metres) * tolerance('lengthEqual')) * per).toFixed(decimals), display.decimal)
   return unit ? `${text} ${display.length}` : text
 }
 
