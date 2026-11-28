@@ -31,9 +31,14 @@ window w-living in living south, centred, 1.8 wide, sill 0.6, height 1.5
   `display ft-in numbers ft`, `room family "Family room" living 18 x 20` is 18 ft by 20 ft; under
   `display mm numbers mm`, `4800 x 3600 at 0,0` is in millimetres, positions as well as sizes.
   Without `numbers`, a plain number other than 0 is refused as `rooms/units`, a question that
-  names the number with its unit (`18ft`) and the `numbers` word to add. The read-back writes its
-  lengths in metres, so it writes `numbers m` on such a display line. Raw parts are the plan
+  names the number with its unit (`18ft`) and the `numbers` word to add. A read-back worked out
+  from the plan writes its lengths in metres, so it writes `numbers m` on such a display line;
+  the text a plan was written from reads back in its own units (below). Raw parts are the plan
   file's own JSON and stay in metres.
+- `language <tag>` at the end of a display line (`display mm numbers mm language es`, or
+  `display language es` alone) is the language Grid writes its words in for the plan (WRT-87,
+  [Languages](languages.md)): `grid write` sets it, and the read-back writes it again, so it
+  stays with the plan written to another file.
 - An id is written in plain letters, so every tool and edit takes it (MSG-22): a word outside
   quotes has its accents taken off, so `room baño "Baño" baño 2 x 2` writes the id `bano`, and
   `north of baño` names it. The answer names each id written so (`rooms/id-folded`). An id with a
@@ -542,6 +547,21 @@ It also refuses rooms text that names fewer floors than the plan holds, naming e
 drop with its rooms, outline, homes and parking (WRT-16): read the whole plan back and write that, or
 add `--replace` to drop them, which the answer then lists. Rooms text with no rooms is refused
 even with `--replace`.
+
+**A plan reads back as the text it was written from** (WRT-87). `grid write` keeps the rooms
+text in the plan (`written.text`, [the plan file](plan-file.md#written-from-rooms-text)). While
+that text still writes the plan as the file holds it, `grid describe --as rooms` gives it back as
+it was written, with its units and repeats, its copied floors and rooms through floors, its own
+lengths in its own units (`1400` under `display mm numbers mm`), its comments and its order;
+only its `based on` line is set to the plan as it is now. A plan renamed since gets its `plan`
+line, and a language set since its display line. What a tool placed since that the text has no
+line for (an item, a stair, a column, a grid, a bay or ramp, a note, a sketch line) is added as
+its lines at the end, so a change made with a tool after the write costs a line, not the whole
+plan written out. When the text no longer writes the plan (a wall moved, a room added by a tool)
+it is not given: the plan is read back worked out, as above. Either way, what no rooms text holds
+(the part types, the trace image, the facts on walls, openings and floors, saved views and the
+like) is named by its key in one comment line at the top: `grid write` keeps it when the text is
+written over the same plan file, and a text written to another file goes without it.
 
 To try rooms text before writing it (to learn a line of the grammar, or to see what a change
 would do to the plan), add `--dry-run` (`dry_run=true` for `grid_write_rooms`) (CMD-54). Grid

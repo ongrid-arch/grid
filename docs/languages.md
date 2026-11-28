@@ -42,7 +42,9 @@ A plan may state its language in its `display` (`"display": { "language": "es" }
 command or a tool call may ask for one (`--lang es` on `grid check`, `describe`, `draw` and
 `sheet`; `language: "es"` on every tool, MSG-34), which wins. `grid_set_plan` sets the plan's
 language; `grid_write_rooms` records it when the plan states none, from the call's `language` or
-the language the rooms' names are plainly in (`languageOfNames` in `uses.ts`). Every tool's answer
+the language the rooms' names are plainly in (`languageOfNames` in `uses.ts`). Rooms text states it
+on its display line (`display mm language es`, or `display language es`, WRT-87), which `grid write`
+sets over either, and the read-back writes it again. Every tool's answer
 is in the language: `grid_check`, `grid_describe`, `grid_view`, `grid_sheet`, `grid_areas` and
 `grid_schedule` in their own words, and every other tool, whose sentences are English yet, closes
 with one line in the language saying so ([the tool server](tool-server.md#the-language-of-an-answer)).

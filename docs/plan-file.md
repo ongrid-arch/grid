@@ -1386,6 +1386,16 @@ check sheets head their pages with it (a name in `sheet.json` still names the cl
 IFC project carries it, and `grid describe --as rooms` writes the `plan` line back. A plan with
 no name is called after its file, as before. It is not the `title`, which is drawn on the picture.
 
+## Written from rooms text
+
+`written` records that the plan was last written from rooms text (WRT-2): `revision`, the plan's
+fingerprint as Grid wrote it, against which `grid write` checks a text's `based on` line;
+`boundaries`, each room's boundary fingerprint, so a boundary edited by hand is found
+(`room/derived-edited`); and `text` (WRT-87), the rooms text itself, as it was written.
+`grid describe --as rooms` gives that text back while it still writes the plan as the file holds
+it, and works the plan out otherwise ([reading a plan back](rooms-first.md)). A plan with no
+`text` reads back as before. Taking `written` out keeps the plan as a hand-written one.
+
 ## Writing on the drawing, and the sketch layer
 
 A plan may carry writing for its drawings (SHT-7). None of it is measured or checked, and none

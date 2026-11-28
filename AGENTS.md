@@ -38,7 +38,9 @@ Notes for agents and people changing this repository.
   as rooms text. `compile.ts` works out the walls, their kinds, the room boundaries and the
   openings' places from rooms text (the language is in its header); `read.ts` reads a plan back
   and checks the reading by writing it again, so it loses nothing; `stamp.ts` keeps what the
-  plan records about how it was written (`written`). The plan file is the source of truth and
+  plan records about how it was written (`written`), the text itself included (WRT-87), which
+  `read.ts` gives back while it still writes the plan; `language.ts` reads a display line's
+  `language` words, which the compiler does not. The plan file is the source of truth and
   rooms text a way of writing and reading it. `fixtures/rooms/` holds the lab's eight buildings
   as rooms text with their originals; `rooms/__tests__/buildings.test.ts` holds them to it.
   `curves.ts` (WRT-78) writes curved rooms and sides (`circle`, `oval`, `arc`, `band`, `curve
