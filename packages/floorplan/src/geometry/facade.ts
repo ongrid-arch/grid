@@ -888,7 +888,6 @@ function workOutFacade(stated: FloorPlan, side: FacadeSide): Facade {
       return { level: 0, stated: false }
     }
   })()
-  const groundAt = (u: number): number => facadeGroundAt({ ground }, u)
   const empty: Facade = { side, direction, across, compass, faces: [], outline: [], ground, levels: [], marks: [], extent: null, walls: [], openings: [] }
 
   let floors: ReturnType<typeof planFloors>
