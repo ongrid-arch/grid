@@ -2868,7 +2868,7 @@ const viewTool: GridTool = {
   description:
     'Use this when the person asks to see the plan: "can I see it", a floor plan, a 3D view from the garden side or from above, the front of the house as an elevation, a section through the stair, "the living room from the south-west, from higher up", "a bit lower and more from the left", a view saved by name, "stand me in the kitchen looking at the garden", "can I see out sitting down", or a black and white drawing. '
     + 'To show the plan to a person (a buyer, a client, a family, a listing or a brochure), draw kind=plan with look=simple, and look=large for someone who reads small print badly; keep working for checking the drawing. '
-    + 'kind=plan draws one floor from above with its sizes; kind=facade draws one side of the drawing (side: north, east, south or west; north is the top of the drawing) in elevation, every floor at its level, its doors and windows, the ground line heaviest and faces set back lighter; kind=3d draws the model through a camera: from a side or corner of the drawing (from), or a compass bearing from the plan\'s stated north (bearing), with tilt, distance, eye_height, lens, a room to point at and a floor cut away; kind=eye stands in a room, on its middle line (in a small room, in its doorway), at a door, an item or a corner of the room (at) or at a point (stand_at), with the eye eye_height above that room\'s own floor, never inside a fixture, and looks toward an opening, an item or a direction (toward) or a point (look_at), through lens and with tilt, in a one-point or two-point perspective if asked, and lists the window sills against that eye height; kind=section cuts every floor along a line (cut) and looks to one side of it (toward), with the levels, the room heights, and what Grid takes that the plan does not state dashed and listed. '
+    + 'kind=plan draws one floor from above with its sizes; kind=facade draws one side of the drawing (side: north, east, south or west; north is the top of the drawing) in elevation, every floor at its level, its doors and windows, the ground line heaviest and faces set back lighter; kind=3d draws the model through a camera: from a side or corner of the drawing (from), or a compass bearing from the plan\'s stated north (bearing), with tilt, distance, eye_height, lens, a room to point at and a floor cut away; kind=eye stands in a room, on its middle line (in a small room, in its doorway), at a door, an item or a corner of the room (at) or at a point (stand_at), with the eye eye_height above that room\'s own floor, never inside a fixture, and looks toward an opening, an item or a direction (toward) or a point (look_at), through lens and with tilt, in a one-point or two-point perspective if asked, and lists the window sills against that eye height; kind=section cuts every floor along a line (cut) and looks to one side of it (toward), with the levels, the room heights, and what Grid takes that the plan does not state dashed and listed; kind=site draws the site plan, for a site plan, a lot map or the plot with its buildings: the plot boundary, every building of the plan in solid fill with its name, storeys and height, the site\'s things with their labels, the set-back lines, the street edges, a scale bar and the north arrow, framed to the whole site. kind=plan with with_site draws the site faint under any floor, as for an upper floor\'s evacuation map that shows the assembly point outside. '
     + 'Every 3d and eye picture comes back with its camera record (camera: target, bearing, tilt, distance, eye height, lens in mm on a 36 × 24 mm sensor, cut, floors, where it stands, and position, direction, up and field of view as the BCF format writes them). To change the view, send camera back with turn, tilt_by or changed numbers; view calls up one saved with grid_save_view. '
     + 'With sun, a moment (CNT-58), kind=plan draws the shadow plan, the shadows the plan casts then shaded on the ground or on the floor\'s open spaces, and 3d and eye are lit from the sun then; both need the site\'s latitude and longitude. '
     + say('en', 'view.transform.help') + ' '
@@ -2878,7 +2878,7 @@ const viewTool: GridTool = {
     decimal: DECIMAL_ARG,
     plan: PLAN_ARG,
     out: { type: 'string', maxLength: PATH_MAX, description: 'A .png, .svg or .pdf file to write the picture to, inside the project folder: a bare name goes into the exports folder beside the plan. A .view.json is written beside it with its size, pixels per metre and, for a plan, the plan\'s metres it covers. svg is not made for 3d or eye. Nothing is written when left out.', examples: ['plan-ground.png', 'exports/south.svg'] },
-    kind: { type: 'string', required: true, enum: ['plan', 'facade', '3d', 'eye', 'section'], description: 'plan, facade, 3d, eye or section.', examples: ['plan', 'facade', 'section'] },
+    kind: { type: 'string', required: true, enum: ['plan', 'facade', '3d', 'eye', 'section', 'site'], description: 'plan, facade, 3d, eye, section or site.', examples: ['plan', 'facade', 'site'] },
     side: { type: 'string', enum: FACADE_SIDES, description: 'For facade: the side of the drawing whose facade to draw: north (its top), east, south or west. Required for facade.', examples: ['south', 'east'] },
     floor: { ...FLOOR_ARG, description: 'For plan: the floor to draw, the lowest when left out; all draws every floor side by side, the lowest on the left, at one scale, each named and framed to the same part of the plan (with look and dimensions only). For 3d: that floor cut away, the whole building when left out (with room, on a plan of several floors, that room\'s floor).' },
     frame: { type: 'string', enum: ['building', 'floor'], description: say('en', 'view.frame.argument'), examples: ['building', 'floor'] },
@@ -2940,9 +2940,11 @@ const viewTool: GridTool = {
     // CNT-58: the sun at a moment: the shadow plan, or the model lit from it.
     sun: SUN_VIEW_ARG,
     state: VIEW_STATE_ARG,
+    // VEW-85: the site faint under a floor's plan.
+    with_site: { type: 'boolean', description: 'For plan: true to draw the site faint under the floor, framed with it: the plot, its things and their labels, the set-back lines, the street edges and every building\'s footprint, as kind=site draws them. false when left out.', examples: [true] },
     marks: { type: 'array', description: 'For plan: marks for the plan\'s other drawings: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of cut and the way toward looks), schedule (each room\'s and opening\'s mark in the schedules, tied to its row in grid_schedule). None when left out.', examples: [['levels', 'elevations'], ['section'], ['schedule']], items: { enum: MARK_WORDS }, minItems: 1, maxItems: 4 },
   },
-  outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, floors: listSchema(STRING), camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING, worldFile: NULLABLE_STRING, pixelToMetres: { ...PIXEL_TRANSFORM, type: ['object', 'null'] }, panels: listSchema(objectSchema({ floor: NULLABLE_STRING, pixelToMetres: PIXEL_TRANSFORM })) }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes', 'pixelToMetres']),
+  outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, floors: listSchema(STRING), camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, site: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING, worldFile: NULLABLE_STRING, pixelToMetres: { ...PIXEL_TRANSFORM, type: ['object', 'null'] }, panels: listSchema(objectSchema({ floor: NULLABLE_STRING, pixelToMetres: PIXEL_TRANSFORM })) }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes', 'pixelToMetres']),
   async run(args, context) {
     const out = args['out'] as string | undefined
     // VEW-62: the name is checked before anything is drawn.
@@ -2986,20 +2988,21 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     // VEW-74: floor=all is every floor, unless a floor of the plan has that id.
     const allFloors = args['floor'] === 'all' && !planFloors(loaded.plan).some((f) => f.id === 'all')
     const floor = allFloors ? undefined : floorArg(loaded.plan, args['floor'])
-    const kind = args['kind'] as 'plan' | 'facade' | '3d' | 'eye' | 'section'
+    const kind = args['kind'] as 'plan' | 'facade' | '3d' | 'eye' | 'section' | 'site'
     const allowed: Record<string, readonly string[]> = {
-      plan: ['floor', 'frame', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward', 'sun'],
+      plan: ['floor', 'frame', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward', 'sun', 'with_site'],
       facade: ['side', 'look'],
       '3d': ['floor', 'from', 'bearing', 'tilt', 'distance', 'eye_height', 'lens', 'room', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'fit', 'sun'],
       eye: ['room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'lens', 'tilt', 'perspective', 'sun'],
       section: ['cut', 'toward', 'look'],
+      site: ['look'],
     }
-    const stray = ['floor', 'frame', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'perspective', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile', 'sun'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
+    const stray = ['floor', 'frame', 'from', 'side', 'bearing', 'tilt', 'distance', 'lens', 'camera', 'view', 'turn', 'tilt_by', 'roof', 'room', 'toward', 'eye_height', 'stand_at', 'at', 'look_at', 'perspective', 'look', 'dimensions', 'ids', 'crop', 'crop_box', 'margin', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'fit', 'tile', 'sun', 'with_site'].filter((key) => args[key] !== undefined && !allowed[kind]!.includes(key))
     if (kind === 'eye' && args['from'] !== undefined) throw new ToolRefusal('For kind=eye, at says where to stand (a door or opening of the room, an item, or a corner such as south-west) and stand_at a point; from is for kind=3d.')
     if (stray.length > 0) throw new ToolRefusal(`kind=${kind} takes ${allowed[kind]!.join(', ')}, not ${stray.join(', ')}.`)
     // VEW-74: every floor side by side, for a plan only, with its look and sizes.
     if (allFloors && kind !== 'plan') throw new ToolRefusal(`floor=all draws every floor's plan side by side: it is for kind=plan. kind=${kind} takes one floor's id.`)
-    const besideAll = allFloors ? ['frame', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward', 'sun'].filter((key) => args[key] !== undefined) : []
+    const besideAll = allFloors ? ['frame', 'ids', 'crop', 'crop_box', 'margin', 'tile', 'hide', 'colour', 'key', 'highlight', 'marks', 'cut', 'toward', 'sun', 'with_site'].filter((key) => args[key] !== undefined) : []
     if (besideAll.length > 0) throw new ToolRefusal(`floor=all takes look and dimensions, not ${besideAll.join(', ')}: name one floor for those.`)
     const plan = survey.plan
     // MSG-34: always the language worked out, so English asked on a plan in another language is English.
@@ -3007,6 +3010,11 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
     // VEW-20: a section or a facade writes its levels in the units asked for, else the plan's display.
     const levelDisplay = args['units'] === undefined && args['decimal'] === undefined ? undefined : displayFor(args['units'], args['decimal'], plan, language)
     if (kind === 'facade') return facadeAnswer(plan, args, language, levelDisplay)
+    // VEW-85: the site plan: the plot and every building on it. Loaded only for a site plan.
+    if (kind === 'site') {
+      const { siteAnswer } = await import('./siteAnswer')
+      return siteAnswer(plan, (args['look'] as LookName | undefined) ?? 'working', language, levelDisplay)
+    }
     if (kind === 'section') {
       const cut = args['cut'] as CutArg | undefined
       if (cut === undefined) throw new ToolRefusal('kind=section needs cut: the line to cut along, as {"from": [x, y], "to": [x, y]} in metres.')
@@ -3077,23 +3085,26 @@ async function drawView(args: Record<string, unknown>, context: ToolContext): Pr
       const tiling = tilesOf(stated, shown, dimensions, crop !== null || box !== undefined, args['tile'] as number | undefined)
       const margin = args['margin'] as number | undefined
       const cropped = crop !== null || box !== undefined || tiling.frame !== undefined
+      // VEW-85: the site faint under the floor; a crop frames its own part, so the site is drawn only where it falls.
+      const withSite = args['with_site'] === true
       if (cropped && args['frame'] !== undefined) throw new ToolRefusal(say('en', 'view.frame.crop'))
       const shared = !cropped && args['frame'] !== 'floor' && planFloors(stated).length > 1
       const traceOn = traceFloor(stated).floor
       const sharedTrace = shared && traceOn !== shown ? readTrace(project, stated, traceOn, language).picture : trace.picture
       const buildingFrame = shared
-        ? buildingPictureFrame(stated, { look: pictureLook(asked), showDimensions: dimensions, ...(marksOnPlan === undefined ? {} : { marks: marksOnPlan }), ...(sharedTrace === null ? {} : { trace: sharedTrace }) })
+        ? buildingPictureFrame(stated, { look: pictureLook(asked), showDimensions: dimensions, ...(marksOnPlan === undefined ? {} : { marks: marksOnPlan }), ...(sharedTrace === null ? {} : { trace: sharedTrace }), ...(withSite ? { site: true } : {}) })
         : undefined
       const frame = crop ? cropFrame(crop.parts, 2, margin ?? CROP_MARGIN) : box ? cropBoxFrame(box, margin ?? 0) : tiling.frame ?? buildingFrame
       const framedWords = crop ? `, cropped to ${crop.words}` : box ? `, cropped to x ${box.minX.toFixed(2)} to ${box.maxX.toFixed(2)} and y ${box.minY.toFixed(2)} to ${box.maxY.toFixed(2)} m` : ''
       const marginWords = crop || box ? (margin ?? (crop ? CROP_MARGIN : 0)) > 0 ? ` with ${metres(margin ?? CROP_MARGIN)} m round it` : '' : ''
-      const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(frame ? { frame } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}) })
+      const view = await planView(stated, { floor: shown, look: asked, dimensions, ids: withIds, faults, show: shownParts.show, ...inTongue, ...(display ? { display } : {}), ...(frame ? { frame } : {}), ...(marksOnPlan ? { marks: marksOnPlan } : {}), ...(trace.picture ? { trace: trace.picture } : {}), ...(withSite ? { site: true } : {}) })
       const work = planHasPhases(stated) ? phaseCounts(stated) : null
       // VEW-76: a look for people says what it shows instead of the working drawing's sizes.
       const people = peopleLook(pictureLook(asked))
       const sizeWords = people !== null ? people : args['dimensions'] === false ? ', without sizes' : ', with inside sizes'
       const lines = [`Plan of floor ${q(shown)}${framedWords}${marginWords}${tiling.piece === null ? '' : `, piece ${tiling.piece} of ${tiling.tiles.length} along its length`}, ${look}${sizeWords}: ${view.width} × ${view.height} px, 1 m = ${view.pxPerMetre.toFixed(1)} px. ${plan.north === undefined ? 'North is the top of the drawing; the plan holds no real north.' : `The north arrow in its top-right corner points to the north the plan states, ${northWords(wrapDegrees(plan.north))}; the sides named in other answers are the drawing's, north at the top.`} Look at the picture before you describe it.`]
       if (shared) lines.push(say(language, 'view.frame.shared'))
+      if (withSite) lines.push((await import('./siteAnswer')).withSiteLine(stated))
       lines.push(...tiling.lines)
       const ids = withIds ? idsOnFloor(stated, shown) : []
       const undecided = view.undecidedDoors ?? []

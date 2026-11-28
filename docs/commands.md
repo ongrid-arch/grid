@@ -22,6 +22,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 - [A picture of the plan: `grid draw`](#a-picture-of-the-plan-grid-draw)
 - [Sections, and the marks on a plan: `grid draw --section` and `--marks`](#sections-and-the-marks-on-a-plan-grid-draw---section-and---marks)
 - [A facade: `grid draw --facade`](#a-facade-grid-draw---facade)
+- [A site plan: `grid draw --site`](#a-site-plan-grid-draw---site)
 - [A sheet for people: `grid sheet`](#a-sheet-for-people-grid-sheet)
 - [Who sits where: `grid occupancy`](#who-sits-where-grid-occupancy)
 - [The preview in a browser: `grid preview`](#the-preview-in-a-browser-grid-preview)
@@ -35,7 +36,7 @@ with [rooms-first.md](rooms-first.md); an agent calls the same work as tools, in
 | `grid write --scan <scan.json> [--plan <plan.json>] [--replace] [--json]` | Writes a plan from a phone room scan, and keeps the scan beside it as `<plan>.scan.json` (see below) |
 | `grid check [<plan>] [--floor <id>] [--country <place>] [--full] [--json] [--seen <n> --reason <text> --by <name> \| --unseen <n>]` | Prints the report, short and about this plan unless `--full`. Every report is labelled "General guidance, not your local rules". `--country` names the place for this check, in place of the plan's `site.country`. `--seen` sets a note aside as seen (see below). With `firm-standards.json` beside the plan, the firm's own standards are set against it too, under their own heading ([a firm's own standards](firm-standards.md)) |
 | `grid describe [<plan>] [--length line\|rooms\|walls\|walk] [--for person\|agent] [--as rooms] [--floor <id>] [--pictures <folder>]` | Describes the plan in a few lines: its rooms, which rooms each opening joins, with `--length walls` its walls, and with `--length walk` the plan walked room by room, with `--pictures` a picture from each doorway (see below). `--as rooms` reads it back as rooms text, each room's number and facts on its line (WRT-74) |
-| `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor; to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section and schedule marks to a plan (see below) |
+| `grid draw [<plan>] [--png \| --3d \| --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use\|finish] [--key] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left\|right]] [--site \| --with-site] [--out <file>] [--floor <id>] [--scale <n>]` | Draws one floor as SVG, or PNG with `--png`, or the 3D model as PNG with `--3d`, or a saved view with `--view`, or one side of the building in elevation with `--facade north` (`east`, `south`, `west`), or with `--section` a section along a line through every floor, or with `--site` the site plan, and with `--with-site` the site faint under a floor ([below](#a-site-plan-grid-draw---site)); to standard output unless `--out` names a file. In the technical look (black on white, lines in millimetres on paper) unless `--look working`; a file is always on light paper, so `--look dark` is refused ([below](#how-each-look-draws-a-plan)). `--hide`, `--colour` and `--key` choose what it shows, `--marks` adds level, elevation, section and schedule marks to a plan (see below) |
 | `grid export [<plan>] --format dxf\|ifc\|glb\|obj\|geojson\|json\|csv\|xlsx [--what <table>] [--csv <table>] [--units <unit>] [--decimal point\|comma] [--floor <id>\|<name>\|all] [--scale <n>] [--no-roofs] [--arc-segments <n>] [--doors closed\|open\|gaps\|markers] [--walls whole\|rooms] [--date <date>] [--out <file>]` | Writes an export into `exports/` beside the plan, unless `--out` names a file. `--floor all` writes one file per floor; `--scale` (DXF) sets its sheets' scale ([every floor in one DXF](#every-floor-in-one-dxf-at-a-scale-that-fits-vew-72)). A GLB or OBJ leaves its roofs out with `--no-roofs` and writes a whole circle of curved wall with `--arc-segments` pieces; an OBJ comes with `grid.mtl` beside it ([3D files](3d-files.md)). A GLB writes its doors shut on their hinges, open, as gaps or as markers with `--doors`, and its straight walls in a piece per room with `--walls rooms` ([for a game engine or a renderer](3d-files.md#for-a-game-engine-or-a-renderer)). A GeoJSON or JSON holds the plan's geometry as data, every floor in one frame ([the plan as data](plan-data.md)). A CSV or XLSX holds one of the plan's tables, `--what` (or `--csv <table>`), for a spreadsheet ([a table for a spreadsheet](#a-table-for-a-spreadsheet-csv-and-xlsx-vew-83)). An IFC is stamped with `--date` (`2026-01-31` or a time), else `SOURCE_DATE_EPOCH` (seconds), else now: name either and two runs write the same bytes |
 | `grid sheet [<plan>] [--layout client\|check] [--sheet <sheet.json>] [--out <file.pdf>]` | Writes the plan as an A3 PDF for people: `--layout client`, with the words of `sheet.json`, or `--layout check`, with ids and findings (see below) |
 | `grid sheet [<plan>] --scale 1:N --paper A4\|A3\|A2\|A1\|A0 [--floor <id>] [--split] [--room-sizes on\|off] [--out <file.pdf>]` | Writes every floor (or one) at one true scale as a vector PDF of a page each, and an SVG and a PNG of each page, with a scale bar, caption, north and title block (`--layout drawing`, see below) |
@@ -1235,6 +1236,35 @@ building above), and each plane lists its edges as seen (`roofLines`). Elevation
 0.30 m overhang along the exposed edges of pitched roofs (VEW-71). The fascia, gutter and covering
 follow the projected edge. Abutments stay where the roof meets the building above. The plan holds
 no overhang dimension. Sections, the 3D model and roof quantities use the plan's roof footprint.
+
+## A site plan: `grid draw --site`
+
+`grid draw --site` draws the site plan instead of a floor plan (VEW-85): the plot seen from above
+with every building of the plan on it, not only the lowest floor's. Each building is its
+footprint in solid fill (its floors at or above its own ground floor, open outdoor space left
+out, as `grid_measure what=site` measures it), with its name, its storeys and its height written
+on it; a plan that names no buildings is one footprint. Round them: the plot boundary, the
+site's things in their own style with the labels the person gave them, the set-back lines dashed
+inside the plot at the person's own figures with the figure along each, the street edges drawn
+heavier with the word for a street outside them, the context shapes round the plan, a scale bar
+in the bottom-left corner and the north arrow when the plan states north. The picture is framed
+to the whole site, so a plan of many buildings is never framed to one of them. The key under it
+says what the fill and the lines are.
+
+```bash
+grid draw plan.json --site --out site.svg
+grid draw plan.json --site --look working --png --out site.png
+grid draw plan.json --floor first --with-site --out first-with-site.svg
+```
+
+It takes `--look`, `--png`, `--scale`, `--units`, `--decimal`, `--lang` and `--out`, and refuses
+what picks a floor or belongs to another picture (`--floor`, `--frame`, `--ids`, `--hide`,
+`--colour`, `--key`, `--marks`, `--3d`, `--view`, `--facade`, `--section`) by name.
+
+`--with-site` draws the site faint under any floor's plan, framed with it: the plot, its things
+and their labels, the set-back lines, the street edges and every building's footprint, so an
+upper floor's evacuation map shows the assembly point outside. The plan holds no street names
+(the plot's street edges are numbers), so none is written.
 
 ## A sheet for people: `grid sheet`
 

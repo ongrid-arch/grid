@@ -149,7 +149,7 @@ const COMMANDS = {
   compare: readEntry('compare'),
   brief: readEntry('brief'),
   draw: {
-    usage: 'grid draw [<plan.json>] [--png | --3d | --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use] [--key] [--ids] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left|right]] [--out <file>] [--floor <id>] [--scale <n>] [--lang en|es] [--project <folder>]',
+    usage: 'grid draw [<plan.json>] [--png | --3d | --view <name>] [--facade <side>] [--look <name>] [--hide <parts>] [--colour use] [--key] [--ids] [--marks <marks>] [--section <x1,y1:x2,y2> [--toward left|right]] [--site | --with-site] [--out <file>] [--floor <id>] [--scale <n>] [--lang en|es] [--project <folder>]',
     summary: 'Draws one floor of a plan as an SVG picture, or a PNG with --png, in the technical look unless --look names another, with what grid check finds marked on it by its numbers and listed under it. With --section, draws a section along a line through every floor instead. With --3d, draws the 3D model as the app opens it, as a PNG. With --facade north (east, south or west), draws that side of the building in elevation, every floor at its level.',
     options: DRAW_OPTIONS,
   },
@@ -547,6 +547,8 @@ async function runCommand(name: CommandName, args: readonly string[], io: Comman
       section: textOf(parsed, '--section'),
       toward: textOf(parsed, '--toward'),
       marks: textOf(parsed, '--marks'),
+      site: parsed.values.has('--site'),
+      withSite: parsed.values.has('--with-site'),
     })
     const { scale, look } = checkDrawRequest(request)
     if (drawsPng(request) && request.out === undefined && io.stdoutIsTerminal) {

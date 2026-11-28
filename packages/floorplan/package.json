@@ -29,7 +29,8 @@
     "./test-support/roomScan": "./src/test-support/roomScan.ts",
     "./test-support/through": "./src/test-support/through.ts",
     "./test-support/columns": "./src/test-support/columns.ts",
-    "./test-support/parking": "./src/test-support/parking.ts"
+    "./test-support/parking": "./src/test-support/parking.ts",
+    "./test-support/sitePlan": "./src/test-support/sitePlan.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

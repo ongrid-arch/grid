@@ -49,7 +49,8 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CMD-44: three more, the help of --to, --who and --note.
   'packages/cli/src/command/diff.ts': [16, 'command'],
   // SHT-10: one more, the refusal of --look dark for a file.
-  'packages/cli/src/command/draw.ts': [46, 'command'],
+  // VEW-85: four more, the help of --site and --with-site and their refusals.
+  'packages/cli/src/command/draw.ts': [50, 'command'],
   'packages/cli/src/command/drawShow.ts': [4, 'command'],
   'packages/cli/src/command/edit.ts': [9, 'command'],
   // VEW-72: five more, the help of --scale, its refusals, --floor all with --out and a plan with nothing on any floor.
@@ -236,7 +237,10 @@ const ALLOWED: Readonly<Record<string, readonly [number, keyof typeof WHY]>> = {
   // CNT-58: five more, grid_view's sun and the light the model is lit by.
   // ARE-77: one more, the buried slab's row of the take-off's spreadsheet.
   // ARE-78: one fewer, the refusal of a route between floors.
-  'packages/cli/src/mcp/readTools.ts': [411, 'tools'],
+  // VEW-85: one more, grid_view's with_site.
+  'packages/cli/src/mcp/readTools.ts': [412, 'tools'],
+  // VEW-85: grid_view kind=site's answer.
+  'packages/cli/src/mcp/siteAnswer.ts': [22, 'tools'],
   // ARE-75: the state argument the reading tools share, and grid_view's demolition and proposed plans.
   'packages/cli/src/mcp/stateArg.ts': [2, 'tools'],
   // ARE-75: the head of the area table of the work as CSV.

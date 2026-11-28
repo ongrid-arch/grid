@@ -28,6 +28,7 @@ import {
   planForFloor,
   planWallMaterials,
   resolveFloor,
+  sitePlan,
   tracePlacement,
   validateFloorDoorSweeps,
   withPatterns
@@ -38,6 +39,7 @@ import type { LabelStyle } from '../canvas2d/labelPlacement'
 import { doorHandingOf } from '../canvas2d/doorHanding'
 import type { Viewport } from '../canvas2d/viewport'
 import { FRAME_MARGIN, fitTo, viewBoxOf } from '../canvas2d/viewport'
+import { sitePlanNodes } from './sitePlan'
 import type { Look, LookName, PlanLook } from './look'
 import { LOOKS, detailShown, fileLook, lengthText, toLook } from './look'
 import { drawnHanding, planScene, roomKeyOf, type SceneShade } from './scene'
@@ -126,6 +128,12 @@ export interface PictureOptions {
    * plan, and the view frames it with the drawing. The viewer reads no file and fetches nothing. Not drawn when left out.
    */
   readonly trace?: TracePicture
+  /**
+   * VEW-85: the site drawn faint under the floor (`sitePlanNodes`): the plot, its things and their
+   * labels, the set-back lines, the street edges and every building's footprint, framed with the
+   * floor, so an upper floor's plan shows what lies round the building. Off by default.
+   */
+  readonly site?: boolean
 }
 
 /** HND-10: a trace image as a picture is given it: a PNG or a JPEG as a `data:` address, and its size in pixels. */
@@ -317,8 +325,11 @@ function framePicture(plan: FloorPlan, options: PictureOptions) {
   const asked = marksOf(plan, floor, drawing, around, options.marks)
   // HND-10: the trace image under this floor, framed with the drawing so a floor not yet traced shows it whole.
   const trace = traceOf(plan, floor, options.trace)
+  // VEW-85: the site under the floor, framed with it.
+  const site = options.site === true ? sitePlan(plan) : null
   const frameWith = (marks: DrawingMarks | null): Bounds => {
-    const drawn = marks === null ? around : withMarks(around, marks)
+    const marked = marks === null ? around : withMarks(around, marks)
+    const drawn = site?.bounds == null ? marked : computeBounds([marked.min, marked.max, site.bounds.min, site.bounds.max])
     return options.frame ?? (trace === null ? drawn : withTrace(drawn, trace.placement, drawing.walls.length + drawing.rooms.length > 0))
   }
   // VEW-31: an elevation mark stands clear of the chains and the grids' bubbles, which are drawn in
@@ -340,7 +351,7 @@ function framePicture(plan: FloorPlan, options: PictureOptions) {
   }
   const framed = frameWith(marks)
   const { width, height } = sizeOf(framed, options)
-  return { floor, slice, drawing, dimensions, marks, trace, framed, width, height, view: fitTo(framed, width / height) }
+  return { floor, slice, drawing, dimensions, marks, trace, site, framed, width, height, view: fitTo(framed, width / height) }
 }
 
 /** HND-10: the plan's trace image placed under `floor`, or null when it lies under another or none is given. */
@@ -497,7 +508,7 @@ const LARGE_BAND = 1.5
 
 /** Lays out one floor of a plan as a picture, framed the way the 2D view frames it. */
 export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Picture {
-  const { floor, slice, drawing, dimensions, marks, trace, width, height, view } = framePicture(plan, options)
+  const { floor, slice, drawing, dimensions, marks, trace, site, width, height, view } = framePicture(plan, options)
   const display = displayOfPicture(plan, options)
   const words = wordsOf(display)
   const look = lookOf(options.look)
@@ -555,7 +566,10 @@ export function planPicture(plan: FloorPlan, options: PictureOptions = {}): Pict
   // plan draws: walls, openings, dimensions and labels.
   const fills = withNorth.findIndex((node) => node.attrs['data-part'] !== 'room')
   const at = fills < 0 ? withNorth.length : fills
-  const nodes = trace === null ? withNorth : [...withNorth.slice(0, at), traceNode(trace), ...withNorth.slice(at)]
+  const traced = trace === null ? withNorth : [...withNorth.slice(0, at), traceNode(trace), ...withNorth.slice(at)]
+  // VEW-85: the site faint under everything; on the floor that draws the plot already, only what it does not.
+  const units = { ...(display ?? METRES), decimal: words.decimal }
+  const nodes = site === null ? traced : [...sitePlanNodes(site, look, mpp, words, units, { faint: true, plot: drawing.site === null, ...(options.paperScale === undefined ? {} : { paperScale: options.paperScale }) }), ...traced]
   // SHT-7: the title and the key in a band under the drawing, then what went wrong (MSG-8).
   // CNT-50: with the site's name (when the plan has no title) and its address after it, as stated.
   const titled = [plan.title ?? plan.site?.name, plan.site?.address].filter((part): part is string => part !== undefined)

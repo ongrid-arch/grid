@@ -36,3 +36,5 @@ export { comparisonPicture, COMPARISON_COLORS, COMPARISON_LOOK, UNCHANGED_COLORS
 export type { ComparisonPictureOptions } from './comparison'
 export { sectionPicture } from './section'
 export type { SectionPicture, SectionPictureOptions } from './section'
+export { sitePlanPicture, sitePlanNodes, buildingWords, roundLength } from './sitePlan'
+export type { SitePlanPicture, SitePlanPictureOptions } from './sitePlan'
