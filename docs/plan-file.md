@@ -1233,6 +1233,7 @@ registry ([library.md](library.md#adding-a-kind-of-thing)).
 | `item/into-wall` | It reaches more than 5 mm into a solid wall |
 | `item/too-tall` | It is higher than the room it stands in |
 | `item/leaves-room`, `plan/column-in-item`, `plan/column-overlap` | An item whose floor hangs out of its room through a doorway or an open side, a column standing in an item, and a column standing in another column |
+| `plan/column-in-opening`, `plan/column-in-partition` | A column standing more than 5 mm in a door's or a window's hole (`hits` names the opening), and a partition drawn on through a column, past it both ways (`hits` names the wall). A column in any other wall, or a partition stopping at one, is not named; curved walls are not looked at |
 | `item/unknown-library`, `item/overlap`, `item/clearance-blocked` | A library name no library holds, an item standing in another, and something in the clear floor an item keeps ([library.md](library.md#what-grid-checks)) |
 | `opening/door-hits-item` | A door's leaf swings into the fixture: the line names it by its label, kind and id, `Door "d1" hits "Table 2" (kitchen run "table-2") when it opens` |
 | `item/blocks-doorway` | It stands within 0.3 m (`useApproachDepth`) in front of a doorway's hole: the line says how much of the hole it covers and the clear width left, as an indicator |
