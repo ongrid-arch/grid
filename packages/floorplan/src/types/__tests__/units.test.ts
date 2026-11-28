@@ -41,6 +41,18 @@ describe('showing a length (WRT-7)', () => {
     expect(showLength(0.0254 * 7.5, displayOf('ft-in', 'point', undefined, 1))).toBe(`0'-7 1/2"`)
   })
 
+  it('rounds a half away from zero, whatever the float behind it (MSG-37)', () => {
+    const feet = displayOf('ft-in')
+    // 1 1/2" and 1'-0 1/2" summed from feet and inches land a hair under the half.
+    expect(showLength(0.0254 + 0.0127, feet, { kind: 'height' })).toBe('2"')
+    expect(showLength(0.3048 + 0.0127, feet)).toBe(`1'-1"`)
+    expect(showLength(0.1143, feet, { kind: 'height' })).toBe('5"')
+    // 0.5005 m is 500.49999… mm in floating point.
+    expect(showLength(0.5005, displayOf('mm'))).toBe('501 mm')
+    expect(showLength(-0.5005, displayOf('mm'))).toBe('-501 mm')
+    expect(showLength(0, displayOf('mm'))).toBe('0 mm')
+  })
+
   it('prints areas in square metres or square feet', () => {
     expect(showArea(12.4)).toBe('12.40 m²')
     expect(showArea(12.4, displayOf('m', 'comma'))).toBe('12,40 m²')
