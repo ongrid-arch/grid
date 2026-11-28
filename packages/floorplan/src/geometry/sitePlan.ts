@@ -69,6 +69,8 @@ export interface SiteStreet {
   readonly outward: Vec2
   /** The way it faces, by the plan's north (the top of the drawing when it states none). */
   readonly faces: BoundaryEdge['faces']
+  /** VEW-88: the street's name, as the plan gives it; null when it gives none. */
+  readonly name: string | null
 }
 
 /** Everything a site plan draws, in plan metres. */
@@ -173,7 +175,7 @@ export function sitePlan(given: FloorPlan): SitePlan {
           why: b.why,
         }
       })
-  const streets = sound === null ? [] : sound.edges.filter((e) => e.street).map((e): SiteStreet => ({ edge: e.edge, from: e.from, to: e.to, outward: e.outward, faces: e.faces }))
+  const streets = sound === null ? [] : sound.edges.filter((e) => e.street).map((e): SiteStreet => ({ edge: e.edge, from: e.from, to: e.to, outward: e.outward, faces: e.faces, name: e.streetName }))
   const setbacks = sound === null ? [] : setbackLines(sound.edges)
   const seen = new Set<string>()
   const context = siteFloors(plan).flatMap((floor) => contextOn(plan, floor)).flatMap((shape) => {

@@ -262,7 +262,8 @@ interface Written<T> {
 export class SiteLines {
   private boundary: Written<P[]> | null = null
   private plot: Written<{ width: number; depth: number; at: P | null }> | null = null
-  private readonly streets: Array<Written<Array<number | { readonly side: string }>>> = []
+  // VEW-88: each street line's edges, with the street's name when the line gives one in quotes.
+  private readonly streets: Array<Written<Array<number | { readonly side: string }>> & { readonly name?: string }> = []
   private readonly setbacks: Array<Written<SetbackWords>> = []
   private north: Written<number> | null = null
   private readonly fields = new Map<string, Written<unknown>>()
@@ -286,7 +287,11 @@ export class SiteLines {
     }
     this.lines.push(at)
     if (kw === 'street' || kw === 'streets') {
-      this.streets.push({ value: streetsOfWords(t.slice(1), at), line: at })
+      const names = words.slice(1).filter((w) => w.quoted)
+      if (names.length > 1) stop(at, `a street line takes one name in quotes: write 'street edge <n> "<name>"'.`)
+      const name = names[0]?.text
+      if (name !== undefined && name.trim() === '') stop(at, `the street's name in quotes is empty: write 'street edge <n> "<name>"'.`)
+      this.streets.push({ value: streetsOfWords(words.slice(1).filter((w) => !w.quoted).map((w) => w.text), at), line: at, ...(name === undefined ? {} : { name }) })
       return
     }
     if (kw === 'setback' || kw === 'setbacks') {
@@ -412,7 +417,17 @@ export class SiteLines {
       if (points !== null) {
         site['boundary'] = points.map((p) => [p[0], p[1]])
         const streets: number[] = []
-        for (const s of this.streets) streets.push(...siteEdges(points, s.value, [], s.line).streets)
+        const named = new Map<number, string>()
+        for (const s of this.streets) {
+          const edges = siteEdges(points, s.value, [], s.line).streets
+          streets.push(...edges)
+          for (const edge of s.name === undefined ? [] : edges) {
+            const before = named.get(edge)
+            if (before !== undefined && before !== s.name) stop(s.line, `edge ${edge} is on the street ${JSON.stringify(before)} already: give each edge one name.`)
+            named.set(edge, s.name!)
+          }
+        }
+        if (named.size > 0) site['streetNames'] = [...named].sort((a, b) => a[0] - b[0]).map(([edge, name]) => ({ edge, name }))
         const setbacks: NonNullable<Site['setbacks']> = []
         for (const s of this.setbacks) setbacks.push(...siteEdges(points, [], [s.value], s.line).setbacks)
         if (this.streets.length > 0) site['streets'] = [...new Set(streets)].sort((a, b) => a - b)
@@ -489,7 +504,11 @@ export function siteLines(plan: Pick<FloorPlan, 'site' | 'north'>): string[] {
   const site = plan.site
   if (site === undefined) return lines
   if (site.boundary !== undefined) lines.push(`site boundary ${site.boundary.map(point).join(' ')}`)
-  if (site.streets !== undefined && site.streets.length > 0) lines.push(`street edge ${site.streets.join(' ')}`)
+  // VEW-88: a named street on its own line, its name in quotes; the edges with no name together.
+  const names = new Map((site.streetNames ?? []).map((s) => [s.edge, s.name]))
+  const unnamed = (site.streets ?? []).filter((edge) => !names.has(edge))
+  if (unnamed.length > 0) lines.push(`street edge ${unnamed.join(' ')}`)
+  for (const edge of site.streets ?? []) if (names.has(edge)) lines.push(`street edge ${edge} ${quote(names.get(edge)!)}`)
   for (const s of site.setbacks ?? []) lines.push(`setback ${typeof s.from === 'number' ? `edge ${s.from}` : s.from} ${metres(s.distance)}${s.source === undefined ? '' : ` ${s.source}`}`)
   if (site.origin !== undefined) lines.push(`site origin ${point(site.origin)}`)
   if (site.latitude !== undefined && site.longitude !== undefined) lines.push(`site location ${site.latitude},${site.longitude}`)
@@ -513,6 +532,7 @@ export function writtenSite(file: unknown, text: Site | undefined): unknown {
   const base: Record<string, unknown> = typeof file === 'object' && file !== null && !Array.isArray(file) ? { ...(file as Record<string, unknown>) } : {}
   if (text.boundary !== undefined) {
     delete base['streets']
+    delete base['streetNames']
     delete base['setbacks']
   }
   return { ...base, ...text }
