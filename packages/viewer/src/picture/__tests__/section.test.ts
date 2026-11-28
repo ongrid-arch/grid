@@ -187,7 +187,7 @@ describe('levels in the plan\'s units (VEW-20)', () => {
     })
   const line: SectionLine = { from: { x: 2, y: -2 }, to: { x: 2, y: 10 }, toward: 'left' }
   const levels = (svg: string): string[] => textsOf(svg, 'section-level')
-  const facadeLevels = (svg: string): string[] => [...svg.matchAll(/data-part="facade-level-name"[^>]*><text[^>]*>([^<]*)</g)].map((m) => m[1]!)
+  const facadeLevels = (svg: string): string[] => textsOf(svg, 'facade-level')
 
   it('writes a millimetre plan in millimetres, and a feet-and-inches plan in feet and inches', () => {
     const mm = pictureToSvg(sectionPicture({ ...tower(), display: { length: 'mm' } }, line, { look: 'technical' }))
@@ -335,6 +335,6 @@ describe('the earth under the ground line (VEW-65)', () => {
   })
 
   it('stands the level marks\' words on paper over the earth', () => {
-    expect(tagsOf(svg, 'section-level-backing').length).toBe(picture.section.levels.length + picture.section.roofs.length + 1)
+    expect(tagsOf(svg, 'level-backing').length).toBe(picture.section.levels.length + picture.section.roofs.length + 1)
   })
 })
