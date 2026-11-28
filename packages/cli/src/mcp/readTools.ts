@@ -37,6 +37,7 @@ import { cropFrame, partBounds, type PartBounds } from '../draw/partBoxes'
 import { DESCRIBE_AUDIENCES, DESCRIBE_LENGTHS } from '../describe/card'
 import { LOOKS, SIDES, drawingLook, pictureLook, type LookName, type Side } from '../draw/viewNames'
 import { MARK_WORDS, marksAsked, readMarks, sectionLineOf, towardOf } from '../command/section'
+import { withAccessMarks } from '../quantities/accessMarks'
 import type { DrawingMarksAsked } from '@ongrid/floorplan/geometry/drawingMarks'
 import { AREA_RULES, notCounted, planAreas, type AreasRequest, type AreaSureness, type NotCounted, type RoomArea, type RoomNotCounted } from '../quantities/areas'
 import { OUTDOOR_RULES_ARG, type OutdoorRules } from './outdoorRulesArg'
@@ -74,6 +75,7 @@ import {
   type Thing,
 } from '../quantities/measure'
 import { WALKED_RULE, type WalkGap } from '../quantities/walked'
+import { FARTHEST_RULE, farthestOnFloor, farthestPoint, roomAtPoint, type Farthest } from '../quantities/farthest'
 import { factsText, flatSchedule, flatScheduleCsv, openingSchedule, openingScheduleCsv, openingTypeSchedule, openingTypeScheduleCsv, planSchedule, roomSchedule, roomScheduleCsv, scheduleMarkLabels, shownNumber } from '../quantities/schedule'
 import { fixtureCountText, fixturesLeftOut, fixturesLeftOutLine, FIXTURE_RULES, planFixtures } from '../quantities/fixtures'
 import { FACING_RULE, facingAnswer, northWords } from '../quantities/facing'
@@ -1895,8 +1897,8 @@ const measureTool: GridTool = {
   title: 'Measure rooms, walls, distances and ways through',
   hint: 'read',
   description:
-    'Use this when the person asks will something fit, how wide, long or high a room is, how long a wall is, how far a door is from a corner or one wall from another, can a wheelchair turn, is the way wide enough, which doors or rooms are narrower than their own figure, or how to get from one room to another. '
-    + 'For travel distance or walking distance to the nearest exit on an escape or evacuation route, call grid_measure with {"what":"route","room":"bed1","to":"outside"}. '
+    'Use this when the person asks about wheelchair, step-free or accessible access: what=access gives every door\'s clear width, each corridor\'s narrowest point, each room\'s turning space and the steps on the way in, in one call, so never piece it together from route, use and fit (grid_sheet layout=access prints it, grid_view marks access draws it). Also when the person asks will something fit, how wide, long or high a room is, how long a wall is, how far a door is from a corner or one wall from another, can a wheelchair turn, is the way wide enough, which doors or rooms are narrower than their own figure, or how to get from one room to another. '
+    + 'For travel distance or walking distance to the nearest exit on an escape or evacuation route, call grid_measure with {"what":"route","room":"bed1","to":"outside"}; from a point, with x and y and no room; from the farthest point of a room, or of every room on a floor (no room, floor), with start "farthest point", never a straight line worked out by hand. '
     + 'what=room gives a room\'s inside sizes, side by side, its height and the widest circle it holds; what=between gives the clear distance from one wall, door, window, opening, fixture or room (from) to another (to) or to a point (x, y), between their faces as a tape measures it, so a door\'s distance from the inside corner is between the door and the wall at the corner, and the gap between two fixtures is between their edges; what=wall gives a wall\'s length on its centre line and the length of its face in each room; what=fit says whether a box (width × depth) or a circle (diameter) fits and where; what=route gives the way from room to room, on one floor or up and down the plan\'s stairs to another (by a lift only when no stair joins them), or to "outside", with every door on it and the narrowest one, how far it is walked and each room\'s share, and always whether a body or a trolley gets through (width, such as 0.7 for a wheelchair; Grid\'s own 0.9 m indicator, said so, when left out), measuring each doorway\'s clear width and the way through each room clear of its fixtures, and another way when the shortest is too narrow; what=use gives a room\'s use indicators: the turning circle its free floor holds, each doorway\'s clear width, the way through between its doorways, the floor in front of and beside each fixture, and any window a fixture stands in front of, each set against the person\'s figure (width, diameter, clearance) or Grid\'s own indicator, and said to be one; what=narrow lists the doors and openings narrower than under, and the rooms whose widest circle is less than under; what=facing says which way each room, outside wall and window faces by the north the plan states, so "which rooms face east" or "is the kitchen south-facing" (a plan that states no north is answered with north as the top of the drawing, and says so); what=sun gives "which rooms get the sun" as a table per room, of geometry and not a daylight result: each window wall\'s way and bearing, the window area against the floor area, and the room\'s depth from each window wall, square to it; with date (YYYY-MM-DD) and the site\'s latitude and longitude it works the sun out (CNT-58): at time, or over hours (and from date to until), its compass bearing and height, sunrise, solar noon and sunset, which faces of each building (from the floors\' outlines, a courtyard\'s sides too) it is on and for how long, how much of each face\'s foot is in another\'s shadow, and the share of each open outdoor space, paving, pool and any patch named in areas (a planting bed) in sun, so the noon sun on a courtyard is never worked out by hand; grid_view with sun draws the shadow plan; what=site gives the plot: how far the building\'s outside face stands from each edge of the site\'s boundary against the set-back the person asked for ("1.00 m from the east boundary; you asked for 3.00 m"), how far each face is from the edge in front of it, and the plot coverage, the share of the plot the building covers; what=access gives the accessibility measurements, as numbers: for the rooms and routes the plan marks as needing to be accessible (accessible), or every room, each door\'s hole and clear width, each corridor at its narrowest, each room\'s turning space, and the way in from the entrance with every step on it and its height, set only against the person\'s own figures from the brief (grid_write_brief), each said as theirs, and what it did not look at; what=library lists the library grid_place_item places from (CNT-20): each fixture\'s, piece of furniture\'s and typical room\'s name, size, height and the clear floor it keeps, from Grid\'s own sizes, the office\'s files in the library folder beside the plan and the plan\'s own, and with name one entry; what=fit with name instead of width and depth fits that entry, an item with the clear floor it keeps in front or a typical room, the same size every time; what=seats counts the seats, desks and covers the furniture gives, for the plan, each floor, each room and each zone (with room, one room or zone and its pieces), so "how many seats", "desks per zone" or "how many covers" is never counted by hand; what=frontage gives a shop\'s floor (room) in bands of depth from its frontage, A, B, C and the rest, in m² and sq ft: the frontage on the wall named, else on the wall it opens through most, at depth (Grid\'s own 6.1 m, 20 ft, when left out) in bands bands (3), measured and never weighted; what=activity gives the activity zone in front of each fixture (ARE-73), a box on its centre line as deep as front and as wide as width, per kind (per_kind, such as a WC\'s 0.7 m front and 0.8 m width) or for every kind (clearance, width), else the item\'s own clearance, its library entry or Grid\'s own indicator: the clear depth, the clear width to each side of the centre line by compass, what stands in it, the doors that swing into it and the zones it overlaps, a run of units side by side as one zone, in one room (room) or every room, only the zones short or with something in them unless all; what=work gives the measures of the work on a plan whose parts carry phases (grid_start_works, grid_set_phase), as measures with no rule applied: how far the new parts reach past the building\'s old outline on each side, by compass, and how wide they are, the tops of the new walls and the highest point under the roof or ceilings over them above the ground, the floor and footprint added, the volume of the new rooms, the plot left unbuilt before and after, and the least distance from the new parts to each edge of the boundary, so "how deep is the extension", "how high are its eaves" or "how much garden is left" is never worked out by hand. '
     + 'It measures the room between wall faces: what=fit, what=use and what=route with width keep clear of the room\'s fixtures, the other measures take none off, the plan holds no furniture or door leaves, and the answer says so. It checks no rule: a figure the person gives is their own. Do not use for floor areas (grid_areas), for what a building code asks (grid_check), or to say a plan is accessible: what=access measures, it never says so. Figures are in the units argument, else the plan\'s display (how its person reads lengths), else metres.',
   args: {
@@ -1907,7 +1909,7 @@ const measureTool: GridTool = {
     room: { type: 'string', id: true, description: 'For room, fit, use, frontage and route: the room id, where the route starts. For facing, sun and activity: one room only, every room when left out.', examples: ['kitchen', 'hall'] },
     from: { type: 'string', id: true, description: 'For between: the id of a wall, door, window, opening, fixture or room to measure from. For route: the room it starts in, as room.', examples: ['front-door', 'w-west'] },
     to: { type: 'string', id: true, description: 'For between: the id of the wall, door, window, opening, fixture or room to measure to. For route: the room id where it ends, or "outside" for the nearest way out.', examples: ['w-west', 'bed1', 'outside'] },
-    x: { type: 'number', length: true, description: 'For between, instead of to: a point\'s x on the drawing in metres, such as an inside corner. The plan names no points.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
+    x: { type: 'number', length: true, description: 'For between, instead of to: a point\'s x on the drawing in metres, such as an inside corner. The plan names no points. For route: the point it starts from; with no room, the room the point stands in is found (on floor, when rooms on more than one floor are under it).', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
     y: { type: 'number', length: true, description: 'For between, with x: the point\'s y on the drawing in metres.', examples: [0.15], minimum: -limit('largest'), maximum: limit('largest') },
     wall: { type: 'string', id: true, description: 'For wall: the wall id. For frontage: the wall the shop front stands on; the wall the room opens through most when left out.', examples: ['w-south'] },
     width: { type: 'number', length: true, description: 'For fit: the box\'s width in metres; a table of 1.8 × 0.9 m with 0.75 m round it for chairs is 3.3. For route and use: the width of the body or trolley that must get through, such as 0.7 for a wheelchair; for use, Grid\'s own indicator when left out. For activity: the zone\'s width on each fixture\'s centre line, for every kind per_kind names none for; the fixture\'s own width when left out.', examples: [3.3, 0.7], minimum: 0.05, maximum: 100 },
@@ -1918,7 +1920,8 @@ const measureTool: GridTool = {
     per_kind: PER_KIND_ARG,
     all: { type: 'boolean', description: 'For activity: list every zone, not only those short of their figure, with something in them or overlapping another.', examples: [true] },
     under: { type: 'number', length: true, description: 'For narrow: the person\'s figure in metres, such as 0.8 for a door or 1.5 for a turning circle; width does the same.', examples: [0.8, 1.5], minimum: 0.05, maximum: 100 },
-    start: { type: 'string', enum: ['middle', 'door', 'farthest corner'], description: 'For route: where it starts in its room: the middle of the widest circle (the default), the door it leaves by, or the room\'s corner farthest from that door. A point of your own: x and y instead.', examples: ['door', 'farthest corner'] },
+    start: { type: 'string', enum: ['middle', 'door', 'farthest corner', 'farthest point'], description: 'For route: where it starts in its room: the middle of the widest circle (the default), the door it leaves by, the room\'s corner farthest from that door, or the farthest point: the point of the room\'s outline whose walk by its nearest way (to outside, the nearest way out) is the longest. With farthest point and no room, every room of floor (or of the only floor) is measured, longest first. A point of your own: x and y instead.', examples: ['door', 'farthest corner'] },
+    floor: { ...FLOOR_ARG, description: 'For route with no room: the floor the point x, y is on, or whose rooms the farthest point is sought in. Left out, the floor under the point, or the only floor.' },
     end: { type: 'string', enum: ['middle', 'door'], description: 'For route: where it ends in its last room: the middle, or the doorway into it. Left out, a stair or lift room is ended at its door and any other room at its middle; to outside it always ends at the outside face of the door out.', examples: ['door', 'middle'] },
     // CNT-58: the sun's path and shadows, with a date.
     ...SUN_MEASURE_ARGS,
@@ -1944,7 +1947,7 @@ const measureTool: GridTool = {
       between: ['from', 'to', 'x', 'y'],
       wall: ['wall'],
       fit: ['room', 'width', 'depth', 'diameter', 'name'],
-      route: ['room', 'from', 'to', 'width', 'x', 'y', 'start', 'end'],
+      route: ['room', 'from', 'to', 'width', 'x', 'y', 'start', 'end', 'floor'],
       narrow: ['under', 'width'],
       facing: ['room'],
       sun: ['room', 'date', 'until', 'time', 'hours', 'utc_offset', 'areas'],
@@ -1957,9 +1960,12 @@ const measureTool: GridTool = {
       activity: ['room', 'clearance', 'width', 'per_kind', 'all'],
       work: [],
     }
-    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'bands', 'per_kind', 'all', 'date', 'until', 'time', 'hours', 'utc_offset', 'areas'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
+    const stray = ['room', 'from', 'to', 'x', 'y', 'wall', 'width', 'depth', 'diameter', 'under', 'clearance', 'name', 'start', 'end', 'floor', 'bands', 'per_kind', 'all', 'date', 'until', 'time', 'hours', 'utc_offset', 'areas'].filter((key) => args[key] !== undefined && !allowed[what]!.includes(key))
     if (stray.length > 0) throw new ToolRefusal(`what=${what} takes ${allowed[what]!.length === 0 ? 'no other argument' : allowed[what]!.join(', ')}, not ${stray.join(', ')}.`)
-    if (MEASURES_OF_A_ROOM.has(what) && args['room'] === undefined) throw needsRoom(what)
+    // ARE-81: a route may start from a point, or from a floor's farthest point, with no room named.
+    const roomless = what === 'route' && (args['x'] !== undefined || args['y'] !== undefined || args['start'] === 'farthest point')
+    if (MEASURES_OF_A_ROOM.has(what) && args['room'] === undefined && !roomless) throw needsRoom(what)
+    if (what === 'route' && args['floor'] !== undefined && args['room'] !== undefined) throw new ToolRefusal('what=route takes floor only with no room: the room names its floor.')
     const { survey, file, stated } = load(context, args['plan'])
     const units = displayFor(args['units'], args['decimal'], survey.plan)
     const L = (v: number, own?: boolean): string => (own === true ? ownLengthText(v, units) : lengthText(v, units))
@@ -2198,9 +2204,35 @@ const measureTool: GridTool = {
       }
     }
     if (what === 'route') {
-      const asked = roomOf()
       if (args['to'] === undefined) throw new ToolRefusal('what=route needs to: a room id, or "outside".')
+      if ((args['x'] === undefined) !== (args['y'] === undefined)) throw new ToolRefusal('what=route takes x and y together: the point the route starts from.')
+      if (args['x'] !== undefined && args['start'] !== undefined) throw new ToolRefusal('what=route starts at start or at the point x, y, not both.')
       const askedTo = args['to'] === 'outside' ? 'outside' : roomArg(survey.plan, args['to'], 'to')
+      const onFloor = floorArg(survey.plan, args['floor'])
+      // ARE-81: with no room, the point's room, or every room of the floor measured for its farthest point.
+      let floorFarthest: { floor: string; found: ReturnType<typeof farthestOnFloor> } | null = null
+      let asked: SurveyRoom
+      if (args['room'] !== undefined) asked = roomOf()
+      else if (args['x'] !== undefined) {
+        const point = { x: args['x'] as number, y: args['y'] as number }
+        const at = roomAtPoint(survey, point, onFloor)
+        if ('floors' in at) throw new ToolRefusal(`Rooms on more than one floor are under the point ${L(point.x)}, ${L(point.y)}: name its floor (floor), one of ${at.floors.map((f) => floorNameOf(survey, f)).join(', ')}.`)
+        if ('none' in at) throw new ToolRefusal(`The point ${L(point.x)}, ${L(point.y)} is on no room's floor${onFloor === undefined ? '' : ` on ${floorNameOf(survey, onFloor)}`}: a route starts from a point on a room's floor.`)
+        asked = at.room
+      } else {
+        const floors = planFloors(survey.plan)
+        if (onFloor === undefined && floors.length > 1) throw new ToolRefusal(`start=farthest point with no room measures every room of one floor: name it (floor), one of ${floors.map((f) => floorNameOf(survey, f.id)).join(', ')}.`)
+        const floor = onFloor ?? floors[0]!.id
+        const goalRoom = askedTo === 'outside' ? undefined : survey.byId.get(askedTo)
+        const whole = goalRoom === undefined ? askedTo : (goalRoom.facts.zoneOf ?? askedTo)
+        const found = farthestOnFloor(survey, floor, whole)
+        if (found.rooms.length === 0) {
+          const text = [say('en', 'route.farthest.unreached', { rooms: found.unreached.length === 0 ? floorNameOf(survey, floor) : joined(found.unreached.map((id) => ({ name: roomCalledById(survey, id) })), 'join.and') }), FARTHEST_RULE].join('\n')
+          return { text, data: { what, answer: { found: false, floor, farthest: [], unreached: found.unreached }, rule: FARTHEST_RULE } }
+        }
+        floorFarthest = { floor, found }
+        asked = survey.byId.get(found.rooms[0]!.room)!
+      }
       // CNT-8: a zone is no place of its own: the way starts or ends in its room.
       const start = wholeOf(asked)
       const goal = askedTo === 'outside' ? undefined : survey.byId.get(askedTo)
@@ -2209,11 +2241,12 @@ const measureTool: GridTool = {
       const to = askedTo === 'outside' ? 'outside' : (end?.room.facts.id ?? askedTo)
       const said = [start.said, end === null ? null : end.said].filter((line): line is string => line !== null)
       const zones = { ...(start.said === null ? {} : { fromZone: asked.facts.id }), ...(end === null || end.said === null ? {} : { toZone: askedTo }) }
-      if ((args['x'] === undefined) !== (args['y'] === undefined)) throw new ToolRefusal('what=route takes x and y together: the point the route starts from.')
-      if (args['x'] !== undefined && args['start'] !== undefined) throw new ToolRefusal('what=route starts at start or at the point x, y, not both.')
       const given = args['x'] === undefined ? null : { x: args['x'] as number, y: args['y'] as number }
       if (given !== null && !pointInPolygon(given, room.polygon, room.holes)) throw new ToolRefusal(`The point ${L(given.x)}, ${L(given.y)} is not on the floor of ${q(roomCalled(room.facts))}: a route starts from a point on its first room's floor.`)
-      const route = routeBetween(survey, room.facts.id, to, true, { ...(given !== null ? { start: given } : args['start'] === undefined ? {} : { start: args['start'] as 'middle' | 'door' | 'farthest corner' }), ...(args['end'] === undefined ? {} : { end: args['end'] as 'middle' | 'door' }) })
+      // ARE-81: the farthest point of the room (or the floor's farthest room) by its nearest way.
+      const farthest: Farthest | null = floorFarthest !== null ? floorFarthest.found.rooms[0]! : args['start'] === 'farthest point' && room.facts.id !== to ? farthestPoint(survey, room.facts.id, to) : null
+      const plainStart = args['start'] === undefined || args['start'] === 'farthest point' ? {} : { start: args['start'] as 'middle' | 'door' | 'farthest corner' }
+      const route = farthest !== null && args['end'] === undefined ? farthest.route : routeBetween(survey, room.facts.id, to, true, { ...(farthest !== null ? { start: { ...farthest.point, as: 'farthest point' as const } } : given !== null ? { start: given } : plainStart), ...(args['end'] === undefined ? {} : { end: args['end'] as 'middle' | 'door' }) })
       if (route === null) {
         // ARE-28: from a floor above the ground that nothing joins to the ground floor, the answer says why.
         const noStair = to === 'outside' ? floorsWithNoStair(survey.plan).find((f) => f.floor === room.facts.floor) : undefined
@@ -2236,8 +2269,24 @@ const measureTool: GridTool = {
         const r = survey.byId.get(id)!
         return `${name(id)} ${L(measureRoom(r).widestCircle)}`
       }).join(', ')
+      const at = (f: Farthest): string => `${L(f.point.x)}, ${L(f.point.y)}`
+      const farthestLines = farthest === null
+        ? []
+        : floorFarthest !== null
+          ? [
+              say('en', 'route.farthest.floor', { floor: floorNameOf(survey, floorFarthest.floor), to: name(to), rooms: floorFarthest.found.rooms.map((f) => `${name(f.room)} ${L(f.route.length!)} at ${at(f)}`).join(', ') }),
+              ...(floorFarthest.found.unreached.length === 0 ? [] : [say('en', 'route.farthest.unreached', { rooms: joined(floorFarthest.found.unreached.map((id) => ({ name: roomCalledById(survey, id) })), 'join.and') })]),
+              FARTHEST_RULE,
+            ]
+          : [say('en', 'route.farthest.room', { room: name(room.facts.id), to: name(to), x: L(farthest.point.x), y: L(farthest.point.y), length: L(farthest.route.length!) }), FARTHEST_RULE]
+      const farthestData = farthest === null
+        ? {}
+        : floorFarthest !== null
+          ? { floor: floorFarthest.floor, farthest: floorFarthest.found.rooms.map((f) => ({ room: f.room, point: f.point, length: f.route.length })), ...(floorFarthest.found.unreached.length === 0 ? {} : { unreached: floorFarthest.found.unreached }) }
+          : { farthest: [{ room: farthest.room, point: farthest.point, length: farthest.route.length }] }
       const lines = [
         ...said,
+        ...farthestLines,
         `From ${name(route.from)} to ${name(route.to)}: ${steps}.`,
         // ARE-21: to outside, the nearest way out by walked length, and the ones passed over.
         ...(route.exit === undefined
@@ -2269,7 +2318,7 @@ const measureTool: GridTool = {
         ? { code: 'use/passage-width', figure, width: figure.value, through: null, way: null, shortest: null, narrower: [] }
         : { code: 'use/passage-width', figure, ...wide }
       const bodyLines = wide === null ? [`A body or trolley ${L(figure.value)} wide (${figure.from === 'person' ? 'the width you gave' : 'Grid\'s own indicator'}) is not set against this way: it goes up or down ${route.steps.some((s) => s.type === 'lift') ? 'by a lift, and its width is' : 'stairs, and their widths are'} not measured here.`] : [...wideRouteLines(survey, wide, figure, L), USE_RULE]
-      return { text: [...lines, ...bodyLines].join('\n'), data: { what, answer: { found: true, ...route, ...(notChecked === null ? {} : { notChecked }), ...body, ...zones }, rule: EMPTY_ROOM_RULE } }
+      return { text: [...lines, ...bodyLines].join('\n'), data: { what, answer: { found: true, ...route, ...farthestData, ...(notChecked === null ? {} : { notChecked }), ...body, ...zones }, rule: EMPTY_ROOM_RULE } }
     }
     if (args['under'] === undefined) throw new ToolRefusal('what=narrow needs under: the person\'s figure in metres.')
     const under = args['under'] as number
@@ -2789,6 +2838,7 @@ function marksText(marks: DrawingMarksAsked): string {
   if (marks.elevations === true) said.push('an elevation mark outside each main side of the building, its arrow at the side it shows, named by the way that side faces; kind=facade draws each, with side the side of the drawing it is seen from (north at the top)')
   if (marks.levels === true) said.push('each room\'s floor level under its name, in metres from the ground floor\'s floor level')
   if (marks.schedule != null) said.push('each room\'s and opening\'s mark in the schedules, in a box: a room\'s number over its name, as grid_schedule of=rooms numbers it, and each door\'s, window\'s and doorless opening\'s D1, W1 or O1 beside it, as of=openings, of=doors and of=windows list it')
+  if (marks.access != null) said.push(`what grid_measure what=access measures, as tags: ${marks.access.routes.length} ${marks.access.routes.length === 1 ? 'way' : 'ways'} in and routes marked, dashed with an arrow at the end; each room\'s turning circle, dashed at its size; each door\'s clear width and sill; each step on a way with its height; ${[...marks.access.doors, ...marks.access.turning, ...marks.access.steps].filter((x) => x.short).length} short of the person\'s own figures, in heavy tags that name the figure`)
   return `Marked on the plan: ${said.join('; ')}.`
 }
 
@@ -2988,7 +3038,7 @@ const viewTool: GridTool = {
     state: VIEW_STATE_ARG,
     // VEW-85: the site faint under a floor's plan.
     with_site: { type: 'boolean', description: 'For plan: true to draw the site faint under the floor, framed with it: the plot, its things and their labels, the set-back lines, the street edges and every building\'s footprint, as kind=site draws them. false when left out.', examples: [true] },
-    marks: { type: 'array', description: 'For plan: marks for the plan\'s other drawings: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of cut and the way toward looks), schedule (each room\'s and opening\'s mark in the schedules, tied to its row in grid_schedule). None when left out.', examples: [['levels', 'elevations'], ['section'], ['schedule']], items: { enum: MARK_WORDS }, minItems: 1, maxItems: 4 },
+    marks: { type: 'array', description: 'For plan: marks for the plan\'s other drawings: levels (each room\'s floor level), elevations (where each side of the building is seen from), section (the line of cut and the way toward looks), schedule (each room\'s and opening\'s mark in the schedules, tied to its row in grid_schedule), access, for what grid_measure what=access measures, drawn (each way in and route marked, each room\'s turning circle, each door\'s clear width and sill, each step, a number short of the person\'s own figure saying so). None when left out.', examples: [['levels', 'elevations'], ['section'], ['schedule'], ['access']], items: { enum: MARK_WORDS }, minItems: 1, maxItems: 5 },
   },
   outputSchema: objectSchema({ kind: STRING, floor: { type: ['string', 'null'] }, floors: listSchema(STRING), camera: { ...CAMERA_SCHEMA, type: ['object', 'null'] }, view: NULLABLE_STRING, pxPerMetre: NULLABLE_NUMBER, sills: { type: 'array' }, ids: listSchema(STRING), boxes: { type: 'array' }, painted: { type: 'array' }, facade: { type: 'object' }, section: { type: 'object' }, site: { type: 'object' }, written: NULLABLE_STRING, record: NULLABLE_STRING, worldFile: NULLABLE_STRING, pixelToMetres: { ...PIXEL_TRANSFORM, type: ['object', 'null'] }, panels: listSchema(objectSchema({ floor: NULLABLE_STRING, pixelToMetres: PIXEL_TRANSFORM })) }, ['kind', 'floor', 'camera', 'view', 'pxPerMetre', 'sills', 'ids', 'boxes', 'pixelToMetres']),
   async run(args, context) {
@@ -3091,7 +3141,9 @@ async function drawView(args: Record<string, unknown>, context: ToolContext, siz
       ? undefined
       : marksAsked(markWords, args['cut'] === undefined ? null : asToolArg(() => sectionLineOf((args['cut'] as CutArg).from, (args['cut'] as CutArg).to, towardOf(args['toward'] as string | undefined, 'toward'), 'cut')))
     // ARE-15: the schedules' marks, by id, from the same rows as grid_schedule.
-    const marksOnPlan = marksAsk !== undefined && markWords?.has('schedule') === true ? { ...marksAsk, schedule: scheduleMarkLabels(survey) } : marksAsk
+    const scheduled = marksAsk !== undefined && markWords?.has('schedule') === true ? { ...marksAsk, schedule: scheduleMarkLabels(survey) } : marksAsk
+    // SHT-27: the access measurements, as what=access gives them against the brief beside the plan.
+    const marksOnPlan = scheduled !== undefined && markWords?.has('access') === true ? withAccessMarks(scheduled, project, asRead.file, survey.plan, language) : scheduled
     if (kind === 'plan') {
       const asked = (args['look'] as LookName | undefined) ?? 'working'
       const look = asked === pictureLook(asked) ? asked : `${pictureLook(asked)} (asked as ${asked})`
