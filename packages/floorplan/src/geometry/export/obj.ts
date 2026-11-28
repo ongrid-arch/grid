@@ -21,6 +21,7 @@
 
 import type { Scene3D } from '../scene3d'
 import { MESH_MATERIALS, OPENING_PART_KINDS, columnMesh, floorMesh, itemMesh, makeNamer, materialOf, openingPartMesh, shellMesh, stairMesh, wallMesh } from './mesh'
+import { NO_SURFACES, floorMaterial, openingPartMaterial, wallMaterial, type PlanMaterial, type StoreySurfaces } from './surfaces'
 import type { Mesh } from './mesh'
 import { GENERAL_GUIDANCE_LABEL } from '../rules/types'
 import { approximationLines, leftOutLines, leftOutSummary, type Approximations, type LeftOutPart } from './leftOut'
@@ -31,11 +32,12 @@ export const OBJ_MATERIALS_FILE = 'grid.mtl'
 
 /**
  * VEW-73: the text of `grid.mtl`: a material for each kind (`MESH_MATERIALS`), by its name, in the
- * same colours as the GLB's, glass seen through. The same text every time.
+ * same colours as the GLB's, glass seen through. CMD-55: then each of the plan's own materials
+ * (`planMaterials`), in their order. The same plan gives the same text every time.
  */
-export function toMtl(): string {
+export function toMtl(own: readonly PlanMaterial[] = []): string {
   const lines = [`# ${GENERAL_GUIDANCE_LABEL}`]
-  for (const material of MESH_MATERIALS) {
+  for (const material of [...MESH_MATERIALS, ...own]) {
     const [r, g, b] = material.colour.map((c) => c.toFixed(3))
     lines.push('', `newmtl ${material.name}`, 'Ka 0.000 0.000 0.000', `Kd ${r} ${g} ${b}`, 'Ks 0.000 0.000 0.000', `d ${material.opacity.toFixed(3)}`, 'illum 1')
   }
@@ -64,11 +66,11 @@ function objComment(text: string): string {
 }
 
 /** The objects of one scene, appended to `lines`: its points raised by `lift`, its faces after `offset` points. */
-function writeScene(scene: Scene3D, lines: string[], nameOf: (prefix: string, id: string) => string, offset: number, lift: number): number {
-  const write = (prefix: string, id: string, mesh: Mesh | null): void => {
+function writeScene(scene: Scene3D, lines: string[], nameOf: (prefix: string, id: string) => string, offset: number, lift: number, surfaces: StoreySurfaces = NO_SURFACES): number {
+  const write = (prefix: string, id: string, mesh: Mesh | null, material: string = materialOf(prefix)): void => {
     if (!mesh) return
 
-    lines.push(`o ${nameOf(prefix, id)}`, `usemtl ${materialOf(prefix)}`)
+    lines.push(`o ${nameOf(prefix, id)}`, `usemtl ${material}`)
     for (const p of mesh.points) lines.push(`v ${num(p.x)} ${num(p.y)} ${num(p.z + lift)}`)
     // OBJ indices are 1-based and global across the whole file.
     for (const [a, b, c] of mesh.faces) {
@@ -77,19 +79,22 @@ function writeScene(scene: Scene3D, lines: string[], nameOf: (prefix: string, id
     offset += mesh.points.length
   }
 
-  for (const wall of scene.walls) write('wall', wall.id, wallMesh(wall))
+  // CMD-55: a wall in its type's material, a glazed one as glass, a party wall as cut.
+  for (const wall of scene.walls) write('wall', wall.id, wallMesh(wall), wallMaterial(wall, surfaces))
   for (const slab of scene.slabs) {
     // CNT-7 (C26): an outdoor space's floor says so, its kind and whether a roof covers it (lab EL-18).
     if (slab.outdoor !== undefined && floorMesh(slab) !== null) lines.push(`# grid-outdoor ${slab.outdoor.kind} roofed=${slab.outdoor.roofed}`)
-    write('floor', slab.roomId, floorMesh(slab))
+    write('floor', slab.roomId, floorMesh(slab), floorMaterial(slab.roomId, surfaces))
   }
+  // CMD-55: each room's finished wall faces and its ceiling.
+  for (const part of [...surfaces.linings, ...surfaces.ceilings]) write(part.kind, part.room, part.mesh, part.material)
   for (const stair of scene.stairs) write('stair', stair.id, stairMesh(stair))
   // CNT-16: each column, once, whole.
   for (const column of scene.columns ?? []) write('column', column.id, columnMesh(column))
   // CNT-42: each fixture and piece of furniture, as its kind's blocks.
   for (const item of scene.items ?? []) write('item', item.id, itemMesh(item))
   // CNT-14: each door's and window's frame, leaves and glass.
-  for (const opening of scene.openings) for (const part of OPENING_PART_KINDS) write(part, opening.id, openingPartMesh(opening, part))
+  for (const opening of scene.openings) for (const part of OPENING_PART_KINDS) write(part, opening.id, openingPartMesh(opening, part), openingPartMaterial(opening, part, surfaces))
   // LVL-4: the slab the floor stands on, its roof and its parapet.
   const shell = scene.shell
   if (shell !== null) {
@@ -131,6 +136,8 @@ export interface StoreyScene {
   readonly elevation: number
   /** The floor's scene, built at its own floor level (z = 0). */
   readonly scene: Scene3D
+  /** CMD-55: what its parts are drawn in past their kinds, and its rooms' linings and ceilings; none when left out. */
+  readonly surfaces?: StoreySurfaces
 }
 
 /**
@@ -148,7 +155,7 @@ export function toBuildingObj(storeys: readonly StoreyScene[], options: ObjOptio
   let offset = 0
   for (const storey of storeys) {
     lines.push(objComment(`grid-floor ${JSON.stringify(storey.id)} elevation=${num(storey.elevation)}`))
-    offset = writeScene(storey.scene, lines, nameOf, offset, storey.elevation)
+    offset = writeScene(storey.scene, lines, nameOf, offset, storey.elevation, storey.surfaces)
   }
   return `${lines.join('\n')}\n`
 }

@@ -42,6 +42,8 @@ export const MESH_MATERIALS = [
   { name: 'stair', colour: [0.7, 0.7, 0.68], opacity: 1 },
   { name: 'column', colour: [0.75, 0.75, 0.73], opacity: 1 },
   { name: 'item', colour: [0.9, 0.9, 0.9], opacity: 1 },
+  // CMD-55: a room's ceiling that names no finish.
+  { name: 'ceiling', colour: [0.94, 0.93, 0.91], opacity: 1 },
   // CNT-60: a party wall, drawn as a cut; the site's ground, its fences, paths and paving, its
   // trees, its pools' water and the neighbours round it.
   { name: 'cut', colour: [0.25, 0.25, 0.27], opacity: 1 },

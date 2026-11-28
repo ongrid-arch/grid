@@ -38,6 +38,8 @@ would give one name.
 |---|---|
 | `wall_<wall id>` | A wall, a closed solid, its doors and windows cut out; a curved wall is its straight pieces |
 | `floor_<room id>` | A room's floor, a surface facing up |
+| `lining_<room id>` | A room's finished wall faces in one finish, a surface a hair into the room (CMD-55); `_2`, `_3` for its other finishes |
+| `ceiling_<room id>` | A room's ceiling, a surface facing down a hair under its height, every lowered zone with it (CMD-55) |
 | `stair_<stair id>` | A stair's treads and landings |
 | `column_<column id>` | A column, once, whole |
 | `item_<item id>` | A fixture or a piece of furniture, as plain blocks |
@@ -51,7 +53,7 @@ would give one name.
 
 In a GLB of the whole building the root node is `building`, with a child node per floor named by
 the floor's id (`extras.gridFloor`, `extras.gridElevation`), and each floor's parts under it,
-grouped by kind (VEW-82): `walls_<floor>`, `rooms_<floor>`, `stairs_<floor>`, `columns_<floor>`,
+grouped by kind (VEW-82): `walls_<floor>`, `rooms_<floor>`, `linings_<floor>`, `ceilings_<floor>`, `stairs_<floor>`, `columns_<floor>`,
 `items_<floor>`, `doors_<floor>`, `windows_<floor>` and `shell_<floor>` (slab, roof, parapet), each
 with `extras.gridFloor` and `extras.gridKind`, and only the kinds the floor has. A GLB of one floor
 has that floor's node as its root. CNT-60: a GLB of the whole building holds
@@ -74,7 +76,7 @@ A GLB carries what Grid knows of each part in its node's `extras` (VEW-82), whic
 | Key | What it is |
 |---|---|
 | `gridId` | The part's id in the plan; a door's or window's frame, leaves and glass carry the opening's, a slab, roof or parapet its floor's |
-| `gridKind` | `wall`, `room` (a room's floor), `door`, `window`, `stair`, `column`, `item`, `slab`, `roof` or `parapet` |
+| `gridKind` | `wall`, `room` (a room's floor), `lining`, `ceiling`, `door`, `window`, `stair`, `column`, `item`, `slab`, `roof` or `parapet` |
 | `gridFloor` | The floor it stands on |
 | `gridRooms` | The rooms it stands in (a room, an item, a column) or between: a wall's and an opening's as `{ "left": [...], "right": [...] }`, by the wall's faces, `left` the face 90 degrees counter-clockwise from its start to its end |
 | `gridPart` | A door's or window's `frame`, `leaf` or `glass` |
@@ -138,6 +140,7 @@ reaches every part of that kind:
 | `stair` | Stairs |
 | `column` | Columns |
 | `item` | Fixtures and furniture |
+| `ceiling` | Room ceilings that name no finish |
 | `cut` | Party walls (CNT-60: a separating wall, or one with a neighbour beyond it), drawn as cut |
 | `ground` | The ground |
 | `site` | Fences, gates, paths and paving |
@@ -145,11 +148,42 @@ reaches every part of that kind:
 | `water` | Pools' water, seen through |
 | `context` | Neighbouring buildings and other shapes of context |
 
-The colours are plain and only tell the kinds apart; no material is metallic. A GLB lists only
-the materials it uses, always in this order. An OBJ names them with `usemtl <material>` after each
-`o` line and reads them from `grid.mtl` (`mtllib grid.mtl` in its header), which the export writes
-beside it, in `exports/` or beside the `--out` file. Every OBJ Grid writes names the same
-`grid.mtl`, so one copy serves them all.
+The colours are plain and only tell the kinds apart; no material is metallic.
+
+### The plan's own materials (CMD-55)
+
+Past the kinds, the file has one material for each of the plan's wall, door and window types and
+each finish its rooms name, so a renderer swaps the oak floor once and every oak floor changes:
+
+| Material | Parts |
+|---|---|
+| `walltype_<type id>` | The walls of that type; glass (blended, double-sided) for a glazed type |
+| `doortype_<type id>` | The leaves of the doors of that type; glass for a glazed type |
+| `windowtype_<type id>` | The frames and sashes of the windows of that type (their glass stays `glass`) |
+| `finish_<finish>` | Room floors in that floor finish, the linings of wall faces in that finish, ceilings in that ceiling finish |
+
+The name is written as a node's is: anything but letters, digits, `_`, `.` and `-` turned into
+`_` (`finish_Oak_boards`). Its colour is read from the words of its name, as the 3D view tints a
+finish: a colour word first ("Grey porcelain tile"), then a material word ("Oak boards"); a name
+with neither takes its kind's colour. In a GLB its `extras` say what it stands for:
+`gridMaterial` (`wallType`, `doorType`, `windowType` or `finish`), and `gridType`, `gridTypeName`
+and the material the type states (`gridStated`), or `gridFinish`. A part with no type or finish
+of its own keeps its kind's material; a glazed wall or door is `glass` when the file is made
+from a scene with no plan behind it.
+
+Every room has a ceiling (`ceiling_<room id>`), in its ceiling finish or `ceiling`, and every wall
+face a room finishes (the room's walls, a wall's own face, a band) is lined in that finish
+(`lining_<room id>`), open over its doors and windows, as the 3D view draws them: a lining stands
+`liningOffset` into the room (a band twice as far) and a ceiling as far under its height
+([the tolerances](tolerances.md)). Both face into the room, so seen from outside they are culled
+in a viewer that hides back faces. A curved wall's faces and a glass wall are not lined.
+
+A GLB lists only the materials it uses, the kinds in the order above, then the plan's own in
+theirs: types in the plan's order, walls, doors, windows, then finishes by name. An OBJ names them
+with `usemtl <material>` after each `o` line and reads them from `grid.mtl` (`mtllib grid.mtl` in
+its header), which the export writes beside it, in `exports/` or beside the `--out` file:
+every kind, then every one of the plan's own, so each floor of one plan writes the same
+`grid.mtl`. Two plans exported into one folder share that file, and the last one written wins.
 
 ## Normals and UVs
 
