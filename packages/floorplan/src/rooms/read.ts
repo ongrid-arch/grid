@@ -1138,7 +1138,8 @@ export function readRoomsText(file: FloorPlan, options: ReadOptions = {}): Rooms
   let text = textOf(plan, rule, options.name, drafts, raw, why)
   // WRT-87: what the text does not hold, named, so a text written to another plan file loses nothing unseen.
   const compiled = compiledAgain(text, options.base)
-  const notHeld = heldBy(plan, compiled === null ? null : asFile(compiled, fit?.again))?.notHeld ?? []
+  const held = heldBy(plan, compiled === null ? null : asFile(compiled, fit?.again))
+  const notHeld = held === null ? [] : [...held.notHeld, ...held.missing.keys()]
   text = withNotHeld(text, notHeld)
   if (leftOut.length > 0) text = `${leftOut.map((line) => `# ${line}`).join('\n')}\n${text}`
   if (changes.length > 0) {
@@ -1176,10 +1177,12 @@ function asFile(compiled: RoomsResult, again?: (written: FloorPlan) => FloorPlan
 const record = (value: unknown): Record<string, unknown> => (typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {})
 const idOf = (part: unknown): string => String(record(part)['id'])
 const withoutFacts = (parts: readonly unknown[]): unknown[] => parts.map((part) => ({ ...record(part), properties: undefined, identity: undefined }))
-const factsOf = (parts: readonly unknown[]): string => canonical(parts.map((part) => [idOf(part), record(part)['properties'], record(part)['identity']]))
+const factsOf = (parts: readonly unknown[]): string => canonical(Object.fromEntries(parts.map((part) => [idOf(part), [record(part)['properties'], record(part)['identity']]])))
 const displayOf = (display: FloorPlan['display']): string => canonical({ ...(display ?? {}), language: undefined, words: undefined })
 
 interface Held {
+  /** Whether the text writes the plan as it holds it, the parts it has no line for and the rest it does not hold aside. */
+  readonly holds: boolean
   /** Each list's parts the text has no line for, by id. */
   readonly missing: ReadonlyMap<AddedList, ReadonlySet<string>>
   /** What the plan holds that the text does not and that `grid write` keeps over the same file, one name each. */
@@ -1187,9 +1190,9 @@ interface Held {
 }
 
 /**
- * How far the text, written again (`written`), holds the plan: null when it writes anything the
- * plan does not hold as it is; else the parts of the added lists it has no line for, and what
- * else it does not hold.
+ * How far the text, written again (`written`), holds the plan: whether it writes anything the
+ * plan does not hold as it is, the parts of the added lists it has no line for, and what else it
+ * does not hold. Null when the text is refused.
  */
 function heldBy(plan: FloorPlan, written: FloorPlan | null): Held | null {
   if (written === null) return null
@@ -1197,7 +1200,7 @@ function heldBy(plan: FloorPlan, written: FloorPlan | null): Held | null {
   const b = written as unknown as Record<string, unknown>
   const missing = new Map<AddedList, Set<string>>()
   const notHeld: string[] = []
-  if (displayOf(plan.display) !== displayOf(written.display)) return null
+  let holds = displayOf(plan.display) === displayOf(written.display)
   for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
     if (NOT_COMPARED.has(key)) continue
     const x = a[key]
@@ -1206,8 +1209,8 @@ function heldBy(plan: FloorPlan, written: FloorPlan | null): Held | null {
     const listed = Array.isArray(x) ? x : []
     if (y === undefined) {
       // A floor list the text does not write would be taken off; any other part stays as the file has it.
-      if (key === 'floors') return null
-      if (isAdded(key)) {
+      if (key === 'floors') holds = false
+      else if (isAdded(key)) {
         if (listed.length > 0) missing.set(key, new Set(listed.map(idOf)))
       } else if (!Array.isArray(x) || x.length > 0) notHeld.push(key)
       continue
@@ -1216,20 +1219,20 @@ function heldBy(plan: FloorPlan, written: FloorPlan | null): Held | null {
       // A part the text writes is the plan's as it is; one only the plan has gets its line.
       const ours = new Map(x.map((part) => [idOf(part), canonical(part)]))
       const theirs = new Map(y.map((part) => [idOf(part), canonical(part)]))
-      for (const [id, part] of theirs) if (ours.get(id) !== part) return null
+      for (const [id, part] of theirs) if (ours.get(id) !== part) holds = false
       const extra = [...ours.keys()].filter((id) => !theirs.has(id))
       if (extra.length > 0) missing.set(key, new Set(extra))
       continue
     }
     if (CARRIED_FACTS.has(key) && Array.isArray(x) && Array.isArray(y)) {
-      if (canonical(withoutFacts(x)) !== canonical(withoutFacts(y))) return null
+      if (canonical(withoutFacts(x)) !== canonical(withoutFacts(y))) holds = false
       if (factsOf(x) !== factsOf(y)) notHeld.push(`${key} facts`)
       continue
     }
-    if (canonical(x) !== canonical(y)) return null
+    if (canonical(x) !== canonical(y)) holds = false
   }
   if (plan.display?.words !== undefined) notHeld.push('display words')
-  return { missing, notHeld }
+  return { holds, missing, notHeld }
 }
 
 /** The comment line naming what the text does not hold, above the text; the text as it is when it holds everything. */
@@ -1335,14 +1338,14 @@ function keptReading(kept: string | undefined, plan: FloorPlan, basedOn: string,
   if (compiled === null) return null
   const written = asFile(compiled)
   const held = heldBy(plan, written)
-  if (held === null) return null
+  if (held === null || !held.holds) return null
   if (held.missing.size === 0) return { text, notHeld: held.notHeld }
   const last = written!.floors?.at(-1)?.id ?? 'ground'
   const added = `${text}\n${addedLines(plan, held.missing, last).join('\n')}\n`
   const again = compiledAgain(added)
   if (again === null) return null
   const after = heldBy(plan, asFile(again))
-  return after === null || after.missing.size > 0 ? null : { text: added, notHeld: after.notHeld }
+  return after === null || !after.holds || after.missing.size > 0 ? null : { text: added, notHeld: after.notHeld }
 }
 
 /**
