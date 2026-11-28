@@ -90,7 +90,8 @@ describe('items follow their walls', () => {
     await ok('grid_write_rooms', { plan: 'lines.json', rooms: [...FLAT, 'item robe wardrobe in bed against east, full width'].join('\n') })
     expect(itemIn('lines.json', 'robe')).toMatchObject({ library: 'wardrobe', turn: 90, size: [4, 0.6] })
     const back = await ok('grid_describe', { plan: 'lines.json', as: 'rooms' })
-    expect(back.text).toContain('item robe wardrobe in bed against east, full width 0.6 deep')
+    // WRT-87: the text it was written from, as written.
+    expect(back.text).toContain('item robe wardrobe in bed against east, full width\n')
   })
 })
 

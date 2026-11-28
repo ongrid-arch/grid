@@ -135,6 +135,14 @@ describe('the text a plan was written from (WRT-87)', () => {
     expect(back.text).toMatch(/^display language es$/m)
   })
 
+  it('works the plan out again when a tool set the site since, so the site lines are written', () => {
+    const text = readFileSync(resolve(FIXTURES, 'l-house.rooms'), 'utf8')
+    const plan = written(text, (file) => ({ ...file, site: { name: 'Harbour House' } }))
+    const back = read(plan)
+    expect(back.kept).toBe(false)
+    expect(back.text).toContain('site name "Harbour House"')
+  })
+
   it('names the facts on walls the text does not hold, kept only over the same file', () => {
     const text = readFileSync(resolve(FIXTURES, 'l-house.rooms'), 'utf8')
     const plan = written(text, (file) => {

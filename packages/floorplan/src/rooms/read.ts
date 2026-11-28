@@ -1165,6 +1165,8 @@ const isAdded = (key: string): key is AddedList => (ADDED_LISTS as readonly stri
  */
 const NOT_COMPARED = new Set(['version', 'units', 'written', 'name', 'display', 'patterns', 'base'])
 const CARRIED_FACTS = new Set(['walls', 'openings', 'floors'])
+/** The keys a text must write as the plan holds them, as the worked-out reading writes them. */
+const REWRITTEN = new Set(['floors', 'site', 'north', 'building'])
 
 /** The text written again as `grid write` writes it into a plan file, read as the file is read; null when it is refused. */
 function asFile(compiled: RoomsResult, again?: (written: FloorPlan) => FloorPlan): FloorPlan | null {
@@ -1208,8 +1210,9 @@ function heldBy(plan: FloorPlan, written: FloorPlan | null): Held | null {
     if (x === undefined && y === undefined) continue
     const listed = Array.isArray(x) ? x : []
     if (y === undefined) {
-      // A floor list the text does not write would be taken off; any other part stays as the file has it.
-      if (key === 'floors') holds = false
+      // A floor list the text does not write would be taken off, and the worked-out reading writes
+      // the site, north and the kind of building; any other part stays as the file has it.
+      if (REWRITTEN.has(key)) holds = false
       else if (isAdded(key)) {
         if (listed.length > 0) missing.set(key, new Set(listed.map(idOf)))
       } else if (!Array.isArray(x) || x.length > 0) notHeld.push(key)

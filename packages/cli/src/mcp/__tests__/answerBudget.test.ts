@@ -4,8 +4,8 @@
  * is within it, says on its first line after the label what it left out and how to get the rest,
  * and still matches its output schema. A small plan's answer is as it was, to the byte.
  */
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { readFileSync, writeFileSync } from 'fs'
+import { join, resolve } from 'path'
 import Ajv from 'ajv'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ANSWER_BUDGET_BYTES } from '../budget'
@@ -38,6 +38,10 @@ let wrote: Reply
 beforeAll(async () => {
   b = bench({ 'flat.json': JSON.parse(readFileSync(resolve(ROOMS, 'flat.plan.json'), 'utf8')) })
   wrote = await b.call('grid_write_rooms', { plan: 'tower.json', rooms: tower() })
+  // WRT-87: without the text it was written from, so the read-back is the plan worked out, every room and wall of it.
+  const file = JSON.parse(readFileSync(join(b.folder, 'tower.json'), 'utf8')) as { written?: { text?: string } }
+  if (file.written !== undefined) delete file.written.text
+  writeFileSync(join(b.folder, 'tower.json'), `${JSON.stringify(file, null, 2)}\n`)
 }, 120_000)
 afterAll(() => b.close())
 
