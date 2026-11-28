@@ -236,9 +236,15 @@ describe('lab MS-12: the GLB of a plan at survey coordinates', () => {
       .filter((line) => line.startsWith('v '))
       .map((line) => line.split(' ').slice(1).map(Number))
       .map(([x, y, z]) => ({ x: x!, y: y!, z: z! }))
-  /** The GLB's points, back in plan metres: glTF x is plan x, glTF -z plan y. */
+  /**
+   * The GLB's points, back in plan metres: glTF x is plan x, glTF -z plan y. CMD-55: the rooms'
+   * linings and ceilings stand a hair off the model's faces on purpose (`liningOffset`), so only
+   * the model's own parts are held to its corners.
+   */
   const pointsOf = (bytes: Uint8Array): { x: number; y: number; z: number }[] =>
-    readMeshes(parseGlb(bytes)).flatMap((mesh) => mesh.points.map((p) => ({ x: p.x, y: 0 - p.z, z: p.y })))
+    readMeshes(parseGlb(bytes))
+      .filter((mesh) => !mesh.name.startsWith('lining_') && !mesh.name.startsWith('ceiling_'))
+      .flatMap((mesh) => mesh.points.map((p) => ({ x: p.x, y: 0 - p.z, z: p.y })))
   /** The farthest any GLB point lies from the nearest corner of the exact model. */
   const worst = (bytes: Uint8Array, plan: FloorPlan): number => {
     const model = exact(plan)

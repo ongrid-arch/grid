@@ -25,6 +25,8 @@ import { buildFloorPlan, buildScene, sceneGround, siteScene, dxfFactsOf, dxfShee
 import { toMtl } from '../geometry/export/obj'
 import type { BuildingGlbOptions, GlbNorth, GlbStorey, GlbSun } from '../geometry/export/gltf'
 import { glbFacts } from '../geometry/export/glbFacts'
+import { planMaterials, storeySurfaces, type PlanMaterial } from '../geometry/export/surfaces'
+import { DEFAULT_STOREY_HEIGHT } from '../geometry/elevations'
 import { viewCameras, type GlbDoorMode, type GlbWallMode } from '../geometry/export/glbNodes'
 import type { Vec2 } from '../geometry/vec2'
 import { planOrientation } from '../geometry/orientation'
@@ -200,8 +202,11 @@ function floorsUp(plan: FloorPlan): string[] {
  * from the moved plan, so every slice still reads its shell and stairs from the whole; the file's
  * root node moves it back (`nearOrigin`, `GlbOptions.origin`). The OBJ writes its numbers as
  * text and keeps them as they are.
+ *
+ * CMD-55: each floor carries its surfaces (`storeySurfaces`): its parts' type and finish materials
+ * from `materials`, and its rooms' linings and ceilings at its clear height.
  */
-function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, asked: Pick<PlanExportOptions, 'roofs' | 'arcSegments'> = {}): { storeys: GlbStorey[]; origin: readonly [number, number] } {
+function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, materials: readonly PlanMaterial[], asked: Pick<PlanExportOptions, 'roofs' | 'arcSegments'> = {}): { storeys: GlbStorey[]; origin: readonly [number, number] } {
   const moved = near ? nearOrigin(plan) : { plan, at: [0, 0] as const }
   const levels = floorElevations(moved.plan).floors
   const sceneOf = (slice: FloorPlan): Scene3D => {
@@ -212,7 +217,10 @@ function storeysOf(plan: FloorPlan, floorIds: readonly string[], near: boolean, 
   // VEW-82: the GLB's nodes carry each floor's facts; the OBJ reads only the scene.
   const storeys = floorIds.map((id) => {
     const slice = planForFloor(moved.plan, id)
-    return { id, elevation: levels.get(id)?.floorLevel ?? 0, scene: sceneOf(slice), ...(near ? { facts: glbFacts(slice) } : {}) }
+    const level = levels.get(id)
+    const scene = sceneOf(slice)
+    const surfaces = storeySurfaces(slice, scene, level?.clearHeight ?? DEFAULT_STOREY_HEIGHT, materials)
+    return { id, elevation: level?.floorLevel ?? 0, scene, surfaces, ...(near ? { facts: glbFacts(slice) } : {}) }
   })
   return { storeys, origin: moved.at }
 }
@@ -277,6 +285,8 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const contents = exportContents(ordered, held, options.faults)
   const approximations = approximationsOf(ordered, format, contents, options.arcSegments)
   const note = { leftOut: contents.leftOut, approximations }
+  // CMD-55: the plan's own materials, the same for every floor, the OBJ's `grid.mtl` among them.
+  const materials = format === 'dxf' ? [] : planMaterials(ordered)
   let data: string | Uint8Array
   let floors: HeldFloor[]
   let sheets: DxfSheet[] = []
@@ -305,9 +315,9 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
     sheets = dxfSheets(dxfFloors, scale)
     floors = held.map((id) => ({ id, elevation: levels.get(id)?.floorLevel ?? 0 }))
   } else {
-    const { storeys, origin } = storeysOf(ordered, held, format === 'glb', options)
+    const { storeys, origin } = storeysOf(ordered, held, format === 'glb', materials, options)
     const site = format === 'glb' && whole ? glbSite(ordered, origin) : undefined
-    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, origin, root: whole ? 'building' : 'floor', ...withNorthAndSun(plan, options), ...glbAsk(plan, options), ...(site === undefined ? {} : { site }) })
+    data = format === 'obj' ? toBuildingObj(storeys, note) : toBuildingGlb(storeys, { ...note, materials, origin, root: whole ? 'building' : 'floor', ...withNorthAndSun(plan, options), ...glbAsk(plan, options), ...(site === undefined ? {} : { site }) })
     floors = storeys.map(({ id, elevation }) => ({ id, elevation }))
   }
   const heldIds = new Set(held)
@@ -315,5 +325,5 @@ export function exportPlan(stated: FloorPlan, format: ExportFormat, options: Pla
   const planFloorList = planFloors(plan)
   const floor = planFloorList.find((f) => f.id === floorId)
   const floorName = !whole && planFloorList.length > 1 ? (floor?.name || floorId) : null
-  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut, sheets, materials: format === 'obj' ? toMtl() : null }
+  return { data, fileName: exportFileName(options.projectName, format, floorName), filter, leftOut: contents.leftOut, empty: contents.empty, approximated: approximations.parts, floors, floorsLeftOut, sheets, materials: format === 'obj' ? toMtl(materials) : null }
 }
